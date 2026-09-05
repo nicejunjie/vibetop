@@ -27926,6 +27926,54 @@
     // cannot draw forty plates, so the systematic equivalent is to derive each
     // plate's wash from the mean colour of ITS OWN art — which is not an
     // arbitrary code, it is "what colour is this thing", pushed until it reads.
+    // ONE BACKGROUND PER ITEM, not one wash for all eighty.
+    //
+    // The previous rule derived the plate's wash from the mean colour of its
+    // OWN art, which is a reasonable idea that MEASURABLY did not work: nearly
+    // every sprite is grey-blue steel, so the rule produced nearly the same
+    // tint every time. Cross-plate luminance SD came out at 10.2/8.2 against
+    // real RA2's 22.6 — i.e. our eighty plates are all the same brightness,
+    // and on a 60x48 icon the background is most of what a glance gets.
+    //
+    // RA2 gives every plate its own ENVIRONMENT, and the variety is widest
+    // exactly where we are weakest: a green valley behind the G.I., a sand
+    // dune behind the Guardian G.I., white cloud behind the Rocketeer, an
+    // office interior behind the Spy, meadow behind Tanya, a dark void with a
+    // cyan beam behind the Chrono Legionnaire. Infantry are not all dark —
+    // they are the most varied set on the board.
+    //
+    // So: a small vocabulary of category SCENES, and within a category the
+    // hue and the plate VALUE vary per item off a stable hash of its key.
+    // Deriving from the key rather than from the art is the point — the art is
+    // what refused to vary. The house colour stays in the frame and the ground
+    // band, where RA2 keeps it, so this does not fight the owner signal.
+    var scat = 'veh';
+    try {
+      var _sp = isBld ? bspecFor(key, fac) : UNITS[key];
+      scat = isBld ? 'bld' : (_sp.cls === 'i' ? 'inf' : _sp.nav ? 'sea' : _sp.air ? 'air' : 'veh');
+    } catch (e) {}
+    // FNV-1a over the key: stable across runs and across machines, so a plate
+    // does not change colour between two people's screens.
+    var _h = 2166136261;
+    for (var hi = 0; hi < key.length; hi++) { _h ^= key.charCodeAt(hi); _h = Math.imul(_h, 16777619); }
+    var hv = ((_h >>> 0) % 10007) / 10007;                 // drives VALUE
+    var hh = (((_h >>> 0) * 2654435761 % 10007) / 10007);  // drives HUE
+    // hue band, lightness band, per category.
+    var BAND = {
+      inf: { h0:   0, h1: 360, l0: 20, l1: 74, sat: 26 },  // widest: RA2's are
+      air: { h0: 188, h1: 222, l0: 52, l1: 78, sat: 30 },  // sky
+      sea: { h0: 195, h1: 232, l0: 26, l1: 50, sat: 38 },  // water
+      // Ground scenes span desert through meadow rather than sitting in one
+      // hue family: a tab of ten structures was ten greens, which separates
+      // them by value alone. RA2's own structure plates run from blue-grey
+      // industrial to desert to sea.
+      veh: { h0:  10, h1:  96, l0: 26, l1: 54, sat: 26 },  // desert -> meadow
+      bld: { h0:  32, h1: 178, l0: 24, l1: 54, sat: 22 }   // sand -> valley -> teal
+    }[scat];
+    var hue = BAND.h0 + hh * (BAND.h1 - BAND.h0), lit = BAND.l0 + hv * (BAND.l1 - BAND.l0);
+    // The subject still has to silhouette against its own plate: sample the
+    // art's mean luminance and push the plate away if they collide. This is
+    // the one thing the old subject-derived rule got right, kept.
     var sc0 = document.createElement('canvas'); sc0.width = 16; sc0.height = 16;
     var sg0 = sc0.getContext('2d');
     sg0.drawImage(src, sc.x * kb, sc.y * kb, sw * kb, sh * kb, 0, 0, 16, 16);
@@ -27934,19 +27982,45 @@
       if (sd0[si + 3] < 40) continue;
       sr += sd0[si]; sgc += sd0[si + 1]; sb += sd0[si + 2]; sn++;
     }
-    var sub = sn ? [sr / sn, sgc / sn, sb / sn] : [110, 118, 130];
-    // Push it away from grey and away from the subject's own value, so the
-    // building silhouettes against its wash instead of sinking into it.
-    var smx = Math.max(sub[0], sub[1], sub[2]) || 1;
-    var tint = [0, 1, 2].map(function (i2) {
-      var t = 96 + (sub[i2] / smx) * 150 - 62;                 // stretch the hue
-      return Math.max(28, Math.min(228, Math.round(t + acc[i2] * 0.16)));
-    });
-    var sky = g.createLinearGradient(0, 0, 0, H);
-    sky.addColorStop(0, 'rgb(' + tint[0] + ',' + tint[1] + ',' + tint[2] + ')');
-    sky.addColorStop(0.66, 'rgb(' + Math.round(tint[0] * 0.46) + ',' + Math.round(tint[1] * 0.46) + ',' + Math.round(tint[2] * 0.46) + ')');
-    sky.addColorStop(1, '#10151c');
-    g.fillStyle = sky; g.fillRect(0, 0, W, H);
+    var subL = sn ? (0.299 * sr + 0.587 * sgc + 0.114 * sb) / sn / 2.55 : 45;
+    if (Math.abs(lit - subL) < 20) lit = subL > 50 ? Math.max(12, subL - 26) : Math.min(84, subL + 26);
+    var hsl = function (l, dh) { return 'hsl(' + Math.round(hue + (dh || 0)) + ',' + BAND.sat + '%,' + Math.max(6, Math.min(92, Math.round(l))) + '%)'; };
+
+    // The scene. Every category is sky-over-something except infantry, which
+    // RA2 shoots as a portrait against a close backdrop.
+    if (scat === 'inf') {
+      // Close backdrop: a flat field with a soft vignette, so a 20px figure
+      // reads as a figure and not as a sticker.
+      g.fillStyle = hsl(lit); g.fillRect(0, 0, W, H);
+      var vg = g.createRadialGradient(W / 2, H * 0.42, 4, W / 2, H * 0.42, W * 0.72);
+      vg.addColorStop(0, 'rgba(255,255,255,.10)');
+      vg.addColorStop(1, 'rgba(0,0,0,.46)');
+      g.fillStyle = vg; g.fillRect(0, 0, W, H);
+    } else {
+      var hz = scat === 'air' ? H * 0.78 : H * 0.62;       // an aircraft sits high
+      var skyG = g.createLinearGradient(0, 0, 0, hz);
+      skyG.addColorStop(0, hsl(lit + 16, -8));
+      skyG.addColorStop(1, hsl(lit - 4, 4));
+      g.fillStyle = skyG; g.fillRect(0, 0, W, hz);
+      if (scat === 'air') {
+        // Two soft cloud bands, so the sky is a place and not a swatch.
+        g.fillStyle = 'rgba(255,255,255,.17)';
+        g.beginPath(); g.ellipse(W * (0.22 + hh * 0.3), hz * 0.42, W * 0.30, 4.5, 0, 0, 6.284); g.fill();
+        g.beginPath(); g.ellipse(W * (0.68 - hh * 0.25), hz * 0.70, W * 0.24, 3.5, 0, 0, 6.284); g.fill();
+      }
+      var grdG = g.createLinearGradient(0, hz, 0, H);
+      grdG.addColorStop(0, hsl(lit - 12, scat === 'sea' ? 6 : -10));
+      grdG.addColorStop(1, hsl(Math.max(8, lit - 26), scat === 'sea' ? 10 : -14));
+      g.fillStyle = grdG; g.fillRect(0, hz, W, H - hz);
+      // The horizon itself, one hairline, which is what makes it a scene.
+      g.fillStyle = 'rgba(255,255,255,.13)'; g.fillRect(0, hz, W, 1);
+      if (scat === 'sea') {
+        // Two glints, so water reads as water.
+        g.fillStyle = 'rgba(255,255,255,.14)';
+        g.fillRect(W * 0.12, hz + 5, W * 0.26, 1);
+        g.fillRect(W * 0.56, hz + 11, W * 0.20, 1);
+      }
+    }
     // A ground band, so a structure sits on something rather than floating. It
     // carries a little of the house colour, as RA2's plates do.
     var gnd = g.createLinearGradient(0, H - 12, 0, H);
