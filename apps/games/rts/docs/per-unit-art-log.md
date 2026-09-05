@@ -59,6 +59,34 @@ Not inventing work is part of the job.
   Trooper's is dominated by electric arcs; ours has **none at all** — which our
   own Tesla Tank shows we know how to draw.
 
+## Measured NEGATIVE results — recorded so nobody re-runs them
+
+**The IFV: do not lengthen it.** It is 17 long against 15 wide, by far the
+shortest thing that drives, and it appears in FOUR of the sidebar's eight worst
+pairs — so stretching it toward RA2's longer eight-wheeled car is the obvious
+move. It is wrong. At len 24 the art gate returned `peerVsSelf.vehicle` 1 -> 3
+(three vehicles matching a PEER better than their own other bearings),
+`iou.groundCombat.mean` over its 0.45 ceiling, and `mass.tightestBand6`
+2.093 -> 1.801, under its floor of 2. At len 20 it still failed. Lengthening
+crowds the 22-24 band that mirage, flaktrack and v3 already share, so the IFV
+stops being separable BY SIZE. **Its shortness is its place in the size
+ladder.** Fix its cameo collisions with value or a prop, never length.
+
+## A CAMEO is not a SPRITE — do not read proportion off a plate
+
+**Psychic Sensor.** RA2's plate shows a tall slender tower; ours is a wide flat
+drum, and it collides with the Cloning Vats, the Nuclear Reactor and the Flak
+Cannon, which are also squat. The obvious read is "our proportion is inverted".
+But the code cites `[NAPSIS]` as "a squat armoured drum", and RA2's in-game
+Psychic Sensor IS drum-like — its cameo is a dramatic low-angle hero shot, the
+way most of the corpus is.
+
+So: use RA2's plates to judge COMPOSITION, LIGHTING and what the subject's
+identifying feature is. Do NOT read in-game proportion off them; that is what
+the sprite rips in `docs/ra2-ref/` are for. The Aegis case is different and
+still stands, because there the in-play sprite is measurably taller than wide,
+which no camera angle explains.
+
 ## The standing lesson
 
 Three of the five fixes above were **invisible to every aggregate metric**, and
