@@ -206,6 +206,40 @@ illustrations and ours are our own sprites, well framed. That is a different
 project, and it should be started deliberately rather than arrived at by
 another lap of this one.
 
+## The composited FRAME — the measurement the tool asked for, finally taken
+
+`legibility.js`'s own header has said this since it was written, and nobody had
+done it:
+
+> "the reporter was looking at a BATTLE, where units are at eight facings,
+> overlap, and carry bars and effects. This tool compares one facing, isolated,
+> side by side, which is the most flattering arrangement there is. **Do not read
+> a pass here as 'vehicles are fine on the map.'** The honest next step for that
+> complaint is to measure a composited FRAME, not a roster."
+
+Done: two full armies, twelve kinds each, mixed arms, overlapping, some
+damaged so the health bars are up, at zoom 1 and at ZMIN
+(`scratchpad/frame/battle-z*.png`). No page errors.
+
+**It passes, and it passes on the thing that matters most.** Friend-from-foe is
+instant — blue army left, red army right — which is the read a player makes
+every second. And the units whose identity this pass rebuilt are exactly the
+ones that announce themselves in the crowd: the V3's raised white missile, the
+Tesla Tank's copper coils, the Terror Drone's splayed legs, the Prism Tank's
+mast, Yuri's robe, the Desolator's glow.
+
+**One hypothesis formed by looking, and MEASURED FALSE.** In the frame the red
+army seemed to carry less owner colour than the blue. It does not:
+
+    Directorate vehicles 0.172   infantry 0.268
+    Collective  vehicles 0.164   infantry 0.323
+
+Essentially equal on vehicles, and the Collective's infantry carry MORE. The
+impression comes from red-on-sand having less contrast than blue-on-sand, which
+is a property of the colour pair and the terrain, not of our art — and it is
+the player who picks the colour. Recorded so the next person who sees it in a
+desert frame does not go looking for an asymmetry that is not there.
+
 ## The rule this whole pass earned
 
 **A CAMEO IS NOT A SPRITE.** It cost three near-misses to learn and one to
