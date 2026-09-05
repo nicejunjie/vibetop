@@ -143,7 +143,7 @@
     line-height: 1.4; max-height: 40vh;
   }
   .sched-panel input:focus, .sched-panel textarea:focus { outline: none; border-color: #4ec36a; }
-  /* A labelled time row. The label is what makes the 🔁 toggle honest: the SAME
+  /* A labelled time row. The label is what makes the Repeat toggle honest: the SAME
      date input means "at" for a one-shot and "until" for a loop, so the word in
      front of it is the only thing that says which — never leave it implicit. */
   .sp-when { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
@@ -525,13 +525,13 @@
   // interval dialer (+1h, +5h, ... applied to a date); loop mode just stops
   // folding that offset into a date and keeps it as the interval, which frees
   // the date input to mean the end time. Both meanings are stashed separately,
-  // so flipping 🔁 back and forth never loses what you typed.
+  // so flipping Repeat back and forth never loses what you typed.
   var spLoop = document.getElementById('sp-loop');
   var spNow = document.getElementById('sp-now');
   var spIvalRow = document.getElementById('sp-row-every');
   var spIval = document.getElementById('sp-ival');
   var spLab = document.getElementById('sp-lab');
-  var LOOP_DEFAULT_UNTIL = 24 * 3600 * 1000;   // a day out, so 🔁 is valid on one tap
+  var LOOP_DEFAULT_UNTIL = 24 * 3600 * 1000;   // a day out, so Repeat is valid on one tap
   var loopOn = false;
   var loopEvery = 0;      // seconds between runs (loop mode)
   var loopUntil = '';     // the end time, parked here while loop mode is OFF
@@ -645,7 +645,7 @@
       spAt.value = toLocalInput(new Date());
     }
     setQuickSign(1);   // always reopen adding, never a stale "-" from last visit
-    resetLoop();       // ...and never a stale 🔁, for the same reason
+    resetLoop();       // ...and never a stale Repeat, for the same reason
     autoGrowText();    // reset the box to one line (and seed spTextBase)
     renderSchedules();
     if (!isTouch) setTimeout(function () { spText.focus(); }, 20);
@@ -696,7 +696,7 @@
       if (on) {
         oneShotAt = spAt.value;
         // Whatever offset was already dialled in IS the interval the user wanted
-        // — carrying it over means "+5h then 🔁" reads as "every 5h", instead of
+        // — carrying it over means "+5h then Repeat" reads as "every 5h", instead of
         // silently starting from nothing.
         if (!loopEvery && spAt.value) {
           var base = new Date(spAt.value).getTime();
@@ -798,7 +798,7 @@
       // Re-seed the time to NOW, exactly as openSched does. Without this the
       // field keeps the time just scheduled, so the next message silently
       // inherits it and the additive +N buttons count up from there — schedule
-      // "+5h", then tap "+1m" for the next one and you get 5h1m out. 🔁 clears
+      // "+5h", then tap "+1m" for the next one and you get 5h1m out. Repeat clears
       // for the same reason, and a stickier one: inheriting a LOOP would turn the
       // next quick one-off into a repeating one without anyone asking.
       resetLoop();
