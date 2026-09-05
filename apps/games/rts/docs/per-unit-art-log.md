@@ -183,6 +183,29 @@ whitening and the stature moves, which took the MAP to zero confusable infantry.
 The two surfaces do not always move together, and when they disagree the map is
 the one being played.
 
+## Structures: checked, and the answer keeps being "already deliberate"
+
+Power Plant, War Factory, Airforce Command, Battle Lab, Ore Refinery, Barracks,
+Grand Cannon, Psychic Sensor — all walked through the rig against their plates.
+**None needed work.** Two produced near-misses that the code itself stopped
+(Grand Cannon's barrel, Psychic Sensor's proportion) and one more nearly did:
+
+* **Airforce Command helipads.** The four pad slots carry a house-coloured
+  double diamond over an OLIVE field with dark blades and a tan centre, which
+  at a glance reads more like carpet than concrete. It is deliberate and laid
+  out from the geometry, not eyeballed — *"the four quadrant centres ARE the
+  Harrier pad slots (PAD_SLOTS), so the markings are laid out from them"*. With
+  no sprite rip of RA2's own pads to check against, a documented decision beats
+  my hunch. Left alone.
+
+**This is the signal that the per-unit walk has done its work.** It is now
+returning "already correct, and here is the reference" far more often than it
+returns a defect — six of the last eight units. The remaining sidebar gap to
+RA2 is not art direction any more; it is that RA2's plates are painted
+illustrations and ours are our own sprites, well framed. That is a different
+project, and it should be started deliberately rather than arrived at by
+another lap of this one.
+
 ## The rule this whole pass earned
 
 **A CAMEO IS NOT A SPRITE.** It cost three near-misses to learn and one to
