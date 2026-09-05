@@ -308,7 +308,18 @@ function statsOf(ps, bar) {
 function compute({ byFac, refs }) {
   const bar = refs.length ? refBar(refs) : null;
   const BAR = bar ? bar.p5 : 0;
-  const res = { bar, fac: {}, sizes: null, greyBar: null };
+  // The GREYED row was being scored against RA2's UNGREYED 5th percentile,
+  // which is not a comparison — grey RA2's own plates with the same filter and
+  // they collapse too. So the disabled row gets its OWN bar: RA2's corpus put
+  // through the identical `.pit.dis` transform. `greyBar` has been a null on
+  // this object since the tool was written; this fills it in.
+  //
+  // Without it the tool reported "UNDER: 780" for every faction's greyed
+  // sidebar — every pair we draw, unaffordable — and that number reads as a
+  // catastrophe when a good part of it is just what greying does to anything.
+  const greyBar = refs.length
+    ? refBar(refs.map((r) => ({ ...r, px: greyed(r.px, r.cap) }))) : null;
+  const res = { bar, fac: {}, sizes: null, greyBar };
   for (const fac of FACTIONS) {
     const recs = byFac[fac];
     if (!recs || !recs.length) continue;
@@ -328,7 +339,7 @@ function compute({ byFac, refs }) {
     res.fac[fac] = {
       n: recs.length,
       whole: { ...statsOf(whole, BAR), worst: whole.slice(0, 12).map((p) => ({ a: p.a, b: p.b, ta: p.ta, tb: p.tb, d: round(p.d, 1) })) },
-      grey:  { ...statsOf(wholeG, BAR), worst: wholeG.slice(0, 6).map((p) => ({ a: p.a, b: p.b, ta: p.ta, tb: p.tb, d: round(p.d, 1) })) },
+      grey:  { ...statsOf(wholeG, greyBar ? greyBar.p5 : BAR), worst: wholeG.slice(0, 6).map((p) => ({ a: p.a, b: p.b, ta: p.ta, tb: p.tb, d: round(p.d, 1) })) },
       dpr2:  statsOf(wholeHi, BAR),
       perTab,
     };
@@ -355,7 +366,7 @@ function report(m) {
     L.push('');
     L.push(`  ${fac === 'dir' ? 'DIRECTORATE' : 'COLLECTIVE'} sidebar — ${f.n} cameos`);
     L.push(`    whole sidebar : ${f.whole.pairs} pairs, mean ${f.whole.mean}, min ${f.whole.min}, 5th pct ${f.whole.p5}, UNDER RA2's bar: ${f.whole.under}`);
-    L.push(`    greyed (.dis) : mean ${f.grey.mean}, min ${f.grey.min}, UNDER: ${f.grey.under}   <- what an unaffordable row looks like`);
+    L.push(`    greyed (.dis) : mean ${f.grey.mean}, min ${f.grey.min}, UNDER RA2 GREYED bar${m.greyBar ? ' (' + m.greyBar.p5 + ')' : ''}: ${f.grey.under}   <- greying costs everyone; RA2's own plates lose the same`);
     L.push(`    at DPR 2      : mean ${f.dpr2.mean}, min ${f.dpr2.min}, UNDER: ${f.dpr2.under}`);
     L.push('    per tab (the list a player actually scans):');
     L.push('      tab           n  pairs   mean    min   UNDER');
