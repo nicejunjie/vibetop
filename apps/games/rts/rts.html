@@ -29580,8 +29580,21 @@
     // that is mush: looked at next to RA2's own G.I. plate, ours had a grey
     // smear for a helmet and a beige rectangle for a face. Our art is pixel
     // art; upscaling it nearest-neighbour keeps the helmet a helmet. Fitted
-    // items are barely rescaled, so they keep the smoothing.
-    g.imageSmoothingEnabled = !fill;
+    // items are barely rescaled, so they keep the smoothing — EXCEPT that
+    // "barely" was an assumption, and it is false for 6 of the 27 fitted
+    // cameos. Measured: Hornet 3.00x (the cap), Dolphin 2.56x, Terror Drone
+    // 2.40x, Grizzly 1.79x, Harrier 1.75x, Sea Scorpion 1.67x. Those are the
+    // SMALL units — the fit is `min(plate/sprite) * 1.35`, so the less sprite
+    // there is the harder it is enlarged, and the ones with the fewest pixels
+    // to spare are exactly the ones getting bilinear smeared across a 60x48
+    // plate. The Dolphin's came out visible mush.
+    //
+    // Same reasoning as the portrait crop above, same threshold as the eye
+    // uses: below about 1.5x interpolation is invisible and keeps small
+    // diagonal edges from crawling, above it our own pixels start being
+    // averaged into porridge. So smoothing follows the SCALE, not the crop
+    // mode.
+    g.imageSmoothingEnabled = !fill && k < 1.5;
     // The plate is exactly W x H, so an overflowing portrait is clipped by the
     // canvas itself — which is the RA2 look, not an accident.
     // bb is CSS px; the bitmap is `kb` times larger (baked at DPR), so the
