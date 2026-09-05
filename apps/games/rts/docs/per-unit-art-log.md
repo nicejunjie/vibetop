@@ -353,6 +353,27 @@ lookups; doing it would have cost two units moved away from RA2.
 
 ## Measured NEGATIVE results — recorded so nobody re-runs them
 
+- **The SPIKES budgets are NOT quietly weakened to the generic floor (2026-09-05).**
+  24 of 41 units carry `budget: 3.64`, the generic floor, and that looks at
+  first like 24 specific clauses replaced by a default. It is not. Of those 24,
+  ten quote a specific number in their `src`, and **nine encode it correctly as
+  `lenBudget`** rather than as a thickness, because the number is a LENGTH, a
+  HEIGHT or a REACH and `thick` is the wrong axis for it — Chrono Miner 8,
+  Dolphin 3, Terror Drone 4, Flak Track 10, Crazy Ivan 2, Apocalypse 19, Mirage
+  6, Tanya 2, V3 5. The other 17 units carry a real declared budget above the
+  floor. So the spike layer is in good order.
+  The single exception is the **Chrono Legionnaire**, whose `lenBudget` is null,
+  and its `src` says why: *"rifle >= 9 px LONG held horizontal — a LENGTH, and
+  spikeOf measures PROTRUSION, so this cannot be checked as a spike run"*. That
+  is correct rather than an excuse: a 9 px rifle overlapping the body by 2 px
+  protrudes 7 px, and 7 is exactly what the tool measures. Do not "fix" it by
+  setting `lenBudget: 9` — that asserts a protrusion the geometry does not
+  produce, and it would fail a unit that meets its clause.
+  His shape clauses do hold, checked separately: the row asks for a shoulder
+  line ">= 20% wider than a GI's", and ours is 23 px against the GI's 17, i.e.
+  35% wider. His place in the sidebar's worst pairs is the shared blue centre
+  mass documented above, not his silhouette.
+
 **The IFV: do not lengthen it.** It is 17 long against 15 wide, by far the
 shortest thing that drives, and it appears in FOUR of the sidebar's eight worst
 pairs — so stretching it toward RA2's longer eight-wheeled car is the obvious
