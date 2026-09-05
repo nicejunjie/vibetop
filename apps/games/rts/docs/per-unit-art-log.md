@@ -87,6 +87,25 @@ the sprite rips in `docs/ra2-ref/` are for. The Aegis case is different and
 still stands, because there the in-play sprite is measurably taller than wide,
 which no camera angle explains.
 
+**The Grand Cannon confirmed this within the hour, and it had already bitten
+once.** RA2's plate is dominated by an enormous barrel; ours is a stubby gun on
+a fat dome, and it collides with the IFV and the Ore Purifier — so lengthening
+it looked like the same win the V3's raised rail had been. The code stopped it,
+because a previous pass had already made and undone exactly that mistake,
+citing a 1:1 re-read of the in-game render
+(`docs/ra2-ref/allied-grand-cannon.png`, 181x133):
+
+> "The previous pass had this the wrong way round: it drew a low drum on a big
+> parade slab with a forty-pixel barbette gun, and nearly all of the sprite was
+> that barrel. The real French emplacement is the OPPOSITE — a fat rounded
+> ARMOURED DOME, taller than it is wide once the gun is on ... and the gun
+> poking out of its shoulder is SHORT and thick."
+
+Two units, two hours apart, the same trap with opposite answers: the V3's
+raised rail was RIGHT (its sprite really does carry the missile high) and the
+Grand Cannon's long barrel would have been WRONG. **The plate cannot tell you
+which. Only the sprite rip can.** Check the rip before changing a proportion.
+
 ## The standing lesson
 
 Three of the five fixes above were **invisible to every aggregate metric**, and
