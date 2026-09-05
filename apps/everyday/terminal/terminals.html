@@ -1019,10 +1019,17 @@
     // event — synthetic dispatch alone misses ResizeObserver-based listeners
     // (ttyd/xterm.js fit-addon uses one). The 1px nudge is briefly visible
     // but indistinguishable from a normal redraw to the eye.
-    var origW = f.style.width;
+    // Capture the REAL width once per in-flight nudge. A drag fires resize far
+    // faster than rAF, so a naive `var origW = f.style.width` on the 2nd event
+    // reads back the sentinel this function just set — and its rAF then
+    // "restores" calc(100% - 1px) permanently, leaving the frame a pixel short
+    // of its container for the rest of the session. Park it on the element so
+    // concurrent nudges on different frames can't cross-contaminate.
+    if (f.__nudgeW === undefined) f.__nudgeW = f.style.width;
     f.style.width = 'calc(100% - 1px)';
     requestAnimationFrame(function() {
-      f.style.width = origW || '';
+      f.style.width = f.__nudgeW || '';
+      f.__nudgeW = undefined;
       if (f.contentWindow) {
         try { f.contentWindow.dispatchEvent(new Event('resize')); } catch (e) {}
       }

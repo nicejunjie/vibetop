@@ -38,11 +38,27 @@ if [ -z "$TTYD" ]; then
     exit 127
 fi
 
+# rendererType=canvas — NOT ttyd's default of "webgl".
+#
+# Symptom it fixes: resizing a floating Terminal window blanked the terminal.
+# The buffer and the WebSocket stayed alive (tab switching made the text FLASH
+# and vanish again), so nothing was lost — it simply stopped being painted.
+#
+# ttyd's bundled xterm.js defaults to the WebGL renderer, and its context-loss
+# handler is broken: it disposes the addon WITHOUT clearing `this.webglAddon`
+# and WITHOUT loading a fallback, unlike the internal disposer which does both.
+# Once the GL context goes (resize churn reallocates the texture atlas), there
+# is no renderer left and no way back short of a reload. The console fills with
+# "INVALID_OPERATION: delete: object does not belong to this context".
+#
+# The canvas renderer has no GL context to lose. For a text grid the difference
+# is imperceptible, and it removes this entire failure class.
 exec "$TTYD" \
   -W \
   -i 127.0.0.1 \
   -p "$PORT" \
   -b "/t${BASE_N}" \
+  -t rendererType=canvas \
   -t reconnect=3 \
   -t "titleFixed=Terminal ${BASE_N}" \
   -t scrollback=50000 \
