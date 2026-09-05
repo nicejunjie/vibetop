@@ -7484,7 +7484,14 @@
     else if (kind === 'drone')     { hull = '#9aa1ac'; deck = '#5a606b'; } // bare metal carapace
     else if (kind === 'teslatank') { hull = '#7e8163'; deck = '#4a4c3b'; } // olive, like the Rhino's kin
     else if (kind === 'mcv')     { hull = '#8e959f'; deck = '#41464f'; }   // grey works-vehicle body
-    else if (kind === 'nighthawk') { hull = '#31353d'; deck = '#1b1e23'; } // black-ops matte charcoal
+    // NIGHTHAWK. This was '#31353d' matte charcoal, which put it at the SAME
+    // value as the Harrier's airframe -- the one pair that failed
+    // `tools/legibility.js` under all three windows. `docs/ra2-ref/cameos/
+    // nighthawk.png` is not a black helicopter: it is a MID-TONE grey-tan
+    // machine over pale ground, against a Harrier plate that is nearly a black
+    // silhouette. Value, not hue, is what separates two grey aircraft at 20 px,
+    // so the chopper carries the light end of the pair and the jet the dark.
+    else if (kind === 'nighthawk') { hull = '#6d747e'; deck = '#363b43'; } // gunship grey, LIGHTER than the jet
     else if (kind === 'apc')       { hull = '#8a8d76'; deck = '#4d5042'; } // olive-grey hovercraft
     else                         { hull = sov ? '#4c515a' : '#40454e'; deck = '#2a2e35'; }
     var dark = shade(hull, 0.40);
@@ -8200,7 +8207,13 @@
           // white belly and nose, swept wings, a tall house-colour fin and
           // house wingtips, a bubble canopy. Two Maverick missiles ride under
           // the wings until fired (`empty` set).
-          var JET = '#343b47', JETL = '#626a78', JETD = '#1c2027', BELLY = '#d5dae2', NOSE = '#eef1f5';
+          // In `docs/ra2-ref/cameos/harrier.png` the jet is nearly a BLACK
+          // silhouette against sky -- far darker than the Nighthawk plate. The
+          // airframe was '#343b47', a hair off the chopper's own charcoal, and
+          // the two read as one grey aircraft at map size. The jet takes the
+          // dark end of the pair; the pale belly and nose stay, because that
+          // top-to-bottom value break is the Harrier's own read.
+          var JET = '#222732', JETL = '#4d5462', JETD = '#0e1116', BELLY = '#d5dae2', NOSE = '#eef1f5';
           var farH = py < 0 ? 1 : -1;
           var wingTop = shade(JET, 1.08), wingEdge = JETD;
           // A swept wing: root from t0 to t1, tip from tt0 to tt1 at `span`
@@ -9614,7 +9627,9 @@
             var b1x = cx - fx * bmB, b1y = hy - 4.6 - fy * bmB;
             g.strokeStyle = shade(hull, 0.84); g.lineWidth = 3.0; g.lineCap = 'round';
             g.beginPath(); g.moveTo(b0x, b0y); g.lineTo(b1x, b1y); g.stroke();
-            g.strokeStyle = shade(hull, 1.55); g.lineWidth = 0.9;         // lit upper edge
+            // 1.55 was tuned against a charcoal hull; on the gunship grey it
+            // clips to white and the boom out-glares the cabin it hangs off.
+            g.strokeStyle = shade(hull, 1.18); g.lineWidth = 0.9;         // lit upper edge
             g.beginPath(); g.moveTo(b0x, b0y - 1.2); g.lineTo(b1x, b1y - 1.2); g.stroke();
             // horizontal stabiliser
             g.strokeStyle = shade(hull, 1.02); g.lineWidth = 1.8;
@@ -9648,7 +9663,10 @@
             for (sg = -1; sg <= 1; sg += 2) {
               // the sliding door a side, with the owner's band over it
               isoBox(g, kx + px * wid * 0.34 * sg, ky - 3.0 + py * wid * 0.34 * sg,
-                     len * 0.18, 0.9, 3.6, a, '#151920', PEDGE);
+                     len * 0.18, 0.9, 3.6, a, shade(hull, 0.52), PEDGE);   // was flat '#151920': on the
+              // charcoal hull it vanished, on the grey one it made the cabin a
+              // black wedge hanging off a pale boom. Tied to the hull it stays
+              // a shadowed door however the airframe is valued.
               isoBox(g, kx + px * wid * 0.34 * sg, ky - 5.6 + py * wid * 0.34 * sg,
                      len * 0.20, 1.0, 1.2, a, panel, PEDGE);
               puck(kx - fx * 1.8 + px * wid * 0.42 * sg, ky - 3.4 - fy * 1.8 + py * wid * 0.42 * sg,
@@ -9664,18 +9682,44 @@
           puck(mrx, mry + 1.4, 1.2, 2.0, shade(hull, 0.72), STEEL, PEDGE);
           var mrPh = anim === 'prop' ? 0.7854 : 0, mrR = 19.0;
           g.lineCap = 'round';
-          g.fillStyle = 'rgba(150,160,176,.09)';                          // the disc it sweeps
-          g.beginPath();
-          g.ellipse(mrx, mry, mrR * ISO_X * 1.4142, mrR * ISO_Y * 1.4142, 0, 0, 6.29); g.fill();
+          // THE DISC IS THE UNIT. A helicopter's one unmistakable read from
+          // above is the bright blur it sweeps, and ours was drawn at alpha
+          // .09 -- 1400-odd pixels sitting 3 luminance points off the grass
+          // under them, i.e. an invisible smear that still counted as body.
+          // That is exactly why `harrier | nighthawk` was the union-footprint
+          // window's only failure: most of the chopper's footprint was a patch
+          // of ground. `docs/ra2-ref/cameos/nighthawk.png` shows the blade as a
+          // bright streak clear of the airframe. Drawn the way a real blur
+          // looks: the RIM is brightest, because that is where tip speed puts
+          // the most blade per unit area, and the hub end is nearly clear.
+          var rx = mrR * ISO_X * 1.4142, ry = mrR * ISO_Y * 1.4142;
+          g.save();
+          g.translate(mrx, mry); g.scale(1, ry / rx);       // circle space, then squash to the iso ellipse
+          var mrg = g.createRadialGradient(0, 0, 0, 0, 0, rx);
+          mrg.addColorStop(0.00, 'rgba(206,214,226,.05)');  // nearly clear at the hub
+          mrg.addColorStop(0.55, 'rgba(206,214,226,.22)');
+          mrg.addColorStop(0.90, 'rgba(224,231,242,.42)');  // densest just inside the tip
+          mrg.addColorStop(1.00, 'rgba(224,231,242,0)');    // and feathered off it
+          g.fillStyle = mrg;
+          g.beginPath(); g.arc(0, 0, rx, 0, 6.29); g.fill();
+          g.restore();
+          // Two blades, not a four-armed cross: a cross centred on the mast
+          // reads as a gunsight, and the phase below never lets the pair sit
+          // on the sprite's own axes.
           for (i2 = 0; i2 < 4; i2++) {
-            var mra = mrPh + i2 * 1.5708;
-            g.strokeStyle = 'rgba(214,222,232,.32)'; g.lineWidth = 1.1;
-            g.beginPath(); g.moveTo(mrx, mry);
-            g.lineTo(mrx + Math.cos(mra) * mrR * ISO_X * 1.4142,
-                     mry + Math.sin(mra) * mrR * ISO_Y * 1.4142);
+            var mra = mrPh + 0.42 + i2 * 1.5708;
+            g.strokeStyle = i2 % 2 ? 'rgba(226,233,242,.22)' : 'rgba(232,239,248,.40)';
+            g.lineWidth = i2 % 2 ? 1.0 : 1.3;
+            g.beginPath();
+            g.moveTo(mrx + Math.cos(mra) * rx * 0.22, mry + Math.sin(mra) * ry * 0.22);
+            g.lineTo(mrx + Math.cos(mra) * rx * 0.94, mry + Math.sin(mra) * ry * 0.94);
             g.stroke();
           }
-          g.fillStyle = '#c34a2c';                                        // anti-collision lamp
+          // A saturated red bead sat here. On the light hull it now reads at
+          // map size, and a saturated red mark on the BLUE player's aircraft
+          // is the one thing the palette rule forbids: only the owner's colour
+          // is saturated. A warm off-white still reads as a lamp.
+          g.fillStyle = '#e3d3b6';                                        // anti-collision lamp
           g.beginPath(); g.ellipse(mrx - fx * 2.4, mry + 1.6 - fy * 2.4, 0.8, 0.7, 0, 0, 6.29); g.fill();
         }
       }
