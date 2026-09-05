@@ -66,6 +66,33 @@ Two things are validated at once: the number in §1.1, and the convention
 whose aspect swings 1.33-1.50 across its own facings needs that convention to
 be stated, and it turns out to be the right one.
 
+## A DISCREPANCY the sprites found in the reference itself
+
+Measuring three units off their own eight-bearing sheets, by segmenting each
+sprite off the snow and taking the widest bounding box:
+
+| unit | measured broadside | §1.1 says | verdict |
+|---|---|---|---|
+| Terror Drone `[DRON]` | 27x18 = **1.50** | 21x14 = 1.50 | matches exactly |
+| Rhino Tank `[HTNK]` | 51x26 = **1.96** | 56x28 = 2.00 | matches (2%, inside segmentation noise) |
+| Apocalypse `[MTNK]` | 59x34 = **1.74** | 56x41 = 1.37 | **DOES NOT MATCH** |
+
+The Apocalypse sheet does contain a bearing at 59x43 = 1.37 — the document's
+figure exactly. So §1.1's Apocalypse row is not its BROADSIDE; it is a taller,
+narrower facing.
+
+**This matters, because `art-metrics.js` compares our WIDEST bearing against
+that number.** For the Apocalypse the two sides of the comparison are different
+facings. Our Apocalypse currently reads 1.27 against a reference of 1.37 —
+comfortably in band at 0.93 — but against a true broadside of 1.74 it would be
+0.73, i.e. OUTSIDE. The gate may be passing that unit for the wrong reason.
+
+Not changed unilaterally: one segmentation of one sheet is thinner evidence
+than the document, and my blob detector includes drop shadows (which is why the
+Rhino comes out 51x26 where §1.1 says 56x28). What is warranted is the flag.
+Re-deriving `[MTNK]` — and spot-checking the other rows the same way — needs
+more sheets, and the method is above.
+
 ## The standing rule this supports
 
 **A cameo is not a sprite.** RA2's plates are painted hero shots; its sprites
