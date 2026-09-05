@@ -8550,6 +8550,17 @@
       // flaktrack and v3 already share, so the IFV stops being separable BY
       // SIZE and every ground shape gets closer together. Fix its cameo
       // collisions some other way — value or prop, not length.
+      // The PRISM TANK is BEAMY (`wid` 22, widest thing on tracks bar the
+      // Apocalypse), and that is not an invention: §1.1 measures [SREF] at
+      // 59x43 against [MTNK]'s 56x41, so RA2's Prism Tank is the LARGER of
+      // the two sprites. It was 16 — narrower than the Mirage — which left it
+      // 81 px wide against 77 tall, aspect 1.052 where RA2's is 1.37, very
+      // nearly square. Note the direction of this fix versus the IFV's above:
+      // the ban is on adding to the crowded 22-24 LENGTH band, and beam is a
+      // free axis. It moves the aspect the same way (a ground diamond's w/h
+      // rises toward the projection's own 2.0 as the footprint grows either
+      // way) at no cost to the ladder, and it took `iou.groundCombat.mean`
+      // 0.4744 -> 0.4625 and `mass.tightestBand6` 2.093 -> 2.235.
       var len = kind === 'harv' ? (sov ? 26 : 27) : (kind === 'ifv' ? 17 :
                 (kind === 'drone' ? 9 : (kind === 'spectre' ? 24 :
                 (kind === 'flaktrack' ? 23 : (kind === 'mammoth' ? 27 :
@@ -8557,7 +8568,7 @@
                 (kind === 'mirage' ? 24 : (kind === 'lancer' ? 28 :
                 (kind === 'teslatank' ? 27 : 30))))))))));
       var wid = kind === 'harv' ? (sov ? 25 : 18) : (kind === 'ifv' ? 15 :
-                (kind === 'drone' ? 8 : (kind === 'spectre' ? 16 :
+                (kind === 'drone' ? 8 : (kind === 'spectre' ? 22 :
                 (kind === 'mammoth' ? 25 : (kind === 'harv' ? (sov ? 22 : 18) :
                 (kind === 'lancer' ? 15 : (kind === 'ifv' ? 15 :
                 (kind === 'mirage' ? 19 : (kind === 'rhino' ? 21 :
@@ -9352,10 +9363,16 @@
             // pale guard stripe that runs above the track in the reference.
             // One plate the length of the hull was a bar; two are countable,
             // and countability is itself a shape cue.
+            // They GROW WITH THE FLANK. The plates ride at `wid * 0.375`, so
+            // widening the beam to 22 moved them outboard for free but left
+            // them the same size on a third more hull, and the remap census
+            // felt it: this unit's owner fraction fell 0.162 -> 0.137 and
+            // `hue.vehicleOwnerMean` with it. Scaled up they read the same
+            // weight per flank as before and the census comes back out ahead.
             for (i2 = -1; i2 <= 1; i2 += 2)
               isoBox(g, cx + px * wid * 0.375 * sg + fx * (i2 * 6.0 - 0.6),
                      by - 3.6 + py * wid * 0.375 * sg + fy * (i2 * 6.0 - 0.6),
-                     len * 0.32, 1.7, 4.2, a, i2 > 0 ? plit : panel, PEDGE);
+                     len * 0.38, 1.8, 5.2, a, i2 > 0 ? plit : panel, PEDGE);
             isoBox(g, cx + px * wid * 0.40 * sg - fx * 0.6,
                    by - 6.4 + py * wid * 0.40 * sg - fy * 0.6,
                    len * 0.70, 1.5, 1.1, a, '#d3d9e1', '#4b5058');
@@ -9385,6 +9402,19 @@
           // which is the pair the audit puts at 0.816 silhouette IoU. Narrow
           // it as it rises, too: a shard, not a chimney, so the ONE crown in
           // the fleet that is tall is also the one that is thin.
+          // DO NOT SHORTEN THIS TO BUY ASPECT. Measured 2026-09-05: the Prism
+          // Tank was 81x77, aspect 1.052 against RA2's 1.37, and the obvious
+          // fix — trim the crystal, drop the ring — worked on paper and cost
+          // more than it bought. At PH 10.4 / RING 6.2 the aspect came good
+          // (0.856 of RA2) but `iou.groundCombat.mean` went 0.4744 -> 0.4824
+          // and `mass.tightestBand6` 2.093 -> 1.983, THROUGH its floor: shorn
+          // of its crown the unit is a generic tank blob, and its worst pair
+          // (mammoth|prismtank) went 0.586 -> 0.656. The aspect was bought
+          // from the hull's BEAM instead (`wid` 16 -> 22, below), which moves
+          // the same number the right way — a wider footprint pushes a ground
+          // diamond's w/h toward the projection's own 2.0 — and leaves the
+          // spike alone. That scored 0.840 of RA2 with iou.groundCombat 0.4625
+          // and the band at 2.235, i.e. better than the day started on both.
           var PW = 1.85, PH = 12.4;                       // half-width / height, ground units
           var hx = pcx + fx * 0.9, hy = pcy - 3.4 + fy * 0.9;
           prism(hx, hy, [[PW + 0.5, -PW - 0.7], [PW + 0.5, PW + 0.7],
@@ -9745,14 +9775,29 @@
           // his hatch and the reference sheet shows a tall drum well proud of
           // the dome. It is the Rhino's crown, and unlike a gun it does not
           // shorten as the tank turns away.
-          puck(rtx - fx * 3.0, rty - 6.2 - fy * 3.0, 1.75, 5.4,     // commander cupola
+          // TRIMMED 5.4 -> 4.2. It is still a tower — taller than any other
+          // turret fitting in the fleet — but it was the single tallest pixel
+          // on the sprite, and RA2's [HTNK] is 56x28: aspect 2.00, the FLATTEST
+          // tank the Collective fields. Ours measured 1.391 (0.70 of the
+          // reference, the worst ground vehicle on the board) because this drum
+          // plus the ring under it pushed the bbox to 46 px tall against the
+          // Grizzly's 27. The hull is untouched, so "hull height >= 1.25x the
+          // Grizzly's" (unit-identity-reference.md 2.4) still holds with room.
+          puck(rtx - fx * 3.0, rty - 6.2 - fy * 3.0, 1.75, 4.2,     // commander cupola
                shade(hull, 0.84), shade(hull, 1.20), dark);
           g.fillStyle = VACC.rhino;                                 // moss-green vision block
-          gEllipse(rtx - fx * 3.0 + px * 1.0, rty - 11.6 - fy * 3.0 + py * 1.0, 0.85); g.fill();
+          gEllipse(rtx - fx * 3.0 + px * 1.0, rty - 10.4 - fy * 3.0 + py * 1.0, 0.85); g.fill();
           var rz = [rtx + fx * 6.6, rty - 3.4 + fy * 6.6];
           puck(rtx + fx * 6.2, rty - 0.2 + fy * 6.2, 2.2, 4.0,      // fat mantlet
                shade(hull, 0.80), shade(hull, 1.08), dark);
-          barrel(rz[0], rz[1], 13.2, 2.35, 1.32, VACC.rhinoGun);    // stubby 120mm
+          // 13.2 -> 16.0. The spec is "a thicker, SHORTER gun than the
+          // Grizzly's" (2.4) and 16.0 against the Grizzly's 19.5 is still
+          // 0.82x — but 13.2 was 0.68x, which broke rule 4 ("the spike must
+          // clear the body, not sit on it"): beside RA2's own plate the Rhino
+          // read as a brick with a stub, not as a gun tank. The barrel is the
+          // ONE part of a tank that is pure length with no height, so it is
+          // also the honest way to buy back aspect.
+          barrel(rz[0], rz[1], 16.0, 2.35, 1.32, VACC.rhinoGun);    // thick 120mm
         }
 
       } else if (kind === 'flaktrack') {
@@ -9894,14 +9939,19 @@
           // the RAIL: two dark girders climbing from the tail to the cab, with
           // a jack strut under the high end
           for (sg = -1; sg <= 1; sg += 2) {
-            var r0x = cx - fx * 10.6 + px * 2.6 * sg, r0y = by - 5.2 - fy * 10.6 + py * 2.6 * sg;
-            var r1x = cx + fx * 4.6 + px * 2.6 * sg, r1y = by - 16.2 + fy * 4.6 + py * 2.6 * sg;
+            // The rail runs the length of the MISSILE, not of the bed. When
+            // the missile grew (see the chord below) these girders stayed
+            // where they were and the rocket floated five units past the end
+            // of its own launcher at the tail — the sort of thing a number in
+            // band will never catch and a player sees immediately.
+            var r0x = cx - fx * 13.4 + px * 2.6 * sg, r0y = by - 4.2 - fy * 13.4 + py * 2.6 * sg;
+            var r1x = cx + fx * 6.8 + px * 2.6 * sg, r1y = by - 16.4 + fy * 6.8 + py * 2.6 * sg;
             g.strokeStyle = '#2b2f36'; g.lineWidth = 2.6; g.lineCap = 'round';
             g.beginPath(); g.moveTo(r0x, r0y); g.lineTo(r1x, r1y); g.stroke();
             g.strokeStyle = '#7d848f'; g.lineWidth = 1.0;
             g.beginPath(); g.moveTo(r0x, r0y - 0.9); g.lineTo(r1x, r1y - 0.9); g.stroke();
           }
-          isoBox(g, cx + fx * 4.2, by - 12.6 + fy * 4.2, 1.8, wid * 0.44, 7.4,
+          isoBox(g, cx + fx * 5.4, by - 12.8 + fy * 5.4, 1.8, wid * 0.44, 7.6,
                  a, STEEL, '#3f444c');                              // jack strut
           exhaust(cx - fx * len * 0.40, by - 4.4 - fy * len * 0.40);
         };
@@ -9914,7 +9964,17 @@
           // recognise across a battlefield. Ours ran -5.2 to -17.0 over a
           // 24.6 chord — a 25 degree lean that read as a pipe lying on a
           // flatbed, which is exactly how it looked beside RA2's own plate.
-          var tu = 11.0, tv = -22.4, hu = -12.6, hv = -5.2;
+          // THE LENGTH IS ALSO THE UNIT, and that half was missing. The spec
+          // is "missile >= 1.10x the truck length, overhanging >= 5 px at the
+          // nose" (unit-identity-reference.md 2.4) and the previous numbers
+          // met NEITHER: a 23.6-unit chord on a 22-unit truck is 1.07x, and a
+          // tip at u = 11.0 against a hull front at len/2 = 11.0 overhangs by
+          // exactly ZERO. RA2's [V3] is 63x36 — the LONGEST land vehicle and
+          // an aspect of 1.75; ours measured 1.222, the joint-worst on the
+          // board. The chord goes 23.6 -> 30.2 (1.37x the truck, 7 px of nose
+          // clear of the bumper) and the rise comes down a shade with it, so
+          // the rail keeps its diagonal at about 36 degrees instead of 39.
+          var tu = 14.3, tv = -21.4, hu = -15.9, hv = -4.8;
           var tipx = cx + fx * tu, tipy = by + tv + fy * tu;
           var tlx = cx + fx * hu, tly = by + hv + fy * hu;
           var vx = tipx - tlx, vy = tipy - tly, vl = Math.hypot(vx, vy) || 1;
@@ -10302,13 +10362,28 @@
         var Q = len / 30;
         tracks(len * 0.96, 3.4, wid * 0.30, '#8b929d');
         chassis(cx, by - 1.1, len * 0.94, wid * 0.78, 3.0, hull, dark, 0);
+        // The skirt run sits FORWARD of centre, not on it. The bin below now
+        // rests on the bed instead of floating over it, and where it used to
+        // clear the rear two plates it now covers them: the remap census had
+        // this unit at 0.119 of its pixels and the drop cost it 0.017, the
+        // largest single loss on the field. Slid forward under the cab and
+        // nose they are visible again from every bearing.
         for (sg = -1; sg <= 1; sg += 2)                        // house-colour chassis skirt
           for (i2 = -1; i2 <= 1; i2++)
-            isoBox(g, cx + px * wid * 0.37 * sg + fx * Q * (i2 * 6.4 - 1.6),
-                   by - 1.8 + py * wid * 0.37 * sg + fy * Q * (i2 * 6.4 - 1.6),
+            isoBox(g, cx + px * wid * 0.37 * sg + fx * Q * (i2 * 5.8 + 3.6),
+                   by - 1.8 + py * wid * 0.37 * sg + fy * Q * (i2 * 5.8 + 3.6),
                    len * 0.20, 1.5, 2.2, a, panel, PEDGE);
         var drawBin = function () {
-          var bcx = cx - fx * Q * 8.2, bcy = by - 3.0 - fy * Q * 8.2;
+          // The bin SITS ON THE BED, and it used to float 3.0 units above it
+          // hung 8.2 back off the tail. Measured, that one offset was the
+          // whole of the Chrono Miner's aspect fault: the bin's rear-top
+          // corner — not the drum, not the cab, not the rails, each of which
+          // was swept and moved the bbox by ZERO — was the topmost pixel on
+          // the sprite, and dropping it to the deck takes the bbox from 55x37
+          // to 55x33. RA2's [CMIN] is 55x28, aspect 1.96, the LOWEST body in
+          // the vehicle class, and 2.3's budget for this unit is written as
+          // "height <= 0.55 x length"; at 0.67 we were not close.
+          var bcx = cx - fx * Q * 6.6, bcy = by - 1.0 - fy * Q * 6.6;
           crate(bcx, bcy, 11.6 * Q, 10.2, 6.2, BIN, BIN_E);
           for (var br = -1; br <= 1; br += 2)                                 // steel bin rails
             isoBox(g, bcx + px * 4.8 * br, bcy - 5.4 + py * 4.8 * br, 11.8 * Q, 1.4, 0.9, a, '#6f757e', '#31363d');
