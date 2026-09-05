@@ -187,6 +187,10 @@
     font-size: 13px; padding: 6px 14px; font-weight: 600;
     color: #10240f; background: #4ec36a; border-color: #4ec36a;
   }
+  /* One shared line box, so Repeat and Schedule are exactly the same height —
+     an icon button sizing itself off its glyph lands a few px short of the text
+     button beside it, which reads as a misalignment rather than a style. */
+  .sp-loop, .sp-go { line-height: 18px; }
   .sp-go:hover { background: #5ed67a; }
   .sp-actions { display: flex; align-items: center; gap: 8px; }
   /* "Now" is the ORIGIN the +/- magnitudes count from, so it sits in that row
@@ -198,14 +202,30 @@
   .sp-nowbtn:hover { background: #3a3a5e; }
   /* The one control this feature adds. It sits against Schedule because it
      modifies that action ("schedule it, repeatedly"), and because the quick row
-     is already measured to the pixel at 320px — an eighth control there wraps. */
+     is already measured to the pixel at 320px — an eighth control there wraps.
+     Drawn, not an emoji: an emoji renders at the font's own size in the font's
+     own colours, so it reads as a sticker dropped on the panel — too small next
+     to 13px text, and untouched by the green the rest of the panel turns when a
+     toggle is on. A stroked SVG on currentColor is the same weight as the label
+     beside it and inherits every state. */
   .sp-loop {
-    flex-shrink: 0; font: inherit; font-size: 13px; line-height: 1; cursor: pointer;
-    padding: 6px 8px; border-radius: 5px; filter: grayscale(1) opacity(.75);
-    background: #2c2c4a; border: 1px solid #3f3f63;
+    flex-shrink: 0; display: inline-flex; align-items: center; gap: 6px;
+    font: inherit; font-size: 13px; cursor: pointer;
+    padding: 6px 10px; border-radius: 5px;
+    color: #cfe; background: #2c2c4a; border: 1px solid #3f3f63;
   }
-  .sp-loop:hover { background: #3a3a5e; filter: none; }
-  .sp-loop[aria-pressed=true] { background: #2a4a35; border-color: #4ec36a; filter: none; }
+  .sp-loop:hover { background: #3a3a5e; }
+  /* Engaged, NOT a second call to action: the panel's solid #4ec36a belongs to
+     Schedule, and two identical green pills side by side make you stop and work
+     out which one submits. This is the tinted "toggle is on" treatment the ⏱
+     button itself already uses when its panel is open. */
+  .sp-loop[aria-pressed=true] { color: #9fd3ae; background: #2a4a35; border-color: #4ec36a; }
+  .sp-loop[aria-pressed=true] .sp-ico { stroke: #4ec36a; }
+  .sp-ico {
+    display: block; width: 15px; height: 15px; flex-shrink: 0;
+    fill: none; stroke: currentColor; stroke-width: 2;
+    stroke-linecap: round; stroke-linejoin: round;
+  }
   .sp-err { flex: 1 1 auto; min-width: 0; color: #ff9b9b; font-size: 11.5px; }
   .sp-err.ok { color: #9fd3ae; }
 
@@ -231,7 +251,8 @@
     <div class="hint">Typed into the terminal and submitted at the time you pick —
       whether or not this page is open. Handy when a session stops at its token limit.
       Line breaks are for readability — they’re sent as “;”, so it stays one command.
-      🔁 repeats it: the quick buttons set how often, the date field when to stop.</div>
+      <b>Repeat</b> sends it over and over: the quick buttons set how often, the
+      date field when to stop.</div>
     <ul class="sp-list" id="sp-list"></ul>
     <textarea id="sp-text" rows="1" maxlength="2000" placeholder="Message to send, e.g. continue"></textarea>
     <div class="sp-when" id="sp-row-every" hidden>
@@ -257,7 +278,7 @@
     <div class="sp-actions">
       <span class="sp-err" id="sp-err"></span>
       <button type="button" class="sp-loop" id="sp-loop" aria-pressed="false"
-              title="Repeat: the quick buttons set how often, the date field when to stop">🔁</button>
+              title="Repeat: the quick buttons set how often, the date field when to stop"><svg class="sp-ico" viewBox="0 0 24 24" aria-hidden="true"><polyline points="17 2 21 6 17 10"/><path d="M3 12V10a4 4 0 0 1 4-4h14"/><polyline points="7 22 3 18 7 14"/><path d="M21 12v2a4 4 0 0 1-4 4H3"/></svg>Repeat</button>
       <button type="button" class="sp-go" id="sp-go">Schedule</button>
     </div>
   </div>
@@ -586,7 +607,7 @@
       else if (e.every) note = 'until ' + fmtClock(e.until) + (runs ? ' · ' + runs + ' sent' : '');
       // The repeat marker reuses the same .tag pill the other-terminal name uses,
       // so a loop is scannable in the list without a row of its own.
-      var tag = (e.every ? '<span class="tag">🔁 ' + esc(fmtDur(e.every)) + '</span>' : '') +
+      var tag = (e.every ? '<span class="tag">every ' + esc(fmtDur(e.every)) + '</span>' : '') +
                 ((+e.term === +active) ? '' :
                  '<span class="tag">' + esc(tabLabel(+e.term)) + '</span>');
       // Pending rows get an ✎ (edit) next to the ×: it loads the entry back
