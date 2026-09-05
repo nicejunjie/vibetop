@@ -296,6 +296,15 @@ To pick water on a generated map: `MAP` is 64 and the index is `y * MAP + x`
 (there is no `g.w`); T_WATER is **3**; and only the `coastal` map has a
 worthwhile sea — `frontier` has none at all.
 
+**Ore harvesting reviewed — no defect.** The miner drives out, mines (cargo
+climbs to 286), warps home rather than driving — which is RA2's Chrono Miner —
+and delivers, with credits rising to prove it. The chronoshift draws PAIRED
+cyan diamond markers, one where the hull left and one where it arrived, and
+the ore field visibly thins on the worked side. Its effect lives 24 ticks out
+of a harvest cycle over a thousand long, so it can only be caught by
+conditioning the capture on `g.fx.some(f => f.chrono)` — a fixed tick count
+misses it every time, which is how I first concluded there was no effect at all.
+
 **The harness matters more than any one fix.** It captures on the CONDITION
 that a shot or effect exists rather than on a timer, and it is parameterised per
 weapon — so the remaining warheads, damage smoke and naval wakes are inspectable
@@ -309,6 +318,9 @@ Three fixture traps paid for and worth not re-paying:
   reads `src.kind`.
 * Spawn victims on YOUR side or the whole scene is under fog and only the
   explosions show through it.
+* Spawn a harvester CLEAR of its refinery: the building is 4x3 about its
+  origin, so `s.x+2, s.y+2` lands inside the footprint and the miner sits in
+  `tomine` forever, never pathing out. It looks exactly like a broken harvest.
 * `swFire` returns false unless `side.sw[key].ready` is set — charge it first.
 * A bare match sets `g.over = 1` on TICK 0 (no enemy base), and `finish()` fires
   180 ticks later, so any capture past ~180 ticks lands on the SCORE SCREEN. Building
