@@ -377,6 +377,41 @@ What is left is not art direction:
 Anyone picking this up should start from the harness notes above, not from the
 units. The units are fine; the instruments are what made them findable.
 
+## The nine aspect outliers — and why the worst one is a TRADE, not a bug
+
+Extending the external RA2 aspect gate to the whole roster (see
+`art-metrics.js`) named nine units and their directions. The first one I took
+turned out to be a conflict between two measured fixes, which is worth knowing
+before anyone spends a day on it.
+
+**Nighthawk, 1.62 against RA2's 3.05 — the worst on the board — is PINNED BY
+ITS ROTOR DISC, and the disc is right.**
+* `len` does not move it. Swept 34 / 42 / 50: the aspect stays 1.622 to three
+  decimals at every value. The hull length is not what the bbox measures.
+* The bbox is the DISC. Its `selfIoU` is **0.852**, against the Harrier's 0.429
+  and the Hornet's 0.493 — it looks nearly the same from every bearing, which
+  is the signature of a rotationally symmetric shape dominating the mask.
+* The disc is already drawn correctly, squashed by `ISO_X`/`ISO_Y` into a
+  proper isometric ellipse, and its span was ALREADY tried: widening 19 -> 21
+  made it round enough that an air peer matched the Nighthawk better than it
+  matched its own other bearings (`peerVsSelf.air` 0 -> 1). Rejected then.
+* And the blur itself is a fix, not decoration: the rotor used to be drawn at
+  alpha .09 — ~1400 px three luminance points off the grass, invisible to a
+  player but counted as BODY by every mask metric — and that is precisely why
+  `harrier | nighthawk` was the union window's only failure.
+
+So RA2 reaches 3.05 with a long tail boom and a rotor drawn as thin blades;
+we reach 1.62 with a bright swept disc that a player can actually see. **The
+two goals genuinely conflict**, and the aspect gate flagging this unit is the
+gate working, not the art failing. Closing it means re-drawing the rotor as
+discrete blades and lengthening the boom TOGETHER, then re-checking
+`harrier | nighthawk` in the union window — a deliberate piece of work, not a
+number to nudge.
+
+The other eight (Rhino 0.70, V3 0.70, Chrono Miner 0.76, Prism Tank 0.77,
+Engineer 1.65, Chrono Legionnaire 1.62, Tanya 1.42, Flak Trooper 1.37) have no
+such conflict on record and are the place to start.
+
 ## The rule this whole pass earned
 
 **A CAMEO IS NOT A SPRITE.** It cost three near-misses to learn and one to
