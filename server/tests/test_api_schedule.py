@@ -150,6 +150,67 @@ def test_cancel_removes_only_the_named_entry(client, mgr, home, op_cookie):
     assert left == [ids[1]]
 
 
+def test_cancelling_a_loop_that_has_RUN_keeps_it_as_history(client, mgr, home, op_cookie):
+    """Those runs happened — messages were typed into a terminal. Erasing the only
+    record of that on a Cancel click loses history the user may need."""
+    now = time.time()
+    ent = _mk(mgr, mgr.APP_USER, id="L", at=now + 300, every=300,
+              until=now + 3600, runs=3)
+    mgr._write_schedules({mgr.APP_USER: [ent]})
+    status, body = client.post("/api/terminals/schedules/cancel", {"id": "L"},
+                               cookie=op_cookie)
+    assert status == 200 and body["kept"] is True
+    kept = _read_reg(mgr)[mgr.APP_USER][0]
+    assert kept["status"] == "stopped" and kept["runs"] == 3
+    assert kept["fired"]                        # so SCHED_KEEP_DONE can age it out
+    assert not mgr._due_schedules({mgr.APP_USER: [kept]}, now + 10 ** 6)
+
+
+def test_cancelling_a_loop_that_never_RAN_deletes_it(client, mgr, home, op_cookie):
+    now = time.time()
+    mgr._write_schedules({mgr.APP_USER: [
+        _mk(mgr, mgr.APP_USER, id="L", at=now + 300, every=300,
+            until=now + 3600, runs=0)]})
+    status, body = client.post("/api/terminals/schedules/cancel", {"id": "L"},
+                               cookie=op_cookie)
+    assert status == 200 and body["kept"] is False
+    assert _read_reg(mgr) == {}
+
+
+def test_cancelling_a_pending_one_shot_still_deletes_it(client, mgr, home, op_cookie):
+    """A one-shot is always cancelled before it fires, so `runs` keeps this the
+    plain delete it has always been."""
+    mgr._write_schedules({mgr.APP_USER: [
+        _mk(mgr, mgr.APP_USER, id="S", at=time.time() + 300)]})
+    status, body = client.post("/api/terminals/schedules/cancel", {"id": "S"},
+                               cookie=op_cookie)
+    assert status == 200 and body["kept"] is False
+    assert _read_reg(mgr) == {}
+
+
+def test_the_x_on_a_history_row_really_removes_it(client, mgr, home, op_cookie):
+    """Keeping a stopped loop would be a trap if the × could never clear it: that
+    is the only way to tidy the list."""
+    now = time.time()
+    done = _mk(mgr, mgr.APP_USER, id="D", at=now - 60, every=300,
+               until=now - 30, runs=9, status="stopped")
+    done["fired"] = now - 60
+    mgr._write_schedules({mgr.APP_USER: [done]})
+    status, body = client.post("/api/terminals/schedules/cancel", {"id": "D"},
+                               cookie=op_cookie)
+    assert status == 200 and body["kept"] is False
+    assert _read_reg(mgr) == {}
+
+
+def test_a_stopped_loop_frees_the_idle_reaper(mgr, home):
+    """It is no longer pending, so it must stop holding the user's terminals open."""
+    now = time.time()
+    ent = _mk(mgr, mgr.APP_USER, id="L", at=now + 300, every=300,
+              until=now + 3600, runs=2, status="stopped")
+    mgr._write_schedules({mgr.APP_USER: [ent]})
+    assert not mgr._user_has_pending_schedule(mgr.APP_USER)
+
+
 def test_cancel_cannot_reach_another_users_entry(client, mgr, users, op_cookie):
     _, b = client.post("/api/terminals/schedules",
                        {"term": 1, "text": "alice's", "at": time.time() + 600},
