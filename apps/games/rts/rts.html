@@ -5071,14 +5071,40 @@
   //     of the CANNON above his helmet, not because he is a giant; his extra
   //     height is bought in the barrel below, and scaling him 1.30 would have
   //     made a nine-foot soldier instead.
-  //   * `tanya` and `dog` keep their width — hers is the two pistols held out
-  //     to the sides (§2.1's own budget) and his is the quadruped spine, the
-  //     one infantry silhouette that already reads.
+  //   * `dog` keeps his width — the quadruped spine, the one infantry
+  //     silhouette that already reads.
   // Tallest first, which is the order a player reads them in. The x:y ratio
   // of each pair also tracks the RA2 counterpart's own aspect against the
   // Conscript's (13x27): Yuri 0.84 against RA2's 0.86, the Tesla Trooper 1.35
   // against 1.34, the Rocketeer 1.30 against 1.38 — so nobody is stretched
   // into a shape RA2 does not give him, they are only sized apart.
+  //
+  // ...AND THE TABLE IS NOW MEASURED AGAINST RA2, not only against itself.
+  // `art-metrics.js` gates every unit at +-20% of its RA2 counterpart's own
+  // w:h (`RA2_ASPECT`, from unit-identity-reference §1.1), and four infantry
+  // failed it — all in the SAME direction, too WIDE, which no camera can
+  // explain the way the isometric projection explains the vehicles being
+  // short. Three are fixed here (2026-09-05); each was a different fault:
+  //   * `engineer` 24x28 -> 21x34 (w:h 1.65 -> 1.19 of RA2). His entry read
+  //     [1.22,0.76] to break two same-faction IoU pairs, which is what made
+  //     him a squat 28 px — the SHORTEST man in the roster where RA2 puts him
+  //     level with Crazy Ivan. Straightened to [0.98,0.94]; the IoU pairs are
+  //     held instead by his own §1.5 levers, the leg split and the toolbox,
+  //     which are now authored in SCREEN units so a stature change cannot
+  //     quietly shrink his one tell to a single column (see that branch).
+  //   * `tanya` 22x31 -> 18x33 (1.42 -> 1.09). Her width was NOT the pistols
+  //     after all — measured, the body core was 14 of the 22 and the guns
+  //     three columns a side. She is bracketed by Ivan (17x32) and the Spy
+  //     (16x35), so the height had to move with the width: [0.88,0.94] is the
+  //     one point that clears the Spy on IoU AND the Attack Dog on legibility
+  //     (at 18x31 she fell under the friend-vs-foe floor against the dog).
+  //   * `flak` 20x45 -> 18x47 (1.37 -> 1.18), and NOT from this table at all
+  //     — his barrel was swinging out sideways at the profile facings. See
+  //     `wpn`'s `upright` flag. The last two rows came out of the barrel,
+  //     which is exactly what the note above says his height is bought with.
+  // `cleg` is the one left outside the band, and deliberately: his rifle's
+  // declared 9-column spike budget and his RA2 aspect cannot both be met.
+  // The full measurement is recorded on the neutron rifle in his branch.
   var STATURE = {
     flak:         [0.87, 0.98],   // i-XL by BARREL: a narrow man under a tall gun
     rocket:       [1.12, 1.03],   // i-M 15x30 — the Guardian is the heavy one, and
@@ -5098,15 +5124,24 @@
     rifle:        [0.92, 0.99],   // i-M 12x28 — narrow; the baseline soldier
     conscript:    [1.00, 1.05],   // i-M 13x27 — the reference figure
     cleg:         [1.22, 0.84],   // i-M 15x26 — the widest Directorate shoulders
-    tanya:        [1.04, 0.88],   // i-M 13x26, and the pistols keep her wide
+    tanya:        [0.88, 0.94],   // i-M 13x26 — and the pistols do NOT keep her wide,
+                                  // which is what this entry used to say. Measured, her
+                                  // 22 px of width was 14 px of body and three columns
+                                  // of gun a side; RA2 gives her a Conscript's width.
+                                  // 18x33 is the one point clearing BOTH neighbours she
+                                  // is wedged between — the Spy (16x35) on same-faction
+                                  // IoU and the Attack Dog on legibility, which she fell
+                                  // under at 18x31.
     ivan:         [0.80, 0.88],   // i-S 12x25 — the narrowest of the Collective
-    engineer:     [1.22, 0.76],   // i-S 13x25 — a workman, not a soldier: broader in
-                                  // the shoulder and a little shorter than he was
-                                  // (0.99 x 0.86). He is shared, so he stands in BOTH
-                                  // rosters and pairs with every trooper in the game,
-                                  // and at 19x31 he sat between Tanya (20x33) and the
-                                  // Spy (19x30) — TWO same-faction pairs over the 0.75
-                                  // ceiling, both of them his. 21x30 clears both.
+    engineer:     [0.98, 0.94],   // i-S 13x25 — a workman, not a soldier: broader in
+                                  // the shoulder than a rifleman, and NOT the squat one
+                                  // he was. This read [1.22,0.76] to break two
+                                  // same-faction IoU pairs (his own, since he is shared
+                                  // and pairs with every trooper in both rosters), and
+                                  // the price was a 24x28 man — the SHORTEST in the
+                                  // game where RA2 puts him level with Crazy Ivan, and
+                                  // 65% wider than his own plate. Those pairs are held
+                                  // by his §1.5 levers now, not by his proportions.
     spy:          [0.76, 1.00],   // i-S 13x25 — the slightest figure on the field
     rocketeer:    [1.12, 0.86],   // i-S 16x24 — the shortest, broadened by the pack
     dog:          [1.00, 1.00],   // i-XS, quadruped: already the one that reads
@@ -5407,12 +5442,28 @@
     // A held weapon keeps its TRUE length while the body squeezes (undo TURN
     // on x), swaps shoulders when we are behind him, and rides up when he
     // fires. Used by the branches whose weapon is a long shoulder piece.
-    function wpn(fn) {
+    function wpn(fn, upright) {
       // A shoulder piece is authored ALREADY foreshortened at the front
       // facing (it points at the camera there); swinging round to a profile
       // gives back its true length. `wl` is that screen length, divided by
       // TURN so the body's squeeze does not eat it a second time.
-      var wl = (0.82 + 0.33 * sd) / TURN;
+      //
+      // `upright` is the THIRD case, and it is the Flak Trooper's. The two the
+      // renderer already knew were a piece that points ALONG the facing (this
+      // function's default: a Guardian's missile tube) and one held ACROSS the
+      // body (the Chrono Legionnaire's rifle, which is why his is drawn in
+      // body space instead — see that branch). A cannon carried muzzle-UP is
+      // neither: it is very nearly VERTICAL, so almost none of its length is
+      // in the horizontal plane and turning the man cannot lengthen it. Run
+      // through the default, its small lateral lean was multiplied by
+      // `(0.82+0.33)/0.66 = 1.74` at the profile facings — 2.1x its front-on
+      // reach — and swung the whole barrel clear of the man: at oct3 the gun
+      // owned 8 columns of the bbox with the body in the other 10, which is
+      // the entire reason a 12x37 Flak Trooper measured 20x45 (w:h 0.444
+      // against RA2's 0.324). `upright` freezes the horizontal scale at its
+      // authored front-on value, so the barrel's offset from the man narrows
+      // WITH the body as he turns, which is what a vertical thing does.
+      var wl = upright ? 0.82 : (0.82 + 0.33 * sd) / TURN;
       g.save();
       g.translate(cx + GSIDE * sd * 1.7, -RAISE * 1.3);
       g.scale(GSIDE * wl, 1);
@@ -5902,8 +5953,17 @@
       // and rising past the shoulder, so the man's helmet and face stay clear
       // of the bore. Run up the centre line and the barrel drew a bar over
       // his face and the figure stopped reading as a soldier at all.
+      // ...and the last of his RA2 proportion is bought HERE, in the barrel,
+      // which is the rule the STATURE table already states for him: RA2's
+      // `FLAKT` is 12x37 because of the cannon, not because he is a giant, so
+      // the height comes out of the gun and never out of the man. He measured
+      // 18x45 (w:h 0.400) once the barrel stopped swinging out at the profile
+      // facings, against RA2's 0.324 — still 23% wide. The muzzle now stands
+      // 2.2 units higher and 0.8 in, which lengthens the spike (the tell) and
+      // pulls the brake back level with the shoulder pad so the BODY sets the
+      // outline again instead of the gun.
       var bx0 = cx + 3.4, by0 = by - 12.8 + fy;                     // grip, at the right hip
-      var bx1 = cx + 8.2, by1 = by - 33.2 - fy;                     // muzzle, a head above the helmet
+      var bx1 = cx + 7.4, by1 = by - 35.4 - fy;                     // muzzle, a head above the helmet
       g.strokeStyle = '#23262c'; g.lineWidth = 4.6; g.lineCap = 'butt';
       g.beginPath(); g.moveTo(bx0, by0); g.lineTo(bx1, by1); g.stroke();
       g.strokeStyle = '#a9b2bd'; g.lineWidth = 2.6;                 // pale steel barrel
@@ -5939,7 +5999,7 @@
       outline(g, '#6a4a10');
       g.fillStyle = shade(ACCENT.rocket, 1.26);
       g.fillRect(cx - 0.4, by - 14.6 + fy, 1.1, 0.75);
-      });
+      }, true);                                                     // UPRIGHT — see wpn()
 
       face(by - 21.2);
       helmet(by - 23.1, 3.15, '#8b929b', 1.0);                      // plain steel helmet
@@ -5962,7 +6022,14 @@
       // are the leg split and the prop. His is the widest split on the field
       // (a workman stands over his work); the Spy's is no split at all under a
       // hard-tapered coat. That pair sat at 0.765 and it is 0.74 now.
-      legs(3.5, by - 12.2, 3.8, T.coat, 4.6);
+      //
+      // ...and the split is authored WIDER than it draws, because his STATURE
+      // no longer is. He used to be squeezed x1.22 (see the table), which
+      // multiplied a 3.5 split into a 4.3 one on screen; at his RA2-true
+      // 0.98 the same number came out as a rifleman's stance and took the
+      // last shape difference off a plain standing man. The split is stated
+      // in SCREEN terms here instead — 4.4 x 0.98 is the 4.3 it always drew.
+      legs(4.4, by - 12.2, 3.8, T.coat, 4.6);
 
       g.save(); g.translate(gt.lean, gt.bob);
       g.fillStyle = SHIRT;                                          // light work shirt
@@ -6013,18 +6080,25 @@
         g.beginPath(); g.roundRect(x - 1.5, y + 5.6, 3.0, 2.2, 0.8); g.fill();
         outline(g, '#6d5027');
         if (i > 0) {                                                // the toolbox, hand-carried
-          var tbx = x + 0.3, tby = y + 7.4;
+          // THE TOOLBOX IS STATED IN SCREEN UNITS TOO, and for the same
+          // reason as the leg split above: at x1.22 a 5.2-wide box drew 6.3,
+          // and dropping to the RA2-true 0.98 left ONE column of it standing
+          // outside his arm. The tell no other infantryman has cannot be one
+          // pixel — §1.5 leaves exactly two levers for three same-size men
+          // (the leg split and the prop) and this is the prop. It carries
+          // house colour, so it pays its own way on the remap budget as well.
+          var tbx = x + 1.0, tby = y + 7.4;
           g.strokeStyle = '#2a2d33'; g.lineWidth = 1.0; g.lineCap = 'round';
-          g.beginPath(); g.arc(tbx, tby + 0.7, 1.8, Math.PI, 0.05); g.stroke();
+          g.beginPath(); g.arc(tbx, tby + 0.8, 2.2, Math.PI, 0.05); g.stroke();
           g.fillStyle = col;
-          g.beginPath(); g.roundRect(tbx - 2.6, tby, 5.2, 3.8, 0.7); g.fill();
+          g.beginPath(); g.roundRect(tbx - 3.2, tby, 6.5, 4.7, 0.8); g.fill();
           outline(g, shade(col, 0.38));
           g.fillStyle = shade(col, 1.22);                           // lit lid
-          g.fillRect(tbx - 2.4, tby + 0.25, 4.8, 0.9);
+          g.fillRect(tbx - 3.0, tby + 0.3, 6.0, 1.1);
           g.fillStyle = shade(col, 0.74);                           // latch band
-          g.fillRect(tbx - 2.5, tby + 2.1, 5.0, 0.8);
+          g.fillRect(tbx - 3.1, tby + 2.6, 6.2, 1.0);
           g.fillStyle = '#8d9099';                                  // steel catch
-          g.fillRect(tbx - 0.55, tby + 1.9, 1.1, 1.2);
+          g.fillRect(tbx - 0.7, tby + 2.3, 1.4, 1.5);
         }
       });
 
@@ -6134,6 +6208,16 @@
       });
 
       face(by - 22.0);
+      // THE HAIR STAYS A CAP, and that is a measured decision, not an
+      // oversight. Correcting her width (22x31 -> 18x31, against RA2's 13x26)
+      // leaves a narrow standing figure bracketed by two more of them — Crazy
+      // Ivan at 17x32 and the Spy at 16x35 — so the obvious move was to spend
+      // the one thing RA2 gives her and nobody else, a head of hair, as mask
+      // in the head rows. Run: taking the crown to 3.5 and the locks to the
+      // shoulder moved `tanya|ivan` the WRONG WAY, 0.773 -> 0.811, because
+      // Ivan's own head is a broad soft cap and a fuller head of hair walks
+      // her INTO it rather than out. Her narrower head is already carrying
+      // 0.04 of that separation. Reverted; do not reach for it again.
       g.fillStyle = ACCENT.tanya;                                   // black hair, shoulder length
       g.beginPath(); g.arc(cx, by - 23.1, 3.0, Math.PI, 0); g.fill();
       g.fillRect(cx - 3.0, by - 23.3, 6.0, 1.2);
@@ -6966,6 +7050,44 @@
         // PIXEL THICK weapon, which is a fence post. Corrected, the number is
         // an extent: the receiver runs 9.2 units (12 px) and the emitter fork
         // carries it another 2.6, so 9 columns of it stand clear of the body.
+        //
+        // THIS RIFLE IS WHY THE CHRONO LEGIONNAIRE IS THE ONE INFANTRYMAN
+        // LEFT OUTSIDE THE RA2 ASPECT BAND, and it is a conflict between two
+        // declared budgets rather than a fault in the art. He measures 28x30
+        // (w:h 0.933) against RA2's 15x26 (0.577) — 62% too wide. Every route
+        // to the band was built and MEASURED in the 2026-09-05 proportion
+        // pass, and each one trades this gate for another:
+        //
+        //   STATURE [1.00,1.00], this rifle   23x35 r1.139 IN | spike 7/9 X
+        //   ...with the rifle 15% longer      25x35 r1.238    | spike 9/9,
+        //                                     but peerVsSelf.infantry 1 X
+        //   ...longer rifle, [1.00,1.05]      25x38 r1.141 IN | peerVsSelf 1 X
+        //   ...longer rifle, [0.95,1.02]      24x36 r1.156 IN | peerVsSelf 1 X
+        //   height alone, [1.22,1.15]         28x41 r1.184 IN | peerVsSelf 1
+        //                                     and a legibility confusable X
+        //
+        // The middle rows are this function's own trap, already recorded
+        // above: the rifle is drawn in BODY space, so a longer one differs
+        // MORE between the front-on and profile bearings, and his own
+        // cross-bearing self-IoU falls (0.656 -> 0.617) until the Tesla
+        // Trooper matches his outline better than he does — the exact
+        // regression the last lengthening caused.
+        //
+        // And the arithmetic says no tuning fixes it. At his RA2-relative
+        // height (RA2 puts him at 26 against the Conscript's 27; ours is 36,
+        // so ~35) the +-20% band allows 24 px of width. `SPIKES.cleg.len = 9`
+        // spends NINE of those on weapon standing clear of the body, leaving
+        // 15 px for a man §2.1 calls the WIDEST Allied infantry — "shoulder
+        // line >= 15 px, >= 20% wider than a GI's 12", which at our 1.38x
+        // width scale is about 21 px. 15 < 21, so the two budgets cannot both
+        // be met. The inconsistency is in the REFERENCE readings, not here:
+        // RA2's own CLEG is 15 px wide IN TOTAL while carrying this rifle,
+        // which proves its 9 px of rifle do not stand 9 columns clear of the
+        // body — the gate reads §2.1's "9 px LONG" as a protrusion, and that
+        // is stricter than the sprite the sentence cites.
+        // So he stays wide, on purpose, and the debt is the aspect metric.
+        // Re-reading `SPIKES.cleg.len` against the real CLEG rip is the fix;
+        // do not shorten the rifle or stretch the man to bury it.
         var ry = by - 16.2;
         g.save();
         g.save();
