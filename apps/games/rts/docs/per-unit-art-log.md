@@ -524,6 +524,40 @@ Still open:
 
 ## Measured NEGATIVE results — recorded so nobody re-runs them
 
+- **A five-scenario play pass found no shipping art defect (2026-09-05).** Run
+  with `tools/battle-frame.js`'s approach on the COASTAL map: base build-out,
+  aircraft into AA, armour driving through infantry, a naval engagement, and a
+  mixed line fight. Every frame was looked at, not just measured.
+  What held up: impact craters under damaged hulls; damage fires on the HULL of
+  a burning tank rather than at the muzzle; health bars reading green through
+  red; infantry correctly going prone under fire; the Desolator's green emitter
+  visible at play zoom; structures, ore, roads and rail composited cleanly; no
+  page errors in any scenario.
+  Three things looked like defects and were each disproved by reading the code:
+  * **"No fog of war."** There is a `seen` array and no `vis` array, so a
+    revealed cell stays lit forever. That is RA2's behaviour and it is already
+    recorded in `docs/design-decisions.md` as "a one-way latch by design (RA2
+    has no fog of war)". The dim region at the frame edge is the map-edge
+    vignette, not fog.
+  * **"Ships draw wakes on grass."** They did in my frames, but the wake is
+    properly terrain-conditional — `if (tgi === T_WATER) … foam: true; else …
+    dust`. The reachable version of this worry is the AMPHIBIOUS units, which
+    genuinely cross both, and they lay dust on land like everything else.
+  * **"Buildings overlap each other."** My fixture placed them on 4-cell
+    spacing; the structures are wider than that.
+
+  **The harness traps, which are the reusable part.** `__rtsTest.spawn` and
+  `.build` call `spawnUnit` / `placeBld` DIRECTLY and validate nothing — not
+  terrain, not footprint, not overlap. So a fixture will happily put a
+  destroyer on grass and stack a radar on a refinery, and both render, and
+  neither is a bug. A naval scenario has to find water from `G.terrain`, not by
+  assuming a successful spawn means the cell was legal. I wasted a run on
+  exactly that assumption; the "probe" that returned `[6,6]` had proved nothing
+  because spawning always succeeds.
+  Also: `begin()` must run and the menu classes come off before anything can be
+  staged, and with no structures the victory check fires in ~3 s so every frame
+  after the first is the score dialog.
+
 - **`iou.groundCombat.mean` 0.466 is not a legibility failure (2026-09-05).**
   Checked before spending a pass on it. The worst vehicle pair on the entire
   board is `mirage | warminer` at 0.7255 — the group maximum, with `over75: 0`
