@@ -284,6 +284,18 @@ an expanding green radiation ring and a scorched crater with a lingering
 fallout tint. The lightning storm lays real cloud cover, darkens the ground
 under it and damages what stands there. Neither needed work.
 
+**Naval art seen on real water, and one thing NOT verified.** On the coastal
+map the Destroyer and Aegis read as long low warships — the proportion fix
+visible in situ, not just in a metric — and a submerged submarine is a clean
+dark silhouette under the surface. **Wakes in motion remain UNCHECKED**: the
+fixture spawned one hull on sand and aimed its move order at land, so
+`moving: 0` and nothing was under way. Recorded as unverified rather than
+claimed, because a static hull tells you nothing about a wake.
+
+To pick water on a generated map: `MAP` is 64 and the index is `y * MAP + x`
+(there is no `g.w`); T_WATER is **3**; and only the `coastal` map has a
+worthwhile sea — `frontier` has none at all.
+
 **The harness matters more than any one fix.** It captures on the CONDITION
 that a shot or effect exists rather than on a timer, and it is parameterised per
 weapon — so the remaining warheads, damage smoke and naval wakes are inspectable
