@@ -1050,6 +1050,23 @@
     ARTYHE: [100,  80,  60, 100,  60,  60, 100,  80,  60, 100, 100],
     APSplash: [ 25,  25,  25,  75, 100, 100,  65,  65,  60,  25, 100],
     SonicWH: [100, 100, 100, 100,  80,  80, 100,  60,  60, 100, 100],
+    // ---- the ELITE warheads (`ElitePrimary=` swaps the whole weapon) ---- //
+    // Each is its base warhead with the ANTI-INFANTRY rows opened up: a tank
+    // that has learned its trade stops wasting armour-piercing shot on men.
+    // [RHINAPE] (Rhino, was [AP]) and [GRIZAPE] (Grizzly, was [AP]) are the
+    // same row — rules.ini:19412 and :19400 are byte-identical — and both are
+    // [AP] with 25/25/25 raised to 100/100/100 against none/flak/plate.
+    RHINAPE: [100, 100, 100, 100, 100, 100,  65,  45,  60,  60, 100],
+    GRIZAPE: [100, 100, 100, 100, 100, 100,  65,  45,  60,  60, 100],
+    // [ApocAPE] (rules.ini:19434, was [ApocAP]) — the same trade, on the row
+    // that already flattened structures.
+    ApocAPE: [100, 100, 100,  75, 100, 100, 100, 100,  70,  60, 100],
+    // [HowitzerWH] (rules.ini:19482) — the elite War Miner's gun stops being
+    // a pest-control 20mm and becomes a real shell: better against every
+    // armour AND every structure than [HARVWH]. The one place it gives
+    // ground is special_1 (the Terror Drone), 200% -> 80%: RA2's own trade,
+    // not a transcription slip.
+    HowitzerWH: [100,  90,  80,  60,  40,  40,  50,  40,  25,  80, 100],
     // [DredWH] — the Dreadnought's missile. A siege warhead: it is aimed at
     // the shore, and everything it lands on is a building or standing beside
     // one. Same shape as [HE] with the structure rows opened up.
@@ -1115,10 +1132,10 @@
     // RA2 AA secondaries: a Flak Track swaps FlakTWH for FlakWH against a
     // flyer, an Apocalypse unlimbers its MammothTusk missiles. The ground
     // gun is never the thing that shoots the sky.
-    if (spec.aaW && isAir(tgt)) return spec.aaW;
+    if (spec.aaW && isAir(tgt)) return eliteOf(spec.aaW, u);
     // [DEST] Secondary=ASWLauncher: the 155mm cannot reach a submarine, the
     // Osprey's depth charge is what answers one.
-    if (spec.asw && isSub(tgt)) return spec.asw;
+    if (spec.asw && isSub(tgt)) return eliteOf(spec.asw, u);
     var w2 = spec.w2;
     // [GGI] Deployer=yes + DeployFire=yes: the Guardian GI's missile is a
     // DEPLOYED weapon. Standing up he is an ordinary rifleman; braced, he is
@@ -1126,20 +1143,28 @@
     // walking, which made the deploy state decorative and the unit strictly
     // better than RA2's.
     if (w2 && spec.depFire && !(u && u.deployed)) w2 = null;
-    if (w2) { var a = armourOf(tgt); if ((w2.use === 'veh' && isVehArmour(a)) || (w2.use === 'bld' && isBldArmour(a)) || (w2.use === 'inf' && isInfArmour(a)) || (w2.use === 'ship' && isNaval(tgt))) return w2; }
-    if (u && u.deployed && spec.dep) return spec.dep;       // a deployed GI fires from its sandbags
-    return spec;
+    if (w2) { var a = armourOf(tgt); if ((w2.use === 'veh' && isVehArmour(a)) || (w2.use === 'bld' && isBldArmour(a)) || (w2.use === 'inf' && isInfArmour(a)) || (w2.use === 'ship' && isNaval(tgt))) return eliteOf(w2, u); }
+    if (u && u.deployed && spec.dep) return eliteOf(spec.dep, u);   // a deployed GI fires from its sandbags
+    // `ElitePrimary=` lands HERE and on the four returns above, so whichever
+    // weapon the resolver picked is the one that gets swapped — the Giant
+    // Squid's `SquidGrabE` is on its secondary, not its primary.
+    return eliteOf(spec, u);
   }
   // rules.ini [General] GuardModeStray=2.0 — how far a guarding unit may
   // leave its post to engage before it is told to go back.
   var GUARD_STRAY = 2.0;
   function reachOf(spec, u) {
     if (spec.ifv && u && u.pax && u.pax.length) spec = ifvSpec(u);
-    var w2r = spec.w2 && (!spec.depFire || (u && u.deployed)) ? spec.w2.rng : 0;
-    var r = w2r > spec.rng ? w2r : spec.rng;
-    if (spec.aaW) { var ar = spec.aaW.aaRng || spec.aaW.rng; if (ar > r) r = ar; }
-    if (spec.asw && spec.asw.rng > r) r = spec.asw.rng;
-    if (u && u.deployed && spec.dep && spec.dep.rng > r) r = spec.dep.rng;
+    // Twelve of the 34 elite weapons bump `Range`, two of them hugely, so the
+    // reach a unit will OPEN FIRE at has to see the swap too — otherwise an
+    // elite Tesla Trooper keeps walking to 3 cells to use a 5-cell bolt.
+    var es = eliteOf(spec, u);
+    var w2 = eliteOf(spec.w2, u);
+    var w2r = spec.w2 && (!spec.depFire || (u && u.deployed)) ? w2.rng : 0;
+    var r = w2r > es.rng ? w2r : es.rng;
+    if (spec.aaW) { var aw = eliteOf(spec.aaW, u), ar = aw.aaRng || aw.rng; if (ar > r) r = ar; }
+    if (spec.asw && eliteOf(spec.asw, u).rng > r) r = eliteOf(spec.asw, u).rng;
+    if (u && u.deployed && spec.dep && eliteOf(spec.dep, u).rng > r) r = eliteOf(spec.dep, u).rng;
     return r;
   }
   // What a DeployFire unit braces FOR: the nearest live enemy inside the
@@ -1158,22 +1183,72 @@
     }
     return best;
   }
-  // RA2 veterancy ([General]): VeteranCombat=1.1 firepower and VeteranArmor=1.5 per rank.
-  function vetFire(rank) { return Math.pow(1.1, rank || 0); }
-  // [General] lists FOUR veteran multipliers and calls them "per level":
-  // VeteranCombat=1.1, VeteranArmor=1.5, VeteranROF=0.6, VeteranSpeed=1.2,
-  // with VeteranCap=2. Combat and Armor were compounded per rank here from the
-  // start; ROF and Speed were written as `rank === 2 ? x : 1`, i.e. elite-only,
-  // so a veteran got half the promotion RA2 gives it and rank 1 was worth much
-  // less than rank 2. `VeteranAbilities=` is per unit and does vary (the GI has
-  // ROF and FASTER at rank 1, some units do not) — transcribing all forty rows
-  // is a separate job; applying the [General] defaults per level is what the
-  // other two already do and is far closer than elite-only.
+  // ---- veterancy: the [General] scalars apply ONCE, not once per level ---- //
+  //
+  // THE DECISION, and why it is not the one this file used to make.
+  //
+  // A promotion in RA2 grants ABILITIES — named flags out of the list
+  // rules.ini:2997-3000 documents, `[FASTER,STRONGER,FIREPOWER,SCATTER,ROF,
+  // SIGHT,...]`. `VeteranAbilities=` is what rank 1 grants, `EliteAbilities=`
+  // what rank 2 adds. The four `[General]` numbers (rules.ini:15-21,
+  // VeteranCombat=1.1 / VeteranArmor=1.5 / VeteranROF=0.6 / VeteranSpeed=1.2,
+  // VeteranCap=2) are the SIZE of those flags, not a per-level exponent.
+  //
+  // This file used to compound them — `Math.pow(k, rank)` — on the reading
+  // that `[General]` "calls them per level". It does not. Three things in
+  // rules.ini itself settle it:
+  //
+  //  1. In that same seven-line comment block, exactly ONE key carries the
+  //     annotation: `VeteranRatio=3.0 ; ... [per level]` (rules.ini:15). The
+  //     four combat scalars, written by the same hand on the next four lines,
+  //     do not. The note is about the KILL THRESHOLD for each promotion.
+  //  2. `EliteAbilities` is documented as "cumulative with veteran abilities"
+  //     (rules.ini:2996) — cumulative over the SET, not over the factor. The
+  //     proof is `[XCOMET]`, the one unit in the file with
+  //     `VeteranAbilities=STRONGER,FIREPOWER,SIGHT,FASTER` and NO
+  //     `EliteAbilities=` at all: without the union rule its elite would lose
+  //     firepower on promotion. 48 of the 49 units re-list FIREPOWER in both
+  //     lists, which under a compounding rule would make x1.21 universal and
+  //     the key pointless; under the union rule it is merely redundant.
+  //  3. An ability is a FLAG. Nothing in the documented list can be held
+  //     twice, so nothing in it can be applied twice.
+  //
+  // (Corroborating, but second-hand and not the basis of the decision: the
+  // decompiled lookup is `VeteranAbilities[i] || EliteAbilities[i]`, a
+  // short-circuiting OR; Starkku and two independent in-game tests report the
+  // same. See the research note in docs/ if it is ever re-litigated.)
+  //
+  // So rank 1 and rank 2 carry the SAME multipliers. What elite actually adds
+  // is `SELF_HEAL` (44 of the 49 units with an ability list, and never at
+  // rank 1) and `ElitePrimary=` — a different weapon,
+  // handled by eliteOf() below. That is the whole content of the second
+  // promotion, and it is why this had to be settled before the weapon swap:
+  // under the old compounding rule an elite was 1.83x a veteran no matter
+  // what weapon it held, which would have made the "elite is never weaker
+  // than veteran" guard true by construction and worth nothing.
+  function vetFire(rank) { return (rank || 0) > 0 ? 1.1 : 1; }
+  // ROF is the one ability that genuinely varies by unit: 29 of 49 grant it in
+  // `VeteranAbilities`, 18 only in `EliteAbilities`, and `[XCOMET]` and
+  // `[HORNET]` never. A
+  // unit's `rofAt` says which (default 1; 2 = elite only; 0 = never), and it
+  // is load-bearing rather than cosmetic — `[HARV]`'s elite gun trades ROF
+  // 20 -> 50 for Damage 30 -> 50, so an elite War Miner comes out WEAKER than
+  // its veteran unless the x0.6 arrives at rank 2 the way RA2 has it.
+  //
+  // FASTER is left flat at rank 1 for every unit: RA2 withholds it from
+  // [TANY] and [HORNET] only, it plays no part in the elite-weapon question,
+  // and the six units with no ability lists at all ([DRON], the miners,
+  // [SPY], [SAPC], [SMCV] — which should get no multipliers whatever) are the
+  // same unclosed row. Both are recorded gaps, not oversights.
   // Ticks per idle-animation frame. Six baked phases, so a full cycle is
   // IDLE_T * 6 ticks -> 5.0 s at 60 fps. See drawBld for why.
   var IDLE_T = 50;
-  function vetRof(rank) { return Math.pow(0.6, rank || 0); }
-  function vetSpeed(rank) { return Math.pow(1.2, rank || 0); }
+  function vetRofAt(u) { var r = u && UNITS[u.type] ? UNITS[u.type].rofAt : 1; return r == null ? 1 : r; }
+  function vetRof(rank) { return (rank || 0) > 0 ? 0.6 : 1; }
+  // The unit-aware form: every fire path should use this, because whether the
+  // ROF bonus has arrived yet is a property of the SHOOTER, not of the rank.
+  function vetRofU(u) { var a = vetRofAt(u); return a > 0 && (u.rank || 0) >= a ? vetRof(1) : 1; }
+  function vetSpeed(rank) { return (rank || 0) > 0 ? 1.2 : 1; }
   // A unit's ground speed after the [Powerups] Speed crate (x1.2). Every
   // mover reads it through here so one crate cannot be applied twice or
   // missed on one of the fifteen advance() call sites.
@@ -1183,7 +1258,16 @@
   // fifteen advance() call sites. The elite-only form this replaces sat in
   // advance() and had exactly that shape of risk.
   function uspd(u) { var m = UNITS[u.type].spd * vetSpeed(u.rank); return u.spMul ? m * u.spMul : m; }
-  function vetArmour(rank) { return Math.pow(1.5, rank || 0); }
+  function vetArmour(rank) { return (rank || 0) > 0 ? 1.5 : 1; }
+  // rules.ini `ElitePrimary=` (documented at :2963, "new primary weapon when
+  // at elite veteran status") — at rank 2 a unit does not get a bigger
+  // multiplier, it gets a DIFFERENT WEAPON. 34 sections carry one; 26 of them
+  // are units we field. The `elite` on a weapon spec is baked at load into a
+  // COMPLETE weapon (bakeElite, below), so every consumer that reads
+  // .dmg/.rate/.rng/.wh/.burst off what weaponFor returns gets the swap for
+  // free. Buildings are `Trainable=no` (:2982) and never carry a rank, so
+  // this is safely false for the building spec weaponFor is handed.
+  function eliteOf(w, u) { return (w && w.elite && u && u.rank === 2) ? w.elite : w; }
   // Structures that differ per faction (Allied Power Plant $800/+200 vs Tesla Reactor $600/+150).
   var _bspec = {};
   function bspecFor(key, fac) {
@@ -1234,6 +1318,13 @@
       name: 'War Miner', em: '🚛', cost: 1400, build: 59, cls: 'v', fac: 'col',
       hp: 1000, spd: 0.052, sight: 4, armour: 'medium', psiImmune: true, radImmune: true,
       dmg: 30, rate: 80, rng: 5.5, splash: 0, wh: 'HARVWH',   // [20mmRapid] 30 / ROF 20 / Range 5.5, HARVWH
+      // [HARV] ElitePrimary=[20mmRapidE] (rules.ini:18055): 50 / ROF 50 /
+      // Range 5.75 / [HowitzerWH]. The ROF gets WORSE — this is the one unit
+      // in the roster whose elite weapon is slower, and it only comes out
+      // ahead because [HARV]'s `VeteranAbilities` has no ROF (rofAt 2), so
+      // the x0.6 arrives with the new gun rather than before it.
+      rofAt: 2,
+      elite: { dmg: 50, rate: 200, rng: 5.75, wh: 'HowitzerWH' },
       cap: 1000, mine: 0.42, w: 15, h: 12, desc: 'Mines ore and shoots back with a 20mm gun'
     },
     rifle: {
@@ -1241,6 +1332,7 @@
       hp: 125, spd: 0.052, sight: 5, armour: 'none',
       dmg: 15, rate: 80, rng: 4, splash: 0,
       wh: 'SA', dep: { dmg: 15, rate: 60, rng: 5, wh: 'SSA', splash: 0 },   // deployed behind sandbags ([Para] 15 dmg, ROF 15, Range 5)
+      elite: { dmg: 25 },   // [E1] ElitePrimary=[M60E] (rules.ini:18127): 15 -> 25, same ROF and range
       cap: 0, mine: 0, w: 9, h: 14, desc: 'Deploys behind sandbags for range and fire rate (D)'
     },
     conscript: {
@@ -1248,6 +1340,7 @@
       hp: 125, spd: 0.052, sight: 5, armour: 'flak',
       dmg: 15, rate: 100, rng: 4, splash: 0,
       wh: 'SA',
+      elite: { dmg: 20, rng: 5 },   // [E2] ElitePrimary=[M1CarbineE] (rules.ini:17670): 15 -> 20, Range 4 -> 5
       cap: 0, mine: 0, w: 9, h: 14, desc: 'Cheapest body on the field'
     },
     rocket: {
@@ -1266,6 +1359,10 @@
       dmg: 20, rate: 80, rng: 5, splash: 1,
       aaW: { dmg: 20, rate: 100, rng: 8, aaRng: 8, splash: 0.6, wh: 'FlakGuyWH', aa: true, flak: true },   // [FlakGuyAAGun]
       wh: 'FlakTWH',
+      // [FLAKT] ElitePrimary=[FlakGuyGunE] (rules.ini:17712): the only change
+      // is Burst=2. (Its AA barrel doubles too, but through `EliteSecondary=
+      // FlakGuyAAGunE`, which is deliberately out of scope here.)
+      elite: { burst: 2 },
       cap: 0, mine: 0, w: 10, h: 14, desc: 'Flak gun, anti-infantry and anti-air'
     },
     rocketeer: {
@@ -1275,6 +1372,7 @@
       shadow: [9, 4],
       dmg: 25, rate: 120, rng: 5, splash: 0,
       wh: 'SSA',
+      elite: { rate: 20 },   // [JUMPJET] ElitePrimary=[20mmE] (rules.ini:17773): ROF 30 -> 5, nothing else
       cap: 0, mine: 0, w: 10, h: 16, desc: 'Jetpack trooper, machine gun; hovers, needs Airforce Command'
     },
     harrier: {
@@ -1286,6 +1384,17 @@
       hp: 150, spd: 0.182, sight: 8, armour: 'light', air: true, alt: 46, ammo: 2, reload: 1080,
       shadow: [17, 7],
       dmg: 150, rate: 40, rng: 6, splash: 0.4,   // [Maverick] Range=6
+      // [Maverick] is `Burst=2` and [ORCA] is `Ammo=1`: ONE trigger pull, two
+      // missiles. Ours splits that into `ammo: 2` instead, because our fire
+      // path draws one projectile per pull and two missiles per sortie is the
+      // truer picture; the payload is the same 300. So the Burst here lives in
+      // `ammo`, not in `dmg` — this is the roster's one weapon that expresses
+      // Burst any other way, and it is recorded rather than silently folded.
+      // [ORCA] ElitePrimary=[MaverickE] (rules.ini:17899) is 300 / Burst 4 /
+      // Range 9, i.e. that same pair doubled again — which is what `burst: 2`
+      // on top of our two shots buys: 2 x 2 x 300 = 1200, RA2's 1 x 4 x 300.
+      rofAt: 2,          // [ORCA] VeteranAbilities has no ROF; EliteAbilities does
+      elite: { dmg: 300, burst: 2, rng: 9 },
       wh: 'ORCAAP',
       cap: 0, mine: 0, w: 26, h: 16, desc: 'Jet, two Maverick missiles per sortie; ground only'
     },
@@ -1295,6 +1404,13 @@
       hp: 2000, spd: 0.065, sight: 8, armour: 'light', air: true, alt: 60, bomb: true,
       shadow: [30, 12],
       dmg: 250, rate: 200, rng: 1.0, splash: 2,
+      // [ZEP] ElitePrimary=[BlimpBombE] (rules.ini:17875) changes exactly one
+      // field: Warhead [BlimpHE] -> [KTSTLEXP]. Those two Verses rows are
+      // byte-identical in rules.ini (:19315 vs the [BlimpHE] row), as are
+      // CellSpread=2 and InfDeath=2 — the elite Kirov's bomb differs only in
+      // which explosion art plays. Recorded as a SUBSTITUTION (KTSTLEXP ==
+      // BlimpHE) rather than carried as a duplicate warhead nothing reads.
+      rofAt: 2,          // [ZEP] VeteranAbilities has no ROF; EliteAbilities does
       wh: 'BlimpHE',
       cap: 0, mine: 0, w: 46, h: 22, desc: 'Bomber airship, huge and slow; needs a Battle Lab'
     },
@@ -1303,6 +1419,11 @@
       hp: 300, spd: 0.091, sight: 8, armour: 'heavy',
       dmg: 65, rate: 240, rng: 5, splash: 0.3,
       wh: 'AP',
+      // [MTNK] ElitePrimary=[105mmE] (rules.ini:17735): 55 / ROF 75 / Burst 2
+      // / [GRIZAPE]. Damage DOWN and ROF SLOWER — the gain is the second
+      // shell and a warhead that stops treating infantry as 25%.
+      rofAt: 2,          // [MTNK] VeteranAbilities has no ROF; EliteAbilities does
+      elite: { dmg: 55, burst: 2, rate: 300, wh: 'GRIZAPE' },
       cap: 0, mine: 0, w: 19, h: 15, desc: 'Fast, long reach, thin skin'
     },
     mammoth: {
@@ -1320,11 +1441,18 @@
       // ratio); it just lets the army arrive together. Single biggest lever
       // in the whole table — see docs/design-decisions.md.
       hp: 800, spd: 0.052, sight: 6, armour: 'heavy', aa: true, aaRng: 8,
-      dmg: 200, rate: 320, rng: 5.75, splash: 0.3,
+      // [120mmx] is Damage=100 with Burst=2. That was folded into `dmg: 200`;
+      // it is now spelled the one way the roster spells Burst, because
+      // [120mmxE] takes the Burst to FOUR and a pre-multiplied 200 has
+      // nowhere to put that. dmg x burst is unchanged.
+      dmg: 100, burst: 2, rate: 320, rng: 5.75, splash: 0.3,
       wh: 'ApocAP',
+      // [APOC] ElitePrimary=[120mmxE] (rules.ini:17748): Burst 2 -> 4 and
+      // [ApocAP] -> [ApocAPE], which opens the infantry rows from 25% to 100%.
+      elite: { burst: 4, wh: 'ApocAPE' },
       // MammothTusk: the twin AA missile pack on the Apocalypse's hull, so it
       // is not helpless under a Harrier the way it was here.
-      aaW: { dmg: 100, rate: 320, rng: 8, aaRng: 8, splash: 0.2, wh: 'HE', aa: true },   // [MammothTusk] 2x50, ROF 80, Range 8
+      aaW: { dmg: 50, burst: 2, rate: 320, rng: 8, aaRng: 8, splash: 0.2, wh: 'HE', aa: true },   // [MammothTusk] 50 x Burst 2, ROF 80, Range 8
       cap: 0, mine: 0, w: 22, h: 17, desc: 'Slow, heavy, wide splash'
     },
     // ---- RA2 roster, phase B. Tier gating via `req` (any of), like structures.
@@ -1358,8 +1486,18 @@
       name: 'IFV', em: '🚙', cost: 600, build: 25, cls: 'v', fac: 'dir', turret: true,
       hp: 200, spd: 0.130, sight: 8, armour: 'light', aa: true, aaRng: 6,
       pax: 1, paxInf: true, ifv: true,
-      dmg: 50, rate: 200, rng: 6, minRng: 1, splash: 0.5,
+      // [HoverMissile] is Damage=25 with Burst=2, which used to be folded into
+      // `dmg: 50`. Spelled out, because [HoverMissileE] is 80 x Burst 4 and a
+      // pre-multiplied number cannot express either half. dmg x burst is
+      // unchanged at 50.
+      dmg: 25, burst: 2, rate: 200, rng: 6, minRng: 1, splash: 0.5,
       wh: 'HE',
+      // [FV] ElitePrimary=[HoverMissileE] (rules.ini:17991). This is the
+      // EMPTY IFV's rocket pod only: with a passenger aboard the weapon comes
+      // from the man riding in it (`IFVMode=`), and his elite weapon is his
+      // own — a separate table, not this one.
+      rofAt: 2,          // [FV] VeteranAbilities has no ROF; EliteAbilities does
+      elite: { dmg: 80, burst: 4 },
       cap: 0, mine: 0, w: 15, h: 12, desc: 'Fast rocket buggy; its gun changes with the infantryman riding in it'
     },
     mirage: {
@@ -1367,6 +1505,7 @@
       hp: 200, spd: 0.091, sight: 9, armour: 'light',
       dmg: 100, rate: 280, rng: 7, splash: 0,
       wh: 'MirageWH',
+      rofAt: 2,          // [MGTK] VeteranAbilities has no ROF; EliteAbilities does
       cap: 0, mine: 0, w: 18, h: 14, desc: 'Ambusher, shreds infantry; needs a Battle Lab'
     },
     tanya: {
@@ -1374,6 +1513,9 @@
       hp: 125, spd: 0.065, sight: 8, armour: 'flak',
       dmg: 125, rate: 40, rng: 6, splash: 0,
       wh: 'HollowPoint', w2: { dmg: 2500, rate: 400, rng: 1.2, wh: 'Super', splash: 0, use: 'bld' },   // [Sapper] ROF 100
+      // [TANY] ElitePrimary=[DoublePistolsE] (rules.ini:18091): Range 6 -> 8
+      // and nothing else. Elite Tanya does not hit harder, she opens first.
+      elite: { rng: 8 },
       cap: 0, mine: 0, w: 9, h: 14, desc: 'Hero: kills infantry outright, C4s buildings; one only'
     },
     rhino: {
@@ -1381,6 +1523,11 @@
       hp: 400, spd: 0.078, sight: 8, armour: 'heavy',
       dmg: 90, rate: 260, rng: 5.75, splash: 0.3,
       wh: 'AP',
+      // [HTNK] ElitePrimary=[120mmE] (rules.ini:17761): 85 / ROF 80 / Burst 2
+      // / [RHINAPE]. Read without Burst this is a NERF (90 -> 85, ROF 65 ->
+      // 80); with it, two 85s in the time one 90 took.
+      rofAt: 2,          // [HTNK] VeteranAbilities has no ROF; EliteAbilities does
+      elite: { dmg: 85, burst: 2, rate: 320, wh: 'RHINAPE' },
       cap: 0, mine: 0, w: 20, h: 15, desc: 'Heavy main battle tank'
     },
     flaktrack: {
@@ -1390,6 +1537,8 @@
       wh: 'FlakTWH',
       // FlakTWH (25) is the anti-ground burst; the AA barrel fires FlakWH (35).
       aaW: { dmg: 35, rate: 100, rng: 10, aaRng: 10, splash: 0.6, wh: 'FlakWH', aa: true, flak: true },   // [FlakTrackAAGun] Range=10
+      rofAt: 2,          // [HTK] VeteranAbilities has no ROF; EliteAbilities does
+      elite: { burst: 2 },   // [HTK] ElitePrimary=[FlakTrackGunE] (rules.ini:17701): Burst=2, nothing else
       pax: 5, paxInf: true,                                             // [HTK] Passengers=5
       cap: 0, mine: 0, w: 16, h: 12, desc: 'Fast flak halftrack, anti-infantry; carries five men'
     },
@@ -1409,6 +1558,9 @@
       hp: 130, spd: 0.052, sight: 6, armour: 'plate',
       dmg: 50, rate: 240, rng: 3, splash: 0,
       wh: 'Shock',
+      // [SHK] ElitePrimary=[ElectricBoltE] (rules.ini:17807): ROF 60 -> 40 and
+      // Range 3 -> 5. Same damage; it reaches out and it fires oftener.
+      elite: { rate: 160, rng: 5 },
       cap: 0, mine: 0, w: 10, h: 15, desc: 'Armoured, zaps tanks'
     },
     ivan: {
@@ -1421,6 +1573,11 @@
       hp: 125, spd: 0.052, sight: 6, armour: 'none',
       dmg: 400, rate: 200, rng: 1.5, splash: 1,
       wh: 'IvanBomb',
+      // [IVAN] ElitePrimary=[IvanBomberE] (rules.ini:17942): 400 -> 600. An
+      // IvanBomb=yes warhead PLACES the charge instead of dealing damage, so
+      // this number is carried on the bomb (plantBomb) and spent when the
+      // fuse runs out, not at the moment of firing.
+      elite: { dmg: 600 },
       cap: 0, mine: 0, w: 9, h: 14, desc: 'Plants bombs point-blank; needs Radar'
     },
     drone: {
@@ -1443,6 +1600,10 @@
       hp: 300, spd: 0.078, sight: 8, armour: 'heavy',
       dmg: 135, rate: 300, rng: 4, splash: 0,
       wh: 'Electric',
+      // [TTNK] ElitePrimary=[TankBoltE] (rules.ini:17796): 150 / ROF 60 /
+      // Range 6 — the only elite weapon that improves all three at once.
+      rofAt: 2,          // [TTNK] VeteranAbilities has no ROF; EliteAbilities does
+      elite: { dmg: 150, rate: 240, rng: 6 },
       cap: 0, mine: 0, w: 18, h: 14, desc: 'Tesla cannon on tracks; needs a Radar Tower'
     },
     prismtank: {
@@ -1454,6 +1615,7 @@
       hp: 150, spd: 0.052, sight: 8, armour: 'light',
       dmg: 100, rate: 400, rng: 10, splash: 0,
       wh: 'CometWH',   // [Comet]: 100 dmg, ROF 100, Range 10, Speed 4 — RA2's siege tank, not an infantry gun
+      rofAt: 2,          // [SREF] VeteranAbilities has no ROF; EliteAbilities does
       cap: 0, mine: 0, w: 15, h: 12, desc: 'Long-range prism beam, siege armour; needs a Battle Lab'
     },
     // ---- RA2 roster, phase C: the special infantry ----------------------
@@ -1467,6 +1629,8 @@
       hp: 150, spd: 0.052, sight: 6, armour: 'plate',
       dmg: 125, rate: 200, rng: 6, splash: 0,
       wh: 'RadBeamWH',
+      // [DESO] ElitePrimary=[RadBeamWeaponE] (rules.ini:17953): 200 / Range 8.
+      elite: { dmg: 200, rng: 8 },
       cap: 0, mine: 0, w: 10, h: 15, desc: 'Radiation beam; deploys (D) to flood the ground with radiation'
     },
     // [YURI] $1200, Str 100, Sight 12, Primary=[MindControl] 10 / ROF 200 /
@@ -1489,6 +1653,10 @@
       hp: 125, spd: 0.065, sight: 8, armour: 'none',
       dmg: 8, rate: 480, rng: 5, splash: 0,
       wh: 'ChronoBeam',
+      // [CLEG] ElitePrimary=[NeutronRifleE] (rules.ini:17889): Damage 8 -> 16.
+      // A Temporal=yes weapon never deals that damage — it sets how fast the
+      // victim is erased, which is why stepEraseList divides by it.
+      elite: { dmg: 16 },
       cap: 0, mine: 0, w: 10, h: 15, desc: 'Warps instead of walking; erases what it shoots instead of damaging it'
     },
     // [SPY] $1000, Str 100, Armor flak, Speed 4, Sight 9, Agent=yes,
@@ -1516,6 +1684,10 @@
       pax: 5, paxInf: true, passive: true, shadow: [16, 7],
       dmg: 35, rate: 160, rng: 6, splash: 0,
       wh: 'SA',
+      // [SHAD] ElitePrimary=[BlackHawkCannonE] (rules.ini:17931): 40 and
+      // [SA] -> [SSA], the harder small-arms row we already carry.
+      rofAt: 2,          // [SHAD] VeteranAbilities has no ROF; EliteAbilities does
+      elite: { dmg: 40, wh: 'SSA' },
       cap: 0, mine: 0, w: 20, h: 14, desc: 'Carries five infantry; lands on any clear ground to load and unload (D)'
     },
     // [SAPC] Armored Transport. Cost 900, Strength 300, Armor heavy, Speed 6,
@@ -1556,6 +1728,7 @@
       name: 'Destroyer', em: '🚢', cost: 1000, build: 42, cls: 'n', fac: 'dir', nav: 1,
       hp: 600, spd: 0.078, sight: 7, armour: 'heavy',
       dmg: 60, rate: 440, rng: 8, splash: 0.5, wh: 'ARTYHE',
+      elite: { burst: 2 },   // [DEST] ElitePrimary=[155mmE] (rules.ini:17783): Burst=2, nothing else
       asw: { dmg: 50, rate: 600, rng: 6, wh: 'APSplash', splash: 0.5 },
       cap: 0, mine: 0, w: 30, h: 16, desc: 'Naval gun; its Osprey hunts submarines by itself'
     },
@@ -1573,6 +1746,12 @@
       name: 'Aegis Cruiser', em: '🛰️', cost: 1200, build: 50, cls: 'n', fac: 'dir', nav: 1, req: ['airforce', 'radar'],
       hp: 800, spd: 0.052, sight: 8, armour: 'light', aa: true, aaRng: 12, ag: false,
       dmg: 100, rate: 60, rng: 12, splash: 0.3, wh: 'SAMWH',
+      // [AEGIS] ElitePrimary=[MedusaE] (rules.ini:18079): ROF 15 -> 5, Range
+      // 12 -> 14, Burst=2. The single largest elite jump in the roster — a
+      // 12x rate of fire. `aaRng` moves with `rng` because the Aegis has no
+      // separate AA weapon: its primary IS the missile, and rngVs reads
+      // aaRng when the target flies.
+      elite: { rate: 20, rng: 14, aaRng: 14, burst: 2 },
       cap: 0, mine: 0, w: 30, h: 16, desc: 'Anti-air only: a 12-cell missile umbrella over the fleet'
     },
     carrier: {
@@ -1594,6 +1773,12 @@
       hp: 75, spd: 0.156, sight: 2, armour: 'light', air: true, alt: 40, ammo: 1, reload: 1080,   // [General] ReloadRate=.3 minutes
       shadow: [13, 6],
       dmg: 40, rate: 12, rng: 5, splash: 0.3, wh: 'ORCAAP',
+      // [HORNET] ElitePrimary=[HornetBombE] (rules.ini:17919): 80 and
+      // [ORCAAP] -> [ARTYHE]. Its ability lists are the shortest in the file
+      // — `STRONGER,FIREPOWER` at BOTH ranks — so it is the one unit that
+      // never gets the ROF bonus at all.
+      rofAt: 0,
+      elite: { dmg: 80, wh: 'ARTYHE' },
       cap: 0, mine: 0, w: 20, h: 14, desc: 'Carrier-borne bomber'
     },
     dolphin: {
@@ -1605,6 +1790,14 @@
       sub: 1, sensors: 1, notHuman: true, psiImmune: true, req: 'lab',
       hp: 200, spd: 0.104, sight: 4, armour: 'light', landTgt: false,
       dmg: 42, rate: 480, rng: 6, splash: 0, wh: 'SonicWH',
+      // [DLPH] ElitePrimary=[SonicZapE] (rules.ini:17976): Damage 4 -> 8,
+      // Burst -> 2, AmbientDamage 10 -> 15, ROF 120 -> 80. Our 42 is the base
+      // weapon's whole pulse folded at 3x ((4 x 1) + 10 = 14, x3): the sonic
+      // wave passes through more than once and one `dmg` has to carry it. The
+      // elite figure is the SAME fold on the elite numbers — ((8 x 2) + 15) =
+      // 31, x3 = 93 — so the elite/base ratio is RA2's own 3.32x rather than
+      // a number picked to look right.
+      elite: { dmg: 93, rate: 320 },
       cap: 0, mine: 0, w: 16, h: 10, desc: 'Submerged sonic escort; sees and kills submarines'
     },
     lcraft: {
@@ -1615,6 +1808,7 @@
       hp: 300, spd: 0.078, sight: 6, armour: 'light',
       pax: 12, paxInf: true, paxVeh: true, paxHarv: true, passive: true,
       dmg: 0, rate: 0, rng: 0, splash: 0, wh: null,
+      rofAt: 2,          // [LCRF] VeteranAbilities has no ROF; EliteAbilities does
       cap: 0, mine: 0, w: 26, h: 14, desc: 'Twelve seats, crosses water AND land; unload with D'
     },
     sub: {
@@ -1625,6 +1819,9 @@
       sub: 1, sensors: 1,
       hp: 600, spd: 0.052, sight: 4, armour: 'heavy', landTgt: false,
       dmg: 100, rate: 480, rng: 7, splash: 0.5, wh: 'APSplash',
+      // [SUB] ElitePrimary=[SubTorpedoE] (rules.ini:17965): Burst=2. (Its
+      // Speed 25 -> 18 is the torpedo's travel speed, which we do not model.)
+      elite: { burst: 2 },
       cap: 0, mine: 0, w: 26, h: 12, desc: 'Runs submerged; torpedoes anything afloat'
     },
     seascorp: {
@@ -1635,6 +1832,7 @@
       name: 'Sea Scorpion', em: '🦂', cost: 600, build: 25, cls: 'n', fac: 'col', nav: 1, req: 'radar',
       hp: 400, spd: 0.104, sight: 8, armour: 'heavy', aa: true, aaRng: 12, flak: true,
       dmg: 25, rate: 160, rng: 5, splash: 0.4, wh: 'FlakTWH',
+      elite: { burst: 2 },   // [HYD] ElitePrimary=[FlakTrackGunE] (rules.ini:17701): Burst=2
       aaW: { dmg: 40, rate: 80, rng: 12, aaRng: 12, splash: 0.6, wh: 'FlakWH', aa: true, flak: true },
       cap: 0, mine: 0, w: 22, h: 13, desc: 'Flak escort: anti-air umbrella and a light deck gun'
     },
@@ -1660,7 +1858,12 @@
       sub: 1, sensors: 1, notHuman: true, selfHeal: true, grab: true,
       hp: 200, spd: 0.104, sight: 5, armour: 'light', landTgt: false,
       dmg: 50, rate: 128, rng: 1.83, splash: 0, wh: 'HE',
-      w2: { dmg: 15, rate: 128, rng: 1.5, wh: 'Parasite', splash: 0, use: 'ship' },
+      // [SQD] ElitePrimary=[SquidGrabE] (rules.ini:18102): Damage 15 -> 40.
+      // RA2's Primary is the GRAB and its Secondary the punch; ours are the
+      // other way round, so the elite swap lands on `w2` — which is why
+      // weaponFor applies it to whichever weapon it resolved, not to the
+      // spec it started from.
+      w2: { dmg: 15, rate: 128, rng: 1.5, wh: 'Parasite', splash: 0, use: 'ship', elite: { dmg: 40 } },
       cap: 0, mine: 0, w: 18, h: 12, desc: 'Grabs a ship and drags it under; invisible until it strikes'
     },
     mcv: {
@@ -1674,6 +1877,30 @@
       cap: 0, mine: 0, w: 22, h: 16, desc: 'Deploys in place into a Construction Yard (D)'
     }
   };
+
+  // `elite:` above is written the way rules.ini writes an `ElitePrimary=` —
+  // ONLY the fields that differ (the median elite weapon changes two). Bake
+  // each one into a COMPLETE weapon here, once, at load: after this every
+  // `elite` is a whole spec that any consumer can read `.dmg`/`.rate`/`.rng`/
+  // `.wh`/`.burst`/`.splash` off without knowing it is the elite variant, and
+  // eliteOf() is a field lookup rather than a merge on the firing path. The
+  // baked copy deliberately carries no `elite` of its own, so a second swap
+  // is impossible.
+  (function bakeElite() {
+    function bake(w) {
+      if (!w || !w.elite) return;
+      var o = {}, k;
+      for (k in w) if (k !== 'elite') o[k] = w[k];
+      for (k in w.elite) o[k] = w.elite[k];
+      w.elite = o;
+    }
+    for (var t in UNITS) {
+      var s = UNITS[t];
+      // Sub-weapons first, so a top-level bake copies the already-baked ones.
+      bake(s.w2); bake(s.aaW); bake(s.asw); bake(s.dep);
+      bake(s);
+    }
+  })();
 
   // --------------------------------------------------------------------- //
   //  The IFV's thirteen weapons ([FV] WeaponCount=13, TurretCount=4)
@@ -20608,7 +20835,11 @@
     var best = null, bs = -Infinity;
     var ex = e.kind === 'b' ? e.cx : e.x, ey = e.kind === 'b' ? e.cy : e.y;
     var spec = e.kind === 'b' ? BLDS[e.type] : UNITS[e.type];
-    var reach = Math.max(rng, spec.aa && spec.aaRng ? spec.aaRng : 0);
+    // `ElitePrimary=` can widen both of these ([MedusaE] Range 12 -> 14 and
+    // aaRng with it), and a scan window narrower than the weapon that gets
+    // resolved inside it silently never offers the target.
+    var espec = e.kind === 'u' ? eliteOf(spec, e) : spec;
+    var reach = Math.max(rng, espec.aa && espec.aaRng ? espec.aaRng : 0, espec.rng || 0);
     near(ex, ey, reach + 1, function (o) {
       if (o.dead || o.p === e.p) return;
       if (o.limbo) return;                   // inside a vehicle, or out of phase mid-warp
@@ -21087,7 +21318,7 @@
 
   function fire(g, src, tgt) {
     var spec = weaponFor(src.kind === 'b' ? BLDS[src.type] : UNITS[src.type], tgt, src);
-    src.cool = spec.rate * vetRof(src.rank);            // [General] VeteranROF=0.6 per level
+    src.cool = spec.rate * vetRofU(src);                // [General] VeteranROF=0.6, at the rank this unit's own ability list grants it
     // Prism support: every tower that beamed into this one adds 150%.
     var supMul = 1;
     if (src.kind === 'b' && src.type === 'prism' && src.sup) { supMul = 1 + PRISM_SUP_MOD * src.sup; src.sup = 0; }
@@ -21147,7 +21378,7 @@
     // but no damage is dealt, because rules.ini's flag on the warhead
     // (Parasite / IvanBomb / MindControl / Temporal) replaces the damage.
     if (spec.wh === 'Parasite' && tgt.kind === 'u' && (isVeh(tgt) || isNaval(tgt)) && !tgt.drone) { infest(g, src, tgt); return; }
-    if (spec.wh === 'IvanBomb') { plantBomb(g, src, tgt); return; }
+    if (spec.wh === 'IvanBomb') { plantBomb(g, src, tgt, spec.dmg); return; }
     if (spec.wh === 'Controller') { mindControl(g, src, tgt); return; }
     if (spec.wh === 'ChronoBeam') { startErase(g, src, tgt); src.cool = 8; return; }
     // [DredLauncher] / [HornetLauncher] `Spawner=yes`: the launcher itself
@@ -21422,7 +21653,7 @@
     // pointed at whatever wanders past, mining or not. The Chrono Miner has
     // Primary=none and simply never enters this branch.
     if (d.dmg > 0 && u.cool <= 0 && u.state !== 'warp') {
-      var wt = findTarget(g, u, d.rng);
+      var wt = findTarget(g, u, reachOf(d, u));      // [20mmRapidE] is Range 5.75, not 5.5
       // [HARVWH] is 100/80/70 against the three infantry armours and 50/20/20
       // against the three vehicle ones: a 20mm autocannon is for men and thin
       // skins, not for tanks. Restricting ACQUISITION to what the gun is for
@@ -21646,7 +21877,7 @@
   // the drone chewed at twice RA2's rate (a 300-hp Grizzly died in 720 ticks
   // instead of 1440) and a pair of them could carry a whole match.
   var PARASITE_DMG = 50, PARASITE_ROF = 240;
-  var SQUID_DMG = 100, SQUID_ROF = 60;
+  var SQUID_DMG = 100, SQUID_ROF = 60, SQUID_D0 = 15;   // SQUID_D0 = [SquidGrab] Damage=15, what SQUID_DMG was tuned at
   function infest(g, dr, v) {
     if (v.drone || dr.limbo) return false;
     v.drone = dr;
@@ -21687,7 +21918,11 @@
       v.drone.gnaw = g.tick;
       // [SquidGrab] Culling=yes: a squid does not nibble a hull, it holds it
       // under until it goes down. Twice a Terror Drone's bite, twice as often.
-      damage(g, v.drone, v, pd.grab ? SQUID_DMG : PARASITE_DMG, 'Parasite');
+      // [SquidGrabE] (rules.ini:18102) takes the grab from 15 to 40, so the
+      // hold scales with the grab weapon our own table carries rather than
+      // with a constant that cannot see the promotion.
+      var gw = pd.grab && pd.w2 ? eliteOf(pd.w2, v.drone) : null;
+      damage(g, v.drone, v, gw ? SQUID_DMG * (gw.dmg / SQUID_D0) : (pd.grab ? SQUID_DMG : PARASITE_DMG), 'Parasite');
     }
   }
 
@@ -21701,9 +21936,13 @@
   // [IvanWH]: 400 damage, CellSpread 1.5, PercentAtMax=.25.
   var IVAN_BOMB_T = 1800, IVAN_DMG = 400, IVAN_SPREAD = 1.5, IVAN_ATMAX = 0.25;
   var DEFUSE_RNG = 1.5;                            // [DefuseKit] Range=1.5
-  function plantBomb(g, u, tgt) {
+  function plantBomb(g, u, tgt, dmg) {
     if (tgt.bomb || tgt.dead) return false;
-    tgt.bomb = { p: u.p, at: g.tick + IVAN_BOMB_T };
+    // The yield is a property of the CHARGE, fixed when it is planted, not of
+    // whoever is standing near it thirty seconds later: [IvanBomberE]
+    // (rules.ini:17942) is 600 where [IvanBomber] is 400, so an elite Ivan
+    // leaves a bigger bomb behind and it stays bigger after he dies.
+    tgt.bomb = { p: u.p, at: g.tick + IVAN_BOMB_T, dmg: dmg > 0 ? dmg : IVAN_DMG };
     g.bombs.push(tgt);
     if (!headless) sfx('click');
     if (tgt.p === ME && u.p !== ME) { eva('Warning: bomb planted', 6000); say('A bomb has been planted on ' + describeShort(tgt), true, 260); }
@@ -21728,18 +21967,22 @@
       }
       var src = { kind: 'u', type: 'ivan', p: e.bomb.p, rank: 0 };
       var bx = entX(e), by = entY(e);
+      // Read the yield BEFORE the charge is unhooked — it is the bomb's own
+      // number ([IvanBomber] 400 / [IvanBomberE] 600), and `e.bomb` is gone
+      // on the next line.
+      var bdmg = e.bomb.dmg > 0 ? e.bomb.dmg : IVAN_DMG;
       e.bomb = null; g.bombs.splice(i, 1);
       boom(g, bx, by, 26);
       sfx('boom3', bx, by);
       // The carrier itself takes the full charge; everything inside
       // CellSpread takes it scaled down to PercentAtMax at the rim.
-      damage(g, src, e, IVAN_DMG, 'IvanWH');
+      damage(g, src, e, bdmg, 'IvanWH');
       (function (skip) {
         near(bx, by, IVAN_SPREAD + 1, function (o) {
           if (o.dead || o === skip || isAir(o)) return;
           var dd = Math.sqrt((entX(o) - bx) * (entX(o) - bx) + (entY(o) - by) * (entY(o) - by));
           if (dd > IVAN_SPREAD) return;
-          damage(g, src, o, IVAN_DMG * (1 - (1 - IVAN_ATMAX) * dd / IVAN_SPREAD), 'IvanWH');
+          damage(g, src, o, bdmg * (1 - (1 - IVAN_ATMAX) * dd / IVAN_SPREAD), 'IvanWH');
         });
       })(e);
     }
@@ -21863,6 +22106,11 @@
   // `Temporal=yes`: the beam does not damage the target, it erases it from
   // the timeline, and RA2 scales how long that takes by the victim's
   // Strength. Break the beam and the victim snaps back to whole.
+  // A `Temporal=yes` weapon's Damage is not damage: it is the RATE the victim
+  // is erased at, against its Strength. [NeutronRifle] is 8 and its
+  // [NeutronRifleE] (rules.ini:17889) is 16, so an elite Chrono Legionnaire
+  // erases exactly twice as fast — the only thing its promotion changes.
+  var ERASE_D0 = 8;                                // [NeutronRifle] Damage=8, the rate ERASE_K was measured at
   var ERASE_K = 0.96;                              // 125 hp erased in ~2 s, an 800 hp Apocalypse in ~13 s
   var CLEG_MIN_DELAY = 32, CLEG_PER_CELL = 10;     // [General] ChronoMinimumDelay / 256/ChronoDistanceFactor
   function startErase(g, u, tgt) {
@@ -21891,7 +22139,7 @@
         if (by && by.eraseId === t.id) by.eraseId = 0;
         continue;
       }
-      t.erase += 1 / (t.maxhp * ERASE_K);
+      t.erase += (eliteOf(UNITS[by.type], by).dmg / ERASE_D0) / (t.maxhp * ERASE_K);
       if (t.erase < 1) continue;
       // Gone. Not killed — removed; there is no body, no wreck, no rubble.
       t.erase = 1; t.erasedBy = 0; by.eraseId = 0;
@@ -22231,7 +22479,7 @@
         if (!coilCrew(g, cb0)) { u.order = null; return; }      // the coil already has its three
         u.coilAt = g.tick;
         // He still shoots what walks into his own three-cell reach.
-        if (u.cool <= 0) { var ct0 = findTarget(g, u, d.rng); if (ct0) fire(g, u, ct0); }
+        if (u.cool <= 0) { var ct0 = findTarget(g, u, reachOf(d, u)); if (ct0) fire(g, u, ct0); }   // [ElectricBoltE] is Range 5
         return;
       }
       advance(g, u, Math.round(cb0.cx), Math.round(cb0.cy), uspd(u), 60);
@@ -22820,18 +23068,20 @@
   function stepGarrison(g, b) {
     var fired = null;
     for (var i = 0; i < b.occ.length; i++) {
-      var o = b.occ[i], d = UNITS[o.type];
+      // Occupants keep their rank through the garrison (stashed and restored
+      // with them), so they keep their `ElitePrimary=` and their Burst too.
+      var o = b.occ[i], d = eliteOf(UNITS[o.type], o);
       if (o.cool > 0) { o.cool--; continue; }
       var t = garrisonTarget(g, b, d);
       if (!t) continue;
-      o.cool = d.rate * vetRof(o.rank);          // [General] VeteranROF=0.6 per level
+      o.cool = d.rate * vetRofU(o);              // [General] VeteranROF=0.6, at this unit's own rank
       fired = t;
       if (!headless) {
         var pt = GARRISON_PORTS[o.port % GARRISON_PORTS.length];
         g.shots.push({ x: b.cx, y: b.cy, tx: entX(t), ty: entY(t), t: 0, life: 7, id: g.nextId++,
                        ox: pt[0], alt: pt[1], talt: t.kind === 'u' ? altOf(t) : 0 });
       }
-      damage(g, b, t, d.dmg * vetFire(o.rank), d.wh);
+      damage(g, b, t, d.dmg * (d.burst || 1) * vetFire(o.rank), d.wh);
     }
     b.target = fired;
     if (fired && !headless && (g.tick % 12) === 0) sfx('shot');
@@ -29644,8 +29894,11 @@
   // spot — friend or foe, exactly as RA2's force-fire does.
   function fireGround(g, u, gx, gy) {
     var d = UNITS[u.type];
-    var spec = (u.deployed && d.dep) ? d.dep : d;    // ground fire is always the primary weapon
-    u.cool = spec.rate * vetRof(u.rank);         // [General] VeteranROF=0.6 per level, as both real fire paths do
+    // ground fire is always the primary weapon — but an elite one still
+    // fires its `ElitePrimary=`, so this bypass of weaponFor has to make the
+    // same swap the other two fire paths get for free.
+    var spec = eliteOf((u.deployed && d.dep) ? d.dep : d, u);
+    u.cool = spec.rate * vetRofU(u);             // [General] VeteranROF=0.6, as both real fire paths do
     u.fireAt = g.tick;
     if (!headless) {
       g.shots.push({ x: u.x, y: u.y, tx: gx, ty: gy, t: 0, life: spec.bomb ? 14 : 7, id: g.nextId++,
@@ -29655,15 +29908,20 @@
     }
     sfx(u.type === 'rifle' ? 'shot' : 'cannon');
     var r = Math.max(0.7, spec.splash || 0);
+    // `Burst=` is a property of the weapon, not of who it is pointed at: a
+    // force-fired Apocalypse still puts two shells on the spot. fire() has
+    // always multiplied it in; this path did not, which only became visible
+    // once [120mmx]'s Burst stopped being folded into its `dmg`.
+    var gAmt = spec.dmg * (spec.burst || 1) * vetFire(u.rank) * (u.fpMul || 1);
     near(gx, gy, r + 1, function (o) {
       if (o.dead || isAir(o) || !canHit(spec, o)) return;
       var ox = o.kind === 'b' ? o.cx : o.x, oy = o.kind === 'b' ? o.cy : o.y;
       var dd = Math.sqrt((ox - gx) * (ox - gx) + (oy - gy) * (oy - gy));
       if (dd > r) return;
-      damage(g, u, o, spec.dmg * vetFire(u.rank) * (u.fpMul || 1) * (1 - 0.5 * dd / (r + 0.4)), spec.wh);
+      damage(g, u, o, gAmt * (1 - 0.5 * dd / (r + 0.4)), spec.wh);
     });
     // Force-firing at a bridge deck is how RA2 drops a span.
-    damageBridge(g, gx, gy, spec.dmg * vetFire(u.rank) * (u.fpMul || 1));
+    damageBridge(g, gx, gy, gAmt);
   }
 
   // Next queued waypoint, if any, becomes the order when one completes.
@@ -33499,6 +33757,10 @@
     api: { astar: astar, linkWall: function (x, y, k) { return linkWall(x, y, k); }, damage: damage, canPlace: canPlace, canDeployMcv: canDeployMcv, economyDead: economyDead,
            countUnit: countUnit, hasBld: hasBld, genMap: genMap, newState: newState, findOre: findOre, canHit: canHit, isAir: isAir, altOf: altOf, countBld: countBld,
            findTarget: findTarget, isDisguised: isDisguised, prodSpeed: prodSpeed, weaponFor: weaponFor, reachOf: reachOf,
+           // veterancy, so a test can ask the game its own multipliers rather
+           // than re-deriving them and then agreeing with itself.
+           vetFire: vetFire, vetRof: vetRof, vetRofU: vetRofU, vetRofAt: vetRofAt,
+           vetSpeed: vetSpeed, vetArmour: vetArmour, eliteOf: eliteOf,
            canBuild: canBuild, swBld: swBld, techCount: techCount,
            // RA2's captured-production rule: the one faction gate, the
            // structure's own faction, and the sidebar list that follows it.
@@ -33826,7 +34088,7 @@
 
   window.__rtsBuildFactor = function (lane) { return G ? buildFactor(G, ME, lane) : 1; };
 
-  window.__rtsTables = { AI_TEAMS: AI_TEAMS, SW: SW, SW_KEYS: SW_KEYS, UNITS: UNITS, BLDS: BLDS, DIFF: DIFF, MAP: MAP, FACTIONS: FACTIONS, MAPS: MAPS, TER: { GROUND: T_GROUND, ROCK: T_ROCK, ORE: T_ORE, WATER: T_WATER, CLIFF: T_CLIFF, TREE: T_TREE, ROAD: T_ROAD, RAMP: T_RAMP, BRIDGE: T_BRIDGE, GEM: T_GEM, CIV: T_CIV }, VERSES: VERSES, ARMOURS: ARMOURS, IFV_MODES: IFV_MODES, verses: verses, weaponFor: weaponFor, bspecFor: bspecFor };
+  window.__rtsTables = { AI_TEAMS: AI_TEAMS, SW: SW, SW_KEYS: SW_KEYS, UNITS: UNITS, BLDS: BLDS, DIFF: DIFF, MAP: MAP, FACTIONS: FACTIONS, MAPS: MAPS, TER: { GROUND: T_GROUND, ROCK: T_ROCK, ORE: T_ORE, WATER: T_WATER, CLIFF: T_CLIFF, TREE: T_TREE, ROAD: T_ROAD, RAMP: T_RAMP, BRIDGE: T_BRIDGE, GEM: T_GEM, CIV: T_CIV }, VERSES: VERSES, ARMOURS: ARMOURS, IFV_MODES: IFV_MODES, verses: verses, weaponFor: weaponFor, bspecFor: bspecFor, eliteOf: eliteOf };
 
   // --------------------------------------------------------------------- //
   //  Boot

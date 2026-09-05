@@ -268,31 +268,40 @@ design-decisions entry). And the `--sheet` is a roster line-up, not a battle:
 
 ---
 
-## Phase 5 — ElitePrimary · one change, five ordered steps
+## Phase 5 — ElitePrimary · DONE
 
-26 of 34 rules.ini rows map to units we field. Ships as **one** change because a
-half-applied elite table is worse than none.
+All five steps shipped as one change. What each found:
 
-1. **Unify `Burst` first.** Three models coexist: a damage multiplier
-   (`spec.dmg * burst`, :20969), damage **pre-doubled into the table**
-   (`[DredLauncher]` — "100 was the launcher's own Damage=50", :1642-1644), and
-   prose in a comment (`[HoverMissile]`, :1350). `[120mmE]` adds `Burst=2`, so
-   elite Rhinos land straight on this. Unify **before**, not during.
-2. **Settle the veterancy stacking rule by evidence.** Ours compounds
-   (`Math.pow`, :1155-1176) → ×1.21 firepower / ×0.36 ROF at elite. The file's
-   own comment argues `[General]`'s multipliers are per level and `VeteranCap=2`
-   makes that the intent; the competing reading is each ability applies once.
-   **This is a decision, not a known bug.** It must precede the swap, because the
-   swap changes which numbers the multipliers land on.
-3. **Add the 4 missing elite warheads** — `ApocAPE`, `RHINAPE`, `GRIZAPE`,
-   `HowitzerWH` — with their real `Verses=` rows, or record the substitution.
-4. **Swap the weapon at rank 2**, at the single `spec` site both fire paths read.
-5. **Guard the one failure a player notices instantly.** `[120mm]` 90 →
-   `[120mmE]` 85 means elite can come out *weaker*. Walk every mapped unit and
-   assert **elite DPS >= veteran DPS**.
+1. **`Burst` was NOT consistent** — three spellings coexisted: a `burst:` field
+   (Dreadnought), pre-multiplied into `dmg` (Apocalypse 200 = 100x2, its
+   Mammoth Tusks 100 = 50x2, IFV 50 = 25x2) and folded into `ammo` (Harrier,
+   `[ORCA] Ammo=1` x `Burst=2` modelled as two sorties). The folds into `dmg`
+   are gone; the Harrier's `ammo` fold is KEPT and recorded, because our fire
+   path draws one projectile per trigger pull and two visible missiles per
+   sortie is the truer picture. Two silent Burst drops turned up on the way —
+   `fireGround` and garrison fire both ignored it.
+2. **The scalars apply ONCE, and the elite weapon STACKS on them.** Settled
+   from `rules.ini` alone (only `VeteranRatio` is annotated `[per level]`;
+   "cumulative" in `EliteAbilities` is set union, proved by `[XCOMET]`; a flag
+   cannot be held twice). Full reasoning and the rejected readings are in
+   `docs/design-decisions.md`. `ROF` varies per unit, so units carry `rofAt`.
+3. **Four warheads added** with their real `Verses=` rows — `RHINAPE`,
+   `GRIZAPE`, `ApocAPE`, `HowitzerWH`. `KTSTLEXP` is recorded as a substitution
+   (byte-identical to `[BlimpHE]`); `SSA` and `ARTYHE` already existed.
+4. **The swap lands in `weaponFor`**, on whichever weapon it resolved, plus
+   `reachOf`, `fireGround` and garrison fire. Four elite weapons change only a
+   `Damage` that drives a mechanism rather than a damage roll (Ivan's charge,
+   the Chrono Legionnaire's erase rate, the Squid's hold); each is now carried
+   into that mechanism instead of reading a module constant.
+5. **The guard walks every mapped weapon** and asserts elite DPS >= veteran
+   DPS, plus a named list of the ones allowed to come out even (Tanya only).
+   Proved to bite by deleting `[HARV]`'s `rofAt` and by dropping the
+   Destroyer's elite `Burst`.
 
-Out of scope, deliberately: `EliteSecondary`, elite animations and report sounds,
-and rebalancing anything RA2 does not itself change.
+Still open, deliberately and recorded in the code: `EliteSecondary`, elite
+animations and report sounds, the `FASTER` rank variation (`[TANY]` and
+`[HORNET]` never get it) and the six units with no ability lists at all, which
+should get no multipliers whatever.
 
 ---
 
@@ -331,7 +340,7 @@ Phase 3  the two false premises  ── M1 name on plate (menu) + P1 fix the too
                                     hours each; M1 is the best gain/cost on the board
 Phase 4  rest of the menu        ── M2 backgrounds, M3 crop, M4 greyed, M5 Nighthawk
 Phase 5  map art  [blocked 3.2]  ── P3 harrier|nighthawk, then P2 infantry (weeks)
-Phase 6  ElitePrimary            ── one change, five steps
+Phase 6  ElitePrimary            ── DONE
 Phase 7  cliff seams
 Phase 8  riders + blocked
 ```

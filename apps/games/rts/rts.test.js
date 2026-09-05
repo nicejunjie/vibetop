@@ -4888,32 +4888,42 @@ test("the Terror Drone carries RA2's special_1 armour, and infantry can hurt it"
     "[HollowPoint] Verses column 10 is 1% — Tanya does not counter drones");
 });
 
-// ---- veteran promotions are PER LEVEL, all four of them ------------------ //
-// [General] lists four veteran multipliers and the ini calls them "per level":
-// VeteranCombat=1.1, VeteranArmor=1.5, VeteranROF=0.6, VeteranSpeed=1.2, with
-// VeteranCap=2. Combat and Armor were compounded per rank here from the start;
-// ROF and Speed were written `rank === 2 ? x : 1` — elite-only — so a veteran
-// got half the promotion RA2 gives it and rank 1 was worth far less than rank 2.
+// ---- a veteran gets the whole promotion, and an elite does not get it twice //
+// [General]'s four multipliers (VeteranCombat=1.1, VeteranArmor=1.5,
+// VeteranROF=0.6, VeteranSpeed=1.2, VeteranCap=2) were once elite-only here,
+// which made rank 1 worth almost nothing; that was fixed by compounding them
+// per rank, which overshot in the other direction. They apply ONCE — see the
+// evidence in "the veteran multipliers apply ONCE" below, and the reasoning in
+// rts.html above vetFire.
 //
-// Asserted as a RELATIONSHIP between ranks, not as the constants themselves:
-// the multipliers are what the fix sets, so pinning them would prove nothing.
+// This test keeps the half that was right: rank 1 is a REAL promotion, at
+// every one of the four. Which rank the ROF half arrives at is the unit's own
+// business ([HTNK] gets it at elite, [E1] at veteran), so it is asked of a
+// unit of each kind rather than assumed.
 test("a veteran fires faster and moves faster than a rookie, not only an elite", () => {
   const H = W.__rtsTest;
   const g = H.begin(9711, "normal");
-  const spec = T.UNITS.rhino;
 
-  const cool = (rank) => {
-    const u = H.spawn("rhino", 0, 20 + rank * 2, 20);
+  const cool = (key, rank) => {
+    const u = H.spawn(key, 0, 20 + rank * 2, 20);
     u.rank = rank;
     const foe = H.spawn("rhino", 1, 20 + rank * 2, 24);
     u.cool = 0;
     H.api3.fire(g, u, foe);
     return u.cool;
   };
-  const c0 = cool(0), c1 = cool(1), c2 = cool(2);
-  assert.ok(c1 < c0, `a VETERAN must reload faster than a rookie (${c1} vs ${c0})`);
-  assert.ok(c2 < c1, `an ELITE must reload faster than a veteran (${c2} vs ${c1})`);
-  assert.equal(c0, spec.rate, "a rookie reloads at the unmodified rate");
+  // [E1] VeteranAbilities=STRONGER,FIREPOWER,ROF,... — the GI reloads faster
+  // the moment it is promoted, and no faster again at elite.
+  const g0 = cool("rifle", 0), g1 = cool("rifle", 1), g2 = cool("rifle", 2);
+  assert.equal(g0, T.UNITS.rifle.rate, "a rookie reloads at the unmodified rate");
+  assert.ok(g1 < g0, `a VETERAN GI must reload faster than a rookie (${g1} vs ${g0})`);
+  assert.equal(g2, g1, `an elite GI reloads at the SAME rate as a veteran (${g2} vs ${g1}) — VeteranROF is not per level`);
+  // [HTNK] has no ROF in VeteranAbilities and does have it in EliteAbilities,
+  // so the Rhino is the other case: nothing at rank 1, the full 0.6 at rank 2.
+  // (Its elite `rate` is [120mmE]'s 80x4, not [120mm]'s 65x4.)
+  const r0 = cool("rhino", 0), r1 = cool("rhino", 1), r2 = cool("rhino", 2);
+  assert.equal(r1, r0, `a veteran Rhino reloads at the rookie rate (${r1} vs ${r0}) — RA2 gives it ROF at elite`);
+  assert.ok(r2 < r1, `an ELITE Rhino must reload faster (${r2} vs ${r1})`);
 
   // Speed, same shape. `uspd` is the one place every mover reads.
   assert.equal(typeof H.api3.uspd, "function",
@@ -4926,7 +4936,7 @@ test("a veteran fires faster and moves faster than a rookie, not only an elite",
   };
   const s0 = spd(0), s1 = spd(1), s2 = spd(2);
   assert.ok(s1 > s0, `a VETERAN must move faster than a rookie (${s1} vs ${s0})`);
-  assert.ok(s2 > s1, `an ELITE must move faster than a veteran (${s2} vs ${s1})`);
+  assert.equal(s2, s1, `an elite moves at the SAME speed as a veteran (${s2} vs ${s1}) — VeteranSpeed is not per level`);
 });
 
 // ======================================================================== //
@@ -5375,18 +5385,21 @@ test("every VERSES row matches rules.ini exactly", () => {
 
 test("force-firing at bare ground honours VETERAN rate of fire, not just elite", () => {
   // `fireGround` carried `(u.rank === 2 ? 0.6 : 1)` — an ELITE-ONLY multiplier
-  // left behind when the rest of the file moved to [General] VeteranROF=0.6
-  // PER LEVEL (vetRof, used at both real fire sites). So a rank-1 veteran
-  // force-firing at the ground reloaded at rookie cadence while the same unit
-  // shooting a target did not. Same unit, same weapon, two different rules.
+  // left behind when the rest of the file moved to [General] VeteranROF=0.6.
+  // So a rank-1 veteran force-firing at the ground reloaded at rookie cadence
+  // while the same unit shooting a target did not. Same unit, same weapon, two
+  // different rules. The claim is that this path agrees with the other two, so
+  // it is asked of both kinds of unit — one that gets ROF at rank 1 and one
+  // that gets it at rank 2 — rather than of a single hard-coded curve.
   //
   // Measured as the INTERVAL BETWEEN SHOTS, not as `u.cool` at some instant:
   // rate of fire is the observable, and the cooldown field decays every tick.
   const H = W.__rtsTest, N = W.__rtsNet;
   const g = H.begin(7311, "normal");
   H.give(0, 20000);
-  const gap = (rank) => {
-    const u = H.spawn("lancer", 0, 20 + rank * 5, 20);
+  let lane = 0;
+  const gap = (key, rank) => {
+    const u = H.spawn(key, 0, 20 + (lane++) * 5, 20);
     u.rank = rank;
     H.step(2);
     N.emit("ffire", { u: [u.id], x: u.x + 2, y: u.y });
@@ -5397,18 +5410,26 @@ test("force-firing at bare ground honours VETERAN rate of fire, not just elite",
       H.step(1);
       if (u.fireAt !== last) { last = u.fireAt; at.push(u.fireAt); }
     }
-    assert.ok(at.length >= 3, `rank ${rank} should get off three shots`);
+    assert.ok(at.length >= 3, `${key} rank ${rank} should get off three shots`);
     return at[2] - at[1];                      // a settled interval, not the first
   };
-  const base = gap(0);
+  // [APOC] VeteranAbilities=...,ROF,... — the bonus lands at rank 1 and never
+  // grows, exactly as it does when the same tank is shooting something.
+  const base = gap("mammoth", 0);
   assert.ok(base > 1, "a rookie has a real reload gap to compare against");
-  // RA2 [General] VeteranROF=0.6 per level, VeteranCap=2.
-  const vet = gap(1);
+  const vet = gap("mammoth", 1);
   assert.ok(Math.abs(vet - base * 0.6) <= 1,
     `a VETERAN must reload 0.6x (expected ~${base * 0.6}, got ${vet}) — the bug gave it the full rookie gap`);
-  const elite = gap(2);
-  assert.ok(Math.abs(elite - base * 0.36) <= 1,
-    `an elite reloads 0.6^2 (expected ~${base * 0.36}, got ${elite}), the same compounding both real fire paths use`);
+  const elite = gap("mammoth", 2);
+  assert.ok(Math.abs(elite - vet) <= 1,
+    `an elite reloads at the veteran rate (expected ~${vet}, got ${elite}) — VeteranROF applies once, not once per rank`);
+  // [MTNK] has no ROF until elite, and its `[105mmE]` is SLOWER than `[105mm]`
+  // (ROF 60 -> 75), so a force-firing elite Grizzly must show BOTH: the 0.6
+  // arriving at rank 2, on the elite weapon's own rate.
+  const lb = gap("lancer", 0), lv = gap("lancer", 1), le = gap("lancer", 2);
+  assert.ok(Math.abs(lv - lb) <= 1, `a veteran Grizzly force-fires at the rookie cadence (${lv} vs ${lb})`);
+  assert.ok(Math.abs(le - 75 * 4 * 0.6) <= 1,
+    `an elite Grizzly force-fires [105mmE] (ROF 75 x4) at 0.6 — expected ~${75 * 4 * 0.6}, got ${le}`);
 });
 
 test("an aircraft with missiles left can still be ordered home to its own Airforce Command", () => {
@@ -5525,4 +5546,338 @@ test("a damaged vehicle sent to a Service Depot is actually repaired, from any a
   assert.ok(usable.length >= 6, `need a real spread of approaches, got ${usable.length}`);
   assert.equal(fails.length, 0,
     `${fails.length} of ${usable.length} usable approaches never got repaired — ${fails.join(" | ")}`);
+});
+
+// ======================================================================== //
+//  Phase 6 — `ElitePrimary=`: at rank 2 a unit swaps WEAPON, it does not get
+//  a bigger multiplier. 34 rules.ini sections carry one, 26 of them on units
+//  we field.
+//
+//  These five tests were each run against the build WITHOUT the change first
+//  and watched fail; the failure lines are quoted where the reason is not
+//  obvious from the assertion.
+// ======================================================================== //
+
+// The RA2 numbers, transcribed here a SECOND time, by hand, from the ini
+// section named on each row — so the table in rts.html is checked against
+// rules.ini rather than against itself. `rate` is rules.ini ROF x4 (RA2 logic
+// runs at 15 fps, we tick at 60), which is the roster's standing conversion.
+const ELITE = {
+  //  ours          ra2 section  elite weapon (rules.ini line)   the fields that differ
+  warminer:     { w: "20mmRapidE",       ln: 18055, dmg: 50, rate: 50 * 4, rng: 5.75, wh: "HowitzerWH" },
+  rifle:        { w: "M60E",             ln: 18127, dmg: 25 },
+  conscript:    { w: "M1CarbineE",       ln: 17670, dmg: 20, rng: 5 },
+  flak:         { w: "FlakGuyGunE",      ln: 17712, burst: 2 },
+  rocketeer:    { w: "20mmE",            ln: 17773, rate: 5 * 4 },
+  // [MaverickE] is Burst=4 on an `Ammo=1` airframe. Ours carries [Maverick]
+  // Burst=2 as `ammo: 2` instead (two visible missiles per sortie, the same 300
+  // payload), so the elite doubling is `burst: 2` on top of those two pulls:
+  // 2 x 2 x 300 = 1200, which is rules.ini's 1 x 4 x 300. The only row here
+  // that is our representation of the ini rather than the ini's own number.
+  harrier:      { w: "MaverickE",        ln: 17899, dmg: 300, burst: 2, rng: 9 },
+  lancer:       { w: "105mmE",           ln: 17735, dmg: 55, burst: 2, rate: 75 * 4, wh: "GRIZAPE" },
+  mammoth:      { w: "120mmxE",          ln: 17748, burst: 4, wh: "ApocAPE" },
+  ifv:          { w: "HoverMissileE",    ln: 17991, dmg: 80, burst: 4 },
+  tanya:        { w: "DoublePistolsE",   ln: 18091, rng: 8 },
+  rhino:        { w: "120mmE",           ln: 17761, dmg: 85, burst: 2, rate: 80 * 4, wh: "RHINAPE" },
+  flaktrack:    { w: "FlakTrackGunE",    ln: 17701, burst: 2 },
+  teslatrooper: { w: "ElectricBoltE",    ln: 17807, rate: 40 * 4, rng: 5 },
+  ivan:         { w: "IvanBomberE",      ln: 17942, dmg: 600 },
+  teslatank:    { w: "TankBoltE",        ln: 17796, dmg: 150, rate: 60 * 4, rng: 6 },
+  desolator:    { w: "RadBeamWeaponE",   ln: 17953, dmg: 200, rng: 8 },
+  cleg:         { w: "NeutronRifleE",    ln: 17889, dmg: 16 },
+  nighthawk:    { w: "BlackHawkCannonE", ln: 17931, dmg: 40, wh: "SSA" },
+  destroyer:    { w: "155mmE",           ln: 17783, burst: 2 },
+  aegis:        { w: "MedusaE",          ln: 18079, rate: 5 * 4, rng: 14, burst: 2 },
+  hornet:       { w: "HornetBombE",      ln: 17919, dmg: 80, wh: "ARTYHE" },
+  // [SonicZapE] is Damage 8 x Burst 2 + AmbientDamage 15; ours folds the whole
+  // pulse into one `dmg` at 3x, exactly as the base weapon does (42 = 3 x
+  // ((4 x 1) + 10)), so the elite figure is 3 x ((8 x 2) + 15) = 93 and the
+  // ratio is rules.ini's own 3.32x rather than a number chosen to look right.
+  dolphin:      { w: "SonicZapE",        ln: 17976, dmg: 3 * (8 * 2 + 15), rate: 80 * 4 },
+  sub:          { w: "SubTorpedoE",      ln: 17965, burst: 2 },
+  seascorp:     { w: "FlakTrackGunE",    ln: 17701, burst: 2 },
+  squid:        { w: "SquidGrabE",       ln: 18102, on: "w2", dmg: 40 },
+};
+
+// Every weapon object a unit can fire out of, so a swap that lives on the
+// SECONDARY (the Giant Squid's grab) is not missed by a walk of primaries.
+function weaponsOf(u) {
+  return [["", u], ["w2", u.w2], ["aaW", u.aaW], ["asw", u.asw], ["dep", u.dep]]
+    .filter(([, w]) => w && typeof w === "object");
+}
+
+test("Burst is spelled ONE way — never pre-multiplied into a weapon's damage", () => {
+  // Three models used to coexist: `burst: 2` on the Dreadnought, the Burst
+  // folded into `dmg` on the Apocalypse (200 = 100 x 2), its Mammoth Tusks
+  // (100 = 50 x 2) and the IFV (50 = 25 x 2), and the Harrier's carried in
+  // `ammo`. `[120mmE]`, `[120mmxE]` and `[HoverMissileE]` all CHANGE Burst,
+  // and a pre-multiplied number has nowhere to put that — so it has to be one
+  // field before the elite table can land on it.
+  //
+  // Checked as rules.ini `Damage=`, which is the point: a folded value is not
+  // the ini's number, an unfolded one is.
+  const raw = {                       // section -> [Damage, Burst], rules.ini
+    mammoth: [100, 2, "[120mmx] rules.ini:16704"],
+    ifv: [25, 2, "[HoverMissile] rules.ini:16284"],
+    dread: [300, 2, "[General] DMislDamage=300 x [DredLauncher] Burst=2"],
+  };
+  for (const [k, [dmg, burst, src]] of Object.entries(raw)) {
+    assert.equal(T.UNITS[k].dmg, dmg, `${k}.dmg must be ${src}'s own Damage, not Damage x Burst`);
+    assert.equal(T.UNITS[k].burst, burst, `${k} must carry Burst as a field`);
+  }
+  // [MammothTusk] Damage=50 Burst=2 — the same fold, on a secondary.
+  assert.equal(T.UNITS.mammoth.aaW.dmg, 50, "[MammothTusk] Damage=50");
+  assert.equal(T.UNITS.mammoth.aaW.burst, 2, "[MammothTusk] Burst=2");
+  // And the fold is not hiding anywhere else: any weapon that is an exact
+  // integer multiple of a known ini Damage would be caught by the roster
+  // transcription tests, but the ONE remaining exception is deliberate and
+  // documented — [ORCA] is Ammo=1 x Burst 2 and ours is ammo 2 x Burst 1.
+  assert.equal(T.UNITS.harrier.dmg, 150, "[Maverick] Damage=150");
+  assert.equal(T.UNITS.harrier.ammo, 2, "our Harrier carries [Maverick] Burst=2 as two sorties' ammo");
+  assert.ok(!T.UNITS.harrier.burst, "and therefore must NOT also carry it as burst — that would be the fold twice");
+});
+
+test("the veteran multipliers apply ONCE, not once per rank", () => {
+  // THE DECISION (rts.html, above vetFire): `[General]`'s four scalars are the
+  // SIZE of an ability flag, not a per-level exponent. In that same comment
+  // block exactly one key is annotated `[per level]` — VeteranRatio, the kill
+  // threshold — and an ability out of the documented list
+  // `[FASTER,STRONGER,FIREPOWER,...]` is a flag, which cannot be held twice.
+  // `EliteAbilities` being "cumulative with veteran abilities" is the union of
+  // the two SETS: `[XCOMET]` has VeteranAbilities and no EliteAbilities at
+  // all, and without the union rule its elite would LOSE firepower.
+  //
+  // Before this change all four compounded (`Math.pow(k, rank)`), so elite was
+  // x1.21 / x0.36 / x1.44 / x2.25. Against that build every equality below
+  // failed; the inequalities passed, which is why they are not the point.
+  assert.equal(API.vetFire(1), API.vetFire(2), "VeteranCombat does not compound");
+  assert.equal(API.vetRof(1), API.vetRof(2), "VeteranROF does not compound");
+  assert.equal(API.vetSpeed(1), API.vetSpeed(2), "VeteranSpeed does not compound");
+  assert.equal(API.vetArmour(1), API.vetArmour(2), "VeteranArmor does not compound");
+  // ...and rank 1 is still a real promotion, which is the half that was right.
+  assert.ok(API.vetFire(1) > API.vetFire(0));
+  assert.ok(API.vetRof(1) < API.vetRof(0));
+  assert.ok(API.vetSpeed(1) > API.vetSpeed(0));
+  assert.ok(API.vetArmour(1) > API.vetArmour(0));
+
+  // ROF is the one that genuinely varies by unit, and it is load-bearing: the
+  // War Miner's elite gun is SLOWER than its base one, so it only comes out
+  // ahead because [HARV]'s VeteranAbilities has no ROF.
+  const at = (k) => API.vetRofAt({ type: k });
+  assert.equal(at("rifle"), 1, "[E1] VeteranAbilities=...,ROF,...");
+  assert.equal(at("rhino"), 2, "[HTNK] VeteranAbilities has no ROF; EliteAbilities does");
+  assert.equal(at("warminer"), 2, "[HARV] VeteranAbilities has no ROF; EliteAbilities does");
+  assert.equal(at("hornet"), 0, "[HORNET] never gets ROF — both its lists are STRONGER,FIREPOWER");
+  const rof = (k, rank) => API.vetRofU({ type: k, rank });
+  assert.ok(rof("rifle", 1) < 1 && rof("rifle", 2) === rof("rifle", 1), "a GI gets it at rank 1 and no more at rank 2");
+  assert.equal(rof("rhino", 1), 1, "a veteran Rhino does NOT reload faster — RA2 gives it that at elite");
+  assert.ok(rof("rhino", 2) < 1, "an elite Rhino does");
+  assert.ok(rof("hornet", 1) === 1 && rof("hornet", 2) === 1, "a Hornet never does");
+});
+
+test("an elite unit fires its ElitePrimary; rank 0 and rank 1 fire the base weapon", () => {
+  const H = W.__rtsTest;
+  const g = H.begin(6021, "normal");
+  const foe = H.spawn("lancer", 1, 30, 30);
+  const at = (key, rank) => {
+    const u = H.spawn(key, 0, 20, 20);
+    u.rank = rank;
+    return API.weaponFor(T.UNITS[key], foe, u);
+  };
+  // [HTNK] 120mm 90 / ROF 65 / AP  ->  [120mmE] 85 / ROF 80 / Burst 2 / RHINAPE
+  for (const rank of [0, 1]) {
+    const w = at("rhino", rank);
+    assert.equal(w.dmg, 90, `a rank-${rank} Rhino still fires [120mm]`);
+    assert.equal(w.wh, "AP", `a rank-${rank} Rhino still fires [AP]`);
+    assert.ok(!w.burst || w.burst === 1, `a rank-${rank} Rhino fires one shell`);
+  }
+  const e = at("rhino", 2);
+  assert.equal(e.dmg, 85, "an elite Rhino fires [120mmE]");
+  assert.equal(e.rate, 80 * 4, "[120mmE] ROF=80");
+  assert.equal(e.burst, 2, "[120mmE] Burst=2");
+  assert.equal(e.wh, "RHINAPE", "[120mmE] Warhead=RHINAPE");
+  // The swap must not leak into a unit that has no ElitePrimary.
+  for (const rank of [0, 1, 2]) {
+    const w = at("v3", rank);
+    assert.equal(w.dmg, T.UNITS.v3.dmg, `[V3] has no ElitePrimary — rank ${rank} changes nothing`);
+    assert.equal(w.rate, T.UNITS.v3.rate);
+  }
+  // ...and it must find a swap that lives on the SECONDARY. [SQD]'s RA2
+  // Primary is the grab and ours is the punch, so `SquidGrabE` is on `w2`.
+  const ship = H.spawn("destroyer", 1, 32, 30);
+  const sq = H.spawn("squid", 0, 31, 30);
+  sq.rank = 0;
+  assert.equal(API.weaponFor(T.UNITS.squid, ship, sq).dmg, 15, "a rookie squid grabs at [SquidGrab] 15");
+  sq.rank = 2;
+  assert.equal(API.weaponFor(T.UNITS.squid, ship, sq).dmg, 40, "an elite squid grabs at [SquidGrabE] 40");
+});
+
+test("the elite weapon table is rules.ini's, field by field", () => {
+  // A second, independent hand-transcription (ELITE, above) against the
+  // table in rts.html. Every unit that has an `ElitePrimary=` we field must
+  // be here, and nothing may carry an `elite` that is not.
+  const declared = [];
+  for (const [k, u] of Object.entries(T.UNITS))
+    for (const [slot, w] of weaponsOf(u)) if (w.elite) declared.push(k + (slot ? "." + slot : ""));
+
+  const expect = Object.entries(ELITE).map(([k, r]) => k + (r.on ? "." + r.on : "")).sort();
+  assert.deepStrictEqual(declared.sort(), expect,
+    "the set of units with an elite weapon must be exactly the mapped rules.ini rows");
+
+  for (const [k, r] of Object.entries(ELITE)) {
+    const base = r.on ? T.UNITS[k][r.on] : T.UNITS[k];
+    const e = base.elite;
+    assert.ok(e, `${k} must carry [${r.w}]`);
+    // A baked elite weapon is COMPLETE: unchanged fields come from the base,
+    // so a consumer never has to know it is holding a variant.
+    for (const f of ["dmg", "rate", "rng", "wh"])
+      assert.ok(e[f] !== undefined, `${k}'s [${r.w}] must be a whole weapon — ${f} is missing`);
+    assert.ok(!e.elite, `${k}'s [${r.w}] must not itself carry an elite — a second swap is impossible`);
+    for (const f of ["dmg", "rate", "rng", "wh", "burst"]) {
+      const want = r[f] !== undefined ? r[f] : (f === "burst" ? (base.burst || undefined) : base[f]);
+      const got = f === "burst" ? (e.burst || undefined) : e[f];
+      assert.equal(got, want, `${k} [${r.w}] (rules.ini:${r.ln}) ${f}: got ${got}, rules.ini says ${want}`);
+    }
+    if (r.wh) assert.ok(T.VERSES[r.wh], `${k}'s elite warhead ${r.wh} needs a Verses row`);
+  }
+});
+
+test("no unit comes out of its second promotion WEAKER than it went in", () => {
+  // The one failure a player notices instantly. It is a live risk and not a
+  // hypothetical: `[120mm]` 90 -> `[120mmE]` 85 with ROF 65 -> 80 is a nerf
+  // on both visible numbers, `[105mmE]` is 65 -> 55, and `[20mmRapidE]` takes
+  // the War Miner's ROF from 20 to 50. Each is rescued by something that is
+  // easy to drop in transcription — Burst=2 on the tanks, and RA2 withholding
+  // the ROF ability until rank 2 on the miner.
+  //
+  // Only meaningful because the [General] scalars no longer compound: while
+  // elite was x1.21 damage on x0.36 reload, every elite beat every veteran by
+  // 1.83x whatever weapon it held, and this walked past a dropped Burst.
+  const dps = (u, w, rank) => {
+    const s = API.eliteOf(w, { rank });
+    const rof = API.vetRofU({ type: u, rank });
+    return s.dmg * (s.burst || 1) * API.vetFire(rank) / (s.rate * rof);
+  };
+  const rows = [];
+  for (const [k, u] of Object.entries(T.UNITS)) {
+    for (const [slot, w] of weaponsOf(u)) {
+      if (!w.elite || !(w.rate > 0)) continue;
+      const v = dps(k, w, 1), e = dps(k, w, 2);
+      rows.push({ k: k + (slot ? "." + slot : ""), v, e, r: e / v });
+    }
+  }
+  assert.ok(rows.length >= 24, `expected the whole mapped roster, walked ${rows.length}`);
+  const worse = rows.filter((r) => r.e < r.v - 1e-9)
+    .map((r) => `${r.k}: veteran ${r.v.toFixed(4)} -> elite ${r.e.toFixed(4)} (x${r.r.toFixed(2)})`);
+  assert.deepStrictEqual(worse, [], "elite must never be worse than veteran:\n" + worse.join("\n"));
+  // ...and it must not be a WASH either. `>=` alone would pass a silently
+  // dropped `Burst=2` on any of the seven burst-only elite weapons, which is
+  // the exact transcription slip this phase was most likely to make: those
+  // land on exactly 1.00, not below it. So the units allowed to come out even
+  // are NAMED. Only one does in RA2's own numbers: `[DoublePistolsE]` differs
+  // from `[DoublePistols]` in Range and nothing else, so elite Tanya opens
+  // first and hits no harder.
+  const wash = rows.filter((r) => r.r <= 1.05).map((r) => r.k).sort();
+  assert.deepStrictEqual(wash, ["tanya"],
+    `these elite weapons buy no damage at all: ${wash.join(", ")} — a dropped `
+    + "Burst= reads exactly like this");
+});
+
+test("an elite unit shoots with the elite warhead, at the elite range", () => {
+  // The swap has to reach the DAMAGE ROLL and the ENGAGE DISTANCE, not just
+  // the object weaponFor hands back. [RHINAPE] is [AP] with the infantry rows
+  // opened from 25% to 100%, so an elite Rhino stops wasting armour-piercing
+  // shot on men — a 4x jump against a GI, on top of Burst=2.
+  const H = W.__rtsTest;
+  const g = H.begin(6022, "normal");
+  const hit = (rank) => {
+    const u = H.spawn("rhino", 0, 20, 20 + rank);
+    u.rank = rank;
+    const gi = H.spawn("rifle", 1, 21, 20 + rank);
+    gi.hp = 1e6; gi.maxhp = 1e6;
+    const hp0 = gi.hp;
+    u.cool = 0;
+    H.api3.fire(g, u, gi);
+    return hp0 - gi.hp;
+  };
+  const r1 = hit(1), r2 = hit(2);
+  // veteran: 90 x AP 25% x 1.1               = 24.75
+  // elite:   85 x 2 x RHINAPE 100% x 1.1     = 187
+  assert.ok(Math.abs(r1 - 90 * 0.25 * 1.1) < 0.01, `veteran Rhino vs a GI is [AP] at 25% (got ${r1})`);
+  assert.ok(Math.abs(r2 - 85 * 2 * 1.0 * 1.1) < 0.01, `elite Rhino vs a GI is [RHINAPE] at 100% x Burst 2 (got ${r2})`);
+
+});
+
+test("an elite unit opens fire at its elite weapon's range, not its old one", () => {
+  // Twelve of the 34 elite weapons bump `Range`, and a unit that does not KNOW
+  // it has more reach walks into the old one before firing.
+  const H = W.__rtsTest;
+  const g = H.begin(6024, "normal");
+  // Asked as the OBSERVABLE first — does the man standing 4.2 cells away
+  // actually get shot? reachOf being right is not the same as the extra reach
+  // being used: targeting opens its own scan window and re-resolves the weapon
+  // inside it, and either of those can drop the swap on its own.
+  const opens = (rank) => {
+    const u = H.spawn("teslatrooper", 0, 30, 34 + rank * 3);
+    u.rank = rank;
+    const foe = H.spawn("rifle", 1, 34.2, 34 + rank * 3);
+    const hp0 = foe.hp;
+    for (let i = 0; i < 900 && foe.hp >= hp0; i++) H.step(1);
+    const hit = foe.hp < hp0;
+    u.dead = true; foe.dead = true;
+    return hit;
+  };
+  assert.equal(opens(1), false, "a veteran Tesla Trooper cannot reach 4.2 cells — [ElectricBolt] Range=3");
+  assert.equal(opens(2), true, "an elite one can — [ElectricBoltE] Range=5, and targeting has to know it");
+
+  // ...and the reach the rest of the sim asks for agrees with what it did.
+  const reach = (k, rank) => API.reachOf(T.UNITS[k], { type: k, rank, deployed: false });
+  assert.equal(reach("teslatrooper", 1), 3, "[ElectricBolt] Range=3");
+  assert.equal(reach("teslatrooper", 2), 5, "[ElectricBoltE] Range=5");
+  assert.equal(reach("tanya", 2), 8, "[DoublePistolsE] Range=8 — elite Tanya opens first");
+});
+
+test("the elite weapons whose Damage drives a mechanism other than damage still change", () => {
+  // Four of the 26 have a warhead that RETURNS out of fire() before the damage
+  // line — IvanBomb places a charge, Temporal erases, Parasite grabs. Their
+  // ElitePrimary changes Damage and nothing else, so if that number is not
+  // carried into the mechanism the promotion is silently inert. Each of these
+  // read a module constant before this change.
+  const H = W.__rtsTest;
+  const g = H.begin(6023, "normal");
+
+  // [IvanBomber] 400 -> [IvanBomberE] 600, spent when the fuse runs out.
+  const yieldOf = (rank) => {
+    const iv = H.spawn("ivan", 0, 20 + rank, 20);
+    iv.rank = rank;
+    const tgt = H.spawn("lancer", 1, 20 + rank, 21);
+    tgt.hp = 1e6; tgt.maxhp = 1e6;
+    iv.cool = 0;
+    H.api3.fire(g, iv, tgt);
+    assert.ok(tgt.bomb, `rank ${rank}: a bomb must have been planted`);
+    iv.dead = true;                       // and the yield is the CHARGE's, not the planter's
+    const hp0 = tgt.hp;
+    for (let i = 0; i < H.api3.IVAN_BOMB_T + 60 && tgt.hp >= hp0; i++) H.step(1);
+    return hp0 - tgt.hp;
+  };
+  const y1 = yieldOf(1), y2 = yieldOf(2);
+  assert.ok(Math.abs(y1 - 400) < 1, `a veteran Ivan leaves [IvanBomber] 400 (got ${y1})`);
+  assert.ok(Math.abs(y2 - 600) < 1, `an elite Ivan leaves [IvanBomberE] 600 (got ${y2})`);
+
+  // [NeutronRifle] 8 -> [NeutronRifleE] 16: a Temporal weapon's Damage is the
+  // erase RATE against Strength, so elite erases exactly twice as fast.
+  const erase = (rank) => {
+    const cl = H.spawn("cleg", 0, 40 + rank * 2, 40);
+    cl.rank = rank;
+    const tgt = H.spawn("rhino", 1, 41 + rank * 2, 40);
+    H.api3.startErase(g, cl, tgt);
+    let n = 0;
+    for (; n < 4000 && !tgt.dead; n++) H.step(1);
+    cl.dead = true;
+    return n;
+  };
+  const e1 = erase(1), e2 = erase(2);
+  assert.ok(e1 > 20 && e2 > 5, `both ranks must take real time (${e1}, ${e2})`);
+  assert.ok(Math.abs(e1 / e2 - 2) < 0.15, `an elite Chrono Legionnaire erases twice as fast (${e1} -> ${e2} ticks)`);
 });
