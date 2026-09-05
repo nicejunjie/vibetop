@@ -200,6 +200,132 @@ Not fixed here: the fix is a repaint, and he already carries the HIGHEST owner
 share of any infantry (0.401 in a field of 0.063-0.401), so light body against
 owner colour is a real trade that needs its own measured pass.
 
+## FIXED — the Engineer's inverted value, and the trade never had to be made (2026-09-05)
+
+**0.194 -> 0.638 whole-sprite; torso+legs 21.1% -> 71.3% against a clause asking
+55%; first by 0.280 where he was third by -0.164.** All three gates green.
+
+The pass above closes with "light body against owner colour is a real trade".
+**It is not a trade at all, and that is the finding.** His owner share went UP —
+0.4007 -> 0.4098 — while he became the only light-value soldier on the field.
+Not one square pixel of house colour was given back.
+
+### Why the trade looked real, and why it was not
+
+`lightPct` counts `v = max(r,g,b)/255 >= 0.75`, and **every one of the eight
+house colours already clears that bar** — blue `#4aa3db` is 0.859, red
+`#e5646c` 0.898, and the darkest, green `#5ec468`, is 0.769. So an owner pixel
+is only dark when the code *shades it down*. Measured on the sprite, 76% of his
+owner pixels sat below the line — not because they were house colour but
+because they were house colour at `shade(col, 0.38..0.76)`: panel outlines,
+strap outlines, the toolbox edge, the shaded fold. **The waistcoat was never
+what made him dark. The waistcoat's SHADING was.**
+
+### What the sprite is actually made of, which is the whole lesson
+
+The colour census (`opaque` px over 8 bearings, owner-0 vs owner-1 bakes):
+
+| surface | %area | value | light? |
+|---|---|---|---|
+| contact shadow, pure black | **11.7%** | 0.000 | never |
+| shirt OUTLINE `shade(SHIRT,0.52)` + its AA | **7.0%** | 0.59 | no |
+| shirt FILL | 2.9% | 0.855 | yes |
+| owner pixels below `shade(col,0.80)` | **~30%** | 0.49-0.76 | no |
+
+The outline of one garment covered **more of the sprite than the garment**.
+That is the finding to carry forward: at 21x34 an infantryman is roughly half
+EDGE, so **the outline colour is a first-class design decision, not trim** —
+independently the same conclusion the Tesla Trooper's carapace pass reached the
+same afternoon, which is worth taking as corroboration rather than coincidence.
+
+The value ladder could never have found this. `INF_VALUE` is a gamma, so it
+lifts a fill and its edge *by the same ratio* and the figure keeps its shape in
+value. Only an absolute floor moves an edge relative to its fill.
+
+### The fix, in three levers, with what each one bought
+
+Whole-sprite `value.engineerLightPct`, cumulative:
+
+| lever | -> | note |
+|---|---|---|
+| baseline | 0.194 | |
+| owner shade factors 0.38-0.76 -> 0.82-0.88 | **0.398** | +0.204, and ownerPct went UP |
+| `INF_EDGE.engineer = 0.70` (new edge floor) | **0.464** | +0.066 |
+| near-white coverall `#efece1` / `#e9e5d6` | **0.638** | +0.174 |
+
+* **`INF_EDGE`** is a per-kind FLOOR on the shade factor of an edge, read once
+  in `bakeInfantry` and applied through a one-line `edge()` wrapper so the
+  shared `legs()` / `arms()` / `helmet()` each keep a single call site. A floor
+  and not a multiplier, so every LIT face (1.02-1.42) is untouched and the man
+  is still lit from the same corner, on a shorter value range. Absent from the
+  table means 0, i.e. `edge()` IS `shade()`.
+* **The vest is HI-VIS, not house paint** — the same AREA, drawn at
+  `shade(col, 1.16)` with a 1.38 lit strip. Sky blue against coral red.
+* **The toolbox stays solid `col`.** A deliberate split: the garment is pale,
+  the PROP is the most saturated thing on him, which is what the §2.2 spike is.
+
+### Swept, and what each measured — including the three that did nothing
+
+* **`INF_EDGE` 0.58 / 0.62 / 0.70 / 0.78 / 0.86** -> 0.464 / 0.492 / **0.638** /
+  0.670 / 0.676. Not linear, and the knee is arithmetic, not taste: a coverall
+  at 238 crosses the light line at `160/238 = 0.672`, so 0.62 leaves every edge
+  just under and 0.70 takes them all over at once. 0.78+ buys 3 more points by
+  flattening the shading further, for no gate. **0.70 is the smallest floor
+  that clears the clause, and it keeps a visible 20% step at every edge.**
+* **Vest `shade(col,1.16)` vs plain `col`** -> 0.6438 vs 0.6429, threshold
+  identical, `meanDist` identical. **Metric-inert.** Kept on art grounds only
+  (a hi-vis waistcoat over a white coverall is the garment §2.1 names), and
+  recorded as inert so nobody re-measures it hoping for a number.
+* **Boot `#6d6653` -> `#8d8263`** -> 0.6384 vs 0.6438. Worth 0.005. **Reverted:**
+  a near-white figure needs one dark note at the ground or he floats.
+* **Coverall alone** (`#efece1` back to `#d8d4c6`, edge floor kept) -> 0.587,
+  and **trousers alone** (back to `#c6bfa6`) -> 0.561. Both still clear 0.55,
+  so the edge floor is the load-bearing lever and the whitening is the design.
+* **Which `edge()` call sites actually FIRE**, checked one at a time rather
+  than assumed, because a floor makes some of its own call sites no-ops:
+  `helmet()`'s outline at 0.38 is worth **0.040** by itself, but
+  `edge(CAP, 0.78)` and `edge(ACCENT.engineer, 0.72)` are **exactly inert** —
+  0.72 and 0.78 already clear the 0.70 floor. They are left written as `edge()`
+  as policy (they participate if the floor ever rises), and recorded here as
+  doing nothing today so the next reader does not credit them.
+
+### The gate that moved that nobody was watching: `dog | tanya`'s FLOOR
+
+`legibility.js`'s threshold is the MEDIAN over units of the same unit in the
+two owners' colours. Per-unit, CELL 96 zoom 1, the Engineer's own friend-vs-foe
+distance went **11.7 -> 14.1** (rank 20th of 40 -> 29th) — the largest single
+gain in the roster, and every other unit byte-identical. That pushed the median
+one place, so the threshold went **12 -> 12.2**.
+
+`dog | tanya` did not move. Its MARGIN did: 12.5 against 12.0 is now 12.5
+against 12.2. Still clear, still 0 confusable, ZMIN untouched (9.5 vs 8.6) —
+but this is the same lesson the reverted dog shrink taught from the other side,
+met from a direction nobody had considered: **you can disturb a pair you never
+touched by making a THIRD unit easier to tell friend from foe.** The bar rose
+because the art got better. Worth knowing before reading a threshold move as a
+regression.
+
+Everything else held. All six legibility windows: infantry MEANS up
+(52.8->54.0, 41.1->42.1, 16.6->16.9, 12.1->12.3, 72.1->73.6, 68.5->70.0), every
+minimum unchanged, 0 confusable throughout. Cameos: `GI | Engineer` 59.7 left
+the Directorate worst list entirely, pairs under RA2's bar 380 -> 371, 5th pct
+68.4 -> 69.1, DPR 2 149 -> 146, greyed 11 -> 10; Collective 460 -> 458.
+
+### Two traps paid for
+
+* **A null result must prove the edit landed.** Both null-checks here are the
+  other 13 infantry: their `lightPct` and their torso+legs band are
+  byte-identical before and after, which is what proves `INF_EDGE` is
+  kind-scoped rather than proving nothing happened.
+* **Read the band off a per-row profile, never off the draw coordinates.** The
+  bbox includes the contact shadow (11.7% of opaque px, pure black, and it
+  extends below the boots), and `by - 19.4` is pre-STATURE, pre-TURN and
+  pre-`USC_I`. `scratchpad/engv-band.js` segments the shadow off by colour,
+  re-derives the figure's own bottom from what is left, and bands from 24% of
+  THAT height. Its main-baseline number for the Engineer is 21.1% where the
+  entry above records 26.0% — same ordering, same verdict, different band
+  convention; cite one or the other, never both as one number.
+
 ## The dog's size and `dog | tanya` pull the same lever (2026-09-05) — REVERTED
 
 Commit a7759b1 shrank the Attack Dog to [0.84, 0.84], closing
