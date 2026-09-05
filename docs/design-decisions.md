@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_233 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_234 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
 - [Scheduled terminal messages ("resume when the token limit resets")](#scheduled-terminal-messages-resume-when-the-token-limit-resets)
@@ -256,6 +256,7 @@ _233 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [A tool that reports success while doing nothing is worse than a missing tool](#a-tool-that-reports-success-while-doing-nothing-is-worse-than-a-missing-tool)
 - [A hard-coded prefix cannot both bound a map and admit an attacker's keys](#a-hard-coded-prefix-cannot-both-bound-a-map-and-admit-an-attackers-keys)
 - [`isdir()` follows symlinks, so a "replace this directory" repair can repair the wrong one](#isdir-follows-symlinks-so-a-replace-this-directory-repair-can-repair-the-wrong-one)
+- [A blank terminal that still has a live socket is a renderer, not a connection (2026-09-04)](#a-blank-terminal-that-still-has-a-live-socket-is-a-renderer-not-a-connection-2026-09-04)
 
 <!-- END TOC -->
 
@@ -9348,3 +9349,59 @@ cannot be followed either.
 **Not exploitable today** — the root-owned 0755 parent stops an ordinary tenant
 creating the link. It is recorded because a security repair routine that repairs
 the wrong object is worse than no routine: it reports that the fence is intact.
+
+## A blank terminal that still has a live socket is a renderer, not a connection (2026-09-04)
+
+**Symptom.** Terminals went blank "suddenly", every time a **floating Terminal
+window was resized**. The page stayed alive, `/api/terminals/status` kept polling
+every 2s, and the shells kept running. Reloading did not help; scrolling up showed
+nothing; switching tabs made the text **flash and vanish again**. Every other app
+was fine. It had never happened before.
+
+**Cause.** ttyd's bundled xterm.js defaults to `rendererType: "webgl"`, and its
+context-loss handler is wrong:
+
+```js
+this.webglAddon.onContextLoss(() => { this.webglAddon?.dispose(); });
+```
+
+It disposes the addon but never clears `this.webglAddon` and never loads a
+fallback — unlike the internal disposer `s()`, which does `dispose()` **and**
+`= void 0`. So after a GL context loss the renderer is gone, the stale reference
+makes the loader a no-op, and nothing paints. Resize churn reallocates the
+texture atlas, which is what lost the context; the console filled with
+`INVALID_OPERATION: delete: object does not belong to this context`. The "flash"
+on tab switch is one frame painted by something else before the dead renderer
+reasserts itself.
+
+**Fix.** `-t rendererType=canvas` in `ttyd-run.sh`. The canvas renderer has no GL
+context to lose. For a text grid the difference is imperceptible, and it removes
+the entire failure class rather than one trigger. Pinned by
+`apps/everyday/terminal/ttyd-run.test.js`, proved to fail against the unfixed
+script.
+
+**The diagnosis was wrong twice first, and the wrong turns are the lesson.** The
+host was genuinely dual-homed with a missing policy-routing rule, and avahi was
+genuinely publishing `z20.local` on `docker0` — both real faults, both fixed, and
+**neither was this bug**. They were seductive because "WebSocket dies, HTTP
+survives" is exactly the asymmetric-routing signature. What actually discriminated
+was a question no amount of server-side inspection could answer: *does switching
+tabs make the text flash?* A flash means the bytes are present and the paint is
+failing — which excludes every network hypothesis in one observation. Ask for the
+client-side tell before spending hours in `ip rule`.
+
+**Rejected: forcing a WebGL context restore, or patching the handler via
+`sub_filter`.** Both keep a renderer whose failure mode is a permanently blank
+terminal, and the patch would have to be re-verified against every ttyd bundle.
+
+**Rejected: `rendererType=dom`.** It is the true floor and needs no GPU, but it is
+markedly slower on a 50k-line scrollback. Canvas is the cheapest option that has
+no context to lose.
+
+**Also fixed alongside** (real, reproduced, but *not* the blanking cause):
+`nudgeActiveFrame` in `terminals.html` captured `f.style.width` on every resize
+event. A drag fires resize far faster than `requestAnimationFrame`, so the second
+event read back the `calc(100% - 1px)` sentinel the first had just set, and its
+rAF "restored" it permanently — leaving the frame one pixel short of its
+container for the rest of the session. The original width is now parked on the
+element (`f.__nudgeW`) and captured once per in-flight nudge.
