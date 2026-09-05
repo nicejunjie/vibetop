@@ -9656,6 +9656,29 @@ two identical green pills sat side by side and you had to work out which one
 submitted. The engaged state is now the tinted `#2a4a35` the ⏱ button already
 uses when its own panel is open.
 
+**And reusing the quick row was the wrong trade (same day, second correction).**
+The whole design above turned on "the quick row is already an interval dialer",
+and shipping it proved the premise incomplete. User: *"the quick time buttons now
+works for the time box in regular mode but not repeat mode."* The row is only
+*an* interval dialer in the sense that an offset is a duration — what a user
+actually reads off it is **"these buttons move the box above them"**, and Repeat
+silently broke that. A control whose effect you must first check the mode to
+predict is worse than a control that does one thing, and no amount of labelling
+fixes it, because the cost is paid on every tap and the label is read once.
+
+So the reuse was given back: `Now · +/− · 1m…5h` **always moves the time box**,
+in both modes, and the interval got a `<select>` of its own. "Now, +5h" now reads
+as *until 5h from now* exactly as it reads as *at 5h from now*. The button count
+is unchanged — the `every` chip became the `every` picker, same row — and the
+list reaches cadences the additive row never did conveniently (2h, 12h, a day).
+Editing an entry whose cadence predates the picker **inserts an option for that
+exact value** instead of snapping a running loop to the nearest listed one.
+
+**The general lesson.** "This control can already express the new value" is a
+statement about the data, not about the user. Before reusing a control, say out
+loud what its users believe it does — here, *"it moves the field above it"* — and
+check the new mode against **that** sentence, not against the value type.
+
 **Server: one entry the sweeper re-arms.** A loop is not N queued messages — it
 is one row whose `at` moves to the next slot while it stays `pending`, so it
 counts once against the pending cap, holds the idle reaper off its terminal for
