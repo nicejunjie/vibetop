@@ -9803,6 +9803,11 @@
           // mast and main rotor, over everything
           var mrx = cx + fx * 2.0, mry = hy - 9.6 + fy * 2.0;
           puck(mrx, mry + 1.4, 1.2, 2.0, shade(hull, 0.72), STEEL, PEDGE);
+          // Span stays at 19.0. Widening it to 21 to buy back the 2 px the
+          // feathered rim costs made the disc round enough that an air PEER
+          // matched the Nighthawk's mask better than it matched its own other
+          // bearings (`peerVsSelf.air` 0 -> 1). The rim is held above the
+          // alpha floor instead, below.
           var mrPh = anim === 'prop' ? 0.7854 : 0, mrR = 19.0;
           g.lineCap = 'round';
           // THE DISC IS THE UNIT. A helicopter's one unmistakable read from
@@ -9822,7 +9827,10 @@
           mrg.addColorStop(0.00, 'rgba(206,214,226,.05)');  // nearly clear at the hub
           mrg.addColorStop(0.55, 'rgba(206,214,226,.22)');
           mrg.addColorStop(0.90, 'rgba(224,231,242,.42)');  // densest just inside the tip
-          mrg.addColorStop(1.00, 'rgba(224,231,242,0)');    // and feathered off it
+          mrg.addColorStop(1.00, 'rgba(224,231,242,.09)');  // and feathered off it -- but not
+          // to nothing: a rim that reaches zero alpha loses the outer 2 px of
+          // span off the bounding box, and this airframe's whole RA2 spec is
+          // rotor span. 5% is under the eye and over the measurement's floor.
           g.fillStyle = mrg;
           g.beginPath(); g.arc(0, 0, rx, 0, 6.29); g.fill();
           g.restore();
