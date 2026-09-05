@@ -228,7 +228,7 @@
     "spike.belowDeclaredBudget": 0,
     "mass.groundCombatSpan": 5.633,
     "mass.tightestBand6": 2.208,
-    "hue.infantryOwnerMean": 0.2979,
+    "hue.infantryOwnerMean": 0.2985,
     "hue.infantryBelowBudget": 0,
     "hue.vehicleOwnerMean": 0.1698,
     "hue.vehicleOwnerMax": 0.2386,
@@ -245,10 +245,10 @@
     "size.worstOffGroupScale": 0.3109,
     "clip.unitsTouchingSheetEdge": 0,
     "clip.unitsClippedOnGatedOctant": 0,
-    "value.soldiersLighterThanEngineer": 2,
-    "value.engineerLightPct": 0.1939,
-    "value.engineerMarginOverNext": -0.1642,
-    "colour.infantry.meanDist": 1.3896,
+    "value.soldiersLighterThanEngineer": 0,
+    "value.engineerLightPct": 0.6384,
+    "value.engineerMarginOverNext": 0.2803,
+    "colour.infantry.meanDist": 1.3898,
     "colour.vehicle.meanDist": 0.9487,
     "colour.vehicleAchromatic": 0
   },
@@ -783,12 +783,12 @@
       {
         "a": "engineer",
         "b": "dog",
-        "dist": 0.105
+        "dist": 0.1
       },
       {
         "a": "conscript",
         "b": "engineer",
-        "dist": 0.208
+        "dist": 0.213
       },
       {
         "a": "ivan",
@@ -828,7 +828,7 @@
       {
         "a": "rocketeer",
         "b": "engineer",
-        "dist": 0.624
+        "dist": 0.626
       }
     ],
     "closestVehicleColourPairs": [
@@ -929,7 +929,7 @@
       "kirov": 0.2698,
       "lancer": 0.2302,
       "mammoth": 0.1907,
-      "engineer": 0.4007,
+      "engineer": 0.4098,
       "dog": 0.0665,
       "ifv": 0.1391,
       "mirage": 0.1478,
@@ -972,7 +972,7 @@
       "kirov": 0.2978,
       "lancer": 0.0863,
       "mammoth": 0.2342,
-      "engineer": 0.0987,
+      "engineer": 0.095,
       "dog": 0.495,
       "ifv": 0.1608,
       "mirage": 0.1566,
@@ -1005,7 +1005,7 @@
     },
     "hue": {
       "infantryOwnerMedian": 0.3209,
-      "infantryOwnerMeanUnexempt": 0.3285,
+      "infantryOwnerMeanUnexempt": 0.3293,
       "exempt": [
         "dog",
         "tanya"
@@ -1621,6 +1621,11 @@
     ],
     "valueRead": [
       {
+        "key": "engineer",
+        "name": "Engineer",
+        "lightPct": 0.6384
+      },
+      {
         "key": "teslatrooper",
         "name": "Tesla Trooper",
         "lightPct": 0.3581
@@ -1629,11 +1634,6 @@
         "key": "rocketeer",
         "name": "Rocketeer",
         "lightPct": 0.2178
-      },
-      {
-        "key": "engineer",
-        "name": "Engineer",
-        "lightPct": 0.1939
       },
       {
         "key": "cleg",

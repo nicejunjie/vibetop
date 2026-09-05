@@ -4915,7 +4915,7 @@
     conscript: { coat: '#8f6c42', boot: '#1e2026', skin: '#d8a878' },  // TAN trousers (>=20 hue-deg off the GI's olive: ref §2.2)
     rocket:    { coat: '#49512f', boot: '#22242a', skin: '#d8a878' },  // Guardian GI: heavy olive
     rocketS:   { coat: '#575049', boot: '#22242a', skin: '#d8a878' },  // Flak Trooper: grey-brown
-    engineer:  { coat: '#c6bfa6', boot: '#6d6653', skin: '#d8a878' },  // PALE hazmat legs — the only light-value body on the field (ref §2.1)
+    engineer:  { coat: '#e9e5d6', boot: '#6d6653', skin: '#d8a878' },  // NEAR-WHITE hazmat coverall — the only light-value body on the field (ref §2.1). The boot stays DARK on purpose: it is worth 0.005 of the value gate, and a near-white figure needs one dark note at the ground or he floats
     tanya:     { coat: '#8a8a5c', boot: '#1c1e24', skin: '#e6b98f' },  // LIGHT khaki combat trousers, L=133
     teslatrooper: { coat: '#1e2338', boot: '#868d97', skin: '#d8a878' },// navy armour, steel greaves
     ivan:      { coat: '#3b2f26', boot: '#4a4e57', skin: '#dfae82' },   // WARM BROWN trousers, L=50, grey boots
@@ -5046,6 +5046,28 @@
     cleg:      [0.74, 0.71, 0.64],   //  bone-white plate over blue-grey
     tanya:     [0.45, 0.58, 0.70],   //  warm khaki, bare arms, blonde
     engineer:  [0.62, 0.64, 0.60],   //  brightest in either army, and neutral
+  };
+
+  // THE EDGE FLOOR — the second half of the value ladder, and the half that
+  // was missing. INF_VALUE moves a trooper's FILLS; it cannot move his EDGES,
+  // because every edge on an infantryman is `shade(surface, 0.38..0.62)` and a
+  // gamma that lifts the fill lifts the edge with it, keeping the ratio.
+  //
+  // At 21x34 that ratio is the whole picture. Measured on the Engineer, the
+  // one shade — his shirt outline at 0.52 — covered 3.9% of the sprite where
+  // the shirt FILL covered 2.9%: the edges are the larger surface, and a
+  // figure whose every edge is drawn at half its own value cannot be light
+  // whatever the fills say. His §2.1 read is INVERTED VALUE ("a near-white
+  // hazmat body ... the only light-value soldier on the field"), which is a
+  // statement about the whole silhouette, so the edges have to come with it.
+  //
+  // A FLOOR, not a multiplier: `Math.max(f, EDGE)` leaves every lit face
+  // (1.02-1.42) exactly where it was and only lifts the dark side, so the
+  // direction of the light never changes — the man is still lit from the same
+  // corner, on a shorter value range. Absent from this table means 0, i.e.
+  // `edge()` IS `shade()` and no other trooper moves by a pixel.
+  var INF_EDGE = {
+    engineer: 0.70,                //  a white hazmat suit shaded to 0.70, not to 0.38
   };
 
   // STATURE — the size class, which our roster did not have. RA2's twelve
@@ -5390,6 +5412,10 @@
     // untouched however far the man himself moves.
     var VG = INF_VALUE[tkey] || 1;
     if (VG !== 1) col = valuePre(col, VG);
+    // ...and the kind's EDGE FLOOR (see INF_EDGE). `edge()` is `shade()` with a
+    // minimum, so the shared legs/arms/helmet keep one call site each.
+    var EDGE = INF_EDGE[tkey] || 0;
+    function edge(c, f) { return shade(c, f < EDGE ? EDGE : f); }
     var GUN = '#22242a';
     var JACKET = '#252a38';        // Conscript's near-black tunic
     var SLEEVE = '#3b4256';        // ...his sleeves, one step lighter so they read
@@ -5426,7 +5452,7 @@
         g.moveTo(hx - w / 2, hipY); g.lineTo(hx + w / 2, hipY);
         g.lineTo(fx + lw / 2 - 0.3, by - 2.4 - lift);
         g.lineTo(fx - lw / 2 + 0.3, by - 2.4 - lift);
-        g.closePath(); g.fill(); outline(g, shade(trousers, 0.46));
+        g.closePath(); g.fill(); outline(g, edge(trousers, 0.46));
         // An optional armoured THIGH PLATE in house colour, cut from the same
         // quad so it tapers and swings with the leg instead of floating on the
         // hip. Only the Tesla Trooper asks for one: his carapace is silver by
@@ -5441,7 +5467,7 @@
           g.beginPath();
           g.moveTo(hx - w / 2 + 0.2, hipY); g.lineTo(hx + w / 2 - 0.2, hipY);
           g.lineTo(tx2 + tw2 / 2, ty2); g.lineTo(tx2 - tw2 / 2, ty2);
-          g.closePath(); g.fill(); outline(g, shade(thigh, 0.42));
+          g.closePath(); g.fill(); outline(g, edge(thigh, 0.42));
         }
         var bw = bootW * (lead < 0 ? 0.84 : 1);
         g.fillStyle = lead < 0 ? shade(T.boot, 0.74) : T.boot;
@@ -5476,7 +5502,7 @@
         // Cheer: both arms go straight up over the head (art.ini Cheer=56,15).
         g.fillStyle = shade(sleeve, far ? 0.66 : (fwd > 0 ? 1.06 : 0.76));
         g.beginPath(); g.roundRect(ax, ay, aw, ah, aw * 0.46); g.fill();
-        outline(g, shade(sleeve, 0.48));
+        outline(g, edge(sleeve, 0.48));
         if (cb) cb(i, ax + aw / 2, ay, fwd);
       }
     }
@@ -5539,13 +5565,13 @@
       g.fillStyle = hcol;
       g.beginPath(); g.ellipse(hcx, hy, rw, r, 0, Math.PI, 0); g.fill();
       g.fillRect(hcx - rw, hy, rw * 2, 1.1);
-      g.fillStyle = shade(hcol, 0.62);
+      g.fillStyle = edge(hcol, 0.62);
       g.fillRect(hcx - rw - 0.5, hy + 0.8, rw * 2 + 1.0, brim);
-      outline(g, shade(hcol, 0.38));
+      outline(g, edge(hcol, 0.38));
       if (FA.back) {
         // the nape: a shaded crescent under the shell and the chin strap's
         // buckle at the back of the neck
-        g.fillStyle = shade(hcol, 0.52);
+        g.fillStyle = edge(hcol, 0.52);
         g.beginPath(); g.ellipse(hcx, hy + 1.2, rw * 0.82, r * 0.5, 0, 0, Math.PI); g.fill();
         g.fillStyle = 'rgba(20,22,26,.55)';
         g.fillRect(hcx - rw * 0.5, hy + 1.5, rw, 1.0);
@@ -6056,7 +6082,7 @@
       // one Engineer sprite between the armies, so only the headgear splits:
       // the Directorate's amber hard hat (with the moulded crest ridge that
       // names it at 1:1), the Collective's soft grey field cap.
-      var SHIRT = '#d8d4c6';
+      var SHIRT = '#efece1';
       // A PLANTED STANCE, wider than any soldier's. The Engineer, the Spy and
       // Tanya are three same-size two-legged figures — RA2 cannot separate
       // them as black shapes either (§1.2) — and the two levers §1.5 leaves
@@ -6077,20 +6103,29 @@
       g.beginPath();
       g.moveTo(cx - 5.0, by - 19.4); g.lineTo(cx + 5.0, by - 19.4);
       g.lineTo(cx + 4.6, by - 10.6); g.lineTo(cx - 4.6, by - 10.6);
-      g.closePath(); g.fill(); outline(g, shade(SHIRT, 0.52));
+      g.closePath(); g.fill(); outline(g, edge(SHIRT, 0.52));
       // The waistcoat is TWO front panels with a thin strip of shirt showing
       // between them — the gap is what makes it a hi-vis waistcoat and not a
       // painted torso (rule 7: discreteness is itself a shape cue), and the
       // shirt keeps him a workman rather than a soldier. The panels reach the
       // belt now, because a 44.6%-remap Engineer is what §1.5 measures and
       // two short bibs were carrying half of it.
+      // HI-VIS, not house paint. The panels are the same AREA they always
+      // were — his 40% remap is the highest of any infantryman and the field
+      // mean has 0.007 of headroom, so the area cannot be spent — but they are
+      // drawn a rung and a half UP the owner's own colour instead of at it.
+      // That is the whole trick of this pass: a pale owner tint is remapped
+      // pixels AND value >= 0.75 at the same time, so the vest pays into the
+      // hue budget and the value read at once. Sky blue against coral red at
+      // the two houses, which is further apart than the mid tones were.
+      var VEST = shade(col, 1.16), VLIT = shade(col, 1.38);
       for (var ev = -1; ev <= 1; ev += 2) {
-        g.fillStyle = col;
+        g.fillStyle = VEST;
         g.beginPath();
         g.moveTo(cx + ev * 0.75, by - 19.9); g.lineTo(cx + ev * 5.3, by - 19.9);
         g.lineTo(cx + ev * 4.8, by - 11.4); g.lineTo(cx + ev * 1.0, by - 11.4);
-        g.closePath(); g.fill(); outline(g, shade(col, 0.40));
-        g.fillStyle = shade(col, ev < 0 ? 1.22 : 0.76);             // lit / shaded panel
+        g.closePath(); g.fill(); outline(g, shade(col, 0.88));
+        g.fillStyle = ev < 0 ? VLIT : shade(col, 0.96);             // lit / shaded panel
         g.fillRect(cx + (ev < 0 ? -5.0 : 2.4), by - 19.6, 2.6, 7.6);
       }
       // The tool belt is drawn OVER the waistcoat, not under it: buried, the
@@ -6112,10 +6147,10 @@
       // — the waistcoat goes over the shoulders on the real garment, and it
       // is where the last of his remap budget buys the most.
       arms(5.7, by - 18.4, 2.8, 6.4, SHIRT, function (i, x, y) {
-        g.fillStyle = col;                                          // hi-vis shoulder strap
+        g.fillStyle = shade(col, 1.16);                             // hi-vis shoulder strap
         g.beginPath(); g.roundRect(x - 1.6, y - 0.7, 3.2, 2.4, 0.8); g.fill();
-        outline(g, shade(col, 0.42));
-        g.fillStyle = shade(col, 1.22);
+        outline(g, shade(col, 0.88));
+        g.fillStyle = shade(col, 1.38);
         g.fillRect(x - 1.3, y - 0.5, 2.6, 0.8);
         g.fillStyle = '#b58a52';                                    // tan work glove
         g.beginPath(); g.roundRect(x - 1.5, y + 5.6, 3.0, 2.2, 0.8); g.fill();
@@ -6133,10 +6168,10 @@
           g.beginPath(); g.arc(tbx, tby + 0.8, 2.2, Math.PI, 0.05); g.stroke();
           g.fillStyle = col;
           g.beginPath(); g.roundRect(tbx - 3.2, tby, 6.5, 4.7, 0.8); g.fill();
-          outline(g, shade(col, 0.38));
+          outline(g, shade(col, 0.82));
           g.fillStyle = shade(col, 1.22);                           // lit lid
           g.fillRect(tbx - 3.0, tby + 0.3, 6.0, 1.1);
-          g.fillStyle = shade(col, 0.74);                           // latch band
+          g.fillStyle = shade(col, 0.86);                           // latch band
           g.fillRect(tbx - 3.1, tby + 2.6, 6.2, 1.0);
           g.fillStyle = '#8d9099';                                  // steel catch
           g.fillRect(tbx - 0.7, tby + 2.3, 1.4, 1.5);
@@ -6156,9 +6191,9 @@
         // sprite with. Rule 10's one bright anchor, at the head.
         var CAP = '#eceadf';
         helmet(by - 23.3, 2.95, CAP, 1.05);
-        g.fillStyle = shade(CAP, 0.78);                             // moulded crest ridge
+        g.fillStyle = edge(CAP, 0.78);                              // moulded crest ridge
         g.fillRect(cx - 0.7, by - 26.2, 1.4, 2.9);
-        g.fillStyle = shade(CAP, 0.62);                             // brim shadow line
+        g.fillStyle = edge(CAP, 0.62);                              // brim shadow line
         g.fillRect(cx - 3.4, by - 22.6, 6.8, 0.65);
         // A brass badge, not a red star: on a BLUE-owned Collective engineer
         // a red star is a saturated OPPOSING hue on the figure's most-read
@@ -6167,9 +6202,9 @@
         g.beginPath(); g.ellipse(cx, by - 23.6, 0.85, 0.75, 0, 0, 6.29); g.fill();
       } else {
         helmet(by - 23.3, 2.95, ACCENT.engineer, 1.05);              // amber hard hat
-        g.fillStyle = shade(ACCENT.engineer, 0.72);                 // moulded crest ridge
+        g.fillStyle = edge(ACCENT.engineer, 0.72);                  // moulded crest ridge
         g.fillRect(cx - 0.7, by - 26.2, 1.4, 2.9);
-        g.fillStyle = shade(ACCENT.engineer, 0.56);                 // brim shadow line
+        g.fillStyle = edge(ACCENT.engineer, 0.56);                  // brim shadow line
         g.fillRect(cx - 3.4, by - 22.6, 6.8, 0.65);
       }
       g.restore();
