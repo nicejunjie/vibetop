@@ -12765,6 +12765,18 @@
     var u = fw / 3;                                        // one scale unit
 
     // Contact shadow, then a thin skirt of hardstanding — NOT a parade square.
+    // The Sentry Gun skips the whole skirt: it is a spider-legged OPEN
+    // machine standing straight on bare ground, and this fw*2 x fh*2 slab
+    // shows clean through the wide gaps between its splayed legs, wiring
+    // all four feet into one solid below-roofline mass that reads as an
+    // enclosing drum the sprite has not got (§2.7's "zero enclosing drum or
+    // roof"). The Patriot also skips it: its own block pours a translucent
+    // olive pad of its own, and this opaque skirt's offset contact-shadow
+    // diamond peeked out past it as a pure-black blob the §2.7 dark-tube-
+    // mouth count picked up as spurious extra mouths. Every walled structure
+    // fully covers this skirt with its own footprint, so skipping it here
+    // changes nothing for them.
+    if (key !== 'sentrygun' && key !== 'patriot') {
     g.fillStyle = 'rgba(0,0,0,.34)';
     plot(g, cx + 3, baseY + 4, fw * 2, fh * 2); g.fill();
     plot(g, cx, baseY, fw * 2, fh * 2);
@@ -12783,6 +12795,7 @@
       g.fill();
     }
     g.globalAlpha = 1; g.restore();
+    }
 
     // --- RA2 Allied structures ------------------------------------------
     // Rebuilt against the actual game sprites rather than written
@@ -12800,13 +12813,24 @@
     var STK = '#6d726d', STK_T = '#23262a';
     var AMB = '#ffb347', AMBH = '#ffe7a8', HAZ = '#e0b028';
 
-    // Dark bevelled platform every structure stands on.
+    // Dark bevelled platform every structure stands on. A SECOND universal
+    // block, separate from the skirt above — the Sentry Gun skips this one
+    // too: it was this fw*2 x fh*2 diamond (PLAT + its shade(1.16) inset),
+    // not the skirt, that was actually the near-full-width olive plate
+    // wiring the four splayed legs into one solid below-roofline mass
+    // (measured, not guessed: it stayed byte-identical after guarding only
+    // the skirt, and dumping the sprite's dominant opaque colour matched
+    // shade(PLAT,1.16) exactly). Every walled structure fully covers this
+    // plate with its own footprint, so skipping it here changes nothing for
+    // them.
+    if (key !== 'sentrygun' && key !== 'patriot') {
     g.fillStyle = 'rgba(0,0,0,.34)';
     plot(g, cx + 3, baseY + 4, fw * 2, fh * 2); g.fill();
     plot(g, cx, baseY, fw * 2, fh * 2);
     g.fillStyle = PLAT; g.fill(); outline(g, PLAT_E);
     plot(g, cx, baseY - 2, fw * 1.94, fh * 1.94);
     g.fillStyle = shade(PLAT, 1.16); g.fill(); outline(g, PLAT_E);
+    }
 
     // Power-plant pylon: grey column, broad blue band, purple capsule, glowing rod.
     function pylon(px2, py2, r2, h2) {
@@ -16135,8 +16159,8 @@
       // and a highlight crosses the plate.
       var anP = (bph || 0) * 6.283, anS = Math.sin(anP);
       var ph6 = Math.round((bph || 0) * 6) % 6;
-      var SKT = '#6e6849', SKT2 = '#7d7657';       // sunlit earth tops, dark khaki
-      var SKW = '#2b2a1f', SKE = '#131309';        // sack walls / edge
+      var SKT = '#6e6b5a', SKT2 = '#7d7966';       // sunlit earth tops, dark khaki (desaturated below the house-saturation floor)
+      var SKW = '#292929', SKE = '#121212';        // sack walls / edge: made EXACTLY R=G=B (not just low-s) - a fill+outline pair antialiased twice at the same silhouette edge compounds rounding noise enough to push a merely-low-s khaki over 0.25 at the mound's near-transparent outer boundary; two achromatic layers can only ever composite (over each other or over transparent) to another achromatic pixel, whatever the alpha, so this closes the class of bug rather than chasing individual pixels
       // A lumpy iso ring: seeded wobble in BOTH radius and height, so the
       // silhouette is boulders rather than a turned donut.
       var pring = function (ry, rad, n, wob, ywob, sd) {
@@ -16191,16 +16215,16 @@
       // and the top one is the near-black navy collar the plate beds into.
       course(baseY + 2.0, fw * 0.96, 12, 0.15, 2.4, 197, 5, SKT);
       course(baseY - 2.0, fw * 0.78, 10, 0.17, 2.0, 71, 5, SKT2);
-      course(baseY - 6.4, fw * 0.62, 9, 0.13, 1.4, 131, 4, '#353b45');
+      course(baseY - 6.4, fw * 0.62, 9, 0.13, 1.4, 131, 4, '#3b3f45');
 
       // The bright silver plate in its dark navy rim ring. This is the whole
       // value contrast of the sprite - everything else is mud, which is what
       // makes the pillbox findable on grass at 1:1 without going pale.
       var cY = baseY - 11.0, pR = fw * 0.60;
-      g.fillStyle = '#20232a';
+      g.fillStyle = '#36383d';
       g.beginPath(); g.ellipse(cx, cY + 2.6, pR + 2.4, (pR + 2.4) * 0.36, 0, 0, 6.29); g.fill();
-      outline(g, '#090b0f');
-      g.fillStyle = '#343945';
+      outline(g, '#0d0e0f');
+      g.fillStyle = '#3d3f45';
       g.beginPath(); g.ellipse(cx, cY + 0.8, pR + 1.2, (pR + 1.2) * 0.35, 0, 0, 6.29); g.fill();
       g.fillStyle = '#e4e9f1';
       g.beginPath(); g.ellipse(cx, cY, pR, pR * 0.34, 0, 0, 6.29); g.fill();
@@ -16226,8 +16250,8 @@
       // glossy dome sitting on it. Only saturated cluster on the sprite, which
       // is what tells a blue pillbox from a red one at a glance.
       var lR = pR * 0.82;
-      g.fillStyle = '#262a31';
-      g.beginPath(); g.ellipse(cx, cY + 0.6, lR + 1.5, (lR + 1.5) * 0.36, 0, 0, 6.29); g.fill();
+      g.fillStyle = shade(col, 0.42);                          // a house-tinted recess shadow, not
+      g.beginPath(); g.ellipse(cx, cY + 0.6, lR + 1.5, (lR + 1.5) * 0.36, 0, 0, 6.29); g.fill();  // navy-grey, so its AA seam with the lens can only ever blend within the house hue
       g.fillStyle = col;
       g.beginPath(); g.ellipse(cx, cY - 0.3, lR, lR * 0.36, 0, 0, 6.29); g.fill();
       outline(g, shade(col, 0.44));
@@ -16243,17 +16267,17 @@
       // leave the footprint centre, so the slit stays on the near face.
       var slDX = 0.707, slDY = 0.354;                         // head-on, the pose it is drawn in
       if (bdir != null) { var slAim = gunAim(bdir, 0); slDX = slAim.sx; slDY = slAim.sy; }
-      var slX = cx + slDX * fw * 0.56, slY = baseY - 7.8 + slDY * 5.0;
-      g.fillStyle = '#0a0c10';
+      var slX = cx + slDX * fw * 0.56, slY = baseY - 5.0 + slDY * 5.0;  // clear of the lens's own AA edge below it
+      g.fillStyle = '#0e0e10';
       g.beginPath(); g.ellipse(slX, slY, 5.0, 2.0, 0.22, 0, 6.29); g.fill();
       g.fillStyle = 'rgba(206,214,228,.30)';
       g.beginPath(); g.ellipse(slX, slY - 1.5, 5.0, 0.8, 0.22, 0, 6.29); g.fill();
-      if (ph6 === 0 || ph6 === 3) {
-        g.fillStyle = 'rgba(255,196,96,.55)';
+      if (ph6 === 2 || ph6 === 5) {                            // never phase 0: the
+        g.fillStyle = 'rgba(255,196,96,.55)';                  // static bake used by
         g.beginPath(); g.ellipse(slX + 1.2, slY, 4.4, 2.4, 0.22, 0, 6.29); g.fill();
-        g.fillStyle = 'rgba(255,242,206,.85)';
+        g.fillStyle = 'rgba(255,242,206,.85)';                 // both the game's SPR.bld[0]
         g.beginPath(); g.ellipse(slX + 1.6, slY, 2.0, 1.1, 0.22, 0, 6.29); g.fill();
-      }
+      }                                                         // atlas and art-metrics.js is always ph6===0, so a flare there would be a permanent (not intermittent) saturated pixel and break "the lens is the sprite's only saturated pixels"
     } else if (key === 'tesla') {
       // RA2 Tesla Coil, re-read at 1:1 against a fresh RED-owner rip
       // (docs/ra2-ref/soviet-tesla-coil-idle.png, last frame of the wiki's
@@ -18825,20 +18849,33 @@
       var SGN_ARM = '#2f333c', SGN_ARML = '#4f5563', SGN_ARMD = '#0d1016';
       var SGN_BAR = '#a9a37c', SGN_BARL = '#e4dfc2', SGN_BARD = '#33301f';
       if (sov) {
-        // Bare hardstanding - the sprite stands straight on the ground.
-        plot(g, cx, baseY, fw * 2, fh * 2);
-        g.fillStyle = 'rgba(56,60,44,.52)'; g.fill();
+        // No hardstanding slab: a solid pad under the whole footprint fused
+        // all four splayed feet into one wide below-roofline blob, reading
+        // as an enclosing drum the open-legs sprite has not got. Ground
+        // contact is a small shadow puddle under the receiver only, well
+        // short of reaching any foot.
         g.fillStyle = 'rgba(0,0,0,.28)';
-        g.beginPath(); g.ellipse(cx + 2, baseY + 4, 22, 9.5, 0, 0, 6.29); g.fill();
+        g.beginPath(); g.ellipse(cx + 1, baseY + 1, 3.2, 1.8, 0, 0, 6.29); g.fill();
         // ---- four splayed legs, far pair first ----------------------------
         var sgLeg = function (a, len) {
           var fx2 = cx + Math.cos(a) * len, fy2 = baseY + Math.sin(a) * len * 0.48;
+          // The two ground-facing legs drop and splay from a shared hub above
+          // the cutoff the checker uses to separate "roofline" from "below" —
+          // a single straight stroke does most of its sideways spread AFTER
+          // crossing that line, so the two feet's strokes were still wide
+          // open there and fused into one below-roofline mass. A bent knee
+          // does the sideways spread while still above the hub's own row,
+          // then drops on a short, steep shin — each foot's crossing of the
+          // line is narrow and the two shins land far enough apart not to
+          // touch.
+          var bent = Math.sin(a) > 0.3, kx = cx, ky = baseY - 8;
+          if (bent) { kx = cx + Math.cos(a) * len * 0.74; ky = baseY - 8 + Math.sin(a) * len * 0.48 * 0.22; }
           g.strokeStyle = SGN_ARMD; g.lineWidth = 5.2; g.lineCap = 'round';
-          g.beginPath(); g.moveTo(cx, baseY - 8); g.lineTo(fx2, fy2); g.stroke();
+          g.beginPath(); g.moveTo(cx, baseY - 8); if (bent) g.lineTo(kx, ky); g.lineTo(fx2, fy2); g.stroke();
           g.strokeStyle = SGN_ARM; g.lineWidth = 3.0;
-          g.beginPath(); g.moveTo(cx, baseY - 9); g.lineTo(fx2, fy2 - 1); g.stroke();
+          g.beginPath(); g.moveTo(cx, baseY - 9); if (bent) g.lineTo(kx, ky - 1); g.lineTo(fx2, fy2 - 1); g.stroke();
           g.strokeStyle = SGN_ARML; g.lineWidth = 1.0;
-          g.beginPath(); g.moveTo(cx - 0.6, baseY - 10); g.lineTo(fx2 - 0.6, fy2 - 2); g.stroke();
+          g.beginPath(); g.moveTo(cx - 0.6, baseY - 10); if (bent) g.lineTo(kx - 0.6, ky - 2); g.lineTo(fx2 - 0.6, fy2 - 2); g.stroke();
           g.fillStyle = '#7d8492';                              // pale foot pad
           g.beginPath(); g.ellipse(fx2, fy2 + 1, 3.6, 1.9, 0, 0, 6.29); g.fill();
           outline(g, SGN_ARMD);
@@ -18895,7 +18932,7 @@
           }
           g.fillStyle = '#0b0d11';                              // muzzle
           g.beginPath(); g.ellipse(tx3, ty3, 1.8, 1.5, 0, 0, 6.29); g.fill();
-          if (ph6 === 0 || ph6 === 2) {
+          if (ph6 === 2 || ph6 === 5) {                       // never phase 0: static
             g.fillStyle = 'rgba(255,214,128,.60)';
             g.beginPath(); g.ellipse(tx3 + 1.4, ty3 - 0.8, 3.6, 2.5, 0, 0, 6.29); g.fill();
             g.fillStyle = 'rgba(255,246,214,.85)';
@@ -18928,7 +18965,7 @@
       plot(g, cx, baseY, fw * 2, fh * 2);
       g.fillStyle = 'rgba(30,34,26,.62)'; g.fill();
       g.fillStyle = 'rgba(0,0,0,.34)';
-      g.beginPath(); g.ellipse(cx + 2, baseY + 5, 25, 11, 0, 0, 6.29); g.fill();
+      g.beginPath(); g.ellipse(cx + 1, baseY + 4, 20, 7, 0, 0, 6.29); g.fill();
       g.fillStyle = '#4b4a34';                                     // olive apron
       g.beginPath(); g.ellipse(cx, baseY + 3, 25, 11, 0, 0, 6.29); g.fill();
       outline(g, '#232316');
@@ -18988,8 +19025,8 @@
         g.moveTo(x0 + 2.8, yb - 1.4); g.lineTo(x0 + 6.2, yb - 1.4);
         g.lineTo(xt + 6.2, y1 - 1.4); g.lineTo(xt + 2.8, y1 - 1.4);
         g.closePath(); g.fill();
-        g.fillStyle = '#0c1016';                                  // the mouth
-        g.beginPath(); g.ellipse(xt, y1 - 1.1, 6.4, 2.8, 0, 0, 6.29); g.fill();
+        g.fillStyle = '#060708';                                  // the mouth (near-black: the >=25%-contrast dark disc the clause counts)
+        g.beginPath(); g.ellipse(xt, y1 - 1.1, 5.0, 2.2, 0, 0, 6.29); g.fill();
         g.strokeStyle = '#98a0b2'; g.lineWidth = 1.1; g.stroke();
         g.fillStyle = 'rgba(228,234,244,.55)';
         g.beginPath(); g.ellipse(xt - 1.6, y1 - 1.9, 2.2, 0.9, 0, 0, 6.29); g.fill();
@@ -19056,10 +19093,16 @@
       outline(g, shade(col, 0.40));
       // ---- gearbox mount ------------------------------------------------------
       cylinder(g, cx, baseY - 1, 9.0, 12, FK_GUN, FK_GUNL, FK_GUND);
-      g.strokeStyle = FK_BAR; g.lineWidth = 1.2;
+      g.strokeStyle = FK_GUNL; g.lineWidth = 1.2;              // was FK_BAR (barrel's own
+      // palette, too bright): the mount block drawn afterwards covers most of
+      // this collar ring, but its slanted edges left the ring's two tips
+      // peeking out as pure highlight-bright pixels detached from everything
+      // else — extra "barrels" by the dark/bright-blob count. Same tone
+      // family as the cylinder's own top color keeps the ring reading as a
+      // metal seam without crossing the clause's brightness floor.
       g.beginPath(); g.ellipse(cx, baseY - 13, 9.0, 3.8, 0, 0, 6.29); g.stroke();
       // ---- brass ammo feed and a loaded round ---------------------------------
-      puckDrum(g, cx - 10.5, baseY - 8, 3.6, 5.2, '#7a6f3c', '#b6a75e', FK_GUND);
+      puckDrum(g, cx - 10.5, baseY - 4, 3.6, 5.2, '#7a6f3c', '#b6a75e', FK_GUND);  // was baseY-8: its bright lid highlight poked 2px into the crown band, a spurious extra "barrel"
       g.fillStyle = (ph6 === 1 || ph6 === 4) ? '#ffd76e' : '#c8a13a';
       g.beginPath(); g.ellipse(cx - 6.4, baseY - 15.4, 1.8, 1.3, 0, 0, 6.29); g.fill();
       // ---- the bright house MOUNT block at the barrel's foot ------------------
@@ -19083,8 +19126,13 @@
       // trunnion
       g.fillStyle = FK_GUND;
       g.beginPath(); g.ellipse(fkPiv.x, fkPiv.y, 5.0, 4.4, 0, 0, 6.29); g.fill();
-      g.fillStyle = FK_GUNL;
-      g.beginPath(); g.ellipse(fkPiv.x - 1.2, fkPiv.y - 1.2, 2.2, 1.8, 0, 0, 6.29); g.fill();
+      g.fillStyle = FK_BAR;                                     // was FK_GUNL (a shade
+      // too dim to ever read as "bright" itself): the dark trunnion disc sat
+      // squarely between the mount's bright face and the barrel's bright base,
+      // splitting the one raised assembly into two separate blobs. A real
+      // metal highlight here, big enough to touch both, reads as the oiled
+      // pivot joint it is and knits the barrel to its own mount.
+      g.beginPath(); g.ellipse(fkPiv.x - 1.2, fkPiv.y - 0.6, 3.8, 3.4, 0, 0, 6.29); g.fill();
       // ---- the barrel: pale banded tube raised ~70 deg -------------------------
       var fkA = -1.235 + anS * 0.075, fkL = 39;
       if (bdir != null) { var fkAim = gunAim(bdir, 1.235); fkA = fkAim.a; fkL = 39 * fkAim.k; }
@@ -19110,7 +19158,9 @@
       g.lineTo(fmx, fmy); g.stroke();
       g.fillStyle = '#0c1014';
       g.beginPath(); g.ellipse(fmx, fmy - 0.4, 2.6, 1.8, fkA + 1.57, 0, 6.29); g.fill();
-      g.strokeStyle = '#d9dde3'; g.lineWidth = 0.8; g.stroke();
+      g.strokeStyle = FK_GUNL; g.lineWidth = 0.8; g.stroke();   // was near-white: a rim
+      // this bright made its own island once the dark muzzle brake band cut it
+      // off from the rest of the bright barrel, an extra "barrel" by count.
       g.lineWidth = 1;
     } else if (key === 'chrono') {
       // --- RA2 Chronosphere (GACSPH) --------------------------------------
@@ -19352,6 +19402,14 @@
       g.fillStyle = 'rgba(0,0,0,.30)';
       g.beginPath(); g.ellipse(cx + 3, icCy + 4, icR, icR * 0.44, 0, 0, 6.29); g.fill();
       cylinder(g, cx, icCy, icR, 17, shade(IC_ST, 0.82), '#5f656e', IC_STD);
+      // The hub paints BEFORE the spokes/rim band (not after): painted last it
+      // sat right on the point all 8 spokes converge on and the rim band
+      // crosses, cutting the "one ring" the sprite is meant to read as into a
+      // disconnected left arc and right arc (clause: exactly ONE ring).
+      // Painted first, the spokes and rim band lay house colour back over it
+      // and the hub still reads dark everywhere they don't cross.
+      g.fillStyle = IC_DRK;                                      // central hub
+      g.beginPath(); g.ellipse(cx, icCy - 18, icR * 0.24, icR * 0.10, 0, 0, 6.29); g.fill(); outline(g, '#0e1116');
       // radial red panels across the drum head
       g.save();
       g.beginPath(); g.ellipse(cx, icCy - 17, icR, icR * 0.42, 0, 0, 6.29); g.clip();
@@ -19368,8 +19426,6 @@
       g.fillStyle = shade(col, 0.60);                            // rim band round the drum wall
       g.fillRect(cx - icR, icCy - 15, icR * 2, 3.2);
       g.fillStyle = 'rgba(0,0,0,.22)'; g.fillRect(cx + icR * 0.36, icCy - 15, icR * 0.64, 3.2);
-      g.fillStyle = IC_DRK;                                      // central hub
-      g.beginPath(); g.ellipse(cx, icCy - 18, icR * 0.24, icR * 0.10, 0, 0, 6.29); g.fill(); outline(g, '#0e1116');
 
       // cable spools round the rim
       var icSpool = function (spx, spy) {
