@@ -12295,6 +12295,7 @@
     var vp = VPOW[key + ':' + fac];
     if (vp == null) vp = VPOW[key] != null ? VPOW[key] : 0.5;
     var VS = Math.max(1, Math.pow((b.gw + b.gh) / f0, vp));
+    if (window.__dbgVS && key === 'refinery') { console.log('VSDBG', fac, b.gw, b.gh, f0, vp, VS, fw, fh); }
     if (VS !== 1) { head = Math.round(head * VS); pad = Math.round(pad * VS); }
     var s = mkCanvas(fw * 2 + pad * 2, fh * 2 + head + pad * 2), g = s.g;
     var cx = s.w / 2, baseY = s.h - pad - fh;
@@ -14757,14 +14758,21 @@
         var A_PLT = '#4c4834', A_PLT_L = '#6c6743', A_PLT_D = '#2a281c';
         var A_CHR = '#24272e', A_GRY = '#767a82';
         var A_TAN = '#b09a6a', A_TAN_D = '#5c4d30';
-        var tsx = cx + 7, ssx = cx + 42;                               // stack centres
+        var tsx = cx - 3, ssx = cx + 47;                               // stack centres — far enough apart that the crown reads as two, not one
 
         // ---- plate: olive-brown, lit along the two upper edges -----------
-        plot(g, cx, baseY - 2, fw * 1.94, fh * 1.94);
+        // Width keeps the full footprint reach (fw*1.94, as every other
+        // plot() plate in this file uses); height is cut well back from that
+        // -- the plate is a flat roof/apron, not a peaked one, so its ridge
+        // must stay low enough that the tall stack's own crown never fuses
+        // with a diagonal roofline poking up beside it (unit-identity-
+        // reference.md 2.6: refinery wants exactly 2 stack crowns).
+        var A_PLW = fw * 1.94, A_PLH = fh * 0.62;
+        plot(g, cx, baseY - 2, A_PLW, A_PLH);
         g.fillStyle = A_PLT; g.fill(); outline(g, A_PLT_D);
-        g.save(); plot(g, cx, baseY - 2, fw * 1.94, fh * 1.94); g.clip();
-        line(cx - fw * 0.97, baseY - 2, cx, baseY - 2 - fh * 0.97, 3, A_PLT_L);
-        line(cx, baseY - 2 - fh * 0.97, cx + fw * 0.97, baseY - 2, 3, shade(A_PLT_L, 0.86));
+        g.save(); plot(g, cx, baseY - 2, A_PLW, A_PLH); g.clip();
+        line(cx - A_PLW * 0.5, baseY - 2, cx, baseY - 2 - A_PLH * 0.5, 3, A_PLT_L);
+        line(cx, baseY - 2 - A_PLH * 0.5, cx + A_PLW * 0.5, baseY - 2, 3, shade(A_PLT_L, 0.86));
         srand(131);
         for (var mI = 0; mI < 14; mI++) {
           g.fillStyle = rnd() < 0.5 ? shade(A_PLT, 0.78) : shade(A_PLT, 1.16);
@@ -14813,17 +14821,21 @@
         line(dmx + 29, dmy + 4, dmx + 20, dmy + 8, 3.2, A_GRY, 'round');
         line(dmx + 17, dmy - 16, dmx + 28, dmy - 13.5, 1, 'rgba(255,255,255,.35)', 'round');
         g.fillStyle = A_SIL_D; g.fillRect(dmx + 26, dmy - 7, 6, 2.4); g.fillRect(dmx + 26, dmy - 1, 6, 2.4);
-        // ribbed silver bulge, house collar, neck, groove, cap, open bore
+        // ribbed silver bulge, house collar, neck, groove, cap, open bore —
+        // sized to match the tall stack's own chain (13/13.4/9.2-12) rather
+        // than a scaled-down copy: RA2's own two stacks measure within 2 px
+        // of each other (22-24 of 169), so a visibly thinner second stack
+        // was itself an inaccuracy, not just a spacing bug.
         tube(ssx, dmy - dmh + 2, 16, 11, shade(A_SIL, 0.84), A_SIL_D);
         for (var bbI = -2; bbI <= 2; bbI++) line(ssx + bbI * 5, dmy - dmh - 8, ssx + bbI * 5, dmy - dmh + 1, 1, 'rgba(0,0,0,.38)');
         ring(ssx, dmy - dmh - 9, 9.5, 4.5, HC, HCD);
-        tube(ssx, dmy - dmh - 13.5, 8, 20, A_SIL, A_SIL_D);
-        tube(ssx, dmy - dmh - 33, 10.5, 20, shade(A_SIL, 0.90), A_SIL_D, shade(A_SIL, 0.52));
-        ring(ssx, dmy - dmh - 43, 10.9, 2.6, shade(A_SIL, 0.62), null);
+        tube(ssx, dmy - dmh - 13.5, 9, 20, A_SIL, A_SIL_D);
+        tube(ssx, dmy - dmh - 33, 13, 20, shade(A_SIL, 0.90), A_SIL_D, shade(A_SIL, 0.52));
+        ring(ssx, dmy - dmh - 43, 13.4, 2.8, shade(A_SIL, 0.62), null);
         g.fillStyle = A_NAV;
-        g.beginPath(); g.ellipse(ssx, dmy - dmh - 53, 7.4, 3.1, 0, 0, 6.29); g.fill();
+        g.beginPath(); g.ellipse(ssx, dmy - dmh - 53, 9.2, 3.9, 0, 0, 6.29); g.fill();
         g.strokeStyle = 'rgba(230,234,242,.5)'; g.lineWidth = 1;
-        g.beginPath(); g.ellipse(ssx, dmy - dmh - 53, 9.6, 4.0, 0, 0, 6.29); g.stroke();
+        g.beginPath(); g.ellipse(ssx, dmy - dmh - 53, 12, 5, 0, 0, 6.29); g.stroke();
 
         // ---- the drum: nested C hoops round a navy cavity ------------------
         // Rings from the outer rim inward; each is a little smaller and sits
@@ -14925,7 +14937,11 @@
         g.beginPath(); g.ellipse(tsx, baseY - 87, 12, 5, 0, 0, 6.29); g.stroke();
 
         // ---- the ported spine: collar down-left to the head block ---------
-        var spA = [tsx + 2, baseY - 41], spB = [cx - 30, baseY - 24];
+        // Tucked under the stack's base collar (not its neck) so this band
+        // stays on the vault's face, below the roofline the two stacks alone
+        // are meant to crown — see rts.html's own note above that the stacks
+        // are the whole read here.
+        var spA = [tsx, baseY - 24], spB = [cx - 30, baseY - 10];
         line(spA[0], spA[1] + 1.5, spB[0], spB[1] + 1.5, 14, HCD, 'round');
         line(spA[0], spA[1], spB[0], spB[1], 12, HC, 'round');
         line(spA[0] - 1, spA[1] - 4.2, spB[0] - 1, spB[1] - 4.2, 2.2, HCL, 'round');
@@ -14977,6 +14993,16 @@
         };
         tank(Q(0.55, -1.95), Q(1.0, -1.95));
         tank(Q(0.32, 1.95), Q(0.78, 1.95));
+        if (window.__dbgMark) {
+          g.fillStyle = 'rgb(255,0,255)'; g.fillRect(cx - 1, baseY - 1, 3, 3);
+          g.fillStyle = 'rgb(0,255,255)'; g.fillRect(tsx - 1, baseY - 1, 3, 3);
+          g.fillStyle = 'rgb(255,255,0)'; g.fillRect(ssx - 1, baseY - 1, 3, 3);
+          g.fillStyle = 'rgb(0,255,0)'; g.fillRect(mouthL - 1, baseY - 1, 3, 3);
+          g.fillStyle = 'rgb(255,128,0)'; g.fillRect(cx - 1, Math.round(baseY - 2 - A_PLH * 0.5) - 1, 3, 3);
+          g.fillStyle = 'rgb(255,0,0)'; g.fillRect(mouthL - 1, Math.round(C0[1] - C0[3]) - 1, 3, 3);
+          g.fillStyle = 'rgb(0,0,255)'; g.fillRect(Math.round(spA[0])-1, Math.round(spA[1])-1, 3, 3);
+          g.fillStyle = 'rgb(128,0,255)'; g.fillRect(Math.round(spB[0])-1, Math.round(spB[1])-1, 3, 3);
+        }
       }
     } else if (key === 'barracks') {
       // Barracks, rebuilt against the real RA2 sprites.
