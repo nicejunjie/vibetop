@@ -19968,8 +19968,22 @@
         g.fillStyle = '#2c3550';
         g.beginPath(); g.roundRect(npx - 2.4, npy - 5.2, 4.8, 6.0, 1.2); g.fill();
         outline(g, '#12162a');
+        // TUCKED onto the pod rim (was `npy - 5.0`, ry 1.2, so the cap's top
+        // sat a full pixel ABOVE the body's own top edge at `npy - 5.2` and
+        // its antialiased fringe rendered over nothing). That fringe was the
+        // third "house collar ring": at (32,14) the sprite already carried a
+        // dark 24-alpha edge pixel, rgb(11,21,21) — hueGap 17, INSIDE the
+        // band but at v 0.082, under the 0.20 floor, so harmless. The cap's
+        // own ~50-alpha fringe composited over it to rgba(60,76,100,64):
+        // v 0.392, over the floor, s 0.40, hueGap 19 — house, and its own
+        // 1-px blob. Neither ingredient is in the band on its own; the
+        // COMPOSITE is. Isolated by full ablation (removing the cap alone
+        // returns that pixel to v 0.082 and drops the blob; removing the pod
+        // body, the pod outline, the field ring, the tip glint or the glow
+        // dot changes it by zero). Fixed in geometry, not colour, so the
+        // specular stays exactly as saturated as it reads.
         g.fillStyle = '#5b6a96';
-        g.beginPath(); g.ellipse(npx, npy - 5.0, 2.4, 1.2, 0, 0, 6.29); g.fill();
+        g.beginPath(); g.ellipse(npx, npy - 4.6, 2.4, 1.2, 0, 0, 6.29); g.fill();
         // Same family as the talon-glint/field-ring paling below: this dot's
         // old rgb(150,190,235) (s 0.36, hueGap 15 of OWNER_HUE 197) sat
         // inside the checker's house-hue band, and antialiasing it against
