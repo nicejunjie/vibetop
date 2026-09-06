@@ -7917,7 +7917,18 @@
     // running dog reading as a sliding ornament.
     var t = ST === 'walk' ? sph / nf * 6.2832 : 0;
     var swA = ST === 'walk' ? Math.sin(t) : 0, swB = ST === 'walk' ? Math.sin(t + Math.PI) : 0;
-    var bob = ST === 'walk' ? Math.abs(Math.sin(t * 2)) * 1.1 : 0;
+    // The suspension lift used `abs(sin(2t))`, and abs() is what made this a
+    // THREE-frame twitch instead of a six-frame trot. At six phases the stride
+    // `sin(t)` already gives phases 1 and 2 the same value (sin 60 = sin 120),
+    // and 4/5 likewise, and 0/3 are both zero — so the stride alone cannot
+    // separate them. `abs(sin(2t))` folds its own sign away and repeats on the
+    // same pairs, so nothing did. Measured: phases 0/3, 1/2 and 4/5 baked
+    // PIXEL-IDENTICAL, three distinct frames out of six.
+    // Dropping the abs and re-centring keeps the range and the two lifts per
+    // cycle a trot needs, while sin(2t) now takes +0.87 at phase 1 and -0.87 at
+    // phase 2 — the same trick the humanoid walk uses with `cf`, which is a
+    // quarter turn on the same cycle for exactly this reason (see THE WALK).
+    var bob = ST === 'walk' ? (1 + Math.sin(t * 2)) * 0.55 : 0;
     // The leap: gather, launch (airborne, stretched), land.
     var LEAP = ST === 'leap' ? sph : -1;
     var air = LEAP === 1 ? 7.0 : (LEAP === 2 ? 2.2 : 0);
@@ -8016,7 +8027,15 @@
     // The head is set FORWARD and low — a dog on the hunt carries it level
     // with the spine, not up like a show pose. On the leap it is thrown out.
     var hxo = L * 0.92 + (LEAP === 1 ? 2.2 : 0);
-    var hyo = bY - 3.6 - (LEAP >= 0 ? 1.6 : 0) + (ST === 'walk' ? bob * 0.4 : 0);
+    // ...and a HEAD NOD on `cos(t)`, which is the only term in this gait with
+    // the full cycle's period. Stride is sin(t) and lift is sin(2t), and both
+    // are ZERO at phases 0 and 3, so those two frames baked pixel-identical
+    // however the other two were tuned — a dog cannot be told apart from
+    // itself half a stride later. cos(t) is +1 and -1 there. This is the same
+    // job `cf` does in the humanoid walk, which the comment there calls "what
+    // keeps all six frames distinct".
+    var nod = ST === 'walk' ? Math.cos(t) * 0.75 : 0;
+    var hyo = bY - 3.6 - (LEAP >= 0 ? 1.6 : 0) + (ST === 'walk' ? bob * 0.4 + nod : 0);
     g.strokeStyle = TAN; g.lineWidth = 4.2; g.lineCap = 'round';
     g.beginPath(); g.moveTo(cx + L * 0.55, bY - H * 0.35); g.lineTo(cx + hxo - 1.2, hyo + 1.4); g.stroke();
     g.lineWidth = 1;
