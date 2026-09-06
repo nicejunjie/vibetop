@@ -185,6 +185,11 @@
       "dir": "down",
       "note": "clauses that are checked AND FAILING. A rising `checked` with a rising `unmet` is the tool working, not the art getting worse — the first two clauses ever checked by hand were both unmet (Tesla Trooper carapace 8% vs 40%, Engineer third on a row saying \"the only\")"
     },
+    "clause.unmatchedToReference": {
+      "want": 0,
+      "dir": "down",
+      "note": "checks whose stated clause matches NO budget string in §2 for that unit. A check is only worth having if it measures the clause the reference actually wrote; without this, \"measured\" can quietly become \"measured something adjacent and easier\", which is the failure mode this whole file is built against, one level up. Matching is on shared words against that unit's own budget list, so a faithful paraphrase passes and an invented clause does not"
+    },
     "clause.infantryUnmet": {
       "want": 0,
       "dir": "down",
@@ -275,6 +280,7 @@
     "size.worstOffGroupScale": 0.3109,
     "clause.checked": 2,
     "clause.unmet": 1,
+    "clause.unmatchedToReference": 0,
     "clause.infantryUnmet": 1,
     "clause.vehicleUnmet": 0,
     "clause.navalUnmet": 0,
@@ -1663,7 +1669,8 @@
         "measured": 0.073,
         "want": ">= 0.10 value",
         "note": "helmet 0.465, torso 0.539, legs 0.142 — 0.10 is this file's reading of \"distinct\"; the row states no number",
-        "module": "EXAMPLE-infantry-gi.js"
+        "module": "EXAMPLE-infantry-gi.js",
+        "refMatch": 0.89
       },
       {
         "unit": "rifle",
@@ -1672,7 +1679,8 @@
         "measured": 60.4,
         "want": ">= 20 degrees",
         "note": "GI legs hue 92, Conscript legs hue 32",
-        "module": "EXAMPLE-infantry-gi.js"
+        "module": "EXAMPLE-infantry-gi.js",
+        "refMatch": 0.43
       }
     ],
     "valueRead": [

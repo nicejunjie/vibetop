@@ -349,6 +349,7 @@ const TARGETS = {
   // §2's pixel budgets, checked one clause at a time (tools/clause-checks/).
   'clause.checked':              { want: 57,   dir: 'up',   note: '§2 states 96 budget clauses across 41 units and each unit has exactly ONE SPIKES entry, so 57 clauses were honoured by intention only. This counts how many of those now have a real measurement behind them. The target is the whole backlog; it rises as checks land' },
   'clause.unmet':                { want: 0,    dir: 'down', note: 'clauses that are checked AND FAILING. A rising `checked` with a rising `unmet` is the tool working, not the art getting worse — the first two clauses ever checked by hand were both unmet (Tesla Trooper carapace 8% vs 40%, Engineer third on a row saying "the only")' },
+  'clause.unmatchedToReference': { want: 0, dir: 'down', note: "checks whose stated clause matches NO budget string in §2 for that unit. A check is only worth having if it measures the clause the reference actually wrote; without this, \"measured\" can quietly become \"measured something adjacent and easier\", which is the failure mode this whole file is built against, one level up. Matching is on shared words against that unit's own budget list, so a faithful paraphrase passes and an invented clause does not" },
   'clause.infantryUnmet':        { want: 0,    dir: 'down', note: 'the same, for the 23 unmeasured infantry clauses' },
   'clause.vehicleUnmet':         { want: 0,    dir: 'down', note: 'the same, for the 18 unmeasured vehicle clauses' },
   'clause.navalUnmet':           { want: 0,    dir: 'down', note: 'the same, for the 9 unmeasured naval clauses' },
@@ -1027,9 +1028,44 @@ function compute(recs) {
       try { for (const r of mod.check(ctx) || []) rows.push({ ...r, module: f }); }
       catch (e) { rows.push({ unit: '-', clause: f + ' threw', ok: false, note: String(e) }); }
     }
+    // INTEGRITY: a check only counts if the clause it names is a real §2
+    // clause. Without this, "measured" can quietly become "measured something
+    // adjacent and easier" — the failure mode this whole file is written
+    // around, one level up. Each reported clause is matched against the actual
+    // budget strings in unit-identity-reference.md for THAT unit; anything
+    // that matches nothing is reported separately and is not counted as
+    // coverage.
+    const REF = path.join(ROOT, 'apps', 'games', 'rts', 'docs', 'unit-identity-reference.md');
+    const budgets = {};
+    try {
+      const md = fs.readFileSync(REF, 'utf8');
+      const re = /^\|\s*`([a-z0-9]+)`([^|]*)\|([^|]*)\|([^|]*)\|([^|]*)\|([^|]*)\|\s*$/gm;
+      for (let m; (m = re.exec(md));) {
+        const b = m[6].trim();
+        if (!b || b === '—' || budgets[m[1]]) continue;
+        budgets[m[1]] = b.split(';').map((c) => c.trim()).filter(Boolean);
+      }
+    } catch (e) { /* reference unreadable; leave every row unverified */ }
+    const norm = (t) => String(t || '').toLowerCase().replace(/[^a-z0-9 ]/g, ' ')
+      .split(/\s+/).filter((w) => w.length > 2);
+    for (const r of rows) {
+      const cs = budgets[r.unit] || [];
+      const mine = norm(r.clause);
+      let best = 0;
+      for (const c of cs) {
+        const theirs = new Set(norm(c));
+        const hit = mine.filter((w) => theirs.has(w)).length;
+        const sc = mine.length ? hit / Math.max(mine.length, theirs.size) : 0;
+        if (sc > best) best = sc;
+      }
+      r.refMatch = round(best, 2);
+    }
+    const unmatched = rows.filter((r) => r.unit !== '-' && r.refMatch < 0.34);
     const byG = (g) => rows.filter((r) => (unit[r.unit] || {}).group === g);
     const bad = (rs) => rs.filter((r) => !r.ok).length;
-    return { rows, checked: rows.length, unmet: bad(rows),
+    return { rows, unmatched: unmatched.length,
+             unmatchedRows: unmatched.map((r) => ({ unit: r.unit, clause: r.clause, refMatch: r.refMatch })),
+             checked: rows.length, unmet: bad(rows),
              infUnmet: bad(byG('infantry')), vehUnmet: bad(byG('vehicle')),
              navUnmet: bad(byG('naval')), airUnmet: bad(byG('air')) };
   })();
@@ -1099,6 +1135,7 @@ function compute(recs) {
       // §2's pixel budgets, checked one clause at a time (tools/clause-checks/).
   'clause.checked':              { want: 57,   dir: 'up',   note: '§2 states 96 budget clauses across 41 units and each unit has exactly ONE SPIKES entry, so 57 clauses were honoured by intention only. This counts how many of those now have a real measurement behind them. The target is the whole backlog; it rises as checks land' },
   'clause.unmet':                { want: 0,    dir: 'down', note: 'clauses that are checked AND FAILING. A rising `checked` with a rising `unmet` is the tool working, not the art getting worse — the first two clauses ever checked by hand were both unmet (Tesla Trooper carapace 8% vs 40%, Engineer third on a row saying "the only")' },
+  'clause.unmatchedToReference': { want: 0, dir: 'down', note: "checks whose stated clause matches NO budget string in §2 for that unit. A check is only worth having if it measures the clause the reference actually wrote; without this, \"measured\" can quietly become \"measured something adjacent and easier\", which is the failure mode this whole file is built against, one level up. Matching is on shared words against that unit's own budget list, so a faithful paraphrase passes and an invented clause does not" },
   'clause.infantryUnmet':        { want: 0,    dir: 'down', note: 'the same, for the 23 unmeasured infantry clauses' },
   'clause.vehicleUnmet':         { want: 0,    dir: 'down', note: 'the same, for the 18 unmeasured vehicle clauses' },
   'clause.navalUnmet':           { want: 0,    dir: 'down', note: 'the same, for the 9 unmeasured naval clauses' },
@@ -1107,10 +1144,12 @@ function compute(recs) {
       'clip.unitsClippedOnGatedOctant': clip.onGated.length,
       'clause.checked': clause.checked,
       'clause.unmet': clause.unmet,
-      'clause.infantryUnmet': clause.infUnmet,
+      'clause.unmatchedToReference': { want: 0, dir: 'down', note: "checks whose stated clause matches NO budget string in §2 for that unit. A check is only worth having if it measures the clause the reference actually wrote; without this, \"measured\" can quietly become \"measured something adjacent and easier\", which is the failure mode this whole file is built against, one level up. Matching is on shared words against that unit's own budget list, so a faithful paraphrase passes and an invented clause does not" },
+  'clause.infantryUnmet': clause.infUnmet,
       'clause.vehicleUnmet': clause.vehUnmet,
       'clause.navalUnmet': clause.navUnmet,
       'clause.airUnmet': clause.airUnmet,
+      'clause.unmatchedToReference': clause.unmatched,
       'value.soldiersLighterThanEngineer': valueRead.lighterThanEngineer,
       'value.engineerLightPct': valueRead.engineer,
       'value.engineerMarginOverNext': valueRead.marginOverNext,
