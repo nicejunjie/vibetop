@@ -2506,3 +2506,184 @@ hull axis — or a seam dark enough to survive the bake.
 
 **No art was changed by this pass.** The fix belongs to whoever owns the
 Apocalypse's art; this pass only made the check say what the row says.
+
+---
+
+# BREAKING THE G.I. HUB — the Spy, the Rocketeer and the Chrono Legionnaire (2026-09-07)
+
+The five worst Directorate cameo pairs were never five problems. They were one
+picture drawn five times, and the G.I. was in all of it — so the hub is broken
+by moving the OTHER units, not by repainting `[E1]`, whose three §2 clauses are
+measured and met.
+
+| pair | before | after | |
+|---|---|---|---|
+| `GI \| Chrono Legionnaire` | 61.2 | **85.4** | above RA2's 81.7 bar |
+| `Spy \| Chrono Legionnaire` | 59.1 | **82.8** | above RA2's 81.7 bar |
+| `GI \| Rocketeer` | 58.5 | **70.1** | left the worst-eight list |
+| `Guardian GI \| Spy` | 63.5 | **66.1** | left the worst-eight list |
+| `GI \| Spy` | 55.4 | **61.1** | still the sidebar's worst pair |
+
+Directorate sidebar: **pairs under RA2's bar 374 -> 348**, min 55.4 -> 60.7,
+mean 82.5 -> 83.1, 5th pct 69.4 -> 70.1, greyed 9 -> 8 (min 36.3 -> 38.8),
+DPR 2 145 -> 135 (min 58.8 -> 64.2). The Collective sidebar is byte-identical,
+which is the null result proving the three edits are kind-scoped.
+
+## The measurement that redirected the whole pass
+
+The brief's diagnosis — owner-blue as a fraction of the plate's centre band —
+is **real but it is not the lever**, and the first edit proved it. Taking the
+Chrono Legionnaire's centre blue 61.9% -> 47.6% by moving the house colour off
+his shoulders moved `GI | Chrono Legionnaire` by **0.7**. Making the same
+figure PALE, with barely any further change in blue (47.6% -> 48.2%), moved it
+by **24.2**.
+
+So the plates were split into a 4x4 grid and each cell's share of `dist()`
+printed beside both plates' mean luminance (`scratchpad/gihub-where.js`). Two
+things fell out, and they set everything that followed:
+
+* **`dist()` is 63-87% LUMINANCE.** Its chroma terms carry a 0.35 weight; the
+  luminance term carries 1. A hue swap over a small area is nearly inert; a
+  value change over a large area is the whole metric.
+* **The plate's BACKGROUND is half the picture, and the art moves it.**
+  `cameoFor` derives an infantry plate's lightness from a hash of the key, then
+  pushes it away from the subject's own mean luminance when the two collide
+  (`if (Math.abs(lit - subL) < 20) lit = subL > 50 ? subL - 26 : subL + 26`).
+  Measured corner luminance, before this pass:
+
+  | plate bg | unit | in a worst pair? |
+  |---|---|---|
+  | 158 | Rocketeer | yes |
+  | 150 | G.I. | yes, five times |
+  | 144 | Spy | yes |
+  | 141 | Chrono Legionnaire | yes |
+  | 96 | Engineer | no (fixed 2026-09-05) |
+  | 72 | Tanya | no |
+
+  **The cut is the same one the centre-blue table found, and it is cleaner.**
+  Tanya and the Engineer — the two units in none of the worst pairs — are the
+  two with dark plates. When the Chrono Legionnaire's figure went pale his
+  plate flipped 141 -> 72 on its own, and eight of the sixteen grid cells went
+  from carrying ~1% of the pair's distance each to carrying 5-7%. That is most
+  of his +24, it is the tool's own stated design ("the subject still has to
+  silhouette against its own plate"), and it is stated here rather than
+  claimed as geometry.
+
+## Unit by unit
+
+### Chrono Legionnaire — §2.1's "powered-suit shoulders", painted as the suit
+
+His §2.1 feature is *"powered-suit shoulders with no neck, a COLLAR RING, and a
+long rifle held level"* and §1.5's zone row is *"silver suit, RED TRIM"*. He had
+neither: a solid owner-colour cape from shoulder point to sternum, plus solid
+owner pauldron slabs, and no collar ring at all. Three levers, cumulative on
+`GI | Chrono Legionnaire`:
+
+| lever | -> |
+|---|---|
+| baseline | 61.2 |
+| shell + pauldrons become armour; house moves to a collar ring, pauldron rims and thigh plates | 61.9 |
+| `TROOP.cleg.coat` `#8f97a6` -> `#a8aab0` (the blue cast out of the "silver") | — |
+| `INF_EDGE.cleg = 0.64`, suit legs and sleeves lifted to the suit's own value | **85.4** |
+
+The edge floor is the Engineer's lever on a different clause and it did the
+same work: whole-sprite `lightPct` 0.193 -> 0.273, i.e. he finally IS the pale
+figure his own drawing block already called him. **His owner share went UP**,
+0.2986 -> 0.3419, because the thigh plates and the collar ring are more area
+than the yoke and the pauldrons were — the Engineer's "the trade never had to
+be made", met a second time. Shoulder line unchanged at 20 px against §2.1's
+15, because nothing here is geometry.
+
+### Rocketeer — the gun comes off the chest
+
+**+7.6 in one edit, the largest single move in the pass**, and it is not a
+colour change at all. `carbine(cx - 5.2, by - 12.2, cx + 6.4, by - 15.6)` drew
+a dark weapon diagonally across the torso — the G.I.'s single loudest shape, in
+the same place, at the same value, on a plate that crops to a portrait. Moved
+to the hip it took `GI | Rocketeer` 62.5 -> 70.1. It is also right for the
+unit: §2.1 gives him *"AIR, not ground"* and no weapon at all, and port arms is
+a posture for a man standing on something.
+
+The other two levers, in order: a **full mirrored visor** wrapping the dome
+(58.5 -> 60.0 — the top row of the grid was carrying 6% of the pair, two bright
+domes over two bright plates), and **the pack grown to be the house mass**
+(60.0 -> 62.5). §2.1 budgets his pack at *">= 4w x 6h"* and it was drawn 3.2
+across, under the budget it is measured against, while the owner colour that
+belonged on it sat on a full-width chest slab. The tanks are 4.6 x 9.2 now and
+the chest is suit armour with a house chevron. His owner share also went UP,
+0.3368 -> 0.3504, and his bbox and aspect did not move (the arms were always
+wider than the pack).
+
+### Spy — a camel overcoat under a dark felt hat, and the hem carries the budget
+
+The smallest gain and the one worth reading, because three of its four levers
+were measured backwards first.
+
+* **The hat's hue is nearly inert.** `#58606f` -> warm felt moved `GI | Spy` by
+  **-0.1**. The hat looked completely different and the number did not care.
+* **Darkening him made it WORSE.** RA2's plate is a dark man in a dim office,
+  so the whole figure was shaded down — coat, sleeves, hem, cuffs. 56.2 ->
+  **55.3**, reverted. The grid says why: his chest band already read L 135
+  against the G.I.'s 103 and his head L 116 against 180. His separation was
+  already *dark head, light body*; darkening the body walked into the G.I.
+  **A camel overcoat under a dark felt hat is that reading, drawn.**
+* **A dark collar** in the one cell where the two plates measured closest
+  (L 131 vs 137) took 60.7 -> **60.2**. Reverted.
+* The levers that DID pay: camel lapels and a storm flap reaching the shoulder
+  seams (55.4 -> 59.8), the briefcase carried up at the hip where the portrait
+  crop can see it plus a brim shadow on the face (-> 60.7), and the lapels out
+  to the shoulder seams (-> 61.1).
+
+**The hem is where his owner budget went, and that was measured, not assumed.**
+Painted magenta and re-baked, the hem is about a tenth of a plate row — the
+sidebar crops to the top 72% — so house colour there is carried in full by the
+sprite, where §1.4's remap floor and friend-vs-foe live, and costs the build
+icon nothing. His `ownerPct` went 0.31 -> 0.4026 on that alone, which is what
+paid for taking blue out of the visible chest. The coat is still the house
+zone; the camel is its LINING, showing because the coat is worn open.
+
+## The ceiling on `GI | Spy`, with the arithmetic
+
+61.1 against a bar of 81.7, and the gap is structural rather than unfinished.
+Their plate backgrounds are 150 and 144 — six luminance apart — so **eight of
+the sixteen grid cells contribute about 1% each**. The figure carries 95.6% of
+a squared total of 3730; reaching 81.7 needs 6675, i.e. the figure cells must
+**double** their squared contribution with the background fixed. Every unit in
+this roster that escaped the hub did it by moving its PLATE, and the plate is
+`cameoFor`'s hash of the unit key — shared machinery, 80 icons wide, out of
+scope for an infantry art pass. Recorded, not forced.
+
+## The costs, stated
+
+* **`colour.infantry.meanDist` 1.3825 -> 1.3513** (plan target >= 0.45, so 3x
+  the target and zero debt, but a ratchet regression that is re-recorded
+  deliberately). It is a hue histogram binning only pixels at s > 0.12, and
+  silver and camel are both low-chroma: `cleg` 0.1441 -> 0.0855, `spy` 0.155
+  -> 0.0722. The concrete collision is `teslatrooper | cleg` 0.423 -> 0.12 —
+  two silver figures — and it is the cheapest one available, because they are
+  in opposite factions and never appear in one sidebar. Saturating the camel
+  back toward gold recovers it, and the sweep is in the code: two of the four
+  rungs produce **a confusable infantry pair on the map**, which is a hard
+  gate, for one point of a cameo pair. The low-chroma rung ships.
+* **`Chrono Legionnaire | Tanya` 86.8 -> 71.8**, the largest fall on the board,
+  and it is the background mechanism read backwards: his plate went dark and
+  Tanya's already was (both 72). Three other pairs crossed below the bar
+  (`Spy | Tanya` 83 -> 78.2, `Rocketeer | War Factory` 82.7 -> 81.3,
+  `Patriot Missile | Rocketeer` 82.5 -> 80.7). Against 26 pairs taken off the
+  under-bar list and a minimum up 5.3, this is the trade and it is a good one.
+* **The ZMIN margin narrowed**, the same way the Engineer's pass narrowed it:
+  every infantry mean improved, so the median-based threshold rose 8.6 -> 8.9
+  while the minimum rose 8.9 -> 9.1. Margin +0.3 -> +0.2, tightest pair now
+  `tanya | spy`. **0 confusable in all six windows**, `dog | tanya` unmoved at
+  12.5 / 9.5.
+
+## Two rules this pass earned
+
+1. **A cameo pair is a picture, not a palette.** Owner-blue fraction ranks the
+   suspects correctly and predicts almost nothing about the fix. Read the pair
+   on a grid, find the cells carrying 1%, and ask what makes those cells
+   different — it will be value or it will be a shared SHAPE.
+2. **Look for the shape the two units share before touching either one's
+   colour.** The Rocketeer's rifle-across-the-chest cost 7.6 points and was
+   invisible to every hue metric in the repo, including the one this pass
+   built.
