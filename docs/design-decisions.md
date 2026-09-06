@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_250 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_251 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
 - [Scheduled terminal messages ("resume when the token limit resets")](#scheduled-terminal-messages-resume-when-the-token-limit-resets)
@@ -273,6 +273,7 @@ _250 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [A spectacular POSITIVE result must prove the build still runs (2026-09-06)](#a-spectacular-positive-result-must-prove-the-build-still-runs-2026-09-06)
 - [A reference sprite that measured the SCREENSHOT — and the width convention that makes a building's aspect unusable as a gate](#a-reference-sprite-that-measured-the-screenshot-and-the-width-convention-that-makes-a-buildings-aspect-unusable-as-a-gate)
 - [The sidebar cameo's contrast escape hatch was overriding the value scheme it sat inside, three passes running (2026-09-06)](#the-sidebar-cameos-contrast-escape-hatch-was-overriding-the-value-scheme-it-sat-inside-three-passes-running-2026-09-06)
+- [bodyRun's 55%-of-max cutoff invents a "crown" part on smooth silhouettes](#bodyruns-55-of-max-cutoff-invents-a-crown-part-on-smooth-silhouettes)
 
 <!-- END TOC -->
 
@@ -10414,3 +10415,37 @@ specific pairs, but neither checked whether the hatch's own formula listened to
 the value they were trying to fix. Instrumenting the mechanism's *output
 sensitivity* to the lever being pulled — not just whether the branch is taken —
 would have caught this on the first pass.
+
+## bodyRun's 55%-of-max cutoff invents a "crown" part on smooth silhouettes
+
+**Symptom.** `sentry` fails `[dir] zero vertical mast and zero enclosing drum`
+(1 mast-sized crown blob) and `sentrygun` fails both `[col] exactly 2 barrels`
+and `[col] zero enclosing drum or roof` — with no corresponding defect visible
+in the rendered sprite.
+
+**Cause.** `bodyRun` splits body from crown at 55% of the maximum row width. A
+smoothly continuous dome or plate apex takes several rows to cross that cutoff,
+and those rows get classified as a separate crown part — a phantom mast that is
+really just the top of the intended plate. It is a *global, non-monotonic*
+function of the whole row profile: on `sentry`, nudging the rim ellipse aspect
+in BOTH directions (0.36→0.26 and 0.36→0.48) moved `body.lo` the same wrong way
+(4→5). On `sentrygun`, `body.lo=38` of 59 rows puts nearly the entire upper
+assembly (barrels + trunnion + housing) inside the "crown" region, so no local
+edit can satisfy the clause honestly.
+
+**Fix.** None applied — both were reverted to pristine. A `sentrygun` crown fix
+WAS found that satisfies the barrel-count clause numerically (2 components,
+gap=2) but renders the twin guns floating off the receiver; three remediations
+(minimal pivot raise, a bridging stalk, wider tip separation) each either stayed
+visibly detached or re-fused. Shipping it would have traded a real visual defect
+for a green metric, which the QA charter forbids.
+
+**Consequence for the remaining debt.** Some of `clause.unmetStructures` is a
+measurement artifact, not art. Before spending an art edit on a crown/part-count
+clause, check whether `bodyRun` is splitting a continuous silhouette; the fix
+belongs in the checker's segmentation, not in the sprite.
+
+**Rejected.** Reshaping each housing's row profile to exit the crown region
+earlier — it is the same global `bodyRun` change, per-structure, carrying the
+non-monotonic side-effect risk demonstrated above, and it distorts art to suit
+an instrument that is misreading it.
