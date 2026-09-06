@@ -356,6 +356,7 @@ const TARGETS = {
   'clause.airUnmet':             { want: 0,    dir: 'down', note: 'the same, for the 7 unmeasured air clauses' },
   'clip.unitsTouchingSheetEdge':  { want: 0,    dir: 'down', note: 'units with at least one bearing whose opaque bbox touches the border of its sheet cell — i.e. art the canvas CUT. Every other metric in this file is downstream of the bake, so a clipped sprite makes aspect, IoU, spike and size all precise and all wrong, with nothing to show for it: the sprite still renders and still looks plausible. The Nighthawk shipped an entire measured pass this way on 2026-09-05 — a 26-unit tail boom reached 48 px on a 104 px sheet and octants 3 and 7 came back with the fin flat against the edge — and it was caught by a hand-written probe, not by anything standing. This is that probe, made standing' },
   'clip.unitsClippedOnGatedOctant':{ want: 0,   dir: 'down', note: "the subset clipped on the unit's own BROADSIDE bearing — the one the aspect and size gates actually read, so a clip there corrupts a headline number rather than a footnote. Per-unit, not a fixed pair: the Nighthawk's broadside is octant 3/7, the Apocalypse's is 0, and a first draft of this metric hardcoded 3 and 7 and would have reported a clean sheet for a unit clipped anywhere else" },
+  'size.crossGroupSpread':       { want: 1.61, dir: 'down', note: 'widest group bake scale over narrowest, against RA2 sprite widths. RA2 measures every group in the SAME pixels so its own spread is 1.00 by construction; ours is infantry 1.417 / vehicle 1.270 / air 0.973 / naval 0.881 = 1.61x. This is the blind spot the ra2Size block declares in its own comment — both size gates normalise per GROUP, so a whole group at the wrong scale is invisible to them, and it took a §2 clause to surface it: "[DEST] length >= 1.7x any land vehicle" measures 0.848, our Destroyer being SHORTER than our MCV where RA2 has it 1.46x longer. 1.00 is not the target: infantry are deliberately enlarged for ZMIN legibility (the 1.12x over vehicles is intended). The unexplained part is the fleet at 0.881. RATCHETED, not chased — closing it means rescaling the best-proportioned group on the board, so this exists to stop the spread growing silently' },
   'size.worstOffGroupScale':     { want: 0.25, dir: 'down', note: "the furthest any unit sits from its own group's scale, as |ours/RA2 / groupMedian - 1|; 0.38 (the Nighthawk) on the day the metric was added" },
   'aspect.navalWorstOffRA2':     { want: 0.20, dir: 'down', note: "the furthest any hull sits from RA2's aspect, as |ours/RA2 - 1|; 0.60 (the Typhoon, 2.15 against 5.36) before that pass" },
   'colour.infantry.meanDist':    { want: 0.45, dir: 'up',   note: 'mean pairwise hue-histogram distance between infantry kinds: what actually separates them' },
@@ -945,7 +946,28 @@ function compute(recs) {
     const cnt = (rs) => rs.filter((r) => Math.abs(r.dev) > RA2_SIZE_BAND).length;
     const spread = (rs) => (rs.length
       ? round(Math.max(...rs.map((r) => r.scale)) / Math.min(...rs.map((r) => r.scale)), 3) : 1);
-    return { rows, groupScale: scaleOf,
+    // CROSS-GROUP SCALE — the blind spot this block's own comment declares.
+    // Both size gates normalise against the unit's OWN group median, so a
+    // whole group drawn at the wrong scale is invisible to them by
+    // construction. It is not hypothetical: naval bakes at 0.881 of RA2's
+    // sprite widths and infantry at 1.417, a 1.61x spread, where RA2 measures
+    // every group in the SAME pixels and is 1.00 by definition.
+    //
+    // Found by a §2 clause, not by a gate — "[DEST] length >= 1.7x any land
+    // vehicle" measures 0.848x, i.e. our Destroyer is SHORTER than our MCV
+    // where RA2's is 1.46x longer. The sign is wrong, and no per-group metric
+    // could ever have said so.
+    //
+    // 1.00 is NOT the target. Infantry are deliberately enlarged to stay
+    // legible at ZMIN (1.417 against vehicles' 1.270 is the intended part, a
+    // 1.12x stretch). The unexplained part is the FLEET at 0.881 — hulls
+    // shrunk to fit the map, which then makes a destroyer smaller than a tank.
+    // Ratcheted rather than targeted: closing it means rescaling the fleet,
+    // which spends the best-proportioned group on the board, so this exists to
+    // stop the spread growing silently while somebody optimises one group.
+    const gs = Object.values(scaleOf);
+    const crossSpread = gs.length ? round(Math.max(...gs) / Math.min(...gs), 3) : 1;
+    return { rows, groupScale: scaleOf, crossSpread,
              outside: cnt(rows),
              worstOff: rows.length ? round(Math.abs(rows[0].dev), 4) : 0,
              navalOutside: cnt(byG('naval')), navalSpread: spread(byG('naval')),
@@ -1131,7 +1153,9 @@ function compute(recs) {
       'size.vehicleOutsideRA2Band': ra2Size.vehOutside,
       'size.infantryOutsideRA2Band': ra2Size.infOutside,
       'size.airOutsideRA2Band': ra2Size.airOutside,
-      'size.worstOffGroupScale': ra2Size.worstOff,
+      'size.crossGroupSpread':       { want: 1.61, dir: 'down', note: 'widest group bake scale over narrowest, against RA2 sprite widths. RA2 measures every group in the SAME pixels so its own spread is 1.00 by construction; ours is infantry 1.417 / vehicle 1.270 / air 0.973 / naval 0.881 = 1.61x. This is the blind spot the ra2Size block declares in its own comment — both size gates normalise per GROUP, so a whole group at the wrong scale is invisible to them, and it took a §2 clause to surface it: "[DEST] length >= 1.7x any land vehicle" measures 0.848, our Destroyer being SHORTER than our MCV where RA2 has it 1.46x longer. 1.00 is not the target: infantry are deliberately enlarged for ZMIN legibility (the 1.12x over vehicles is intended). The unexplained part is the fleet at 0.881. RATCHETED, not chased — closing it means rescaling the best-proportioned group on the board, so this exists to stop the spread growing silently' },
+  'size.worstOffGroupScale': ra2Size.worstOff,
+      'size.crossGroupSpread': ra2Size.crossSpread,
       // §2's pixel budgets, checked one clause at a time (tools/clause-checks/).
   'clause.checked':              { want: 57,   dir: 'up',   note: '§2 states 96 budget clauses across 41 units and each unit has exactly ONE SPIKES entry, so 57 clauses were honoured by intention only. This counts how many of those now have a real measurement behind them. The target is the whole backlog; it rises as checks land' },
   'clause.unmet':                { want: 0,    dir: 'down', note: 'clauses that are checked AND FAILING. A rising `checked` with a rising `unmet` is the tool working, not the art getting worse — the first two clauses ever checked by hand were both unmet (Tesla Trooper carapace 8% vs 40%, Engineer third on a row saying "the only")' },
