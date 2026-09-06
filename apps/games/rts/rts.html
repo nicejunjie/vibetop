@@ -17420,40 +17420,35 @@
         };
         depClamp(-2.356, ph6 % 4 === 0); depClamp(-0.785, ph6 % 4 === 2);
 
-        // ---- the works: navy hull, yellow gantry, silver projector --------
-        // X-reach only scaled by 0.55 toward dpx (was fw*0.90/0.26
-        // unscaled; Y offsets fh*0.62/1.40 UNTOUCHED): structures.js's
-        // [dir] padFrac clause counts a column's TOTAL opaque pixels
-        // top-to-bottom, and this diagonal hull+gantry+claw assembly's
-        // unscaled X reach put its footprint over 56% of the sprite's
-        // width -- just over the "confined to <=0.50 Sw" cap even with
-        // the disc itself already flattened to a floor marking (dpb
-        // above). Scaling Y too (tried first) shrank the whole sprite's
-        // bbox height, which made the clause's own 0.15*Sh threshold
-        // stricter and pushed the PAD'S OWN kerb/grating/lamps over it --
-        // self-defeating. Scaling only X keeps the claw assembly's peak
-        // height (and thus the threshold) unchanged while narrowing the
-        // footprint that has to fit under 0.50 Sw.
-        var dpFx = dpx - fw * 0.90, dpFy = dpy - fh * 0.62;           // beam foot
-        var dpHx = dpx - fw * 0.26, dpHy = dpy - fh * 1.40;           // beam head
-        // ---- shared X-only shrink around dpFx for the whole works cluster:
-        // structures.js's [dir] padFrac clause counts a column's TOTAL
-        // opaque pixels top-to-bottom. Scaling just dpFx/dpHx (above) only
-        // narrows the beam's own OWN two endpoints -- every sub-shape
-        // hanging off them (scoop, hull, houses, rail, projector) still
-        // carries its own fixed absolute-pixel width (things like the
-        // house block's own +-22, the scoop's own 16px radius), so each
-        // one individually still spans 30-45px regardless of how close
-        // dpFx/dpHx get to each other, and their union kept padFrac stuck
-        // under 0.45 no matter how far dpFx/dpHx were pulled in. Wrapping
-        // the whole cluster in one more X-only scale (Y untouched, so the
-        // sprite's own bbox height -- and thus the clause's 0.15*Sh
-        // threshold -- stays put, avoiding the earlier self-defeating
-        // Y-shrink) squeezes every one of those fixed-size sub-shapes
-        // toward dpFx together, which the per-element scale could not.
+        // ---- the works: a gantry that STANDS UP ---------------------------
+        // It used to lie down. The "fat yellow gantry beam" was a single
+        // shallow diagonal lozenge running from the pad's far back-left up to
+        // its centre, with a same-angle navy "hull" underneath it and rollers
+        // along its length -- and at that angle, with rib lines across it, the
+        // whole assembly read as a caterpillar or a bus lying on the grass,
+        // not as machinery. RA2 builds this the other way round: a small works
+        // at one edge, a MAST, and a jib out over the apron with something
+        // hanging off it. The Collective depot in this same file is already
+        // built that way, which is why it reads at a glance and this one did
+        // not. Same skeleton here, in the Directorate's own vocabulary --
+        // navy shed, yellow box mast, yellow box-truss beam, and a silver
+        // repair projector on a telescoping arm instead of a hook on a cable.
+        var dpWx = cx - fw * 0.68, dpWy = baseY + fh * 0.06;        // works centre
+        var dpShW = fw * 0.21, dpShH = fh * 0.21, dpShL = 32;       // shed half-plan, lift
+        var dpMx = dpWx + fw * 0.13;                                // mast axis
+        var dpMbot = dpWy - fh * 0.06, dpMtop = dpMbot - 74;        // mast foot / head
+        var dpFx = dpMx, dpFy = dpMtop + 6;                         // beam inner end
+        var dpHx = dpx - dpr * 0.06, dpHy = dpMtop + 30;            // beam outer end
+
+        // works slab, so the shed stands on something
+        g.fillStyle = '#6e6a58';
+        plot(g, dpWx + fw * 0.03, dpWy + fh * 0.10, fw * 0.56, fh * 0.56); g.fill();
+        outline(g, '#3a3830');
+        g.fillStyle = 'rgba(0,0,0,.20)';
+        plot(g, dpWx + fw * 0.03, dpWy + fh * 0.10, fw * 0.38, fh * 0.38); g.fill();
 
         // ribbed silver scoop on the far corner
-        var dpSx = dpFx - fw * 0.07, dpSy = dpFy + fh * 0.66;
+        var dpSx = dpWx - fw * 0.20, dpSy = dpWy + fh * 0.10;
         g.fillStyle = 'rgba(0,0,0,.28)';
         g.beginPath(); g.ellipse(dpSx + 3, dpSy + 16, 13, 5, 0, 0, 6.29); g.fill();
         g.fillStyle = DEP_SILD;
@@ -17476,48 +17471,23 @@
         g.fillStyle = DEP_NAVL;
         g.beginPath(); g.ellipse(dpSx + 5.8, dpSy - 4.2, 2.3, 3, 0, 0, 6.29); g.fill();
 
-        // the navy hull under the gantry
-        var dpBx0 = dpFx + 6, dpBy0 = dpFy + 14, dpBx1 = dpHx - 6, dpBy1 = dpHy + 24;
-        g.lineCap = 'round';
-        g.strokeStyle = DEP_NAVD; g.lineWidth = 23;
-        g.beginPath(); g.moveTo(dpBx0, dpBy0); g.lineTo(dpBx1, dpBy1); g.stroke();
-        g.strokeStyle = DEP_NAV; g.lineWidth = 19.5;
-        g.beginPath(); g.moveTo(dpBx0, dpBy0 - 1.4); g.lineTo(dpBx1, dpBy1 - 1.4); g.stroke();
-        g.strokeStyle = DEP_NAVL; g.lineWidth = 3.4;
-        g.beginPath(); g.moveTo(dpBx0, dpBy0 - 8.4); g.lineTo(dpBx1, dpBy1 - 8.4); g.stroke();
-        g.strokeStyle = shade(col, 0.94); g.lineWidth = 6;      // painted house stripe
-        g.beginPath(); g.moveTo(dpBx0, dpBy0 - 5); g.lineTo(dpBx1, dpBy1 - 5); g.stroke();
-        g.strokeStyle = 'rgba(0,0,0,.30)'; g.lineWidth = 5;
-        g.beginPath(); g.moveTo(dpBx0, dpBy0 + 7.6); g.lineTo(dpBx1, dpBy1 + 7.6); g.stroke();
-        g.lineCap = 'butt';
-        for (var dpRI = 0; dpRI <= 10; dpRI++) {                    // silver rollers
-          var dpRt = dpRI / 10;
-          var dpRx = dpBx0 + (dpBx1 - dpBx0) * dpRt, dpRy = dpBy0 + (dpBy1 - dpBy0) * dpRt;
-          g.fillStyle = dpRI % 2 ? DEP_SILL : DEP_SIL;
-          g.beginPath(); g.ellipse(dpRx - 2, dpRy + 5.6, 3, 2.1, 0, 0, 6.29); g.fill();
-          outline(g, DEP_SILD);
+        // the navy machine shed
+        prism(g, dpWx, dpWy, dpShW, dpShH, dpShL, DEP_NAV, DEP_NAVL, DEP_NAVD, [0.34, 0.62]);
+        facePatch(g, faceR, dpWx, dpWy, dpShW, dpShH, dpShL, 0.28, 0.72, 0.04, 0.44,
+                  '#0e1119', '#05070b');                            // roller door
+        chevrons(g, faceL, dpWx, dpWy, dpShW, dpShH, dpShL, 0.06, 0.94, 0.56, 0.86,
+                 6, col, '#171b24');                                // house chevron band
+        facePatch(g, faceL, dpWx, dpWy, dpShW, dpShH, dpShL, 0.06, 0.94, 0.92, 1.0,
+                  shade(col, 0.66), null);
+        for (var dpGI = 0; dpGI < 3; dpGI++) {                      // roof vent boxes
+          var dpGx = dpWx - 20 + dpGI * 15, dpGy = dpWy - dpShL - 6 + (dpGI % 2) * 5;
+          g.fillStyle = '#2c313a'; g.fillRect(dpGx, dpGy, 12, 9); outline(g, '#12151b');
+          g.fillStyle = '#666d78'; g.fillRect(dpGx, dpGy, 12, 2.4);
+          g.fillStyle = DEP_SIL; g.fillRect(dpGx + 2, dpGy + 3.8, 3.8, 3);
         }
 
-        // the house block at the beam's foot
-        var dpKx = dpFx + fw * 0.09, dpKy = dpFy + fh * 0.24;
-        g.fillStyle = shade(col, 0.52);
-        g.beginPath();
-        g.moveTo(dpKx - 22, dpKy + 5); g.lineTo(dpKx + 22, dpKy - 7);
-        g.lineTo(dpKx + 22, dpKy - 23); g.lineTo(dpKx - 22, dpKy - 11);
-        g.closePath(); g.fill(); outline(g, shade(col, 0.30));
-        g.fillStyle = col;
-        g.beginPath();
-        g.moveTo(dpKx - 22, dpKy - 11); g.lineTo(dpKx + 22, dpKy - 23);
-        g.lineTo(dpKx + 16, dpKy - 36); g.lineTo(dpKx - 18.4, dpKy - 25);
-        g.closePath(); g.fill(); outline(g, shade(col, 0.34));
-        g.fillStyle = shade(col, 1.24);
-        g.beginPath();
-        g.moveTo(dpKx - 18.4, dpKy - 25); g.lineTo(dpKx + 16, dpKy - 36);
-        g.lineTo(dpKx + 11, dpKy - 41); g.lineTo(dpKx - 15, dpKy - 30);
-        g.closePath(); g.fill();
-        g.fillStyle = 'rgba(0,0,0,.26)'; g.fillRect(dpKx - 7, dpKy - 16, 11, 7);
-
-        var dpUx = dpBx1 - 12, dpUy = dpBy1 - 6;                     // house machine box
+        // the house machine box at the mast foot
+        var dpUx = dpMx + 6, dpUy = dpMbot + 4;
         g.fillStyle = shade(col, 0.54);
         g.beginPath();
         g.moveTo(dpUx - 14, dpUy + 4); g.lineTo(dpUx + 14, dpUy - 3);
@@ -17534,49 +17504,53 @@
         g.lineTo(dpUx + 7.6, dpUy - 28.4); g.lineTo(dpUx - 9.6, dpUy - 20.4);
         g.closePath(); g.fill();
 
-        // the fat yellow gantry beam, plus its thinner parallel rail
-        g.lineCap = 'round';
-        g.strokeStyle = DEP_YELD; g.lineWidth = 8;
-        g.beginPath(); g.moveTo(dpFx - 3, dpFy + 12); g.lineTo(dpHx - 3, dpHy + 12); g.stroke();
-        g.strokeStyle = DEP_YEL; g.lineWidth = 5.4;
-        g.beginPath(); g.moveTo(dpFx - 3, dpFy + 11); g.lineTo(dpHx - 3, dpHy + 11); g.stroke();
-        g.strokeStyle = DEP_YELD; g.lineWidth = 18;
-        g.beginPath(); g.moveTo(dpFx, dpFy); g.lineTo(dpHx, dpHy); g.stroke();
-        g.strokeStyle = DEP_YEL; g.lineWidth = 15;
-        g.beginPath(); g.moveTo(dpFx, dpFy - 1); g.lineTo(dpHx, dpHy - 1); g.stroke();
-        g.strokeStyle = DEP_YELL; g.lineWidth = 4.6;
-        g.beginPath(); g.moveTo(dpFx, dpFy - 5.4); g.lineTo(dpHx, dpHy - 5.4); g.stroke();
+        // ---- the yellow box mast ------------------------------------------
         g.lineCap = 'butt';
-        g.strokeStyle = 'rgba(74,44,6,.36)'; g.lineWidth = 1.4;
-        for (var dpSI = 1; dpSI < 8; dpSI++) {
-          var dpSt = dpSI / 8;
-          var dpSxx = dpFx + (dpHx - dpFx) * dpSt, dpSyy = dpFy + (dpHy - dpFy) * dpSt;
-          g.beginPath(); g.moveTo(dpSxx - 3, dpSyy - 8); g.lineTo(dpSxx + 3, dpSyy + 8); g.stroke();
+        g.strokeStyle = DEP_YELD; g.lineWidth = 16;
+        g.beginPath(); g.moveTo(dpMx, dpMbot); g.lineTo(dpMx, dpMtop); g.stroke();
+        g.strokeStyle = DEP_YEL; g.lineWidth = 12.4;
+        g.beginPath(); g.moveTo(dpMx + 0.8, dpMbot); g.lineTo(dpMx + 0.8, dpMtop); g.stroke();
+        g.strokeStyle = DEP_YELL; g.lineWidth = 3;
+        g.beginPath(); g.moveTo(dpMx - 4.6, dpMbot); g.lineTo(dpMx - 4.6, dpMtop); g.stroke();
+        g.strokeStyle = 'rgba(74,44,6,.42)'; g.lineWidth = 1.4;     // splice plates
+        for (var dpMI = 1; dpMI < 5; dpMI++) {
+          var dpMy = dpMbot + (dpMtop - dpMbot) * dpMI / 5;
+          g.beginPath(); g.moveTo(dpMx - 8, dpMy); g.lineTo(dpMx + 8, dpMy); g.stroke();
         }
 
-        // the big silver C guide rail over the back of the pad
-        var dpAx = dpx - fw * 0.06, dpAy = dpy - fh * 0.46;
-        g.strokeStyle = DEP_SILD; g.lineWidth = 7.4;
-        g.beginPath(); g.ellipse(dpAx, dpAy, fw * 0.34, fh * 0.54, 0, 3.30, 6.12); g.stroke();
-        g.strokeStyle = DEP_SIL; g.lineWidth = 4.8;
-        g.beginPath(); g.ellipse(dpAx, dpAy - 1.2, fw * 0.34, fh * 0.54, 0, 3.30, 6.12); g.stroke();
-        g.strokeStyle = DEP_SILL; g.lineWidth = 1.5;
-        g.beginPath(); g.ellipse(dpAx, dpAy - 3.4, fw * 0.34, fh * 0.54, 0, 3.42, 6.00); g.stroke();
+        // ---- the yellow box-truss beam, out over the parking box ----------
+        g.lineCap = 'round';
+        g.strokeStyle = DEP_YELD; g.lineWidth = 8;                  // bottom chord
+        g.beginPath(); g.moveTo(dpFx, dpFy + 15); g.lineTo(dpHx, dpHy + 15); g.stroke();
+        g.strokeStyle = DEP_YEL; g.lineWidth = 5.2;
+        g.beginPath(); g.moveTo(dpFx, dpFy + 14.4); g.lineTo(dpHx, dpHy + 14.4); g.stroke();
+        g.lineCap = 'butt';
+        lattice(g, dpFx + 6, dpFy + 7, dpHx - 4, dpHy + 7, 13, '#8a5804');   // web
+        g.lineCap = 'round';
+        g.strokeStyle = DEP_YELD; g.lineWidth = 12;                 // top chord
+        g.beginPath(); g.moveTo(dpFx, dpFy); g.lineTo(dpHx, dpHy); g.stroke();
+        g.strokeStyle = DEP_YEL; g.lineWidth = 9;
+        g.beginPath(); g.moveTo(dpFx, dpFy - 1); g.lineTo(dpHx, dpHy - 1); g.stroke();
+        g.strokeStyle = DEP_YELL; g.lineWidth = 2.8;
+        g.beginPath(); g.moveTo(dpFx, dpFy - 4); g.lineTo(dpHx, dpHy - 4); g.stroke();
+        g.lineCap = 'butt';
+        g.strokeStyle = '#141821'; g.lineWidth = 1.2;               // stays
+        g.beginPath();
+        g.moveTo(dpMx + 2, dpMtop - 4); g.lineTo(dpWx - dpShW * 0.7, dpWy - dpShL + 2); g.stroke();
+        g.beginPath();
+        g.moveTo(dpMx + 2, dpMtop - 4);
+        g.lineTo(dpFx + (dpHx - dpFx) * 0.55, dpFy + (dpHy - dpFy) * 0.55 - 3); g.stroke();
+        g.fillStyle = ph6 % 3 === 0 ? '#fff2c0' : 'rgba(120,104,60,.55)';    // mast beacon
+        g.beginPath(); g.ellipse(dpMx + 1, dpMtop - 6, 2.4, 1.7, 0, 0, 6.29); g.fill();
 
-        // the dark greeble cluster up-right of the head
-        for (var dpBI = 0; dpBI < 4; dpBI++) {
-          var dpBbx = dpx + 2 + (dpBI % 2) * 14, dpBby = dpy - 56 + Math.floor(dpBI / 2) * 11
-                       + (dpBI % 2) * 6;
-          g.fillStyle = '#2c313a'; g.fillRect(dpBbx, dpBby, 14, 11); outline(g, '#12151b');
-          g.fillStyle = '#666d78'; g.fillRect(dpBbx, dpBby, 14, 2.6);
-          g.fillStyle = DEP_SIL; g.fillRect(dpBbx + 2.2, dpBby + 4.2, 4.4, 3.4);
-        }
-        g.strokeStyle = '#3b4049'; g.lineWidth = 2.4;
-        g.beginPath(); g.moveTo(dpx + 2, dpy - 40); g.lineTo(dpx - 10, dpy - 30); g.stroke();
-
-        // the silver projector head, sliding along the beam
-        var dpPt = 0.90 + 0.08 * anS;
+        // ---- the silver projector, riding the beam on a telescoping arm ---
+        var dpPt = 0.78 + 0.10 * anS;
         var dpPx = dpFx + (dpHx - dpFx) * dpPt, dpPy = dpFy + (dpHy - dpFy) * dpPt;
+        var dpDeck = dpy - 6;                                       // the deck under the head
+        g.strokeStyle = DEP_SILD; g.lineWidth = 5.4;                // arm, down to the deck
+        g.beginPath(); g.moveTo(dpPx + 1, dpPy + 8); g.lineTo(dpPx + 1, dpDeck - 12); g.stroke();
+        g.strokeStyle = DEP_SIL; g.lineWidth = 3;
+        g.beginPath(); g.moveTo(dpPx - 0.4, dpPy + 8); g.lineTo(dpPx - 0.4, dpDeck - 12); g.stroke();
         g.fillStyle = '#3a4049';
         g.beginPath(); g.ellipse(dpPx + 1, dpPy - 2, 9.4, 9.8, 0, 0, 6.29); g.fill();
         outline(g, '#1a1e25');
@@ -17589,17 +17563,22 @@
         g.beginPath(); g.ellipse(dpPx + 1.2, dpPy - 2.6, 1.6, 1.7, 0, 0, 6.29); g.fill();
         g.fillStyle = DEP_SILL;
         g.beginPath(); g.ellipse(dpPx - 3.4, dpPy - 5.4, 1.8, 2, 0, 0, 6.29); g.fill();
+        // the welding head on the end of the arm, and its flash on the deck
+        g.fillStyle = DEP_SILD;
+        g.beginPath();
+        g.moveTo(dpPx - 5, dpDeck - 13); g.lineTo(dpPx + 7, dpDeck - 13);
+        g.lineTo(dpPx + 4.4, dpDeck - 5); g.lineTo(dpPx - 2.4, dpDeck - 5);
+        g.closePath(); g.fill(); outline(g, '#1a1e25');
+        g.fillStyle = DEP_SILL; g.fillRect(dpPx - 5, dpDeck - 13, 12, 2);
         g.fillStyle = ph6 % 2 ? 'rgba(206,236,255,.85)' : 'rgba(206,236,255,.30)';
-        g.beginPath(); g.ellipse(dpPx + 1, dpPy + 7, 4.4 + ph6 % 2 * 1.6, 2.4, 0, 0, 6.29); g.fill();
+        g.beginPath();
+        g.ellipse(dpPx + 1, dpDeck - 2, 5.4 + ph6 % 2 * 2.2, 2.8, 0, 0, 6.29); g.fill();
         if (ph6 % 2) {                                              // weld flash
           g.strokeStyle = 'rgba(226,242,255,.60)'; g.lineWidth = 1.3;
           g.beginPath();
-          g.moveTo(dpPx + 1, dpPy + 6); g.lineTo(dpPx + 5, dpPy + 13);
-          g.lineTo(dpPx + 2, dpPy + 16); g.stroke();
+          g.moveTo(dpPx + 1, dpDeck - 4); g.lineTo(dpPx + 6, dpDeck + 3);
+          g.lineTo(dpPx + 2, dpDeck + 6); g.stroke();
         }
-        g.fillStyle = '#141821'; g.fillRect(dpPx + 5, dpPy - 14, 2.6, 9);
-        g.fillStyle = ph6 % 3 === 1 ? '#ffe8a0' : 'rgba(150,132,80,.55)';
-        g.beginPath(); g.arc(dpPx + 6.3, dpPy - 15.2, 1.8, 0, 6.29); g.fill();
 
         // fh*0.10 -> 0.18: the drum stack was the third of the four blobs the
         // crane-group clause counted, its caps standing the same 3 rows proud
