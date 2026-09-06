@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_251 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_252 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
 - [Scheduled terminal messages ("resume when the token limit resets")](#scheduled-terminal-messages-resume-when-the-token-limit-resets)
@@ -274,6 +274,7 @@ _251 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [A reference sprite that measured the SCREENSHOT — and the width convention that makes a building's aspect unusable as a gate](#a-reference-sprite-that-measured-the-screenshot-and-the-width-convention-that-makes-a-buildings-aspect-unusable-as-a-gate)
 - [The sidebar cameo's contrast escape hatch was overriding the value scheme it sat inside, three passes running (2026-09-06)](#the-sidebar-cameos-contrast-escape-hatch-was-overriding-the-value-scheme-it-sat-inside-three-passes-running-2026-09-06)
 - [bodyRun's 55%-of-max cutoff invents a "crown" part on smooth silhouettes](#bodyruns-55-of-max-cutoff-invents-a-crown-part-on-smooth-silhouettes)
+- [The fix for bodyRun's phantom crown: the 55% cut proposes, monotonicity vetoes (2026-09-06)](#the-fix-for-bodyruns-phantom-crown-the-55-cut-proposes-monotonicity-vetoes-2026-09-06)
 
 <!-- END TOC -->
 
@@ -10449,3 +10450,78 @@ belongs in the checker's segmentation, not in the sprite.
 earlier — it is the same global `bodyRun` change, per-structure, carrying the
 non-monotonic side-effect risk demonstrated above, and it distorts art to suit
 an instrument that is misreading it.
+
+## The fix for bodyRun's phantom crown: the 55% cut proposes, monotonicity vetoes (2026-09-06)
+
+**Symptom.** The entry above diagnosed it and applied nothing: `bodyRun` splits
+body from crown at 55% of the maximum row width, and on a smoothly widening
+silhouette the rows that take a while to cross that cutoff become a "crown" the
+sprite does not have. `sentry` failed *"zero vertical mast and zero enclosing
+drum"* on a 4-row sliver of its own sandbag rim.
+
+**Cause (the part the first pass did not name).** The 55% rule answers *"where
+does the widest band start"*. The clauses ask *"is there a distinct mass above
+the roofline"*. Those are the same question only when a boundary exists.
+Rendering all 33 structure bakes with the roofline drawn on them makes the
+failure visible in one look: on `radar`, `spysat` and `prism` the line is cut
+**through** the dish or umbrella it was meant to sit under, and on `base:dir` it
+runs across the hall's own arch.
+
+**Fix.** The 55% cut now only PROPOSES a roofline; a monotonicity test vetoes
+it. A crown is separable from the body only if something separates them — a
+waist (a row narrower than what lies both above and below) or a shoulder (a row
+abruptly wider than the one above) — and both appear in the row profile as a
+step DOWN somewhere between row 0 and the proposed roofline. If the profile
+only ever widens on the way down to that row, `bodyRun` returns
+`crown: false, lo: 0` and nothing above the roofline can be counted.
+
+Three properties made this the rule rather than one of the alternatives:
+
+- **Threshold-free.** Monotone or not is a property of the profile, so there is
+  no fraction to tune and therefore nothing to tune *towards* a clause passing.
+  Checked against the looser reading too — "no waist AND no shoulder", with the
+  shoulder at a 1.5x single-row step — which classifies this corpus identically
+  (the five monotone bakes have max step ratios 1.06–1.28).
+- **It cancels a roofline, never moves one.** Relocating `lo` to a waist was
+  implemented and measured over the whole corpus and is worse: to the deepest
+  waist gives **23** unmet structure clauses (from 18), to the topmost waist
+  deeper than 0.30 gives **21**. Both break reads that are right today — the
+  Battle Lab's 4 masts (clearances 0.247/0.328/0.304/0.255 collapse to 2 masts
+  at 0.028/0.02), the Barracks' 2 barrels, the Collective Barracks' statue
+  clearance. Where a boundary exists, 55% is a good roofline.
+- **Proved on the keys it must not touch.** Crown part counts, all 33 bakes:
+  28 unchanged; the 5 that change go 1 → 0 and are `sentry`, `base:dir`,
+  `radar:col`, `spysat:dir`, `prism:dir` — every one confirmed a phantom by
+  eye on the rendered sprite, not by the metric. Gate unmoved:
+  `checkedStructures` 75, `unmetStructures` 18, units 57/1/2/1, cameo
+  legibility byte-identical (234 / 252 UNDER).
+
+**What it closed, and what it revealed.** Exactly two of 75 rows move.
+`sentry`'s mast/drum row closes legitimately — the render is a sandbag dome
+with a lens and has neither. `base:dir`'s *"exactly ONE crane/boom group above
+the hall roofline"* goes 1 → 0 groups and **fails**, which is an art finding the
+phantom was hiding: the hall's arch is the topmost mass and the yellow crane
+sits entirely below it, so that row had never once measured a crane. `base:col`,
+which has a real waist, still reads its crane and still passes.
+
+Two more real defects surfaced by sweeping every possible roofline rather than
+trusting one: at the best cut it can have, `power:dir`'s three towers measure
+0.176/0.160/0.160 Sw against §2.6's 0.18–0.22 — genuinely too thin, previously
+hidden behind a nonsense 0.527 — and **no horizontal roofline whatsoever**
+resolves `sentrygun`'s two barrels (1 component at every cut from 1 to 58),
+because they are drawn diagonally staggered. That clause is unreachable by a
+crown primitive, not merely unmet by this art.
+
+**Rejected — applying the same rule to `vehicle.js`'s copy of `bodyRun`.** It
+was patched and measured: zero clause rows change. It is still wrong to ship,
+because the two files mean different things by the same code. For structures
+the crown is a claim that a distinct mass exists; for units 55% is a validated
+convention for where a turret starts, and 252 of 328 unit bearings are monotone
+— a Mammoth's turret is real even when the 2:1 camera makes its row profile
+smooth. Redefining `lo` there would say the tank has no turret.
+
+**The general lesson.** A segmentation rule can only be validated against the
+picture. The five phantoms and the four false passes are indistinguishable from
+real parts in the numbers — every one of them reported a plausible count — and
+separable in one glance at the sprite with the roofline drawn on it. Render the
+boundary your checker believes in before you tune the checker.
