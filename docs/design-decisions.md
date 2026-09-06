@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_248 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_249 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
 - [Scheduled terminal messages ("resume when the token limit resets")](#scheduled-terminal-messages-resume-when-the-token-limit-resets)
@@ -271,6 +271,7 @@ _248 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [The lever a "left on purpose" note nominates can be inert — check it before you work around it (2026-09-06)](#the-lever-a-left-on-purpose-note-nominates-can-be-inert-check-it-before-you-work-around-it-2026-09-06)
 - [A cameo cropped away the feature that names a ship, and the "shipped rule" it seemed to cost was never involved (2026-09-06)](#a-cameo-cropped-away-the-feature-that-names-a-ship-and-the-shipped-rule-it-seemed-to-cost-was-never-involved-2026-09-06)
 - [A spectacular POSITIVE result must prove the build still runs (2026-09-06)](#a-spectacular-positive-result-must-prove-the-build-still-runs-2026-09-06)
+- [A reference sprite that measured the SCREENSHOT — and the width convention that makes a building's aspect unusable as a gate](#a-reference-sprite-that-measured-the-screenshot-and-the-width-convention-that-makes-a-buildings-aspect-unusable-as-a-gate)
 
 <!-- END TOC -->
 
@@ -10254,3 +10255,84 @@ probe after an edit came back with an unchanged number that was perfectly
 correct about a page nobody had edited. `tools/*.js` are safe (each starts an
 ephemeral server rooted at its own `ROOT`); `art/*.js` need your own server and
 `RTS_PORT`.
+## A reference sprite that measured the SCREENSHOT — and the width convention that makes a building's aspect unusable as a gate
+
+**Symptom.** `unit-identity-reference.md` §2 stated 96 pixel budgets and every
+one of them belonged to a UNIT; not one structure had an identity row, which is
+why building identity had never been measured and a Battle Lab could reach 306
+px on a 3x2 foundation with nothing to appeal to. Writing the 25 structure rows
+turned up two things that the size gate added a day earlier could not have
+found, because both are about the REFERENCE rather than about our art.
+
+**Cause 1 — one of the fifteen `RA2_BLD` rows measured the whole image file.**
+`RA2_BLD['barracks:col']` records `[NAHAND]` as **117x205** and annotates it
+"tight crop". `soviet-barracks.png` is not a tight crop; it is a small scene, and
+117x205 is the file. The building runs about **86x163** — grass to its left,
+pavement to its right and ~36 rows of road below its base plate. What let it
+through is specific and worth knowing: **this is the one file in the corpus that
+defeats the segmentation the other fourteen were measured with**, because the
+statue's steel is the same VALUE as the road it stands on. A border-flood
+segmentation swept over six background tolerances (30/36/42/48/54/60) collapses
+onto a 16x14 blob every time, so the fallback was "take the file".
+
+It matters because that row is the one that **acquitted** our own Soviet
+Barracks. Ours bakes 3.844 footprint-heights, which against 3.417 is 1.125 of
+the group's 1.148 house scale — deviation -0.020, comfortably inside the band,
+and the source note says so in as many words. Against ~2.72 the scale is ~1.41
+and the deviation ~+0.23: the worst structure in the set and a second
+`size.bldOutsideRA2Band` failure. **A reference that is 25% wrong does not fail
+loudly — it hands out a passing grade.**
+
+**Cause 2 — a building's sprite ASPECT cannot be gated, and the reason is our
+own `plot()` convention.** Nothing measures building aspect; `size.bld*` measures
+height only. Measured for all fifteen, ours against RA2's, the deviations run
+-10.4% to +27.4%, and four would fail at the existing 0.20 band. They should
+not: our `plot()` paints the cells a structure owns, so our width-over-footprint
+sits at ~1.02 for eleven of fifteen, while RA2's art underfills its diamond by a
+per-building margin and runs 0.692-0.975 — and the four worst offenders are
+exactly the four whose RA2 counterpart underfills hardest in width (0.692,
+0.700, 0.844, 0.800 against a median 0.850). The gate would be scoring RA2's
+underfill.
+
+**Fix.** §2.5-2.9 of `unit-identity-reference.md`: 25 structures, 91 budget
+clauses, each with its source named — and a stated phrasing rule that falls out
+of Cause 2. **A width clause may state a FLOOR and must never state a ceiling**,
+because the convention can only ever push our sprites wider than RA2's; so
+`w/h >= X` fails only on the art, while `w/h <= X` can fail on the convention
+alone. Every width clause in the new sections is a floor, and the towers are
+specified by CROWN geometry (measured row by row off the two blue-key masks —
+the Tesla Coil's neck pinches to 3 px of 42, the Prism Tower's crown reaches 35
+of 57) rather than by outline. The `[NAHAND]` bbox is written up as a warning in
+§2.6 and in `per-unit-art-log.md` and is deliberately NOT corrected in the same
+commit, so the pass stays byte-identical on every metric.
+
+**Rejected — gating building aspect at `RA2_BLD_BAND`.** Four failures, all four
+explained by the reference's own underfill rather than by our drawing. Same
+shape as the `Height=`-to-pixels conversion `RA2_BLD` already rejected and the
+"shrink every structure to RA2's underfill" option rejected with it.
+
+**Rejected — folding the 91 structure clauses into `clause.checked`.** It would
+take a green 57-of-57 to 57-of-148 overnight, and none of the 91 is reachable:
+`pageExtract` stores a structure as `{key, fac, name, cat, gw, gh, w, h, edges}`
+with **no mask and no rgba**, where a unit record carries both. They are counted
+in `docs/clause-inventory.md` only, and the enabling change is named there rather
+than assumed. Note the near miss that makes this worth stating: the §2 budget
+parser in `art-metrics.js` is not scoped to units and picked up all 25 structure
+rows on its own — harmless only because no building key collides with a unit key
+(`mcv` is the near miss, a unit here and a structure in most rosters), and a
+collision would have silently rewritten a unit's clause list under its own check.
+
+**Rejected — a height-ORDERING gate**, though it is the one that survives
+scrutiny. Ranking the fifteen by height-over-footprint gives **10 inverted pairs
+of 105**, immune to the width convention and far cleaner than the `Height=`
+ordering already tried (87 of 496). It is recorded rather than shipped because
+half the inversions are inside the noise of a 1.148 house scale over fifteen
+hand-drawn buildings, and a gate whose failures cannot each be argued as a defect
+is what `art-metrics.js` exists not to be.
+
+**The half that is reusable.** A reference file is evidence only for the region
+you actually looked at. Two independent things had to be true for this to bite —
+the file was a scene, and the subject was the same value as its background — and
+the second is what turned "measure it" into "take the file". When a corpus is
+measured by one method, the file that method cannot handle is the file to
+re-check by eye, not the file to trust because the number came out plausible.
