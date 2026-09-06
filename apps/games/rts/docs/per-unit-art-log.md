@@ -3690,3 +3690,37 @@ signature: **`power:dir` — all three towers are drawn and blend into one blob*
 measured at 0.527 Sw against 3 x 0.18. That is fusion, and the fix shape is a
 drawn seam or a paint-order change, as the Apocalypse and the Grizzly both
 needed.
+
+### `power:dir` — the one trustworthy fusion case, with its starting point
+
+The only verdict from the cause-diagnosis pass that survives checking. Clause:
+
+    [dir] exactly 3 towers, each 0.18-0.22 Sw
+    measured: 1 crown blob, width 0.527 of Sw
+
+0.527 is almost exactly 3 x 0.176, so all three towers are drawn at close to
+the right width and the crown detector sees ONE connected component spanning
+them. That is the fusion signature, not missing geometry.
+
+The three call sites, so the next pass does not have to find them:
+
+    rts.html:14325   tower(bcx, bcy, 9, COL_H, ...)   // back
+    rts.html:14400   tower(lcx, lcy, 9, COL_H, ...)   // front-left
+    rts.html:14401   tower(rcx, rcy, 9, COL_H, ...)   // front-right
+
+    lcx = cx - fw * 0.35,  lcy = baseY + fh * 0.24
+    rcx = cx + fw * 0.37,  rcy = baseY + fh * 0.22
+    bcx = cx + fw * 0.02,  bcy = baseY - fh * 0.44     (COL_H = 30)
+
+**Note the horizontal gaps look ample** — roughly 30 px of spacing against an
+18 px tower diameter — so the join is probably NOT the columns touching. Check
+whether something else bridges them in the crown band: the caps overlapping
+vertically, or the central dish and coil column drawn between them. That is
+the Grizzly's lesson (a PAINT-ORDER fusion, where the check reported the wrong
+component's dimensions entirely) rather than the Apocalypse's (a real seam that
+spacing could not open).
+
+**Do not simply move the towers apart.** `COL_H = 30` is load-bearing: its
+comment records that 30 lands the sprite at 127 px = 1.28x RA2, dev 0.115
+inside the +-0.20 band, and `size.bldWorstOffHouseScale` is already 0.1758
+against a 0.20 ceiling. Any change here must re-measure that.
