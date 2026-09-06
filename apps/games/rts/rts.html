@@ -4865,7 +4865,19 @@
   function unitCanvas() { return mkCanvas(104, 63 + UPAD); }
 
   var ACCENT = {
-    rifle:     '#9ba2ab',   // GREY POT HELMET over the GI's house-colour torso block
+    // PALE STEEL POT, and it went UP from #9ba2ab for a measured reason. §2.1
+    // asks this helmet for "a value distinct from both torso and legs"; banded
+    // off the bake it measured 0.465 against a torso at 0.539 — a gap of 0.073
+    // where the clause check reads "distinct" as 0.10. Darkening is the
+    // intuitive move and it is the wrong one: at #767d87 the gap is a healthy
+    // 0.172 and `rifle | conscript` falls to 11.8 against a 12.2 friend-vs-foe
+    // floor, because the Conscript's own cap is #2f3540 and a darker G.I.
+    // helmet walks straight into it. Brightening moves AWAY from the twin, and
+    // it is what the pair wanted: `rifle | conscript` left the worst-eight list
+    // entirely and the Directorate sidebar's worst pair, `GI | Spy`, went
+    // 53.6 -> 55.4. Paired with helmet()'s `hef` shell edge floor, since a
+    // brighter FILL alone tops out at a 0.115 gap even at near-white.
+    rifle:     '#c9d0d8',   // GREY POT HELMET over the GI's house-colour torso block
     conscript: '#2f3540',   // his DARK flat-crowned cap; the Conscript's remap is his TUNIC
     rocket:    '#ffbe45',   // amber warhead (Guardian) / amber shell drum (Flak)
     tank:      '#39415a',   // gunmetal barrel
@@ -5581,19 +5593,34 @@
     // A helmet dome with a lit crown and a shaded brim. The helmet is the
     // single most reliable friend-or-foe tell on a 20px figure, so it is
     // drawn as a solid house-colour cap rather than a tinted grey one.
-    function helmet(hy, r, hcol, brim) {
+    function helmet(hy, r, hcol, brim, hef) {
+      // `hef` is a SHELL-ONLY edge floor, and it is not the INF_EDGE floor: it
+      // lifts the brim and the outline of THIS helmet without touching the
+      // torso block underneath. That distinction is the whole reason it
+      // exists. §2.1 asks the G.I.'s helmet for "a value distinct from both
+      // torso and legs" and it measured 0.073 against the 0.10 this repo reads
+      // that as; the two obvious levers both failed, MEASURED:
+      //   * a DARKER pot (#9ba2ab -> #767d87) got the gap to 0.172 and pushed
+      //     `rifle | conscript` to 11.8 against a 12.2 friend-vs-foe floor —
+      //     two confusable pairs, because the Conscript's own cap is #2f3540
+      //     and darkening the G.I.'s walks him straight into it;
+      //   * `INF_EDGE.rifle = 0.70` lifted the helmet 0.465 -> 0.554 and the
+      //     TORSO 0.539 -> 0.567 with it, leaving a gap of 0.013. A kind-wide
+      //     floor moves both bands together, exactly as INF_VALUE does.
+      // Only a shell-scoped lift moves one band against the other.
       var hcx = cx + sd * 1.1 / TURN + HEADX;
       var rw = r * (1 - 0.16 * sd);                    // a helmet is longer than it is wide
+      var hE = function (f) { return edge(hcol, hef && f < hef ? hef : f); };
       g.fillStyle = hcol;
       g.beginPath(); g.ellipse(hcx, hy, rw, r, 0, Math.PI, 0); g.fill();
       g.fillRect(hcx - rw, hy, rw * 2, 1.1);
-      g.fillStyle = edge(hcol, 0.62);
+      g.fillStyle = hE(0.62);
       g.fillRect(hcx - rw - 0.5, hy + 0.8, rw * 2 + 1.0, brim);
-      outline(g, edge(hcol, 0.38));
+      outline(g, hE(0.38));
       if (FA.back) {
         // the nape: a shaded crescent under the shell and the chin strap's
         // buckle at the back of the neck
-        g.fillStyle = edge(hcol, 0.52);
+        g.fillStyle = hE(0.52);
         g.beginPath(); g.ellipse(hcx, hy + 1.2, rw * 0.82, r * 0.5, 0, 0, Math.PI); g.fill();
         g.fillStyle = 'rgba(20,22,26,.55)';
         g.fillRect(hcx - rw * 0.5, hy + 1.5, rw, 1.0);
@@ -6727,18 +6754,39 @@
           // pass has caused. Raised to belt height it clears her outline, and
           // it also sits further inside the cameo's portrait crop, which is
           // where it needs to be anyway.
-          var dbx = x + 1.2, dby = y + 4.4;
-          for (var ds = -1; ds <= 1; ds++) {
-            g.fillStyle = ds < 0 ? '#d7b87d' : ds > 0 ? '#a98a58' : '#c6a76e';
-            g.beginPath(); g.roundRect(dbx + ds * 1.28 - 0.7, dby, 1.42, 4.9, 0.5); g.fill();
-            outline(g, '#4c3a1a');
-            g.fillStyle = ds < 0 ? '#f0dcb2' : ds > 0 ? '#c3a273' : '#e2c795';
-            g.fillRect(dbx + ds * 1.28 - 0.48, dby + 0.15, 1.0, 0.85);  // lit end cap
-          }
-          g.fillStyle = '#26282e';                                  // one lashing band
-          g.fillRect(dbx - 2.2, dby + 2.0, 4.4, 1.1);
-          g.fillStyle = '#4a4d55';
-          g.fillRect(dbx - 2.2, dby + 2.05, 4.4, 0.4);
+          // ONE BODY, ONE OUTLINE, and the sticks are TONE COLUMNS in it. Three
+          // separately-outlined 1.42-unit sticks is the shape this used to be,
+          // and at STATURE.ivan [0.80,0.88] each one drew 1.25 px wide under a
+          // 1 px stroke centred on its own border: the outline ate the stick.
+          // MEASURED — not one pixel of #d7b87d, #c6a76e, #a98a58 or the lit
+          // caps survived at ANY of the eight bearings, and §2.2's "bundle
+          // >= 4x3 at waist height" measured 0x0 against the reference's own
+          // ">= 25% value contrast against what is behind it" floor: what was
+          // left was hue-37 mush at v 0.12-0.35 on a v 0.15 coat. It read as
+          // "something brown in his hand", which is the exact complaint the
+          // previous pass wrote down and then fixed by adding DETAIL rather
+          // than by removing the strokes that were eating it.
+          // Same lesson as the Engineer's coverall and the Tesla Trooper's
+          // carapace: at this size the outline is not trim, it is most of the
+          // surface, and a 1 px stroke round a 1.25 px fill leaves no fill.
+          var dbx = x + 1.2, dby = y + 4.3;
+          g.fillStyle = '#c6a76e';                                  // the bound body
+          g.beginPath(); g.roundRect(dbx - 2.7, dby, 5.4, 5.2, 0.7); g.fill();
+          outline(g, '#4c3a1a');
+          // Three sticks read as three TONES, never as seams: a 0.5-unit dark
+          // seam is 0.44 px and does to the fill beside it exactly what the
+          // per-stick outline did to the stick. Measured, two seams took the
+          // block from v 0.81 to v 0.16-0.35 over half its own rows.
+          g.fillStyle = '#e0c288';                                  // lit stick, left
+          g.fillRect(dbx - 2.45, dby + 0.25, 1.85, 4.7);
+          g.fillStyle = '#a98a58';                                  // shaded stick, right
+          g.fillRect(dbx + 0.75, dby + 0.25, 1.7, 4.7);
+          g.fillStyle = '#f4e2ba';                                  // lit end caps, one band
+          g.fillRect(dbx - 2.45, dby + 0.2, 4.9, 1.15);
+          g.fillStyle = '#8a7452';                                  // one lashing band, and it is a
+          g.fillRect(dbx - 2.8, dby + 2.5, 5.6, 0.75);              // TONE of the sticks rather than
+          g.fillStyle = '#b8a077';                                  // the near-black bar that used
+          g.fillRect(dbx - 2.8, dby + 2.55, 5.6, 0.3);              // to cut the bundle in half
           g.strokeStyle = '#4a4038'; g.lineWidth = 1.5; g.lineCap = 'round';
           g.beginPath();                                            // fuse, rimmed so it survives
           g.moveTo(dbx + 0.2, dby + 0.2); g.lineTo(dbx + 1.3, dby - 1.5);
@@ -6780,12 +6828,21 @@
       for (var uf = -1; uf <= 1; uf += 2) {
         g.fillStyle = shade(col, uf < 0 ? 1.08 : 0.78);
         g.beginPath();                                              // flap: >=2 px clear of the crown (§2.2)
-        g.roundRect(cx + uf * 3.75 - 1.15, by - 23.6, 2.3, 3.0, 0.7); g.fill();
+        g.roundRect(cx + uf * 3.80 - 1.25, by - 23.7, 2.5, 3.4, 0.7); g.fill();
         outline(g, shade(col, 0.36));
       }
+      // The HAT carries the owner budget the dynamite dilutes, and it is the
+      // one place on him that can. Making the bundle legible cost 0.3601 ->
+      // 0.3491 of remap against §2.2's >= 35%, and the obvious repair —
+      // running the lapels a pixel further down the skirt — was MEASURED and
+      // REJECTED: it put blue on his lower body, which is exactly where Yuri's
+      // robe carries its own, and took `ivan | yuri` from 12.5 to 12.3 against
+      // a 12.2 friend-vs-foe floor (CELL 96, zoom 1) — the tightest pair in the
+      // Collective infantry. Yuri's head is BALD. Blue on the ushanka buys the
+      // same budget in the one band where the two figures do not compete.
       g.fillStyle = col;                                            // shallow fur crown
-      g.beginPath(); g.ellipse(cx, by - 23.9, 2.8, 1.9, 0, Math.PI, 0); g.fill();
-      g.fillRect(cx - 2.8, by - 23.9, 5.6, 1.2);
+      g.beginPath(); g.ellipse(cx, by - 24.1, 2.95, 2.15, 0, Math.PI, 0); g.fill();
+      g.fillRect(cx - 2.95, by - 24.1, 5.9, 1.7);
       outline(g, shade(col, 0.38));
       g.fillStyle = shade(col, 1.22);                               // lit fur crown
       g.beginPath();
@@ -7529,8 +7586,8 @@
       // reading as the owner's colour at all.
       g.fillStyle = col;
       g.beginPath();
-      g.moveTo(cx - 5.8, by - 19.8); g.lineTo(cx + 5.8, by - 19.8);
-      g.lineTo(cx + 5.2, by - 11.0); g.lineTo(cx - 5.2, by - 11.0);
+      g.moveTo(cx - 5.8, by - 20.0); g.lineTo(cx + 5.8, by - 20.0);
+      g.lineTo(cx + 5.2, by - 10.6); g.lineTo(cx - 5.2, by - 10.6);
       g.closePath(); g.fill(); outline(g, shade(col, 0.40));
       g.fillStyle = shade(col, 1.22);                               // lit left panel
       g.fillRect(cx - 5.3, by - 19.5, 3.5, 7.9);
@@ -7539,9 +7596,16 @@
       g.fillStyle = shade(col, 0.62);                               // collar shadow
       g.fillRect(cx - 5.6, by - 19.6, 11.2, 0.9);
       g.fillStyle = shade(T.coat, 0.62);                            // webbing belt, under the block
-      g.fillRect(cx - 4.9, by - 12.8, 9.8, 1.5);
+      g.fillRect(cx - 4.9, by - 12.7, 9.8, 1.15);
+      // The scarf is a COLLAR, not a bib, and that is what §2.1's "torso block
+      // >= 7w x 6h" needed. Drawn at by-20.1 x 1.2 it sat INSIDE the block's
+      // top rows and split them: the largest solid owner rectangle on the
+      // sprite was 8x5, one row short, because rows 8-10 of the bake were
+      // khaki down the middle. Raised and thinned it clears the block, which
+      // now measures 8x6. The block's own comment two lines up already said
+      // "collar to belt, full shoulder width, unbroken".
       g.fillStyle = '#b09632';                                      // khaki collar scarf
-      g.beginPath(); g.roundRect(cx - 2.9, by - 20.1, 5.8, 1.2, 0.6); g.fill();
+      g.beginPath(); g.roundRect(cx - 2.9, by - 20.7, 5.8, 0.95, 0.5); g.fill();
 
       // The block spills over the SHOULDERS, as it does on the E1 sprite: the
       // upper sleeve is remapped and the forearm is not, which is what takes
@@ -7554,7 +7618,7 @@
       outline(g, shade(T.coat, 0.5));
       carbine(cx - 5.2, by - 11.0 + gt.sw * 0.4, cx + 7.2, by - 15.6 - gt.sw * 0.4, 1.9);
       face(by - 21.7);
-      helmet(by - 23.5, 3.15, ACCENT.rifle, 0.95);                     // grey pot, NOT house colour
+      helmet(by - 23.5, 3.15, ACCENT.rifle, 0.95, 0.72);               // grey pot, NOT house colour
       g.restore();
     }
     if (VG !== 1) valuePass(s, VG);       // the kind's rung on the value ladder

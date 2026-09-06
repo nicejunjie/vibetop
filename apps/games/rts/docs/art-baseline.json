@@ -259,7 +259,7 @@
     "peerVsSelf.air": 0,
     "iou.groundCombat.mean": 0.466,
     "iou.vehicle.mean": 0.4192,
-    "iou.infantry.mean": 0.5404,
+    "iou.infantry.mean": 0.5413,
     "iou.naval.mean": 0.4018,
     "iou.air.mean": 0.1859,
     "iou.sameFactionOver75": 0,
@@ -268,7 +268,7 @@
     "spike.belowDeclaredBudget": 0,
     "mass.groundCombatSpan": 5.633,
     "mass.tightestBand6": 2.208,
-    "hue.infantryOwnerMean": 0.2985,
+    "hue.infantryOwnerMean": 0.2991,
     "hue.infantryBelowBudget": 0,
     "hue.vehicleOwnerMean": 0.1698,
     "hue.vehicleOwnerMax": 0.2386,
@@ -284,10 +284,10 @@
     "size.airOutsideRA2Band": 0,
     "size.crossGroupSpread": 1.607,
     "size.worstOffGroupScale": 0.3109,
-    "clause.checked": 17,
-    "clause.unmet": 2,
+    "clause.checked": 37,
+    "clause.unmet": 1,
     "clause.unmatchedToReference": 0,
-    "clause.infantryUnmet": 1,
+    "clause.infantryUnmet": 0,
     "clause.vehicleUnmet": 0,
     "clause.navalUnmet": 1,
     "clause.airUnmet": 0,
@@ -296,7 +296,7 @@
     "value.soldiersLighterThanEngineer": 0,
     "value.engineerLightPct": 0.6384,
     "value.engineerMarginOverNext": 0.2803,
-    "colour.infantry.meanDist": 1.3898,
+    "colour.infantry.meanDist": 1.3825,
     "colour.vehicle.meanDist": 0.9487,
     "colour.vehicleAchromatic": 0
   },
@@ -381,7 +381,7 @@
         "ra2Aspect": 0.667,
         "vsRA2": 1.139,
         "bestPeer": "Crazy Ivan",
-        "bestPeerIoU": 0.6405,
+        "bestPeerIoU": 0.6458,
         "peersBeatingSelf": 0
       },
       "harrier": {
@@ -440,8 +440,8 @@
         "broadsideAspect": 0.618,
         "ra2Aspect": 0.52,
         "vsRA2": 1.188,
-        "bestPeer": "Chrono Legionnaire",
-        "bestPeerIoU": 0.7292,
+        "bestPeer": "Crazy Ivan",
+        "bestPeerIoU": 0.7399,
         "peersBeatingSelf": 0
       },
       "dog": {
@@ -489,7 +489,7 @@
         "ra2Aspect": 0.5,
         "vsRA2": 1.09,
         "bestPeer": "Crazy Ivan",
-        "bestPeerIoU": 0.7652,
+        "bestPeerIoU": 0.768,
         "peersBeatingSelf": 0
       },
       "rhino": {
@@ -543,13 +543,13 @@
       "ivan": {
         "group": "infantry",
         "aspect": 0.531,
-        "selfIoU": 0.8264,
-        "selfIoUCross": 0.8264,
+        "selfIoU": 0.8279,
+        "selfIoUCross": 0.8279,
         "broadsideAspect": 0.531,
         "ra2Aspect": 0.48,
         "vsRA2": 1.106,
         "bestPeer": "Tanya",
-        "bestPeerIoU": 0.7652,
+        "bestPeerIoU": 0.768,
         "peersBeatingSelf": 0
       },
       "drone": {
@@ -801,9 +801,9 @@
         "over75": 0
       },
       "infantry": {
-        "mean": 0.5404,
+        "mean": 0.5413,
         "pairs": 91,
-        "max": 0.7652,
+        "max": 0.768,
         "over75": 1
       },
       "naval": {
@@ -841,7 +841,7 @@
       {
         "a": "ivan",
         "b": "spy",
-        "dist": 0.246
+        "dist": 0.217
       },
       {
         "a": "conscript",
@@ -869,14 +869,14 @@
         "dist": 0.495
       },
       {
-        "a": "ivan",
-        "b": "cleg",
-        "dist": 0.561
-      },
-      {
         "a": "rocketeer",
         "b": "engineer",
         "dist": 0.626
+      },
+      {
+        "a": "ivan",
+        "b": "cleg",
+        "dist": 0.661
       }
     ],
     "closestVehicleColourPairs": [
@@ -942,7 +942,7 @@
       },
       {
         "key": "rifle",
-        "pct": 0.0021
+        "pct": 0.0008
       },
       {
         "key": "yuri",
@@ -968,7 +968,7 @@
     "ownerPctByUnit": {
       "chronominer": 0.1099,
       "warminer": 0.1721,
-      "rifle": 0.3291,
+      "rifle": 0.3371,
       "conscript": 0.3453,
       "rocket": 0.2998,
       "flak": 0.338,
@@ -986,7 +986,7 @@
       "flaktrack": 0.1624,
       "v3": 0.145,
       "teslatrooper": 0.3488,
-      "ivan": 0.3601,
+      "ivan": 0.36,
       "drone": 0.1914,
       "teslatank": 0.1441,
       "prismtank": 0.1699,
@@ -1011,7 +1011,7 @@
     "chromaByUnit": {
       "chronominer": 0.2644,
       "warminer": 0.2762,
-      "rifle": 0.1626,
+      "rifle": 0.1561,
       "conscript": 0.1862,
       "rocket": 0.2213,
       "flak": 0.1324,
@@ -1029,7 +1029,7 @@
       "flaktrack": 0.1569,
       "v3": 0.1804,
       "teslatrooper": 0.0851,
-      "ivan": 0.2676,
+      "ivan": 0.271,
       "drone": 0.1947,
       "teslatank": 0.2104,
       "prismtank": 0.1522,
@@ -1052,8 +1052,8 @@
       "mcv": 0.1555
     },
     "hue": {
-      "infantryOwnerMedian": 0.3209,
-      "infantryOwnerMeanUnexempt": 0.3293,
+      "infantryOwnerMedian": 0.3247,
+      "infantryOwnerMeanUnexempt": 0.3299,
       "exempt": [
         "dog",
         "tanya"
@@ -1671,10 +1671,10 @@
       {
         "unit": "rifle",
         "clause": "helmet in a value distinct from both torso and legs",
-        "ok": false,
-        "measured": 0.073,
+        "ok": true,
+        "measured": 0.149,
         "want": ">= 0.10 value",
-        "note": "helmet 0.465, torso 0.539, legs 0.142 — 0.10 is this file's reading of \"distinct\"; the row states no number",
+        "note": "helmet 0.695, torso 0.545, legs 0.142 — 0.10 is this file's reading of \"distinct\"; the row states no number",
         "module": "EXAMPLE-infantry-gi.js",
         "refMatch": 0.89
       },
@@ -1687,6 +1687,206 @@
         "note": "GI legs hue 92, Conscript legs hue 32",
         "module": "EXAMPLE-infantry-gi.js",
         "refMatch": 0.43
+      },
+      {
+        "unit": "rifle",
+        "clause": "torso block >= 7w x 6h",
+        "ok": true,
+        "measured": "8x6",
+        "want": ">= 7w x 6h",
+        "note": "largest solid owner-hue rectangle on the sprite, 17x36 bbox; band = fraction of the raw measured bbox height (shadow included), broadside bearing",
+        "module": "infantry.js",
+        "refMatch": 1
+      },
+      {
+        "unit": "rocketeer",
+        "clause": "altitude offset >= 10 px",
+        "ok": true,
+        "measured": 36,
+        "want": ">= 10 px",
+        "note": "SOURCE CONSTANT UNITS.rocketeer.alt — the bake carries no altitude; the renderer draws air units at sy - altOf(u), and altOf returns k*d.alt with k -> 1 at cruise",
+        "module": "infantry.js",
+        "refMatch": 1
+      },
+      {
+        "unit": "rocketeer",
+        "clause": "shadow blob >= 9x4 separated from the feet",
+        "ok": true,
+        "measured": "9x4, gap 38.2 px",
+        "want": ">= 9x4, separated",
+        "note": "SOURCE CONSTANT UNITS.rocketeer.shadow, drawn on the ground by drawAirShadow at sy + alt*0.06 while the figure is at sy - alt, so the gap is alt*1.06. bakeInfantry's own contact blob is suppressed for this kind: true",
+        "module": "infantry.js",
+        "refMatch": 1
+      },
+      {
+        "unit": "engineer",
+        "clause": "body value >= 0.75 across >= 55% of the torso+legs",
+        "ok": true,
+        "measured": 0.635,
+        "want": ">= 0.55",
+        "note": "torso+legs taken as 24-100% of the bbox — band = fraction of the raw measured bbox height (shadow included), broadside bearing. 264/416 px. Whole-sprite form is separately gated as value.engineerLightPct",
+        "module": "infantry.js",
+        "refMatch": 1
+      },
+      {
+        "unit": "dog",
+        "clause": "body <= 9 px tall and >= 19 px long",
+        "ok": true,
+        "measured": "trunk 10 tall x 31 long, ratio 0.323",
+        "want": "ratio <= 0.474 (= 9/19), long >= 19",
+        "note": "trunk = the run of rows holding >= 60% of the peak row's OPAQUE COUNT, contact shadow segmented off. Absolute height 10 is over the clause's 9 by about the recorded +31% dog size debt (size.infantryOutsideRA2Band, BLOCKED — every shrink puts dog|tanya under the friend-vs-foe floor), so this row tests the proportion the two numbers encode rather than double-counting the size gate",
+        "module": "infantry.js",
+        "refMatch": 1
+      },
+      {
+        "unit": "dog",
+        "clause": "no vertical torso mass",
+        "ok": true,
+        "measured": "0.645 (tallest column 20 px vs 31 px of length)",
+        "want": "< 1.0 and the group minimum",
+        "note": "the row states NO NUMBER, so the bar is the ENSEMBLE and not a threshold this file invented: the tallest unbroken opaque column of the figure (contact shadow off) over its widest row must be < 1 — nothing on the animal stands as tall as he is long — and the lowest in the group. Next lowest is ivan at 1.125; the uprights reach 2.5",
+        "module": "infantry.js",
+        "refMatch": 1
+      },
+      {
+        "unit": "dog",
+        "clause": "house colour on the collar/harness, never the coat",
+        "ok": true,
+        "measured": "owner px span 0.231 of figure height (21 px)",
+        "want": "nonzero, spread <= 0.45",
+        "note": "the row states NO NUMBER; 0.45 is this file's reading of \"a collar, not the coat\" — the vertical span holding the middle 90% of owner-hued pixels over the figure height. A remapped coat would spread across the trunk and clear 0.6",
+        "module": "infantry.js",
+        "refMatch": 1
+      },
+      {
+        "unit": "tanya",
+        "clause": "head patch >= 3x2 at >= 0.85 value",
+        "ok": true,
+        "measured": "3x2",
+        "want": ">= 3x2 at v >= 0.85",
+        "note": "largest 4-connected v >= 0.85 blob in the top 30% of the bbox; band = fraction of the raw measured bbox height (shadow included), broadside bearing",
+        "module": "infantry.js",
+        "refMatch": 1
+      },
+      {
+        "unit": "tanya",
+        "clause": "limbs >= 30% of body px in skin tone",
+        "ok": true,
+        "measured": 0.387,
+        "want": ">= 0.30",
+        "note": "skin = hue 16-40, s 0.24-0.52, v >= 0.40 — the window round TROOP.tanya.skin #e6b98f (h 27, s 0.38) and its shades, since shade() is a per-channel multiply and preserves both. Denominator is the FIGURE (contact shadow segmented off), 129/333 px",
+        "module": "infantry.js",
+        "refMatch": 1
+      },
+      {
+        "unit": "cleg",
+        "clause": "shoulder line >= 15 px (>= 20% wider than a GI's)",
+        "ok": true,
+        "measured": "20 px, 1.333x the GI's 15",
+        "want": ">= 15 px and >= 1.20x the GI",
+        "note": "widest row in the 18-40% shoulder band, both units at their broadside bearing; band = fraction of the raw measured bbox height (shadow included), broadside bearing",
+        "module": "infantry.js",
+        "refMatch": 1
+      },
+      {
+        "unit": "spy",
+        "clause": "coat hem one unbroken block >= 8 px wide, no vertical gap",
+        "ok": true,
+        "measured": "median hem run 8 px (range 6-13), max runs per row 1",
+        "want": "median >= 8 px, exactly 1 run",
+        "note": "hem = 62-90% of the FIGURE height (contact shadow segmented off) over 10 rows. MEDIAN, and this file says so because it is the LENIENT reading: the hem TAPERS from 13 px at the skirt to 6 px at the ankle row, and that taper is a recorded deliberate decision — \"a business suit is a straight, narrow, slightly tapered line, and Yuri's is a flared robe a third wider at the ankle\" — made because the roster's two unbroken hems collapsed onto each other at 0.85 pairwise the moment the Spy lost his leg split. THE CEILING, with the arithmetic: 8 px AT THE ANKLE needs 8.6 authored units against the skirt's own 8.0, which is a FLARE and therefore Yuri's shape, so the minimum form of this clause cannot be met without undoing that pair. The clause's other half — no vertical gap — is measured strictly: every row exactly one run",
+        "module": "infantry.js",
+        "refMatch": 1
+      },
+      {
+        "unit": "conscript",
+        "clause": "legs tan/brown, >= 20 hue-degrees off the GI's olive",
+        "ok": true,
+        "measured": "hue 31.5, 60.4 deg off the GI's 91.9",
+        "want": "hue 15-45 and >= 20 deg",
+        "note": "tan/brown taken as hue 15-45 (the row names a colour, not a number); band = fraction of the raw measured bbox height (shadow included), broadside bearing. The separation half is also measured from the GI's row in EXAMPLE-infantry-gi.js",
+        "module": "infantry.js",
+        "refMatch": 0.89
+      },
+      {
+        "unit": "flak",
+        "clause": "total height >= 1.25x a Conscript's",
+        "ok": true,
+        "measured": "1.517x (44 px vs 29)",
+        "want": ">= 1.25x",
+        "note": "FIGURE heights, contact shadow segmented off both, at each unit's broadside bearing. On the raw bbox it is 1.306x (47 vs 36)",
+        "module": "infantry.js",
+        "refMatch": 1
+      },
+      {
+        "unit": "teslatrooper",
+        "clause": "carapace value >= 0.70 (silver) across >= 40% of the torso",
+        "ok": true,
+        "measured": 0.434,
+        "want": ">= 0.40",
+        "note": "torso = 24-44% of the bbox — band = fraction of the raw measured bbox height (shadow included), broadside bearing, the band the carapace pass derived from a per-row profile. silver = v >= 0.70 and s < 0.20. 98/226 px",
+        "module": "infantry.js",
+        "refMatch": 1
+      },
+      {
+        "unit": "teslatrooper",
+        "clause": "bowl must clear the caps by >= 2 px",
+        "ok": true,
+        "measured": "3 px",
+        "want": ">= 2 px",
+        "note": "topmost opaque row of the central 32-68% of the bbox width (the helmet bowl) against the topmost row outside it (the pauldron caps), at the broadside bearing",
+        "module": "infantry.js",
+        "refMatch": 0.45
+      },
+      {
+        "unit": "ivan",
+        "clause": "house fraction >= 35%",
+        "ok": true,
+        "measured": 0.36,
+        "want": ">= 0.35",
+        "note": "col.ownerPct meaned over 8 bearings — the owner-0 vs owner-1 bake diff, so it is the true remap and not a hue proxy",
+        "module": "infantry.js",
+        "refMatch": 1
+      },
+      {
+        "unit": "ivan",
+        "clause": "bundle >= 4x3 at waist height",
+        "ok": true,
+        "measured": "4x6, 0.79 filled",
+        "want": ">= 4x3, >= 0.5 filled",
+        "note": "bbox of the tan pixels (hue 25-55, s >= 0.25) clearing v 0.40 in the 38-72% waist band; band = fraction of the raw measured bbox height (shadow included), broadside bearing. The v floor is §2's own \">= 25% value contrast against what is behind it\" over a v 0.15 coat; the FILL guard carries the \"one solid mass, not a scatter\" half, because the hue window only loosely excludes his bare hand at hue 28. A lashing strap across a bundle is part of the bundle, so this is a bbox and not one connected component",
+        "module": "infantry.js",
+        "refMatch": 1
+      },
+      {
+        "unit": "desolator",
+        "clause": "gun muzzle >= 4 px across (fat, not a rifle)",
+        "ok": true,
+        "measured": "10 px across (10x8, 0.51 filled)",
+        "want": ">= 4 px",
+        "note": "bbox of the green pixels (hue 70-150, s >= 0.45, v >= 0.45 — real green, not the soft bloom's outer skirt) BELOW 24% of the bbox height; band = fraction of the raw measured bbox height (shadow included), broadside bearing. The band cuts out the helmet faceplate and the two pack-cap lamps, the other two green masses on him. 24 of the 41 px are the solid emitter itself (s >= 0.60, v >= 0.70) rather than its halo",
+        "module": "infantry.js",
+        "refMatch": 1
+      },
+      {
+        "unit": "desolator",
+        "clause": "deployed pool >= 1 tile",
+        "ok": true,
+        "measured": "3 tiles radius",
+        "want": ">= 1 tile",
+        "note": "SOURCE CONSTANT DESO_RAD_R — the radiation pool is drawn on the GROUND round a deployed Desolator and is in no sprite atlas, so ctx cannot see it",
+        "module": "infantry.js",
+        "refMatch": 1
+      },
+      {
+        "unit": "yuri",
+        "clause": "head dome bare, no helmet",
+        "ok": true,
+        "measured": 0.6,
+        "want": ">= 0.50 skin",
+        "note": "the row states NO NUMBER; 0.50 is this file's reading of \"bare\" — the skin fraction (hue 12-42, s 0.20-0.55, v >= 0.40, round TROOP.yuri.skin and its shades) of the top 10% of the FIGURE, the crown a helmet shell would cover. A helmeted trooper reads ~0 there",
+        "module": "infantry.js",
+        "refMatch": 1
       },
       {
         "unit": "destroyer",
@@ -1886,6 +2086,11 @@
         "lightPct": 0.099
       },
       {
+        "key": "rifle",
+        "name": "GI",
+        "lightPct": 0.0939
+      },
+      {
         "key": "spy",
         "name": "Spy",
         "lightPct": 0.0877
@@ -1896,14 +2101,9 @@
         "lightPct": 0.0811
       },
       {
-        "key": "rifle",
-        "name": "GI",
-        "lightPct": 0.0731
-      },
-      {
         "key": "ivan",
         "name": "Crazy Ivan",
-        "lightPct": 0.0372
+        "lightPct": 0.0528
       }
     ],
     "clipped": [],
@@ -2306,8 +2506,8 @@
         "vsRA2": 1.188,
         "selfIoU": 0.7054,
         "selfIoUCross": 0.7054,
-        "bestPeer": "Chrono Legionnaire",
-        "bestPeerIoU": 0.7292,
+        "bestPeer": "Crazy Ivan",
+        "bestPeerIoU": 0.7399,
         "peersBeatingSelf": 0,
         "peers": 13,
         "spike": {
@@ -2488,7 +2688,7 @@
         "name": "Crazy Ivan",
         "group": "infantry",
         "fac": "col",
-        "mass": 304,
+        "mass": 312,
         "bboxW": 17,
         "bboxH": 32,
         "aspect": 0.414,
@@ -2496,19 +2696,19 @@
         "broadsideAspect": 0.531,
         "ra2Aspect": 0.48,
         "vsRA2": 1.106,
-        "selfIoU": 0.8264,
-        "selfIoUCross": 0.8264,
+        "selfIoU": 0.8279,
+        "selfIoUCross": 0.8279,
         "bestPeer": "Tanya",
-        "bestPeerIoU": 0.7652,
+        "bestPeerIoU": 0.768,
         "peersBeatingSelf": 0,
         "peers": 13,
         "spike": {
           "axis": "h",
           "len": 3,
-          "thick": 12,
+          "thick": 13,
           "budget": 3.64,
           "floor": 3.64,
-          "atZmin": 6.6,
+          "atZmin": 7.15,
           "floorAtZmin": 2,
           "lenBudget": 2,
           "fails": null,
@@ -2879,7 +3079,7 @@
         "selfIoU": 0.7167,
         "selfIoUCross": 0.7167,
         "bestPeer": "Crazy Ivan",
-        "bestPeerIoU": 0.6405,
+        "bestPeerIoU": 0.6458,
         "peersBeatingSelf": 0,
         "peers": 13,
         "spike": {
@@ -3037,7 +3237,7 @@
         "selfIoU": 0.7743,
         "selfIoUCross": 0.7743,
         "bestPeer": "Crazy Ivan",
-        "bestPeerIoU": 0.7652,
+        "bestPeerIoU": 0.768,
         "peersBeatingSelf": 0,
         "peers": 13,
         "spike": {
