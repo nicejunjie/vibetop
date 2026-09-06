@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_254 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_255 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
 - [Scheduled terminal messages ("resume when the token limit resets")](#scheduled-terminal-messages-resume-when-the-token-limit-resets)
@@ -277,6 +277,7 @@ _254 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [The fix for bodyRun's phantom crown: the 55% cut proposes, monotonicity vetoes (2026-09-06)](#the-fix-for-bodyruns-phantom-crown-the-55-cut-proposes-monotonicity-vetoes-2026-09-06)
 - [Two more structure clauses measure the wrong object — and RA2's own sprite fails one of them](#two-more-structure-clauses-measure-the-wrong-object-and-ra2s-own-sprite-fails-one-of-them)
 - [The Allied Power Plant's fused crowns: an ink budget, not a spacing accident (2026-09-06)](#the-allied-power-plants-fused-crowns-an-ink-budget-not-a-spacing-accident-2026-09-06)
+- [`peerVsSelf` measures how much a silhouette SWINGS, not whether it is confusable (2026-09-06)](#peervsself-measures-how-much-a-silhouette-swings-not-whether-it-is-confusable-2026-09-06)
 
 <!-- END TOC -->
 
@@ -10684,3 +10685,55 @@ deliberate, measured departure from the reference in the service of the clause,
 and it is the *silhouette read* §2.6 actually names — "three separate capped
 towers round a glowing copper basin" — that the change delivers and the merge
 base did not.
+
+## `peerVsSelf` measures how much a silhouette SWINGS, not whether it is confusable (2026-09-06)
+
+**Symptom.** `art-metrics.js` reports `peerVsSelf.vehicle = 1` — the V3 Launcher
+is "beaten by a peer" (War Miner 0.6139 against its own 0.5352, margin -0.0787).
+Five of the six naval units carry the same flag. The art of all six is verified
+correct against RA2's own sprite bboxes, and `legibility.js`, which sees colour
+and value as well as mask, finds zero confusable pairs among them.
+
+**Cause.** The row reads *shape variance across bearings*, and no art escapes it.
+`self` = mean IoU among a unit's own eight silhouettes; `peer` = mean IoU from
+those eight to another unit's eight. For any spread-out set, the mean pairwise
+dissimilarity *within* the set exceeds the mean dissimilarity to a point near its
+centre — the same reason the mean distance between two random points of a disc
+exceeds the mean distance from the disc to its centre. So a directional unit
+loses to any compact peer parked near its mean shape, whatever either is drawn
+like.
+
+`tools/peer-vs-self-control.js` is the proof, and it contains no art: eight
+filled **rectangles** at the V3's measured aspects, against eight identical
+rectangles at their mean, give a margin of **-0.0786** against the V3's measured
+**-0.0787**. Its sweep flips sign at an aspect swing of **1.0** — the only
+silhouette the row cannot fault is one that does not change as the unit turns.
+
+This is the *second* time this metric has been caught. The 2026-09-05 repair
+removed a real asymmetry (self over 28 different-bearing pairs against peer over
+8 same-bearing ones) and argued the aspect term now "appears on both and
+cancels". What cancels is a **constant** aspect; what survives is a **changing**
+one. The magnitude fell — corr(aspect, peersBeating) +0.529 → +0.477 — and the
+sign did not move. The recorded naval "elongation ceiling" and this vehicle row
+are one bug: elongation is the correlate, swing is the cause, and long hulls
+swing most. corr(aspectSwing, selfIoUCross) = **-0.823** over the 13 vehicles.
+
+**Fix.** None to the art, and none to the metric *yet*. The finding is recorded
+where the next pass will hit it — the block note above `TARGETS`, the
+`peerVsSelf.vehicle` note, `apps/games/rts/docs/per-unit-art-log.md` — and the
+control is a runnable file so the arithmetic never has to be re-derived.
+
+**Rejected — every art lever, baked and measured one at a time.** Rail rise
+x0.70 (which lands the broadside aspect on RA2's own 1.75, 1.7174): still beaten
+by 4. Rise x0.00, the missile flat on the bed: beaten by 2, and
+`aspect.vehicleOutsideRA2Band` and `spike.belowDeclaredBudget` both open. Truck
+`len` 22→28: **worse**, 5. Beam 19→15: **worse**, 5. Both: **worse**, 6. Missile
+**deleted entirely** — the unit's whole identity: still beaten by 2, plus three
+gates opened. Note the direction of travel: as the V3 flattens toward a tank the
+tanks' cross terms *rise* (Rhino 0.5409 → 0.6529), so the row pays for becoming
+more confusable, which is the opposite of what it is named for.
+
+**Rejected — repairing the metric in this pass.** A repair moves
+`peerVsSelf.naval` (5 rows) and `.vehicle` (1) together: a six-row change to a
+ratcheted gate, out of scope for a pass assigned one unit, and it wants its own
+before/after on the whole roster.
