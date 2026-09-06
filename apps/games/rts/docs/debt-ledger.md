@@ -30,10 +30,47 @@ themselves re-litigating settled ground. This file is the split.
 
 **22 substantive rows: 8 CEILING · 7 BROKEN-CHECK · 7 OPEN.**
 
+> **Superseded in part — see "Update, 2026-09-06" below.** The structure count
+> has moved 14 -> 11 -> 15 since this audit, and Table B's rows O5 and O7 are
+> closed. The eight non-structure rows in Table A are unchanged.
+
 `clause.unmetStructures` is a roll-up, not a row of its own — its 14 are
 enumerated individually in table B, and they are the 7 BROKEN-CHECK and 7 OPEN.
 **Every one of the eight non-structure debt rows is a documented ceiling.** All
 of the genuinely open work in this project's art gate is in structures.
+
+---
+
+## Update, 2026-09-06 — `clause.unmetStructures` is now **15**, and two rows below are stale
+
+Two later passes have moved this count since the audit above was written at
+`ca8fbfe`. Read this section before trusting Table B's row list.
+
+**14 -> 11** (`106f9e8`): the three real art defects in
+`structure-clause-triage.md` were fixed — `depot:dir`'s crown, `prism:dir`'s
+waist, `gapgen:dir`'s third collar ring. That closes **O7** and **O5** in Table
+B below, and moves `prism:dir` off the BROKEN-CHECK list.
+
+**11 -> 15** (the Service Depot repair-yard pass): FOUR new rows, all of them
+the same broken check, all of them on the depot's pad. Full arithmetic in
+`structure-clause-triage.md`, first section. The short version:
+
+| verdict | rows | why |
+|---|---|---|
+| **BROKEN-CHECK** | `depot:dir` + `depot:col`, "flat pad >= 0.50 Sw" and "works confined <= 0.50 Sw" | The clause's "pad column" is one **<= 15% of Sh tall**. A flat plate in 2:1 isometric is by construction half as tall on screen as it is wide, so a pad at RA2's own 0.71 Sw runs to ~0.32 Sh — over twice the allowance — before anything is drawn on it. **RA2's own `soviet-service-depot.gif` fails the row at 0 of 11 sweep cuts** (padFrac 0.086-0.385, works 0.615-0.914). The predicate wants rewriting as a GROUND-BAND test, not a thinness test. |
+
+**These four rows going red is a deliberate, user-directed trade.** They were
+green only because the pad had been squashed to satisfy them: `dpb` driven
+`fh*0.70 -> 0.19 -> 0.01` (a 157 px apron ONE PIXEL deep) plus three anamorphic
+X-only scales (0.45 works cluster, 0.55 guide rail, 0.10 beam reach). The user's
+report on the result was "it looks terrible, and it doesn't look like RA2".
+Do not close them by re-squashing anything — `docs/qa-charter.md`'s two-pillar
+rule forbids it, and it has now been tried twice.
+
+**O5 in Table B is closed and its premise is void.** It asked for the four
+detached works fragments to be merged; the fragments were an artefact of the
+0.45/0.55 scales, which are gone. The row reads **1 blob** and is MET, and RA2's
+own sprite passes it at 1 too.
 
 ---
 

@@ -1,4 +1,9 @@
-# The 14 remaining `clause.unmetStructures` — triage before art
+# The remaining `clause.unmetStructures` — triage before art
+
+> **11 -> 15 on 2026-09-06.** Four depot rows moved into the BROKEN-CHECK
+> column when the Service Depot's pad was restored to a true isometric apron.
+> The arithmetic, including RA2's own sprite failing the same rows at all
+> eleven sweep cuts, is the first section below.
 
 **Method.** Every row below was produced by running the *shipped* clause math —
 the primitives re-exported verbatim out of `tools/clause-checks/structures.js`,
@@ -51,6 +56,85 @@ Cameo floors stay at Directorate 234 / Collective 252.
 | 12 | `prism:dir` | a waist beneath it <= 0.25 Sw | 0.261 | [GAPRIS] **0.211 — passes** | **ART — FIXED** |
 | 13 | `gapgen:dir` | 4 talons, each 2px at >= 25% contrast | **0** bright-outlier blobs | (no rip) — 3 **dark**-outlier blobs on the same mask; RA2's talons are black | **BROKEN** (polarity) |
 | 14 | `gapgen:dir` | exactly 2 house collar rings | 3 blobs | (no rip) — third blob is **one pixel** | **ART — FIXED** |
+
+## 2026-09-06 — the depot's PAD rows join the broken list (11 -> 15)
+
+Four rows were added to `clause.unmetStructures` by the pass that gave the
+Service Depot its repair yard back, and all four are the SAME broken check:
+
+| key | clause | ours after | ours before | RA2 `[NADEPT]`, shipped math |
+|---|---|---|---|---|
+| `depot:dir` | flat pad >= 0.50 Sw | **0.006** | 0.536 | **0.098** |
+| `depot:dir` | works confined <= 0.50 Sw | **0.994** | 0.464 | **0.902** |
+| `depot:col` | flat pad >= 0.50 Sw | **0.045** | 0.530 | **0.098** |
+| `depot:col` | works confined <= 0.50 Sw | **0.955** | 0.470 | **0.902** |
+
+### Why the check cannot be satisfied by any drawing of a pad
+
+The predicate is, verbatim:
+
+    for (let x = 0; x < f.w; x++) if (cp[x] > 0 && cp[x] <= 0.15 * f.h) padCols++;
+
+A "pad column" is one **at most 15% of the sprite's height tall**. But a flat
+plate in 2:1 isometric projection is *by construction* half as tall on screen as
+it is wide: a pad `W` px across has a centre column `W/2` px deep. RA2 gives the
+depot a pad 0.71 of the sprite's own width, and the sprite is about 1.1 Sw tall,
+so those centre columns run to ~0.32 `Sh` — **more than twice the 0.15 the clause
+allows**, before a single mark is painted on the deck.
+
+So the clause does not describe a flat pad. It describes a pad drawn as a
+HAIRLINE, and that is exactly what the codebase did to satisfy it: `dpb` (the
+Directorate pad ellipse's semi-minor axis) was driven `fh*0.70 -> 0.19 -> 0.01`,
+a 157 px apron **one pixel deep**, and when that was still not enough three
+anamorphic X-only scales (0.45 on the works cluster, 0.55 on the guide rail,
+0.10 on the beam reach) were stacked on top. The user's report was "it looks
+terrible, and it doesn't look like RA2" — correct on both counts.
+
+### The reference, swept
+
+RA2's own `soviet-service-depot.gif` keyed off its grass at eleven cuts of the
+green-dominance margin (16..56 in steps of 4), the largest component taken as
+the building, and the shipped predicate run over it:
+
+    cut   bbox      padFrac   works    0.15*Sh   tallest column
+     16   104x124    0.385    0.615     18.6      102
+     20   104x124    0.385    0.615     18.6      102
+     24   162x152    0.173    0.827     22.8      106
+     28   162x152    0.086    0.914     22.8      109
+     32   164x152    0.098    0.902     22.8      109
+     36   164x152    0.098    0.902     22.8      109
+     40   165x152    0.103    0.897     22.8      110
+     44   165x152    0.103    0.897     22.8      110
+     48   165x152    0.091    0.909     22.8      112
+     52   165x152    0.091    0.909     22.8      112
+     56   165x152    0.091    0.909     22.8      114
+
+**RA2 passes the pad row at 0 of 11 cuts** — 0.086 to 0.385 against a demanded
+0.50 — and fails "works confined <= 0.50 Sw" at 0.615-0.914 at every cut. Our
+0.006/0.994 and 0.045/0.955 are now in the same regime as the reference's
+0.098/0.902; the old 0.536/0.464 was the number a hairline produces, not the
+number a repair yard produces.
+
+**BROKEN CHECK, 4 rows.** What the row is trying to say — that most of the
+footprint is open apron with nothing standing on it — is *true* of the art now
+and was false before. Rewriting the predicate is the fix (it wants a
+GROUND-PLANE test: columns whose opaque mass is confined to the ground band,
+not columns that are thin). Distorting the sprite to satisfy it is forbidden by
+`docs/qa-charter.md`'s two-pillar rule, and has now been tried twice.
+
+### What was NOT broken, and is now MET
+
+`[dir] exactly ONE crane/gantry group` read **3** blobs on the rebuilt sprite —
+1988 px of works plus two of 4 px each, one row tall, at x 73-76 and x 126-129.
+Ablation named them the two **running lamps** on the octagon's rear chamfer
+corners (moving the clamps changed nothing), whose caps stood exactly one row
+above the pad's own topmost row; on a pad-dominated sprite `bodyRun`'s roofline
+lands on the deck, so each cap was its own component above it. Lamp centres
+`dpy-3.4 -> dpy-1.6` and the crown reads 1.
+
+That row is REAL, not broken: run the shipped math over RA2's own sprite and the
+reference **passes it at exactly 1**. The two verdicts sit side by side in the
+same clause block, which is the whole argument for running both sides.
 
 ## The seven broken checks, with the arithmetic
 

@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_256 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_257 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
 - [Scheduled terminal messages ("resume when the token limit resets")](#scheduled-terminal-messages-resume-when-the-token-limit-resets)
@@ -279,6 +279,7 @@ _256 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [The Allied Power Plant's fused crowns: an ink budget, not a spacing accident (2026-09-06)](#the-allied-power-plants-fused-crowns-an-ink-budget-not-a-spacing-accident-2026-09-06)
 - [`peerVsSelf` measures how much a silhouette SWINGS, not whether it is confusable (2026-09-06)](#peervsself-measures-how-much-a-silhouette-swings-not-whether-it-is-confusable-2026-09-06)
 - [The end of the terminal tab strip was a 60px sliver (v1.19.313)](#the-end-of-the-terminal-tab-strip-was-a-60px-sliver-v119313)
+- [A clause that no isometric ground plate can satisfy squashed the Service Depot into a hairline](#a-clause-that-no-isometric-ground-plate-can-satisfy-squashed-the-service-depot-into-a-hairline)
 
 <!-- END TOC -->
 
@@ -10790,3 +10791,88 @@ of the same gesture.
 resolve, but only by adding a DOM node whose sole job is to be hit-tested; the
 midpoint sweep needs no element and also handles the overflow-scrolled strip,
 where there is no runway at all.
+
+## A clause that no isometric ground plate can satisfy squashed the Service Depot into a hairline
+
+**Symptom.** The user's report: the Service Depot "looks terrible", does not look
+like RA2, and *the previous version was much better*. Rendered on grass at 4x the
+Directorate depot read as a lollipop — a narrow vertical column of machinery
+standing on a horizontal STICK. There was no pad. What is supposed to be the
+building's whole identity, a wide open repair apron a vehicle drives onto, was a
+2-px-tall bar of amber.
+
+**Cause.** `tools/clause-checks/structures.js`'s depot row:
+
+```js
+for (let x = 0; x < f.w; x++) if (cp[x] > 0 && cp[x] <= 0.15 * f.h) padCols++;
+add('depot', `[${fac}] a flat pad >= 0.50 Sw wide …`, padCols / f.w >= 0.50, …);
+```
+
+A "pad column" is one **at most 15% of the sprite's height tall**. But a flat
+plate in 2:1 isometric projection is *by construction* half as tall on screen as
+it is wide: a pad `W` px across has a centre column `W/2` deep. RA2 draws the
+depot's apron at 0.71 of the sprite's own width, which puts those columns at
+~0.32 `Sh` — more than twice the allowance — before a single mark is painted on
+the deck. The clause does not describe a flat pad. It describes a pad drawn as a
+**hairline**.
+
+Four separate distortions had been fitted to it, each one recorded in the source
+as a clause fix:
+
+| | what | from | to |
+|---|---|---|---|
+| 1 | `dpb`, the Directorate apron's own iso depth | `fh * 0.70` | `fh * 0.01` |
+| 2 | `dpAsmK`, an X-ONLY `g.scale` round the whole works cluster | — | `0.45` |
+| 3 | `dpCrK`, a second X-only scale on the guide rail | — | `0.55` |
+| 4 | `* 0.10` on `dpFx`/`dpHx`, the gantry beam's whole reach; `g.scale(0.62,0.62)` on each clamp housing | — | — |
+
+Plus `sdB` `fh*0.72 -> 0.15` and the jib's reach `fw*0.86 -> 0.30` on the
+Collective side. Anamorphic X-only scaling was chosen *deliberately*, and the
+commit says why: scaling Y as well shrinks the sprite's bbox height, which makes
+the clause's own `0.15 * Sh` threshold **stricter** and pushes the pad's own kerb
+back over it. The check is self-defeating in both directions, and the only stable
+point it admits is a building squashed to 45% of its width.
+
+**Fix.** Delete all four, restore both pads to a true 2:1 isometric octagon, and
+build the repair yard the clause was always describing: pale concrete apron with
+slab joints and oil stains, a hazard-striped parking box, and the works moved off
+to one edge with its arm reaching over. Proportions measured off
+`apps/games/rts/docs/ra2-ref/sprites/buildings/soviet-service-depot.gif` —
+segmenting the concrete (sat < 0.28, value >= 95, largest component; the bbox is
+115x62 at cuts 0.24/0.28/0.32, so the measurement is threshold-insensitive):
+
+```
+pad 115 x 62 px against a sprite of 161 x 146
+  width  115/161 Sw = 0.71     height 62/146 Sh = 0.42
+  aspect 115/62    = 1.85      striped square 72/115 = 0.63
+```
+
+**The four rows are now RED and that is correct.** `clause.unmetStructures`
+11 -> 15. Run the shipped math over RA2's own depot and the reference **fails the
+pad row at 0 of 11 sweep cuts** (padFrac 0.086-0.385 against a demanded 0.50) and
+"works confined <= 0.50 Sw" at 0.615-0.914. Our 0.006/0.994 and 0.045/0.955 are
+now in the same regime as the reference's 0.098/0.902; the old 0.536/0.464 was
+the number a hairline produces. Full arithmetic in
+`apps/games/rts/docs/structure-clause-triage.md`.
+
+The sibling row in the same block is the control that keeps this from being a
+blanket excuse: `[dir] exactly ONE crane/gantry group` read **3** blobs after the
+rebuild, and RA2's own sprite **passes** it at 1. That one was a real defect —
+the two running lamps on the octagon's rear chamfer corners stood one row above
+the pad's topmost row, and on a pad-dominated sprite `bodyRun`'s roofline lands
+on the deck itself, so each 4-px cap was its own connected component. Lamp
+centres `dpy-3.4 -> dpy-1.6`; the row is MET. Two rows, same clause block, two
+opposite verdicts — which is the entire argument for running both sides.
+
+**Rejected — keeping the squashes and calling the picture a nit.** The user
+judged the render, not the counter, and the standing requirement is "true RA2
+experience, every detail". `docs/qa-charter.md`'s two-pillar rule already
+forbids trading experience for a metric; this is the second time the trade was
+made on this one building.
+
+**Rejected — a smaller pad that passes.** For the clause to pass, the apron's
+depth must be under `0.15 * Sh`. With the works at RA2's own proportion that caps
+the pad at roughly 0.30 `Sw` — under half RA2's 0.71 — so the "flat pad >= 0.50
+Sw" row can only be satisfied by a pad that is not a pad. The predicate wants
+rewriting as a GROUND-BAND test (columns whose opaque mass is confined near the
+ground plane) rather than a thinness test.

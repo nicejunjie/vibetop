@@ -336,7 +336,7 @@
     "size.worstOffGroupScale": 0.2474,
     "size.crossGroupSpread": 1.607,
     "size.bldOutsideRA2Band": 0,
-    "size.bldWorstOffHouseScale": 0.1759,
+    "size.bldWorstOffHouseScale": 0.1758,
     "size.bldFootprintMismatch": 0,
     "clip.structuresTouchingSheetEdge": 0,
     "clip.unitsTouchingSheetEdge": 0,
@@ -351,7 +351,7 @@
     "clause.airUnmet": 0,
     "clause.unmatchedToReference": 0,
     "clause.checkedStructures": 75,
-    "clause.unmetStructures": 11,
+    "clause.unmetStructures": 15,
     "clause.struckStructures": 0,
     "clause.waivedStructures": 0,
     "value.soldiersLighterThanEngineer": 0,
@@ -1745,8 +1745,8 @@
         "hScale": 1.3977,
         "wScale": 1.4281,
         "ht": 9,
-        "houseScale": 1.1886,
-        "dev": 0.1759,
+        "houseScale": 1.1887,
+        "dev": 0.1758,
         "wDev": 0.1291
       },
       {
@@ -1765,8 +1765,8 @@
         "hScale": 1.0266,
         "wScale": 0.9908,
         "ht": 10,
-        "houseScale": 1.1886,
-        "dev": -0.1363,
+        "houseScale": 1.1887,
+        "dev": -0.1364,
         "wDev": -0.2166
       },
       {
@@ -1785,7 +1785,7 @@
         "hScale": 1.0478,
         "wScale": 1.0497,
         "ht": 3,
-        "houseScale": 1.1886,
+        "houseScale": 1.1887,
         "dev": -0.1185,
         "wDev": -0.1701
       },
@@ -1805,8 +1805,8 @@
         "hScale": 1.3246,
         "wScale": 1.2953,
         "ht": 4,
-        "houseScale": 1.1886,
-        "dev": 0.1144,
+        "houseScale": 1.1887,
+        "dev": 0.1143,
         "wDev": 0.0241
       },
       {
@@ -1825,8 +1825,8 @@
         "hScale": 1.0744,
         "wScale": 1.0915,
         "ht": 4,
-        "houseScale": 1.1886,
-        "dev": -0.0961,
+        "houseScale": 1.1887,
+        "dev": -0.0962,
         "wDev": -0.137
       },
       {
@@ -1845,8 +1845,8 @@
         "hScale": 1.296,
         "wScale": 1.1924,
         "ht": 6,
-        "houseScale": 1.1886,
-        "dev": 0.0904,
+        "houseScale": 1.1887,
+        "dev": 0.0903,
         "wDev": -0.0572
       },
       {
@@ -1865,8 +1865,8 @@
         "hScale": 1.0871,
         "wScale": 1.2734,
         "ht": 12,
-        "houseScale": 1.1886,
-        "dev": -0.0854,
+        "houseScale": 1.1887,
+        "dev": -0.0855,
         "wDev": 0.0068
       },
       {
@@ -1885,9 +1885,29 @@
         "hScale": 1.2802,
         "wScale": 1.4281,
         "ht": 4,
-        "houseScale": 1.1886,
-        "dev": 0.0771,
+        "houseScale": 1.1887,
+        "dev": 0.077,
         "wDev": 0.1291
+      },
+      {
+        "key": "depot:col",
+        "name": "Service Depot",
+        "sec": "NADEPT",
+        "foot": "4x3",
+        "ra2Foot": "4x3",
+        "footMatch": true,
+        "ours": "202x195",
+        "ra2": "161x146",
+        "hOverFoot": 1.741,
+        "ra2HOverFoot": 1.39,
+        "wOverFoot": 0.902,
+        "ra2WOverFoot": 0.767,
+        "hScale": 1.2521,
+        "wScale": 1.1762,
+        "ht": 6,
+        "houseScale": 1.1887,
+        "dev": 0.0533,
+        "wDev": -0.0701
       },
       {
         "key": "prism:dir",
@@ -1905,8 +1925,8 @@
         "hScale": 1.1358,
         "wScale": 1.1349,
         "ht": 6,
-        "houseScale": 1.1886,
-        "dev": -0.0444,
+        "houseScale": 1.1887,
+        "dev": -0.0445,
         "wDev": -0.1027
       },
       {
@@ -1925,29 +1945,9 @@
         "hScale": 1.1483,
         "wScale": 1.4627,
         "ht": 4,
-        "houseScale": 1.1886,
-        "dev": -0.0339,
+        "houseScale": 1.1887,
+        "dev": -0.034,
         "wDev": 0.1565
-      },
-      {
-        "key": "depot:col",
-        "name": "Service Depot",
-        "sec": "NADEPT",
-        "foot": "4x3",
-        "ra2Foot": "4x3",
-        "footMatch": true,
-        "ours": "202x179",
-        "ra2": "161x146",
-        "hOverFoot": 1.598,
-        "ra2HOverFoot": 1.39,
-        "wOverFoot": 0.902,
-        "ra2WOverFoot": 0.767,
-        "hScale": 1.1494,
-        "wScale": 1.1762,
-        "ht": 6,
-        "houseScale": 1.1886,
-        "dev": -0.033,
-        "wDev": -0.0701
       },
       {
         "key": "refinery:dir",
@@ -1965,8 +1965,8 @@
         "hScale": 1.2074,
         "wScale": 1.2648,
         "ht": 4,
-        "houseScale": 1.1886,
-        "dev": 0.0158,
+        "houseScale": 1.1887,
+        "dev": 0.0157,
         "wDev": 0
       },
       {
@@ -1985,29 +1985,9 @@
         "hScale": 1.1921,
         "wScale": 1.4955,
         "ht": 5,
-        "houseScale": 1.1886,
+        "houseScale": 1.1887,
         "dev": 0.0029,
         "wDev": 0.1824
-      },
-      {
-        "key": "base:col",
-        "name": "Construction Yard",
-        "sec": "NACNST",
-        "foot": "4x4",
-        "ra2Foot": "4x4",
-        "footMatch": true,
-        "ours": "260x194",
-        "ra2": "204x153",
-        "hOverFoot": 1.516,
-        "ra2HOverFoot": 1.275,
-        "wOverFoot": 1.016,
-        "ra2WOverFoot": 0.85,
-        "hScale": 1.1887,
-        "wScale": 1.1949,
-        "ht": 6,
-        "houseScale": 1.1886,
-        "dev": 0.0001,
-        "wDev": -0.0553
       },
       {
         "key": "lab:col",
@@ -2025,9 +2005,29 @@
         "hScale": 1.1886,
         "wScale": 1.4124,
         "ht": 8,
-        "houseScale": 1.1886,
-        "dev": 0,
+        "houseScale": 1.1887,
+        "dev": -0.0001,
         "wDev": 0.1167
+      },
+      {
+        "key": "base:col",
+        "name": "Construction Yard",
+        "sec": "NACNST",
+        "foot": "4x4",
+        "ra2Foot": "4x4",
+        "footMatch": true,
+        "ours": "260x194",
+        "ra2": "204x153",
+        "hOverFoot": 1.516,
+        "ra2HOverFoot": 1.275,
+        "wOverFoot": 1.016,
+        "ra2WOverFoot": 0.85,
+        "hScale": 1.1887,
+        "wScale": 1.1949,
+        "ht": 6,
+        "houseScale": 1.1887,
+        "dev": 0,
+        "wDev": -0.0553
       }
     ],
     "bldAll": [
@@ -2520,6 +2520,14 @@
         ""
       ],
       [
+        "depot:col",
+        "4x3",
+        "202x195",
+        1.741,
+        0.902,
+        "ref"
+      ],
+      [
         "psisensor:dir",
         "2x2",
         "136x111",
@@ -2598,14 +2606,6 @@
         1.6,
         1.025,
         ""
-      ],
-      [
-        "depot:col",
-        "4x3",
-        "202x179",
-        1.598,
-        0.902,
-        "ref"
       ],
       [
         "oilderrick:dir",
@@ -2768,6 +2768,14 @@
         ""
       ],
       [
+        "depot:dir",
+        "3x3",
+        "169x125",
+        1.302,
+        0.88,
+        ""
+      ],
+      [
         "chrono:dir",
         "4x3",
         "228x145",
@@ -2816,14 +2824,6 @@
         "ref"
       ],
       [
-        "depot:dir",
-        "3x3",
-        "166x115",
-        1.198,
-        0.865,
-        ""
-      ],
-      [
         "reactor:dir",
         "4x4",
         "259x150",
@@ -2835,7 +2835,7 @@
     "bldSummary": {
       "covered": 15,
       "total": 100,
-      "houseScaleH": 1.1886,
+      "houseScaleH": 1.1887,
       "houseScaleW": 1.2648,
       "spread": 1.361,
       "outside": [],
@@ -3478,8 +3478,8 @@
       {
         "unit": "depot",
         "clause": "[dir] a flat pad >= 0.50 Sw wide carrying zero mass above the ground plane",
-        "ok": true,
-        "measured": 0.524,
+        "ok": false,
+        "measured": 0.006,
         "want": ">= 0.50",
         "note": "pad column = opaque but <=15% Sh tall (a thin ground band), counted as a fraction of Sw",
         "module": "structures.js",
@@ -3498,8 +3498,8 @@
       {
         "unit": "depot",
         "clause": "[dir] the works confined to the remaining <= 0.50 Sw",
-        "ok": true,
-        "measured": 0.476,
+        "ok": false,
+        "measured": 0.994,
         "want": "<= 0.50",
         "note": "complement of the pad-width row above",
         "module": "structures.js",
@@ -3508,8 +3508,8 @@
       {
         "unit": "depot",
         "clause": "[col] a flat pad >= 0.50 Sw wide carrying zero mass above the ground plane",
-        "ok": true,
-        "measured": 0.53,
+        "ok": false,
+        "measured": 0.045,
         "want": ">= 0.50",
         "note": "pad column = opaque but <=15% Sh tall (a thin ground band), counted as a fraction of Sw",
         "module": "structures.js",
@@ -3528,8 +3528,8 @@
       {
         "unit": "depot",
         "clause": "[col] the works confined to the remaining <= 0.50 Sw",
-        "ok": true,
-        "measured": 0.47,
+        "ok": false,
+        "measured": 0.955,
         "want": "<= 0.50",
         "note": "complement of the pad-width row above",
         "module": "structures.js",
