@@ -315,8 +315,8 @@
     "size.airOutsideRA2Band": 0,
     "size.worstOffGroupScale": 0.3109,
     "size.crossGroupSpread": 1.607,
-    "size.bldOutsideRA2Band": 1,
-    "size.bldWorstOffHouseScale": 0.2202,
+    "size.bldOutsideRA2Band": 0,
+    "size.bldWorstOffHouseScale": 0.1586,
     "size.bldFootprintMismatch": 0,
     "clip.structuresTouchingSheetEdge": 0,
     "clip.unitsTouchingSheetEdge": 0,
@@ -1706,26 +1706,6 @@
     ],
     "ra2Bld": [
       {
-        "key": "power:dir",
-        "name": "Power Plant",
-        "sec": "GAPOWR",
-        "foot": "2x2",
-        "ra2Foot": "2x2",
-        "footMatch": true,
-        "ours": "131x139",
-        "ra2": "86x93",
-        "hOverFoot": 2.172,
-        "ra2HOverFoot": 1.55,
-        "wOverFoot": 1.023,
-        "ra2WOverFoot": 0.717,
-        "hScale": 1.4012,
-        "wScale": 1.4281,
-        "ht": 4,
-        "houseScale": 1.1483,
-        "dev": 0.2202,
-        "wDev": 0.1291
-      },
-      {
         "key": "radar:col",
         "name": "Radar Tower",
         "sec": "NARADR",
@@ -1784,6 +1764,26 @@
         "houseScale": 1.1483,
         "dev": 0.124,
         "wDev": 0.0635
+      },
+      {
+        "key": "power:dir",
+        "name": "Power Plant",
+        "sec": "GAPOWR",
+        "foot": "2x2",
+        "ra2Foot": "2x2",
+        "footMatch": true,
+        "ours": "131x127",
+        "ra2": "86x93",
+        "hOverFoot": 1.984,
+        "ra2HOverFoot": 1.55,
+        "wOverFoot": 1.023,
+        "ra2WOverFoot": 0.717,
+        "hScale": 1.2802,
+        "wScale": 1.4281,
+        "ht": 4,
+        "houseScale": 1.1483,
+        "dev": 0.1149,
+        "wDev": 0.1291
       },
       {
         "key": "shipyard:col",
@@ -2208,14 +2208,6 @@
         ""
       ],
       [
-        "power:dir",
-        "2x2",
-        "131x139",
-        2.172,
-        1.023,
-        "ref"
-      ],
-      [
         "sentrygun:col",
         "1x1",
         "67x69",
@@ -2237,6 +2229,14 @@
         "229x202",
         2.104,
         1.193,
+        "ref"
+      ],
+      [
+        "power:dir",
+        "2x2",
+        "131x127",
+        1.984,
+        1.023,
         "ref"
       ],
       [
@@ -2813,10 +2813,8 @@
       "total": 100,
       "houseScaleH": 1.1483,
       "houseScaleW": 1.2648,
-      "spread": 1.365,
-      "outside": [
-        "power:dir"
-      ],
+      "spread": 1.296,
+      "outside": [],
       "tallest": "factory:col",
       "tallestPx": 271,
       "clipped": []

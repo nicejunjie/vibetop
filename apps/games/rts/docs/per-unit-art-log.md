@@ -2777,3 +2777,238 @@ the bbox at 60; 8.6 buys one pixel and costs half the seam). Second,
 under RA2's 5th-percentile bar (47 -> 49) — one of them from the geometry alone,
 before the collar exists — with that tab's mean (81.1) and minimum (59.2)
 unchanged, both greyed bars unchanged, and the Directorate sidebar byte-identical.
+
+---
+
+# The last building outside the RA2 band, and a cameo that cropped away the one feature that names a ship (2026-09-06)
+
+Two defects that were already measured and written up in this file, and whose
+recorded *reasons for leaving them* both turned out to be the interesting part.
+
+## 1. The Allied Power Plant — the nominated lever was inert in both directions
+
+`size.bldOutsideRA2Band` was **1** and `size.bldWorstOffHouseScale` **0.2202**,
+both because of `power:dir`: 131x139 px, **2.172 footprint-heights** against
+`[GAPOWR]`'s own 1.55, i.e. **1.4012x RA2** where the building house scale (the
+median of the fifteen referenced structures) is **1.1483**.
+
+The recorded reason for leaving it, in `art-metrics.js`'s own note, was that
+*"its ground pad is drawn with a private `octa()` rather than with `plot()`, so
+the vertical-scale lever that fixed the other two would squash the pad off its
+own cells"*. The brief asked for that to be verified before it was accepted. It
+does not survive contact:
+
+- **The lever does not exist in the shrinking direction.** `VS` is
+  `Math.max(1, Math.pow((b.gw + b.gh) / f0, vp))`. It is clamped at 1, so no
+  `VPOW` value can make a structure shorter — `VPOW.lab = 1 -> 0` did not shrink
+  the Battle Lab, it stopped it *growing*. And it is inert here even as a
+  growth term: `FOOT0.power` is 4 and the Allied plant is 2x2, so the base is
+  `(4/4)^vp = 1` for every exponent. **VS is exactly 1 for this building and
+  cannot be anything else.**
+- **The pad is not what sets the sprite's bottom.** Measured off the baked
+  sheet: `baseY` is canvas row 140, the sprite's bbox is rows 37..175, and the
+  bottom row 175 is the S vertex of a FULL diamond centred at `baseY + 4` — the
+  shared bevelled platform (`plot(g, cx + 3, baseY + 4, fw*2, fh*2)`) that every
+  land structure in `bakeBuilding` stands on, drawn through `plot()` and
+  therefore protected all along. The private `octa()` pad's own lowest point is
+  `baseY + 5 + 0.72*fh` = row 168, seven rows ABOVE the bbox floor. The pad was
+  never the constraint.
+
+So the sprite is **36 px of shared platform below the ground line plus 103 px of
+its own superstructure above it**, and only the second number was ever in play.
+
+### What the defect actually was, and the rip says so
+
+`[GAPOWR]` is **three identical capacitor towers** staggered across the pad —
+same silver plinth, same house-blue drum, same slim column, cut and pasted. In
+`docs/ra2-ref/sprites/buildings/allied-power-plant.png` the three caps sit on a
+diagonal because the iso camera puts the back tower's FOOT about 22 px further
+up-screen, not because its column is longer.
+
+Ours drew the back column at **42 px** against the front pair's **25 and 23**.
+The back tower is what sets the top row, so that 17 px went straight onto the
+total. One shared `COL_H = 30` for all three, stagger left to placement:
+
+| | before | after |
+|---|---|---|
+| sprite | 131x139 | **131x127** |
+| `hOverFoot` | 2.172 | **1.984** |
+| `hScale` vs `[GAPOWR]` | 1.4012 | **1.2802** |
+| `dev` from the 1.1483 house scale | **0.2202** | **0.1149** |
+
+`size.bldOutsideRA2Band` **1 -> 0**, `size.bldWorstOffHouseScale`
+**0.2202 -> 0.1586**. Every other gated metric is byte-identical, the
+`bldAll` table moves exactly one row (`power:dir 131x139 -> 131x127`), the
+median house scale does not move at all (the plant was the tallest of the
+fifteen and lands at rank 11 of 15, nowhere near the median at rank 7),
+`size.bldFootprintMismatch` 0, `clip.structuresTouchingSheetEdge` 0, and
+`legibility.js` is byte-identical because it measures units.
+
+**The number this hands over.** `bldWorstOffHouseScale` now names a DIFFERENT
+structure: 0.1586 is the **Soviet Radar Tower** (`radar:col`, 131x193, 1.3304x
+RA2), with the Allied War Factory at 0.1535 right behind it. The next 0.02 of
+headroom on that gate costs the Radar Tower, not the plant.
+
+### Arithmetic, so the next person does not re-derive it
+
+The sprite is `97 + COL_H` px tall: 36 of shared platform, 14.08 for the back
+tower's foot offset (`fh * 0.44`), 45.6 for its plinth + drum + shoulder + cap
+rim, and the column. So `dev = (97 + COL_H)/113.91 - 1`, and the band's own
+ceiling is `COL_H <= 39`. **30 was not chosen to clear the gate** — it is where
+the three towers read as one part at three placements, with the band's last 9 px
+left as margin rather than spent.
+
+## 2. The Landing Craft's cameo — the fix is COMPOSITION, and the camera rule never had to break
+
+§2.3 gives `[LCRF]` one feature: *"an open bow ramp — a flat rectangular deck
+with a hinged front, carrying visible cargo"*. The sprite delivers it; the plate
+did not. Measured on the sprite's own oct-0 bbox (68x43): the ramp is sprite
+**x 34-61, y 25-40**, and at `k = 1.131` centred on a 60x48 plate that lands it
+at **plate x 30.0-60.5, y 29.0-46.0** — against a caption whose glyphs and their
+2.5 px stroke own **y 38-47.5**. Half the ramp's 17 rows sat under "LANDING
+CRAFT" and its right tip sat on the bevel. What a player saw was a pile of olive
+boxes on a dark hull with a blue band.
+
+The recorded reason for leaving it was that the obvious lever — a per-unit
+bearing in `iconFaceOf` — *"would break the shipped per-class-camera rule"*.
+**That cost is real and it did not have to be paid**, because the bearing was
+never the problem. `iconFaceOf` is untouched: every unit is still shot at its
+class's camera. What changed is where the 60x48 window sits on the sprite it was
+already given, which is a per-plate COMPOSITION decision — and RA2 composes
+every plate by hand, a fact this file's own `cameoFor` comment already cites
+(the Guardian G.I. cut at the knees, the Grizzly's hull off both edges, the
+Chrono Legionnaire shoulders-up).
+
+`CAMEO_FRAME`, beside `CAMEO_CAPTION`, in plate pixels, keyed on UNIT keys only:
+
+    lcraft: { dx: -8, dy: -6 }
+
+`-8` flushes the sprite's right edge with the plate — the 8 px given up on the
+left are the stern taper and the left-hand foam arc, which name nothing — and
+`-6` lifts the ramp clear of the caption. Swept `dy` at -4 / -6 / -9 and `dx` at
+-4 / -8 / -12 and looked at all six: **-9 clears the text completely but costs
+the rear cargo box's top face, and the box is the SECOND half of the same
+clause**, so -6 is the largest lift the feature can pay for rather than the
+largest that would clear the type.
+
+| `cameo-legibility.js`, Directorate | before | after |
+|---|---|---|
+| `Landing Craft \| Aegis Cruiser` | **63.0** | **70.1** |
+| the same pair, greyed | **43.5** | **47.4** (over the 45.1 greyed bar) |
+| `Chrono Miner \| Landing Craft`, greyed | **41.6** | **45.4** (over the bar) |
+| whole sidebar UNDER RA2's bar | 347 | **344** |
+| greyed UNDER the greyed bar | 4 | **2** |
+
+All three of the recorded worst pairs for this ship clear. The Collective
+sidebar is byte-identical in every number (`lcraft` is Directorate-only), the
+Directorate minimum is unchanged at 61.1 (`GI | Spy`), and **every metric in
+`art-metrics.js` is byte-identical including the entire 92,731-character
+`detail` blob** — asserted rather than assumed, because `cameoFor` is a shared
+path and the brief was right to say so.
+
+### The other five hard-enlarged cameos do NOT have this defect
+
+Shot at 6x and looked at: **Harrier** (1.75x), **Dolphin** (2.56x), **Terror
+Drone** (2.40x), **Sea Scorpion** (1.67x), **Grizzly** (1.79x). None crops away
+its identifying feature. The Landing Craft was structurally different, and the
+difference is worth stating: hers is a **long hull whose identifying END points
+into the corner the caption owns**, so the 1.35 overfill — which always spends
+8.5 px on each side when width binds — takes the feature. The other five are
+compact subjects whose identity is their whole outline, so the same overfill
+takes only margin. The Dolphin's plate IS visibly soft, but that is the already
+recorded `!fill && k < 1.5` smoothing finding, not a crop.
+
+## The `GI | Spy` background hypothesis — FALSIFIED, with the counterfactual run
+
+Investigated on request mid-pass. The hypothesis was that the contrast escape
+hatch
+
+    if (Math.abs(lit - subL) < 20) lit = subL > 50 ? Math.max(12, subL - 26) : Math.min(84, subL + 26);
+
+destroys the per-key VALUE variation it has just computed by collapsing similar
+subjects onto one plate luminance, and that keying the push magnitude off `hv`
+(`subL ± (18 + hv*20)` rather than `± 26`) would separate them. Three findings,
+in the order they were established:
+
+**a. The hatch does not fire for either plate.** Instrumented `lit`, `subL` and
+the branch flag for all 40 Directorate plates:
+
+| key | `hv` | hashed `lit` | `subL` | hatch fires? | final `lit` |
+|---|---|---|---|---|---|
+| `rifle` (G.I.) | 0.9307 | 70.3 | 32.0 | **no** | 70.3 |
+| `spy` | 0.9235 | 69.9 | 43.4 | **no** | 69.9 |
+
+Their plates agree to **0.4 of luminance** because FNV-1a puts `rifle` and `spy`
+within 0.7% of each other in the `hv` axis, and `inf`'s band is
+`20 + hv * 54`. It is a **hash collision**, not the escape hatch — the branch
+under suspicion is not on either plate's code path.
+
+**b. The gain the lever does produce is MAGNITUDE, not variation.** Swept both,
+at matched means, whole sidebar, both factions, both DPRs (40 cameos and no page
+errors on every run — see the trap below):
+
+| push | dir UNDER | dir min | col UNDER | col min |
+|---|---|---|---|---|
+| `26` (shipped) | 344 | 61.1 | 459 | 52.3 |
+| `28` fixed | 328 | 61.1 | 432 | 53.1 |
+| `18 + hv*20` (mean 28) | 332 | 61.1 | 418 | 55.2 |
+| `38` fixed | **214** | 60.5 | **278** | 57.7 |
+| `26 + hv*24` (mean 38) | 243 | 61.1 | 287 | 57.9 |
+| `44` fixed | **170** | 59.3 | **220** | 58.7 |
+| `32 + hv*24` (mean 44) | 201 | 61.1 | 229 | 58.9 |
+
+At every matched mean the **fixed** push beats the `hv`-keyed one on the
+headline count. Re-introducing the variation is not what helps; pushing the
+plate further from the subject is, because `dist()` is 63-87% luminance and
+figure-versus-ground contrast on ONE plate buys more than de-correlating TWO
+plates' backgrounds. So the proposed mechanism is not the mechanism.
+
+**c. `GI | Spy` is 61.1 in every single row of that table**, to 0.1, keyed or
+fixed, 26 through 44. The counterfactual settles why: forcing the Spy's `hv` by
++0.45 — a 26-point swing of its plate luminance, the largest single background
+change available — moves the pair **61.1 -> 61.4**, and costs `dirUnder`
+344 -> 346 by colliding it with something else. The pair is figure-bound, which
+is what the earlier pass measured (the figure carries 95.6% of the squared
+distance) and what this file already records as a structural cap.
+
+**Not shipped, and the reason is not only scope.** A fixed push of 38-44 is a
+large, genuinely promising number — but it moves the background of all ~80
+plates, it **drops the Directorate minimum** (61.1 -> 60.5 at 38, 59.3 at 44,
+`GI | Guardian GI` becoming the new worst pair), and nobody has LOOKED at eighty
+plates pushed to a clamp at 6% or 92% lightness. It belongs in its own pass with
+the contact sheets open, exactly like the `!fill && k < 1.5` smoothing fix
+above. The measured finding is handed over rather than smuggled in: **the lever
+is push MAGNITUDE, the real cause of `GI | Spy` is a `rifle`/`spy` hash
+collision in the value axis (hue differs — 134 vs 329 — and is nearly free
+because the metric is luminance-dominated), and the fix shape, if anyone wants
+it, is to assign `lit` by RANK within a category rather than by raw hash.**
+
+## The trap this pass paid for, and it arrived disguised as a triumph
+
+The first run of the `hv`-keyed sweep reported `size`-shattering numbers:
+Directorate UNDER 344 -> **42**, Collective 459 -> **155**. It was a broken
+build. The sed patch had replaced only the `lit = ...` half of a single-statement
+`if`, leaving
+
+    if (Math.abs(lit - subL) < 20) var _push = 18 + hv * 20; lit = subL > 50 ? ... - _push ...;
+
+so `lit = ...` ran unconditionally, `_push` was `undefined` on the false branch,
+and `hsl(30,22%,NaN%)` threw out of 24 of the 40 bakes. The tell was in the
+report's own header — **"DIRECTORATE sidebar — 16 cameos"** — and in the
+`PAGE ERRORS` block above it, not in any of the numbers.
+
+**The rule, which generalises past this file:** *"a null result must prove the
+edit landed"* has a twin that is more dangerous, because nobody interrogates it.
+**A spectacular POSITIVE result must prove the build still runs.** Check the
+population count and the page-error block before reading a single metric.
+
+## And a second one: the `art/` tools point at somebody else's checkout
+
+`apps/games/rts/art/_pw.js` defaults to `http://127.0.0.1:8099/rts.html` — a
+long-running server owned by whatever session started it, NOT by the worktree
+the tool is run from. `one.js power` was therefore rendering a foreign build,
+and the first probe after the `COL_H` edit came back 131x139: an unchanged
+number that was correct about a page nobody in this pass had edited. The
+`tools/*.js` are safe (each starts its own ephemeral server rooted at its own
+`ROOT`); the `art/*.js` are not. **From a worktree, serve your own tree and pass
+`RTS_PORT`.**

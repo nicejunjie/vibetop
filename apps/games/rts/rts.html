@@ -14288,7 +14288,22 @@
         var rcx = cx + fw * 0.37, rcy = baseY + fh * 0.22;
         var bcx = cx + fw * 0.02, bcy = baseY - fh * 0.44;
 
-        tower(bcx, bcy, 9, 42, ph6 === 0 || ph6 === 3);                    // tall back tower
+        // [GAPOWR] is THREE IDENTICAL capacitor towers staggered across the
+        // pad — same plinth, same drum, same column, cut and pasted. The back
+        // one reads taller only because the iso camera puts its FOOT ~22 px
+        // further up-screen; look at the rip and the three caps sit on a
+        // diagonal, not on three different lengths of column. Ours drew the
+        // back column at 42 against the front pair's 25 and 23, and that
+        // difference IS the sprite's height error: the back tower is what
+        // sets the top row, so its extra 12-17 px went straight onto a total
+        // that was already 1.40x RA2 against a 1.15 building house scale.
+        // One shared length, and the stagger comes from placement alone.
+        // (30 px = the gate's own arithmetic: the shared platform's shadow
+        // fixes 36 px below the ground line and the tower's plinth+drum+
+        // shoulder+cap another 61, so the sprite is 97 + COL_H and 30 lands
+        // it at 127 px = 1.28x RA2, dev 0.115 inside the +-0.20 band.)
+        var COL_H = 30;
+        tower(bcx, bcy, 9, COL_H, ph6 === 0 || ph6 === 3);                 // back
 
         // ---- central machinery: a dark ringed coil column carrying the dish.
         var stemB = baseY + 2;
@@ -14363,8 +14378,8 @@
         g.fillStyle = 'rgba(255,192,84,' + (0.07 + 0.06 * glow).toFixed(3) + ')';
         g.beginPath(); g.ellipse(cx, bowlY - 6, bw * 1.44, bw * 0.60, 0, 0, 6.29); g.fill();
 
-        tower(lcx, lcy, 9, 25, ph6 === 1 || ph6 === 4);                    // front-left
-        tower(rcx, rcy, 9, 23, ph6 === 2 || ph6 === 5);                    // front-right
+        tower(lcx, lcy, 9, COL_H, ph6 === 1 || ph6 === 4);                 // front-left
+        tower(rcx, rcy, 9, COL_H, ph6 === 2 || ph6 === 5);                 // front-right
 
         // ---- base greebles: a valve run threaded between the three plinths.
         g.strokeStyle = '#464a53'; g.lineWidth = 3.2; g.lineCap = 'round';
@@ -29944,6 +29959,40 @@
     weather: 'WEATHER MACHINE', apc: 'ARMORED TRANSPORT',
     flaktrooper: 'FLAK-TROOPER'
   };
+  // ── Per-plate FRAMING, in plate pixels (negative = up / left) ───────────
+  // The overfill below draws a width-bound subject 77 px wide on a 60 px
+  // plate and CENTRES it, so 8.5 px go off each edge and the bottom ~10 rows
+  // go under the caption. That default is right for a subject whose identity
+  // is its whole outline. It is wrong when §2 names ONE feature and the
+  // arithmetic parks that feature in the corner the caption owns — which is
+  // not a camera problem (every unit is still shot at its class's bearing,
+  // `iconFaceOf` is untouched) but a COMPOSITION one, and RA2 composes every
+  // plate by hand: the Guardian G.I. is cut at the knees, the Grizzly's hull
+  // runs off both edges, the Chrono Legionnaire is a shoulders-up close-up.
+  // So the rule stays "centre", and a plate earns a row here only with the
+  // measured plate coordinates of the feature it is rescuing.
+  //
+  // Rows are keyed on UNIT keys only (`isBld` never reads this): a structure's
+  // identity IS its whole outline, it sits on the plate's ground band, and
+  // lifting one would float it off the thing it stands on.
+  var CAMEO_FRAME = {
+    // [LCRF] §2.3 gives the Landing Craft ONE feature — "an open bow ramp: a
+    // flat rectangular deck with a hinged front, carrying visible cargo" — and
+    // at the shared naval bearing the ramp is the sprite's BOTTOM-RIGHT corner
+    // (sprite x 34-61 of 68, y 25-40 of 43). Centred at k=1.13 that lands it
+    // at plate x 30.0-60.5, y 29.0-46.0, against a caption whose glyphs and
+    // their 2.5 px stroke own y 38-47.5: HALF the ramp's 17 rows sat under
+    // "LANDING CRAFT", and its right tip sat on the bevel. What a player saw
+    // was a pile of olive boxes.
+    //
+    // -8 left flushes the sprite's right edge with the plate (the 8 px given
+    // up on the left are the stern taper and the left-hand foam arc, which
+    // name nothing), and -6 up lifts the ramp clear of the caption. The cost
+    // is stated: the top 4 rows of the tall cargo box leave the plate, and
+    // the box is the SECOND half of the same clause, so this is the largest
+    // lift the feature can pay for, not the largest that would clear the text.
+    lcraft: { dx: -8, dy: -6 }
+  };
   function captionFor(key, isBld, fac) {
     if (CAMEO_CAPTION[key]) return CAMEO_CAPTION[key];
     var sp = null;
@@ -30222,8 +30271,13 @@
     // canvas itself — which is the RA2 look, not an accident.
     // bb is CSS px; the bitmap is `kb` times larger (baked at DPR), so the
     // SOURCE rect is scaled by the sprite's own ratio.
+    // Per-plate framing (CAMEO_FRAME, above). Nothing but a unit key listed
+    // there moves: `fr` is null for every structure and for the other 26
+    // units, so the destination is the centred one this line always drew.
+    var fr = isBld ? null : CAMEO_FRAME[key];
     g.drawImage(src, px0 * kb, py0 * kb, pw * kb, ph * kb,
-                (W - dw) / 2, fill ? -1 : (H - dh) / 2 + 1, dw, dh);
+                (W - dw) / 2 + (fr ? fr.dx : 0),
+                (fill ? -1 : (H - dh) / 2 + 1) + (fr ? fr.dy : 0), dw, dh);
     // The name, RA2's way — see CAMEO_CAPTION above for why this is here.
     var capTxt = noCap ? null : captionFor(key, isBld, fac);
     if (capTxt) drawCameoCaption(g, capTxt, W, H);
