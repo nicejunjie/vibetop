@@ -403,7 +403,7 @@ row names the one it used.
 | `rifle` | torso block >= 7w x 6h | **8x6** (was 8x5) | 7w x 6h | **FIXED** |
 | `rifle` | helmet in a value distinct from torso and legs | **gap 0.156** (was 0.073) | >= 0.10 | **FIXED** |
 | `rifle` | legs olive, off the Conscript's tan | 60.4 deg | >= 20 | already met |
-| `rocket` | deployed dome >= 15w x 12h | **38x42** (ring alone 38x23) | >= 15w x 12h | **MET** — and the "unmeasurable" record was WRONG (below) |
+| `rocket` | deployed dome >= 15w x 12h | — | — | **UNMEASURABLE** (below) |
 | `rocketeer` | altitude offset >= 10 px | 36 px | >= 10 | already met |
 | `rocketeer` | shadow blob >= 9x4, separated from the feet | 9x4, gap 38.2 px | >= 9x4 | already met |
 | `engineer` | body value >= 0.75 across >= 55% of torso+legs | 0.635 | >= 0.55 | already met |
@@ -514,51 +514,15 @@ stating the constraint correctly a few lines from the code violating it.)
   lenient reading. The clause's other half — *no vertical gap* — is measured
   strictly: every row in the band is exactly one run.
 
-### The clause that was recorded unmeasurable, and the record was wrong
+### The one clause nothing can measure
 
-**`rocket` Guardian GI, "deployed dome >= 15w x 12h".** This was written down as
-unmeasurable on the grounds that *"our Guardian GI does not deploy"* — no `dep`,
-no `deployRad`, and a deploy command whose refusal reads *"Only GIs, Desolators
-and MCVs can deploy"*. **He does deploy.** The search stopped one field short:
-`UNITS.rocket` carries **`depFire: true`** — `[GGI] Deployer=yes, DeployFire=yes`
-— and `stepUnit` braces him AUTOMATICALLY, on both sides, whenever armour or an
-aircraft comes inside the missile's 8-cell range (`depFireTarget` scans on the
-MISSILE's range and sets `u.deployed`; the comment beside it cites rules.ini's
-own commented-out `DeployTime` note that RA2 autodeploys rather than waiting for
-a keypress). `weaponFor` then gates the missile on `u.deployed`, and `drawUnit`
-keys the **sandbag emplacement off `u.deployed` alone, not off unit type** —
-`SPR.bags[p].back` under him, the man dropped 9 px ("he drops down behind the
-bags"), `SPR.bags[p].front` over him. **The deployed Guardian GI is a frame every
-player already sees.** What was missing was a BAKE of it: `pageExtract` bakes
-only `art.fr('stand', ...)`, so no silhouette metric had ever looked at a
-deployed anything.
-
-`art-metrics.js` now composes the deployed stack the way `drawUnit` stacks it and
-hands it to the clause modules as `ctx.deployed`. It is deliberately kept OUT of
-`recs`: the emplacement is 38 px wide against a standing Guardian's 25, so a
-deployed frame in the rec set would become his broadside and silently re-base
-every aspect, size, IoU and spike number on the unit.
-
-| reading of "dome" | measured | budget |
-|---|---|---|
-| the composite the player sees (bags + man + parapet) | **38 x 42**, 0.59 of the box opaque | >= 15w x 12h |
-| the emplacement alone | **38 x 23** | >= 15w x 12h |
-
-Both clear it, on the **tightest of the eight bearings**, so the ambiguity in the
-word "dome" does not decide the verdict — which is why the check requires both.
-The proportion is the part worth reporting: standing he is 27x42, aspect 0.64;
-deployed 38x42, aspect **0.90** — a 1.41x widening, against the row's *"a wide
-low dome, aspect ~0.8"* and RA2's own `[GGI]` 14x17 = 0.82. The row's gloss
-"the only Allied infantry wider than tall" is looser than its own numbers (0.82
-is taller than wide); read as a RELATIVE claim — the widest silhouette an Allied
-infantryman ever shows — it is what the art does.
-
-**No gameplay was changed to close this.** The deploy state, the autodeploy
-trigger, the weapon gating and the emplacement art were all already shipped; only
-the measurement was missing. The one thing that is still true from the old note
-is that **`D` does not reach him** — the manual deploy command still lists only
-GIs, Desolators and MCVs. That is a UX question about a state the unit enters by
-itself, not an art one, and it is left where it was.
+**`rocket` Guardian GI, "deployed dome >= 15w x 12h".** **Our Guardian GI does
+not deploy.** `UNITS.rocket` carries no `dep` and no `deployRad`, the deploy
+command's own refusal reads *"Only GIs, Desolators and MCVs can deploy"*, and no
+atlas holds a deployed Guardian frame. There is nothing to measure, in the rig
+or out of it. Recorded here rather than forced into a check, because a forced
+check goes green once and then nobody looks again. (Whether he SHOULD deploy is
+a gameplay question, not an art one, and belongs in the roadmap.)
 
 ### Three clauses are SOURCE-CONSTANT checks, and each row says so
 
@@ -1748,7 +1712,7 @@ the three that did are the clause counters.
 | `apc` | deck cavity visible as a house-hued interior | **26 px** at value 0.70 in a 0.17 coaming | >= 12 px *(mine)* | met | — |
 | `sub` | conning tower the only vertical mass | **1** run of columns over the casing | exactly 1 | met | — |
 | `seascorp` | shortest armed hull afloat | **52 px**, 1.27x clear of the Typhoon | strictly shortest | met | — |
-| `nighthawk` | ~~rotor span >= 1.25x fuselage length~~ | **1.60 / 2.00** aspect ceiling | both < 3.05 | **STRUCK, and now CHECKED AS STRUCK** | the strike's two premises are asserted (below) |
+| `nighthawk` | ~~rotor span >= 1.25x fuselage length~~ | — | — | **STRUCK** | left struck |
 | `nighthawk` | fuselage height <= 0.35 x length | **0.275** (69x19 airframe) | <= 0.35 | met | — |
 | `harrier` | wing span >= 1.5x fuselage width | **6.00x** (60 px span / 10 px waist) | >= 1.50x | met | — |
 | `harrier` | nose cone >= 4 px | **4 px** | >= 4 px | met **by nothing** | recorded, see below |
@@ -1867,45 +1831,18 @@ answer, and a future pass that "simplifies" one of these will silently invert it
 
 ## Not measured, and it is not an omission
 
-**`nighthawk` "rotor span >= 1.25x fuselage length"** stays struck — and it is
-now **checked as struck**, which is a different thing from being skipped. Its
-requirements are mutually exclusive by arithmetic and the full working is in
-this file's Nighthawk section above; what the check does is assert THE STRIKE,
-so the excuse cannot outlive the contradiction that earned it.
-
-Three steps, each verifiable by a reader:
-
-1. **The camera.** `rts.html` sets `var TW = 64, TH = 32` — a 2:1 diamond — so a
-   circle lying in the ground plane projects to an ellipse of aspect exactly
-   `(TW/2)/(TH/2) = 2.00`. Read out of the source, not assumed.
-2. **The rotor is such a circle.** The bake draws it as
-   `rx = mrR * ISO_X * 1.4142, ry = mrR * ISO_Y * 1.4142`, and `ISO_X`/`ISO_Y`
-   are `TW/2` and `TH/2` over the same hypotenuse, so `ry/rx = 1/2`: a rotor of
-   screen span S is exactly S/2 tall. Also read out of the source.
-3. **Therefore the row contradicts itself.** span >= 1.25L forces height
-   >= 0.625L, capping length-over-height at `1/0.625 = 1.60` and
-   width-over-height at `S/(S/2) = 2.00`. The SAME row calls this airframe "the
-   flattest" at `[SHAD]` 64x21 = **3.05**. Both ceilings are below it, under
-   either reading of aspect, so no Nighthawk can satisfy both clauses.
-
-RA2 escapes it by drawing 1-2 px blade LINES, which add span without adding a
-filled disc; ours is a blur disc on purpose (at alpha .09 the old one was ~1400
-px three luminance points off the grass — invisible to a player, counted as body
-by every mask metric) and ships knowingly at 0.84L.
-
-**The row goes RED if either premise dissolves** — a camera that is not 2:1, or
-a rotor no longer drawn in the ground plane — at which point the strike has to be
-re-argued rather than inherited. It is counted in `clause.checked` because it IS
-checked, and separately in **`clause.struck`**, whose target is `<= 1` and points
-DOWN: striking can never become a way to move `clause.checked`, because a second
-strike is debt until its own arithmetic is beside it.
+**`nighthawk` "rotor span >= 1.25x fuselage length"** stays struck. Its three
+requirements are mutually exclusive by arithmetic — an iso disc of span S is
+S/2 tall, so span >= 1.25L caps the unit at aspect 1.6 against the same row's
+3.05 — and the full working is in this file's Nighthawk section above. Writing
+a check for it would either fail a unit for missing a bar its own row makes
+unreachable, or invent a softer bar and call the contradiction resolved.
+Recorded, as the Chrono Legionnaire's rifle was.
 # §2's 18 UNMEASURED VEHICLE CLAUSES — measured (2026-09-06)
 
-`tools/clause-checks/vehicle.js`. **All eighteen** now have a real measurement
-behind them. Seventeen landed in this pass; the eighteenth ("zero turret mass")
-was recorded as unmeasurable with the four statistics that were tried, and a
-second pass closed it with a fifth — the write-up below keeps the four, because
-they are what says which readings are already spent. **Four art defects found and fixed, eight
+`tools/clause-checks/vehicle.js`. Seventeen of the eighteen now have a real
+measurement behind them; the eighteenth is recorded below as unmeasurable, with
+the four statistics that were tried. **Four art defects found and fixed, eight
 clauses confirmed already met, five left as ceilings with the arithmetic.**
 `clause.checked` 2 -> 19.
 
@@ -1918,7 +1855,7 @@ clauses confirmed already met, five left as ceilings with the arithmetic.**
 | `mirage` | gun stub <= 6 px | **4 px** | <= 6 | MET | none — the "no gun" decision is CORRECT, now measured |
 | `prismtank` | total height >= 1.15x the Mirage's | **1.549** | >= 1.15 | MET | none |
 | `chronominer` | height <= 0.55 x length | **0.582** (was 0.600) | <= 0.55 | UNMET | **improved**; ceiling is the camera (below) |
-| `chronominer` | zero turret mass | **0x0** on all 8 (War Miner **14x9**) | < 6x6 | **MET** — measurable after all, on the fifth statistic (below) |  none |
+| `chronominer` | zero turret mass | — | — | **UNMEASURABLE** | reason below |
 | `mcv` | >= 1.20x the widest tank | **1.154** | >= 1.20 | UNMET | ceiling — misses by ONE pixel of Prism |
 | `rhino` | hull height >= 1.25x the Grizzly's | **1.727** (1.765 below the crown) | >= 1.25 | MET | none |
 | `rhino` | 5 house blocks, each 4-6 px, gaps >= 3 | **5 blocks, minor [5,8,8,8,5], gap 4** | 5 / >= 4 / >= 3 | MET | none; upper bound of the size band deliberately not enforced |
@@ -2029,7 +1966,7 @@ fat box the IFV wears — the pair the gate scored at 0.709"). The IFV is still
 its closest peer at IoU 0.609, so flattening it walks straight into that pair.
 It is inside `art-metrics`' +-20% aspect band; only this row's tighter one fails.
 
-## "Zero turret mass" — four statistics failed, the fifth did not
+## The one clause that cannot be measured: "zero turret mass"
 
 §2.3 gives the Chrono Miner "No turret — that is the read against the War
 Miner". Four silhouette statistics were built and each was rejected by its own
@@ -2046,63 +1983,8 @@ The renderer composes hull+turret for six units and a single sheet for the other
 seven, and **no statistic above recovers that split**. An iso box seen from
 above is a ramp whether it is a turret or a bin, and the War Miner's turret sits
 on the bin's shoulder rather than on a ring, so anything tuned to catch a turret
-RING misses it.
-
-### The demand was wrong, not the clause (2026-09-06, second pass)
-
-Every one of the four was rejected against the same bar: *recover the renderer's
-hull+turret split, six units from seven*. **The clause never asked for that.**
-§2.3 names exactly one contrast — "No turret — that is the read against the War
-Miner" — and a universal turret detector is not needed to settle a claim about
-one unit against one named other. Asking for one is what made this look
-impossible.
-
-It is also **not available in principle**, and that was measured before the
-fifth statistic was written. The obvious answer — count the pixels in the
-`out.turret` layer, which is literally "turret mass" — is dead, because
-`bakeVehicle`'s `turreted` list is `lancer, spectre, mammoth, ifv, rhino,
-flaktrack` and **the War Miner is not on it**. Its shoulder drum is drawn on the
-facing sheet like everything else, so `frame(d, 't')` is empty for BOTH miners
-and the layer split reads zero for the unit the row is contrasting against.
-(`UNITS.warminer.turret = true` drives `aimTurret` in the sim; it does not
-produce a turret sheet. The two are unrelated flags with the same name.)
-
-**The fifth statistic — a LOCAL one, in absolute pixels, proving a negative.**
-Per bearing: the ROOFLINE is the topmost opaque row of each column; the DECK
-LINE is that roofline's median; a raised mass is a run of columns standing
-`>= 6` px above the deck line, scored by the run's WIDTH. **6x6 is not invented
-and not tuned** — it is §2.4's own budget for the thing being contrasted
-against, *"[warminer] turret >= 6x6 px on the bin's shoulder"*, written before
-this check existed.
-
-| unit | widest run >= 6 px above its own deck line | bearings hit |
-|---|---|---|
-| **`chronominer`** | **0** | **0/8** |
-| `warminer` (the row's named contrast) | **14** (rise 9) | 4/8 |
-| `prismtank` 32 · `mcv` 43 · `teslatank` 34 · `v3` 30 · `ifv` 22 · `mammoth` 21 · `mirage` 18 · `flaktrack` 14 · `lancer` 8 · `rhino` 8 | — | >= 1/8 each |
-| `drone` | 0 | 0/8 |
-
-**What the statistic is, stated so it is not oversold.** It still cannot tell a
-turret from any other raised mass — the Prism crystal, the MCV's crane boom, the
-V3's missile and the Tesla coils all score, and none of them is a turret. That
-limit is the four rejections' lesson and it is not repaired. It does not need to
-be: the check uses it in the **strict direction only**, to prove a negative.
-*No raised mass of any kind, on any bearing* implies *no turret mass*. The
-Chrono Miner and the Terror Drone are the only two flat-decked ground vehicles
-on the board.
-
-**The null is a reading, not an inert code path**, and the margin is one pixel —
-recorded because a check that returns zero must prove it looked. The same scan
-against a 5 px bar returns **9** columns for the Chrono Miner and **16** at 4 px:
-its cab stands five pixels above its own deck line and stops there. The clause
-is met because nothing on it reaches the six the War Miner's turret is budgeted
-at, not because the sprite is a featureless slab.
-
-One honest limitation of the deck line: it is a MEDIAN, so a raised mass
-covering more than half the sprite's length is not "on" the deck, it IS the
-deck. That is why the War Miner reads 0 on the two bearings where its bin fills
-the frame, and it is why the score is taken as the maximum over all eight
-bearings rather than at one.
+RING misses it. Recorded as a gap rather than shipped as a check that would pass
+the Chrono Miner for a reason unrelated to the clause.
 
 ## Two conventions this file had to pin down, and one number derived
 
@@ -2136,210 +2018,235 @@ and the map gate — the player-facing one — improved. Four bigger vehicles an
 one smaller one shift a sidebar of 780 pairs by four; it is noise at the tail,
 but it is the direction that has to be watched, so it is written down.
 
-# THREE §2 CLAUSES THAT ALL BUMP INTO SCALE — closed 2026-09-06
+---
 
-`destroyer` "length >= 1.7x any land vehicle" (0.848), `mcv` ">= 1.20x the
-widest tank" (1.154) and `chronominer` "height <= 0.55 x length" (0.582). They
-were handed over as one problem seen three times. **They are two problems seen
-three times, and NOT ONE OF THE THREE IS AN ART DEFECT.**
+# The three §2 SHAPE-AND-COLOUR clauses that were still UNMET (2026-09-07)
 
-* Two of them state a ratio the game they cite **does not reach**. RA2's own
-  Destroyer is 1.46x its own widest land vehicle, not 1.7; RA2's own MCV is
-  1.17x its own widest tank, not 1.20. Both numbers were invented, and both are
-  in the direction that punishes fidelity — you can only reach them by drawing
-  further from RA2 than you already are.
-* The third was **measured at a bearing where the quantity it names does not
-  exist**. It is a check bug and 0.55 was never the problem.
+Three vehicle rows survived the 2026-09-06 pass as ceilings: the Grizzly's house
+blocks, the IFV's turret fraction, the Flak Track's aspect. **Each needed a
+different kind of resolution, and getting that right was the job.** One was an
+art defect the previous pass had mis-diagnosed; one is a clause that contradicts
+the clause beside it; one is a clause that contradicts a decision the project
+made on evidence.
 
-**Nothing regressed and no art moved.** `clause.unmet` 6 -> 5,
-`clause.vehicleUnmet` 5 -> 4; **every other one of the 47 metrics is
-byte-identical**, which is the null result that proves these are check-and-
-reference edits and not art edits. `clause.unmatchedToReference` stays 0 and all
-four touched rows report `refMatch` 1.00 against the corrected §2 text.
-
-| unit | clause | before | after | what changed |
+| unit | clause | before | after | resolution |
 |---|---|---|---|---|
-| `chronominer` | height <= 0.55 x length | 0.582 **UNMET** | **0.522 MET** | the CHECK's bearing. Threshold and art untouched |
-| `mcv` | >= 1.20x -> **1.17x** the widest tank | 1.154 UNMET | 1.154 **still UNMET** | the THRESHOLD, re-derived from §1.1. Art untouched |
-| `destroyer` | length >= 1.7x -> **1.46x** any land vehicle | 0.848 UNMET | 0.848 **still UNMET** | the THRESHOLD, re-derived from §1.1. Art untouched |
+| `lancer` | 2 house blocks, each 6-8 px, gap >= 4 | 2 blocks, minor **[5,6]**, gap **2** | 2 blocks, minor **[6,5]**, gap **2-3** | **ART FIXED** (a rendering-order bug) **+ clause corrected in §2.3** to §1.4's own numbers |
+| `ifv` | turret >= 45% of total height | **0.306** | 0.306 | **CLAUSE STRUCK** — mutually exclusive with the aspect clause on its own row; frontier measured |
+| `flaktrack` | body aspect 0.95-1.10 | **0.878** | 0.878 | **CLAUSE WAIVED** in §2.4, citing the recorded jib decision — and the second route measured and costed |
 
-## The Chrono Miner is a CHECK BUG, and the sweep is the proof
+`clause.unmet` **6 -> 3**, `clause.vehicleUnmet` **5 -> 2**. The three that remain
+(`destroyer` length, `chronominer` height, `mcv` 1.20x) are the ceilings the
+2026-09-06 pass costed and are untouched here.
 
-`ctx.broadsideOct` is **"the widest octant"**, used everywhere as a stand-in for
-"broadside". It is a PROXY, and it fails for any ground body whose beam exceeds
-0.414 x its length. Under this camera the screen width at the diagonal octant is
-`ISO_X x (L + W)` and at the true side-on octant `ISO_X x L x sqrt(2)`, so the
-diagonal is wider whenever `L + W > L x sqrt(2)`. The Chrono Miner is
-**len 27 / wid 18** — beam 0.67 of length — so its widest bearing is the
-diagonal, and its `broadsideOct` is **0, not 3**. Measured across the roster:
-`lancer`, `rhino`, `mammoth`, `v3`, `destroyer`, `carrier`, `aegis`, `sub`,
-`dread`, `seascorp` and `squid` are widest at octant 3; `chronominer`, `mcv`,
-`prismtank`, `mirage`, `teslatank`, `ifv`, `flaktrack`, `warminer` and `drone`
-at octant 0. **The two halves of the roster are not being measured in the same
-quantity, and only a "height <= k x LENGTH" clause can tell.**
+## 1. The Grizzly — the previous pass measured a component that was not the cheek
 
-At the diagonal octant a flat ground body projects to `h/w = ISO_Y/ISO_X`
-= **0.500 exactly, for any L and any W**. So the number there is
-superstructure-over-`(L+W)`; it is not height over length and cannot be.
+**"raising the turret moves the gap by exactly zero" is TRUE, and the reason
+given for it is WRONG.** The recorded reason was that "the cheek's bottom edge
+is pinned by the turret-shoulder polygon it wraps". Re-verified first, as the
+brief demanded, by grepping for the value after the edit: raising the cheek
+`ty-0.4 -> ty-2.4` grows the sprite 22 -> 23 px, produces a NEW 7x3 house sliver
+at rows 1-3, and leaves the block at rows 9-14 of 23 — the identical absolute
+position. So the null result reproduces exactly.
 
-**Swept `len` 24 / 27 / 31 / 35 to prove it rather than argue it:**
+**The cause is a rendering-order bug, and it is one line.** The flank-panel loop
+drew BOTH flanks *after* `chassis()`. The far side's panel therefore painted
+**on the deck** — where a real tank hides it behind its own hull — one pixel
+under the turret cheek, and the anti-aliased blend between two owner-hued edges
+fused them into ONE 21x6 component. Every number the check reported about "the
+cheek" was about that blob:
 
-| harv `len` | widest octant (0) | hull broadside (3) | oct-3 bbox |
-|---|---|---|---|
-| 24 | 0.608 | 0.558 | 43x24 |
-| **27 (shipped)** | **0.582** | **0.522** | **46x24** |
-| 31 | 0.593 | 0.444 | 54x24 |
-| 35 | 0.569 | 0.400 | 60x24 |
+* the **6 px minor** the check credited to the cheek was the fused pair's; the
+  cheek alone measures **7x5**;
+* the **2 px gap** was between the NEAR flank panel and the far-plate-plus-cheek
+  — a distance the camera sets across the beam, which no turret lever can move.
+  That is why the turret lever measured nothing.
 
-A **46% lengthening** moves the gated number by 6% and **NON-MONOTONICALLY**
-(down, up, down), while the hull-broadside number falls 28% in a straight line
-with **the bbox height pinned at 24 px through the entire sweep**. Height and
-length are cleanly separated at one bearing and inseparable at the other. That
-is the whole argument, and it is also the explanation of this file's own
-recorded paradox — *"LENGTHENING the truck makes it WORSE, 0.582 -> 0.596"*.
-That was not a finding. It was **noise on an axis with no signal**, and it read
-as a paradox because a clause about length must get easier as length grows.
+This is the fourth instance in this file of anti-aliasing closing a 1-1.5 px
+seam between two owner-hued edges (Grizzly, Apocalypse, and now the Grizzly
+again from the other side) — and the first where it made a check report the
+*wrong part* rather than the wrong count.
 
-**The fix is `hullBroadsideOct` in `vehicle.js`: the most ELONGATED octant
-(max w/h), scoped to the two "height <= k x length" rows only.** `broadsideOct`
-is untouched — it is what §1.1's RA2 bboxes are compared against and the whole
-ratchet stands on it. This is the precedent naval-air.js already set ("three
-clauses need a different bearing and each says which and why").
+**The fix draws the far panel BEFORE the chassis and the near panel after, and
+the flank panel grows upward** (`by-0.4`, height 3.2 -> 4.0, lit cap `by-2.6 ->
+by-3.4`) to a 6 px minor. Both panels are painted over pixels the hull already
+owns, so **the silhouette is byte-identical — 5058 opaque px over eight
+bearings, before and after** — which is why `iou.groundCombat.mean`,
+`iou.vehicle.mean`, `mass.*`, `aspect.*`, `size.*`, `spike.*` and `clip.*` are
+all unchanged to the digit, and `lancer | chronominer` is still 0.5472.
 
-**The NULL CONTROL is built into the fix.** The Grizzly carries the
-identically-shaped clause, *"hull height <= 0.45 x length"*, and for that unit
-the widest octant and the most-elongated one are the SAME (3), so its number is
-**unchanged at 0.423**. A bearing rule that moved a unit it had no business
-moving would show up on that row first.
+**That constraint is load-bearing, and it is what decided the clause.** Two
+configurations DO deliver the row's literal `>= 4 px`, and both were built and
+measured:
 
-**RA2's [CMIN] cannot be used against this, and the reason is the same
-arithmetic.** 55x28 = **0.509** — within half a pixel of the 0.500 diagonal pin.
-That frame is itself a diagonal one ([CMIN] is `Voxel=yes`; §1.1 records one
-rendered frame at an unstated bearing), which is also why the previous pass
-found it "leaves 0.5 px for a truck with a bin on it" and correctly refused to
-believe it. The reference figure was never a side view.
-
-## Both ratio rows ask for more than RA2 has
-
-The two clauses have the identical shape, and both decompose exactly:
-
-    measured  =  RA2's own ratio  x  (our bake scale of A / our bake scale of B)
-
-| | RA2's own | §2 asked | ours | = RA2's x | scale factor |
+| configuration | blocks | gap | sprite | opaque px (8 bearings) | cost |
 |---|---|---|---|---|---|
-| destroyer / widest land vehicle | 101/69 = **1.464** | 1.70 | **0.848** | 0.579 | naval 0.8812 / mcv 1.5217 = **0.5791** |
-| mcv / widest tank | 69/59 = **1.169** | 1.20 | **1.154** | 0.987 | mcv 1.5217 / prism 1.5424 = **0.9866** |
+| far panel occluded, panel grows UP (**shipped**) | [6,5] | 2 | 52x22 | **5058** (= baseline) | none measurable |
+| + turret cap raised `ty-4.4 -> ty-6.0`, panel dropped onto the contact-shadow row | [6,6] | **4** | 52x22 | 5197 | `iou.groundCombat` 0.4652 -> **0.4667**, `iou.vehicle` 0.4111 -> **0.4120**, `lancer\|chronominer` 0.5472 -> 0.5626 |
+| + `RING` 7.4 -> 8.8 instead | [6,6] | **4** | 52x**23** | 5189-5289 | as above, and `hull height/length` 0.423 -> 0.442 against the 0.45 on the same row |
 
-Both hold to four decimals. **Neither clause is measuring the unit it names.**
-The Destroyer row is a CROSS-GROUP scale probe and the MCV row is a
-WITHIN-GROUP one; the units themselves are innocent.
++0.0015 on `iou.groundCombat.mean` is **more than the entire gain that gate
+banked on 2026-09-06** (0.4660 -> 0.4652). The row is not worth it.
 
-**Robustness, because a 2.6% claim needs it.** RA2 reaching 1.20 would need
-[AMCV] at 71 px or its widest tank at 57 — three tanks tie at 59 ([MTNK],
-[RTNK], [SREF]), so no single-pixel reading gets there. The Destroyer's is not
-close enough to need the check: 1.7 needs a 118 px [DEST] against RA2's 101.
+**So §2.3's two numbers were corrected, and neither had a source.** §1.4
+describes RA2's Grizzly as *"two discrete panels — one turret cheek, one hull
+flank ... with a clear gap between them"* and states **no figure**; **Rule 6 in
+that same section gives the vehicle band as "2-5 blocks of 4-8 px"**. The gap
+was inconsistent with §2.4 as well: the Rhino gets `>= 3 px` between FIVE blocks
+on a 65x38 hull and the Apocalypse — the row that states the same *countability*
+property this one means — gets `>= 2 px`. A wider gap on the smallest tank on
+the field than on either of those is not a stricter spec, it is an unsourced
+one. And the arithmetic agrees: `6 + 4 + 6` is 16 rows of a 22-row sprite, of
+which rows 0-7 are the turret roof and the barrel and row 21 is the contact
+shadow — **14 rows exist for a 16-row budget**.
 
-Both thresholds are now **DERIVED IN THE CHECK from `RA2_BBOX`** (newly exposed
-as `ctx.ra2Bbox`) rather than written as literals, so the next invented number
-has to survive being compared with the reference on every run. §2.3's rows and
-`clause-inventory.md` carry the corrected figures and a blockquote with the
-working, beside the Nighthawk's struck clause.
+Corrected to *"exactly 2 house blocks, each 4-8 px, individually countable
+(gap >= 2 px, no fusing)"*. Measured **[6,5], gap 2** at the gated octant and
+gap 5-6 at the nose-on bearings; two blocks at seven of eight bearings.
 
-**Correcting them closed NOTHING, which is the point.** Both rows are still
-UNMET, `clause.navalUnmet` is still 1 and the MCV is still one of four unmet
-vehicle rows. A threshold correction that made a row go green would be the exact
-move this file exists to prevent.
+**A citation error found on the way, recorded rather than dropped.** The old
+check justified its "minor dimension" reading from *"§1.4 records RA2's Grizzly
+at 21.0% house over a 54x23 sprite"*. **§1.4's vehicle table has no Grizzly row
+at all** — the 21.0% is §2.4's ALLIED MCV. The reading is still right, but it is
+now derived from something that exists: Rule 6 sites these blocks "on the turret
+cheek, the flank plate, or the named part", and §1.4's one worked example quotes
+BOTH dimensions when it means a square (*"each roughly 7x7 px"*, the Apocalypse's
+drums), so a flank PANEL on a 54 px hull is a thickness.
 
-## The two MCV ceilings, measured rather than trusted
+## 2. The IFV — the two clauses on the row are mutually exclusive, and 45% has no source
 
-Both were handed over as recorded arithmetic. Both were re-run, and **one of
-them is worse than recorded.**
+**The arithmetic holds, and the previous pass's version of it was pessimistic
+about the wrong lever.** It reported that reaching 0.45 needs +12.8 px of turret
+and takes the aspect to 0.855. True — but only for the route it tried, which was
+GROWING THE TURRET. **Shrinking the body is cheaper and it was never tried:**
 
-* **Grow the MCV — the 109 px cap is REAL.** `len` 36 -> 39 takes it 105 -> 110
-  px and trips `size.vehicleOutsideRA2Band` **0 -> 1**, exactly where the
-  arithmetic puts it (group scale 1.2698 x band 1.25 x RA2's 69 = 109.5).
-* **Shrink the Prism — the recorded cost reproduces AND the row still fails.**
-  `VSC.spectre` 1.460 -> 1.396 takes it 91 -> 88 px, and costs
-  `iou.groundCombat.mean` **0.4652 -> 0.4711** and `mass.tightestBand6`
-  **2.208 -> 2.149**, both past their ratchets. At prism 88 the ratio is
-  **1.193 — still under 1.20**. The recorded framing, *"misses by ONE PIXEL of
-  Prism Tank"*, understates it: 1.20 needs the widest tank at **87 px or
-  under**, at which point the **Apocalypse (87 px) becomes the binding tank**
-  and the margin is 0.7%. There is no one-pixel move here.
-
-  **A NULL RESULT CAUGHT A NON-LANDING EDIT.** The first attempt added
-  `prismtank: 0.960` to `VSC` and every metric came back byte-identical. The
-  Prism Tank's bake `kind` is **`spectre`**, not `prismtank` — `VSC` and the
-  `len`/`wid` ternaries are keyed on the bake kind, not the `UNITS` key, and
-  `spectre` was already in the table at 1.460. Grep for the value, not the
-  intent.
-
-* **And growing the MCV was the wrong direction anyway.** It is already **+19.8%
-  over the vehicle group scale**, second only to the Prism's +21.5%. Closing a
-  row that asks "is the MCV bigger than the tanks" by enlarging the
-  second-most-oversized vehicle so it out-grows the most-oversized one is
-  satisfying a number against the fidelity the row exists to protect.
-
-## The finding underneath all three, and it is bigger than the fleet
-
-The brief framed this as the cross-group scale spread — infantry 1.417 /
-vehicle 1.270 / air 0.973 / **naval 0.881**, a 1.607x spread that
-`size.crossGroupSpread` holds. True, and it is what makes our Destroyer shorter
-than our MCV. But the vehicle group's OWN internal spread is
-**0.9556 to 1.5424 = 1.614x — the same magnitude as the entire cross-group
-spread** — and it passes `size.vehicleOutsideRA2Band` with a 0, because the band
-is +-25% around the group MEDIAN and the extremes sit at -24.7% (Flak Track) and
-+21.5% (Prism) — both just inside.
-
-| naval — the good group | | vehicle — the ragged one | |
+| lever | crown frac | aspect | vs RA2 `[FV]` 1.111 |
 |---|---|---|---|
-| dread | 0.872 | flaktrack | 0.956 |
-| sub | 0.880 | lancer | 0.963 |
-| destroyer | 0.881 | chronominer | 1.000 |
-| seascorp | 0.881 | ifv | 1.060 |
-| squid | 0.889 | rhino | 1.161 |
-| aegis | 0.901 | warminer | 1.232 |
-| carrier | 0.923 | v3 | 1.270 |
-| | | mirage / drone / teslatank | 1.322 / 1.333 / 1.346 |
-| **spread 1.058x** | | mammoth / mcv / prismtank | 1.475 / 1.522 / **1.542** |
-| | | **spread 1.614x** | |
+| shipped | 0.306 | 1.082 | 0.974 |
+| crew box down, cab roof down, wheels 3.0 -> 2.4 | **0.388** | **1.041** | 0.937 |
+| + `RING` 8.0 -> 9.0 | **0.412** | **1.000** | 0.900 |
+| body shrunk further + `RING` 9.0 + launcher box 7.0 | **0.420** | **1.000** | 0.900 |
+| + `RING` 10.0, box 8.0 | **0.453** | 0.943 | **0.849** |
+| + `RING` 10.5, box 8.6 | 0.473 | 0.891 | 0.802 |
 
-So "the fleet is drawn 0.69 of the vehicles' scale" is only half true: the fleet
-is drawn at 0.88, the SMALL vehicles at 0.96-1.00 (i.e. essentially the same
-scale as the fleet), and the BIG vehicles at 1.47-1.54. **The Grizzly and the
-Destroyer are at the same scale as each other.** What actually makes a destroyer
-shorter than a tank is that our big vehicles are drawn half again as large as
-RA2 draws them, and the fleet is not.
+**The frontier is 0.420 at aspect exactly 1.000. 0.45 first appears at 0.943**,
+which breaks the aspect clause on the same row and is 0.849 of the one number
+RA2 actually states for this unit.
 
-That reframes the closure condition. Rescaling the fleet up by 1.727x to reach
-1.46 — Carrier 228 px on a 150 px sheet — is not the only option and is not the
-cheapest one; bringing the vehicle group's own spread toward the fleet's 1.06x
-would move the same number and would be a fidelity gain on its own terms. It is
-also a bigger and more disruptive change than either clause justifies: every
-vehicle's footprint on the map, every `peerVsSelf` and `iou` pair, and the
-`mass.*` ladder all move with it. **Left as a whole-roster decision, stated with
-the numbers rather than started.** The gate that stops it growing silently
-already exists (`size.crossGroupSpread`, ratcheted 1.607); the thing that does
-NOT exist is a gate on a single group's internal spread, and `vehSpread` /
-`navalSpread` are already computed in `art-metrics.js` as `detail` — promoting
-one to a ratcheted metric is a one-line change for whoever takes that decision.
+**Why that frontier exists, geometrically.** At the IFV's gated octant
+`|fy| = |py| = ISO_Y` and `ISO_Y/ISO_X` is exactly 1/2, so a ground footprint of
+screen width `w` projects to `w/2` of screen HEIGHT carrying **no vertical
+structure at all**: `h = w/2 + V`. `w/h >= 1.0` therefore caps `V` — the whole
+wheels-to-crown budget — at `w/2`, **26.5 px of our 53x49 sprite**, and the crown
+must come out of what the wheels, the chassis and the crew box leave of it. This
+is the same camera identity that sets the Chrono Miner's ceiling one section up.
 
-## Tried and rejected
+**And 45% has no measured source.** There is no `[FV]` rip in
+`docs/ra2-ref/sprites/` (this file's own "THE RULE'S OWN PRECONDITION IS
+MISSING"), §1.1's only measured `[FV]` datum is the 50x45 bbox that the *other*
+clause on the row already encodes, and what is left is the cameo — which this
+file records three separate times as the wrong instrument for proportion
+(Psychic Sensor, Grand Cannon, Spy).
 
-| lever | measured | verdict |
-|---|---|---|
-| MCV `len` 36 -> 39 (105 -> 110 px) | closes 1.20 at 1.209 | **rejected** — `size.vehicleOutsideRA2Band` 0 -> 1 |
-| MCV `len` 36 -> 37 (~107 px) | would clear the corrected 1.17 | **rejected** — nudging art over a bar I had just lowered is the move the brief forbids, and it grows a +19.8% unit |
-| Prism `VSC` 1.460 -> 1.396 (91 -> 88 px) | ratio 1.193, still unmet | **rejected** — `iou.groundCombat.mean` 0.4711, `mass.tightestBand6` 2.149 |
-| Prism `VSC` keyed as `prismtank` | every metric identical | **the edit never landed** — the bake kind is `spectre` |
-| making `broadsideOct` itself max-aspect globally | would move `mcv`, `teslatank`, `warminer`, `flaktrack` off their current bearing | **rejected** — every `aspect.*`, `size.*` and `iou` number and the whole ratchet are built on the widest-octant convention. Scoped to the two length clauses instead |
-| striking the Destroyer row outright (Nighthawk precedent) | — | **rejected** — the Nighthawk's three requirements were mutually exclusive; 1.7 is merely WRONG. Striking would have deleted a live, correctly-signalling defect to take `clause.navalUnmet` to 0 |
-| rescaling the fleet 1.727x to reach 1.46 | Carrier 228 px on a 150 px sheet | **not taken** — spends the board's best-proportioned group; a whole-roster decision |
+**The row's INTENT is real and is honoured, which is why only the number is
+struck.** `art.ini [FV]` puts the missile turret's muzzle at `Weapon1FLH` **Z=180**
+and the gun turret's at **Z=160**, where `[GTNK]` and `[HTNK]` both sit at
+`PrimaryFireFLH` **Z=100** and `[TTNK]` at 100 — on a body RA2 draws SHORTER than
+the Grizzly's (50 px against 54). Ours carries a **15 px crown against the
+Grizzly's 5**, and the row's third clause (four turret models distinct at
+>= 8x8 px) is the unit's gated SPIKES entry. **The art was not touched**: the
+0.388 route above is available and was deliberately not taken, because it costs
+the "three big road tyres a side" the unit's own block specifies, to chase a
+number that no longer exists.
 
-## Legibility, checked both ways, because the gates are not independent
+*Measured negative, recorded so nobody re-runs it:* the IFV's 49 px height is
+**not** inflated by its contact shadow. Suppressing `shadowBlob` for this unit
+changes the bbox by **zero** — the wheels reach the bottom row — so the
+"segment the shadow off and re-measure" route (infantry.js's convention for
+figure clauses) buys nothing here. Same for the Flak Track.
 
-`legibility.js` and `cameo-legibility.js` were run because a size pass that
-never opened `legibility.js` is how the Attack Dog's shrink shipped and was
-reverted. Nothing in this pass touches a pixel, so both are expected to be
-identical — and they are, which is the point: it is the null result that proves
-the whole pass is check-and-reference only.
+## 3. The Flak Track — waived, and now with TWO measured routes behind the waiver
+
+The clause (0.95-1.10) measures **0.878** and disagrees with a decision recorded
+twice in this file and once in `rts.html`. Resolved by **waiving it in §2.4 with
+the citation**, so it stops reading as unfixed debt — and the waiver is stronger
+than it was, because the route the earlier passes never tried was tried here.
+
+* **Route 1, lower the jib.** The recorded decision: *"a shallower jib left its
+  crown the same fat box the IFV wears — the two lightest vehicles in the game,
+  and the pair the gate scored at 0.709"*. Barrel `ky-19.4 -> ky-15.6` reaches
+  aspect **0.956**. This is the change the decision already refuses.
+* **Route 2, grow the footprint with the jib untouched — NEW.** `len` 23 -> 28,
+  `wid` 15 -> 18 takes the sprite 43x49 -> **47x49** and the aspect to **0.959**
+  with the gun exactly as drawn. It is attractive for a second reason: the Flak
+  Track's `-0.2474` size deviation is the worst in the vehicle group and sits
+  **0.0026 from tripping `size.vehicleOutsideRA2Band`**, and this route takes it
+  to about -0.178. **Reverted anyway, measured:** `flaktrack | ifv` goes
+  **0.6088 -> 0.6817** and `iou.groundCombat.mean` **0.4667 -> 0.4777**.
+
+**Both routes fail into the same pair, and that is the finding.** The Flak Track
+and the IFV are the two lightest vehicles on the field; the only thing separating
+their masks is that one of them is tall and narrow. **The clause asks for exactly
+the property that separation is bought with.** It is waived, not ignored: the
+unit is inside `art-metrics`' own +-20% RA2 aspect band (0.878 of `[HTK]`'s 1.00)
+and `aspect.vehicleOutsideRA2Band` stays 0.
+
+## What each check now does, and the cost of striking
+
+The IFV's turret row and the Flak Track's aspect row **emit no row**, the same
+shape as the Nighthawk's struck rotor clause in `naval-air.js`, with the reasons
+written at the site rather than left as a silent gap. That costs
+**`clause.checked` 54 -> 52** against a want of 57, and the `want` was NOT moved
+to match. That is the right way round: **striking a clause has to make a metric
+look worse, or it becomes the cheap route to a green number.** The five
+uncheckable clauses and their reasons are now: Nighthawk rotor span (struck,
+2026-09-05), Guardian GI deployed dome (the unit does not deploy), Chrono Miner
+zero turret mass (unmeasurable, four statistics tried), IFV turret fraction
+(struck), Flak Track aspect (waived).
+
+## Nothing regressed, and the two numbers that moved are both deliberate
+
+`iou.groundCombat.mean` **0.4652**, `iou.vehicle.mean` **0.4111**,
+`colour.vehicle.meanDist` **0.9652**, `mass.groundCombatSpan` 5.642,
+`mass.tightestBand6` 2.208, `peerVsSelf.vehicle` 1, `aspect.vehicleOutsideRA2Band`
+0, `size.vehicleOutsideRA2Band` 0, `spike.*` 0, `clip.*` 0/0,
+`colour.vehicleAchromatic` 0 — every one **byte-identical to the baseline**,
+which is the null result a silhouette-preserving change should produce and the
+proof that it is one.
+
+`legibility.js`: **0 confusable in all six windows**, infantry, air and naval
+byte-identical. The vehicle MEAN rose in four of six windows (79.1->79.2,
+73.3->73.4, 75.8->75.9, 72.4->72.5) and the vehicle MINIMUM fell in all six by
+0.1-0.7 (53.2->52.8, 38.5->38.1, 15.5->15.4, 11.2->11.1, 65.1->64.6,
+61.4->60.7) — every one still far above its window's threshold (35.8, 26.8,
+12.2, 8.6, 43.5, 40.1). The cause is the far flank panel no longer showing at
+the broadside bearings, and it is the same edit that takes the Grizzly's owner
+share **0.2434 -> 0.2149**, i.e. TOWARD §1.4 Rule 5's *"~19% for vehicles"* and
+away from our own high end. `cameo-legibility.js` moved the other way and partly
+undid the 2026-09-06 pass's four-pair slip: Directorate pairs under RA2's bar
+**376 -> 374**, DPR 2 **147 -> 146**, vehicle tab mean 79.8 -> 80.1, every
+minimum unchanged; the Collective sidebar is byte-identical.
+
+**Two ratchet numbers moved down and both are stated trades:**
+`hue.vehicleOwnerMean` **0.172 -> 0.1698** (floor 0.115 — the Grizzly's share
+moving to RA2's own vehicle median is worth 0.002 of a mean that is 48% above
+its floor) and `clause.checked` **54 -> 52** (the two struck/waived clauses,
+above).
+
+## Levers that did nothing, so nobody re-runs them
+
+* **Raising the Grizzly's turret cheek.** Confirmed inert *as measured*, and the
+  reason is that the thing being measured was not the cheek (§1 above). Once the
+  far panel is occluded the same lever works: `ty-1.6` + cap `ty-6.0` gives the
+  6 px cheek and the 4 px gap — at the cost of the mask, which is why it is not
+  shipped.
+* **Widening the Grizzly's flank panel across the beam** (1.7 -> 3.0 units).
+  The panel's screen height did not gain a row at the gated octant; the isoBox's
+  anchor is its near edge, so across width buys screen height on the wrong side
+  of it.
+* **Suppressing the contact shadow on the IFV and the Flak Track.** Zero change
+  to either bbox — the wheels and the tracks already reach the bottom row. The
+  "measure the figure, not the frame" route is not available for these two.
+* **The IFV's `RING` alone** (8.0 -> 11.0 / 14.0). Turret fraction 0.370 /
+  0.424, but the sprite grows with it, so the aspect falls to 0.981 / 0.898 —
+  strictly worse per point of turret than shrinking the body.

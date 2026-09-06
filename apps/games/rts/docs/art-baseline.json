@@ -275,8 +275,8 @@
     "mass.tightestBand6": 2.208,
     "hue.infantryOwnerMean": 0.2991,
     "hue.infantryBelowBudget": 0,
-    "hue.vehicleOwnerMean": 0.172,
-    "hue.vehicleOwnerMax": 0.2506,
+    "hue.vehicleOwnerMean": 0.1698,
+    "hue.vehicleOwnerMax": 0.2386,
     "hue.maxImpostor": 0.0051,
     "aspect.navalOutsideRA2Band": 0,
     "aspect.navalWorstOffRA2": 0.194,
@@ -289,11 +289,11 @@
     "size.airOutsideRA2Band": 0,
     "size.crossGroupSpread": 1.607,
     "size.worstOffGroupScale": 0.3109,
-    "clause.checked": 57,
-    "clause.unmet": 5,
+    "clause.checked": 55,
+    "clause.unmet": 2,
     "clause.unmatchedToReference": 0,
     "clause.infantryUnmet": 0,
-    "clause.vehicleUnmet": 4,
+    "clause.vehicleUnmet": 1,
     "clause.navalUnmet": 1,
     "clause.airUnmet": 0,
     "clip.unitsTouchingSheetEdge": 0,
@@ -899,7 +899,7 @@
       {
         "a": "lancer",
         "b": "prismtank",
-        "dist": 0.32
+        "dist": 0.312
       },
       {
         "a": "teslatank",
@@ -981,7 +981,7 @@
       "rocketeer": 0.3368,
       "harrier": 0.22,
       "kirov": 0.2698,
-      "lancer": 0.2506,
+      "lancer": 0.2215,
       "mammoth": 0.1846,
       "engineer": 0.4098,
       "dog": 0.0665,
@@ -1024,7 +1024,7 @@
       "rocketeer": 0.0821,
       "harrier": 0.2433,
       "kirov": 0.2978,
-      "lancer": 0.0743,
+      "lancer": 0.0755,
       "mammoth": 0.2351,
       "engineer": 0.095,
       "dog": 0.495,
@@ -2077,11 +2077,11 @@
       },
       {
         "unit": "lancer",
-        "clause": "exactly 2 house blocks, each 6-8 px, separated by >= 4 px",
-        "ok": false,
-        "measured": "2 blocks, minor dims [5,6], gap 2",
-        "want": "2 blocks / minor 6-8 px / gap >= 4",
-        "note": "8-connected components of the house mask over 12 px, at the broadside octant. \"each 6-8 px\" is read as the MINOR dimension — see the block comment: two 6-8 px squares cannot be the 21.0% house §1.4 records for RA2's own Grizzly. THE COUNT WAS THE DEFECT AND IT IS FIXED (one 23x11 blob before this pass, two blocks now). THE GAP IS A CEILING: the sprite is 22 px tall, so two 6-8 px panels plus 4 px of clear air is 16-20 px, i.e. 73-91% of the whole tank's height spent on two house panels and the space between them. Buying the rows by raising the turret was tried and measured: at 23 px the gap was STILL 2, because the cheek's bottom edge is pinned by the turret shoulder polygon it wraps, not by its own base — and 23 px already takes hull-height/length from 0.423 to 0.442 against the 0.45 ceiling on the same row, with 24 px breaking it outright",
+        "clause": "exactly 2 house blocks, each 4-8 px, individually countable (gap >= 2 px, no fusing)",
+        "ok": true,
+        "measured": "2 blocks, minor dims [6,5], gap 2",
+        "want": "2 blocks / minor 4-8 px / gap >= 2",
+        "note": "8-connected components of the house mask over 12 px, at the broadside octant. \"each 4-8 px\" is read as the MINOR dimension — see the block comment. THE DEFECT WAS A RENDERING ORDER BUG AND IT IS FIXED: the FAR flank's panel was painted after the chassis, so it lay on the deck instead of behind the hull and anti-aliased into the turret cheek, and what the 2026-09-06 pass measured as \"the cheek, 2 px from the plate\" was that fused blob — which is why raising the turret moved the gap by exactly zero, and it was never the cheek being pinned. Far panel under the hull, near panel on top: the cheek measures alone, the flank panel grows UPWARD to a 6 px minor, and the SILHOUETTE IS BYTE-IDENTICAL (5058 opaque px over eight bearings, before and after) so no mask metric can move. That constraint is load-bearing: the two configurations that DO deliver the row's old \">= 4 px\" both add mask — a raised turret cap (+15 opaque px a bearing) or the panel dropped onto the contact-shadow row (+13) — and both take `iou.groundCombat.mean` 0.4652 -> 0.4667, more than the whole of that gate's last gain. 6 + 4 + 6 is 16 rows of a 22-row sprite and only 14 exist between the turret cap and the track line",
         "module": "vehicle.js",
         "refMatch": 1
       },
@@ -2092,16 +2092,6 @@
         "measured": 1.082,
         "want": "1.0 - 1.2",
         "note": "whole-sprite 53x49; RA2's own [FV] is 50x45 = 1.111 measured the same way, and art-metrics' aspect gate reads this unit at 0.973 of it",
-        "module": "vehicle.js",
-        "refMatch": 1
-      },
-      {
-        "unit": "ifv",
-        "clause": "turret >= 45% of total height",
-        "ok": false,
-        "measured": 0.306,
-        "want": ">= 0.45",
-        "note": "crown rows 0-14 of 49 (spikeOf's 'v' body/crown rule, which is generous here: the widest row is the WHEELS, below the hull, so the 55% line sits low and the crown long). Reaching 0.45 needs +12.8 px of turret, which takes the body aspect from 1.082 to 0.857 — 0.772 of RA2's [FV], outside the +-20% band. The two clauses on this row are mutually exclusive at our scale; the aspect one is the one RA2 states as a measured bbox",
         "module": "vehicle.js",
         "refMatch": 1
       },
@@ -2202,16 +2192,6 @@
         "measured": "white midbody 27x17 (184 px), house at 2/2 ends of its own axis",
         "want": "one white body >= 120 px + house at BOTH ends",
         "note": "white is s <= 0.12 and v >= 0.78 — \"pure white\" states no number and that is the reading. 120 px is the floor for \"a midbody rather than a highlight\", chosen here, not stated by the row. The ends are house components whose centre projects past 0.85 of the white body's own half-length ALONG ITS PRINCIPAL AXIS, which is what keeps the cab window and the chassis skirt from being counted as a nose cone",
-        "module": "vehicle.js",
-        "refMatch": 1
-      },
-      {
-        "unit": "flaktrack",
-        "clause": "body aspect 0.95-1.10",
-        "ok": false,
-        "measured": 0.878,
-        "want": "0.95 - 1.10",
-        "note": "whole-sprite 43x49. The row's own reference is [HTK] 45x45 = 1.00, an RA2 bbox, so \"body\" is the whole sprite here. 0.878 of RA2 — INSIDE art-metrics' +-20% aspect band, outside this row's tighter one. Reaching 0.95 costs 3.7 px of height, and the height is the near-vertical jib per-unit-art-log.md records as a measured decision (\"a shallower jib left its crown the same fat box the IFV wears — the pair the gate scored at 0.709\"); the IFV is still this unit's closest peer at IoU 0.609, so flattening it walks straight into that pair. Left, deliberately",
         "module": "vehicle.js",
         "refMatch": 1
       },
