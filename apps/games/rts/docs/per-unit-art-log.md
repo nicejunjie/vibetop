@@ -3724,3 +3724,88 @@ spacing could not open).
 comment records that 30 lands the sprite at 127 px = 1.28x RA2, dev 0.115
 inside the +-0.20 band, and `size.bldWorstOffHouseScale` is already 0.1758
 against a 0.20 ceiling. Any change here must re-measure that.
+
+### `peerVsSelf.vehicle` — the V3, and why no V3 closes it (2026-09-06)
+
+The single flagged vehicle is the **V3 Launcher**, `selfIoUCross` 0.5352 against
+a best peer (War Miner) at 0.6139 — margin **-0.0787**. It is the only negative
+margin in the group; the next tightest is the Apocalypse at +0.0187, so the
+whole roster sits near the edge and the V3 is the one that goes over.
+
+**Four levers were baked and measured, one at a time.** None closes it, and
+three make it worse:
+
+| change | selfIoUCross | beaten by | side effects |
+|---|---|---|---|
+| shipped | 0.5352 | 4 (WarMiner, Mirage, Tesla, Rhino) | — |
+| rail rise x0.70 (hits RA2's aspect 1.75 almost exactly, 1.7174) | 0.5819 | 4 | — |
+| rail rise x0.30 | 0.6075 | 2 | `aspect.vehicleOutsideRA2Band` 0 -> 1 |
+| rail rise x0.00 (missile flat on the bed) | 0.6177 | 2 | + `spike.belowDeclaredBudget` 0 -> 1 |
+| truck `len` 22 -> 28 | 0.5534 | **5** | — |
+| truck `wid` 19 -> 15 | 0.4902 | **5** | — |
+| both | 0.5126 | **6** | — |
+| **missile deleted entirely** | 0.6132 | **2** (WarMiner .6431, Tesla .6469) | `aspect` 0 -> 1, `clause.vehicleUnmet` 0 -> 1, `clause.unmet` 1 -> 2 |
+
+The last row is the bound: **removing the unit's entire defining feature does
+not close it.** Note also which way the peers move — as the V3 flattens toward
+a tank, the tanks' cross terms RISE (Rhino 0.5409 -> 0.6529). The row rewards
+becoming more confusable, which is backwards.
+
+**The cause is the check, and it is now proved rather than argued.**
+`tools/peer-vs-self-control.js` runs `art-metrics.js`'s own `crossIoU` on
+filled rectangles: eight at the V3's measured aspects against eight identical
+ones at their mean give a margin of **-0.0786** against the V3's measured
+**-0.0787**. Four decimal places, with no missile, no truck, no colour and no
+art of any kind. `self` is the mean dissimilarity *within* a unit's cloud of
+eight silhouettes and `peer` is the mean from that cloud to another unit's, so a
+compact peer parked near the cloud's centre beats the cloud's own spread — a
+property of means. The control's sweep flips sign at a swing of **1.0**: the
+only silhouette this row cannot fault is one that does not change as the unit
+turns, which is the opposite of a readable directional sprite.
+
+corr(aspectSwing, selfIoUCross) is **-0.823** across the 13 vehicles, the same
+shape as the -0.893 already recorded for the fleet. The naval "elongation
+ceiling" and this row are ONE bug: elongation is the correlate, swing is the
+cause, and long hulls swing most.
+
+**Not repaired here on purpose.** Fixing the metric moves `peerVsSelf.naval`
+(5) and `.vehicle` (1) together — a six-row change to a ratcheted gate, and a
+scope decision rather than a one-unit pass's call. The art was left byte-identical.
+
+**One fidelity observation banked for a future pass, deliberately not acted on:**
+the V3's broadside is 80x55, aspect **1.4545**, against RA2's `[V3]` 63x36 =
+**1.75**. Width is exactly right (80 = 63 x the vehicle group's own 1.2698 bake
+scale); the sprite is ~20% **too tall**. The rail rise is the only lever on it,
+and rendering the sweep on the game's own ground shows why it was not taken: at
+x0.85 and below the missile sinks onto the cab and reads as a log on a roof at
+the shallow bearings, which is a worse defect than the one it fixes. If it is
+ever revisited, the height has to come out of the missile's MOUNTING, not its
+inclination.
+
+### `clause.navalUnmet` — re-verified against the reference, still the Destroyer (2026-09-06)
+
+The one unmet naval clause is the Destroyer's **"length >= 1.46x any land
+vehicle"** (`naval-air.js`), and it was re-checked the way the four broken
+structure clauses were caught — by running its own arithmetic against RA2's
+committed reference numbers. **It is not a broken clause.** Its threshold is
+*derived from* the reference (`[DEST]` 101 px over the widest RA2 land vehicle
+`[AMCV]` 69 px = 1.4638), so the reference satisfies its own bar exactly, by
+construction — the opposite of tesla-neck, radar, prism and `power:dir`, where
+the RA2 sprite fails the clause written about it.
+
+Reproduced independently of the row's own note:
+
+    our destroyer broadside        89 px
+    our widest land vehicle  mcv  105 px
+    measured ratio                0.8476
+    bake scale destroyer   89/101 = 0.8812
+    bake scale mcv         105/69 = 1.5217
+    1.4638 x (0.8812 / 1.5217)  = 0.8476   <- to four decimals
+
+So the row measures the cross-group bake scale and nothing else, exactly as it
+says: the fleet is baked at 0.8814x RA2's sprite widths while the ground
+vehicles sit at 1.2698x. `size.crossGroupSpread` holds it at 1.607. No
+single-vehicle shrink reaches it either — the bar needs the widest land vehicle
+under 61 px against today's 105, and dropping only the MCV puts the next widest
+(Prism Tank, 89) over it while throwing the MCV outside its own group's RA2
+band. **Ceiling, unchanged, and not an art defect.**
