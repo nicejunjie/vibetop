@@ -38,9 +38,9 @@ Project dir: `apps/everyday/terminal/` (the app) + `server/` (the manager) (repo
 `/terminals/` serves `terminals.html` — a single page with iframes:
 - **+** button adds the next available terminal (up to T20)
 - **×** closes a tab (hides it; the session daemon keeps running)
-- **Drag** tabs to reorder
+- **Drag** tabs to reorder — the order is stored **server-side per user**, so it is the same on every device
 - **Double-click** a tab to rename (e.g. `T2:claude`)
-- Tab order, names, and active tab persist in localStorage
+- Tab **names and order** persist server-side (same on every device); the active tab stays per-device in localStorage, which is right — which terminal you are looking at is a property of the screen in front of you, not of the account
 
 ## Access
 

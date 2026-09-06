@@ -7,7 +7,8 @@ Runs as root so it can manage systemd units.
 Endpoints:
   POST /api/terminals/{n}/start   — start session + ttyd for instance N
   POST /api/terminals/{n}/stop    — stop ttyd + session for instance N
-  GET  /api/terminals/status      — {"running": [1, 3, 5, ...], "schedules": [...]}
+  GET  /api/terminals/status      — {"running": [...], "order": [...], "schedules": [...]}
+  POST /api/terminals/order       — save this user's tab order (synced per user)
   GET/POST /api/terminals/schedules — messages queued to be typed into a terminal
                                     (one-shot, or a loop with every+until)
   POST /api/terminals/schedules/cancel — drop one queued message
@@ -371,7 +372,44 @@ def _tab_names_file(user=None):
     return os.path.join(home, ".local/share/terminal-tab-names.json")
 
 
+# Tab ORDER, same reasoning as the names above: terminal N is the same shared
+# session on every device, so the arrangement of the strip is a property of the
+# user, not of one browser's localStorage. Stored as a bare list of instance
+# numbers.
+def _tab_order_file(user=None):
+    home = _user_home(user) if user else _ctx_home()
+    return os.path.join(home, ".local/share/terminal-tab-order.json")
+
+
+def _read_tab_order(user=None):
+    """The saved tab order as [n, ...]; tolerant of a missing/corrupt file, and
+    of junk inside it — a bad entry is dropped, never raised, or one hand-edited
+    file would wedge the tab strip on every device at once."""
+    try:
+        with open(_tab_order_file(user)) as f:
+            d = json.load(f)
+        if not isinstance(d, list):
+            return []
+    except (FileNotFoundError, json.JSONDecodeError, ValueError, OSError):
+        return []
+    out, seen = [], set()
+    for v in d:
+        try:
+            n = int(v)
+        except (TypeError, ValueError):
+            continue
+        if 1 <= n <= MAX_INSTANCE and n not in seen:
+            seen.add(n)
+            out.append(n)
+    return out
+
+
+def _write_tab_order(order, user=None):
+    _atomic_write(_tab_order_file(user), json.dumps(order))
+
+
 _tab_names_lock = threading.Lock()
+_tab_order_lock = threading.Lock()
 
 
 def _desktop_state_file():
@@ -4501,6 +4539,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
             return self._handle_terminal(m)
         if self.path == "/api/terminals/names":
             return self._handle_tab_names_save()
+        if self.path == "/api/terminals/order":
+            return self._handle_tab_order_save()
         if self.path == "/api/terminals/schedules":
             return self._handle_schedule_create()
         if self.path == "/api/terminals/schedules/cancel":
@@ -4757,6 +4797,35 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 names.pop(str(n), None)
             _write_tab_names(names)
         self._json(200, {"ok": True, "names": names})
+
+    def _handle_tab_order_save(self):
+        # POST {order:[n,...]} — the whole strip, not a delta: a reorder is one
+        # gesture producing one arrangement, and sending the arrangement means a
+        # dropped request loses nothing but that gesture.
+        body = self._read_body(65536)
+        if body is None:
+            return self._json(400, {"error": "invalid or too-large body"})
+        try:
+            data = json.loads(body) if body else {}
+        except json.JSONDecodeError:
+            return self._json(400, {"error": "invalid json"})
+        raw = (data or {}).get("order")
+        if not isinstance(raw, list) or len(raw) > MAX_INSTANCE:
+            return self._json(400, {"error": "order must be a list of terminal numbers"})
+        order, seen = [], set()
+        for v in raw:
+            try:
+                n = int(v)
+            except (TypeError, ValueError):
+                return self._json(400, {"error": "order must be terminal numbers"})
+            if not (1 <= n <= MAX_INSTANCE):
+                return self._json(400, {"error": f"terminal numbers are 1-{MAX_INSTANCE}"})
+            if n not in seen:
+                seen.add(n)
+                order.append(n)
+        with _tab_order_lock:
+            _write_tab_order(order)
+        self._json(200, {"ok": True, "order": order})
 
     def _handle_upload(self):
         # Parse multipart/form-data and stream each "file" part directly into
@@ -7283,14 +7352,20 @@ class Handler(http.server.BaseHTTPRequestHandler):
             # Scheduled messages ride this poll (terminals.html already runs it
             # every ~2.5s) rather than adding a second client loop — the same
             # consolidate-onto-an-existing-poll rule the desktop heartbeat follows.
+            # Tab order rides this poll too, for the same reason the schedules
+            # do: it changes rarely, it is a few integers, and a second client
+            # loop to carry it would cost more than the field does. Read from
+            # disk uncached — the file is tiny and a reorder must reach the
+            # user's other devices on the very next tick, not up to 2s later.
             self._json(200, {"running": self._get_running_terminals(),
+                             "order": _read_tab_order(),
                              "schedules": self._schedules_payload()})
             return
         if self.path == "/api/terminals/schedules":
             self._json(200, {"schedules": self._schedules_payload()})
             return
         if self.path == "/api/terminals/names":
-            self._json(200, {"names": _read_tab_names()})
+            self._json(200, {"names": _read_tab_names(), "order": _read_tab_order()})
             return
         if self.path == "/api/x/windows":
             return self._handle_x_windows()

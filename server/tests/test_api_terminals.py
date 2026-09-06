@@ -1,6 +1,8 @@
 """Endpoint contracts for terminal lifecycle + tab names:
 POST /api/terminals/{n}/start|stop, GET /api/terminals/status,
-GET/POST /api/terminals/names. systemctl is stubbed (see `stubs` fixture)."""
+GET/POST /api/terminals/names, GET/POST /api/terminals/order.
+systemctl is stubbed (see `stubs` fixture)."""
+import pytest
 
 
 def test_start_dispatches_systemd_run_per_user(client, stubs):
@@ -43,8 +45,59 @@ def test_start_surfaces_launch_failure(client, mgr, monkeypatch):
 def test_status_lists_running(client, mgr, monkeypatch):
     monkeypatch.setattr(mgr.Handler, "_get_running_terminals", lambda self: [1, 4])
     status, body = client.get("/api/terminals/status")
-    # Scheduled messages ride this same poll (see test_api_schedule.py).
-    assert status == 200 and body == {"running": [1, 4], "schedules": []}
+    # Scheduled messages AND the tab order ride this same poll — a second client
+    # loop for either would cost more than the field does.
+    assert status == 200 and body == {"running": [1, 4], "order": [], "schedules": []}
+
+
+# ---- tab order (synced per user, like the names) ----------------------------
+
+def test_tab_order_round_trips_and_rides_the_status_poll(client, mgr, home, monkeypatch):
+    """The arrangement of the strip belongs to the USER, not to one browser's
+    localStorage — terminal N is the same shared session on every device."""
+    status, body = client.post("/api/terminals/order", {"order": [3, 1, 2]})
+    assert status == 200 and body["order"] == [3, 1, 2]
+    assert client.get("/api/terminals/names")[1]["order"] == [3, 1, 2]
+    monkeypatch.setattr(mgr.Handler, "_get_running_terminals", lambda self: [1, 2, 3])
+    assert client.get("/api/terminals/status")[1]["order"] == [3, 1, 2]
+
+
+def test_tab_order_is_stored_per_user(client, mgr, users):
+    """One user's arrangement must never reach another's tab strip."""
+    client.post("/api/terminals/order", {"order": [2, 1]}, cookie=users["alice"][1])
+    _, b = client.get("/api/terminals/names", cookie=users["bob"][1])
+    assert b["order"] == []
+
+
+def test_tab_order_drops_duplicates(client, home):
+    status, body = client.post("/api/terminals/order", {"order": [2, 2, 1, 2]})
+    assert status == 200 and body["order"] == [2, 1]
+
+
+@pytest.mark.parametrize("bad", [
+    {"order": "1,2"},
+    {"order": [0]},
+    {"order": [99999]},
+    {"order": ["x"]},
+])
+def test_tab_order_rejects_junk(client, home, bad):
+    status, _ = client.post("/api/terminals/order", bad)
+    assert status == 400
+
+
+def test_a_corrupt_order_file_does_not_wedge_the_strip(mgr, home):
+    """A hand-edited or truncated file must degrade to "no saved order" — it is
+    read on every status poll, so raising there would break the tab bar on every
+    device at once."""
+    import json as _json, os as _os
+    f = mgr._tab_order_file()
+    _os.makedirs(_os.path.dirname(f), exist_ok=True)
+    with open(f, "w") as fh:
+        fh.write('{"not": "a list"}')
+    assert mgr._read_tab_order() == []
+    with open(f, "w") as fh:
+        fh.write('[1, "x", 2, 99999, 2, 3]')
+    assert mgr._read_tab_order() == [1, 2, 3]      # junk dropped, order kept
 
 
 def test_tab_name_upsert_and_clear(client):
