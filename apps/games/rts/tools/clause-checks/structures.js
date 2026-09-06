@@ -105,6 +105,8 @@ function bodyRun(profile) {
   const cut = 0.55 * mx;
   let lo = -1, hi = -1;
   for (let i = 0; i < profile.length; i++) if (profile[i] >= cut) { if (lo < 0) lo = i; hi = i; }
+  const EXP = require('./zz-experiment.js');
+  if (EXP.active) lo = EXP.roofline(profile, lo, hi, mx);
   return { lo, hi, mx };
 }
 /** 8-connected components of a predicate over the bbox — vehicle.js's implementation. */
