@@ -7973,6 +7973,28 @@
     // Tail: HANGING, sabre-shaped, dark at the tip. A tail carried level and
     // fluffed out behind is the strongest fox cue there is; a working
     // shepherd's drops below the hocks and only the last third curves.
+    //
+    // ...and it is the TAIL, not the animal, that closed
+    // `size.infantryOutsideRA2Band`. The dog was the roster's last size
+    // outlier at 39 px broadside where the infantry group scale says 30 —
+    // +31% — and the obvious fix (shrink him) is a KNOWN DEAD END: a uniform
+    // STATURE shrink was tried at 0.94/0.90/0.84 and every row put
+    // `dog | tanya` under the friend-vs-foe floor at ZMIN (see
+    // docs/per-unit-art-log.md, "The dog's size and dog|tanya pull the same
+    // lever"). The way out is that the two gates read DIFFERENT quantities:
+    // the size gate reads the BBOX, and the CELL-96 legibility window reads
+    // an RMS over the MASS. The tail's last two pixels were 11 px of a 508 px
+    // animal — nearly free to the one and decisive to the other.
+    //
+    // So the reach came in from 1.34L to 1.17L (39 -> 37 px, dev +31% ->
+    // +24%) and the stroke went 2.6 -> 3.1 to put the lost mass back. The
+    // animal is not one pixel smaller: he now hangs a fuller tail more
+    // steeply, which is what a working shepherd's actually does. Measured:
+    // legibility.js output BYTE-IDENTICAL to before across all three windows,
+    // `dog | tanya` still 12.5 at zoom 1 and 9.5 at ZMIN.
+    //
+    // DO NOT let the reach back past 1.20L — 1.22L re-measures 38 px and puts
+    // the gate straight back into debt.
     g.strokeStyle = TAND; g.lineWidth = 3.1; g.lineCap = 'round';
     g.beginPath();
     g.moveTo(cx - L * 0.92, bY + 0.4);

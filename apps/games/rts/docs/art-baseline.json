@@ -310,7 +310,7 @@
     "peerVsSelf.air": 0,
     "iou.groundCombat.mean": 0.466,
     "iou.vehicle.mean": 0.4114,
-    "iou.infantry.mean": 0.5394,
+    "iou.infantry.mean": 0.5399,
     "iou.naval.mean": 0.4018,
     "iou.air.mean": 0.1859,
     "iou.sameFactionOver75": 0,
@@ -319,7 +319,7 @@
     "spike.belowDeclaredBudget": 0,
     "mass.groundCombatSpan": 5.696,
     "mass.tightestBand6": 2.229,
-    "hue.infantryOwnerMean": 0.3086,
+    "hue.infantryOwnerMean": 0.3085,
     "hue.infantryBelowBudget": 0,
     "hue.vehicleOwnerMean": 0.1702,
     "hue.vehicleOwnerMax": 0.2386,
@@ -331,9 +331,9 @@
     "aspect.airOutsideRA2Band": 0,
     "size.navalOutsideRA2Band": 0,
     "size.vehicleOutsideRA2Band": 0,
-    "size.infantryOutsideRA2Band": 1,
+    "size.infantryOutsideRA2Band": 0,
     "size.airOutsideRA2Band": 0,
-    "size.worstOffGroupScale": 0.3109,
+    "size.worstOffGroupScale": 0.2474,
     "size.crossGroupSpread": 1.607,
     "size.bldOutsideRA2Band": 0,
     "size.bldWorstOffHouseScale": 0.1759,
@@ -357,7 +357,7 @@
     "value.soldiersLighterThanEngineer": 0,
     "value.engineerLightPct": 0.6384,
     "value.engineerMarginOverNext": 0.2803,
-    "colour.infantry.meanDist": 1.3479,
+    "colour.infantry.meanDist": 1.348,
     "colour.vehicle.meanDist": 0.9714,
     "colour.vehicleAchromatic": 0
   },
@@ -507,14 +507,14 @@
       },
       "dog": {
         "group": "infantry",
-        "aspect": 1.393,
-        "selfIoU": 0.5406,
-        "selfIoUCross": 0.5406,
-        "broadsideAspect": 1.393,
+        "aspect": 1.321,
+        "selfIoU": 0.5331,
+        "selfIoUCross": 0.5331,
+        "broadsideAspect": 1.321,
         "ra2Aspect": 1.4,
-        "vsRA2": 0.995,
+        "vsRA2": 0.944,
         "bestPeer": "Rocketeer",
-        "bestPeerIoU": 0.5122,
+        "bestPeerIoU": 0.514,
         "peersBeatingSelf": 0
       },
       "ifv": {
@@ -862,7 +862,7 @@
         "over75": 0
       },
       "infantry": {
-        "mean": 0.5394,
+        "mean": 0.5399,
         "pairs": 91,
         "max": 0.768,
         "over75": 1
@@ -892,7 +892,7 @@
       {
         "a": "engineer",
         "b": "dog",
-        "dist": 0.1
+        "dist": 0.101
       },
       {
         "a": "teslatrooper",
@@ -912,7 +912,7 @@
       {
         "a": "conscript",
         "b": "dog",
-        "dist": 0.313
+        "dist": 0.314
       },
       {
         "a": "conscript",
@@ -1039,7 +1039,7 @@
       "lancer": 0.2215,
       "mammoth": 0.1922,
       "engineer": 0.4098,
-      "dog": 0.0665,
+      "dog": 0.0663,
       "ifv": 0.1391,
       "mirage": 0.1478,
       "tanya": 0.1614,
@@ -1082,7 +1082,7 @@
       "lancer": 0.0755,
       "mammoth": 0.2358,
       "engineer": 0.095,
-      "dog": 0.495,
+      "dog": 0.4913,
       "ifv": 0.1608,
       "mirage": 0.1566,
       "tanya": 0.2753,
@@ -1320,6 +1320,13 @@
         "ratio": 0.91
       },
       {
+        "key": "dog",
+        "wh": "37x28",
+        "ours": 1.321,
+        "ra2": 1.4,
+        "ratio": 0.944
+      },
+      {
         "key": "conscript",
         "wh": "18x36",
         "ours": 0.5,
@@ -1367,26 +1374,9 @@
         "ours": 2.364,
         "ra2": 2.348,
         "ratio": 1.007
-      },
-      {
-        "key": "dog",
-        "wh": "39x28",
-        "ours": 1.393,
-        "ra2": 1.4,
-        "ratio": 0.995
       }
     ],
     "ra2Size": [
-      {
-        "key": "dog",
-        "group": "infantry",
-        "ours": 39,
-        "ra2": 21,
-        "ra2WH": "21x15",
-        "scale": 1.8571,
-        "groupScale": 1.4167,
-        "dev": 0.3109
-      },
       {
         "key": "flaktrack",
         "group": "vehicle",
@@ -1396,6 +1386,16 @@
         "scale": 0.9556,
         "groupScale": 1.2698,
         "dev": -0.2474
+      },
+      {
+        "key": "dog",
+        "group": "infantry",
+        "ours": 37,
+        "ra2": 21,
+        "ra2WH": "21x15",
+        "scale": 1.7619,
+        "groupScale": 1.4167,
+        "dev": 0.2437
       },
       {
         "key": "lancer",
@@ -4499,18 +4499,18 @@
         "name": "Attack Dog",
         "group": "infantry",
         "fac": null,
-        "mass": 420,
-        "bboxW": 39,
+        "mass": 422,
+        "bboxW": 37,
         "bboxH": 28,
-        "aspect": 1.063,
-        "broadsideWH": "39x28",
-        "broadsideAspect": 1.393,
+        "aspect": 1.009,
+        "broadsideWH": "37x28",
+        "broadsideAspect": 1.321,
         "ra2Aspect": 1.4,
-        "vsRA2": 0.995,
-        "selfIoU": 0.5406,
-        "selfIoUCross": 0.5406,
+        "vsRA2": 0.944,
+        "selfIoU": 0.5331,
+        "selfIoUCross": 0.5331,
         "bestPeer": "Rocketeer",
-        "bestPeerIoU": 0.5122,
+        "bestPeerIoU": 0.514,
         "peersBeatingSelf": 0,
         "peers": 13,
         "spike": {
