@@ -2777,3 +2777,78 @@ the bbox at 60; 8.6 buys one pixel and costs half the seam). Second,
 under RA2's 5th-percentile bar (47 -> 49) — one of them from the geometry alone,
 before the collar exists — with that tab's mean (81.1) and minimum (59.2)
 unchanged, both greyed bars unchanged, and the Directorate sidebar byte-identical.
+
+---
+
+# STATE OF PLAY — 2026-09-06, end of the clause campaign
+
+The log above is 2700 lines of working. This is the position it reached, so the
+next pass starts from the verdict instead of re-reading the argument.
+
+## Measured, and green
+
+`clause.checked` **57 of 57** — every §2 budget clause has a measurement behind
+it, where the morning began with 41 of 96 clauses gated and 57 honoured by
+intention only. `clause.unmet` **1**. Infantry, vehicle and air unmet: **0**.
+Every aspect, size, spike, clip, colour, hue and value gate MET, and
+`legibility.js` reports **0 confusable pairs in all six windows**.
+
+## The remaining debt, and why each is a CEILING rather than a to-do
+
+Each was attempted, measured, and left with arithmetic. Do not re-open one
+without new evidence; the numbers are in the sections above.
+
+| debt | why it stands |
+|---|---|
+| `clause.unmet` 1 — Destroyer `>= 1.46x any land vehicle`, at 0.848 | The whole-roster rescale was BAKED, not estimated: x0.571 closes this one clause and opens FIVE (Rhino blocks, Apocalypse canisters, Tesla gap, V3 midbody, War Miner bin), takes `size.crossGroupSpread` 1.607 -> 1.899, and leaves the MCV row still unmet. Threshold is RA2's own 101/69, so it may not be struck. |
+| `peerVsSelf.naval` 5 / `.total` 6 | Measures ELONGATION. corr(broadside aspect, selfIoU) = **-0.893** over ten hulls; the three that pass are the three least elongated. Driving it to 0 means making the fleet stubbier — the RA2 fidelity work undone. |
+| `iou.groundCombat.mean` 0.466 | `iou()` centres masks on their bbox centre and does NOT normalise for size, so the vehicle group's ragged 1.614x internal spread is what BUYS the number. Every move toward RA2's uniform scale must raise it. The two gates are structurally opposed. |
+| `size.infantryOutsideRA2Band` 1 + `worstOffGroupScale` — the DOG | His LENGTH is what separates him from Tanya, and CELL 96 is a footprint window (a ~1100 px dog in a 9216 px cell; internal colour dilutes ~8x). Six configurations swept; nothing below full width clears ZMIN. Paint was tried and moved the pair 0.1. |
+| `GI \| Spy` 61.1 | `cameoFor` hashes plate BACKGROUNDS from the unit key; both land near 150, so 8 of 16 grid cells contribute ~1% each. The figure carries 95.6% of a 3730 total and needs 6675. **The untried lever is the background hash itself** — shared 80-icon machinery, so it needs its own pass, not a per-unit fix. This is the one genuinely open avenue. |
+
+## The pattern that produced most of today's fixes
+
+**A source comment naming a part correctly, over pixels that never delivered
+it.** Six instances, all found by measurement and none by reading the code:
+
+- the Tesla Trooper's carapace — 8% silver against a 40% clause the block quoted
+- the Amphibious Transport's cargo well — filled `#1d201a`, the darkest thing aboard
+- the Dolphin's eye — in SCREEN space, baking as a detached blob 4 px off her hull
+- **Crazy Ivan's dynamite — 0x0, at every bearing**: three 1.42-unit sticks each
+  carrying its own 1 px outline, and at his STATURE a stick draws 1.25 px
+- the Grizzly's house blocks — the far panel painted ON the deck and fused with
+  the turret cheek, so the check reported the wrong component's dimensions
+- the Apocalypse's drums — the near/far pair fused; more spacing analytically
+  cannot open it, because the far drum's foot is set by the near drum's shoulder
+
+Five of the six are **anti-aliasing fusion**: a 1-1.5 px seam between two
+same-hue edges blends to that hue, and the mask bridges it. When a countable
+feature is missing, suspect the bake before the geometry.
+
+## Instruments earned today, and what each is for
+
+- `clause-checks/<group>.js` — one module per group, auto-loaded, so concurrent
+  passes never share lines. `clause.unmatchedToReference` proves a check names a
+  clause §2 actually wrote; `clause.struck`/`clause.waived` are ratcheted DOWN so
+  a strike costs a row rather than buying one.
+- `size.*` against `RA2_BBOX` — aspect is scale-invariant, so nothing else could
+  see a unit at the wrong size. `size.crossGroupSpread` covers the blind spot the
+  per-group gates declare in their own comment.
+- `clip.*` — the bake measuring a sprite the canvas CUT. Found the civilian
+  blocks' sliced shadows on its first run.
+- `size.bld*` — structures were in no gate at all.
+- `tools/battle-frame.js` — every other tool measures art at REST.
+- `tools/unit-probe.js` — the numeric companion; its ASCII map found the Dolphin's eye.
+
+## The three rules this campaign paid for
+
+1. **A null result must prove the edit landed.** `STATURE.dog` moved zero pixels
+   because a quadruped never takes the humanoid path; the row had never been read
+   by anything. Grep for the value before concluding a lever is inert.
+2. **"X didn't move it" says what is NOT the cause, never what is.** The Grizzly's
+   cheek, the Nighthawk's disc and the Chrono Miner's length each produced an
+   honest sweep and a wrong conclusion.
+3. **The gates are not independent.** A dog shrink closed a size gate and broke a
+   friend-vs-foe floor; the ratchet could not catch it, because re-recording after
+   an art change is the normal workflow. `rts-art.test.js` now asserts zero
+   confusable pairs as a hard floor.
