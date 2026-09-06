@@ -18432,7 +18432,18 @@
       g.fillStyle = 'rgba(228,234,250,.22)'; g.fillRect(cx - 4.8, colT, 1.8, dT + 1 - colT);
       for (var pzS = 0; pzS < 4; pzS++) {
         var sxo = (pzS < 2 ? -1 : 1) * (pzS % 2 ? 8.2 : 13.4);
-        g.strokeStyle = 'rgba(20,22,28,.65)'; g.lineWidth = 2.2;
+        // 2.2 -> 1.8 on the DARK BACKING only (the lit PZ_STR stroke below
+        // keeps its full 1.1). `rowProfile` counts INK per row, not span, so
+        // the four struts' backing haloes were 4 x 2.2 = 8.8 px of ink laid
+        // across a column that is only 10 px wide, and it is that ink -- not
+        // the fan's spread -- that set the waist read. Ablating the struts
+        // alone flattens rows 55-76 to a constant 10 px, which is the tower's
+        // real waist. RA2's own [GAPRIS] laces its column with THIN 1-px
+        // lines (docs/ra2-ref/sprites/prism-tower.png, 57x104, keyed exact
+        // and threshold-insensitive), and its narrowest scanned row is 0.211
+        // Sw against our 0.261 -- ours was the fatter of the two. Thinning
+        // moves toward the rip.
+        g.strokeStyle = 'rgba(20,22,28,.65)'; g.lineWidth = 1.8;
         g.beginPath(); g.moveTo(cx + sxo, dT - 1); g.lineTo(cx + sxo * 0.26, colT + 5); g.stroke();
         g.strokeStyle = PZ_STR; g.lineWidth = 1.1;
         g.beginPath(); g.moveTo(cx + sxo, dT - 2); g.lineTo(cx + sxo * 0.26, colT + 4); g.stroke();
