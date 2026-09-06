@@ -2250,3 +2250,137 @@ above).
 * **The IFV's `RING` alone** (8.0 -> 11.0 / 14.0). Turret fraction 0.370 /
   0.424, but the sprite grows with it, so the aspect falls to 0.981 / 0.898 —
   strictly worse per point of turret than shrinking the body.
+`legibility.js` and `cameo-legibility.js` were run because a size pass that
+never opened `legibility.js` is how the Attack Dog's shrink shipped and was
+reverted. Nothing in this pass touches a pixel, so both are expected to be
+identical — and they are, which is the point: it is the null result that proves
+the whole pass is check-and-reference only.
+
+## The MCV row CLOSED by shrinking, and why the Destroyer row cannot be
+
+Both rows were handed over as "shrink the oversized big ground vehicles toward
+the group median" — a direction chosen because it also reduces
+`size.crossGroupSpread` and the vehicle group's own 1.614x internal spread, so
+it should improve several numbers at once. **It closes one row and it is
+measurably the wrong description of the other.**
+
+### The MCV row: 89 px is the exact bar, and 90 px is not
+
+`VSC.spectre` **1.460 -> 1.420** takes the Prism Tank **91 -> 89 px** and the
+row to **1.180** against RA2's own 1.169. The arithmetic has no slack in it:
+105 / 1.169 = 89.8, so **90 px measures 1.167 and fails** (swept, not derived).
+Below 87 nothing more is bought either — the Apocalypse at 87 px becomes the
+binding tank and the ratio pins at 1.207, which is why the earlier record's
+"shrink the Prism to 88" was paying for a pixel it did not need.
+
+The move is a fidelity gain on its own terms: the Prism was the **most**
+oversized vehicle on the board at +21.5% over the group scale, and 89 px puts it
+at **+18.7%**, behind the MCV's +19.8%. That reordering *is* what the row
+measures — `r / ra2Ratio` equals `mcvScale / prismScale` to four decimals.
+
+### Seven levers swept, and the two cheapest ones are traps
+
+| lever | Prism | `iou.groundCombat` | `mass.tightestBand6` | verdict |
+|---|---|---|---|---|
+| `VSC.spectre` 1.460 -> 1.420 | 89x79 | 0.4652 -> **0.4695** | 2.208 -> 2.149 | **TAKEN** — aspect-invariant |
+| `len` 24 -> 23 | 89x79 | 0.4652 -> 0.4666 | 2.208 -> 2.162 | rejected — aspect vsRA2 0.840 -> **0.821** |
+| `wid` 22 -> 21 | 89x79 | 0.4652 -> 0.4671 | 2.208 -> 2.149 | rejected — same aspect cost, AND it walks back a documented fix |
+| `wid` 24 + `VSC` 1.368 | 89x76 | 0.4652 -> 0.4707 | 2.208 -> 2.149 | rejected — beam-for-scale is the worst of both |
+| `wid` 26 + `VSC` 1.310 | 88x73 | 0.4652 -> 0.4734 | 2.208 -> 2.149 | rejected |
+| `len` 25 / `wid` 20 (sum held) | **90** px | 0.4652 -> 0.4674 | 2.208 -> 2.149 | **inert** — row still UNMET at 1.167 |
+| `len` 26 / `wid` 19 (sum held) | **90** px | 0.4652 -> 0.4681 | 2.208 -> 2.149 | **inert** — row still UNMET at 1.167 |
+
+The two shape levers are 2-3x cheaper on IoU and both were rejected anyway.
+`len` 24 -> 23 and `wid` 22 -> 21 each take the Prism's broadside aspect vsRA2
+**0.840 -> 0.821**, and the vehicle group already carries the MCV at **0.804**
+— four thousandths off the 0.80 band floor, the tightest aspect on the board.
+Spending a second unit's margin to satisfy a **size** row is the trade this file
+exists to refuse; a uniform scale is aspect-INVARIANT, which is why it is the
+one taken. The beam trim is worse still: `wid` 16 -> 22 is a *recorded fix*
+(it bought `iou.groundCombat.mean` 0.4744 -> 0.4625), so 22 -> 21 spends part of
+it back.
+
+**The last two rows are the null control.** Holding `len + wid` at 45 while
+trading one for the other lands at 90 px, not 89, and the aspect moves the WRONG
+way (1.152 -> 1.139) — the "broadside aspect is 2L/W, so beam is the
+denominator" rule does **not** apply to this unit, because its widest octant is
+the diagonal one (0), where width is `ISO_X x (L + W)` and the superstructure
+sets the height. That is the Chrono Miner's octant trap wearing a different hat.
+
+### The cost is STRUCTURAL, and it is the finding
+
+`iou.groundCombat.mean` 0.4652 -> **0.4695** and `mass.tightestBand6`
+2.208 -> **2.149**. Neither is a tuning miss that a better lever would have
+avoided. `iou()` centres both masks on their **bbox centre and does not
+normalise for size**, so silhouette overlap falls purely because two units are
+different sizes. **The vehicle group's ragged 1.614x internal spread is
+therefore BUYING the IoU number**, and every move toward RA2's own uniform scale
+must raise it. The two gates are in direct opposition; there is no shrink that
+closes this row for free, and the sweep above is the proof rather than the
+claim.
+
+`mass.tightestBand6` is a **floor, not a slope**: at 89 px the Prism drops under
+the Apocalypse in mass, the tightest six become Rhino..Apocalypse, and 2.149 is
+where it stays for any further Prism shrink. Five of the six regressed metrics
+still carry **zero debt** against their plan targets; only
+`iou.groundCombat.mean` deepens an existing debt (0.0152 -> 0.0195).
+
+### The Destroyer row: the ceiling, measured
+
+The row needs the widest land vehicle at **<= 60 px** against our 89 px
+Destroyer (89 / 1.4638 = 60.8). Growing the fleet is off the table by decision —
+it spends the best-proportioned group on the board — so the only route is the
+whole vehicle group at **x0.571**. That was baked and measured rather than
+estimated:
+
+| | before | after x0.571 |
+|---|---|---|
+| destroyer row | 0.848 UNMET | **1.483 MET** |
+| `size.crossGroupSpread` | 1.607 | **1.899** |
+| `size.vehicleOutsideRA2Band` | 0 | **2** |
+| `spike.belowDeclaredBudget` | 0 | **4** |
+| `colour.vehicleAchromatic` | 0 | **4** |
+| `iou.groundCombat.mean` | 0.4652 | 0.4745 |
+| `clause.unmet` | 5 | **9** |
+| MCV row | 1.154 | 1.154 — *still UNMET* |
+
+**One row closes and five open**: the Rhino's five house blocks, the
+Apocalypse's countable canisters, the Tesla Tank's coil gap, the V3's white
+midbody and the War Miner's bin all fall below their own §2 pixel budgets,
+because the sprites are no longer big enough to hold the detail the rows
+describe. And the headline number moves the wrong way — the ground roster lands
+at **0.725 of RA2's sprite widths, BELOW the fleet's 0.881**, with infantry left
+at 1.417, so `size.crossGroupSpread` gets 18% WORSE than the spread this route
+was supposed to reduce. Tanks would be smaller than the men walking past them.
+
+### "Bring the big vehicles down to the median" was measured too, and it fails
+
+The intermediate move — every above-median vehicle (Prism, Apocalypse, MCV,
+Mirage, Tesla, Terror Drone) rescaled to the group median 1.2698 — was baked:
+
+* `mass.tightestBand6` **2.208 -> 1.599**, i.e. **under its 2.0 target**, not
+  merely under its ratchet. A hard gate failure.
+* `iou.groundCombat.mean` 0.4652 -> **0.5113**, `iou.vehicle.mean` 0.4111 ->
+  **0.4492** (its target is 0.45).
+* `peerVsSelf.vehicle` 1 -> 2.
+* **And the MCV row is STILL UNMET, at 1.158.** At a common scale the pair ought
+  to sit at RA2's exact 1.169, but 88 px over 76 px rounds to 1.158 and `>=`
+  is unforgiving. The row can only be met with margin ABOVE RA2's ratio, never
+  at it.
+
+Co-shrinking the Apocalypse alongside the Prism was swept as well and moves IoU
+the wrong way at every step — prism 89 alone 0.4695, with Apocalypse 84
+**0.4734**, with Apocalypse 81 **0.4782** and `peerVsSelf.vehicle` 1 -> 2. Size
+separation is what the ground roster's legibility is made of.
+
+### Looked at, both ways
+
+`unit-compare.js` on the Prism, Apocalypse and MCV, and `battle-frame.js` —
+the Prism reads unchanged at 89 px (coil, tracks and house panels all intact;
+a uniform scale cannot do otherwise) and the live frame renders with no page
+errors. `legibility.js` and `cameo-legibility.js` were both run because the
+gates are not independent: **CONFUSABLE stays 0 in every group, every window and
+both zooms**, the friend-vs-foe thresholds are untouched, and the vehicle means
+move by 0.1. The one cameo cost is `UNDER RA2's bar` 376 -> 377 on the
+Directorate sidebar (units tab 48 -> 49) — one pair of 780, and the cameo tool
+is advisory, not ratcheted.

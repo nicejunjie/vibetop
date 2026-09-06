@@ -28,8 +28,18 @@ against the art at all — see the note above and `unit-identity-reference.md`
 wrong.** `mcv` ">= 1.20x the widest tank" and `destroyer` "length >= 1.7x any
 land vehicle" both stated ratios the game they cite does not reach (RA2's own
 are 69/59 = 1.17 and 101/69 = 1.46), so they are re-derived from §1.1's bboxes
-inside the checks; **both remain UNMET after the correction**, which is why the
-correction is not a closure. `chronominer` "height <= 0.55 x length" was read at
+inside the checks; **both remained UNMET after the correction**, which is why the
+correction was not a closure. **`mcv` closed on 2026-09-06 by SHRINKING the
+Prism** (`VSC.spectre` 1.460 -> 1.420, 91 -> 89 px, ratio 1.180) — the row asks
+which of the two most oversized vehicles is more oversized, so bringing the
+leader down is the only fix that is also a fidelity gain; the cost is
+`iou.groundCombat.mean` 0.4652 -> 0.4695 and `mass.tightestBand6` 2.208 ->
+2.149, and it is structural rather than a tuning miss (see the log). **`destroyer`
+stays UNMET, now with its ceiling measured rather than estimated**: the only
+route that does not spend the fleet is the whole vehicle group at x0.571, which
+does close the row at 1.483 and simultaneously takes `size.crossGroupSpread`
+1.607 -> 1.899, `spike.belowDeclaredBudget` 0 -> 4 and `clause.unmet` 5 -> 9 —
+one row closes and five open. `chronominer` "height <= 0.55 x length" was read at
 the WIDEST octant, which for that unit is the diagonal one, where a flat ground
 body's h/w is pinned at exactly 0.500 whatever its length — a check bug, not an
 art defect. Read at the hull broadside it is **0.522 and MET**. Working, sweeps
