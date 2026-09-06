@@ -441,7 +441,34 @@
     tabs.querySelectorAll('.tab').forEach(function(t) { open.push(+t.dataset.n); });
     return open;
   }
+  // Terminal N is the same shared session on every device, so the ARRANGEMENT of
+  // the strip belongs to the user, not to one browser. localStorage stays as the
+  // instant local copy (init paints from it before any fetch returns); the server
+  // is what makes the order the same on the phone and the laptop.
+  var orderEchoUntil = 0;      // ignore polled order until our own POST lands
   function saveTabOrder() {
+    var order = getTabOrder();
+    try { localStorage.setItem('terminal-tabs', JSON.stringify(order)); } catch (e) {}
+    orderEchoUntil = Date.now() + 4000;
+    api('POST', '/order', { order: order }).catch(function () {});
+  }
+  // Adopt an order set on another device. Deliberately inert while the user is
+  // mid-drag or just after a local save: a 2.5s poll that reshuffles tabs under
+  // a moving finger, or that echoes back the state we just replaced, is worse
+  // than being a couple of seconds stale.
+  function applyRemoteOrder(order) {
+    if (!Array.isArray(order) || !order.length) return;
+    if (dragTab || Date.now() < orderEchoUntil) return;
+    var mine = getTabOrder();
+    // Only the tabs that exist here, in the remote order, then anything the
+    // remote list does not mention (a terminal opened locally a moment ago).
+    var want = order.filter(function (n) { return mine.indexOf(n) >= 0; });
+    mine.forEach(function (n) { if (want.indexOf(n) < 0) want.push(n); });
+    if (want.join(',') === mine.join(',')) return;
+    want.forEach(function (n) {
+      var t = tabs.querySelector('.tab[data-n="' + n + '"]');
+      if (t) tabs.insertBefore(t, addBtn);      // re-append in order, before "+"
+    });
     try { localStorage.setItem('terminal-tabs', JSON.stringify(getTabOrder())); } catch (e) {}
   }
 
@@ -546,6 +573,7 @@
     if (!inited) return;
     api('GET', '/status').then(function(d) {
       reconcileTabs(d.running || []);
+      applyRemoteOrder(d.order);      // a reorder on another device lands here
       setSchedules(d.schedules);      // rides this poll — no second loop
     }).catch(function() {});
   }
@@ -1399,9 +1427,14 @@
       });
       return;
     }
-    // Restore tab order from localStorage if possible
-    var savedOrder = [];
-    try { savedOrder = JSON.parse(localStorage.getItem('terminal-tabs')) || []; } catch(e) {}
+    // The SERVER's order wins on a fresh load: it is the one this user last set,
+    // on whichever device they set it. localStorage is only the fallback for a
+    // user who has never reordered (no server file yet) — otherwise opening the
+    // laptop would silently push its own stale arrangement back over the phone's.
+    var savedOrder = Array.isArray(data.order) && data.order.length ? data.order : null;
+    if (!savedOrder) {
+      try { savedOrder = JSON.parse(localStorage.getItem('terminal-tabs')) || []; } catch (e) { savedOrder = []; }
+    }
     var runSet = {};
     running.forEach(function(n) { runSet[n] = true; });
     // Add saved tabs that are still running (preserves order)
