@@ -2193,6 +2193,15 @@ and `aspect.vehicleOutsideRA2Band` stays 0.
 
 ## What each check now does, and the cost of striking
 
+> **SUPERSEDED 2026-09-07 — see "The clause ledger could not add up" at the end
+> of this file.** This section described removing the two rows from the module.
+> That was the wrong half of a fork the Nighthawk had already settled: it held
+> `clause.checked` at 55 against a want of 57 that had become permanently
+> unreachable, and left `clause.struck` reading 1 while three clauses were
+> excused. Both rows are now EMITTED and carry their state. The paragraph below
+> is kept because its REASONING is right and still binding — striking must never
+> be the cheap route to a green number — only its mechanism was wrong.
+
 The IFV's turret row and the Flak Track's aspect row **emit no row**, the same
 shape as the Nighthawk's struck rotor clause in `naval-air.js`, with the reasons
 written at the site rather than left as a silent gap. That costs
@@ -2384,3 +2393,116 @@ both zooms**, the friend-vs-foe thresholds are untouched, and the vehicle means
 move by 0.1. The one cameo cost is `UNDER RA2's bar` 376 -> 377 on the
 Directorate sidebar (units tab 48 -> 49) — one pair of 780, and the cameo tool
 is advisory, not ratcheted.
+
+
+# The clause ledger could not add up, and a count check that never counted (2026-09-07)
+
+## The accounting fault
+
+Two passes resolved "impossible" clauses in two different ways and both landed.
+
+* The **Nighthawk**'s struck rotor row was **EMITTED** with `struck: true` —
+  counted in `clause.checked`, counted again in `clause.struck` (`<= 1`, DOWN) so
+  a second strike would show as debt. The check is of the STRIKE.
+* The **IFV**'s turret row and the **Flak Track**'s aspect row were **REMOVED**
+  from `clause-checks/vehicle.js` instead, on the reasoning that a struck clause
+  must COST `clause.checked` or striking becomes the cheap route to a green
+  number.
+
+The reasoning was right; the mechanism was not, and the ledger ended up telling
+the truth about neither side. `clause.struck` read **1** while **three** clauses
+were struck or waived, and `clause.checked` was pinned at **55** against a want
+of **57 that could never be reached again**. `art-metrics.js` opens by saying
+that a gate red forever gets disabled — so a want nothing can satisfy is the one
+thing this file may not ship.
+
+**Emitting costs nothing and buys nothing, which is the property the removal was
+reaching for.** A struck or waived row adds 1 to `clause.checked` and immediately
+spends it again on `clause.struck` / `clause.waived`, both ratcheted DOWN. Net
+zero. The honest way to clear one is still to remove the contradiction from §2.
+
+## STRUCK is not WAIVED, and flattening them loses the retirable one
+
+| | struck | waived |
+|---|---|---|
+| the clause is | **impossible** — the row makes its own bar unreachable | **reachable**, and **unmet** |
+| what excuses it | arithmetic | a recorded **measured** decision |
+| the check asserts | the strike's premises | the waiver's premises **and that the clause is still unmet** |
+| it goes red when | the contradiction dissolves | the ground goes **or the clause becomes met** (the waiver is then stale) |
+| counted in | `clause.struck` `<= 2` DOWN | `clause.waived` `<= 1` DOWN |
+
+Only a waiver can go stale, so only a waiver's check can carry the
+still-unmet assertion. One flag for both would drop exactly that.
+
+**IFV, and the limit is stated rather than inherited.** The recorded strike says
+the two clauses on the row "cannot coexist". The check asserts what a check can
+own — the 2:1 camera source-verified (`h = w/2 + V`), the aspect clause beside it
+still binding with the unit inside it, and the crown still short of 45%. It does
+**not** claim the closed contradiction the Nighthawk's row has: the analytic
+headroom `1 - a/2` at the shipped aspect 1.082 is **0.459, above 0.45**, and every
+aspect in the row's own band below 1.10 is analytically compatible with 45%. What
+excludes it is the measured frontier (0.420 at aspect 1.000) from the lever sweep
+in §2 above, which a check cannot re-run. The crown instrument is §1.3's own
+body/spike split and it reproduces this file's recorded number exactly:
+**15 px of 53x49 = 0.306**.
+
+**Flak Track.** Measured 0.878, unmet, `0.122` off `[HTK]`'s own 1.00 and so
+inside the aspect gate's +-20% band — the waiver's stated ground, now asserted
+rather than merely written down.
+
+## The Apocalypse's canister check did not enforce its own row
+
+§2.4 asks for **four** canisters, "each >= 6x6 px and individually countable
+(gaps >= 2 px)". The check asked for **">= 2 rear-deck house blocks >= 6x6 with
+gaps >= 2"**, and that is not the same claim in two ways at once:
+
+* **The count was not enforced.** ">= 2" against a row that says four.
+* **Plates could stand in for drums.** The flank plates are house-coloured too,
+  so `22x6` and `7x9` were being counted as canisters.
+
+**Proved by running it against the build it exists to catch.** The 2026-09-06
+pass found all four drums baked as ONE fused `22x31` house component. Re-run the
+OLD check on that old art (`ART_HTML=` + `git show 8e7b7b3:apps/games/rts/rts.html`)
+and it reports *"3 rear-deck house blocks >= 6x6 [22x31, 22x6, 7x9], tightest gap
+7 px"* and **PASSES**. One block trivially satisfies "gaps >= 2" because there is
+no gap to violate, and the other two were plates. The check passed on the defect
+and on the fix alike, so it was measuring nothing.
+
+**A canister is a standing cylinder, and that number is measured, not chosen.**
+`puck(r = 2.00, h = 9.6)` is 9.6 units of drum on 4.0 of width — a drawn aspect
+of 2.4, and this camera does not foreshorten vertical length. Baking the four
+drums **one at a time** and differencing the masks gives an isolated drum at
+**11x22 = 2.0** on the gated bearing; every house plate on the hull measures
+**1.29 or flatter** (22x6, 19x11, 18x15, 15x11, 14x9, 7x9). The bar `h >= 1.5w`
+sits below every drum and above every plate, and it rejects the fused `22x31`
+blob (1.41) outright.
+
+**Counted at the bearing that resolves them best, over all eight.** The same
+drum-by-drum bake shows one drum contributing **4 px of its own** at the gated
+bearing — 96% occluded by the near pair — so four is not countable there and no
+art change will make it so. The row is owed where a player can count.
+
+### It now discriminates, and the current art does not pass
+
+| art | old check | tightened check |
+|---|---|---|
+| pre-fix `8e7b7b3` (fused drums) | **PASS** — 3 blocks, gap 7 | **FAIL** — 2 at oct 4 [13x26, 13x32], **tightest gap 1 px**; **0 at the gated bearing** |
+| today | **PASS** — 4 blocks, gap 6 | **FAIL** — 2 at oct 1 [8x15, 8x15], gap 13; 2 at the gated bearing |
+
+The old check reported PASS for both. The new one separates them on every
+number, and it now scores the 2026-09-06 fix as the real improvement it was —
+gated bearing 0 -> 2 canisters, best-bearing seam 1 px -> 13 px.
+
+### The new UNMET row is a real finding, not a strictness artefact
+
+**`clause.unmet` 1 -> 2, `clause.vehicleUnmet` 0 -> 1.** All four drums exist and
+two of them are countable. The 2026-09-06 pass split the **left/right** pair and
+left the **near/far** pair fused, so all eight bearings resolve at most **two**
+columns, each of them two drums blended into one. It is the same anti-aliasing
+bridge as the four defects that pass found, one axis over: a 1-1.5 px seam
+between two owner-hued edges blends to something still owner-hued and the mask
+crosses it. **The lever is `cu` in the `cans` loop** — more separation along the
+hull axis — or a seam dark enough to survive the bake.
+
+**No art was changed by this pass.** The fix belongs to whoever owns the
+Apocalypse's art; this pass only made the check say what the row says.

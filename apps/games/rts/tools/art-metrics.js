@@ -347,9 +347,10 @@ const TARGETS = {
   'value.engineerLightPct':          { want: 0.55, dir: 'up', note: 'the same clause as a fraction — §2.2 asks "body value >= 0.75 across >= 55% of the torso+legs". Measured over the whole sprite here, which is the quantity the bake can see; the helmet makes it read slightly high against the row\'s torso+legs wording, so treat 0.55 as a floor rather than a match. Kept alongside the ordering because they fail differently: a roster that goes pale WITH him leaves him first and still unreadable' },
   'value.engineerMarginOverNext':    { want: 0.15, dir: 'up', note: 'how far clear of the second-lightest infantryman he stands. The read is a CONTRAST, so a dead heat is a failure even when he wins it — coming first by a point would satisfy the ordering and still leave a player unable to pick him out of a squad, which is the whole job of an inverted value' },
   // §2's pixel budgets, checked one clause at a time (tools/clause-checks/).
-  'clause.checked':              { want: 57,   dir: 'up',   note: '§2 states 96 budget clauses across 41 units and each unit has exactly ONE SPIKES entry, so 57 clauses were honoured by intention only. This counts how many of those now have a real measurement behind them. The target is the whole backlog; it rises as checks land. One of the 57 is a STRUCK row rather than a measured one (see clause.struck), and its check asserts the arithmetic of that strike rather than the art' },
+  'clause.checked':              { want: 57,   dir: 'up',   note: '§2 states 96 budget clauses across 41 units and each unit has exactly ONE SPIKES entry, so 57 clauses were honoured by intention only. This counts how many of those now have a real measurement behind them, and 57 IS REACHABLE: every one of the 57 emits a row. Three of them are not owed against the art — two STRUCK (clause.struck) and one WAIVED (clause.waived) — and each of those emits a row too, whose check is of the strike or of the waiver rather than of the art. That is deliberate and it is the whole accounting: an earlier pass resolved two impossible clauses by DELETING them from their module, which held this metric at 55 against a want of 57 and made the target permanently unreachable, and a gate red forever gets disabled. Striking still cannot BUY anything, because the row it adds here is immediately spent on a counter that must not rise' },
   'clause.unmet':                { want: 0,    dir: 'down', note: 'clauses that are checked AND FAILING. A rising `checked` with a rising `unmet` is the tool working, not the art getting worse — the first two clauses ever checked by hand were both unmet (Tesla Trooper carapace 8% vs 40%, Engineer third on a row saying "the only")' },
-  'clause.struck':               { want: 1,    dir: 'down', note: 'of the checked clauses, the ones whose §2 row is STRUCK — a bar the row itself makes unreachable, so the check asserts the CONTRADICTION rather than the art. Exactly one today: the Nighthawk\'s "rotor span >= 1.25x fuselage length", where an iso disc of span S is S/2 tall, so the span bar caps the airframe at aspect 1.6-2.0 against the 3.05 the same row demands. The target is DOWN so that striking can never be a way to move `clause.checked`: a second strike is debt until its own arithmetic is beside it, and the honest way to clear one is to remove the contradiction from §2, not to add another' },
+  'clause.struck':               { want: 2,    dir: 'down', note: 'of the checked clauses, the ones whose §2 row is STRUCK — a bar the row itself makes unreachable, so the check asserts the CONTRADICTION\'s premises rather than the art, and the row goes red the moment the contradiction dissolves. Two today: the Nighthawk\'s "rotor span >= 1.25x fuselage length" (an iso disc of span S is S/2 tall, so the span bar caps the airframe at aspect 1.6-2.0 against the 3.05 the same row demands — a closed arithmetic proof) and the IFV\'s "turret >= 45% of total height" (h = w/2 + V under this camera, so the aspect clause beside it caps the whole above-footprint budget; the exclusion rests on a MEASURED frontier of 0.420 rather than on arithmetic alone, and the check says so). The target is DOWN so that striking can never be a way to move `clause.checked`: a strike ADDS a row there and spends it again here, so the net is zero and a third strike is debt until its own premises are beside it. The honest way to clear one is to remove the contradiction from §2, not to add another' },
+  'clause.waived':               { want: 1,    dir: 'down', note: 'of the checked clauses, the ones whose §2 row is WAIVED. WAIVED IS NOT STRUCK and the two are counted apart on purpose: a struck clause is IMPOSSIBLE, while a waived one is perfectly reachable and is overridden by a recorded MEASURED decision — so its check asserts the waiver\'s premises AND that the clause is still unmet, because a waiver whose clause has since been met is stale and hides an honestly satisfied row. One today: the Flak Track\'s "body aspect 0.95-1.10", measuring 0.878, where both measured routes to 0.95 walk into the `flaktrack | ifv` mask pair — the clause asks for exactly the property that separation is bought with — and the ground the waiver stands on is that the unit is still inside the aspect gate\'s own +-20% RA2 band. Same ratchet as `clause.struck` and for the same reason: waiving ADDS a row to `clause.checked` and spends it again here, so neither is a route to a green number' },
   'clause.unmatchedToReference': { want: 0, dir: 'down', note: "checks whose stated clause matches NO budget string in §2 for that unit. A check is only worth having if it measures the clause the reference actually wrote; without this, \"measured\" can quietly become \"measured something adjacent and easier\", which is the failure mode this whole file is built against, one level up. Matching is on shared words against that unit's own budget list, so a faithful paraphrase passes and an invented clause does not" },
   'clause.infantryUnmet':        { want: 0,    dir: 'down', note: 'the same, for the 23 unmeasured infantry clauses' },
   'clause.vehicleUnmet':         { want: 0,    dir: 'down', note: 'the same, for the 18 unmeasured vehicle clauses' },
@@ -1166,17 +1167,38 @@ function compute(recs, extra) {
     const unmatched = rows.filter((r) => r.unit !== '-' && r.refMatch < 0.34);
     const byG = (g) => rows.filter((r) => (unit[r.unit] || {}).group === g);
     const bad = (rs) => rs.filter((r) => !r.ok).length;
-    // STRUCK clauses. A §2 row can state a bar the same row makes unreachable
-    // — the Nighthawk's rotor span is one, struck through in the reference
-    // itself with an arithmetic proof. Such a clause is still CHECKED, and the
-    // check is of the STRIKE: it asserts the contradiction is still there, so
-    // that a camera or an airframe change that dissolves it turns the row red
-    // instead of leaving a permanently excused clause behind. Counted apart
-    // from the measured ones so `checked` cannot be inflated by striking:
-    // `clause.struck` is a target of its own, and it goes the wrong way.
+    // STRUCK and WAIVED clauses — EMITTED, never deleted, and never merged.
+    //
+    // A §2 row can state a bar the same row makes unreachable (STRUCK — the
+    // Nighthawk's rotor span, struck through in the reference itself with an
+    // arithmetic proof, and the IFV's turret fraction), or a bar a recorded
+    // MEASURED decision overrides (WAIVED — the Flak Track's body aspect,
+    // where both routes to the number walk into the mask pair the unit's
+    // separation is bought with). Either way the clause is still CHECKED: the
+    // check is of the STRIKE or of the WAIVER, asserting the premises that
+    // excuse the row, so a change that dissolves them turns the row red
+    // instead of leaving a permanently excused clause behind.
+    //
+    // THE TWO ARE COUNTED APART BECAUSE THEY ARE NOT THE SAME THING. A strike
+    // is a claim about what is possible; a waiver is a claim about what was
+    // decided, and only a waiver can go stale — its check therefore also
+    // asserts that its clause is still UNMET. Flattening them into one flag
+    // would lose exactly the property that makes the second one retirable.
+    //
+    // WHY EMITTING MATTERS, learned the expensive way: an earlier pass
+    // resolved two impossible clauses by REMOVING them from their module. That
+    // held `clause.checked` at 55 against a want of 57 — permanently
+    // unreachable — while `clause.struck` read 1 with three clauses excused,
+    // so the ledger said neither the truth about coverage nor the truth about
+    // debt. Emitting costs nothing and buys nothing: a struck or waived row
+    // adds to `checked` and immediately spends it again on `struck`/`waived`,
+    // both of which are targets of their own and both of which go the wrong
+    // way. That is what keeps striking from being the cheap green number.
     return { rows, unmatched: unmatched.length,
              unmatchedRows: unmatched.map((r) => ({ unit: r.unit, clause: r.clause, refMatch: r.refMatch })),
-             checked: rows.length, unmet: bad(rows), struck: rows.filter((r) => r.struck).length,
+             checked: rows.length, unmet: bad(rows),
+             struck: rows.filter((r) => r.struck).length,
+             waived: rows.filter((r) => r.waived).length,
              infUnmet: bad(byG('infantry')), vehUnmet: bad(byG('vehicle')),
              navUnmet: bad(byG('naval')), airUnmet: bad(byG('air')) };
   })();
@@ -1242,24 +1264,16 @@ function compute(recs, extra) {
       'size.vehicleOutsideRA2Band': ra2Size.vehOutside,
       'size.infantryOutsideRA2Band': ra2Size.infOutside,
       'size.airOutsideRA2Band': ra2Size.airOutside,
-      'size.crossGroupSpread':       { want: 1.61, dir: 'down', note: 'widest group bake scale over narrowest, against RA2 sprite widths. RA2 measures every group in the SAME pixels so its own spread is 1.00 by construction; ours is infantry 1.417 / vehicle 1.270 / air 0.973 / naval 0.881 = 1.61x. This is the blind spot the ra2Size block declares in its own comment — both size gates normalise per GROUP, so a whole group at the wrong scale is invisible to them, and it took a §2 clause to surface it: "[DEST] length >= 1.7x any land vehicle" measures 0.848, our Destroyer being SHORTER than our MCV where RA2 has it 1.46x longer. 1.00 is not the target: infantry are deliberately enlarged for ZMIN legibility (the 1.12x over vehicles is intended). The unexplained part is the fleet at 0.881. RATCHETED, not chased — closing it means rescaling the best-proportioned group on the board, so this exists to stop the spread growing silently' },
-  'size.worstOffGroupScale': ra2Size.worstOff,
+      'size.worstOffGroupScale': ra2Size.worstOff,
       'size.crossGroupSpread': ra2Size.crossSpread,
       // §2's pixel budgets, checked one clause at a time (tools/clause-checks/).
-  'clause.checked':              { want: 57,   dir: 'up',   note: '§2 states 96 budget clauses across 41 units and each unit has exactly ONE SPIKES entry, so 57 clauses were honoured by intention only. This counts how many of those now have a real measurement behind them. The target is the whole backlog; it rises as checks land' },
-  'clause.unmet':                { want: 0,    dir: 'down', note: 'clauses that are checked AND FAILING. A rising `checked` with a rising `unmet` is the tool working, not the art getting worse — the first two clauses ever checked by hand were both unmet (Tesla Trooper carapace 8% vs 40%, Engineer third on a row saying "the only")' },
-  'clause.unmatchedToReference': { want: 0, dir: 'down', note: "checks whose stated clause matches NO budget string in §2 for that unit. A check is only worth having if it measures the clause the reference actually wrote; without this, \"measured\" can quietly become \"measured something adjacent and easier\", which is the failure mode this whole file is built against, one level up. Matching is on shared words against that unit's own budget list, so a faithful paraphrase passes and an invented clause does not" },
-  'clause.infantryUnmet':        { want: 0,    dir: 'down', note: 'the same, for the 23 unmeasured infantry clauses' },
-  'clause.vehicleUnmet':         { want: 0,    dir: 'down', note: 'the same, for the 18 unmeasured vehicle clauses' },
-  'clause.navalUnmet':           { want: 0,    dir: 'down', note: 'the same, for the 9 unmeasured naval clauses' },
-  'clause.airUnmet':             { want: 0,    dir: 'down', note: 'the same, for the 7 unmeasured air clauses' },
-  'clip.unitsTouchingSheetEdge': clip.units.length,
+      'clip.unitsTouchingSheetEdge': clip.units.length,
       'clip.unitsClippedOnGatedOctant': clip.onGated.length,
       'clause.checked': clause.checked,
       'clause.unmet': clause.unmet,
       'clause.struck': clause.struck,
-      'clause.unmatchedToReference': { want: 0, dir: 'down', note: "checks whose stated clause matches NO budget string in §2 for that unit. A check is only worth having if it measures the clause the reference actually wrote; without this, \"measured\" can quietly become \"measured something adjacent and easier\", which is the failure mode this whole file is built against, one level up. Matching is on shared words against that unit's own budget list, so a faithful paraphrase passes and an invented clause does not" },
-  'clause.infantryUnmet': clause.infUnmet,
+      'clause.waived': clause.waived,
+      'clause.infantryUnmet': clause.infUnmet,
       'clause.vehicleUnmet': clause.vehUnmet,
       'clause.navalUnmet': clause.navUnmet,
       'clause.airUnmet': clause.airUnmet,

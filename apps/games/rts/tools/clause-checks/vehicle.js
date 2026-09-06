@@ -2,13 +2,13 @@
  * §2.3 / §2.4's UNMEASURED VEHICLE CLAUSES — 18 of them, one file.
  *
  * The inventory (docs/clause-inventory.md) lists 18 budget clauses on the
- * vehicle rows that no SPIKES entry gates. Sixteen are measured here; two are
- * not, and each says so in place rather than being silently absent:
- *   * `ifv` "turret >= 45% of total height" — STRUCK from §2.3 (2026-09-07);
- *     it cannot coexist with the aspect clause on its own row, and the
- *     frontier is measured. Reasons at the IFV block below.
- *   * `flaktrack` "body aspect 0.95-1.10" — WAIVED in §2.4 (2026-09-07)
- *     against a recorded measured decision, now backed by two measured routes.
+ * vehicle rows that no SPIKES entry gates. All 18 emit a row. Two of them are
+ * not owed against the art, and each carries its state ON the row rather than
+ * being absent from the set:
+ *   * `ifv` "turret >= 45% of total height" — STRUCK from §2.3 (2026-09-07),
+ *     `struck: true`. What is checked is THE STRIKE.
+ *   * `flaktrack` "body aspect 0.95-1.10" — WAIVED in §2.4 (2026-09-07),
+ *     `waived: true`. What is checked is THE WAIVER.
  * `chronominer` "zero turret mass" stood recorded as UNMEASURABLE with four
  * rejected silhouette statistics beside it; the fifth is at the Chrono Miner's
  * block below and it works because it stops trying to build a universal turret
@@ -16,10 +16,31 @@
  * instead. The rejection table stays in docs/per-unit-art-log.md: it is what
  * says which readings are already spent.
  *
- * A bogus check is worse than an admitted gap, and a struck or waived clause
- * COSTS `clause.checked` rather than buying it — the `want` is deliberately
- * left at 57 — which is the right way round: striking must never be the cheap
- * way to a green number.
+ * ── STRUCK IS NOT WAIVED, AND NEITHER ONE IS A BLANK.
+ *
+ * An earlier pass resolved these two by DELETING them from this module. That
+ * cost `clause.checked` two rows against a want of 57, which made 57
+ * permanently unreachable — and this project's own doctrine is that a gate red
+ * forever gets disabled. It also left the strike and the waiver unaudited: a
+ * clause that emits nothing is a clause nothing can ever notice again. The
+ * Nighthawk's rotor row in naval-air.js had already settled the right shape and
+ * this file now follows it.
+ *
+ *   * A STRUCK clause is IMPOSSIBLE — the row states a bar the row itself makes
+ *     unreachable. The check asserts the impossibility's PREMISES, so the row
+ *     goes red the moment the contradiction dissolves and the strike has to be
+ *     re-argued.
+ *   * A WAIVED clause is POSSIBLE and UNMET, overridden by a recorded measured
+ *     decision. The check asserts the WAIVER's premises AND that the clause is
+ *     still unmet — a waiver whose clause has since been met is stale, and a
+ *     stale waiver is a defect in the record, so that turns the row red too.
+ *
+ * Flattening the two into one flag would lose exactly the distinction that
+ * makes the second one retirable. They are counted apart, in `clause.struck`
+ * and `clause.waived`, and BOTH targets point DOWN: emitting a row buys
+ * `clause.checked`, but striking or waiving one immediately spends it again on
+ * a metric that must not rise. That is what keeps either from becoming the
+ * cheap route to a green number.
  *
  * ── THE THREE CONVENTIONS, stated because a clause measured under a different
  *    one is a different number (EXAMPLE-infantry-gi.js documents the trap;
@@ -53,6 +74,16 @@
  *    states none. None of those is presented as the spec.
  */
 'use strict';
+
+const fs = require('fs');
+const path = require('path');
+
+/** rts.html itself — a premise a check quotes must be READ, not assumed. */
+const SRC = () => {
+  try { return fs.readFileSync(path.join(__dirname, '..', '..', 'rts.html'), 'utf8'); }
+  catch (e) { return ''; }
+};
+const num = (src, re, g) => { const m = src.match(re); return m ? Number(m[g]) : 0; };
 
 const hsv = (r, g, b) => {
   r /= 255; g /= 255; b /= 255;
@@ -239,6 +270,11 @@ exports.check = function (ctx) {
   if (!F.lancer) return rows;
   const add = (unit, clause, ok, measured, want, note) =>
     rows.push({ unit, clause, ok, measured, want, note });
+  // A clause that is not owed against the art. `state` is 'struck' or 'waived'
+  // — never both, never merged (see the header): the row is still CHECKED and
+  // still counted, and what `ok` asserts is the strike or the waiver itself.
+  const mark = (state, unit, clause, ok, measured, want, note) =>
+    rows.push({ unit, clause, ok, measured, want, note, [state]: true });
 
   // ── §2.3 Grizzly Tank ──────────────────────────────────────────────────
   // "hull height <= 0.45 x length". The HULL is a subset of the bbox, so the
@@ -312,35 +348,92 @@ exports.check = function (ctx) {
       `whole-sprite ${f.w}x${f.h}; RA2's own [FV] is 50x45 = 1.111 measured the same way, and `
       + `art-metrics' aspect gate reads this unit at ${R(a / (50 / 45), 3)} of it`);
   }
-  // §2.3 IFV, "turret >= 45% of total height", IS STRUCK from the reference
-  // (2026-09-07) and deliberately emits NO ROW here — the same shape as the
-  // Nighthawk's rotor-span clause in naval-air.js. Recorded rather than left
-  // as a silently-missing check:
+  // ── §2.3 IFV — "turret >= 45% of total height" [STRUCK] ────────────────
   //
-  //   * IT CANNOT COEXIST WITH THE CLAUSE BESIDE IT. At the IFV's gated
-  //     octant |fy| = |py| = ISO_Y and ISO_Y/ISO_X is exactly 1/2, so a ground
-  //     footprint of screen width w projects to w/2 of screen HEIGHT that
-  //     carries no vertical structure: h = w/2 + V. "body aspect 1.0-1.2"
-  //     therefore caps V — the whole wheels-to-crown budget — at w/2, 26.5 px
-  //     of our 53x49 sprite, and the crown has to come out of what the wheels,
-  //     the chassis and the crew box leave.
-  //   * THE FRONTIER IS MEASURED, one lever at a time (turret up, crew box
-  //     down, wheels in, chassis down): the best turret fraction reachable at
-  //     aspect exactly 1.000 is 0.420, and 0.45 first appears at aspect 0.943
-  //     = 0.849 of [FV]'s own 1.111. The 2026-09-06 note quoted a worse figure
-  //     (0.855) because it only tried GROWING the turret; shrinking the body
-  //     is the cheaper lever and it still stops short — 0.388 at aspect 1.041.
-  //   * 45% HAS NO SOURCE. There is no [FV] rip in docs/ra2-ref/sprites/, and
-  //     §1.1's only measured [FV] datum is the 50x45 bbox the OTHER clause on
-  //     the row already encodes. What is left is the cameo, and this project
-  //     has recorded three separate times that in-game proportion cannot be
-  //     read off one.
-  //   * THE ROW'S INTENT IS HONOURED AND IS CHECKED ELSEWHERE. art.ini puts
-  //     [FV]'s missile turret muzzle at Z=180 and its gun turret at Z=160
-  //     where [GTNK] and [HTNK] sit at Z=100, on a body RA2 draws shorter than
-  //     the Grizzly's; ours carries a 15 px crown against the Grizzly's 5, and
-  //     the row's third clause (four turret models distinct at >= 8x8) is the
-  //     unit's gated SPIKES entry.
+  // Struck from §2.3 on 2026-09-07, and EMITTED as a struck row: what is
+  // measured is THE STRIKE, not the art. The previous pass deleted this clause
+  // from the module instead, which cost `clause.checked` a row it could never
+  // get back and left the strike itself unaudited.
+  //
+  // THE THREE PREMISES, each one falsifiable, each one asserted below:
+  //
+  //   1. THE CAMERA IS 2:1, read out of rts.html rather than assumed. At the
+  //      IFV's gated octant |fy| = |py| = ISO_Y and ISO_Y/ISO_X = (TH/2)/(TW/2)
+  //      is exactly 1/2, so a ground footprint of screen width w projects to
+  //      w/2 of screen HEIGHT carrying no vertical structure at all:
+  //      h = w/2 + V.
+  //   2. THE CLAUSE BESIDE IT STILL BINDS. "body aspect 1.0-1.2" is the other
+  //      clause on the same row, and the unit still measures inside it, so V —
+  //      the whole wheels-to-crown budget — is capped at w(1/a - 1/2), i.e. a
+  //      fraction (1 - a/2) of the sprite's own height. Delete that clause, or
+  //      let the unit leave the band, and V is unbounded: the strike dissolves
+  //      and this row goes red.
+  //   3. NOTHING HAS QUIETLY CLOSED IT. The crown measures below 45% today. If
+  //      45% is ever reached while the unit is still inside the aspect band
+  //      then the two clauses are demonstrably NOT exclusive, and the row goes
+  //      red so the strike has to be withdrawn rather than inherited.
+  //
+  // WHAT THIS CHECK DOES NOT CLAIM, stated because the recorded strike claims
+  // it slightly harder than the geometry earns. (1) + (2) give an analytic
+  // ceiling of (1 - a/2), which at the shipped aspect 1.082 is 0.459 — ABOVE
+  // 0.45 — and the whole of the row's own band below a = 1.10 is analytically
+  // compatible with 45%. So the exclusion is NOT a pure arithmetic
+  // contradiction the way the Nighthawk's is. What excludes it is the MEASURED
+  // frontier: four levers swept one at a time (turret up, crew box down, wheels
+  // in, chassis down), best crown fraction 0.420 at aspect exactly 1.000, and
+  // 0.45 first appearing at 0.943 = 0.849 of [FV]'s own 1.111 (the table is in
+  // per-unit-art-log.md §2). That sweep cannot be re-run from inside a check,
+  // which is exactly why premise 3 is written as the FALSIFIER rather than
+  // dressed up as a proof.
+  //
+  // 45% ALSO HAS NO SOURCE: there is no [FV] rip in docs/ra2-ref/sprites/, and
+  // §1.1's only measured [FV] datum is the 50x45 bbox the OTHER clause on the
+  // row already encodes. What is left is the cameo, and this project has
+  // recorded three separate times that in-game proportion cannot be read off
+  // one. THE ROW'S INTENT IS HONOURED AND IS GATED ELSEWHERE: art.ini puts
+  // [FV]'s missile turret muzzle at Z=180 and its gun turret at Z=160 where
+  // [GTNK] and [HTNK] sit at Z=100, on a body RA2 draws shorter than the
+  // Grizzly's; ours carries a 15 px crown against the Grizzly's 5, and the
+  // row's third clause (four turret models distinct at >= 8x8) is this unit's
+  // gated SPIKES entry.
+  {
+    const src = SRC();
+    const tw = num(src, /var TW = (\d+(?:\.\d+)?), TH = (\d+(?:\.\d+)?);/, 1);
+    const th = num(src, /var TW = (\d+(?:\.\d+)?), TH = (\d+(?:\.\d+)?);/, 2);
+    // ISO_Y/ISO_X reduces to TH/TW; both definitions are verified in place so a
+    // rewrite of the projection cannot leave the ratio looking untouched.
+    const isoDefs = /var ISO_X = TW \/ 2 \/ Math\.hypot\(TW \/ 2, TH \/ 2\);/.test(src)
+                 && /var ISO_Y = TH \/ 2 \/ Math\.hypot\(TW \/ 2, TH \/ 2\);/.test(src);
+    const isoR = tw ? th / tw : 0;                      // ISO_Y / ISO_X, = 0.5
+    const f = F.ifv, a = f.w / f.h;
+    const inBand = a >= 1.0 && a <= 1.2;                // the clause beside it
+    const head = 1 - a / 2;                             // V/h at that aspect
+    // §1.3's own body/spike split, the same one spikeOf and the Rhino's hull
+    // row use: the crown is every row above the start of the body run.
+    const crown = bodyRun(rowProfile(f)).lo;
+    const frac = f.h ? crown / f.h : 0;
+    const BAR = 0.45;
+    const holds = !!(isoDefs && Math.abs(isoR - 0.5) < 1e-9 && inBand && frac < BAR);
+    mark('struck', 'ifv',
+      'turret >= 45% of total height — struck: it cannot coexist with the aspect clause beside it',
+      holds, `crown ${R(frac, 3)} (${crown} px of ${f.w}x${f.h}), headroom ${R(head, 3)}`,
+      `2:1 camera + aspect in 1.0-1.2 + crown < ${BAR}`,
+      'STRUCK from §2.3 — the check is of the STRIKE, not of the art, and it is a WATCHDOG on '
+      + 'the strike\'s premises rather than a re-derivation of it. The tile is '
+      + `${tw}x${th}, so ISO_Y/ISO_X = ${R(isoR, 3)} (both definitions source-verified: `
+      + `${isoDefs}) and at this unit's gated octant a ground footprint of screen width w `
+      + 'projects to w/2 of screen HEIGHT carrying no vertical structure: h = w/2 + V. The '
+      + `unit measures ${f.w}x${f.h} = aspect ${R(a, 3)}, inside the 1.0-1.2 the OTHER clause `
+      + `on this row states (${inBand}), which caps the whole wheels-to-crown budget at `
+      + `${R(head, 3)} of the sprite height. The crown ships at ${R(frac, 3)}. HONEST LIMIT: `
+      + `${R(head, 3)} is ABOVE 0.45, and every aspect in the row's band below 1.10 is `
+      + 'analytically compatible with 45%, so this is NOT the pure contradiction the '
+      + "Nighthawk's rotor row is. The exclusion is the MEASURED frontier — 0.420 at aspect "
+      + '1.000, 0.45 first at 0.943 = 0.849 of [FV]\'s own 1.111, four levers swept '
+      + '(per-unit-art-log.md §2) — which a check cannot re-run. So the row asserts what a '
+      + 'check CAN own: the camera, the clause beside it still binding, and the crown still '
+      + 'short of 45%. Reach 45% inside the band and this row goes red, which is the point');
+  }
   // ── §2.3 Mirage Tank ───────────────────────────────────────────────────
   // "gun stub <= 6 px (any longer and it reads as a Grizzly)". A stub is a
   // horizontal protrusion, so it is measured the way §1.3 measures one: the run
@@ -586,30 +679,82 @@ exports.check = function (ctx) {
 
   // ── §2.4 Apocalypse ────────────────────────────────────────────────────
   // "each canister >= 6x6 px and individually countable (gaps >= 2 px)".
-  // Countability is the clause, so this counts house components whose BOTH
-  // dimensions clear 6 px and reports the tightest gap among them.
+  //
+  // THE COUNT IS THE CLAUSE, and the previous version of this check did not
+  // enforce it. It asked for ">= 2 rear-deck house blocks >= 6x6 with gaps
+  // >= 2", and PROVED NOTHING: run against the PRE-fix art — the build in which
+  // all four drums baked as one fused 22x31 blob, the defect this row exists to
+  // catch — it returns "3 blocks, tightest gap 7 px" and PASSES. A single blob
+  // trivially satisfies "gaps >= 2" because there is no gap to violate, and the
+  // other two "blocks" it counted were not canisters at all: they were the
+  // house-coloured flank plates, 22x6 and 7x9. A check that a plate can satisfy
+  // on behalf of a drum is measuring something adjacent and easier, which is
+  // the failure mode this whole tree is built against.
+  //
+  // TWO THINGS ARE FIXED, and both are needed — either alone still passes the
+  // broken build:
+  //
+  //   1. A CANISTER IS A STANDING CYLINDER, not any house block. `puck(r = 2.00,
+  //      h = 9.6)` is 9.6 units of drum on 4.0 of width, a drawn aspect of 2.4,
+  //      and this camera does not foreshorten vertical length. MEASURED, by
+  //      baking the four drums one at a time and differencing the masks: an
+  //      isolated drum bakes 11x22 = 2.0 at the gated bearing. Every house PLATE
+  //      on this hull measures 1.29 or flatter (22x6, 19x11, 18x15, 15x11,
+  //      14x9, 7x9). The bar is h >= 1.5w — below every drum, above every plate
+  //      — and it is why the fused 22x31 blob (1.41) is now rejected outright.
+  //   2. THE COUNT IS 4, the number the row states and the number the art
+  //      draws. Not ">= 2".
+  //
+  // COUNTED AT THE BEARING THAT RESOLVES THEM BEST, over all eight, not at the
+  // gated one. At the gated octant one drum contributes FOUR PIXELS of its own
+  // (measured the same way — it is 96% occluded by the near pair), so four is
+  // not countable there and no art change will make it so; the row is owed at
+  // the bearing where a player CAN count, which is the most generous reading
+  // the camera permits and still the row's own number.
   {
-    const f = F.mammoth;
-    // The drums sit on the REAR deck, so they are the house blocks in the half
-    // of the sprite AWAY from the twin barrels; the barrels are found, not
-    // assumed, as the thin-column protrusion, so this follows the bearing.
-    const gun = sideProtrusion(f);
-    const rear = (c) => (gun.side === 'left' ? (c.x0 + c.x1) / 2 > f.w * 0.5
-                                             : (c.x0 + c.x1) / 2 < f.w * 0.5);
-    const cs = components(f, isHouse).filter((c) => c.w >= 6 && c.h >= 6 && rear(c));
-    let tight = 1e9;
-    for (let i = 0; i < cs.length; i++) for (let j = i + 1; j < cs.length; j++)
-      tight = Math.min(tight, gapBetween(f, cs[i], cs[j]));
-    if (tight === 1e9) tight = 0;
-    const ok = cs.length >= 2 && tight >= 2;
+    // A drum, not a plate: the row's own 6x6 floor, plus the drawn proportion.
+    const CAN = (c) => c.w >= 6 && c.h >= 6 && c.h >= 1.5 * c.w;
+    const scan = (o) => {
+      const f = ctx.byUnitOct('mammoth', o);
+      if (!f || !f.rgba) return null;
+      const cs = components(f, isHouse).filter(CAN);
+      let tight = 1e9;
+      for (let i = 0; i < cs.length; i++) for (let j = i + 1; j < cs.length; j++)
+        tight = Math.min(tight, gapBetween(f, cs[i], cs[j]));
+      return { oct: o, cs, tight: tight === 1e9 ? 0 : tight };
+    };
+    let best = null;
+    for (let o = 0; o < 8; o++) {
+      const c = scan(o);
+      if (!c) continue;
+      if (!best || c.cs.length > best.cs.length
+          || (c.cs.length === best.cs.length && c.tight > best.tight)) best = c;
+    }
+    const gatedOct = ctx.broadsideOct('mammoth');
+    const g = scan(gatedOct) || { cs: [], tight: 0 };
+    const n = best ? best.cs.length : 0;
+    const tight = best ? best.tight : 0;
+    const WANT = 4;
+    const ok = n === WANT && tight >= 2;
     add('mammoth', 'each canister >= 6x6 px and individually countable (gaps >= 2 px)', ok,
-      `${cs.length} rear-deck house blocks >= 6x6 [${cs.map((c) => c.w + 'x' + c.h).join(', ')}], `
-      + `tightest gap ${tight} px`, '>= 2 rear blocks >= 6x6 / gaps >= 2',
-      'FOUR drums are drawn, 2x2 in the ground plane. Under a 2:1 iso camera at the gated bearing '
-      + 'the far pair stands directly BEHIND the near pair, so two resolvable columns is the most '
-      + 'this bearing can show and that is the bar used — stated because the row says four. The '
-      + 'part of the clause that had teeth is the gap, and it was 1 px: all four drums baked as '
-      + 'ONE 22x31 house component until this pass spread them');
+      `${n} at oct ${best ? best.oct : '-'} [${best ? best.cs.map((c) => c.w + 'x' + c.h).join(', ') : ''}]`
+      + `, tightest gap ${tight} px (gated oct ${gatedOct}: ${g.cs.length})`,
+      `${WANT} canisters >= 6x6 / gaps >= 2`,
+      'FOUR drums are drawn, 2x2 on the rear deck, and FOUR is what the row asks a player to be '
+      + 'able to count. A canister is a house component >= 6x6 that is a STANDING CYLINDER '
+      + '(h >= 1.5w): the drums are drawn at 9.6 units of height on 4.0 of width and an isolated '
+      + 'one bakes 11x22 = 2.0, while every house PLATE on this hull is 1.29 or flatter — the '
+      + 'previous check counted those plates as canisters and passed on the fused build this row '
+      + 'exists to catch. Counted at the bearing that resolves them BEST over all eight, because '
+      + `at the gated bearing (${gatedOct}) one drum bakes 4 px of its own and four can never be `
+      + 'countable there. UNMET TODAY AND IT IS A REAL FINDING, not a strictness artefact: the '
+      + '2026-09-06 pass split the LEFT/RIGHT pair and left the NEAR/FAR pair fused, so all eight '
+      + 'bearings resolve at most TWO columns, each of them two drums blended into one. It is the '
+      + 'same anti-aliasing fusion as before, one axis over — a 1-1.5 px seam between two '
+      + 'owner-hued edges blends to something still owner-hued and the mask bridges it — and the '
+      + 'lever is the same: more separation along the hull axis (`cu`), or a seam dark enough to '
+      + 'survive the bake. NO ART WAS CHANGED HERE; this pass only made the check say what the '
+      + 'row says');
   }
 
   // ── §2.4 Tesla Tank ────────────────────────────────────────────────────
@@ -696,11 +841,30 @@ exports.check = function (ctx) {
       + 'the chassis skirt from being counted as a nose cone');
   }
 
-  // ── §2.4 Flak Track ────────────────────────────────────────────────────
-  // "body aspect 0.95-1.10" measures 0.878 and IS WAIVED in the reference
-  // (2026-09-07), so no row is emitted. It is waived against a decision this
-  // project made on evidence, and BOTH routes to 0.95 were measured before the
-  // waiver was written:
+  // ── §2.4 Flak Track — "body aspect 0.95-1.10" [WAIVED] ─────────────────
+  //
+  // Measures 0.878 and is WAIVED in §2.4 (2026-09-07). Waived is not struck:
+  // this clause is perfectly reachable — both routes to 0.95 were MEASURED —
+  // and it is overridden by a recorded decision, not by an impossibility. So
+  // the row is emitted with `waived: true`, its real number on it, and the
+  // check is of THE WAIVER.
+  //
+  // A WAIVER DIES TWO WAYS, and the row goes red for both:
+  //
+  //   1. THE CLAUSE BECOMES MET. Then the waiver is stale, and a stale waiver
+  //      is a defect in the record — it excuses a bar the art already clears
+  //      and hides the fact that a §2 row is now honestly satisfied. Retire it
+  //      in §2.4 and turn this into an ordinary `add`.
+  //   2. THE FALLBACK STANDARD GOES. The waiver's own stated ground is that
+  //      the unit is still inside art-metrics' +-20% RA2 aspect band — 0.878
+  //      of [HTK]'s own 1.00 — so `aspect.vehicleOutsideRA2Band` stays 0. Leave
+  //      that band and there is nothing holding the proportion at all, and the
+  //      waiver has to be re-argued instead of inherited.
+  //
+  // The threshold is RA2's own, derived from §1.1's bbox rather than written
+  // here: [HTK] is 45x45, and the band is the one the aspect gate already uses.
+  //
+  // BOTH ROUTES TO 0.95 WERE MEASURED BEFORE THE WAIVER WAS WRITTEN:
   //
   //   * LOWER THE JIB. The near-vertical barrel is the height, and it is a
   //     recorded deliberate decision — per-unit-art-log.md, "Looked at, and
@@ -719,9 +883,37 @@ exports.check = function (ctx) {
   // Both routes fail into the SAME pair, which is the finding: the Flak Track
   // and the IFV are the two lightest vehicles on the field and the only thing
   // separating their masks is that one of them is tall and narrow. The clause
-  // asks for exactly the property that separation is bought with. The unit is
-  // still inside art-metrics' own +-20% RA2 aspect band (0.878 of [HTK]'s
-  // 1.00) and aspect.vehicleOutsideRA2Band stays 0.
+  // asks for exactly the property that separation is bought with.
+  {
+    const f = F.flaktrack, a = f.w / f.h;
+    const LO = 0.95, HI = 1.10;
+    const met = a >= LO && a <= HI;                      // the clause itself
+    const rb = ctx.ra2Bbox || {};
+    const ra2 = rb.flaktrack ? rb.flaktrack[0] / rb.flaktrack[1] : 0;   // [HTK] 45x45 = 1.00
+    const off = ra2 ? Math.abs(a / ra2 - 1) : 1;         // the aspect gate's own +-20% band
+    const BAND = 0.20;
+    const holds = !!(ra2 > 0 && !met && off <= BAND);
+    mark('waived', 'flaktrack', 'body aspect 0.95-1.10 — waived against a measured decision',
+      holds, `${R(a, 3)} (${f.w}x${f.h}); ${R(off, 3)} off RA2's own ${R(ra2, 3)}`,
+      `unmet + within ${BAND} of [HTK]`,
+      'WAIVED in §2.4 — the check is of the WAIVER, not of the art. The clause is REACHABLE '
+      + 'and that is what separates a waiver from a strike: both routes to 0.95 were measured '
+      + `and both were refused. Route 1, lower the jib (barrel ky-19.4 -> ky-15.6) reaches `
+      + '0.956 and is the change a recorded decision already refuses twice in '
+      + 'per-unit-art-log.md and once in rts.html — "a shallower jib left its crown the same '
+      + 'fat box the IFV wears". Route 2, grow the footprint with the jib untouched '
+      + '(len 23 -> 28, wid 15 -> 18, sprite 43x49 -> 47x49) reaches 0.959 and also improves '
+      + 'this unit\'s -0.2474 size deviation, the worst in the group; reverted because it '
+      + 'takes `flaktrack | ifv` 0.6088 -> 0.6817 and `iou.groundCombat.mean` 0.4667 -> '
+      + '0.4777. BOTH ROUTES FAIL INTO THE SAME PAIR, and that is the finding — the clause '
+      + 'asks for exactly the property the separation from the IFV is bought with. THE '
+      + `WAIVER'S GROUND, asserted here: the unit is ${R(a, 3)} against RA2's own [HTK] `
+      + `${R(ra2, 3)} (derived from §1.1's bbox, not written here), i.e. ${R(off, 3)} off `
+      + `inside the aspect gate's own ${BAND} band, so aspect.vehicleOutsideRA2Band stays 0. `
+      + 'THIS ROW GOES RED IF THE CLAUSE IS EVER MET (the waiver is then stale and must be '
+      + 'retired from §2.4, not inherited) OR IF THE UNIT LEAVES THAT BAND (the ground the '
+      + 'waiver stands on is gone)');
+  }
 
   // ── §2.4 War Miner ─────────────────────────────────────────────────────
   // "bin >= 35% of body px". The bin is the ore hopper — the one large

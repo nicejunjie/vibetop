@@ -2,7 +2,8 @@
 
 Generated 2026-09-05 from `unit-identity-reference.md` §2 and the SPIKES table
 in `tools/art-metrics.js`. **96 budget clauses across 41 units; 57 had nothing
-measuring them, and as of 2026-09-06 all 57 do.** Each unit has exactly one
+measuring them, and as of 2026-09-07 all 57 emit a row —
+`clause.checked` 57.** Each unit has exactly one
 SPIKES entry, so at most one clause per unit is gated by the spike gate; every
 other clause on that row was honoured by intention only until the
 `tools/clause-checks/` modules landed.
@@ -17,12 +18,22 @@ Apocalypse's fused canisters, the War Miner's undersized bin, the Terror Drone's
 scale); `clause.unmet` is what carries the ones left standing as recorded
 ceilings.
 
+**And a check can be the defect.** The Apocalypse's canister row asked for
+`>= 2` house blocks when §2 says **four**, so it PASSED against the very build
+whose four drums baked as one fused 22x31 blob — verified by re-running it on
+that build. The two blocks it was counting were the house-coloured flank plates,
+not canisters. Tightened 2026-09-07 to the row's own count, with a canister
+defined as a standing cylinder (`h >= 1.5w`, from the drums' drawn 9.6-on-4.0
+proportion) so a plate can no longer stand in for a drum. On the old build it now
+reports **0 at the gated bearing and a 1 px seam**; on today's art it reports
+**2 of 4**, which is a **new UNMET row** — the near/far pair is still fused, the
+same anti-aliasing bridge one axis over. That is the tool working.
+
 `gated` = this clause is the one the unit's SPIKES entry measures. It says
-NOTHING about the clause-check modules: as of 2026-09-06 every row in the table
-below has a check in `tools/clause-checks/`, `gated` or not. The one row whose
-clause text is ~~struck through~~ (the Nighthawk's rotor span) is not owed
-against the art at all — see the note above and `unit-identity-reference.md`
-§2.3.
+NOTHING about the clause-check modules: every row in the table below has a check
+in `tools/clause-checks/`, `gated` or not. The rows whose clause text is
+~~struck through~~ are not owed against the art — see "The ledger" below and
+`unit-identity-reference.md` §2.3/§2.4.
 
 **Corrected 2026-09-06 — two thresholds were above RA2's own, one bearing was
 wrong.** `mcv` ">= 1.20x the widest tank" and `destroyer` "length >= 1.7x any
@@ -74,26 +85,53 @@ one was struck, and none of the three closed the way the record expected:
   stands (arithmetic below), but it is no longer a blank row: the check asserts
   the strike's two premises out of the source, so the excuse dies with the
   contradiction. Counted in `clause.checked` and, separately, in
-  **`clause.struck`** — target `<= 1`, pointing DOWN, so striking can never
-  become a way to move `clause.checked`.
+  **`clause.struck`**, pointing DOWN, so striking can never become a way to move
+  `clause.checked`.
 
-`STRUCK` in the table below means the clause is not owed against the art: the
-row states a bar the same row makes unreachable, the proof is beside it in
-`unit-identity-reference.md` §2.3, and the check verifies the proof.
+## The ledger — every clause emits a row, and the excuses are counted
 
-**Also measured since:** the 23 INFANTRY rows (`clause-checks/infantry.js`) and
-the 18 VEHICLE rows (`clause-checks/vehicle.js`). **52 of the 57 are checked.**
-The five that are not each say why at the site rather than being silently
-absent, and a struck or waived clause costs `clause.checked` rather than buying
-it — striking must never be the cheap route to a green number:
+**Corrected 2026-09-07. Three clauses were excused in two different ways and the
+accounting could not add up.** The Nighthawk's struck rotor row was EMITTED with
+`struck: true` — counted in `clause.checked`, counted again in `clause.struck`
+so a second strike shows as debt. The IFV's turret row and the Flak Track's
+aspect row were instead REMOVED from `clause-checks/vehicle.js`. The result was a
+ledger that told the truth about neither side: `clause.checked` stuck at **55**
+against a want of 57 that had become **permanently unreachable**, and
+`clause.struck` reading **1** while three clauses were struck or waived. This
+file's own doctrine is that a gate red forever gets disabled, so that could not
+stand.
 
-| clause | state | why |
-|---|---|---|
-| `nighthawk` rotor span >= 1.25x fuselage length | **struck** (2026-09-05) | impossible with a blur-disc rotor; arithmetic in §2.3 |
-| `rocket` deployed dome >= 15w x 12h | **unmeasurable** | our Guardian GI does not deploy — no frame exists |
-| `chronominer` zero turret mass | **unmeasurable** | four silhouette statistics tried, each inverts on a control unit |
-| `ifv` turret >= 45% of total height | **struck** (2026-09-07) | mutually exclusive with the aspect clause on its own row; frontier measured at 0.420 |
-| `flaktrack` body aspect 0.95-1.10 | **waived** (2026-09-07) | both routes to 0.95 walk into the `flaktrack \| ifv` pair; cited in §2.4 |
+**All three are now EMITTED rows carrying their state**, the Nighthawk's shape
+everywhere. `clause.checked` reaches **57**.
+
+**STRUCK and WAIVED are different things and are counted apart:**
+
+* **STRUCK** — the clause is **impossible**: the row states a bar the same row
+  makes unreachable. The check asserts the **strike's premises**, so the row goes
+  red the moment the contradiction dissolves and the strike has to be re-argued.
+  Counted in **`clause.struck`** (`<= 2`, DOWN).
+* **WAIVED** — the clause is **reachable** and **unmet**, overridden by a
+  recorded **measured** decision. The check asserts the **waiver's premises** AND
+  that the clause is **still unmet** — a waiver whose clause has since been met
+  is stale, and a stale waiver hides an honestly satisfied row, so that turns it
+  red too. Counted in **`clause.waived`** (`<= 1`, DOWN).
+
+**Neither is a route to a green number, and that property is the point.**
+Emitting a struck or waived row adds 1 to `clause.checked` and immediately spends
+it again on a counter that must not rise. The net is zero, both counters are
+ratcheted DOWN, and the honest way to clear one is to remove the contradiction
+from §2 — not to add another.
+
+| clause | state | counted in | what the check asserts |
+|---|---|---|---|
+| `nighthawk` rotor span >= 1.25x fuselage length | **struck** (2026-09-05) | `clause.struck` | the 2:1 camera and the ground-plane disc, source-verified: an iso disc of span S is S/2 tall, so 1.25L of span caps the airframe at 1.60/2.00 against the 3.05 the same row demands |
+| `ifv` turret >= 45% of total height | **struck** (2026-09-07) | `clause.struck` | the 2:1 camera (`h = w/2 + V`), that the aspect clause beside it still binds and the unit is still inside it, and that the crown is still short of 45%. **Stated limit:** the analytic headroom at the shipped aspect is 0.459, *above* 0.45, so this is not the closed contradiction the Nighthawk's is — the exclusion rests on the measured frontier (0.420 at aspect 1.000), and the check says so rather than dressing it up |
+| `flaktrack` body aspect 0.95-1.10 | **waived** (2026-09-07) | `clause.waived` | that the clause is still **unmet** (0.878) and that the waiver's own ground still holds — the unit inside the aspect gate's +-20% RA2 band, `0.122` off `[HTK]`'s own 1.00 |
+
+Two clauses remain recorded as **unmeasurable** rather than struck or waived, and
+both now have measurements after all (see "The last three" above): `rocket`
+deployed dome (the record was wrong — the frame was never baked) and
+`chronominer` zero turret mass (measurable on a fifth statistic).
 
 | unit | group | clause | gated |
 |---|---|---|---|
@@ -136,7 +174,7 @@ it — striking must never be the cheap route to a green number:
 | `lancer` Grizzly Tank | vehicle | barrel >= 13 px x 2.2 px, entirely clear of the hull | **yes** |
 | `lancer` Grizzly Tank | vehicle | exactly 2 house blocks, each 4-8 px, individually countable (gap >= 2 px, no fusing) — *the 6-8/>= 4 numbers were corrected on 2026-09-07, see §2.3* | — |
 | `ifv` IFV | vehicle | body aspect 1.0-1.2 | — |
-| `ifv` IFV | vehicle | ~~turret >= 45% of total height~~ (**struck**, see above) | — |
+| `ifv` IFV | vehicle | ~~turret >= 45% of total height~~ (**struck**, see the ledger — emitted, `clause.struck`) | — |
 | `ifv` IFV | vehicle | four distinct turret models must be visually distinct at >= 8x8 px each | **yes** |
 | `mirage` Mirage Tank | vehicle | housing >= 60% of hull width, >= 6 px tall, sitting proud of the deck | **yes** |
 | `mirage` Mirage Tank | vehicle | gun stub <= 6 px (any longer and it reads as a Grizzly) | — |
@@ -145,7 +183,7 @@ it — striking must never be the cheap route to a green number:
 | `chronominer` Chrono Miner | vehicle | height <= 0.55 x length | — (**MET** 0.522 — was read at the wrong bearing) |
 | `chronominer` Chrono Miner | vehicle | nose drum >= 8 px long, violet and unmistakably not house hue | **yes** |
 | `chronominer` Chrono Miner | vehicle | zero turret mass | — |
-| `nighthawk` Nighthawk | air | ~~rotor span >= 1.25x fuselage length~~ (**impossible with our blur disc, see below**) | — |
+| `nighthawk` Nighthawk | air | ~~rotor span >= 1.25x fuselage length~~ (**impossible with our blur disc, see the ledger — emitted, `clause.struck`**) | — |
 | `nighthawk` Nighthawk | air | blades 2 px with >= 40% value contrast | **yes** |
 | `nighthawk` Nighthawk | air | fuselage height <= 0.35 x length | — |
 | `harrier` Harrier | air | wing span >= 1.5x fuselage width | — |
@@ -153,7 +191,7 @@ it — striking must never be the cheap route to a green number:
 | `harrier` Harrier | air | nose cone >= 4 px | — |
 | `hornet` Hornet | air | total span <= 0.45x the Harrier's | **yes** |
 | `hornet` Hornet | air | do not add detail it cannot carry | — |
-| `mcv` MCV | vehicle | >= ~~1.20x~~ **1.17x** the widest tank (RA2's own) | — (**UNMET** 1.154) |
+| `mcv` MCV | vehicle | >= ~~1.20x~~ **1.17x** the widest tank (RA2's own) | — (**MET** 1.180 — closed 2026-09-06 by shrinking the Prism; the prose above says so and this row did not) |
 | `mcv` MCV | vehicle | zero barrel, zero turret ring | **yes** |
 | `destroyer` Destroyer | naval | length >= ~~1.7x~~ **1.46x** any land vehicle (RA2's own) | — (**UNMET** 0.848) |
 | `destroyer` Destroyer | naval | one turret forward of amidships | **yes** |
@@ -168,13 +206,13 @@ it — striking must never be the cheap route to a green number:
 | `rhino` Rhino Tank | vehicle | hull height >= 1.25x the Grizzly's | — |
 | `rhino` Rhino Tank | vehicle | 5 discrete house blocks, each 4-6 px, gaps >= 3 px | — |
 | `rhino` Rhino Tank | vehicle | gun >= 1.6x the Grizzly's barrel thickness | **yes** |
-| `mammoth` Apocalypse | vehicle | each canister >= 6x6 px and individually countable (gaps >= 2 px) | — |
+| `mammoth` Apocalypse | vehicle | each canister >= 6x6 px and individually countable (gaps >= 2 px) | — (**UNMET** 2 of 4) |
 | `mammoth` Apocalypse | vehicle | twin barrels >= 19 px, visibly two, tapering | **yes** |
 | `teslatank` Tesla Tank | vehicle | each column >= 9 px tall x 3 px wide | **yes** |
 | `teslatank` Tesla Tank | vehicle | gap between them >= 5 px so the pair reads as two | — |
 | `v3` V3 Launcher | vehicle | missile >= 1.10x the truck length, overhanging >= 5 px at the nose | **yes** |
 | `v3` V3 Launcher | vehicle | nose cone and fins in house hue, midbody pure white | — |
-| `flaktrack` Flak Track | vehicle | ~~body aspect 0.95-1.10~~ (**waived**, see above) | — |
+| `flaktrack` Flak Track | vehicle | ~~body aspect 0.95-1.10~~ (**waived**, see the ledger — emitted, `clause.waived`) | — (**0.878**) |
 | `flaktrack` Flak Track | vehicle | gun raised >= 10 px above the bed line | **yes** |
 | `warminer` War Miner | vehicle | turret >= 6x6 px on the bin's shoulder | **yes** |
 | `warminer` War Miner | vehicle | bin >= 35% of body px | — |
