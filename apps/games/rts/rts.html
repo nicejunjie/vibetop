@@ -19855,7 +19855,11 @@
       // cable trunk into the roof, and a beacon that keeps time with bph
       g.strokeStyle = '#4a4f52'; g.lineWidth = 3;
       g.beginPath(); g.moveTo(cx + 6, ssRy - 14); g.quadraticCurveTo(cx + 18, ssRy - 8, cx + 20, ssRy + 1); g.stroke();
-      var ssPh = 0.5 + 0.5 * Math.sin((bph || 0) * 6.283);
+      // a pure single-frequency sin sampled at the 6 baked phases collides
+      // 0/3, 1/2 and 4/5 (see walk-cycle.js's header on the Attack Dog) —
+      // the +0.35 rad offset keeps the same blink but visits six distinct
+      // brightnesses instead of three doubled-up ones.
+      var ssPh = 0.5 + 0.5 * Math.sin((bph || 0) * 6.283 + 0.35);
       g.fillStyle = 'rgba(255,110,110,' + (0.35 + 0.6 * ssPh).toFixed(2) + ')';
       g.beginPath(); g.arc(cx - fw * 0.66, ssRy - 5, 2.6, 0, 6.29); g.fill();
 
@@ -19888,7 +19892,14 @@
       g.strokeStyle = '#575850'; g.lineWidth = 3.4;
       g.beginPath(); g.moveTo(cx - 7, psTop); g.lineTo(cx, psTop - 22); g.stroke();
       g.beginPath(); g.moveTo(cx + 7, psTop); g.lineTo(cx, psTop - 22); g.stroke();
-      var psPh = 0.5 + 0.5 * Math.sin((bph || 0) * 6.283 * 2);
+      // double-frequency sin(2t) sampled at 6 equally-spaced phases repeats
+      // exactly every 3 steps (0/3, 1/4, 2/5 land on the same angle mod 2pi,
+      // structurally, not by coincidence — any pure function of 2t must),
+      // so the lens only ever pulsed through 3 of its 6 baked brightnesses.
+      // A small full-cycle cos(t) term is pi-antiperiodic (opposite sign at
+      // a given phase and that phase+3), which is exactly what's needed to
+      // pull those doubled-up phases apart without changing the pulse rate.
+      var psPh = 0.5 + 0.5 * (0.85 * Math.sin((bph || 0) * 6.283 * 2) + 0.15 * Math.cos((bph || 0) * 6.283));
       var lg = g.createRadialGradient(cx, psTop - 27, 1, cx, psTop - 27, 13);
       lg.addColorStop(0, 'rgba(240,225,255,' + (0.85 + 0.15 * psPh).toFixed(2) + ')');
       lg.addColorStop(0.45, 'rgba(176,120,240,' + (0.70 + 0.25 * psPh).toFixed(2) + ')');
