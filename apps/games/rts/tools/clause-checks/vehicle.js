@@ -2,10 +2,13 @@
  * §2.3 / §2.4's UNMEASURED VEHICLE CLAUSES — 18 of them, one file.
  *
  * The inventory (docs/clause-inventory.md) lists 18 budget clauses on the
- * vehicle rows that no SPIKES entry gates. 17 are measured here; the 18th
- * (`chronominer` "zero turret mass") is recorded in docs/per-unit-art-log.md as
- * UNMEASURABLE, with the four silhouette statistics that were tried and why
- * each fails. A bogus check is worse than an admitted gap.
+ * vehicle rows that no SPIKES entry gates. All 18 are measured here. The last
+ * of them (`chronominer` "zero turret mass") stood recorded as UNMEASURABLE
+ * with four rejected silhouette statistics beside it; the fifth is at the
+ * Chrono Miner's block below, and it works because it stops trying to build a
+ * universal turret detector — which the clause never asked for — and proves
+ * the strict negative instead. The rejection table stays in
+ * docs/per-unit-art-log.md: it is what says which readings are already spent.
  *
  * ── THE THREE CONVENTIONS, stated because a clause measured under a different
  *    one is a different number (EXAMPLE-infantry-gi.js documents the trap;
@@ -351,9 +354,93 @@ exports.check = function (ctx) {
       + 'frame is itself a diagonal one ([CMIN] is Voxel=yes and §1.1 records one rendered frame '
       + 'at an unstated bearing), which is the same reason it appeared to leave 0.5 px for a bin');
   }
-  // "zero turret mass" is NOT checked — see docs/per-unit-art-log.md. Four
-  // silhouette statistics were tried and none separates the six units the
-  // renderer composes as hull+turret from the seven it does not.
+  // ── §2.3 Chrono Miner — "zero turret mass" ─────────────────────────────
+  //
+  // FOUR STATISTICS WERE TRIED AND REJECTED (crown height, deck step, roofline
+  // bulge, roofline step — the table is in docs/per-unit-art-log.md), and all
+  // four were rejected against the SAME demand: that the statistic recover the
+  // renderer's hull+turret split, six units from seven. That demand is
+  // stronger than the clause. §2.3 names exactly one contrast — "No turret —
+  // that is the read against the War Miner" — and a universal turret detector
+  // is not needed to settle it. (It is also not available in principle: the
+  // renderer splits hull+turret for six kinds and the WAR MINER IS NOT ONE OF
+  // THEM. Its shoulder drum is baked into the facing sheet, so the layer split
+  // that looks like the obvious answer reads zero for both miners. Measured,
+  // before this row was written.)
+  //
+  // WHAT IS MEASURED. Per bearing, the ROOFLINE is the topmost opaque row of
+  // each column and the DECK LINE is that roofline's median. A raised mass is
+  // a run of columns standing >= 6 px above the deck line, and the score is
+  // that run's WIDTH. 6x6 is not invented: it is §2.4's own budget for the
+  // War Miner's turret, "turret >= 6x6 px on the bin's shoulder".
+  //
+  // WHAT THE STATISTIC IS AND IS NOT. It cannot tell a turret from any other
+  // raised mass — that is the four rejections' lesson and it is not repaired
+  // here. It does not have to be. It proves a NEGATIVE, and it proves it in
+  // the strict direction: the Chrono Miner carries NO raised mass of any kind
+  // on ANY bearing, and zero raised mass implies zero turret mass. The
+  // instrument is demonstrably not inert — the same statistic reads the War
+  // Miner's shoulder drum, this row's named contrast, well over the 6x6 it is
+  // budgeted, and finds a crown on every other ground vehicle except the
+  // Terror Drone (which has no deck to speak of). The Chrono Miner and the
+  // Drone are the only two flat-decked ground vehicles on the board.
+  {
+    const RISE = 6, RUN = 6;                       // §2.4's War Miner turret budget
+    const roofline = (f) => {
+      const p = [];
+      for (let x = 0; x < f.w; x++) {
+        let t = null;
+        for (let y = 0; y < f.h; y++) if (f.mask[y * f.w + x]) { t = y; break; }
+        p.push(t);
+      }
+      return p;
+    };
+    // widest run of columns standing >= RISE px above the sprite's own deck line
+    const deckCrown = (f, rise) => {
+      const p = roofline(f), vals = p.filter((v) => v !== null);
+      if (!vals.length) return { run: 0, rise: 0 };
+      const deck = median(vals);
+      let best = 0, bestRise = 0, cur = 0, top = Infinity;
+      for (let x = 0; x <= f.w; x++) {
+        const v = x < f.w ? p[x] : null;
+        if (v !== null && deck - v >= rise) { cur++; if (v < top) top = v; }
+        else { if (cur > best) { best = cur; bestRise = deck - top; } cur = 0; top = Infinity; }
+      }
+      return { run: best, rise: bestRise };
+    };
+    const scan = (k, rise) => {
+      let best = { run: 0, rise: 0, oct: 0 }, hits = 0;
+      for (let o = 0; o < 8; o++) {
+        const f = ctx.byUnitOct(k, o);
+        if (!f) continue;
+        const c = deckCrown(f, rise === undefined ? RISE : rise);
+        if (c.run >= RUN) hits++;
+        if (c.run > best.run) best = { run: c.run, rise: c.rise, oct: o };
+      }
+      return { best, hits };
+    };
+    const cm = scan('chronominer'), wm = scan('warminer');
+    const others = ['lancer', 'rhino', 'mammoth', 'ifv', 'flaktrack', 'prismtank',
+                    'mirage', 'teslatank', 'v3', 'mcv', 'drone']
+      .filter((k) => scan(k).best.run >= RUN).length;
+    add('chronominer', 'zero turret mass', cm.best.run < RUN,
+        `${cm.best.run}x${cm.best.rise}`, `< ${RUN}x${RISE} on all 8 bearings`,
+        `widest run of columns standing >= ${RISE} px above the sprite's own median roofline, `
+      + `taken over all 8 bearings and reported at the worst of them. The Chrono Miner scores `
+      + `${cm.best.run} on ${cm.hits}/8; the WAR MINER — the contrast §2.3 names — scores `
+      + `${wm.best.run}x${wm.best.rise} on ${wm.hits}/8 against its own §2.4 budget of `
+      + `${RUN}x${RISE} ("turret >= 6x6 px on the bin's shoulder"), and ${others} of the 11 other `
+      + 'ground vehicles score too. The statistic reads ANY raised mass, not only a turret — '
+      + 'that limit is real and is why four earlier statistics were rejected — but it is used '
+      + 'here only to prove the strict negative: no raised mass of any kind implies no turret '
+      + 'mass. The renderer layer split is NOT the instrument: the War Miner draws its drum on '
+      + 'the facing sheet, so hull/turret layer mass is zero for both miners. THE NULL IS A '
+      + `READING, NOT AN INERT PATH, and the margin is one pixel: at a 5 px bar the same scan `
+      + `returns ${scan('chronominer', 5).best.run} columns for this unit and `
+      + `${scan('chronominer', 4).best.run} at 4 px, so its cab stands 5 px above its own deck `
+      + 'line and stops there. 6 is not tuned to that — it is §2.4\'s own War Miner number, '
+      + 'written long before this check existed');
+  }
 
   // ── §2.3 MCV ───────────────────────────────────────────────────────────
   // "the biggest ground vehicle that is not a ship ... >= 1.20x the widest tank"

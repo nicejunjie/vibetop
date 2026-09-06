@@ -1,17 +1,28 @@
 # The §2 clause inventory — what is measured and what is not
 
 Generated 2026-09-05 from `unit-identity-reference.md` §2 and the SPIKES table
-in `tools/art-metrics.js`. **96 budget clauses across 41 units; 57 have nothing
-measuring them.** Each unit has exactly one SPIKES entry, so at most one clause
-per unit is gated; every other clause on that row is honoured by intention only.
+in `tools/art-metrics.js`. **96 budget clauses across 41 units; 57 had nothing
+measuring them, and as of 2026-09-06 all 57 do.** Each unit has exactly one
+SPIKES entry, so at most one clause per unit is gated by the spike gate; every
+other clause on that row was honoured by intention only until the
+`tools/clause-checks/` modules landed.
 
 Why this matters, measured rather than asserted: of the clauses checked on the
 day this was written, two were UNMET — the Tesla Trooper's carapace at 8%
 against a 40% spec, and the Engineer's inverted value, which put him THIRD on a
 row that calls him "the only light-value soldier on the field". Both are fixed
-and gated now. The unmeasured set is where the remaining defects are.
+and gated now. The unmeasured set WAS where the remaining defects were, and
+working through it found more of them (the Grizzly's single house blob, the
+Apocalypse's fused canisters, the War Miner's undersized bin, the Terror Drone's
+scale); `clause.unmet` is what carries the ones left standing as recorded
+ceilings.
 
-`gated` = this clause is the one the unit's SPIKES entry measures.
+`gated` = this clause is the one the unit's SPIKES entry measures. It says
+NOTHING about the clause-check modules: as of 2026-09-06 every row in the table
+below has a check in `tools/clause-checks/`, `gated` or not. The one row whose
+clause text is ~~struck through~~ (the Nighthawk's rotor span) is not owed
+against the art at all — see the note above and `unit-identity-reference.md`
+§2.3.
 
 **Corrected 2026-09-06 — two thresholds were above RA2's own, one bearing was
 wrong.** `mcv` ">= 1.20x the widest tank" and `destroyer` "length >= 1.7x any
@@ -28,6 +39,37 @@ and both measured ceilings: `per-unit-art-log.md`.
 checks in `tools/clause-checks/naval-air.js` (the sixteenth, the Nighthawk's rotor
 span, is struck). Working and thresholds: `per-unit-art-log.md`, "The sixteen
 unmeasured NAVAL and AIR clauses of §2".
+**Measured since:** all 57 rows below now have a check behind them
+(`tools/clause-checks/{infantry,vehicle,naval-air}.js`, `clause.checked` 57).
+Working and thresholds per group: `per-unit-art-log.md`.
+
+**The last three, closed 2026-09-06.** Two were on record as *unmeasurable* and
+one was struck, and none of the three closed the way the record expected:
+
+* **`rocket` "deployed dome >= 15w x 12h" — the record was WRONG.** It said our
+  Guardian GI does not deploy. He does: `UNITS.rocket` carries `depFire: true`
+  (`[GGI] Deployer=yes, DeployFire=yes`) and `stepUnit` braces him automatically
+  on both sides, with the sandbag emplacement drawn off `u.deployed` alone. The
+  frame was always on screen; nothing was BAKING it. Now measured at **38x42**
+  (emplacement alone 38x23) on the tightest of eight bearings. No gameplay
+  change was needed or made.
+* **`chronominer` "zero turret mass" — measurable after all, on a fifth
+  statistic.** The four rejected ones were each rejected for failing to recover
+  the renderer's hull+turret split; the clause never asked for that, and it is
+  unavailable anyway (the War Miner's drum is on its facing sheet, so layer mass
+  is zero for BOTH miners). A local deck-line crown in absolute pixels, bar
+  taken from §2.4's own War Miner turret budget, reads **0x0 on all 8 bearings**
+  against the War Miner's **14x9**.
+* **`nighthawk` rotor span — STRUCK, and now CHECKED AS STRUCK.** The strike
+  stands (arithmetic below), but it is no longer a blank row: the check asserts
+  the strike's two premises out of the source, so the excuse dies with the
+  contradiction. Counted in `clause.checked` and, separately, in
+  **`clause.struck`** — target `<= 1`, pointing DOWN, so striking can never
+  become a way to move `clause.checked`.
+
+`STRUCK` in the table below means the clause is not owed against the art: the
+row states a bar the same row makes unreachable, the proof is beside it in
+`unit-identity-reference.md` §2.3, and the check verifies the proof.
 
 | unit | group | clause | gated |
 |---|---|---|---|

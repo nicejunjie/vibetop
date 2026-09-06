@@ -403,7 +403,7 @@ row names the one it used.
 | `rifle` | torso block >= 7w x 6h | **8x6** (was 8x5) | 7w x 6h | **FIXED** |
 | `rifle` | helmet in a value distinct from torso and legs | **gap 0.156** (was 0.073) | >= 0.10 | **FIXED** |
 | `rifle` | legs olive, off the Conscript's tan | 60.4 deg | >= 20 | already met |
-| `rocket` | deployed dome >= 15w x 12h | — | — | **UNMEASURABLE** (below) |
+| `rocket` | deployed dome >= 15w x 12h | **38x42** (ring alone 38x23) | >= 15w x 12h | **MET** — and the "unmeasurable" record was WRONG (below) |
 | `rocketeer` | altitude offset >= 10 px | 36 px | >= 10 | already met |
 | `rocketeer` | shadow blob >= 9x4, separated from the feet | 9x4, gap 38.2 px | >= 9x4 | already met |
 | `engineer` | body value >= 0.75 across >= 55% of torso+legs | 0.635 | >= 0.55 | already met |
@@ -514,15 +514,51 @@ stating the constraint correctly a few lines from the code violating it.)
   lenient reading. The clause's other half — *no vertical gap* — is measured
   strictly: every row in the band is exactly one run.
 
-### The one clause nothing can measure
+### The clause that was recorded unmeasurable, and the record was wrong
 
-**`rocket` Guardian GI, "deployed dome >= 15w x 12h".** **Our Guardian GI does
-not deploy.** `UNITS.rocket` carries no `dep` and no `deployRad`, the deploy
-command's own refusal reads *"Only GIs, Desolators and MCVs can deploy"*, and no
-atlas holds a deployed Guardian frame. There is nothing to measure, in the rig
-or out of it. Recorded here rather than forced into a check, because a forced
-check goes green once and then nobody looks again. (Whether he SHOULD deploy is
-a gameplay question, not an art one, and belongs in the roadmap.)
+**`rocket` Guardian GI, "deployed dome >= 15w x 12h".** This was written down as
+unmeasurable on the grounds that *"our Guardian GI does not deploy"* — no `dep`,
+no `deployRad`, and a deploy command whose refusal reads *"Only GIs, Desolators
+and MCVs can deploy"*. **He does deploy.** The search stopped one field short:
+`UNITS.rocket` carries **`depFire: true`** — `[GGI] Deployer=yes, DeployFire=yes`
+— and `stepUnit` braces him AUTOMATICALLY, on both sides, whenever armour or an
+aircraft comes inside the missile's 8-cell range (`depFireTarget` scans on the
+MISSILE's range and sets `u.deployed`; the comment beside it cites rules.ini's
+own commented-out `DeployTime` note that RA2 autodeploys rather than waiting for
+a keypress). `weaponFor` then gates the missile on `u.deployed`, and `drawUnit`
+keys the **sandbag emplacement off `u.deployed` alone, not off unit type** —
+`SPR.bags[p].back` under him, the man dropped 9 px ("he drops down behind the
+bags"), `SPR.bags[p].front` over him. **The deployed Guardian GI is a frame every
+player already sees.** What was missing was a BAKE of it: `pageExtract` bakes
+only `art.fr('stand', ...)`, so no silhouette metric had ever looked at a
+deployed anything.
+
+`art-metrics.js` now composes the deployed stack the way `drawUnit` stacks it and
+hands it to the clause modules as `ctx.deployed`. It is deliberately kept OUT of
+`recs`: the emplacement is 38 px wide against a standing Guardian's 25, so a
+deployed frame in the rec set would become his broadside and silently re-base
+every aspect, size, IoU and spike number on the unit.
+
+| reading of "dome" | measured | budget |
+|---|---|---|
+| the composite the player sees (bags + man + parapet) | **38 x 42**, 0.59 of the box opaque | >= 15w x 12h |
+| the emplacement alone | **38 x 23** | >= 15w x 12h |
+
+Both clear it, on the **tightest of the eight bearings**, so the ambiguity in the
+word "dome" does not decide the verdict — which is why the check requires both.
+The proportion is the part worth reporting: standing he is 27x42, aspect 0.64;
+deployed 38x42, aspect **0.90** — a 1.41x widening, against the row's *"a wide
+low dome, aspect ~0.8"* and RA2's own `[GGI]` 14x17 = 0.82. The row's gloss
+"the only Allied infantry wider than tall" is looser than its own numbers (0.82
+is taller than wide); read as a RELATIVE claim — the widest silhouette an Allied
+infantryman ever shows — it is what the art does.
+
+**No gameplay was changed to close this.** The deploy state, the autodeploy
+trigger, the weapon gating and the emplacement art were all already shipped; only
+the measurement was missing. The one thing that is still true from the old note
+is that **`D` does not reach him** — the manual deploy command still lists only
+GIs, Desolators and MCVs. That is a UX question about a state the unit enters by
+itself, not an art one, and it is left where it was.
 
 ### Three clauses are SOURCE-CONSTANT checks, and each row says so
 
@@ -1712,7 +1748,7 @@ the three that did are the clause counters.
 | `apc` | deck cavity visible as a house-hued interior | **26 px** at value 0.70 in a 0.17 coaming | >= 12 px *(mine)* | met | — |
 | `sub` | conning tower the only vertical mass | **1** run of columns over the casing | exactly 1 | met | — |
 | `seascorp` | shortest armed hull afloat | **52 px**, 1.27x clear of the Typhoon | strictly shortest | met | — |
-| `nighthawk` | ~~rotor span >= 1.25x fuselage length~~ | — | — | **STRUCK** | left struck |
+| `nighthawk` | ~~rotor span >= 1.25x fuselage length~~ | **1.60 / 2.00** aspect ceiling | both < 3.05 | **STRUCK, and now CHECKED AS STRUCK** | the strike's two premises are asserted (below) |
 | `nighthawk` | fuselage height <= 0.35 x length | **0.275** (69x19 airframe) | <= 0.35 | met | — |
 | `harrier` | wing span >= 1.5x fuselage width | **6.00x** (60 px span / 10 px waist) | >= 1.50x | met | — |
 | `harrier` | nose cone >= 4 px | **4 px** | >= 4 px | met **by nothing** | recorded, see below |
@@ -1831,18 +1867,45 @@ answer, and a future pass that "simplifies" one of these will silently invert it
 
 ## Not measured, and it is not an omission
 
-**`nighthawk` "rotor span >= 1.25x fuselage length"** stays struck. Its three
-requirements are mutually exclusive by arithmetic — an iso disc of span S is
-S/2 tall, so span >= 1.25L caps the unit at aspect 1.6 against the same row's
-3.05 — and the full working is in this file's Nighthawk section above. Writing
-a check for it would either fail a unit for missing a bar its own row makes
-unreachable, or invent a softer bar and call the contradiction resolved.
-Recorded, as the Chrono Legionnaire's rifle was.
+**`nighthawk` "rotor span >= 1.25x fuselage length"** stays struck — and it is
+now **checked as struck**, which is a different thing from being skipped. Its
+requirements are mutually exclusive by arithmetic and the full working is in
+this file's Nighthawk section above; what the check does is assert THE STRIKE,
+so the excuse cannot outlive the contradiction that earned it.
+
+Three steps, each verifiable by a reader:
+
+1. **The camera.** `rts.html` sets `var TW = 64, TH = 32` — a 2:1 diamond — so a
+   circle lying in the ground plane projects to an ellipse of aspect exactly
+   `(TW/2)/(TH/2) = 2.00`. Read out of the source, not assumed.
+2. **The rotor is such a circle.** The bake draws it as
+   `rx = mrR * ISO_X * 1.4142, ry = mrR * ISO_Y * 1.4142`, and `ISO_X`/`ISO_Y`
+   are `TW/2` and `TH/2` over the same hypotenuse, so `ry/rx = 1/2`: a rotor of
+   screen span S is exactly S/2 tall. Also read out of the source.
+3. **Therefore the row contradicts itself.** span >= 1.25L forces height
+   >= 0.625L, capping length-over-height at `1/0.625 = 1.60` and
+   width-over-height at `S/(S/2) = 2.00`. The SAME row calls this airframe "the
+   flattest" at `[SHAD]` 64x21 = **3.05**. Both ceilings are below it, under
+   either reading of aspect, so no Nighthawk can satisfy both clauses.
+
+RA2 escapes it by drawing 1-2 px blade LINES, which add span without adding a
+filled disc; ours is a blur disc on purpose (at alpha .09 the old one was ~1400
+px three luminance points off the grass — invisible to a player, counted as body
+by every mask metric) and ships knowingly at 0.84L.
+
+**The row goes RED if either premise dissolves** — a camera that is not 2:1, or
+a rotor no longer drawn in the ground plane — at which point the strike has to be
+re-argued rather than inherited. It is counted in `clause.checked` because it IS
+checked, and separately in **`clause.struck`**, whose target is `<= 1` and points
+DOWN: striking can never become a way to move `clause.checked`, because a second
+strike is debt until its own arithmetic is beside it.
 # §2's 18 UNMEASURED VEHICLE CLAUSES — measured (2026-09-06)
 
-`tools/clause-checks/vehicle.js`. Seventeen of the eighteen now have a real
-measurement behind them; the eighteenth is recorded below as unmeasurable, with
-the four statistics that were tried. **Four art defects found and fixed, eight
+`tools/clause-checks/vehicle.js`. **All eighteen** now have a real measurement
+behind them. Seventeen landed in this pass; the eighteenth ("zero turret mass")
+was recorded as unmeasurable with the four statistics that were tried, and a
+second pass closed it with a fifth — the write-up below keeps the four, because
+they are what says which readings are already spent. **Four art defects found and fixed, eight
 clauses confirmed already met, five left as ceilings with the arithmetic.**
 `clause.checked` 2 -> 19.
 
@@ -1855,7 +1918,7 @@ clauses confirmed already met, five left as ceilings with the arithmetic.**
 | `mirage` | gun stub <= 6 px | **4 px** | <= 6 | MET | none — the "no gun" decision is CORRECT, now measured |
 | `prismtank` | total height >= 1.15x the Mirage's | **1.549** | >= 1.15 | MET | none |
 | `chronominer` | height <= 0.55 x length | **0.582** (was 0.600) | <= 0.55 | UNMET | **improved**; ceiling is the camera (below) |
-| `chronominer` | zero turret mass | — | — | **UNMEASURABLE** | reason below |
+| `chronominer` | zero turret mass | **0x0** on all 8 (War Miner **14x9**) | < 6x6 | **MET** — measurable after all, on the fifth statistic (below) |  none |
 | `mcv` | >= 1.20x the widest tank | **1.154** | >= 1.20 | UNMET | ceiling — misses by ONE pixel of Prism |
 | `rhino` | hull height >= 1.25x the Grizzly's | **1.727** (1.765 below the crown) | >= 1.25 | MET | none |
 | `rhino` | 5 house blocks, each 4-6 px, gaps >= 3 | **5 blocks, minor [5,8,8,8,5], gap 4** | 5 / >= 4 / >= 3 | MET | none; upper bound of the size band deliberately not enforced |
@@ -1966,7 +2029,7 @@ fat box the IFV wears — the pair the gate scored at 0.709"). The IFV is still
 its closest peer at IoU 0.609, so flattening it walks straight into that pair.
 It is inside `art-metrics`' +-20% aspect band; only this row's tighter one fails.
 
-## The one clause that cannot be measured: "zero turret mass"
+## "Zero turret mass" — four statistics failed, the fifth did not
 
 §2.3 gives the Chrono Miner "No turret — that is the read against the War
 Miner". Four silhouette statistics were built and each was rejected by its own
@@ -1983,8 +2046,63 @@ The renderer composes hull+turret for six units and a single sheet for the other
 seven, and **no statistic above recovers that split**. An iso box seen from
 above is a ramp whether it is a turret or a bin, and the War Miner's turret sits
 on the bin's shoulder rather than on a ring, so anything tuned to catch a turret
-RING misses it. Recorded as a gap rather than shipped as a check that would pass
-the Chrono Miner for a reason unrelated to the clause.
+RING misses it.
+
+### The demand was wrong, not the clause (2026-09-06, second pass)
+
+Every one of the four was rejected against the same bar: *recover the renderer's
+hull+turret split, six units from seven*. **The clause never asked for that.**
+§2.3 names exactly one contrast — "No turret — that is the read against the War
+Miner" — and a universal turret detector is not needed to settle a claim about
+one unit against one named other. Asking for one is what made this look
+impossible.
+
+It is also **not available in principle**, and that was measured before the
+fifth statistic was written. The obvious answer — count the pixels in the
+`out.turret` layer, which is literally "turret mass" — is dead, because
+`bakeVehicle`'s `turreted` list is `lancer, spectre, mammoth, ifv, rhino,
+flaktrack` and **the War Miner is not on it**. Its shoulder drum is drawn on the
+facing sheet like everything else, so `frame(d, 't')` is empty for BOTH miners
+and the layer split reads zero for the unit the row is contrasting against.
+(`UNITS.warminer.turret = true` drives `aimTurret` in the sim; it does not
+produce a turret sheet. The two are unrelated flags with the same name.)
+
+**The fifth statistic — a LOCAL one, in absolute pixels, proving a negative.**
+Per bearing: the ROOFLINE is the topmost opaque row of each column; the DECK
+LINE is that roofline's median; a raised mass is a run of columns standing
+`>= 6` px above the deck line, scored by the run's WIDTH. **6x6 is not invented
+and not tuned** — it is §2.4's own budget for the thing being contrasted
+against, *"[warminer] turret >= 6x6 px on the bin's shoulder"*, written before
+this check existed.
+
+| unit | widest run >= 6 px above its own deck line | bearings hit |
+|---|---|---|
+| **`chronominer`** | **0** | **0/8** |
+| `warminer` (the row's named contrast) | **14** (rise 9) | 4/8 |
+| `prismtank` 32 · `mcv` 43 · `teslatank` 34 · `v3` 30 · `ifv` 22 · `mammoth` 21 · `mirage` 18 · `flaktrack` 14 · `lancer` 8 · `rhino` 8 | — | >= 1/8 each |
+| `drone` | 0 | 0/8 |
+
+**What the statistic is, stated so it is not oversold.** It still cannot tell a
+turret from any other raised mass — the Prism crystal, the MCV's crane boom, the
+V3's missile and the Tesla coils all score, and none of them is a turret. That
+limit is the four rejections' lesson and it is not repaired. It does not need to
+be: the check uses it in the **strict direction only**, to prove a negative.
+*No raised mass of any kind, on any bearing* implies *no turret mass*. The
+Chrono Miner and the Terror Drone are the only two flat-decked ground vehicles
+on the board.
+
+**The null is a reading, not an inert code path**, and the margin is one pixel —
+recorded because a check that returns zero must prove it looked. The same scan
+against a 5 px bar returns **9** columns for the Chrono Miner and **16** at 4 px:
+its cab stands five pixels above its own deck line and stops there. The clause
+is met because nothing on it reaches the six the War Miner's turret is budgeted
+at, not because the sprite is a featureless slab.
+
+One honest limitation of the deck line: it is a MEDIAN, so a raised mass
+covering more than half the sprite's length is not "on" the deck, it IS the
+deck. That is why the War Miner reads 0 on the two bearings where its bin fills
+the frame, and it is why the score is taken as the maximum over all eight
+bearings rather than at one.
 
 ## Two conventions this file had to pin down, and one number derived
 

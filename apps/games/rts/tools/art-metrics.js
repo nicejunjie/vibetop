@@ -347,8 +347,9 @@ const TARGETS = {
   'value.engineerLightPct':          { want: 0.55, dir: 'up', note: 'the same clause as a fraction — §2.2 asks "body value >= 0.75 across >= 55% of the torso+legs". Measured over the whole sprite here, which is the quantity the bake can see; the helmet makes it read slightly high against the row\'s torso+legs wording, so treat 0.55 as a floor rather than a match. Kept alongside the ordering because they fail differently: a roster that goes pale WITH him leaves him first and still unreadable' },
   'value.engineerMarginOverNext':    { want: 0.15, dir: 'up', note: 'how far clear of the second-lightest infantryman he stands. The read is a CONTRAST, so a dead heat is a failure even when he wins it — coming first by a point would satisfy the ordering and still leave a player unable to pick him out of a squad, which is the whole job of an inverted value' },
   // §2's pixel budgets, checked one clause at a time (tools/clause-checks/).
-  'clause.checked':              { want: 57,   dir: 'up',   note: '§2 states 96 budget clauses across 41 units and each unit has exactly ONE SPIKES entry, so 57 clauses were honoured by intention only. This counts how many of those now have a real measurement behind them. The target is the whole backlog; it rises as checks land' },
+  'clause.checked':              { want: 57,   dir: 'up',   note: '§2 states 96 budget clauses across 41 units and each unit has exactly ONE SPIKES entry, so 57 clauses were honoured by intention only. This counts how many of those now have a real measurement behind them. The target is the whole backlog; it rises as checks land. One of the 57 is a STRUCK row rather than a measured one (see clause.struck), and its check asserts the arithmetic of that strike rather than the art' },
   'clause.unmet':                { want: 0,    dir: 'down', note: 'clauses that are checked AND FAILING. A rising `checked` with a rising `unmet` is the tool working, not the art getting worse — the first two clauses ever checked by hand were both unmet (Tesla Trooper carapace 8% vs 40%, Engineer third on a row saying "the only")' },
+  'clause.struck':               { want: 1,    dir: 'down', note: 'of the checked clauses, the ones whose §2 row is STRUCK — a bar the row itself makes unreachable, so the check asserts the CONTRADICTION rather than the art. Exactly one today: the Nighthawk\'s "rotor span >= 1.25x fuselage length", where an iso disc of span S is S/2 tall, so the span bar caps the airframe at aspect 1.6-2.0 against the 3.05 the same row demands. The target is DOWN so that striking can never be a way to move `clause.checked`: a second strike is debt until its own arithmetic is beside it, and the honest way to clear one is to remove the contradiction from §2, not to add another' },
   'clause.unmatchedToReference': { want: 0, dir: 'down', note: "checks whose stated clause matches NO budget string in §2 for that unit. A check is only worth having if it measures the clause the reference actually wrote; without this, \"measured\" can quietly become \"measured something adjacent and easier\", which is the failure mode this whole file is built against, one level up. Matching is on shared words against that unit's own budget list, so a faithful paraphrase passes and an invented clause does not" },
   'clause.infantryUnmet':        { want: 0,    dir: 'down', note: 'the same, for the 23 unmeasured infantry clauses' },
   'clause.vehicleUnmet':         { want: 0,    dir: 'down', note: 'the same, for the 18 unmeasured vehicle clauses' },
@@ -562,7 +563,72 @@ function pageExtract() {
       });
     }
   }
-  return { recs, errors, dpr: window.devicePixelRatio, zoom: window.__rtsTest.zoom(),
+
+  // ── DEPLOYED COMPOSITES ────────────────────────────────────────────────
+  // The loop above bakes the STANDING frame, which is the only one a §2
+  // silhouette clause could see — and that is why the Guardian GI's "deployed
+  // dome >= 15w x 12h" was recorded as unmeasurable. It is not: `UNITS.rocket`
+  // carries `depFire: true` ([GGI] Deployer=yes/DeployFire=yes), `stepUnit`
+  // sets `u.deployed` on BOTH sides when armour or aircraft come inside the
+  // missile's range, and `drawUnit` keys the sandbag emplacement off
+  // `u.deployed` alone, not off the unit type. A deployed Guardian GI is a
+  // frame the player sees; nothing was baking it.
+  //
+  // Composed exactly as drawUnit composes it: bags.back at the sheet anchor,
+  // the man's stand frame dropped `DEPLOY_DY` px ("he drops down behind the
+  // bags"), bags.front over him. Every layer is a `unitCanvas()` on the same
+  // (w/2, h - UPAD) anchor, so drawing all three at (0,0) reproduces the
+  // relative geometry exactly. Kept OUT of `recs` on purpose: a 38 px dome
+  // would become the Guardian's widest bearing and silently reset the
+  // broadside every aspect, size and IoU metric reads.
+  const deployed = {};
+  const DEPLOY_DY = 9;
+  const bags = S.bags && S.bags[0];
+  if (bags) {
+    const bbox = (g, W, H) => {
+      const id = g.getImageData(0, 0, W, H).data;
+      let x0 = 1e9, y0 = 1e9, x1 = -1, y1 = -1, n = 0;
+      for (let y = 0; y < H; y++) for (let x = 0; x < W; x++)
+        if (id[(y * W + x) * 4 + 3] > 8) {
+          n++;
+          if (x < x0) x0 = x; if (x > x1) x1 = x;
+          if (y < y0) y0 = y; if (y > y1) y1 = y;
+        }
+      return x1 < 0 ? null : { w: x1 - x0 + 1, h: y1 - y0 + 1, px: n };
+    };
+    // the emplacement on its own, so a check can say which reading of "dome"
+    // it took — the ring, or the ring with the man in it.
+    let ring = null;
+    {
+      const c = document.createElement('canvas');
+      c.width = bags.back.w; c.height = bags.back.h;
+      const g = c.getContext('2d'); g.imageSmoothingEnabled = false;
+      g.drawImage(bags.back.c, 0, 0, bags.back.w, bags.back.h);
+      g.drawImage(bags.front.c, 0, 0, bags.front.w, bags.front.h);
+      ring = bbox(g, c.width, c.height);
+    }
+    for (const key of Object.keys(U)) {
+      const d = U[key];
+      if (!(d.dep || d.depFire || d.deployRad)) continue;   // the three that can enter it
+      const art = S.unit[0][d.fac || 'dir'][key];
+      if (!art || !art.fr) continue;
+      const per = [];
+      for (let oct = 0; oct < 8; oct++) {
+        const man = art.fr('stand', oct * 4, 0);
+        const c = document.createElement('canvas');
+        c.width = man.w; c.height = man.h;
+        const g = c.getContext('2d'); g.imageSmoothingEnabled = false;
+        g.drawImage(bags.back.c, 0, 0, bags.back.w, bags.back.h);
+        g.drawImage(man.c, 0, DEPLOY_DY, man.w, man.h);
+        g.drawImage(bags.front.c, 0, 0, bags.front.w, bags.front.h);
+        const b = bbox(g, c.width, c.height);
+        per.push(b ? { oct, w: b.w, h: b.h, px: b.px } : { oct, w: 0, h: 0, px: 0 });
+      }
+      deployed[key] = { per, ring, dy: DEPLOY_DY };
+    }
+  }
+
+  return { recs, errors, deployed, dpr: window.devicePixelRatio, zoom: window.__rtsTest.zoom(),
            units: Object.keys(U).length };
 }
 
@@ -677,7 +743,8 @@ const GROUND_COMBAT = ['lancer', 'rhino', 'mammoth', 'mirage', 'prismtank',
                        'teslatank', 'flaktrack', 'ifv', 'v3'];
 const round = (v, n) => Math.round(v * 10 ** n) / 10 ** n;
 
-function compute(recs) {
+function compute(recs, extra) {
+  extra = extra || {};
   const by = new Map(), meta = new Map();
   for (const r of recs) {
     by.set(r.key + '@' + r.oct, decode(r));
@@ -1046,6 +1113,13 @@ function compute(recs) {
         for (const r of recs) if (r.key === k && (!best || r.bw > best.bw)) best = r;
         return best ? best.oct : 0;
       },
+      // The DEPLOYED composite, for the three units that have a deployed
+      // state — bags + man + parapet, as drawUnit stacks them. Deliberately
+      // NOT in `recs`: the emplacement is 38 px wide against a standing
+      // Guardian's 25, so a deployed frame in the rec set would become his
+      // broadside and quietly re-base aspect, size, IoU and spike.
+      // { per: [{oct,w,h,px}], ring: {w,h,px}, dy }
+      deployed: extra.deployed || {},
     };
     const rows = [];
     let files = [];
@@ -1092,9 +1166,17 @@ function compute(recs) {
     const unmatched = rows.filter((r) => r.unit !== '-' && r.refMatch < 0.34);
     const byG = (g) => rows.filter((r) => (unit[r.unit] || {}).group === g);
     const bad = (rs) => rs.filter((r) => !r.ok).length;
+    // STRUCK clauses. A §2 row can state a bar the same row makes unreachable
+    // — the Nighthawk's rotor span is one, struck through in the reference
+    // itself with an arithmetic proof. Such a clause is still CHECKED, and the
+    // check is of the STRIKE: it asserts the contradiction is still there, so
+    // that a camera or an airframe change that dissolves it turns the row red
+    // instead of leaving a permanently excused clause behind. Counted apart
+    // from the measured ones so `checked` cannot be inflated by striking:
+    // `clause.struck` is a target of its own, and it goes the wrong way.
     return { rows, unmatched: unmatched.length,
              unmatchedRows: unmatched.map((r) => ({ unit: r.unit, clause: r.clause, refMatch: r.refMatch })),
-             checked: rows.length, unmet: bad(rows),
+             checked: rows.length, unmet: bad(rows), struck: rows.filter((r) => r.struck).length,
              infUnmet: bad(byG('infantry')), vehUnmet: bad(byG('vehicle')),
              navUnmet: bad(byG('naval')), airUnmet: bad(byG('air')) };
   })();
@@ -1175,6 +1257,7 @@ function compute(recs) {
       'clip.unitsClippedOnGatedOctant': clip.onGated.length,
       'clause.checked': clause.checked,
       'clause.unmet': clause.unmet,
+      'clause.struck': clause.struck,
       'clause.unmatchedToReference': { want: 0, dir: 'down', note: "checks whose stated clause matches NO budget string in §2 for that unit. A check is only worth having if it measures the clause the reference actually wrote; without this, \"measured\" can quietly become \"measured something adjacent and easier\", which is the failure mode this whole file is built against, one level up. Matching is on shared words against that unit's own budget list, so a faithful paraphrase passes and an invented clause does not" },
   'clause.infantryUnmet': clause.infUnmet,
       'clause.vehicleUnmet': clause.vehUnmet,
@@ -1273,7 +1356,7 @@ async function measure(opts) {
     const el = await p.$('canvas');
     if (el) await el.screenshot({ path: FRAME_PNG });
 
-    const out = compute(raw.recs);
+    const out = compute(raw.recs, { deployed: raw.deployed });
     out.env = { dpr: raw.dpr, zoom: raw.zoom, ZMIN, spikeFloorAtZoom1: round(SPIKE_FLOOR, 2),
                 units: raw.units, sprites: raw.recs.length,
                 scene, framePng: path.relative(ROOT, FRAME_PNG) };

@@ -178,12 +178,17 @@
     "clause.checked": {
       "want": 57,
       "dir": "up",
-      "note": "§2 states 96 budget clauses across 41 units and each unit has exactly ONE SPIKES entry, so 57 clauses were honoured by intention only. This counts how many of those now have a real measurement behind them. The target is the whole backlog; it rises as checks land"
+      "note": "§2 states 96 budget clauses across 41 units and each unit has exactly ONE SPIKES entry, so 57 clauses were honoured by intention only. This counts how many of those now have a real measurement behind them. The target is the whole backlog; it rises as checks land. One of the 57 is a STRUCK row rather than a measured one (see clause.struck), and its check asserts the arithmetic of that strike rather than the art"
     },
     "clause.unmet": {
       "want": 0,
       "dir": "down",
       "note": "clauses that are checked AND FAILING. A rising `checked` with a rising `unmet` is the tool working, not the art getting worse — the first two clauses ever checked by hand were both unmet (Tesla Trooper carapace 8% vs 40%, Engineer third on a row saying \"the only\")"
+    },
+    "clause.struck": {
+      "want": 1,
+      "dir": "down",
+      "note": "of the checked clauses, the ones whose §2 row is STRUCK — a bar the row itself makes unreachable, so the check asserts the CONTRADICTION rather than the art. Exactly one today: the Nighthawk's \"rotor span >= 1.25x fuselage length\", where an iso disc of span S is S/2 tall, so the span bar caps the airframe at aspect 1.6-2.0 against the 3.05 the same row demands. The target is DOWN so that striking can never be a way to move `clause.checked`: a second strike is debt until its own arithmetic is beside it, and the honest way to clear one is to remove the contradiction from §2, not to add another"
     },
     "clause.unmatchedToReference": {
       "want": 0,
@@ -284,7 +289,7 @@
     "size.airOutsideRA2Band": 0,
     "size.crossGroupSpread": 1.607,
     "size.worstOffGroupScale": 0.3109,
-    "clause.checked": 54,
+    "clause.checked": 57,
     "clause.unmet": 5,
     "clause.unmatchedToReference": 0,
     "clause.infantryUnmet": 0,
@@ -293,6 +298,7 @@
     "clause.airUnmet": 0,
     "clip.unitsTouchingSheetEdge": 0,
     "clip.unitsClippedOnGatedOctant": 0,
+    "clause.struck": 1,
     "value.soldiersLighterThanEngineer": 0,
     "value.engineerLightPct": 0.6384,
     "value.engineerMarginOverNext": 0.2803,
@@ -1889,6 +1895,16 @@
         "refMatch": 1
       },
       {
+        "unit": "rocket",
+        "clause": "deployed dome >= 15w x 12h",
+        "ok": true,
+        "measured": "38x42",
+        "want": ">= 15w x 12h",
+        "note": "the DEPLOYED composite as drawUnit stacks it — bags.back, the stand frame dropped 9 px, bags.front — on the tightest of 8 bearings; 0.59 of that box is opaque, so it is one mass and not a scatter. The emplacement ALONE measures 38x23, which clears the same bar, so the reading of \"dome\" does not decide it. Aspect 0.9 against the row's \"a wide low dome, aspect ~0.8\" and RA2's [GGI] 14x17 = 0.82; standing he is 27x42, aspect 0.64 — deploying widens him by 1.41x, which is the read the row is after. He reaches this state via depFire autodeploy, not via D",
+        "module": "infantry.js",
+        "refMatch": 1
+      },
+      {
         "unit": "destroyer",
         "clause": "length >= 1.46x any land vehicle",
         "ok": false,
@@ -2039,6 +2055,17 @@
         "refMatch": 0.5
       },
       {
+        "unit": "nighthawk",
+        "clause": "rotor span >= 1.25x fuselage length",
+        "struck": true,
+        "ok": true,
+        "measured": "1.6 / 2",
+        "want": "both below 3.05",
+        "note": "STRUCK from §2.3 — the check is of the STRIKE, not of the art. The tile is 64x32, so a ground circle projects at aspect 2; the rotor is drawn in that plane (ry/rx = ISO_Y/ISO_X, source-verified: true), so a span of S is S/2 tall. Span >= 1.25L therefore forces height >= 0.625L, capping length/height at 1.6 and width/height at 2 — against the 3.05 the SAME ROW demands ([SHAD] 64x21, \"the flattest airframe\"). The two clauses are mutually exclusive; the span one is struck through in unit-identity-reference.md §2.3 and in docs/clause-inventory.md, and the disc ships knowingly at 0.84L. This row goes red if the camera stops being 2:1 or the disc stops being a ground-plane circle — i.e. if the contradiction ever dissolves.",
+        "module": "naval-air.js",
+        "refMatch": 0.42
+      },
+      {
         "unit": "lancer",
         "clause": "hull height <= 0.45 x length",
         "ok": true,
@@ -2105,6 +2132,16 @@
         "measured": 0.522,
         "want": "<= 0.55",
         "note": "46x24 at the HULL-BROADSIDE octant 3 — the most ELONGATED bearing, which is where a body's screen width IS its length. THIS ROW WAS PREVIOUSLY READ AT THE WIDEST octant (0, 55x32 = 0.582) AND THAT WAS A CHECK BUG, not an art defect. The Chrono Miner is len 27 / wid 18, i.e. beam 0.67 x length, and under this camera the diagonal octant is wider than the side-on one for any body with beam > 0.414 x length — so its widest bearing is the diagonal, where a flat ground body projects to h/w = ISO_Y/ISO_X = 0.500 EXACTLY for any L and W. The number there is superstructure over (L+W); it is not height over length and cannot be. PROVED BY SWEEP, `len` 24/27/31/35: the widest octant gives 0.608 / 0.582 / 0.593 / 0.569 — no trend, and NON-MONOTONIC — while the hull broadside gives 0.558 / 0.522 / 0.444 / 0.400 with the bbox height pinned at 24 px throughout. A 46% lengthening moves the one by 6% in no particular direction and the other by 28% in a straight line. (That sweep also explains the previous pass's recorded paradox, \"LENGTHENING the truck makes it WORSE, 0.582 -> 0.596\": it was reading noise on an axis with no signal.) The Grizzly carries the identically-shaped clause and its two octants agree, so its 0.423 is unchanged — the null control. RA2's own [CMIN] 55x28 = 0.509 is NOT usable as a counter-reference here: 0.509 is within half a pixel of the 0.500 diagonal pin, so that frame is itself a diagonal one ([CMIN] is Voxel=yes and §1.1 records one rendered frame at an unstated bearing), which is the same reason it appeared to leave 0.5 px for a bin",
+        "module": "vehicle.js",
+        "refMatch": 1
+      },
+      {
+        "unit": "chronominer",
+        "clause": "zero turret mass",
+        "ok": true,
+        "measured": "0x0",
+        "want": "< 6x6 on all 8 bearings",
+        "note": "widest run of columns standing >= 6 px above the sprite's own median roofline, taken over all 8 bearings and reported at the worst of them. The Chrono Miner scores 0 on 0/8; the WAR MINER — the contrast §2.3 names — scores 14x9 on 4/8 against its own §2.4 budget of 6x6 (\"turret >= 6x6 px on the bin's shoulder\"), and 10 of the 11 other ground vehicles score too. The statistic reads ANY raised mass, not only a turret — that limit is real and is why four earlier statistics were rejected — but it is used here only to prove the strict negative: no raised mass of any kind implies no turret mass. The renderer layer split is NOT the instrument: the War Miner draws its drum on the facing sheet, so hull/turret layer mass is zero for both miners. THE NULL IS A READING, NOT AN INERT PATH, and the margin is one pixel: at a 5 px bar the same scan returns 9 columns for this unit and 16 at 4 px, so its cab stands 5 px above its own deck line and stops there. 6 is not tuned to that — it is §2.4's own War Miner number, written long before this check existed",
         "module": "vehicle.js",
         "refMatch": 1
       },
