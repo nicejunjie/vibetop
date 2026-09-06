@@ -3390,3 +3390,65 @@ what feeds a mechanism the hatch can override wholesale. Two analyses now:
 the fixed-push and the rank attempt each fixed a different half of the same
 plate-value pipeline while leaving the other half a pure function of subject
 luminance.
+
+## The hatch made rank-aware — fixed, shipped (2026-09-06)
+
+Built exactly as the previous section called for: the hatch spreads `hv`
+across the room left over AFTER guaranteeing a contrast push, instead of
+discarding `hv` for a fixed `subL+-26`.
+
+```js
+if (subL <= 50) { var base = Math.min(84, subL + 30); lit = base + hv * Math.max(0, 84 - base); }
+else            { var base2 = Math.max(12, subL - 30); lit = base2 - hv * Math.max(0, base2 - 12); }
+```
+
+The push itself widened 26 -> 30 (measured to be the largest that does not
+cost the floor: 32 left only a 0.3-point margin on Directorate's runner-up
+pair, `GI|Guardian GI` at 61.4; 33 dropped the floor itself to 61.0; 34 to
+60.7 — 30 was the last value with real margin). `hv` (still hash, untouched)
+then spends whatever room remains between `base` and the plate's 12/84 clamp,
+always moving FURTHER from `subL`, never closer — so no key's separation from
+its own subject is ever worse than the old fixed push gave it.
+
+| | UNDER (of 780) | min | 5th pct | DPR2 UNDER | DPR2 min | greyed UNDER (bar 45.1) | greyed min |
+|---|---|---|---|---|---|---|---|
+| Directorate, before (hash, HEAD) | 344 | 61.1 | 70.4 | 131 | 64.5 | 2 | 38.9 |
+| Directorate, after | **225** | 61.1 | 73.0 | **71** | 64.5 | 3 | 38.9 |
+| Collective, before (hash, HEAD) | 459 | 52.3 | 65.4 | 215 | 60.2 | 15 | 38.8 |
+| Collective, after | **250** | **57.7** | 70.0 | **107** | **64.4** | 2 | 39.7 |
+
+Both acceptance criteria hold at once: UNDER fell (344->225, 459->250) and
+neither faction's floor dropped — Collective's actually rose 5.4 points, and
+every DPR2 number improved or held. The lone regression anywhere in the table
+is Directorate's greyed UNDER, 2->3 out of 780, with its own floor unchanged
+at 38.9 — traded against Collective's greyed UNDER falling 15->2. Sprite
+metrics (`art-metrics.js`) diffed byte-identical against the recorded
+baseline (compared as parsed JSON, not assumed); `rts-art.test.js`'s 5 tests,
+`rts.test.js`'s 189, `legibility.js` (map, untouched — this change only
+touches `cameoFor`) and `run-tests.sh` all green.
+
+**A variant that looked more principled and measured WORSE, so it is recorded
+rather than repeated.** Before the shipped fix, the first attempt carved the
+hatch's own `>=20-away` legal zone — `[subL+20, BAND.l1]` or
+`[BAND.l0, subL-20]` — and placed `lit = zoneStart + hv*zoneSpan`, spreading
+`hv` exactly the way the non-firing branch does across `[l0,l1]`. Floors held
+(61.1 / 52.3, unchanged) but UNDER got WORSE on both factions (344->390,
+459->469). The zone's own start edge sits exactly 20 from `subL` — the hatch's
+trigger threshold — so any key whose `hv` lands near the low end of its zone
+gets placed only marginally past the trigger, sometimes closer to `subL` than
+the old fixed 26-push was. Spreading `hv` "properly" traded away the one thing
+the old hatch reliably gave every key (a guaranteed minimum push) for spread
+that, most of the time, was not worth that price. The shipped fix differs in
+exactly this respect: it only ever ADDS separation on top of a guaranteed
+floor push, it never spends the floor to buy spread.
+
+**This closes the three-pass loop**, not because a fourth idea was needed but
+because the first two passes were both instrumenting the wrong half of the
+pipeline: "does the hatch fire" (yes, on 60-95% of keys, both hv sources) and
+"what hv does a key get" (rank vs hash) never asked "does the hatch's OWN
+formula look at hv once it fires" — it didn't, on either side of both prior
+passes, which is why fixing the source of `hv` could never have worked.
+
+Full entry with the Symptom/Cause/Fix/Rejected shape: `docs/design-decisions.md`,
+"The sidebar cameo's contrast escape hatch was overriding the value scheme it
+sat inside, three passes running".
