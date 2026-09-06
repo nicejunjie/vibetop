@@ -191,3 +191,65 @@ Where no rip exists, `RA2_ASPECT` in `tools/art-metrics.js` is the trustworthy
 reference: its numbers come from `unit-identity-reference.md` §1.1, which cites
 BBOXES rather than files, and a test re-derives every row from that document so
 the transcription cannot drift.
+
+## `buildings/` — the STRUCTURE corpus (2026-09-05)
+
+Everything above is units. Structures had **no reference of any kind**: not a
+rip, not a bbox in `unit-identity-reference.md`, not a pixel budget in §2. The
+consequence was that nothing had ever measured one, and the Battle Lab quietly
+became the tallest sprite in the game — 306 px on a 3x2 plot, taller than the
+4x4 Construction Yard — with no number anywhere to say so.
+
+These thirteen files are that gap closed. Each was downloaded by exact title,
+**opened and looked at with its measured bbox drawn on top of it**, and only
+then written into `RA2_BLD` in `tools/art-metrics.js`, which is what the
+`size.bld*` gates read.
+
+**The unit of comparison is the FOOTPRINT DIAMOND**, not pixels. Both games
+build a structure's ground plot from the same datum — `Foundation=` in art.ini
+— so a `gw x gh` building stands on a diamond `(gw+gh)*cellW/2` wide in either.
+RA2's cell is 60x30 and ours is 64x32, so expressing a sprite as a multiple of
+its own diamond cancels the cell size, the zoom, and any capture scale.
+
+| file | RA2 section | Foundation | sprite (idle) | H / footprint-height | verified |
+|---|---|---|---|---|---|
+| `allied-construction-yard.gif` | `[GACNST]` | 4x4 | 213x137 | 1.14 | Blue chroma key, 29 frames — a real SHP render. Frame 0. |
+| `soviet-construction-yard.gif` | `[NACNST]` | 4x4 | 204x153 | 1.28 | Blue key, 25 frames. Frame 0. |
+| `tesla-coil.gif` | `[NATSLA]` | 1x1 | 42x81 | 2.70 | Blue key, 20 frames. Frame 0 — later frames carry the LIGHTNING and reach 81x96. |
+| `allied-battle-lab.gif` | `[GATECH]` | 3x2 | 120x213 | **2.84** | 247 colours, 1-px mast highlights hard-edged: native pixels. A drum stack under four antenna masts. RA2 really does draw this one nearly three footprint-heights tall — `art.ini` gives it `Height=12`, three times the Construction Yard's 4. |
+| `soviet-battle-lab.gif` | `[NATECH]` | 3x3 | 152x168 | 1.87 | The onion dome, cross included. |
+| `allied-war-factory.gif` | `[GAWEAP]` | 5x3 | 207x155 | 1.29 | 224 colours. `h` includes the flag the auto-bbox cut. |
+| `soviet-service-depot.gif` | `[NADEPT]` | 4x3 | 161x146 | 1.39 | |
+| `soviet-naval-yard.png` | `[NAYARD]` | 4x4 | 176x200 | 1.67 | `h` includes the crane tip the auto-bbox cut. |
+| `allied-power-plant.png` | `[GAPOWR]` | 2x2 | 86x93 | 1.55 | Tight crop, 244 colours. |
+| `allied-ore-refinery.gif` | `[GAREFN]` | 4x3 | 169x132 | 1.26 | |
+| `soviet-barracks.png` | `[NAHAND]` | 2x2 | 117x205 | **3.42** | The statue IS the building. This is why ours at 3.84 footprint-heights was left alone. |
+| `soviet-radar-tower.png` | `[NARADR]` | 2x2 | 103x136 | 2.27 | Tight crop. |
+| `nuclear-reactor.gif` | `[NANRCT]` | 4x4 | 166x129 | 1.08 | 241 colours. |
+
+Plus two already here: `prism-tower.png` (`[GAPRIS]`, 1x1, 57x104 = 3.47) and
+`grand-cannon.png` (`[GTGCAN]`, 2x2, 117x85 = 1.42).
+
+### Three traps, all of them hit on the way to this table
+
+**1. Half the wiki's "in-game" images are RESAMPLES, and they lie by ~15%.**
+`RA2 Allied Barracks.png` was measured, gave a plausible-looking answer, and
+was then found to carry **13,646 unique colours** — RA2's palette is 256, so
+that upload had been smoothed and rescaled. It is NOT in this table. The test
+that separates them is cheap: count unique colours, and magnify a 1-px feature
+(a mast, a railing) and look for interpolation. Every file above passes both.
+
+**2. `Height=` in art.ini is an ORDERING, not a pixel budget.** It is very
+tempting — `[GATECH]` 12 against `[GAPILL]` 1 ranks the roster exactly right.
+But rise-above-the-diamond per Height cell measures 4.25 px on `[GACNST]`, 5.5
+on `[NACNST]`, 10.2 on `[NATSLA]` and 12.3 on `[GAPRIS]`: a 2.9x spread across
+four buildings. Converting it to pixels would have been the
+`mass.groundCombatSpan` x6.8 mistake again — an authoritative number applied to
+a quantity it does not measure.
+
+**3. Animated GIFs need COMPOSITING, and then you still want frame 0.** PIL
+hands back delta frames. Read naively, `[NACNST]` measures 239x153 when its
+idle is 204x153, and one frame comes back empty. Composite them properly and
+the opposite trap appears: `[GAPRIS]`'s widest frame is 136x175 against an idle
+of 57x104, because that frame is the prism BEAM. Our own side of the comparison
+is `A.s`, the structure's idle frame, so RA2's must be frame 0.

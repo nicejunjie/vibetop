@@ -11890,7 +11890,23 @@
   // came out 12.1% too tall against `soviet-nuclear-reactor-idle.png` (166x129
   // -> 1.287). It had never been measured because REF pointed at a filename
   // that did not exist on disk.
-  var VPOW = { airforce: 1, depot: 1, lab: 1, 'factory:col': 1, reactor: 0 };
+  // `lab: 0` — the Battle Lab was the one key where the full factor compounded
+  // an art that was already tall. VPOW 1 stretched the Allied 3x2 by 1.25 and
+  // the Soviet 3x3 by 1.50 on top of a drawing whose own vertical mass was
+  // drawn for a 2x2, and the result was the TALLEST SPRITE IN THE GAME: 306 px
+  // on a 3x2 plot, taller than the 4x4 Construction Yard. Measured against
+  // RA2's own art (RA2_BLD in tools/art-metrics.js), the Soviet lab came out
+  // 1.55x RA2's height-over-footprint against a building house scale of 1.21 —
+  // the second-worst structure on the board — and the Allied one 1.35x. At
+  // VPOW 0 they bake 261 and 217 px, which is RA2's [GATECH] 2.84 and [NATECH]
+  // 1.867 footprint-heights at the house scale, near enough.
+  //
+  // Note what this does NOT say: the Allied Battle Lab is legitimately the
+  // tall one. RA2 draws [GATECH] at 2.84 footprint-heights — the tallest
+  // structure in its own game — and art.ini gives it Height=12 against the
+  // Construction Yard's 4. The fault was 11% and 55%, not the 3.8x that the
+  // raw footprint ratio suggests when there is nothing to compare it to.
+  var VPOW = { airforce: 1, depot: 1, lab: 0, 'factory:col': 1, reactor: 0 };
   function bakeBuilding(key, col, fac, bph, bdir, dopen) {
     var DOP = dopen == null ? 0 : dopen;
     if (PIXBLD[key]) return bakePix(PIXBLD[key], col);
@@ -11933,6 +11949,13 @@
     // both outgrew the shared head allowance (added on their own line so the
     // per-key `head` map above stays untouched).
     if (key === 'lab') head = 152; else if (key === 'depot') head = 88;
+    // The lab's drums overhang their plot sideways by ~18 px a side, and its
+    // `pad` used to be paid for by VPOW scaling it with VS. With `lab: 0` that
+    // subsidy is gone and the Soviet 3x3 sprite came back 228 px wide in a
+    // 228 px canvas — both edges CUT, caught by clip.structuresTouchingSheetEdge
+    // on the very run that introduced it. The margin is now stated instead of
+    // borrowed.
+    if (key === 'lab') pad = 30;
     else if (key === 'shipyard') head = 226;   // the crane is the tallest thing on either rig
     // Superweapons are the tallest things on the board: the Chronosphere's
     // dome, the Weather Device's mast, the Curtain's emitter, the silo tower.
@@ -15944,35 +15967,56 @@
       plot(g, cx, baseY - 2.5, fw * 1.16, fh * 1.16);
       g.fillStyle = shade(CONCT, 0.78); g.fill(); outline(g, shade(CONCT, 0.40));
 
-      // Geometry, all offsets from baseY. The pylon tops now reach 45% of the
-      // art height as the sprite's do, and the head sits at -104 so the tesla
-      // bolt (drawn from -104 in the shot pass) leaves the electrode.
+      // Geometry, all offsets from baseY. The pylon tops reach 45% of the art
+      // height as the sprite's do, and the head sits at -78 so the tesla bolt
+      // (drawn from `eY` in the shot pass) leaves the electrode.
+      //
+      // EVERY VERTICAL OFFSET IN THIS BLOCK WAS x0.65 ON 2026-09-05, and the
+      // ball's radius was NOT, so the electrode stays round. The comment above
+      // claims a 1:1 re-read against a 41x82 rip, and the PROPORTIONS it
+      // describes were right; the SIZE was never checked, because until the
+      // structure-size gate landed nothing in the repo had ever measured a
+      // building. The coil baked 67x139 on a 64x32 cell — 4.34 footprint-
+      // heights, where RA2's own [NATSLA] (C&C-RA2-ngtsladm.gif, 45x81 on a
+      // 60x30 cell, and the same 41x82 this comment cites) is 2.70. At the
+      // building house scale of ~1.15x RA2 that asks for ~99 px and we were
+      // drawing 139, a third too tall and the single worst structure on the
+      // board; it now bakes 103.
+      //
+      // The WIDTH is deliberately untouched at 67 px. That figure is not the
+      // coil, it is the 1x1 ground diamond the hardstanding covers (fw*2 = 64
+      // plus its outline) — our structures paint the cells they own, RA2's
+      // sit inside theirs. That is a rendering convention of this file, not a
+      // per-building fault, so `wScale` is measured and reported and NOT
+      // gated; see the ra2Bld block. It is a TOWER and it is meant to be tall: the Prism Tower
+      // beside it measures 3.94 against RA2's 3.47 and is left alone. See
+      // RA2_BLD in tools/art-metrics.js.
       var pW = 4.5;                                       // pylon half-width
-      var pyl = [[-19.4, -5, 44], [11.4, -5, 44], [-9.0, 6.5, 46], [19.2, 6.5, 46]];
-      var mTop = baseY - 40;                               // machinery deck
-      var cB = baseY - 52, cT = baseY - 86;                // coil bottom / top
-      var eY = baseY - 104, eR = 13.0;                     // electrode centre / radius
+      var pyl = [[-19.4, -5, 29], [11.4, -5, 29], [-9.0, 6.5, 30], [19.2, 6.5, 30]];
+      var mTop = baseY - 26;                               // machinery deck
+      var cB = baseY - 34, cT = baseY - 56;                // coil bottom / top
+      var eY = baseY - 68, eR = 13.0;                      // electrode centre / radius
 
       // Central machinery the pylons brace: PALE plant between dark legs, the
       // light patch that keeps the base from going to mud at 1:1.
-      cylinder(g, cx, baseY + 1, fw * 0.28, 42, shade(MACH, 0.62), shade(MACH, 0.92), dark);
+      cylinder(g, cx, baseY + 1, fw * 0.28, 28, shade(MACH, 0.62), shade(MACH, 0.92), dark);
       g.fillStyle = 'rgba(0,0,0,.34)';                     // shaded right flank
-      g.fillRect(cx + fw * 0.06, mTop, fw * 0.22, 40);
+      g.fillRect(cx + fw * 0.06, mTop, fw * 0.22, 26);
       g.fillStyle = 'rgba(248,250,255,.42)';               // two lit ribs, left
-      g.fillRect(cx - fw * 0.24, mTop + 2, 2.4, 37);
-      g.fillRect(cx - fw * 0.13, mTop + 6, 1.4, 33);
+      g.fillRect(cx - fw * 0.24, mTop + 2, 2.4, 24);
+      g.fillRect(cx - fw * 0.13, mTop + 6, 1.4, 20);
       g.fillStyle = lo;                                    // house band on the raft
       g.fillRect(cx - fw * 0.30, baseY - 5.4, fw * 0.60, 2.8);
       g.fillStyle = hi;
       g.fillRect(cx - fw * 0.30, baseY - 5.4, fw * 0.20, 2.8);
 
       // Transformer housing, then the dark ball joint the coil grows out of.
-      cylinder(g, cx, mTop + 4, 10.4, 15, IRON, IRON_L, IRON_D);
+      cylinder(g, cx, mTop + 4, 10.4, 11, IRON, IRON_L, IRON_D);
       g.fillStyle = shade(WIND_D, 0.92);                   // capping flange
-      g.beginPath(); g.ellipse(cx, mTop - 11, 12.0, 4.8, 0, 0, 6.29); g.fill();
+      g.beginPath(); g.ellipse(cx, mTop - 7, 12.0, 4.8, 0, 0, 6.29); g.fill();
       outline(g, IRON_D);
       g.fillStyle = shade(WIND_D, 0.56);
-      g.beginPath(); g.ellipse(cx, mTop - 9.4, 12.0, 4.8, 0, 0, Math.PI); g.fill();
+      g.beginPath(); g.ellipse(cx, mTop - 5.4, 12.0, 4.8, 0, 0, Math.PI); g.fill();
       g.fillStyle = '#33353d';                             // ball joint
       g.beginPath(); g.ellipse(cx, cB - 1, 8.0, 7.4, 0, 0, 6.29); g.fill();
       outline(g, IRON_D);
@@ -20478,10 +20522,22 @@
   // scenery that blocks, not property. 0 shop, 1 apartment, 2 warehouse,
   // 3 filling station.
   function bakeCiv(v) {
-    // Drawn at a comfortable 78x100 and scaled up: an RA2 civilian block
+    // Drawn at a comfortable 78x106 and scaled up: an RA2 civilian block
     // stands a good deal taller than a tile, and at map zoom a tile-sized one
     // vanishes into the pavement.
-    var K = 1.45, s = mkCanvas(78 * K, 100 * K), g = s.g, cx = 39, by = 88, i, j;
+    //
+    // THE 100 WAS 106 SHORT BY SIX, and every civilian block on the board paid
+    // for it. The ground shadow below is an ellipse centred at `by + 2` with a
+    // 13 radius, so it reaches y = 103 in a drawing space that ended at 100:
+    // ALL TEN blocks came back with opaque pixels flat against the bottom of
+    // their own bake canvas — the cast shadow sliced off square, on the one
+    // edge a player looks straight at. It had been that way since the shadow
+    // was added and nothing had ever measured a structure's sprite against its
+    // sheet; `clip.structuresTouchingSheetEdge` found it on its first run.
+    // Growing the canvas moves NOTHING: `by` and `cx` are measured from the
+    // top-left and `s.ay` is derived from `by`, so the extra room lands where
+    // it is needed, under the art.
+    var K = 1.45, s = mkCanvas(78 * K, 106 * K), g = s.g, cx = 39, by = 88, i, j;
     g.scale(K, K);
     bsr(5200 + v * 617);
     function block(bx, byy, hw, hh, ht, top, left, right) {
@@ -22603,12 +22659,17 @@
         tesla: src.type === 'tesla' || src.type === 'teslatank',
         beam: src.type === 'prism' || src.type === 'prismtank',
         // ...AND THE EMITTER IS WHERE THE EMITTER IS. Both beam branches
-        // subtracted a fixed height — 104 for the coil's electrode, 86 for the
+        // subtracted a fixed height — 68 for the coil's electrode, 86 for the
         // prism crown's hub — which are BUILDING heights. Fired by a TANK the
         // bolt or beam therefore started ~90 px above the vehicle, off the top
         // of the frame, so the Prism Tank's beam appeared to come out of the
         // sky and the Tesla Tank's went nowhere. Carry the height on the shot.
-        oz: src.kind === 'b' ? (src.type === 'tesla' ? 104 : 86) : 15,
+        // The coil's 104 became 68 when the Tesla Coil was brought down to
+        // RA2's own [NATSLA] proportion (bakeBuilding `eY`); leaving it would
+        // have fired the bolt out of thin air 36 px over the electrode. This
+        // is a HAND-MIRRORED constant — the bake and the shot pass do not
+        // share it — so `eY` and these two numbers move together or not at all.
+        oz: src.kind === 'b' ? (src.type === 'tesla' ? 68 : 86) : 15,
         rocket: src.kind === 'u' && UNITS[src.type] && UNITS[src.type].splash > 0.2 ||
                 src.type === 'rocket' || src.type === 'patriot' || src.type === 'harrier',
         bomb: !!spec.bomb, flak: !!spec.flak && isAir(tgt),
@@ -33315,7 +33376,7 @@
     ctx.save();
     ctx.globalCompositeOperation = 'lighter';
     if (b.type === 'tesla') {
-      var topY2 = py - 104, footY = py - 18;
+      var topY2 = py - 68, footY = py - 12;   // electrode / coil foot — see bakeBuilding's `eY`
       var climb = footY + (topY2 - footY) * Math.min(1, q * 1.15);
       for (var a = 0; a < 3; a++) {                     // arcs crawling up the coil
         var seed2 = G.tick * 2.3 + a * 11 + b.id;

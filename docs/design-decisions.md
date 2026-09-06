@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_244 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_245 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
 - [Scheduled terminal messages ("resume when the token limit resets")](#scheduled-terminal-messages-resume-when-the-token-limit-resets)
@@ -266,6 +266,7 @@ _244 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [Three levers, three honest sweeps, three wrong causes — the Nighthawk was pinned by a constant nobody swept (2026-09-05)](#three-levers-three-honest-sweeps-three-wrong-causes-the-nighthawk-was-pinned-by-a-constant-nobody-swept-2026-09-05)
 - [A silver spec clause the code quoted and then painted over, and the anti-aliasing that ate the fix (2026-09-05)](#a-silver-spec-clause-the-code-quoted-and-then-painted-over-and-the-anti-aliasing-that-ate-the-fix-2026-09-05)
 - [The Start-menu flyout turned its caret and never appeared on iPad (2026-09-05)](#the-start-menu-flyout-turned-its-caret-and-never-appeared-on-ipad-2026-09-05)
+- [Buildings were drawn ~1.15x RA2 and nobody could tell, because nothing measured a structure (2026-09-05)](#buildings-were-drawn-115x-ra2-and-nobody-could-tell-because-nothing-measured-a-structure-2026-09-05)
 - [RTS art: a §2 clause check measured the wrong part, because a draw-order bug fused two house blocks](#rts-art-a-2-clause-check-measured-the-wrong-part-because-a-draw-order-bug-fused-two-house-blocks)
 
 <!-- END TOC -->
@@ -9986,6 +9987,66 @@ the bug is in presentation, not logic — and the fastest way in is to find whic
 CSS invariant the code is *trusting*. Here a code comment named it outright. And
 when the failing branch is one the test environment provably cannot enter, ship
 the structural fix plus a self-healing fallback rather than a guess.
+
+---
+
+## Buildings were drawn ~1.15x RA2 and nobody could tell, because nothing measured a structure (2026-09-05)
+
+**Symptom.** The Battle Lab baked 306 px tall on a 3x2 foundation — the tallest
+sprite in the game, taller than the 4x4 Construction Yard — and structures in
+general read as "ridiculously big". Every art gate in
+`apps/games/rts/tools/art-metrics.js` measured UNITS: buildings were absent from
+`size.*`, from `aspect.*`, from `peerVsSelf`, and `unit-identity-reference.md`
+§2 states no pixel budget for a single one of them.
+
+**Cause.** Two things, and the first hid the second. (a) There was no external
+reference, so the only number available was "sprite height over footprint
+height", which for a 1x1 tower is legitimately 3.5 and for a 4x4 yard
+legitimately 1.2 — the raw ratio cannot tell a mis-drawn lab from a correct
+tower. (b) Underneath that, the Tesla Coil's vertical geometry was drawn 1.6x
+RA2's and the Battle Lab's was stretched a second time by `VPOW.lab = 1`, which
+multiplies the art's vertical mass by the plot's growth (x1.25 Allied, x1.50
+Soviet) on top of a drawing whose own height was already set for a 2x2.
+
+**Fix.** `RA2_BLD` in `art-metrics.js`: fifteen structures measured off RA2's
+own 1:1 sprites (`apps/games/rts/docs/ra2-ref/sprites/buildings/`), each
+expressed as a multiple of ITS OWN footprint diamond — a quantity both games
+derive from the same `Foundation=`, so it cancels the cell size (60x30 vs 64x32),
+the zoom and any capture scale. Gated as `size.bldOutsideRA2Band` /
+`size.bldWorstOffHouseScale` against the group's median scale, exactly like
+`size.*OutsideRA2Band` does for units. Then: Tesla Coil 139 -> 103 px,
+`VPOW.lab` 1 -> 0 (Battle Lab 306 -> 245 Allied, 278 -> 202 Soviet).
+
+**Why this metric and not "no building may exceed N footprint-heights".** That
+rule would flatten the Tesla Coil and the Prism Tower, which are TOWERS and are
+supposed to be tall. Comparing each structure to ITSELF in RA2 has no such
+failure mode: `[GAPRIS]` is 3.47 footprint-heights and ours passes at 3.94,
+while `[NATSLA]` is 2.70 and ours failed at 4.34. Same shape of object,
+opposite verdicts, decided by the reference instead of by a rule.
+
+**What the reference ACQUITTED, which is the more useful half.** The Allied
+Battle Lab's 3.83 footprint-heights looks like a 3.8x blunder until you have
+`[GATECH]`'s own 2.84 beside it — RA2's tallest structure, `Height=12` against
+the Construction Yard's 4. The real error was 11%. Same for the Soviet Barracks
+at 3.84: `[NAHAND]` is a statue and measures 3.42, so it was not touched at all.
+And WIDTH, which the first hand measurement had called fine at 1.02 of the
+footprint, turns out to be the axis where we diverge MOST from RA2 (0.69-1.03
+there, ~1.02 everywhere here) — but that is our `plot()` convention of painting
+the cells a building owns, not a per-building fault, so `wScale` is measured and
+reported and deliberately not gated.
+
+**Rejected.** Converting `art.ini`'s `Height=` into a pixel budget. It ranks the
+roster correctly (`[GATECH]` 12, `[GAPILL]` 1) and is therefore very tempting,
+but rise-per-Height-cell measures 4.25 px on `[GACNST]` and 12.3 on `[GAPRIS]`
+— a 2.9x spread over four buildings. That is the `mass.groundCombatSpan` x6.8
+error again: an authoritative-looking number applied to a quantity it does not
+measure. `Height=` is kept in `RA2_BLD` as `ht`, for ordering only.
+
+**Also rejected.** Shrinking every structure to RA2's footprint underfill. RA2's
+art sits inside its diamond by a wildly varying margin; ours paints the cells it
+owns because `plot()` is built that way and adjacency, the placement ghost and
+the build-up wipe all read from it. That is thirty structures redrawn to close a
+gap that is a rendering decision, not a defect.
 
 ---
 
