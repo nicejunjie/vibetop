@@ -535,11 +535,33 @@
   @keyframes cardin { from { opacity: 0; transform: scale(.985); } to { opacity: 1; transform: none; } }
   @media (prefers-reduced-motion: reduce) { .overlay.show > .card { animation: none; } }
 
-  /* ---- desktop-only gate: the RTS is a mouse-and-keyboard game; phones get a notice, not a broken match ---- */
+  /* ---- phone gate: a PHONE cannot play this, a tablet can ----
+     The gate used to be "(hover: none) and (pointer: coarse)", which is every
+     touch screen — so it blocked iPads too, on a screen with room for the whole
+     UI and a touch layer that already handles select/order/pan/pinch. What a
+     phone actually lacks is SIZE, so that is what is measured.
+
+     The threshold is 540, and the headroom is the point. The largest phone is
+     440 on its short side (iPhone 17 Pro Max: 440 wide portrait, 430 tall
+     landscape), so 540 clears every phone by ~100px. It has to, because this
+     page is measured INSIDE THE DESKTOP'S IFRAME, not against the device: an
+     iPad mini in landscape is 744 tall, but the iframe gets 744 minus the
+     taskbar — about 700, which a 699 threshold blocked outright. Any number
+     tuned to the device's own size is wrong here by exactly the height of the
+     shell around it.
+
+     Two queries rather than one because there is no portable `min(w,h)` in a
+     media query — one catches portrait phones, one catches landscape. */
   #nomob { display: none; }
+  @media (hover: none) and (pointer: coarse) and (max-width: 540px) {
+    #nomob { display: flex; }
+  }
+  @media (hover: none) and (pointer: coarse) and (max-height: 540px) {
+    #nomob { display: flex; }
+  }
   @media (hover: none) and (pointer: coarse) {
     #nomob {
-      display: flex; position: fixed; inset: 0; z-index: 40;
+      position: fixed; inset: 0; z-index: 40;
       align-items: center; justify-content: center; padding: 24px;
       background: #0e1117; text-align: center;
     }
@@ -681,8 +703,8 @@
 
 <div id="nomob"><div class="card">
   <div class="big">🖱️</div>
-  <h2>Desktop only</h2>
-  <p>Iron Frontier is a mouse-and-keyboard game, as Red Alert 2 was.<br><br>Open it on a computer.</p>
+  <h2>Too small to command</h2>
+  <p>Iron Frontier needs room for the sidebar, the map and your army at once.<br><br>Open it on a tablet or a computer.</p>
 </div></div>
 
 <script src="gamescore.js"></script>
@@ -29154,7 +29176,7 @@
 
   var IS_TOUCH = (function () { try { return window.matchMedia('(hover: none) and (pointer: coarse)').matches; } catch (e) { return false; } })();
   function touchHint() {
-    if (IS_TOUCH) say('Touch: tap a unit to select, tap the ground to move, drag to pan, pinch to zoom', false, 600);
+    if (IS_TOUCH) say('Touch: tap to select, two-finger tap = right-click, drag to pan, pinch to zoom', false, 600);
   }
 
   // ---- EVA / game text ---------------------------------------------------
@@ -30470,7 +30492,17 @@
   // fingers pinch-zoom about their midpoint. No box-select on touch; RA2 was
   // never a touch game, but the shell is used on phones and tablets.
   var touches = {}, touchN = 0, tg = null;
+  var TWO_SLOP = 14;        // px of drift a two-finger TAP may have and stay a tap
+  var twoDead = false;      // a third finger joined: this gesture is not a right-click
   function touchPts() { var a = []; for (var k in touches) a.push(touches[k]); return a; }
+  // What the RIGHT MOUSE BUTTON does, reachable without a mouse. Same order of
+  // precedence as the pointerdown handler's `e.button === 2` branch: cancel a
+  // superweapon, else cancel a placement, else issue the order.
+  function touchRight(px, py) {
+    if (swCancel()) return;
+    if (placing) { placing = null; wallDrag = null; cv.classList.remove('placing'); say('Placement cancelled'); return; }
+    if (G && state === 'play') rightOrder(px, py, false, false);
+  }
   function touchTap(px, py) {
     if (swMode) { swClickMap(px, py); return; }
     if (placing) { tryPlace(px, py); return; }
@@ -30486,9 +30518,15 @@
     if (touchN === 1) tg = { mode: 'tap', x0: px, y0: py, t0: performance.now(), lx: px, ly: py };
     else if (touchN === 2) {
       var dx = pts[0].x - pts[1].x, dy = pts[0].y - pts[1].y;
+      var mx0 = (pts[0].x + pts[1].x) / 2, my0 = (pts[0].y + pts[1].y) / 2;
+      // Two fingers are a pinch OR a right-click, and which one is not known
+      // until they lift: a TAP (quick, and the pair never really moved) is the
+      // right button, anything else is pinch/pan. So the origin and a moved flag
+      // ride along, and touchUp decides.
       tg = { mode: 'pinch', d0: Math.sqrt(dx * dx + dy * dy) || 1, z0: zoom,
-             mx: (pts[0].x + pts[1].x) / 2, my: (pts[0].y + pts[1].y) / 2 };
-    } else tg = null;
+             mx: mx0, my: my0, mx0: mx0, my0: my0, d00: Math.sqrt(dx * dx + dy * dy) || 1,
+             t0: performance.now(), moved: false };
+    } else { tg = null; twoDead = true; }   // 3+ fingers: not a right-click
   }
   function touchMove(e, px, py) {
     if (!touches[e.pointerId]) return;
@@ -30498,6 +30536,11 @@
       var pts = touchPts(); if (pts.length < 2) return;
       var dx = pts[0].x - pts[1].x, dy = pts[0].y - pts[1].y, d = Math.sqrt(dx * dx + dy * dy) || 1;
       var mx = (pts[0].x + pts[1].x) / 2, my = (pts[0].y + pts[1].y) / 2;
+      // TWO_SLOP of hand-shake still counts as a tap — two fingers never land
+      // and lift perfectly still, and a right-click that needs a steady hand is
+      // a right-click that misses.
+      if (Math.abs(mx - tg.mx0) + Math.abs(my - tg.my0) > TWO_SLOP ||
+          Math.abs(d - tg.d00) > TWO_SLOP) tg.moved = true;
       setZoom(tg.z0 * d / tg.d0, mx, my);
       cam.x -= (mx - tg.mx) / zoom; cam.y -= (my - tg.my) / zoom; clampCam();
       tg.mx = mx; tg.my = my;
@@ -30514,7 +30557,14 @@
     if (!touches[e.pointerId]) return;
     delete touches[e.pointerId]; touchN = Math.max(0, touchN - 1);
     if (tg && tg.mode === 'tap' && performance.now() - tg.t0 < 400 && G && state === 'play') touchTap(px, py);
+    // Two-finger tap = right click, fired on the FIRST lift and at the midpoint
+    // the pair landed on — not at this finger, which is off to one side of what
+    // the player was pointing at. tg is replaced on the line below, so the
+    // second finger coming up cannot fire it again.
+    else if (tg && tg.mode === 'pinch' && !tg.moved && !twoDead &&
+             performance.now() - tg.t0 < 400) touchRight(tg.mx0, tg.my0);
     tg = touchN === 1 ? { mode: 'pan', lx: touchPts()[0].x, ly: touchPts()[0].y, x0: -99, y0: -99, t0: 0 } : null;
+    if (!touchN) twoDead = false;
   }
   cv.addEventListener('pointerup', function (e) {
     if (e.pointerType !== 'touch') return;
