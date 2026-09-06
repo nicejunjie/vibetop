@@ -19970,7 +19970,18 @@
         outline(g, '#12162a');
         g.fillStyle = '#5b6a96';
         g.beginPath(); g.ellipse(npx, npy - 5.0, 2.4, 1.2, 0, 0, 6.29); g.fill();
-        g.fillStyle = 'rgba(150,190,235,' + (0.30 + 0.50 * (0.5 + 0.5 * Math.sin(gpPh + gi2 * 1.6))).toFixed(3) + ')';
+        // Same family as the talon-glint/field-ring paling below: this dot's
+        // old rgb(150,190,235) (s 0.36, hueGap 15 of OWNER_HUE 197) sat
+        // inside the checker's house-hue band, and antialiasing it against
+        // the navy pod body (#2c3550, hueGap 28 — outside the band on its
+        // own) swept THROUGH the band at low blend fractions, adding 4
+        // spurious "house collar" blobs (one per pod) once the talon fix
+        // gave them room to render as isolated components. Paled to s 0.148
+        // at the same hue; swept the full blend range against both the navy
+        // body and the white platform disc — no blend fraction re-enters
+        // the band (s stays <0.30 throughout, and the one point that pokes
+        // above 0.25 sits at hueGap 24.6, still outside <=20).
+        g.fillStyle = 'rgba(196,212,230,' + (0.30 + 0.50 * (0.5 + 0.5 * Math.sin(gpPh + gi2 * 1.6))).toFixed(3) + ')';
         g.beginPath(); g.arc(npx, npy - 2.6, 1.0, 0, 6.29); g.fill();
       }
 
@@ -19990,30 +20001,69 @@
       g.globalAlpha = 1;
       g.fillStyle = GP_GOLDD;
       g.beginPath(); g.ellipse(cx, dY - mH, 2.8, 1.3, 0, 0, 6.29); g.fill();
+      // Four EXPLICIT talon roots/tips, not one cos/sin ellipse walked in
+      // 90-deg steps. The old `ta = tk/4*2pi + 0.7854` scheme put the
+      // near-right and far-right talon (45 deg and 315 deg) at the IDENTICAL
+      // x — cos(45)==cos(315) — and same for the near-left/far-left pair
+      // (135/225), because 45 deg is exactly the angle where sin(a)==cos(a)
+      // on a 90-deg-stepped loop; picking a different start angle only
+      // shrank the collision to ~1.5px, still well inside one ~3.5px stroke,
+      // so front and back kept fusing into one blob per side. The reference
+      // (docs/ra2-ref/allied-gap-generator.png, crown crop) reads as two
+      // SHORT talons splaying hard out to the sides (near, bold, in front of
+      // the collar) and two TALL talons standing straighter and further
+      // back (far, thinner) — four genuinely separate x-slots, which only
+      // explicit per-talon geometry can place without a shared formula
+      // coincidentally re-colliding them.
+      var GP_TAL = [
+        { rx0: -8.4, ry0:  2.6, tx: -11.6, far: false, hgt: 14 },  // near-left, outer
+        { rx0: -2.6, ry0: -3.0, tx:  -3.4, far: true,  hgt: 20 },  // far-left, inner
+        { rx0:  2.6, ry0: -3.0, tx:   3.4, far: true,  hgt: 20 },  // far-right, inner
+        { rx0:  8.4, ry0:  2.6, tx:  11.6, far: false, hgt: 14 },  // near-right, outer
+      ];
       for (var tk = 0; tk < 4; tk++) {
-        var ta = tk / 4 * 6.2832 + 0.7854;
-        var rx0 = Math.cos(ta) * 8.4, ry0 = Math.sin(ta) * 3.8;
-        var far = Math.sin(ta) < 0;
-        var hgt = (far ? 19 : 16) + Math.sin(gpPh + tk * 0.8) * 1.1;
-        var flare = 4.6 + Math.sin(gpPh + tk) * 0.4;
+        var tl = GP_TAL[tk];
+        var rx0 = tl.rx0, ry0 = tl.ry0, far = tl.far;
+        var hgt = tl.hgt + Math.sin(gpPh + tk * 0.8) * 1.1;
+        var tipX = tl.tx + Math.sin(gpPh + tk) * 0.4;
         g.strokeStyle = far ? '#26292f' : GP_BLK;
         g.lineWidth = far ? 3.0 : 3.6; g.lineCap = 'round';
         g.beginPath();
         g.moveTo(cx + rx0, dY - 2 + ry0);
         g.quadraticCurveTo(cx + rx0 * 0.86, dY - hgt * 0.60 + ry0,
-                           cx + rx0 * 0.80 + Math.cos(ta) * flare, dY - hgt + ry0 * 0.5);
+                           cx + tipX, dY - hgt + ry0 * 0.5);
         g.stroke();
         if (!far) {                                          // a cold glint on the near tips
-          g.strokeStyle = 'rgba(150,190,230,.45)'; g.lineWidth = 1.0;
+          // Paled from rgb(150,190,230): that saturation (0.35) sat inside
+          // the checker's house-hue band (hueGap 13 of OWNER_HUE 197, well
+          // under the <=20 floor) purely by coincidence of both being
+          // "blue" — a real highlight reads as near-white anyway, so
+          // desaturating it (s ~ 0.14) is a plain art improvement that also
+          // stops these two 1px sparkle strokes from being counted as extra
+          // "house collar" blobs once the talon-separation fix (above) gave
+          // them room to stand apart from the real collar rings.
+          // Second pass: even at s 0.139 (198,214,230), this stroke's own
+          // antialiased edge composited with the field-ring ellipse's edge
+          // (both semi-transparent, crossing near the tip) could still nudge
+          // a handful of sub-pixel blends just over the 0.25 floor. Paled
+          // once more (diff 16 vs 32) so every blend against black, navy,
+          // white, the far-talon fill, and the field ring itself stays
+          // clear of the house band with margin (checked by sweeping the
+          // full 0-100% blend range, not just the two pure endpoints).
+          g.strokeStyle = 'rgba(208,216,224,.45)'; g.lineWidth = 1.0;
           g.beginPath();
           g.moveTo(cx + rx0 * 0.84, dY - hgt * 0.52 + ry0);
-          g.lineTo(cx + rx0 * 0.80 + Math.cos(ta) * flare, dY - hgt + ry0 * 0.5);
+          g.lineTo(cx + tipX, dY - hgt + ry0 * 0.5);
           g.stroke();
         }
       }
       g.lineWidth = 1;
       var gRing = (bph || 0);
-      g.strokeStyle = 'rgba(140,180,225,' + (0.34 * (1 - gRing)).toFixed(3) + ')';
+      // Same paling as the tip glint above (rgb(140,180,225), s 0.38, was
+      // 12 deg inside the house-hue band): a field ring needs to read as
+      // near-white energy, not owner colour. Paled a second notch (diff 20
+      // vs 38) alongside the glint, for the same sub-pixel-blend margin.
+      g.strokeStyle = 'rgba(204,214,224,' + (0.34 * (1 - gRing)).toFixed(3) + ')';
       g.lineWidth = 1.6;
       g.beginPath(); g.ellipse(cx, dY - 18 - gRing * 12, 9 + gRing * 18, (9 + gRing * 18) * 0.42, 0, 0, 6.29); g.stroke();
       g.lineWidth = 1;
