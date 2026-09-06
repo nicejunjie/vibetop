@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_243 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_245 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
 - [Scheduled terminal messages ("resume when the token limit resets")](#scheduled-terminal-messages-resume-when-the-token-limit-resets)
@@ -266,6 +266,8 @@ _243 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [Three levers, three honest sweeps, three wrong causes — the Nighthawk was pinned by a constant nobody swept (2026-09-05)](#three-levers-three-honest-sweeps-three-wrong-causes-the-nighthawk-was-pinned-by-a-constant-nobody-swept-2026-09-05)
 - [A silver spec clause the code quoted and then painted over, and the anti-aliasing that ate the fix (2026-09-05)](#a-silver-spec-clause-the-code-quoted-and-then-painted-over-and-the-anti-aliasing-that-ate-the-fix-2026-09-05)
 - [The Start-menu flyout turned its caret and never appeared on iPad (2026-09-05)](#the-start-menu-flyout-turned-its-caret-and-never-appeared-on-ipad-2026-09-05)
+- [Buildings were drawn ~1.15x RA2 and nobody could tell, because nothing measured a structure (2026-09-05)](#buildings-were-drawn-115x-ra2-and-nobody-could-tell-because-nothing-measured-a-structure-2026-09-05)
+- [RTS art: a §2 clause check measured the wrong part, because a draw-order bug fused two house blocks](#rts-art-a-2-clause-check-measured-the-wrong-part-because-a-draw-order-bug-fused-two-house-blocks)
 
 <!-- END TOC -->
 
@@ -9986,7 +9988,9 @@ CSS invariant the code is *trusting*. Here a code comment named it outright. And
 when the failing branch is one the test environment provably cannot enter, ship
 the structural fix plus a self-healing fallback rather than a guess.
 
-### Buildings were drawn ~1.15x RA2 and nobody could tell, because nothing measured a structure
+---
+
+## Buildings were drawn ~1.15x RA2 and nobody could tell, because nothing measured a structure (2026-09-05)
 
 **Symptom.** The Battle Lab baked 306 px tall on a 3x2 foundation — the tallest
 sprite in the game, taller than the 4x4 Construction Yard — and structures in
@@ -10043,3 +10047,52 @@ art sits inside its diamond by a wildly varying margin; ours paints the cells it
 owns because `plot()` is built that way and adjacency, the placement ghost and
 the build-up wipe all read from it. That is thirty structures redrawn to close a
 gap that is a rendering decision, not a defect.
+
+---
+
+## RTS art: a §2 clause check measured the wrong part, because a draw-order bug fused two house blocks
+
+**Symptom.** `unit-identity-reference.md` §2.3 asks the Grizzly for *"exactly 2
+house blocks, each 6-8 px, separated by >= 4 px"*. Two successive passes measured
+it and reached two different wrong conclusions: first **one** 23x11 house
+component, then — after "fixing the count" — **two blocks 2 px apart**, with the
+gap declared a hard ceiling because *"raising the turret moves the gap by exactly
+zero, the cheek's bottom edge is pinned by the turret-shoulder polygon"*. The
+null result reproduced every time it was re-run.
+
+**Cause.** The lower-flank applique panel is drawn once per side in a
+`for (sg = -1; sg <= 1; sg += 2)` loop, and the whole loop ran **after**
+`chassis()`. So the FAR side's panel — which a real tank hides behind its own
+hull — painted **on top of the deck**, one pixel under the turret cheek, and
+anti-aliasing between two owner-hued edges fused the two into a single 21x6
+component. Every number the check attributed to "the turret cheek" was that
+blob's: its 6 px minor dimension belonged to the fused pair (the cheek alone is
+7x5), and the "2 px gap" was between the NEAR panel and the far-panel-plus-cheek
+— a distance the iso camera fixes across the beam. **No turret lever can move a
+beam distance**, which is exactly why the turret lever measured zero. The
+recorded explanation was true about the observation and wrong about the
+mechanism.
+
+**Fix.** Split the loop by side and draw the far panel *before* `chassis()`, the
+near panel after: `for (sg…) if (py * sg < 0) flankPlate(sg); chassis(…); … for
+(sg…) if (py * sg >= 0) flankPlate(sg);`. The hull then occludes the far panel
+the way it physically should, the cheek measures alone, and the sprite's
+**silhouette is byte-identical** (5058 opaque px over eight bearings) because
+both panels are painted over pixels the hull already owned — so every mask
+metric (`iou.*`, `mass.*`, `aspect.*`, `size.*`, `spike.*`, `clip.*`) is provably
+unchanged.
+
+**Rejected.** *Forcing the literal `>= 4 px`.* Two configurations deliver it —
+raising the turret cap, or dropping the flank panel onto the contact-shadow row —
+and both add mask and take `iou.groundCombat.mean` 0.4652 → 0.4667, more than the
+entire gain that gate had just banked. The clause's own numbers were corrected
+instead, to the ones `§1.4` states (Rule 6's "4-8 px" band, and the >= 2 px
+countability bar §2.4 already uses for the Apocalypse's canisters).
+
+**The general lesson, and it is the reusable half.** When a lever measures
+*exactly zero*, do not accept the first mechanism that explains it — check that
+the thing being measured is the thing you think it is. A connected-component
+check reports a blob, not a part, and two parts of the same colour 1-1.5 px apart
+are one blob after anti-aliasing. This is the fourth defect in this project
+caused by anti-aliasing closing a countable seam, and the first where it made a
+check silently report the wrong component's dimensions.
