@@ -8,6 +8,7 @@
     "spikeFloorAtZoom1": 3.64,
     "units": 41,
     "sprites": 328,
+    "structures": 100,
     "scene": {
       "spawned": 24,
       "zoom": 1
@@ -175,6 +176,26 @@
       "dir": "up",
       "note": "how far clear of the second-lightest infantryman he stands. The read is a CONTRAST, so a dead heat is a failure even when he wins it — coming first by a point would satisfy the ordering and still leave a player unable to pick him out of a squad, which is the whole job of an inverted value"
     },
+    "size.bldOutsideRA2Band": {
+      "want": 0,
+      "dir": "down",
+      "note": "structures more than +-20% off the BUILDING house scale, measured as sprite-height-over-footprint-diamond against RA2's own sprite for that same structure (see RA2_BLD). 15 of the 43 buildable structures carry a real RA2 measurement; the rest are unreferenced and therefore ungated, which is debt this metric makes VISIBLE (detail.bldSummary.covered) rather than hides. THREE were outside on the day it was added and two were fixed in the same pass: the Tesla Coil at 1.61x RA2 (139 px on a 1x1 -> 103) and the Soviet Battle Lab at 1.55 (278 -> 202, VPOW lab 1 -> 0, which also took the Allied lab 306 -> 245). The one left is the ALLIED POWER PLANT at 1.40 against a house scale of 1.15, and it is left on purpose: its ground pad is drawn with a private `octa()` rather than with `plot()`, so the vertical-scale lever that fixed the other two would squash the pad off its own cells instead of leaving it there. It needs the per-element treatment the Tesla Coil got. NOTE WHAT THIS METRIC ACQUITS — the Allied Battle Lab was the tallest sprite in the game at 306 px on a 3x2 plot, 3.83 footprint-heights, and the raw ratio reads like a 3.8x blunder. RA2's own [GATECH] is 2.84 footprint-heights and art.ini gives it Height=12, three times the Construction Yard's: the real error was 11%, not 3.8x. The Soviet Barracks is the same story and was not touched at all — 3.84 footprint-heights, because RA2 draws [NAHAND] as a statue and measures 3.42"
+    },
+    "size.bldWorstOffHouseScale": {
+      "want": 0.2,
+      "dir": "down",
+      "note": "the furthest any structure sits from the building house scale, as |ours/RA2 / median - 1|. 0.33 (the Tesla Coil) before this pass, 0.22 (the Allied Power Plant) after. Kept beside the count because a count can go to zero while one structure sits just inside the band, and because this is the number that moves when a fix is partial. Watch the interaction: the house scale IS the median of the fifteen, so fixing a tall structure pulls the median DOWN and can push a second one over the band — which is what happened here, the median falling 1.21 -> 1.15 as the coil and the two labs came down. That is the metric working, not thrashing: the median was being held up by the very structures that were wrong"
+    },
+    "size.bldFootprintMismatch": {
+      "want": 0,
+      "dir": "down",
+      "note": "structures whose BLDS `gw x gh` disagrees with the `Foundation=` recorded in RA2_BLD. Zero today — every footprint in the game matches RA2's, which is why this pass is about drawing and not about the grid — and it is gated so that a future footprint edit cannot silently invalidate a size row instead of failing: the whole comparison is denominated in the footprint diamond, so a wrong diamond makes every number on that row precise and meaningless"
+    },
+    "clip.structuresTouchingSheetEdge": {
+      "want": 0,
+      "dir": "down",
+      "note": "structures whose idle-frame bbox touches the border of its own bake canvas — art the canvas CUT, the `clip.unitsTouchingSheetEdge` check extended to buildings. It matters more here than it looks: `bakeBuilding` sizes the canvas from a per-key `head` allowance and then multiplies BOTH the allowance and the drawing by `VS`, so a change to a structure's footprint or to VPOW can outgrow the headroom and the first measurement of the change is then of a sprite that does not exist"
+    },
     "clause.checked": {
       "want": 57,
       "dir": "up",
@@ -289,6 +310,10 @@
     "size.airOutsideRA2Band": 0,
     "size.crossGroupSpread": 1.607,
     "size.worstOffGroupScale": 0.3109,
+    "size.bldOutsideRA2Band": 1,
+    "size.bldWorstOffHouseScale": 0.2202,
+    "size.bldFootprintMismatch": 0,
+    "clip.structuresTouchingSheetEdge": 0,
     "clause.checked": 57,
     "clause.unmet": 5,
     "clause.unmatchedToReference": 0,
@@ -1673,6 +1698,1123 @@
         "dev": 0
       }
     ],
+    "ra2Bld": [
+      {
+        "key": "power:dir",
+        "name": "Power Plant",
+        "sec": "GAPOWR",
+        "foot": "2x2",
+        "ra2Foot": "2x2",
+        "footMatch": true,
+        "ours": "131x139",
+        "ra2": "86x93",
+        "hOverFoot": 2.172,
+        "ra2HOverFoot": 1.55,
+        "wOverFoot": 1.023,
+        "ra2WOverFoot": 0.717,
+        "hScale": 1.4012,
+        "wScale": 1.4281,
+        "ht": 4,
+        "houseScale": 1.1483,
+        "dev": 0.2202,
+        "wDev": 0.1291
+      },
+      {
+        "key": "radar:col",
+        "name": "Radar Tower",
+        "sec": "NARADR",
+        "foot": "2x2",
+        "ra2Foot": "2x2",
+        "footMatch": true,
+        "ours": "131x193",
+        "ra2": "103x136",
+        "hOverFoot": 3.016,
+        "ra2HOverFoot": 2.267,
+        "wOverFoot": 1.023,
+        "ra2WOverFoot": 0.858,
+        "hScale": 1.3304,
+        "wScale": 1.1924,
+        "ht": 6,
+        "houseScale": 1.1483,
+        "dev": 0.1586,
+        "wDev": -0.0572
+      },
+      {
+        "key": "factory:dir",
+        "name": "War Factory",
+        "sec": "GAWEAP",
+        "foot": "5x3",
+        "ra2Foot": "5x3",
+        "footMatch": true,
+        "ours": "286x219",
+        "ra2": "207x155",
+        "hOverFoot": 1.711,
+        "ra2HOverFoot": 1.292,
+        "wOverFoot": 1.117,
+        "ra2WOverFoot": 0.863,
+        "hScale": 1.3246,
+        "wScale": 1.2953,
+        "ht": 4,
+        "houseScale": 1.1483,
+        "dev": 0.1535,
+        "wDev": 0.0241
+      },
+      {
+        "key": "depot:col",
+        "name": "Service Depot",
+        "sec": "NADEPT",
+        "foot": "4x3",
+        "ra2Foot": "4x3",
+        "footMatch": true,
+        "ours": "231x201",
+        "ra2": "161x146",
+        "hOverFoot": 1.795,
+        "ra2HOverFoot": 1.39,
+        "wOverFoot": 1.031,
+        "ra2WOverFoot": 0.767,
+        "hScale": 1.2907,
+        "wScale": 1.3451,
+        "ht": 6,
+        "houseScale": 1.1483,
+        "dev": 0.124,
+        "wDev": 0.0635
+      },
+      {
+        "key": "shipyard:col",
+        "name": "Shipyard",
+        "sec": "NAYARD",
+        "foot": "4x4",
+        "ra2Foot": "4x4",
+        "footMatch": true,
+        "ours": "186x219",
+        "ra2": "176x200",
+        "hOverFoot": 1.711,
+        "ra2HOverFoot": 1.667,
+        "wOverFoot": 0.727,
+        "ra2WOverFoot": 0.733,
+        "hScale": 1.0266,
+        "wScale": 0.9908,
+        "ht": 10,
+        "houseScale": 1.1483,
+        "dev": -0.106,
+        "wDev": -0.2166
+      },
+      {
+        "key": "grandcannon:dir",
+        "name": "Grand Cannon",
+        "sec": "GTGCAN",
+        "foot": "2x2",
+        "ra2Foot": "2x2",
+        "footMatch": true,
+        "ours": "131x95",
+        "ra2": "117x85",
+        "hOverFoot": 1.484,
+        "ra2HOverFoot": 1.417,
+        "wOverFoot": 1.023,
+        "ra2WOverFoot": 0.975,
+        "hScale": 1.0478,
+        "wScale": 1.0497,
+        "ht": 3,
+        "houseScale": 1.1483,
+        "dev": -0.0875,
+        "wDev": -0.1701
+      },
+      {
+        "key": "base:dir",
+        "name": "Construction Yard",
+        "sec": "GACNST",
+        "foot": "4x4",
+        "ra2Foot": "4x4",
+        "footMatch": true,
+        "ours": "248x157",
+        "ra2": "213x137",
+        "hOverFoot": 1.227,
+        "ra2HOverFoot": 1.142,
+        "wOverFoot": 0.969,
+        "ra2WOverFoot": 0.888,
+        "hScale": 1.0744,
+        "wScale": 1.0915,
+        "ht": 4,
+        "houseScale": 1.1483,
+        "dev": -0.0644,
+        "wDev": -0.137
+      },
+      {
+        "key": "lab:dir",
+        "name": "Battle Lab",
+        "sec": "GATECH",
+        "foot": "3x2",
+        "ra2Foot": "3x2",
+        "footMatch": true,
+        "ours": "163x245",
+        "ra2": "120x213",
+        "hOverFoot": 3.063,
+        "ra2HOverFoot": 2.84,
+        "wOverFoot": 1.019,
+        "ra2WOverFoot": 0.8,
+        "hScale": 1.0783,
+        "wScale": 1.2734,
+        "ht": 12,
+        "houseScale": 1.1483,
+        "dev": -0.061,
+        "wDev": 0.0068
+      },
+      {
+        "key": "refinery:dir",
+        "name": "Refinery",
+        "sec": "GAREFN",
+        "foot": "4x3",
+        "ra2Foot": "4x3",
+        "footMatch": true,
+        "ours": "228x170",
+        "ra2": "169x132",
+        "hOverFoot": 1.518,
+        "ra2HOverFoot": 1.257,
+        "wOverFoot": 1.018,
+        "ra2WOverFoot": 0.805,
+        "hScale": 1.2074,
+        "wScale": 1.2648,
+        "ht": 4,
+        "houseScale": 1.1483,
+        "dev": 0.0515,
+        "wDev": 0
+      },
+      {
+        "key": "tesla:col",
+        "name": "Tesla Coil",
+        "sec": "NATSLA",
+        "foot": "1x1",
+        "ra2Foot": "1x1",
+        "footMatch": true,
+        "ours": "67x103",
+        "ra2": "42x81",
+        "hOverFoot": 3.219,
+        "ra2HOverFoot": 2.7,
+        "wOverFoot": 1.047,
+        "ra2WOverFoot": 0.7,
+        "hScale": 1.1921,
+        "wScale": 1.4955,
+        "ht": 5,
+        "houseScale": 1.1483,
+        "dev": 0.0381,
+        "wDev": 0.1824
+      },
+      {
+        "key": "base:col",
+        "name": "Construction Yard",
+        "sec": "NACNST",
+        "foot": "4x4",
+        "ra2Foot": "4x4",
+        "footMatch": true,
+        "ours": "260x194",
+        "ra2": "204x153",
+        "hOverFoot": 1.516,
+        "ra2HOverFoot": 1.275,
+        "wOverFoot": 1.016,
+        "ra2WOverFoot": 0.85,
+        "hScale": 1.1887,
+        "wScale": 1.1949,
+        "ht": 6,
+        "houseScale": 1.1483,
+        "dev": 0.0352,
+        "wDev": -0.0553
+      },
+      {
+        "key": "barracks:col",
+        "name": "Barracks",
+        "sec": "NAHAND",
+        "foot": "2x2",
+        "ra2Foot": "2x2",
+        "footMatch": true,
+        "ours": "131x246",
+        "ra2": "117x205",
+        "hOverFoot": 3.844,
+        "ra2HOverFoot": 3.417,
+        "wOverFoot": 1.023,
+        "ra2WOverFoot": 0.975,
+        "hScale": 1.125,
+        "wScale": 1.0497,
+        "ht": 9,
+        "houseScale": 1.1483,
+        "dev": -0.0203,
+        "wDev": -0.1701
+      },
+      {
+        "key": "lab:col",
+        "name": "Battle Lab",
+        "sec": "NATECH",
+        "foot": "3x3",
+        "ra2Foot": "3x3",
+        "footMatch": true,
+        "ours": "229x202",
+        "ra2": "152x168",
+        "hOverFoot": 2.104,
+        "ra2HOverFoot": 1.867,
+        "wOverFoot": 1.193,
+        "ra2WOverFoot": 0.844,
+        "hScale": 1.1272,
+        "wScale": 1.4124,
+        "ht": 8,
+        "houseScale": 1.1483,
+        "dev": -0.0184,
+        "wDev": 0.1167
+      },
+      {
+        "key": "prism:dir",
+        "name": "Prism Tower",
+        "sec": "GAPRIS",
+        "foot": "1x1",
+        "ra2Foot": "1x1",
+        "footMatch": true,
+        "ours": "69x126",
+        "ra2": "57x104",
+        "hOverFoot": 3.938,
+        "ra2HOverFoot": 3.467,
+        "wOverFoot": 1.078,
+        "ra2WOverFoot": 0.95,
+        "hScale": 1.1358,
+        "wScale": 1.1349,
+        "ht": 6,
+        "houseScale": 1.1483,
+        "dev": -0.0109,
+        "wDev": -0.1027
+      },
+      {
+        "key": "reactor:col",
+        "name": "Nuclear Reactor",
+        "sec": "NANRCT",
+        "foot": "4x4",
+        "ra2Foot": "4x4",
+        "footMatch": true,
+        "ours": "259x158",
+        "ra2": "166x129",
+        "hOverFoot": 1.234,
+        "ra2HOverFoot": 1.075,
+        "wOverFoot": 1.012,
+        "ra2WOverFoot": 0.692,
+        "hScale": 1.1483,
+        "wScale": 1.4627,
+        "ht": 4,
+        "houseScale": 1.1483,
+        "dev": 0,
+        "wDev": 0.1565
+      }
+    ],
+    "bldAll": [
+      [
+        "civoffice:neut",
+        "1x1",
+        "89x143",
+        4.469,
+        1.391,
+        ""
+      ],
+      [
+        "prism:dir",
+        "1x1",
+        "69x126",
+        3.938,
+        1.078,
+        "ref"
+      ],
+      [
+        "prism:col",
+        "1x1",
+        "69x126",
+        3.938,
+        1.078,
+        ""
+      ],
+      [
+        "civflat:neut",
+        "1x1",
+        "89x124",
+        3.875,
+        1.391,
+        ""
+      ],
+      [
+        "barracks:col",
+        "2x2",
+        "131x246",
+        3.844,
+        1.023,
+        "ref"
+      ],
+      [
+        "civbarn:neut",
+        "1x1",
+        "92x108",
+        3.375,
+        1.438,
+        ""
+      ],
+      [
+        "tesla:dir",
+        "1x1",
+        "67x103",
+        3.219,
+        1.047,
+        ""
+      ],
+      [
+        "tesla:col",
+        "1x1",
+        "67x103",
+        3.219,
+        1.047,
+        "ref"
+      ],
+      [
+        "civsilo:neut",
+        "1x1",
+        "92x100",
+        3.125,
+        1.438,
+        ""
+      ],
+      [
+        "lab:dir",
+        "3x2",
+        "163x245",
+        3.063,
+        1.019,
+        "ref"
+      ],
+      [
+        "radar:col",
+        "2x2",
+        "131x193",
+        3.016,
+        1.023,
+        "ref"
+      ],
+      [
+        "civshop:neut",
+        "1x1",
+        "93x95",
+        2.969,
+        1.453,
+        ""
+      ],
+      [
+        "civfarm:neut",
+        "1x1",
+        "89x92",
+        2.875,
+        1.391,
+        ""
+      ],
+      [
+        "civware:neut",
+        "1x1",
+        "96x89",
+        2.781,
+        1.5,
+        ""
+      ],
+      [
+        "civfuel:neut",
+        "1x1",
+        "108x89",
+        2.781,
+        1.688,
+        ""
+      ],
+      [
+        "flakcannon:dir",
+        "1x1",
+        "67x86",
+        2.688,
+        1.047,
+        ""
+      ],
+      [
+        "flakcannon:col",
+        "1x1",
+        "67x86",
+        2.688,
+        1.047,
+        ""
+      ],
+      [
+        "gapgen:dir",
+        "1x1",
+        "75x85",
+        2.656,
+        1.172,
+        ""
+      ],
+      [
+        "gapgen:col",
+        "1x1",
+        "75x85",
+        2.656,
+        1.172,
+        ""
+      ],
+      [
+        "civruin:neut",
+        "1x1",
+        "93x83",
+        2.594,
+        1.453,
+        ""
+      ],
+      [
+        "patriot:dir",
+        "1x1",
+        "67x78",
+        2.438,
+        1.047,
+        ""
+      ],
+      [
+        "patriot:col",
+        "1x1",
+        "67x78",
+        2.438,
+        1.047,
+        ""
+      ],
+      [
+        "airforce:dir",
+        "3x2",
+        "179x187",
+        2.338,
+        1.119,
+        ""
+      ],
+      [
+        "airforce:col",
+        "3x2",
+        "179x187",
+        2.338,
+        1.119,
+        ""
+      ],
+      [
+        "civrow:neut",
+        "1x1",
+        "92x72",
+        2.25,
+        1.438,
+        ""
+      ],
+      [
+        "power:dir",
+        "2x2",
+        "131x139",
+        2.172,
+        1.023,
+        "ref"
+      ],
+      [
+        "sentrygun:col",
+        "1x1",
+        "67x69",
+        2.156,
+        1.047,
+        ""
+      ],
+      [
+        "factory:col",
+        "5x3",
+        "294x271",
+        2.117,
+        1.148,
+        ""
+      ],
+      [
+        "lab:col",
+        "3x3",
+        "229x202",
+        2.104,
+        1.193,
+        "ref"
+      ],
+      [
+        "shipyard:dir",
+        "4x4",
+        "212x246",
+        1.922,
+        0.828,
+        ""
+      ],
+      [
+        "weather:dir",
+        "3x3",
+        "195x183",
+        1.906,
+        1.016,
+        ""
+      ],
+      [
+        "weather:col",
+        "3x3",
+        "195x183",
+        1.906,
+        1.016,
+        ""
+      ],
+      [
+        "civflat:dir",
+        "1x1",
+        "67x60",
+        1.875,
+        1.047,
+        ""
+      ],
+      [
+        "civflat:col",
+        "1x1",
+        "67x60",
+        1.875,
+        1.047,
+        ""
+      ],
+      [
+        "civware:dir",
+        "1x1",
+        "67x60",
+        1.875,
+        1.047,
+        ""
+      ],
+      [
+        "civware:col",
+        "1x1",
+        "67x60",
+        1.875,
+        1.047,
+        ""
+      ],
+      [
+        "civshop:dir",
+        "1x1",
+        "67x60",
+        1.875,
+        1.047,
+        ""
+      ],
+      [
+        "civshop:col",
+        "1x1",
+        "67x60",
+        1.875,
+        1.047,
+        ""
+      ],
+      [
+        "civfuel:dir",
+        "1x1",
+        "67x60",
+        1.875,
+        1.047,
+        ""
+      ],
+      [
+        "civfuel:col",
+        "1x1",
+        "67x60",
+        1.875,
+        1.047,
+        ""
+      ],
+      [
+        "civoffice:dir",
+        "1x1",
+        "67x60",
+        1.875,
+        1.047,
+        ""
+      ],
+      [
+        "civoffice:col",
+        "1x1",
+        "67x60",
+        1.875,
+        1.047,
+        ""
+      ],
+      [
+        "civrow:dir",
+        "1x1",
+        "67x60",
+        1.875,
+        1.047,
+        ""
+      ],
+      [
+        "civrow:col",
+        "1x1",
+        "67x60",
+        1.875,
+        1.047,
+        ""
+      ],
+      [
+        "civruin:dir",
+        "1x1",
+        "67x60",
+        1.875,
+        1.047,
+        ""
+      ],
+      [
+        "civruin:col",
+        "1x1",
+        "67x60",
+        1.875,
+        1.047,
+        ""
+      ],
+      [
+        "civsilo:dir",
+        "1x1",
+        "67x60",
+        1.875,
+        1.047,
+        ""
+      ],
+      [
+        "civsilo:col",
+        "1x1",
+        "67x60",
+        1.875,
+        1.047,
+        ""
+      ],
+      [
+        "civfarm:dir",
+        "1x1",
+        "67x60",
+        1.875,
+        1.047,
+        ""
+      ],
+      [
+        "civfarm:col",
+        "1x1",
+        "67x60",
+        1.875,
+        1.047,
+        ""
+      ],
+      [
+        "civbarn:dir",
+        "1x1",
+        "67x60",
+        1.875,
+        1.047,
+        ""
+      ],
+      [
+        "civbarn:col",
+        "1x1",
+        "67x60",
+        1.875,
+        1.047,
+        ""
+      ],
+      [
+        "bhut:dir",
+        "1x1",
+        "67x60",
+        1.875,
+        1.047,
+        ""
+      ],
+      [
+        "bhut:col",
+        "1x1",
+        "67x60",
+        1.875,
+        1.047,
+        ""
+      ],
+      [
+        "spysat:dir",
+        "2x2",
+        "131x119",
+        1.859,
+        1.023,
+        ""
+      ],
+      [
+        "spysat:col",
+        "2x2",
+        "131x119",
+        1.859,
+        1.023,
+        ""
+      ],
+      [
+        "oilderrick:neut",
+        "2x2",
+        "131x118",
+        1.844,
+        1.023,
+        ""
+      ],
+      [
+        "barracks:dir",
+        "3x2",
+        "164x146",
+        1.825,
+        1.025,
+        ""
+      ],
+      [
+        "depot:col",
+        "4x3",
+        "231x201",
+        1.795,
+        1.031,
+        "ref"
+      ],
+      [
+        "nuke:dir",
+        "3x3",
+        "196x172",
+        1.792,
+        1.021,
+        ""
+      ],
+      [
+        "nuke:col",
+        "3x3",
+        "196x172",
+        1.792,
+        1.021,
+        ""
+      ],
+      [
+        "refinery:col",
+        "4x3",
+        "228x196",
+        1.75,
+        1.018,
+        ""
+      ],
+      [
+        "psisensor:dir",
+        "2x2",
+        "136x111",
+        1.734,
+        1.063,
+        ""
+      ],
+      [
+        "psisensor:col",
+        "2x2",
+        "136x111",
+        1.734,
+        1.063,
+        ""
+      ],
+      [
+        "factory:dir",
+        "5x3",
+        "286x219",
+        1.711,
+        1.117,
+        "ref"
+      ],
+      [
+        "shipyard:col",
+        "4x4",
+        "186x219",
+        1.711,
+        0.727,
+        "ref"
+      ],
+      [
+        "purifier:dir",
+        "3x3",
+        "197x162",
+        1.688,
+        1.026,
+        ""
+      ],
+      [
+        "purifier:col",
+        "3x3",
+        "197x162",
+        1.688,
+        1.026,
+        ""
+      ],
+      [
+        "bhut:neut",
+        "1x1",
+        "67x53",
+        1.656,
+        1.047,
+        ""
+      ],
+      [
+        "hospital:neut",
+        "2x2",
+        "131x104",
+        1.625,
+        1.023,
+        ""
+      ],
+      [
+        "airport:neut",
+        "3x2",
+        "163x130",
+        1.625,
+        1.019,
+        ""
+      ],
+      [
+        "power:col",
+        "3x2",
+        "164x128",
+        1.6,
+        1.025,
+        ""
+      ],
+      [
+        "sentrygun:dir",
+        "1x1",
+        "67x50",
+        1.563,
+        1.047,
+        ""
+      ],
+      [
+        "oilderrick:dir",
+        "2x2",
+        "131x100",
+        1.563,
+        1.023,
+        ""
+      ],
+      [
+        "oilderrick:col",
+        "2x2",
+        "131x100",
+        1.563,
+        1.023,
+        ""
+      ],
+      [
+        "hospital:dir",
+        "2x2",
+        "131x100",
+        1.563,
+        1.023,
+        ""
+      ],
+      [
+        "hospital:col",
+        "2x2",
+        "131x100",
+        1.563,
+        1.023,
+        ""
+      ],
+      [
+        "wall:dir",
+        "1x1",
+        "58x49",
+        1.531,
+        0.906,
+        ""
+      ],
+      [
+        "refinery:dir",
+        "4x3",
+        "228x170",
+        1.518,
+        1.018,
+        "ref"
+      ],
+      [
+        "base:col",
+        "4x4",
+        "260x194",
+        1.516,
+        1.016,
+        "ref"
+      ],
+      [
+        "curtain:dir",
+        "3x3",
+        "195x143",
+        1.49,
+        1.016,
+        ""
+      ],
+      [
+        "curtain:col",
+        "3x3",
+        "195x143",
+        1.49,
+        1.016,
+        ""
+      ],
+      [
+        "grandcannon:dir",
+        "2x2",
+        "131x95",
+        1.484,
+        1.023,
+        "ref"
+      ],
+      [
+        "grandcannon:col",
+        "2x2",
+        "131x95",
+        1.484,
+        1.023,
+        ""
+      ],
+      [
+        "airport:dir",
+        "3x2",
+        "163x117",
+        1.463,
+        1.019,
+        ""
+      ],
+      [
+        "airport:col",
+        "3x2",
+        "163x117",
+        1.463,
+        1.019,
+        ""
+      ],
+      [
+        "radar:dir",
+        "2x2",
+        "131x92",
+        1.438,
+        1.023,
+        ""
+      ],
+      [
+        "gate:dir",
+        "1x1",
+        "54x46",
+        1.438,
+        0.844,
+        ""
+      ],
+      [
+        "gate:col",
+        "1x1",
+        "54x46",
+        1.438,
+        0.844,
+        ""
+      ],
+      [
+        "wall:col",
+        "1x1",
+        "56x44",
+        1.375,
+        0.875,
+        ""
+      ],
+      [
+        "depot:dir",
+        "3x3",
+        "200x130",
+        1.354,
+        1.042,
+        ""
+      ],
+      [
+        "cloningvats:dir",
+        "2x2",
+        "131x86",
+        1.344,
+        1.023,
+        ""
+      ],
+      [
+        "cloningvats:col",
+        "2x2",
+        "131x86",
+        1.344,
+        1.023,
+        ""
+      ],
+      [
+        "chrono:dir",
+        "4x3",
+        "228x145",
+        1.295,
+        1.018,
+        ""
+      ],
+      [
+        "chrono:col",
+        "4x3",
+        "228x145",
+        1.295,
+        1.018,
+        ""
+      ],
+      [
+        "sentry:dir",
+        "1x1",
+        "68x41",
+        1.281,
+        1.063,
+        ""
+      ],
+      [
+        "sentry:col",
+        "1x1",
+        "68x41",
+        1.281,
+        1.063,
+        ""
+      ],
+      [
+        "reactor:col",
+        "4x4",
+        "259x158",
+        1.234,
+        1.012,
+        "ref"
+      ],
+      [
+        "base:dir",
+        "4x4",
+        "248x157",
+        1.227,
+        0.969,
+        "ref"
+      ],
+      [
+        "reactor:dir",
+        "4x4",
+        "259x150",
+        1.172,
+        1.012,
+        ""
+      ]
+    ],
+    "bldSummary": {
+      "covered": 15,
+      "total": 100,
+      "houseScaleH": 1.1483,
+      "houseScaleW": 1.2648,
+      "spread": 1.365,
+      "outside": [
+        "power:dir"
+      ],
+      "tallest": "factory:col",
+      "tallestPx": 271,
+      "clipped": []
+    },
     "clauses": [
       {
         "unit": "rifle",

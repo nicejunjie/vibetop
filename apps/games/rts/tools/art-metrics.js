@@ -136,6 +136,94 @@ const RA2_ASPECT_BAND = 0.20;
 // merely large.
 const RA2_SIZE_BAND = 0.25;
 
+// ── RA2'S OWN STRUCTURES ──────────────────────────────────────────────────
+// Everything above measures UNITS. Buildings had no external number of any
+// kind: not in `size`, not in `aspect`, not in `peerVsSelf`, and
+// unit-identity-reference.md §2 states no pixel budget for a single one of
+// them. So nothing had ever been kept on a structure's size, and the first
+// measurement said the Battle Lab was 306 px tall — the tallest sprite in the
+// game, on a 3x2 foundation, taller than the 4x4 Construction Yard.
+//
+// THE UNIT OF COMPARISON IS THE FOOTPRINT DIAMOND, and that is what makes
+// this an external check rather than a self-comparison. Both renderers build
+// a structure's ground plot from the SAME datum — `Foundation=` in art.ini —
+// so a `gw x gh` building stands on a diamond (gw+gh)*cellW/2 wide and
+// (gw+gh)*cellH/2 tall in either game. RA2's cell is 60x30; ours is 64x32.
+// Expressing a sprite as a MULTIPLE OF ITS OWN DIAMOND therefore
+// cancels the cell size and every zoom, exactly the way `RA2_ASPECT` cancels
+// our units being 0.88-1.42x of RA2's scale. Nothing an art commit writes can
+// move the reference.
+//
+// HOW THESE NUMBERS WERE TAKEN (2026-09-05). RA2's own sprites, at 1:1, from
+// two sources, and each one was LOOKED AT with its measured bbox drawn on it
+// before it was written down:
+//   * four chroma-keyed SHP renders (`C&C-RA2-ggcnstdm/ngcnstdm/ngtsladm/
+//     ggprisdm.gif`) — a blue key, so the bbox is exact;
+//   * eleven in-game captures whose palettes are <= 256 colours and whose
+//     1-px mast highlights are hard-edged, i.e. NATIVE pixels, not resamples.
+//     The Allied Barracks capture (13,646 colours — a smoothed upload) was
+//     measured, found to be a resample, and THROWN AWAY rather than used.
+// The bbox includes the building's own ground bib, because ours does too
+// (`plot()` draws the plate as part of the sprite); it excludes the terrain.
+//
+// FRAME 0, ALWAYS, and this is not a detail. The four keyed files are ANIMATIONS
+// and PIL hands back DELTA frames, so both "just take the max over the frames"
+// readings are traps at once. Composite them properly and [GAPRIS]'s widest
+// frame is 136x175 against its idle 57x104 — that is the prism BEAM, not the
+// tower; [NATSLA] goes 42x81 -> 81x96, which is the lightning. Read them
+// WITHOUT compositing and the deltas lie the other way: the Soviet Construction
+// Yard came out 239x153 on the first pass here (its idle is 204x153) and one
+// frame measured as empty. Our side of the comparison is `A.s`, the structure's
+// own idle frame, so RA2's must be frame 0 too.
+//
+// WHY `Height=` IS NOT USED AS A BUDGET. art.ini gives every structure a
+// `Height=` in cells and it is tempting: [GATECH] 12 against [GAPILL] 1 ranks
+// the roster correctly. It is NOT a pixel budget, and the four keyed renders
+// prove it — rise above the diamond per Height cell comes out 4.25 px on
+// [GACNST], 5.5 on [NACNST], 10.2 on [NATSLA] and 12.3 on [GAPRIS], a 2.9x
+// spread. Converting it would have been the `mass.groundCombatSpan` x6.8
+// mistake again: an authoritative-looking number applied to a quantity it
+// does not measure. It is kept below as `ht` for the record and for ORDERING
+// only, never as a target.
+//
+// AND IT IS WHY THE TOWERS SURVIVE. A rule of the form "no building may be
+// more than N footprint-heights tall" would flatten the Tesla Coil and the
+// Prism Tower, which are towers and are SUPPOSED to be tall. This table does
+// not have that failure mode, because each building is compared to ITSELF in
+// RA2: [GAPRIS] really is 3.47 footprint-heights and passes at 3.94, while
+// [NATSLA] is 2.70 and ours fails at 4.34. Same shape of object, opposite
+// verdicts, decided by the reference rather than by a rule.
+//
+// `w`/`h` are RA2's measured sprite bbox in RA2 pixels; `foot` is its
+// `Foundation=`, carried here so the reference is complete on its own and a
+// disagreement with OUR footprint shows up as a bug rather than as a silent
+// rescale.
+const RA2_BLD = {
+  'base:dir':        { sec: 'GACNST', foot: '4x4', w: 213, h: 137, ht: 4,  src: 'sprites/buildings/allied-construction-yard.gif frame 0 (blue key)' },
+  'base:col':        { sec: 'NACNST', foot: '4x4', w: 204, h: 153, ht: 6,  src: 'sprites/buildings/soviet-construction-yard.gif frame 0 (blue key)' },
+  'power:dir':       { sec: 'GAPOWR', foot: '2x2', w: 86,  h: 93,  ht: 4,  src: 'RA2 Power Plant.png, 244 colours, tight crop' },
+  'refinery:dir':    { sec: 'GAREFN', foot: '4x3', w: 169, h: 132, ht: 4,  src: 'RA2 Ore Refinery.gif, 234 colours' },
+  'barracks:col':    { sec: 'NAHAND', foot: '2x2', w: 117, h: 205, ht: 9,  src: 'Soviet Barracks RA2.png — the statue IS the building, and RA2 draws it 3.42 footprint-heights tall' },
+  'factory:dir':     { sec: 'GAWEAP', foot: '5x3', w: 207, h: 155, ht: 4,  src: 'RA2 Allied War Factory.gif, 224 colours (h includes the flag the auto-bbox cut)' },
+  'radar:col':       { sec: 'NARADR', foot: '2x2', w: 103, h: 136, ht: 6,  src: 'RA2 Radar Tower.png, tight crop' },
+  'depot:col':       { sec: 'NADEPT', foot: '4x3', w: 161, h: 146, ht: 6,  src: 'RA2 Soviet Service Depot.gif' },
+  'lab:dir':         { sec: 'GATECH', foot: '3x2', w: 120, h: 213, ht: 12, src: 'RA2 Allied Battle Lab.gif, 247 colours — drum stack + four antenna masts. RA2 DOES draw this one 2.84 footprint-heights tall; it is the tallest structure in the game and art.ini agrees (Height=12, three times the Construction Yard)' },
+  'lab:col':         { sec: 'NATECH', foot: '3x3', w: 152, h: 168, ht: 8,  src: 'RA2 Soviet Battle Lab.gif — the onion dome, cross included' },
+  'reactor:col':     { sec: 'NANRCT', foot: '4x4', w: 166, h: 129, ht: 4,  src: 'RA2 Nuclear Reactor.gif, 241 colours' },
+  'tesla:col':       { sec: 'NATSLA', foot: '1x1', w: 42,  h: 81,  ht: 5,  src: 'sprites/buildings/tesla-coil.gif frame 0 (blue key)' },
+  'prism:dir':       { sec: 'GAPRIS', foot: '1x1', w: 57,  h: 104, ht: 6,  src: 'sprites/prism-tower.png = C&C-RA2-ggprisdm.gif frame 0 (blue key)' },
+  'shipyard:col':    { sec: 'NAYARD', foot: '4x4', w: 176, h: 200, ht: 10, src: 'RA2 Soviet Naval Yard.png (h includes the crane tip the auto-bbox cut)' },
+  'grandcannon:dir': { sec: 'GTGCAN', foot: '2x2', w: 117, h: 85,  ht: 3,  src: 'docs/ra2-ref/sprites/grand-cannon.png, already in the repo and verified by eye there' },
+};
+// Same band as the aspect gate, and for the same reason: our isometric camera
+// is not bit-identical to RA2's and a tighter band would fail on projection
+// error rather than on art. It is applied to a building's deviation from the
+// GROUP's own median scale, not to the raw ratio — buildings, like units, are
+// allowed a deliberate house scale (they bake at ~1.2x RA2 relative to the
+// grid, in line with vehicles at 1.27x); what is not allowed is one structure
+// drawn to a different scale from its neighbours.
+const RA2_BLD_BAND = 0.20;
+
 // ── SPIKES ────────────────────────────────────────────────────────────────
 // One entry per key in the UNITS map, and every number is TRACEABLE: `src`
 // quotes the sentence in unit-identity-reference.md §2 the number comes from,
@@ -347,6 +435,12 @@ const TARGETS = {
   'value.engineerLightPct':          { want: 0.55, dir: 'up', note: 'the same clause as a fraction — §2.2 asks "body value >= 0.75 across >= 55% of the torso+legs". Measured over the whole sprite here, which is the quantity the bake can see; the helmet makes it read slightly high against the row\'s torso+legs wording, so treat 0.55 as a floor rather than a match. Kept alongside the ordering because they fail differently: a roster that goes pale WITH him leaves him first and still unreadable' },
   'value.engineerMarginOverNext':    { want: 0.15, dir: 'up', note: 'how far clear of the second-lightest infantryman he stands. The read is a CONTRAST, so a dead heat is a failure even when he wins it — coming first by a point would satisfy the ordering and still leave a player unable to pick him out of a squad, which is the whole job of an inverted value' },
   // §2's pixel budgets, checked one clause at a time (tools/clause-checks/).
+  // STRUCTURES. Everything above this line is about units; these four are the
+  // first numbers ever kept on a building.
+  'size.bldOutsideRA2Band':      { want: 0,    dir: 'down', note: "structures more than +-20% off the BUILDING house scale, measured as sprite-height-over-footprint-diamond against RA2's own sprite for that same structure (see RA2_BLD). 15 of the 43 buildable structures carry a real RA2 measurement; the rest are unreferenced and therefore ungated, which is debt this metric makes VISIBLE (detail.bldSummary.covered) rather than hides. THREE were outside on the day it was added and two were fixed in the same pass: the Tesla Coil at 1.61x RA2 (139 px on a 1x1 -> 103) and the Soviet Battle Lab at 1.55 (278 -> 202, VPOW lab 1 -> 0, which also took the Allied lab 306 -> 245). The one left is the ALLIED POWER PLANT at 1.40 against a house scale of 1.15, and it is left on purpose: its ground pad is drawn with a private `octa()` rather than with `plot()`, so the vertical-scale lever that fixed the other two would squash the pad off its own cells instead of leaving it there. It needs the per-element treatment the Tesla Coil got. NOTE WHAT THIS METRIC ACQUITS — the Allied Battle Lab was the tallest sprite in the game at 306 px on a 3x2 plot, 3.83 footprint-heights, and the raw ratio reads like a 3.8x blunder. RA2's own [GATECH] is 2.84 footprint-heights and art.ini gives it Height=12, three times the Construction Yard's: the real error was 11%, not 3.8x. The Soviet Barracks is the same story and was not touched at all — 3.84 footprint-heights, because RA2 draws [NAHAND] as a statue and measures 3.42" },
+  'size.bldWorstOffHouseScale':  { want: 0.20, dir: 'down', note: "the furthest any structure sits from the building house scale, as |ours/RA2 / median - 1|. 0.33 (the Tesla Coil) before this pass, 0.22 (the Allied Power Plant) after. Kept beside the count because a count can go to zero while one structure sits just inside the band, and because this is the number that moves when a fix is partial. Watch the interaction: the house scale IS the median of the fifteen, so fixing a tall structure pulls the median DOWN and can push a second one over the band — which is what happened here, the median falling 1.21 -> 1.15 as the coil and the two labs came down. That is the metric working, not thrashing: the median was being held up by the very structures that were wrong" },
+  'size.bldFootprintMismatch':   { want: 0,    dir: 'down', note: "structures whose BLDS `gw x gh` disagrees with the `Foundation=` recorded in RA2_BLD. Zero today — every footprint in the game matches RA2's, which is why this pass is about drawing and not about the grid — and it is gated so that a future footprint edit cannot silently invalidate a size row instead of failing: the whole comparison is denominated in the footprint diamond, so a wrong diamond makes every number on that row precise and meaningless" },
+  'clip.structuresTouchingSheetEdge': { want: 0, dir: 'down', note: "structures whose idle-frame bbox touches the border of its own bake canvas — art the canvas CUT, the `clip.unitsTouchingSheetEdge` check extended to buildings. It matters more here than it looks: `bakeBuilding` sizes the canvas from a per-key `head` allowance and then multiplies BOTH the allowance and the drawing by `VS`, so a change to a structure's footprint or to VPOW can outgrow the headroom and the first measurement of the change is then of a sprite that does not exist" },
   'clause.checked':              { want: 57,   dir: 'up',   note: '§2 states 96 budget clauses across 41 units and each unit has exactly ONE SPIKES entry, so 57 clauses were honoured by intention only. This counts how many of those now have a real measurement behind them. The target is the whole backlog; it rises as checks land. One of the 57 is a STRUCK row rather than a measured one (see clause.struck), and its check asserts the arithmetic of that strike rather than the art' },
   'clause.unmet':                { want: 0,    dir: 'down', note: 'clauses that are checked AND FAILING. A rising `checked` with a rising `unmet` is the tool working, not the art getting worse — the first two clauses ever checked by hand were both unmet (Tesla Trooper carapace 8% vs 40%, Engineer third on a row saying "the only")' },
   'clause.struck':               { want: 1,    dir: 'down', note: 'of the checked clauses, the ones whose §2 row is STRUCK — a bar the row itself makes unreachable, so the check asserts the CONTRADICTION rather than the art. Exactly one today: the Nighthawk\'s "rotor span >= 1.25x fuselage length", where an iso disc of span S is S/2 tall, so the span bar caps the airframe at aspect 1.6-2.0 against the 3.05 the same row demands. The target is DOWN so that striking can never be a way to move `clause.checked`: a second strike is debt until its own arithmetic is beside it, and the honest way to clear one is to remove the contradiction from §2, not to add another' },
@@ -628,8 +722,91 @@ function pageExtract() {
     }
   }
 
-  return { recs, errors, deployed, dpr: window.devicePixelRatio, zoom: window.__rtsTest.zoom(),
-           units: Object.keys(U).length };
+  // ── STRUCTURES ─────────────────────────────────────────────────────────
+  // Buildings are not in `recs` and must not be: `recs` is keyed by unit and
+  // every metric above it (aspect, IoU, spike, peerVsSelf, the colour census)
+  // is defined over UNITS. Baked separately, the way `deployed` is.
+  //
+  // The measured frame is `A.s` — the structure's own IDLE frame — and the
+  // bbox is recomputed FROM PIXELS rather than read off `A.s.bb`, because
+  // bakeOwned() overwrites `bb` with the UNION over the six idle-animation
+  // phases for the twenty-odd animated structures. That union is the right
+  // box for the selection brackets and the build-up wipe (its job) and the
+  // wrong one for a size measurement: it would credit the Construction Yard
+  // with its crane's furthest slew and quietly compare a union against RA2's
+  // single frame.
+  const blds = [];
+  const B = window.__rtsTables.BLDS, spec = window.__rtsTables.bspecFor;
+  // MEASURED ON A CANVAS WITH A MARGIN, and the margin is the whole point.
+  // Several bake canvases are FRACTIONAL — the civilian blocks are
+  // `mkCanvas(78 * 1.45, 100 * 1.45)` = 113.1 x 145 — so `canvas.width = 113.1`
+  // truncates, `drawImage(c, 0, 0, 113.1, 145)` RESAMPLES by a hundredth of a
+  // pixel, and the resample smears a column of near-transparent pixels onto the
+  // border. Measured that way the Filling Station reported a left- and
+  // right-edge clip that an independent probe of the same sprite could not
+  // reproduce (its opaque box is x 5..112 of 114). Drawing into a canvas PAD px
+  // larger and testing the sprite's own rectangle instead of the canvas's
+  // removes both artefacts: the extra room means a smear has somewhere to go
+  // that is not the edge under test, and the edge under test is the sprite's.
+  const PAD = 4;
+  const bbox = (spr) => {
+    const W = Math.ceil(spr.w), H = Math.ceil(spr.h);
+    const c = document.createElement('canvas');
+    c.width = W + PAD * 2; c.height = H + PAD * 2;
+    const g2 = c.getContext('2d'); g2.imageSmoothingEnabled = false;
+    g2.drawImage(spr.c, PAD, PAD, spr.w, spr.h);
+    const id = g2.getImageData(0, 0, c.width, c.height).data;
+    let x0 = 1e9, y0 = 1e9, x1 = -1, y1 = -1;
+    for (let y = 0; y < c.height; y++) for (let x = 0; x < c.width; x++)
+      if (id[(y * c.width + x) * 4 + 3] > 8) {
+        if (x < x0) x0 = x; if (x > x1) x1 = x;
+        if (y < y0) y0 = y; if (y > y1) y1 = y;
+      }
+    if (x1 < 0) return null;
+    return { x0: x0 - PAD, y0: y0 - PAD, x1: x1 - PAD, y1: y1 - PAD,
+             w: x1 - x0 + 1, h: y1 - y0 + 1, cellW: W, cellH: H };
+  };
+  for (const key of Object.keys(B)) {
+    for (const fk of ['dir', 'col']) {
+      const A = (S.bld[0][fk] || {})[key];
+      if (!A || !A.s) continue;
+      // The faction-resolved footprint, not BLDS[key].gw/gh: RA2's
+      // `Foundation=` is per faction (a Soviet Battle Lab is 3x3 where the
+      // Allied one is 3x2), and measuring a 3x3 sprite against a 3x2 diamond
+      // would report a height fault that is really a footprint mismatch.
+      let sp = B[key];
+      try { sp = spec(key, fk) || sp; } catch (e) { /* keep the base spec */ }
+      let bb = null;
+      try { bb = bbox(A.s); } catch (e) { errors.push('bld ' + key + '/' + fk + ' bbox threw: ' + e); continue; }
+      if (!bb) { errors.push('EMPTY structure sprite ' + key + '/' + fk); continue; }
+      blds.push({ key, fac: fk, name: sp.name || B[key].name, cat: B[key].cat,
+                  gw: sp.gw, gh: sp.gh, w: bb.w, h: bb.h,
+                  edges: (bb.x0 === 0 ? 'L' : '') + (bb.y0 === 0 ? 'T' : '')
+                       + (bb.x1 === bb.cellW - 1 ? 'R' : '') + (bb.y1 === bb.cellH - 1 ? 'B' : '') });
+    }
+  }
+  // THE NEUTRAL HOUSE IS DRAWN FROM A DIFFERENT ATLAS, and measuring the wrong
+  // one is silent. `bakeBuilding` has a generic fallback for every civilian
+  // key, so `SPR.bld[0].dir.civoffice` bakes a 67x60 box — and the game never
+  // draws it. What a player sees is `SPR.neut`, where the Office Block is
+  // 90x131 on the same 1x1 plot: 4.09 footprint-heights, the most vertical
+  // thing on the board. A table that reported 1.88 for it would be precise,
+  // reproducible and about a sprite nobody has ever seen.
+  const N = S.neut || {};
+  for (const key of Object.keys(N)) {
+    const A = N[key], d = B[key];
+    if (!A || !A.s || !d) continue;
+    let bb = null;
+    try { bb = bbox(A.s); } catch (e) { errors.push('neut ' + key + ' bbox threw: ' + e); continue; }
+    if (!bb) { errors.push('EMPTY neutral sprite ' + key); continue; }
+    blds.push({ key, fac: 'neut', name: d.name, cat: d.cat, gw: d.gw, gh: d.gh,
+                w: bb.w, h: bb.h,
+                edges: (bb.x0 === 0 ? 'L' : '') + (bb.y0 === 0 ? 'T' : '')
+                     + (bb.x1 === bb.cellW - 1 ? 'R' : '') + (bb.y1 === bb.cellH - 1 ? 'B' : '') });
+  }
+
+  return { recs, errors, deployed, blds, dpr: window.devicePixelRatio, zoom: window.__rtsTest.zoom(),
+           units: Object.keys(U).length, structures: blds.length };
 }
 
 // A real rendered frame, out of the live renderer — not the bake canvas.
@@ -1043,6 +1220,81 @@ function compute(recs, extra) {
              airOutside: cnt(byG('air')), airSpread: spread(byG('air')) };
   })();
 
+  // ── STRUCTURE SIZE, against RA2's own structures ───────────────────────
+  // The first external number buildings have ever had. Shape mirrors
+  // `ra2Size` above on purpose: per-building RA2 reference, normalised by the
+  // GROUP's own median so a deliberate house scale is respected, and only a
+  // structure drawn to a different scale from its neighbours is flagged.
+  //
+  // TWO axes, and they are NOT interchangeable:
+  //   `hScale` — H / footprint-diamond height, ours over RA2's. This is the
+  //              gated one. It is what "the Battle Lab is ridiculously big"
+  //              actually refers to, and it is the axis every existing metric
+  //              in this file is blind to.
+  //   `wScale` — the same for width, REPORTED ONLY. Our structures fill their
+  //              plot (1.02 of the diamond, near-universally) because `plot()`
+  //              draws the ground plate on the cells the building owns;
+  //              RA2's underfill it by a wildly varying margin (0.69 on
+  //              [NANRCT], 1.03 on [GAPRIS]). That difference is a rendering
+  //              decision of ours, not a per-building fault, and gating it
+  //              would demand thirty structures be redrawn narrower than the
+  //              ground they stand on. It is measured so the claim stays
+  //              falsifiable rather than assumed.
+  const ra2Bld = (() => {
+    const med = (xs) => { const a = [...xs].sort((x, y) => x - y);
+      return a.length % 2 ? a[(a.length - 1) / 2] : (a[a.length / 2 - 1] + a[a.length / 2]) / 2; };
+    const all = (extra.blds || []).map((b) => {
+      const fW = (b.gw + b.gh) * 32, fH = (b.gw + b.gh) * 16;   // our TW/2, TH/2
+      return Object.assign({}, b, { footW: fW, footH: fH,
+        hOverFoot: round(b.h / fH, 3), wOverFoot: round(b.w / fW, 3) });
+    });
+    const rows = [];
+    for (const b of all) {
+      const ref = RA2_BLD[b.key + ':' + b.fac];
+      if (!ref) continue;
+      const [rgw, rgh] = ref.foot.split('x').map(Number);
+      // A footprint disagreement invalidates the comparison rather than
+      // shifting it, so it is reported as its own fault and the row is not
+      // silently scaled to fit.
+      const footMatch = (rgw === b.gw && rgh === b.gh);
+      const rfW = (rgw + rgh) * 30, rfH = (rgw + rgh) * 15;     // RA2's 60x30 cell
+      rows.push({ key: b.key + ':' + b.fac, name: b.name, sec: ref.sec,
+                  foot: b.gw + 'x' + b.gh, ra2Foot: ref.foot, footMatch,
+                  ours: b.w + 'x' + b.h, ra2: ref.w + 'x' + ref.h,
+                  hOverFoot: round(b.h / ((b.gw + b.gh) * 16), 3),
+                  ra2HOverFoot: round(ref.h / rfH, 3),
+                  wOverFoot: round(b.w / ((b.gw + b.gh) * 32), 3),
+                  ra2WOverFoot: round(ref.w / rfW, 3),
+                  hScale: round((b.h / ((b.gw + b.gh) * 16)) / (ref.h / rfH), 4),
+                  wScale: round((b.w / ((b.gw + b.gh) * 32)) / (ref.w / rfW), 4),
+                  ht: ref.ht });
+    }
+    const hs = rows.map((r) => r.hScale), ws = rows.map((r) => r.wScale);
+    const hMed = rows.length ? med(hs) : 1, wMed = rows.length ? med(ws) : 1;
+    for (const r of rows) {
+      r.houseScale = round(hMed, 4);
+      r.dev = round(r.hScale / hMed - 1, 4);
+      r.wDev = round(r.wScale / wMed - 1, 4);
+    }
+    rows.sort((a, b) => Math.abs(b.dev) - Math.abs(a.dev));
+    const outside = rows.filter((r) => Math.abs(r.dev) > RA2_BLD_BAND);
+    // The tallest sprite in the game, whatever it is. A pure observation, but
+    // the one that started this: 306 px on a 3x2 plot went unremarked for
+    // months because nothing printed it.
+    const tallest = all.slice().sort((a, b) => b.h - a.h)[0] || null;
+    return { rows, all,
+             covered: rows.length, total: all.length,
+             houseScaleH: round(hMed, 4), houseScaleW: round(wMed, 4),
+             outside: outside.length,
+             outsideKeys: outside.map((r) => r.key),
+             footMismatch: rows.filter((r) => !r.footMatch).length,
+             worstOff: rows.length ? round(Math.abs(rows[0].dev), 4) : 0,
+             spread: rows.length ? round(Math.max(...hs) / Math.min(...hs), 3) : 1,
+             tallestPx: tallest ? tallest.h : 0,
+             tallest: tallest ? tallest.key + ':' + tallest.fac : null,
+             clipped: all.filter((b) => b.edges).map((b) => b.key + ':' + b.fac + ' ' + b.edges) };
+  })();
+
   // ── INVERTED VALUE: the Engineer's whole silhouette feature ─────────────
   // §2.2 gives every unit ONE read, and the Engineer's is not a shape at all:
   // "a near-white/orange hazmat body where every other infantryman is
@@ -1245,6 +1497,10 @@ function compute(recs, extra) {
       'size.crossGroupSpread':       { want: 1.61, dir: 'down', note: 'widest group bake scale over narrowest, against RA2 sprite widths. RA2 measures every group in the SAME pixels so its own spread is 1.00 by construction; ours is infantry 1.417 / vehicle 1.270 / air 0.973 / naval 0.881 = 1.61x. This is the blind spot the ra2Size block declares in its own comment — both size gates normalise per GROUP, so a whole group at the wrong scale is invisible to them, and it took a §2 clause to surface it: "[DEST] length >= 1.7x any land vehicle" measures 0.848, our Destroyer being SHORTER than our MCV where RA2 has it 1.46x longer. 1.00 is not the target: infantry are deliberately enlarged for ZMIN legibility (the 1.12x over vehicles is intended). The unexplained part is the fleet at 0.881. RATCHETED, not chased — closing it means rescaling the best-proportioned group on the board, so this exists to stop the spread growing silently' },
   'size.worstOffGroupScale': ra2Size.worstOff,
       'size.crossGroupSpread': ra2Size.crossSpread,
+      'size.bldOutsideRA2Band': ra2Bld.outside,
+      'size.bldWorstOffHouseScale': ra2Bld.worstOff,
+      'size.bldFootprintMismatch': ra2Bld.footMismatch,
+      'clip.structuresTouchingSheetEdge': ra2Bld.clipped.length,
       // §2's pixel budgets, checked one clause at a time (tools/clause-checks/).
   'clause.checked':              { want: 57,   dir: 'up',   note: '§2 states 96 budget clauses across 41 units and each unit has exactly ONE SPIKES entry, so 57 clauses were honoured by intention only. This counts how many of those now have a real measurement behind them. The target is the whole backlog; it rises as checks land' },
   'clause.unmet':                { want: 0,    dir: 'down', note: 'clauses that are checked AND FAILING. A rising `checked` with a rising `unmet` is the tool working, not the art getting worse — the first two clauses ever checked by hand were both unmet (Tesla Trooper carapace 8% vs 40%, Engineer third on a row saying "the only")' },
@@ -1308,6 +1564,21 @@ function compute(recs, extra) {
       tightestMassBand: tightAt,
       ra2Aspect: ra2Asp.rows,
       ra2Size: ra2Size.rows,
+      ra2Bld: ra2Bld.rows,
+      // Every structure, one compact line each — the 15 with an RA2 reference
+      // AND the 28 without. The unreferenced ones are the whole point: they are
+      // what the gate cannot see, and a table nobody can read is how they stay
+      // unseen. Tallest first, so "which building is enormous" is answerable
+      // without running anything.
+      bldAll: ra2Bld.all.slice()
+        .sort((a, b) => b.h / ((b.gw + b.gh) * 16) - a.h / ((a.gw + a.gh) * 16))
+        .map((b) => [b.key + ':' + b.fac, b.gw + 'x' + b.gh, b.w + 'x' + b.h,
+                     b.hOverFoot, b.wOverFoot, RA2_BLD[b.key + ':' + b.fac] ? 'ref' : '']),
+      bldSummary: { covered: ra2Bld.covered, total: ra2Bld.total,
+                    houseScaleH: ra2Bld.houseScaleH, houseScaleW: ra2Bld.houseScaleW,
+                    spread: ra2Bld.spread, outside: ra2Bld.outsideKeys,
+                    tallest: ra2Bld.tallest, tallestPx: ra2Bld.tallestPx,
+                    clipped: ra2Bld.clipped },
       clauses: clause.rows,
       valueRead: valueRead.rows,
       clipped: clip.hits,
@@ -1356,9 +1627,9 @@ async function measure(opts) {
     const el = await p.$('canvas');
     if (el) await el.screenshot({ path: FRAME_PNG });
 
-    const out = compute(raw.recs, { deployed: raw.deployed });
+    const out = compute(raw.recs, { deployed: raw.deployed, blds: raw.blds });
     out.env = { dpr: raw.dpr, zoom: raw.zoom, ZMIN, spikeFloorAtZoom1: round(SPIKE_FLOOR, 2),
-                units: raw.units, sprites: raw.recs.length,
+                units: raw.units, sprites: raw.recs.length, structures: raw.structures,
                 scene, framePng: path.relative(ROOT, FRAME_PNG) };
     // Raw per-bearing records, kept on the result (never serialised into the
     // baseline) so a pass can ask WHERE a sprite's height lives instead of
