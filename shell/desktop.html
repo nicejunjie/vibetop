@@ -2932,35 +2932,65 @@
       if (mr.left - 6 - FLY_W >= 6) return mr.left - 6 - FLY_W;                 // left
       return null;                                                              // none
     }
+    // Where the panel lives in the menu's DOM, so the drill-down can put it back.
+    var homeParent = sub.parentNode, homeNext = sub.nextSibling;
+    function inMenu() {
+      if (sub.parentNode !== homeParent) homeParent.insertBefore(sub, homeNext);
+    }
     function isOpen() { return sub.classList.contains('open') || menuEl.classList.contains(pageClass); }
     function close() {
       parent.classList.remove('open');
       sub.classList.remove('open');
       menuEl.classList.remove(pageClass);
+      inMenu();
+      sub.style.cssText = '';
+    }
+    // Is the panel actually on screen with a real size? A side flyout is
+    // position:fixed inside a rounded, scrolling menu inside an overflow:hidden
+    // body, and engines do not agree on whether a fixed descendant escapes those
+    // clips. When it does not, every class is applied and NOTHING appears — the
+    // caret turns and no panel arrives — which is unfixable from the user's side.
+    function visible() {
+      var r = sub.getBoundingClientRect();
+      return r.width > 1 && r.height > 1 &&
+             r.right > 0 && r.left < window.innerWidth &&
+             r.bottom > 0 && r.top < window.innerHeight;
+    }
+    function asPage() {                         // drill-down: in-flow, cannot be clipped
+      inMenu();
+      sub.classList.remove('open');
+      sub.style.cssText = '';
+      menuEl.classList.add(pageClass);
     }
     function open() {
       FLYOUTS.forEach(function (f) { if (f.sub !== sub) f.close(); });
       parent.classList.add('open');
-      var mr = menuEl.getBoundingClientRect(), left = sideLeft();
+      var left = sideLeft();
       sub.style.cssText = '';                   // clear any prior inline positioning
-      if (left != null) {                       // desktop: fixed panel beside the menu
-        menuEl.classList.remove(pageClass);
-        sub.classList.add('open');
-        sub.style.left = left + 'px';
-        sub.style.width = FLY_W + 'px';
-        // Cascade from the PARENT ROW (align tops, like an OS submenu) — the
-        // old bottom-of-menu anchor only looked right for a parent that IS at
-        // the menu bottom (Utilities); the Games row sat mid-menu with its
-        // panel floating disconnected below. Clamp so the panel never runs
-        // past the menu's bottom edge or off the top.
-        var pr = parent.getBoundingClientRect();
-        var sh = sub.offsetHeight;
-        var top = Math.round(Math.min(pr.top, mr.bottom - sh));
-        sub.style.top = Math.max(8, top) + 'px';
-      } else {                                  // narrow: drill-down page inside the menu
-        sub.classList.remove('open');
-        menuEl.classList.add(pageClass);
-      }
+      if (left == null) { asPage(); return; }   // narrow: no side room at all
+      // Desktop/tablet: fixed panel beside the menu. Hoisted to <body> first —
+      // out of the menu's own overflow/border-radius clip — so "position: fixed
+      // escapes its ancestors" stops being a thing each engine gets to have an
+      // opinion about.
+      menuEl.classList.remove(pageClass);
+      if (sub.parentNode !== document.body) document.body.appendChild(sub);
+      sub.classList.add('open');
+      sub.style.left = left + 'px';
+      sub.style.width = FLY_W + 'px';
+      // Cascade from the PARENT ROW (align tops, like an OS submenu) — the
+      // old bottom-of-menu anchor only looked right for a parent that IS at
+      // the menu bottom (Utilities); the Games row sat mid-menu with its
+      // panel floating disconnected below. Clamp so the panel never runs
+      // past the menu's bottom edge or off the top.
+      var mr = menuEl.getBoundingClientRect();
+      var pr = parent.getBoundingClientRect();
+      var sh = sub.offsetHeight;
+      var top = Math.round(Math.min(pr.top, mr.bottom - sh));
+      sub.style.top = Math.max(8, top) + 'px';
+      // Last line of defence: if the panel still is not on screen, fall back to
+      // the drill-down, which is plain in-flow layout and cannot be clipped away.
+      // Better a different presentation than a menu row that does nothing.
+      if (!visible()) asPage();
     }
     // Desktop convenience: hover opens the SIDE flyout (never the drill-down,
     // which hides the parent row and would flicker); leaving either side closes.

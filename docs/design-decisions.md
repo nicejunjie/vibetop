@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_242 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_243 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
 - [Scheduled terminal messages ("resume when the token limit resets")](#scheduled-terminal-messages-resume-when-the-token-limit-resets)
@@ -265,6 +265,7 @@ _242 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [The whole fleet was too tall, and every ensemble art metric was blind to it](#the-whole-fleet-was-too-tall-and-every-ensemble-art-metric-was-blind-to-it)
 - [Three levers, three honest sweeps, three wrong causes — the Nighthawk was pinned by a constant nobody swept (2026-09-05)](#three-levers-three-honest-sweeps-three-wrong-causes-the-nighthawk-was-pinned-by-a-constant-nobody-swept-2026-09-05)
 - [A silver spec clause the code quoted and then painted over, and the anti-aliasing that ate the fix (2026-09-05)](#a-silver-spec-clause-the-code-quoted-and-then-painted-over-and-the-anti-aliasing-that-ate-the-fix-2026-09-05)
+- [The Start-menu flyout turned its caret and never appeared on iPad (2026-09-05)](#the-start-menu-flyout-turned-its-caret-and-never-appeared-on-ipad-2026-09-05)
 
 <!-- END TOC -->
 
@@ -9941,3 +9942,46 @@ constraint, it is a comment — this is the second one in a day found unmet whil
 being quoted correctly a few lines away. And when the drawn thing is under about
 ten pixels wide, *the outline colour is a first-class design decision*, not
 trim: it can own more of the measured area than the shape it outlines.
+
+## The Start-menu flyout turned its caret and never appeared on iPad (2026-09-05)
+
+**Symptom.** On iPad, tapping **Games** / **Utilities** in the Start menu rotated
+the row's caret but produced no panel. The caret is the tell that matters: it is
+driven by `.sm-parent.open`, which `open()` adds on its first line — so the
+handler ran, the classes were applied, and the panel was "open" by every measure
+the code had. It simply was not on screen.
+
+**What could not be reproduced.** WebKit at iPad portrait, landscape and
+Split-View widths (507/375/320) all opened it correctly, with no JS errors — and
+Playwright's WebKit on Linux reports `pointer: coarse` / `any-hover: none` for
+*every* context, so the one configuration it cannot emulate is an iPad with a
+Magic Keyboard, which is exactly where `IS_TOUCH` flips and the code takes its
+hover path. A bug that only exists in the branch the harness cannot reach is not
+going to be found by more of the same harness.
+
+**Cause (structural, not guessed).** The side flyout is `position: fixed` and
+lived inside `#startmenu` — `overflow-y: auto` with a `border-radius` — which
+itself sits in a `body` with `overflow: hidden`. Per spec a fixed element escapes
+both clips, because with no `transform`/`filter`/`backdrop-filter` anywhere in the
+chain (verified on the live DOM) its containing block is the viewport. Engines do
+not reliably agree, and WebKit least of all. The design leaned on that agreement:
+the CSS even says so — *"escapes the menu's own overflow-y clip because no
+ancestor establishes a containing block"*.
+
+**Fix.** Stop having an opinion about it. Opening a side flyout **hoists the panel
+to `<body>`** first, so there is no rounded, scrolling ancestor to be clipped by;
+`close()` puts it back where it came from (`homeParent`/`homeNext`), because the
+narrow drill-down needs it in-flow *inside* the menu.
+
+**And a fallback, because the cause was inferred and not observed.** After
+positioning, `open()` measures the panel; if it still is not on screen with a
+real size it calls `asPage()` — the in-flow drill-down, which is ordinary layout
+and cannot be clipped away. Whatever the real cause on any given engine, the row
+does something. A menu item that silently does nothing is the one outcome not
+worth defending.
+
+**The general lesson.** When a control applies all its state and nothing appears,
+the bug is in presentation, not logic — and the fastest way in is to find which
+CSS invariant the code is *trusting*. Here a code comment named it outright. And
+when the failing branch is one the test environment provably cannot enter, ship
+the structural fix plus a self-healing fallback rather than a guess.
