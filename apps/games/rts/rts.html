@@ -17284,7 +17284,7 @@
       } else {
         // ---- Directorate Service Depot -------------------------------------
         var DEP_YEL = '#eda01a', DEP_YELL = '#ffdc6a', DEP_YELD = '#8a5804';
-        var DEP_NAV = '#2c3242', DEP_NAVL = '#4d5468', DEP_NAVD = '#141824';
+        var DEP_NAV = '#3b4354', DEP_NAVL = '#5d657a', DEP_NAVD = '#151a26';
         var DEP_SIL = '#b6bac6', DEP_SILL = '#eef1f6', DEP_SILD = '#5f646f';
         var DEP_RIM = '#dd8a12', DEP_RIML = '#ffc84e', DEP_RIMD = '#6a3f04';
         var DEP_CON = '#9b9787', DEP_COND = '#4a4739', DEP_CONL = '#b8b4a1';
@@ -17352,9 +17352,9 @@
         // lamps. The hazard STRIPING is drawn once, on the box, where the
         // reference puts it.
         g.lineJoin = 'round';
-        g.strokeStyle = DEP_COND; g.lineWidth = 5.4; depOct(dpx, dpy + 0.6, dpr, dpb); g.stroke();
-        g.strokeStyle = DEP_RIMD; g.lineWidth = 3.2; depOct(dpx, dpy - 1.6, dpr, dpb); g.stroke();
-        g.strokeStyle = DEP_RIM;  g.lineWidth = 1.6; depOct(dpx, dpy - 3, dpr, dpb); g.stroke();
+        g.strokeStyle = '#3d3a2e'; g.lineWidth = 5.4; depOct(dpx, dpy + 0.6, dpr, dpb); g.stroke();
+        g.strokeStyle = DEP_COND; g.lineWidth = 3.4; depOct(dpx, dpy - 1.4, dpr, dpb); g.stroke();
+        g.strokeStyle = DEP_CONL; g.lineWidth = 1.3; depOct(dpx, dpy - 3, dpr, dpb); g.stroke();
         g.lineJoin = 'miter';
         for (var dpLI = 0; dpLI < 8; dpLI++) {
           var dpLa = dpLI / 8 * 6.2832 + 0.3927, dpOn = (dpLI + ph6) % 4 === 0;
@@ -17389,7 +17389,11 @@
         // from behind (where the works already is), and leave the near half
         // of the deck open.
         var depClamp = function (ang, lit) {
-          var wx = dpx + Math.cos(ang) * dpr * 1.02, wy = dpy - 2 + Math.sin(ang) * dpb * 1.02;
+          // 1.02 -> 0.92: the arms are anchored between two of the octagon's
+          // vertices, where its edge is inside the circumscribed radius, so at
+          // 1.02 the root stood OUTSIDE the kerb and read as a grey stick
+          // floating on the grass.
+          var wx = dpx + Math.cos(ang) * dpr * 0.92, wy = dpy - 2 + Math.sin(ang) * dpb * 0.92;
           var ix = dpx + Math.cos(ang) * dpr * 0.66, iy = dpy - 2 + Math.sin(ang) * dpb * 0.66;
           g.lineCap = 'round';
           g.strokeStyle = DEP_SILD; g.lineWidth = 7;
@@ -17400,23 +17404,26 @@
           g.beginPath(); g.moveTo(wx, wy - 2.4); g.lineTo(ix, iy - 2.4); g.stroke();
           g.lineCap = 'butt';
           g.fillStyle = 'rgba(0,0,0,.34)';
-          g.beginPath(); g.ellipse(ix + 1.5, iy + 4, 12, 5.4, 0, 0, 6.29); g.fill();
+          g.beginPath(); g.ellipse(ix + 1.2, iy + 3.4, 9.6, 4.4, 0, 0, 6.29); g.fill();
+          g.fillStyle = '#1c2028';                                  // the jaw
+          g.beginPath();
+          g.moveTo(ix - 7.6, iy + 3); g.lineTo(ix + 7.6, iy + 3);
+          g.lineTo(ix + 5, iy - 1.4); g.lineTo(ix - 5, iy - 1.4);
+          g.closePath(); g.fill(); outline(g, '#0a0d13');
           g.fillStyle = shade(col, 0.56);
           g.beginPath();
-          g.moveTo(ix - 12, iy + 3); g.lineTo(ix + 12, iy + 3);
-          g.lineTo(ix + 9.6, iy - 7.4); g.lineTo(ix - 9.6, iy - 7.4);
+          g.moveTo(ix - 9.6, iy - 0.8); g.lineTo(ix + 9.6, iy - 0.8);
+          g.lineTo(ix + 7.6, iy - 8.4); g.lineTo(ix - 7.6, iy - 8.4);
           g.closePath(); g.fill(); outline(g, shade(col, 0.32));
           g.fillStyle = col;
           g.beginPath();
-          g.moveTo(ix - 12, iy + 2.2); g.lineTo(ix + 4.4, iy + 2.2);
-          g.lineTo(ix + 2, iy - 7.4); g.lineTo(ix - 9.6, iy - 7.4);
+          g.moveTo(ix - 9.6, iy - 1.4); g.lineTo(ix + 3.4, iy - 1.4);
+          g.lineTo(ix + 1.6, iy - 8.4); g.lineTo(ix - 7.6, iy - 8.4);
           g.closePath(); g.fill();
           g.fillStyle = shade(col, 1.14);
-          g.beginPath(); g.ellipse(ix, iy - 7.4, 10.8, 2.8, 0, 0, 6.29); g.fill();
-          g.fillStyle = 'rgba(0,0,0,.24)';
-          g.beginPath(); g.ellipse(ix + 4.6, iy - 7.4, 4.6, 1.5, 0, 0, 6.29); g.fill();
+          g.beginPath(); g.ellipse(ix, iy - 8.4, 8.6, 2.2, 0, 0, 6.29); g.fill();
           g.fillStyle = lit ? '#fff2c8' : 'rgba(255,238,184,.20)';
-          g.beginPath(); g.ellipse(ix - 4.4, iy - 8.4, 2.2, 1.4, 0, 0, 6.29); g.fill();
+          g.beginPath(); g.ellipse(ix - 3.4, iy - 9.2, 1.9, 1.2, 0, 0, 6.29); g.fill();
         };
         depClamp(-2.356, ph6 % 4 === 0); depClamp(-0.785, ph6 % 4 === 2);
 
@@ -17438,7 +17445,7 @@
         var dpMx = dpWx + fw * 0.13;                                // mast axis
         var dpMbot = dpWy - fh * 0.06, dpMtop = dpMbot - 74;        // mast foot / head
         var dpFx = dpMx, dpFy = dpMtop + 6;                         // beam inner end
-        var dpHx = dpx - dpr * 0.06, dpHy = dpMtop + 30;            // beam outer end
+        var dpHx = dpx + dpr * 0.02, dpHy = dpMtop + 34;            // beam outer end
 
         // works slab, so the shed stands on something
         g.fillStyle = '#6e6a58';
@@ -17448,7 +17455,7 @@
         plot(g, dpWx + fw * 0.03, dpWy + fh * 0.10, fw * 0.38, fh * 0.38); g.fill();
 
         // ribbed silver scoop on the far corner
-        var dpSx = dpWx - fw * 0.20, dpSy = dpWy + fh * 0.10;
+        var dpSx = dpWx - fw * 0.16, dpSy = dpWy - fh * 0.14;
         g.fillStyle = 'rgba(0,0,0,.28)';
         g.beginPath(); g.ellipse(dpSx + 3, dpSy + 16, 13, 5, 0, 0, 6.29); g.fill();
         g.fillStyle = DEP_SILD;
@@ -17475,10 +17482,15 @@
         prism(g, dpWx, dpWy, dpShW, dpShH, dpShL, DEP_NAV, DEP_NAVL, DEP_NAVD, [0.34, 0.62]);
         facePatch(g, faceR, dpWx, dpWy, dpShW, dpShH, dpShL, 0.28, 0.72, 0.04, 0.44,
                   '#0e1119', '#05070b');                            // roller door
-        chevrons(g, faceL, dpWx, dpWy, dpShW, dpShH, dpShL, 0.06, 0.94, 0.56, 0.86,
-                 6, col, '#171b24');                                // house chevron band
+        facePatch(g, faceL, dpWx, dpWy, dpShW, dpShH, dpShL, 0.06, 0.94, 0.58, 0.74,
+                  col, shade(col, 0.34));                           // house band
         facePatch(g, faceL, dpWx, dpWy, dpShW, dpShH, dpShL, 0.06, 0.94, 0.92, 1.0,
-                  shade(col, 0.66), null);
+                  shade(col, 0.66), null);                          // house skirt
+        for (var dpWI = 0; dpWI < 3; dpWI++) {                      // lit windows
+          var dwT = 0.14 + dpWI * 0.28;
+          facePatch(g, faceL, dpWx, dpWy, dpShW, dpShH, dpShL, dwT, dwT + 0.16, 0.24, 0.46,
+                    (dpWI + ph6) % 3 ? 'rgba(150,170,190,.34)' : '#ffe9a8', '#12161f');
+        }
         for (var dpGI = 0; dpGI < 3; dpGI++) {                      // roof vent boxes
           var dpGx = dpWx - 20 + dpGI * 15, dpGy = dpWy - dpShL - 6 + (dpGI % 2) * 5;
           g.fillStyle = '#2c313a'; g.fillRect(dpGx, dpGy, 12, 9); outline(g, '#12151b');
@@ -17504,35 +17516,42 @@
         g.lineTo(dpUx + 7.6, dpUy - 28.4); g.lineTo(dpUx - 9.6, dpUy - 20.4);
         g.closePath(); g.fill();
 
-        // ---- the yellow box mast ------------------------------------------
-        g.lineCap = 'butt';
-        g.strokeStyle = DEP_YELD; g.lineWidth = 16;
-        g.beginPath(); g.moveTo(dpMx, dpMbot); g.lineTo(dpMx, dpMtop); g.stroke();
-        g.strokeStyle = DEP_YEL; g.lineWidth = 12.4;
-        g.beginPath(); g.moveTo(dpMx + 0.8, dpMbot); g.lineTo(dpMx + 0.8, dpMtop); g.stroke();
-        g.strokeStyle = DEP_YELL; g.lineWidth = 3;
-        g.beginPath(); g.moveTo(dpMx - 4.6, dpMbot); g.lineTo(dpMx - 4.6, dpMtop); g.stroke();
-        g.strokeStyle = 'rgba(74,44,6,.42)'; g.lineWidth = 1.4;     // splice plates
-        for (var dpMI = 1; dpMI < 5; dpMI++) {
-          var dpMy = dpMbot + (dpMtop - dpMbot) * dpMI / 5;
-          g.beginPath(); g.moveTo(dpMx - 8, dpMy); g.lineTo(dpMx + 8, dpMy); g.stroke();
-        }
-
-        // ---- the yellow box-truss beam, out over the parking box ----------
-        g.lineCap = 'round';
-        g.strokeStyle = DEP_YELD; g.lineWidth = 8;                  // bottom chord
-        g.beginPath(); g.moveTo(dpFx, dpFy + 15); g.lineTo(dpHx, dpHy + 15); g.stroke();
-        g.strokeStyle = DEP_YEL; g.lineWidth = 5.2;
-        g.beginPath(); g.moveTo(dpFx, dpFy + 14.4); g.lineTo(dpHx, dpHy + 14.4); g.stroke();
-        g.lineCap = 'butt';
-        lattice(g, dpFx + 6, dpFy + 7, dpHx - 4, dpHy + 7, 13, '#8a5804');   // web
-        g.lineCap = 'round';
-        g.strokeStyle = DEP_YELD; g.lineWidth = 12;                 // top chord
-        g.beginPath(); g.moveTo(dpFx, dpFy); g.lineTo(dpHx, dpHy); g.stroke();
-        g.strokeStyle = DEP_YEL; g.lineWidth = 9;
-        g.beginPath(); g.moveTo(dpFx, dpFy - 1); g.lineTo(dpHx, dpHy - 1); g.stroke();
-        g.strokeStyle = DEP_YELL; g.lineWidth = 2.8;
-        g.beginPath(); g.moveTo(dpFx, dpFy - 4); g.lineTo(dpHx, dpHy - 4); g.stroke();
+        // ---- mast and beam, as OPEN yellow trusses -------------------------
+        // Drawn solid they were two rounded tubes of near-equal width meeting
+        // at a right angle, with a big grey lens on the elbow: an anglepoise
+        // lamp. RA2's own depot crane is an open black lattice you can see the
+        // sky through, and that openness is most of what says "crane". Two
+        // chords plus a zigzag web, in the Directorate's yellow.
+        var depTruss = function (x0, y0, x1, y1, tw) {
+          var tdx = x1 - x0, tdy = y1 - y0, tl = Math.hypot(tdx, tdy) || 1;
+          var tnx = -tdy / tl * tw / 2, tny = tdx / tl * tw / 2;
+          g.lineCap = 'round';
+          for (var tI = -1; tI <= 1; tI += 2) {                     // the two chords
+            g.strokeStyle = DEP_YELD; g.lineWidth = 5;
+            g.beginPath();
+            g.moveTo(x0 + tnx * tI, y0 + tny * tI); g.lineTo(x1 + tnx * tI, y1 + tny * tI);
+            g.stroke();
+            g.strokeStyle = DEP_YEL; g.lineWidth = 3.4;
+            g.beginPath();
+            g.moveTo(x0 + tnx * tI, y0 + tny * tI - 0.8);
+            g.lineTo(x1 + tnx * tI, y1 + tny * tI - 0.8); g.stroke();
+            g.strokeStyle = DEP_YELL; g.lineWidth = 1.1;
+            g.beginPath();
+            g.moveTo(x0 + tnx * tI, y0 + tny * tI - 1.8);
+            g.lineTo(x1 + tnx * tI, y1 + tny * tI - 1.8); g.stroke();
+          }
+          g.lineCap = 'butt';
+          g.strokeStyle = DEP_YELD; g.lineWidth = 1.8;              // zigzag web
+          var tSeg = Math.max(3, Math.round(tl / 11));
+          for (var tJ = 0; tJ < tSeg; tJ++) {
+            var tu0 = tJ / tSeg, tu1 = (tJ + 1) / tSeg, tk = tJ % 2 ? 1 : -1;
+            g.beginPath();
+            g.moveTo(x0 + tdx * tu0 + tnx * tk, y0 + tdy * tu0 + tny * tk);
+            g.lineTo(x0 + tdx * tu1 - tnx * tk, y0 + tdy * tu1 - tny * tk); g.stroke();
+          }
+        };
+        depTruss(dpMx, dpMbot, dpMx, dpMtop, 15);                   // the mast
+        depTruss(dpFx, dpFy + 5, dpHx, dpHy + 5, 13);               // the beam
         g.lineCap = 'butt';
         g.strokeStyle = '#141821'; g.lineWidth = 1.2;               // stays
         g.beginPath();
@@ -17544,7 +17563,7 @@
         g.beginPath(); g.ellipse(dpMx + 1, dpMtop - 6, 2.4, 1.7, 0, 0, 6.29); g.fill();
 
         // ---- the silver projector, riding the beam on a telescoping arm ---
-        var dpPt = 0.78 + 0.10 * anS;
+        var dpPt = 0.88 + 0.07 * anS;
         var dpPx = dpFx + (dpHx - dpFx) * dpPt, dpPy = dpFy + (dpHy - dpFy) * dpPt;
         var dpDeck = dpy - 6;                                       // the deck under the head
         g.strokeStyle = DEP_SILD; g.lineWidth = 5.4;                // arm, down to the deck
@@ -17552,17 +17571,15 @@
         g.strokeStyle = DEP_SIL; g.lineWidth = 3;
         g.beginPath(); g.moveTo(dpPx - 0.4, dpPy + 8); g.lineTo(dpPx - 0.4, dpDeck - 12); g.stroke();
         g.fillStyle = '#3a4049';
-        g.beginPath(); g.ellipse(dpPx + 1, dpPy - 2, 9.4, 9.8, 0, 0, 6.29); g.fill();
+        g.beginPath(); g.ellipse(dpPx + 1, dpPy - 1, 7.2, 6.4, 0, 0, 6.29); g.fill();
         outline(g, '#1a1e25');
         g.fillStyle = DEP_SIL;
-        g.beginPath(); g.ellipse(dpPx - 0.6, dpPy - 3.4, 7.2, 7.6, 0, 0, 6.29); g.fill();
+        g.beginPath(); g.ellipse(dpPx - 0.4, dpPy - 2.2, 5.2, 4.8, 0, 0, 6.29); g.fill();
         outline(g, DEP_SILD);
         g.fillStyle = '#767d89';
-        g.beginPath(); g.ellipse(dpPx + 0.8, dpPy - 3, 3.4, 3.6, 0, 0, 6.29); g.fill();
-        g.fillStyle = '#454b56';
-        g.beginPath(); g.ellipse(dpPx + 1.2, dpPy - 2.6, 1.6, 1.7, 0, 0, 6.29); g.fill();
+        g.beginPath(); g.ellipse(dpPx + 0.6, dpPy - 2, 2.4, 2.2, 0, 0, 6.29); g.fill();
         g.fillStyle = DEP_SILL;
-        g.beginPath(); g.ellipse(dpPx - 3.4, dpPy - 5.4, 1.8, 2, 0, 0, 6.29); g.fill();
+        g.beginPath(); g.ellipse(dpPx - 2.4, dpPy - 3.6, 1.5, 1.4, 0, 0, 6.29); g.fill();
         // the welding head on the end of the arm, and its flash on the deck
         g.fillStyle = DEP_SILD;
         g.beginPath();
