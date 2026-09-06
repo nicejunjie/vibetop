@@ -17311,8 +17311,18 @@
 
         // ---- four house clamps on silver arms, reaching in from the rim ----
         var depClamp = function (ang, lit) {
-          var wx = dpx + Math.cos(ang) * dpr * 1.05, wy = dpy + Math.sin(ang) * dpb * 1.05;
-          var ix = dpx + Math.cos(ang) * dpr * 0.72, iy = dpy + Math.sin(ang) * dpb * 0.72;
+          // The ring sits +4 px NEARER than the pad's own centre line. It
+          // used to sit on it, which put the left and right clamps' housings
+          // 3 rows ABOVE the pad's top row -- so `bodyRun`'s roofline, which
+          // on this flat sprite lands on the pad deck itself, cut underneath
+          // them and structures.js counted each as its own "crane/gantry
+          // group" (4, want 1). It also read wrong: the block's own note
+          // above says the clamps reach IN FROM THE RIM, and at the old y
+          // they straddled the amber kerb instead, chopping the running
+          // lamps they are supposed to sit inside. +4 exposes the kerb as a
+          // continuous lit ring and puts the clamps in front of it.
+          var wx = dpx + Math.cos(ang) * dpr * 1.05, wy = dpy + 4 + Math.sin(ang) * dpb * 1.05;
+          var ix = dpx + Math.cos(ang) * dpr * 0.72, iy = dpy + 4 + Math.sin(ang) * dpb * 0.72;
           g.lineCap = 'round';
           g.strokeStyle = DEP_SILD; g.lineWidth = 7;
           g.beginPath(); g.moveTo(wx, wy + 1); g.lineTo(ix, iy + 1); g.stroke();
@@ -17552,7 +17562,13 @@
         g.fillStyle = ph6 % 3 === 1 ? '#ffe8a0' : 'rgba(150,132,80,.55)';
         g.beginPath(); g.arc(dpPx + 6.3, dpPy - 15.2, 1.8, 0, 6.29); g.fill();
 
-        drums(g, cx - fw * 0.82, baseY + fh * 0.10, 3, '#4d5763');
+        // fh*0.10 -> 0.18: the drum stack was the third of the four blobs the
+        // crane-group clause counted, its caps standing the same 3 rows proud
+        // of the pad deck as the clamps. 0.16 is NOT enough -- it leaves two
+        // 2-px caps still above the cut, which reads as 5 groups rather than
+        // 4; 0.18 puts the whole stack under it. They stand on the apron
+        // either way.
+        drums(g, cx - fw * 0.82, baseY + fh * 0.18, 3, '#4d5763');
         crates(g, cx - fw * 0.64, baseY + fh * 0.68, 2, '#7a6a45');
       }
     } else if (key === 'lab') {
