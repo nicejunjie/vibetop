@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_251 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_252 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
 - [Scheduled terminal messages ("resume when the token limit resets")](#scheduled-terminal-messages-resume-when-the-token-limit-resets)
@@ -274,6 +274,7 @@ _251 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [A reference sprite that measured the SCREENSHOT — and the width convention that makes a building's aspect unusable as a gate](#a-reference-sprite-that-measured-the-screenshot-and-the-width-convention-that-makes-a-buildings-aspect-unusable-as-a-gate)
 - [The sidebar cameo's contrast escape hatch was overriding the value scheme it sat inside, three passes running (2026-09-06)](#the-sidebar-cameos-contrast-escape-hatch-was-overriding-the-value-scheme-it-sat-inside-three-passes-running-2026-09-06)
 - [bodyRun's 55%-of-max cutoff invents a "crown" part on smooth silhouettes](#bodyruns-55-of-max-cutoff-invents-a-crown-part-on-smooth-silhouettes)
+- [Two more structure clauses measure the wrong object — and RA2's own sprite fails one of them](#two-more-structure-clauses-measure-the-wrong-object-and-ra2s-own-sprite-fails-one-of-them)
 
 <!-- END TOC -->
 
@@ -10449,3 +10450,74 @@ belongs in the checker's segmentation, not in the sprite.
 earlier — it is the same global `bodyRun` change, per-structure, carrying the
 non-monotonic side-effect risk demonstrated above, and it distorts art to suit
 an instrument that is misreading it.
+
+## Two more structure clauses measure the wrong object — and RA2's own sprite fails one of them
+
+**Symptom.** `radar:col` fails both of its shape clauses (`dish >= 0.55 Sw and
+essentially circular` measures "Sw 1, aspect 0.757"; `the dish lies wholly
+inside the top 45% of Sh` measures 0.891) and `prism:dir` fails `a waist
+beneath it <= 0.25 Sw` at 0.261 — with no corresponding defect in the rendered
+sprite. A `destination-out` fillRect that splits the radar's mass numerically
+passes every threshold and composites as a dish FLOATING over a gap, which is
+why the previous pass rejected it.
+
+**Cause — two different segmentation bugs, neither of them `bodyRun`'s 55%
+cutoff** (the entry above), though they are the same family.
+
+*The radar's is structural and total.* The dish is found as
+`components(f, (p, x, y) => !!p && y <= body.hi)`, and `body.hi` is the LAST row
+at or above 55% of the widest row. For any structure whose base is its widest
+mass — every tower ever drawn — `body.hi` lies in the base, so that predicate
+admits the crown, the neck AND the base as one 4-connected blob. The
+consequences are identities, not measurements: `dw` is 1.000 for every
+connected sprite, and `dish.y1` is `body.hi` for every connected sprite.
+Neither number is a property of a dish. **Ours has a real pinch and the check
+walks straight past it**: `rowProfile` reads 26 px at rows 101-107 against the
+dish's own 92 px — a 3.5x pinch, 0.198 `Sw`. Measured off that pinch the dish
+is 93x101 at x20..112, y0..100 → **0.710 `Sw` (want >= 0.55) and aspect 0.921
+(want 0.90-1.10)**, so the first clause is passed by the art and failed by the
+instrument.
+
+*The prism's is the `y < f.h * 0.5` cut.* The waist is scanned from
+`top.y1 + 1`, where `top` is the largest blob in the TOP HALF — so on a
+continuous tower `top` is not the crown, it is everything above the midline,
+clipped at `y = h/2 - 1`. The prism's genuine waist is rows 42-53, **10 px at
+row 49 = 0.145 `Sw`**, comfortably inside the <= 0.25 the row asks for; because
+it sits ABOVE the midline it is inside the "crown" and the scan starts below
+it, on the flare, at row 63 = 18 px = 0.261. The clause reads the wrong 20 rows.
+
+**The decisive evidence: RA2's own committed sprite fails its own clause.**
+`docs/ra2-ref/sprites/buildings/tesla-coil.gif`, blue-key removed, has an
+opaque bbox of exactly **42x81** — the size §2.7 records for `[NATSLA]` — and
+its narrowest row is 3 px at row 20, exactly the documented 0.071 `Sw` pinch.
+Run the shipped clause math over that mask and the "sphere" blob comes out
+x12..41 y0..40 (0.714 `Sw`, where the row says the sphere is 0.476) and the
+neck scan, starting at row 41, reports **0.333 `Sw` against a clause demanding
+<= 0.10**. The reference fails by 3.3x. No drawing of a Tesla Coil can pass
+that check, so our own 0.582 is not evidence about our art either.
+
+**Fix.** None to the art, and none to the checker from this pass — a peer owns
+the segmentation. `tesla`'s third clause (house fraction) is a plain pixel
+census with no segmentation in it, and that one WAS a real defect and is fixed
+in the commit this entry ships with.
+
+**What is still genuinely owed, with numbers, so the next pass need not
+re-derive it.** Measured off the real pinch, the Radar Tower's dish is
+**0.523 of `Sh` tall where `[NARADR]`'s is 0.390**, and its bottom sits at
+0.518 `Sh` where the reference's is 0.404 — our dish is a third too tall for
+its own sprite and our mound correspondingly too squat, which is the
+"sitting almost ON a squat camouflage mound" the row asks for and we do not
+draw. Holding `Sh` at 193 (which keeps every `size.bld*` reading and the bbox
+untouched, since the mound and not the dish sets `Sw`), the reference ratio
+asks for a dish of ~75 rows over ~118 rows of trunnion and mound, against our
+101 over 92. That is a quarter-scale redraw of the dish plus a rebuilt drum,
+it closes no clause while the segmentation is broken, and it is therefore
+deliberately left for a pass that can verify it.
+
+**Rejected.** Cutting the radar's mass with a `destination-out` fillRect to
+force a second component — it passes all three thresholds and renders a dish
+floating over a blank gap, which the QA charter's two-pillar rule forbids;
+already rejected once, recorded here so it is not tried a third time. Also
+rejected: reshaping the prism's column so the flare below the midline dips
+under 0.25 `Sw` — it would distort a sprite whose real waist is already
+0.145 `Sw` to satisfy a scan aimed at the wrong rows.
