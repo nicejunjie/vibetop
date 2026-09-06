@@ -380,6 +380,214 @@ The wider lesson, and the reason this is written up rather than quietly fixed:
 **a size sweep that never opens `legibility.js` is not a finished sweep.** The
 art gates are not independent.
 
+## The 23 unmeasured INFANTRY clauses, measured (2026-09-05)
+
+`tools/clause-checks/infantry.js`. **`clause.checked` 2 -> 22, `clause.unmet`
+1 -> 0, `clause.infantryUnmet` 1 -> 0.** Twenty of the 23 are now measured, one
+is unmeasurable for a reason worth writing down, and two were already carried by
+`EXAMPLE-infantry-gi.js`. **Four clauses were UNMET and are fixed; sixteen were
+already correct**, which is the result for most of them and is worth as much as
+a fix.
+
+**BAND CONVENTION, said once.** Every band is a fraction of the **raw measured
+bbox height**, top-down, the way `EXAMPLE-infantry-gi.js`'s `band()` reads it —
+the bbox includes the contact shadow and the anchor is not `h - UPAD`, so a band
+derived from `by - 19.4` in the source lands somewhere else. Where a clause is
+about the FIGURE rather than the frame (the dog's body height, the Flak
+Trooper's "1.25x a Conscript's"), the shadow is segmented off first and the row
+says so. The two conventions give different numbers for the same sprite; each
+row names the one it used.
+
+| unit | clause | measured | want | verdict |
+|---|---|---|---|---|
+| `rifle` | torso block >= 7w x 6h | **8x6** (was 8x5) | 7w x 6h | **FIXED** |
+| `rifle` | helmet in a value distinct from torso and legs | **gap 0.156** (was 0.073) | >= 0.10 | **FIXED** |
+| `rifle` | legs olive, off the Conscript's tan | 60.4 deg | >= 20 | already met |
+| `rocket` | deployed dome >= 15w x 12h | — | — | **UNMEASURABLE** (below) |
+| `rocketeer` | altitude offset >= 10 px | 36 px | >= 10 | already met |
+| `rocketeer` | shadow blob >= 9x4, separated from the feet | 9x4, gap 38.2 px | >= 9x4 | already met |
+| `engineer` | body value >= 0.75 across >= 55% of torso+legs | 0.635 | >= 0.55 | already met |
+| `dog` | body <= 9 px tall and >= 19 px long | trunk 10 x 31, ratio 0.323 | <= 0.474 | met as a proportion (below) |
+| `dog` | no vertical torso mass | 0.645, group min (next 1.125) | < 1, lowest | already met |
+| `dog` | house colour on the collar, never the coat | span 0.231 of figure height | <= 0.45 | already met |
+| `tanya` | head patch >= 3x2 at >= 0.85 value | 3x2 | >= 3x2 | already met, **zero margin** |
+| `tanya` | limbs >= 30% of body px in skin tone | 0.387 | >= 0.30 | already met |
+| `cleg` | shoulder line >= 15 px, >= 20% over a GI's | 20 px, 1.333x | >= 15, >= 1.20x | already met |
+| `spy` | coat hem one unbroken block >= 8 px, no gap | median 8 px (6-13), 1 run | >= 8, 1 run | met on the median (below) |
+| `conscript` | legs tan/brown, >= 20 deg off the GI's olive | hue 31.5, 60.4 deg off | hue 15-45, >= 20 | already met |
+| `flak` | total height >= 1.25x a Conscript's | 1.517x (44 vs 29 px) | >= 1.25x | already met |
+| `teslatrooper` | carapace v >= 0.70 across >= 40% of the torso | 0.434 | >= 0.40 | already met (fixed earlier today) |
+| `teslatrooper` | bowl clears the pauldron caps by >= 2 px | 3 px | >= 2 | already met |
+| `ivan` | house fraction >= 35% | **0.360** | >= 0.35 | **FIXED** (the bundle diluted it to 0.3491) |
+| `ivan` | bundle >= 4x3 at waist height | **4x6, 0.79 filled** (was 0x0) | >= 4x3 | **FIXED** |
+| `desolator` | gun muzzle >= 4 px across | 10 px | >= 4 | already met |
+| `desolator` | deployed pool >= 1 tile | 3 tiles radius | >= 1 | already met |
+| `yuri` | head dome bare, no helmet | 0.60 skin in the crown | >= 0.50 | already met |
+
+### The four defects, and what each one actually was
+
+**1. Crazy Ivan's dynamite did not exist.** §2.2 asks for a "bundle >= 4x3 at
+waist height" and it is the whole point of him — RA2's own cameo is a hand
+holding a fistful of sticks. Measured, **not one pixel of `#d7b87d`, `#c6a76e`,
+`#a98a58` or the lit caps survived at ANY of the eight bearings**; the widest
+tan mass clearing v 0.40 anywhere on the sprite was **zero pixels**. What was
+there was hue-37 mush at v 0.12-0.35 sitting on a v 0.15 coat, i.e. below §2's
+own floor of ">= 25% value contrast against what is behind it".
+
+The cause is arithmetic and it is the third instance of one lesson today. Three
+sticks were drawn 1.42 authored units wide and each was given its own
+`outline()`. At `STATURE.ivan [0.80, 0.88]` a stick draws **1.25 px** and the
+stroke is 1 unit **centred on its own border** — 0.6 px each side. *The outline
+ate the stick.* The previous pass had already written down the symptom ("at the
+size it is drawn each visible segment was one pixel and the whole thing read as
+something brown in his hand") and fixed it by adding DETAIL — taller sticks, end
+caps, a lashing band — which added more strokes to the thing the strokes were
+eating.
+
+Rebuilt as **one body with one outline**, the sticks as tone columns cut into
+it. Two intermediate versions were measured on the way and both are worth
+knowing: **dark 0.5-unit seams between the sticks are the same bug at a smaller
+scale** (they took the block from v 0.81 to v 0.16-0.35 over half its rows), and
+**a near-black lashing band splits the bundle in two** — it is a mid TONE of the
+sticks now. 4x6 at 0.79 fill, and visible on both surfaces.
+
+**2. Making the dynamite legible cost Ivan his house fraction** — 0.3601 ->
+0.3491 against §2.2's >= 35%, exactly as the code comment predicted ("adding
+neutral tan diluted the block"). **The obvious repair was measured and
+REJECTED**: running the lapels a pixel further down the skirt got him to 0.3846
+and took **`ivan | yuri` from 12.5 to 12.3 against a 12.2 friend-vs-foe floor**
+(CELL 96, zoom 1) — the tightest Collective infantry pair — because it puts blue
+on his lower body, which is precisely where Yuri's robe carries its own. The
+budget went on the **USHANKA** instead: Yuri's head is bald, so the hat is the
+one band where the two figures do not compete. 0.360, and `ivan | yuri`
+*improved* to 12.6.
+
+**3. The G.I.'s helmet was not a distinct value, and the intuitive fix breaks
+the roster.** 0.465 helmet against a 0.539 torso is a gap of 0.073. Both obvious
+levers failed, measured:
+
+| lever | helmet | torso | gap | what it did |
+|---|---|---|---|---|
+| baseline `#9ba2ab` | 0.465 | 0.539 | 0.073 | |
+| DARKER `#767d87` | 0.367 | 0.539 | **0.172** | `rifle \| conscript` **11.8 vs a 12.2 floor**, 2-3 confusable pairs |
+| `INF_EDGE.rifle = 0.70` | 0.554 | **0.567** | 0.013 | a kind-wide floor lifts BOTH bands together |
+| brighter fill alone, to near-white `#f2f5f8` | 0.653 | 0.539 | 0.115 | a white helmet for a marginal pass |
+| **`#c9d0d8` + helmet-only edge floor `hef 0.72`** | **0.695** | 0.539 | **0.156** | shipped |
+
+Darkening is the intuitive move and it is the wrong one: the Conscript's cap is
+`#2f3540`, so a darker G.I. helmet walks straight into his twin. `INF_EDGE` is
+inert here for the same reason `INF_VALUE` is — a per-KIND floor lifts a fill
+and its edge in the same ratio, and it lifts the torso block's edges too. **Only
+a SHELL-SCOPED lift moves one band against the other**, which is what `hef` is:
+a new optional argument to `helmet()` that floors the brim and outline of that
+one helmet. Brightening also moves AWAY from the twin, and the pair agreed:
+`rifle | conscript` left the worst-eight list entirely, and the Directorate
+sidebar's own worst pair — `GI | Spy`, the one this file recorded as a measured
+dead end — went **53.6 -> 55.4**.
+
+**4. The G.I.'s torso block was 8x5 against a 7x6 clause, and a khaki scarf was
+why.** The block's own comment says "collar to belt, full shoulder width,
+**unbroken**"; the collar scarf was drawn at `by - 20.1` x 1.2 units, INSIDE the
+block's top rows, and split them down the middle in bake rows 8-10. Raised to
+`by - 20.7` and thinned to 0.95 it is a collar rather than a bib, and the block
+measures 8x6. (Same shape of error as the Tesla Trooper's carapace: a comment
+stating the constraint correctly a few lines from the code violating it.)
+
+### Two clauses that cannot be met as literally written, with the arithmetic
+
+* **The Attack Dog's "body <= 9 px tall".** The trunk measures 10 tall x 31
+  long. The trunk-to-length ratio is **0.323 against the 0.474 the clause's own
+  two numbers encode**, so the SHAPE is right; the absolute miss is the roster's
+  one recorded size debt, the dog's +31% (`size.infantryOutsideRA2Band`), and
+  that debt is BLOCKED — every shrink tried puts `dog | tanya` under the
+  friend-vs-foe floor (six measured rows, above). The check tests the proportion
+  rather than double-counting the size gate, and says so on the row. Re-basing
+  the clause on the defect would be moving a target.
+* **The Spy's "coat hem ... >= 8 px wide".** The hem tapers 13 px at the skirt
+  to **6 px at the ankle row**, and the taper is a recorded deliberate decision
+  ("a business suit is a straight, narrow, slightly tapered line, and Yuri's is
+  a flared robe a third wider at the ankle") made because the roster's two
+  unbroken hems collapsed at 0.85 pairwise the moment the Spy lost his leg
+  split. **The ceiling:** 8 px AT THE ANKLE needs 8.6 authored units against the
+  skirt's own 8.0 — that is a FLARE, i.e. Yuri's shape. So the row is judged on
+  the hem's MEDIAN width (8 px) and the check says outright that this is the
+  lenient reading. The clause's other half — *no vertical gap* — is measured
+  strictly: every row in the band is exactly one run.
+
+### The one clause nothing can measure
+
+**`rocket` Guardian GI, "deployed dome >= 15w x 12h".** **Our Guardian GI does
+not deploy.** `UNITS.rocket` carries no `dep` and no `deployRad`, the deploy
+command's own refusal reads *"Only GIs, Desolators and MCVs can deploy"*, and no
+atlas holds a deployed Guardian frame. There is nothing to measure, in the rig
+or out of it. Recorded here rather than forced into a check, because a forced
+check goes green once and then nobody looks again. (Whether he SHOULD deploy is
+a gameplay question, not an art one, and belongs in the roadmap.)
+
+### Three clauses are SOURCE-CONSTANT checks, and each row says so
+
+The Rocketeer's altitude, his drop shadow and the Desolator's radiation pool are
+**renderer facts, not sprite ones** — `bakeInfantry` explicitly skips
+`shadowBlob` for the Rocketeer, `drawAirShadow` paints `d.shadow` on the ground
+at `sy + alt*0.06` while the man is at `sy - alt`, and `DESO_RAD_R` is a tile
+radius. No bake can see any of them, so the check reads the shipped constant out
+of `rts.html` and labels itself. That is the honest measurement; a pixel proxy
+for it would be a fiction.
+
+### Where a check had to pick a number, and where it deliberately did not
+
+Four rows in §2 state no number. Two got a stated reading (`dog` collar spread
+<= 0.45, `yuri` crown >= 0.50 skin) and both say in the `note` that the row
+states no number. The other two took their bar from the **ensemble** instead,
+which is stronger:
+
+* **"no vertical torso mass"** — the dog's tallest unbroken column over his
+  widest row must be **< 1** (nothing on him stands as tall as he is long) AND
+  the lowest in the group. Measured he is **0.645**; the next lowest is Crazy
+  Ivan at 1.125 and Yuri reaches 2.50. A first draft of this row used an
+  invented 0.55 and would have FAILED him — and RA2's own [ADOG] at 21x15 would
+  fail it too, which is the tell that the threshold was mine and not the spec's.
+* **"bundle >= 4x3"** and **"muzzle >= 4 px"** take their value floor from §2's
+  own sentence — *"2 px of thickness with >= 25% value contrast against what is
+  behind it"* — rather than measuring bare extent. That distinction is the whole
+  finding on Ivan: his bundle's EXTENT was 5x6 the entire time, and a size-only
+  check would have passed a thing nobody could see.
+
+### Nothing regressed, and the two numbers that moved down are a stated trade
+
+0 confusable pairs in all six legibility windows, before and after. Infantry
+minimums went **UP** in five of the six (CELL 28 z1 37.7 -> 37.8, CELL 96 z1
+12.4 -> 12.5, union z1 58.5 -> 59.5, union ZMIN 54.4 -> 55.3) and the sixth is
+unchanged. `dog | tanya` is untouched at 12.5 / 9.5. `hue.infantryOwnerMean`
+0.2985 -> **0.2991** (floor 0.29), `hue.infantryBelowBudget` 0, both aspect and
+size infantry bands unchanged, `spike.*` 0, `peerVsSelf.infantry` 0, `clip.*`
+0/0, all three `value.engineer*` gates untouched. Cameos: the Directorate
+sidebar's worst pair 53.6 -> 55.4, its greyed minimum 35.1 -> 36.3 with 10 -> 9
+under RA2's greyed bar.
+
+Two ratchet numbers moved down and both are deliberate:
+`colour.infantry.meanDist` **1.3898 -> 1.3825** and `iou.infantry.mean`
+**0.5404 -> 0.5413** (targets >= 0.45 and <= 0.55, so both sit three times and
+comfortably inside their bars). Both are Ivan: a legible tan dynamite bundle is
+a neutral mass in a hue several troopers already carry, and it adds a few px to
+his silhouette. A visible prop on the unit whose entire identity is that prop is
+worth 0.5% of a colour mean that is not remotely near its floor.
+
+### A trap paid for, and one paid for twice
+
+* **`hue.infantryOwnerMean` is thin enough that antialiasing moves it.**
+  Brightening the G.I.'s helmet lowered his own remap share by 0.0010 — not
+  because any owner pixel was lost, but because a brighter shell's antialiased
+  fringe crosses the alpha cut and adds NON-owner pixels to the denominator. It
+  took the fleet mean from 0.2985 to 0.2984, against a floor of 0.29. Paid back
+  by lengthening his block 0.2 units at the collar and 0.4 at the hem and
+  thinning the webbing belt 1.5 -> 1.15 (both inside the tunic, so the
+  silhouette is unchanged): 0.2991.
+* **A python `assert` that fires after the edits and before the `write` loses
+  every edit silently.** Two whole rounds of check edits evaporated that way,
+  and the second time the run *looked* like it had worked because the numbers
+  had moved for an unrelated reason. Write per-edit or assert per-edit.
+
 ## The ratio clauses, checked against measured bboxes (2026-09-05)
 
 Six of §2's unmeasured clauses state a plain ratio, so they can be checked
