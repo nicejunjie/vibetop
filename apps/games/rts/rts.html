@@ -14204,35 +14204,82 @@
         // cone but a fat dark-navy DRUM standing on a silver rock plinth, and
         // the remap is a big curved HOUSE PANEL across the drum's front. The
         // column above it is blue-steel with a gold plasma streak.
+        // ---- THE CROWN BUDGET, and why the drum is 1.50 r and not 1.82.
+        // §2.6 asks for three separate crowns each 0.18-0.22 Sw over a
+        // roofline at least 0.45 Sh down. `bodyRun` puts that roofline at the
+        // first row carrying 55% of the widest row's INK, and the widest row
+        // here is the ground pad, so the whole crown band has 0.55 Sw = 72 px
+        // of ink to spend and three towers to spend it on. Two hard
+        // consequences fall straight out of that and neither is negotiable:
+        //   * only ONE tower's drum can be above the roofline. Two drums plus
+        //     a column is already 72 px, so the row where the second drum
+        //     appears IS the roofline — which is why the front pair, standing
+        //     at the same height, put their drums below it and show cap and
+        //     column only.
+        //   * that one drum is therefore the widest thing in the crown, and it
+        //     has to fit 0.22 Sw = 28.8 px. At r*1.82 it was 33 px and at
+        //     r*1.60 it is 29; r*1.50 lands 28. THAT is the fusion fix: the
+        //     back drum used to be 16.4 px of half-width against 23.7 px of
+        //     centre-to-centre spacing, so it grew into both neighbouring
+        //     columns and welded all three crowns into one blob.
+        // The cap pays for the other side of the band: with the drums below
+        // the roofline the front crowns are cap-width, and r*1.04 = 19 px is
+        // under the 0.18 Sw = 23.6 px floor, so the cap goes to r*1.28 = 25.
+        // Spacing 0.386/0.426 fw = 26 px each side of the back tower clears
+        // 13.5 (drum) + 9 (column) + a real gap, and keeps both front plinths
+        // inside the pad octagon's own 46 px half-width at their row.
+        // Everything else in the middle — the basin, its halo, the lamp
+        // haloes, the rod plates — is then sized to sit INSIDE the back drum's
+        // silhouette rather than poke out of it and re-widen that blob: basin
+        // 12 (was 15), halo 0.75x, rod plates at 9.5 (was 10). Measured on the
+        // bake: 3 blobs at 0.191 / 0.214 / 0.191 Sw, roofline 0.488 Sh, sprite
+        // still 131x127 so no size metric moves.
+        // NOTE what this does NOT do — RA2's own [GAPOWR] fails this clause.
+        // Chroma-keyed off `docs/ra2-ref/allied-power-plant.png` its crown is
+        // TWO blobs (0.395 / 0.163 Sw) over a 0.419 Sh roofline, because its
+        // basin welds its middle and right towers exactly the way our drum
+        // used to weld all three. Our drum is 0.206 Sw against RA2's 0.233 and
+        // our cap 0.191 against RA2's ~0.15: the clause's ink arithmetic, not
+        // the rip, is what sets those two numbers.
+        var PW_DK = 1.50;         // drum radius, x r
+        var PW_PK = 1.26;         // plinth radius, x dr
+        var PW_R  = 9;            // column radius
+        var PW_GL = 0.75;         // basin halo, x its natural size
+        var PW_DH = 25;           // drum height
+        var PW_CK = 1.28;         // cap radius, x r
+        var PW_BW = 12;           // basin half-width
+        var PW_LG = 5.0;          // lamp halo radius
+        var PW_RP = 9.5;          // rod plate offset from centre
+        var PW_TP = 0.94;         // drum taper (top/bottom) - a drum, not a cone
         var tower = function (px, py, r, hCol, lamp) {
-          var dr = r * 1.82;                                               // drum radius
-          octa(px + 2, py + 3, dr * 1.30, dr * 0.54, 'rgba(0,0,0,.44)', null);
-          octa(px, py, dr * 1.26, dr * 0.52, '#4c515a', '#15171b');        // rock plinth riser
-          octa(px, py - 4, dr * 1.20, dr * 0.50, SILV, '#15171b');
-          octa(px, py - 5, dr * 1.20, dr * 0.50, 'rgba(255,255,255,.22)', null);
+          var dr = r * PW_DK;                                              // drum radius
+          octa(px + 2, py + 3, dr * (PW_PK + 0.04), dr * 0.54, 'rgba(0,0,0,.44)', null);
+          octa(px, py, dr * PW_PK, dr * 0.52, '#4c515a', '#15171b');       // rock plinth riser
+          octa(px, py - 4, dr * (PW_PK - 0.06), dr * 0.50, SILV, '#15171b');
+          octa(px, py - 5, dr * (PW_PK - 0.06), dr * 0.50, 'rgba(255,255,255,.22)', null);
           g.fillStyle = 'rgba(24,26,32,.34)';                              // rubble specks
           for (var rk = 0; rk < 9; rk++)
             g.fillRect(px - dr + rk * dr * 0.23, py - 6 + (rk % 3) * 1.6, 2.6, 1.4);
-          octa(px, py - 6, dr * 1.06, dr * 0.44, '#3b4048', '#15171b');    // step
+          octa(px, py - 6, dr * (PW_PK - 0.20), dr * 0.44, '#3b4048', '#15171b');   // step
 
-          var dTopY = py - 6 - 25;                                         // drum
+          var dTopY = py - 6 - PW_DH;                                      // drum
           g.fillStyle = '#20222f';
           g.beginPath();
-          g.moveTo(px - dr, py - 6); g.lineTo(px - dr * 0.94, dTopY);
-          g.lineTo(px + dr * 0.94, dTopY); g.lineTo(px + dr, py - 6);
+          g.moveTo(px - dr, py - 6); g.lineTo(px - dr * PW_TP, dTopY);
+          g.lineTo(px + dr * PW_TP, dTopY); g.lineTo(px + dr, py - 6);
           g.closePath(); g.fill();
           g.beginPath(); g.ellipse(px, py - 6, dr, dr * 0.32, 0, 0, Math.PI); g.fill();
           outline(g, '#0a0c14');
           g.fillStyle = 'rgba(96,106,138,.30)';                            // lit left limb
-          g.fillRect(px - dr, dTopY, dr * 0.26, 25);
+          g.fillRect(px - dr, dTopY, dr * 0.26, PW_DH);
           g.fillStyle = 'rgba(0,0,0,.34)';                                 // shaded right limb
-          g.fillRect(px + dr * 0.60, dTopY, dr * 0.40, 25);
+          g.fillRect(px + dr * 0.60, dTopY, dr * 0.40, PW_DH);
 
           // the big curved HOUSE panel wrapped across the drum's front
           g.save();
           g.beginPath();
-          g.moveTo(px - dr, py - 6); g.lineTo(px - dr * 0.94, dTopY);
-          g.lineTo(px + dr * 0.94, dTopY); g.lineTo(px + dr, py - 6);
+          g.moveTo(px - dr, py - 6); g.lineTo(px - dr * PW_TP, dTopY);
+          g.lineTo(px + dr * PW_TP, dTopY); g.lineTo(px + dr, py - 6);
           g.closePath(); g.clip();
           var pw = dr * 0.80, pTop = dTopY + 3.2, pBot = py - 8.2;
           g.fillStyle = shade(col, 0.74);
@@ -14261,20 +14308,20 @@
           g.closePath(); g.fill();
           g.restore();
           g.fillStyle = '#282b3c';                                         // dark drum lip
-          g.beginPath(); g.ellipse(px, dTopY, dr * 0.94, dr * 0.26, 0, 0, 6.29); g.fill();
+          g.beginPath(); g.ellipse(px, dTopY, dr * PW_TP, dr * 0.26, 0, 0, 6.29); g.fill();
           outline(g, '#0a0c14');
           g.fillStyle = '#3c4054';
-          g.beginPath(); g.ellipse(px, dTopY - 1, dr * 0.74, dr * 0.24, 0, 0, 6.29); g.fill();
+          g.beginPath(); g.ellipse(px, dTopY - 1, dr * PW_TP * 0.79, dr * 0.24, 0, 0, 6.29); g.fill();
 
           // shoulder from the drum lip up to the column
           g.fillStyle = '#2f3242';
           g.beginPath();
-          g.moveTo(px - dr * 0.74, dTopY); g.lineTo(px + dr * 0.74, dTopY);
+          g.moveTo(px - dr * PW_TP * 0.79, dTopY); g.lineTo(px + dr * PW_TP * 0.79, dTopY);
           g.lineTo(px + r * 1.02, dTopY - 5); g.lineTo(px - r * 1.02, dTopY - 5);
           g.closePath(); g.fill(); outline(g, '#0f1220');
           g.fillStyle = 'rgba(180,190,220,.24)';
           g.beginPath();
-          g.moveTo(px - dr * 0.74, dTopY); g.lineTo(px - dr * 0.20, dTopY);
+          g.moveTo(px - dr * PW_TP * 0.79, dTopY); g.lineTo(px - dr * 0.20, dTopY);
           g.lineTo(px - r * 0.20, dTopY - 5); g.lineTo(px - r * 1.02, dTopY - 5);
           g.closePath(); g.fill();
 
@@ -14309,36 +14356,37 @@
           g.fillStyle = 'rgba(226,228,250,.40)';
           g.fillRect(px - r * 0.40, cy0 - 7, r * 0.80, 1);
 
+          var cr = r * PW_CK;                                              // cap radius
           g.fillStyle = STL;                                               // steel cap
           g.beginPath();
-          g.moveTo(px - r * 1.04, ty0 + 2); g.lineTo(px + r * 1.04, ty0 + 2);
-          g.lineTo(px + r * 1.04, ty0 - 6); g.lineTo(px - r * 1.04, ty0 - 6);
+          g.moveTo(px - cr, ty0 + 2); g.lineTo(px + cr, ty0 + 2);
+          g.lineTo(px + cr, ty0 - 6); g.lineTo(px - cr, ty0 - 6);
           g.closePath(); g.fill(); outline(g, STL_D);
           g.fillStyle = 'rgba(255,255,255,.26)';
-          g.fillRect(px - r * 1.0, ty0 - 5.5, r * 0.44, 7.5);
+          g.fillRect(px - cr * 0.96, ty0 - 5.5, cr * 0.42, 7.5);
           g.fillStyle = 'rgba(0,0,0,.28)';
-          g.fillRect(px + r * 0.50, ty0 - 5.5, r * 0.54, 7.5);
+          g.fillRect(px + cr * 0.48, ty0 - 5.5, cr * 0.52, 7.5);
           g.fillStyle = '#4a5170';                                         // blue-steel band
-          g.fillRect(px - r * 1.04, ty0 - 2.2, r * 2.08, 2);
+          g.fillRect(px - cr, ty0 - 2.2, cr * 2, 2);
           g.fillStyle = STL_L;                                             // cap rim
-          g.beginPath(); g.ellipse(px, ty0 - 6, r * 1.04, r * 0.40, 0, 0, 6.29); g.fill();
+          g.beginPath(); g.ellipse(px, ty0 - 6, cr, cr * 0.385, 0, 0, 6.29); g.fill();
           outline(g, STL_D);
           g.fillStyle = '#20242e';                                         // dark bore
-          g.beginPath(); g.ellipse(px, ty0 - 6, r * 0.62, r * 0.24, 0, 0, 6.29); g.fill();
+          g.beginPath(); g.ellipse(px, ty0 - 6, cr * 0.60, cr * 0.23, 0, 0, 6.29); g.fill();
           g.fillStyle = 'rgba(168,176,190,.60)';
-          g.beginPath(); g.ellipse(px - r * 0.14, ty0 - 6.8, r * 0.30, r * 0.11, 0, 0, 6.29); g.fill();
+          g.beginPath(); g.ellipse(px - cr * 0.135, ty0 - 6.8, cr * 0.29, cr * 0.106, 0, 0, 6.29); g.fill();
           // idle: transformer lamp on the cap rim blinks in turn
           g.fillStyle = lamp ? '#ffe6a0' : '#5b4c2a';
-          g.beginPath(); g.ellipse(px + r * 0.78, ty0 - 6.6, 1.8, 1.2, 0, 0, 6.29); g.fill();
+          g.beginPath(); g.ellipse(px + cr * 0.75, ty0 - 6.6, 1.8, 1.2, 0, 0, 6.29); g.fill();
           if (lamp) {
             g.fillStyle = 'rgba(255,222,140,.30)';
-            g.beginPath(); g.ellipse(px + r * 0.78, ty0 - 6.6, 5.0, 3.4, 0, 0, 6.29); g.fill();
+            g.beginPath(); g.ellipse(px + cr * 0.75, ty0 - 6.6, PW_LG, PW_LG * 0.68, 0, 0, 6.29); g.fill();
           }
           return ty0 - 6;
         };
 
-        var lcx = cx - fw * 0.35, lcy = baseY + fh * 0.24;
-        var rcx = cx + fw * 0.37, rcy = baseY + fh * 0.22;
+        var lcx = cx - fw * 0.386, lcy = baseY + fh * 0.24;
+        var rcx = cx + fw * 0.426, rcy = baseY + fh * 0.22;
         var bcx = cx + fw * 0.02, bcy = baseY - fh * 0.44;
 
         // [GAPOWR] is THREE IDENTICAL capacitor towers staggered across the
@@ -14356,7 +14404,7 @@
         // shoulder+cap another 61, so the sprite is 97 + COL_H and 30 lands
         // it at 127 px = 1.28x RA2, dev 0.115 inside the +-0.20 band.)
         var COL_H = 30;
-        tower(bcx, bcy, 9, COL_H, ph6 === 0 || ph6 === 3);                 // back
+        tower(bcx, bcy, PW_R, COL_H, ph6 === 0 || ph6 === 3);              // back
 
         // ---- central machinery: a dark ringed coil column carrying the dish.
         var stemB = baseY + 2;
@@ -14385,13 +14433,13 @@
           g.moveTo(cx + vI * 4 - vI, baseY - 52); g.lineTo(cx + vI * 22 - vI, baseY + fh * 0.32);
           g.stroke();
           g.fillStyle = '#5c4530';
-          g.fillRect(cx + vI * 10 - 3.2, baseY - 34, 6.4, 2.4);
+          g.fillRect(cx + vI * PW_RP - 3.2, baseY - 34, 6.4, 2.4);
         }
 
         // ---- the upturned copper dish: a DEEP tilted bowl - fat dark rim,
         // far inner wall in shadow, hot pool at the near side. Nothing else in
         // the game aims a dish at the sky, so it has to read as concave.
-        var bowlY = baseY - 41, bw = 15, tlt = 0.22, bry = bw * 0.55;
+        var bowlY = baseY - 41, bw = PW_BW, tlt = 0.22, bry = bw * 0.55;
         cylinder(g, cx, bowlY + 11, 4.4, 7, '#4a4f58', '#6c727c', '#1d1f25');  // neck
         g.fillStyle = '#5a360f';                                           // bowl underside
         g.beginPath();
@@ -14429,10 +14477,10 @@
         g.strokeStyle = 'rgba(120,74,22,.70)'; g.lineWidth = 1;            // near rim in shade
         g.beginPath(); g.ellipse(cx, bowlY, bw - 0.7, bry - 0.4, tlt, 0.10, 2.85); g.stroke();
         g.fillStyle = 'rgba(255,192,84,' + (0.07 + 0.06 * glow).toFixed(3) + ')';
-        g.beginPath(); g.ellipse(cx, bowlY - 6, bw * 1.44, bw * 0.60, 0, 0, 6.29); g.fill();
+        g.beginPath(); g.ellipse(cx, bowlY - 6 * PW_GL, bw * 1.44 * PW_GL, bw * 0.60 * PW_GL, 0, 0, 6.29); g.fill();
 
-        tower(lcx, lcy, 9, COL_H, ph6 === 1 || ph6 === 4);                 // front-left
-        tower(rcx, rcy, 9, COL_H, ph6 === 2 || ph6 === 5);                 // front-right
+        tower(lcx, lcy, PW_R, COL_H, ph6 === 1 || ph6 === 4);              // front-left
+        tower(rcx, rcy, PW_R, COL_H, ph6 === 2 || ph6 === 5);              // front-right
 
         // ---- base greebles: a valve run threaded between the three plinths.
         g.strokeStyle = '#464a53'; g.lineWidth = 3.2; g.lineCap = 'round';
