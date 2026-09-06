@@ -351,7 +351,7 @@
     "clause.airUnmet": 0,
     "clause.unmatchedToReference": 0,
     "clause.checkedStructures": 75,
-    "clause.unmetStructures": 26,
+    "clause.unmetStructures": 21,
     "clause.struckStructures": 0,
     "clause.waivedStructures": 0,
     "value.soldiersLighterThanEngineer": 0,
@@ -2192,22 +2192,6 @@
         ""
       ],
       [
-        "patriot:dir",
-        "1x1",
-        "67x78",
-        2.438,
-        1.047,
-        ""
-      ],
-      [
-        "patriot:col",
-        "1x1",
-        "67x78",
-        2.438,
-        1.047,
-        ""
-      ],
-      [
         "airforce:dir",
         "3x2",
         "179x187",
@@ -2221,6 +2205,22 @@
         "179x187",
         2.338,
         1.119,
+        ""
+      ],
+      [
+        "patriot:dir",
+        "1x1",
+        "64x74",
+        2.313,
+        1,
+        ""
+      ],
+      [
+        "patriot:col",
+        "1x1",
+        "64x74",
+        2.313,
+        1,
         ""
       ],
       [
@@ -2238,14 +2238,6 @@
         2.219,
         1.193,
         "ref"
-      ],
-      [
-        "sentrygun:col",
-        "1x1",
-        "67x69",
-        2.156,
-        1.047,
-        ""
       ],
       [
         "power:dir",
@@ -2472,6 +2464,14 @@
         ""
       ],
       [
+        "sentrygun:col",
+        "1x1",
+        "56x59",
+        1.844,
+        0.875,
+        ""
+      ],
+      [
         "oilderrick:neut",
         "2x2",
         "131x118",
@@ -2608,14 +2608,6 @@
         "ref"
       ],
       [
-        "sentrygun:dir",
-        "1x1",
-        "67x50",
-        1.563,
-        1.047,
-        ""
-      ],
-      [
         "oilderrick:dir",
         "2x2",
         "131x100",
@@ -2740,6 +2732,14 @@
         "1x1",
         "54x46",
         1.438,
+        0.844,
+        ""
+      ],
+      [
+        "sentrygun:dir",
+        "1x1",
+        "54x44",
+        1.375,
         0.844,
         ""
       ],
@@ -3669,7 +3669,7 @@
         "unit": "sentry",
         "clause": "height over footprint strictly BELOW the Sentry Gun's (art.ini ranks Pillbox 1 against Sentry Gun 2)",
         "ok": true,
-        "measured": "pillbox 1.281 vs sentry gun 2.156",
+        "measured": "pillbox 1.281 vs sentry gun 1.844",
         "want": "pillbox < sentry gun",
         "note": "footprint height = Sh / ((gw+gh)*16), §2.5's diamond-height primitive Fh, both read on their own faction bake",
         "module": "structures.js",
@@ -3678,8 +3678,8 @@
       {
         "unit": "sentry",
         "clause": "[dir] exactly ONE bright plate, with the house lens centred on it and the lens the sprite's only saturated pixels",
-        "ok": false,
-        "measured": "8 bright blob(s); house px 323 of 1794 saturated px",
+        "ok": true,
+        "measured": "11 bright blob(s); house px 370 of 370 saturated px",
         "want": "1 bright blob; house px == all saturated px",
         "note": "\"centred on it\" (positional) not checked, only that the bright plate exists and that saturation is confined to house-hue pixels",
         "module": "structures.js",
@@ -3798,8 +3798,8 @@
       {
         "unit": "patriot",
         "clause": "[dir] exactly 4 tube mouths, countable, each a dark disc >= 2px at >= 25% contrast",
-        "ok": false,
-        "measured": "2 dark-outlier blob(s) at >=2px",
+        "ok": true,
+        "measured": "4 dark-outlier blob(s) at >=2px",
         "want": "4 blobs",
         "note": "",
         "module": "structures.js",
@@ -3809,7 +3809,7 @@
         "unit": "patriot",
         "clause": "[dir] one continuous house torus round the foot",
         "ok": true,
-        "measured": "545 house px",
+        "measured": "541 house px",
         "want": ">0 house px (\"continuous\"/\"round the foot\" not checked)",
         "note": "",
         "module": "structures.js",
@@ -3819,7 +3819,7 @@
         "unit": "patriot",
         "clause": "[dir] the sprite taller than wide",
         "ok": true,
-        "measured": "67x78",
+        "measured": "64x74",
         "want": "h > w",
         "note": "",
         "module": "structures.js",
@@ -3828,8 +3828,8 @@
       {
         "unit": "flakcannon",
         "clause": "[col] exactly 1 barrel — the Sentry Gun's two is the read against it — >=2px thick at >=25% contrast and the topmost mass",
-        "ok": false,
-        "measured": "6 bright crown blob(s) >=2px",
+        "ok": true,
+        "measured": "1 bright crown blob(s) >=2px",
         "want": "1 blob",
         "note": "",
         "module": "structures.js",
@@ -3849,7 +3849,7 @@
         "unit": "flakcannon",
         "clause": "the Height= ordering holds against the Sentry Gun (4 against 2)",
         "ok": true,
-        "measured": "flak 2.688 vs sentry gun 2.156",
+        "measured": "flak 2.688 vs sentry gun 1.844",
         "want": "flak > sentry gun",
         "note": "footprint-height ordering, §2.5's Fh primitive",
         "module": "structures.js",
@@ -3948,8 +3948,8 @@
       {
         "unit": "curtain",
         "clause": "[col] exactly ONE ring, unbroken and horizontal, in house hue",
-        "ok": false,
-        "measured": "2 house-coloured blob(s) >=0.20 Sw",
+        "ok": true,
+        "measured": "1 house-coloured blob(s) >=0.20 Sw",
         "want": "1 blob",
         "note": "\"unbroken and horizontal\" not separately checked beyond being one connected blob",
         "module": "structures.js",
@@ -3968,8 +3968,8 @@
       {
         "unit": "curtain",
         "clause": "[col] the ring's diameter greater than the orb's",
-        "ok": false,
-        "measured": "ring 61px vs orb 82px",
+        "ok": true,
+        "measured": "ring 142px vs orb 82px",
         "want": "ring >= orb",
         "note": "",
         "module": "structures.js",
