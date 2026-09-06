@@ -5956,11 +5956,11 @@
       // trooper, the Flak Trooper's cannon problem exactly. Armour plates are
       // where RA2 puts the budget back (rule 6: on the named part, in discrete
       // blocks), and they leave the olive leg zone reading as legs.
-      g.fillStyle = shade(col, 0.92);                                // thigh armour plates
-      g.beginPath(); g.roundRect(cx - 4.3, by - 12.2, 3.0, 3.0, 0.9); g.fill();
-      outline(g, shade(col, 0.42));
-      g.beginPath(); g.roundRect(cx + 1.3, by - 12.2, 3.0, 3.0, 0.9); g.fill();
-      outline(g, shade(col, 0.42));
+      g.fillStyle = shade(col, 0.15);                                // thigh armour plates
+      g.beginPath(); g.roundRect(cx - 4.3, by - 10.8, 3.0, 3.0, 0.9); g.fill();
+      outline(g, shade(col, 0.08));
+      g.beginPath(); g.roundRect(cx + 1.3, by - 10.8, 3.0, 3.0, 0.9); g.fill();
+      outline(g, shade(col, 0.08));
 
       // The vest runs collar-to-belt, not collar-to-sternum: the Guardian's
       // zone layout is steel helmet / house torso / olive legs, the same
