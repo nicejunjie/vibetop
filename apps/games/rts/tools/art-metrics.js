@@ -186,6 +186,19 @@ const RA2_SIZE_BAND = 0.25;
 // does not measure. It is kept below as `ht` for the record and for ORDERING
 // only, never as a target.
 //
+// AND THE ORDERING WAS TRIED, because it is the obvious way to cover the
+// structures that have no sprite: rank all 39 by `Height=`, rank ours by rise
+// above the diamond, and count the pairs where RA2 says A is at least two
+// cells taller than B and we draw A shorter. Measured: 87 inversions out of
+// 496 ordered pairs. It is NOT shipped as a gate, because it cannot tell a
+// defect from the same non-linearity above — the list it produces is led by
+// `lab:dir` (Height 12, rise 165) under `barracks:col` (Height 9, rise 182),
+// and the direct sprite comparison says BOTH of those are correct, at 1.08 and
+// 1.13 of the house scale. `[NAMISL]`'s Height=8 is a missile's clearance out
+// of a silo that is mostly below grade; `[GAGAP]`'s 6 is a mast. A gate whose
+// failures cannot be argued as defects is the thing this file exists not to
+// be. Recorded here so the next pass does not re-derive it.
+//
 // AND IT IS WHY THE TOWERS SURVIVE. A rule of the form "no building may be
 // more than N footprint-heights tall" would flatten the Tesla Coil and the
 // Prism Tower, which are towers and are SUPPOSED to be tall. This table does
