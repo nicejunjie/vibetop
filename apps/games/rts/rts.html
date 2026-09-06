@@ -16390,8 +16390,32 @@
       // gated; see the ra2Bld block. It is a TOWER and it is meant to be tall: the Prism Tower
       // beside it measures 3.94 against RA2's 3.47 and is left alone. See
       // RA2_BLD in tools/art-metrics.js.
-      var pW = 4.5;                                       // pylon half-width
-      var pyl = [[-19.4, -5, 29], [11.4, -5, 29], [-9.0, 6.5, 30], [19.2, 6.5, 30]];
+      // BUTTRESS SIZE IS THE HOUSE-FRACTION LEVER, and it was measured off the
+      // reference rather than guessed. §2.7 asks for ~40% house colour "carried
+      // by the buttresses"; a red-owner census of the committed 42x81
+      // `tesla-coil.gif` mask (s>=0.25, v>=0.20, hue within 20 deg) reads
+      // 668/1724 = 38.7%, its house pixels running rows 42..80 of 81
+      // (0.519-0.988 Sh) and peaking at 27 px of 42 = 0.643 Sw. Ours read
+      // 29.2% at pW 4.5 with the feet at -5/+6.5: the pylons were both
+      // narrower and shorter than the sprite's. pW 4.5 -> 5.6 takes the peak
+      // to 0.716 Sw and the far pair's feet from -5 to 0 (still 6.3 px inside
+      // the pad's own iso edge at that x) adds five rows of buttress where the
+      // pad is already opaque. 29.2% -> 35.3%.
+      //
+      // THE RESIDUAL 3 pp IS THE PAD, NOT THE PYLONS, and no amount of pylon
+      // is the right way to buy it. The reference's house runs to 0.988 Sh
+      // because RA2's sprite has NO ground plate — the pillars ARE the bottom
+      // of it. Ours stops at 0.864 Sh because `plot()` paints the cell this
+      // structure owns (the same convention that makes our wOverFoot 1.047
+      // against RA2's 0.700), so the bottom 14 rows are pad and can never be
+      // house. Two ways to close it were measured and both were rejected on
+      // sight: dropping ALL FOUR feet 4 px (36.4%) walks the front pair off
+      // the pad's iso edge so they hang in the air, and pW 6.0 (35.3% at a
+      // 0.776 Sw peak, 21% wider per row than the sprite's own) crowds the
+      // pillars into the central plant and closes the gaps the reference keeps
+      // open. 35.3% is inside the row's +-8 pp band with 3.3 pp to spare.
+      var pW = 5.6;                                       // pylon half-width
+      var pyl = [[-19.4, 0, 34], [11.4, 0, 34], [-9.0, 6.5, 30], [19.2, 6.5, 30]];
       var mTop = baseY - 26;                               // machinery deck
       var cB = baseY - 34, cT = baseY - 56;                // coil bottom / top
       var eY = baseY - 68, eR = 13.0;                      // electrode centre / radius
@@ -18604,7 +18628,31 @@
         g.fillStyle = '#8d9152'; g.fillRect(cx + 9, rdCy - 9, 4.4, 4.4);
 
         // ---- the trunnion lattice, the back-shell and the dish -------------
-        var rdR = 45, rdRv = 44, rdDx = cx + 2, rdDy = baseY - 96;
+        // DISH PROPORTION, RE-MEASURED off the committed alpha rip rather than
+        // off the eye. `docs/ra2-ref/soviet-radar-tower-idle.png` carries a
+        // baked magenta ground shadow; drop those pixels and its opaque bbox
+        // is exactly the 90x125 this block's header cites. Its own rowProfile
+        // then reads a dish of rows 0..57 peaking at 61 px, a 29 px trunnion
+        // pinch at row 58, and a mound from row 80 — i.e. dish 0.678 Sw,
+        // mass aspect 1.052, dish bottom at 0.456 Sh.
+        //
+        // Ours measured 0.710 Sw, aspect 0.921 and a bottom at 0.518 Sh: the
+        // dish read TALLER than wide and hung a third of the way down the
+        // sprite, and the cause was not the face at all — it was the
+        // back-shell, which was offset `rdDy + 30` with a 25 px vertical
+        // radius and so hung 11 px BELOW the face's own bottom rim. On the
+        // rip the back-shell is tucked, peeking below-RIGHT and ending level
+        // with the face. Tucking it to `rdDy + 22` r24x22 and taking rdR/rdRv
+        // 45/44 -> 43/39 gives 0.695 Sw, aspect 1.071 and a bottom at
+        // 0.447 Sh — inside all three of §2.6's numbers and within 3% of the
+        // rip on each.
+        //
+        // MEASURE IT OFF THE PINCH, NOT OFF `art-metrics`. The `radar:col`
+        // clauses cannot see any of this: their dish predicate admits the
+        // whole connected sprite, so they report Sw 1.000 and aspect 0.757
+        // both before and after (docs/design-decisions.md). The numbers above
+        // come from the sprite's own narrowest row between 30% and 75% of Sh.
+        var rdR = 43, rdRv = 39, rdDx = cx + 2, rdDy = baseY - 96;
         g.fillStyle = RDR_IRN;                               // tapering trunnion
         g.beginPath();
         g.moveTo(cx - 15, rdCy - 8); g.lineTo(cx + 15, rdCy - 8);
@@ -18626,16 +18674,16 @@
         g.beginPath();
         g.moveTo(cx + 12, rdCy - 9); g.lineTo(rdDx - 7, rdDy + 33); g.stroke();
         g.fillStyle = '#3f444c';                             // back-shell, offset down-right
-        g.beginPath(); g.ellipse(rdDx + 20, rdDy + 30, 26, 25, 0, 0, 6.29); g.fill();
+        g.beginPath(); g.ellipse(rdDx + 22, rdDy + 22, 24, 22, 0, 0, 6.29); g.fill();
         outline(g, RDR_IRND);
         g.fillStyle = 'rgba(0,0,0,.36)';
-        g.beginPath(); g.ellipse(rdDx + 27, rdDy + 35, 17, 15, 0, 0, 6.29); g.fill();
+        g.beginPath(); g.ellipse(rdDx + 28, rdDy + 26, 16, 14, 0, 0, 6.29); g.fill();
         g.strokeStyle = 'rgba(20,24,30,.55)'; g.lineWidth = 1.4;
         for (var rdBkI = 0; rdBkI < 4; rdBkI++) {
           var rba = rdBkI / 4 * 3.14 + 0.4;
           g.beginPath();
-          g.moveTo(rdDx + 20 - Math.cos(rba) * 25, rdDy + 30 - Math.sin(rba) * 24);
-          g.lineTo(rdDx + 20 + Math.cos(rba) * 25, rdDy + 30 + Math.sin(rba) * 24);
+          g.moveTo(rdDx + 22 - Math.cos(rba) * 23, rdDy + 22 - Math.sin(rba) * 21);
+          g.lineTo(rdDx + 22 + Math.cos(rba) * 23, rdDy + 22 + Math.sin(rba) * 21);
           g.stroke();
         }
         // the face: pale panelled silver, dark navy over the upper-left sector
@@ -18708,10 +18756,10 @@
         // the feed mast: one thin bar through the hub and out past the rim
         g.strokeStyle = '#181c24'; g.lineWidth = 2.6;
         g.beginPath(); g.moveTo(rdDx - 1, rdDy - rdRv * 0.24);
-        g.lineTo(rdDx - 1, rdDy + rdRv * 1.14); g.stroke();
+        g.lineTo(rdDx - 1, rdDy + rdRv * 1.06); g.stroke();
         g.strokeStyle = '#484f5c'; g.lineWidth = 1.1;
         g.beginPath(); g.moveTo(rdDx - 2.2, rdDy - rdRv * 0.22);
-        g.lineTo(rdDx - 2.2, rdDy + rdRv * 1.10); g.stroke();
+        g.lineTo(rdDx - 2.2, rdDy + rdRv * 1.03); g.stroke();
         // the domed hub, with the house crescent on its left flank
         g.fillStyle = '#3c424c';
         g.beginPath(); g.ellipse(rdDx + 1, rdDy - rdRv * 0.30, 10.4, 9.8, 0, 0, 6.29); g.fill();
