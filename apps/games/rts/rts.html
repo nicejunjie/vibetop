@@ -16390,8 +16390,32 @@
       // gated; see the ra2Bld block. It is a TOWER and it is meant to be tall: the Prism Tower
       // beside it measures 3.94 against RA2's 3.47 and is left alone. See
       // RA2_BLD in tools/art-metrics.js.
-      var pW = 4.5;                                       // pylon half-width
-      var pyl = [[-19.4, -5, 29], [11.4, -5, 29], [-9.0, 6.5, 30], [19.2, 6.5, 30]];
+      // BUTTRESS SIZE IS THE HOUSE-FRACTION LEVER, and it was measured off the
+      // reference rather than guessed. §2.7 asks for ~40% house colour "carried
+      // by the buttresses"; a red-owner census of the committed 42x81
+      // `tesla-coil.gif` mask (s>=0.25, v>=0.20, hue within 20 deg) reads
+      // 668/1724 = 38.7%, its house pixels running rows 42..80 of 81
+      // (0.519-0.988 Sh) and peaking at 27 px of 42 = 0.643 Sw. Ours read
+      // 29.2% at pW 4.5 with the feet at -5/+6.5: the pylons were both
+      // narrower and shorter than the sprite's. pW 4.5 -> 5.6 takes the peak
+      // to 0.716 Sw and the far pair's feet from -5 to 0 (still 6.3 px inside
+      // the pad's own iso edge at that x) adds five rows of buttress where the
+      // pad is already opaque. 29.2% -> 35.3%.
+      //
+      // THE RESIDUAL 3 pp IS THE PAD, NOT THE PYLONS, and no amount of pylon
+      // is the right way to buy it. The reference's house runs to 0.988 Sh
+      // because RA2's sprite has NO ground plate — the pillars ARE the bottom
+      // of it. Ours stops at 0.864 Sh because `plot()` paints the cell this
+      // structure owns (the same convention that makes our wOverFoot 1.047
+      // against RA2's 0.700), so the bottom 14 rows are pad and can never be
+      // house. Two ways to close it were measured and both were rejected on
+      // sight: dropping ALL FOUR feet 4 px (36.4%) walks the front pair off
+      // the pad's iso edge so they hang in the air, and pW 6.0 (35.3% at a
+      // 0.776 Sw peak, 21% wider per row than the sprite's own) crowds the
+      // pillars into the central plant and closes the gaps the reference keeps
+      // open. 35.3% is inside the row's +-8 pp band with 3.3 pp to spare.
+      var pW = 5.6;                                       // pylon half-width
+      var pyl = [[-19.4, 0, 34], [11.4, 0, 34], [-9.0, 6.5, 30], [19.2, 6.5, 30]];
       var mTop = baseY - 26;                               // machinery deck
       var cB = baseY - 34, cT = baseY - 56;                // coil bottom / top
       var eY = baseY - 68, eR = 13.0;                      // electrode centre / radius
