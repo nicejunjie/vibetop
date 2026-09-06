@@ -352,8 +352,8 @@ is gone at `ZMIN = 0.55`; see requirement R1.
 | `nighthawk` Nighthawk | `[SHAD]`, 64x**21**, aspect **3.05** | **The flattest airframe** — two overlapping tandem rotor discs whose blades are 1-2 px lines spanning past the fuselage. | L | ~~rotor span >= 1.25x fuselage length~~ (**impossible with our blur disc, see below**); blades 2 px with >= 40% value contrast; fuselage height <= 0.35 x length |
 | `harrier` Harrier | `[ORCA]`, 71x44 span | **A broad swept delta wing**, no rotor — the only fixed-wing Directorate airframe. Empty racks after firing are a second state. | L | wing span >= 1.5x fuselage width; wing >= 5 px chord at the root; nose cone >= 4 px |
 | `hornet` Hornet | `[HORNET]`, 27x15, **not remapped** | **The smallest thing that flies** — half a Harrier. Identity is size, not detail. | XS | total span <= 0.45x the Harrier's; do not add detail it cannot carry |
-| `mcv` MCV (shared) | `[AMCV]`, 69x47 | **The biggest ground vehicle that is not a ship** — a slab-sided works body, no weapon, no turret. | L | >= 1.20x the widest tank; zero barrel, zero turret ring |
-| `destroyer` Destroyer | `[DEST]`, 101x41 | A long hull with a **forward gun turret and an aft helipad** (its Osprey). | XL | length >= 1.7x any land vehicle; one turret forward of amidships |
+| `mcv` MCV (shared) | `[AMCV]`, 69x47 | **The biggest ground vehicle that is not a ship** — a slab-sided works body, no weapon, no turret. | L | >= 1.17x the widest tank; zero barrel, zero turret ring |
+| `destroyer` Destroyer | `[DEST]`, 101x41 | A long hull with a **forward gun turret and an aft helipad** (its Osprey). | XL | length >= 1.46x any land vehicle; one turret forward of amidships |
 | `aegis` Aegis Cruiser | `[AEGIS]`, 91x35 | **A big flat-panel radar face and missile cells, no gun barrel** — the visual "it cannot shoot the shore". | XL | radar panel >= 8x8 px, vertical; explicitly no barrel |
 | `carrier` Aircraft Carrier | `[CARRIER]`, **143x52** — the largest sprite in RA2 | **A flat flight deck the full length of the hull** with three Hornets parked on it. | XL, largest | deck a single unbroken flat plane >= 80% of length; 3 visible parked airframes |
 | `dolphin` Dolphin | `[DLPH]`, `Voxel=no` (SHP) | **Organic** — a curved body with a dorsal fin, no straight lines; submerged most of the time (only the wake ring shows, `rts.html:29355-29360`). | S | no orthogonal edges anywhere; fin >= 3 px above the back |
@@ -382,6 +382,38 @@ is gone at `ZMIN = 0.55`; see requirement R1.
 > `peerVsSelf.air` binds first: the two masks are alike enough that once
 > their sizes converge the Nighthawk beats the Harrier's own rotations. The
 > spread's arithmetic floor is 1.190, the Hornet:Kirov ratio.
+
+> **Two ratios CORRECTED 2026-09-06, and both were above RA2's own.** The
+> Destroyer's row read *"length >= 1.7x any land vehicle"* and the MCV's
+> *">= 1.20x the widest tank"*. Neither number came off RA2; both are above it,
+> and the numbers that disprove them are in §1.1 and in the second column of
+> the two rows themselves.
+>
+> * **Destroyer.** `[DEST]` is 101 px and the widest land vehicle in §1.1 is
+>   `[AMCV]` at 69 px, so **RA2's own ratio is 1.46**. The row asked for 16%
+>   more separation than the game it cites, which made it unclosable by
+>   fidelity — reachable only by drawing a fleet RA2 does not have. Corrected
+>   to 1.46, **and it is still UNMET at 0.848**, because the real defect is the
+>   SIGN: our Destroyer is shorter than our MCV. That 0.848 is exactly
+>   `1.46 x (naval bake scale 0.881 / MCV bake scale 1.522)` to four decimals,
+>   i.e. the clause is a pure CROSS-GROUP SCALE probe, and the thing that
+>   actually holds it is `size.crossGroupSpread`. Correcting the threshold
+>   closes nothing and is not meant to.
+> * **MCV.** `[AMCV]` is 69 px and RA2's widest tank is 59 (`[MTNK]`, `[RTNK]`
+>   and `[SREF]` all tie there), so **RA2's own ratio is 1.17**. Corrected, and
+>   **still UNMET at 1.154** — 0.987 of RA2's own. The residual is not a
+>   statement about the MCV: it equals `mcvScale / prismScale`, the two most
+>   oversized vehicles on the board (+19.8% and +21.5% of the vehicle group
+>   scale) measured against each other.
+>
+> Both ceilings were MEASURED rather than argued and are written up in
+> `per-unit-art-log.md`. A row stating a ratio above RA2's own is the one kind
+> of clause that punishes fidelity, which is why these thresholds are now
+> DERIVED from §1.1's bboxes inside the check instead of written as literals.
+>
+> **The Chrono Miner's `height <= 0.55 x length` was NOT changed.** It was
+> being measured at a bearing where height-over-length does not exist; 0.55
+> stands and the unit meets it at 0.522. Same file.
 
 ### 2.4 Collective vehicles and aircraft
 

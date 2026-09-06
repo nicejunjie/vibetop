@@ -1026,6 +1026,13 @@ function compute(recs) {
     const dir = path.join(__dirname, 'clause-checks');
     const ctx = {
       units: unit, recs, meta, grp, round,
+      // RA2's own sprite bboxes (§1.1), so a check can DERIVE a threshold from
+      // the reference instead of hardcoding one somebody chose. Two §2 rows
+      // turned out to state ratios ABOVE the game they cite — the Destroyer's
+      // "1.7x any land vehicle" against RA2's own 101/69 = 1.46, and the MCV's
+      // "1.20x the widest tank" against RA2's own 69/59 = 1.17 — and neither
+      // was catchable while the number lived in the check as a literal.
+      ra2Bbox: RA2_BBOX,
       byUnitOct(k, o) {
         const r = recs.find((q) => q.key === k && q.oct === o);
         if (!r) return null;

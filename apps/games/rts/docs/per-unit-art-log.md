@@ -2017,3 +2017,211 @@ RA2's bar **371 -> 375**, DPR 2 **146 -> 148**; Collective **458 -> 462**, DPR 2
 and the map gate — the player-facing one — improved. Four bigger vehicles and
 one smaller one shift a sidebar of 780 pairs by four; it is noise at the tail,
 but it is the direction that has to be watched, so it is written down.
+
+# THREE §2 CLAUSES THAT ALL BUMP INTO SCALE — closed 2026-09-06
+
+`destroyer` "length >= 1.7x any land vehicle" (0.848), `mcv` ">= 1.20x the
+widest tank" (1.154) and `chronominer` "height <= 0.55 x length" (0.582). They
+were handed over as one problem seen three times. **They are two problems seen
+three times, and NOT ONE OF THE THREE IS AN ART DEFECT.**
+
+* Two of them state a ratio the game they cite **does not reach**. RA2's own
+  Destroyer is 1.46x its own widest land vehicle, not 1.7; RA2's own MCV is
+  1.17x its own widest tank, not 1.20. Both numbers were invented, and both are
+  in the direction that punishes fidelity — you can only reach them by drawing
+  further from RA2 than you already are.
+* The third was **measured at a bearing where the quantity it names does not
+  exist**. It is a check bug and 0.55 was never the problem.
+
+**Nothing regressed and no art moved.** `clause.unmet` 6 -> 5,
+`clause.vehicleUnmet` 5 -> 4; **every other one of the 47 metrics is
+byte-identical**, which is the null result that proves these are check-and-
+reference edits and not art edits. `clause.unmatchedToReference` stays 0 and all
+four touched rows report `refMatch` 1.00 against the corrected §2 text.
+
+| unit | clause | before | after | what changed |
+|---|---|---|---|---|
+| `chronominer` | height <= 0.55 x length | 0.582 **UNMET** | **0.522 MET** | the CHECK's bearing. Threshold and art untouched |
+| `mcv` | >= 1.20x -> **1.17x** the widest tank | 1.154 UNMET | 1.154 **still UNMET** | the THRESHOLD, re-derived from §1.1. Art untouched |
+| `destroyer` | length >= 1.7x -> **1.46x** any land vehicle | 0.848 UNMET | 0.848 **still UNMET** | the THRESHOLD, re-derived from §1.1. Art untouched |
+
+## The Chrono Miner is a CHECK BUG, and the sweep is the proof
+
+`ctx.broadsideOct` is **"the widest octant"**, used everywhere as a stand-in for
+"broadside". It is a PROXY, and it fails for any ground body whose beam exceeds
+0.414 x its length. Under this camera the screen width at the diagonal octant is
+`ISO_X x (L + W)` and at the true side-on octant `ISO_X x L x sqrt(2)`, so the
+diagonal is wider whenever `L + W > L x sqrt(2)`. The Chrono Miner is
+**len 27 / wid 18** — beam 0.67 of length — so its widest bearing is the
+diagonal, and its `broadsideOct` is **0, not 3**. Measured across the roster:
+`lancer`, `rhino`, `mammoth`, `v3`, `destroyer`, `carrier`, `aegis`, `sub`,
+`dread`, `seascorp` and `squid` are widest at octant 3; `chronominer`, `mcv`,
+`prismtank`, `mirage`, `teslatank`, `ifv`, `flaktrack`, `warminer` and `drone`
+at octant 0. **The two halves of the roster are not being measured in the same
+quantity, and only a "height <= k x LENGTH" clause can tell.**
+
+At the diagonal octant a flat ground body projects to `h/w = ISO_Y/ISO_X`
+= **0.500 exactly, for any L and any W**. So the number there is
+superstructure-over-`(L+W)`; it is not height over length and cannot be.
+
+**Swept `len` 24 / 27 / 31 / 35 to prove it rather than argue it:**
+
+| harv `len` | widest octant (0) | hull broadside (3) | oct-3 bbox |
+|---|---|---|---|
+| 24 | 0.608 | 0.558 | 43x24 |
+| **27 (shipped)** | **0.582** | **0.522** | **46x24** |
+| 31 | 0.593 | 0.444 | 54x24 |
+| 35 | 0.569 | 0.400 | 60x24 |
+
+A **46% lengthening** moves the gated number by 6% and **NON-MONOTONICALLY**
+(down, up, down), while the hull-broadside number falls 28% in a straight line
+with **the bbox height pinned at 24 px through the entire sweep**. Height and
+length are cleanly separated at one bearing and inseparable at the other. That
+is the whole argument, and it is also the explanation of this file's own
+recorded paradox — *"LENGTHENING the truck makes it WORSE, 0.582 -> 0.596"*.
+That was not a finding. It was **noise on an axis with no signal**, and it read
+as a paradox because a clause about length must get easier as length grows.
+
+**The fix is `hullBroadsideOct` in `vehicle.js`: the most ELONGATED octant
+(max w/h), scoped to the two "height <= k x length" rows only.** `broadsideOct`
+is untouched — it is what §1.1's RA2 bboxes are compared against and the whole
+ratchet stands on it. This is the precedent naval-air.js already set ("three
+clauses need a different bearing and each says which and why").
+
+**The NULL CONTROL is built into the fix.** The Grizzly carries the
+identically-shaped clause, *"hull height <= 0.45 x length"*, and for that unit
+the widest octant and the most-elongated one are the SAME (3), so its number is
+**unchanged at 0.423**. A bearing rule that moved a unit it had no business
+moving would show up on that row first.
+
+**RA2's [CMIN] cannot be used against this, and the reason is the same
+arithmetic.** 55x28 = **0.509** — within half a pixel of the 0.500 diagonal pin.
+That frame is itself a diagonal one ([CMIN] is `Voxel=yes`; §1.1 records one
+rendered frame at an unstated bearing), which is also why the previous pass
+found it "leaves 0.5 px for a truck with a bin on it" and correctly refused to
+believe it. The reference figure was never a side view.
+
+## Both ratio rows ask for more than RA2 has
+
+The two clauses have the identical shape, and both decompose exactly:
+
+    measured  =  RA2's own ratio  x  (our bake scale of A / our bake scale of B)
+
+| | RA2's own | §2 asked | ours | = RA2's x | scale factor |
+|---|---|---|---|---|---|
+| destroyer / widest land vehicle | 101/69 = **1.464** | 1.70 | **0.848** | 0.579 | naval 0.8812 / mcv 1.5217 = **0.5791** |
+| mcv / widest tank | 69/59 = **1.169** | 1.20 | **1.154** | 0.987 | mcv 1.5217 / prism 1.5424 = **0.9866** |
+
+Both hold to four decimals. **Neither clause is measuring the unit it names.**
+The Destroyer row is a CROSS-GROUP scale probe and the MCV row is a
+WITHIN-GROUP one; the units themselves are innocent.
+
+**Robustness, because a 2.6% claim needs it.** RA2 reaching 1.20 would need
+[AMCV] at 71 px or its widest tank at 57 — three tanks tie at 59 ([MTNK],
+[RTNK], [SREF]), so no single-pixel reading gets there. The Destroyer's is not
+close enough to need the check: 1.7 needs a 118 px [DEST] against RA2's 101.
+
+Both thresholds are now **DERIVED IN THE CHECK from `RA2_BBOX`** (newly exposed
+as `ctx.ra2Bbox`) rather than written as literals, so the next invented number
+has to survive being compared with the reference on every run. §2.3's rows and
+`clause-inventory.md` carry the corrected figures and a blockquote with the
+working, beside the Nighthawk's struck clause.
+
+**Correcting them closed NOTHING, which is the point.** Both rows are still
+UNMET, `clause.navalUnmet` is still 1 and the MCV is still one of four unmet
+vehicle rows. A threshold correction that made a row go green would be the exact
+move this file exists to prevent.
+
+## The two MCV ceilings, measured rather than trusted
+
+Both were handed over as recorded arithmetic. Both were re-run, and **one of
+them is worse than recorded.**
+
+* **Grow the MCV — the 109 px cap is REAL.** `len` 36 -> 39 takes it 105 -> 110
+  px and trips `size.vehicleOutsideRA2Band` **0 -> 1**, exactly where the
+  arithmetic puts it (group scale 1.2698 x band 1.25 x RA2's 69 = 109.5).
+* **Shrink the Prism — the recorded cost reproduces AND the row still fails.**
+  `VSC.spectre` 1.460 -> 1.396 takes it 91 -> 88 px, and costs
+  `iou.groundCombat.mean` **0.4652 -> 0.4711** and `mass.tightestBand6`
+  **2.208 -> 2.149**, both past their ratchets. At prism 88 the ratio is
+  **1.193 — still under 1.20**. The recorded framing, *"misses by ONE PIXEL of
+  Prism Tank"*, understates it: 1.20 needs the widest tank at **87 px or
+  under**, at which point the **Apocalypse (87 px) becomes the binding tank**
+  and the margin is 0.7%. There is no one-pixel move here.
+
+  **A NULL RESULT CAUGHT A NON-LANDING EDIT.** The first attempt added
+  `prismtank: 0.960` to `VSC` and every metric came back byte-identical. The
+  Prism Tank's bake `kind` is **`spectre`**, not `prismtank` — `VSC` and the
+  `len`/`wid` ternaries are keyed on the bake kind, not the `UNITS` key, and
+  `spectre` was already in the table at 1.460. Grep for the value, not the
+  intent.
+
+* **And growing the MCV was the wrong direction anyway.** It is already **+19.8%
+  over the vehicle group scale**, second only to the Prism's +21.5%. Closing a
+  row that asks "is the MCV bigger than the tanks" by enlarging the
+  second-most-oversized vehicle so it out-grows the most-oversized one is
+  satisfying a number against the fidelity the row exists to protect.
+
+## The finding underneath all three, and it is bigger than the fleet
+
+The brief framed this as the cross-group scale spread — infantry 1.417 /
+vehicle 1.270 / air 0.973 / **naval 0.881**, a 1.607x spread that
+`size.crossGroupSpread` holds. True, and it is what makes our Destroyer shorter
+than our MCV. But the vehicle group's OWN internal spread is
+**0.9556 to 1.5424 = 1.614x — the same magnitude as the entire cross-group
+spread** — and it passes `size.vehicleOutsideRA2Band` with a 0, because the band
+is +-25% around the group MEDIAN and the extremes sit at -24.7% (Flak Track) and
++21.5% (Prism) — both just inside.
+
+| naval — the good group | | vehicle — the ragged one | |
+|---|---|---|---|
+| dread | 0.872 | flaktrack | 0.956 |
+| sub | 0.880 | lancer | 0.963 |
+| destroyer | 0.881 | chronominer | 1.000 |
+| seascorp | 0.881 | ifv | 1.060 |
+| squid | 0.889 | rhino | 1.161 |
+| aegis | 0.901 | warminer | 1.232 |
+| carrier | 0.923 | v3 | 1.270 |
+| | | mirage / drone / teslatank | 1.322 / 1.333 / 1.346 |
+| **spread 1.058x** | | mammoth / mcv / prismtank | 1.475 / 1.522 / **1.542** |
+| | | **spread 1.614x** | |
+
+So "the fleet is drawn 0.69 of the vehicles' scale" is only half true: the fleet
+is drawn at 0.88, the SMALL vehicles at 0.96-1.00 (i.e. essentially the same
+scale as the fleet), and the BIG vehicles at 1.47-1.54. **The Grizzly and the
+Destroyer are at the same scale as each other.** What actually makes a destroyer
+shorter than a tank is that our big vehicles are drawn half again as large as
+RA2 draws them, and the fleet is not.
+
+That reframes the closure condition. Rescaling the fleet up by 1.727x to reach
+1.46 — Carrier 228 px on a 150 px sheet — is not the only option and is not the
+cheapest one; bringing the vehicle group's own spread toward the fleet's 1.06x
+would move the same number and would be a fidelity gain on its own terms. It is
+also a bigger and more disruptive change than either clause justifies: every
+vehicle's footprint on the map, every `peerVsSelf` and `iou` pair, and the
+`mass.*` ladder all move with it. **Left as a whole-roster decision, stated with
+the numbers rather than started.** The gate that stops it growing silently
+already exists (`size.crossGroupSpread`, ratcheted 1.607); the thing that does
+NOT exist is a gate on a single group's internal spread, and `vehSpread` /
+`navalSpread` are already computed in `art-metrics.js` as `detail` — promoting
+one to a ratcheted metric is a one-line change for whoever takes that decision.
+
+## Tried and rejected
+
+| lever | measured | verdict |
+|---|---|---|
+| MCV `len` 36 -> 39 (105 -> 110 px) | closes 1.20 at 1.209 | **rejected** — `size.vehicleOutsideRA2Band` 0 -> 1 |
+| MCV `len` 36 -> 37 (~107 px) | would clear the corrected 1.17 | **rejected** — nudging art over a bar I had just lowered is the move the brief forbids, and it grows a +19.8% unit |
+| Prism `VSC` 1.460 -> 1.396 (91 -> 88 px) | ratio 1.193, still unmet | **rejected** — `iou.groundCombat.mean` 0.4711, `mass.tightestBand6` 2.149 |
+| Prism `VSC` keyed as `prismtank` | every metric identical | **the edit never landed** — the bake kind is `spectre` |
+| making `broadsideOct` itself max-aspect globally | would move `mcv`, `teslatank`, `warminer`, `flaktrack` off their current bearing | **rejected** — every `aspect.*`, `size.*` and `iou` number and the whole ratchet are built on the widest-octant convention. Scoped to the two length clauses instead |
+| striking the Destroyer row outright (Nighthawk precedent) | — | **rejected** — the Nighthawk's three requirements were mutually exclusive; 1.7 is merely WRONG. Striking would have deleted a live, correctly-signalling defect to take `clause.navalUnmet` to 0 |
+| rescaling the fleet 1.727x to reach 1.46 | Carrier 228 px on a 150 px sheet | **not taken** — spends the board's best-proportioned group; a whole-roster decision |
+
+## Legibility, checked both ways, because the gates are not independent
+
+`legibility.js` and `cameo-legibility.js` were run because a size pass that
+never opened `legibility.js` is how the Attack Dog's shrink shipped and was
+reverted. Nothing in this pass touches a pixel, so both are expected to be
+identical — and they are, which is the point: it is the null result that proves
+the whole pass is check-and-reference only.

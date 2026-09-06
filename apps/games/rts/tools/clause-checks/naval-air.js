@@ -188,6 +188,14 @@ exports.check = function (ctx) {
   // §2.3 Destroyer: "length >= 1.7x any land vehicle".
   // The strict reading ("any" = every) is the only one with content; the
   // existential reading is satisfied by the Terror Drone and says nothing.
+  //
+  // THE THRESHOLD IS DERIVED FROM RA2 AND THE ROW'S 1.7 IS ABOVE IT. §1.1 —
+  // and the second column of this very row — gives [DEST] 101x41 and [AMCV]
+  // 69x47, so RA2's own destroyer is 1.46x its own widest land vehicle. The
+  // sentence asked for 16% more separation than the game it cites, which means
+  // the literal row was unclosable by fidelity: you could only reach it by
+  // drawing a fleet RA2 does not have. Corrected 2026-09-06, and it is STILL
+  // UNMET by a mile, which is why correcting it is not a closure — see below.
   {
     const veh = Object.keys(ctx.units).filter((k) => ctx.units[k].group === 'vehicle');
     let big = null;
@@ -206,22 +214,37 @@ exports.check = function (ctx) {
       return v.length % 2 ? v[(v.length - 1) / 2] : (v[v.length / 2 - 1] + v[v.length / 2]) / 2;
     };
     const sn = scaleOf('naval'), sv = scaleOf('vehicle');
+    // RA2's own ratio, computed from §1.1 rather than chosen by anybody
+    const rb = ctx.ra2Bbox || {};
+    const ra2Veh = Math.max(...veh.map((k) => (rb[k] ? rb[k][0] : 0)));
+    const want = rb.destroyer && ra2Veh ? rb.destroyer[0] / ra2Veh : 1.7;
+    // the two bake scales that fully explain the measured number
+    const sD = W('destroyer') / rb.destroyer[0], sB = W(big) / rb[big][0];
     rows.push({
-      unit: 'destroyer', clause: 'length >= 1.7x any land vehicle',
-      ok: ratio >= 1.7, measured: R(ratio, 3), want: '>= 1.70x',
+      unit: 'destroyer', clause: 'length >= 1.46x any land vehicle',
+      ok: ratio >= want, measured: R(ratio, 3), want: '>= ' + R(want, 2) + 'x',
       note: `destroyer ${W('destroyer')} px broadside against the widest land vehicle, `
           + `${ctx.units[big].name} at ${W(big)} px — she is SHORTER than a tank. `
-          + 'THE CEILING IS ARITHMETIC AND THE ROW IS ABOVE IT: RA2\'s own [DEST] is 101 px '
-          + 'against [AMCV]\'s 69 = 1.46, so RA2 does not meet 1.7 either, and 1.7 here would '
-          + 'need a 179 px hull (Carrier 264 px on a 150 px sheet). What IS a real defect is '
-          + `the sign, and it has a measured cause: the fleet is baked at ${R(sn, 3)}x RA2's own `
-          + `sprite widths while the ground vehicles sit at ${R(sv, 3)}x — a ${R(sv / sn, 2)}x `
-          + 'CROSS-GROUP scale mismatch that NEITHER size gate can see, because '
+          + `THE THRESHOLD IS RA2'S OWN, DERIVED: [DEST] ${rb.destroyer[0]} px over the widest `
+          + `RA2 land vehicle ([AMCV] ${ra2Veh} px) = ${R(want, 3)}. §2.3 stated 1.7x, 16% ABOVE `
+          + 'the game the row cites, and 1.7 would need a 179 px hull (Carrier 264 px on a 150 px '
+          + 'sheet). CORRECTING IT CLOSES NOTHING AND IS NOT MEANT TO: at '
+          + `${R(ratio, 3)} the row is still unmet by a factor of ${R(want / ratio, 2)}, and the `
+          + 'SIGN is the defect. '
+          + 'WHAT THIS CLAUSE ACTUALLY MEASURES is the cross-group bake scale, exactly: our '
+          + `${R(ratio, 3)} = RA2's ${R(want, 3)} x (destroyer scale ${R(sD, 4)} / `
+          + `${ctx.units[big].name} scale ${R(sB, 4)}), to four decimals. The fleet is baked at `
+          + `${R(sn, 3)}x RA2's own sprite widths while the ground vehicles sit at ${R(sv, 3)}x — `
+          + `a ${R(sv / sn, 2)}x CROSS-GROUP mismatch that NEITHER size gate can see, because `
           + '`size.navalOutsideRA2Band` and `size.vehicleOutsideRA2Band` both normalise against '
-          + 'their own group\'s median. Closing even the sign of this clause means rescaling a '
-          + 'whole group; the fleet is the board\'s best group (spread 1.06x, every hull within '
-          + '5% of its scale) and 1.21x on it puts the Carrier at 160 px on a 150 px sheet. '
-          + 'Left UNMET on purpose rather than closed by moving a threshold. per-unit-art-log.md.',
+          + 'their own group\'s median. `size.crossGroupSpread` exists to hold it and is '
+          + 'ratcheted at 1.607. '
+          + 'CLOSING IT IS A WHOLE-ROSTER DECISION AND IS DELIBERATELY NOT TAKEN HERE: even the '
+          + `faithful ${R(want, 2)} needs a ${Math.round(want * W(big))} px destroyer, i.e. `
+          + `${R(want * W(big) / W('destroyer'), 3)}x on the fleet, which puts the Carrier at `
+          + `${Math.round(W('carrier') * want * W(big) / W('destroyer'))} px on a 150 px sheet — `
+          + 'and it spends the board\'s best-proportioned group (7 hulls, spread 1.06x, every '
+          + 'hull within 5% of its scale) to do it. Left UNMET on purpose. per-unit-art-log.md.',
     });
   }
 
