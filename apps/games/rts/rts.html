@@ -16833,15 +16833,17 @@
 
         // ---- the octagonal repair pad --------------------------------------
         var sdX = cx + fw * 0.08, sdY = baseY + fh * 0.10;
-        // sdB flattened 0.72->0.20: with the shared full-height platform now
-        // skipped for `depot` (structures.js's "flat pad >= 0.50 Sw wide
-        // carrying zero mass" clause), THIS octagon is the pad's only ground
-        // silhouette, and an octagon's flat-topped cross-section means its
-        // rendered column height is close to 2*sdB across nearly the whole
-        // width, not tapering like a diamond's point. So sdB has to be
-        // genuinely thin -- a painted floor marking, not a solid disc -- for
-        // most of the width to register as "carrying zero mass".
-        var sdR = fw * 0.72, sdB = fh * 0.20;
+        // sdB flattened 0.72->0.20->0.15: with the shared full-height
+        // platform now skipped for `depot` (structures.js's "flat pad >=
+        // 0.50 Sw wide carrying zero mass" clause), THIS octagon is the
+        // pad's only ground silhouette, and an octagon's flat-topped
+        // cross-section means its rendered column height is close to
+        // 2*sdB*VS across nearly the whole width, not tapering like a
+        // diamond's point. At 0.20, VS (1.1667 for depot:col's 4x3 plot)
+        // plus the shadow-offset duplicate and outline stroke still
+        // measured ~31px per column -- 16% over the clause's 0.15*Sh=26.8
+        // threshold. 0.15 clears it with margin.
+        var sdR = fw * 0.72, sdB = fh * 0.15;
         var sdOct = function (ox, oy, rx, ry) {
           g.beginPath();
           for (var soI = 0; soI < 8; soI++) {
@@ -17032,8 +17034,22 @@
           g.beginPath(); g.moveTo(smsx + 6.5, m0); g.lineTo(smsx - 6.5, m1); g.stroke();
         }
 
+        // Jib reach shortened 0.86->0.42->0.30: structures.js's [col]
+        // padFrac clause counts a column's TOTAL opaque pixels
+        // top-to-bottom, not just its ground band, so the boom's own
+        // strut/lattice/stay-cable silhouette riding high over a column
+        // adds directly onto that column's own pad-floor count even
+        // though the two never touch on screen. At 0.86 the boom swept
+        // out across nearly half the sprite's width; measured at 0.42 the
+        // tip (with the hook masked out) still landed inside the tall
+        // zone, leaving the works+boom's combined width at 54.9% Sw --
+        // just over the "confined to <=0.50 Sw" cap. Pulling the tip to
+        // 0.30 keeps it clear of the mast's own footprint (still visibly
+        // swinging out past the mast) while moving its convergence point
+        // fully into the works' existing tall region instead of adding a
+        // new tall column past it.
         var sdSlew = anS * 0.055;                                   // the jib swings
-        var sdJx = smsx + fw * 0.86 * Math.cos(sdSlew) , sdJy = smsTop + 34 + fw * 0.86 * Math.sin(sdSlew);
+        var sdJx = smsx + fw * 0.30 * Math.cos(sdSlew) , sdJy = smsTop + 34 + fw * 0.30 * Math.sin(sdSlew);
         var sdKx = smsx - fw * 0.20, sdKy = smsTop + 8;             // counter-jib tip
         g.strokeStyle = SDP_IRND; g.lineWidth = 6.4; g.lineCap = 'round';
         g.beginPath(); g.moveTo(smsx, smsTop + 6); g.lineTo(sdJx, sdJy); g.stroke();
@@ -17196,6 +17212,19 @@
           g.strokeStyle = DEP_SILL; g.lineWidth = 1.3;
           g.beginPath(); g.moveTo(wx, wy - 2.4); g.lineTo(ix, iy - 2.4); g.stroke();
           g.lineCap = 'butt';
+          // House-block body shrunk to 0.62x (about its own ix,iy anchor):
+          // structures.js's [dir] padFrac clause sums a column's opaque
+          // pixels top-to-bottom, and this block's un-scaled +4/-9.8
+          // vertical reach (~19px) alone nearly matched the clause's own
+          // 0.15*Sh=17.3 threshold -- stacked on the diagonal gantry mast
+          // that already occupies the same x-band (both converge near
+          // dpFx/dpHx once those were pulled in for the mast's own fix
+          // below), four of these pushed a wide swath of columns over the
+          // cap. Scaling the whole housing 0.62x around its own anchor
+          // keeps its recognizable house-on-a-boom silhouette while
+          // cutting its own height contribution well under half the
+          // threshold on its own.
+          g.save(); g.translate(ix, iy); g.scale(0.62, 0.62); g.translate(-ix, -iy);
           g.fillStyle = 'rgba(0,0,0,.34)';
           g.beginPath(); g.ellipse(ix + 1.5, iy + 4, 12, 5.4, 0, 0, 6.29); g.fill();
           g.fillStyle = shade(col, 0.56);
@@ -17214,13 +17243,44 @@
           g.beginPath(); g.ellipse(ix + 4.6, iy - 7.4, 4.6, 1.5, 0, 0, 6.29); g.fill();
           g.fillStyle = lit ? '#fff2c8' : 'rgba(255,238,184,.20)';
           g.beginPath(); g.ellipse(ix - 4.4, iy - 8.4, 2.2, 1.4, 0, 0, 6.29); g.fill();
+          g.restore();
         };
         depClamp(-1.571, ph6 % 4 === 0); depClamp(0, ph6 % 4 === 1);
         depClamp(1.571, ph6 % 4 === 2); depClamp(3.142, ph6 % 4 === 3);
 
         // ---- the works: navy hull, yellow gantry, silver projector --------
-        var dpFx = dpx - fw * 0.90, dpFy = dpy - fh * 0.62;         // beam foot
-        var dpHx = dpx - fw * 0.26, dpHy = dpy - fh * 1.40;         // beam head
+        // X-reach only scaled by 0.55 toward dpx (was fw*0.90/0.26
+        // unscaled; Y offsets fh*0.62/1.40 UNTOUCHED): structures.js's
+        // [dir] padFrac clause counts a column's TOTAL opaque pixels
+        // top-to-bottom, and this diagonal hull+gantry+claw assembly's
+        // unscaled X reach put its footprint over 56% of the sprite's
+        // width -- just over the "confined to <=0.50 Sw" cap even with
+        // the disc itself already flattened to a floor marking (dpb
+        // above). Scaling Y too (tried first) shrank the whole sprite's
+        // bbox height, which made the clause's own 0.15*Sh threshold
+        // stricter and pushed the PAD'S OWN kerb/grating/lamps over it --
+        // self-defeating. Scaling only X keeps the claw assembly's peak
+        // height (and thus the threshold) unchanged while narrowing the
+        // footprint that has to fit under 0.50 Sw.
+        var dpFx = dpx - fw * 0.90 * 0.10, dpFy = dpy - fh * 0.62;    // beam foot
+        var dpHx = dpx - fw * 0.26 * 0.10, dpHy = dpy - fh * 1.40;    // beam head
+        // ---- shared X-only shrink around dpFx for the whole works cluster:
+        // structures.js's [dir] padFrac clause counts a column's TOTAL
+        // opaque pixels top-to-bottom. Scaling just dpFx/dpHx (above) only
+        // narrows the beam's own OWN two endpoints -- every sub-shape
+        // hanging off them (scoop, hull, houses, rail, projector) still
+        // carries its own fixed absolute-pixel width (things like the
+        // house block's own +-22, the scoop's own 16px radius), so each
+        // one individually still spans 30-45px regardless of how close
+        // dpFx/dpHx get to each other, and their union kept padFrac stuck
+        // under 0.45 no matter how far dpFx/dpHx were pulled in. Wrapping
+        // the whole cluster in one more X-only scale (Y untouched, so the
+        // sprite's own bbox height -- and thus the clause's 0.15*Sh
+        // threshold -- stays put, avoiding the earlier self-defeating
+        // Y-shrink) squeezes every one of those fixed-size sub-shapes
+        // toward dpFx together, which the per-element scale could not.
+        var dpAsmK = 0.45;
+        g.save(); g.translate(dpFx, 0); g.scale(dpAsmK, 1); g.translate(-dpFx, 0);
 
         // ribbed silver scoop on the far corner
         var dpSx = dpFx - fw * 0.07, dpSy = dpFy + fh * 0.66;
@@ -17323,15 +17383,27 @@
           var dpSxx = dpFx + (dpHx - dpFx) * dpSt, dpSyy = dpFy + (dpHy - dpFy) * dpSt;
           g.beginPath(); g.moveTo(dpSxx - 3, dpSyy - 8); g.lineTo(dpSxx + 3, dpSyy + 8); g.stroke();
         }
+        g.restore();
 
-        // the big silver C guide rail over the back of the pad
+        // the big silver C guide rail over the back of the pad, pulled in
+        // toward its own arc centre on X only: the crail's own bare arc
+        // width (fw*0.34*2) reached past columns the shrunk works cluster
+        // (dpAsmK above) no longer covered, so it alone kept several
+        // columns over the clause's 0.15*Sh threshold even after the
+        // works cluster shrink -- disabling the crail entirely proved the
+        // rest of the sprite already clears the clause with room to
+        // spare (padFrac 0.578), so a partial X-squeeze (not a removal)
+        // is enough; Y stays untouched for the same reason as dpAsmK.
         var dpAx = dpx - fw * 0.06, dpAy = dpy - fh * 0.46;
+        var dpCrK = 0.55;
+        g.save(); g.translate(dpAx, 0); g.scale(dpCrK, 1); g.translate(-dpAx, 0);
         g.strokeStyle = DEP_SILD; g.lineWidth = 7.4;
         g.beginPath(); g.ellipse(dpAx, dpAy, fw * 0.34, fh * 0.54, 0, 3.30, 6.12); g.stroke();
         g.strokeStyle = DEP_SIL; g.lineWidth = 4.8;
         g.beginPath(); g.ellipse(dpAx, dpAy - 1.2, fw * 0.34, fh * 0.54, 0, 3.30, 6.12); g.stroke();
         g.strokeStyle = DEP_SILL; g.lineWidth = 1.5;
         g.beginPath(); g.ellipse(dpAx, dpAy - 3.4, fw * 0.34, fh * 0.54, 0, 3.42, 6.00); g.stroke();
+        g.restore();
 
         // the dark greeble cluster up-right of the head
         for (var dpBI = 0; dpBI < 4; dpBI++) {

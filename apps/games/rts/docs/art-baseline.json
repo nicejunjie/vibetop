@@ -336,7 +336,7 @@
     "size.worstOffGroupScale": 0.3109,
     "size.crossGroupSpread": 1.607,
     "size.bldOutsideRA2Band": 0,
-    "size.bldWorstOffHouseScale": 0.1758,
+    "size.bldWorstOffHouseScale": 0.1759,
     "size.bldFootprintMismatch": 0,
     "clip.structuresTouchingSheetEdge": 0,
     "clip.unitsTouchingSheetEdge": 0,
@@ -350,8 +350,8 @@
     "clause.navalUnmet": 1,
     "clause.airUnmet": 0,
     "clause.unmatchedToReference": 0,
-    "clause.checkedStructures": 73,
-    "clause.unmetStructures": 35,
+    "clause.checkedStructures": 75,
+    "clause.unmetStructures": 26,
     "clause.struckStructures": 0,
     "clause.waivedStructures": 0,
     "value.soldiersLighterThanEngineer": 0,
@@ -1745,9 +1745,9 @@
         "hScale": 1.3977,
         "wScale": 1.4281,
         "ht": 9,
-        "houseScale": 1.1887,
-        "dev": 0.1758,
-        "wDev": 0.1215
+        "houseScale": 1.1886,
+        "dev": 0.1759,
+        "wDev": 0.1291
       },
       {
         "key": "shipyard:col",
@@ -1765,9 +1765,9 @@
         "hScale": 1.0266,
         "wScale": 0.9908,
         "ht": 10,
-        "houseScale": 1.1887,
-        "dev": -0.1364,
-        "wDev": -0.2219
+        "houseScale": 1.1886,
+        "dev": -0.1363,
+        "wDev": -0.2166
       },
       {
         "key": "radar:col",
@@ -1785,9 +1785,9 @@
         "hScale": 1.3304,
         "wScale": 1.1924,
         "ht": 6,
-        "houseScale": 1.1887,
-        "dev": 0.1192,
-        "wDev": -0.0636
+        "houseScale": 1.1886,
+        "dev": 0.1193,
+        "wDev": -0.0572
       },
       {
         "key": "grandcannon:dir",
@@ -1805,9 +1805,9 @@
         "hScale": 1.0478,
         "wScale": 1.0497,
         "ht": 3,
-        "houseScale": 1.1887,
+        "houseScale": 1.1886,
         "dev": -0.1185,
-        "wDev": -0.1757
+        "wDev": -0.1701
       },
       {
         "key": "factory:dir",
@@ -1825,9 +1825,9 @@
         "hScale": 1.3246,
         "wScale": 1.2953,
         "ht": 4,
-        "houseScale": 1.1887,
-        "dev": 0.1143,
-        "wDev": 0.0172
+        "houseScale": 1.1886,
+        "dev": 0.1144,
+        "wDev": 0.0241
       },
       {
         "key": "base:dir",
@@ -1845,9 +1845,9 @@
         "hScale": 1.0744,
         "wScale": 1.0915,
         "ht": 4,
-        "houseScale": 1.1887,
-        "dev": -0.0962,
-        "wDev": -0.1428
+        "houseScale": 1.1886,
+        "dev": -0.0961,
+        "wDev": -0.137
       },
       {
         "key": "lab:dir",
@@ -1856,38 +1856,18 @@
         "foot": "3x2",
         "ra2Foot": "3x2",
         "footMatch": true,
-        "ours": "163x245",
+        "ours": "163x247",
         "ra2": "120x213",
-        "hOverFoot": 3.063,
+        "hOverFoot": 3.088,
         "ra2HOverFoot": 2.84,
         "wOverFoot": 1.019,
         "ra2WOverFoot": 0.8,
-        "hScale": 1.0783,
+        "hScale": 1.0871,
         "wScale": 1.2734,
         "ht": 12,
-        "houseScale": 1.1887,
-        "dev": -0.0929,
-        "wDev": 0
-      },
-      {
-        "key": "depot:col",
-        "name": "Service Depot",
-        "sec": "NADEPT",
-        "foot": "4x3",
-        "ra2Foot": "4x3",
-        "footMatch": true,
-        "ours": "231x201",
-        "ra2": "161x146",
-        "hOverFoot": 1.795,
-        "ra2HOverFoot": 1.39,
-        "wOverFoot": 1.031,
-        "ra2WOverFoot": 0.767,
-        "hScale": 1.2907,
-        "wScale": 1.3451,
-        "ht": 6,
-        "houseScale": 1.1887,
-        "dev": 0.0858,
-        "wDev": 0.0563
+        "houseScale": 1.1886,
+        "dev": -0.0854,
+        "wDev": 0.0068
       },
       {
         "key": "power:dir",
@@ -1905,29 +1885,9 @@
         "hScale": 1.2802,
         "wScale": 1.4281,
         "ht": 4,
-        "houseScale": 1.1887,
-        "dev": 0.077,
-        "wDev": 0.1215
-      },
-      {
-        "key": "lab:col",
-        "name": "Battle Lab",
-        "sec": "NATECH",
-        "foot": "3x3",
-        "ra2Foot": "3x3",
-        "footMatch": true,
-        "ours": "229x202",
-        "ra2": "152x168",
-        "hOverFoot": 2.104,
-        "ra2HOverFoot": 1.867,
-        "wOverFoot": 1.193,
-        "ra2WOverFoot": 0.844,
-        "hScale": 1.1272,
-        "wScale": 1.4124,
-        "ht": 8,
-        "houseScale": 1.1887,
-        "dev": -0.0517,
-        "wDev": 0.1092
+        "houseScale": 1.1886,
+        "dev": 0.0771,
+        "wDev": 0.1291
       },
       {
         "key": "prism:dir",
@@ -1945,9 +1905,9 @@
         "hScale": 1.1358,
         "wScale": 1.1349,
         "ht": 6,
-        "houseScale": 1.1887,
-        "dev": -0.0445,
-        "wDev": -0.1088
+        "houseScale": 1.1886,
+        "dev": -0.0444,
+        "wDev": -0.1027
       },
       {
         "key": "reactor:col",
@@ -1965,9 +1925,29 @@
         "hScale": 1.1483,
         "wScale": 1.4627,
         "ht": 4,
-        "houseScale": 1.1887,
-        "dev": -0.034,
-        "wDev": 0.1487
+        "houseScale": 1.1886,
+        "dev": -0.0339,
+        "wDev": 0.1565
+      },
+      {
+        "key": "depot:col",
+        "name": "Service Depot",
+        "sec": "NADEPT",
+        "foot": "4x3",
+        "ra2Foot": "4x3",
+        "footMatch": true,
+        "ours": "202x179",
+        "ra2": "161x146",
+        "hOverFoot": 1.598,
+        "ra2HOverFoot": 1.39,
+        "wOverFoot": 0.902,
+        "ra2WOverFoot": 0.767,
+        "hScale": 1.1494,
+        "wScale": 1.1762,
+        "ht": 6,
+        "houseScale": 1.1886,
+        "dev": -0.033,
+        "wDev": -0.0701
       },
       {
         "key": "refinery:dir",
@@ -1985,9 +1965,9 @@
         "hScale": 1.2074,
         "wScale": 1.2648,
         "ht": 4,
-        "houseScale": 1.1887,
-        "dev": 0.0157,
-        "wDev": -0.0068
+        "houseScale": 1.1886,
+        "dev": 0.0158,
+        "wDev": 0
       },
       {
         "key": "tesla:col",
@@ -2005,9 +1985,9 @@
         "hScale": 1.1921,
         "wScale": 1.4955,
         "ht": 5,
-        "houseScale": 1.1887,
+        "houseScale": 1.1886,
         "dev": 0.0029,
-        "wDev": 0.1744
+        "wDev": 0.1824
       },
       {
         "key": "base:col",
@@ -2025,9 +2005,29 @@
         "hScale": 1.1887,
         "wScale": 1.1949,
         "ht": 6,
-        "houseScale": 1.1887,
+        "houseScale": 1.1886,
+        "dev": 0.0001,
+        "wDev": -0.0553
+      },
+      {
+        "key": "lab:col",
+        "name": "Battle Lab",
+        "sec": "NATECH",
+        "foot": "3x3",
+        "ra2Foot": "3x3",
+        "footMatch": true,
+        "ours": "229x213",
+        "ra2": "152x168",
+        "hOverFoot": 2.219,
+        "ra2HOverFoot": 1.867,
+        "wOverFoot": 1.193,
+        "ra2WOverFoot": 0.844,
+        "hScale": 1.1886,
+        "wScale": 1.4124,
+        "ht": 8,
+        "houseScale": 1.1886,
         "dev": 0,
-        "wDev": -0.0616
+        "wDev": 0.1167
       }
     ],
     "bldAll": [
@@ -2106,8 +2106,8 @@
       [
         "lab:dir",
         "3x2",
-        "163x245",
-        3.063,
+        "163x247",
+        3.088,
         1.019,
         "ref"
       ],
@@ -2232,28 +2232,20 @@
         ""
       ],
       [
+        "lab:col",
+        "3x3",
+        "229x213",
+        2.219,
+        1.193,
+        "ref"
+      ],
+      [
         "sentrygun:col",
         "1x1",
         "67x69",
         2.156,
         1.047,
         ""
-      ],
-      [
-        "factory:col",
-        "5x3",
-        "294x271",
-        2.117,
-        1.148,
-        ""
-      ],
-      [
-        "lab:col",
-        "3x3",
-        "229x202",
-        2.104,
-        1.193,
-        "ref"
       ],
       [
         "power:dir",
@@ -2496,12 +2488,12 @@
         ""
       ],
       [
-        "depot:col",
-        "4x3",
-        "231x201",
-        1.795,
-        1.031,
-        "ref"
+        "factory:col",
+        "5x3",
+        "294x230",
+        1.797,
+        1.148,
+        ""
       ],
       [
         "nuke:dir",
@@ -2606,6 +2598,14 @@
         1.6,
         1.025,
         ""
+      ],
+      [
+        "depot:col",
+        "4x3",
+        "202x179",
+        1.598,
+        0.902,
+        "ref"
       ],
       [
         "sentrygun:dir",
@@ -2752,14 +2752,6 @@
         ""
       ],
       [
-        "depot:dir",
-        "3x3",
-        "200x130",
-        1.354,
-        1.042,
-        ""
-      ],
-      [
         "cloningvats:dir",
         "2x2",
         "131x86",
@@ -2824,6 +2816,14 @@
         "ref"
       ],
       [
+        "depot:dir",
+        "3x3",
+        "166x115",
+        1.198,
+        0.865,
+        ""
+      ],
+      [
         "reactor:dir",
         "4x4",
         "259x150",
@@ -2835,12 +2835,12 @@
     "bldSummary": {
       "covered": 15,
       "total": 100,
-      "houseScaleH": 1.1887,
-      "houseScaleW": 1.2734,
+      "houseScaleH": 1.1886,
+      "houseScaleW": 1.2648,
       "spread": 1.361,
       "outside": [],
-      "tallest": "factory:col",
-      "tallestPx": 271,
+      "tallest": "lab:dir",
+      "tallestPx": 247,
       "clipped": []
     },
     "clauses": [
@@ -3329,11 +3329,31 @@
         "unit": "refinery",
         "clause": "[dir] exactly 2 stacks with a clear gap >= 0.08 Sw between them",
         "ok": false,
-        "measured": "1 stack-sized crown blob(s) found",
-        "want": "2 stacks",
-        "note": "no committed sprite for this fac per §2.9",
+        "measured": "2 stacks, gap 0.018 Sw",
+        "want": "2 stacks, gap >= 0.08 Sw",
+        "note": "stacks = crown components above bodyRun.lo, filtered to >=0.06 Sw",
         "module": "structures.js",
         "refMatch": 0.64
+      },
+      {
+        "unit": "refinery",
+        "clause": "[dir] each stack 0.12-0.15 Sw",
+        "ok": false,
+        "measured": "0.425/0.123",
+        "want": "0.12-0.15 Sw each",
+        "note": "",
+        "module": "structures.js",
+        "refMatch": 0.67
+      },
+      {
+        "unit": "refinery",
+        "clause": "[dir] the taller stack clears the vault crown by >= 0.30 Sh",
+        "ok": true,
+        "measured": 0.453,
+        "want": ">= 0.30",
+        "note": "",
+        "module": "structures.js",
+        "refMatch": 0.75
       },
       {
         "unit": "refinery",
@@ -3388,8 +3408,8 @@
       {
         "unit": "factory",
         "clause": "[dir] exactly ONE flag/mast group",
-        "ok": false,
-        "measured": "2 crown blob(s)",
+        "ok": true,
+        "measured": "1 crown blob(s)",
         "want": "1 blob",
         "note": "crown = components above bodyRun.lo",
         "module": "structures.js",
@@ -3398,10 +3418,10 @@
       {
         "unit": "factory",
         "clause": "[col] sprite w/h >= 1.25, measured against RA2's own 1.335 floor",
-        "ok": false,
-        "measured": 1.085,
+        "ok": true,
+        "measured": 1.278,
         "want": ">= 1.25",
-        "note": "bbox 294x271",
+        "note": "bbox 294x230",
         "module": "structures.js",
         "refMatch": 0.38
       },
@@ -3458,8 +3478,8 @@
       {
         "unit": "depot",
         "clause": "[dir] a flat pad >= 0.50 Sw wide carrying zero mass above the ground plane",
-        "ok": false,
-        "measured": 0.08,
+        "ok": true,
+        "measured": 0.536,
         "want": ">= 0.50",
         "note": "pad column = opaque but <=15% Sh tall (a thin ground band), counted as a fraction of Sw",
         "module": "structures.js",
@@ -3469,7 +3489,7 @@
         "unit": "depot",
         "clause": "[dir] exactly ONE crane/gantry group with its jib tip horizontally over the pad",
         "ok": false,
-        "measured": "2 crown blob(s)",
+        "measured": "4 crown blob(s)",
         "want": "1 blob",
         "note": "\"jib tip horizontally over the pad\" not checked — needs the pad's own x-range, which the pad-column test above gives only as a count, not a located span",
         "module": "structures.js",
@@ -3478,8 +3498,8 @@
       {
         "unit": "depot",
         "clause": "[dir] the works confined to the remaining <= 0.50 Sw",
-        "ok": false,
-        "measured": 0.92,
+        "ok": true,
+        "measured": 0.464,
         "want": "<= 0.50",
         "note": "complement of the pad-width row above",
         "module": "structures.js",
@@ -3488,8 +3508,8 @@
       {
         "unit": "depot",
         "clause": "[col] a flat pad >= 0.50 Sw wide carrying zero mass above the ground plane",
-        "ok": false,
-        "measured": 0.152,
+        "ok": true,
+        "measured": 0.53,
         "want": ">= 0.50",
         "note": "pad column = opaque but <=15% Sh tall (a thin ground band), counted as a fraction of Sw",
         "module": "structures.js",
@@ -3508,8 +3528,8 @@
       {
         "unit": "depot",
         "clause": "[col] the works confined to the remaining <= 0.50 Sw",
-        "ok": false,
-        "measured": 0.848,
+        "ok": true,
+        "measured": 0.47,
         "want": "<= 0.50",
         "note": "complement of the pad-width row above",
         "module": "structures.js",
@@ -3558,8 +3578,8 @@
       {
         "unit": "lab",
         "clause": "[dir] >= 4 masts, each 2-4px thick, tips clearing the highest drum rim by >= 0.20 Sh",
-        "ok": false,
-        "measured": "2 mast-sized crown blobs, clearances 0.192/0.102",
+        "ok": true,
+        "measured": "4 mast-sized crown blobs, clearances 0.247/0.328/0.304/0.255",
         "want": ">=4, each clearance >= 0.20 Sh",
         "note": "masts = crown components above bodyRun.lo filtered to thin (<=0.10 Sw); \"2-4px thick\" not separately checked beyond the <=0.10 Sw filter",
         "module": "structures.js",
@@ -3578,8 +3598,8 @@
       {
         "unit": "lab",
         "clause": "[col] Collective: exactly ONE dome, its bulb >= 0.20 Sw, and the dome-and-drum crown occupying the top corner turrets",
-        "ok": false,
-        "measured": "3 crown blob(s), widest 0.463 Sw",
+        "ok": true,
+        "measured": "1 crown blob(s), widest 0.533 Sw",
         "want": "1 blob, >=0.20 Sw",
         "note": "",
         "module": "structures.js",
@@ -3588,8 +3608,8 @@
       {
         "unit": "lab",
         "clause": "[col] the dome-and-drum crown occupies the top >= 0.40 Sh above the block's corner turrets",
-        "ok": false,
-        "measured": 0.322,
+        "ok": true,
+        "measured": 0.413,
         "want": ">= 0.40",
         "note": "",
         "module": "structures.js",
@@ -3598,8 +3618,8 @@
       {
         "unit": "lab",
         "clause": "[col] the dome is the topmost mass — zero antennas above it",
-        "ok": false,
-        "measured": "3 crown blob(s) (1 expected: the dome alone, no separate antenna blob)",
+        "ok": true,
+        "measured": "1 crown blob(s) (1 expected: the dome alone, no separate antenna blob)",
         "want": "1 blob",
         "note": "this is the same measurement as the \"exactly ONE dome\" row above, read the other way (a second crown blob would BE an antenna)",
         "module": "structures.js",
