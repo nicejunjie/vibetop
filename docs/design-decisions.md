@@ -10514,6 +10514,19 @@ asks for a dish of ~75 rows over ~118 rows of trunnion and mound, against our
 it closes no clause while the segmentation is broken, and it is therefore
 deliberately left for a pass that can verify it.
 
+**Also rejected, and measured twice: widening the Radar Tower's trunnion.**
+Our mount pinches to 0.160 `Sw` where the rip's is 0.322 — it reads as a thin
+A-frame against RA2's fat dark column, and it is a real fidelity gap. Taking
+the trunnion's top half-width 8 -> 13 px (pinch 0.160 -> 0.221 `Sw`) renders
+visibly better and leaves every `art-metrics` number and the Directorate cameo
+floor untouched, but it costs **one Collective cameo pair: 252 -> 253**. Backing
+it off to 11 px still measures 253, so the cost is not a threshold to tune
+past. This is the same shape of trade the Power Plant's seam strokes hit
+(61b1f9d): a defensible art gain that a hard-held cameo floor forbids. Left
+out; the next pass should look for a mount that is chunkier in VALUE rather
+than in width, since it is silhouette area that the cameo comparison is
+reacting to.
+
 **Rejected.** Cutting the radar's mass with a `destination-out` fillRect to
 force a second component — it passes all three thresholds and renders a dish
 floating over a blank gap, which the QA charter's two-pillar rule forbids;
