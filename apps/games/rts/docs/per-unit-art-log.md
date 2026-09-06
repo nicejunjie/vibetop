@@ -3294,3 +3294,44 @@ and is named in `docs/clause-inventory.md`: carry `mask` and `rgba` on the
 `blds` push, add a `byBldFac(key, fac)` helper to the clause-check `ctx`, and
 raise `clause.checkedStructures` as its OWN metric rather than folding 91
 unreachable clauses into a 57-of-57 that would go red for a reason nobody chose.
+
+
+## The rank-based plate luminance — design, ready to execute (2026-09-06)
+
+The sidebar's floor is `GI | Spy` at 61.1 with 344 of 780 pairs under RA2's
+81.7 bar. Two analyses have been spent on it, and the second falsified the
+first, so record what is actually known before anyone spends a third:
+
+- The contrast escape hatch **never fires** for either plate (instrumented:
+  `rifle` lit0 70.3 / subL 32.0 / fired false; `spy` 69.9 / 43.4 / false). They
+  agree to 0.4 luminance because **FNV-1a puts them within 0.7% in `hv`**. It is
+  a hash collision, not the hatch.
+- `GI | Spy` itself is **figure-bound**: it reads 61.1 across all seven variants
+  tried, and forcing the Spy's plate 26 points away moves it to 61.4 while
+  costing two other pairs. Do not spend another pass on that pair alone.
+- At matched means a **fixed** push beats a keyed one (38 fixed -> 214 under;
+  `26 + hv*24` -> 243). A bigger fixed push is a large real win — **344 -> 170
+  at a push of 44** — but it **drops the sidebar minimum 61.1 -> 59.3**, and a
+  floor is what a player actually hits.
+
+**The untried shape is rank, not magnitude.** In `cameoFor`
+(`rts.html`, the `BAND` block), plate value is
+`lit = BAND.l0 + hv * (BAND.l1 - BAND.l0)` where `hv` is FNV-1a over the key.
+A hash clusters; a rank cannot. Replacing `hv` with the key's **rank among its
+own category**, spread evenly over `[l0, l1]`, should buy the spread of a big
+fixed push WITHOUT the collisions and without pushing any single plate to an
+extreme — which is what dropped the minimum.
+
+The work it needs, which is why it is not a two-line change: `cameoFor` is
+called per key and has no view of its category's membership, so it needs a
+precomputed rank table built once over `UNITS` and `BLDS` grouped by `scat`.
+
+**Acceptance:** Directorate UNDER must fall from 344 with the minimum **not**
+below 61.1, measured on BOTH factions, BOTH DPRs and the greyed rows (own bar,
+45.1), across ~80 plates including buildings, and against the 6%/92% clamps.
+A cameo-only change must leave every sprite metric byte-identical — assert it.
+
+**And check the build ran.** A pass today reported an 8x cameo improvement that
+was a broken build: 24 of 40 bakes threw and the tells were in plain sight —
+"16 cameos" in the header and a PAGE ERRORS block. A spectacular result must
+prove the build still runs before it is believed.
