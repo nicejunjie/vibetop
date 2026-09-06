@@ -3084,3 +3084,213 @@ number that was correct about a page nobody in this pass had edited. The
 `tools/*.js` are safe (each starts its own ephemeral server rooted at its own
 `ROOT`); the `art/*.js` are not. **From a worktree, serve your own tree and pass
 `RTS_PORT`.**
+## §2 had no identity row for a single STRUCTURE — 25 written, 2026-09-06
+
+`unit-identity-reference.md` §2 stated 96 pixel-budget clauses and **every one
+of them belonged to a unit in `detail.units`**. Nothing anywhere said what a
+Refinery has to LOOK like, which is why a Battle Lab could reach 306 px on a 3x2
+foundation with nothing to appeal to. `size.bld*` (2026-09-05) fixed the SIZE
+half; §2.5-2.9 is the identity half. **No art and no tool was touched: every
+`art-metrics.js` number is byte-identical to the pre-edit run, `clause.checked`
+57, `clause.unmatchedToReference` 0, `rts.test.js` 189 tests / 0 fail.**
+
+Working below is what the pass MEASURED, in the order it mattered, plus the two
+defects it fell over on the way.
+
+### 1. The rips our own code cites are real — nine of them cross-check at 2%
+
+`rts.html`'s building blocks cite rip filenames that are not in the repo
+(`allied-battle-lab-idle.png`, `soviet-service-depot-idle.png`, …), and
+`docs/ra2-ref/sprites/README.md` records that as *"a measurement nobody could
+re-check"*. Nine of them CAN be re-checked, because the committed corpus
+contains the same sprite:
+
+| section | the cited rip | w/h | the committed sprite | w/h | delta |
+|---|---|---|---|---|---|
+| `[NANRCT]` | 166x129 | 1.287 | `nuclear-reactor.gif` 166x129 | 1.287 | **0.0%** |
+| `[GTGCAN]` | 181x133 | 1.361 | `grand-cannon.png` 117x85 | 1.376 | -1.1% |
+| `[NADEPT]` | 160x147 | 1.088 | `soviet-service-depot.gif` 161x146 | 1.103 | -1.3% |
+| `[GATECH]` | 118x213 | 0.554 | `allied-battle-lab.gif` 120x213 | 0.563 | -1.7% |
+| `[NATECH]` | 148x167 | 0.886 | `soviet-battle-lab.gif` 152x168 | 0.905 | -2.0% |
+| `[GAPOWR]` | 84x89 | 0.944 | `allied-power-plant.png` 86x93 | 0.925 | +2.1% |
+| `[NATSLA]` | 41x82 | 0.500 | `tesla-coil.gif` 42x81 | 0.519 | -3.6% |
+| `[GAPRIS]` | 53x101 | 0.525 | `prism-tower.png` 57x104 | 0.548 | -4.3% |
+| `[NARADR]` | 90x125 | 0.720 | `soviet-radar-tower.png` 103x136 | 0.757 | -4.9% |
+
+Max 4.9%, median 2.0%, one exact — and **eight of the nine are negative by 1-5%,
+which is a systematic offset rather than noise**: the code's rips were measured
+with the SHP shadow index masked off, the committed captures include the ground
+bib. A coherent bbox-convention difference of exactly the size you would
+predict, on nine independent files.
+
+This changes what those citations are worth. It does not make them equal to a
+committed sprite — §2.6-2.8 still says, on every row that leans on one, that
+that is what it rests on, and never lets one carry a tight fraction. But a
+building with no rip is no longer a building with no evidence, and that is what
+made rows for the Airforce Command, the Ore Purifier, the Chronosphere, the
+Weather Device and the Iron Curtain writable at all.
+
+### 2. `RA2_BLD['barracks:col']` measured the whole SCREENSHOT, not the sprite
+
+`soviet-barracks.png` is recorded in `RA2_BLD` as **117x205**, annotated *"Tight
+crop"*. It is not a tight crop — the file is a small SCENE, and 117x205 is the
+whole file. Looked at with candidate boxes drawn on it, the building runs about
+**x 15..100 by y 10..172, roughly 86x163 (+-4 px)**; the remainder is grass on
+the left, pavement on the right and **~36 rows of road below the base plate**.
+
+It cannot be settled automatically, and that is worth recording as its own
+result: the statue's steel is the same VALUE as the road it stands on, so a
+border-flood segmentation swept over six background tolerances
+(30/36/42/48/54/60) collapses onto a 16x14 blob every time. This is the one file
+in the corpus that defeats the method the other fourteen were measured with,
+which is presumably how it got through — the fallback was "take the file".
+
+**What it changes.** `[NAHAND]` height-over-footprint **3.417 -> ~2.72**, width
+**0.975 -> ~0.72**. And this row is the one that ACQUITTED our own Soviet
+Barracks: ours bakes 131x246 = 3.844 footprint-heights, which against 3.417 is
+an `hScale` of 1.125 and **-0.020** from the group median 1.148 — comfortably
+inside the band, and `RA2_BLD`'s source note says in as many words *"the statue
+IS the building … this is why ours at 3.84 footprint-heights was left alone"*.
+Against ~2.72 the `hScale` is **~1.41** and the deviation **~+0.23**: the worst
+structure in the set, and a **second** `size.bldOutsideRA2Band` failure beside
+`power:dir`.
+
+**Deliberately not fixed here.** Editing `RA2_BLD` would move
+`size.bldOutsideRA2Band` and `size.bldWorstOffHouseScale` in the same commit
+that writes the reference rows, and this pass is byte-identical on purpose. The
+next pass should re-crop the file to the building, commit the crop beside the
+scene and re-measure. **Two other "whole file" entries were checked while here
+and are sound**: `[GAPOWR]` (86x93) and `[NARADR]` (103x136) genuinely fill
+their files, and `[NAYARD]`'s hand-adjusted 176x200 measures ~185x192 off the
+grid, inside 5%.
+
+### 3. Sprite ASPECT was measured for all fifteen — and is NOT proposed as a gate
+
+Nothing measures a building's aspect; `size.bld*` measures height only. Measured
+now, ours against RA2's, the deviations run **-10.4%** (`radar:col`) to
+**+27.4%** (`reactor:col`), and at the existing `RA2_BLD_BAND` of 0.20 four
+would fail: `reactor:col` +27.4, `tesla:col` +25.5, `lab:col` +25.3, `lab:dir`
++18.1.
+
+**It is not shipped and it should not be, and the reason is measurable.** Our
+`plot()` paints the cells a structure owns, so our width-over-footprint is
+0.727-1.193 and sits at ~1.02 for eleven of the fifteen; RA2's art underfills
+its diamond by a per-building margin and runs 0.692-0.975. The four worst
+offenders are exactly the four whose RA2 counterpart underfills hardest in
+width — `ra2WOverFoot` 0.692, 0.700, 0.844, 0.800 against a roster median of
+0.850. **A gate would be failing them for RA2's underfill, not for our
+drawing.** That is the same trap `docs/design-decisions.md` already records
+against `wScale` ("Also rejected. Shrinking every structure to RA2's footprint
+underfill"), reached from the other end.
+
+What survives is the consequence for how a budget may be phrased, and §2.5 now
+states it as a rule: **a width clause may state a FLOOR and must not state a
+ceiling**, because the convention can only ever push our sprites wider. Every
+`w/h >= X` in §2.6-2.8 is chosen that way, and the towers are specified by CROWN
+geometry rather than by outline for the same reason.
+
+### 4. What DOES survive as a candidate gate: 10 ordering inversions in 105 pairs
+
+Rank the fifteen by RA2's height-over-footprint and by ours, and count the pairs
+where the two orders disagree: **10 of 105**. This is immune to the width
+convention (both sides are the same height quantity) and it is a far cleaner
+statistic than the `Height=`-based ordering `RA2_BLD` already tried and rejected
+(87 inversions of 496, on a quantity that does not measure pixels). The worst
+four, by how much RA2 separates the pair:
+
+| pair | RA2 says | we draw | gap RA2 states |
+|---|---|---|---|
+| `power:dir` vs `lab:col` | 1.550 < 1.867 | 2.172 > 2.104 | 0.317 |
+| `depot:col` vs `shipyard:col` | 1.390 < 1.667 | 1.795 > 1.711 | 0.277 |
+| `grandcannon:dir` vs `refinery:dir` | 1.417 > 1.257 | 1.484 < 1.518 | 0.160 |
+| `lab:dir` vs `tesla:col` | 2.840 > 2.700 | 3.063 < 3.219 | 0.140 |
+
+Recorded, not shipped: half of them are inside the noise of a 1.148 house scale
+applied to fifteen hand-drawn buildings, and a gate whose failures cannot each
+be argued as a defect is the thing `art-metrics.js` exists not to be. The top
+two are worth looking at on their own — `power:dir` is already the standing
+`size.bldOutsideRA2Band` debt.
+
+### 5. Two reference rules the sprites gave up
+
+**Rule S1 — house colour scales INVERSELY with footprint.** §1.4's own census
+(HSV `s > 0.40`, hue within +-22 deg of red) run on the four blue-key structures,
+where the mask is exact and the owner is red: `[NATSLA]` Tesla Coil 1x1
+**39.6%**, `[GAPRIS]` Prism Tower 1x1 15.0%, `[NACNST]` 4x4 14.8%, `[GACNST]`
+4x4 **9.5%**. A one-cell defence carries up to four times the house fraction of
+a four-cell production block — the opposite of the intuition — because on a 1x1
+tower the house-coloured buttresses ARE the silhouette while on a 4x4 hall the
+paint is trim on a shape already unmistakable. Both of our own building passes
+reached the same place from the drawing side without stating it as a rule.
+
+**Rule S2 — the ONE feature is a CROWN, not an outline.** Every structure whose
+identity survives a squint carries it above the block: three capacitor towers,
+two smokestacks, four whip antennas, an onion dome, a statue, a dish, a sphere,
+three cooling towers, a crane. Not one of the fifteen is told apart by the shape
+of its base. This is the structural difference from §1.2's finding for vehicles,
+where the whole outline carries the read — and it is why `size.bld*`'s single
+height number could never have caught a mis-drawn building on its own.
+
+### 6. The exact profiles, for the two towers where the mask is exact
+
+Both blue-key, so these are real pixel counts and not estimates. They are the
+strongest clauses in §2.7 and the only ones with a row-by-row profile behind
+them.
+
+* **`[NATSLA]` Tesla Coil, 42x81.** Row widths from the top:
+  `8 11 14 16 16 18 18 19 20 20 19 18 18 18 16 14 14 12 10 | 4 3 4 | 8 10 12 …`
+  — a **sphere** of max width 20 over 19 rows (0.476 `Sw` / 0.235 `Sh`), then a
+  **neck that pinches to 3 px = 0.071 `Sw`**, a 6.7x pinch. The widest row is 38
+  at row 68 of 81 (0.905 `Sw`), in the bottom third. That neck is the entire
+  silhouette and no number anywhere had it.
+* **`[GAPRIS]` Prism Tower, 57x104.** The crown peaks at 35 px on row 15 and
+  runs 28 rows deep (0.614 `Sw` / 0.269 `Sh`); the waist under it is 12 px
+  (0.211 `Sw`); the base reaches 51 (0.895 `Sw`). So the two 1x1 towers are
+  separated by their CROWN FRACTION — 0.614 against 0.476, a ratio of 1.29 —
+  and §2.7 states that ratio as a clause so they cannot converge.
+
+### 7. Where our art visibly disagrees with a row just written
+
+Flagged for a later pass; nothing was changed.
+
+* **`power:dir` — the standing debt, and the row makes it concrete.** Ours is
+  2.172 footprint-heights against `[GAPOWR]`'s 1.550, `hScale` 1.4012 against
+  the group median 1.1483, deviation **0.2202** — the single
+  `size.bldOutsideRA2Band` failure and the `size.bldWorstOffHouseScale` debt
+  (0.2202 against a want of 0.20). §2.6 asks the tallest tower's crown to clear
+  the drum roofline by >= 0.45 `Sh`, which is measured off a plant that is 40%
+  too tall for its plot to begin with; **the fix is the drum and the apron, not
+  the towers**, and any pass that shortens the towers to close the height will
+  break the identity clause instead.
+* **`[NARADR]`'s dish — the two readings disagree by 22%.** Our own code targets
+  *"a pale silver face 0.69 of the sprite's width"* off the 90x125 rip; the
+  committed 103x136 capture measures the dish at x 26..83 by y 3..55 = 58x53,
+  which is **0.563** of the width. Both readings are of the same object at
+  different crops, so §2.6 states the FLOOR at 0.55 — satisfied by both — rather
+  than picking a winner. Worth settling if the rip is ever recovered.
+* **Two structures are drawn wider than our own `plot()` convention.**
+  `lab:col` sits at `wOverFoot` **1.193** and `factory:dir` at **1.117** where
+  eleven of fifteen sit at ~1.02, and `shipyard:col` at **0.727**. Those three
+  are our-side facts and not RA2 artefacts; the Soviet lab's is the one that
+  already forced `pad = 30` in `bakeBuilding` after both edges came back cut.
+* **`radar:dir` and `airforce:col` bake sprites the game never draws.** `radar`
+  is `fac: 'col'` and `airforce` is `fac: 'dir'`, but both bake for both
+  factions (`radar:dir` 131x92, `airforce:col` 179x187 identical to
+  `airforce:dir`). Harmless — it is the same generic-fallback shape as the
+  civilian keys `RA2_BLD`'s comment already warns about, where `SPR.bld` bakes a
+  67x60 box for a building only ever drawn out of `SPR.neut` — but a future
+  structure clause check must read the faction the game actually draws or it
+  will measure a sprite nobody has ever seen.
+
+### 8. What a check needs before any of this can be asserted
+
+`pageExtract` pushes a structure as
+`{ key, fac, name, cat, gw, gh, w, h, edges }` (`tools/art-metrics.js:790`) —
+**no mask, no rgba**, where a unit record carries both. So of the 91 clauses,
+only those about bbox, aspect, footprint and clipping are reachable today; the
+counts, crowns, gaps, profiles and house fractions — which by Rule S2 is where
+structure identity lives — have nothing to read. The enabling change is small
+and is named in `docs/clause-inventory.md`: carry `mask` and `rgba` on the
+`blds` push, add a `byBldFac(key, fac)` helper to the clause-check `ctx`, and
+raise `clause.checkedStructures` as its OWN metric rather than folding 91
+unreachable clauses into a 57-of-57 that would go red for a reason nobody chose.

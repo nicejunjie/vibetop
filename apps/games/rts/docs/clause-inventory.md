@@ -1,6 +1,6 @@
 # The §2 clause inventory — what is measured and what is not
 
-Generated 2026-09-05 from `unit-identity-reference.md` §2 and the SPIKES table
+Derived 2026-09-05 from `unit-identity-reference.md` §2 and the SPIKES table
 in `tools/art-metrics.js`. **96 budget clauses across 41 units; 57 had nothing
 measuring them, and as of 2026-09-07 all 57 emit a row —
 `clause.checked` 57.** Each unit has exactly one
@@ -87,6 +87,117 @@ one was struck, and none of the three closed the way the record expected:
   contradiction. Counted in `clause.checked` and, separately, in
   **`clause.struck`**, pointing DOWN, so striking can never become a way to move
   `clause.checked`.
+
+## STRUCTURES (§2.5-2.9) are in the reference and are NOT in this count
+
+**Added 2026-09-06.** `unit-identity-reference.md` §2 used to state a pixel
+budget for no structure at all; §2.5-2.9 now carry **25 structures and 91 budget
+clauses**. **None of them is in the 96, none of them is in `clause.checked`, and
+that is deliberate** — the paragraphs below say exactly why, because the
+alternative is a metric that drifts without anyone deciding to move it.
+
+### There is no generator, and the word "Generated" above was misleading
+
+The header said this file was *generated* from §2 and the SPIKES table. **No
+such script exists** — `grep -rn clause-inventory` over the repo returns only
+prose references from the three check modules. This file is written and
+maintained by hand, and the header now says "derived" instead. Anyone adding
+rows to §2 has to add them here too; nothing will do it for them and nothing
+will notice if they don't.
+
+### What DOES read §2 automatically, and what it did with the new rows
+
+One parser does, and it is the integrity check inside `art-metrics.js`'s clause
+block (`tools/art-metrics.js:1406-1420`). It scans the WHOLE document for any
+five-column row that opens with a backticked lowercase key and files the last
+cell as that key's budget list. That is not scoped to units, so **it picked up
+all 25 structure rows on its own**. Measured on the edited document:
+
+| | before | after |
+|---|---|---|
+| budget keys parsed out of §2 | 41 | **66** |
+| clauses filed under the 41 UNIT keys | **96** | **96** |
+| clauses filed under new structure keys | 0 | 91 |
+| `clause.checked` | 57 | **57** |
+| `clause.unmatchedToReference` | 0 | **0** |
+| every other `art-metrics` number | — | **byte-identical** |
+
+Nothing moved, for two reasons worth writing down because both are load-bearing:
+
+* **No structure key collides with a unit key.** The 25 are `base`, `power`,
+  `refinery`, `barracks`, `factory`, `shipyard`, `depot`, `radar`, `airforce`,
+  `lab`, `reactor`, `purifier`, `spysat`, `sentry`, `sentrygun`, `tesla`,
+  `prism`, `patriot`, `flakcannon`, `grandcannon`, `gapgen`, `chrono`,
+  `weather`, `curtain`, `nuke`; the `UNITS` map shares not one of them. Had it
+  (`mcv` is the near miss — a UNIT here, and a structure in most RTS rosters)
+  the parser's `if (budgets[key]) continue` would have silently kept whichever
+  row came first in the file and a unit's clause list would have changed
+  underneath its own checks.
+* **`clause.checked` counts rows returned by `tools/clause-checks/*.js`, not
+  rows in the document.** No module reports a structure key, so the count cannot
+  move — and because every reported clause is still matched against that key's
+  own budget list, `clause.unmatchedToReference` cannot move either.
+
+### Why they are deliberately kept out of the 96
+
+Because `clause.checked` is a coverage metric with a stated want of 57, and this
+file's own doctrine is that a number you cannot reach gets disabled. **The
+structure clauses are not reachable today**: `pageExtract` stores a structure as
+`{ key, fac, name, cat, gw, gh, w, h, edges }` (`tools/art-metrics.js:790`) with
+**no mask and no rgba**, where a unit record carries both. Of the 91 clauses,
+only the handful about bbox, aspect and footprint could be asserted at all; the
+counts, crowns, gaps, profiles and house fractions — which is where §2.5's Rule
+S2 says structure identity actually lives — have nothing to read.
+
+Folding 91 unreachable clauses into a 57-of-57 metric would take it to 57 of 148
+overnight and turn a green gate red for a reason nobody chose. So:
+
+* the structure rows are **stated and unchecked**, exactly as all 96 unit
+  clauses were before `tools/clause-checks/` existed;
+* they are counted here and nowhere else;
+* the enabling change is named rather than assumed — carry `mask` and `rgba` on
+  the `blds` push in `pageExtract` and add a `byBldFac(key, fac)` helper to the
+  clause-check `ctx`, then a `clause-checks/structures.js` can start on them and
+  `clause.checkedStructures` can be raised as its OWN metric with its OWN want.
+  A separate metric, not a bigger 57: units and structures were measured on
+  different days against different reference sets, and merging their coverage
+  would hide which of the two a regression came from.
+
+### The 91, by structure
+
+| structure | section | clauses | strongest source |
+|---|---|---|---|
+| `base` Construction Yard | §2.6 | 4 | both blue-key SHP sprites, exact masks |
+| `power` Power Plant | §2.6 | 5 | `[GAPOWR]` native capture; the Collective half is count-only |
+| `refinery` Ore Refinery | §2.6 | 4 | `[GAREFN]` native capture |
+| `barracks` Barracks | §2.6 | 5 | `[NAHAND]` capture — **but see the bbox warning in §2.6**; the Directorate half is a resample, shape only |
+| `factory` War Factory | §2.6 | 5 | `[GAWEAP]` native capture |
+| `shipyard` Naval Yard | §2.6 | 4 | `[NAYARD]` native capture |
+| `depot` Service Depot | §2.6 | 4 | `[NADEPT]` native capture |
+| `radar` Radar Tower | §2.6 | 4 | `[NARADR]` native capture, tight |
+| `airforce` Airforce Command | §2.6 | 4 | plate + a cited-but-absent rip; counts only |
+| `lab` Battle Lab | §2.6 | 4 | both native captures |
+| `reactor` Nuclear Reactor | §2.6 | 4 | `[NANRCT]` native capture |
+| `purifier` Ore Purifier | §2.6 | 4 | plate + a cited-but-absent rip; counts only |
+| `spysat` SpySat Uplink | §2.6 | 2 | plate only; counts only |
+| `sentry` Pillbox | §2.7 | 3 | `art.ini` `Height=` ordering + plate |
+| `sentrygun` Sentry Gun | §2.7 | 3 | plate + a cited-but-absent rip; counts only |
+| `tesla` Tesla Coil | §2.7 | 4 | **blue-key SHP, exact mask, profile measured row by row** |
+| `prism` Prism Tower | §2.7 | 4 | **blue-key SHP, exact mask, profile measured row by row** |
+| `patriot` Patriot Missile | §2.7 | 3 | plate + a cited-but-absent rip; counts only |
+| `flakcannon` Flak Cannon | §2.7 | 3 | `Height=` ordering + plate |
+| `grandcannon` Grand Cannon | §2.7 | 5 | `[GTGCAN]` native capture, verified by eye in `sprites/README.md` |
+| `gapgen` Gap Generator | §2.7 | 2 | plate and a cited rip that **agree independently** |
+| `chrono` Chronosphere | §2.8 | 4 | plate + a cited-but-absent rip; counts and ordering only |
+| `weather` Weather Control | §2.8 | 3 | plate + a cited-but-absent rip; counts only |
+| `curtain` Iron Curtain | §2.8 | 3 | plate + a cited-but-absent rip; counts only |
+| `nuke` Nuclear Missile Silo | §2.8 | 1 | **ordering only — the row states no feature budget, on purpose** |
+
+Five structures carry **no row at all** and §2.9 names each with its reason:
+`wall` and `gate` (a wall's identity is its connection mask, not a silhouette),
+`psisensor` (plate only, and it is one of the three recorded near-misses from
+reading proportion off a plate), `cloningvats` (its only plate is a blurred
+upload) and the whole neutral house (no reference of any kind).
 
 ## The ledger — every clause emits a row, and the excuses are counted
 
