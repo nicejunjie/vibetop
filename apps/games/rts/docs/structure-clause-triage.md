@@ -20,30 +20,37 @@ is the whole point of running both sides.
 
 ## Verdict
 
-| | rows |
-|---|---|
-| **BROKEN CHECK** — RA2's own sprite fails it, or the predicate is an identity | **7** |
-| **REAL ART DEFECT** — the reference passes, our bake does not | **5** |
-| **CEILING** — measurable, unreachable by the primitive available | **2** |
+| | rows | |
+|---|---|---|
+| **BROKEN CHECK** — RA2's own sprite fails it, or the predicate is an identity | **7** | 1, 3, 6, 7, 10, 11, 13 |
+| **REAL ART DEFECT** — the reference passes, our bake does not | **3** | 5, 12, 14 — **all three fixed** |
+| **CEILING** — measurable, unreachable without redrawing the building | **4** | 2, 4, 8, 9 |
+
+Rows 2 and 4 (the Refinery's stacks) were opened as art defects and **downgraded
+to ceilings after measurement** — see "The Refinery" below, including the finding
+that the obvious un-fusing fix makes the gate WORSE, not better.
+
+`clause.unmetStructures` **14 -> 11**, and no other metric in the gate moves.
+Cameo floors stay at Directorate 234 / Collective 252.
 
 ## The table
 
 | # | key | clause | ours | RA2 reference, same math | verdict |
 |---|---|---|---|---|---|
 | 1 | `base:dir` | exactly ONE crane/boom group above the hall roofline | 0 groups, `crown:false` | **[GACNST] 0 groups, `crown:false` — identical**; [NACNST] **3 groups** | **BROKEN** |
-| 2 | `refinery:dir` | 2 stacks, clear gap >= 0.08 Sw | 2 stacks, gap 0.018 | [GAREFN] passes at 2 of 15 sweep cuts — inconclusive | **ART** |
+| 2 | `refinery:dir` | 2 stacks, clear gap >= 0.08 Sw | 2 stacks, gap 0.018 | [GAREFN] passes at 2 of 15 sweep cuts — inconclusive | **CEILING** |
 | 3 | `refinery:dir` | each stack 0.12-0.15 Sw | 0.425 / 0.123 | [GAREFN] **fails at 15 of 15 cuts** (0.276/0.220/0.178/0.155/0.144/0.121/0.069/0.063 — never all in band) | **BROKEN** |
-| 4 | `refinery:col` | 2 stacks | 1 blob @ 0.491 Sw | (no `col` rip; the `dir` rip fuses the same way) | **ART** |
-| 5 | `depot:dir` | exactly ONE crane/gantry group | 4 blobs | rip too shadow-noisy to segment (311/149/51 blobs across the sweep) | **ART** |
+| 4 | `refinery:col` | 2 stacks | 1 blob @ 0.491 Sw | (no `col` rip; the `dir` rip fuses the same way) | **CEILING** |
+| 5 | `depot:dir` | exactly ONE crane/gantry group | 4 blobs | rip too shadow-noisy to segment (311/149/51 blobs across the sweep) | **ART — FIXED** |
 | 6 | `radar:col` | dish >= 0.55 Sw, aspect 0.90-1.10 | Sw **1.000**, aspect 0.78 | [NARADR] Sw **1.000**, aspect **0.831 — fails**; prism 1.000/0.570; tesla 1.000/0.538 | **BROKEN** |
 | 7 | `radar:col` | dish wholly inside the top 45% Sh | 0.888 | [NARADR] **0.904 — fails**; prism 0.952; tesla 0.951 | **BROKEN** |
 | 8 | `reactor:col` | tallest tower's crown inside top 0.10 Sh | 0.247 | — | **CEILING** (known) |
 | 9 | `sentrygun:col` | exactly 2 barrels, gap >= 2px, topmost mass | 1 blob | — | **CEILING** (known) |
 | 10 | `sentrygun:col` | zero enclosing drum or roof | 1 blob @ **1.000 Sw** | **100 of 100** structure bakes and **4 of 4** rips read exactly 1 @ 1.000 Sw | **BROKEN** |
 | 11 | `tesla:col` | a neck pinching to <= 0.10 Sw | 0.627 | [NATSLA] **0.333 — fails by 3.3x** | **BROKEN** |
-| 12 | `prism:dir` | a waist beneath it <= 0.25 Sw | 0.261 | [GAPRIS] **0.211 — passes** | **ART** |
+| 12 | `prism:dir` | a waist beneath it <= 0.25 Sw | 0.261 | [GAPRIS] **0.211 — passes** | **ART — FIXED** |
 | 13 | `gapgen:dir` | 4 talons, each 2px at >= 25% contrast | **0** bright-outlier blobs | (no rip) — 3 **dark**-outlier blobs on the same mask; RA2's talons are black | **BROKEN** (polarity) |
-| 14 | `gapgen:dir` | exactly 2 house collar rings | 3 blobs | (no rip) — third blob is **one pixel** | **ART** |
+| 14 | `gapgen:dir` | exactly 2 house collar rings | 3 blobs | (no rip) — third blob is **one pixel** | **ART — FIXED** |
 
 ## The seven broken checks, with the arithmetic
 
@@ -127,12 +134,41 @@ the reference and the colour rule.
   roofline from `lo=1` to `58`, because the barrels are diagonally staggered and
   a horizontal-cut primitive cannot separate them.
 
-## The five real art defects
+## The three real art defects — all fixed
 
-| # | key | what is actually wrong |
-|---|---|---|
-| 14 | `gapgen:dir` | **one pixel**, `(32,14)`, `rgba(60,76,100,64)` — a 25%-opaque anti-aliasing fringe that lands inside the house band (s 0.40 >= 0.25, v 0.392 >= 0.20, hueGap 19 <= 20) and counts as a third collar ring. The two real rings are 289px and 178px. |
-| 12 | `prism:dir` | our column flares too early and too fat. Scanned rows: ours opens at row 63 already 18px (0.261) and only ever widens; RA2's dips to **12px (0.211) at row 57** before flaring. Moving toward the rip closes the clause. |
-| 5 | `depot:dir` | three 14x3 slivers at `y74-76` (x3-16, x34-47, x131-144) poke exactly **3 rows** above a roofline at 77, so three flat roofs are counted as three extra cranes beside the real 56x77 gantry. |
-| 2 | `refinery:dir` | the vault apex and the near stack bake as one 97px-wide (0.425 `Sw`) crown mass with a **4px seam** to the far stack — the anti-aliasing-fusion pattern. |
-| 4 | `refinery:col` | the same fusion, complete: the entire crown is ONE 112px blob at 0.491 `Sw`. |
+| # | key | what was wrong | fix | before -> after |
+|---|---|---|---|---|
+| 14 | `gapgen:dir` | **one pixel**, `(32,14)`. A dark 24-alpha fringe already sat in the hue band at v 0.082 (under the 0.20 floor, harmless); the navy pod's specular cap **overhung its own rim** and its ~50-alpha fringe composited over it to `rgba(60,76,100,64)` — v 0.392, s 0.40, hueGap 19, house. Neither ingredient is in the band; the composite is. | tuck the cap onto the rim, `npy - 5.0` -> `npy - 4.6`. Geometry, not colour, so the specular is untouched | 3 blobs -> 2 |
+| 12 | `prism:dir` | INK, not spread. `rowProfile` counts pixels per row: the four struts' 2.2px dark backing haloes lay 8.8px of ink across a 10px column. Ablating the struts flattens rows 55-76 to a constant 10px — the real waist | backing halo 2.2 -> 1.8, lit stroke untouched. RA2 laces its own column with 1px lines | 0.261 -> 0.232 |
+| 5 | `depot:dir` | three 14x3 slivers clearing a roofline at 77 by exactly **3 rows** — named by ablation as the left and right house clamps and the three-drum fuel stack, not cranes. The roofline lands on the pad deck because this sprite has no hall | clamp ring +4px nearer, drums `fh*0.10` -> `0.18`. The block's own note says the clamps "reach IN FROM THE RIM"; at the old y they straddled the amber kerb and chopped the running lamps | 4 blobs -> 1 |
+
+## The Refinery — opened as art, closed as a ceiling, and the fix that makes it WORSE
+
+`refinery:dir` reads 2 crown blobs already; its only failure is the **gap**,
+0.018 against 0.08 `Sw`. Mapped column by column, the near-touch is at **row 76**
+between the vault arc's tapering tail (x145, rows 75-76) and the second stack's
+base (x150). Closing it to the 18.24px the clause wants needs the arc's right rim
+pulled back 14px — 40% of its own radius — or the second stack moved 14px off the
+skirt it stands on. RA2's own refinery stands its second stack hard against its
+vault in exactly the same way.
+
+`refinery:col` reads ONE blob, and the cause **was** found: `grille1`, the first
+of the two fanned grilles, is drawn AFTER both furnaces and bridges them across
+the only seam column (x134) in the crown band. Ablating it alone splits the crown
+cleanly into two. This is the textbook "a later shape bridges two earlier ones".
+
+**And un-bridging it is a regression, which is why it was not done.** The clause
+block emits ONE row when `crown.length < 2` and **THREE** when it is >= 2.
+Measured on a build with `grille1` shifted 6px clear:
+
+    crown = 1 (today)   "2 stacks"  FAIL                      -> 1 row,  1 unmet
+    crown = 2 (fixed)   gap       0.004 vs >= 0.08   FAIL
+                        widths    0.320/0.167 vs 0.12-0.15  FAIL
+                        clearance 0.474 vs >= 0.30    PASS    -> 3 rows, 2 unmet
+
+So separating the two furnaces takes `clause.unmetStructures` **11 -> 12** and
+`checkedStructures` 75 -> 77. The seam it exposes is 1 column wide, nowhere near
+the 18px the gap row wants, and the back furnace's cone would have to drop below
+the roofline entirely for the width row to come into range. Both Refinery rows
+are therefore recorded as ceilings: not reachable without redrawing the
+building, and reachable-looking only until the arithmetic is done.
