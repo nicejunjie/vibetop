@@ -3055,7 +3055,14 @@
   // Start menu / defocuses windows — same reason the Tidy button does it.
 
 
-  menuEl.addEventListener('click', function(e) {
+  // Bound to the menu AND to each flyout panel, because an open side flyout is
+  // reparented to <body> and its clicks no longer bubble through #startmenu —
+  // v1.19.307 hoisted the panel and every row in it went dead. While a panel is
+  // back inside the menu (the narrow drill-down) both listeners see the same
+  // click, so the first one to run claims it.
+  function onMenuClick(e) {
+    if (e.__smHandled) return;
+    e.__smHandled = true;
     // Flyout title doubles as a "back"/close on a cascading panel.
     if (e.target.closest('.sm-fly-head')) { closeAllFlyouts(); return; }
     // A flyout parent (Utilities, Games) OPENS its panel (positioned beside/over
@@ -3087,7 +3094,9 @@
     }
     if (e.target.closest('.sm-close')) { closeEverywhere(id); return; }  // close-everywhere, not launch
     launch(id);
-  });
+  }
+  menuEl.addEventListener('click', onMenuClick);
+  FLYOUTS.forEach(function (f) { f.sub.addEventListener('click', onMenuClick); });
 
   // Taskbar button = Windows-style window control: clicking a NON-active window
   // switches to it; clicking the ALREADY-active window MINIMIZES it (setActive
