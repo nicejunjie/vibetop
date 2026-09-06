@@ -3581,3 +3581,36 @@ Shipping because it clears the stated bar (UNDER falls, floor holds, no
 faction cross-contamination, no invented ornament, GI/Spy untouched) — flagging
 for whoever revisits `Battle Lab | GI` (65.6) and `Prism Tower | Spy` (63.8)
 that they're still worth a real composition idea, this pass just wasn't it.
+
+## Where the structure-clause repairs stopped (2026-09-06)
+
+The 35 failing structure clauses were split across three passes covering every
+key with no overlap. **All three were killed by a session rate limit mid-edit**,
+before any of them measured anything. Their work is preserved but NOT merged:
+
+| branch | scope | state |
+|---|---|---|
+| `rts-prod-econ-clauses` | refinery, factory, depot, lab (13 clauses) | WIP commit `00b2f2a`, 38 lines of `rts.html` changed, unverified |
+| `rts-def-sw-clauses` | sentry, sentrygun, patriot, flakcannon, curtain (8) | WIP commit `e718cba`, 31 lines of `rts.html` plus a `structures.js` edit, unverified |
+| (remainder) | base, power, barracks, radar, airforce, reactor, tesla, prism, gapgen (14) | nothing committed |
+
+**Do not merge either branch as it stands.** Both were terminated partway
+through an edit — one literally between call sites — so nothing in them has
+been measured against the gates it must hold. Re-measure from scratch:
+`clause.unmetStructures`, `size.bldOutsideRA2Band` 0,
+`size.bldWorstOffHouseScale` <= 0.20 (0.1758, thin), cameo-legibility
+Directorate 221 / 61.1 and Collective 250 / 57.7, `legibility.js` 0 confusable,
+and the full suite. Treat the diffs as a starting hypothesis, not a result.
+
+**The working hypothesis they were given, which still stands:** anti-aliasing
+fusion has caused eight defects in this project, and clauses reading "exactly 3
+masses" or "one crown blob" as 1 are that signature. Check whether the part
+EXISTS and is merely fusing before adding geometry — the Apocalypse needed a
+drawn dark seam because more spacing analytically could not open it, and the
+Grizzly's was a paint-ORDER bug that made the check report the wrong
+component's dimensions entirely.
+
+One process note worth keeping: a fourth pass ended its turn waiting on a
+monitor notification, which never reaches a subagent — it stalled silently
+after 42 minutes and its completion report read as a pause rather than a
+result. **A subagent cannot wait on an event; it must finish its turn.**
