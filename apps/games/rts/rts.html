@@ -16789,9 +16789,9 @@
       for (var ldR = 0; ldR < 5; ldR++) {
         var lra = ldR / 5 * 6.283 + 0.5;
         var lrx = ldx + Math.cos(lra) * 10.4, lry = ldy - 28 + Math.sin(lra) * 4.2;
-        g.beginPath(); g.moveTo(lrx, lry); g.lineTo(lrx + 0.6, lry - 7 - (ldR % 2) * 4); g.stroke();
+        g.beginPath(); g.moveTo(lrx, lry); g.lineTo(lrx + 0.6, lry - 7 - (ldR % 2) * 2); g.stroke();
         g.fillStyle = ldR % 2 ? '#c8d0aa' : '#9aa2ae';
-        g.beginPath(); g.arc(lrx + 0.6, lry - 7 - (ldR % 2) * 4, 1.2, 0, 6.29); g.fill();
+        g.beginPath(); g.arc(lrx + 0.6, lry - 7 - (ldR % 2) * 2, 1.2, 0, 6.29); g.fill();
       }
 
       // ---- short front drum with the house stripe ------------------------
