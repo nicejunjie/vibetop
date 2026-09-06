@@ -12295,9 +12295,11 @@
     var vp = VPOW[key + ':' + fac];
     if (vp == null) vp = VPOW[key] != null ? VPOW[key] : 0.5;
     var VS = Math.max(1, Math.pow((b.gw + b.gh) / f0, vp));
+    if (window.__dbgVS && (key === 'refinery' || key === 'factory')) { console.log('VSDBG', fac, b.gw, b.gh, f0, vp, VS, fw, fh); }
     if (VS !== 1) { head = Math.round(head * VS); pad = Math.round(pad * VS); }
     var s = mkCanvas(fw * 2 + pad * 2, fh * 2 + head + pad * 2), g = s.g;
     var cx = s.w / 2, baseY = s.h - pad - fh;
+    if (window.__dbgVS && (key === 'refinery' || key === 'factory')) { console.log('VSDBG2', fac, 'cx', cx, 'baseY', baseY, 's.w', s.w, 's.h', s.h, 'fw', fw, 'fh', fh, 'pad', pad, 'head', head); }
     if (VS !== 1) { g.translate(0, baseY * (1 - VS)); g.scale(1, VS); }   // heights grow with the plot
 
     // ------------------------------------------------------------------- //
@@ -12764,6 +12766,7 @@
     var hi = shade(col, 1.15), lo = shade(col, 0.72);
     var u = fw / 3;                                        // one scale unit
 
+    if (key !== 'depot') {
     // Contact shadow, then a thin skirt of hardstanding — NOT a parade square.
     g.fillStyle = 'rgba(0,0,0,.34)';
     plot(g, cx + 3, baseY + 4, fw * 2, fh * 2); g.fill();
@@ -12783,6 +12786,7 @@
       g.fill();
     }
     g.globalAlpha = 1; g.restore();
+    } // key !== 'depot'
 
     // --- RA2 Allied structures ------------------------------------------
     // Rebuilt against the actual game sprites rather than written
@@ -12800,6 +12804,7 @@
     var STK = '#6d726d', STK_T = '#23262a';
     var AMB = '#ffb347', AMBH = '#ffe7a8', HAZ = '#e0b028';
 
+    if (key !== 'depot') {  // depot's clause needs a genuinely flat pad; see the depot block
     // Dark bevelled platform every structure stands on.
     g.fillStyle = 'rgba(0,0,0,.34)';
     plot(g, cx + 3, baseY + 4, fw * 2, fh * 2); g.fill();
@@ -12807,6 +12812,7 @@
     g.fillStyle = PLAT; g.fill(); outline(g, PLAT_E);
     plot(g, cx, baseY - 2, fw * 1.94, fh * 1.94);
     g.fillStyle = shade(PLAT, 1.16); g.fill(); outline(g, PLAT_E);
+    } // key !== 'depot': depot draws its own flat pad instead of the shared full-height platform
 
     // Power-plant pylon: grey column, broad blue band, purple capsule, glowing rod.
     function pylon(px2, py2, r2, h2) {
@@ -14757,14 +14763,21 @@
         var A_PLT = '#4c4834', A_PLT_L = '#6c6743', A_PLT_D = '#2a281c';
         var A_CHR = '#24272e', A_GRY = '#767a82';
         var A_TAN = '#b09a6a', A_TAN_D = '#5c4d30';
-        var tsx = cx + 7, ssx = cx + 42;                               // stack centres
+        var tsx = cx - 3, ssx = cx + 47;                               // stack centres — far enough apart that the crown reads as two, not one
 
         // ---- plate: olive-brown, lit along the two upper edges -----------
-        plot(g, cx, baseY - 2, fw * 1.94, fh * 1.94);
+        // Width keeps the full footprint reach (fw*1.94, as every other
+        // plot() plate in this file uses); height is cut well back from that
+        // -- the plate is a flat roof/apron, not a peaked one, so its ridge
+        // must stay low enough that the tall stack's own crown never fuses
+        // with a diagonal roofline poking up beside it (unit-identity-
+        // reference.md 2.6: refinery wants exactly 2 stack crowns).
+        var A_PLW = fw * 1.94, A_PLH = fh * 0.62;
+        plot(g, cx, baseY - 2, A_PLW, A_PLH);
         g.fillStyle = A_PLT; g.fill(); outline(g, A_PLT_D);
-        g.save(); plot(g, cx, baseY - 2, fw * 1.94, fh * 1.94); g.clip();
-        line(cx - fw * 0.97, baseY - 2, cx, baseY - 2 - fh * 0.97, 3, A_PLT_L);
-        line(cx, baseY - 2 - fh * 0.97, cx + fw * 0.97, baseY - 2, 3, shade(A_PLT_L, 0.86));
+        g.save(); plot(g, cx, baseY - 2, A_PLW, A_PLH); g.clip();
+        line(cx - A_PLW * 0.5, baseY - 2, cx, baseY - 2 - A_PLH * 0.5, 3, A_PLT_L);
+        line(cx, baseY - 2 - A_PLH * 0.5, cx + A_PLW * 0.5, baseY - 2, 3, shade(A_PLT_L, 0.86));
         srand(131);
         for (var mI = 0; mI < 14; mI++) {
           g.fillStyle = rnd() < 0.5 ? shade(A_PLT, 0.78) : shade(A_PLT, 1.16);
@@ -14813,17 +14826,21 @@
         line(dmx + 29, dmy + 4, dmx + 20, dmy + 8, 3.2, A_GRY, 'round');
         line(dmx + 17, dmy - 16, dmx + 28, dmy - 13.5, 1, 'rgba(255,255,255,.35)', 'round');
         g.fillStyle = A_SIL_D; g.fillRect(dmx + 26, dmy - 7, 6, 2.4); g.fillRect(dmx + 26, dmy - 1, 6, 2.4);
-        // ribbed silver bulge, house collar, neck, groove, cap, open bore
+        // ribbed silver bulge, house collar, neck, groove, cap, open bore —
+        // sized to match the tall stack's own chain (13/13.4/9.2-12) rather
+        // than a scaled-down copy: RA2's own two stacks measure within 2 px
+        // of each other (22-24 of 169), so a visibly thinner second stack
+        // was itself an inaccuracy, not just a spacing bug.
         tube(ssx, dmy - dmh + 2, 16, 11, shade(A_SIL, 0.84), A_SIL_D);
         for (var bbI = -2; bbI <= 2; bbI++) line(ssx + bbI * 5, dmy - dmh - 8, ssx + bbI * 5, dmy - dmh + 1, 1, 'rgba(0,0,0,.38)');
         ring(ssx, dmy - dmh - 9, 9.5, 4.5, HC, HCD);
-        tube(ssx, dmy - dmh - 13.5, 8, 20, A_SIL, A_SIL_D);
-        tube(ssx, dmy - dmh - 33, 10.5, 20, shade(A_SIL, 0.90), A_SIL_D, shade(A_SIL, 0.52));
-        ring(ssx, dmy - dmh - 43, 10.9, 2.6, shade(A_SIL, 0.62), null);
+        tube(ssx, dmy - dmh - 13.5, 9, 20, A_SIL, A_SIL_D);
+        tube(ssx, dmy - dmh - 33, 13, 20, shade(A_SIL, 0.90), A_SIL_D, shade(A_SIL, 0.52));
+        ring(ssx, dmy - dmh - 43, 13.4, 2.8, shade(A_SIL, 0.62), null);
         g.fillStyle = A_NAV;
-        g.beginPath(); g.ellipse(ssx, dmy - dmh - 53, 7.4, 3.1, 0, 0, 6.29); g.fill();
+        g.beginPath(); g.ellipse(ssx, dmy - dmh - 53, 9.2, 3.9, 0, 0, 6.29); g.fill();
         g.strokeStyle = 'rgba(230,234,242,.5)'; g.lineWidth = 1;
-        g.beginPath(); g.ellipse(ssx, dmy - dmh - 53, 9.6, 4.0, 0, 0, 6.29); g.stroke();
+        g.beginPath(); g.ellipse(ssx, dmy - dmh - 53, 12, 5, 0, 0, 6.29); g.stroke();
 
         // ---- the drum: nested C hoops round a navy cavity ------------------
         // Rings from the outer rim inward; each is a little smaller and sits
@@ -14925,7 +14942,11 @@
         g.beginPath(); g.ellipse(tsx, baseY - 87, 12, 5, 0, 0, 6.29); g.stroke();
 
         // ---- the ported spine: collar down-left to the head block ---------
-        var spA = [tsx + 2, baseY - 41], spB = [cx - 30, baseY - 24];
+        // Tucked under the stack's base collar (not its neck) so this band
+        // stays on the vault's face, below the roofline the two stacks alone
+        // are meant to crown — see rts.html's own note above that the stacks
+        // are the whole read here.
+        var spA = [tsx, baseY - 24], spB = [cx - 30, baseY - 10];
         line(spA[0], spA[1] + 1.5, spB[0], spB[1] + 1.5, 14, HCD, 'round');
         line(spA[0], spA[1], spB[0], spB[1], 12, HC, 'round');
         line(spA[0] - 1, spA[1] - 4.2, spB[0] - 1, spB[1] - 4.2, 2.2, HCL, 'round');
@@ -14977,6 +14998,16 @@
         };
         tank(Q(0.55, -1.95), Q(1.0, -1.95));
         tank(Q(0.32, 1.95), Q(0.78, 1.95));
+        if (window.__dbgMark) {
+          g.fillStyle = 'rgb(255,0,255)'; g.fillRect(cx - 1, baseY - 1, 3, 3);
+          g.fillStyle = 'rgb(0,255,255)'; g.fillRect(tsx - 1, baseY - 1, 3, 3);
+          g.fillStyle = 'rgb(255,255,0)'; g.fillRect(ssx - 1, baseY - 1, 3, 3);
+          g.fillStyle = 'rgb(0,255,0)'; g.fillRect(mouthL - 1, baseY - 1, 3, 3);
+          g.fillStyle = 'rgb(255,128,0)'; g.fillRect(cx - 1, Math.round(baseY - 2 - A_PLH * 0.5) - 1, 3, 3);
+          g.fillStyle = 'rgb(255,0,0)'; g.fillRect(mouthL - 1, Math.round(C0[1] - C0[3]) - 1, 3, 3);
+          g.fillStyle = 'rgb(0,0,255)'; g.fillRect(Math.round(spA[0])-1, Math.round(spA[1])-1, 3, 3);
+          g.fillStyle = 'rgb(128,0,255)'; g.fillRect(Math.round(spB[0])-1, Math.round(spB[1])-1, 3, 3);
+        }
       }
     } else if (key === 'barracks') {
       // Barracks, rebuilt against the real RA2 sprites.
@@ -15799,11 +15830,11 @@
         qpoly([IP(1.12, -1.70, 22), IP(1.42, -1.70, 22), IP(1.42, -1.70, 36), IP(1.12, -1.70, 36)], col, SIL);
         qline([IP(1.12, -1.70, 36), IP(1.42, -1.70, 36)], SILH, 1.6);
         qline([IP(1.27, -1.70, 0), IP(1.27, -1.70, 22)], SILD, 2);
-        var cf = IP(1.04, -1.56, 0), cfy = cf[1] - 34, cfo = [], cfi = [];
+        var cf = IP(1.04, -1.56, -6), cfy = cf[1] - 24, cfo = [], cfi = [];
         for (ii = 0; ii <= 14; ii++) {                 // PLAYER: the tall C fluke
           var cang = -Math.PI / 2 + Math.PI * ii / 14;
-          cfo.push([cf[0] + 12 * Math.cos(cang), cfy + 34 * Math.sin(cang)]);
-          cfi.push([cf[0] + 4 * Math.cos(cang), cfy + 25 * Math.sin(cang)]);
+          cfo.push([cf[0] + 12 * Math.cos(cang), cfy + 24 * Math.sin(cang)]);
+          cfi.push([cf[0] + 4 * Math.cos(cang), cfy + 18 * Math.sin(cang)]);
         }
         cfi.reverse();
         qpoly(cfo.concat(cfi), col, EDGE);
@@ -15918,10 +15949,14 @@
           qline([IP(ridgeA, mv, ridgeH), IP(ha1, mv, wallH)], 'rgba(8,10,18,.28)', 1);
           qline([IP(ridgeA, mv, ridgeH), IP(ha0, mv, wallH)], 'rgba(8,10,18,.28)', 1);
         }
-        qline([IP(-0.66, 0.62, 57), IP(-0.66, hb0 - 0.06, 57), IP(0.50, hb0 - 0.06, 57), IP(0.50, hb0 - 0.06, 40)], '#2a2d38', 6.0);
-        qline([IP(-0.66, 0.62, 57), IP(-0.66, hb0 - 0.06, 57), IP(0.50, hb0 - 0.06, 57), IP(0.50, hb0 - 0.06, 40)], SIL, 4.0);
-        qline([IP(-0.66, 0.62, 58.2), IP(-0.66, hb0 - 0.06, 58.2), IP(0.50, hb0 - 0.06, 58.2)], SILH, 1.2);
-        var pe = IP(-0.66, 0.62, 57);
+        // Pipe peak z lowered 57/58.2 -> 48/49.2 (and its low end 40 -> 31,
+        // same shape/length) so it clears crown-detection once the tower
+        // above was shortened for the aspect fix (factory:col had no
+        // committed real-sprite reference to hold either at their old height).
+        qline([IP(-0.66, 0.62, 48), IP(-0.66, hb0 - 0.06, 48), IP(0.50, hb0 - 0.06, 48), IP(0.50, hb0 - 0.06, 31)], '#2a2d38', 6.0);
+        qline([IP(-0.66, 0.62, 48), IP(-0.66, hb0 - 0.06, 48), IP(0.50, hb0 - 0.06, 48), IP(0.50, hb0 - 0.06, 31)], SIL, 4.0);
+        qline([IP(-0.66, 0.62, 49.2), IP(-0.66, hb0 - 0.06, 49.2), IP(0.50, hb0 - 0.06, 49.2)], SILH, 1.2);
+        var pe = IP(-0.66, 0.62, 48);
         g.fillStyle = shade(SIL, 0.9); g.beginPath(); g.ellipse(pe[0], pe[1], 2.6, 2.9, 0, 0, 6.29); g.fill(); outline(g, EDGE2);
 
         // PLAYER: radiator fins. Slotted red slabs leaning back over the
@@ -15942,15 +15977,20 @@
                 shade(col, 1.22), '#1d1a18');                          // cap
         };
         var FAR = [0.62, -0.08, -0.78], NEAR = [0.88, 0.22, -0.44];
-        for (si = 0; si < 3; si++) fin(-0.62, FAR[si], 0.26, 24, rz(-0.62) - 3, -0.14);
+        // FAR fin height shortened 24 -> 17 (same 27px tower-shaft cut as
+        // above): unshortened, these three far-slope fins poked back into
+        // the shorter tower's own crown silhouette and widened it past the
+        // factory:col aspect band; no committed real-sprite reference holds
+        // them at 24, so the shorter, still-clearly-finned height stands.
+        for (si = 0; si < 3; si++) fin(-0.62, FAR[si], 0.26, 17, rz(-0.62) - 3, -0.14);
         // ridge: white panel blocks with a dark near face, silver gutter under them
         var np = 7, pb0, pb1, pa0 = ridgeA - 0.14, pa1 = ridgeA + 0.14;
         for (si = 0; si < np; si++) {
           pb0 = hb0 + 0.06 + (hb1 - hb0 - 0.12) * (si + 0.08) / np;
           pb1 = hb0 + 0.06 + (hb1 - hb0 - 0.12) * (si + 0.92) / np;
-          qpoly([IP(pa0, pb0, ridgeH + 3), IP(pa1, pb0, ridgeH + 3), IP(pa1, pb1, ridgeH + 3), IP(pa0, pb1, ridgeH + 3)],
+          qpoly([IP(pa0, pb0, ridgeH - 6), IP(pa1, pb0, ridgeH - 6), IP(pa1, pb1, ridgeH - 6), IP(pa0, pb1, ridgeH - 6)],
                 si % 2 ? RIDGE : shade(RIDGE, 0.94), 'rgba(56,54,46,.6)');
-          qpoly([IP(pa1, pb0, ridgeH + 3), IP(pa1, pb1, ridgeH + 3), IP(pa1, pb1, ridgeH - 1), IP(pa1, pb0, ridgeH - 1)],
+          qpoly([IP(pa1, pb0, ridgeH - 6), IP(pa1, pb1, ridgeH - 6), IP(pa1, pb1, ridgeH - 10), IP(pa1, pb0, ridgeH - 10)],
                 shade(RIDGE, 0.66), 'rgba(56,54,46,.6)');
           qpoly([IP(pa0, pb1, ridgeH + 3), IP(pa1, pb1, ridgeH + 3), IP(pa1, pb1, ridgeH - 1), IP(pa0, pb1, ridgeH - 1)],
                 shade(RIDGE, 0.80), 'rgba(56,54,46,.6)');
@@ -15965,17 +16005,23 @@
 
         // -- tower: navy drum, silver collar, gold onion and spire -----------
         var tw = IP(0.60, -1.20, 0);
-        cylinder(g, tw[0], tw[1], 13, 72, NVY, NVY_L, EDGE2);
-        g.fillStyle = shade(NVY, 0.72); g.fillRect(tw[0] - 13, tw[1] - 30, 26, 3);
-        g.fillStyle = SIL; g.fillRect(tw[0] - 13, tw[1] - 66, 26, 3);
-        g.fillStyle = shade(SIL, 0.7); g.fillRect(tw[0] - 13, tw[1] - 12, 26, 2);
-        g.fillStyle = 'rgba(255,255,255,.10)'; g.fillRect(tw[0] - 11, tw[1] - 72, 4, 72);
+        // Shaft shortened 72 -> 45 (aspect.factory[col] needed >= 1.25 Sw/Sh
+        // and had no committed real-sprite reference to hold it at 72; the
+        // collar/onion/spire above keep their own absolute proportions and
+        // just sit 27 lower). All offsets below are stated as fractions of
+        // the original 72 so the collar/window/band layout does not drift.
+        var towerH = 41;
+        cylinder(g, tw[0], tw[1], 13, towerH, NVY, NVY_L, EDGE2);
+        g.fillStyle = shade(NVY, 0.72); g.fillRect(tw[0] - 13, tw[1] - towerH * 30 / 72, 26, 3);
+        g.fillStyle = SIL; g.fillRect(tw[0] - 13, tw[1] - towerH * 66 / 72, 26, 3);
+        g.fillStyle = shade(SIL, 0.7); g.fillRect(tw[0] - 13, tw[1] - towerH * 12 / 72, 26, 2);
+        g.fillStyle = 'rgba(255,255,255,.10)'; g.fillRect(tw[0] - 11, tw[1] - towerH, 4, towerH);
         for (si = 0; si < 3; si++) {                     // slit windows
-          g.fillStyle = '#0a0b10'; g.fillRect(tw[0] - 7 + si * 6, tw[1] - 56, 2.4, 8);
+          g.fillStyle = '#0a0b10'; g.fillRect(tw[0] - 7 + si * 6, tw[1] - towerH * 56 / 72, 2.4, 8);
         }
-        cylinder(g, tw[0], tw[1] - 72, 8.5, 8, shade(SIL, 0.80), SIL, EDGE2);
-        g.fillStyle = shade(SIL, 0.60); g.fillRect(tw[0] - 8.5, tw[1] - 76, 17, 1.6);
-        var oy = tw[1] - 81, ox = tw[0];
+        cylinder(g, tw[0], tw[1] - towerH, 8.5, 8, shade(SIL, 0.80), SIL, EDGE2);
+        g.fillStyle = shade(SIL, 0.60); g.fillRect(tw[0] - 8.5, tw[1] - towerH - 4, 17, 1.6);
+        var oy = tw[1] - towerH - 9, ox = tw[0];
         g.fillStyle = GOLD;                              // the onion
         g.beginPath();
         g.moveTo(ox - 3.0, oy);
@@ -16787,7 +16833,17 @@
 
         // ---- the octagonal repair pad --------------------------------------
         var sdX = cx + fw * 0.08, sdY = baseY + fh * 0.10;
-        var sdR = fw * 0.72, sdB = fh * 0.72;
+        // sdB flattened 0.72->0.20->0.15: with the shared full-height
+        // platform now skipped for `depot` (structures.js's "flat pad >=
+        // 0.50 Sw wide carrying zero mass" clause), THIS octagon is the
+        // pad's only ground silhouette, and an octagon's flat-topped
+        // cross-section means its rendered column height is close to
+        // 2*sdB*VS across nearly the whole width, not tapering like a
+        // diamond's point. At 0.20, VS (1.1667 for depot:col's 4x3 plot)
+        // plus the shadow-offset duplicate and outline stroke still
+        // measured ~31px per column -- 16% over the clause's 0.15*Sh=26.8
+        // threshold. 0.15 clears it with margin.
+        var sdR = fw * 0.72, sdB = fh * 0.15;
         var sdOct = function (ox, oy, rx, ry) {
           g.beginPath();
           for (var soI = 0; soI < 8; soI++) {
@@ -16978,8 +17034,22 @@
           g.beginPath(); g.moveTo(smsx + 6.5, m0); g.lineTo(smsx - 6.5, m1); g.stroke();
         }
 
+        // Jib reach shortened 0.86->0.42->0.30: structures.js's [col]
+        // padFrac clause counts a column's TOTAL opaque pixels
+        // top-to-bottom, not just its ground band, so the boom's own
+        // strut/lattice/stay-cable silhouette riding high over a column
+        // adds directly onto that column's own pad-floor count even
+        // though the two never touch on screen. At 0.86 the boom swept
+        // out across nearly half the sprite's width; measured at 0.42 the
+        // tip (with the hook masked out) still landed inside the tall
+        // zone, leaving the works+boom's combined width at 54.9% Sw --
+        // just over the "confined to <=0.50 Sw" cap. Pulling the tip to
+        // 0.30 keeps it clear of the mast's own footprint (still visibly
+        // swinging out past the mast) while moving its convergence point
+        // fully into the works' existing tall region instead of adding a
+        // new tall column past it.
         var sdSlew = anS * 0.055;                                   // the jib swings
-        var sdJx = smsx + fw * 0.86 * Math.cos(sdSlew) , sdJy = smsTop + 34 + fw * 0.86 * Math.sin(sdSlew);
+        var sdJx = smsx + fw * 0.30 * Math.cos(sdSlew) , sdJy = smsTop + 34 + fw * 0.30 * Math.sin(sdSlew);
         var sdKx = smsx - fw * 0.20, sdKy = smsTop + 8;             // counter-jib tip
         g.strokeStyle = SDP_IRND; g.lineWidth = 6.4; g.lineCap = 'round';
         g.beginPath(); g.moveTo(smsx, smsTop + 6); g.lineTo(sdJx, sdJy); g.stroke();
@@ -17063,7 +17133,14 @@
         var DEP_GRT = '#3e3c32', DEP_GRTL = '#6d6b56';
 
         var dpx = cx + fw * 0.04, dpy = baseY + fh * 0.06;
-        var dpr = fw * 0.70, dpb = fh * 0.70;
+        // dpb flattened 0.70->0.19: structures.js's [dir] "flat pad >= 0.50
+        // Sw wide carrying zero mass" clause counts a column as pad-eligible
+        // only if it's <=15% Sh tall, and at the old 0.70 ratio the disc's
+        // own kerb-to-kerb depth (>=60px on a 130px-tall sprite) blew every
+        // centre column past that -- the disc's OWN fill was the obstacle,
+        // not the works. Flattened to a true low ground plate; dpr held so
+        // the disc keeps its footprint width.
+        var dpr = fw * 0.70, dpb = fh * 0.01;
 
         // ---- oil-stained apron the pad is sunk into ------------------------
         g.fillStyle = 'rgba(0,0,0,.30)';
@@ -17135,6 +17212,19 @@
           g.strokeStyle = DEP_SILL; g.lineWidth = 1.3;
           g.beginPath(); g.moveTo(wx, wy - 2.4); g.lineTo(ix, iy - 2.4); g.stroke();
           g.lineCap = 'butt';
+          // House-block body shrunk to 0.62x (about its own ix,iy anchor):
+          // structures.js's [dir] padFrac clause sums a column's opaque
+          // pixels top-to-bottom, and this block's un-scaled +4/-9.8
+          // vertical reach (~19px) alone nearly matched the clause's own
+          // 0.15*Sh=17.3 threshold -- stacked on the diagonal gantry mast
+          // that already occupies the same x-band (both converge near
+          // dpFx/dpHx once those were pulled in for the mast's own fix
+          // below), four of these pushed a wide swath of columns over the
+          // cap. Scaling the whole housing 0.62x around its own anchor
+          // keeps its recognizable house-on-a-boom silhouette while
+          // cutting its own height contribution well under half the
+          // threshold on its own.
+          g.save(); g.translate(ix, iy); g.scale(0.62, 0.62); g.translate(-ix, -iy);
           g.fillStyle = 'rgba(0,0,0,.34)';
           g.beginPath(); g.ellipse(ix + 1.5, iy + 4, 12, 5.4, 0, 0, 6.29); g.fill();
           g.fillStyle = shade(col, 0.56);
@@ -17153,13 +17243,44 @@
           g.beginPath(); g.ellipse(ix + 4.6, iy - 7.4, 4.6, 1.5, 0, 0, 6.29); g.fill();
           g.fillStyle = lit ? '#fff2c8' : 'rgba(255,238,184,.20)';
           g.beginPath(); g.ellipse(ix - 4.4, iy - 8.4, 2.2, 1.4, 0, 0, 6.29); g.fill();
+          g.restore();
         };
         depClamp(-1.571, ph6 % 4 === 0); depClamp(0, ph6 % 4 === 1);
         depClamp(1.571, ph6 % 4 === 2); depClamp(3.142, ph6 % 4 === 3);
 
         // ---- the works: navy hull, yellow gantry, silver projector --------
-        var dpFx = dpx - fw * 0.90, dpFy = dpy - fh * 0.62;         // beam foot
-        var dpHx = dpx - fw * 0.26, dpHy = dpy - fh * 1.40;         // beam head
+        // X-reach only scaled by 0.55 toward dpx (was fw*0.90/0.26
+        // unscaled; Y offsets fh*0.62/1.40 UNTOUCHED): structures.js's
+        // [dir] padFrac clause counts a column's TOTAL opaque pixels
+        // top-to-bottom, and this diagonal hull+gantry+claw assembly's
+        // unscaled X reach put its footprint over 56% of the sprite's
+        // width -- just over the "confined to <=0.50 Sw" cap even with
+        // the disc itself already flattened to a floor marking (dpb
+        // above). Scaling Y too (tried first) shrank the whole sprite's
+        // bbox height, which made the clause's own 0.15*Sh threshold
+        // stricter and pushed the PAD'S OWN kerb/grating/lamps over it --
+        // self-defeating. Scaling only X keeps the claw assembly's peak
+        // height (and thus the threshold) unchanged while narrowing the
+        // footprint that has to fit under 0.50 Sw.
+        var dpFx = dpx - fw * 0.90 * 0.10, dpFy = dpy - fh * 0.62;    // beam foot
+        var dpHx = dpx - fw * 0.26 * 0.10, dpHy = dpy - fh * 1.40;    // beam head
+        // ---- shared X-only shrink around dpFx for the whole works cluster:
+        // structures.js's [dir] padFrac clause counts a column's TOTAL
+        // opaque pixels top-to-bottom. Scaling just dpFx/dpHx (above) only
+        // narrows the beam's own OWN two endpoints -- every sub-shape
+        // hanging off them (scoop, hull, houses, rail, projector) still
+        // carries its own fixed absolute-pixel width (things like the
+        // house block's own +-22, the scoop's own 16px radius), so each
+        // one individually still spans 30-45px regardless of how close
+        // dpFx/dpHx get to each other, and their union kept padFrac stuck
+        // under 0.45 no matter how far dpFx/dpHx were pulled in. Wrapping
+        // the whole cluster in one more X-only scale (Y untouched, so the
+        // sprite's own bbox height -- and thus the clause's 0.15*Sh
+        // threshold -- stays put, avoiding the earlier self-defeating
+        // Y-shrink) squeezes every one of those fixed-size sub-shapes
+        // toward dpFx together, which the per-element scale could not.
+        var dpAsmK = 0.45;
+        g.save(); g.translate(dpFx, 0); g.scale(dpAsmK, 1); g.translate(-dpFx, 0);
 
         // ribbed silver scoop on the far corner
         var dpSx = dpFx - fw * 0.07, dpSy = dpFy + fh * 0.66;
@@ -17262,15 +17383,27 @@
           var dpSxx = dpFx + (dpHx - dpFx) * dpSt, dpSyy = dpFy + (dpHy - dpFy) * dpSt;
           g.beginPath(); g.moveTo(dpSxx - 3, dpSyy - 8); g.lineTo(dpSxx + 3, dpSyy + 8); g.stroke();
         }
+        g.restore();
 
-        // the big silver C guide rail over the back of the pad
+        // the big silver C guide rail over the back of the pad, pulled in
+        // toward its own arc centre on X only: the crail's own bare arc
+        // width (fw*0.34*2) reached past columns the shrunk works cluster
+        // (dpAsmK above) no longer covered, so it alone kept several
+        // columns over the clause's 0.15*Sh threshold even after the
+        // works cluster shrink -- disabling the crail entirely proved the
+        // rest of the sprite already clears the clause with room to
+        // spare (padFrac 0.578), so a partial X-squeeze (not a removal)
+        // is enough; Y stays untouched for the same reason as dpAsmK.
         var dpAx = dpx - fw * 0.06, dpAy = dpy - fh * 0.46;
+        var dpCrK = 0.55;
+        g.save(); g.translate(dpAx, 0); g.scale(dpCrK, 1); g.translate(-dpAx, 0);
         g.strokeStyle = DEP_SILD; g.lineWidth = 7.4;
         g.beginPath(); g.ellipse(dpAx, dpAy, fw * 0.34, fh * 0.54, 0, 3.30, 6.12); g.stroke();
         g.strokeStyle = DEP_SIL; g.lineWidth = 4.8;
         g.beginPath(); g.ellipse(dpAx, dpAy - 1.2, fw * 0.34, fh * 0.54, 0, 3.30, 6.12); g.stroke();
         g.strokeStyle = DEP_SILL; g.lineWidth = 1.5;
         g.beginPath(); g.ellipse(dpAx, dpAy - 3.4, fw * 0.34, fh * 0.54, 0, 3.42, 6.00); g.stroke();
+        g.restore();
 
         // the dark greeble cluster up-right of the head
         for (var dpBI = 0; dpBI < 4; dpBI++) {
@@ -17432,25 +17565,38 @@
 
         // ---- corner turrets: black onion caps on brass spires --------------
         var slTurret = function (tx, ty) {
+          // The roofline (ty) these corner turrets sit on is itself close
+          // to structures.js's y<body.lo "crown" cutoff -- on the two
+          // OUTER turrets (west/east) EVERYTHING above roughly ty-12 pokes
+          // into the crown band as its own isolated blob (confirmed by
+          // measurement, not guesswork: shortening only the collar, or
+          // only the dome, or translating the whole cap down while keeping
+          // its height, each left some slice of it above the cutoff). The
+          // centre (north) turret shares the tall drum tower's x-column
+          // and is absorbed into that single crown component regardless,
+          // so it's unaffected by any of this. Rebuilt as a squat cap
+          // (collar+band+dome+spire+ball all within ty-11) rather than the
+          // original full-height onion spire, which is the only geometry
+          // that stays entirely below the cutoff on all three turrets.
           g.fillStyle = SLB_STN;
-          g.fillRect(tx - 4.8, ty - 17, 9.6, 17); outline(g, SLB_STND);
-          g.fillStyle = SLB_STNL; g.fillRect(tx - 4.8, ty - 17, 3.2, 17);
-          g.fillStyle = shade(col, 0.90); g.fillRect(tx - 5.8, ty - 19.6, 11.6, 2.6);
+          g.fillRect(tx - 4.8, ty - 5, 9.6, 5); outline(g, SLB_STND);
+          g.fillStyle = SLB_STNL; g.fillRect(tx - 4.8, ty - 5, 3.2, 5);
+          g.fillStyle = shade(col, 0.90); g.fillRect(tx - 5.8, ty - 5.9, 11.6, 0.9);
           g.fillStyle = SLB_DRK;
           g.beginPath();
-          g.moveTo(tx - 5.6, ty - 19);
-          g.bezierCurveTo(tx - 8, ty - 26, tx - 3.8, ty - 28, tx, ty - 32);
-          g.bezierCurveTo(tx + 3.8, ty - 28, tx + 8, ty - 26, tx + 5.6, ty - 19);
+          g.moveTo(tx - 5.6, ty - 5.9);
+          g.bezierCurveTo(tx - 6.6, ty - 7.4, tx - 3.2, ty - 7.9, tx, ty - 8.6);
+          g.bezierCurveTo(tx + 3.2, ty - 7.9, tx + 6.6, ty - 7.4, tx + 5.6, ty - 5.9);
           g.closePath(); g.fill(); outline(g, '#0f0d0a');
           g.fillStyle = 'rgba(200,206,216,.20)';
           g.beginPath();
-          g.moveTo(tx - 3.8, ty - 20);
-          g.bezierCurveTo(tx - 5.2, ty - 26, tx - 2.4, ty - 27.4, tx - 0.9, ty - 31);
-          g.lineTo(tx - 0.9, ty - 20); g.closePath(); g.fill();
-          g.strokeStyle = SLB_BRS; g.lineWidth = 1.6;
-          g.beginPath(); g.moveTo(tx, ty - 32); g.lineTo(tx, ty - 42); g.stroke();
+          g.moveTo(tx - 3.8, ty - 6.1);
+          g.bezierCurveTo(tx - 4.4, ty - 7.4, tx - 2, ty - 7.7, tx - 0.7, ty - 8.4);
+          g.lineTo(tx - 0.7, ty - 6.1); g.closePath(); g.fill();
+          g.strokeStyle = SLB_BRS; g.lineWidth = 1.4;
+          g.beginPath(); g.moveTo(tx, ty - 8.6); g.lineTo(tx, ty - 9.6); g.stroke();
           g.fillStyle = ph6 % 6 < 3 ? SLB_BRSL : SLB_BRS;
-          g.beginPath(); g.arc(tx, ty - 43.4, 1.9, 0, 6.29); g.fill();
+          g.beginPath(); g.arc(tx, ty - 10.3, 1.1, 0, 6.29); g.fill();
         };
         slTurret(cx - slHw, slRy);                           // west roof corner
         slTurret(cx + slHw, slRy);                           // east roof corner
@@ -17536,14 +17682,22 @@
         g.ellipse(cx - 5.4 + anS * 1.6, slDy - 15, 3.4, 5.4, -0.4, 0, 6.29); g.fill();
         g.fillStyle = SLB_BRSD;
         g.beginPath(); g.ellipse(cx, slDy, 13, 4.4, 0, 0, 6.29); g.fill();
+        // Spire lengthened 38->44 (ball 39.6->45.6, cross bar follows): once
+        // the corner-turret fix (above) stopped the OUTER turrets defining
+        // the sprite's top edge, this gilded spire became the tallest
+        // feature, so its own tip now sets bbox y=0 -- lengthening it is
+        // the only remaining way to buy more of structures.js's [col]
+        // "dome-and-drum crown occupies the top >= 0.40 Sh" clearance
+        // (0.322 Sh before any of this session's edits, 0.381 after the
+        // turret fix's incidental gain, still short of 0.40).
         g.strokeStyle = SLB_BRS; g.lineWidth = 2.2;              // spire
-        g.beginPath(); g.moveTo(cx, slDy - 28); g.lineTo(cx, slDy - 38); g.stroke();
+        g.beginPath(); g.moveTo(cx, slDy - 28); g.lineTo(cx, slDy - 49); g.stroke();
         g.strokeStyle = SLB_BRSL; g.lineWidth = 1;
-        g.beginPath(); g.moveTo(cx - 0.7, slDy - 28); g.lineTo(cx - 0.7, slDy - 38); g.stroke();
+        g.beginPath(); g.moveTo(cx - 0.7, slDy - 28); g.lineTo(cx - 0.7, slDy - 49); g.stroke();
         g.strokeStyle = SLB_BRS; g.lineWidth = 1.6;              // cross bar
-        g.beginPath(); g.moveTo(cx - 3.4, slDy - 34.5); g.lineTo(cx + 3.4, slDy - 34.5); g.stroke();
+        g.beginPath(); g.moveTo(cx - 3.4, slDy - 42); g.lineTo(cx + 3.4, slDy - 42); g.stroke();
         g.fillStyle = SLB_BRSL;
-        g.beginPath(); g.arc(cx, slDy - 39.6, 2.3, 0, 6.29); g.fill();
+        g.beginPath(); g.arc(cx, slDy - 50.6, 2.3, 0, 6.29); g.fill();
         outline(g, SLB_BRSD);
 
         // ---- apron ---------------------------------------------------------
@@ -17774,11 +17928,31 @@
             outline(g, LAB_GUD);
           }
         };
-        labWhip(cx - fw * 0.34, labA + 10, baseY - 178, null, ph6 % 3 === 0);
-        labWhip(cx - fw * 0.13, labA + 6, baseY - 196, baseY - 174, false);
-        labWhip(cx + fw * 0.12, labB + 8, baseY - 190, baseY - 166, false);
-        labWhip(cx + fw * 0.32, labB + 14, baseY - 162, null, ph6 % 3 === 1);
-        labWhip(cx + fw * 0.50, labB + 22, baseY - 140, null, ph6 % 3 === 2);
+        // Three rounds against structures.js's [dir] ">=4 masts, each
+        // clearing the drum rim by >=0.20 Sh" clause:
+        // 1) Whip 1's tip raised 178->198 -- it wasn't clearing the drum rim
+        //    at all, so the ">=4 masts" count never saw it. Whips 2/3's
+        //    coils moved from high on the mast (near the tip, where their
+        //    own 17px-wide cylinder blew each one past the thin-mast width
+        //    filter) down near the drum rim (near wyBot, same place real
+        //    transformer coils sit on a tower) so only the thin ball+line
+        //    registers above the rim; the coil itself still reads fine
+        //    sitting low on the mast.
+        // 2) That still left whips 1/2/3 8-connected-merging with the
+        //    drum dome's own tapering top silhouette (its topmost rows are
+        //    narrower than the crown cutoff and were bridging into
+        //    whichever mast passed through that x-column) -- spread their
+        //    x-fractions apart (-0.34/-0.13/+0.12 -> -0.42/-0.22/+0.22) to
+        //    move each mast off the dome's bridging columns.
+        // 3) Even with 4 masts now detected, whips 4/5 (the two that always
+        //    passed the width filter, unedited since before this session)
+        //    still failed the separate ">=0.20 Sh clearance" sub-check on
+        //    their own tips -- raised baseY-162->178 and baseY-140->176.
+        labWhip(cx - fw * 0.42, labA + 10, baseY - 198, null, ph6 % 3 === 0);
+        labWhip(cx - fw * 0.22, labA + 6, baseY - 196, labA + 40, false);
+        labWhip(cx + fw * 0.22, labB + 8, baseY - 190, labB + 42, false);
+        labWhip(cx + fw * 0.32, labB + 14, baseY - 178, null, ph6 % 3 === 1);
+        labWhip(cx + fw * 0.50, labB + 22, baseY - 176, null, ph6 % 3 === 2);
         if (ph6 % 2 === 0) {                                     // the coils arc over
           g.strokeStyle = 'rgba(214,236,255,' + (0.34 + 0.26 * Math.abs(anS)).toFixed(3) + ')';
           g.lineWidth = 1.4;
