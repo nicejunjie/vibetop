@@ -3452,3 +3452,48 @@ passes, which is why fixing the source of `hv` could never have worked.
 Full entry with the Symptom/Cause/Fix/Rejected shape: `docs/design-decisions.md`,
 "The sidebar cameo's contrast escape hatch was overriding the value scheme it
 sat inside, three passes running".
+
+## The Collective structure cameo cluster — measured refusal (2026-09-06)
+
+After the escape-hatch fix took the Collective sidebar 459 -> 250, its floor is
+set by BUILDINGS, not infantry: `Barracks | Tesla Coil` 57.7,
+`Nuclear Reactor | Cloning Vats` 59.5, `Flak Cannon | Tesla Coil` 60.1,
+`Barracks | Flak Cannon` 60.4. A pass attacked them with §2's new structure
+crown clauses and **shipped nothing** — min stayed 57.7, UNDER stayed 250.
+
+Four edits tried and reverted, and the REASONS are the finding:
+
+- **The Flak Cannon's "brass ammo feed" is not in its row at all.** §2.7 gives
+  it "one long pale barrel raised steeply on a compact cross of short legs" and
+  nothing else. Growing the drum was an invented ornament, and had to be
+  reverted on that ground regardless of its (negative) measurement.
+- **The Tesla Coil's neck already clears its clause with enormous margin** —
+  3 px measured against a `<= 0.10 Sw` ceiling. Narrowing it further cannot
+  help, because the row's identity feature is the SPHERE, not the neck.
+- **The Barracks' sickle is house-coloured BY ITS OWN ROW.** Growing an accent
+  that is the same hue as the house-blue base all three buildings share adds
+  more of exactly what they have in common. Its real lever is statue-crown
+  height, deliberately not spent: `size.bldWorstOffHouseScale` is 0.1758
+  against a 0.20 ceiling, and that headroom is too thin to spend on an
+  unverified visual payoff.
+- **The Reactor's green accent is genuinely ungrounded** — its row states a
+  red-banded vessel with black ducts and never green, and the green happens to
+  share a hue family with the Cloning Vats' own ungrounded green. Recolouring
+  it to amber is defensible on its own terms and moved the pair 59.5 -> 59.6,
+  i.e. nothing.
+
+**The mechanism, which generalises to every structure pair:** the cameo metric
+is a position-aligned RMS over a 60x48 canvas, and these buildings share one
+composition — a pale ornament over a house-blue base. Growing small accent
+DETAILS inside a shared composition cannot move a metric dominated by the
+composition itself. The same lesson the infantry side learned as "identity has
+to live in the LARGE areas", arriving from the structure side.
+
+Two blockers to know before anyone retries:
+1. `Cloning Vats | Psychic Sensor` (61.3) has **no §2 row on either unit** —
+   §2.9 lists both as deliberate blanks (plate-only, and the Psychic Sensor is
+   one of the three recorded near-misses from reading proportion off a plate).
+   There is nothing to ground a change in.
+2. The Barracks trio's real separator is blocked by the house-scale ceiling.
+   Revisit only alongside a deliberate decision to spend some of that budget,
+   with `RA2_BLD`'s `[NAHAND]` bbox correction applied and remeasured.
