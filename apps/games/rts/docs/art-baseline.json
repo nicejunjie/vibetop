@@ -351,7 +351,7 @@
     "clause.airUnmet": 0,
     "clause.unmatchedToReference": 0,
     "clause.checkedStructures": 75,
-    "clause.unmetStructures": 16,
+    "clause.unmetStructures": 15,
     "clause.struckStructures": 0,
     "clause.waivedStructures": 0,
     "value.soldiersLighterThanEngineer": 0,
@@ -2152,6 +2152,22 @@
         ""
       ],
       [
+        "gapgen:dir",
+        "1x1",
+        "75x86",
+        2.688,
+        1.172,
+        ""
+      ],
+      [
+        "gapgen:col",
+        "1x1",
+        "75x86",
+        2.688,
+        1.172,
+        ""
+      ],
+      [
         "flakcannon:dir",
         "1x1",
         "67x86",
@@ -2165,22 +2181,6 @@
         "67x86",
         2.688,
         1.047,
-        ""
-      ],
-      [
-        "gapgen:dir",
-        "1x1",
-        "75x85",
-        2.656,
-        1.172,
-        ""
-      ],
-      [
-        "gapgen:col",
-        "1x1",
-        "75x85",
-        2.656,
-        1.172,
         ""
       ],
       [
@@ -3628,8 +3628,8 @@
       {
         "unit": "reactor",
         "clause": "[col] exactly 3 towers, each with a visible waist <= 0.75 of its own rim width",
-        "ok": false,
-        "measured": "1 tower-sized crown blob(s)",
+        "ok": true,
+        "measured": "3 tower-sized crown blob(s)",
         "want": "3 blobs",
         "note": "the waist ratio itself is not measured per-blob (needs a rim-vs-waist row split within each blob's own colProfile, which the doc's own worked example does by hand on one tower)",
         "module": "structures.js",
@@ -3639,7 +3639,7 @@
         "unit": "reactor",
         "clause": "[col] the tallest tower's crown is inside the top 0.10 Sh",
         "ok": false,
-        "measured": 0.38,
+        "measured": 0.247,
         "want": "<= 0.10",
         "note": "guarded on bodyRun's `crown` flag: with no crown there is no tallest tower, and an unguarded clearance of 0 would satisfy this ceiling for free",
         "module": "structures.js",
@@ -3649,7 +3649,7 @@
         "unit": "reactor",
         "clause": "[col] house fraction LOW — the reference reads 8%, paint on the vessel bands and rim beacons, never the brick",
         "ok": true,
-        "measured": "8.3%",
+        "measured": "8.6%",
         "want": "LOW, doc cites 8% (checked against a looser <=15% LOW band since our census convention differs from rts.html:18483's reading method)",
         "note": "want loosened to <=15% rather than the doc's literal 8%: this census (isHouse over the whole sprite) is not proven to match rts.html's own reading method 1:1, and a false-fail on a method difference would be dishonest in the other direction",
         "module": "structures.js",
@@ -3909,7 +3909,7 @@
         "unit": "gapgen",
         "clause": "[dir] exactly 2 house collar rings and nothing else remapped",
         "ok": false,
-        "measured": "4 house-coloured blob(s)",
+        "measured": "3 house-coloured blob(s)",
         "want": "2 blobs",
         "note": "",
         "module": "structures.js",
