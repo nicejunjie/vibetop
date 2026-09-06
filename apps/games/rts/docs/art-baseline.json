@@ -310,7 +310,7 @@
     "peerVsSelf.air": 0,
     "iou.groundCombat.mean": 0.466,
     "iou.vehicle.mean": 0.4114,
-    "iou.infantry.mean": 0.5392,
+    "iou.infantry.mean": 0.5394,
     "iou.naval.mean": 0.4018,
     "iou.air.mean": 0.1859,
     "iou.sameFactionOver75": 0,
@@ -319,7 +319,7 @@
     "spike.belowDeclaredBudget": 0,
     "mass.groundCombatSpan": 5.696,
     "mass.tightestBand6": 2.229,
-    "hue.infantryOwnerMean": 0.3077,
+    "hue.infantryOwnerMean": 0.3086,
     "hue.infantryBelowBudget": 0,
     "hue.vehicleOwnerMean": 0.1702,
     "hue.vehicleOwnerMax": 0.2386,
@@ -357,7 +357,7 @@
     "value.soldiersLighterThanEngineer": 0,
     "value.engineerLightPct": 0.6384,
     "value.engineerMarginOverNext": 0.2803,
-    "colour.infantry.meanDist": 1.3513,
+    "colour.infantry.meanDist": 1.3479,
     "colour.vehicle.meanDist": 0.9714,
     "colour.vehicleAchromatic": 0
   },
@@ -414,11 +414,11 @@
       "rocket": {
         "group": "infantry",
         "aspect": 0.643,
-        "selfIoU": 0.4824,
-        "selfIoUCross": 0.4824,
+        "selfIoU": 0.4831,
+        "selfIoUCross": 0.4831,
         "broadsideAspect": 0.643,
         "bestPeer": "Desolator",
-        "bestPeerIoU": 0.5981,
+        "bestPeerIoU": 0.5992,
         "peersBeatingSelf": 0
       },
       "flak": {
@@ -862,7 +862,7 @@
         "over75": 0
       },
       "infantry": {
-        "mean": 0.5392,
+        "mean": 0.5394,
         "pairs": 91,
         "max": 0.768,
         "over75": 1
@@ -922,12 +922,12 @@
       {
         "a": "rocket",
         "b": "rocketeer",
-        "dist": 0.495
+        "dist": 0.431
       },
       {
         "a": "rocket",
         "b": "spy",
-        "dist": 0.522
+        "dist": 0.489
       },
       {
         "a": "engineer",
@@ -1031,7 +1031,7 @@
       "warminer": 0.14,
       "rifle": 0.3371,
       "conscript": 0.3453,
-      "rocket": 0.2998,
+      "rocket": 0.3117,
       "flak": 0.338,
       "rocketeer": 0.3417,
       "harrier": 0.22,
@@ -1074,7 +1074,7 @@
       "warminer": 0.322,
       "rifle": 0.1561,
       "conscript": 0.1862,
-      "rocket": 0.2213,
+      "rocket": 0.2159,
       "flak": 0.1324,
       "rocketeer": 0.0745,
       "harrier": 0.2433,
@@ -1114,7 +1114,7 @@
     },
     "hue": {
       "infantryOwnerMedian": 0.3399,
-      "infantryOwnerMeanUnexempt": 0.34,
+      "infantryOwnerMeanUnexempt": 0.341,
       "exempt": [
         "dog",
         "tanya"
@@ -4187,7 +4187,7 @@
       {
         "key": "rocket",
         "name": "Guardian GI",
-        "lightPct": 0.1095
+        "lightPct": 0.1088
       },
       {
         "key": "conscript",
@@ -5147,16 +5147,16 @@
         "name": "Guardian GI",
         "group": "infantry",
         "fac": "dir",
-        "mass": 513,
+        "mass": 516,
         "bboxW": 27,
         "bboxH": 42,
         "aspect": 0.595,
         "broadsideWH": "27x42",
         "broadsideAspect": 0.643,
-        "selfIoU": 0.4824,
-        "selfIoUCross": 0.4824,
+        "selfIoU": 0.4831,
+        "selfIoUCross": 0.4831,
         "bestPeer": "Desolator",
-        "bestPeerIoU": 0.5981,
+        "bestPeerIoU": 0.5992,
         "peersBeatingSelf": 0,
         "peers": 13,
         "spike": {
