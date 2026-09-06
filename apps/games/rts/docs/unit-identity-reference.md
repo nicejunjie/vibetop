@@ -315,6 +315,12 @@ throughout is **2 px of thickness with >= 25% value contrast against what is
 behind it**, which is where RA2 itself bottoms out. Anything authored at 2 px
 is gone at `ZMIN = 0.55`; see requirement R1.
 
+**§2.1-2.4 are the 41 UNITS and are the whole of the 96-clause count.**
+Structures were added in §2.5-2.9 on 2026-09-06 and have their OWN size-class
+scale, their own preamble and their own provenance rules — start at §2.5 before
+reading a structure row, and see `docs/clause-inventory.md` for why the
+structure clauses are deliberately outside the 96 and outside `clause.checked`.
+
 ### 2.1 Directorate infantry
 
 | our unit | RA2 counterpart | the ONE silhouette/identity feature | size class | pixel budget |
@@ -515,6 +521,296 @@ is gone at `ZMIN = 0.55`; see requirement R1.
 > It is waived, not ignored: the unit is still inside `art-metrics`' own +-20%
 > RA2 aspect band (0.878 = 0.878 of `[HTK]`'s 1.00) and
 > `aspect.vehicleOutsideRA2Band` stays 0. Working: `per-unit-art-log.md`.
+
+---
+
+### 2.5 Structures — the scale these budgets are on, and what a check can reach
+
+Everything above is a UNIT. Until this pass **§2 stated no identity feature and
+no pixel budget for a single structure**, which is why building identity was
+never measured: `size.bld*` (added 2026-09-05) keeps a structure's SIZE against
+RA2's own sprite, but size is not identity, and nothing said what a Refinery has
+to LOOK like. The rows in §2.6-2.8 close that.
+
+**The roster is the `BLDS` map** (`apps/games/rts/rts.html:2020-2320`). Where
+RA2's two houses build different buildings for the same slot the row names both;
+where our `byFac` gives them different `Foundation=` the row says so, because
+`art-metrics.js` measures each faction's sprite against ITS OWN diamond.
+
+**Size class** is two facts, both from RA2 and neither from us:
+
+* **`Foundation=`**, per faction, out of `/tmp/RA2inis/art.ini`.
+* a **profile class** from RA2's own sprite height over its footprint-diamond
+  height (`RA2_BLD` in `tools/art-metrics.js`, which is where the measurement
+  and its provenance live): **LOW** < 1.35, **BLOCK** 1.35-2.0, **TALL**
+  2.0-3.0, **SPIRE** >= 3.0. The fifteen measured structures fall 5 / 5 / 3 / 2
+  across those bands, so the classes separate rather than bunch.
+
+**Do not read the profile class as a target for our own raw ratio.** Our
+structures bake at a house scale of **1.148** of RA2's height-over-footprint
+(`bldSummary.houseScaleH`), so eight of the fifteen sit one band above their
+RA2 class purely from that. What is owed is the *deviation from the group's own
+median scale*, which is what `size.bldWorstOffHouseScale` already gates. A row
+below that says "TALL" is telling you the shape of the thing, not handing you a
+number to hit.
+
+#### The five primitives the budgets are written in
+
+So that a clause is checkable rather than admirable. All five are already
+computable from what `pageExtract` bakes, or are one field away from it (see
+"What a check cannot reach yet" below).
+
+| term | means |
+|---|---|
+| **sprite** | the structure's IDLE frame `A.s` and its opaque bbox `Sw x Sh` — exactly the `blds` record `art-metrics.js` already builds. RA2's side is frame 0, for the reason `RA2_BLD` gives at length |
+| **diamond** | the footprint plot at `zoom = 1`: `Fw = (gw+gh)*32`, `Fh = (gw+gh)*16` on our 64x32 cell. Both games derive it from the same `Foundation=`, which is what makes it the unit of comparison |
+| **row / col profile** | `rowProfile` / `colProfile` of the sprite mask — already in `art-metrics.js` and already used by `spikeOf` |
+| **crown** | everything above the highest row whose width is >= 55% of the sprite's widest row. This is §1.3's own body/spike split turned on its side, and it is what separates a mast, a dish or a statue from the block under it |
+| **house fraction** | §1.4's census (HSV `s > 0.40`, hue within +-22 deg of the owner) over the sprite's own opaque pixels |
+
+#### A width clause may state a FLOOR and must not state a ceiling
+
+Our `plot()` paints the cells a structure owns, so our width-over-footprint is
+**0.727-1.193 and sits at ~1.02 for eleven of the fifteen**, while RA2's art
+underfills its diamond by a per-building margin and runs **0.692-0.975**. The
+convention therefore only ever pushes our sprites WIDER than RA2's. That has a
+consequence for how a budget may be phrased, and it is the reason this section
+does not simply gate sprite aspect:
+
+* `w/h >= X` is safe — the convention can only help us pass it, so a failure is
+  the art.
+* `w/h <= X` is not — the convention alone can fail a correctly drawn tower.
+
+Measured, so the point is not theoretical. Ranking all fifteen by our sprite
+aspect against RA2's gives deviations from **-10.4%** (`radar:col`) to
+**+27.4%** (`reactor:col`), and the four worst — `reactor:col` +27.4%,
+`tesla:col` +25.5%, `lab:col` +25.3%, `lab:dir` +18.1% — are exactly the four
+whose RA2 counterpart underfills its diamond hardest in width (`ra2WOverFoot`
+0.692, 0.700, 0.844, 0.800 against a roster median of 0.850). An aspect gate at
+the `RA2_BLD_BAND` of 0.20 would fail those four, and it would be failing them
+for RA2's underfill, not for our drawing. This is the same trap already recorded
+against `wScale` in `docs/design-decisions.md` ("Buildings were drawn ~1.15x
+RA2"), reached from the other end, and it is why the towers below are specified
+by their CROWN geometry rather than by their outline.
+
+#### What the reference set actually is
+
+Fifteen structures measured off RA2's own 1:1 sprites, committed in
+`docs/ra2-ref/sprites/buildings/` (four blue-chroma-key SHP renders, eleven
+native in-game captures), plus 74 cameo plates in `docs/ra2-ref/cameos/`, plus
+RA2's own `art.ini`/`rules.ini`. Every sprite in that directory was opened and
+looked at for this pass; the readings below are of those images.
+
+**The standing rule that shapes every row: a cameo is not a sprite.** Plates are
+painted hero shots — read them for composition and for the identifying feature,
+never for proportion. This project has recorded three near-misses from reading
+proportion off a plate (the Psychic Sensor, the Grand Cannon, the Spy), and the
+Grand Cannon is the case where the sprite and the plate flatly disagree: the
+plate shows a long barrel, the sprite a SHORT thick one, and lengthening ours to
+match the plate would have been the error. So where a row's only evidence is a
+plate, its budget is a COUNT and a contrast floor, never a fraction, and the row
+says so.
+
+#### The rips our own code cites are real — nine of them cross-check
+
+`rts.html`'s building blocks cite rip filenames that are **not in the repo**
+(`allied-battle-lab-idle.png`, `soviet-service-depot-idle.png`, ...), and
+`docs/ra2-ref/sprites/README.md` records that as a measurement nobody can
+re-check. Nine of them can now be cross-checked against the committed corpus,
+because both describe the same sprite:
+
+| RA2 section | the rip `rts.html` cites | its w/h | the committed sprite | its w/h | delta |
+|---|---|---|---|---|---|
+| `[NANRCT]` | `soviet-nuclear-reactor-idle.png` 166x129 | 1.287 | `nuclear-reactor.gif` 166x129 | 1.287 | **0.0%** |
+| `[GTGCAN]` | `allied-grand-cannon.png` 181x133 | 1.361 | `grand-cannon.png` 117x85 | 1.376 | -1.1% |
+| `[NADEPT]` | `soviet-service-depot-idle.png` 160x147 | 1.088 | `soviet-service-depot.gif` 161x146 | 1.103 | -1.3% |
+| `[GATECH]` | `allied-battle-lab-idle.png` 118x213 | 0.554 | `allied-battle-lab.gif` 120x213 | 0.563 | -1.7% |
+| `[NATECH]` | `soviet-battle-lab-idle.png` 148x167 | 0.886 | `soviet-battle-lab.gif` 152x168 | 0.905 | -2.0% |
+| `[GAPOWR]` | `allied-power-plant.png` 84x89 | 0.944 | `allied-power-plant.png` 86x93 | 0.925 | +2.1% |
+| `[NATSLA]` | `Tesla coil animation 2.gif` 41x82 | 0.500 | `tesla-coil.gif` 42x81 | 0.519 | -3.6% |
+| `[GAPRIS]` | `allied-prism-tower-anim-last.png` 53x101 | 0.525 | `prism-tower.png` 57x104 | 0.548 | -4.3% |
+| `[NARADR]` | `soviet-radar-tower-idle.png` 90x125 | 0.720 | `soviet-radar-tower.png` 103x136 | 0.757 | -4.9% |
+
+**Max deviation 4.9%, median 2.0%, and one exact.** Eight of the nine are
+NEGATIVE by 1-5%, which is a systematic offset and not noise: the code's rips
+were measured with the SHP shadow index masked off, and the committed captures
+include the building's own ground bib. That is a coherent bbox convention
+difference of the size you would predict, on nine independent files.
+
+So the class of citation is validated at about +-5%, and the rows below are
+allowed to source a feature from a cited-but-absent rip **where the number is a
+count or a shape rather than a tight fraction**, saying each time that that is
+what it rests on. It is a weaker source than a committed sprite and it is
+labelled as one. It does not become a substitute for fetching the file.
+
+#### Two reference rules the sprites gave up
+
+**Rule S1 — house colour scales INVERSELY with footprint.** Measured with
+§1.4's own census on the four blue-key structures, where the mask is exact and
+the owner is red:
+
+| structure | Foundation | house fraction |
+|---|---|---|
+| `[NATSLA]` Tesla Coil | 1x1 | **39.6%** |
+| `[GAPRIS]` Prism Tower | 1x1 | 15.0% |
+| `[NACNST]` Soviet Construction Yard | 4x4 | 14.8% |
+| `[GACNST]` Allied Construction Yard | 4x4 | **9.5%** |
+
+A 1x1 defence carries up to four times the house fraction of a 4x4 production
+block, which is the opposite of the intuition that a bigger building shows more
+team paint. It follows from what the paint is FOR: on a one-cell tower the
+house-coloured buttresses ARE the silhouette, while on a four-cell hall the
+paint is trim on a shape that is already unmistakable. Both of our own
+building-art passes reached the same place from the drawing side —
+`rts.html`'s Construction Yard block states "the ONLY saturated hue on either
+sprite is `col`" and its Nuclear Reactor block records the reference reading
+**8%** and deliberately declines to paint the towers.
+
+**Rule S2 — the ONE feature is a CROWN, not an outline.** Every structure whose
+identity survived a squint in this pass carries it above the block: three
+capacitor towers, two smokestacks, four antenna masts, an onion dome, a statue,
+a dish, a sphere, three cooling towers, a crane. Not one of the fifteen is told
+apart by the shape of its base, and this is the structural difference from
+§1.2's finding for vehicles, where the whole outline carries the read. It is
+also why a budget below is nearly always "the crown is N things of size M
+clearing the roofline by K", and why `size.bld*`'s single height number could
+never have caught a mis-drawn building on its own.
+
+#### What a check cannot reach yet — say so rather than let it drift
+
+`pageExtract` stores a structure as
+`{ key, fac, name, cat, gw, gh, w, h, edges }` (`tools/art-metrics.js:790`).
+**There is no mask and no rgba**, where a unit record carries both. So of the
+budgets written below:
+
+* clauses on **bbox, aspect, footprint and clipping** are checkable today;
+* clauses on **counts, crowns, gaps, profiles and house fraction** — which is
+  most of them, because Rule S2 says that is where identity lives — need the
+  `blds` record to carry `mask` and `rgba` the way `recs` does. That is a
+  four-line change to the push in `pageExtract` plus a `byBldFac(key, fac)`
+  helper on the clause-check `ctx`, and it is not made here: **this pass writes
+  the reference and touches no art and no tool.**
+
+Until that lands these rows are **stated and unchecked**, exactly as all 96 unit
+clauses were before `tools/clause-checks/` existed. They are deliberately NOT
+counted in `clause.checked`, and §2.6-2.8 are NOT in the 96 — see
+`docs/clause-inventory.md`, which explains why adding them to that number would
+be a false green.
+
+### 2.6 Production and economy structures
+
+Size class is `Foundation=` (per faction) and RA2's own profile band, per §2.5.
+`Sw` / `Sh` are the sprite's own bbox; every fraction below is a fraction of
+those, so nothing here moves when the zoom or the cell size does.
+
+| our structure | RA2 counterpart | the ONE silhouette feature | size class | pixel budget |
+|---|---|---|---|---|
+| `base` Construction Yard | `[GACNST]` 4x4, 213x137 · `[NACNST]` 4x4, 204x153 — both blue-key SHP, frame 0 | **The broadest, flattest thing you own, with ONE crane over a marked apron.** Directorate: an orange gantry and claw on a red-capped turntable beside a ribbed silver hall. Collective: two red booms and a bell spire over a limestone portal. | 4x4 · LOW (1.14 / 1.28) | sprite `w/h >= 1.30` — the widest-aspect structure in the game, ahead of the Grand Cannon's 1.376 (measured 1.555 / 1.333; stated as a floor per §2.5's width rule); exactly ONE crane/boom group above the hall roofline, its jib >= 3 px thick and clearing the roof by >= 0.10 `Sh` — a second mast group is the Battle Lab's read and must not appear here; house fraction 9-16% (measured 9.5% / 14.8%), trim only, never the hall roof |
+| `power` Power Plant · Tesla Reactor | `[GAPOWR]` 2x2, 86x93 (native capture) · `[NAPOWR]` 3x2, `Height=3`, **no committed sprite** | Directorate: **three separate capped towers round a glowing copper basin**, and no chimney anywhere on it. Collective: a pale glass orb cradled between two rough masonry masses. | dir 2x2 · BLOCK (1.55) · col 3x2 | exactly **3** towers, each 0.18-0.22 `Sw` (measured 16-18 px on 86); the tallest crown clears the drum roofline by >= 0.45 `Sh` (measured: crown y=2 against roofline y≈45 of 93); each tower carries a lit slit >= 2 px wide at >= 25% value contrast (the §2 floor); **zero** chimneys — a chimney is the Refinery's read; Collective: exactly ONE orb held between exactly TWO masses, and **no fraction is stated** — the only evidence is `rts.html:13714`'s own 1:1 reading of `soviet-tesla-reactor-anim-last.png` (113x94), a rip not in the repo |
+| `refinery` Ore Refinery | `[GAREFN]` 4x3, 169x132 (native capture) · `[NAREFN]` 4x3, `Height=6`, **no committed sprite** | **Two capped smokestacks over a ribbed barrel vault, with an open unloading dock at ground level.** The stacks are the whole read against the War Factory, which shares the vault and has none. | 4x3 · LOW (1.26) | exactly **2** stacks with a clear gap >= 0.08 `Sw` between them (measured: x 35..57 and 72..96 of 169, gap 15 px = 0.089); each stack 0.12-0.15 `Sw` (measured 22-24 px); the taller clears the vault crown by >= 0.30 `Sh` (measured: y=4 against crown y≈50 of 132); an unroofed dock plane at ground level where the harvester parks, its marking at >= 25% contrast |
+| `barracks` Barracks | `[GAPILE]` 3x2, `Height=4` — the committed `allied-barracks.png` is a **13,646-colour resample**, usable for SHAPE only · `[NAHAND]` 2x2, native capture, **but see the bbox warning below** | Directorate: **two ribbed Quonset barrels side by side in echelon**, dark arched mouths, and a short domed watch drum with a flag. Collective: **the statue IS the building** — a saluting conscript over a plinth. | dir 3x2 · col 2x2 · SPIRE | Directorate: exactly **2** barrels, parallel and staggered so both mouths are visible; each mouth a dark arch >= 2 px across at >= 25% contrast; the watch drum a mast and not a spire — its crown no higher than the barrels', so the sprite stays wide (**no fraction is stated**: the only image is a resample); Collective: the figure's crown clears the plinth by >= 0.55 `Sh` (measured 158 px of a re-read 163 — see below); house colour on the plinth panels and the hammer-and-sickle only, never on the figure |
+| `factory` War Factory | `[GAWEAP]` 5x3, 207x155 (native capture) · `[NAWEAP]` 5x3, `Height=6`, no committed sprite | **The longest hall in the game, with a hazard-striped exit ramp and rails running out of its mouth** and one flag at the back corner. No stacks — that is the read against the Refinery, which shares the vault. | 5x3 · LOW (1.29) | sprite `w/h >= 1.25` (measured 1.335; a floor); an exit-ramp plane leaving the hall mouth and crossing the diamond edge, >= 0.15 `Sw` long, striped at >= 25% contrast; exactly **zero** smokestacks; exactly ONE flag/mast group |
+| `shipyard` Naval Yard | `[NAYARD]` 4x4, 176x200 (native capture) · `[GAYARD]` 4x4, `Height=10`, no committed sprite | **The crane is the tallest thing on the rig** — a yellow lattice jib with a hanging hook over a decked pontoon standing on piles in open water. | 4x4 · BLOCK (1.67) | the jib is the topmost mass and its tip lies within the top 0.10 `Sh` (measured y≈8 of ~192); the jib overhangs the deck horizontally so the hook hangs clear of it (measured: hook x≈205 against a deck edge at x≈200); the deck stands on visible piles with water beneath — `[NAYARD] WaterBound=yes`, and our own `water: true` places it the same way; house colour on the deck kerb and the hut roofs, not on the crane |
+| `depot` Service Depot | `[NADEPT]` 4x3, 161x146 (native capture) · `[GADEPT]` 3x3, `Height=3`; `rts.html:16726` cites `allied-service-depot-idle.png` 140x87 | **The empty pad** — most of the plot is flat hazard-striped hardstanding with nothing standing on it, because a vehicle parks there, and a crane swings a hook over it. | col 4x3 · BLOCK (1.39) · dir 3x3 | a flat pad >= 0.50 `Sw` wide carrying **zero** mass above the ground plane (measured on `[NADEPT]`: the pad octagon runs x≈62..160 of 161 = 0.61 `Sw`, and over those columns the sprite is a thin ground band only); the pad's hazard marking at >= 25% contrast; exactly ONE crane/gantry group with its jib tip horizontally over the pad; the works confined to the remaining <= 0.50 `Sw` |
+| `radar` Radar Tower | `[NARADR]` 2x2, 103x136 (native capture, tight) — Collective only; `radar:dir` bakes but is never drawn | **The dish IS the building** — one big round ribbed parabolic face with a domed hub, sitting almost on a squat camouflage mound. | 2x2 · TALL (2.27) | dish >= 0.55 `Sw` and essentially circular, aspect 0.90-1.10 (measured x 26..83 by y 3..55 = 58x53 on 103x136 → 0.563 `Sw`, aspect 1.09); the dish lies **wholly inside the top 45% of `Sh`** (measured y 3..55 = 2%-40%); >= 3 ribs resolvable at 2 px each at >= 25% contrast; house colour on the ring collar, the wedge blocks and the hub crescent — never on the dish face. *The two readings of this dish disagree and the floor is set to satisfy both: 0.563 on the committed capture, 0.69 on the 90x125 rip `rts.html:18169` cites.* |
+| `airforce` Airforce Command | `[GAAIRC]` 3x2, `Height=7` — Directorate only. **No committed sprite**; evidence is `cameos/airforce.png` and `rts.html:16440`'s reading of a 137x149 rip | **A lattice control tower beside a flat helipad** — a slim framework mast with a lit cab and a scanner coil, over a pale apron quartered by an aviation-yellow cross. | 3x2 | exactly ONE tower group whose crown clears the block roofline and is the topmost mass; a helipad plane carrying a cross marking at >= 25% contrast and **four** pad quadrants (our `makes: 'a'` parks four Harriers on it); **zero** dish bowls standing proud of the roof — RA2's dish lies FACE-UP on the deck, and that is the read against the Radar Tower. Counts and contrast only; **no fraction is stated** because neither source may carry one |
+| `lab` Battle Lab | `[GATECH]` 3x2, 120x213 · `[NATECH]` 3x3, 152x168 — both native captures | Directorate: **four bare whip antennas over a stack of drums** — RA2's tallest structure, and the only one whose crown is a thicket of 1-2 px verticals. Collective: **the onion dome**, gilded, on a red-banded masonry block. | dir 3x2 · TALL (2.84) · col 3x3 · BLOCK (1.87) | Directorate: >= **4** masts, each 2-4 px thick at >= 25% contrast, tips clearing the highest drum rim by >= 0.20 `Sh` (measured: tips y 8/18/33/47 against a rim at y≈52, on 213 → 0.207); the drum stack, not the mast cluster, is the widest mass; Collective: exactly ONE dome, its bulb >= 0.20 `Sw` (measured x 62..96 = 34 px on 152 → 0.224), the dome-and-drum crown occupying the top >= 0.40 `Sh` above the block's corner turrets (measured y 8..78 of 168 → 0.42); the dome is the **topmost mass** — zero antennas above it, which is the read against the Allied lab |
+| `reactor` Nuclear Reactor | `[NANRCT]` 4x4, 166x129 (native capture) — Collective only | **Three waisted cooling towers with open tops**, and a red-banded vessel between them with black ducts diving into each. | 4x4 · **LOW (1.075)** — the lowest-profile structure in RA2, despite being the Collective's biggest | exactly **3** towers, each with a visible **waist** <= 0.75 of its own rim width (measured on the back tower: rim ≈48 px, waist ≈34 px → 0.71) and each flaring below the waist to a foot wider than its rim; the tallest tower's crown inside the top 0.10 `Sh` (measured y≈8 of 129 → 0.06); >= 3 ducts resolvable at 2 px linking vessel to towers; house fraction LOW — the reference reads **8%** (`rts.html:18483`), so the paint is the vessel bands, the rim beacons and one riser per tower, never the brick |
+| `purifier` Ore Purifier | `[GAOREP]` 3x3, `Height=4` — Directorate only. **No committed sprite**; evidence is `cameos/purifier.png` and `rts.html:17752`'s reading of a 127x105 rip | **A wedding-cake smelter with a recessed ring of glowing molten ore** turning inside a broad fluted drum, under a dark scalloped chute. | 3x3 | exactly ONE lit ring, unbroken round the drum, at >= 25% value over the drum body — it is the only structure in the roster whose identity is a light source rather than a shape; the drum the widest mass; a chute or headpiece above the drum crown. Counts and contrast only; **no fraction is stated** |
+| `spysat` SpySat Uplink | `[GASPYSAT]` → `Image=GASPST`, 2x2, `Height=5` — Directorate only. **Plate only** (`cameos/spysat.png`); our code cites no rip | **A flat rectangular panel array, not a bowl** — a mesh slab tipped up on a mast beside a lattice tower. | 2x2 | the array has at least two parallel STRAIGHT edges and no circular rim — that is the whole read against the Radar Tower's bowl and the Airforce Command's face-up dish; exactly ONE array. Composition from the plate only, so **no fraction and no ratio is stated** |
+
+> **A bbox warning on `[NAHAND]`, found while writing this row.** `RA2_BLD`
+> records the Soviet Barracks as **117x205** and notes it as a tight crop. It is
+> not one: `soviet-barracks.png` is a small SCENE, and 117x205 is the whole
+> file. Looked at with candidate boxes drawn on it, the building runs about
+> **x 15..100 by y 10..172 — roughly 86x163 (+-4 px)** — the rest is grass on
+> the left, pavement on the right and about **36 rows of road below the base
+> plate**. The image cannot be auto-segmented to settle it, because the statue's
+> steel is the same value as the road; the sweep over six background tolerances
+> collapses onto a 16x14 blob, so this is an eye measurement and is offered as
+> one.
+>
+> **What it changes, if it holds.** `[NAHAND]`'s height over its footprint goes
+> **3.417 -> ~2.72** and its width over footprint **0.975 -> ~0.72**. That
+> matters because this row is the one that ACQUITTED our own Soviet Barracks:
+> ours bakes 131x246 = 3.844 footprint-heights, which against 3.417 is an
+> `hScale` of 1.125 and a deviation of **-0.020** from the group's median
+> 1.148 — comfortably inside the band, and `RA2_BLD`'s own source note says
+> "this is why ours at 3.84 footprint-heights was left alone". Against 2.72 the
+> `hScale` is **~1.41** and the deviation **~+0.23**, which would make it the
+> worst structure in the set and a second `size.bldOutsideRA2Band` failure
+> beside `power:dir`.
+>
+> **It is deliberately NOT fixed here.** This pass writes the reference and
+> changes no art and no tool, so every metric stays byte-identical; editing
+> `RA2_BLD` would move `size.bldOutsideRA2Band` and `size.bldWorstOffHouseScale`
+> in the same commit that writes the rows. The right next step is to re-crop the
+> file to the building, commit the crop beside the scene, and re-measure — and
+> to check the other "whole file" entries the same way. Two were checked while
+> here and are sound: `[GAPOWR]` (86x93) and `[NARADR]` (103x136) really do fill
+> their files, and `[NAYARD]`'s hand-adjusted 176x200 measures ~185x192 on the
+> grid, inside 5%.
+
+### 2.7 Base defences
+
+RA2 orders these by `Height=` in `art.ini` and the order is the cheapest true
+thing available about them: **Pillbox 1 · Sentry Gun 2 · Patriot 3 · Flak Cannon
+4 · Tesla Coil 5 · Prism Tower 6 · Gap Generator 6**, against a Construction
+Yard's 4. Per `RA2_BLD`'s own note it is an ORDERING and never a pixel budget —
+rise per `Height` cell measures 4.25 px on `[GACNST]` and 12.3 px on `[GAPRIS]`
+— so where a row below has no sprite it states the ordering and stops.
+
+| our structure | RA2 counterpart | the ONE silhouette feature | size class | pixel budget |
+|---|---|---|---|---|
+| `sentry` Pillbox | `[GAPILL]` 1x1, **`Height=1`** — the flattest structure in RA2. Plate + `rts.html:16093`'s reading of a 48x29 rip | **A flat lid on a mound with one bright plate and a house lens dead centre** — no drum, no barrel stub, and the lowest crown of anything you can build. | 1x1 · flattest | height over footprint strictly BELOW the Sentry Gun's, which `art.ini` ranks 1 against 2 (ours holds it: 1.281 against 2.156); exactly ONE bright plate, with the house lens centred on it and the lens the sprite's only saturated pixels; **zero** vertical mast and zero enclosing drum |
+| `sentrygun` Sentry Gun | `[NALASR]` 1x1, `Height=2`. Plate + `rts.html:18765`'s reading of a 41x40 rip | **An OPEN machine, not a bunker** — two long thin barrels raised steeply off a small receiver on splayed legs, and the barrels are the top of the silhouette. | 1x1 | exactly **2** barrels, resolvable as two at 2 px each with a gap >= 2 px between them, and they are the topmost mass; **zero** enclosing drum or roof; the legs visible as separate members under the receiver. Counts only |
+| `tesla` Tesla Coil | `[NATSLA]` 1x1, **42x81**, blue-key SHP frame 0 — an EXACT mask | **A pale sphere on a pinched neck.** The electrode ball rides a coil column that narrows almost to nothing under it, over splayed house-coloured buttresses. | 1x1 · TALL (2.70) | the sphere a single blob >= 0.45 `Sw` and >= 0.20 `Sh` (measured 20x19 on 42x81 → 0.476 / 0.235); **a neck beneath it pinching to <= 0.10 `Sw`** — measured **3 px = 0.071**, a 6.7x pinch off the sphere, and this is the entire silhouette; the widest row in the bottom third and >= 0.85 `Sw` (measured 38 px at row 68 of 81 → 0.905); house fraction ~40% (measured **39.6%** by §1.4's census), carried by the buttresses |
+| `prism` Prism Tower | `[GAPRIS]` 1x1, **57x104**, blue-key SHP frame 0 — an EXACT mask | **A wide flat crown of blades over a pinched column** — the anti-Tesla. Where the Coil's crown is a compact ball, the Tower's is an umbrella. | 1x1 · SPIRE (3.47) | the crown >= 0.55 `Sw` at its widest and >= 0.22 `Sh` deep (measured 35 px wide at row 15, 28 rows deep, on 57x104 → 0.614 / 0.269); a waist beneath it <= 0.25 `Sw` (measured 12 px → 0.211); **the crown fraction >= 1.25x the Tesla Coil's sphere fraction** so the two 1x1 towers cannot converge (measured 0.614 against 0.476 = 1.29); house fraction ~15% (measured **15.0%**), on the drum panel and the shoulder wedges |
+| `patriot` Patriot Missile | `[NASAM]` 1x1, `Height=3`. Plate + `rts.html:18864`'s reading of a 44x55 rip | **A block of four tube mouths standing on a house torus** — taller than wide, the dark mouths facing out over a bright ring at the foot. | 1x1 | exactly **4** tube mouths, countable, each a dark disc >= 2 px at >= 25% contrast; one continuous house torus round the foot; the sprite taller than wide. Counts only |
+| `flakcannon` Flak Cannon | `[NAFLAK]` 1x1, `Height=4` — the tallest of the four 1x1 gun defences. Plate + `rts.html:18972`'s reading of a 53x68 rip | **One long pale barrel raised steeply**, the top of the silhouette, on a compact cross of short legs. | 1x1 | exactly **1** barrel — the Sentry Gun's two is the read against it — >= 2 px thick at >= 25% contrast and the topmost mass; the legs compact enough that the sprite is taller than wide; the `Height=` ordering holds against the Sentry Gun (4 against 2) and the Pillbox (4 against 1) |
+| `grandcannon` Grand Cannon | `[GTGCAN]` 2x2, **117x85**, native capture, verified by eye in `sprites/README.md` | **A fat armoured dome on a three-armed turntable, with a SHORT thick gun off its shoulder** — and the gun being short is the whole point of the row. | 2x2 · BLOCK (1.42) | sprite `w/h >= 1.30` (measured 1.376; a floor); the gun contributes <= **0.30 `Sw`** of tube beyond the dome (measured: dome to x≈85, muzzle to x≈112 of 117 → 0.23) — **this is the clause the cameo would have got wrong**, because `cameos/grandcannon.png` shows a long barrel and `sprites/README.md` records that lengthening ours to match it would have been the error; exactly **3** outrigger arms ending in round pads with a bright boss (measured at x≈10, x≈105 and x≈57-front); the DOME is the tallest mass, not the gun (measured: dome top y=8 against the gun's y≈22) |
+| `gapgen` Gap Generator | `[GAGAP]` 1x1, `Height=6`. Plate + `rts.html:19478`'s reading of a 118x130 rip — **and the two agree independently**, which is why this row is here at all | **A crown of four tall talons splaying up and outward** off a waisted column wearing two collar rings. | 1x1 | exactly **4** talons, countable, each 2 px at >= 25% contrast, splaying so the crown is wider at its top than the column beneath it; exactly **2** house collar rings and nothing else remapped — both sources say the collars are the only remap surface. Counts only |
+
+### 2.8 Superweapons
+
+| our structure | RA2 counterpart | the ONE silhouette feature | size class | pixel budget |
+|---|---|---|---|---|
+| `chrono` Chronosphere | `[GACSPH]` 4x3, `Height=3` — the LOWEST superweapon. Plate + `rts.html:19067`'s reading of a 178x109 rip | **One big ribbed hemispherical hood with a bright lens face** — a single dome, and the only superweapon whose crown is lower than its plot is wide. | 4x3 | exactly ONE dome; ribs resolvable at 2 px at >= 25% contrast; the lens the brightest patch on the sprite; the `Height=` ordering holds — lowest of the four, against Weather 5, Iron Curtain 6, Nuclear Silo 8. Counts and ordering only |
+| `weather` Weather Control Device | `[GAWEAT]` → `Image=GAWETH`, 3x3, `Height=5`. Plate + `rts.html:19169`'s reading of a 146x135 rip | **A polished sphere on a pedestal flanked by two low domes** — three round masses, one high and two low. | 3x3 | exactly **3** round masses in a one-high-two-low arrangement; the sphere the topmost and the only one standing clear of the block; both domes visibly below the sphere's underside. Counts only |
+| `curtain` Iron Curtain | `[NAIRON]` 3x3, `Height=6`. Plate + `rts.html:19290`'s reading of a 138x101 rip | **A red ring lying flat with an amber orb held in a cradle above it** — the only superweapon whose house colour is a whole structural member rather than trim. | 3x3 | exactly ONE ring, unbroken and horizontal, in house hue; exactly ONE orb held above it on visible arms; the ring's diameter greater than the orb's. Counts only |
+| `nuke` Nuclear Missile Silo | `[NAMISL]` 3x3, **`Height=8`** — the tallest superweapon | **Clearance, not a tower.** `Height=8` is a missile's room to leave a silo that is mostly below grade; there is no drawn spire to match. | 3x3 | **this row deliberately states no feature budget.** `cameos/nuke.png` is a blurred upload with no resolvable feature, and `rts.html:19388` cites a 152x131 rip that is not in the repo, so nothing measurable can be sourced. What IS owed is the ordering: the silo must read taller than the Iron Curtain (8 against 6) and both taller than the Chronosphere (8 and 6 against 3) |
+
+### 2.9 Structures deliberately left without a row
+
+Fewer sourced rows beat a complete table of guesses, so these are named and the
+reason is given rather than filled in.
+
+* **`wall`, `gate`** — `[GAWALL]` / `[NAWALL]` / `[GAGATE_A]`. No committed
+  sprite and no cameo plate; `rts.html:20024` cites `allied-wall.png` 42x43 and
+  `soviet-wall.png` 35x38, neither in the repo. And a wall's identity is not a
+  silhouette at all: it is the CHAIN (`Adjacent=8`, `Selectable=no`, and the
+  four-bit connection mask `bakeWallSeg` bakes a frame per value of). A §2-shaped
+  row would be the wrong shape of clause, not merely an unsourced one.
+* **`psisensor` Psychic Sensor** — `[NAPSIS]` 2x2, `Height=8`. Plate only, with
+  no rip cited in our own code, **and the Psychic Sensor is one of the three
+  cases `docs/ra2-ref/sprites/README.md` records as a near-miss produced by
+  reading proportion off a plate.** Writing a row here would be repeating the
+  recorded mistake on the recorded example.
+* **`cloningvats` Cloning Vats** — `[NACLON]` 2x2, `Height=6`. The only evidence
+  is `cameos/cloningvats.png`, which is a blurred upload with no resolvable
+  feature. There is nothing to state.
+* **The neutral house** — the fourteen `neut: true` keys (`civflat` … `civbarn`,
+  `oilderrick`, `hospital`, `airport`, `bhut`). No sprite, no cameo, and RA2's
+  civilian set is 155 `CanBeOccupied=yes` sections that our nine blocks stand in
+  for rather than reproduce. There IS a measurement waiting here — `SPR.neut`
+  bakes the Office Block at **89x143 on a 1x1 plot, 4.47 footprint-heights, the
+  most vertical thing on the board** — but a height with no counterpart is a
+  number, not an identity, and this section is about identity.
+* **The faction halves with no committed sprite** — `power:col`, `refinery:col`,
+  `factory:col`, `shipyard:dir`, `depot:dir`. Each is named inside its shared
+  row above with a feature statement and **no fraction**, for the reason §2.5
+  gives. They are not separate omissions; they are rows whose second half is
+  stated more weakly than its first, on purpose.
 
 ---
 
