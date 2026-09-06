@@ -13,6 +13,17 @@ and gated now. The unmeasured set is where the remaining defects are.
 
 `gated` = this clause is the one the unit's SPIKES entry measures.
 
+**Corrected 2026-09-06 — two thresholds were above RA2's own, one bearing was
+wrong.** `mcv` ">= 1.20x the widest tank" and `destroyer` "length >= 1.7x any
+land vehicle" both stated ratios the game they cite does not reach (RA2's own
+are 69/59 = 1.17 and 101/69 = 1.46), so they are re-derived from §1.1's bboxes
+inside the checks; **both remain UNMET after the correction**, which is why the
+correction is not a closure. `chronominer` "height <= 0.55 x length" was read at
+the WIDEST octant, which for that unit is the diagonal one, where a flat ground
+body's h/w is pinned at exactly 0.500 whatever its length — a check bug, not an
+art defect. Read at the hull broadside it is **0.522 and MET**. Working, sweeps
+and both measured ceilings: `per-unit-art-log.md`.
+
 **Measured since:** the fifteen measurable NAVAL and AIR rows below now have real
 checks in `tools/clause-checks/naval-air.js` (the sixteenth, the Nighthawk's rotor
 span, is struck). Working and thresholds: `per-unit-art-log.md`, "The sixteen
@@ -65,7 +76,7 @@ unmeasured NAVAL and AIR clauses of §2".
 | `mirage` Mirage Tank | vehicle | gun stub <= 6 px (any longer and it reads as a Grizzly) | — |
 | `prismtank` Prism Tank | vehicle | crystal >= 10 px tall x >= 5 px wide, standing above the turret roof | **yes** |
 | `prismtank` Prism Tank | vehicle | total height >= 1.15x the Mirage's | — |
-| `chronominer` Chrono Miner | vehicle | height <= 0.55 x length | — |
+| `chronominer` Chrono Miner | vehicle | height <= 0.55 x length | — (**MET** 0.522 — was read at the wrong bearing) |
 | `chronominer` Chrono Miner | vehicle | nose drum >= 8 px long, violet and unmistakably not house hue | **yes** |
 | `chronominer` Chrono Miner | vehicle | zero turret mass | — |
 | `nighthawk` Nighthawk | air | ~~rotor span >= 1.25x fuselage length~~ (**impossible with our blur disc, see below**) | — |
@@ -76,9 +87,9 @@ unmeasured NAVAL and AIR clauses of §2".
 | `harrier` Harrier | air | nose cone >= 4 px | — |
 | `hornet` Hornet | air | total span <= 0.45x the Harrier's | **yes** |
 | `hornet` Hornet | air | do not add detail it cannot carry | — |
-| `mcv` MCV | vehicle | >= 1.20x the widest tank | — |
+| `mcv` MCV | vehicle | >= ~~1.20x~~ **1.17x** the widest tank (RA2's own) | — (**UNMET** 1.154) |
 | `mcv` MCV | vehicle | zero barrel, zero turret ring | **yes** |
-| `destroyer` Destroyer | naval | length >= 1.7x any land vehicle | — |
+| `destroyer` Destroyer | naval | length >= ~~1.7x~~ **1.46x** any land vehicle (RA2's own) | — (**UNMET** 0.848) |
 | `destroyer` Destroyer | naval | one turret forward of amidships | **yes** |
 | `aegis` Aegis Cruiser | naval | radar panel >= 8x8 px, vertical | **yes** |
 | `aegis` Aegis Cruiser | naval | explicitly no barrel | — |

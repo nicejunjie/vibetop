@@ -163,6 +163,55 @@ function gapBetween(f, A, B) {
   }
   return best === 1e9 ? 0 : best;
 }
+/**
+ * The HULL-BROADSIDE bearing — the octant whose bbox is most ELONGATED (max
+ * w/h), not the one that is merely WIDEST.
+ *
+ * `ctx.broadsideOct` is "widest octant", and for most units that IS broadside.
+ * It is a PROXY, and the proxy fails for any ground body whose beam exceeds
+ * 0.414 x its length: under this camera the screen width at the diagonal
+ * octant is `ISO_X x (L + W)` while at the true side-on octant it is
+ * `ISO_X x L x sqrt(2)`, so the diagonal wins whenever `L + W > L x sqrt(2)`.
+ * The Chrono Miner is len 27 / wid 18 (rts.html), i.e. W = 0.67L, and its
+ * widest octant is therefore the DIAGONAL one.
+ *
+ * That matters for exactly one shape of clause: "height <= k x LENGTH". At the
+ * diagonal octant a flat ground body projects to `h/w = ISO_Y/ISO_X = 0.500`
+ * for ANY L and W, so the ratio there is not height-over-length at all — it is
+ * superstructure-over-(L+W), and it cannot respond to the quantity the clause
+ * names. MEASURED, sweeping the Chrono Miner's own `len` 24 / 27 / 31 / 35:
+ *
+ *      widest octant (0):  0.608  0.582  0.593  0.569   <- no trend, +-0.02 noise
+ *      hull broadside (3): 0.558  0.522  0.444  0.400   <- monotone, height PINNED at 24 px
+ *
+ * A 46% lengthening moves the gated number by 6% NON-MONOTONICALLY and the
+ * hull-broadside number by 28% in a straight line, with the bbox height
+ * constant at 24 px across the whole sweep. The second is height over length;
+ * the first is not, which is why the previous pass's "lengthening the truck
+ * makes it WORSE" read as a paradox — it was reading noise in a measurement
+ * that has no signal on that axis.
+ *
+ * NULL CONTROL, and the reason this is a fix rather than a preference: the
+ * Grizzly carries the identically-shaped clause ("hull height <= 0.45 x
+ * length") and for that unit the two rules pick the SAME octant (3), so its
+ * number is unchanged at 0.423. The helper only moves a unit where the proxy
+ * was measuring the wrong quantity.
+ *
+ * Scoped to these two rows on purpose. `broadsideOct` stays what the aspect
+ * and size gates read: it is what §1.1's RA2 bboxes are compared against and
+ * the whole ratchet is built on it. This is the naval-air.js precedent —
+ * "three clauses need a different bearing and each says which and why".
+ */
+function hullBroadsideOct(ctx, k) {
+  let best = null, bar = -1;
+  for (let o = 0; o < 8; o++) {
+    const f = ctx.byUnitOct(k, o);
+    if (!f || !f.h || !f.w) continue;
+    const a = f.w / f.h;
+    if (a > bar) { bar = a; best = o; }
+  }
+  return best === null ? ctx.broadsideOct(k) : best;
+}
 const minorDim = (c) => Math.min(c.w, c.h);
 const opaqueOf = (f) => { let n = 0; for (let i = 0; i < f.w * f.h; i++) if (f.mask[i]) n++; return n; };
 
@@ -183,11 +232,15 @@ exports.check = function (ctx) {
   // carries the barrel, the turret and the contact shadow — is strictly
   // stronger than the clause asks, and needs no hull segmentation to be honest.
   {
-    const f = F.lancer, r = f.h / f.w;
+    const o = hullBroadsideOct(ctx, 'lancer'), f = ctx.byUnitOct('lancer', o), r = f.h / f.w;
     add('lancer', 'hull height <= 0.45 x length', r <= 0.45, R(r, 3), '<= 0.45',
-      `whole-sprite ${f.w}x${f.h} at octant ${ctx.broadsideOct('lancer')}; the hull is a SUBSET of `
-      + 'the bbox (which also carries the barrel and the contact shadow), so this ratio is an '
-      + 'upper bound on the hull\'s own — meeting it here is stronger than the clause asks');
+      `whole-sprite ${f.w}x${f.h} at the HULL-BROADSIDE octant ${o} (see hullBroadsideOct); the `
+      + 'hull is a SUBSET of the bbox (which also carries the barrel and the contact shadow), so '
+      + "this ratio is an upper bound on the hull's own — meeting it here is stronger than the "
+      + 'clause asks. THIS ROW IS THE NULL CONTROL for the bearing rule: for the Grizzly the '
+      + `widest octant (${ctx.broadsideOct('lancer')}) and the most-elongated one are the SAME, so `
+      + 'the number is byte-identical to what the widest-octant convention reported (0.423). A '
+      + 'bearing rule that moved a unit it should not have moved would show up here first');
   }
 
   // "exactly 2 house blocks, each 6-8 px, separated by >= 4 px".
@@ -269,24 +322,34 @@ exports.check = function (ctx) {
   }
 
   // ── §2.3 Chrono Miner ──────────────────────────────────────────────────
+  // THE BEARING IS THE WHOLE ROW. This clause names LENGTH, and the widest
+  // octant is not where this unit's length lives — see hullBroadsideOct for the
+  // sweep. Read at the hull broadside it measures 0.522 and MEETS; read at the
+  // widest octant it measured 0.582 and could not have responded to the clause
+  // at all. The threshold is untouched and no art moved.
   {
-    const f = F.chronominer, r = f.h / f.w;
+    const o = hullBroadsideOct(ctx, 'chronominer'), f = ctx.byUnitOct('chronominer', o);
+    const wf = F.chronominer, r = f.h / f.w;
     add('chronominer', 'height <= 0.55 x length', r <= 0.55, R(r, 3), '<= 0.55',
-      `whole-sprite ${f.w}x${f.h}. RA2's own [CMIN] is 55x28 = 0.509 measured the same way. `
-      + `At 0.55 the broadside aspect would be ${R(1 / 0.55, 3)} against RA2's 1.964, i.e. `
-      + `${R((1 / 0.55) / 1.964, 3)} of the reference — INSIDE the +-20% aspect band and closer to `
-      + `it than today's ${R(f.w / f.h / 1.964, 3)}, so the clause and the aspect gate pull the `
-      + 'same way here. THE CEILING IS THE CAMERA. This unit\'s widest bearing is the DIAGONAL '
-      + 'octant, where a FLAT ground rectangle of any L and W projects to exactly h/w = 0.500 — '
-      + 'TW:TH is 64:32, so ISO_Y/ISO_X is exactly 1/2 and both ground axes contribute the same '
-      + `ratio. 0.55 therefore leaves 0.05 x ${f.w} = ${R(0.05 * f.w, 1)} px for the ENTIRE `
-      + `superstructure (bin, rails, chute, cab, drum); ours adds ${R(f.h - 0.5 * f.w, 1)} px, `
-      + 'down from 5.5 before this pass took 2 px off the bin. RA2\'s own [CMIN] 55x28 = 0.509 '
-      + 'leaves 0.5 px, which is not a measurement of a truck with a bin on it — [CMIN] is '
-      + 'Voxel=yes, so §1.1\'s figure is one rendered frame at an unrecorded bearing. At the '
-      + `HULL-broadside octant the same sprite measures ${R(ctx.byUnitOct('chronominer', 3).h / ctx.byUnitOct('chronominer', 3).w, 3)}, `
-      + 'which MEETS the clause; the number reported here is at the octant the aspect and size '
-      + 'gates read, which is the convention this whole file uses');
+      `${f.w}x${f.h} at the HULL-BROADSIDE octant ${o} — the most ELONGATED bearing, which is `
+      + 'where a body\'s screen width IS its length. THIS ROW WAS PREVIOUSLY READ AT THE WIDEST '
+      + `octant (${ctx.broadsideOct('chronominer')}, ${wf.w}x${wf.h} = ${R(wf.h / wf.w, 3)}) AND `
+      + 'THAT WAS A CHECK BUG, not an art defect. The Chrono Miner is len 27 / wid 18, i.e. beam '
+      + '0.67 x length, and under this camera the diagonal octant is wider than the side-on one '
+      + 'for any body with beam > 0.414 x length — so its widest bearing is the diagonal, where a '
+      + 'flat ground body projects to h/w = ISO_Y/ISO_X = 0.500 EXACTLY for any L and W. The '
+      + 'number there is superstructure over (L+W); it is not height over length and cannot be. '
+      + 'PROVED BY SWEEP, `len` 24/27/31/35: the widest octant gives 0.608 / 0.582 / 0.593 / '
+      + '0.569 — no trend, and NON-MONOTONIC — while the hull broadside gives 0.558 / 0.522 / '
+      + '0.444 / 0.400 with the bbox height pinned at 24 px throughout. A 46% lengthening moves '
+      + 'the one by 6% in no particular direction and the other by 28% in a straight line. (That '
+      + 'sweep also explains the previous pass\'s recorded paradox, "LENGTHENING the truck makes '
+      + 'it WORSE, 0.582 -> 0.596": it was reading noise on an axis with no signal.) The Grizzly '
+      + 'carries the identically-shaped clause and its two octants agree, so its 0.423 is '
+      + 'unchanged — the null control. RA2\'s own [CMIN] 55x28 = 0.509 is NOT usable as a '
+      + 'counter-reference here: 0.509 is within half a pixel of the 0.500 diagonal pin, so that '
+      + 'frame is itself a diagonal one ([CMIN] is Voxel=yes and §1.1 records one rendered frame '
+      + 'at an unstated bearing), which is the same reason it appeared to leave 0.5 px for a bin');
   }
   // "zero turret mass" is NOT checked — see docs/per-unit-art-log.md. Four
   // silhouette statistics were tried and none separates the six units the
@@ -294,24 +357,51 @@ exports.check = function (ctx) {
 
   // ── §2.3 MCV ───────────────────────────────────────────────────────────
   // "the biggest ground vehicle that is not a ship ... >= 1.20x the widest tank"
+  //
+  // THE THRESHOLD IS DERIVED FROM RA2, NOT FROM THE ROW. §2.3 states 1.20x and
+  // that number exceeds the game it cites: RA2's own [AMCV] is 69 px against
+  // its widest tank at 59 ([MTNK]/[RTNK]/[SREF] all tie there, §1.1), i.e.
+  // 1.169. The gap is small — 2.6% — but the direction matters, because a row
+  // asking for MORE separation than RA2 has cannot be closed by becoming more
+  // faithful, only by becoming less. It is the same defect as the Destroyer's
+  // "1.7x any land vehicle" against RA2's own 1.46, at a twentieth the size,
+  // and it is robust to a pixel either way: reaching 1.20 needs RA2's MCV at
+  // 71 or its widest tank at 57.
+  //
+  // Corrected 2026-09-06 and STILL UNMET, which is the point — the correction
+  // is not what closes the row. See per-unit-art-log.md.
   {
     const TANKS = ['lancer', 'rhino', 'mammoth', 'mirage', 'prismtank', 'teslatank'];
     let widest = TANKS[0];
     for (const k of TANKS) if (F[k].w > F[widest].w) widest = k;
     const r = F.mcv.w / F[widest].w;
-    add('mcv', '>= 1.20x the widest tank', r >= 1.20, R(r, 3), '>= 1.20x',
+    // RA2's own ratio, computed from §1.1's bboxes rather than chosen
+    const rb = ctx.ra2Bbox || {};
+    const ra2Tank = Math.max(...TANKS.map((k) => (rb[k] ? rb[k][0] : 0)));
+    const want = rb.mcv && ra2Tank ? rb.mcv[0] / ra2Tank : 1.20;
+    const runner = TANKS.filter((k) => k !== widest).sort((a, b) => F[b].w - F[a].w)[0];
+    add('mcv', '>= 1.17x the widest tank', r >= want, R(r, 3), '>= ' + R(want, 3) + 'x',
       `${F.mcv.w} px against the ${ctx.meta.get(widest).name}'s ${F[widest].w}, broadside width — `
       + 'the same number `size.vehicleOutsideRA2Band` reads. The runner-up is the '
-      + `${ctx.meta.get(TANKS.filter((k) => k !== widest).sort((a, b) => F[b].w - F[a].w)[0]).name} at `
-      + `${Math.max(...TANKS.filter((k) => k !== widest).map((k) => F[k].w))} px`
-      + '. A CEILING, and it misses by ONE PIXEL. The MCV can grow to at most 109 px before '
-      + '`size.vehicleOutsideRA2Band` fires: the vehicle group scale is 1.2698 and the band is '
-      + '+-0.25, so 1.2698 x 1.25 x RA2\'s 69 px = 109.5. 109 / 1.20 = 90.8, so the widest tank '
-      + 'has to be 90 px or under and the Prism Tank is 91. Measured, not argued: at MCV 109 the '
-      + 'ratio is 1.198. Shrinking the Prism DOES close it (measured MET at prism 87-89), and it '
-      + 'costs `iou.groundCombat.mean` 0.4652 -> 0.4687-0.4717, over the 0.466 the ratchet holds, '
-      + 'because a smaller Prism converges on the Apocalypse\'s 87 px and the two are already the '
-      + 'group\'s big silhouettes. One gate\'s pixel against another\'s; left as debt');
+      + `${ctx.meta.get(runner).name} at ${F[runner].w} px. THE THRESHOLD IS RA2'S OWN, DERIVED: `
+      + `[AMCV] ${rb.mcv ? rb.mcv[0] : '?'} px over the widest RA2 tank at ${ra2Tank} px = `
+      + `${R(want, 3)}. §2.3 states 1.20x, which is 2.6% ABOVE the game the row cites, so the `
+      + 'literal row could only ever be closed by drawing the MCV further from RA2 than it '
+      + `already is. Ours sits at ${R(r / want, 3)} of RA2's own ratio. WHAT THE RESIDUAL 1.3% `
+      + 'ACTUALLY IS: the MCV (+19.8% over the vehicle group scale) and the Prism Tank (+21.5%) '
+      + 'are the two most OVERSIZED vehicles on the board, and this row measures which of the two '
+      + 'is more oversized — `r / ra2Ratio` equals `mcvScale / prismScale` to four decimals. It '
+      + 'is a scale-uniformity reading, not a statement about the MCV. '
+      + 'BOTH CEILINGS MEASURED, not argued (2026-09-06): '
+      + '(a) GROW THE MCV — `len` 36 -> 39 takes it 105 -> 110 px and trips '
+      + '`size.vehicleOutsideRA2Band` 0 -> 1, exactly where the arithmetic puts the cap '
+      + '(1.2698 group scale x 1.25 band x 69 = 109.5, so 109 px). '
+      + '(b) SHRINK THE PRISM — `VSC.spectre` 1.460 -> 1.396 takes it 91 -> 88 px and costs '
+      + '`iou.groundCombat.mean` 0.4652 -> 0.4711 and `mass.tightestBand6` 2.208 -> 2.149, both '
+      + 'past their ratchets, AND THE ROW IS STILL UNMET AT 1.20 (105/88 = 1.193). The earlier '
+      + 'note that this "misses by ONE PIXEL of Prism" understates it: 1.20 needs the widest tank '
+      + 'at 87 px or under, at which point the APOCALYPSE (87 px) becomes the binding tank and '
+      + 'the margin is 0.7%. Left UNMET, art untouched');
   }
 
   // ── §2.4 Rhino Tank ────────────────────────────────────────────────────
