@@ -99,15 +99,61 @@ function colProfile(f) {
   for (let y = 0; y < f.h; y++) for (let x = 0; x < f.w; x++) if (f.mask[y * f.w + x]) p[x]++;
   return p;
 }
+/**
+ * THE 55% CUT PROPOSES A ROOFLINE; MONOTONICITY VETOES IT.
+ *
+ * The old rule was the first half alone: the body is the run at >= 55% of the
+ * profile's own max, and the crown is whatever sits above it. On a silhouette
+ * that widens CONTINUOUSLY -- a dome, a plate apex, a dish seen edge-on -- the
+ * profile takes several rows to climb past 55%, and those rows became a
+ * "crown": a part the sprite does not have. `sentry` (a sandbag pillbox with
+ * no mast and no drum) was failing "zero vertical mast and zero enclosing
+ * drum" on a 4-row sliver of its own rim; `radar`, `spysat` and `prism` had
+ * their rooflines cut THROUGH the dish/umbrella those rows were meant to sit
+ * under. Full evidence: docs/design-decisions.md, "bodyRun's 55%-of-max cutoff
+ * invents a 'crown' part on smooth silhouettes".
+ *
+ * The veto is the definition of "distinct part", not a threshold: a crown is
+ * separable from the body only if SOMETHING separates them -- a waist (a row
+ * narrower than what lies both above and below it) or a shoulder (a row
+ * abruptly wider than the one above). Both appear in the row profile as a step
+ * DOWN somewhere between row 0 and the proposed roofline. If the profile only
+ * ever widens on the way down to that row, the "crown" is the apex of the same
+ * mass, and this primitive reports NO CROWN: `crown: false` and `lo: 0`, so
+ * `y < lo` is empty and nothing above the roofline can be counted.
+ *
+ * Deliberately conservative in three ways:
+ * - It never MOVES a roofline, only cancels one. Relocating `lo` to a waist
+ *   was implemented and measured over the whole corpus and is worse: to the
+ *   deepest waist gives 23 unmet structure clauses (from 18), to the topmost
+ *   waist deeper than 0.30 gives 21, both by breaking reads that are right
+ *   today -- the Battle Lab's 4 masts, the Barracks' 2 barrels, the Collective
+ *   Barracks' statue clearance. Where a boundary exists 55% is a good
+ *   roofline; its only failure mode is inventing one where none exists.
+ * - It is threshold-free, so there is no fraction to tune and nothing to tune
+ *   TOWARDS a clause passing: monotone or not is a property of the profile.
+ * - "No crown" also covers the case where the crown is real but too WIDE for
+ *   any width-fraction roofline to sit under it (radar's dish, prism's
+ *   umbrella). The honest report is then "this primitive found no crown",
+ *   never a phantom one -- which is why those clauses read their crown by
+ *   their own convention (largest blob in the top half) instead.
+ *
+ * CALLERS: a clearance read of the form `body.lo / f.h` is 0 when
+ * `crown === false`. That is right for a ">= X" floor (nothing clears
+ * anything) but would satisfy a "<= X" ceiling for free, so the two rows
+ * shaped that way (`shipyard`'s jib tip, `reactor`'s tower crown) are guarded
+ * on `body.crown`. Check it before reading `lo` as a distance.
+ */
 function bodyRun(profile) {
   let mx = 0;
   for (let i = 0; i < profile.length; i++) if (profile[i] > mx) mx = profile[i];
   const cut = 0.55 * mx;
   let lo = -1, hi = -1;
   for (let i = 0; i < profile.length; i++) if (profile[i] >= cut) { if (lo < 0) lo = i; hi = i; }
-  const EXP = require('./zz-experiment.js');
-  if (EXP.active) lo = EXP.roofline(profile, lo, hi, mx);
-  return { lo, hi, mx };
+  let crown = false;
+  for (let i = 1; i <= lo; i++) if (profile[i] < profile[i - 1]) { crown = true; break; }
+  if (!crown) lo = 0;
+  return { lo, hi, mx, crown };
 }
 /** 8-connected components of a predicate over the bbox — vehicle.js's implementation. */
 function components(f, pred) {
@@ -200,7 +246,10 @@ exports.check = function (ctx) {
       crown.length === 1 && jibOk && clearance >= 0.10,
       `${crown.length} crown group(s), thickest ${crown[0] ? Math.min(crown[0].w, crown[0].h) : 0}px, clearance ${R(clearance, 3)}`,
       '1 group, >=3px thick, clearance >= 0.10',
-      'crown = components above bodyRun.lo (§2.5\'s crown primitive); a second group here is flagged because §2.6 says a second mast group is the Battle Lab\'s read, not the Yard\'s');
+      'crown = components above bodyRun.lo (§2.5\'s crown primitive); a second group here is flagged because §2.6 says a second mast group is the Battle Lab\'s read, not the Yard\'s. '
+      + 'The dir bake reads ZERO groups and that is an ART finding, not a measurement gap: its row profile widens monotonically from the arch apex down to the 55% row, so bodyRun reports no crown, '
+      + 'and the render agrees -- the hall\'s own arch is the topmost mass and the yellow crane sits entirely BELOW it, off to the left. The 1-group pass this row used to report was the arch\'s top '
+      + '36 rows counted as a crane. The col bake, which has a real waist above its roofline, still reads its crane and still passes');
     let hn = 0; for (let i = 0; i < f.w * f.h; i++) if (f.mask[i] && isHouse(px(f, i % f.w, (i - (i % f.w)) / f.w))) hn++;
     const frac = hn / opaqueOf(f);
     add('base', `[${fac}] house fraction 9-16%, trim only, never the hall roof`,
@@ -315,7 +364,8 @@ exports.check = function (ctx) {
     const crown = components(f, (p, x, y) => !!p && y < body.lo);
     const topY = crown.length ? Math.min(...crown.map((c) => c.y0)) : body.lo;
     add('shipyard', `[${fac}] the jib is the topmost mass and its tip lies within the top 0.10 Sh`,
-      topY / f.h <= 0.10, R(topY / f.h, 3), '<= 0.10',
+      body.crown && crown.length > 0 && topY / f.h <= 0.10,
+      body.crown ? R(topY / f.h, 3) : 'no crown — the silhouette widens continuously to the 55% row', '<= 0.10',
       'jib = the crown\'s own topmost component (crown is by construction above the body, so "topmost mass" is trivially the crown here)');
     un('shipyard', `[${fac}] the jib overhangs the deck horizontally so the hook hangs clear of it`,
       'the hook is a small sub-feature of the jib blob, not separable from it by any predicate this tool has — needs shape analysis finer than a bbox/mask connected-component');
@@ -428,7 +478,9 @@ exports.check = function (ctx) {
       'the waist ratio itself is not measured per-blob (needs a rim-vs-waist row split within each blob\'s own colProfile, which the doc\'s own worked example does by hand on one tower)');
     const clearance = body.lo / f.h;
     add('reactor', '[col] the tallest tower\'s crown is inside the top 0.10 Sh',
-      clearance <= 0.10, R(clearance, 3), '<= 0.10', '');
+      body.crown && clearance <= 0.10,
+      body.crown ? R(clearance, 3) : 'no crown — the silhouette widens continuously to the 55% row', '<= 0.10',
+      'guarded on bodyRun\'s `crown` flag: with no crown there is no tallest tower, and an unguarded clearance of 0 would satisfy this ceiling for free');
     un('reactor', '[col] >= 3 ducts resolvable at 2px linking vessel to towers',
       'thin linking ducts are a line-detection problem, not a blob/contrast one — same limitation as radar\'s ribs');
     let hn = 0; for (let i = 0; i < f.w * f.h; i++) if (f.mask[i] && isHouse(px(f, i % f.w, (i - (i % f.w)) / f.w))) hn++;
