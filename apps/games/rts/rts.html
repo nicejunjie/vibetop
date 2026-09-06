@@ -33467,7 +33467,7 @@
       ctx.drawImage(BGb.c, px - BGb.w / 2, py - (BGb.h - UPAD), BGb.w, BGb.h);
     }
     ctx.drawImage(s.c, ox, oy, s.w, s.h);
-    if (submerged && u.erase <= 0) ctx.restore();
+    if (submerged && !(u.erase > 0)) ctx.restore();
     if (gondS) ctx.drawImage(gondS.c, ox + gondDx, oy + gondDy, gondS.w, gondS.h);
     if (turretS) ctx.drawImage(turretS.c, ox, oy, turretS.w, turretS.h);
     if (u.erase > 0) {
