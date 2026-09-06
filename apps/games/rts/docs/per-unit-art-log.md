@@ -2506,3 +2506,94 @@ hull axis — or a seam dark enough to survive the bake.
 
 **No art was changed by this pass.** The fix belongs to whoever owns the
 Apocalypse's art; this pass only made the check say what the row says.
+
+## The Apocalypse's fourth canister: `cu` is provably the wrong lever
+
+The row above nominated **`cu`** — separation along the hull axis — as the fix,
+or "a seam dark enough to survive the bake". It is the second of those, and the
+first is not a matter of taste: **`cu` cannot work at any value.**
+
+### Why the nominated lever is inert, in one line of the camera
+
+Only two of the eight bearings can ever show four drums, and at each of them
+**one of the two cluster axes projects to exactly zero screen X**:
+
+| bearing | `fx = ISO_X (cos a - sin a)` | `px = ISO_X (-sin a - cos a)` | what shares a screen column |
+|---|---|---|---|
+| broadside (oct 3/7), `a = 3pi/4` | -1.2649 | **0.0000** | the two FLANK drums |
+| axial (oct 1/5), `a = pi/4` | **0.0000** | -1.2649 | the two HULL drums |
+
+Whichever pair shares a column can only be separated **vertically**, and `cu`
+does not move it — `cu` moves the pair that is already 15 px apart. Swept, not
+argued: `cu` step **0.215 -> 0.380**, the point at which the rear drum leaves
+the hull and the broadside bbox grows 87 -> 96 px and the size gate would break.
+**The count stays at TWO for the whole sweep**, every step, every bearing. The
+diagonal octants are no escape either: there `|fx| = |px|`, so the four drums
+project to `{0, -u, -v, -u-v}` and even spacing needs `v = 2u`, which puts the
+flank drums out at `wid * 0.32` — on top of the shoulder plates, which are
+house-coloured too and simply absorb one.
+
+### `cv` gets to four; only a DRAWN seam gets to two pixels
+
+`cv` **0.215 -> 0.322** opens the flank pair until the far drum still shows 13
+px of its own above the near one. That reaches **four** canisters — and stops at
+a **one-pixel** seam at every value swept, 0.300 through 0.350, because *the far
+drum's visible foot is defined by the near drum's shoulder and moves down with
+it*. More spacing cannot open a seam whose width is set by an occluder. This is
+the sixth instance in this file of an anti-aliased blend between two owner-hued
+edges closing a 1-1.5 px gap, and the first where more separation is
+**analytically** incapable of fixing it.
+
+So the seam is drawn: a dark puck painted **first**, 1.60 taller than the drum
+(`11.20` against `9.6`) and barely fatter (`1.95` against `1.90`), putting 3 px
+of real non-house pixels above each cap for the drum behind to land on.
+
+* **Taller, not fatter, and never lower.** Nothing stands within 15 px of a
+  drum's flank. At `2.35` the drums baked as black chimneys with a blue stripe
+  down them. A *symmetric* collar dropped the count to three at every height
+  that opened the seam, because the same 2 px lands on the drum BELOW.
+* **In `dark` (the hull's own shadow tone), not `PEDGE`.** Both break the house
+  mask — hue 68 against the owner's 197 — and the seam cannot tell them apart,
+  but the colour census can. `PEDGE` is the near-black **every** unit outlines
+  with, so spending 4 x 3 px of the Apocalypse on more of it moved
+  `colour.vehicle.meanDist` **0.9634 -> 0.9561**: the one number the whole pass
+  regressed, and it regressed on a choice that was never about the seam. The
+  same collar in `dark` reads as drums standing in the hull's shadow and takes
+  the metric the other way, to **0.9714**.
+
+### The row, and what it cost
+
+| bearing | before | after |
+|---|---|---|
+| oct 0 / 2 (diagonal) | 2 | 2 |
+| **oct 3 (GATED, broadside)** | **2** | **4** — `[8x22, 8x13, 8x21, 8x13]`, gap **3 px** |
+| oct 1 / 5 (axial) | 2 (best, gap 13) | 2 |
+| oct 4 / 6 (diagonal) | 2 / 0 | 3 / 3 |
+| **oct 7 (broadside)** | **2** | **4**, gap 3 |
+
+The row is now owed *at the bearing the aspect and size gates already read*,
+not merely at the most generous one the check permits.
+
+**`clause.vehicleUnmet` 1 -> 0, `clause.unmet` 2 -> 1** (the Destroyer's length
+row is what is left). **Nothing regressed and seven numbers improved**:
+`iou.groundCombat.mean` 0.4695 -> **0.4660**, `iou.vehicle.mean` 0.4134 ->
+**0.4114**, `mass.groundCombatSpan` 5.491 -> **5.696**, `mass.tightestBand6`
+2.149 -> **2.229**, `hue.vehicleOwnerMean` 0.1696 -> **0.1702**,
+`colour.vehicle.meanDist` 0.9634 -> **0.9714**, and the Apocalypse's own
+`peersBeatingSelf` 5 -> **4**. 45 metrics byte-identical, `peerVsSelf.vehicle`
+1, `size.crossGroupSpread` 1.607, every `clip` 0. `legibility.js`: **0
+confusable in all six windows**, every threshold and every group MINIMUM
+unchanged (vehicle 52.8 / 64.6 / 60.7), infantry, air and naval byte-identical —
+the null result that proves the edit is vehicle-scoped.
+
+**The two costs, stated.** The broadside bbox is **87x60**, was 87x55: two 17-px
+drums stacked at broadside must sit ~15 px apart to both be seen, and that
+vertical spread is the sprite's height. Aspect **1.582 -> 1.450**, which is
+0.912 -> **0.836** of RA2's `[MTNK]`, still inside the +-20% band and still
+`aspect.vehicleOutsideRA2Band` 0, but the margin is now 0.164 of 0.200 rather
+than 0.088. Lowering the cluster does not buy it back (elev 9.4 -> 9.0 leaves
+the bbox at 60; 8.6 buys one pixel and costs half the seam). Second,
+`cameo-legibility.js` moves **two pairs of 91** in the Collective units tab
+under RA2's 5th-percentile bar (47 -> 49) — one of them from the geometry alone,
+before the collar exists — with that tab's mean (81.1) and minimum (59.2)
+unchanged, both greyed bars unchanged, and the Directorate sidebar byte-identical.
