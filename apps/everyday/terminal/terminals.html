@@ -584,7 +584,6 @@
   var spEvery = document.getElementById('sp-every');
   var spLab = document.getElementById('sp-lab');
   var LOOP_DEFAULT_EVERY = '18000';            // 5h — the token-limit case
-  var LOOP_DEFAULT_UNTIL = 24 * 3600 * 1000;   // a day out, so Repeat is valid on one tap
   var spAtRow = document.getElementById('sp-row-at');
   var spUntilRow = document.getElementById('sp-row-until');
   var spUntil = document.getElementById('sp-until');
@@ -826,10 +825,13 @@
   function setLoop(on, keep) {
     on = !!on;
     if (!keep && on && !loopOn) {
-      // Seed the two rows Repeat reveals, and only if they are empty/stale — a
-      // second toggle must not walk over what was typed the first time.
-      if (!spUntil.value || new Date(spUntil.value).getTime() <= Date.now()) {
-        spUntil.value = toLocalInput(new Date(Date.now() + LOOP_DEFAULT_UNTIL));
+      // Both date rows default to NOW, like the one-shot field does on open.
+      // `until` was seeded a day out, which is a number nobody picked and no one
+      // can predict; now it starts where `start` starts and you dial it with the
+      // same quick row (arm `until`, tap +5h). Only when it is empty or already
+      // stale — a time typed on an earlier toggle is kept.
+      if (!spUntil.value || new Date(spUntil.value).getTime() < Date.now() - 60000) {
+        spUntil.value = toLocalInput(new Date());
       }
       // `start` is left exactly as it is — which is now, the time the panel seeds
       // on open. Repeat used to push it one interval out, on the theory that you
