@@ -8867,7 +8867,7 @@
       flaktrack: 0.820, ifv: 1.200,                    // the light class
       teslatank: 1.100, mirage: 1.330, spectre: 1.460, // the mid specials
       v3: 1.260, mammoth: 1.240,                       // the longest / the heaviest
-      mcv: 1.320, drone: 1.0, hornet: 0.45,
+      mcv: 1.320, drone: 0.880, hornet: 0.45,
       // THE TWO AIRCRAFT, sized against RA2 rather than against each other.
       // Aspect is scale-INVARIANT, so the whole art gate was blind to a unit
       // drawn at the wrong SIZE until `size.*OutsideRA2Band` existed: RA2
@@ -9717,12 +9717,30 @@
           // the outline the band already had: the Grizzly is the flattest
           // thing on the ground and its own gun is a 2px sliver, so raising
           // anything here buries the one feature that names it.
+          // 2026-09-06, the §2.3 clause pass. The paragraph above promised
+          // "a clear gap between them" and the BAKE did not have one: at the
+          // broadside octant the cheek (rows 7-12) and the flank plate (rows
+          // 13-18) came out as ONE 23x11 house component, because the plate's
+          // lit cap topped out at by-6.3 and the cheek's prism started at
+          // by-7.8 — 1.5 units, 1.4 px, and the anti-aliased blend between
+          // them is still owner-hued. Same class of miss as the Tesla
+          // Trooper's carapace and the Amphibious Transport's cargo well: the
+          // comment was right and nothing measured it. THE PLATE COMES DOWN
+          // and the cheek is left exactly where it was — raising it was tried
+          // and measured NOTHING, because the cheek's bottom edge is pinned by
+          // the turret-shoulder polygon it wraps rather than by its own base,
+          // and the chamfered cap is drawn after it and paints over anything
+          // that rises into it. Nothing moves along the axis, so the Grizzly
+          // stays 52 px long and its "hull height <= 0.45 x length" (0.423,
+          // and only 1.4 px of headroom) is untouched. The GAP is 2 px against
+          // the row's 4 and that is a ceiling, not a shortfall of effort:
+          // two 6-8 px panels plus 4 px of air is 16-20 px of a 22 px tank.
           for (sg = -1; sg <= 1; sg += 2) {
             isoBox(g, cx + px * wid * 0.365 * sg - fx * 1.2,
-                   by - 3.0 + py * wid * 0.365 * sg - fy * 1.2,
-                   len * 0.66, 1.7, 3.3, a, panel, PEDGE);
+                   by - 0.4 + py * wid * 0.365 * sg - fy * 1.2,
+                   len * 0.66, 1.7, 3.2, a, panel, PEDGE);
             isoBox(g, cx + px * wid * 0.345 * sg - fx * 1.2,
-                   by - 5.4 + py * wid * 0.345 * sg - fy * 1.2,
+                   by - 2.6 + py * wid * 0.345 * sg - fy * 1.2,
                    len * 0.58, 1.3, 0.9, a, plit, PEDGE);          // lit cap on the same plate
           }
           fenders(len * 0.44, 3.2);
@@ -9928,7 +9946,17 @@
           var cans = [];
           for (sg = -1; sg <= 1; sg += 2)
             for (i2 = 0; i2 < 2; i2++) {
-              var cu = -len * 0.245 - i2 * len * 0.185, cv = sg * wid * 0.175;
+              // 2026-09-06, the §2.4 clause pass. "each canister >= 6x6 px and
+              // individually countable (gaps >= 2 px)" had nothing measuring
+              // it, and measured, the four drums baked as ONE 22x31 house
+              // component at the broadside octant: the seam between the near
+              // and far columns was 1 px, and its anti-aliased blend is still
+              // owner-hued, so the mask bridges straight across it. The drums
+              // move APART across the beam and along the axis and lose a
+              // quarter-unit of radius; nothing else moves, so the hull keeps
+              // its 87x55 and the "beam is the denominator" warning above does
+              // not apply — these are furniture on the deck, not the deck.
+              var cu = -len * 0.235 - i2 * len * 0.215, cv = sg * wid * 0.215;
               cans.push([cx + fx * cu + px * cv, by - 9.4 + fy * cu + py * cv]);
             }
           cans.sort(function (m, n) { return m[1] - n[1]; });
@@ -9938,7 +9966,7 @@
             // a COUNTABLE cluster standing in the outline. Four vertical
             // columns are also the only crown on the field that is four
             // things, which is what the Apocalypse's silhouette owes the gate.
-            puck(cans[i2][0], cans[i2][1], 2.25, 9.6, pdark, panel, PEDGE);
+            puck(cans[i2][0], cans[i2][1], 2.00, 9.6, pdark, panel, PEDGE);
             gEllipse(cans[i2][0], cans[i2][1] - 9.6, 1.10);      // dark throat in the cap
             g.fillStyle = '#1a1d22'; g.fill();
             g.fillStyle = plit;                                  // lit lip
@@ -10815,11 +10843,20 @@
           // the vehicle class, and 2.3's budget for this unit is written as
           // "height <= 0.55 x length"; at 0.67 we were not close.
           var bcx = cx - fx * Q * 6.6, bcy = by - 1.0 - fy * Q * 6.6;
-          crate(bcx, bcy, 11.6 * Q, 10.2, 6.2, BIN, BIN_E);
+          // 2026-09-06, the §2.3 clause pass: the bin and its furniture ARE the
+          // topmost pixels at the broadside bearing (rows 0-8 of the bake are
+          // bin tan and rail grey), so "height <= 0.55 x length" is decided
+          // here and nowhere else. It measured 33/55 = 0.600. Every number
+          // below came down 1.4-2.0 units and NOTHING moved along the axis, so
+          // the bbox loses height without losing a pixel of width — which also
+          // walks the broadside aspect from 0.849 of RA2's [CMIN] toward it,
+          // the same direction the aspect gate wants. The bin is still the
+          // deepest thing on the truck; it is no longer the tallest.
+          crate(bcx, bcy, 11.6 * Q, 10.2, 4.0, BIN, BIN_E);
           for (var br = -1; br <= 1; br += 2)                                 // steel bin rails
-            isoBox(g, bcx + px * 4.8 * br, bcy - 5.4 + py * 4.8 * br, 11.8 * Q, 1.4, 0.9, a, '#6f757e', '#31363d');
-          isoBox(g, bcx + fx * Q * 5.4, bcy - 6.0 + fy * Q * 5.4, 1.6, 2.8, 2.2, a, '#272b32', '#101216'); // chute
-          isoBox(g, bcx + fx * Q * 5.4, bcy - 8.2 + fy * Q * 5.4, 2.0, 3.2, 0.8, a, '#6f757e', '#101216');
+            isoBox(g, bcx + px * 4.8 * br, bcy - 3.4 + py * 4.8 * br, 11.8 * Q, 1.4, 0.9, a, '#6f757e', '#31363d');
+          isoBox(g, bcx + fx * Q * 5.4, bcy - 3.4 + fy * Q * 5.4, 1.6, 2.8, 1.4, a, '#272b32', '#101216'); // chute
+          isoBox(g, bcx + fx * Q * 5.4, bcy - 4.8 + fy * Q * 5.4, 2.0, 3.2, 0.7, a, '#6f757e', '#101216');
         };
         var drawFront = function () {
           // The cab is a DARK charcoal block; the house colour is the single
@@ -10930,7 +10967,15 @@
           // Chrono Miner's 55x28: same length, nearly twice the height, and
           // that is the entire difference between the two harvesters.
           var bcx = cx - fx * W * 6.4, bcy = by - 4.8 - fy * W * 6.4;
-          crate(bcx, bcy, 11.4 * W, 13.6, 16.4, BIN, BIN_E);
+          // 2026-09-06, the §2.4 clause pass: "bin >= 35% of body px" had
+          // nothing measuring it and the bin came in at 28.3% of the sprite's
+          // opaque pixels. The reference sentence in this very block already
+          // said what the target was — "in soviet-war-miner.png it is roughly
+          // half the sprite" — so this is the drawing catching up with its own
+          // citation, not a new opinion. Longer and broader, not TALLER: the
+          // height is what the previous pass measured as lifting the bbox to
+          // 60 px against the reference's 47, and it is left alone.
+          crate(bcx, bcy, 14.6 * W, 16.6, 16.4, BIN, BIN_E);
         };
         var drawFront2 = function () {
           // white fore-chassis under the boom
