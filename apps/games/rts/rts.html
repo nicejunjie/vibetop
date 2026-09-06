@@ -13251,6 +13251,12 @@
         };
         grille(bP1[0] + 3, bP1[1] + 2, 8, 11, 3);
         grille(cx + fw * 0.70, baseY - fh * 0.68, 8, 10, -4);
+        // ---- roof cables: thin gunmetal stays tying spire/boomA/boomB into one roofline silhouette
+        g.strokeStyle = SGUN; g.lineWidth = 4.5; g.lineCap = 'round';
+        g.beginPath();
+        g.moveTo(cx + fw * 0.086, baseY - fh * 0.947); g.lineTo(cx + fw * 0.32, baseY - fh * 0.947); g.stroke();
+        g.beginPath();
+        g.moveTo(cx + fw * 0.398, baseY - fh * 0.92); g.lineTo(cx + fw * 0.492, baseY - fh * 0.893); g.stroke();
         g.strokeStyle = HCM; g.lineWidth = 2.4;           // short red arm hooking off the lower grille
         g.beginPath();
         g.moveTo(cx + fw * 0.62, baseY - fh * 0.48); g.lineTo(cx + fw * 0.54, baseY - fh * 0.30);
@@ -13631,7 +13637,7 @@
         drums(g, cx + fw * 0.62, baseY + fh * 0.54, 2, '#3d4238');
 
         // ---- mast crane at the left, level with the pad centre -------------
-        var tx3 = cx - fw * 0.54, ty3 = baseY - fh * 0.02;
+        var tx3 = cx - fw * 0.54, ty3 = baseY - fh * 0.02 + 12;
         g.fillStyle = 'rgba(0,0,0,.30)';
         g.beginPath(); g.ellipse(tx3 + 3, ty3 + 4, 20, 9, 0, 0, 6.29); g.fill();
         for (var boA = 0; boA < 8; boA++) {               // arc of black deck drums round the front
@@ -15216,6 +15222,15 @@
         crates(g, cx + fw * 0.30, baseY - fh * 0.66, 2, '#8d9288');
         bHut(cx - 15.5, baseY - 17.0, true);                    // far hut  (-gx)
         bHut(cx + 5.3, baseY + 11.5, false);                    // near hut (+gx, staggered +gy)
+        // ---- roof seam: sever the watch drum from the far hut's canvas dome
+        // along their natural joint so the two barrels read as separate crowns
+        g.save(); g.globalCompositeOperation = 'destination-out';
+        g.lineWidth = 4; g.lineCap = 'round'; g.lineJoin = 'round';
+        g.beginPath();
+        g.moveTo(cx + (-16), baseY + (-54));
+        g.quadraticCurveTo(cx + (-13), baseY + (-44), cx + (-7), baseY + (-33));
+        g.stroke();
+        g.restore();
         drums(g, cx + fw * 0.60, baseY + fh * 0.30, 3, '#3f4550');
 
       } else {
