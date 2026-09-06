@@ -10689,6 +10689,14 @@
         // nose cone and tail fins in house colour, breaking well past both
         // ends of the chassis. Everything about the truck is deliberately
         // dull so nothing competes with that diagonal.
+        // RAIL RISE. Every vertical offset of the rail, the jack strut and the
+        // missile is this factor times its own reach above the rail's tail
+        // pivot at `by - 4.2`, so the whole assembly keeps its shape and only
+        // its INCLINATION changes. It is a single number because the rise is
+        // the one dimension that has to be traded against RA2's own bbox: the
+        // missile's chord is fixed by the overhang budget, so height is the
+        // only free variable, and every bearing's silhouette depends on it.
+        var V3RK = 1.00;
         wheels(len * 0.70, 2.5, 3);
         chassis(cx, by - 1.0, len * 0.86, wid * 0.62, 3.6, hull, dark, 2.4);
         var drawCab3 = function () {
@@ -10727,13 +10735,13 @@
             // of its own launcher at the tail — the sort of thing a number in
             // band will never catch and a player sees immediately.
             var r0x = cx - fx * 13.4 + px * 2.6 * sg, r0y = by - 4.2 - fy * 13.4 + py * 2.6 * sg;
-            var r1x = cx + fx * 6.8 + px * 2.6 * sg, r1y = by - 16.4 + fy * 6.8 + py * 2.6 * sg;
+            var r1x = cx + fx * 6.8 + px * 2.6 * sg, r1y = by - 4.2 - 12.2 * V3RK + fy * 6.8 + py * 2.6 * sg;
             g.strokeStyle = '#2b2f36'; g.lineWidth = 2.6; g.lineCap = 'round';
             g.beginPath(); g.moveTo(r0x, r0y); g.lineTo(r1x, r1y); g.stroke();
             g.strokeStyle = '#7d848f'; g.lineWidth = 1.0;
             g.beginPath(); g.moveTo(r0x, r0y - 0.9); g.lineTo(r1x, r1y - 0.9); g.stroke();
           }
-          isoBox(g, cx + fx * 5.4, by - 12.8 + fy * 5.4, 1.8, wid * 0.44, 7.6,
+          isoBox(g, cx + fx * 5.4, by - 4.2 - 8.6 * V3RK + fy * 5.4, 1.8, wid * 0.44, 7.6 * V3RK,
                  a, STEEL, '#3f444c');                              // jack strut
           exhaust(cx - fx * len * 0.40, by - 4.4 - fy * len * 0.40);
         };
@@ -10756,7 +10764,7 @@
           // board. The chord goes 23.6 -> 30.2 (1.37x the truck, 7 px of nose
           // clear of the bumper) and the rise comes down a shade with it, so
           // the rail keeps its diagonal at about 36 degrees instead of 39.
-          var tu = 14.3, tv = -21.4, hu = -15.9, hv = -4.8;
+          var tu = 14.3, tv = -4.2 - 17.2 * V3RK, hu = -15.9, hv = -4.2 - 0.6 * V3RK;
           var tipx = cx + fx * tu, tipy = by + tv + fy * tu;
           var tlx = cx + fx * hu, tly = by + hv + fy * hu;
           var vx = tipx - tlx, vy = tipy - tly, vl = Math.hypot(vx, vy) || 1;
