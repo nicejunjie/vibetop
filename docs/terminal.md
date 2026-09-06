@@ -38,7 +38,11 @@ Project dir: `apps/everyday/terminal/` (the app) + `server/` (the manager) (repo
 `/terminals/` serves `terminals.html` — a single page with iframes:
 - **+** button adds the next available terminal (up to T20)
 - **×** closes a tab (hides it; the session daemon keeps running)
-- **Drag** tabs to reorder — the order is stored **server-side per user**, so it is the same on every device
+- **Drag** tabs to reorder — the order is stored **server-side per user**, so it is the same on every device.
+  The drop point is resolved by sweeping tab midpoints against the pointer's x, so the **whole strip** is a
+  drop zone: the empty runway past the last tab and the **+** button both mean "the end". (Reading
+  `e.target.closest('.tab')` instead made the end reachable only through the last tab's right half —
+  everything past it hit-tests to `.tabs`, not to a tab. Fixed v1.19.313.)
 - **Double-click** a tab to rename (e.g. `T2:claude`)
 - Tab **names and order** persist server-side (same on every device); the active tab stays per-device in localStorage, which is right — which terminal you are looking at is a property of the screen in front of you, not of the account
 
