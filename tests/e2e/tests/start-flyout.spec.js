@@ -83,19 +83,21 @@ test.describe('start menu flyouts', () => {
       });
   }
 
-  test('a containing block on the menu cannot swallow the flyout', async ({ page }) => {
-    await page.goto('/');
-    await openStartMenu(page);
-    // A transform makes #startmenu the containing block for its position:fixed
-    // descendants, so a panel left inside it is positioned against the MENU and
-    // clipped by the menu's own overflow — the exact shape of the iPad failure,
-    // forced here so every engine reproduces it. Anything that reintroduces the
-    // assumption (dropping the <body> hoist, or the off-screen fallback) fails.
-    await page.locator('#startmenu').evaluate((el) => {
-      el.style.transform = 'translateZ(0)';
-    });
-
-    for (const fly of FLYOUTS) {
+  // One test per flyout, each on a fresh page: on a narrow screen an open
+  // flyout becomes a full-menu drill-down that HIDES the other parent row, so
+  // the two cannot be exercised in sequence.
+  for (const fly of FLYOUTS) {
+    test(`a containing block on the menu cannot swallow ${fly.name}`, async ({ page }) => {
+      await page.goto('/');
+      await openStartMenu(page);
+      // A transform makes #startmenu the containing block for its position:fixed
+      // descendants, so a panel left inside it is positioned against the MENU and
+      // clipped by the menu's own overflow — the exact shape of the iPad failure,
+      // forced here so every engine reproduces it. Anything that reintroduces the
+      // assumption (dropping the <body> hoist, or the off-screen fallback) fails.
+      await page.locator('#startmenu').evaluate((el) => {
+        el.style.transform = 'translateZ(0)';
+      });
       await page.locator(fly.parent).click();
       await expect.poll(async () => (await measure(page, fly.sub)).shown,
         { timeout: 5000 }).toBe(true);
@@ -104,8 +106,8 @@ test.describe('start menu flyouts', () => {
       expect(m.items, `no rows rendered: ${where}`).toBeGreaterThan(0);
       expect(m.panelInView, `panel swallowed by the menu's clip: ${where}`).toBe(true);
       expect(m.itemsInView, `rows clipped away: ${where}`).toBe(m.items);
-    }
-  });
+    });
+  }
 
   // The hoist in v1.19.307 moved the panel out of #startmenu, and the menu's
   // click handler was bound to #startmenu — so every row in the flyout went dead
