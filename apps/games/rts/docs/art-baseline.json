@@ -1,6 +1,6 @@
 {
   "_": "Recorded by apps/games/rts/tools/art-metrics.js — do not hand-edit except to RE-RECORD after a deliberate art improvement (node apps/games/rts/tools/art-metrics.js --record). `metrics` is ratcheted by apps/games/rts/rts-art.test.js: a regression fails, and so does an improvement, which is what makes progress stick. `detail` is informational only.",
-  "recorded": "2026-09-05",
+  "recorded": "2026-09-06",
   "env": {
     "dpr": 1,
     "zoom": 1,
@@ -175,6 +175,36 @@
       "dir": "up",
       "note": "how far clear of the second-lightest infantryman he stands. The read is a CONTRAST, so a dead heat is a failure even when he wins it — coming first by a point would satisfy the ordering and still leave a player unable to pick him out of a squad, which is the whole job of an inverted value"
     },
+    "clause.checked": {
+      "want": 57,
+      "dir": "up",
+      "note": "§2 states 96 budget clauses across 41 units and each unit has exactly ONE SPIKES entry, so 57 clauses were honoured by intention only. This counts how many of those now have a real measurement behind them. The target is the whole backlog; it rises as checks land"
+    },
+    "clause.unmet": {
+      "want": 0,
+      "dir": "down",
+      "note": "clauses that are checked AND FAILING. A rising `checked` with a rising `unmet` is the tool working, not the art getting worse — the first two clauses ever checked by hand were both unmet (Tesla Trooper carapace 8% vs 40%, Engineer third on a row saying \"the only\")"
+    },
+    "clause.infantryUnmet": {
+      "want": 0,
+      "dir": "down",
+      "note": "the same, for the 23 unmeasured infantry clauses"
+    },
+    "clause.vehicleUnmet": {
+      "want": 0,
+      "dir": "down",
+      "note": "the same, for the 18 unmeasured vehicle clauses"
+    },
+    "clause.navalUnmet": {
+      "want": 0,
+      "dir": "down",
+      "note": "the same, for the 9 unmeasured naval clauses"
+    },
+    "clause.airUnmet": {
+      "want": 0,
+      "dir": "down",
+      "note": "the same, for the 7 unmeasured air clauses"
+    },
     "clip.unitsTouchingSheetEdge": {
       "want": 0,
       "dir": "down",
@@ -243,6 +273,12 @@
     "size.infantryOutsideRA2Band": 1,
     "size.airOutsideRA2Band": 0,
     "size.worstOffGroupScale": 0.3109,
+    "clause.checked": 2,
+    "clause.unmet": 1,
+    "clause.infantryUnmet": 1,
+    "clause.vehicleUnmet": 0,
+    "clause.navalUnmet": 0,
+    "clause.airUnmet": 0,
     "clip.unitsTouchingSheetEdge": 0,
     "clip.unitsClippedOnGatedOctant": 0,
     "value.soldiersLighterThanEngineer": 0,
@@ -1617,6 +1653,26 @@
         "scale": 0.8814,
         "groupScale": 0.8814,
         "dev": 0
+      }
+    ],
+    "clauses": [
+      {
+        "unit": "rifle",
+        "clause": "helmet in a value distinct from both torso and legs",
+        "ok": false,
+        "measured": 0.073,
+        "want": ">= 0.10 value",
+        "note": "helmet 0.465, torso 0.539, legs 0.142 — 0.10 is this file's reading of \"distinct\"; the row states no number",
+        "module": "EXAMPLE-infantry-gi.js"
+      },
+      {
+        "unit": "rifle",
+        "clause": "legs read olive, >= 20 hue-degrees off the Conscript's tan",
+        "ok": true,
+        "measured": 60.4,
+        "want": ">= 20 degrees",
+        "note": "GI legs hue 92, Conscript legs hue 32",
+        "module": "EXAMPLE-infantry-gi.js"
       }
     ],
     "valueRead": [

@@ -346,6 +346,13 @@ const TARGETS = {
   'value.soldiersLighterThanEngineer':{ want: 0, dir: 'down', note: '§2.2 calls the Engineer "the ONLY light-value soldier on the field" and every other infantryman "mid-to-dark" — so this is his identity stated as a number, and the number was 2 on the day it was written: the Tesla Trooper at 32.3% of torso+legs above value 0.75 and Tanya at 27.9%, against the Engineer\'s 26.0%. His SPIKES entry measures the TOOLBOX, so the read that actually names him was never checked. The dog is excluded: he is not a soldier and his coat is a fixed tan' },
   'value.engineerLightPct':          { want: 0.55, dir: 'up', note: 'the same clause as a fraction — §2.2 asks "body value >= 0.75 across >= 55% of the torso+legs". Measured over the whole sprite here, which is the quantity the bake can see; the helmet makes it read slightly high against the row\'s torso+legs wording, so treat 0.55 as a floor rather than a match. Kept alongside the ordering because they fail differently: a roster that goes pale WITH him leaves him first and still unreadable' },
   'value.engineerMarginOverNext':    { want: 0.15, dir: 'up', note: 'how far clear of the second-lightest infantryman he stands. The read is a CONTRAST, so a dead heat is a failure even when he wins it — coming first by a point would satisfy the ordering and still leave a player unable to pick him out of a squad, which is the whole job of an inverted value' },
+  // §2's pixel budgets, checked one clause at a time (tools/clause-checks/).
+  'clause.checked':              { want: 57,   dir: 'up',   note: '§2 states 96 budget clauses across 41 units and each unit has exactly ONE SPIKES entry, so 57 clauses were honoured by intention only. This counts how many of those now have a real measurement behind them. The target is the whole backlog; it rises as checks land' },
+  'clause.unmet':                { want: 0,    dir: 'down', note: 'clauses that are checked AND FAILING. A rising `checked` with a rising `unmet` is the tool working, not the art getting worse — the first two clauses ever checked by hand were both unmet (Tesla Trooper carapace 8% vs 40%, Engineer third on a row saying "the only")' },
+  'clause.infantryUnmet':        { want: 0,    dir: 'down', note: 'the same, for the 23 unmeasured infantry clauses' },
+  'clause.vehicleUnmet':         { want: 0,    dir: 'down', note: 'the same, for the 18 unmeasured vehicle clauses' },
+  'clause.navalUnmet':           { want: 0,    dir: 'down', note: 'the same, for the 9 unmeasured naval clauses' },
+  'clause.airUnmet':             { want: 0,    dir: 'down', note: 'the same, for the 7 unmeasured air clauses' },
   'clip.unitsTouchingSheetEdge':  { want: 0,    dir: 'down', note: 'units with at least one bearing whose opaque bbox touches the border of its sheet cell — i.e. art the canvas CUT. Every other metric in this file is downstream of the bake, so a clipped sprite makes aspect, IoU, spike and size all precise and all wrong, with nothing to show for it: the sprite still renders and still looks plausible. The Nighthawk shipped an entire measured pass this way on 2026-09-05 — a 26-unit tail boom reached 48 px on a 104 px sheet and octants 3 and 7 came back with the fin flat against the edge — and it was caught by a hand-written probe, not by anything standing. This is that probe, made standing' },
   'clip.unitsClippedOnGatedOctant':{ want: 0,   dir: 'down', note: "the subset clipped on the unit's own BROADSIDE bearing — the one the aspect and size gates actually read, so a clip there corrupts a headline number rather than a footnote. Per-unit, not a fixed pair: the Nighthawk's broadside is octant 3/7, the Apocalypse's is 0, and a first draft of this metric hardcoded 3 and 7 and would have reported a clean sheet for a unit clipped anywhere else" },
   'size.worstOffGroupScale':     { want: 0.25, dir: 'down', note: "the furthest any unit sits from its own group's scale, as |ours/RA2 / groupMedian - 1|; 0.38 (the Nighthawk) on the day the metric was added" },
@@ -483,6 +490,19 @@ function pageExtract() {
         m[y * bw + x] = id[((y + y0) * cm.W + (x + x0)) * 4 + 3] > 8 ? 1 : 0;
       let bin = '';
       for (let i = 0; i < m.length; i += 0x8000) bin += String.fromCharCode.apply(null, m.subarray(i, i + 0x8000));
+      // ...and the bbox's RGBA beside the mask. Every metric in this file used
+      // to work off the silhouette alone, which is why §2's COLOUR and VALUE
+      // clauses ("carapace value >= 0.70 across >= 40% of the torso", "legs
+      // must read olive, not tan") had nothing measuring them: the data was
+      // thrown away at the page boundary. Node-side clause checks need pixels.
+      const rgba = new Uint8Array(bw * bh * 4);
+      for (let y = 0; y < bh; y++) for (let x = 0; x < bw; x++) {
+        const si = ((y + y0) * cm.W + (x + x0)) * 4, di = (y * bw + x) * 4;
+        rgba[di] = id[si]; rgba[di + 1] = id[si + 1];
+        rgba[di + 2] = id[si + 2]; rgba[di + 3] = id[si + 3];
+      }
+      let rbin = '';
+      for (let i = 0; i < rgba.length; i += 0x8000) rbin += String.fromCharCode.apply(null, rgba.subarray(i, i + 0x8000));
       // --- colour census, from the owner-0 vs owner-1 difference -----------
       let col = null;
       try {
@@ -536,7 +556,7 @@ function pageExtract() {
 
       recs.push({
         key, name: d.name, cls: d.cls, fac: d.fac || null, air: !!d.air, nav: !!d.nav,
-        oct, bw, bh, mask: btoa(bin), col, edges, cellW: cm.W, cellH: cm.H,
+        oct, bw, bh, mask: btoa(bin), rgba: btoa(rbin), col, edges, cellW: cm.W, cellH: cm.H,
       });
     }
   }
@@ -963,6 +983,57 @@ function compute(recs) {
                : 0 };
   })();
 
+  // ── §2 CLAUSE CHECKS ───────────────────────────────────────────────────
+  // §2 of unit-identity-reference.md states 96 pixel-budget clauses. Each unit
+  // has exactly ONE SpIKES entry, so at most one clause per unit was ever
+  // gated and the other 57 were honoured by intention only. Two of the first
+  // few checked by hand turned out unmet — the Tesla Trooper's carapace at 8%
+  // against a 40% spec, and the Engineer's "only light-value soldier" who
+  // measured THIRD — so the unmeasured set is where the defects are.
+  //
+  // Checks live in tools/clause-checks/<group>.js, ONE FILE PER GROUP, and are
+  // loaded here. That is deliberate: the clauses are being worked through by
+  // several passes at once, and a single shared table would put every pass in
+  // the same lines of this file. A module returns
+  //   [{ unit, clause, ok, measured, want, note }]
+  // and gets `ctx` = { units, recs, byUnitOct(k, o), meta, grp, round }, where
+  // byUnitOct hands back { w, h, mask, rgba } for one baked bearing — mask for
+  // silhouette clauses, rgba for the colour and value ones.
+  const clause = (() => {
+    const dir = path.join(__dirname, 'clause-checks');
+    const ctx = {
+      units: unit, recs, meta, grp, round,
+      byUnitOct(k, o) {
+        const r = recs.find((q) => q.key === k && q.oct === o);
+        if (!r) return null;
+        return { w: r.bw, h: r.bh,
+                 mask: Buffer.from(r.mask, 'base64'),
+                 rgba: r.rgba ? Buffer.from(r.rgba, 'base64') : null };
+      },
+      // the bearing the aspect and size gates read, per unit
+      broadsideOct(k) {
+        let best = null;
+        for (const r of recs) if (r.key === k && (!best || r.bw > best.bw)) best = r;
+        return best ? best.oct : 0;
+      },
+    };
+    const rows = [];
+    let files = [];
+    try { files = fs.readdirSync(dir).filter((f) => f.endsWith('.js')).sort(); } catch (e) { /* none yet */ }
+    for (const f of files) {
+      let mod;
+      try { mod = require(path.join(dir, f)); }
+      catch (e) { rows.push({ unit: '-', clause: f + ' failed to load', ok: false, note: String(e) }); continue; }
+      try { for (const r of mod.check(ctx) || []) rows.push({ ...r, module: f }); }
+      catch (e) { rows.push({ unit: '-', clause: f + ' threw', ok: false, note: String(e) }); }
+    }
+    const byG = (g) => rows.filter((r) => (unit[r.unit] || {}).group === g);
+    const bad = (rs) => rs.filter((r) => !r.ok).length;
+    return { rows, checked: rows.length, unmet: bad(rows),
+             infUnmet: bad(byG('infantry')), vehUnmet: bad(byG('vehicle')),
+             navUnmet: bad(byG('naval')), airUnmet: bad(byG('air')) };
+  })();
+
   // ── SHEET CLIPPING ─────────────────────────────────────────────────────
   // Not a judgement about art — a check that the thing every other metric
   // measured actually IS the sprite. A bbox touching its sheet cell's border
@@ -1025,8 +1096,21 @@ function compute(recs) {
       'size.infantryOutsideRA2Band': ra2Size.infOutside,
       'size.airOutsideRA2Band': ra2Size.airOutside,
       'size.worstOffGroupScale': ra2Size.worstOff,
-      'clip.unitsTouchingSheetEdge': clip.units.length,
+      // §2's pixel budgets, checked one clause at a time (tools/clause-checks/).
+  'clause.checked':              { want: 57,   dir: 'up',   note: '§2 states 96 budget clauses across 41 units and each unit has exactly ONE SPIKES entry, so 57 clauses were honoured by intention only. This counts how many of those now have a real measurement behind them. The target is the whole backlog; it rises as checks land' },
+  'clause.unmet':                { want: 0,    dir: 'down', note: 'clauses that are checked AND FAILING. A rising `checked` with a rising `unmet` is the tool working, not the art getting worse — the first two clauses ever checked by hand were both unmet (Tesla Trooper carapace 8% vs 40%, Engineer third on a row saying "the only")' },
+  'clause.infantryUnmet':        { want: 0,    dir: 'down', note: 'the same, for the 23 unmeasured infantry clauses' },
+  'clause.vehicleUnmet':         { want: 0,    dir: 'down', note: 'the same, for the 18 unmeasured vehicle clauses' },
+  'clause.navalUnmet':           { want: 0,    dir: 'down', note: 'the same, for the 9 unmeasured naval clauses' },
+  'clause.airUnmet':             { want: 0,    dir: 'down', note: 'the same, for the 7 unmeasured air clauses' },
+  'clip.unitsTouchingSheetEdge': clip.units.length,
       'clip.unitsClippedOnGatedOctant': clip.onGated.length,
+      'clause.checked': clause.checked,
+      'clause.unmet': clause.unmet,
+      'clause.infantryUnmet': clause.infUnmet,
+      'clause.vehicleUnmet': clause.vehUnmet,
+      'clause.navalUnmet': clause.navUnmet,
+      'clause.airUnmet': clause.airUnmet,
       'value.soldiersLighterThanEngineer': valueRead.lighterThanEngineer,
       'value.engineerLightPct': valueRead.engineer,
       'value.engineerMarginOverNext': valueRead.marginOverNext,
@@ -1071,6 +1155,7 @@ function compute(recs) {
       tightestMassBand: tightAt,
       ra2Aspect: ra2Asp.rows,
       ra2Size: ra2Size.rows,
+      clauses: clause.rows,
       valueRead: valueRead.rows,
       clipped: clip.hits,
       ra2GroupScale: ra2Size.groupScale,
