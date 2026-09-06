@@ -25,10 +25,19 @@ _REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__
 
 
 def _walk(patterns, root=_REPO):
+    # The skip list is matched against the path RELATIVE to `root`, never the
+    # absolute one. That distinction is the whole point: agents work in git
+    # worktrees under `.claude/worktrees/<name>/`, so every absolute path in
+    # such a checkout contains "/.claude/" and an absolute match discards the
+    # entire repository. It did — this walk matched 217 files and kept 0 from a
+    # worktree, so nine tests here failed for every parallel pass and the
+    # pre-commit hook could not be satisfied from one. They were all committing
+    # with --no-verify because of this line.
     out = []
     for pat in patterns:
         for p in glob.glob(os.path.join(root, pat), recursive=True):
-            if "/.claude/" not in p and "/node_modules/" not in p:
+            rel = "/" + os.path.relpath(p, root).replace(os.sep, "/")
+            if "/.claude/" not in rel and "/node_modules/" not in rel:
                 out.append(p)
     return sorted(set(out))
 

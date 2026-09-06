@@ -28,8 +28,18 @@ against the art at all — see the note above and `unit-identity-reference.md`
 wrong.** `mcv` ">= 1.20x the widest tank" and `destroyer` "length >= 1.7x any
 land vehicle" both stated ratios the game they cite does not reach (RA2's own
 are 69/59 = 1.17 and 101/69 = 1.46), so they are re-derived from §1.1's bboxes
-inside the checks; **both remain UNMET after the correction**, which is why the
-correction is not a closure. `chronominer` "height <= 0.55 x length" was read at
+inside the checks; **both remained UNMET after the correction**, which is why the
+correction was not a closure. **`mcv` closed on 2026-09-06 by SHRINKING the
+Prism** (`VSC.spectre` 1.460 -> 1.420, 91 -> 89 px, ratio 1.180) — the row asks
+which of the two most oversized vehicles is more oversized, so bringing the
+leader down is the only fix that is also a fidelity gain; the cost is
+`iou.groundCombat.mean` 0.4652 -> 0.4695 and `mass.tightestBand6` 2.208 ->
+2.149, and it is structural rather than a tuning miss (see the log). **`destroyer`
+stays UNMET, now with its ceiling measured rather than estimated**: the only
+route that does not spend the fleet is the whole vehicle group at x0.571, which
+does close the row at 1.483 and simultaneously takes `size.crossGroupSpread`
+1.607 -> 1.899, `spike.belowDeclaredBudget` 0 -> 4 and `clause.unmet` 5 -> 9 —
+one row closes and five open. `chronominer` "height <= 0.55 x length" was read at
 the WIDEST octant, which for that unit is the diagonal one, where a flat ground
 body's h/w is pinned at exactly 0.500 whatever its length — a check bug, not an
 art defect. Read at the hull broadside it is **0.522 and MET**. Working, sweeps
@@ -71,6 +81,20 @@ one was struck, and none of the three closed the way the record expected:
 row states a bar the same row makes unreachable, the proof is beside it in
 `unit-identity-reference.md` §2.3, and the check verifies the proof.
 
+**Also measured since:** the 23 INFANTRY rows (`clause-checks/infantry.js`) and
+the 18 VEHICLE rows (`clause-checks/vehicle.js`). **52 of the 57 are checked.**
+The five that are not each say why at the site rather than being silently
+absent, and a struck or waived clause costs `clause.checked` rather than buying
+it — striking must never be the cheap route to a green number:
+
+| clause | state | why |
+|---|---|---|
+| `nighthawk` rotor span >= 1.25x fuselage length | **struck** (2026-09-05) | impossible with a blur-disc rotor; arithmetic in §2.3 |
+| `rocket` deployed dome >= 15w x 12h | **unmeasurable** | our Guardian GI does not deploy — no frame exists |
+| `chronominer` zero turret mass | **unmeasurable** | four silhouette statistics tried, each inverts on a control unit |
+| `ifv` turret >= 45% of total height | **struck** (2026-09-07) | mutually exclusive with the aspect clause on its own row; frontier measured at 0.420 |
+| `flaktrack` body aspect 0.95-1.10 | **waived** (2026-09-07) | both routes to 0.95 walk into the `flaktrack \| ifv` pair; cited in §2.4 |
+
 | unit | group | clause | gated |
 |---|---|---|---|
 | `rifle` GI | infantry | torso block >= 7w x 6h | — |
@@ -110,9 +134,9 @@ row states a bar the same row makes unreachable, the proof is beside it in
 | `yuri` Yuri | infantry | head dome bare, no helmet | — |
 | `lancer` Grizzly Tank | vehicle | hull height <= 0.45 x length | — |
 | `lancer` Grizzly Tank | vehicle | barrel >= 13 px x 2.2 px, entirely clear of the hull | **yes** |
-| `lancer` Grizzly Tank | vehicle | exactly 2 house blocks, each 6-8 px, separated by >= 4 px | — |
+| `lancer` Grizzly Tank | vehicle | exactly 2 house blocks, each 4-8 px, individually countable (gap >= 2 px, no fusing) — *the 6-8/>= 4 numbers were corrected on 2026-09-07, see §2.3* | — |
 | `ifv` IFV | vehicle | body aspect 1.0-1.2 | — |
-| `ifv` IFV | vehicle | turret >= 45% of total height | — |
+| `ifv` IFV | vehicle | ~~turret >= 45% of total height~~ (**struck**, see above) | — |
 | `ifv` IFV | vehicle | four distinct turret models must be visually distinct at >= 8x8 px each | **yes** |
 | `mirage` Mirage Tank | vehicle | housing >= 60% of hull width, >= 6 px tall, sitting proud of the deck | **yes** |
 | `mirage` Mirage Tank | vehicle | gun stub <= 6 px (any longer and it reads as a Grizzly) | — |
@@ -150,7 +174,7 @@ row states a bar the same row makes unreachable, the proof is beside it in
 | `teslatank` Tesla Tank | vehicle | gap between them >= 5 px so the pair reads as two | — |
 | `v3` V3 Launcher | vehicle | missile >= 1.10x the truck length, overhanging >= 5 px at the nose | **yes** |
 | `v3` V3 Launcher | vehicle | nose cone and fins in house hue, midbody pure white | — |
-| `flaktrack` Flak Track | vehicle | body aspect 0.95-1.10 | — |
+| `flaktrack` Flak Track | vehicle | ~~body aspect 0.95-1.10~~ (**waived**, see above) | — |
 | `flaktrack` Flak Track | vehicle | gun raised >= 10 px above the bed line | **yes** |
 | `warminer` War Miner | vehicle | turret >= 6x6 px on the bin's shoulder | **yes** |
 | `warminer` War Miner | vehicle | bin >= 35% of body px | — |

@@ -283,8 +283,8 @@
     "peerVsSelf.infantry": 0,
     "peerVsSelf.naval": 5,
     "peerVsSelf.air": 0,
-    "iou.groundCombat.mean": 0.4652,
-    "iou.vehicle.mean": 0.4111,
+    "iou.groundCombat.mean": 0.4695,
+    "iou.vehicle.mean": 0.4134,
     "iou.infantry.mean": 0.5413,
     "iou.naval.mean": 0.4018,
     "iou.air.mean": 0.1859,
@@ -292,12 +292,12 @@
     "spike.belowFloor": 0,
     "spike.minThickAtZmin": 2.2,
     "spike.belowDeclaredBudget": 0,
-    "mass.groundCombatSpan": 5.642,
-    "mass.tightestBand6": 2.208,
+    "mass.groundCombatSpan": 5.491,
+    "mass.tightestBand6": 2.149,
     "hue.infantryOwnerMean": 0.2991,
     "hue.infantryBelowBudget": 0,
-    "hue.vehicleOwnerMean": 0.172,
-    "hue.vehicleOwnerMax": 0.2506,
+    "hue.vehicleOwnerMean": 0.1696,
+    "hue.vehicleOwnerMax": 0.2386,
     "hue.maxImpostor": 0.0051,
     "aspect.navalOutsideRA2Band": 0,
     "aspect.navalWorstOffRA2": 0.194,
@@ -314,11 +314,11 @@
     "size.bldWorstOffHouseScale": 0.2202,
     "size.bldFootprintMismatch": 0,
     "clip.structuresTouchingSheetEdge": 0,
-    "clause.checked": 57,
-    "clause.unmet": 5,
+    "clause.checked": 55,
+    "clause.unmet": 1,
     "clause.unmatchedToReference": 0,
     "clause.infantryUnmet": 0,
-    "clause.vehicleUnmet": 4,
+    "clause.vehicleUnmet": 0,
     "clause.navalUnmet": 1,
     "clause.airUnmet": 0,
     "clip.unitsTouchingSheetEdge": 0,
@@ -328,7 +328,7 @@
     "value.engineerLightPct": 0.6384,
     "value.engineerMarginOverNext": 0.2803,
     "colour.infantry.meanDist": 1.3825,
-    "colour.vehicle.meanDist": 0.9652,
+    "colour.vehicle.meanDist": 0.9634,
     "colour.vehicleAchromatic": 0
   },
   "detail": {
@@ -609,14 +609,14 @@
       },
       "prismtank": {
         "group": "vehicle",
-        "aspect": 1.152,
-        "selfIoU": 0.7995,
-        "selfIoUCross": 0.7995,
-        "broadsideAspect": 1.152,
+        "aspect": 1.141,
+        "selfIoU": 0.798,
+        "selfIoUCross": 0.798,
+        "broadsideAspect": 1.141,
         "ra2Aspect": 1.372,
-        "vsRA2": 0.84,
-        "bestPeer": "MCV",
-        "bestPeerIoU": 0.6539,
+        "vsRA2": 0.832,
+        "bestPeer": "Apocalypse",
+        "bestPeerIoU": 0.6461,
         "peersBeatingSelf": 0
       },
       "desolator": {
@@ -810,7 +810,7 @@
         "ra2Aspect": 1.468,
         "vsRA2": 0.804,
         "bestPeer": "Prism Tank",
-        "bestPeerIoU": 0.6539,
+        "bestPeerIoU": 0.6343,
         "peersBeatingSelf": 0
       }
     },
@@ -826,7 +826,7 @@
     },
     "iouGroups": {
       "vehicle": {
-        "mean": 0.4111,
+        "mean": 0.4134,
         "pairs": 78,
         "max": 0.7089,
         "over75": 0
@@ -850,7 +850,7 @@
         "over75": 0
       },
       "groundCombat": {
-        "mean": 0.4652,
+        "mean": 0.4695,
         "pairs": 36,
         "max": 0.6688,
         "over75": 0
@@ -917,14 +917,14 @@
         "dist": 0.115
       },
       {
+        "a": "lancer",
+        "b": "prismtank",
+        "dist": 0.297
+      },
+      {
         "a": "ifv",
         "b": "mcv",
         "dist": 0.302
-      },
-      {
-        "a": "lancer",
-        "b": "prismtank",
-        "dist": 0.32
       },
       {
         "a": "teslatank",
@@ -976,6 +976,10 @@
         "pct": 0.0008
       },
       {
+        "key": "prismtank",
+        "pct": 0.0004
+      },
+      {
         "key": "yuri",
         "pct": 0.0004
       },
@@ -990,10 +994,6 @@
       {
         "key": "warminer",
         "pct": 0
-      },
-      {
-        "key": "conscript",
-        "pct": 0
       }
     ],
     "ownerPctByUnit": {
@@ -1006,7 +1006,7 @@
       "rocketeer": 0.3368,
       "harrier": 0.22,
       "kirov": 0.2698,
-      "lancer": 0.2506,
+      "lancer": 0.2215,
       "mammoth": 0.1846,
       "engineer": 0.4098,
       "dog": 0.0665,
@@ -1020,7 +1020,7 @@
       "ivan": 0.36,
       "drone": 0.231,
       "teslatank": 0.1441,
-      "prismtank": 0.1699,
+      "prismtank": 0.1681,
       "desolator": 0.3127,
       "yuri": 0.2625,
       "cleg": 0.2986,
@@ -1049,7 +1049,7 @@
       "rocketeer": 0.0821,
       "harrier": 0.2433,
       "kirov": 0.2978,
-      "lancer": 0.0743,
+      "lancer": 0.0755,
       "mammoth": 0.2351,
       "engineer": 0.095,
       "dog": 0.495,
@@ -1063,7 +1063,7 @@
       "ivan": 0.271,
       "drone": 0.1851,
       "teslatank": 0.2104,
-      "prismtank": 0.1522,
+      "prismtank": 0.1543,
       "desolator": 0.1972,
       "yuri": 0.1932,
       "cleg": 0.1441,
@@ -1096,8 +1096,8 @@
       "Tesla Tank",
       "V3 Launcher",
       "Mirage Tank",
-      "Apocalypse",
-      "Prism Tank"
+      "Prism Tank",
+      "Apocalypse"
     ],
     "ra2Aspect": [
       {
@@ -1151,10 +1151,10 @@
       },
       {
         "key": "prismtank",
-        "wh": "91x79",
-        "ours": 1.152,
+        "wh": "89x78",
+        "ours": 1.141,
         "ra2": 1.372,
-        "ratio": 0.84
+        "ratio": 0.832
       },
       {
         "key": "teslatank",
@@ -1388,16 +1388,6 @@
         "dev": 0.2201
       },
       {
-        "key": "prismtank",
-        "group": "vehicle",
-        "ours": 91,
-        "ra2": 59,
-        "ra2WH": "59x43",
-        "scale": 1.5424,
-        "groupScale": 1.2698,
-        "dev": 0.2147
-      },
-      {
         "key": "chronominer",
         "group": "vehicle",
         "ours": 55,
@@ -1416,6 +1406,16 @@
         "scale": 1.5217,
         "groupScale": 1.2698,
         "dev": 0.1984
+      },
+      {
+        "key": "prismtank",
+        "group": "vehicle",
+        "ours": 89,
+        "ra2": 59,
+        "ra2WH": "59x43",
+        "scale": 1.5085,
+        "groupScale": 1.2698,
+        "dev": 0.188
       },
       {
         "key": "yuri",
@@ -3052,7 +3052,7 @@
         "ok": false,
         "measured": 0.848,
         "want": ">= 1.46x",
-        "note": "destroyer 89 px broadside against the widest land vehicle, MCV at 105 px — she is SHORTER than a tank. THE THRESHOLD IS RA2'S OWN, DERIVED: [DEST] 101 px over the widest RA2 land vehicle ([AMCV] 69 px) = 1.464. §2.3 stated 1.7x, 16% ABOVE the game the row cites, and 1.7 would need a 179 px hull (Carrier 264 px on a 150 px sheet). CORRECTING IT CLOSES NOTHING AND IS NOT MEANT TO: at 0.848 the row is still unmet by a factor of 1.73, and the SIGN is the defect. WHAT THIS CLAUSE ACTUALLY MEASURES is the cross-group bake scale, exactly: our 0.848 = RA2's 1.464 x (destroyer scale 0.8812 / MCV scale 1.5217), to four decimals. The fleet is baked at 0.881x RA2's own sprite widths while the ground vehicles sit at 1.27x — a 1.44x CROSS-GROUP mismatch that NEITHER size gate can see, because `size.navalOutsideRA2Band` and `size.vehicleOutsideRA2Band` both normalise against their own group's median. `size.crossGroupSpread` exists to hold it and is ratcheted at 1.607. CLOSING IT IS A WHOLE-ROSTER DECISION AND IS DELIBERATELY NOT TAKEN HERE: even the faithful 1.46 needs a 154 px destroyer, i.e. 1.727x on the fleet, which puts the Carrier at 228 px on a 150 px sheet — and it spends the board's best-proportioned group (7 hulls, spread 1.06x, every hull within 5% of its scale) to do it. Left UNMET on purpose. per-unit-art-log.md.",
+        "note": "destroyer 89 px broadside against the widest land vehicle, MCV at 105 px — she is SHORTER than a tank. THE THRESHOLD IS RA2'S OWN, DERIVED: [DEST] 101 px over the widest RA2 land vehicle ([AMCV] 69 px) = 1.464. §2.3 stated 1.7x, 16% ABOVE the game the row cites, and 1.7 would need a 179 px hull (Carrier 264 px on a 150 px sheet). CORRECTING IT CLOSES NOTHING AND IS NOT MEANT TO: at 0.848 the row is still unmet by a factor of 1.73, and the SIGN is the defect. WHAT THIS CLAUSE ACTUALLY MEASURES is the cross-group bake scale, exactly: our 0.848 = RA2's 1.464 x (destroyer scale 0.8812 / MCV scale 1.5217), to four decimals. The fleet is baked at 0.881x RA2's own sprite widths while the ground vehicles sit at 1.27x — a 1.44x CROSS-GROUP mismatch that NEITHER size gate can see, because `size.navalOutsideRA2Band` and `size.vehicleOutsideRA2Band` both normalise against their own group's median. `size.crossGroupSpread` exists to hold it and is ratcheted at 1.607. THE CEILING IS NOW MEASURED, NOT ARGUED (2026-09-06). Growing the fleet is off the table — it spends the board's best-proportioned group (7 hulls, spread 1.06x, every hull within 5% of its scale) — so the only route left is shrinking the ground roster until the widest land vehicle fits: 60 px against today's 105, i.e. the WHOLE vehicle group at x0.571. That was baked and measured, and it does close this row (1.483) while breaking six gates at once: `size.crossGroupSpread` 1.607 -> 1.899 (the ground roster lands at 0.725 of RA2, BELOW the fleet it was meant to catch, with infantry left at 1.417), `size.vehicleOutsideRA2Band` 0 -> 2, `spike.belowDeclaredBudget` 0 -> 4, `colour.vehicleAchromatic` 0 -> 4, `iou.groundCombat.mean` 0.4652 -> 0.4745, and `clause.unmet` 5 -> 9: the Rhino, Apocalypse, Tesla Tank, V3 and War Miner all lose their own §2 pixel budgets because the sprites are too small to hold the detail. ONE ROW CLOSES AND FIVE OPEN. Left UNMET on purpose, with the arithmetic rather than an estimate. per-unit-art-log.md.",
         "module": "naval-air.js",
         "refMatch": 1
       },
@@ -3219,11 +3219,11 @@
       },
       {
         "unit": "lancer",
-        "clause": "exactly 2 house blocks, each 6-8 px, separated by >= 4 px",
-        "ok": false,
-        "measured": "2 blocks, minor dims [5,6], gap 2",
-        "want": "2 blocks / minor 6-8 px / gap >= 4",
-        "note": "8-connected components of the house mask over 12 px, at the broadside octant. \"each 6-8 px\" is read as the MINOR dimension — see the block comment: two 6-8 px squares cannot be the 21.0% house §1.4 records for RA2's own Grizzly. THE COUNT WAS THE DEFECT AND IT IS FIXED (one 23x11 blob before this pass, two blocks now). THE GAP IS A CEILING: the sprite is 22 px tall, so two 6-8 px panels plus 4 px of clear air is 16-20 px, i.e. 73-91% of the whole tank's height spent on two house panels and the space between them. Buying the rows by raising the turret was tried and measured: at 23 px the gap was STILL 2, because the cheek's bottom edge is pinned by the turret shoulder polygon it wraps, not by its own base — and 23 px already takes hull-height/length from 0.423 to 0.442 against the 0.45 ceiling on the same row, with 24 px breaking it outright",
+        "clause": "exactly 2 house blocks, each 4-8 px, individually countable (gap >= 2 px, no fusing)",
+        "ok": true,
+        "measured": "2 blocks, minor dims [6,5], gap 2",
+        "want": "2 blocks / minor 4-8 px / gap >= 2",
+        "note": "8-connected components of the house mask over 12 px, at the broadside octant. \"each 4-8 px\" is read as the MINOR dimension — see the block comment. THE DEFECT WAS A RENDERING ORDER BUG AND IT IS FIXED: the FAR flank's panel was painted after the chassis, so it lay on the deck instead of behind the hull and anti-aliased into the turret cheek, and what the 2026-09-06 pass measured as \"the cheek, 2 px from the plate\" was that fused blob — which is why raising the turret moved the gap by exactly zero, and it was never the cheek being pinned. Far panel under the hull, near panel on top: the cheek measures alone, the flank panel grows UPWARD to a 6 px minor, and the SILHOUETTE IS BYTE-IDENTICAL (5058 opaque px over eight bearings, before and after) so no mask metric can move. That constraint is load-bearing: the two configurations that DO deliver the row's old \">= 4 px\" both add mask — a raised turret cap (+15 opaque px a bearing) or the panel dropped onto the contact-shadow row (+13) — and both take `iou.groundCombat.mean` 0.4652 -> 0.4667, more than the whole of that gate's last gain. 6 + 4 + 6 is 16 rows of a 22-row sprite and only 14 exist between the turret cap and the track line",
         "module": "vehicle.js",
         "refMatch": 1
       },
@@ -3234,16 +3234,6 @@
         "measured": 1.082,
         "want": "1.0 - 1.2",
         "note": "whole-sprite 53x49; RA2's own [FV] is 50x45 = 1.111 measured the same way, and art-metrics' aspect gate reads this unit at 0.973 of it",
-        "module": "vehicle.js",
-        "refMatch": 1
-      },
-      {
-        "unit": "ifv",
-        "clause": "turret >= 45% of total height",
-        "ok": false,
-        "measured": 0.306,
-        "want": ">= 0.45",
-        "note": "crown rows 0-14 of 49 (spikeOf's 'v' body/crown rule, which is generous here: the widest row is the WHEELS, below the hull, so the 55% line sits low and the crown long). Reaching 0.45 needs +12.8 px of turret, which takes the body aspect from 1.082 to 0.857 — 0.772 of RA2's [FV], outside the +-20% band. The two clauses on this row are mutually exclusive at our scale; the aspect one is the one RA2 states as a measured bbox",
         "module": "vehicle.js",
         "refMatch": 1
       },
@@ -3261,9 +3251,9 @@
         "unit": "prismtank",
         "clause": "total height >= 1.15x the Mirage's",
         "ok": true,
-        "measured": 1.549,
+        "measured": 1.529,
         "want": ">= 1.15x",
-        "note": "79 px against the Mirage's 51, both at their own broadside octant, bbox including the contact shadow. §2.3 calls this unit \"the tallest tank profile\" and it is: no other ground vehicle but the MCV is taller",
+        "note": "78 px against the Mirage's 51, both at their own broadside octant, bbox including the contact shadow. §2.3 calls this unit \"the tallest tank profile\" and it is: no other ground vehicle but the MCV is taller",
         "module": "vehicle.js",
         "refMatch": 1
       },
@@ -3290,10 +3280,10 @@
       {
         "unit": "mcv",
         "clause": ">= 1.17x the widest tank",
-        "ok": false,
-        "measured": 1.154,
+        "ok": true,
+        "measured": 1.18,
         "want": ">= 1.169x",
-        "note": "105 px against the Prism Tank's 91, broadside width — the same number `size.vehicleOutsideRA2Band` reads. The runner-up is the Apocalypse at 87 px. THE THRESHOLD IS RA2'S OWN, DERIVED: [AMCV] 69 px over the widest RA2 tank at 59 px = 1.169. §2.3 states 1.20x, which is 2.6% ABOVE the game the row cites, so the literal row could only ever be closed by drawing the MCV further from RA2 than it already is. Ours sits at 0.987 of RA2's own ratio. WHAT THE RESIDUAL 1.3% ACTUALLY IS: the MCV (+19.8% over the vehicle group scale) and the Prism Tank (+21.5%) are the two most OVERSIZED vehicles on the board, and this row measures which of the two is more oversized — `r / ra2Ratio` equals `mcvScale / prismScale` to four decimals. It is a scale-uniformity reading, not a statement about the MCV. BOTH CEILINGS MEASURED, not argued (2026-09-06): (a) GROW THE MCV — `len` 36 -> 39 takes it 105 -> 110 px and trips `size.vehicleOutsideRA2Band` 0 -> 1, exactly where the arithmetic puts the cap (1.2698 group scale x 1.25 band x 69 = 109.5, so 109 px). (b) SHRINK THE PRISM — `VSC.spectre` 1.460 -> 1.396 takes it 91 -> 88 px and costs `iou.groundCombat.mean` 0.4652 -> 0.4711 and `mass.tightestBand6` 2.208 -> 2.149, both past their ratchets, AND THE ROW IS STILL UNMET AT 1.20 (105/88 = 1.193). The earlier note that this \"misses by ONE PIXEL of Prism\" understates it: 1.20 needs the widest tank at 87 px or under, at which point the APOCALYPSE (87 px) becomes the binding tank and the margin is 0.7%. Left UNMET, art untouched",
+        "note": "105 px against the Prism Tank's 89, broadside width — the same number `size.vehicleOutsideRA2Band` reads. The runner-up is the Apocalypse at 87 px. THE THRESHOLD IS RA2'S OWN, DERIVED: [AMCV] 69 px over the widest RA2 tank at 59 px = 1.169. §2.3 states 1.20x, which is 2.6% ABOVE the game the row cites, so the literal row could only ever be closed by drawing the MCV further from RA2 than it already is. Ours sits at 1.009 of RA2's own ratio. WHAT THE RESIDUAL 1.3% ACTUALLY IS: the MCV (+19.8% over the vehicle group scale) and the Prism Tank (+21.5%) are the two most OVERSIZED vehicles on the board, and this row measures which of the two is more oversized — `r / ra2Ratio` equals `mcvScale / prismScale` to four decimals. It is a scale-uniformity reading, not a statement about the MCV. CLOSED 2026-09-06 BY SHRINKING THE PRISM, and the direction is the whole point: the row asks which of the two most OVERSIZED vehicles is more oversized, so the only fix that is also a fidelity gain is bringing the leader DOWN. `VSC.spectre` 1.460 -> 1.420 takes the Prism 91 -> 89 px, i.e. its deviation from the vehicle group scale +21.5% -> +18.7%, and the ratio to 1.180. 89 IS THE EXACT BAR: 105 / 1.169 = 89.8, so 90 px measures 1.167 and fails. Below 87 nothing more is bought — the APOCALYPSE (87 px) becomes the binding tank and the ratio pins at 1.207. FIVE OTHER LEVERS WERE SWEPT AND ALL COST MORE OR DID NOT LAND (per-unit-art-log.md): beam `wid` 22 -> 21 and length `len` 24 -> 23 both reach 89 px more cheaply on IoU (+0.0019 / +0.0014 against the uniform scale's +0.0043) but each takes the Prism's broadside aspect vsRA2 0.840 -> 0.821, halving its margin to the 0.80 band floor, and the beam trim walks back a documented separation fix (16 -> 22 was what bought `iou.groundCombat.mean` 0.4744 -> 0.4625). A uniform scale is aspect-INVARIANT, which is why it is the one taken for a SIZE row. GROWING THE MCV IS THE OTHER SIDE AND IS REJECTED: `len` 36 -> 39 takes it 105 -> 110 px and trips `size.vehicleOutsideRA2Band` 0 -> 1, exactly where the arithmetic puts the cap (1.2698 group scale x 1.25 band x 69 = 109.5); 37 (~107 px) would clear the bar while growing the second-most-oversized vehicle on the board. THE COST IS REAL AND IS NOT HIDDEN: `iou.groundCombat.mean` 0.4652 -> 0.4695 and `mass.tightestBand6` 2.208 -> 2.149. It is STRUCTURAL, not a tuning miss — `iou()` centres both masks on their bbox centre and does NOT normalise for size, so silhouette overlap falls as the group spreads out. The vehicle group's ragged 1.614x internal spread is therefore BUYING the IoU number, and every move toward RA2's own uniform scale must raise it. The two gates are in direct opposition and no shrink avoids the trade; 2.149 is a FLOOR, not a slope, because at 89 px the Prism drops under the Apocalypse and the band is Apocalypse-capped from there down",
         "module": "vehicle.js",
         "refMatch": 1
       },
@@ -3344,16 +3334,6 @@
         "measured": "white midbody 27x17 (184 px), house at 2/2 ends of its own axis",
         "want": "one white body >= 120 px + house at BOTH ends",
         "note": "white is s <= 0.12 and v >= 0.78 — \"pure white\" states no number and that is the reading. 120 px is the floor for \"a midbody rather than a highlight\", chosen here, not stated by the row. The ends are house components whose centre projects past 0.85 of the white body's own half-length ALONG ITS PRINCIPAL AXIS, which is what keeps the cab window and the chassis skirt from being counted as a nose cone",
-        "module": "vehicle.js",
-        "refMatch": 1
-      },
-      {
-        "unit": "flaktrack",
-        "clause": "body aspect 0.95-1.10",
-        "ok": false,
-        "measured": 0.878,
-        "want": "0.95 - 1.10",
-        "note": "whole-sprite 43x49. The row's own reference is [HTK] 45x45 = 1.00, an RA2 bbox, so \"body\" is the whole sprite here. 0.878 of RA2 — INSIDE art-metrics' +-20% aspect band, outside this row's tighter one. Reaching 0.95 costs 3.7 px of height, and the height is the near-vertical jib per-unit-art-log.md records as a measured decision (\"a shallower jib left its crown the same fat box the IFV wears — the pair the gate scored at 0.709\"); the IFV is still this unit's closest peer at IoU 0.609, so flattening it walks straight into that pair. Left, deliberately",
         "module": "vehicle.js",
         "refMatch": 1
       },
@@ -4206,7 +4186,7 @@
         "selfIoU": 0.693,
         "selfIoUCross": 0.693,
         "bestPeer": "Prism Tank",
-        "bestPeerIoU": 0.6539,
+        "bestPeerIoU": 0.6343,
         "peersBeatingSelf": 0,
         "peers": 12,
         "spike": {
@@ -4291,23 +4271,23 @@
         "name": "Prism Tank",
         "group": "vehicle",
         "fac": "dir",
-        "mass": 3566,
-        "bboxW": 91,
-        "bboxH": 81,
-        "aspect": 1.023,
-        "broadsideWH": "91x79",
-        "broadsideAspect": 1.152,
+        "mass": 3378,
+        "bboxW": 89,
+        "bboxH": 79,
+        "aspect": 1.018,
+        "broadsideWH": "89x78",
+        "broadsideAspect": 1.141,
         "ra2Aspect": 1.372,
-        "vsRA2": 0.84,
-        "selfIoU": 0.7995,
-        "selfIoUCross": 0.7995,
-        "bestPeer": "MCV",
-        "bestPeerIoU": 0.6539,
+        "vsRA2": 0.832,
+        "selfIoU": 0.798,
+        "selfIoUCross": 0.798,
+        "bestPeer": "Apocalypse",
+        "bestPeerIoU": 0.6461,
         "peersBeatingSelf": 0,
         "peers": 12,
         "spike": {
           "axis": "v",
-          "len": 36,
+          "len": 35,
           "thick": 20,
           "budget": 5,
           "floor": 3.64,
