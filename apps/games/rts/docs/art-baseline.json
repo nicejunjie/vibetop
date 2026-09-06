@@ -24,7 +24,7 @@
     "peerVsSelf.vehicle": {
       "want": 0,
       "dir": "down",
-      "note": "audit §2: 11 of 13 today"
+      "note": "audit §2: 11 of 13 today. The one flagged is the V3, the only vehicle whose silhouette is a long member held at an angle ABOVE the hull, so it swings from an 80x55 diagonal to a 39x70 near-vertical to a 39x45 box across the eight bearings — aspect swing 2.61, second only to the Grizzly and the largest that has peers its own size. MEASURED, one lever at a time: dropping the rail rise to ZERO (the missile flat on the bed) leaves it beaten by 2, lengthening the truck 22 -> 28 makes it 5, narrowing the beam 19 -> 15 makes it 5, and DELETING THE MISSILE ENTIRELY still leaves it beaten by 2 while opening aspect.vehicleOutsideRA2Band and clause.vehicleUnmet. There is no V3 that passes this row. See the block note above and tools/peer-vs-self-control.js"
     },
     "peerVsSelf.infantry": {
       "want": 0,
@@ -154,7 +154,7 @@
     "size.infantryOutsideRA2Band": {
       "want": 0,
       "dir": "down",
-      "note": "the same check for INFANTRY; spread 1.59x and 1 outside — the DOG at +31%, 39 px against RA2's 21 where the group scale says 30. Every man is within 18%, so the dog is the outlier among its own kind, not evidence the scale is wrong"
+      "note": "the same check for INFANTRY. CLOSED. The one offender was the DOG at +31% — 39 px against RA2's 21 where the group scale says 30 — and every man was already within 18%, so he was the outlier among his own kind rather than evidence the scale was wrong. Shrinking him is a proven dead end (a uniform STATURE shrink at 0.94/0.90/0.84 all put `dog | tanya` under the ZMIN friend-vs-foe floor, and that pass was REVERTED). What closed it instead is that this gate reads the BBOX while the legibility window reads an RMS over the MASS: pulling the tail's reach in from 1.34L to 1.17L cost 2 px of bbox and 11 px of a 508 px animal, and thickening the tail 2.6 -> 3.1 put that mass straight back. legibility.js came out byte-identical. See bakeDog's tail comment; do not let the reach past 1.20L"
     },
     "size.airOutsideRA2Band": {
       "want": 0,
@@ -279,7 +279,7 @@
     "size.worstOffGroupScale": {
       "want": 0.25,
       "dir": "down",
-      "note": "the furthest any unit sits from its own group's scale, as |ours/RA2 / groupMedian - 1|; 0.38 (the Nighthawk) on the day the metric was added"
+      "note": "the furthest any unit sits from its own group's scale, as |ours/RA2 / groupMedian - 1|; 0.38 (the Nighthawk) on the day the metric was added, then 0.3109 (the DOG) until his tail was pulled in. It is now the FLAK TRACK at 0.2474 — 43 px against RA2's 45 where the vehicle scale says 57 — with the Grizzly right behind at 0.2416. Both are TOO SMALL, so the next move on this row is the opposite of the dog's and the two sit within 0.006 of each other: shrink nothing, and expect the row to stall until one of them is redrawn"
     },
     "aspect.navalWorstOffRA2": {
       "want": 0.2,
@@ -310,7 +310,7 @@
     "peerVsSelf.air": 0,
     "iou.groundCombat.mean": 0.466,
     "iou.vehicle.mean": 0.4114,
-    "iou.infantry.mean": 0.5394,
+    "iou.infantry.mean": 0.5399,
     "iou.naval.mean": 0.4018,
     "iou.air.mean": 0.1859,
     "iou.sameFactionOver75": 0,
@@ -319,7 +319,7 @@
     "spike.belowDeclaredBudget": 0,
     "mass.groundCombatSpan": 5.696,
     "mass.tightestBand6": 2.229,
-    "hue.infantryOwnerMean": 0.3086,
+    "hue.infantryOwnerMean": 0.3085,
     "hue.infantryBelowBudget": 0,
     "hue.vehicleOwnerMean": 0.1702,
     "hue.vehicleOwnerMax": 0.2386,
@@ -331,9 +331,9 @@
     "aspect.airOutsideRA2Band": 0,
     "size.navalOutsideRA2Band": 0,
     "size.vehicleOutsideRA2Band": 0,
-    "size.infantryOutsideRA2Band": 1,
+    "size.infantryOutsideRA2Band": 0,
     "size.airOutsideRA2Band": 0,
-    "size.worstOffGroupScale": 0.3109,
+    "size.worstOffGroupScale": 0.2474,
     "size.crossGroupSpread": 1.607,
     "size.bldOutsideRA2Band": 0,
     "size.bldWorstOffHouseScale": 0.1759,
@@ -357,7 +357,7 @@
     "value.soldiersLighterThanEngineer": 0,
     "value.engineerLightPct": 0.6384,
     "value.engineerMarginOverNext": 0.2803,
-    "colour.infantry.meanDist": 1.3479,
+    "colour.infantry.meanDist": 1.348,
     "colour.vehicle.meanDist": 0.9714,
     "colour.vehicleAchromatic": 0
   },
@@ -507,14 +507,14 @@
       },
       "dog": {
         "group": "infantry",
-        "aspect": 1.393,
-        "selfIoU": 0.5406,
-        "selfIoUCross": 0.5406,
-        "broadsideAspect": 1.393,
+        "aspect": 1.321,
+        "selfIoU": 0.5331,
+        "selfIoUCross": 0.5331,
+        "broadsideAspect": 1.321,
         "ra2Aspect": 1.4,
-        "vsRA2": 0.995,
+        "vsRA2": 0.944,
         "bestPeer": "Rocketeer",
-        "bestPeerIoU": 0.5122,
+        "bestPeerIoU": 0.514,
         "peersBeatingSelf": 0
       },
       "ifv": {
@@ -862,7 +862,7 @@
         "over75": 0
       },
       "infantry": {
-        "mean": 0.5394,
+        "mean": 0.5399,
         "pairs": 91,
         "max": 0.768,
         "over75": 1
@@ -892,7 +892,7 @@
       {
         "a": "engineer",
         "b": "dog",
-        "dist": 0.1
+        "dist": 0.101
       },
       {
         "a": "teslatrooper",
@@ -912,7 +912,7 @@
       {
         "a": "conscript",
         "b": "dog",
-        "dist": 0.313
+        "dist": 0.314
       },
       {
         "a": "conscript",
@@ -1039,7 +1039,7 @@
       "lancer": 0.2215,
       "mammoth": 0.1922,
       "engineer": 0.4098,
-      "dog": 0.0665,
+      "dog": 0.0663,
       "ifv": 0.1391,
       "mirage": 0.1478,
       "tanya": 0.1614,
@@ -1082,7 +1082,7 @@
       "lancer": 0.0755,
       "mammoth": 0.2358,
       "engineer": 0.095,
-      "dog": 0.495,
+      "dog": 0.4913,
       "ifv": 0.1608,
       "mirage": 0.1566,
       "tanya": 0.2753,
@@ -1320,6 +1320,13 @@
         "ratio": 0.91
       },
       {
+        "key": "dog",
+        "wh": "37x28",
+        "ours": 1.321,
+        "ra2": 1.4,
+        "ratio": 0.944
+      },
+      {
         "key": "conscript",
         "wh": "18x36",
         "ours": 0.5,
@@ -1367,26 +1374,9 @@
         "ours": 2.364,
         "ra2": 2.348,
         "ratio": 1.007
-      },
-      {
-        "key": "dog",
-        "wh": "39x28",
-        "ours": 1.393,
-        "ra2": 1.4,
-        "ratio": 0.995
       }
     ],
     "ra2Size": [
-      {
-        "key": "dog",
-        "group": "infantry",
-        "ours": 39,
-        "ra2": 21,
-        "ra2WH": "21x15",
-        "scale": 1.8571,
-        "groupScale": 1.4167,
-        "dev": 0.3109
-      },
       {
         "key": "flaktrack",
         "group": "vehicle",
@@ -1396,6 +1386,16 @@
         "scale": 0.9556,
         "groupScale": 1.2698,
         "dev": -0.2474
+      },
+      {
+        "key": "dog",
+        "group": "infantry",
+        "ours": 37,
+        "ra2": 21,
+        "ra2WH": "21x15",
+        "scale": 1.7619,
+        "groupScale": 1.4167,
+        "dev": 0.2437
       },
       {
         "key": "lancer",
@@ -4499,18 +4499,18 @@
         "name": "Attack Dog",
         "group": "infantry",
         "fac": null,
-        "mass": 420,
-        "bboxW": 39,
+        "mass": 422,
+        "bboxW": 37,
         "bboxH": 28,
-        "aspect": 1.063,
-        "broadsideWH": "39x28",
-        "broadsideAspect": 1.393,
+        "aspect": 1.009,
+        "broadsideWH": "37x28",
+        "broadsideAspect": 1.321,
         "ra2Aspect": 1.4,
-        "vsRA2": 0.995,
-        "selfIoU": 0.5406,
-        "selfIoUCross": 0.5406,
+        "vsRA2": 0.944,
+        "selfIoU": 0.5331,
+        "selfIoUCross": 0.5331,
         "bestPeer": "Rocketeer",
-        "bestPeerIoU": 0.5122,
+        "bestPeerIoU": 0.514,
         "peersBeatingSelf": 0,
         "peers": 13,
         "spike": {

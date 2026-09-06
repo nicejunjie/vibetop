@@ -2803,7 +2803,7 @@ without new evidence; the numbers are in the sections above.
 | `clause.unmet` 1 — Destroyer `>= 1.46x any land vehicle`, at 0.848 | The whole-roster rescale was BAKED, not estimated: x0.571 closes this one clause and opens FIVE (Rhino blocks, Apocalypse canisters, Tesla gap, V3 midbody, War Miner bin), takes `size.crossGroupSpread` 1.607 -> 1.899, and leaves the MCV row still unmet. Threshold is RA2's own 101/69, so it may not be struck. |
 | `peerVsSelf.naval` 5 / `.total` 6 | Measures ELONGATION. corr(broadside aspect, selfIoU) = **-0.893** over ten hulls; the three that pass are the three least elongated. Driving it to 0 means making the fleet stubbier — the RA2 fidelity work undone. |
 | `iou.groundCombat.mean` 0.466 | `iou()` centres masks on their bbox centre and does NOT normalise for size, so the vehicle group's ragged 1.614x internal spread is what BUYS the number. Every move toward RA2's uniform scale must raise it. The two gates are structurally opposed. |
-| `size.infantryOutsideRA2Band` 1 + `worstOffGroupScale` — the DOG | His LENGTH is what separates him from Tanya, and CELL 96 is a footprint window (a ~1100 px dog in a 9216 px cell; internal colour dilutes ~8x). Six configurations swept; nothing below full width clears ZMIN. Paint was tried and moved the pair 0.1. |
+| ~~`size.infantryOutsideRA2Band` 1 + `worstOffGroupScale` — the DOG~~ | **CLOSED 2026-09-06** by the TAIL, not the animal — see the entry at the end of this file. The ceiling above was real for every lever it had tried (uniform shrink, flatten, paint) and wrong about one it had not: the size gate reads the BBOX and CELL 96 reads an RMS over the MASS, so 2 px of thin appendage is nearly free to one and decisive to the other. `worstOffGroupScale` is now the FLAK TRACK at 0.2474, and that one is too SMALL — the row's next move is the opposite of this one. |
 | `GI \| Spy` 61.1 | `cameoFor` hashes plate BACKGROUNDS from the unit key; both land near 150, so 8 of 16 grid cells contribute ~1% each. The figure carries 95.6% of a 3730 total and needs 6675. **The untried lever is the background hash itself** — shared 80-icon machinery, so it needs its own pass, not a per-unit fix. This is the one genuinely open avenue. |
 
 ## The pattern that produced most of today's fixes
@@ -3809,3 +3809,110 @@ single-vehicle shrink reaches it either — the bar needs the widest land vehicl
 under 61 px against today's 105, and dropping only the MCV puts the next widest
 (Prism Tank, 89) over it while throwing the MCV outside its own group's RA2
 band. **Ceiling, unchanged, and not an art defect.**
+
+# The dog's size closed on the axis nobody had measured: bbox, not mass (2026-09-06)
+
+`size.infantryOutsideRA2Band` **1 -> 0** and `size.worstOffGroupScale`
+**0.3109 -> 0.2474**, both of them the Attack Dog, and both closed WITHOUT
+making the dog smaller. This entry exists because the ceiling it walked through
+was written up in this same file, above, and was right about everything it had
+actually tried.
+
+## What the metric was measuring
+
+`size.*` names a COUNT, not a key, so the first job was to print the offender:
+
+| | ours | RA2 `[ADOG]` | scale | group scale | dev |
+|---|---|---|---|---|---|
+| **dog** | **39** px broadside | 21x15 | 1.857 | 1.4167 | **+31.09%** |
+| engineer (next worst) | 21 | 13x25 | 1.615 | 1.4167 | +14.03% |
+| yuri (worst under) | 14 | 12x29 | 1.167 | 1.4167 | -17.65% |
+
+One unit, both rows: `worstOffGroupScale` takes the largest `|dev|` over the
+WHOLE roster, and the dog held it. Close the dog and the row falls to the next
+in line, the Flak Track at 0.2474 — under the 0.25 ceiling by 0.0026, with the
+Grizzly at 0.2416 right behind it.
+
+Arithmetic for the target: `dev <= 0.25` needs `ours <= 21 x 1.4167 x 1.25 =
+37.19`, so **39 -> 37 px. Two pixels.**
+
+## Why the recorded ceiling did not apply
+
+The reverted pass (see "The dog's size and `dog | tanya` pull the same lever")
+swept SIX configurations of `STATURE.dog` and found nothing below full width
+clears ZMIN. Every one of them was a **uniform or per-axis scale**, which moves
+every edge pixel of the animal at once: at [0.94, 0.94] the dog loses 11.6% of
+his area, and `dog | tanya` went 12.5 -> 12.0 at zoom 1 and 9.5 -> 8.5 at ZMIN,
+under the floor.
+
+But the two gates read different quantities off the same sprite:
+
+* the SIZE gate reads the **bounding box**, which one thin appendage can set;
+* CELL 96 reads an **RMS over the mass**, which one thin appendage barely moves.
+
+The column profile of the widest bearing says exactly how thin. The dog's two
+extremes are the **tail tip** and the **nose**, and the outermost columns carry
+2, 3, 4 px against a 508 px animal. Trimming the bbox by 2 px on the tail side
+costs about 11 px — **2.2% of the mass, against the shrink's 11.6%**, and it
+takes it from a place Tanya was never near.
+
+## What actually changed — four numbers in `bakeDog`
+
+The tail's rearward reach came in from `1.34L` to `1.17L` and its stroke went
+`2.6 -> 3.1` (the dark tip `2.1 -> 2.5`). The dog does not get smaller: he
+hangs a FULLER tail more STEEPLY, which is what the block's own comment already
+asks for ("a working shepherd's drops below the hocks"; a level, fluffed tail
+is the fox cue, and this is neither). Baked mass went 508 -> 511 — UP.
+
+| | before | after |
+|---|---|---|
+| broadside bbox | 39x28 | **37x28** |
+| size dev vs group | +31.09% | **+24.37%** |
+| broadside aspect vs RA2 1.40 | 1.393 (0.995x) | 1.321 (0.944x), inside the 0.20 band |
+| `dog \| tanya` CELL 96 zoom 1 (floor 12.2) | 12.5 | **12.5** |
+| `dog \| tanya` CELL 96 ZMIN (floor 8.9) | 9.5 | **9.5** |
+| whole `legibility.js` output | — | **byte-identical, diff is empty** |
+| cameo floors Directorate / Collective | 234 / 252 | 234 / 252 |
+
+## The band is only 2 px wide — measured, not estimated
+
+Sweeping the reach: `1.20L` bakes **37**, `1.22L` bakes **38**. So `1.20L` is
+the ceiling and there is no headroom above it; `1.17L` sits one notch inside so
+that a future tweak to the stroke width cannot silently reopen the gate. The
+`DO NOT` line in the source says so.
+
+## Two 4th-decimal moves recorded, and why they were not chased
+
+`iou.infantry.mean` 0.5394 -> 0.5399 (target <= 0.55) and
+`hue.infantryOwnerMean` 0.3086 -> 0.3085 (target >= 0.29). Both stay MET with
+two orders of magnitude of headroom, and both are the SAME documented tension
+seen at 1/20th scale: a shorter dog is marginally more man-like (IoU), and a
+bushier tan tail is marginally less owner-coloured (hue).
+
+Neither was chased, and the sweeps that tried are worth recording as negative
+results:
+
+* **Dropping the tail lower** buys the IoU back — `+0.8` gives 0.5396, `+1.8`
+  gives 0.5393, better than baseline — but `+0.8` already costs 0.1 in the
+  CELL 28 window (`dog | tanya` 42.4 -> 42.3) and `+1.8` puts the tail tip a
+  pixel off the ground. **A byte-identical legibility diff is worth more than
+  0.0005 of a metric with 0.0106 of slack**, so drop 0 shipped.
+* **Widening the collar** would fix the hue row, and `hue.infantryOwnerMean`'s
+  own note forbids it in as many words: "close the gap on the other twelve,
+  never by painting those two". The dog is one of the two.
+
+## The lesson, stated so the next pass can reuse it
+
+**When two gates fight, check whether they are reading the same quantity.** The
+reverted pass concluded "the two gates pull ONE lever in opposite directions"
+and that was true of the lever it held — SCALE moves bbox and mass together.
+They are separable, and the place they separate is a thin extremity: a tail, a
+gun barrel, an antenna, a wingtip. Before accepting a size-vs-legibility
+ceiling, run the column profile and ask **how many pixels actually live in the
+outermost two columns**. Here it was five.
+
+And the corollary for the *other* direction: this trick only works while the
+offender is too BIG. `worstOffGroupScale` is now held by two vehicles that are
+too SMALL (Flak Track 43 px vs a 57 px group scale, Grizzly 52 vs 66), where
+there is no appendage to trim and growing them is the standing "shrink the big
+ones, do not grow the fleet" direction in reverse. Expect that row to stall.
