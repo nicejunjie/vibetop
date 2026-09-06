@@ -290,7 +290,7 @@
     "peerVsSelf.air": 0,
     "iou.groundCombat.mean": 0.4695,
     "iou.vehicle.mean": 0.4134,
-    "iou.infantry.mean": 0.5413,
+    "iou.infantry.mean": 0.5392,
     "iou.naval.mean": 0.4018,
     "iou.air.mean": 0.1859,
     "iou.sameFactionOver75": 0,
@@ -299,7 +299,7 @@
     "spike.belowDeclaredBudget": 0,
     "mass.groundCombatSpan": 5.491,
     "mass.tightestBand6": 2.149,
-    "hue.infantryOwnerMean": 0.2991,
+    "hue.infantryOwnerMean": 0.3077,
     "hue.infantryBelowBudget": 0,
     "hue.vehicleOwnerMean": 0.1696,
     "hue.vehicleOwnerMax": 0.2386,
@@ -333,7 +333,7 @@
     "value.soldiersLighterThanEngineer": 0,
     "value.engineerLightPct": 0.6384,
     "value.engineerMarginOverNext": 0.2803,
-    "colour.infantry.meanDist": 1.3825,
+    "colour.infantry.meanDist": 1.3513,
     "colour.vehicle.meanDist": 0.9634,
     "colour.vehicleAchromatic": 0
   },
@@ -384,7 +384,7 @@
         "ra2Aspect": 0.481,
         "vsRA2": 1.038,
         "bestPeer": "Spy",
-        "bestPeerIoU": 0.7463,
+        "bestPeerIoU": 0.7269,
         "peersBeatingSelf": 0
       },
       "rocket": {
@@ -412,13 +412,13 @@
       "rocketeer": {
         "group": "infantry",
         "aspect": 0.759,
-        "selfIoU": 0.7167,
-        "selfIoUCross": 0.7167,
+        "selfIoU": 0.7026,
+        "selfIoUCross": 0.7026,
         "broadsideAspect": 0.759,
         "ra2Aspect": 0.667,
         "vsRA2": 1.139,
         "bestPeer": "Crazy Ivan",
-        "bestPeerIoU": 0.6458,
+        "bestPeerIoU": 0.6055,
         "peersBeatingSelf": 0
       },
       "harrier": {
@@ -490,7 +490,7 @@
         "ra2Aspect": 1.4,
         "vsRA2": 0.995,
         "bestPeer": "Rocketeer",
-        "bestPeerIoU": 0.4879,
+        "bestPeerIoU": 0.5122,
         "peersBeatingSelf": 0
       },
       "ifv": {
@@ -574,7 +574,7 @@
         "ra2Aspect": 0.643,
         "vsRA2": 1.136,
         "bestPeer": "Chrono Legionnaire",
-        "bestPeerIoU": 0.6968,
+        "bestPeerIoU": 0.6985,
         "peersBeatingSelf": 0
       },
       "ivan": {
@@ -643,30 +643,30 @@
         "broadsideAspect": 0.359,
         "ra2Aspect": 0.414,
         "vsRA2": 0.868,
-        "bestPeer": "Spy",
-        "bestPeerIoU": 0.7258,
+        "bestPeer": "Conscript",
+        "bestPeerIoU": 0.6973,
         "peersBeatingSelf": 0
       },
       "cleg": {
         "group": "infantry",
         "aspect": 0.657,
-        "selfIoU": 0.7006,
-        "selfIoUCross": 0.7006,
+        "selfIoU": 0.6996,
+        "selfIoUCross": 0.6996,
         "broadsideAspect": 0.657,
         "ra2Aspect": 0.577,
         "vsRA2": 1.139,
         "bestPeer": "Engineer",
-        "bestPeerIoU": 0.7292,
+        "bestPeerIoU": 0.727,
         "peersBeatingSelf": 0
       },
       "spy": {
         "group": "infantry",
-        "aspect": 0.457,
-        "selfIoU": 0.778,
-        "selfIoUCross": 0.778,
-        "broadsideAspect": 0.457,
+        "aspect": 0.514,
+        "selfIoU": 0.7334,
+        "selfIoUCross": 0.7334,
+        "broadsideAspect": 0.514,
         "bestPeer": "Conscript",
-        "bestPeerIoU": 0.7463,
+        "bestPeerIoU": 0.7269,
         "peersBeatingSelf": 0
       },
       "nighthawk": {
@@ -838,7 +838,7 @@
         "over75": 0
       },
       "infantry": {
-        "mean": 0.5413,
+        "mean": 0.5392,
         "pairs": 91,
         "max": 0.768,
         "over75": 1
@@ -871,14 +871,19 @@
         "dist": 0.1
       },
       {
+        "a": "teslatrooper",
+        "b": "cleg",
+        "dist": 0.12
+      },
+      {
         "a": "conscript",
         "b": "engineer",
         "dist": 0.213
       },
       {
-        "a": "ivan",
+        "a": "rocketeer",
         "b": "spy",
-        "dist": 0.217
+        "dist": 0.281
       },
       {
         "a": "conscript",
@@ -886,19 +891,9 @@
         "dist": 0.313
       },
       {
-        "a": "teslatrooper",
-        "b": "cleg",
-        "dist": 0.423
-      },
-      {
         "a": "conscript",
-        "b": "rocketeer",
-        "dist": 0.465
-      },
-      {
-        "a": "cleg",
         "b": "spy",
-        "dist": 0.49
+        "dist": 0.37
       },
       {
         "a": "rocket",
@@ -906,14 +901,19 @@
         "dist": 0.495
       },
       {
-        "a": "rocketeer",
-        "b": "engineer",
-        "dist": 0.626
+        "a": "rocket",
+        "b": "spy",
+        "dist": 0.522
       },
       {
-        "a": "ivan",
-        "b": "cleg",
-        "dist": 0.661
+        "a": "engineer",
+        "b": "spy",
+        "dist": 0.546
+      },
+      {
+        "a": "conscript",
+        "b": "rocketeer",
+        "dist": 0.611
       }
     ],
     "closestVehicleColourPairs": [
@@ -978,6 +978,10 @@
         "pct": 0.004
       },
       {
+        "key": "spy",
+        "pct": 0.0017
+      },
+      {
         "key": "rifle",
         "pct": 0.0008
       },
@@ -996,10 +1000,6 @@
       {
         "key": "chronominer",
         "pct": 0
-      },
-      {
-        "key": "warminer",
-        "pct": 0
       }
     ],
     "ownerPctByUnit": {
@@ -1009,7 +1009,7 @@
       "conscript": 0.3453,
       "rocket": 0.2998,
       "flak": 0.338,
-      "rocketeer": 0.3368,
+      "rocketeer": 0.3417,
       "harrier": 0.22,
       "kirov": 0.2698,
       "lancer": 0.2215,
@@ -1029,8 +1029,8 @@
       "prismtank": 0.1681,
       "desolator": 0.3127,
       "yuri": 0.2625,
-      "cleg": 0.2986,
-      "spy": 0.31,
+      "cleg": 0.3419,
+      "spy": 0.3823,
       "nighthawk": 0.033,
       "apc": 0.1069,
       "destroyer": 0.1434,
@@ -1052,7 +1052,7 @@
       "conscript": 0.1862,
       "rocket": 0.2213,
       "flak": 0.1324,
-      "rocketeer": 0.0821,
+      "rocketeer": 0.0745,
       "harrier": 0.2433,
       "kirov": 0.2978,
       "lancer": 0.0755,
@@ -1072,8 +1072,8 @@
       "prismtank": 0.1543,
       "desolator": 0.1972,
       "yuri": 0.1932,
-      "cleg": 0.1441,
-      "spy": 0.155,
+      "cleg": 0.0855,
+      "spy": 0.0722,
       "nighthawk": 0.0489,
       "apc": 0.13,
       "destroyer": 0.1402,
@@ -1089,8 +1089,8 @@
       "mcv": 0.1555
     },
     "hue": {
-      "infantryOwnerMedian": 0.3247,
-      "infantryOwnerMeanUnexempt": 0.3299,
+      "infantryOwnerMedian": 0.3399,
+      "infantryOwnerMeanUnexempt": 0.34,
       "exempt": [
         "dog",
         "tanya"
@@ -2946,7 +2946,7 @@
         "unit": "spy",
         "clause": "coat hem one unbroken block >= 8 px wide, no vertical gap",
         "ok": true,
-        "measured": "median hem run 8 px (range 6-13), max runs per row 1",
+        "measured": "median hem run 8 px (range 6-14), max runs per row 1",
         "want": "median >= 8 px, exactly 1 run",
         "note": "hem = 62-90% of the FIGURE height (contact shadow segmented off) over 10 rows. MEDIAN, and this file says so because it is the LENIENT reading: the hem TAPERS from 13 px at the skirt to 6 px at the ankle row, and that taper is a recorded deliberate decision — \"a business suit is a straight, narrow, slightly tapered line, and Yuri's is a flared robe a third wider at the ankle\" — made because the roster's two unbroken hems collapsed onto each other at 0.85 pairwise the moment the Spy lost his leg split. THE CEILING, with the arithmetic: 8 px AT THE ANKLE needs 8.6 authored units against the skirt's own 8.0, which is a FLARE and therefore Yuri's shape, so the minimum form of this clause cannot be met without undoing that pair. The clause's other half — no vertical gap — is measured strictly: every row exactly one run",
         "module": "infantry.js",
@@ -3408,14 +3408,19 @@
         "lightPct": 0.3581
       },
       {
-        "key": "rocketeer",
-        "name": "Rocketeer",
-        "lightPct": 0.2178
-      },
-      {
         "key": "cleg",
         "name": "Chrono Legionnaire",
-        "lightPct": 0.1928
+        "lightPct": 0.2729
+      },
+      {
+        "key": "rocketeer",
+        "name": "Rocketeer",
+        "lightPct": 0.2175
+      },
+      {
+        "key": "spy",
+        "name": "Spy",
+        "lightPct": 0.1517
       },
       {
         "key": "flak",
@@ -3446,11 +3451,6 @@
         "key": "rifle",
         "name": "GI",
         "lightPct": 0.0939
-      },
-      {
-        "key": "spy",
-        "name": "Spy",
-        "lightPct": 0.0877
       },
       {
         "key": "yuri",
@@ -3601,7 +3601,7 @@
         "name": "Chrono Legionnaire",
         "group": "infantry",
         "fac": "dir",
-        "mass": 387,
+        "mass": 389,
         "bboxW": 23,
         "bboxH": 35,
         "aspect": 0.521,
@@ -3609,10 +3609,10 @@
         "broadsideAspect": 0.657,
         "ra2Aspect": 0.577,
         "vsRA2": 1.139,
-        "selfIoU": 0.7006,
-        "selfIoUCross": 0.7006,
+        "selfIoU": 0.6996,
+        "selfIoUCross": 0.6996,
         "bestPeer": "Engineer",
-        "bestPeerIoU": 0.7292,
+        "bestPeerIoU": 0.727,
         "peersBeatingSelf": 0,
         "peers": 13,
         "spike": {
@@ -3644,7 +3644,7 @@
         "selfIoU": 0.7395,
         "selfIoUCross": 0.7395,
         "bestPeer": "Spy",
-        "bestPeerIoU": 0.7463,
+        "bestPeerIoU": 0.7269,
         "peersBeatingSelf": 0,
         "peers": 13,
         "spike": {
@@ -3738,7 +3738,7 @@
         "selfIoU": 0.5406,
         "selfIoUCross": 0.5406,
         "bestPeer": "Rocketeer",
-        "bestPeerIoU": 0.4879,
+        "bestPeerIoU": 0.5122,
         "peersBeatingSelf": 0,
         "peers": 13,
         "spike": {
@@ -4425,27 +4425,27 @@
         "name": "Rocketeer",
         "group": "infantry",
         "fac": "dir",
-        "mass": 342,
+        "mass": 373,
         "bboxW": 22,
         "bboxH": 29,
-        "aspect": 0.664,
+        "aspect": 0.707,
         "broadsideWH": "22x29",
         "broadsideAspect": 0.759,
         "ra2Aspect": 0.667,
         "vsRA2": 1.139,
-        "selfIoU": 0.7167,
-        "selfIoUCross": 0.7167,
+        "selfIoU": 0.7026,
+        "selfIoUCross": 0.7026,
         "bestPeer": "Crazy Ivan",
-        "bestPeerIoU": 0.6458,
+        "bestPeerIoU": 0.6055,
         "peersBeatingSelf": 0,
         "peers": 13,
         "spike": {
           "axis": "v",
           "len": 8,
-          "thick": 6.5,
+          "thick": 7,
           "budget": 4,
           "floor": 3.64,
-          "atZmin": 3.58,
+          "atZmin": 3.85,
           "floorAtZmin": 2,
           "lenBudget": 6,
           "fails": null,
@@ -4489,16 +4489,16 @@
         "name": "Spy",
         "group": "infantry",
         "fac": "dir",
-        "mass": 325,
-        "bboxW": 16,
+        "mass": 334,
+        "bboxW": 18,
         "bboxH": 35,
-        "aspect": 0.357,
-        "broadsideWH": "16x35",
-        "broadsideAspect": 0.457,
-        "selfIoU": 0.778,
-        "selfIoUCross": 0.778,
+        "aspect": 0.379,
+        "broadsideWH": "18x35",
+        "broadsideAspect": 0.514,
+        "selfIoU": 0.7334,
+        "selfIoUCross": 0.7334,
         "bestPeer": "Conscript",
-        "bestPeerIoU": 0.7463,
+        "bestPeerIoU": 0.7269,
         "peersBeatingSelf": 0,
         "peers": 13,
         "spike": {
@@ -4658,7 +4658,7 @@
         "selfIoU": 0.8133,
         "selfIoUCross": 0.8133,
         "bestPeer": "Chrono Legionnaire",
-        "bestPeerIoU": 0.6968,
+        "bestPeerIoU": 0.6985,
         "peersBeatingSelf": 0,
         "peers": 13,
         "spike": {
@@ -4753,8 +4753,8 @@
         "vsRA2": 0.868,
         "selfIoU": 0.8524,
         "selfIoUCross": 0.8524,
-        "bestPeer": "Spy",
-        "bestPeerIoU": 0.7258,
+        "bestPeer": "Conscript",
+        "bestPeerIoU": 0.6973,
         "peersBeatingSelf": 0,
         "peers": 13,
         "spike": {
