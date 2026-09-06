@@ -1260,42 +1260,72 @@
 
   tabs.addEventListener('dragend', function(e) {
     if (dragTab) dragTab.classList.remove('dragging');
-    tabs.querySelectorAll('.tab').forEach(function(t) {
-      t.classList.remove('drag-over-left', 'drag-over-right');
-    });
+    clearMarks();
     dragTab = null;
     saveTabOrder();
   });
 
-  tabs.addEventListener('dragover', function(e) {
-    e.preventDefault();
-    e.dataTransfer.dropEffect = 'move';
-    var target = e.target.closest('.tab');
-    if (!target || target === dragTab) return;
+  // Where a drop at this x lands: the element to insert BEFORE, with the "+"
+  // button standing for "the end". Resolved by GEOMETRY, not by e.target —
+  // the strip is flex:1, so most of it is empty runway past the last tab, and
+  // that runway plus the "+" hit-test to .tabs rather than to any .tab. An
+  // e.target-only handler therefore refused the most natural way to say "put
+  // this last": drag it past everything. Sweeping the midpoints makes every
+  // pixel of the strip a valid drop zone.
+  function dropRef(x) {
+    var list = tabs.querySelectorAll('.tab');
+    for (var i = 0; i < list.length; i++) {
+      var r = list[i].getBoundingClientRect();
+      if (x < r.left + r.width / 2) return list[i];
+    }
+    return addBtn;
+  }
+
+  function clearMarks() {
     tabs.querySelectorAll('.tab').forEach(function(t) {
       t.classList.remove('drag-over-left', 'drag-over-right');
     });
-    var rect = target.getBoundingClientRect();
-    var mid = rect.left + rect.width / 2;
-    target.classList.add(e.clientX < mid ? 'drag-over-left' : 'drag-over-right');
+  }
+
+  // Draw the caret where dropRef says the tab would go. A ref of addBtn has no
+  // tab to mark, so the LAST tab wears a right-edge bar instead.
+  function markDrop(ref) {
+    clearMarks();
+    if (!dragTab) return;
+    // A move that changes nothing gets no caret, so the bar never promises a
+    // reorder that will not happen.
+    if (ref === dragTab || ref === dragTab.nextSibling) return;
+    if (ref === addBtn) {
+      var list = tabs.querySelectorAll('.tab');
+      var last = list[list.length - 1];
+      if (last) last.classList.add('drag-over-right');
+    } else {
+      ref.classList.add('drag-over-left');
+    }
+  }
+
+  tabs.addEventListener('dragover', function(e) {
+    // preventDefault unconditionally (as before): it is what stops a stray file
+    // dragged onto the strip from navigating the page away from the terminals.
+    e.preventDefault();
+    if (!dragTab) return;
+    e.dataTransfer.dropEffect = 'move';
+    markDrop(dropRef(e.clientX));
   });
 
   tabs.addEventListener('dragleave', function(e) {
-    var target = e.target.closest('.tab');
-    if (target) target.classList.remove('drag-over-left', 'drag-over-right');
+    // Only when the pointer leaves the STRIP — leaving one tab for the next
+    // fires this too, and clearing there would flicker the caret off.
+    if (e.relatedTarget && tabs.contains(e.relatedTarget)) return;
+    clearMarks();
   });
 
   tabs.addEventListener('drop', function(e) {
     e.preventDefault();
-    var target = e.target.closest('.tab');
-    if (!target || !dragTab || target === dragTab) return;
-    var rect = target.getBoundingClientRect();
-    var before = e.clientX < rect.left + rect.width / 2;
-    if (before) {
-      tabs.insertBefore(dragTab, target);
-    } else {
-      tabs.insertBefore(dragTab, target.nextSibling);
-    }
+    clearMarks();
+    if (!dragTab) return;
+    var ref = dropRef(e.clientX);
+    if (ref !== dragTab) tabs.insertBefore(dragTab, ref);
   });
 
   addBtn.addEventListener('click', function() {
