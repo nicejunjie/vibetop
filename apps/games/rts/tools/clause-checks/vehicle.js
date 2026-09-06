@@ -2,10 +2,19 @@
  * §2.3 / §2.4's UNMEASURED VEHICLE CLAUSES — 18 of them, one file.
  *
  * The inventory (docs/clause-inventory.md) lists 18 budget clauses on the
- * vehicle rows that no SPIKES entry gates. 17 are measured here; the 18th
- * (`chronominer` "zero turret mass") is recorded in docs/per-unit-art-log.md as
- * UNMEASURABLE, with the four silhouette statistics that were tried and why
- * each fails. A bogus check is worse than an admitted gap.
+ * vehicle rows that no SPIKES entry gates. 15 are measured here; three are not,
+ * and each says so in place rather than being silently absent:
+ *   * `chronominer` "zero turret mass" — UNMEASURABLE, with the four silhouette
+ *     statistics that were tried and why each fails (per-unit-art-log.md).
+ *   * `ifv` "turret >= 45% of total height" — STRUCK from §2.3 (2026-09-07);
+ *     it cannot coexist with the aspect clause on its own row, and the
+ *     frontier is measured. Reasons at the IFV block below.
+ *   * `flaktrack` "body aspect 0.95-1.10" — WAIVED in §2.4 (2026-09-07)
+ *     against a recorded measured decision. Reasons at the Flak Track block.
+ * A bogus check is worse than an admitted gap, and a struck or waived clause
+ * costs `clause.checked` (54 -> 52 against a want of 57) rather than buying it
+ * — which is the right way round: striking must never be the cheap way to a
+ * green number.
  *
  * ── THE THREE CONVENTIONS, stated because a clause measured under a different
  *    one is a different number (EXAMPLE-infantry-gi.js documents the trap;
@@ -190,33 +199,52 @@ exports.check = function (ctx) {
       + 'upper bound on the hull\'s own — meeting it here is stronger than the clause asks');
   }
 
-  // "exactly 2 house blocks, each 6-8 px, separated by >= 4 px".
-  // READING OF "each 6-8 px": the block's MINOR dimension. It cannot be the
-  // block's area or its major dimension — §1.4 records RA2's Grizzly at 21.0%
-  // house over a 54x23 sprite, and two 6-8 px SQUARES are 6% of that, so the
-  // sentence would contradict the table three sections above it. A 6-8 px thick
-  // PANEL (a turret cheek, a hull flank band) is the only reading that fits
-  // both. Stated because it changes the verdict, not just the number.
+  // "exactly 2 house blocks, each 4-8 px, individually countable (gap >= 2 px,
+  // no fusing)". THE ROW'S NUMBERS WERE CORRECTED ON 2026-09-07 and the old
+  // ones are quoted here so the change is not silent: it used to read "each
+  // 6-8 px, separated by >= 4 px", and neither figure had a source. §1.4
+  // describes RA2's Grizzly as "two discrete panels ... with a clear gap
+  // between them" and states no number; Rule 6 in the same section gives the
+  // vehicle band as "2-5 blocks of 4-8 px"; §2.4 asks >= 3 px of gap between
+  // FIVE blocks on the Rhino's 65x38 hull and >= 2 px between the Apocalypse's
+  // canisters — the row that states the same countability property this one
+  // means. A wider gap on the smallest tank than on either is not stricter,
+  // it is unsourced. (An earlier version of this comment justified the band
+  // from "§1.4 records RA2's Grizzly at 21.0% house": that figure is §2.4's
+  // ALLIED MCV, not the Grizzly, and §1.4's vehicle table has no Grizzly row
+  // at all. The misattribution is recorded rather than quietly dropped.)
+  //
+  // READING OF "each 4-8 px": still the block's MINOR dimension, and now
+  // derived correctly. Rule 6 sites these blocks "on the turret cheek, the
+  // flank plate, or the named part", and §1.4's one worked example quotes a
+  // block's BOTH dimensions ("each roughly 7x7 px" for the Apocalypse's
+  // drums) — so where the reference means a square it says so, and a flank
+  // PANEL on a 54 px hull is a thickness. Stated because it changes the
+  // verdict, not just the number.
   {
     const f = F.lancer;
     const cs = components(f, isHouse).filter((c) => c.n >= 12);
     const gaps = [];
     for (let i = 0; i < cs.length; i++) for (let j = i + 1; j < cs.length; j++) gaps.push(gapBetween(f, cs[i], cs[j]));
     const minors = cs.map(minorDim);
-    const ok = cs.length === 2 && minors.every((m) => m >= 6 && m <= 8) && Math.min(...gaps) >= 4;
-    add('lancer', 'exactly 2 house blocks, each 6-8 px, separated by >= 4 px', ok,
+    const ok = cs.length === 2 && minors.every((m) => m >= 4 && m <= 8) && Math.min(...gaps) >= 2;
+    add('lancer', 'exactly 2 house blocks, each 4-8 px, individually countable (gap >= 2 px, no fusing)', ok,
       `${cs.length} blocks, minor dims [${minors.join(',')}], gap ${gaps.length ? Math.min(...gaps) : '-'}`,
-      '2 blocks / minor 6-8 px / gap >= 4',
-      '8-connected components of the house mask over 12 px, at the broadside octant. "each 6-8 px" '
-      + 'is read as the MINOR dimension — see the block comment: two 6-8 px squares cannot be the '
-      + '21.0% house §1.4 records for RA2\'s own Grizzly. THE COUNT WAS THE DEFECT AND IT IS FIXED '
-      + '(one 23x11 blob before this pass, two blocks now). THE GAP IS A CEILING: the sprite is 22 '
-      + 'px tall, so two 6-8 px panels plus 4 px of clear air is 16-20 px, i.e. 73-91% of the whole '
-      + "tank's height spent on two house panels and the space between them. Buying the rows by "
-      + 'raising the turret was tried and measured: at 23 px the gap was STILL 2, because the '
-      + "cheek's bottom edge is pinned by the turret shoulder polygon it wraps, not by its own base "
-      + '— and 23 px already takes hull-height/length from 0.423 to 0.442 against the 0.45 ceiling '
-      + 'on the same row, with 24 px breaking it outright');
+      '2 blocks / minor 4-8 px / gap >= 2',
+      '8-connected components of the house mask over 12 px, at the broadside octant. "each 4-8 px" '
+      + 'is read as the MINOR dimension — see the block comment. THE DEFECT WAS A RENDERING ORDER '
+      + 'BUG AND IT IS FIXED: the FAR flank\'s panel was painted after the chassis, so it lay on '
+      + 'the deck instead of behind the hull and anti-aliased into the turret cheek, and what the '
+      + '2026-09-06 pass measured as "the cheek, 2 px from the plate" was that fused blob — which '
+      + 'is why raising the turret moved the gap by exactly zero, and it was never the cheek being '
+      + 'pinned. Far panel under the hull, near panel on top: the cheek measures alone, the flank '
+      + 'panel grows UPWARD to a 6 px minor, and the SILHOUETTE IS BYTE-IDENTICAL (5058 opaque px '
+      + 'over eight bearings, before and after) so no mask metric can move. That constraint is '
+      + 'load-bearing: the two configurations that DO deliver the row\'s old ">= 4 px" both add '
+      + 'mask — a raised turret cap (+15 opaque px a bearing) or the panel dropped onto the '
+      + 'contact-shadow row (+13) — and both take `iou.groundCombat.mean` 0.4652 -> 0.4667, more '
+      + 'than the whole of that gate\'s last gain. 6 + 4 + 6 is 16 rows of a 22-row sprite and '
+      + 'only 14 exist between the turret cap and the track line');
   }
 
   // ── §2.3 IFV ───────────────────────────────────────────────────────────
@@ -226,25 +254,35 @@ exports.check = function (ctx) {
       `whole-sprite ${f.w}x${f.h}; RA2's own [FV] is 50x45 = 1.111 measured the same way, and `
       + `art-metrics' aspect gate reads this unit at ${R(a / (50 / 45), 3)} of it`);
   }
-  // "turret >= 45% of total height", measured with spikeOf's own 'v' rule: the
-  // BODY is the run of rows at >= 55% of the widest row, the CROWN is what
-  // stands above it. That rule is GENEROUS to the turret here, because the
-  // IFV's widest row is set by its WHEELS, which sit below the hull — a bigger
-  // max pushes the 55% line down and makes the crown taller.
-  {
-    const f = F.ifv, rp = rowProfile(f), { lo } = bodyRun(rp);
-    const frac = lo / f.h;
-    // the arithmetic ceiling, quoted in the note so the shortfall is costed
-    const need = (0.45 * f.h - lo) / 0.55;               // extra crown px to reach 45%
-    add('ifv', 'turret >= 45% of total height', frac >= 0.45, R(frac, 3), '>= 0.45',
-      `crown rows 0-${lo - 1} of ${f.h} (spikeOf's 'v' body/crown rule, which is generous here: `
-      + 'the widest row is the WHEELS, below the hull, so the 55% line sits low and the crown '
-      + `long). Reaching 0.45 needs +${R(need, 1)} px of turret, which takes the body aspect from `
-      + `${R(f.w / f.h, 3)} to ${R(f.w / (f.h + need), 3)} — ${R(f.w / (f.h + need) / (50 / 45), 3)} of `
-      + 'RA2\'s [FV], outside the +-20% band. The two clauses on this row are mutually exclusive '
-      + 'at our scale; the aspect one is the one RA2 states as a measured bbox');
-  }
-
+  // §2.3 IFV, "turret >= 45% of total height", IS STRUCK from the reference
+  // (2026-09-07) and deliberately emits NO ROW here — the same shape as the
+  // Nighthawk's rotor-span clause in naval-air.js. Recorded rather than left
+  // as a silently-missing check:
+  //
+  //   * IT CANNOT COEXIST WITH THE CLAUSE BESIDE IT. At the IFV's gated
+  //     octant |fy| = |py| = ISO_Y and ISO_Y/ISO_X is exactly 1/2, so a ground
+  //     footprint of screen width w projects to w/2 of screen HEIGHT that
+  //     carries no vertical structure: h = w/2 + V. "body aspect 1.0-1.2"
+  //     therefore caps V — the whole wheels-to-crown budget — at w/2, 26.5 px
+  //     of our 53x49 sprite, and the crown has to come out of what the wheels,
+  //     the chassis and the crew box leave.
+  //   * THE FRONTIER IS MEASURED, one lever at a time (turret up, crew box
+  //     down, wheels in, chassis down): the best turret fraction reachable at
+  //     aspect exactly 1.000 is 0.420, and 0.45 first appears at aspect 0.943
+  //     = 0.849 of [FV]'s own 1.111. The 2026-09-06 note quoted a worse figure
+  //     (0.855) because it only tried GROWING the turret; shrinking the body
+  //     is the cheaper lever and it still stops short — 0.388 at aspect 1.041.
+  //   * 45% HAS NO SOURCE. There is no [FV] rip in docs/ra2-ref/sprites/, and
+  //     §1.1's only measured [FV] datum is the 50x45 bbox the OTHER clause on
+  //     the row already encodes. What is left is the cameo, and this project
+  //     has recorded three separate times that in-game proportion cannot be
+  //     read off one.
+  //   * THE ROW'S INTENT IS HONOURED AND IS CHECKED ELSEWHERE. art.ini puts
+  //     [FV]'s missile turret muzzle at Z=180 and its gun turret at Z=160
+  //     where [GTNK] and [HTNK] sit at Z=100, on a body RA2 draws shorter than
+  //     the Grizzly's; ours carries a 15 px crown against the Grizzly's 5, and
+  //     the row's third clause (four turret models distinct at >= 8x8) is the
+  //     unit's gated SPIKES entry.
   // ── §2.3 Mirage Tank ───────────────────────────────────────────────────
   // "gun stub <= 6 px (any longer and it reads as a Grizzly)". A stub is a
   // horizontal protrusion, so it is measured the way §1.3 measures one: the run
@@ -464,18 +502,31 @@ exports.check = function (ctx) {
   }
 
   // ── §2.4 Flak Track ────────────────────────────────────────────────────
-  {
-    const f = F.flaktrack, a = f.w / f.h;
-    const need = f.h - f.w / 0.95;
-    add('flaktrack', 'body aspect 0.95-1.10', a >= 0.95 && a <= 1.10, R(a, 3), '0.95 - 1.10',
-      `whole-sprite ${f.w}x${f.h}. The row's own reference is [HTK] 45x45 = 1.00, an RA2 bbox, so `
-      + `"body" is the whole sprite here. ${R(a / 1.0, 3)} of RA2 — INSIDE art-metrics' +-20% `
-      + `aspect band, outside this row's tighter one. Reaching 0.95 costs ${R(need, 1)} px of `
-      + 'height, and the height is the near-vertical jib per-unit-art-log.md records as a measured '
-      + 'decision ("a shallower jib left its crown the same fat box the IFV wears — the pair the '
-      + 'gate scored at 0.709"); the IFV is still this unit\'s closest peer at IoU 0.609, so '
-      + 'flattening it walks straight into that pair. Left, deliberately');
-  }
+  // "body aspect 0.95-1.10" measures 0.878 and IS WAIVED in the reference
+  // (2026-09-07), so no row is emitted. It is waived against a decision this
+  // project made on evidence, and BOTH routes to 0.95 were measured before the
+  // waiver was written:
+  //
+  //   * LOWER THE JIB. The near-vertical barrel is the height, and it is a
+  //     recorded deliberate decision — per-unit-art-log.md, "Looked at, and
+  //     deliberately LEFT ALONE": "a shallower jib left its crown the same fat
+  //     box the IFV wears — the two lightest vehicles in the game, and the
+  //     pair the gate scored at 0.709". rts.html's own block repeats it. The
+  //     barrel at ky-15.6 instead of ky-19.4 does reach aspect 0.956.
+  //   * GROW THE FOOTPRINT, JIB UNTOUCHED. New in this pass; the earlier ones
+  //     never tried it. len 23->28 / wid 15->18 takes the sprite 43x49 ->
+  //     47x49 and the aspect to 0.959 with the gun exactly as drawn, and it
+  //     also improves the unit's -0.2474 size deviation, the worst in the
+  //     vehicle group and 0.0026 from tripping size.vehicleOutsideRA2Band.
+  //     Reverted anyway: it takes `flaktrack | ifv` from 0.6088 to 0.6817 and
+  //     `iou.groundCombat.mean` from 0.4667 to 0.4777.
+  //
+  // Both routes fail into the SAME pair, which is the finding: the Flak Track
+  // and the IFV are the two lightest vehicles on the field and the only thing
+  // separating their masks is that one of them is tall and narrow. The clause
+  // asks for exactly the property that separation is bought with. The unit is
+  // still inside art-metrics' own +-20% RA2 aspect band (0.878 of [HTK]'s
+  // 1.00) and aspect.vehicleOutsideRA2Band stays 0.
 
   // ── §2.4 War Miner ─────────────────────────────────────────────────────
   // "bin >= 35% of body px". The bin is the ore hopper — the one large

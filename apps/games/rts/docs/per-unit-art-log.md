@@ -2017,3 +2017,236 @@ RA2's bar **371 -> 375**, DPR 2 **146 -> 148**; Collective **458 -> 462**, DPR 2
 and the map gate — the player-facing one — improved. Four bigger vehicles and
 one smaller one shift a sidebar of 780 pairs by four; it is noise at the tail,
 but it is the direction that has to be watched, so it is written down.
+
+---
+
+# The three §2 SHAPE-AND-COLOUR clauses that were still UNMET (2026-09-07)
+
+Three vehicle rows survived the 2026-09-06 pass as ceilings: the Grizzly's house
+blocks, the IFV's turret fraction, the Flak Track's aspect. **Each needed a
+different kind of resolution, and getting that right was the job.** One was an
+art defect the previous pass had mis-diagnosed; one is a clause that contradicts
+the clause beside it; one is a clause that contradicts a decision the project
+made on evidence.
+
+| unit | clause | before | after | resolution |
+|---|---|---|---|---|
+| `lancer` | 2 house blocks, each 6-8 px, gap >= 4 | 2 blocks, minor **[5,6]**, gap **2** | 2 blocks, minor **[6,5]**, gap **2-3** | **ART FIXED** (a rendering-order bug) **+ clause corrected in §2.3** to §1.4's own numbers |
+| `ifv` | turret >= 45% of total height | **0.306** | 0.306 | **CLAUSE STRUCK** — mutually exclusive with the aspect clause on its own row; frontier measured |
+| `flaktrack` | body aspect 0.95-1.10 | **0.878** | 0.878 | **CLAUSE WAIVED** in §2.4, citing the recorded jib decision — and the second route measured and costed |
+
+`clause.unmet` **6 -> 3**, `clause.vehicleUnmet` **5 -> 2**. The three that remain
+(`destroyer` length, `chronominer` height, `mcv` 1.20x) are the ceilings the
+2026-09-06 pass costed and are untouched here.
+
+## 1. The Grizzly — the previous pass measured a component that was not the cheek
+
+**"raising the turret moves the gap by exactly zero" is TRUE, and the reason
+given for it is WRONG.** The recorded reason was that "the cheek's bottom edge
+is pinned by the turret-shoulder polygon it wraps". Re-verified first, as the
+brief demanded, by grepping for the value after the edit: raising the cheek
+`ty-0.4 -> ty-2.4` grows the sprite 22 -> 23 px, produces a NEW 7x3 house sliver
+at rows 1-3, and leaves the block at rows 9-14 of 23 — the identical absolute
+position. So the null result reproduces exactly.
+
+**The cause is a rendering-order bug, and it is one line.** The flank-panel loop
+drew BOTH flanks *after* `chassis()`. The far side's panel therefore painted
+**on the deck** — where a real tank hides it behind its own hull — one pixel
+under the turret cheek, and the anti-aliased blend between two owner-hued edges
+fused them into ONE 21x6 component. Every number the check reported about "the
+cheek" was about that blob:
+
+* the **6 px minor** the check credited to the cheek was the fused pair's; the
+  cheek alone measures **7x5**;
+* the **2 px gap** was between the NEAR flank panel and the far-plate-plus-cheek
+  — a distance the camera sets across the beam, which no turret lever can move.
+  That is why the turret lever measured nothing.
+
+This is the fourth instance in this file of anti-aliasing closing a 1-1.5 px
+seam between two owner-hued edges (Grizzly, Apocalypse, and now the Grizzly
+again from the other side) — and the first where it made a check report the
+*wrong part* rather than the wrong count.
+
+**The fix draws the far panel BEFORE the chassis and the near panel after, and
+the flank panel grows upward** (`by-0.4`, height 3.2 -> 4.0, lit cap `by-2.6 ->
+by-3.4`) to a 6 px minor. Both panels are painted over pixels the hull already
+owns, so **the silhouette is byte-identical — 5058 opaque px over eight
+bearings, before and after** — which is why `iou.groundCombat.mean`,
+`iou.vehicle.mean`, `mass.*`, `aspect.*`, `size.*`, `spike.*` and `clip.*` are
+all unchanged to the digit, and `lancer | chronominer` is still 0.5472.
+
+**That constraint is load-bearing, and it is what decided the clause.** Two
+configurations DO deliver the row's literal `>= 4 px`, and both were built and
+measured:
+
+| configuration | blocks | gap | sprite | opaque px (8 bearings) | cost |
+|---|---|---|---|---|---|
+| far panel occluded, panel grows UP (**shipped**) | [6,5] | 2 | 52x22 | **5058** (= baseline) | none measurable |
+| + turret cap raised `ty-4.4 -> ty-6.0`, panel dropped onto the contact-shadow row | [6,6] | **4** | 52x22 | 5197 | `iou.groundCombat` 0.4652 -> **0.4667**, `iou.vehicle` 0.4111 -> **0.4120**, `lancer\|chronominer` 0.5472 -> 0.5626 |
+| + `RING` 7.4 -> 8.8 instead | [6,6] | **4** | 52x**23** | 5189-5289 | as above, and `hull height/length` 0.423 -> 0.442 against the 0.45 on the same row |
+
++0.0015 on `iou.groundCombat.mean` is **more than the entire gain that gate
+banked on 2026-09-06** (0.4660 -> 0.4652). The row is not worth it.
+
+**So §2.3's two numbers were corrected, and neither had a source.** §1.4
+describes RA2's Grizzly as *"two discrete panels — one turret cheek, one hull
+flank ... with a clear gap between them"* and states **no figure**; **Rule 6 in
+that same section gives the vehicle band as "2-5 blocks of 4-8 px"**. The gap
+was inconsistent with §2.4 as well: the Rhino gets `>= 3 px` between FIVE blocks
+on a 65x38 hull and the Apocalypse — the row that states the same *countability*
+property this one means — gets `>= 2 px`. A wider gap on the smallest tank on
+the field than on either of those is not a stricter spec, it is an unsourced
+one. And the arithmetic agrees: `6 + 4 + 6` is 16 rows of a 22-row sprite, of
+which rows 0-7 are the turret roof and the barrel and row 21 is the contact
+shadow — **14 rows exist for a 16-row budget**.
+
+Corrected to *"exactly 2 house blocks, each 4-8 px, individually countable
+(gap >= 2 px, no fusing)"*. Measured **[6,5], gap 2** at the gated octant and
+gap 5-6 at the nose-on bearings; two blocks at seven of eight bearings.
+
+**A citation error found on the way, recorded rather than dropped.** The old
+check justified its "minor dimension" reading from *"§1.4 records RA2's Grizzly
+at 21.0% house over a 54x23 sprite"*. **§1.4's vehicle table has no Grizzly row
+at all** — the 21.0% is §2.4's ALLIED MCV. The reading is still right, but it is
+now derived from something that exists: Rule 6 sites these blocks "on the turret
+cheek, the flank plate, or the named part", and §1.4's one worked example quotes
+BOTH dimensions when it means a square (*"each roughly 7x7 px"*, the Apocalypse's
+drums), so a flank PANEL on a 54 px hull is a thickness.
+
+## 2. The IFV — the two clauses on the row are mutually exclusive, and 45% has no source
+
+**The arithmetic holds, and the previous pass's version of it was pessimistic
+about the wrong lever.** It reported that reaching 0.45 needs +12.8 px of turret
+and takes the aspect to 0.855. True — but only for the route it tried, which was
+GROWING THE TURRET. **Shrinking the body is cheaper and it was never tried:**
+
+| lever | crown frac | aspect | vs RA2 `[FV]` 1.111 |
+|---|---|---|---|
+| shipped | 0.306 | 1.082 | 0.974 |
+| crew box down, cab roof down, wheels 3.0 -> 2.4 | **0.388** | **1.041** | 0.937 |
+| + `RING` 8.0 -> 9.0 | **0.412** | **1.000** | 0.900 |
+| body shrunk further + `RING` 9.0 + launcher box 7.0 | **0.420** | **1.000** | 0.900 |
+| + `RING` 10.0, box 8.0 | **0.453** | 0.943 | **0.849** |
+| + `RING` 10.5, box 8.6 | 0.473 | 0.891 | 0.802 |
+
+**The frontier is 0.420 at aspect exactly 1.000. 0.45 first appears at 0.943**,
+which breaks the aspect clause on the same row and is 0.849 of the one number
+RA2 actually states for this unit.
+
+**Why that frontier exists, geometrically.** At the IFV's gated octant
+`|fy| = |py| = ISO_Y` and `ISO_Y/ISO_X` is exactly 1/2, so a ground footprint of
+screen width `w` projects to `w/2` of screen HEIGHT carrying **no vertical
+structure at all**: `h = w/2 + V`. `w/h >= 1.0` therefore caps `V` — the whole
+wheels-to-crown budget — at `w/2`, **26.5 px of our 53x49 sprite**, and the crown
+must come out of what the wheels, the chassis and the crew box leave of it. This
+is the same camera identity that sets the Chrono Miner's ceiling one section up.
+
+**And 45% has no measured source.** There is no `[FV]` rip in
+`docs/ra2-ref/sprites/` (this file's own "THE RULE'S OWN PRECONDITION IS
+MISSING"), §1.1's only measured `[FV]` datum is the 50x45 bbox that the *other*
+clause on the row already encodes, and what is left is the cameo — which this
+file records three separate times as the wrong instrument for proportion
+(Psychic Sensor, Grand Cannon, Spy).
+
+**The row's INTENT is real and is honoured, which is why only the number is
+struck.** `art.ini [FV]` puts the missile turret's muzzle at `Weapon1FLH` **Z=180**
+and the gun turret's at **Z=160**, where `[GTNK]` and `[HTNK]` both sit at
+`PrimaryFireFLH` **Z=100** and `[TTNK]` at 100 — on a body RA2 draws SHORTER than
+the Grizzly's (50 px against 54). Ours carries a **15 px crown against the
+Grizzly's 5**, and the row's third clause (four turret models distinct at
+>= 8x8 px) is the unit's gated SPIKES entry. **The art was not touched**: the
+0.388 route above is available and was deliberately not taken, because it costs
+the "three big road tyres a side" the unit's own block specifies, to chase a
+number that no longer exists.
+
+*Measured negative, recorded so nobody re-runs it:* the IFV's 49 px height is
+**not** inflated by its contact shadow. Suppressing `shadowBlob` for this unit
+changes the bbox by **zero** — the wheels reach the bottom row — so the
+"segment the shadow off and re-measure" route (infantry.js's convention for
+figure clauses) buys nothing here. Same for the Flak Track.
+
+## 3. The Flak Track — waived, and now with TWO measured routes behind the waiver
+
+The clause (0.95-1.10) measures **0.878** and disagrees with a decision recorded
+twice in this file and once in `rts.html`. Resolved by **waiving it in §2.4 with
+the citation**, so it stops reading as unfixed debt — and the waiver is stronger
+than it was, because the route the earlier passes never tried was tried here.
+
+* **Route 1, lower the jib.** The recorded decision: *"a shallower jib left its
+  crown the same fat box the IFV wears — the two lightest vehicles in the game,
+  and the pair the gate scored at 0.709"*. Barrel `ky-19.4 -> ky-15.6` reaches
+  aspect **0.956**. This is the change the decision already refuses.
+* **Route 2, grow the footprint with the jib untouched — NEW.** `len` 23 -> 28,
+  `wid` 15 -> 18 takes the sprite 43x49 -> **47x49** and the aspect to **0.959**
+  with the gun exactly as drawn. It is attractive for a second reason: the Flak
+  Track's `-0.2474` size deviation is the worst in the vehicle group and sits
+  **0.0026 from tripping `size.vehicleOutsideRA2Band`**, and this route takes it
+  to about -0.178. **Reverted anyway, measured:** `flaktrack | ifv` goes
+  **0.6088 -> 0.6817** and `iou.groundCombat.mean` **0.4667 -> 0.4777**.
+
+**Both routes fail into the same pair, and that is the finding.** The Flak Track
+and the IFV are the two lightest vehicles on the field; the only thing separating
+their masks is that one of them is tall and narrow. **The clause asks for exactly
+the property that separation is bought with.** It is waived, not ignored: the
+unit is inside `art-metrics`' own +-20% RA2 aspect band (0.878 of `[HTK]`'s 1.00)
+and `aspect.vehicleOutsideRA2Band` stays 0.
+
+## What each check now does, and the cost of striking
+
+The IFV's turret row and the Flak Track's aspect row **emit no row**, the same
+shape as the Nighthawk's struck rotor clause in `naval-air.js`, with the reasons
+written at the site rather than left as a silent gap. That costs
+**`clause.checked` 54 -> 52** against a want of 57, and the `want` was NOT moved
+to match. That is the right way round: **striking a clause has to make a metric
+look worse, or it becomes the cheap route to a green number.** The five
+uncheckable clauses and their reasons are now: Nighthawk rotor span (struck,
+2026-09-05), Guardian GI deployed dome (the unit does not deploy), Chrono Miner
+zero turret mass (unmeasurable, four statistics tried), IFV turret fraction
+(struck), Flak Track aspect (waived).
+
+## Nothing regressed, and the two numbers that moved are both deliberate
+
+`iou.groundCombat.mean` **0.4652**, `iou.vehicle.mean` **0.4111**,
+`colour.vehicle.meanDist` **0.9652**, `mass.groundCombatSpan` 5.642,
+`mass.tightestBand6` 2.208, `peerVsSelf.vehicle` 1, `aspect.vehicleOutsideRA2Band`
+0, `size.vehicleOutsideRA2Band` 0, `spike.*` 0, `clip.*` 0/0,
+`colour.vehicleAchromatic` 0 — every one **byte-identical to the baseline**,
+which is the null result a silhouette-preserving change should produce and the
+proof that it is one.
+
+`legibility.js`: **0 confusable in all six windows**, infantry, air and naval
+byte-identical. The vehicle MEAN rose in four of six windows (79.1->79.2,
+73.3->73.4, 75.8->75.9, 72.4->72.5) and the vehicle MINIMUM fell in all six by
+0.1-0.7 (53.2->52.8, 38.5->38.1, 15.5->15.4, 11.2->11.1, 65.1->64.6,
+61.4->60.7) — every one still far above its window's threshold (35.8, 26.8,
+12.2, 8.6, 43.5, 40.1). The cause is the far flank panel no longer showing at
+the broadside bearings, and it is the same edit that takes the Grizzly's owner
+share **0.2434 -> 0.2149**, i.e. TOWARD §1.4 Rule 5's *"~19% for vehicles"* and
+away from our own high end. `cameo-legibility.js` moved the other way and partly
+undid the 2026-09-06 pass's four-pair slip: Directorate pairs under RA2's bar
+**376 -> 374**, DPR 2 **147 -> 146**, vehicle tab mean 79.8 -> 80.1, every
+minimum unchanged; the Collective sidebar is byte-identical.
+
+**Two ratchet numbers moved down and both are stated trades:**
+`hue.vehicleOwnerMean` **0.172 -> 0.1698** (floor 0.115 — the Grizzly's share
+moving to RA2's own vehicle median is worth 0.002 of a mean that is 48% above
+its floor) and `clause.checked` **54 -> 52** (the two struck/waived clauses,
+above).
+
+## Levers that did nothing, so nobody re-runs them
+
+* **Raising the Grizzly's turret cheek.** Confirmed inert *as measured*, and the
+  reason is that the thing being measured was not the cheek (§1 above). Once the
+  far panel is occluded the same lever works: `ty-1.6` + cap `ty-6.0` gives the
+  6 px cheek and the 4 px gap — at the cost of the mask, which is why it is not
+  shipped.
+* **Widening the Grizzly's flank panel across the beam** (1.7 -> 3.0 units).
+  The panel's screen height did not gain a row at the gated octant; the isoBox's
+  anchor is its near edge, so across width buys screen height on the wrong side
+  of it.
+* **Suppressing the contact shadow on the IFV and the Flak Track.** Zero change
+  to either bbox — the wheels and the tracks already reach the bottom row. The
+  "measure the figure, not the frame" route is not available for these two.
+* **The IFV's `RING` alone** (8.0 -> 11.0 / 14.0). Turret fraction 0.370 /
+  0.424, but the sprite grows with it, so the aspect falls to 0.981 / 0.898 —
+  strictly worse per point of turret than shrinking the body.

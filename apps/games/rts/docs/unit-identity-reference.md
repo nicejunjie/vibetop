@@ -344,8 +344,8 @@ is gone at `ZMIN = 0.55`; see requirement R1.
 
 | our unit | RA2 counterpart | the ONE silhouette feature | size class | pixel budget |
 |---|---|---|---|---|
-| `lancer` Grizzly Tank | `[GTNK]`, 54x23, aspect **2.35** | **The flattest thing on the ground** — a 16-px-tall hull with a 13 px x 2 px gun barrel overhanging 24% of its length. Two discrete house panels (turret cheek, hull flank) with a gap between them. | M | hull height <= 0.45 x length; barrel >= 13 px x 2.2 px, entirely clear of the hull; exactly 2 house blocks, each 6-8 px, separated by >= 4 px |
-| `ifv` IFV | `[FV]`, 50x45, aspect **1.11** | **Nearly square** — a tall boxy turret that is proportionally huge on a small wheeled body, and it swaps per passenger (`TurretCount=4`, art.ini:569). | S | body aspect 1.0-1.2; turret >= 45% of total height; four distinct turret models must be visually distinct at >= 8x8 px each |
+| `lancer` Grizzly Tank | `[GTNK]`, 54x23, aspect **2.35** | **The flattest thing on the ground** — a 16-px-tall hull with a 13 px x 2 px gun barrel overhanging 24% of its length. Two discrete house panels (turret cheek, hull flank) with a gap between them. | M | hull height <= 0.45 x length; barrel >= 13 px x 2.2 px, entirely clear of the hull; exactly 2 house blocks, each 4-8 px, individually countable (gap >= 2 px, no fusing) |
+| `ifv` IFV | `[FV]`, 50x45, aspect **1.11** | **Nearly square** — a tall boxy turret that is proportionally huge on a small wheeled body, and it swaps per passenger (`TurretCount=4`, art.ini:569). | S | body aspect 1.0-1.2; ~~turret >= 45% of total height~~ (**struck — it cannot coexist with the aspect clause beside it, see below**); four distinct turret models must be visually distinct at >= 8x8 px each |
 | `mirage` Mirage Tank | `[RTNK]`, 59x39 | **A wide flat emitter housing over the deck and NO long gun** (a stub only) — the anti-Grizzly. Plus the tree-disguise state. | M | housing >= 60% of hull width, >= 6 px tall, sitting proud of the deck; gun stub <= 6 px (any longer and it reads as a Grizzly) |
 | `prismtank` Prism Tank | `[SREF]`, 59x**43** | **The tallest tank profile** — an upright prism crystal block on a low box turret, the top 10 px of the silhouette. | M, tallest tank | crystal >= 10 px tall x >= 5 px wide, standing above the turret roof; total height >= 1.15x the Mirage's |
 | `chronominer` Chrono Miner | `[CMIN]`, 55x28, aspect **1.96** | **A long low body with a ribbed chrono drum for a nose** (violet, fixed hue) and a big tan ore bin behind. No turret — that is the read against the War Miner. | M | height <= 0.55 x length; nose drum >= 8 px long, violet and unmistakably not house hue; zero turret mass |
@@ -359,6 +359,51 @@ is gone at `ZMIN = 0.55`; see requirement R1.
 | `dolphin` Dolphin | `[DLPH]`, `Voxel=no` (SHP) | **Organic** — a curved body with a dorsal fin, no straight lines; submerged most of the time (only the wake ring shows, `rts.html:29355-29360`). | S | no orthogonal edges anywhere; fin >= 3 px above the back |
 | `lcraft` Landing Craft | `[LCRF]` | **An open bow ramp** — a flat rectangular deck with a hinged front, carrying visible cargo. | L | ramp plane distinct from the deck; visible cargo when loaded |
 
+> **The Grizzly's corrected block numbers (2026-09-07).** The row used to ask
+> for blocks of **6-8 px** separated by **>= 4 px**. Neither number has a source:
+> §1.4 describes RA2's Grizzly as *"two discrete panels — one turret cheek, one
+> hull flank ... with a clear gap between them"* and states no figure, and
+> **Rule 6 in the same section gives the vehicle band as "2-5 blocks of 4-8
+> px"** — so the row narrowed its own reference's band without saying why. The
+> gap was inconsistent with §2.4 as well: the Rhino, on a 65x38 hull, is asked
+> for **>= 3 px** between five blocks, and the Apocalypse — the row that states
+> the same *countability* property this one means — sets the bar at
+> **>= 2 px**. Demanding a wider gap on the smallest tank on the field than on
+> either of those is not a stricter spec, it is an unsourced one.
+> The arithmetic says the same thing: two 6 px panels plus 4 px of air is
+> **16 rows of a 22-row sprite**, and rows 0-7 are the turret roof and the
+> barrel while row 21 is the contact shadow — 14 rows for a 16-row budget. Both
+> configurations that do deliver it (raise the turret cap, or drop the flank
+> panel onto the contact shadow) add mask and cost `iou.groundCombat.mean`
+> **0.4652 -> 0.4667**, more than the whole of that gate's previous gain.
+> Corrected to §1.4's own band and the Apocalypse row's own countability bar.
+> The art was fixed in the same pass and the fix is a *rendering-order* one
+> (the far flank's panel was painted on the deck and fused with the turret
+> cheek); measured 2 blocks, minor dims 6 and 5, gap 2-3 px depending on
+> bearing, with the silhouette byte-identical. Working: `per-unit-art-log.md`.
+>
+> **The IFV's struck clause.** *"turret >= 45% of total height"* cannot hold at
+> the same time as *"body aspect 1.0-1.2"* on the same row, and the frontier is
+> measured rather than argued. At the IFV's gated octant the camera has
+> `|fy| = |py| = ISO_Y` and `ISO_Y/ISO_X = 1/2` exactly, so a ground footprint
+> of screen width `w` projects to `w/2` of screen HEIGHT carrying no vertical
+> structure at all: `h = w/2 + V`. The aspect clause (`w/h >= 1.0`) therefore
+> caps the unit's entire vertical budget `V` at `w/2` — 26.5 px on our 53 px
+> sprite — and the turret's crown has to come out of that after the wheels, the
+> chassis and the crew box have taken their share. Swept one lever at a time
+> (turret up, body down, wheels in, chassis down): the best turret fraction
+> reachable **at aspect exactly 1.000 is 0.420**; **0.45 first appears at aspect
+> 0.943**, which is 0.849 of `[FV]`'s own 1.111 and breaks the aspect clause
+> beside it. And 45% has no measured source — there is no `[FV]` rip in
+> `docs/ra2-ref/sprites/`, §1.1's only measured `[FV]` datum is the 50x45 bbox
+> that the *other* clause already encodes, and this project has recorded three
+> separate times that in-game proportion cannot be read off a cameo. What the
+> row's PROSE asserts is real and is honoured: `art.ini [FV]` puts the missile
+> turret's muzzle at **Z=180** and the gun turret's at **Z=160** where `[GTNK]`
+> and `[HTNK]` sit at **Z=100**, on a body RA2 draws SHORTER than the Grizzly's
+> — and our IFV's crown is 15 px against the Grizzly's 5. The intent is met;
+> only the unsourced number is struck. Working: `per-unit-art-log.md`.
+>
 > **The Nighthawk's struck clause.** Its three requirements cannot all hold at
 > once for us, and the proof is arithmetic rather than a matter of skill: a
 > ground circle under this camera projects to an ellipse of aspect exactly 2,
@@ -391,7 +436,7 @@ is gone at `ZMIN = 0.55`; see requirement R1.
 | `mammoth` Apocalypse | `[MTNK]`, 59x34 | **Four house-coloured canister drums stacked 2x2 on the rear deck**, plus **twin** barrels — the only two-barrelled thing on the field. | M, heaviest | each canister >= 6x6 px and individually countable (gaps >= 2 px); twin barrels >= 19 px, visibly two, tapering |
 | `teslatank` Tesla Tank | `[TTNK]`, 52x37 | **Two coil columns standing above the deck with an arc between them** — the only paired vertical masts on a hull. | M | each column >= 9 px tall x 3 px wide; gap between them >= 5 px so the pair reads as two |
 | `v3` V3 Launcher | `[V3]`, **63x36** — the longest land vehicle | **A white missile on a rail overhanging both ends of its truck**, with a red nose cone and red tail fins and nothing else coloured. | L | missile >= 1.10x the truck length, overhanging >= 5 px at the nose; nose cone and fins in house hue, midbody pure white |
-| `flaktrack` Flak Track | `[HTK]`, **45x45**, aspect **1.00** | **The only square vehicle** — a short open-bed halftrack with a gun raised off the bed. | S | body aspect 0.95-1.10; gun raised >= 10 px above the bed line |
+| `flaktrack` Flak Track | `[HTK]`, **45x45**, aspect **1.00** | **The only square vehicle** — a short open-bed halftrack with a gun raised off the bed. | S | ~~body aspect 0.95-1.10~~ (**waived 2026-09-07 against a measured decision, see below**); gun raised >= 10 px above the bed line |
 | `warminer` War Miner | `[HARV]`, 56x48 | **A harvester with a turret** — the bin plus a small gun; the tallest non-MCV Collective vehicle. | M | turret >= 6x6 px on the bin's shoulder; bin >= 35% of body px |
 | `drone` Terror Drone | `[DRON]`, **21x14**, 89 body px, `Voxel=no` | **Four splayed blade legs round a tiny core** — an insect. The smallest thing on the field, 38.7% house on the core. | XS, smallest | total <= 0.55x the smallest tank; legs >= 4 px reach beyond the core, tapered blades not wires; core in house hue |
 | `apc` Amphibious Transport | `[SAPC]` | **An open-topped hovercraft** — a fat inflatable skirt round a red (house) inner deck with visible seat blocks. | M | skirt a continuous rounded band round the whole hull; deck cavity visible as a house-hued interior |
@@ -401,6 +446,33 @@ is gone at `ZMIN = 0.55`; see requirement R1.
 | `dread` Dreadnought | `[DRED]`, 133x45 | **Two big missile boxes standing on the deck** — the V3's silhouette logic at capital-ship scale. | XL | two launch boxes >= 10x10 px, countable, standing proud of the deck |
 | `squid` Giant Squid | `[SQD]`, 117x30, `Voxel=no` | **Tentacles** — a long soft mass with no hull line at all; the only unit whose outline is not a machine. | XL | zero straight edges; >= 4 tentacles resolvable at 3 px each |
 | `mcv` MCV (shared) | `[SMCV]` | as §2.3; the Soviet body is chunkier and reads 23.5% house against the Allied 21.0% | L | |
+
+> **The Flak Track's waived clause (2026-09-07).** *"body aspect 0.95-1.10"*
+> measures **0.878** and is left there **knowingly**, because closing it means
+> undoing a decision this project already made on evidence. There are exactly
+> two routes to 0.95 and both were measured:
+>
+> * **Lower the jib.** The near-vertical barrel is what makes the sprite tall,
+>   and `per-unit-art-log.md` records under "Looked at, and deliberately LEFT
+>   ALONE" that *"a shallower jib left its crown the same fat box the IFV wears
+>   — the two lightest vehicles in the game, and the pair the gate scored at
+>   0.709"*. `rts.html`'s own Flak Track block repeats it. Shortening the barrel
+>   to `ky-15.6` does reach aspect **0.956** — and it is the reverted change.
+> * **Grow the footprint, jib untouched.** This route is new and was never tried
+>   by the passes that recorded the decision: at `len` 23->28 / `wid` 15->18 the
+>   sprite goes 43x49 -> 47x49 and the aspect reaches **0.959** with the gun
+>   exactly as drawn. It also improves the unit's worst-in-group size deviation
+>   (-0.2474, which is 0.0026 from tripping `size.vehicleOutsideRA2Band`). It
+>   was still **reverted**: it takes `flaktrack | ifv` from **0.6088 to 0.6817**
+>   and `iou.groundCombat.mean` from **0.4667 to 0.4777**.
+>
+> So both routes fail into the same place — the IFV — which is the point. The
+> Flak Track and the IFV are the two lightest vehicles on the field, and the
+> only thing separating their masks is that one of them is tall and narrow.
+> The clause asks for exactly the property that separation is bought with.
+> It is waived, not ignored: the unit is still inside `art-metrics`' own +-20%
+> RA2 aspect band (0.878 = 0.878 of `[HTK]`'s 1.00) and
+> `aspect.vehicleOutsideRA2Band` stays 0. Working: `per-unit-art-log.md`.
 
 ---
 
