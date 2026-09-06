@@ -258,12 +258,20 @@ exports.check = function (ctx) {
           + '`size.navalOutsideRA2Band` and `size.vehicleOutsideRA2Band` both normalise against '
           + 'their own group\'s median. `size.crossGroupSpread` exists to hold it and is '
           + 'ratcheted at 1.607. '
-          + 'CLOSING IT IS A WHOLE-ROSTER DECISION AND IS DELIBERATELY NOT TAKEN HERE: even the '
-          + `faithful ${R(want, 2)} needs a ${Math.round(want * W(big))} px destroyer, i.e. `
-          + `${R(want * W(big) / W('destroyer'), 3)}x on the fleet, which puts the Carrier at `
-          + `${Math.round(W('carrier') * want * W(big) / W('destroyer'))} px on a 150 px sheet — `
-          + 'and it spends the board\'s best-proportioned group (7 hulls, spread 1.06x, every '
-          + 'hull within 5% of its scale) to do it. Left UNMET on purpose. per-unit-art-log.md.',
+          + 'THE CEILING IS NOW MEASURED, NOT ARGUED (2026-09-06). Growing the fleet is off the '
+          + `table — it spends the board's best-proportioned group (7 hulls, spread 1.06x, every `
+          + 'hull within 5% of its scale) — so the only route left is shrinking the ground '
+          + `roster until the widest land vehicle fits: ${Math.floor(W('destroyer') / want)} px `
+          + `against today's ${W(big)}, i.e. the WHOLE vehicle group at x0.571. That was baked `
+          + 'and measured, and it does close this row (1.483) while breaking six gates at once: '
+          + '`size.crossGroupSpread` 1.607 -> 1.899 (the ground roster lands at 0.725 of RA2, '
+          + 'BELOW the fleet it was meant to catch, with infantry left at 1.417), '
+          + '`size.vehicleOutsideRA2Band` 0 -> 2, `spike.belowDeclaredBudget` 0 -> 4, '
+          + '`colour.vehicleAchromatic` 0 -> 4, `iou.groundCombat.mean` 0.4652 -> 0.4745, and '
+          + '`clause.unmet` 5 -> 9: the Rhino, Apocalypse, Tesla Tank, V3 and War Miner all lose '
+          + 'their own §2 pixel budgets because the sprites are too small to hold the detail. '
+          + 'ONE ROW CLOSES AND FIVE OPEN. Left UNMET on purpose, with the arithmetic rather '
+          + 'than an estimate. per-unit-art-log.md.',
     });
   }
 
