@@ -5,14 +5,18 @@
  * them. Two are measured by `EXAMPLE-infantry-gi.js` (the G.I.'s helmet value
  * and his olive legs); this file measures 20 of the other 21.
  *
- * The ONE it does not is the Guardian GI's "deployed dome >= 15w x 12h", and
- * the reason is that OUR Guardian GI DOES NOT DEPLOY. `UNITS.rocket` carries
- * no `dep` and no `deployRad`, the deploy command's own refusal reads "Only
- * GIs, Desolators and MCVs can deploy", and no atlas anywhere holds a deployed
- * Guardian frame. There is nothing to measure, in the rig or out of it. It is
- * recorded as unmeasurable with that reason in `docs/per-unit-art-log.md`
- * rather than forced into a check, because a forced check goes green once and
- * then nobody looks again.
+ * The twenty-first — the Guardian GI's "deployed dome >= 15w x 12h" — was
+ * recorded UNMEASURABLE on the grounds that our Guardian GI does not deploy,
+ * and that record was wrong. He does: `UNITS.rocket` carries `depFire: true`
+ * ([GGI] Deployer=yes, DeployFire=yes) and `stepUnit` braces him
+ * automatically whenever armour or aircraft come inside the missile's range,
+ * on both sides. The earlier pass looked for `dep`/`deployRad`, found neither,
+ * read the D command's "Only GIs, Desolators and MCVs can deploy", and stopped
+ * one field short. `drawUnit` keys the sandbag emplacement off `u.deployed`
+ * alone rather than off unit type, so the deployed frame was always on screen;
+ * what was missing was a BAKE of it. `art-metrics.js` composes one now
+ * (`pageExtract` -> `deployed`, handed over as `ctx.deployed`) and the clause
+ * is measured at the foot of this file. All 21 are measured.
  *
  * Three clauses here are SOURCE-CONSTANT checks, and each says so on its own
  * row: the Rocketeer's altitude and drop shadow, and the Desolator's radiation
@@ -597,6 +601,51 @@ exports.check = function (ctx) {
         'the row states NO NUMBER; 0.50 is this file\'s reading of "bare" — the skin fraction '
       + '(hue 12-42, s 0.20-0.55, v >= 0.40, round TROOP.yuri.skin and its shades) of the top '
       + '10% of the FIGURE, the crown a helmet shell would cover. A helmeted trooper reads ~0 there');
+  }
+
+  // ── Guardian GI — "deployed dome >= 15w x 12h" ─────────────────────────
+  //
+  // RECORDED UNMEASURABLE, AND THE RECORD WAS WRONG. The earlier pass looked
+  // for `dep`/`deployRad` on `UNITS.rocket`, found neither, read the deploy
+  // command's "Only GIs, Desolators and MCVs can deploy", and concluded our
+  // Guardian GI has no deployed state. He has one; it is just not reached by
+  // the D key. `UNITS.rocket` carries `depFire: true` — [GGI] Deployer=yes,
+  // DeployFire=yes — and `stepUnit` braces him AUTOMATICALLY on both sides
+  // (`depFireTarget` scans on the MISSILE's range and sets `u.deployed`),
+  // which is what rules.ini's own commented-out `DeployTime` note says RA2
+  // does ("autodeploy"). `drawUnit` then keys the sandbag emplacement off
+  // `u.deployed` ALONE, not off unit type: bags.back under him, the man
+  // dropped 9 px, bags.front over him. The frame exists and a player sees it
+  // every time a tank comes within 8 cells. What was missing was a BAKE of it,
+  // and art-metrics now composes one (`pageExtract`, `deployed`).
+  //
+  // MEASURED ON THE WORST OF THE EIGHT BEARINGS, not the kindest. Both
+  // readings of "dome" are reported because §2 does not say which it means —
+  // the emplacement alone, or the emplacement with the man in it — and the
+  // clause is only counted MET if BOTH clear the bar, so the ambiguity cannot
+  // decide the verdict.
+  {
+    const dep = (ctx.deployed || {}).rocket;
+    if (dep && dep.per && dep.per.length && dep.ring) {
+      let worst = null;
+      for (const q of dep.per)
+        if (!worst || Math.min(q.w, q.h) < Math.min(worst.w, worst.h)) worst = q;
+      const ring = dep.ring;
+      const ok = worst.w >= 15 && worst.h >= 12 && ring.w >= 15 && ring.h >= 12;
+      const fill = worst.w * worst.h ? worst.px / (worst.w * worst.h) : 0;
+      const stand = F.rocket ? `${F.rocket.w}x${F.rocket.h}` : '?';
+      add('rocket', 'deployed dome >= 15w x 12h', ok,
+          `${worst.w}x${worst.h}`, '>= 15w x 12h',
+          `the DEPLOYED composite as drawUnit stacks it — bags.back, the stand frame dropped `
+        + `${dep.dy} px, bags.front — on the tightest of 8 bearings; ${R(fill, 2)} of that box is `
+        + `opaque, so it is one mass and not a scatter. The emplacement ALONE measures `
+        + `${ring.w}x${ring.h}, which clears the same bar, so the reading of "dome" does not `
+        + `decide it. Aspect ${R(worst.w / worst.h, 2)} against the row's "a wide low dome, `
+        + `aspect ~0.8" and RA2's [GGI] 14x17 = 0.82; standing he is ${stand}, aspect `
+        + `${F.rocket ? R(F.rocket.w / F.rocket.h, 2) : '?'} — deploying widens him by `
+        + `${F.rocket ? R((worst.w / worst.h) / (F.rocket.w / F.rocket.h), 2) : '?'}x, which is `
+        + 'the read the row is after. He reaches this state via depFire autodeploy, not via D');
+    }
   }
 
   return rows;

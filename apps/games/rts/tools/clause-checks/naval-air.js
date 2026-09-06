@@ -3,9 +3,12 @@
  *
  * `docs/clause-inventory.md` lists nine naval rows and seven air rows whose
  * `gated` column is `—`: honoured by intention only. Fifteen are measured
- * here. The sixteenth (the Nighthawk's rotor span) was STRUCK from §2.3 with
- * an arithmetic proof and is deliberately not resurrected — see the note at
- * the foot of this file.
+ * against the art here. The sixteenth (the Nighthawk's rotor span) is STRUCK
+ * from §2.3, and it now carries a row of its own that checks THE STRIKE — the
+ * two premises of the arithmetic, read out of the source — rather than
+ * checking the airframe against a bar its own row makes unreachable. It is
+ * flagged `struck: true`, counted apart in `clause.struck`, and the whole
+ * argument is beside it at the foot of `exports.check`.
  *
  * ── CONVENTIONS, stated once, because the same clause measured two ways
  *    gives two answers (the trap EXAMPLE-infantry-gi.js exists to document).
@@ -31,6 +34,8 @@
  * `note` says so. Nine of these fifteen rows state none.
  */
 'use strict';
+const fs = require('fs');
+const path = require('path');
 
 const hsv = (r, g, b) => {
   r /= 255; g /= 255; b /= 255;
@@ -157,6 +162,20 @@ function barrelRun(f) {
   }
   return best;
 }
+
+/**
+ * The shipped source, for the one clause whose subject is not a sprite. The
+ * Nighthawk's struck rotor row is an argument about the CAMERA and about how
+ * the disc is projected, and neither is in any bake — reading the constants
+ * out of `rts.html` is the honest measurement rather than a proxy for one.
+ * Same pattern, and the same reason, as the three SOURCE-CONSTANT rows in
+ * `infantry.js`.
+ */
+const SRC = () => {
+  try { return fs.readFileSync(path.join(__dirname, '..', '..', 'rts.html'), 'utf8'); }
+  catch (e) { return ''; }
+};
+const num = (src, re, g) => { const m = src.match(re); return m ? Number(m[g]) : 0; };
 
 const rowExtents = (f) => {
   const e = [];
@@ -610,21 +629,67 @@ exports.check = function (ctx) {
     });
   }
 
+  // ── Nighthawk — "rotor span >= 1.25x fuselage length" [STRUCK] ─────────
+  //
+  // The sixteenth clause, and the only STRUCK one in §2. It is not measured
+  // against the ART, because the row makes its own bar unreachable; what is
+  // measured is THE STRIKE ITSELF, so the contradiction cannot quietly stop
+  // being true while a permanently excused clause sits in the reference.
+  //
+  // THE PROOF, in three steps a reader can check:
+  //
+  //   1. The camera. `rts.html` sets `TW = 64, TH = 32` — a 2:1 diamond — so
+  //      the screen-space projection of a circle lying in the ground plane is
+  //      an ellipse of aspect (TW/2)/(TH/2) = 2.00 exactly. Both numbers are
+  //      read out of the source below, not assumed.
+  //   2. The rotor IS such a circle. The bake draws the disc as
+  //      `rx = mrR * ISO_X * 1.4142, ry = mrR * ISO_Y * 1.4142`, and
+  //      `ISO_Y / ISO_X = (TH/2)/(TW/2)`, so ry/rx = 1/2: a rotor of screen
+  //      span S is exactly S/2 tall. Also read out of the source.
+  //   3. Therefore span >= 1.25L forces height >= 0.625L, which caps
+  //      length-over-height at 1/0.625 = 1.60 and width-over-height at
+  //      S/(S/2) = 2.00. The SAME §2 row calls this airframe "the flattest"
+  //      at [SHAD]'s 64x21 = 3.05. 1.60 < 3.05 and 2.00 < 3.05: the two
+  //      clauses on the row cannot both be satisfied, under either reading of
+  //      aspect.
+  //
+  // RA2 escapes the contradiction because its rotor is 1-2 px blade LINES,
+  // which add span without adding a filled disc. Ours is a blur disc on
+  // purpose — at alpha .09 the old one was ~1400 px three luminance points
+  // off the grass, invisible to a player and counted as body by every mask
+  // metric — and it is shipped knowingly at 0.84L. If either premise ever
+  // changes (a camera that is not 2:1, or a rotor no longer drawn in the
+  // ground plane) this row goes RED and the strike has to be re-argued.
+  {
+    const src = SRC();
+    const tw = num(src, /var TW = (\d+(?:\.\d+)?), TH = (\d+(?:\.\d+)?);/, 1);
+    const th = num(src, /var TW = (\d+(?:\.\d+)?), TH = (\d+(?:\.\d+)?);/, 2);
+    // the disc drawn in the ground plane, off the same two ISO scalars
+    const ground = /var rx = mrR \* ISO_X \* 1\.4142, ry = mrR \* ISO_Y \* 1\.4142;/.test(src)
+                && /var ISO_X = TW \/ 2 \/ Math\.hypot\(TW \/ 2, TH \/ 2\);/.test(src)
+                && /var ISO_Y = TH \/ 2 \/ Math\.hypot\(TW \/ 2, TH \/ 2\);/.test(src);
+    const iso = tw && th ? (tw / 2) / (th / 2) : 0;      // ground circle -> ellipse aspect
+    const SPAN = 1.25;                                    // the struck clause's own bar
+    const hOverL = SPAN / iso;                            // 0.625 L of height, minimum
+    const capL = hOverL ? 1 / hOverL : 0;                 // length / height ceiling  = 1.60
+    const capW = iso;                                     // width  / height ceiling  = 2.00
+    const rowAsp = (ctx.units.nighthawk || {}).ra2Aspect || 0;   // [SHAD] 64x21 = 3.05
+    const holds = !!(ground && iso > 0 && rowAsp > 0 && capL < rowAsp && capW < rowAsp);
+    rows.push({
+      unit: 'nighthawk', clause: 'rotor span >= 1.25x fuselage length', struck: true,
+      ok: holds, measured: R(capL, 2) + ' / ' + R(capW, 2), want: 'both below ' + R(rowAsp, 2),
+      note: 'STRUCK from §2.3 — the check is of the STRIKE, not of the art. The tile is '
+          + `${tw}x${th}, so a ground circle projects at aspect ${R(iso, 2)}; the rotor is drawn `
+          + `in that plane (ry/rx = ISO_Y/ISO_X, source-verified: ${ground}), so a span of S is `
+          + `S/${R(iso, 2)} tall. Span >= ${SPAN}L therefore forces height >= ${R(hOverL, 3)}L, `
+          + `capping length/height at ${R(capL, 2)} and width/height at ${R(capW, 2)} — against `
+          + `the ${R(rowAsp, 2)} the SAME ROW demands ([SHAD] 64x21, "the flattest airframe"). `
+          + 'The two clauses are mutually exclusive; the span one is struck through in '
+          + 'unit-identity-reference.md §2.3 and in docs/clause-inventory.md, and the disc ships '
+          + 'knowingly at 0.84L. This row goes red if the camera stops being 2:1 or the disc '
+          + 'stops being a ground-plane circle — i.e. if the contradiction ever dissolves.',
+    });
+  }
+
   return rows;
 };
-
-/**
- * THE ONE NOT MEASURED, and it is not an omission.
- *
- * §2.3 Nighthawk, "rotor span >= 1.25x fuselage length", is struck through in
- * both `unit-identity-reference.md` §2.3 and `docs/clause-inventory.md` with an
- * arithmetic proof: a ground circle under this camera projects to an ellipse of
- * aspect exactly 2, so a rotor of span >= 1.25L is >= 0.625L TALL and caps the
- * whole unit at aspect 1.6 — against the 3.05 the SAME ROW demands. RA2 escapes
- * it by drawing 1-2 px blade lines; we draw a blur disc on purpose (at alpha
- * .09 the old one was ~1400 px three luminance points off the grass, invisible
- * to a player and counted as body by every mask metric). Shipped knowingly at
- * 0.84L. Writing a check for it would either fail a unit for missing a bar its
- * own row makes unreachable, or invent a softer bar and call the contradiction
- * resolved. Recorded, as the Chrono Legionnaire's rifle was.
- */

@@ -373,6 +373,16 @@ is gone at `ZMIN = 0.55`; see requirement R1.
 > back. Shipped 2026-09-05 at aspect 2.606 (0.86 of RA2), fuselage height
 > 24/79 = 0.30, rotor span 0.84L. Full working: `per-unit-art-log.md`.
 >
+> **The strike is CHECKED, not merely asserted** (2026-09-06). Struck is not the
+> same as skipped: `tools/clause-checks/naval-air.js` carries a row for this
+> clause that verifies the two premises above out of the source — the tile is
+> 2:1 (`TW = 64, TH = 32`) and the rotor is drawn in the ground plane
+> (`ry = mrR * ISO_Y * 1.4142` against `rx = mrR * ISO_X * 1.4142`) — and it
+> goes RED if either stops being true, at which point the strike has to be
+> re-argued rather than inherited. It counts in `clause.checked` and separately
+> in `clause.struck`, whose target is `<= 1` and points DOWN, so striking a
+> clause can never be a way to move the coverage number.
+>
 > **Its SIZE is a separate clause and it has its own ceiling.** RA2 draws
 > [ORCA] at 1.11x [SHAD]; ours drew the Nighthawk at 1.65x the Harrier,
 > because aspect is scale-invariant and nothing measured it until
