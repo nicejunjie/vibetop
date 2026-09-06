@@ -412,8 +412,27 @@ const TARGETS = {
   // So this debt is a property of a MASK-ONLY comparison of a correctly
   // proportioned fleet, not unfinished art. Do not "close" it by making ships
   // rounder: that is exactly the tugboat error the aspect gate exists to catch.
+  //
+  // AND IT IS NOW A PROOF, NOT A CORRELATION (2026-09-06). Elongation is the
+  // correlate; the CAUSE is how much a unit's silhouette SWINGS as it turns,
+  // and elongated things swing most. `tools/peer-vs-self-control.js` runs the
+  // arithmetic below on filled RECTANGLES, which cannot carry an art defect:
+  // eight at the V3's own measured aspects, against eight identical ones at
+  // their mean, give a margin of -0.0786 against the V3's measured -0.0787.
+  // The whole of that unit's failure is reproduced with no missile, no truck
+  // and no pixels. The control's sweep flips sign at a swing of 1.0, so the
+  // only silhouette this row cannot fault is one that does not change as the
+  // unit turns — the opposite of what it is for.
+  //
+  // The 2026-09-05 repair argued the aspect term "appears on both and
+  // cancels". What cancels is a CONSTANT aspect; what survives is a CHANGING
+  // one, because `self` is the mean dissimilarity WITHIN a unit's cloud of
+  // eight silhouettes while `peer` is the mean from that cloud to another
+  // unit's, and a compact peer near the cloud's centre beats the cloud's own
+  // spread. That is a property of means. Repairing it moves all six rows at
+  // once and wants its own pass; until then, do not spend art against it.
   'peerVsSelf.total':            { want: 0,    dir: 'down', note: 'reference §1.2/§0 bar: no unit beaten by a peer. SEE THE NOTE ABOVE — the residue is elongation, not art' },
-  'peerVsSelf.vehicle':          { want: 0,    dir: 'down', note: 'audit §2: 11 of 13 today' },
+  'peerVsSelf.vehicle':          { want: 0,    dir: 'down', note: 'audit §2: 11 of 13 today. The one flagged is the V3, the only vehicle whose silhouette is a long member held at an angle ABOVE the hull, so it swings from an 80x55 diagonal to a 39x70 near-vertical to a 39x45 box across the eight bearings — aspect swing 2.61, second only to the Grizzly and the largest that has peers its own size. MEASURED, one lever at a time: dropping the rail rise to ZERO (the missile flat on the bed) leaves it beaten by 2, lengthening the truck 22 -> 28 makes it 5, narrowing the beam 19 -> 15 makes it 5, and DELETING THE MISSILE ENTIRELY still leaves it beaten by 2 while opening aspect.vehicleOutsideRA2Band and clause.vehicleUnmet. There is no V3 that passes this row. See the block note above and tools/peer-vs-self-control.js' },
   'peerVsSelf.infantry':         { want: 0,    dir: 'down', note: 'audit §2: 11 of 14 today' },
   'peerVsSelf.naval':            { want: 0,    dir: 'down', note: 'audit §2: 8 of 10 today' },
   'peerVsSelf.air':              { want: 0,    dir: 'down', note: 'audit §2: 0 of 4 — the control that says this is real' },
