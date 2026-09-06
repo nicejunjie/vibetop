@@ -3335,3 +3335,58 @@ A cameo-only change must leave every sprite metric byte-identical — assert it.
 was a broken build: 24 of 40 bakes threw and the tells were in plain sight —
 "16 cameos" in the header and a PAGE ERRORS block. A spectacular result must
 prove the build still runs before it is believed.
+
+## The rank-based attempt — measured and rejected (2026-09-06)
+
+Built exactly as designed above: a `cameoRankTable()` precomputed once over
+`UNITS`/`BLDS` grouped by `scat`, caching each key's rank spread evenly over
+`[0,1]`; `hv` in `cameoFor` reads this table instead of hashing (`hh`, which
+drives hue, stayed hash-driven — only `hv`/value changed). Sprite metrics
+(`art-metrics.js`) came back byte-identical, as expected for a cameo-only
+change. `cameo-legibility.js` did not:
+
+| | UNDER (of 780) | min | 5th pct | greyed UNDER (of 780, bar 45.1) |
+|---|---|---|---|---|
+| Directorate, hash (today) | **344** | **61.1** | 70.4 | 2 |
+| Directorate, rank | 397 | 55.0 | 69.9 | 6 |
+| Collective, hash (today) | 459 | 52.3 | 65.4 | 15 |
+| Collective, rank | 471 | 52.3 | 64.9 | 15 |
+
+Both directions are wrong: UNDER rose instead of falling, and the minimum
+dropped below the 61.1 floor (DPR2 told the same story: Directorate
+131 -> 155 under, Collective 215 -> 220). Reverted; `rts.html` is back to
+`HEAD` byte-for-byte.
+
+**Root cause: the contrast escape hatch is not rank-aware, and it fires on
+most keys, in both schemes.** The hatch
+(`if (Math.abs(lit - subL) < 20) lit = subL±26`) was clocked as "never fires"
+above — true only for the `GI | Spy` pair specifically. Instrumented across
+every key it fires very often under **both** `hv` sources (hash baseline:
+veh 10/13, inf 6/14, air 2/4, sea 9/10, bld 30/33; rank: veh 12/13, inf 10/14,
+air 2/4, sea 7/10, bld 31/33) — comparable rates, so rank does not make the
+hatch fire dramatically more. What rank changes is *which* keys get pulled
+into it and to what value, and the hatch's output is `subL±26`: a pure
+function of the sprite's own sampled luminance, with `hv` (hash or rank)
+having **zero influence on the final value once it fires**. So spreading `hv`
+evenly no longer buys separation for any key whose litPre lands within 20 of
+its own `subL` — which, at the infantry category's band width (l0=20, l1=74)
+against sprites whose `subL` mostly sits in a narrow 18-59 range, is most of
+them. Concretely: rank put `rifle` (GI) and `spy` at the two *opposite ends*
+of the infantry rank (`hv` 0.000 and 1.000) — maximum possible separation by
+construction — yet `rifle` still hatch-fires (litPre 20.0 is within 20 of its
+subL 32.0) and lands at 58.0, while `tanya` (`hv` 0.538, subL 46.1) also
+hatch-fires and lands at 72.1, next to `spy`'s un-hatched 74.0: a new
+`spy | tanya` collision replaces the old `GI | Spy` one. Rank fixes the hash's
+clustering exactly where the hatch stays silent; it cannot fix anything the
+hatch overrides, because the hatch's own output doesn't look at rank either.
+
+**Falsifies the design's premise, not just its numbers.** "A rank cannot
+cluster by construction" is true of `hv` in isolation, but `hv` is not what
+determines a plate's final value for most keys — `subL±26` is, whenever the
+hatch fires, and `subL` is a fixed property of the sprite untouched by this
+change. Any next attempt has to make the hatch itself rank-aware (e.g. spread
+the *post-hatch* value, not just the pre-hatch `litPre`) rather than changing
+what feeds a mechanism the hatch can override wholesale. Two analyses now:
+the fixed-push and the rank attempt each fixed a different half of the same
+plate-value pipeline while leaving the other half a pure function of subject
+luminance.
