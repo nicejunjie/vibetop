@@ -216,7 +216,16 @@ const RA2_BLD = {
   'base:col':        { sec: 'NACNST', foot: '4x4', w: 204, h: 153, ht: 6,  src: 'sprites/buildings/soviet-construction-yard.gif frame 0 (blue key)' },
   'power:dir':       { sec: 'GAPOWR', foot: '2x2', w: 86,  h: 93,  ht: 4,  src: 'RA2 Power Plant.png, 244 colours, tight crop' },
   'refinery:dir':    { sec: 'GAREFN', foot: '4x3', w: 169, h: 132, ht: 4,  src: 'RA2 Ore Refinery.gif, 234 colours' },
-  'barracks:col':    { sec: 'NAHAND', foot: '2x2', w: 117, h: 205, ht: 9,  src: 'Soviet Barracks RA2.png — the statue IS the building, and RA2 draws it 3.42 footprint-heights tall' },
+  // MEASURED BY EYE, at 4x, because this is the one file in the corpus that
+  // defeats segmentation: `soviet-barracks.png` is a SCENE, and the statue's
+  // steel sits at the same VALUE as the road it stands on, so a tolerance
+  // sweep collapses to a 16x14 blob at every threshold. The row previously
+  // carried 117x205 — the whole IMAGE FILE, road included — which flattered
+  // our own barracks into an acquittal it had not earned.
+  // The building spans x 11-97, y 8-172: rifle tip to the base plate's south
+  // vertex, with ~33 rows of paved apron below it that are terrain, not
+  // structure.
+  'barracks:col':    { sec: 'NAHAND', foot: '2x2', w: 86, h: 165, ht: 9,  src: 'soviet-barracks.png measured by eye at 4x (x 11-97, y 8-172); the file is a scene and its lower ~33 rows are road. The statue IS the building' },
   'factory:dir':     { sec: 'GAWEAP', foot: '5x3', w: 207, h: 155, ht: 4,  src: 'RA2 Allied War Factory.gif, 224 colours (h includes the flag the auto-bbox cut)' },
   'radar:col':       { sec: 'NARADR', foot: '2x2', w: 103, h: 136, ht: 6,  src: 'RA2 Radar Tower.png, tight crop' },
   'depot:col':       { sec: 'NADEPT', foot: '4x3', w: 161, h: 146, ht: 6,  src: 'RA2 Soviet Service Depot.gif' },
