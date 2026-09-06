@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_255 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_256 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
 - [Scheduled terminal messages ("resume when the token limit resets")](#scheduled-terminal-messages-resume-when-the-token-limit-resets)
@@ -278,6 +278,7 @@ _255 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [Two more structure clauses measure the wrong object — and RA2's own sprite fails one of them](#two-more-structure-clauses-measure-the-wrong-object-and-ra2s-own-sprite-fails-one-of-them)
 - [The Allied Power Plant's fused crowns: an ink budget, not a spacing accident (2026-09-06)](#the-allied-power-plants-fused-crowns-an-ink-budget-not-a-spacing-accident-2026-09-06)
 - [`peerVsSelf` measures how much a silhouette SWINGS, not whether it is confusable (2026-09-06)](#peervsself-measures-how-much-a-silhouette-swings-not-whether-it-is-confusable-2026-09-06)
+- [The end of the terminal tab strip was a 60px sliver (v1.19.313)](#the-end-of-the-terminal-tab-strip-was-a-60px-sliver-v119313)
 
 <!-- END TOC -->
 
@@ -10737,3 +10738,55 @@ more confusable, which is the opposite of what it is named for.
 `peerVsSelf.naval` (5 rows) and `.vehicle` (1) together: a six-row change to a
 ratcheted gate, out of scope for a pass assigned one unit, and it wants its own
 before/after on the whole roster.
+
+## The end of the terminal tab strip was a 60px sliver (v1.19.313)
+
+**Symptom.** "cant move terminal tab to the end." A tab could be dragged
+anywhere in the middle of the strip and dropped fine; dragged *past* the last
+tab — the obvious way to say "put this last" — it snapped back.
+
+**Cause.** Both `dragover` and `drop` opened with
+`var target = e.target.closest('.tab'); if (!target …) return;`. But `.tabs` is
+`flex: 1 1 auto`, so with six tabs on a 1280px window the strip is 1217px wide
+and the tabs end at x≈816: past them lie the `+` button and ~360px of empty
+runway, all of which hit-test to `.tabs` itself, never to a `.tab`. The only
+drop point that reached the end was the last tab's **right half** — 60px out of
+1217. Measured on the shipped build:
+
+```
+drop on last tab's right half  -> [3,8,7,6,5,1]   MOVED
+drop on the + button           -> [1,3,8,7,6,5]   no change
+drop in empty space after tabs -> [1,3,8,7,6,5]   no change
+```
+
+Nothing was broken in the sense of throwing; the handler simply declined, and
+declining looks exactly like "this app does not let you do that".
+
+**Fix.** Resolve the drop by **geometry rather than by hit-testing**: `dropRef(x)`
+sweeps the tabs' midpoints and returns the element to insert *before*, with the
+`+` button standing for the end. Every pixel of the strip now lands somewhere,
+and the same answer drives the caret — `markDrop()` paints `drag-over-left` on
+the returned tab, or `drag-over-right` on the last tab when the answer is "the
+end". A ref equal to the dragged tab or to its own `nextSibling` paints nothing,
+so the caret never promises a reorder that would change nothing.
+
+`dragover` still calls `preventDefault()` **unconditionally**, before the
+`dragTab` guard: that call is also what keeps a stray file dragged onto the strip
+from navigating the page away from the terminals.
+
+**Regression test.** `tests/e2e/tests/terminal-tabs.spec.js` aims at the runway
+and at `+` on purpose — an implementation that goes back to reading `e.target`
+passes a midpoint-of-the-last-tab test and fails these. Proved against the
+unfixed build (the deployed page with only the drag block rolled back): the two
+end-of-strip tests fail, and the two controls — a middle insert, and a no-op drag
+of the tab that is already last — pass on **both** builds, so neither is a
+tautology made true by the fix.
+
+**Rejected — making only the `+` button a drop target.** It fixes the narrow
+report and leaves the 360px of runway beside it inert, which is the larger half
+of the same gesture.
+
+**Rejected — a spacer element filling the runway.** It would make `e.target`
+resolve, but only by adding a DOM node whose sole job is to be hit-tested; the
+midpoint sweep needs no element and also handles the overflow-scrolled strip,
+where there is no runway at all.
