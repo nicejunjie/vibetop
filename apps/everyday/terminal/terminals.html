@@ -298,7 +298,7 @@
     </div>
     <div class="sp-when" id="sp-row-every" hidden>
       <label class="sp-lab" for="sp-every">every</label>
-      <select id="sp-every" aria-label="How often to repeat"><option value="60">1 min</option><option value="120">2 min</option><option value="300">5 min</option><option value="600">10 min</option><option value="900">15 min</option><option value="1800">30 min</option><option value="2700">45 min</option><option value="3600">1 hour</option><option value="7200">2 hours</option><option value="10800">3 hours</option><option value="14400">4 hours</option><option value="18000" selected>5 hours</option><option value="21600">6 hours</option><option value="28800">8 hours</option><option value="43200">12 hours</option><option value="86400">1 day</option></select>
+      <select id="sp-every" aria-label="How often to repeat"><option value="60">1 min</option><option value="120">2 min</option><option value="300">5 min</option><option value="600">10 min</option><option value="900">15 min</option><option value="1800">30 min</option><option value="2700">45 min</option><option value="3600" selected>1 hour</option><option value="7200">2 hours</option><option value="10800">3 hours</option><option value="14400">4 hours</option><option value="18000">5 hours</option><option value="21600">6 hours</option><option value="28800">8 hours</option><option value="43200">12 hours</option><option value="86400">1 day</option></select>
     </div>
     <div class="sp-when" id="sp-row-until" hidden>
       <label class="sp-lab" for="sp-until">until</label>
@@ -583,7 +583,7 @@
   var spEveryRow = document.getElementById('sp-row-every');
   var spEvery = document.getElementById('sp-every');
   var spLab = document.getElementById('sp-lab');
-  var LOOP_DEFAULT_EVERY = '18000';            // 5h — the token-limit case
+  var LOOP_DEFAULT_EVERY = '3600';             // 1h
   var spAtRow = document.getElementById('sp-row-at');
   var spUntilRow = document.getElementById('sp-row-until');
   var spUntil = document.getElementById('sp-until');
