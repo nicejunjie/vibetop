@@ -3657,3 +3657,36 @@ into one "enclosing drum" component.
 **The general lesson:** a branch cut before a fix will silently revert it. Any
 resumed WIP here must be rebased onto main and re-diffed against it, not merged
 on the strength of looking complete.
+
+### A cause-diagnosis pass that must NOT be trusted (2026-09-06)
+
+A pass was asked to label each of the 35 failing structure clauses FUSION or
+MISSING GEOMETRY, so the repair passes would not each re-derive it. It reported
+100% coverage and a striking split: **1 fusion, 33 missing geometry, 1
+uncertain** — which would refute the standing hypothesis that fusion is the
+leading cause.
+
+**Spot-checking falsified it on the first case tried.** It labelled the Refinery
+"stacks (1 of 2) — MISSING". The source draws two:
+
+    var tsx = cx + 7, ssx = cx + 42;      // stack centres   (rts.html:14760)
+
+The parts exist. The check reads one because they FUSE — which is exactly what
+`rts-prod-econ-clauses` independently concluded after an hour on that building,
+and why its fix spreads the two stacks rather than adding one.
+
+So the split is unsafe to act on. Two passes reached opposite verdicts on the
+same building, and the one that spent an hour measuring is the one whose source
+citation holds up. Do not take the 33 at face value; **re-diagnose each clause
+against the drawing code before fixing it.**
+
+Cheap tell for the next reader: it made 32 tool calls to cover 35 clauses.
+That is about one call per clause, which cannot include reading a building's
+draw code, running the check and comparing. Coverage was claimed at 100% and
+the depth per case is what actually failed.
+
+The one verdict that does look sound, because it is specific and matches the
+signature: **`power:dir` — all three towers are drawn and blend into one blob**,
+measured at 0.527 Sw against 3 x 0.18. That is fusion, and the fix shape is a
+drawn seam or a paint-order change, as the Apocalypse and the Grizzly both
+needed.
