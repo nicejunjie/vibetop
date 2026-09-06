@@ -3497,3 +3497,23 @@ Two blockers to know before anyone retries:
 2. The Barracks trio's real separator is blocked by the house-scale ceiling.
    Revisit only alongside a deliberate decision to spend some of that budget,
    with `RA2_BLD`'s `[NAHAND]` bbox correction applied and remeasured.
+
+## A reference plate that LOOKS mis-keyed and is not (2026-09-06)
+
+A read-only review flagged, at low confidence, that `cmp-destroyer.png`'s RA2
+panel shows a tilt-rotor aircraft over water captioned "DESTROYER" rather than
+a ship broadside, and suggested the corpus might be mis-keyed. Checked: **it is
+authentic.** RA2's own `[DEST]` cameo leads with the Osprey the Destroyer
+carries, not with the hull.
+
+And ours has it. The Osprey is modelled — `d.asw` gates it, and it is the only
+thing in the fleet that can engage a submerged unit — and §2.3's row names the
+silhouette feature as "a forward gun turret and an aft HELIPAD (its Osprey)",
+which is what the sprite draws. Nothing to fix on either side.
+
+Recorded because it will look wrong again to the next reader, and because the
+instinct that raised it is the right one: a wrong reference silently anchors
+every future decision, which is exactly how `[MTNK]`'s bad row hid a real
+defect and how `barracks:col` measured a road. **Check the plate, then check
+whether the feature it leads with is one we actually model** — here the answer
+was yes on both counts.
