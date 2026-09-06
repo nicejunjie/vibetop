@@ -18,6 +18,14 @@ map — measured, nine pixels of a Grizzly fall outside a Rhino. Evidence in
 asymmetric (vehicles need colour PLACEMENT, infantry need twice the colour AREA),
 and §2 is a gate that voids the rest until it is settled.
 
+**Before spending a pass on anything `art-metrics.js` prints as debt, read
+`debt-ledger.md`.** It classifies every remaining debt row as CEILING
+(investigated, proven unreachable — do not re-open without NEW evidence),
+BROKEN-CHECK (the art is right and the clause measures the wrong object — fix
+the checker, never the sprite) or OPEN (real work, with the next step stated),
+each with a citation. Today: 8 ceilings, 7 broken checks, 7 open — and all
+seven open items are structures.
+
 Companion documents: `docs/ra2-art-plan.md` (how the art was rebuilt; the
 verification harness), `docs/design-decisions.md` (why odd things are the
 way they are — colour policy, proportions, dock face, overlays).
