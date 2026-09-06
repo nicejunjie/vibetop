@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_253 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_254 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
 - [Scheduled terminal messages ("resume when the token limit resets")](#scheduled-terminal-messages-resume-when-the-token-limit-resets)
@@ -276,6 +276,7 @@ _253 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [bodyRun's 55%-of-max cutoff invents a "crown" part on smooth silhouettes](#bodyruns-55-of-max-cutoff-invents-a-crown-part-on-smooth-silhouettes)
 - [The fix for bodyRun's phantom crown: the 55% cut proposes, monotonicity vetoes (2026-09-06)](#the-fix-for-bodyruns-phantom-crown-the-55-cut-proposes-monotonicity-vetoes-2026-09-06)
 - [Two more structure clauses measure the wrong object — and RA2's own sprite fails one of them](#two-more-structure-clauses-measure-the-wrong-object-and-ra2s-own-sprite-fails-one-of-them)
+- [The Allied Power Plant's fused crowns: an ink budget, not a spacing accident (2026-09-06)](#the-allied-power-plants-fused-crowns-an-ink-budget-not-a-spacing-accident-2026-09-06)
 
 <!-- END TOC -->
 
@@ -10609,3 +10610,77 @@ already rejected once, recorded here so it is not tried a third time. Also
 rejected: reshaping the prism's column so the flare below the midline dips
 under 0.25 `Sw` — it would distort a sprite whose real waist is already
 0.145 `Sw` to satisfy a scan aimed at the wrong rows.
+
+## The Allied Power Plant's fused crowns: an ink budget, not a spacing accident (2026-09-06)
+
+**Symptom.** `power:dir`'s §2.6 row *"exactly 3 towers, each 0.18–0.22 `Sw`"*
+read **1 crown blob at 0.527 `Sw`** — all three capacitor towers welded into one
+mass — and had survived two passes. The obvious fixes had all been tried and
+rejected: overlapping caps (not the cause), a dish/coil column between the
+towers (not the cause), and a post-hoc `destination-out` seam that reached 31
+unmet but pushed the Power Plant cameo to 80.97–81.50 against Spy's 81.7 bar.
+
+**Cause — two facts, both forced by how the roofline is defined.** `bodyRun`
+puts the roofline at the first row carrying 55% of the widest row's INK, and the
+widest row here is the ground pad, so *the entire crown band has `0.55 Sw` = 72 px
+of ink to spend across three towers*. Everything follows:
+
+1. **Only ONE tower's drum can sit above the roofline.** Two drums plus one
+   column is already 72 px, so the row where the *second* drum appears IS the
+   roofline. The front pair stand at the same height, so their drums enter
+   together and land below it; the back tower stands 22 px higher up-screen, so
+   its drum is always above it.
+2. **That one drum is therefore the widest thing in the crown and must fit
+   `0.22 Sw` = 28.8 px.** At `r*1.82` it is 33 px — which is also exactly why it
+   fused: 16.4 px of drum half-width against 23.7 px of centre-to-centre
+   spacing, so it grew into both neighbouring columns.
+
+`r*1.82` is thus **arithmetically impossible at any spacing and any column
+width**, which is the part that is not obvious and the reason "separate them
+with distance, not less material" cannot work here. Measured, not argued:
+
+| attempt | crown blobs, widths `Sw` | roofline `Sh` |
+|---|---|---|
+| merge base (`bc5edfb`) | 1 @ 0.527 | 0.504 |
+| **distance only** (drum `r*1.82`, cap `r*1.04`), spacing 28→40 px | 3 @ 0.229 / **0.160 / 0.160** | **0.299** |
+| **wider columns** `r`=11/12/13 at drum `r*1.82`, spacing 32→40 px | 3 @ 0.198 / 0.176 / 0.168 … 0.229 / 0.153 / 0.115 | **0.180–0.197** |
+| landed: drum `r*1.50`, cap `r*1.28`, spacing 0.386/0.426 `fw` | 3 @ 0.214 / 0.191 / 0.191 | 0.488 |
+
+Distance alone gives *identical* numbers at every distance from 28 to 40 px —
+two towers stuck under the 0.18 floor, one over the 0.22 ceiling. Widening the
+columns collapses the roofline instead: three fat columns spend the 72 px of ink
+at the very top of the front towers, so `lo` jumps to row 23–25 and clearance
+falls to 0.18–0.20 against the 0.45 floor.
+
+**Fix.** Slim columns (`r`=9, unchanged, 0.137 `Sw` against RA2's 0.135) so three
+of them fit under the ink cut over the whole band; the required 0.18 `Sw` put
+into the **cap**, which exists in only ~8 rows per tower (`r*1.04` → `r*1.28`);
+the drum narrowed to `r*1.50` = 27 px, the widest that fits `0.22 Sw`; spacing
+0.35/0.37 → 0.386/0.426 `fw`. The basin, its halo, the lamp haloes and the rod
+plates are then sized to sit *inside* the back drum's silhouette so they cannot
+re-widen that blob. Sprite bbox unchanged at 131x127, so no size metric moves;
+cameo legibility byte-identical (233 Directorate / 252 Collective UNDER, both sides).
+
+**The proportions moved TOWARD the rip, not away.** Measured on a chroma-keyed
+`docs/ra2-ref/allied-power-plant.png` (85 px bbox) against ours (131 px):
+
+| | RA2 | merge base | landed |
+|---|---|---|---|
+| column | 0.135 `Sw` | 0.137 | 0.137 |
+| cap | 0.165 | 0.143 | **0.176** |
+| tower base mass (drum+plinth) | 0.276 | 0.315 | **0.260** |
+
+The cap was 0.022 off and is now 0.011; the base mass was 0.039 off and is now
+0.016. The drum-alone radius is the one number that moves away from the rip, and
+it is the one the ink budget fixes.
+
+**Worth knowing before re-litigating this row: RA2's own `[GAPOWR]` fails it.**
+Chroma-keyed, its crown is **TWO** blobs at 0.395 / 0.163 `Sw` over a 0.419 `Sh`
+roofline — its copper basin welds its middle and right towers exactly the way our
+drum used to weld all three. §2.6's "16–18 px on 86" was measured by eye on the
+columns, not by `bodyRun` + connected components. So the clause's ink arithmetic,
+not the rip, is what sets our drum at `r*1.50` and our cap at `r*1.28`; that is a
+deliberate, measured departure from the reference in the service of the clause,
+and it is the *silhouette read* §2.6 actually names — "three separate capped
+towers round a glowing copper basin" — that the change delivers and the merge
+base did not.
