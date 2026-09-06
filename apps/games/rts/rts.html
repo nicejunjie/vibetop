@@ -17356,11 +17356,21 @@
         g.strokeStyle = DEP_COND; g.lineWidth = 3.4; depOct(dpx, dpy - 1.4, dpr, dpb); g.stroke();
         g.strokeStyle = DEP_CONL; g.lineWidth = 1.3; depOct(dpx, dpy - 3, dpr, dpb); g.stroke();
         g.lineJoin = 'miter';
+        // Lamp centres sit at dpy - 1.6, not dpy - 3.4. At -3.4 the two lamps
+        // on the octagon's rear chamfer corners stood exactly ONE ROW above the
+        // pad's own topmost row, and since `bodyRun`'s roofline lands on the
+        // deck of a pad-dominated sprite like this one, each 4-px cap was
+        // counted by structures.js as its own "crane/gantry group": 3 blobs of
+        // 1988 / 4 / 4 px against a clause wanting 1. RA2's own [NADEPT] passes
+        // that row at exactly 1 when the shipped math is run over it, so unlike
+        // the pad row beneath it this one is a REAL finding, and the ablation
+        // named the lamps rather than the clamps (moving the clamps changed
+        // nothing). Same shape as the earlier clamp/drum fix in 1104ed1.
         for (var dpLI = 0; dpLI < 8; dpLI++) {
           var dpLa = dpLI / 8 * 6.2832 + 0.3927, dpOn = (dpLI + ph6) % 4 === 0;
           g.fillStyle = dpOn ? '#fff4c0' : 'rgba(74,46,8,.72)';
           g.beginPath();
-          g.ellipse(dpx + Math.cos(dpLa) * dpr, dpy - 3.4 + Math.sin(dpLa) * dpb,
+          g.ellipse(dpx + Math.cos(dpLa) * dpr, dpy - 1.6 + Math.sin(dpLa) * dpb,
                     dpOn ? 2.4 : 1.7, dpOn ? 1.8 : 1.3, 0, 0, 6.29);
           g.fill();
         }
