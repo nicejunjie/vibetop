@@ -179,12 +179,12 @@
     "size.bldOutsideRA2Band": {
       "want": 0,
       "dir": "down",
-      "note": "structures more than +-20% off the BUILDING house scale, measured as sprite-height-over-footprint-diamond against RA2's own sprite for that same structure (see RA2_BLD). 15 of the 43 buildable structures carry a real RA2 measurement; the rest are unreferenced and therefore ungated, which is debt this metric makes VISIBLE (detail.bldSummary.covered) rather than hides. THREE were outside on the day it was added and two were fixed in the same pass: the Tesla Coil at 1.61x RA2 (139 px on a 1x1 -> 103) and the Soviet Battle Lab at 1.55 (278 -> 202, VPOW lab 1 -> 0, which also took the Allied lab 306 -> 245). The one left is the ALLIED POWER PLANT at 1.40 against a house scale of 1.15, and it is left on purpose: its ground pad is drawn with a private `octa()` rather than with `plot()`, so the vertical-scale lever that fixed the other two would squash the pad off its own cells instead of leaving it there. It needs the per-element treatment the Tesla Coil got. NOTE WHAT THIS METRIC ACQUITS — the Allied Battle Lab was the tallest sprite in the game at 306 px on a 3x2 plot, 3.83 footprint-heights, and the raw ratio reads like a 3.8x blunder. RA2's own [GATECH] is 2.84 footprint-heights and art.ini gives it Height=12, three times the Construction Yard's: the real error was 11%, not 3.8x. The Soviet Barracks is the same story and was not touched at all — 3.84 footprint-heights, because RA2 draws [NAHAND] as a statue and measures 3.42"
+      "note": "structures more than +-20% off the BUILDING house scale, measured as sprite-height-over-footprint-diamond against RA2's own sprite for that same structure (see RA2_BLD). 15 of the 43 buildable structures carry a real RA2 measurement; the rest are unreferenced and therefore ungated, which is debt this metric makes VISIBLE (detail.bldSummary.covered) rather than hides. THREE were outside on the day it was added and two were fixed in the same pass: the Tesla Coil at 1.61x RA2 (139 px on a 1x1 -> 103) and the Soviet Battle Lab at 1.55 (278 -> 202, VPOW lab 1 -> 0, which also took the Allied lab 306 -> 245). The third was the ALLIED POWER PLANT at 1.40, closed 2026-09-06 (139 -> 127 px, dev 0.2202 -> 0.1149) and NOT by the lever the previous note nominated. That note said the vertical-scale lever was blocked because the plant's ground pad is a private `octa()` outside `plot()`'s VS division. Two things are wrong with it. `VS` is `Math.max(1, ...)` and `FOOT0.power` is 4 against a 2x2 plot, so VS is exactly 1 here and the lever is inert in BOTH directions -- it can only ever GROW a structure whose Foundation= moved, and this one's never did. And the pad is not what sets the sprite's bottom: the 36 px below the ground line are the SHARED bevelled platform every land structure stands on, which is drawn through `plot()` and was protected all along. The actual defect was per-element and visible in the rip: [GAPOWR] is three IDENTICAL capacitor towers staggered across the pad, and ours drew the back column at 42 px against the front pair's 25 and 23. The back tower sets the top row, so that difference WAS the height error. One shared COL_H of 30 for all three, the stagger left to placement -- which is both the size fix and the more faithful sprite. NOTE WHAT THIS METRIC ACQUITS — the Allied Battle Lab was the tallest sprite in the game at 306 px on a 3x2 plot, 3.83 footprint-heights, and the raw ratio reads like a 3.8x blunder. RA2's own [GATECH] is 2.84 footprint-heights and art.ini gives it Height=12, three times the Construction Yard's: the real error was 11%, not 3.8x. The Soviet Barracks is the same story and was not touched at all — 3.84 footprint-heights, because RA2 draws [NAHAND] as a statue and measures 3.42"
     },
     "size.bldWorstOffHouseScale": {
       "want": 0.2,
       "dir": "down",
-      "note": "the furthest any structure sits from the building house scale, as |ours/RA2 / median - 1|. 0.33 (the Tesla Coil) before this pass, 0.22 (the Allied Power Plant) after. Kept beside the count because a count can go to zero while one structure sits just inside the band, and because this is the number that moves when a fix is partial. Watch the interaction: the house scale IS the median of the fifteen, so fixing a tall structure pulls the median DOWN and can push a second one over the band — which is what happened here, the median falling 1.21 -> 1.15 as the coil and the two labs came down. That is the metric working, not thrashing: the median was being held up by the very structures that were wrong"
+      "note": "the furthest any structure sits from the building house scale, as |ours/RA2 / median - 1|. 0.33 (the Tesla Coil) before that pass, 0.22 (the Allied Power Plant) after it, and 0.1586 (the Soviet Radar Tower) since the plant came down on 2026-09-06 -- note what that hands over: the number now names a DIFFERENT structure, and the next 0.02 of headroom costs the Radar Tower, not the plant. Kept beside the count because a count can go to zero while one structure sits just inside the band, and because this is the number that moves when a fix is partial. Watch the interaction: the house scale IS the median of the fifteen, so fixing a tall structure pulls the median DOWN and can push a second one over the band — which is what happened here, the median falling 1.21 -> 1.15 as the coil and the two labs came down. That is the metric working, not thrashing: the median was being held up by the very structures that were wrong"
     },
     "size.bldFootprintMismatch": {
       "want": 0,
@@ -315,8 +315,8 @@
     "size.airOutsideRA2Band": 0,
     "size.worstOffGroupScale": 0.3109,
     "size.crossGroupSpread": 1.607,
-    "size.bldOutsideRA2Band": 1,
-    "size.bldWorstOffHouseScale": 0.2202,
+    "size.bldOutsideRA2Band": 0,
+    "size.bldWorstOffHouseScale": 0.1586,
     "size.bldFootprintMismatch": 0,
     "clip.structuresTouchingSheetEdge": 0,
     "clip.unitsTouchingSheetEdge": 0,
@@ -1706,26 +1706,6 @@
     ],
     "ra2Bld": [
       {
-        "key": "power:dir",
-        "name": "Power Plant",
-        "sec": "GAPOWR",
-        "foot": "2x2",
-        "ra2Foot": "2x2",
-        "footMatch": true,
-        "ours": "131x139",
-        "ra2": "86x93",
-        "hOverFoot": 2.172,
-        "ra2HOverFoot": 1.55,
-        "wOverFoot": 1.023,
-        "ra2WOverFoot": 0.717,
-        "hScale": 1.4012,
-        "wScale": 1.4281,
-        "ht": 4,
-        "houseScale": 1.1483,
-        "dev": 0.2202,
-        "wDev": 0.1291
-      },
-      {
         "key": "radar:col",
         "name": "Radar Tower",
         "sec": "NARADR",
@@ -1784,6 +1764,26 @@
         "houseScale": 1.1483,
         "dev": 0.124,
         "wDev": 0.0635
+      },
+      {
+        "key": "power:dir",
+        "name": "Power Plant",
+        "sec": "GAPOWR",
+        "foot": "2x2",
+        "ra2Foot": "2x2",
+        "footMatch": true,
+        "ours": "131x127",
+        "ra2": "86x93",
+        "hOverFoot": 1.984,
+        "ra2HOverFoot": 1.55,
+        "wOverFoot": 1.023,
+        "ra2WOverFoot": 0.717,
+        "hScale": 1.2802,
+        "wScale": 1.4281,
+        "ht": 4,
+        "houseScale": 1.1483,
+        "dev": 0.1149,
+        "wDev": 0.1291
       },
       {
         "key": "shipyard:col",
@@ -2208,14 +2208,6 @@
         ""
       ],
       [
-        "power:dir",
-        "2x2",
-        "131x139",
-        2.172,
-        1.023,
-        "ref"
-      ],
-      [
         "sentrygun:col",
         "1x1",
         "67x69",
@@ -2237,6 +2229,14 @@
         "229x202",
         2.104,
         1.193,
+        "ref"
+      ],
+      [
+        "power:dir",
+        "2x2",
+        "131x127",
+        1.984,
+        1.023,
         "ref"
       ],
       [
@@ -2813,10 +2813,8 @@
       "total": 100,
       "houseScaleH": 1.1483,
       "houseScaleW": 1.2648,
-      "spread": 1.365,
-      "outside": [
-        "power:dir"
-      ],
+      "spread": 1.296,
+      "outside": [],
       "tallest": "factory:col",
       "tallestPx": 271,
       "clipped": []

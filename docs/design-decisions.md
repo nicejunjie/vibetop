@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_245 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_248 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
 - [Scheduled terminal messages ("resume when the token limit resets")](#scheduled-terminal-messages-resume-when-the-token-limit-resets)
@@ -268,6 +268,9 @@ _245 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [The Start-menu flyout turned its caret and never appeared on iPad (2026-09-05)](#the-start-menu-flyout-turned-its-caret-and-never-appeared-on-ipad-2026-09-05)
 - [Buildings were drawn ~1.15x RA2 and nobody could tell, because nothing measured a structure (2026-09-05)](#buildings-were-drawn-115x-ra2-and-nobody-could-tell-because-nothing-measured-a-structure-2026-09-05)
 - [RTS art: a §2 clause check measured the wrong part, because a draw-order bug fused two house blocks](#rts-art-a-2-clause-check-measured-the-wrong-part-because-a-draw-order-bug-fused-two-house-blocks)
+- [The lever a "left on purpose" note nominates can be inert — check it before you work around it (2026-09-06)](#the-lever-a-left-on-purpose-note-nominates-can-be-inert-check-it-before-you-work-around-it-2026-09-06)
+- [A cameo cropped away the feature that names a ship, and the "shipped rule" it seemed to cost was never involved (2026-09-06)](#a-cameo-cropped-away-the-feature-that-names-a-ship-and-the-shipped-rule-it-seemed-to-cost-was-never-involved-2026-09-06)
+- [A spectacular POSITIVE result must prove the build still runs (2026-09-06)](#a-spectacular-positive-result-must-prove-the-build-still-runs-2026-09-06)
 
 <!-- END TOC -->
 
@@ -10096,3 +10099,158 @@ check reports a blob, not a part, and two parts of the same colour 1-1.5 px apar
 are one blob after anti-aliasing. This is the fourth defect in this project
 caused by anti-aliasing closing a countable seam, and the first where it made a
 check silently report the wrong component's dimensions.
+
+---
+
+## The lever a "left on purpose" note nominates can be inert — check it before you work around it (2026-09-06)
+
+**Symptom.** The Allied Power Plant was the last structure outside the RA2 size
+band (`size.bldOutsideRA2Band` 1, `size.bldWorstOffHouseScale` 0.2202) at 1.40x
+`[GAPOWR]` against a 1.15 building house scale. `art-metrics.js`'s own note
+explained why it had been left: *"its ground pad is drawn with a private
+`octa()` rather than with `plot()`, so the vertical-scale lever that fixed the
+other two would squash the pad off its own cells."* That is a specific, testable
+claim, and the next pass would naturally have spent its time engineering around
+it — bringing `octa()` under `plot()`'s VS division so the lever became usable.
+
+**Cause.** Both halves of the note are false in a way that only shows when you
+run the numbers instead of reading them.
+
+1. **The lever cannot shrink anything.** `VS = Math.max(1, Math.pow((gw+gh)/f0,
+   vp))` is clamped at 1. `VPOW.lab = 1 -> 0` did not shrink the Battle Lab; it
+   stopped it *growing*. There is no shrinking direction to be blocked from.
+2. **It is inert here even as a growth term.** `FOOT0.power` is 4 and the plant
+   is 2x2, so the base is `(4/4)^vp = 1` for every exponent. **VS is exactly 1
+   for this building and can be nothing else**, whatever `octa()` does.
+3. **The pad was never the constraint.** Measured off the baked sheet: the
+   sprite's bottom row is the S vertex of the SHARED bevelled platform every
+   land structure stands on (`plot(g, cx + 3, baseY + 4, fw*2, fh*2)`), drawn
+   through `plot()` and protected all along. The private `octa()` pad's lowest
+   point is seven rows above the bbox floor.
+
+**Fix.** Per-element, and the reference named it: `[GAPOWR]` is three IDENTICAL
+capacitor towers staggered across the pad, and ours drew the back column at 42
+px against the front pair's 25 and 23. The back tower sets the top row, so that
+difference WAS the height error. One shared `COL_H = 30`, stagger left to
+placement — 139 -> 127 px, `dev` 0.2202 -> 0.1149, `bldOutsideRA2Band` 1 -> 0,
+`bldWorstOffHouseScale` 0.2202 -> 0.1586, every other gated metric byte-identical
+and the median house scale unmoved. The fix is also the more faithful sprite,
+which is the usual sign that it is the right one.
+
+**The general lesson.** A "deliberately left, here is why" note is evidence about
+what somebody *believed*, not about the code. It is worth more than nothing —
+it says where they looked — but the cheapest possible check (print the value the
+note's mechanism depends on) comes before any work that accepts it. Here one
+line of arithmetic on `VS` would have redirected the whole pass, and the
+scaffolding to "unblock" the lever would have been built around a term that is
+constant at 1.
+
+**Rejected.** Bringing `octa()` under `plot()`'s VS division so a vertical scale
+becomes safe. Beyond being unnecessary here, a uniform vertical scale is the
+wrong tool for this drawing: more than half its vertical extent is plan-view
+ellipses (the pad octagon, plinths, drum lips, cap rims, the dish) whose 2:1 iso
+foreshortening must NOT change when a building gets shorter. Heights shrink;
+plan-view circles do not.
+
+---
+
+## A cameo cropped away the feature that names a ship, and the "shipped rule" it seemed to cost was never involved (2026-09-06)
+
+**Symptom.** `unit-identity-reference.md` §2.3 gives the Landing Craft exactly
+one identity feature — *"an open bow ramp: a flat rectangular deck with a hinged
+front, carrying visible cargo"* — and her 60x48 build-sidebar plate did not show
+it. She sat in three of the Directorate sidebar's worst pairs
+(`Landing Craft | Aegis Cruiser` 63.0 lit / 43.5 greyed, `Chrono Miner |
+Landing Craft` 41.6 greyed) because what the plate actually showed was a pile of
+olive boxes on a dark hull with a blue band — which is also what the Chrono
+Miner and the Aegis show.
+
+**Cause.** `cameoFor` fits a subject with `k = min((W-3)/pw, (H-4)/ph) * 1.35`
+and then **centres** it. For a long hull at the shared naval bearing that is
+exactly wrong: measured, the ramp is sprite x 34-61 of 68 and y 25-40 of 43, so
+at `k = 1.131` it lands at plate x 30.0-60.5, y 29.0-46.0 — against a caption
+whose glyphs plus their 2.5 px stroke own y 38-47.5. Half the ramp's rows were
+under "LANDING CRAFT" and its right tip was on the bevel. The 1.35 overfill
+always spends 8.5 px on each side when width binds; the defect is that this
+unit's feature is at ONE END of the long axis, and that end points into the
+corner the caption owns.
+
+**Fix.** `CAMEO_FRAME`, a per-plate framing offset in plate pixels beside
+`CAMEO_CAPTION`, keyed on unit keys only and empty for everything else:
+`lcraft: { dx: -8, dy: -6 }`. `-8` flushes the sprite's right edge with the
+plate (the 8 px surrendered on the left are stern taper and foam) and `-6` lifts
+the ramp clear of the type. `Landing Craft | Aegis Cruiser` 63.0 -> **70.1**,
+greyed 43.5 -> **47.4**, `Chrono Miner | Landing Craft` greyed 41.6 -> **45.4**
+(both now over the 45.1 greyed bar), Directorate whole-sidebar UNDER 347 ->
+**344**, greyed 4 -> **2**, Collective byte-identical, minimum unchanged.
+
+**Why this is not the rule-break it was recorded as.** The note that left this
+open said the lever was a per-unit bearing in `iconFaceOf`, and that it *"would
+break the shipped per-class-camera rule"* (infantry front-on, everything else
+three-quarter). True — and irrelevant, because the bearing was never the
+problem. `iconFaceOf` is untouched; every unit is still shot at its class's
+camera. What moved is where the 60x48 window sits on the sprite it was already
+handed. That is a COMPOSITION decision, and RA2 makes one per plate by hand —
+a fact `cameoFor`'s own comment already cites (the Guardian G.I. cut at the
+knees, the Grizzly's hull off both edges). Distinguishing "which way is the unit
+facing" from "which part of it does the frame keep" is what turned a rejected
+one-line hack into a five-line table with a stated cost.
+
+**Rejected.** Lifting every non-portrait cameo out of the caption band. Structures
+sit ON the plate's ground band and would float, and the corpus already records
+that harder crops turn the Airforce Command and the Gap Generator into top
+fragments. A shared default that is right for most subjects plus a table of
+named exceptions beats a new shared default.
+
+**Also rejected — and this one was measured, not reasoned.** Varying the plate's
+contrast escape hatch (`subL ± 26` -> `subL ± (18 + hv*20)`) to break up the
+`GI | Spy` pair. Three results: (a) instrumenting `lit`/`subL` shows the hatch
+**does not fire for either plate** — they agree to 0.4 of luminance because
+FNV-1a puts `rifle` and `spy` within 0.7% in the `hv` axis, a hash collision,
+not the hatch; (b) at matched means a FIXED push beats the `hv`-keyed one every
+time (38 fixed: 214 under, vs 243 for `26 + hv*24`), so the gain is push
+MAGNITUDE and not restored variation; (c) `GI | Spy` reads 61.1 in all seven
+variants, and forcing the Spy's plate luminance 26 points away moves it to 61.4
+while costing two other pairs. The pair is figure-bound, as already recorded.
+A bigger fixed push is a real and large win (Directorate 344 -> 170 at 44) but
+it drops the sidebar MINIMUM and nobody has looked at eighty plates against the
+6%/92% lightness clamps — so it is handed over as a measured finding, not
+shipped inside an unrelated pass.
+
+---
+
+## A spectacular POSITIVE result must prove the build still runs (2026-09-06)
+
+**Symptom.** A one-line sweep of the cameo plate's background rule reported that
+Directorate pairs under RA2's legibility bar fell from **344 to 42** and
+Collective from **459 to 155** — an eight-fold improvement from changing a
+constant into a small expression.
+
+**Cause.** The build was broken. A `sed`-style patch replaced only the
+`lit = ...` half of a single-statement `if`, producing
+
+    if (Math.abs(lit - subL) < 20) var _push = 18 + hv * 20; lit = subL > 50 ? ... - _push ...;
+
+so the assignment escaped the guard, `_push` was `undefined` on the false branch,
+and `hsl(30,22%,NaN%)` threw out of 24 of the 40 bakes. The tool then measured
+the 16 plates that survived — a smaller, easier set — and reported a triumph.
+
+**Fix.** Brace the replacement, and gate every sweep run on two things the
+report already prints and nobody reads: the **population count** (*"DIRECTORATE
+sidebar — 40 cameos"*, not 16) and the **`PAGE ERRORS`** block above the numbers.
+
+**The lesson, which is the point of the entry.** This project already has the
+rule *"a null result must prove the edit landed"*. Its twin is more dangerous
+precisely because it never gets interrogated: **a result that moves in the
+direction you were hoping for is the one nobody audits.** Check the denominator
+and the error log before reading a single metric — an improvement too large for
+the change that supposedly caused it is a bug report, not a win.
+
+**Related trap, same pass.** `apps/games/rts/art/_pw.js` defaults to
+`http://127.0.0.1:8099/rts.html`, a long-running server owned by whichever
+session started it rather than by the worktree the tool runs from. Running
+`art/one.js` from a worktree renders somebody else's checkout, and the first
+probe after an edit came back with an unchanged number that was perfectly
+correct about a page nobody had edited. `tools/*.js` are safe (each starts an
+ephemeral server rooted at its own `ROOT`); `art/*.js` need your own server and
+`RTS_PORT`.
