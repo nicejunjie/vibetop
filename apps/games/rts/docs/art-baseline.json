@@ -273,11 +273,11 @@
     "size.infantryOutsideRA2Band": 1,
     "size.airOutsideRA2Band": 0,
     "size.worstOffGroupScale": 0.3109,
-    "clause.checked": 2,
-    "clause.unmet": 1,
+    "clause.checked": 17,
+    "clause.unmet": 2,
     "clause.infantryUnmet": 1,
     "clause.vehicleUnmet": 0,
-    "clause.navalUnmet": 0,
+    "clause.navalUnmet": 1,
     "clause.airUnmet": 0,
     "clip.unitsTouchingSheetEdge": 0,
     "clip.unitsClippedOnGatedOctant": 0,
@@ -1673,6 +1673,141 @@
         "want": ">= 20 degrees",
         "note": "GI legs hue 92, Conscript legs hue 32",
         "module": "EXAMPLE-infantry-gi.js"
+      },
+      {
+        "unit": "destroyer",
+        "clause": "length >= 1.7x any land vehicle",
+        "ok": false,
+        "measured": 0.848,
+        "want": ">= 1.70x",
+        "note": "destroyer 89 px broadside against the widest land vehicle, MCV at 105 px — she is SHORTER than a tank. THE CEILING IS ARITHMETIC AND THE ROW IS ABOVE IT: RA2's own [DEST] is 101 px against [AMCV]'s 69 = 1.46, so RA2 does not meet 1.7 either, and 1.7 here would need a 179 px hull (Carrier 264 px on a 150 px sheet). What IS a real defect is the sign, and it has a measured cause: the fleet is baked at 0.881x RA2's own sprite widths while the ground vehicles sit at 1.27x — a 1.44x CROSS-GROUP scale mismatch that NEITHER size gate can see, because `size.navalOutsideRA2Band` and `size.vehicleOutsideRA2Band` both normalise against their own group's median. Closing even the sign of this clause means rescaling a whole group; the fleet is the board's best group (spread 1.06x, every hull within 5% of its scale) and 1.21x on it puts the Carrier at 160 px on a 150 px sheet. Left UNMET on purpose rather than closed by moving a threshold. per-unit-art-log.md.",
+        "module": "naval-air.js"
+      },
+      {
+        "unit": "aegis",
+        "clause": "explicitly NO barrel",
+        "ok": true,
+        "measured": 0,
+        "want": "0 px of barrel",
+        "note": "longest vertically-isolated dark bar on her superstructure 0 px, against the Destroyer's 17 px on the same detector — the live positive control, and it is her `barrel(L*0.66, 0, 6.2, 9, 3.0)` call, which the Aegis block does not have. \"Isolated\" = daylight or a >= 0.34 value step 2 rows above and 3 rows below over >= 75% of the run. Colour alone is worthless here: the plain longest dark run over the same band reads the Aegis at 25 and the Destroyer at 23, i.e. it says the missile cruiser is the more heavily gunned of the two.",
+        "module": "naval-air.js"
+      },
+      {
+        "unit": "carrier",
+        "clause": "3 visible parked airframes",
+        "ok": true,
+        "measured": 3,
+        "want": "exactly 3",
+        "note": "pale (v >= 0.60, s <= 0.22) 8-connected blobs of 20-60 px measuring 6-16 x 3-8 — found 10x4, 10x4, 10x4, evenly spaced along the deck. The size window is what separates them from the deck furniture: the dashed centreline's nine `#d9dde2` dashes are 6-7 x 1-3 and fall under the area bar, the island and the bow wave are 66 and 375 px and sit over it. The count is 3 at all four bearings that present the deck (octants 1/3/5/7); the four quarter bearings add island and wake fragments to the same window, which is why this is read at the broadside.",
+        "module": "naval-air.js"
+      },
+      {
+        "unit": "dolphin",
+        "clause": "no orthogonal edges anywhere",
+        "ok": true,
+        "measured": 2,
+        "want": "<= 10 px",
+        "note": "2 px, the longest CORNER-ANCHORED flat silhouette run over all EIGHT bearings (worst at octant 3; the broadside alone would miss it — the Dolphin's detached-eye bug showed at octants 3/4/5 and not at her broadside 7). Both ends of a run must step >= 2 px onto a REAL neighbour, so a raster curve's apex and a taper off the end of the sprite do not count; without that test the Dolphin's belly scores 19 and the boxy Landing Craft 13 and the measurement is upside down. §2 asks for ZERO, which no raster can give; 10 px is this file's reading, set against the eight machine hulls of MACH, which measure 2-22 with a median of 14 at their broadside. Looked at: what remains is ONE SEGMENT of the plan polyline that approximates each animal (the Squid's 8-point `MANT` mantle at her shoulder, the Dolphin's 7-point `DOL` profile), projected nearly flat — not a drawn rectangle. A detached blob would score its own full width here, which is how a repeat of the eye bug gets caught rather than found by eye a second time.",
+        "module": "naval-air.js"
+      },
+      {
+        "unit": "squid",
+        "clause": "zero straight edges",
+        "ok": true,
+        "measured": 7,
+        "want": "<= 10 px",
+        "note": "7 px, the longest CORNER-ANCHORED flat silhouette run over all EIGHT bearings (worst at octant 3; the broadside alone would miss it — the Dolphin's detached-eye bug showed at octants 3/4/5 and not at her broadside 7). Both ends of a run must step >= 2 px onto a REAL neighbour, so a raster curve's apex and a taper off the end of the sprite do not count; without that test the Dolphin's belly scores 19 and the boxy Landing Craft 13 and the measurement is upside down. §2 asks for ZERO, which no raster can give; 10 px is this file's reading, set against the eight machine hulls of MACH, which measure 2-22 with a median of 14 at their broadside. Looked at: what remains is ONE SEGMENT of the plan polyline that approximates each animal (the Squid's 8-point `MANT` mantle at her shoulder, the Dolphin's 7-point `DOL` profile), projected nearly flat — not a drawn rectangle. A detached blob would score its own full width here, which is how a repeat of the eye bug gets caught rather than found by eye a second time.",
+        "module": "naval-air.js"
+      },
+      {
+        "unit": "lcraft",
+        "clause": "visible cargo when loaded",
+        "ok": true,
+        "measured": 38,
+        "want": ">= 16 px of block >= 3 px thick standing >= 0.12 in value out of the well",
+        "note": "2 block(s) 6x6, 8x5, 38 px, mean value step 0.137 — blocks of mid value (0.30-0.66) at least 3 px thick standing inside the well — the largest dark (v <= 0.26) component, 54x34 — with a ring mean of <= 0.26, i.e. surrounded by well floor rather than by hull. The row states no number; 16 px and 0.12 are this file's reading of \"visible\" (0.12 is roughly the step at which two greys separate at 1:1) — the well measures 0.19 and the crate faces 0.34, so the read is a value step and not a hue one. `bakeShip` draws the crates and the vehicle block UNCONDITIONALLY, so the only Landing Craft sprite that exists is the loaded one and \"when loaded\" is the whole of it. Proven against a build with those four `box()` calls disabled: this row goes to 0 there.",
+        "module": "naval-air.js"
+      },
+      {
+        "unit": "apc",
+        "clause": "deck cavity visible as a house-hued interior",
+        "ok": true,
+        "measured": 26,
+        "want": ">= 12 px",
+        "note": "interior house-hued BLOCKS (h >= 2 px, ring >= 0.35 value darker, not touching the outline): 4 — the topmost is the bridge roof (25x3 at row 4, trim, named separately in §2.4) and the cavity floor is the largest of the rest, 13x2 = 26 px at row 17, value 0.7 inside a coaming at 0.17. The h >= 2 test is what keeps the two rubbing strakes out: they are 42x1 and 11x1, stripes not blocks. The row states no number; 12 px is this file's reading. Before the 2026-09-05 fix this measured 0 — the floor was black and only the roof qualified — so the check is not made true by its own fix.",
+        "module": "naval-air.js"
+      },
+      {
+        "unit": "sub",
+        "clause": "conning tower the only vertical mass",
+        "ok": true,
+        "measured": 1,
+        "want": "exactly 1",
+        "note": "columns standing more than 3.64 px above the casing line (median column top y=7) form 1 run(s) covering 17 of 66 columns — the sail, periscopes included, and nothing else. 3.64 px is not invented: it is `art-metrics.js`'s own SPIKE_FLOOR, 2 px at ZMIN 0.55, i.e. the height at which a mass still reads at furthest zoom. The casing step forward stands 2 px and is correctly NOT counted as a second mass.",
+        "module": "naval-air.js"
+      },
+      {
+        "unit": "seascorp",
+        "clause": "shortest armed hull afloat",
+        "ok": true,
+        "measured": 1.269,
+        "want": "> 1.00x the next hull",
+        "note": "armed hulls broadside: seascorp 52, sub 66, aegis 82, destroyer 89, dread 116, carrier 132 — she is 1.27x clear of the next. EXCLUDED and why: the Dolphin (40 px) and the Giant Squid (104 px) are armed but are ANIMALS, and §2.3/§2.4 give both a row saying their outline is not a machine, so neither is a hull; the Landing Craft and the Amphibious Transport are hulls but carry no weapon. Reading \"armed hull\" as \"armed warship\" is the only one on which the sentence has content — under any other the Dolphin wins it.",
+        "module": "naval-air.js"
+      },
+      {
+        "unit": "nighthawk",
+        "clause": "fuselage height <= 0.35 x length",
+        "ok": true,
+        "measured": 0.275,
+        "want": "<= 0.35",
+        "note": "airframe 69x19 px, isolated as the pixels at alpha >= 192 (602 of them) against the rotor's 655 px under alpha 128; the whole bbox is 76x29 and would read 0.382, i.e. the disc and not the fuselage. Taking it off the bbox instead is the same class of error as measuring a ship's aspect through her bow wave.",
+        "module": "naval-air.js"
+      },
+      {
+        "unit": "harrier",
+        "clause": "wing span >= 1.5x fuselage width",
+        "ok": true,
+        "measured": 6,
+        "want": ">= 1.50x",
+        "note": "at octant 1 (nose-on, the max-span bearing) the row-extent profile is fin 2 px, tailplanes 22, FUSELAGE 10, wing 60 — the fuselage is the strict valley between the two lifting surfaces, defined as a row whose extent is beaten 1.8x on both sides. It agrees with the geometry to 5%: `bodyR` 2.35 gives a 4.7-unit fuselage under a 26.8-unit span = 5.70, measured 6.0. Octant 5 is the same bearing reversed and exposes no valley (the near wing overlaps the waist), which is why this is read at 1 rather than at whichever octant is widest.",
+        "module": "naval-air.js"
+      },
+      {
+        "unit": "harrier",
+        "clause": "nose cone >= 4 px",
+        "ok": true,
+        "measured": 4,
+        "want": ">= 4 px",
+        "note": "the forward-most near-white (v >= 0.92, s <= 0.12) blob at octant 3, measured along the fuselage axis — which is screen X at octants 3 and 7, where `py = 0` and forward is pure X. v >= 0.92 is the cut that separates `NOSE` #eef1f5 (0.96) from the `BELLY` #d5dae2 (0.886) it sits against. IT PASSES BY NOTHING: 4 px against a 4 px bar, and it is 5 only if the cut is dropped to 0.88, where the belly starts joining in. Left alone deliberately — the `else` branch that draws this nose is SHARED with the Hornet (only the Kirov splits off it), and the Hornet's own row is a \"no more detail\" maximum, so lengthening the cone is not a Harrier-only edit. Recorded in per-unit-art-log.md rather than chased.",
+        "module": "naval-air.js"
+      },
+      {
+        "unit": "hornet",
+        "clause": "do not add detail it cannot carry",
+        "ok": true,
+        "measured": 9,
+        "want": "fewest of the four aircraft, and no denser per px than a peer",
+        "note": "9 resolvable features on 128 opaque px = 7 per 100 px, against harrier 45 (7.5/100px), nighthawk 70 (5.3/100px), kirov 290 (4.9/100px). The row states no number and is a MAXIMUM, so it is read comparatively: the smallest airframe must carry the fewest parts outright AND must not be denser per pixel than an aircraft with room to spare. A feature is a 4-connected run of one colour quantised to 28 levels, >= 3 px — anything smaller is anti-aliasing.",
+        "module": "naval-air.js"
+      },
+      {
+        "unit": "kirov",
+        "clause": "span >= 2.0x the Harrier's on screen",
+        "ok": true,
+        "measured": 2.45,
+        "want": ">= 2.00x",
+        "note": "Kirov 147 px broadside against the Harrier's 60. \"On screen\" is now literal: the 1.30 that used to multiply the Kirov at draw time is inside `VSC` and therefore inside the bake, so the sprite measured here is the sprite drawn. RA2's own ratio is [ZEP] 139 / [ORCA] 71 = 1.96, which this sits above — and the Harrier grew 52 -> 60 px in the 2026-09-05 size pass, so the ratio came DOWN toward RA2 rather than up.",
+        "module": "naval-air.js"
+      },
+      {
+        "unit": "kirov",
+        "clause": "the bake is no longer too small (the 1.3x draw fudge)",
+        "ok": true,
+        "measured": 0.991,
+        "want": "0.85-1.15 of RA2",
+        "note": "baked 147 px broadside against [ZEP]'s 139 px scaled by our tile ratio 64/60 = 148 px — 0.991 of reference, and the largest airframe in the game is no longer the one sprite on the field going through a bilinear upscale. +-15% is this file's reading; the row states no number. It is deliberately tighter than `RA2_SIZE_BAND` (0.25), because that band is measured against a GROUP median and this row names an absolute.",
+        "module": "naval-air.js"
       }
     ],
     "valueRead": [

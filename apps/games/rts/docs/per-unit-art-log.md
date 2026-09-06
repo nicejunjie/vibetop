@@ -1473,3 +1473,160 @@ proportions were tuned with it in, and the block already records the one time it
 DID cause a bug — the Landing Craft's wave becoming her widest protrusion and
 being scored as her identity feature. Read the fleet's numbers knowing the wake
 is in them; do not take it out to make an aspect look better.
+
+---
+
+# The sixteen unmeasured NAVAL and AIR clauses of §2 (2026-09-05)
+
+`docs/clause-inventory.md` lists nine naval rows and seven air rows whose
+`gated` column is `—`: honoured by intention only. **Fifteen now have a real
+measurement behind them** (`tools/clause-checks/naval-air.js`); the sixteenth
+was struck from §2.3 before this pass with an arithmetic proof and is left
+struck. `clause.checked` **2 -> 17**, `clause.airUnmet` **0**,
+`clause.navalUnmet` **0 -> 1** — and that one is the finding, not a slip.
+
+**No art was changed.** Fourteen of the fifteen were already met, several
+comfortably; the fifteenth cannot be met by any edit that keeps the fleet
+inside the size gates, and the arithmetic is below. Every other metric in
+`art-metrics.js` is byte-identical before and after — 43 of 46 did not move and
+the three that did are the clause counters.
+
+## Every clause, measured
+
+| unit | clause | measured | threshold | verdict | action |
+|---|---|---|---|---|---|
+| `destroyer` | length >= 1.7x any land vehicle | **0.848x** (89 px vs MCV 105) | >= 1.70x | **UNMET** | none possible — see below |
+| `aegis` | explicitly no barrel | **0 px** (Destroyer 17 on the same detector) | 0 | met | — |
+| `carrier` | 3 visible parked airframes | **3** (10x4 each, evenly spaced) | exactly 3 | met | — |
+| `dolphin` | no orthogonal edges anywhere | **2 px** | <= 10 px *(mine)* | met | — |
+| `squid` | zero straight edges | **7 px** | <= 10 px *(mine)* | met | — |
+| `lcraft` | visible cargo when loaded | **38 px** in 2 blocks, step 0.14 | >= 16 px *(mine)* | met | — |
+| `apc` | deck cavity visible as a house-hued interior | **26 px** at value 0.70 in a 0.17 coaming | >= 12 px *(mine)* | met | — |
+| `sub` | conning tower the only vertical mass | **1** run of columns over the casing | exactly 1 | met | — |
+| `seascorp` | shortest armed hull afloat | **52 px**, 1.27x clear of the Typhoon | strictly shortest | met | — |
+| `nighthawk` | ~~rotor span >= 1.25x fuselage length~~ | — | — | **STRUCK** | left struck |
+| `nighthawk` | fuselage height <= 0.35 x length | **0.275** (69x19 airframe) | <= 0.35 | met | — |
+| `harrier` | wing span >= 1.5x fuselage width | **6.00x** (60 px span / 10 px waist) | >= 1.50x | met | — |
+| `harrier` | nose cone >= 4 px | **4 px** | >= 4 px | met **by nothing** | recorded, see below |
+| `hornet` | do not add detail it cannot carry | **9** features, 7.0/100px | fewest of the four *(mine)* | met | — |
+| `kirov` | span >= 2.0x the Harrier's on screen | **2.45x** | >= 2.00x | met | — |
+| `kirov` | the bake is no longer too small | **0.991** of [ZEP] x 64/60 | 0.85-1.15 *(mine)* | met | — |
+
+*(mine)* = the row states no number and the threshold is the check module's
+reading; each one says so in its own `note`, with what it was set against.
+
+## The one that is unmet, and why no number was forced
+
+**The Destroyer is SHORTER than a tank.** 89 px broadside against the MCV's
+105, the Prism Tank's 91 and the Apocalypse's 87 — 0.848 where §2.3 asks for
+1.7.
+
+The row cannot be met, and the proof does not depend on skill:
+
+* **RA2 does not meet it either.** [DEST] is 101 px against [AMCV]'s 69 =
+  **1.46**. The sentence asks for more separation than the game it cites.
+* **1.7 needs a 179 px hull.** At our fleet's own proportions that puts the
+  Carrier at 264 px on a 150 px sheet, and the two clauses compound: §2.3 also
+  pins the MCV at `>= 1.20x the widest tank`, so the pair demands
+  `destroyer >= 1.7 x 1.2 x widest tank` = 186 px.
+* **The real defect is the SIGN, and it has a measured cause.** Each group's
+  bake scale against RA2's own sprite widths: **naval 0.881x, air 0.973x,
+  ground vehicles 1.270x.** The fleet is drawn at 0.69 of the vehicles' scale.
+  Neither `size.navalOutsideRA2Band` nor `size.vehicleOutsideRA2Band` can see
+  it — **both normalise against their own group's median**, so a group that is
+  uniformly wrong stays green, which is the same blind spot the aspect gate was
+  written to close for shape ("a fleet of tugboats sat here for weeks").
+* **And it still would not close the clause.** Rescaling the fleet to the
+  faithful 64/60 = 1.067 is 1.21x: Destroyer 108 px, Carrier 160 px on a 150 px
+  sheet, ratio 1.03. Not 1.7, and it spends the board's best group (7 hulls,
+  1.06x spread, every hull within 5% of scale) to buy 0.18.
+
+Left **UNMET on purpose**. `clause.navalUnmet` 0 -> 1 is the tool working, as
+that metric's own note says of the first two clauses ever checked by hand. The
+cross-group scale mismatch is recorded here as the open item; it is a whole-
+roster decision, not a naval one.
+
+## Recorded, not chased: the Harrier's nose cone passes by zero
+
+4 px against a 4 px bar (5 px only if the near-white cut is dropped to 0.88,
+where the `BELLY` #d5dae2 starts joining in). The obvious edit is one number —
+`n0 = pt(0.74)` back to ~`pt(0.60)` — and it was NOT taken, because the `else`
+branch that draws it is **shared with the Hornet** (only the Kirov splits off
+`bodyL`/`bodyR`/`wing()`), and the Hornet's own row is a *"do not add detail it
+cannot carry"* maximum. A Harrier-only nose needs a `kind` test that block does
+not have, on the air group whose `peerVsSelf.air` = 0 is documented as bought
+at a +0.024 margin against +-0.007 noise. Cheap to do, not cheap to be sure of.
+
+## Three checks proven against a deliberately broken build
+
+The lesson `docs/design-decisions.md` records as *"prove a regression test
+against the broken build"* — a check that only ever goes green proves nothing.
+Each of these was run against a bake with the feature it measures removed:
+
+| check | with the feature | with it removed |
+|---|---|---|
+| `apc` deck cavity | 26 px | **0** (floor put back to `#1d201a`) |
+| `carrier` parked airframes | 3 | **0** (`hi < 3` -> `hi < 0`) |
+| `lcraft` visible cargo | 38 px | **0** (four `box()` calls disabled) |
+
+The `aegis` check needs no broken build because it ships with a live positive
+control: the same detector reads the Destroyer's `barrel(L*0.66, 0, 6.2, 9,
+3.0)` at 17 px on every run.
+
+## Four measurements that had to be built, and the naive version each replaces
+
+Written down because in each case the obvious measurement gives the **opposite**
+answer, and a future pass that "simplifies" one of these will silently invert it.
+
+* **"No barrel" cannot be measured by colour.** The longest dark run over the
+  Aegis's superstructure is **25 px against the Destroyer's 23** — colour alone
+  says the missile cruiser is the more heavily gunned ship, because her
+  deckhouse faces are shadowed over more pixels than a gun is long. What
+  separates a barrel from a wall is that a barrel is **isolated in the
+  vertical**: daylight or a >= 0.34 value step 2 rows above and 3 below, over
+  >= 75% of the run. Aegis 0, Destroyer 17.
+* **"No straight edges" cannot be measured by flat runs.** A raster curve is
+  flat for several pixels at its apex, so a bare longest-flat-run scores the
+  **Dolphin's belly at 19 and the boxy Landing Craft at 13** — upside down. A
+  drawn edge has **corners**: the boundary must step >= 2 px onto a REAL
+  neighbour at *both* ends, which also discards the taper off the end of the
+  sprite. Dolphin 2, Squid 7, machines 2-22 (median 14). Read over all EIGHT
+  bearings, because the Dolphin's detached-eye bug showed at octants 3/4/5 and
+  not at her broadside 7.
+* **The Nighthawk's fuselage is not its bbox.** The rotor is a translucent blur
+  disc that every mask metric counts as body: the bbox reads **0.382** against
+  a 0.35 ceiling, i.e. it measures the disc. Alpha separates them and the
+  histogram says where — 655 px under alpha 128 (disc), 573 over 224
+  (airframe), 92 in between. Cut at 192: airframe 69x19 = **0.275**. Measuring
+  this off the bbox is the same error as reading a ship's aspect through her
+  bow wave.
+* **"Wing span vs fuselage width" has exactly one honest bearing.** Both are
+  PLAN cross-axis lengths, and any screen-Y reading picks up the airframe's
+  vertical thickness as well. At face 4 (**octant 1**) `fx = ISO_X*(cos a -
+  sin a) = 0` for a = 45°, so screen X is the pure sideways plan axis and z
+  cannot reach it. The row-extent profile there is fin 2, tailplanes 22,
+  **fuselage 10**, wing **60** — the fuselage is the strict valley between the
+  two lifting surfaces. 6.00x measured against 5.70x from the geometry
+  (`bodyR` 2.35 under a 13.4 half-span), a 5% agreement that says the reading
+  is the right one. Octant 5 is the same bearing reversed and exposes no valley
+  at all, which is why "whichever octant is widest" is not the rule.
+
+## Two readings that had to be argued rather than computed
+
+* **"Any land vehicle"** is read as *every* — the existential reading is
+  satisfied by the Terror Drone and the sentence then says nothing.
+* **"Shortest armed HULL afloat"** excludes the Dolphin (40 px) and the Giant
+  Squid (104 px). Both are armed; neither is a hull, and §2.3/§2.4 each give
+  them a row saying their outline is not a machine. Under any reading that
+  counts them the Dolphin wins the clause and the Sea Scorpion's identity
+  sentence is about the wrong unit.
+
+## Not measured, and it is not an omission
+
+**`nighthawk` "rotor span >= 1.25x fuselage length"** stays struck. Its three
+requirements are mutually exclusive by arithmetic — an iso disc of span S is
+S/2 tall, so span >= 1.25L caps the unit at aspect 1.6 against the same row's
+3.05 — and the full working is in this file's Nighthawk section above. Writing
+a check for it would either fail a unit for missing a bar its own row makes
+unreachable, or invent a softer bar and call the contradiction resolved.
+Recorded, as the Chrono Legionnaire's rifle was.

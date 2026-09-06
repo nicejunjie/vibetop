@@ -13,6 +13,11 @@ and gated now. The unmeasured set is where the remaining defects are.
 
 `gated` = this clause is the one the unit's SPIKES entry measures.
 
+**Measured since:** the fifteen measurable NAVAL and AIR rows below now have real
+checks in `tools/clause-checks/naval-air.js` (the sixteenth, the Nighthawk's rotor
+span, is struck). Working and thresholds: `per-unit-art-log.md`, "The sixteen
+unmeasured NAVAL and AIR clauses of §2".
+
 | unit | group | clause | gated |
 |---|---|---|---|
 | `rifle` GI | infantry | torso block >= 7w x 6h | — |
