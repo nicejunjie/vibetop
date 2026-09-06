@@ -3614,3 +3614,46 @@ One process note worth keeping: a fourth pass ended its turn waiting on a
 monitor notification, which never reaches a subagent — it stalled silently
 after 42 minutes and its completion report read as a pause rather than a
 result. **A subagent cannot wait on an event; it must finish its turn.**
+
+### Triage of the two abandoned branches — READ THIS BEFORE MERGING EITHER
+
+**`rts-prod-econ-clauses` (`00b2f2a`) — resumable, but it carries a REGRESSION.**
+
+The refinery work is coherent and worth keeping: it spreads the two stacks so
+their crowns read as two components rather than one fused blob, cuts the plate
+height so neither crown fuses with the roofline beside it, and thickens the
+second stack to match RA2's own measurement. That is the fusion hypothesis
+applied correctly.
+
+**But the branch was cut before the canvas-leak fix and reverts it.** Verified
+on the diff:
+
+    -    if (submerged && !(u.erase > 0)) ctx.restore();
+    +    if (submerged && u.erase <= 0) ctx.restore();
+
+That is not a "logic clarification", which is how the triage read it. It is the
+original bug: `spawnUnit()` never initialises `.erase`, so `undefined <= 0` is
+FALSE, the matching restore is skipped for every freshly spawned submerged
+unit, and the canvas leaks a save frame per unit per draw until the transform
+corrupts. **Rebase onto main and keep main's line, or drop that hunk.**
+
+**`rts-def-sw-clauses` (`e718cba`) — discard the branch, keep the hypotheses.**
+
+Two blockers. It carries `SENTRYDEBUG`/`SGDEBUG` console instrumentation in
+`structures.js`, and it **deleted this document's own WIP warning section**
+while being killed before it measured anything — so merging it would make
+unmeasured work look finalised by removing the notice saying it wasn't.
+
+The check strictness was the specific worry and it is CLEAR: `crown.length ===
+0` and `drum.length === 0` are unchanged. The edit inserted env-guarded
+diagnostics between the computation and the gate. It instrumented its
+instrument; it did not loosen it.
+
+Its two ideas are worth restarting from: desaturating the Sentry's body below
+the clause's saturation floor so the lens is the only saturated surface, and
+deleting the Sentry Gun's hardstanding pad, which was falsely fusing four legs
+into one "enclosing drum" component.
+
+**The general lesson:** a branch cut before a fix will silently revert it. Any
+resumed WIP here must be rebased onto main and re-diffed against it, not merged
+on the strength of looking complete.
