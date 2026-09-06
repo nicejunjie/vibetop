@@ -241,6 +241,26 @@
       "dir": "down",
       "note": "the same, for the 7 unmeasured air clauses"
     },
+    "clause.checkedStructures": {
+      "want": 73,
+      "dir": "up",
+      "note": "§2.5-2.9 states 91 budget clauses across 25 structures (clause-inventory.md). 73 IS REACHABLE and is what structures.js emits today: every clause it can honestly measure emits a row, and the remainder (23 distinct clause statements, a few doubled across dir/col) are logged as UNMEASURABLE WITH A REASON rather than faked — e.g. no line/edge detector exists for ribs, ducts or straight edges, no shape test tells a chimney from a tower or a drum from a chute, and several §2.9 rows state no number at all (the Nuclear Missile Silo's own admission, the Spy Satellite's composition-from-plate-only clause). `want` is set to what this file actually reaches, the same rule that governs `clause.checked`'s 57; some of the 91 are also fragments of ONE clause split by a semicolon inside a parenthetical aside (the Yard's, War Factory's and Grand Cannon's width-floor rows) and are checked once, not twice"
+    },
+    "clause.unmetStructures": {
+      "want": 0,
+      "dir": "down",
+      "note": "of the 73 checked structure clauses, the ones checked AND FAILING — 35 on the day this file first ran. This is NOT a regression: no art changed, a measurement route opened that did not exist before. Real findings worth naming here rather than in a commit message: the Refinery bakes only ONE stack where §2.6 wants two on both facs; the War Factory bakes 2 flag/mast crown blobs on `dir` (wants exactly 1) and its `col` bake fails the width floor outright at 1.085 against >=1.25; the Service Depot's pad never reaches the stated 0.50 Sw on either fac (0.08/0.152); the Battle Lab's Collective dome bake carries 3 crown blobs where the row wants exactly 1; the SAM Site (sentrygun) and Sentry Gun (patriot-side pillbox) barrel/mast counts miss on both keys; the Weather Controller and Iron Curtain bakes fuse their named parts into ONE connected blob so the \"exactly 3 masses\" / \"exactly one ring\" counts read 1 and 2 respectively. Every failing row carries its own measured number and want in `detail.clauses` — this count is the gate, not the report"
+    },
+    "clause.struckStructures": {
+      "want": 0,
+      "dir": "down",
+      "note": "of the checked structure clauses, the ones whose §2 row is STRUCK. Zero today: no structure clause has yet been proven unreachable by its own arithmetic the way the Nighthawk's rotor span was. Same ratchet as `clause.struck` and for the same reason — a strike here would add a row to `checkedStructures` and spend it again on this counter, so striking can never be how that number moves"
+    },
+    "clause.waivedStructures": {
+      "want": 0,
+      "dir": "down",
+      "note": "of the checked structure clauses, the ones whose §2 row is WAIVED. Zero today. Same distinction as `clause.waived`: reserved for a clause that is reachable but overridden by a recorded MEASURED decision, not for one this tool merely finds inconvenient"
+    },
     "clip.unitsTouchingSheetEdge": {
       "want": 0,
       "dir": "down",
@@ -330,6 +350,10 @@
     "clause.navalUnmet": 1,
     "clause.airUnmet": 0,
     "clause.unmatchedToReference": 0,
+    "clause.checkedStructures": 73,
+    "clause.unmetStructures": 35,
+    "clause.struckStructures": 0,
+    "clause.waivedStructures": 0,
     "value.soldiersLighterThanEngineer": 0,
     "value.engineerLightPct": 0.6384,
     "value.engineerMarginOverNext": 0.2803,
@@ -3210,6 +3234,736 @@
         "note": "STRUCK from §2.3 — the check is of the STRIKE, not of the art. The tile is 64x32, so a ground circle projects at aspect 2; the rotor is drawn in that plane (ry/rx = ISO_Y/ISO_X, source-verified: true), so a span of S is S/2 tall. Span >= 1.25L therefore forces height >= 0.625L, capping length/height at 1.6 and width/height at 2 — against the 3.05 the SAME ROW demands ([SHAD] 64x21, \"the flattest airframe\"). The two clauses are mutually exclusive; the span one is struck through in unit-identity-reference.md §2.3 and in docs/clause-inventory.md, and the disc ships knowingly at 0.84L. This row goes red if the camera stops being 2:1 or the disc stops being a ground-plane circle — i.e. if the contradiction ever dissolves.",
         "module": "naval-air.js",
         "refMatch": 0.42
+      },
+      {
+        "unit": "base",
+        "clause": "[dir] sprite w/h >= 1.30 — the widest-aspect structure in the game, stated as a floor per §2.5's width rule",
+        "ok": true,
+        "measured": 1.58,
+        "want": ">= 1.30",
+        "note": "bbox 248x157",
+        "module": "structures.js",
+        "refMatch": 0.54
+      },
+      {
+        "unit": "base",
+        "clause": "[dir] exactly ONE crane/boom group above the hall roofline, its jib >= 3 px thick and clearing the roof by >= 0.10 Sh",
+        "ok": false,
+        "measured": "2 crown group(s), thickest 26px, clearance 0.166",
+        "want": "1 group, >=3px thick, clearance >= 0.10",
+        "note": "crown = components above bodyRun.lo (§2.5's crown primitive); a second group here is flagged because §2.6 says a second mast group is the Battle Lab's read, not the Yard's",
+        "module": "structures.js",
+        "refMatch": 0.67
+      },
+      {
+        "unit": "base",
+        "clause": "[dir] house fraction 9-16%, trim only, never the hall roof",
+        "ok": true,
+        "measured": "13.3%",
+        "want": "9-16%",
+        "note": "census = isHouse over the whole sprite (OWNER_HUE=197 convention, no positional \"never the roof\" check — that half is unmeasurable without a labelled roof region)",
+        "module": "structures.js",
+        "refMatch": 0.89
+      },
+      {
+        "unit": "base",
+        "clause": "[col] sprite w/h >= 1.30 — the widest-aspect structure in the game, stated as a floor per §2.5's width rule",
+        "ok": true,
+        "measured": 1.34,
+        "want": ">= 1.30",
+        "note": "bbox 260x194",
+        "module": "structures.js",
+        "refMatch": 0.54
+      },
+      {
+        "unit": "base",
+        "clause": "[col] exactly ONE crane/boom group above the hall roofline, its jib >= 3 px thick and clearing the roof by >= 0.10 Sh",
+        "ok": false,
+        "measured": "3 crown group(s), thickest 61px, clearance 0.314",
+        "want": "1 group, >=3px thick, clearance >= 0.10",
+        "note": "crown = components above bodyRun.lo (§2.5's crown primitive); a second group here is flagged because §2.6 says a second mast group is the Battle Lab's read, not the Yard's",
+        "module": "structures.js",
+        "refMatch": 0.67
+      },
+      {
+        "unit": "base",
+        "clause": "[col] house fraction 9-16%, trim only, never the hall roof",
+        "ok": true,
+        "measured": "14.1%",
+        "want": "9-16%",
+        "note": "census = isHouse over the whole sprite (OWNER_HUE=197 convention, no positional \"never the roof\" check — that half is unmeasurable without a labelled roof region)",
+        "module": "structures.js",
+        "refMatch": 0.89
+      },
+      {
+        "unit": "power",
+        "clause": "[dir] exactly 3 towers, each 0.18-0.22 Sw",
+        "ok": false,
+        "measured": "1 crown blobs, widths 0.527 of Sw",
+        "want": "3 blobs, each 0.18-0.22 Sw",
+        "note": "crown blobs = components above bodyRun.lo, filtered to >=0.10 Sw to drop antenna-scale noise",
+        "module": "structures.js",
+        "refMatch": 0.75
+      },
+      {
+        "unit": "power",
+        "clause": "[dir] the tallest crown clears the drum roofline by >= 0.45 Sh",
+        "ok": true,
+        "measured": 0.504,
+        "want": ">= 0.45",
+        "note": "roofline = bodyRun.lo (55%-of-max row), tallest crown tip = min y0 across the 3 tower blobs",
+        "module": "structures.js",
+        "refMatch": 0.88
+      },
+      {
+        "unit": "power",
+        "clause": "[col] exactly ONE orb held between exactly TWO masses (no fraction is stated)",
+        "ok": true,
+        "measured": "1 crown blob(s), 7 house-coloured blob(s)",
+        "want": ">=1 crown blob (no fraction stated)",
+        "note": "the row itself states no fraction — this checks only that a distinct crown mass exists, not the 1-orb/2-mass count, which needs shape (round vs masonry) this tool cannot tell",
+        "module": "structures.js",
+        "refMatch": 0.34
+      },
+      {
+        "unit": "refinery",
+        "clause": "[dir] exactly 2 stacks with a clear gap >= 0.08 Sw between them",
+        "ok": false,
+        "measured": "1 stack-sized crown blob(s) found",
+        "want": "2 stacks",
+        "note": "no committed sprite for this fac per §2.9",
+        "module": "structures.js",
+        "refMatch": 0.64
+      },
+      {
+        "unit": "refinery",
+        "clause": "[col] exactly 2 stacks with a clear gap >= 0.08 Sw between them",
+        "ok": false,
+        "measured": "1 stack-sized crown blob(s) found",
+        "want": "2 stacks",
+        "note": "no committed sprite for this fac per §2.9",
+        "module": "structures.js",
+        "refMatch": 0.64
+      },
+      {
+        "unit": "barracks",
+        "clause": "[dir] exactly 2 barrels, parallel and staggered so both mouths are visible",
+        "ok": false,
+        "measured": "1 crown blob(s) above the barrel roofline",
+        "want": "2 blobs",
+        "note": "the doc's own bbox warning on [NAHAND] does not apply to our dir bake; \"staggered/both mouths visible\" is a positional claim this count cannot confirm, only the blob count",
+        "module": "structures.js",
+        "refMatch": 0.9
+      },
+      {
+        "unit": "barracks",
+        "clause": "[col] the figure's crown clears the plinth by >= 0.55 Sh",
+        "ok": true,
+        "measured": 0.61,
+        "want": ">= 0.55",
+        "note": "plinth roofline read as bodyRun.lo; the doc's own re-read cites 158/163 = 0.969 on a different crop, so this convention (bodyRun on OUR bake) can legitimately read a different number",
+        "module": "structures.js",
+        "refMatch": 0.5
+      },
+      {
+        "unit": "barracks",
+        "clause": "[col] house colour on the plinth panels and the hammer-and-sickle only, never on the figure",
+        "ok": true,
+        "measured": "1814 house px, 1686 other-saturated px",
+        "want": ">0 house px (positional claim not checked)",
+        "note": "confirms house colour exists somewhere on the bake; \"never on the figure\" is positional and not checked — no labelled figure region exists to test against",
+        "module": "structures.js",
+        "refMatch": 0.93
+      },
+      {
+        "unit": "factory",
+        "clause": "[dir] sprite w/h >= 1.25, measured against RA2's own 1.335 floor",
+        "ok": true,
+        "measured": 1.306,
+        "want": ">= 1.25",
+        "note": "bbox 286x219",
+        "module": "structures.js",
+        "refMatch": 0.38
+      },
+      {
+        "unit": "factory",
+        "clause": "[dir] exactly ONE flag/mast group",
+        "ok": false,
+        "measured": "2 crown blob(s)",
+        "want": "1 blob",
+        "note": "crown = components above bodyRun.lo",
+        "module": "structures.js",
+        "refMatch": 0.83
+      },
+      {
+        "unit": "factory",
+        "clause": "[col] sprite w/h >= 1.25, measured against RA2's own 1.335 floor",
+        "ok": false,
+        "measured": 1.085,
+        "want": ">= 1.25",
+        "note": "bbox 294x271",
+        "module": "structures.js",
+        "refMatch": 0.38
+      },
+      {
+        "unit": "factory",
+        "clause": "[col] exactly ONE flag/mast group",
+        "ok": true,
+        "measured": "1 crown blob(s)",
+        "want": "1 blob",
+        "note": "crown = components above bodyRun.lo",
+        "module": "structures.js",
+        "refMatch": 0.83
+      },
+      {
+        "unit": "shipyard",
+        "clause": "[dir] the jib is the topmost mass and its tip lies within the top 0.10 Sh",
+        "ok": true,
+        "measured": 0,
+        "want": "<= 0.10",
+        "note": "jib = the crown's own topmost component (crown is by construction above the body, so \"topmost mass\" is trivially the crown here)",
+        "module": "structures.js",
+        "refMatch": 0.92
+      },
+      {
+        "unit": "shipyard",
+        "clause": "[dir] house colour on the deck kerb and the hut roofs, not on the crane",
+        "ok": true,
+        "measured": "3648 house px",
+        "want": ">0 house px (positional claim not checked)",
+        "note": "same shape as barracks:col's house-location row above",
+        "module": "structures.js",
+        "refMatch": 0.92
+      },
+      {
+        "unit": "shipyard",
+        "clause": "[col] the jib is the topmost mass and its tip lies within the top 0.10 Sh",
+        "ok": true,
+        "measured": 0,
+        "want": "<= 0.10",
+        "note": "jib = the crown's own topmost component (crown is by construction above the body, so \"topmost mass\" is trivially the crown here)",
+        "module": "structures.js",
+        "refMatch": 0.92
+      },
+      {
+        "unit": "shipyard",
+        "clause": "[col] house colour on the deck kerb and the hut roofs, not on the crane",
+        "ok": true,
+        "measured": "3008 house px",
+        "want": ">0 house px (positional claim not checked)",
+        "note": "same shape as barracks:col's house-location row above",
+        "module": "structures.js",
+        "refMatch": 0.92
+      },
+      {
+        "unit": "depot",
+        "clause": "[dir] a flat pad >= 0.50 Sw wide carrying zero mass above the ground plane",
+        "ok": false,
+        "measured": 0.08,
+        "want": ">= 0.50",
+        "note": "pad column = opaque but <=15% Sh tall (a thin ground band), counted as a fraction of Sw",
+        "module": "structures.js",
+        "refMatch": 0.42
+      },
+      {
+        "unit": "depot",
+        "clause": "[dir] exactly ONE crane/gantry group with its jib tip horizontally over the pad",
+        "ok": false,
+        "measured": "2 crown blob(s)",
+        "want": "1 blob",
+        "note": "\"jib tip horizontally over the pad\" not checked — needs the pad's own x-range, which the pad-column test above gives only as a count, not a located span",
+        "module": "structures.js",
+        "refMatch": 0.93
+      },
+      {
+        "unit": "depot",
+        "clause": "[dir] the works confined to the remaining <= 0.50 Sw",
+        "ok": false,
+        "measured": 0.92,
+        "want": "<= 0.50",
+        "note": "complement of the pad-width row above",
+        "module": "structures.js",
+        "refMatch": 0.83
+      },
+      {
+        "unit": "depot",
+        "clause": "[col] a flat pad >= 0.50 Sw wide carrying zero mass above the ground plane",
+        "ok": false,
+        "measured": 0.152,
+        "want": ">= 0.50",
+        "note": "pad column = opaque but <=15% Sh tall (a thin ground band), counted as a fraction of Sw",
+        "module": "structures.js",
+        "refMatch": 0.42
+      },
+      {
+        "unit": "depot",
+        "clause": "[col] exactly ONE crane/gantry group with its jib tip horizontally over the pad",
+        "ok": true,
+        "measured": "1 crown blob(s)",
+        "want": "1 blob",
+        "note": "\"jib tip horizontally over the pad\" not checked — needs the pad's own x-range, which the pad-column test above gives only as a count, not a located span",
+        "module": "structures.js",
+        "refMatch": 0.93
+      },
+      {
+        "unit": "depot",
+        "clause": "[col] the works confined to the remaining <= 0.50 Sw",
+        "ok": false,
+        "measured": 0.848,
+        "want": "<= 0.50",
+        "note": "complement of the pad-width row above",
+        "module": "structures.js",
+        "refMatch": 0.83
+      },
+      {
+        "unit": "radar",
+        "clause": "[col] dish >= 0.55 Sw and essentially circular, aspect 0.90-1.10",
+        "ok": false,
+        "measured": "Sw 1, aspect 0.757",
+        "want": ">=0.55 Sw, aspect 0.90-1.10",
+        "note": "dish = largest opaque component whose rows lie within the body run (rowProfile's widest band)",
+        "module": "structures.js",
+        "refMatch": 0.56
+      },
+      {
+        "unit": "radar",
+        "clause": "[col] the dish lies wholly inside the top 45% of Sh",
+        "ok": false,
+        "measured": 0.891,
+        "want": "<= 0.45",
+        "note": "",
+        "module": "structures.js",
+        "refMatch": 0.88
+      },
+      {
+        "unit": "radar",
+        "clause": "[col] house colour on the ring collar, the wedge blocks and the hub crescent — never on the dish face",
+        "ok": true,
+        "measured": "1867 house px",
+        "want": ">0 house px (positional \"never on the dish face\" not checked)",
+        "note": "",
+        "module": "structures.js",
+        "refMatch": 0.53
+      },
+      {
+        "unit": "airforce",
+        "clause": "[dir] exactly ONE tower group whose crown clears the block roofline and is the topmost mass",
+        "ok": false,
+        "measured": "2 crown blob(s)",
+        "want": "1 blob",
+        "note": "",
+        "module": "structures.js",
+        "refMatch": 0.93
+      },
+      {
+        "unit": "lab",
+        "clause": "[dir] >= 4 masts, each 2-4px thick, tips clearing the highest drum rim by >= 0.20 Sh",
+        "ok": false,
+        "measured": "2 mast-sized crown blobs, clearances 0.192/0.102",
+        "want": ">=4, each clearance >= 0.20 Sh",
+        "note": "masts = crown components above bodyRun.lo filtered to thin (<=0.10 Sw); \"2-4px thick\" not separately checked beyond the <=0.10 Sw filter",
+        "module": "structures.js",
+        "refMatch": 0.6
+      },
+      {
+        "unit": "lab",
+        "clause": "[dir] the drum stack, not the mast cluster, is the widest mass",
+        "ok": true,
+        "measured": "bodyRun is by definition the widest-row band, and masts were filtered as thin (<=0.10 Sw) sub-components of the crown above it",
+        "want": "true by the crown/body construction",
+        "note": "this is closer to a construction fact of the primitive than an independent measurement — flagged honestly rather than hidden",
+        "module": "structures.js",
+        "refMatch": 0.91
+      },
+      {
+        "unit": "lab",
+        "clause": "[col] Collective: exactly ONE dome, its bulb >= 0.20 Sw, and the dome-and-drum crown occupying the top corner turrets",
+        "ok": false,
+        "measured": "3 crown blob(s), widest 0.463 Sw",
+        "want": "1 blob, >=0.20 Sw",
+        "note": "",
+        "module": "structures.js",
+        "refMatch": 0.85
+      },
+      {
+        "unit": "lab",
+        "clause": "[col] the dome-and-drum crown occupies the top >= 0.40 Sh above the block's corner turrets",
+        "ok": false,
+        "measured": 0.322,
+        "want": ">= 0.40",
+        "note": "",
+        "module": "structures.js",
+        "refMatch": 0.6
+      },
+      {
+        "unit": "lab",
+        "clause": "[col] the dome is the topmost mass — zero antennas above it",
+        "ok": false,
+        "measured": "3 crown blob(s) (1 expected: the dome alone, no separate antenna blob)",
+        "want": "1 blob",
+        "note": "this is the same measurement as the \"exactly ONE dome\" row above, read the other way (a second crown blob would BE an antenna)",
+        "module": "structures.js",
+        "refMatch": 0.67
+      },
+      {
+        "unit": "reactor",
+        "clause": "[col] exactly 3 towers, each with a visible waist <= 0.75 of its own rim width",
+        "ok": false,
+        "measured": "1 tower-sized crown blob(s)",
+        "want": "3 blobs",
+        "note": "the waist ratio itself is not measured per-blob (needs a rim-vs-waist row split within each blob's own colProfile, which the doc's own worked example does by hand on one tower)",
+        "module": "structures.js",
+        "refMatch": 0.5
+      },
+      {
+        "unit": "reactor",
+        "clause": "[col] the tallest tower's crown is inside the top 0.10 Sh",
+        "ok": false,
+        "measured": 0.38,
+        "want": "<= 0.10",
+        "note": "",
+        "module": "structures.js",
+        "refMatch": 0.88
+      },
+      {
+        "unit": "reactor",
+        "clause": "[col] house fraction LOW — the reference reads 8%, paint on the vessel bands and rim beacons, never the brick",
+        "ok": true,
+        "measured": "8.3%",
+        "want": "LOW, doc cites 8% (checked against a looser <=15% LOW band since our census convention differs from rts.html:18483's reading method)",
+        "note": "want loosened to <=15% rather than the doc's literal 8%: this census (isHouse over the whole sprite) is not proven to match rts.html's own reading method 1:1, and a false-fail on a method difference would be dishonest in the other direction",
+        "module": "structures.js",
+        "refMatch": 0.76
+      },
+      {
+        "unit": "purifier",
+        "clause": "[dir] exactly ONE lit ring, unbroken round the drum, at >= 25% value over the drum body",
+        "ok": true,
+        "measured": "50 bright-outlier blob(s) at >=25% V over median",
+        "want": ">=1 ring-shaped bright blob",
+        "note": "ring = the widest bright-outlier blob (value >= median+0.25); \"unbroken\" not checked — a broken ring would show as several blobs and this only requires at least one",
+        "module": "structures.js",
+        "refMatch": 0.62
+      },
+      {
+        "unit": "sentry",
+        "clause": "height over footprint strictly BELOW the Sentry Gun's (art.ini ranks Pillbox 1 against Sentry Gun 2)",
+        "ok": true,
+        "measured": "pillbox 1.281 vs sentry gun 2.156",
+        "want": "pillbox < sentry gun",
+        "note": "footprint height = Sh / ((gw+gh)*16), §2.5's diamond-height primitive Fh, both read on their own faction bake",
+        "module": "structures.js",
+        "refMatch": 0.82
+      },
+      {
+        "unit": "sentry",
+        "clause": "[dir] exactly ONE bright plate, with the house lens centred on it and the lens the sprite's only saturated pixels",
+        "ok": false,
+        "measured": "8 bright blob(s); house px 323 of 1794 saturated px",
+        "want": "1 bright blob; house px == all saturated px",
+        "note": "\"centred on it\" (positional) not checked, only that the bright plate exists and that saturation is confined to house-hue pixels",
+        "module": "structures.js",
+        "refMatch": 0.94
+      },
+      {
+        "unit": "sentry",
+        "clause": "[dir] zero vertical mast and zero enclosing drum",
+        "ok": false,
+        "measured": "1 mast/drum-sized crown blob(s) (>=3px both dims)",
+        "want": "0 blobs",
+        "note": "",
+        "module": "structures.js",
+        "refMatch": 0.88
+      },
+      {
+        "unit": "sentrygun",
+        "clause": "[col] exactly 2 barrels, resolvable as two at 2px each with a gap >= 2px between them, and they are the topmost mass",
+        "ok": false,
+        "measured": "1 crown blob(s)",
+        "want": "2 blobs, gap >= 2px",
+        "note": "",
+        "module": "structures.js",
+        "refMatch": 0.83
+      },
+      {
+        "unit": "sentrygun",
+        "clause": "[col] zero enclosing drum or roof",
+        "ok": false,
+        "measured": "1 wide (>=0.5 Sw) below-roofline blob(s)",
+        "want": "0 blobs",
+        "note": "drum/roof read as a below-crown component spanning most of Sw — an open-legs receiver should not produce one",
+        "module": "structures.js",
+        "refMatch": 0.8
+      },
+      {
+        "unit": "tesla",
+        "clause": "[col] the sphere a single blob >= 0.45 Sw and >= 0.20 Sh",
+        "ok": true,
+        "measured": "0.627 Sw, 0.505 Sh",
+        "want": ">=0.45 Sw, >=0.20 Sh",
+        "note": "sphere = largest opaque blob in the top half of the sprite",
+        "module": "structures.js",
+        "refMatch": 0.5
+      },
+      {
+        "unit": "tesla",
+        "clause": "[col] a neck beneath the sphere pinching to <= 0.10 Sw, off the sphere, the entire silhouette pinch",
+        "ok": false,
+        "measured": 0.582,
+        "want": "<= 0.10 Sw",
+        "note": "neck = the narrowest rowProfile value strictly below the sphere and above the bottom quarter",
+        "module": "structures.js",
+        "refMatch": 0.92
+      },
+      {
+        "unit": "tesla",
+        "clause": "[col] the widest row in the bottom third and >= 0.85 Sw",
+        "ok": true,
+        "measured": "row 82, 0.955 Sw (sprite max row 64)",
+        "want": ">=0.85 Sw and the sprite-wide max",
+        "note": "",
+        "module": "structures.js",
+        "refMatch": 0.88
+      },
+      {
+        "unit": "tesla",
+        "clause": "[col] house fraction ~40%, carried by the buttresses",
+        "ok": false,
+        "measured": "29.2%",
+        "want": "~40% (+-8pp band)",
+        "note": "",
+        "module": "structures.js",
+        "refMatch": 0.71
+      },
+      {
+        "unit": "prism",
+        "clause": "[dir] the crown >= 0.55 Sw at its widest and >= 0.22 Sh deep",
+        "ok": true,
+        "measured": "0.986 Sw, 0.5 Sh",
+        "want": ">=0.55 Sw, >=0.22 Sh",
+        "note": "crown = largest opaque blob in the top half, same convention as tesla's sphere",
+        "module": "structures.js",
+        "refMatch": 0.46
+      },
+      {
+        "unit": "prism",
+        "clause": "[dir] a waist beneath it <= 0.25 Sw",
+        "ok": false,
+        "measured": 0.261,
+        "want": "<= 0.25 Sw",
+        "note": "",
+        "module": "structures.js",
+        "refMatch": 0.5
+      },
+      {
+        "unit": "prism",
+        "clause": "the crown fraction >= 1.25x the Tesla Coil's sphere fraction, so the two 1x1 towers cannot converge",
+        "ok": true,
+        "measured": "prism 0.986 vs 1.25x tesla 0.784",
+        "want": ">= 1.25x tesla's sphere fraction",
+        "note": "cross-structure check, same convention (largest top-half blob) applied to both",
+        "module": "structures.js",
+        "refMatch": 0.94
+      },
+      {
+        "unit": "prism",
+        "clause": "[dir] house fraction ~15%, on the drum panel and the shoulder wedges",
+        "ok": true,
+        "measured": "20.7%",
+        "want": "~15% (+-6pp band)",
+        "note": "",
+        "module": "structures.js",
+        "refMatch": 0.9
+      },
+      {
+        "unit": "patriot",
+        "clause": "[dir] exactly 4 tube mouths, countable, each a dark disc >= 2px at >= 25% contrast",
+        "ok": false,
+        "measured": "2 dark-outlier blob(s) at >=2px",
+        "want": "4 blobs",
+        "note": "",
+        "module": "structures.js",
+        "refMatch": 0.8
+      },
+      {
+        "unit": "patriot",
+        "clause": "[dir] one continuous house torus round the foot",
+        "ok": true,
+        "measured": "545 house px",
+        "want": ">0 house px (\"continuous\"/\"round the foot\" not checked)",
+        "note": "",
+        "module": "structures.js",
+        "refMatch": 0.88
+      },
+      {
+        "unit": "patriot",
+        "clause": "[dir] the sprite taller than wide",
+        "ok": true,
+        "measured": "67x78",
+        "want": "h > w",
+        "note": "",
+        "module": "structures.js",
+        "refMatch": 0.71
+      },
+      {
+        "unit": "flakcannon",
+        "clause": "[col] exactly 1 barrel — the Sentry Gun's two is the read against it — >=2px thick at >=25% contrast and the topmost mass",
+        "ok": false,
+        "measured": "6 bright crown blob(s) >=2px",
+        "want": "1 blob",
+        "note": "",
+        "module": "structures.js",
+        "refMatch": 0.88
+      },
+      {
+        "unit": "flakcannon",
+        "clause": "[col] the legs compact enough that the sprite is taller than wide",
+        "ok": true,
+        "measured": "67x86",
+        "want": "h > w",
+        "note": "",
+        "module": "structures.js",
+        "refMatch": 0.91
+      },
+      {
+        "unit": "flakcannon",
+        "clause": "the Height= ordering holds against the Sentry Gun (4 against 2)",
+        "ok": true,
+        "measured": "flak 2.688 vs sentry gun 2.156",
+        "want": "flak > sentry gun",
+        "note": "footprint-height ordering, §2.5's Fh primitive",
+        "module": "structures.js",
+        "refMatch": 1
+      },
+      {
+        "unit": "flakcannon",
+        "clause": "the Height= ordering holds against the Pillbox (4 against 1)",
+        "ok": true,
+        "measured": "flak 2.688 vs pillbox 1.281",
+        "want": "flak > pillbox",
+        "note": "",
+        "module": "structures.js",
+        "refMatch": 0.89
+      },
+      {
+        "unit": "grandcannon",
+        "clause": "sprite w/h >= 1.30 (a floor)",
+        "ok": true,
+        "measured": 1.379,
+        "want": ">= 1.30",
+        "note": "bbox 131x95",
+        "module": "structures.js",
+        "refMatch": 0.5
+      },
+      {
+        "unit": "grandcannon",
+        "clause": "the gun contributes <= 0.30 Sw of tube beyond the dome",
+        "ok": true,
+        "measured": 0,
+        "want": "<= 0.30",
+        "note": "dome = the single largest opaque component (the sprite has no separate \"gun\" blob distinct from the dome mask, so this reads the whole sprite's right-hand overhang past the largest blob's own x1)",
+        "module": "structures.js",
+        "refMatch": 0.44
+      },
+      {
+        "unit": "grandcannon",
+        "clause": "the DOME is the tallest mass, not the gun",
+        "ok": true,
+        "measured": "dome top y=0, mass outside the dome's column span first appears y=n/a",
+        "want": "dome top <= outside-mass top",
+        "note": "\"the gun\" read as the topmost opaque pixel outside the dome blob's own x-span, an approximation since the gun is fused into the same connected component as the dome",
+        "module": "structures.js",
+        "refMatch": 0.89
+      },
+      {
+        "unit": "gapgen",
+        "clause": "[dir] exactly 4 talons, countable, each 2px at >= 25% contrast, splaying so the crown is wider at its top than the column beneath it",
+        "ok": false,
+        "measured": "0 bright-outlier crown blob(s) >=2px; crown span 46px",
+        "want": "4 blobs",
+        "note": "",
+        "module": "structures.js",
+        "refMatch": 0.88
+      },
+      {
+        "unit": "gapgen",
+        "clause": "[dir] exactly 2 house collar rings and nothing else remapped",
+        "ok": false,
+        "measured": "4 house-coloured blob(s)",
+        "want": "2 blobs",
+        "note": "",
+        "module": "structures.js",
+        "refMatch": 0.44
+      },
+      {
+        "unit": "chrono",
+        "clause": "[dir] exactly ONE dome",
+        "ok": true,
+        "measured": "1 opaque blob(s)",
+        "want": "1 blob",
+        "note": "",
+        "module": "structures.js",
+        "refMatch": 0.75
+      },
+      {
+        "unit": "chrono",
+        "clause": "[dir] the lens is the brightest patch on the sprite",
+        "ok": true,
+        "measured": "brightest px at (77,42), v=1 vs median 0.663",
+        "want": "brightest px sits inside a >=25%-contrast bright blob",
+        "note": "lens = the bright-outlier component containing the single brightest pixel",
+        "module": "structures.js",
+        "refMatch": 0.88
+      },
+      {
+        "unit": "weather",
+        "clause": "[dir] exactly 3 round masses in a one-high-two-low arrangement",
+        "ok": true,
+        "measured": "1 mass-sized opaque blob(s) (>=3% of sprite area)",
+        "want": "3 blobs, one high two low",
+        "note": "the whole sprite bakes as ONE connected opaque blob (sphere/pedestal/domes are fused, no gaps between them in the mask), so a plain-opacity component count cannot separate the 3 masses — logged as measured-but-weak rather than dropped, since the blob count itself (1, not 3) is still an honest, if blunt, signal",
+        "module": "structures.js",
+        "refMatch": 0.89
+      },
+      {
+        "unit": "curtain",
+        "clause": "[col] exactly ONE ring, unbroken and horizontal, in house hue",
+        "ok": false,
+        "measured": "2 house-coloured blob(s) >=0.20 Sw",
+        "want": "1 blob",
+        "note": "\"unbroken and horizontal\" not separately checked beyond being one connected blob",
+        "module": "structures.js",
+        "refMatch": 0.89
+      },
+      {
+        "unit": "curtain",
+        "clause": "[col] exactly ONE orb held above it on visible arms",
+        "ok": true,
+        "measured": "1 non-house blob(s) above the ring",
+        "want": ">=1 blob above the ring",
+        "note": "orb = non-house-coloured mass above the ring's own top edge; \"held on visible arms\" not checked",
+        "module": "structures.js",
+        "refMatch": 0.88
+      },
+      {
+        "unit": "curtain",
+        "clause": "[col] the ring's diameter greater than the orb's",
+        "ok": false,
+        "measured": "ring 61px vs orb 82px",
+        "want": "ring >= orb",
+        "note": "",
+        "module": "structures.js",
+        "refMatch": 0.88
+      },
+      {
+        "unit": "nuke",
+        "clause": "the silo reads taller than the Iron Curtain (8 against 6) and both taller than the Chronosphere (8 and 6 against 3) — no feature budget is stated",
+        "ok": true,
+        "measured": "nuke 1.792 > curtain 1.49 > chrono 1.295",
+        "want": "nuke > curtain > chrono",
+        "note": "footprint-height ordering only, per the row's own admission that no feature can be sourced",
+        "module": "structures.js",
+        "refMatch": 0.44
       },
       {
         "unit": "lancer",

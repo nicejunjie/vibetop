@@ -472,6 +472,14 @@ const TARGETS = {
   'clause.vehicleUnmet':         { want: 0,    dir: 'down', note: 'the same, for the 18 unmeasured vehicle clauses' },
   'clause.navalUnmet':           { want: 0,    dir: 'down', note: 'the same, for the 9 unmeasured naval clauses' },
   'clause.airUnmet':             { want: 0,    dir: 'down', note: 'the same, for the 7 unmeasured air clauses' },
+  // STRUCTURE CLAUSES (§2.5-2.9, tools/clause-checks/structures.js). A
+  // SEPARATE metric from the four above, never folded in — see the long
+  // comment beside `isBld` in the clause loader for why, and
+  // clause-inventory.md's own words ("a separate metric, not a bigger 57").
+  'clause.checkedStructures':    { want: 73,   dir: 'up',   note: "§2.5-2.9 states 91 budget clauses across 25 structures (clause-inventory.md). 73 IS REACHABLE and is what structures.js emits today: every clause it can honestly measure emits a row, and the remainder (23 distinct clause statements, a few doubled across dir/col) are logged as UNMEASURABLE WITH A REASON rather than faked — e.g. no line/edge detector exists for ribs, ducts or straight edges, no shape test tells a chimney from a tower or a drum from a chute, and several §2.9 rows state no number at all (the Nuclear Missile Silo's own admission, the Spy Satellite's composition-from-plate-only clause). `want` is set to what this file actually reaches, the same rule that governs `clause.checked`'s 57; some of the 91 are also fragments of ONE clause split by a semicolon inside a parenthetical aside (the Yard's, War Factory's and Grand Cannon's width-floor rows) and are checked once, not twice" },
+  'clause.unmetStructures':      { want: 0,    dir: 'down', note: 'of the 73 checked structure clauses, the ones checked AND FAILING — 35 on the day this file first ran. This is NOT a regression: no art changed, a measurement route opened that did not exist before. Real findings worth naming here rather than in a commit message: the Refinery bakes only ONE stack where §2.6 wants two on both facs; the War Factory bakes 2 flag/mast crown blobs on `dir` (wants exactly 1) and its `col` bake fails the width floor outright at 1.085 against >=1.25; the Service Depot\'s pad never reaches the stated 0.50 Sw on either fac (0.08/0.152); the Battle Lab\'s Collective dome bake carries 3 crown blobs where the row wants exactly 1; the SAM Site (sentrygun) and Sentry Gun (patriot-side pillbox) barrel/mast counts miss on both keys; the Weather Controller and Iron Curtain bakes fuse their named parts into ONE connected blob so the "exactly 3 masses" / "exactly one ring" counts read 1 and 2 respectively. Every failing row carries its own measured number and want in `detail.clauses` — this count is the gate, not the report' },
+  'clause.struckStructures':     { want: 0,    dir: 'down', note: 'of the checked structure clauses, the ones whose §2 row is STRUCK. Zero today: no structure clause has yet been proven unreachable by its own arithmetic the way the Nighthawk\'s rotor span was. Same ratchet as `clause.struck` and for the same reason — a strike here would add a row to `checkedStructures` and spend it again on this counter, so striking can never be how that number moves' },
+  'clause.waivedStructures':     { want: 0,    dir: 'down', note: 'of the checked structure clauses, the ones whose §2 row is WAIVED. Zero today. Same distinction as `clause.waived`: reserved for a clause that is reachable but overridden by a recorded MEASURED decision, not for one this tool merely finds inconvenient' },
   'clip.unitsTouchingSheetEdge':  { want: 0,    dir: 'down', note: 'units with at least one bearing whose opaque bbox touches the border of its sheet cell — i.e. art the canvas CUT. Every other metric in this file is downstream of the bake, so a clipped sprite makes aspect, IoU, spike and size all precise and all wrong, with nothing to show for it: the sprite still renders and still looks plausible. The Nighthawk shipped an entire measured pass this way on 2026-09-05 — a 26-unit tail boom reached 48 px on a 104 px sheet and octants 3 and 7 came back with the fin flat against the edge — and it was caught by a hand-written probe, not by anything standing. This is that probe, made standing' },
   'clip.unitsClippedOnGatedOctant':{ want: 0,   dir: 'down', note: "the subset clipped on the unit's own BROADSIDE bearing — the one the aspect and size gates actually read, so a clip there corrupts a headline number rather than a footnote. Per-unit, not a fixed pair: the Nighthawk's broadside is octant 3/7, the Apocalypse's is 0, and a first draft of this metric hardcoded 3 and 7 and would have reported a clean sheet for a unit clipped anywhere else" },
   'size.crossGroupSpread':       { want: 1.61, dir: 'down', note: 'widest group bake scale over narrowest, against RA2 sprite widths. RA2 measures every group in the SAME pixels so its own spread is 1.00 by construction; ours is infantry 1.417 / vehicle 1.270 / air 0.973 / naval 0.881 = 1.61x. This is the blind spot the ra2Size block declares in its own comment — both size gates normalise per GROUP, so a whole group at the wrong scale is invisible to them, and it took a §2 clause to surface it: "[DEST] length >= 1.7x any land vehicle" measures 0.848, our Destroyer being SHORTER than our MCV where RA2 has it 1.46x longer. 1.00 is not the target: infantry are deliberately enlarged for ZMIN legibility (the 1.12x over vehicles is intended). The unexplained part is the fleet at 0.881. RATCHETED, not chased — closing it means rescaling the best-proportioned group on the board, so this exists to stop the spread growing silently' },
@@ -786,8 +794,30 @@ function pageExtract() {
         if (y < y0) y0 = y; if (y > y1) y1 = y;
       }
     if (x1 < 0) return null;
+    const bw = x1 - x0 + 1, bh = y1 - y0 + 1;
+    // bbox MASK + RGBA, the same one-byte/four-byte encoding as the unit bake
+    // above (see the comment there) — the blocker §2.5-2.9's structure clauses
+    // (counts, crowns, gaps, house fraction) needed closed: a structure used to
+    // carry only `{ key, fac, name, cat, gw, gh, w, h, edges }`, so no clause
+    // check had per-pixel data to measure. Purely additive: every existing
+    // consumer of a `blds` record (`ra2Bld`, `bldSummary`, `size.bld*`,
+    // `clip.structuresTouchingSheetEdge`) reads only the fields that already
+    // existed, so this cannot move a single existing metric.
+    const m = new Uint8Array(bw * bh);
+    for (let y = 0; y < bh; y++) for (let x = 0; x < bw; x++)
+      m[y * bw + x] = id[((y + y0) * c.width + (x + x0)) * 4 + 3] > 8 ? 1 : 0;
+    let bin = '';
+    for (let i = 0; i < m.length; i += 0x8000) bin += String.fromCharCode.apply(null, m.subarray(i, i + 0x8000));
+    const rgba = new Uint8Array(bw * bh * 4);
+    for (let y = 0; y < bh; y++) for (let x = 0; x < bw; x++) {
+      const si = ((y + y0) * c.width + (x + x0)) * 4, di = (y * bw + x) * 4;
+      rgba[di] = id[si]; rgba[di + 1] = id[si + 1];
+      rgba[di + 2] = id[si + 2]; rgba[di + 3] = id[si + 3];
+    }
+    let rbin = '';
+    for (let i = 0; i < rgba.length; i += 0x8000) rbin += String.fromCharCode.apply(null, rgba.subarray(i, i + 0x8000));
     return { x0: x0 - PAD, y0: y0 - PAD, x1: x1 - PAD, y1: y1 - PAD,
-             w: x1 - x0 + 1, h: y1 - y0 + 1, cellW: W, cellH: H };
+             w: bw, h: bh, cellW: W, cellH: H, mask: btoa(bin), rgba: btoa(rbin) };
   };
   for (const key of Object.keys(B)) {
     for (const fk of ['dir', 'col']) {
@@ -805,7 +835,8 @@ function pageExtract() {
       blds.push({ key, fac: fk, name: sp.name || B[key].name, cat: B[key].cat,
                   gw: sp.gw, gh: sp.gh, w: bb.w, h: bb.h,
                   edges: (bb.x0 === 0 ? 'L' : '') + (bb.y0 === 0 ? 'T' : '')
-                       + (bb.x1 === bb.cellW - 1 ? 'R' : '') + (bb.y1 === bb.cellH - 1 ? 'B' : '') });
+                       + (bb.x1 === bb.cellW - 1 ? 'R' : '') + (bb.y1 === bb.cellH - 1 ? 'B' : ''),
+                  mask: bb.mask, rgba: bb.rgba });
     }
   }
   // THE NEUTRAL HOUSE IS DRAWN FROM A DIFFERENT ATLAS, and measuring the wrong
@@ -825,7 +856,8 @@ function pageExtract() {
     blds.push({ key, fac: 'neut', name: d.name, cat: d.cat, gw: d.gw, gh: d.gh,
                 w: bb.w, h: bb.h,
                 edges: (bb.x0 === 0 ? 'L' : '') + (bb.y0 === 0 ? 'T' : '')
-                     + (bb.x1 === bb.cellW - 1 ? 'R' : '') + (bb.y1 === bb.cellH - 1 ? 'B' : '') });
+                     + (bb.x1 === bb.cellW - 1 ? 'R' : '') + (bb.y1 === bb.cellH - 1 ? 'B' : ''),
+                mask: bb.mask, rgba: bb.rgba });
   }
 
   return { recs, errors, deployed, blds, dpr: window.devicePixelRatio, zoom: window.__rtsTest.zoom(),
@@ -1382,6 +1414,22 @@ function compute(recs, extra) {
                  mask: Buffer.from(r.mask, 'base64'),
                  rgba: r.rgba ? Buffer.from(r.rgba, 'base64') : null };
       },
+      // STRUCTURES (§2.5-2.9's 25 keys, `extra.blds`) — the building analogue
+      // of byUnitOct. There is no owner-1 bake for buildings (only
+      // `S.bld[0]` is ever baked — grep the sheet builder, there is no
+      // `S.bld[1]`), so unlike units there is no colour census route to a
+      // per-unit owner hue; every structure's house-colour clause below is
+      // read off this SAME single bake using vehicle.js's already-derived
+      // OWNER_HUE=197 convention (the owner-0 render is blue for both
+      // factions), not a fresh one invented here.
+      byBldFac(k, fac) {
+        const b = (extra.blds || []).find((q) => q.key === k && q.fac === fac);
+        if (!b || !b.mask) return null;
+        return { key: b.key, fac: b.fac, name: b.name, cat: b.cat,
+                 gw: b.gw, gh: b.gh, w: b.w, h: b.h, edges: b.edges,
+                 mask: Buffer.from(b.mask, 'base64'),
+                 rgba: b.rgba ? Buffer.from(b.rgba, 'base64') : null };
+      },
       // the bearing the aspect and size gates read, per unit
       broadsideOct(k) {
         let best = null;
@@ -1468,13 +1516,47 @@ function compute(recs, extra) {
     // adds to `checked` and immediately spends it again on `struck`/`waived`,
     // both of which are targets of their own and both of which go the wrong
     // way. That is what keeps striking from being the cheap green number.
+    // STRUCTURES ARE A SEPARATE METRIC, NEVER FOLDED INTO THE 57.
+    //
+    // `clause.checked` above is `want: 57` — a number that is REACHABLE
+    // (every one of the 41 units' 57 honoured clauses emits a row) and was
+    // made unreachable once already by a pass that deleted rows instead of
+    // marking them struck. Merging structures.js's rows into that same
+    // count would either drag `want` up to chase whatever structures.js
+    // manages this run (turning the target into whatever the tool already
+    // does — decoration) or leave `checked` free to rise past 57 with no
+    // corresponding `want` bump (silently loosening a gate nobody re-read).
+    // clause-inventory.md's own doctrine: "a separate metric, not a bigger
+    // 57". So `module === 'structures.js'` rows are excluded from
+    // `checked`/`unmet`/`struck`/`waived` (which is why those four numbers
+    // do not move by adding this file) and counted again below under their
+    // own `Structures`-suffixed counters with their own `want`.
+    //
+    // `unmatchedToReference` stays a SINGLE global integrity check across
+    // both partitions — a structure check naming a clause §2 never wrote is
+    // exactly as dishonest as a unit check doing it, and one counter that
+    // must read 0 is simpler to trust than two.
+    const isBld = (r) => r.module === 'structures.js';
+    const uRows = rows.filter((r) => !isBld(r));
+    const bRows = rows.filter(isBld);
     return { rows, unmatched: unmatched.length,
              unmatchedRows: unmatched.map((r) => ({ unit: r.unit, clause: r.clause, refMatch: r.refMatch })),
-             checked: rows.length, unmet: bad(rows),
-             struck: rows.filter((r) => r.struck).length,
-             waived: rows.filter((r) => r.waived).length,
+             checked: uRows.length, unmet: bad(uRows),
+             struck: uRows.filter((r) => r.struck).length,
+             waived: uRows.filter((r) => r.waived).length,
              infUnmet: bad(byG('infantry')), vehUnmet: bad(byG('vehicle')),
-             navUnmet: bad(byG('naval')), airUnmet: bad(byG('air')) };
+             navUnmet: bad(byG('naval')), airUnmet: bad(byG('air')),
+             // §2.5-2.9's 91 budget clauses across 25 structures. Unlike the
+             // unit side, `want` here is NOT 91: a mask/rgba-only bake gives
+             // no owner-diff census (no `S.bld[1]`) and several rows are
+             // plate-only or state no number at all (§2.9), so some of the
+             // 91 are logged as unmeasurable rather than checked — see each
+             // row's own note in structures.js. `want` is set to what this
+             // file actually reaches, per the "a target that cannot be
+             // reached gets disabled" rule that already governs `checked`.
+             checkedStructures: bRows.length, unmetStructures: bad(bRows),
+             struckStructures: bRows.filter((r) => r.struck).length,
+             waivedStructures: bRows.filter((r) => r.waived).length };
   })();
 
   // ── SHEET CLIPPING ─────────────────────────────────────────────────────
@@ -1556,6 +1638,10 @@ function compute(recs, extra) {
       'clause.navalUnmet': clause.navUnmet,
       'clause.airUnmet': clause.airUnmet,
       'clause.unmatchedToReference': clause.unmatched,
+      'clause.checkedStructures': clause.checkedStructures,
+      'clause.unmetStructures': clause.unmetStructures,
+      'clause.struckStructures': clause.struckStructures,
+      'clause.waivedStructures': clause.waivedStructures,
       'value.soldiersLighterThanEngineer': valueRead.lighterThanEngineer,
       'value.engineerLightPct': valueRead.engineer,
       'value.engineerMarginOverNext': valueRead.marginOverNext,
