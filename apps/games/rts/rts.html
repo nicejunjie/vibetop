@@ -10196,7 +10196,38 @@
               // quarter-unit of radius; nothing else moves, so the hull keeps
               // its 87x55 and the "beam is the denominator" warning above does
               // not apply — these are furniture on the deck, not the deck.
-              var cu = -len * 0.235 - i2 * len * 0.215, cv = sg * wid * 0.215;
+              //
+              // 2026-09-05, and the pass above fixed HALF of it. The tightened
+              // check (tools/clause-checks/vehicle.js) counts a canister as a
+              // STANDING CYLINDER, and it found two, not four, at every one of
+              // the eight bearings: the drums that separated were the two the
+              // camera separates HORIZONTALLY, and the other pair stayed fused
+              // one axis over.
+              //
+              // `cu` — the separation along the hull axis, the lever the last
+              // pass reached for again — CANNOT fix it, and that is provable
+              // rather than a preference. Under this camera the two bearings
+              // that could resolve four all have ONE of the two cluster axes
+              // projecting to zero screen X: at the broadside octant
+              // `px = ISO_X * (-sin a - cos a)` is exactly 0, so the two
+              // FLANK drums land in the same screen column no matter what,
+              // and at the axial octant `fx` is 0 and the two HULL drums do.
+              // Whichever pair shares a column can only be separated
+              // VERTICALLY, and `cu` moves the pair that is already apart.
+              // Swept: `cu` step 0.215 -> 0.380 (the point at which the rear
+              // drum leaves the hull and broadside grows 87 -> 96 px) holds
+              // the count at TWO the whole way.
+              //
+              // So the fix is the OTHER axis plus a seam. `cv` 0.215 -> 0.322
+              // opens the flank pair until the far drum still shows 14 px of
+              // its own above the near one, and the collar below makes that
+              // seam survive the bake. `cv` alone reaches four and stops at a
+              // ONE-pixel seam at every value swept (0.300 - 0.350) — the same
+              // anti-aliased owner-hued bridge, for the fifth time in this
+              // file. The plateau is `cv` 0.302 - 0.330 and this sits in the
+              // middle of it; below 0.302 the far drum's visible sliver drops
+              // under the check's h >= 1.5w and it stops being a cylinder.
+              var cu = -len * 0.235 - i2 * len * 0.215, cv = sg * wid * 0.322;
               cans.push([cx + fx * cu + px * cv, by - 9.4 + fy * cu + py * cv]);
             }
           cans.sort(function (m, n) { return m[1] - n[1]; });
@@ -10206,7 +10237,40 @@
             // a COUNTABLE cluster standing in the outline. Four vertical
             // columns are also the only crown on the field that is four
             // things, which is what the Apocalypse's silhouette owes the gate.
-            puck(cans[i2][0], cans[i2][1], 2.00, 9.6, pdark, panel, PEDGE);
+            //
+            // THE SEAM, DRAWN rather than hoped for. The drums are sorted
+            // far-to-near, so each is painted OVER the one behind it, and at
+            // the broadside octant the far drum's FOOT lands 1.8 px inside the
+            // near drum's silhouette. The two edges that meet there are both
+            // owner-hued, puck()'s 0.7-wide PEDGE stroke anti-aliases to
+            // something still owner-hued, and the house mask walks across —
+            // the fifth instance of that bridge in the art log.
+            //
+            // WIDENING `cv` CANNOT OPEN IT, which is why the seam is drawn and
+            // not spaced: the far drum's visible foot is DEFINED BY the near
+            // drum's shoulder, so it moves down with it. Swept 0.300 - 0.350,
+            // the seam is 1 px at every value. A dark puck painted FIRST, 1.60
+            // taller than the drum, puts 3 px of real black above each cap,
+            // and THAT is what the drum behind lands on.
+            //
+            // Taller, barely fatter (1.95 against 1.90), never lower. Nothing
+            // stands within 15 px of a drum's flank, so collar spent sideways
+            // or downward is owner colour spent for nothing: at 2.35 the drums
+            // read as black chimneys with a blue stripe. A symmetric collar
+            // also ate the neighbouring drum at every height that opened the
+            // seam, because the same 2 px lands on the drum BELOW.
+            //
+            // In `dark`, the hull's OWN shadow tone, not PEDGE. Both break the
+            // house mask (hue 68 against the owner's 197), and the seam does
+            // not care which — but the census does: PEDGE is the near-black
+            // every unit on the field outlines with, so spending 4 x 3 px of
+            // the Apocalypse on more of it moved `colour.vehicle.meanDist`
+            // 0.9634 -> 0.9561, the one number this pass regressed. The same
+            // collar in `dark` reads as the drums standing in the hull's
+            // shadow instead of in a black tube, and the metric goes the other
+            // way: 0.9714.
+            puck(cans[i2][0], cans[i2][1], 1.95, 11.20, dark, dark, dark);
+            puck(cans[i2][0], cans[i2][1], 1.90, 9.6, pdark, panel, PEDGE);
             gEllipse(cans[i2][0], cans[i2][1] - 9.6, 1.10);      // dark throat in the cap
             g.fillStyle = '#1a1d22'; g.fill();
             g.fillStyle = plit;                                  // lit lip
