@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_249 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_250 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
 - [Scheduled terminal messages ("resume when the token limit resets")](#scheduled-terminal-messages-resume-when-the-token-limit-resets)
@@ -272,6 +272,7 @@ _249 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [A cameo cropped away the feature that names a ship, and the "shipped rule" it seemed to cost was never involved (2026-09-06)](#a-cameo-cropped-away-the-feature-that-names-a-ship-and-the-shipped-rule-it-seemed-to-cost-was-never-involved-2026-09-06)
 - [A spectacular POSITIVE result must prove the build still runs (2026-09-06)](#a-spectacular-positive-result-must-prove-the-build-still-runs-2026-09-06)
 - [A reference sprite that measured the SCREENSHOT — and the width convention that makes a building's aspect unusable as a gate](#a-reference-sprite-that-measured-the-screenshot-and-the-width-convention-that-makes-a-buildings-aspect-unusable-as-a-gate)
+- [The sidebar cameo's contrast escape hatch was overriding the value scheme it sat inside, three passes running (2026-09-06)](#the-sidebar-cameos-contrast-escape-hatch-was-overriding-the-value-scheme-it-sat-inside-three-passes-running-2026-09-06)
 
 <!-- END TOC -->
 
@@ -10336,3 +10337,80 @@ the file was a scene, and the subject was the same value as its background — a
 the second is what turned "measure it" into "take the file". When a corpus is
 measured by one method, the file that method cannot handle is the file to
 re-check by eye, not the file to trust because the number came out plausible.
+
+## The sidebar cameo's contrast escape hatch was overriding the value scheme it sat inside, three passes running (2026-09-06)
+
+**Symptom.** The build-sidebar cameo's background luminance (`cameoFor`'s
+`lit = BAND.l0 + hv*(BAND.l1-BAND.l0)`) was designed to spread every plate's
+value by a stable per-key `hv`, yet the Directorate sidebar still had 344 of
+780 pairs closer than RA2's own 5th percentile, floored at 61.1 by `GI | Spy`.
+Two prior passes tried to fix `hv` itself — a bigger fixed contrast push (44
+instead of 26: 344 -> 170 under, but the floor fell 61.1 -> 59.3) and replacing
+the hash `hv` with a per-category RANK spread by construction (397 under,
+floor 55.0 — worse on both counts). Full numbers: `apps/games/rts/docs/per-unit-art-log.md`,
+"The rank-based attempt — measured and rejected".
+
+**Cause.** Neither pass touched the real mechanism: a contrast escape hatch,
+`if (Math.abs(lit - subL) < 20) lit = subL>50 ? subL-26 : subL+26`, that fires
+on 60-95% of keys (measured per category: veh 10/13, inf 6/14, air 2/4, sea
+9/10, bld 30/33) and, once it fires, **discards `hv` completely** — the plate's
+final value becomes a pure function of the sprite's own sampled luminance
+`subL`. Any two keys whose `subL` lands close together collapse onto the same
+escaped value regardless of how well `hv` was spread, so rewriting `hv`'s
+source only moves the collision to a different pair: rank placed `GI` and
+`Spy` at opposite rank extremes (0.000 vs 1.000) — maximum separation by
+construction — and `GI` still hatch-fired to 58.0 while `Tanya` hatch-fired to
+72.1 and landed beside the un-hatched `Spy`'s 74.0. `GI | Spy` itself never
+even reaches the hatch under the hash `hv` (both instrumented `fired: false`),
+which is why the pair reads as "figure-bound" until the wider roster is
+checked — a true fact about one pair was generalised into a false one about
+the mechanism.
+
+**Fix.** Keep `hv` alive THROUGH the hatch instead of letting it override:
+```js
+if (subL <= 50) { var base = Math.min(84, subL + 30); lit = base + hv * Math.max(0, 84 - base); }
+else            { var base2 = Math.max(12, subL - 30); lit = base2 - hv * Math.max(0, base2 - 12); }
+```
+`base`/`base2` guarantee the same kind of floor the old fixed push gave (widened
+26 -> 30, the largest push that does not cost the sidebar's own minimum — 32
+was tried and dropped Directorate's `GI|Guardian GI` runner-up to 61.4, a
+0.3-point margin judged too thin; 33 dropped the floor itself to 61.0). `hv`
+then spends whatever room is left between `base` and the category-agnostic
+12/84 clamp, pushing FURTHER from `subL`, never closer — so the worst case per
+key is never worse than the old fixed push, and two keys that used to collapse
+onto the same `subL+-26` now differ by however far apart their `hv` sits.
+Measured (whole sidebar, `node apps/games/rts/tools/cameo-legibility.js`):
+
+| | UNDER (of 780) | min | 5th pct | DPR2 UNDER | DPR2 min | greyed UNDER (bar 45.1) |
+|---|---|---|---|---|---|---|
+| Directorate, before | 344 | 61.1 | 70.4 | 131 | 64.5 | 2 |
+| Directorate, after | **225** | 61.1 | 73.0 | **71** | 64.5 | 3 |
+| Collective, before | 459 | 52.3 | 65.4 | 215 | 60.2 | 15 |
+| Collective, after | **250** | **57.7** | 70.0 | **107** | **64.4** | 2 |
+
+Both floors held or improved (Collective's rose 5.4 points) while UNDER fell
+by a third to a third-and-a-half on both factions; the one regression is
+Directorate's greyed count (2 -> 3, out of 780, floor unchanged at 38.9) traded
+against Collective's greyed count falling 15 -> 2. `art-metrics.js` (sprite
+metrics — a cameo-only change must not touch these) came back byte-identical,
+diffed as JSON rather than assumed, and `rts-art.test.js`'s ratchet test passed
+against the untouched baseline.
+
+**Rejected — spreading `hv` across the >=20-away legal zone instead of pushing
+past a guaranteed floor.** The more "principled"-looking fix — carve the zone
+`[subL+20, l1]` (or `[l0, subL-20]`) and place `lit = zoneStart + hv*zoneSpan`
+— was tried first and made both factions WORSE (Directorate 344 -> 390,
+Collective 459 -> 469) despite floors holding. Reasoning after the fact: for a
+key whose `hv` lands near the START of that zone, this places it barely 20 away
+from `subL` — sometimes closer than the old fixed 26-push — trading the
+guaranteed separation for spread that most of the time was not worth it. The
+fix that shipped only ever adds separation on top of the old guarantee; it
+never spends the guarantee to buy spread.
+
+**The general lesson.** A pipeline stage's "does it fire" instrumentation
+answers a different question from "does its OUTPUT depend on the thing I
+changed". Two passes independently proved the hatch fires (or doesn't) for
+specific pairs, but neither checked whether the hatch's own formula listened to
+the value they were trying to fix. Instrumenting the mechanism's *output
+sensitivity* to the lever being pulled — not just whether the branch is taken —
+would have caught this on the first pass.

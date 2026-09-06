@@ -30183,7 +30183,29 @@
       sr += sd0[si]; sgc += sd0[si + 1]; sb += sd0[si + 2]; sn++;
     }
     var subL = sn ? (0.299 * sr + 0.587 * sgc + 0.114 * sb) / sn / 2.55 : 45;
-    if (Math.abs(lit - subL) < 20) lit = subL > 50 ? Math.max(12, subL - 26) : Math.min(84, subL + 26);
+    if (Math.abs(lit - subL) < 20) {
+      // The old escape (`lit = subL +- 26`, full stop) is a pure function of
+      // the sprite's own luminance once it fires — measured to fire on
+      // 60-95% of keys, so it discards hv for most of the roster and every
+      // key with a similar subL collapses onto the identical escaped value.
+      // Fixing the hv SOURCE (rank instead of hash) cannot touch this: the
+      // hatch's own output never looked at hv either way, so a rank-spread
+      // hv still collapsed right back into the same collision, just between
+      // a different pair (measured: rank put GI/Spy at opposite extremes,
+      // 0.000 vs 1.000, and GI still hatch-fired to land beside Tanya).
+      //
+      // Fix: keep hv alive THROUGH the hatch by using it AFTER the push, not
+      // instead of it. `base` guarantees the same >=30 separation from subL
+      // the old code guaranteed (>=26, widened slightly — measured to buy
+      // more of the roster without dropping the sidebar's floor below
+      // 61.1); hv then spends whatever room is left between `base` and the
+      // category-agnostic 12/84 clamp, pushing FURTHER from subL, never
+      // closer. Two keys that collide on subL and used to collapse onto the
+      // same subL+-30 now land apart if their hv differs, and the worst case
+      // is never worse than the old fixed push.
+      if (subL <= 50) { var base = Math.min(84, subL + 30); lit = base + hv * Math.max(0, 84 - base); }
+      else            { var base2 = Math.max(12, subL - 30); lit = base2 - hv * Math.max(0, base2 - 12); }
+    }
     var hsl = function (l, dh) { return 'hsl(' + Math.round(hue + (dh || 0)) + ',' + BAND.sat + '%,' + Math.max(6, Math.min(92, Math.round(l))) + '%)'; };
 
     // The scene. Every category is sky-over-something except infantry, which
