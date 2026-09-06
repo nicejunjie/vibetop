@@ -1473,3 +1473,185 @@ proportions were tuned with it in, and the block already records the one time it
 DID cause a bug — the Landing Craft's wave becoming her widest protrusion and
 being scored as her identity feature. Read the fleet's numbers knowing the wake
 is in them; do not take it out to make an aspect look better.
+
+---
+
+# §2's 18 UNMEASURED VEHICLE CLAUSES — measured (2026-09-06)
+
+`tools/clause-checks/vehicle.js`. Seventeen of the eighteen now have a real
+measurement behind them; the eighteenth is recorded below as unmeasurable, with
+the four statistics that were tried. **Four art defects found and fixed, eight
+clauses confirmed already met, five left as ceilings with the arithmetic.**
+`clause.checked` 2 -> 19.
+
+| unit | clause | measured | threshold | verdict | action |
+|---|---|---|---|---|---|
+| `lancer` | hull height <= 0.45 x length | **0.423** | <= 0.45 | MET | none — and the bbox ratio is an UPPER BOUND on the hull's own |
+| `lancer` | exactly 2 house blocks, each 6-8 px, gap >= 4 | **2 blocks, minor [5,6], gap 2** (was **1** blob, 23x11) | 2 / 6-8 / >= 4 | UNMET | **FIXED the count**; gap is a ceiling |
+| `ifv` | body aspect 1.0-1.2 | **1.082** | 1.0-1.2 | MET | none |
+| `ifv` | turret >= 45% of total height | **0.306** | >= 0.45 | UNMET | ceiling — mutually exclusive with the row's own aspect clause |
+| `mirage` | gun stub <= 6 px | **4 px** | <= 6 | MET | none — the "no gun" decision is CORRECT, now measured |
+| `prismtank` | total height >= 1.15x the Mirage's | **1.549** | >= 1.15 | MET | none |
+| `chronominer` | height <= 0.55 x length | **0.582** (was 0.600) | <= 0.55 | UNMET | **improved**; ceiling is the camera (below) |
+| `chronominer` | zero turret mass | — | — | **UNMEASURABLE** | reason below |
+| `mcv` | >= 1.20x the widest tank | **1.154** | >= 1.20 | UNMET | ceiling — misses by ONE pixel of Prism |
+| `rhino` | hull height >= 1.25x the Grizzly's | **1.727** (1.765 below the crown) | >= 1.25 | MET | none |
+| `rhino` | 5 house blocks, each 4-6 px, gaps >= 3 | **5 blocks, minor [5,8,8,8,5], gap 4** | 5 / >= 4 / >= 3 | MET | none; upper bound of the size band deliberately not enforced |
+| `mammoth` | canisters >= 6x6, countable, gaps >= 2 | **4 rear blocks, tightest gap 6** (was ONE 22x31 blob) | >= 2 / >= 2 | **FIXED** | drums spread |
+| `teslatank` | coil gap >= 5 px so the pair reads as two | **5/8 bearings, gaps 10-22** | >= 4/8, >= 5 | MET | none |
+| `v3` | nose cone and fins house, midbody pure white | **184 px white body, house at 2/2 ends** | both ends | MET | none |
+| `flaktrack` | body aspect 0.95-1.10 | **0.878** | 0.95-1.10 | UNMET | left — a recorded, measured decision |
+| `warminer` | bin >= 35% of body px | **0.353** (was 0.283) | >= 0.35 | **FIXED** | bin grown |
+| `drone` | total <= 0.55x the smallest tank | **0.538** (was 0.615) | <= 0.55 | **FIXED** | `VSC` 1.000 -> 0.880 |
+| `drone` | core in house hue | **0.448** | >= 0.35 | MET | none |
+
+**Nothing regressed.** `aspect.vehicleOutsideRA2Band` 0, `size.vehicleOutsideRA2Band`
+0, `spike.belowFloor` 0, `spike.belowDeclaredBudget` 0, `clip` 0/0,
+`peerVsSelf.vehicle` 1 (unchanged), `colour.vehicleAchromatic` 0.
+Three vehicle numbers IMPROVED: `iou.groundCombat.mean` 0.4660 -> **0.4652**,
+`iou.vehicle.mean` 0.4192 -> **0.4111**, `colour.vehicle.meanDist` 0.9487 ->
+**0.9652**. `legibility.js`: **0 confusable in all six windows**, and the
+vehicle MINIMUM went UP in four of the six (37.3->38.5, 10.9->11.2, 65.0->65.1,
+58.8->61.4) — infantry, air and naval byte-identical, which is the null result
+that proves the edits are vehicle-scoped.
+
+## The four defects, and all four are the same defect
+
+**Every one of them is a comment that was right about a part the pixels did not
+deliver** — the third and fourth time this file has recorded that shape (Tesla
+Trooper carapace, Amphibious Transport cargo well).
+
+* **Grizzly — "TWO discrete house blocks ... with a clear gap between them".**
+  The paragraph is in the source, above the code. The bake had **one 23x11
+  house component**: the flank plate's lit cap topped out at `by-6.3` and the
+  turret cheek started at `by-7.8`, 1.5 units = 1.4 px apart, and the
+  anti-aliased blend between two owner-hued edges is *still owner-hued*, so the
+  mask bridges it. Plate down, cheek up: two blocks now, gap 2 px.
+* **Apocalypse — "each fat enough to be counted at 1:1 with a clear gap round
+  it".** The four drums baked as **one 22x31 house component**. Same cause: a
+  1 px seam that anti-aliasing closes. `cv` 0.175 -> 0.215, `cu` spacing 0.185
+  -> 0.215, radius 2.25 -> 2.00. Four countable drums at every bearing, tightest
+  gap 6 px, and the hull's 87x55 did not move — these are furniture on the deck,
+  not the deck, so the "beam is the denominator" warning does not apply.
+* **War Miner — "in `soviet-war-miner.png` it is roughly half the sprite".**
+  The bin measured **28.3%** of the sprite's opaque pixels against a clause
+  asking 35%. `crate` 11.4x13.6 -> 14.6x16.6 (length and beam only; the HEIGHT
+  is what a previous pass measured as lifting the bbox to 60 px and it is left
+  alone). **35.3%**, and `mirage | warminer` — the worst vehicle IoU pair on the
+  board — improved 0.7255 -> 0.7089 as a side effect.
+* **Terror Drone — 32 px against the Grizzly's 52 = 0.615.** `VSC` 1.000 ->
+  0.880. The right lever twice: the drone's size deviation from the vehicle
+  group scale also went +0.200 -> +0.050, and because `VSC` is a uniform scale
+  no proportion moved, so the leg reach that carries its SPIKES entry is still
+  9 px against a 4 px budget and `spike.minThickAtZmin` did not move off 2.2.
+  Checked against `legibility.js` before shipping — the reverted Attack Dog
+  shrink is the standing warning on exactly this move — and every vehicle
+  minimum held or rose.
+
+## The ceilings, with the arithmetic
+
+**The Chrono Miner's is the camera, and it generalises.** `TW:TH` is 64:32, so
+`ISO_Y/ISO_X` is exactly 1/2, and at the DIAGONAL octant — which is this unit's
+widest, i.e. the one the aspect and size gates read — a flat ground rectangle of
+*any* L and W projects to width `0.894(L+W)` and height `0.447(L+W)`, i.e.
+**h/w = 0.500 exactly**. So "height <= 0.55 x length" leaves `0.05 x 55 = 2.75
+px` for the ENTIRE superstructure: bin, rails, chute, cab, drum. Ours adds 3.9
+px after this pass took 2 px off the bin (it was 5.5). And RA2's own [CMIN]
+55x28 = 0.509 leaves **0.5 px**, which cannot be a side-on measurement of a
+truck with a bin on it — [CMIN] is `Voxel=yes`, so §1.1's figure is one rendered
+frame at an unrecorded bearing, exactly the caveat that table carries.
+At the HULL-broadside octant the same sprite measures **0.522 and MEETS the
+clause**; the number reported is at the gated octant, which is this file's
+convention throughout.
+*Measured negative on the way:* LENGTHENING the truck (`len` 27 -> 28.6) makes
+it WORSE, 0.582 -> 0.596, because under iso a longer ground body gains screen
+HEIGHT at half the rate it gains width and the superstructure rides along. Do
+not reach for length here.
+
+**The MCV misses by one pixel of Prism Tank.** The MCV can grow to at most
+**109 px** before `size.vehicleOutsideRA2Band` fires — the vehicle group scale is
+1.2698 and the band is +-0.25, so `1.2698 x 1.25 x 69 = 109.5`. `109 / 1.20 =
+90.8`, so the widest tank has to be 90 px or under, and the Prism Tank is **91**.
+Measured rather than argued: at MCV 109 the ratio is **1.198**.
+Shrinking the Prism DOES close it — measured MET at prism 87 and at 89 — and it
+costs `iou.groundCombat.mean` **0.4652 -> 0.4687 (prism 89) / 0.4717 (prism 87)**,
+over the 0.466 the ratchet holds, because a smaller Prism converges on the
+Apocalypse's 87 px and those two are the group's big silhouettes.
+`mass.tightestBand6` also fell 2.208 -> 2.149. One gate's pixel against
+another's; reverted, and left as debt.
+
+**The IFV's two clauses are mutually exclusive at our scale.** Turret 0.306 of
+total height against a 45% ask. Reaching 0.45 needs **+12.8 px of turret**
+(`(0.45h - crown)/0.55`), which takes the body aspect from 1.082 to **0.855** —
+0.77 of RA2's [FV] 1.111, outside the +-20% band and breaking the OTHER clause
+on the same row. The aspect one is the one RA2 states as a measured bbox, so it
+wins. Note the crown convention used is already generous: `spikeOf`'s 'v' rule
+puts the body at 55% of the widest row, and the IFV's widest row is its WHEELS,
+below the hull, which pushes the 55% line down and makes the crown longer.
+
+**The Grizzly's 4 px gap does not fit in a 22 px tank.** Two 6-8 px panels plus
+4 px of air is 16-20 px — 73-91% of the whole silhouette's height. Buying the
+rows by raising the turret was tried and measured: at 23 px **the gap was still
+2**, because the cheek's bottom edge is pinned by the turret-shoulder polygon it
+wraps rather than by its own base; and 23 px already takes hull-height/length
+from 0.423 to 0.442 against the 0.45 ceiling on the same row, with 24 px
+breaking it. Reverted. The COUNT was the real defect and it is fixed.
+
+**The Flak Track is left at 0.878 against 0.95-1.10, deliberately.** Reaching
+0.95 costs 4.7 px of height, and the height is the near-vertical jib this file
+already records as a measured decision ("a shallower jib left its crown the same
+fat box the IFV wears — the pair the gate scored at 0.709"). The IFV is still
+its closest peer at IoU 0.609, so flattening it walks straight into that pair.
+It is inside `art-metrics`' +-20% aspect band; only this row's tighter one fails.
+
+## The one clause that cannot be measured: "zero turret mass"
+
+§2.3 gives the Chrono Miner "No turret — that is the read against the War
+Miner". Four silhouette statistics were built and each was rejected by its own
+numbers, because **a mask cannot tell a turret from a superstructure**:
+
+| statistic | Grizzly | Rhino | Apocalypse | **Chrono Miner** | War Miner | why it fails |
+|---|---|---|---|---|---|---|
+| crown height / bbox h (spikeOf 'v') | 0.227 | 0.211 | 0.109 | **0.182** | 0.333 | the Apocalypse, which HAS a turret, scores below the Chrono Miner |
+| deck step / max row width | 0.420 | 0.369 | 0.326 | **0.109** | 0.072 | separates the three gun tanks, but the War Miner's turret — the row's own contrast — scores LOWEST of all |
+| roofline bulge / bbox h | 0.040 | 0.046 | 0.345 | **0.136** | 0.268 | the Grizzly's real rotating turret scores 0.04, below everything |
+| max roofline step / bbox h | 0.136 | 0.079 | 0.364 | **0.121** | 0.333 | same inversion; the Grizzly and the Chrono Miner are indistinguishable |
+
+The renderer composes hull+turret for six units and a single sheet for the other
+seven, and **no statistic above recovers that split**. An iso box seen from
+above is a ramp whether it is a turret or a bin, and the War Miner's turret sits
+on the bin's shoulder rather than on a ring, so anything tuned to catch a turret
+RING misses it. Recorded as a gap rather than shipped as a check that would pass
+the Chrono Miner for a reason unrelated to the clause.
+
+## Two conventions this file had to pin down, and one number derived
+
+* **HOUSE COLOUR is derivable from `ctx` even though the owner-1 bake is not.**
+  `rec.col` carries `chroma` and a 12-bin saturation-weighted hue histogram of
+  the FIXED (non-remap) pixels, so subtracting `hist x chroma x opaque` from the
+  sprite's own saturation-weighted histogram leaves the REMAP's distribution.
+  For all 13 vehicles that residual lands in one bin, **180-210 deg** — the
+  owner-0 bake is blue for both factions. Hence `s >= 0.25 && v >= 0.20 &&
+  |h - 197| <= 20`, which reproduces `col.ownerPct` across the group.
+* **"each 6-8 px" is the MINOR dimension**, not the area and not the major one.
+  §1.4 records RA2's Grizzly at 21.0% house over a 54x23 sprite; two 6-8 px
+  SQUARES are 6% of that, so the literal reading contradicts the table three
+  sections earlier. A 6-8 px thick PANEL — a turret cheek, a flank band — is the
+  only reading that fits both.
+* **`spikeOf`'s 55%-of-max rule is the WRONG instrument for a gun stub**, and
+  measurably so: under a 2:1 camera a low wide hull's column profile is a smooth
+  ramp, so the rule calls the hull's own taper a protrusion and reported the
+  **Mirage — the unit whose whole identity is having no gun — at 19 px**. The
+  honest test is an absolute thinness, calibrated rather than picked: 8 px is
+  twice the 4 px the SPIKES gate measures on the Grizzly's own barrel, the unit
+  §2.3 names as what a longer Mirage stub would be mistaken for. Under it the
+  Mirage measures **4** and the Grizzly **13**, matching its own 13 px budget.
+
+## The cost, recorded rather than hidden
+
+`cameo-legibility.js` moved slightly the wrong way: Directorate pairs under
+RA2's bar **371 -> 375**, DPR 2 **146 -> 148**; Collective **458 -> 462**, DPR 2
+**220 -> 219**. Every minimum and both greyed counts are unchanged (10 / 15),
+and the map gate — the player-facing one — improved. Four bigger vehicles and
+one smaller one shift a sidebar of 780 pairs by four; it is noise at the tail,
+but it is the direction that has to be watched, so it is written down.
