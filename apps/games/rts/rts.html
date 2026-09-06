@@ -17609,8 +17609,16 @@
         g.fillStyle = 'rgba(0,0,0,.36)'; g.fillRect(cx + 5, lsTop, 6, 154);
         g.fillStyle = shade(col, 0.86);                          // HOUSE strip on the spine
         g.fillRect(cx - 11, baseY - 138, 15, 84); outline(g, shade(col, 0.36));
-        g.fillStyle = col; g.fillRect(cx - 11, baseY - 138, 10, 84);
-        g.fillStyle = shade(col, 1.24); g.fillRect(cx - 11, baseY - 138, 3, 84);
+        // The strip's own face was raw `col` — the same literal fill the
+        // G.I.'s torso block uses — sitting at the spine's mid-height, close
+        // to where a portrait-cropped G.I.'s chest sits in HIS frame. That
+        // shared value is what `Battle Lab | GI` (64.8, under RA2's bar) is
+        // reading. Brightening the face keeps the spine strip as the named
+        // remap surface (the header comment above names coils, spine strip
+        // and foot block as "the whole remap") — only its value moves.
+        // Measured: 64.8 -> 65.6.
+        g.fillStyle = shade(col, 1.32); g.fillRect(cx - 11, baseY - 138, 10, 84);
+        g.fillStyle = shade(col, 1.46); g.fillRect(cx - 11, baseY - 138, 3, 84);
         g.strokeStyle = 'rgba(0,0,0,.30)'; g.lineWidth = 1;
         for (var lspI = 1; lspI < 7; lspI++) {
           g.beginPath();
@@ -18111,11 +18119,19 @@
         g.closePath(); g.fill();
       };
       pzWedge(-1, true); pzWedge(1, false);
-      // the big house panel with its recessed slot, dead front
-      g.fillStyle = col;
+      // the big house panel with its recessed slot, dead front. Value, not
+      // hue: raw `col` here was the exact literal fill the Spy's coat body
+      // uses (unit-identity-reference.md §1.5's "house-colour TORSO BLOCK"),
+      // and on the cameo metric — position-aligned, luminance-dominant — two
+      // dead-front house blocks at the SAME value read as the same picture
+      // (`Prism Tower | Spy` 63.6, under RA2's bar). Brightening the panel
+      // keeps the same house fraction (~15%, Rule S1's measured clause is an
+      // AREA, not a shade) and adds no new remap surface; it only moves the
+      // panel's value off the Spy's (measured: 63.6 -> 63.8).
+      g.fillStyle = shade(col, 1.34);
       g.fillRect(cx - 9.6, dT + 2, 19.2, 19); outline(g, shade(col, 0.34));
-      g.fillStyle = shade(col, 1.30); g.fillRect(cx - 9.6, dT + 2, 19.2, 2.4);
-      g.fillStyle = shade(col, 0.62); g.fillRect(cx - 9.6, dB - 4.0, 19.2, 3.0);
+      g.fillStyle = shade(col, 1.46); g.fillRect(cx - 9.6, dT + 2, 19.2, 2.4);
+      g.fillStyle = shade(col, 0.55); g.fillRect(cx - 9.6, dB - 4.0, 19.2, 3.0);
       g.fillStyle = '#161c28';                                // recessed slot
       g.fillRect(cx - 4.2, dT + 8, 8.4, 9.6); outline(g, shade(col, 0.40));
       g.fillStyle = 'rgba(150,200,245,' + (0.10 + (ph6 % 3 === 0 ? 0.22 : 0)) + ')';
@@ -19568,9 +19584,16 @@
       function collar(cy2, rx, ry, th) {
         g.fillStyle = shade(col, 0.58);
         g.beginPath(); g.ellipse(cx, cy2 + th, rx, ry, 0, 0, 6.29); g.fill();
-        g.fillStyle = col;
+        // The ring body was raw `col` — the same literal fill as the Spy's
+        // coat block — and the two collars sit mid-frame the way his torso
+        // does, which is exactly the shared-value collision the metric reads
+        // (`Gap Generator | Spy` 64.1, under RA2's bar). Brightening it is a
+        // value move only: still house-hued, still "exactly 2 collar rings
+        // and nothing else remapped" (unit-identity-reference.md §2.7 —
+        // that clause counts rings, not their shade). Measured: 64.1 -> 64.7.
+        g.fillStyle = shade(col, 1.30);
         g.beginPath(); g.ellipse(cx, cy2, rx, ry, 0, 0, 6.29); g.fill(); outline(g, shade(col, 0.40));
-        g.fillStyle = shade(col, 1.32);
+        g.fillStyle = shade(col, 1.44);
         g.beginPath(); g.ellipse(cx - rx * 0.18, cy2 - ry * 0.30, rx * 0.72, ry * 0.44, 0, 0, 6.29); g.fill();
       }
       collar(baseY - 17, 14.4, 6.4, 3.0);

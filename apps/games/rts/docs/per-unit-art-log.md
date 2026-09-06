@@ -3517,3 +3517,67 @@ every future decision, which is exactly how `[MTNK]`'s bad row hid a real
 defect and how `barracks:col` measured a road. **Check the plate, then check
 whether the feature it leads with is one we actually model** — here the answer
 was yes on both counts.
+
+## Directorate `Prism Tower/Gap Generator/Battle Lab | GI/Spy` — shipped, modest (2026-09-06)
+
+Three building-vs-infantry cameo pairs sat under RA2's bar: `Prism Tower | Spy`
+63.6, `Gap Generator | Spy` 64.1, `Battle Lab | GI` 64.8. All three are
+building-vs-INFANTRY, so unlike the Collective cluster the shared thing isn't
+an ornament family — it's a plate-filling raw `col` patch on each side:
+Prism's dead-front panel, Gap Generator's two collar rings, Battle Lab's spine
+strip all `g.fillStyle = col` with no shading, at the exact same literal value
+as the G.I.'s torso block / Spy's coat body.
+
+**`CAMEO_FRAME` was checked first and is architecturally unavailable here** —
+`cameoFor` forces `fr = isBld ? null : CAMEO_FRAME[key]`, so no building cameo
+can take a frame shift, only infantry/vehicle ones can, and the brief's own
+GI/Spy floor (`GI | Spy` 61.1, minimum, do-not-touch) rules out moving the
+infantry side's frame instead. That closes off the top lever category for a
+building-vs-infantry pair specifically.
+
+Tested the remaining lever — value/luminance on the shared raw-`col` surface —
+in **both directions**, since nothing said which sign would help:
+
+- **Darkening** (`shade(col, 0.60/0.70/0.66)`) was a regression: Directorate
+  UNDER went 225 -> 228, `Gap Generator | Spy` went 64.1 -> 63.6 (worse), the
+  other two pairs didn't move. Reverted.
+- **Brightening** (`shade(col, 1.34/1.30/1.32)`) moved all three the right
+  way and dropped the sidebar-wide UNDER count: 225 -> 223.
+
+Shipped the brightening direction, then rebalanced the highlight/shadow bands
+each patch already had so the value order stays coherent (a highlight brighter
+than its own base, a shadow darker than it) instead of leaving the quick sign
+-flip's stale bands sitting mid-value:
+
+    Prism Tower | Spy       63.6 -> 63.8   (base col 1.00 -> 1.34; top strip
+                                             1.30 -> 1.46; bottom shadow
+                                             0.62 -> 0.55)
+    Gap Generator | Spy     64.1 -> 64.7   (both collar rings' body col 1.00
+                                             -> 1.30; their highlight ellipse
+                                             1.32 -> 1.44 to keep separation)
+    Battle Lab | GI         64.8 -> 65.6   (spine face col 1.00 -> 1.32; its
+                                             3px highlight sliver 1.24 -> 1.46)
+
+Directorate: UNDER 225 -> **223**, min unchanged at **61.1** (`GI | Spy`,
+untouched). Collective unaffected both runs: 250 / 57.7. `art-metrics.js`
+tracked metrics are **byte-identical**, all 53 keys including
+`size.bldOutsideRA2Band` (0) and `size.bldWorstOffHouseScale` (0.1758) — a
+`shade()` value move preserves hue and house-area, which is all those metrics
+read, so this was true by construction and confirmed by diff.
+
+**Read the outcome honestly: this is a value nudge, not a fix.** None of the
+three cross anywhere near RA2's 81.7 bar — they're still comfortably inside
+the confusable band, just less so. The Collective post's lesson holds:
+building-vs-building shares a *composition*; these three share a *value*
+sitting under a composition each already has permission to look different in
+(house fraction / ring count / remap-surface identity are all satisfied
+already, per their own §2.7 rows). Moving the value was the only lever the
+brief's "levers that have worked" list left available for a building paired
+against an untouchable infantry floor-setter, and it is a small lever here
+because these plates aren't full-frame collisions the way the Collective
+trio's shared ornament was — most of each building's own frame is already
+distinct (crown, talons, dome/spine cluster); only one sub-patch collided.
+Shipping because it clears the stated bar (UNDER falls, floor holds, no
+faction cross-contamination, no invented ornament, GI/Spy untouched) — flagging
+for whoever revisits `Battle Lab | GI` (65.6) and `Prism Tower | Spy` (63.8)
+that they're still worth a real composition idea, this pass just wasn't it.
