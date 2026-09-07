@@ -370,12 +370,12 @@ exports.check = function (ctx) {
     const thick = crane ? Math.min(crane.w, crane.h) : 0;
     const reach = crane ? crane.w / f.w : 0;
     const rise = crane ? crane.h / f.h : 0;
-    add('base', `[${fac}] a crane/boom at the left of the yard, its jib >= 3 px thick, reaching >= 0.15 Sw and standing >= 0.10 Sh tall`,
+    add('base', `[${fac}] exactly ONE crane/boom group, its jib >= 3 px thick and clearing >= 0.10 Sh — read at the LEFT of the yard, not above the hall roofline`,
       !!crane && thick >= 3 && reach >= 0.15 && rise >= 0.10,
       crane
         ? `crane blob x${crane.x0}..${crane.x1} y${crane.y0}..${crane.y1}, thickest ${thick}px, reach ${R(reach, 3)} Sw, rise ${R(rise, 3)} Sh (${rivals} crane-scale mass(es) rooted left)`
         : `no s>=${CRANE_S} mass rooted in the left quarter`,
-      '>=3px thick, reach >= 0.15 Sw, rise >= 0.10 Sh',
+      'a crane at the left: >=3px thick, reach >= 0.15 Sw, rise >= 0.10 Sh',
       'crane = the largest s>=0.60 component whose left edge is inside the left quarter of the sprite. This replaces "components above bodyRun.lo", which measured the HALL: RA2\'s own [GACNST] reads '
       + '0 groups under that math, byte-identical to ours, because its crane also sits entirely below its arch, and [NACNST] reads 3. Floors are set under the four measured sprites (reach '
       + '0.177-0.244, rise 0.219-0.614, thickness 30-46px), and "thickest" is the blob bbox\'s smaller side -- the same proxy for "jib >= 3 px thick" the old row used, not a stroke-width measurement. '
