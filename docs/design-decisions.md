@@ -11692,3 +11692,38 @@ bake declaring its own parts, and a metric that guesses would have ratcheted a
 guess. The rule is stated in §1.3 where a human reads it before drawing, which
 is where it was missing.
 
+
+### A cameo misled a whole art pass — and the file the code cited did not exist
+
+**Symptom.** The IFV was rebuilt against `docs/ra2-ref/cameos/ifv.png` and
+shipped as an open yoke under four long tubes raked forward past the nose. The
+user: *"ifv is still not recoganizable enough, did you even find a real ra2 ifv
+to see?"*
+
+**Cause.** No. `rts.html`'s own comment cited `allied-ifv-idle.png` and that
+file has never existed in this repo — `docs/ra2-ref/sprites/README.md` records
+a previous fetch attempt that hit Cloudflare 403s and stopped there. So the
+only reference in hand was a painted hero plate, against the same README's
+one-line standing rule: **a cameo is not a sprite.** RA2's `[FV]` launcher is a
+BOX OF CELLS on a short pedestal, set back over the rear axles — square muzzle
+mouths in a grid, not tubes. `art.ini [FV] Weapon1FLH=64,48,180` said so all
+along: the missile muzzle is 64 leptons ahead of centre against `[GTNK]`'s 150,
+and 180 UP. High and short, not long and raked.
+
+**Fix.** The wiki's `api.php` answers where the article pages 403 — `action=query
+&prop=images` then `prop=imageinfo` gives direct `static.wikia.nocookie.net`
+URLs, and plain `curl` with a browser UA fetches them (they arrive as WebP
+whatever the extension says). Both files are committed with titles and sizes:
+`allied-ifv.png` (8-bearing in-game turnaround) and `allied-ifv-voxel.png`.
+Proportion then came off a row-width profile of the rip rather than off an
+estimate — mask `b >= g - 4`, since blue-over-green separates a grey vehicle
+from grass cleanly.
+
+**Rejected.** Trusting the plate a second time. The first block built from the
+rip's *impression* ran 48% of the sprite height and 74% of its width against
+the rip's measured 33% and 50% — as wrong in one direction as the box it
+replaced was in the other. RA2's launcher reads bigger than 33% because it is
+DARK on a PALE hull with one clean outline and a legible face, which is a
+contrast property, not an area one. See `apps/games/rts/docs/per-unit-art-log.md`,
+"the IFV, done twice".
+
