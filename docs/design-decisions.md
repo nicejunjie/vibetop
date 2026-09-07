@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_257 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_258 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
 - [Scheduled terminal messages ("resume when the token limit resets")](#scheduled-terminal-messages-resume-when-the-token-limit-resets)
@@ -280,6 +280,7 @@ _257 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [`peerVsSelf` measures how much a silhouette SWINGS, not whether it is confusable (2026-09-06)](#peervsself-measures-how-much-a-silhouette-swings-not-whether-it-is-confusable-2026-09-06)
 - [The end of the terminal tab strip was a 60px sliver (v1.19.313)](#the-end-of-the-terminal-tab-strip-was-a-60px-sliver-v119313)
 - [A clause that no isometric ground plate can satisfy squashed the Service Depot into a hairline](#a-clause-that-no-isometric-ground-plate-can-satisfy-squashed-the-service-depot-into-a-hairline)
+- [A width fraction is not a part boundary — four structure clauses measured the wrong object, and RA2's own sprites failed three of them](#a-width-fraction-is-not-a-part-boundary-four-structure-clauses-measured-the-wrong-object-and-ra2s-own-sprites-failed-three-of-them)
 
 <!-- END TOC -->
 
@@ -10876,3 +10877,73 @@ the pad at roughly 0.30 `Sw` — under half RA2's 0.71 — so the "flat pad >= 0
 Sw" row can only be satisfied by a pad that is not a pad. The predicate wants
 rewriting as a GROUND-BAND test (columns whose opaque mass is confined near the
 ground plane) rather than a thinness test.
+
+## A width fraction is not a part boundary — four structure clauses measured the wrong object, and RA2's own sprites failed three of them
+
+**Symptom.** Four §2.5-2.9 structure clauses named a real part and reported a
+number that was not about that part. `radar:col`'s dish read `Sw` **1.000** on
+all 100 structure bakes and on all four RA2 rips; `sentrygun:col`'s "zero
+enclosing drum" read exactly **1 blob @ 1.000 Sw** on the same 104 sprites;
+`tesla:col`'s neck read **0.627** where the sprite's real pinch is 18 px. Run
+the shipped math over RA2's own reference sprites and `[NARADR]` failed its own
+aspect row at 0.831 and its own top-45% row at 0.904, and `[NATSLA]` failed its
+own `<= 0.10` neck row at 0.310 — **by 3.1x**.
+
+**Cause.** All four located a part with a **width fraction** rather than with a
+part boundary — either `bodyRun`'s 55%-of-max roofline or the bottom edge of the
+largest top-half blob. For any silhouette whose base is its widest mass (every
+tower ever drawn) the 55% row lands *in the base*, so `y <= body.hi` admits
+crown, neck and base as one 4-connected blob and `dish.w === f.w` becomes an
+IDENTITY; `y >= body.lo` is the whole sprite for the same reason, and since the
+bbox is cut TO the sprite its widest row is 1.000 `Sw` by construction. The
+tesla scan started at `top.y1 + 1`, which on a continuous tower is *below* the
+neck, so it measured the buttress spread. **An identity cannot be closed by any
+art change** — which is why two local nudges to the sentry gun made its metric
+strictly worse, and why the radar's dish was re-proportioned to within 3% of the
+rip with zero clause movement.
+
+**Fix.** Two threshold-free primitives in `tools/clause-checks/structures.js`:
+`pinch(profile)` returns the deepest **interior waist** above the widest row (a
+row strictly narrower than something above it *and* something below it — the
+same "a waist separates two parts" definition `bodyRun`'s monotonicity veto is
+written around, used to *find* a boundary instead of to cancel one), and
+`solidBands(f, span, fill, depth)` reads an enclosure as wide **and solid and
+deep** mass in the top half, where `fill` is the load-bearing term because
+splayed legs span as wide as a drum wall and are mostly sky. RA2 now passes all
+four: `[NARADR]` 0.643-0.700 `Sw` / aspect 1.050-1.068 across the whole valid
+key sweep, `[NATSLA]` 0.071 `Sw`, `[NALASR]` 0 enclosing bands.
+`clause.unmetStructures` **15 -> 12** with `checkedStructures` held at 75 and
+`unmatchedToReference` at 0 — the clause TEXT is untouched, only the measurement.
+
+**The acceptance test that makes this more than a re-tune, and should be the
+standard for any future clause work.** Both halves are required. (a) RA2's own
+reference sprite must PASS the rewritten clause, keyed into the same
+`{ w, h, mask, rgba }` shape the bakes use — swept, for a ground-backed rip, with
+only what survives the sweep claimed. (b) The clause must still BITE against a
+deliberately broken build, via `ART_HTML` (which exists precisely so a metric can
+be proved RED against an unfixed page): a squashed radar dish moves aspect
+1.071 -> **1.358**, a dish dropped 40 px down its mast moves the bottom
+0.447 -> **0.480**, a drum wrapped round the sentry gun moves 0 -> **1 band**,
+and a fattened tesla helix moves the neck 0.269 -> **0.358**. *A clause that
+passes both the good art and the broken art is decoration, not a check.*
+
+**What the rewrite found in the art.** `tesla:col`'s neck stays RED at **0.269**
+against RA2's 0.071 — the first honest reading that row has ever had. The
+collar at `rts.html:16555` is 7.2 px and *is* the intended neck, but the 26 px
+electrode is seated on it with no gap and the 16 px helix wraps past it, so no
+row is ever narrow; narrowing the helix alone moves the number by **zero**,
+which is the ablation an art pass needs before it starts editing.
+
+**Rejected.** Using a different dish extent for the width row and the top-45%
+row. The full component above the pinch gives aspect 1.05 (passes) and bottom
+0.465 (fails by 1.5 pp); the dish FACE alone gives bottom 0.425 (passes) and
+aspect 1.15 (fails). Each row would then have passed on the reference — by
+picking the extent that suited it, which is threshold-shopping wearing a
+segmentation costume. One definition is used for both, and the residual is
+recorded instead: `<= 0.45` is about 1.5 pp tighter than RA2's own tower once
+the denominator is a tight opaque bbox on both sides. §2.7's own parenthetical
+(*"y 3..55 = 2%-40%"*) divides by the committed capture's 136 rows, **9 of which
+are bare ground** above and below the building.
+
+**Also rejected.** Relaxing any threshold. Every §2 number is unchanged; the
+predicates behind them are what moved.
