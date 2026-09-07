@@ -19,27 +19,27 @@
     "peerVsSelf.total": {
       "want": 0,
       "dir": "down",
-      "note": "reference §1.2/§0 bar: no unit beaten by a peer. SEE THE NOTE ABOVE — the residue is elongation, not art"
+      "note": "reference §1.2/§0 bar: no unit whose silhouette cloud is statistically indistinguishable from a peer's. 2 today — destroyer and aegis, the same pair counted from both sides. SEE THE NOTE ABOVE"
     },
     "peerVsSelf.vehicle": {
       "want": 0,
       "dir": "down",
-      "note": "audit §2: 11 of 13 today. The one flagged is the V3, the only vehicle whose silhouette is a long member held at an angle ABOVE the hull, so it swings from an 80x55 diagonal to a 39x70 near-vertical to a 39x45 box across the eight bearings — aspect swing 2.61, second only to the Grizzly and the largest that has peers its own size. MEASURED, one lever at a time: dropping the rail rise to ZERO (the missile flat on the bed) leaves it beaten by 2, lengthening the truck 22 -> 28 makes it 5, narrowing the beam 19 -> 15 makes it 5, and DELETING THE MISSILE ENTIRELY still leaves it beaten by 2 while opening aspect.vehicleOutsideRA2Band and clause.vehicleUnmet. There is no V3 that passes this row. See the block note above and tools/peer-vs-self-control.js"
+      "note": "audit §2: 13 of 13 today. The V3 sat here until 2026-09-06 and was never an art fault — it was the estimator charging it for an aspect swing of 2.61. Its nearest peer is now the War Miner at mmd2 +0.0281, comfortably clear"
     },
     "peerVsSelf.infantry": {
       "want": 0,
       "dir": "down",
-      "note": "audit §2: 11 of 14 today"
+      "note": "audit §2: 14 of 14 today. The closest infantry pair is conscript/cleg at mmd2 +0.0746"
     },
     "peerVsSelf.naval": {
       "want": 0,
       "dir": "down",
-      "note": "audit §2: 8 of 10 today"
+      "note": "audit §2: 8 of 10 today. The two are destroyer and aegis — ONE pair, counted from each side, and the only genuinely confusable silhouette pair the repaired metric finds. Closing it needs superstructure that differs, not a different hull length: both hulls are inside RA2's aspect band and must stay there"
     },
     "peerVsSelf.air": {
       "want": 0,
       "dir": "down",
-      "note": "audit §2: 0 of 4 — the control that says this is real"
+      "note": "audit §2: 0 of 4 — the control that says this is real. It was clean under the broken estimator too, which is what made the four-unit air group the only group that never argued with it"
     },
     "iou.groundCombat.mean": {
       "want": 0.45,
@@ -303,10 +303,10 @@
     }
   },
   "metrics": {
-    "peerVsSelf.total": 6,
-    "peerVsSelf.vehicle": 1,
+    "peerVsSelf.total": 2,
+    "peerVsSelf.vehicle": 0,
     "peerVsSelf.infantry": 0,
-    "peerVsSelf.naval": 5,
+    "peerVsSelf.naval": 2,
     "peerVsSelf.air": 0,
     "iou.groundCombat.mean": 0.466,
     "iou.vehicle.mean": 0.4114,
@@ -373,6 +373,8 @@
         "vsRA2": 0.875,
         "bestPeer": "Rhino Tank",
         "bestPeerIoU": 0.6412,
+        "nearestPeer": "Rhino Tank",
+        "nearestPeerMMD2": 0.2261,
         "peersBeatingSelf": 0
       },
       "warminer": {
@@ -385,6 +387,8 @@
         "vsRA2": 0.91,
         "bestPeer": "Mirage Tank",
         "bestPeerIoU": 0.7089,
+        "nearestPeer": "V3 Launcher",
+        "nearestPeerMMD2": 0.0281,
         "peersBeatingSelf": 0
       },
       "rifle": {
@@ -397,6 +401,8 @@
         "vsRA2": 1.101,
         "bestPeer": "Chrono Legionnaire",
         "bestPeerIoU": 0.6511,
+        "nearestPeer": "Chrono Legionnaire",
+        "nearestPeerMMD2": 0.0845,
         "peersBeatingSelf": 0
       },
       "conscript": {
@@ -409,6 +415,8 @@
         "vsRA2": 1.038,
         "bestPeer": "Spy",
         "bestPeerIoU": 0.7269,
+        "nearestPeer": "Chrono Legionnaire",
+        "nearestPeerMMD2": 0.0746,
         "peersBeatingSelf": 0
       },
       "rocket": {
@@ -419,6 +427,8 @@
         "broadsideAspect": 0.643,
         "bestPeer": "Desolator",
         "bestPeerIoU": 0.5992,
+        "nearestPeer": "Desolator",
+        "nearestPeerMMD2": 0.1906,
         "peersBeatingSelf": 0
       },
       "flak": {
@@ -431,6 +441,8 @@
         "vsRA2": 1.181,
         "bestPeer": "Yuri",
         "bestPeerIoU": 0.5504,
+        "nearestPeer": "GI",
+        "nearestPeerMMD2": 0.3957,
         "peersBeatingSelf": 0
       },
       "rocketeer": {
@@ -443,6 +455,8 @@
         "vsRA2": 1.139,
         "bestPeer": "Crazy Ivan",
         "bestPeerIoU": 0.6055,
+        "nearestPeer": "Attack Dog",
+        "nearestPeerMMD2": 0.2046,
         "peersBeatingSelf": 0
       },
       "harrier": {
@@ -455,6 +469,8 @@
         "vsRA2": 0.979,
         "bestPeer": "Nighthawk",
         "bestPeerIoU": 0.3827,
+        "nearestPeer": "Nighthawk",
+        "nearestPeerMMD2": 0.1104,
         "peersBeatingSelf": 0
       },
       "kirov": {
@@ -467,6 +483,8 @@
         "vsRA2": 0.993,
         "bestPeer": "Nighthawk",
         "bestPeerIoU": 0.2754,
+        "nearestPeer": "Nighthawk",
+        "nearestPeerMMD2": 0.3852,
         "peersBeatingSelf": 0
       },
       "lancer": {
@@ -479,6 +497,8 @@
         "vsRA2": 1.007,
         "bestPeer": "Chrono Miner",
         "bestPeerIoU": 0.5472,
+        "nearestPeer": "Chrono Miner",
+        "nearestPeerMMD2": 0.2696,
         "peersBeatingSelf": 0
       },
       "mammoth": {
@@ -491,6 +511,8 @@
         "vsRA2": 0.836,
         "bestPeer": "War Miner",
         "bestPeerIoU": 0.671,
+        "nearestPeer": "V3 Launcher",
+        "nearestPeerMMD2": 0.1271,
         "peersBeatingSelf": 0
       },
       "engineer": {
@@ -503,6 +525,8 @@
         "vsRA2": 1.188,
         "bestPeer": "Crazy Ivan",
         "bestPeerIoU": 0.7399,
+        "nearestPeer": "Chrono Legionnaire",
+        "nearestPeerMMD2": 0.0818,
         "peersBeatingSelf": 0
       },
       "dog": {
@@ -515,6 +539,8 @@
         "vsRA2": 0.944,
         "bestPeer": "Rocketeer",
         "bestPeerIoU": 0.514,
+        "nearestPeer": "Rocketeer",
+        "nearestPeerMMD2": 0.2046,
         "peersBeatingSelf": 0
       },
       "ifv": {
@@ -527,6 +553,8 @@
         "vsRA2": 0.974,
         "bestPeer": "Rhino Tank",
         "bestPeerIoU": 0.6688,
+        "nearestPeer": "Rhino Tank",
+        "nearestPeerMMD2": 0.1535,
         "peersBeatingSelf": 0
       },
       "mirage": {
@@ -539,6 +567,8 @@
         "vsRA2": 1.011,
         "bestPeer": "War Miner",
         "bestPeerIoU": 0.7089,
+        "nearestPeer": "War Miner",
+        "nearestPeerMMD2": 0.1305,
         "peersBeatingSelf": 0
       },
       "tanya": {
@@ -551,6 +581,8 @@
         "vsRA2": 1.09,
         "bestPeer": "Crazy Ivan",
         "bestPeerIoU": 0.768,
+        "nearestPeer": "Engineer",
+        "nearestPeerMMD2": 0.1406,
         "peersBeatingSelf": 0
       },
       "rhino": {
@@ -563,6 +595,8 @@
         "vsRA2": 0.856,
         "bestPeer": "IFV",
         "bestPeerIoU": 0.6688,
+        "nearestPeer": "V3 Launcher",
+        "nearestPeerMMD2": 0.1305,
         "peersBeatingSelf": 0
       },
       "flaktrack": {
@@ -575,6 +609,8 @@
         "vsRA2": 0.878,
         "bestPeer": "IFV",
         "bestPeerIoU": 0.6088,
+        "nearestPeer": "IFV",
+        "nearestPeerMMD2": 0.2354,
         "peersBeatingSelf": 0
       },
       "v3": {
@@ -587,7 +623,9 @@
         "vsRA2": 0.831,
         "bestPeer": "Tesla Tank",
         "bestPeerIoU": 0.6321,
-        "peersBeatingSelf": 4
+        "nearestPeer": "War Miner",
+        "nearestPeerMMD2": 0.0281,
+        "peersBeatingSelf": 0
       },
       "teslatrooper": {
         "group": "infantry",
@@ -599,6 +637,8 @@
         "vsRA2": 1.136,
         "bestPeer": "Chrono Legionnaire",
         "bestPeerIoU": 0.6985,
+        "nearestPeer": "Chrono Legionnaire",
+        "nearestPeerMMD2": 0.1928,
         "peersBeatingSelf": 0
       },
       "ivan": {
@@ -611,6 +651,8 @@
         "vsRA2": 1.106,
         "bestPeer": "Tanya",
         "bestPeerIoU": 0.768,
+        "nearestPeer": "Engineer",
+        "nearestPeerMMD2": 0.1498,
         "peersBeatingSelf": 0
       },
       "drone": {
@@ -623,6 +665,8 @@
         "vsRA2": 0.983,
         "bestPeer": "Grizzly Tank",
         "bestPeerIoU": 0.4026,
+        "nearestPeer": "Grizzly Tank",
+        "nearestPeerMMD2": 0.474,
         "peersBeatingSelf": 0
       },
       "teslatank": {
@@ -635,6 +679,8 @@
         "vsRA2": 0.844,
         "bestPeer": "War Miner",
         "bestPeerIoU": 0.6511,
+        "nearestPeer": "V3 Launcher",
+        "nearestPeerMMD2": 0.0287,
         "peersBeatingSelf": 0
       },
       "prismtank": {
@@ -647,6 +693,8 @@
         "vsRA2": 0.832,
         "bestPeer": "Apocalypse",
         "bestPeerIoU": 0.6552,
+        "nearestPeer": "Apocalypse",
+        "nearestPeerMMD2": 0.188,
         "peersBeatingSelf": 0
       },
       "desolator": {
@@ -657,6 +705,8 @@
         "broadsideAspect": 0.722,
         "bestPeer": "Tesla Trooper",
         "bestPeerIoU": 0.6377,
+        "nearestPeer": "Guardian GI",
+        "nearestPeerMMD2": 0.1906,
         "peersBeatingSelf": 0
       },
       "yuri": {
@@ -669,6 +719,8 @@
         "vsRA2": 0.868,
         "bestPeer": "Conscript",
         "bestPeerIoU": 0.6973,
+        "nearestPeer": "Spy",
+        "nearestPeerMMD2": 0.2508,
         "peersBeatingSelf": 0
       },
       "cleg": {
@@ -681,6 +733,8 @@
         "vsRA2": 1.139,
         "bestPeer": "Engineer",
         "bestPeerIoU": 0.727,
+        "nearestPeer": "Conscript",
+        "nearestPeerMMD2": 0.0746,
         "peersBeatingSelf": 0
       },
       "spy": {
@@ -691,6 +745,8 @@
         "broadsideAspect": 0.514,
         "bestPeer": "Conscript",
         "bestPeerIoU": 0.7269,
+        "nearestPeer": "Conscript",
+        "nearestPeerMMD2": 0.0835,
         "peersBeatingSelf": 0
       },
       "nighthawk": {
@@ -703,6 +759,8 @@
         "vsRA2": 0.86,
         "bestPeer": "Harrier",
         "bestPeerIoU": 0.3827,
+        "nearestPeer": "Harrier",
+        "nearestPeerMMD2": 0.1104,
         "peersBeatingSelf": 0
       },
       "apc": {
@@ -713,6 +771,8 @@
         "broadsideAspect": 1.538,
         "bestPeer": "Landing Craft",
         "bestPeerIoU": 0.726,
+        "nearestPeer": "Landing Craft",
+        "nearestPeerMMD2": 0.042,
         "peersBeatingSelf": 0
       },
       "destroyer": {
@@ -725,7 +785,9 @@
         "vsRA2": 0.86,
         "bestPeer": "Aegis Cruiser",
         "bestPeerIoU": 0.724,
-        "peersBeatingSelf": 3
+        "nearestPeer": "Aegis Cruiser",
+        "nearestPeerMMD2": -0.0337,
+        "peersBeatingSelf": 1
       },
       "aegis": {
         "group": "naval",
@@ -737,7 +799,9 @@
         "vsRA2": 0.852,
         "bestPeer": "Destroyer",
         "bestPeerIoU": 0.724,
-        "peersBeatingSelf": 2
+        "nearestPeer": "Destroyer",
+        "nearestPeerMMD2": -0.0337,
+        "peersBeatingSelf": 1
       },
       "carrier": {
         "group": "naval",
@@ -749,6 +813,8 @@
         "vsRA2": 0.889,
         "bestPeer": "Dreadnought",
         "bestPeerIoU": 0.6121,
+        "nearestPeer": "Dreadnought",
+        "nearestPeerMMD2": 0.0476,
         "peersBeatingSelf": 0
       },
       "hornet": {
@@ -761,6 +827,8 @@
         "vsRA2": 0.889,
         "bestPeer": "Harrier",
         "bestPeerIoU": 0.1851,
+        "nearestPeer": "Harrier",
+        "nearestPeerMMD2": 0.522,
         "peersBeatingSelf": 0
       },
       "dolphin": {
@@ -771,6 +839,8 @@
         "broadsideAspect": 2.667,
         "bestPeer": "Typhoon Attack Sub",
         "bestPeerIoU": 0.482,
+        "nearestPeer": "Typhoon Attack Sub",
+        "nearestPeerMMD2": 0.1188,
         "peersBeatingSelf": 0
       },
       "lcraft": {
@@ -781,6 +851,8 @@
         "broadsideAspect": 1.795,
         "bestPeer": "Amphibious Transport",
         "bestPeerIoU": 0.726,
+        "nearestPeer": "Aegis Cruiser",
+        "nearestPeerMMD2": 0.0411,
         "peersBeatingSelf": 0
       },
       "sub": {
@@ -793,7 +865,9 @@
         "vsRA2": 0.821,
         "bestPeer": "Dolphin",
         "bestPeerIoU": 0.482,
-        "peersBeatingSelf": 2
+        "nearestPeer": "Dolphin",
+        "nearestPeerMMD2": 0.1188,
+        "peersBeatingSelf": 0
       },
       "seascorp": {
         "group": "naval",
@@ -805,6 +879,8 @@
         "vsRA2": 0.806,
         "bestPeer": "Amphibious Transport",
         "bestPeerIoU": 0.6253,
+        "nearestPeer": "Amphibious Transport",
+        "nearestPeerMMD2": 0.1769,
         "peersBeatingSelf": 0
       },
       "dread": {
@@ -817,7 +893,9 @@
         "vsRA2": 0.818,
         "bestPeer": "Aircraft Carrier",
         "bestPeerIoU": 0.6121,
-        "peersBeatingSelf": 2
+        "nearestPeer": "Destroyer",
+        "nearestPeerMMD2": 0.0462,
+        "peersBeatingSelf": 0
       },
       "squid": {
         "group": "naval",
@@ -829,7 +907,9 @@
         "vsRA2": 0.889,
         "bestPeer": "Aegis Cruiser",
         "bestPeerIoU": 0.5924,
-        "peersBeatingSelf": 6
+        "nearestPeer": "Aegis Cruiser",
+        "nearestPeerMMD2": 0.0281,
+        "peersBeatingSelf": 0
       },
       "mcv": {
         "group": "vehicle",
@@ -841,6 +921,8 @@
         "vsRA2": 0.804,
         "bestPeer": "Prism Tank",
         "bestPeerIoU": 0.6343,
+        "nearestPeer": "Apocalypse",
+        "nearestPeerMMD2": 0.1906,
         "peersBeatingSelf": 0
       }
     },
@@ -4259,7 +4341,9 @@
         "selfIoUCross": 0.5129,
         "bestPeer": "Destroyer",
         "bestPeerIoU": 0.724,
-        "peersBeatingSelf": 2,
+        "nearestPeer": "Destroyer",
+        "nearestPeerMMD2": -0.0337,
+        "peersBeatingSelf": 1,
         "peers": 9,
         "spike": {
           "axis": "v",
@@ -4289,6 +4373,8 @@
         "selfIoUCross": 0.7052,
         "bestPeer": "Landing Craft",
         "bestPeerIoU": 0.726,
+        "nearestPeer": "Landing Craft",
+        "nearestPeerMMD2": 0.042,
         "peersBeatingSelf": 0,
         "peers": 9,
         "spike": {
@@ -4321,6 +4407,8 @@
         "selfIoUCross": 0.524,
         "bestPeer": "Dreadnought",
         "bestPeerIoU": 0.6121,
+        "nearestPeer": "Dreadnought",
+        "nearestPeerMMD2": 0.0476,
         "peersBeatingSelf": 0,
         "peers": 9,
         "spike": {
@@ -4353,6 +4441,8 @@
         "selfIoUCross": 0.7513,
         "bestPeer": "Rhino Tank",
         "bestPeerIoU": 0.6412,
+        "nearestPeer": "Rhino Tank",
+        "nearestPeerMMD2": 0.2261,
         "peersBeatingSelf": 0,
         "peers": 12,
         "spike": {
@@ -4385,6 +4475,8 @@
         "selfIoUCross": 0.6996,
         "bestPeer": "Engineer",
         "bestPeerIoU": 0.727,
+        "nearestPeer": "Conscript",
+        "nearestPeerMMD2": 0.0746,
         "peersBeatingSelf": 0,
         "peers": 13,
         "spike": {
@@ -4417,6 +4509,8 @@
         "selfIoUCross": 0.7395,
         "bestPeer": "Spy",
         "bestPeerIoU": 0.7269,
+        "nearestPeer": "Chrono Legionnaire",
+        "nearestPeerMMD2": 0.0746,
         "peersBeatingSelf": 0,
         "peers": 13,
         "spike": {
@@ -4447,6 +4541,8 @@
         "selfIoUCross": 0.6561,
         "bestPeer": "Tesla Trooper",
         "bestPeerIoU": 0.6377,
+        "nearestPeer": "Guardian GI",
+        "nearestPeerMMD2": 0.1906,
         "peersBeatingSelf": 0,
         "peers": 13,
         "spike": {
@@ -4479,7 +4575,9 @@
         "selfIoUCross": 0.4763,
         "bestPeer": "Aegis Cruiser",
         "bestPeerIoU": 0.724,
-        "peersBeatingSelf": 3,
+        "nearestPeer": "Aegis Cruiser",
+        "nearestPeerMMD2": -0.0337,
+        "peersBeatingSelf": 1,
         "peers": 9,
         "spike": {
           "axis": "v",
@@ -4511,6 +4609,8 @@
         "selfIoUCross": 0.5331,
         "bestPeer": "Rocketeer",
         "bestPeerIoU": 0.514,
+        "nearestPeer": "Rocketeer",
+        "nearestPeerMMD2": 0.2046,
         "peersBeatingSelf": 0,
         "peers": 13,
         "spike": {
@@ -4541,6 +4641,8 @@
         "selfIoUCross": 0.4463,
         "bestPeer": "Typhoon Attack Sub",
         "bestPeerIoU": 0.482,
+        "nearestPeer": "Typhoon Attack Sub",
+        "nearestPeerMMD2": 0.1188,
         "peersBeatingSelf": 0,
         "peers": 9,
         "spike": {
@@ -4573,7 +4675,9 @@
         "selfIoUCross": 0.4602,
         "bestPeer": "Aircraft Carrier",
         "bestPeerIoU": 0.6121,
-        "peersBeatingSelf": 2,
+        "nearestPeer": "Destroyer",
+        "nearestPeerMMD2": 0.0462,
+        "peersBeatingSelf": 0,
         "peers": 9,
         "spike": {
           "axis": "v",
@@ -4605,6 +4709,8 @@
         "selfIoUCross": 0.7125,
         "bestPeer": "Grizzly Tank",
         "bestPeerIoU": 0.4026,
+        "nearestPeer": "Grizzly Tank",
+        "nearestPeerMMD2": 0.474,
         "peersBeatingSelf": 0,
         "peers": 12,
         "spike": {
@@ -4637,6 +4743,8 @@
         "selfIoUCross": 0.7054,
         "bestPeer": "Crazy Ivan",
         "bestPeerIoU": 0.7399,
+        "nearestPeer": "Chrono Legionnaire",
+        "nearestPeerMMD2": 0.0818,
         "peersBeatingSelf": 0,
         "peers": 13,
         "spike": {
@@ -4669,6 +4777,8 @@
         "selfIoUCross": 0.6724,
         "bestPeer": "Yuri",
         "bestPeerIoU": 0.5504,
+        "nearestPeer": "GI",
+        "nearestPeerMMD2": 0.3957,
         "peersBeatingSelf": 0,
         "peers": 13,
         "spike": {
@@ -4701,6 +4811,8 @@
         "selfIoUCross": 0.6273,
         "bestPeer": "IFV",
         "bestPeerIoU": 0.6088,
+        "nearestPeer": "IFV",
+        "nearestPeerMMD2": 0.2354,
         "peersBeatingSelf": 0,
         "peers": 12,
         "spike": {
@@ -4733,6 +4845,8 @@
         "selfIoUCross": 0.4082,
         "bestPeer": "Nighthawk",
         "bestPeerIoU": 0.3827,
+        "nearestPeer": "Nighthawk",
+        "nearestPeerMMD2": 0.1104,
         "peersBeatingSelf": 0,
         "peers": 3,
         "spike": {
@@ -4765,6 +4879,8 @@
         "selfIoUCross": 0.4757,
         "bestPeer": "Harrier",
         "bestPeerIoU": 0.1851,
+        "nearestPeer": "Harrier",
+        "nearestPeerMMD2": 0.522,
         "peersBeatingSelf": 0,
         "peers": 3,
         "spike": {
@@ -4797,6 +4913,8 @@
         "selfIoUCross": 0.7492,
         "bestPeer": "Rhino Tank",
         "bestPeerIoU": 0.6688,
+        "nearestPeer": "Rhino Tank",
+        "nearestPeerMMD2": 0.1535,
         "peersBeatingSelf": 0,
         "peers": 12,
         "spike": {
@@ -4829,6 +4947,8 @@
         "selfIoUCross": 0.8279,
         "bestPeer": "Tanya",
         "bestPeerIoU": 0.768,
+        "nearestPeer": "Engineer",
+        "nearestPeerMMD2": 0.1498,
         "peersBeatingSelf": 0,
         "peers": 13,
         "spike": {
@@ -4861,6 +4981,8 @@
         "selfIoUCross": 0.4379,
         "bestPeer": "Nighthawk",
         "bestPeerIoU": 0.2754,
+        "nearestPeer": "Nighthawk",
+        "nearestPeerMMD2": 0.3852,
         "peersBeatingSelf": 0,
         "peers": 3,
         "spike": {
@@ -4893,6 +5015,8 @@
         "selfIoUCross": 0.5492,
         "bestPeer": "Chrono Miner",
         "bestPeerIoU": 0.5472,
+        "nearestPeer": "Chrono Miner",
+        "nearestPeerMMD2": 0.2696,
         "peersBeatingSelf": 0,
         "peers": 12,
         "spike": {
@@ -4923,6 +5047,8 @@
         "selfIoUCross": 0.6944,
         "bestPeer": "Amphibious Transport",
         "bestPeerIoU": 0.726,
+        "nearestPeer": "Aegis Cruiser",
+        "nearestPeerMMD2": 0.0411,
         "peersBeatingSelf": 0,
         "peers": 9,
         "spike": {
@@ -4955,6 +5081,8 @@
         "selfIoUCross": 0.6474,
         "bestPeer": "War Miner",
         "bestPeerIoU": 0.671,
+        "nearestPeer": "V3 Launcher",
+        "nearestPeerMMD2": 0.1271,
         "peersBeatingSelf": 0,
         "peers": 12,
         "spike": {
@@ -4987,6 +5115,8 @@
         "selfIoUCross": 0.693,
         "bestPeer": "Prism Tank",
         "bestPeerIoU": 0.6343,
+        "nearestPeer": "Apocalypse",
+        "nearestPeerMMD2": 0.1906,
         "peersBeatingSelf": 0,
         "peers": 12,
         "spike": {
@@ -5019,6 +5149,8 @@
         "selfIoUCross": 0.7869,
         "bestPeer": "War Miner",
         "bestPeerIoU": 0.7089,
+        "nearestPeer": "War Miner",
+        "nearestPeerMMD2": 0.1305,
         "peersBeatingSelf": 0,
         "peers": 12,
         "spike": {
@@ -5051,6 +5183,8 @@
         "selfIoUCross": 0.4702,
         "bestPeer": "Harrier",
         "bestPeerIoU": 0.3827,
+        "nearestPeer": "Harrier",
+        "nearestPeerMMD2": 0.1104,
         "peersBeatingSelf": 0,
         "peers": 3,
         "spike": {
@@ -5083,6 +5217,8 @@
         "selfIoUCross": 0.798,
         "bestPeer": "Apocalypse",
         "bestPeerIoU": 0.6552,
+        "nearestPeer": "Apocalypse",
+        "nearestPeerMMD2": 0.188,
         "peersBeatingSelf": 0,
         "peers": 12,
         "spike": {
@@ -5115,6 +5251,8 @@
         "selfIoUCross": 0.677,
         "bestPeer": "IFV",
         "bestPeerIoU": 0.6688,
+        "nearestPeer": "V3 Launcher",
+        "nearestPeerMMD2": 0.1305,
         "peersBeatingSelf": 0,
         "peers": 12,
         "spike": {
@@ -5147,6 +5285,8 @@
         "selfIoUCross": 0.6233,
         "bestPeer": "Chrono Legionnaire",
         "bestPeerIoU": 0.6511,
+        "nearestPeer": "Chrono Legionnaire",
+        "nearestPeerMMD2": 0.0845,
         "peersBeatingSelf": 0,
         "peers": 13,
         "spike": {
@@ -5177,6 +5317,8 @@
         "selfIoUCross": 0.4831,
         "bestPeer": "Desolator",
         "bestPeerIoU": 0.5992,
+        "nearestPeer": "Desolator",
+        "nearestPeerMMD2": 0.1906,
         "peersBeatingSelf": 0,
         "peers": 13,
         "spike": {
@@ -5209,6 +5351,8 @@
         "selfIoUCross": 0.7026,
         "bestPeer": "Crazy Ivan",
         "bestPeerIoU": 0.6055,
+        "nearestPeer": "Attack Dog",
+        "nearestPeerMMD2": 0.2046,
         "peersBeatingSelf": 0,
         "peers": 13,
         "spike": {
@@ -5241,6 +5385,8 @@
         "selfIoUCross": 0.6558,
         "bestPeer": "Amphibious Transport",
         "bestPeerIoU": 0.6253,
+        "nearestPeer": "Amphibious Transport",
+        "nearestPeerMMD2": 0.1769,
         "peersBeatingSelf": 0,
         "peers": 9,
         "spike": {
@@ -5271,6 +5417,8 @@
         "selfIoUCross": 0.7334,
         "bestPeer": "Conscript",
         "bestPeerIoU": 0.7269,
+        "nearestPeer": "Conscript",
+        "nearestPeerMMD2": 0.0835,
         "peersBeatingSelf": 0,
         "peers": 13,
         "spike": {
@@ -5303,7 +5451,9 @@
         "selfIoUCross": 0.3044,
         "bestPeer": "Aegis Cruiser",
         "bestPeerIoU": 0.5924,
-        "peersBeatingSelf": 6,
+        "nearestPeer": "Aegis Cruiser",
+        "nearestPeerMMD2": 0.0281,
+        "peersBeatingSelf": 0,
         "peers": 9,
         "spike": {
           "axis": "h",
@@ -5335,7 +5485,9 @@
         "selfIoUCross": 0.3228,
         "bestPeer": "Dolphin",
         "bestPeerIoU": 0.482,
-        "peersBeatingSelf": 2,
+        "nearestPeer": "Dolphin",
+        "nearestPeerMMD2": 0.1188,
+        "peersBeatingSelf": 0,
         "peers": 9,
         "spike": {
           "axis": "v",
@@ -5367,6 +5519,8 @@
         "selfIoUCross": 0.7743,
         "bestPeer": "Crazy Ivan",
         "bestPeerIoU": 0.768,
+        "nearestPeer": "Engineer",
+        "nearestPeerMMD2": 0.1406,
         "peersBeatingSelf": 0,
         "peers": 13,
         "spike": {
@@ -5399,6 +5553,8 @@
         "selfIoUCross": 0.6753,
         "bestPeer": "War Miner",
         "bestPeerIoU": 0.6511,
+        "nearestPeer": "V3 Launcher",
+        "nearestPeerMMD2": 0.0287,
         "peersBeatingSelf": 0,
         "peers": 12,
         "spike": {
@@ -5431,6 +5587,8 @@
         "selfIoUCross": 0.8133,
         "bestPeer": "Chrono Legionnaire",
         "bestPeerIoU": 0.6985,
+        "nearestPeer": "Chrono Legionnaire",
+        "nearestPeerMMD2": 0.1928,
         "peersBeatingSelf": 0,
         "peers": 13,
         "spike": {
@@ -5463,7 +5621,9 @@
         "selfIoUCross": 0.5352,
         "bestPeer": "Tesla Tank",
         "bestPeerIoU": 0.6321,
-        "peersBeatingSelf": 4,
+        "nearestPeer": "War Miner",
+        "nearestPeerMMD2": 0.0281,
+        "peersBeatingSelf": 0,
         "peers": 12,
         "spike": {
           "axis": "h",
@@ -5495,6 +5655,8 @@
         "selfIoUCross": 0.7208,
         "bestPeer": "Mirage Tank",
         "bestPeerIoU": 0.7089,
+        "nearestPeer": "V3 Launcher",
+        "nearestPeerMMD2": 0.0281,
         "peersBeatingSelf": 0,
         "peers": 12,
         "spike": {
@@ -5527,6 +5689,8 @@
         "selfIoUCross": 0.8524,
         "bestPeer": "Conscript",
         "bestPeerIoU": 0.6973,
+        "nearestPeer": "Spy",
+        "nearestPeerMMD2": 0.2508,
         "peersBeatingSelf": 0,
         "peers": 13,
         "spike": {

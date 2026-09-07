@@ -787,6 +787,28 @@ Still open:
 - **`peerVsSelf.naval` measures ELONGATION, and the aspect gate demands
   elongation (2026-09-05).** This debt has been carried for a long time and it
   is worth knowing what it is before spending another pass on it.
+
+  > **SUPERSEDED 2026-09-06 — and the conclusion below was half right.**
+  > Elongation was the *correlate*; the cause was how much a silhouette SWINGS
+  > as it turns, and the whole effect lived in the estimator, not in the fleet.
+  > The old row charged a unit for its own cloud's spread and gave it no credit
+  > for the peer's; `tools/peer-vs-self-control.js` reproduced the entire V3
+  > failure on plain filled RECTANGLES. It is now
+  > `self(k) + self(p) - 2*cross(k,p) < 0`, and `peerVsSelf.naval` went
+  > **5 -> 2 with no art change at all** — the Dreadnought, the Squid and the
+  > Typhoon cleared untouched, exactly as "do not make the fleet stubbier"
+  > predicted they should.
+  >
+  > **What is left is REAL and it is one pair: `destroyer | aegis`**, at mmd2
+  > -0.0337 against +0.0281 for the next closest. Two instruments that were
+  > never part of this metric agree — their same-bearing IoU is 0.724, just
+  > under `iou.sameFactionOver75`'s 0.75 ceiling, and `legibility.js` ranks
+  > them its **worst pair in all three zoom windows** (48.5 at ZMIN). Their
+  > bboxes track each other at every octant. So the sentence below — "driving
+  > this to 0 means making the fleet stubbier" — no longer applies to this
+  > pair: **both hulls are inside RA2's aspect band and must STAY there.** The
+  > work is superstructure that differs, not hull length. Table and reasoning
+  > below are kept as the record of how the wrong cause was reached.
   `selfIoU` is a unit's mean silhouette overlap across its own eight bearings.
   For a long low hull that number is inherently small — a destroyer seen bow-on
   and a destroyer seen broadside genuinely ARE different shapes under a 2:1 iso
