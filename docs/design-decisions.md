@@ -281,6 +281,7 @@ _258 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [The end of the terminal tab strip was a 60px sliver (v1.19.313)](#the-end-of-the-terminal-tab-strip-was-a-60px-sliver-v119313)
 - [A clause that no isometric ground plate can satisfy squashed the Service Depot into a hairline](#a-clause-that-no-isometric-ground-plate-can-satisfy-squashed-the-service-depot-into-a-hairline)
 - [A width fraction is not a part boundary — four structure clauses measured the wrong object, and RA2's own sprites failed three of them](#a-width-fraction-is-not-a-part-boundary-four-structure-clauses-measured-the-wrong-object-and-ra2s-own-sprites-failed-three-of-them)
+- [Two clauses that could not read the part they named: a polarity bug, and a crane RA2 does not put on the roof](#two-clauses-that-could-not-read-the-part-they-named-a-polarity-bug-and-a-crane-ra2-does-not-put-on-the-roof)
 
 <!-- END TOC -->
 
@@ -10947,3 +10948,118 @@ are bare ground** above and below the building.
 
 **Also rejected.** Relaxing any threshold. Every §2 number is unchanged; the
 predicates behind them are what moved.
+## Two clauses that could not read the part they named: a polarity bug, and a crane RA2 does not put on the roof
+
+**Symptom.** Two rows of `clause.unmetStructures` had never once measured their
+own subject. `gapgen:dir` "exactly 4 talons" read **0**; `base:dir` "exactly ONE
+crane/boom group above the hall roofline" read **0 groups, clearance 0**, and
+commit `6c941a3` had recorded that zero as *"an ART finding, not a measurement
+gap"*.
+
+**Cause — gapgen, two defects that compound.** The filter was
+`(p.v - med) >= CONTRAST`, a **bright** outlier, for talons §2.7 calls black and
+the sprite draws at `#141518`/`#26292f` against a median V of 0.761. The sibling
+row seventy lines above — patriot's four tube mouths — filters `(med - p.v)` and
+is correct. But **flipping the sign is not the fix**: it reads 3, and 4 is
+undrawable. The four talons are joined at their roots round the mast, so the
+dark crown mask is ONE component (28x29 at `x26..53 y0..28`, all four talons plus
+the mast) plus two rim fragments. Counting members that share a root counts the
+root — the same trap already recorded for the Sentry Gun's two barrels.
+
+**Cause — base, and the note on the row was false.** Running the *shipped* math
+over RA2's own committed rips (blue key removed; the crop is threshold-
+insensitive, 213x137 and 204x153 at every cut from 20 to 60, exactly the bboxes
+`ra2-ref/sprites/README.md` records):
+
+    ours dir  248x157   0 crown groups, crown:false, clearance 0
+    [GACNST]  213x137   0 crown groups, crown:false, clearance 0   <- IDENTICAL
+    [NACNST]  204x153   3 crown groups, thickest 41px
+
+Both profiles rise monotonically from row 0 to their own 55% row, so `bodyRun`
+vetoes the crown on both. **RA2 draws its Allied Yard exactly the way we draw
+ours**: the barrel hall's arch is the topmost mass and the crane stands beside
+it, off to the left, entirely below the arch. The Soviet Yard reads 3, not 1. No
+roofline-based count can pass RA2's own art on both facs, so the row was not an
+art finding — it was a check pointed at the hall.
+
+**Fix.**
+
+- **gapgen** — new primitives `rowRuns`/`resolveBand` count members across a
+  CUT: the largest number of `>=2px` runs of the predicate that HOLDS over `>=2`
+  consecutive rows. The band rule is the definition of "countable", not a tuned
+  threshold: on this crown it drops the one-row accident (4 dark runs across the
+  instrument pods at row 27, gone again at 26 and 28) and keeps the real cut,
+  because talons are tall. `0 bright blobs` → **4 talons over rows 9-10**. The
+  sentence's second half, `topW > 0` — an identity — became span-vs-neck, 28px
+  against 18px.
+- **base** — the crane is found where it is: the yard's block of STRONG CHROMA
+  at the left. The largest `s >= 0.60` component whose left edge falls inside the
+  left quarter lands on the crane, and only the crane, on all four sprites:
+
+    |          | blob                | x0/Sw | reach | rise  | of opaque |
+    |---|---|---|---|---|---|
+    | ours dir | `x47..105 y38..79`  | 0.190 | 0.238 | 0.268 | 3.18% |
+    | ours col | `x45..90  y14..96`  | 0.173 | 0.177 | 0.428 | 4.59% |
+    | [GACNST] | `x39..90  y39..68`  | 0.183 | 0.244 | 0.219 | 2.93% |
+    | [NACNST] | `x35..77  y17..110` | 0.172 | 0.211 | 0.614 | 8.73% |
+
+  An `x0` cluster of 0.172-0.190 across four sprites from two games is the fact
+  the selector rests on. **0.60 is bracketed by measurement on both sides, not
+  tuned**: below 0.55 the rips' own TERRAIN enters the mask and fuses with the
+  crane (`[NACNST]` reads `x2..77` and 14.4% of opaque at 0.50); at 0.70 our
+  Collective crane drops out, owner-0 house colour sitting at `s` 0.66.
+
+**Both halves of the acceptance test, because a clause that passes good art and
+broken art alike is decoration.**
+
+| build | gapgen row | base row |
+|---|---|---|
+| RA2's own sprite | *(no `[GAGAP]` rip exists — see below)* | `[GACNST]` **PASS** 0.244/0.219 · `[NACNST]` **PASS** 0.211/0.614 |
+| ours | PASS, 4 talons | PASS both facs |
+| talons deleted | **FAIL** — "4 … span 20px vs neck 26px" | — |
+| only 3 talons drawn | **FAIL** — reads exactly **3** | — |
+| Allied crane deleted (87 lines) | — | **FAIL** — "no `s>=0.6` mass rooted in the left quarter" |
+| Soviet boom deleted (94 lines) | — | **FAIL** — collapses to a 1-px blob, 0.004 Sw |
+
+`clause.unmetStructures` **15 → 13**; `checkedStructures` stays **75** and no
+other metric in the gate moves.
+
+**Rejected, with the measurement that rejected it.**
+
+- *Flip the polarity and stop.* Reads 3, for the structural reason above.
+- *Count the talons with `components`.* Cannot reach 4 for ANY drawing of a
+  crown whose members share a root.
+- *Find the crane by skyline peaks / topographic prominence.* Measured and
+  discarded: RA2's own crane is **not a local peak**. `[GACNST]`'s turntable sits
+  at `top=24` on a skyline that climbs monotonically past it to `top=4`, so its
+  prominence is 0. Ours has 13px, 0.083 `Sh`, under the row's own 0.10 floor.
+- *Apply the crown primitive to the sprite's left half.* Unstable: at 0.45 our
+  dir bake goes monotone (`crown:false`); at 0.50-0.55 the largest left-half
+  crown blob is the hall's own blue chevron at `x88..135`, not the crane.
+- *A plain saturation filter without the left-quarter root.* On the rips the
+  terrain is one connected saturated mass of 26-42% of opaque and the crane fuses
+  into it; on our own dir bake the largest saturated blob is the hall's chevron,
+  which beats the crane by 28%.
+- *Keep gating "exactly ONE".* Not measurable on this sprite family. Both RA2
+  yards and both of ours carry several crane-scale saturated masses — turntable,
+  grab, deck rail markings, roof flukes — so the count is reported and not gated,
+  the treatment the Grand Cannon's outriggers already get in this file.
+
+**Two things the pass found that it did not own.**
+
+1. **The gapgen art is NOT defective.** All four talons are drawn and countable;
+   the row was red because of the checker alone.
+2. **`docs/ra2-ref/allied-gap-generator.png` (118x130), cited by `rts.html`'s own
+   gapgen block, is the pre-release ALPHA design, not the shipped one.** The wiki
+   captions it "Alpha appearance"; the released structure carries a blue collar
+   and dark-blue banded spheres where the alpha has green rings, and `art.ini`
+   gives `[GAGAP] Remapable=no`, so a green-vs-blue ring difference cannot be an
+   owner-colour difference. **No chroma-keyed `[GAGAP]` SHP rip exists** on the
+   C&C wiki, cnc-central, the Spriters Resource or six other-language wikis — the
+   `File:RA2 <Name>.gif` convention has no gap-generator entry — so this clause
+   has no reference sprite, and this entry says so rather than implying one. The
+   released design still shows four dark talons round a mast, which is what the
+   row counts. `art.ini` also gives `[GAGAP]` `Foundation=1x1 Height=6`,
+   identical to `[GAPRIS]`, and the orange rods visible in screenshots are the
+   8-frame `GAGAP_A` active overlay, not the idle SHP — the `[GAPRIS]`-beam trap
+   in a different costume. Art work for a peer, not for this pass.
