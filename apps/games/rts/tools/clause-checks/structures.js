@@ -78,6 +78,12 @@ const hsv = (r, g, b) => {
 const hueGap = (a, b) => { const d = Math.abs(a - b) % 360; return d > 180 ? 360 - d : d; };
 const OWNER_HUE = 197;                        // vehicle.js's derived convention, reused (see header)
 const CONTRAST = 0.25;                        // "the §2 floor" (power's lit-slit row, §2.6)
+// The chroma cut that separates a Construction Yard's crane from its hall, its
+// deck and (on RA2's own rips) the terrain under it. Swept 0.50-0.80 over four
+// sprites and bracketed on both sides by measured failure -- see the base
+// block for the table. Not a §2 number: §2.6 states no colour for the crane,
+// because until this row was rewritten nothing measured the crane at all.
+const CRANE_S = 0.60;
 
 function px(f, x, y) {
   if (x < 0 || y < 0 || x >= f.w || y >= f.h) return null;
@@ -303,18 +309,77 @@ exports.check = function (ctx) {
     add('base', `[${fac}] sprite w/h >= 1.30 — the widest-aspect structure in the game, stated as a floor per §2.5's width rule`,
       asp >= 1.30, R(asp, 3), '>= 1.30',
       `bbox ${f.w}x${f.h}`);
-    const rp = rowProfile(f), body = bodyRun(rp);
-    const crown = components(f, (p, x, y) => !!p && y < body.lo);
-    const jibOk = crown.length >= 1 && Math.min(crown[0].w, crown[0].h) >= 3;
-    const clearance = body.lo / f.h;
-    add('base', `[${fac}] exactly ONE crane/boom group above the hall roofline, its jib >= 3 px thick and clearing the roof by >= 0.10 Sh`,
-      crown.length === 1 && jibOk && clearance >= 0.10,
-      `${crown.length} crown group(s), thickest ${crown[0] ? Math.min(crown[0].w, crown[0].h) : 0}px, clearance ${R(clearance, 3)}`,
-      '1 group, >=3px thick, clearance >= 0.10',
-      'crown = components above bodyRun.lo (§2.5\'s crown primitive); a second group here is flagged because §2.6 says a second mast group is the Battle Lab\'s read, not the Yard\'s. '
-      + 'The dir bake reads ZERO groups and that is an ART finding, not a measurement gap: its row profile widens monotonically from the arch apex down to the 55% row, so bodyRun reports no crown, '
-      + 'and the render agrees -- the hall\'s own arch is the topmost mass and the yellow crane sits entirely BELOW it, off to the left. The 1-group pass this row used to report was the arch\'s top '
-      + '36 rows counted as a crane. The col bake, which has a real waist above its roofline, still reads its crane and still passes');
+    // THE CRANE IS NOT ABOVE THE ROOFLINE, ON EITHER SIDE, IN EITHER GAME.
+    //
+    // This row used to be `components above bodyRun.lo`, i.e. "the crane is
+    // the mass above the hall's roof". It is not, and the note it carried --
+    // that our dir bake's ZERO groups was "an ART finding, not a measurement
+    // gap" -- is falsified by RA2's own sprite. Run the shipped math over
+    // docs/ra2-ref/sprites/buildings/*-construction-yard.gif, blue key removed
+    // (the crop is threshold-insensitive: 213x137 and 204x153, exactly the
+    // bboxes that README records, at every cut from 20 to 60):
+    //
+    //   ours dir  248x157   0 crown groups, crown:false, clearance 0
+    //   [GACNST]  213x137   0 crown groups, crown:false, clearance 0   <- identical
+    //   [NACNST]  204x153   3 crown groups, thickest 41px
+    //
+    // Both row profiles rise monotonically from row 0 to their own 55% row, so
+    // `bodyRun` vetoes the crown on both. RA2 draws its Allied Yard exactly the
+    // way we draw ours: the barrel hall's arch is the topmost mass and the
+    // crane stands BESIDE it, off to the left, entirely below the arch. And
+    // the Soviet Yard reads 3, not the 1 the row demanded. **Both of RA2's
+    // committed Construction Yards fail the old clause, one at 0 and one at
+    // 3.** No roofline-based count can pass RA2's own art on both facs.
+    //
+    // WHAT THE CRANE ACTUALLY IS, MEASURED ON FOUR SPRITES. It is the yard's
+    // big block of STRONG CHROMA standing at the left: orange on [GACNST],
+    // red on [NACNST], amber on ours, house-blue on ours. Taking the largest
+    // component of `s >= 0.60` whose left edge falls inside the left quarter
+    // of the sprite lands on the crane, and only the crane, on all four:
+    //
+    //            blob                 x0/Sw   reach   rise    of opaque
+    //   ours dir x47..105 y38..79     0.190   0.238   0.268   3.18%
+    //   ours col x45..90  y14..96     0.173   0.177   0.428   4.59%
+    //   [GACNST] x39..90  y39..68     0.183   0.244   0.219   2.93%
+    //   [NACNST] x35..77  y17..110    0.172   0.211   0.614   8.73%
+    //
+    // The x0 cluster is 0.172-0.190 on four sprites from two games: the build
+    // crane is drawn at the left of a Construction Yard, and that is what the
+    // selector rests on, not a tuned number.
+    //
+    // WHY 0.60, AND WHY IT IS BRACKETED ON BOTH SIDES RATHER THAN TUNED. The
+    // cut was swept 0.50..0.80 over all four sprites. Below 0.55 the RIPS'
+    // OWN TERRAIN enters the mask and fuses with the crane ([NACNST] at 0.50
+    // reads x2..77 and 14.4% of opaque, a blob that is half ground); at 0.70
+    // our Collective crane drops out, because owner-0 house colour sits at
+    // s 0.66. 0.55-0.65 identifies the same crane on all four, and 0.60 is its
+    // middle. That the Collective side rides on the owner-0 house saturation
+    // is a real fragility and is recorded here rather than hidden.
+    //
+    // WHAT WAS DROPPED, AND WHY, RATHER THAN FAKED. "exactly ONE" is not
+    // measurable on this sprite family. Both RA2 yards carry several
+    // crane-scale saturated masses -- turntable, grab, deck rail markings,
+    // roof flukes -- and so do ours: at the same cut our dir bake presents the
+    // amber boom (754 px) AND the house-blue base drum (431 px), both rooted
+    // in the left quarter. A count is therefore reported as a count and is not
+    // gated, the same treatment the Grand Cannon's outriggers and the Service
+    // Depot's jib tip get in this file.
+    const sat = components(f, (p) => !!p && p.s >= CRANE_S);   // sorted largest-first
+    const crane = sat.find((c) => c.x0 < 0.25 * f.w) || null;
+    const rivals = sat.filter((c) => c.x0 < 0.25 * f.w && c.n >= 0.25 * (crane ? crane.n : 1)).length;
+    const thick = crane ? Math.min(crane.w, crane.h) : 0;
+    const reach = crane ? crane.w / f.w : 0;
+    const rise = crane ? crane.h / f.h : 0;
+    add('base', `[${fac}] a crane/boom at the left of the yard, its jib >= 3 px thick, reaching >= 0.15 Sw and standing >= 0.10 Sh tall`,
+      !!crane && thick >= 3 && reach >= 0.15 && rise >= 0.10,
+      crane
+        ? `crane blob x${crane.x0}..${crane.x1} y${crane.y0}..${crane.y1}, thickest ${thick}px, reach ${R(reach, 3)} Sw, rise ${R(rise, 3)} Sh (${rivals} crane-scale mass(es) rooted left)`
+        : `no s>=${CRANE_S} mass rooted in the left quarter`,
+      '>=3px thick, reach >= 0.15 Sw, rise >= 0.10 Sh',
+      'crane = the largest s>=0.60 component whose left edge is inside the left quarter of the sprite. This replaces "components above bodyRun.lo", which measured the HALL: RA2\'s own [GACNST] reads '
+      + '0 groups under that math, byte-identical to ours, because its crane also sits entirely below its arch, and [NACNST] reads 3. Floors are set under the four measured sprites (reach '
+      + '0.177-0.244, rise 0.219-0.614, thickness 30-46px), and "thickest" is the blob bbox\'s smaller side -- the same proxy for "jib >= 3 px thick" the old row used, not a stroke-width measurement. '
+      + 'The "exactly ONE" half is reported, not gated: see the block comment above for the census that shows it is unmeasurable on both of RA2\'s yards and on both of ours');
     let hn = 0; for (let i = 0; i < f.w * f.h; i++) if (f.mask[i] && isHouse(px(f, i % f.w, (i - (i % f.w)) / f.w))) hn++;
     const frac = hn / opaqueOf(f);
     add('base', `[${fac}] house fraction 9-16%, trim only, never the hall roof`,
