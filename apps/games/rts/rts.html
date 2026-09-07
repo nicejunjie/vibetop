@@ -23882,24 +23882,102 @@
   // re-aimed at the centre — so the first delivery or two worked off the good
   // path and then the harvester wedged against the wall, full, for the rest of
   // the match. That is the "mines for a few rounds then just stops" bug.
+  //
+  // THE FOOTPRINT, IN CELL INDICES. Everything below is measured off these
+  // bounds rather than off `round(cx) +- gw/2 + 1`, because b.cx and b.cy sit
+  // on a HALF cell whenever the span is even and that sum then rounds a whole
+  // tile the wrong way. For the 4x3 refinery at cy 6: the footprint is rows
+  // 5..7, the sprite draws its dock ramp on row 8, and `Math.round(cy + gh/2
+  // + 1)` is round(8.5) = 9 — a clear tile of grass BEYOND the ramp. The
+  // miner's destination was a field. MEASURED: refDock (7,9), footprint ends
+  // y=7, art's own comment says the dock tile is (cx, cy+2) = row 8.
+  function footBounds(b) {
+    return { x0: Math.round(b.cx - b.gw / 2 + 0.5), x1: Math.round(b.cx + b.gw / 2 - 0.5),
+             y0: Math.round(b.cy - b.gh / 2 + 0.5), y1: Math.round(b.cy + b.gh / 2 - 0.5) };
+  }
+  // THE DOCK APRON: the row of cells immediately outside the +gy face. Both
+  // refinery sprites draw their dock there and nowhere else — the Soviet pale
+  // ramp slab off the dished pit, the Allied hoist mouth under the drum — and
+  // the art file has always said so in its own words ("the dock tile centre is
+  // (cx - 64, baseY + 32)", i.e. two cells down the +gy face). It is where the
+  // miner is sent AND, since a player aims at the dock, what a click on the
+  // dock has to mean.
+  function dockApron(b) {
+    var f = footBounds(b), cells = [];
+    for (var x = f.x0; x <= f.x1; x++) cells.push({ x: x, y: f.y1 + 1 });
+    return cells;
+  }
   function refDock(g, b) {
-    var cx = Math.round(b.cx), cy = Math.round(b.cy);
+    var f = footBounds(b);
+    var mx = Math.round((f.x0 + f.x1) / 2), my = Math.round((f.y0 + f.y1) / 2);
+    // The drawn dock first (its centre, then either side of it), and only then
+    // the other three faces — a blocked ramp is still better answered by the
+    // back door than by standing in the road.
     var ring = [
-      [cx, Math.round(b.cy + b.gh / 2 + 1)], [cx, Math.round(b.cy - b.gh / 2 - 1)],
-      [Math.round(b.cx + b.gw / 2 + 1), cy], [Math.round(b.cx - b.gw / 2 - 1), cy],
-      [cx + 1, Math.round(b.cy + b.gh / 2 + 1)], [cx - 1, Math.round(b.cy + b.gh / 2 + 1)]
+      [mx, f.y1 + 1], [mx - 1, f.y1 + 1], [mx + 1, f.y1 + 1],
+      [mx, f.y0 - 1], [f.x1 + 1, my], [f.x0 - 1, my]
     ];
     for (var i = 0; i < ring.length; i++) {
       var x = ring[i][0], y = ring[i][1];
       if (inMap(x, y) && !blocked(g, x, y)) return { x: x, y: y };
     }
-    return { x: cx, y: Math.round(b.cy + b.gh / 2 + 1) };
+    return { x: mx, y: f.y1 + 1 };
   }
 
-  // Unloading happens at the dock, not at the centre pixel: reach has to
-  // clear the footprint or a harvester parked against the wall never counts
-  // as having arrived.
-  function atRefinery(u, b) { return dist(u, b) < Math.max(b.gw, b.gh) / 2 + 1.9; }
+  // ARRIVAL IS DEFINED BY THE DOCK, NOT BESIDE IT.
+  //
+  // These were two independent constants and they were free to disagree: the
+  // dock sat 3.04 cells off a 4x3 refinery's centre against an arrival radius
+  // of max(gw,gh)/2 + 1.9 = 3.90, and nothing tied them together. MEASURED
+  // over sixteen approach bearings on a clear arena, every single delivery
+  // banked on a margin of 0.00 to 0.04 of a cell — the miner never reached its
+  // dock at all, it crossed the radius somewhere on the way and unloaded
+  // there. One extra cell of stand-off (a blocked approach, a second miner
+  // already on the ramp, a hull that noses in from the far side) and "docks"
+  // becomes "parks against the wall forever", which is the shape of every
+  // report this code has had.
+  //
+  // So the radius is DERIVED: it is the furthest a hull standing on any cell
+  // of the ring refDock chooses from can be from the centre, plus the half
+  // cell its centre sits off a cell centre. A miner that reaches its dock
+  // therefore ALWAYS counts as arrived, by construction, and so does one
+  // pressed against any face of the building — there is one definition of
+  // where the door is and both callers read it.
+  var DOCK_SLOP = 0.5;
+  function dockReach(b) {
+    var f = footBounds(b);
+    var dx = Math.max(b.cx - (f.x0 - 1), (f.x1 + 1) - b.cx);
+    var dy = Math.max(b.cy - (f.y0 - 1), (f.y1 + 1) - b.cy);
+    return Math.sqrt(dx * dx + dy * dy) + DOCK_SLOP;
+  }
+  function atRefinery(u, b) { return dist(u, b) <= dockReach(b); }
+
+  // WHICH REFINERY A CLICK ON BARE GROUND MEANS.
+  //
+  // `pickAt` resolves a building from its FOUNDATION, which is right for
+  // selecting one and wrong for docking at one: the dock is drawn on the apron
+  // OUTSIDE the foundation, so the most obvious thing on the building to aim
+  // at — the ramp, the pit, the sign — picked nothing. The click fell through
+  // to a plain move, the miner drove to the kerb and parked there full, and
+  // the cursor said MOVE the entire time. Reported three times, the last of
+  // them naming the aim point: "clicking the docking sign has no effect ... the
+  // cursor is a moving cursor not a docking cursor".
+  //
+  // RA2 drives the harvester ONTO the refinery, which makes a dock affordance
+  // that is not part of the building doubly wrong. This is the input side of
+  // the same `dockApron` the sim aims at, so the art, the order and the cursor
+  // all read one definition. Deliberately NOT folded into pickAt: the apron is
+  // walkable ground that every other unit must still be able to be sent to,
+  // and force-fire must not treat it as a structure.
+  function dockAt(g, p, gx, gy) {
+    for (var i = 0; i < g.blds.length; i++) {
+      var b = g.blds[i];
+      if (b.dead || b.p !== p || b.type !== 'refinery') continue;
+      var a = dockApron(b);
+      for (var j = 0; j < a.length; j++) if (a[j].x === gx && a[j].y === gy) return b;
+    }
+    return null;
+  }
 
   // [General] ChronoDelay=60 frames after a teleport, and
   // ChronoHarvTooFarDistance=50 — a Chrono Miner that would have to warp
@@ -31533,6 +31611,11 @@
       else if (hov && hov.p === ME) k = 'select';
       else if (!inMap(hoverTile.x, hoverTile.y)) k = 'nomove';
       else if (pathMode || mod.shift) k = 'waypoint';
+      // ...and over the DOCK a refinery draws, with a miner selected. Same
+      // cell the right-click below turns into a dock order, so the one cue the
+      // game gives cannot disagree with what the click will do.
+      else if (units.some(function (u) { return isHarv(u); }) &&
+               dockAt(G, ME, hoverTile.x, hoverTile.y)) k = 'enter';
       // Each selected mover asks its OWN class: a Destroyer over the shore
       // is barred, a Grizzly over the bay is barred, and a mixed selection
       // shows MOVE if anything in it can actually go there.
@@ -32504,6 +32587,18 @@
     if (tgt && tgt.p !== ME && !tgt.dead) {
       cmd('attack', { u: idsOf(units), id: tgt.id, force: 0 });
       return;
+    }
+    // The DOCK a refinery draws, clicked with a miner selected. Reached only
+    // when the pick found nothing — the apron is ordinary ground, so a tank
+    // sent there still drives there, and a unit standing on it is still the
+    // thing you clicked. Shift/waypoint mode keeps queueing moves, matching
+    // the cursor above.
+    if (!tgt && !shift && !pathMode) {
+      var dref = dockAt(G, ME, gx, gy);
+      if (dref && units.some(function (u) { return isHarv(u); })) {
+        cmd('own', { u: idsOf(units), id: dref.id });
+        return;
+      }
     }
     cmd('move', { u: idsOf(units), x: gx, y: gy, queue: !!shift || pathMode,
                   ore: oreT(G.terrain[idx(gx, gy)]) ? 1 : 0 });
