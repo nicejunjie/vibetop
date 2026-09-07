@@ -23520,7 +23520,8 @@
         // have fired the bolt out of thin air 36 px over the electrode. This
         // is a HAND-MIRRORED constant — the bake and the shot pass do not
         // share it — so `eY` and these two numbers move together or not at all.
-        oz: src.kind === 'b' ? (src.type === 'tesla' ? 68 : 86) : 15,
+        // 68 -> 70 when the electrode was lifted to clear the neck band.
+        oz: src.kind === 'b' ? (src.type === 'tesla' ? 70 : 86) : 15,
         rocket: src.kind === 'u' && UNITS[src.type] && UNITS[src.type].splash > 0.2 ||
                 src.type === 'rocket' || src.type === 'patriot' || src.type === 'harrier',
         bomb: !!spec.bomb, flak: !!spec.flak && isAir(tgt),
@@ -34288,7 +34289,7 @@
     ctx.save();
     ctx.globalCompositeOperation = 'lighter';
     if (b.type === 'tesla') {
-      var topY2 = py - 68, footY = py - 12;   // electrode / coil foot — see bakeBuilding's `eY`
+      var topY2 = py - 70, footY = py - 12;   // electrode / coil foot — see bakeBuilding's `eY` (68 -> 70 with the neck)
       var climb = footY + (topY2 - footY) * Math.min(1, q * 1.15);
       for (var a = 0; a < 3; a++) {                     // arcs crawling up the coil
         var seed2 = G.tick * 2.3 + a * 11 + b.id;

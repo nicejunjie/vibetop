@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_260 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_261 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
 - [Scheduled terminal messages ("resume when the token limit resets")](#scheduled-terminal-messages-resume-when-the-token-limit-resets)
@@ -283,6 +283,7 @@ _260 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [A width fraction is not a part boundary — four structure clauses measured the wrong object, and RA2's own sprites failed three of them](#a-width-fraction-is-not-a-part-boundary-four-structure-clauses-measured-the-wrong-object-and-ra2s-own-sprites-failed-three-of-them)
 - [Two clauses that could not read the part they named: a polarity bug, and a crane RA2 does not put on the roof](#two-clauses-that-could-not-read-the-part-they-named-a-polarity-bug-and-a-crane-ra2-does-not-put-on-the-roof)
 - [Rewriting the four clauses whose predicate could not name the object it measured (2026-09-06)](#rewriting-the-four-clauses-whose-predicate-could-not-name-the-object-it-measured-2026-09-06)
+- [The Tesla Coil's missing neck was the sphere's HALO, not the helix (2026-09-06)](#the-tesla-coils-missing-neck-was-the-spheres-halo-not-the-helix-2026-09-06)
 
 <!-- END TOC -->
 
@@ -11153,3 +11154,48 @@ failure mode is left in, and it is the safe direction — a bake with pale
 machinery welded to its apron returns one fused mass and the aspect row goes red
 with the fused number on it, which is a sprite whose apron no longer reads as an
 apron.
+
+## The Tesla Coil's missing neck was the sphere's HALO, not the helix (2026-09-06)
+
+**Symptom.** `tesla:col`'s `[col] a neck ... pinching to <= 0.10 Sw` read
+**0.269** (row 27, 18 px) — the first *correct* reading of that clause, since the
+scan used to start at `top.y1 + 1`, below the neck, and measured buttress spread.
+RA2's own [NATSLA] passes the rewritten clause at 0.071, so this was an ART
+finding the broken scan had been hiding for as long as the row existed.
+
+**Cause — three things fill that band, and the obvious one moves the number by
+zero.** The 7.2 px collar at `cT + 2` *was* the intended neck. Over it sat (a)
+the electrode, seated with no gap, (b) the 16 px helix, wrapping past it, and
+(c) the electrode's own `rgba(226,232,255,.18)` halo at `eR * 1.14` — a soft
+glow that reaches **15 px below the collar's bottom** and is 31 px wide. The
+structure bake's opacity cut is `alpha > 8` (3%), so a 0.18-alpha glow is *ink*.
+Narrowing the helix alone therefore moved the pinch by **exactly nothing**: the
+halo took over the row. Any "thin the part" fix is dead on arrival; the fix is
+SEPARATION — a band nothing but the collar may paint into.
+
+**Fix.** Name the band (`nkT = baseY - 58`, `nkB = baseY - 54`, 0.243-0.281 `Sh`
+against [NATSLA]'s 0.235-0.272) and make every element state how it clears it:
+electrode up 2 px, its halo squashed to `eR * 0.96` and nudged up so the crown
+keeps a rim, contact shadow up, coil top down 5 px, discharge glow `ry` 15 -> 11,
+and the shaft turned into a **cone** — `hRb` 11.0 at the bottom, `hRt` 5.2 at the
+top — which is both what the sprite does (8 px leaving the neck, 19 px before the
+plinth) and what gives the neck its room. Pinch **0.269 -> 0.060** (row 26, 4 px),
+sprite still 67x103 so `size.bldOutsideRA2Band` and `bldWorstOffHouseScale`
+(0.1758) do not move at all, and house fraction 35.3% -> 36.4%, *toward* the 40%
+ideal, because the removed ink was not house.
+
+**Rejected — clamping the crawling bolts' vertices to `nkB`.** It passes the
+metric and draws a **white horizontal spar** out of the coil's shoulder: the
+tallest bolt's zigzag folds onto one line. Slide the whole glyph down instead
+(`if (bRoot - 1 - bMax < nkB + 1.4) bRoot = nkB + 2.4 + bMax`) — the shape
+survives and the invariant holds at all six idle phases (all read a 4 px neck).
+
+**Rejected — raising the electrode far enough to open a sky gap.** [NATSLA] has
+no gap: rows 18-22 run 10, 4, 3, 4, 8 — a contiguous pinch, not a float. And the
+sprite would have grown past 103 px, giving back the height fix that took the
+coil from 139.
+
+**`eY` has TWO hand-mirrored copies and the file says so.** `oz: ... tesla ? 68`
+in the shot pass and `topY2 = py - 68` in `drawCharge` are the bolt origin and
+the charge glow; both were moved to 70 with `eY`. Nothing links them — a surface
+sweep is the only thing that finds them.
