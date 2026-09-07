@@ -302,3 +302,103 @@ where the alpha has green rings, and `art.ini` gives `[GAGAP] Remapable=no`, so
 that cannot be an owner-colour difference. **No chroma-keyed `[GAGAP]` SHP rip
 exists** on any credible source, so this clause has no reference sprite and none
 can be fetched. Real art debt, for a peer.
+
+---
+
+## 2026-09-06, fourth pass — B5, O2, O4 and O6 all close, and three of them were never OPEN
+
+`clause.unmetStructures` **5 -> 1**; the only row left is B1 (`tesla:col`'s
+neck), which belongs to a peer. `checkedStructures` held at **75**,
+`unmatchedToReference` at **0**, and every one of the 57 gate metrics was
+compared, not spot-checked: `clause.unmetStructures` is the ONLY one that moved.
+Cameo floors unchanged at Directorate 225 / Collective 247.
+
+**Three rows this ledger carried as OPEN — REAL ART — were broken checks, and
+RA2's own sprite fails every one of them.** The full arithmetic is in
+`structure-clause-triage.md`'s fourth section; the short version is that all
+three references are backed by the same OLIVE grass, which `key.py`'s green key
+cannot cut at all (`g - max(r,b)` is **4** on it, so at any margin the whole
+plate survives as one component — which is exactly why the earlier `[GAREFN]`
+sweep could only report "inconclusive"). On `min(r,g) - b`, border-connected,
+the answer stops moving and all three rips resolve stably.
+
+| row | ledger's verdict | measured verdict | RA2's own sprite, shipped math |
+|---|---|---|---|
+| **O2** `refinery:dir` gap 0.018 | OPEN — real art | **BROKEN CHECK** | `[GAREFN]` **0.012-0.018 `Sw`** — the same number, at every cut where it resolves two crown blobs |
+| **O4** `refinery:col` 1 blob | OPEN — real art, "the cause is already proven to be FUSION" | **BROKEN CHECK** | `[GAREFN]` reads **1 crown blob at 6 of 9 cuts** — it fuses exactly the way ours does |
+| **O6** `reactor:col` 0.247 | OPEN — "explicitly NOT claimed as a broken clause" | **BROKEN CHECK** | `[NANRCT]` **0.326-0.341 at 7 of 7 cuts** against `<= 0.10` — it fails its own row by 3.3x, and by MORE than we do |
+| **B5** `sentrygun:col` 1 blob | BROKEN-CHECK, proven unreachable | **BROKEN CHECK *and* a real art defect** | `[NALASR]` reads **0 crown blobs at 12 of 12 cuts** — `bodyRun` finds no crown at all on that squat silhouette |
+
+### O2 and O4 — one line, and it was the other half of a fix already made
+
+`a2cb67d` moved the refinery's WIDTH row off `c.w` because the crown blob "runs
+from the stack's cap all the way down into the barrel vault's ridge". The GAP
+row kept calling `gapBetween(crown[0], crown[1])` on those same blobs, so it
+measured the second stack against the **vault**. §2.6 states the measurement it
+wants — *"x 35..57 and 72..96 of 169, gap **15 px** = 0.089"* — and counted
+across a cut (`stackPair`), `[GAREFN]` gives **15 px at 9 of 9 sweep cuts**,
+§2.6's number to the pixel. Ours: dir 22 px = 0.096 `Sw`, col 27 px = 0.118.
+
+**O4's plan is void, not merely done.** It asked for `grille1` to be shifted off
+the x134 seam so the two Collective furnaces stop fusing; the pass that measured
+that found the fix takes the count UP (one row becomes three, two of them red).
+The fusion was never the defect. `grille1` has not moved and must not.
+
+### O6 — the convention was applied to the wrong kind of bar
+
+`clearance = bodyRun.lo / f.h` is this module's convention for *"the crown
+clears the roofline by >= X `Sh`"*, a FLOOR. Applied to *"the crown is inside
+the top 0.10 `Sh`"*, a CEILING, it inverts the sentence into "the crown region
+is at most 10% of the sprite deep" — which forbids the three tall cooling
+towers the row directly above it requires. O6's own note asked for "a clearance
+measurement that does not need background segmentation"; what it needed was a
+measurement of the RIM. `rimRow` walks the tallest tower's per-row widths down
+from its apex and stops where the rim closes: `[NANRCT]` **0.070** (row 9 of
+129) against §2.7's hand-measured "y≈8 of 129 → 0.06", ours **0.057**.
+
+### B5 — the only art in this pass, and it is 1.3 px
+
+B5's "unreachable by a crown primitive" diagnosis was right and is now
+irrelevant: the count moved to `resolveBand`, which counts members across a cut
+the way the Gap Generator's talons already are. But the art was ALSO short of
+§2.7, which the previous passes did not measure. `sgBar(-6.2, 2.6, …, 2.6)` and
+`sgBar(1.6, -2.4, …, 2.8)` sit **4.54 px** apart along the perpendicular to
+`sgA`, against a summed half-width of **4.50** — tangent, with four hundredths
+of a pixel to spare, so §2.7's *"a gap >= 2 px between them"* was not drawn and
+at 1:1 the twin gun read as one fat ribbed tube.
+
+Both roots move 1.30 px along that perpendicular and 1.50 px back along the
+barrel axis (lengths +1.5, so the muzzles do not move): axis separation
+4.54 -> 7.14, drawn sky gap 2.64 px, bake reads 2. **Rendered and looked at, on
+opaque grass, at all eight aim bearings and at idle** — the pair reads as two
+parallel barrels at every one, where the old roots closed to 1.2 px at one
+extreme. A 1.98 px version was built first and REJECTED by eye: at a 4.0 px gap
+the pair reads splayed and the near breech lifts off the ammo plate.
+
+### And the bites, per rule 4
+
+| broken build | row | reads |
+|---|---|---|
+| refinery `dir` stacks pushed to `cx+26` | O2 | **FAIL** — gap 1 px = 0.004 `Sw` |
+| refinery `col` near furnace pushed to `cx+8` | O4 | **FAIL** — gap 1 px = 0.004 `Sw` |
+| a 34 px mast above the tallest cooling tower | O6 | **FAIL** — 0.181, rim closes at row 33 of 182 |
+| **the art that shipped on `5719bfc`** (tangent barrels) | B5 | **FAIL** — 1 member at the widest top-half cut |
+| one `sgBar` call deleted | B5 | **FAIL** — 1 member |
+| a 20 px optic mast beside the barrels | B5 | **FAIL** — gap 17 px against a 5 px member |
+
+That last one forced a second half onto the row and is worth naming: a mast
+standing beside one barrel resolves as "2 members" exactly the way two barrels
+do, and the first draft of the rewrite PASSED it. Members of one trunnion are
+close together, so the row now also asserts `gap <= wMax` — the clear sky
+between the two is no wider than a member. That is a ratio of 1, not a tuned
+number, and it is the difference between a check and a decoration.
+
+### What this pass could NOT settle, and says so
+
+`soviet-sentry-gun.gif` cannot validate B5's rewrite. At 41x33 its gun sits at
+roughly 20-25 degrees of elevation, where the pair self-occludes into a single
+13 px bright run (`row 15: ############`), against our own 62 degrees. §2.7's
+row is sourced from `rts.html:18765`'s reading of a **41x40 MAKE-frame rip that
+is not in the repo**, at an elevation this still does not show. B5 is therefore
+the one row here proved by BITE alone — which is why the shipped-art bite above
+matters more than usual.
