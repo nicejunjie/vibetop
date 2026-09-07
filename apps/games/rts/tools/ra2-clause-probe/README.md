@@ -26,7 +26,7 @@ This directory answers both, against the *shipped* math.
 |---|---|
 | `run-clause.js` | Loads `structures.js` **verbatim from disk** and appends only an export epilogue, so the probe cannot drift from what the gate runs. Runs `check()` over any `{w,h,mask,rgba}` record. |
 | `dump-blds.js` | Bakes our own structures out of any build of the page (honours `ART_HTML`) into that record shape, using art-metrics.js's own `bbox()` code. |
-| `key.py` | Chroma-keys an RA2 rip from `docs/ra2-ref/sprites/buildings/` into the same shape. Blue key for the SHP rips, green for the grass-backed ones. |
+| `key.py` | Chroma-keys an RA2 rip from `docs/ra2-ref/sprites/buildings/` into the same shape. `blue` for the SHP rips, `green` for the grass-backed ones — and `olive` for the three whose grass the green key **cannot cut at all** (`nuclear-reactor`, `allied-ore-refinery`, `soviet-sentry-gun`: their grass is ~(152,156,64), so `g - max(r,b)` is 4 and every margin returns the whole plate as one component). The olive key separates on `min(r,g) - b` and takes the background border-connected. Four passes measured those three sprites before anyone noticed the key was the thing being measured. |
 
 ## Use
 
@@ -38,6 +38,8 @@ node dump-blds.js ours.json base gapgen
 
 # 2. RA2's, from a committed rip (frame 0, composited; PIL hands back deltas)
 python3 key.py ../../docs/ra2-ref/sprites/buildings/allied-construction-yard.gif gacnst.json blue 40
+# grass-backed: sweep, and use `olive` on the yellow-green plates
+python3 key.py ../../docs/ra2-ref/sprites/buildings/nuclear-reactor.gif nanrct.json olive 28 --largest
 
 # 3. the shipped clause, on either
 CHK=../clause-checks/structures.js
