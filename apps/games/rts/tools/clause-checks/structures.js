@@ -478,14 +478,24 @@ exports.check = function (ctx) {
     add('depot', `[${fac}] exactly ONE crane/gantry group with its jib tip horizontally over the pad`,
       crown.length === 1, `${crown.length} crown blob(s)`, '1 blob',
       '"jib tip horizontally over the pad" still not checked — `groundPlate` above now locates the pad\'s x-range, but the JIB TIP is a sub-feature of the crown blob and is not separable from the rest of it by any predicate here');
+    // THE GROUND BAND IS ANCHORED AT THE SPRITE'S BASE, not at the plate blob's
+    // own top row: `f.h - pad.h`, the plate's own DEPTH measured up from the
+    // ground. That matters when the plate read goes wrong — a bake whose works
+    // sprawl until some pale machine face outweighs the apron hands back a blob
+    // sitting high in the sprite, and `y < pad.y0` would then report almost no
+    // works ink and PASS the very sprite the row exists to catch (measured: 0.000
+    // on a deliberately over-grown Collective works). Anchored at the base the
+    // same sprite reads 0.774 and fails.
     let above = 0, tot = 0;
+    const padTop = pad ? f.h - pad.h : 0;
     for (let y = 0; y < f.h; y++) for (let x = 0; x < f.w; x++)
-      if (f.mask[y * f.w + x]) { tot++; if (pad && y < pad.y0) above++; }
+      if (f.mask[y * f.w + x]) { tot++; if (y < padTop) above++; }
     const worksInk = tot ? above / tot : 1;
     add('depot', `[${fac}] the works confined to the remaining <= 0.50 Sw`,
       !!pad && worksInk <= 0.50, R(worksInk, 3), '<= 0.50 of the sprite\'s ink',
-      'READ AS OCCUPANCY, NOT WIDTH — the share of opaque pixels standing clear above the plate\'s own top edge. '
-      + 'A width reading is unmeetable by construction: the works stand ON the apron and the jib row above REQUIRES an overhang, so pad and works overlap in x and RA2 itself spans 0.593-0.660 Sw. RA2 [NADEPT] reads 0.353-0.402 by ink');
+      'READ AS OCCUPANCY, NOT WIDTH — the share of opaque pixels standing clear above a ground band as deep as the plate itself. '
+      + 'A width reading is unmeetable by construction: the works stand ON the apron and the jib row above REQUIRES an overhang, so pad and works overlap in x and RA2 itself spans 0.593-0.660 Sw. '
+      + 'RA2 [NADEPT] reads 0.400-0.461 by ink across the stable chroma cuts');
   }
 
   // radar — Collective only, dish
