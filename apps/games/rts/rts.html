@@ -16634,7 +16634,7 @@
       g.fillStyle = 'rgba(196,206,240,.10)';
       g.beginPath(); g.ellipse(cx, arcY(0.5), 11, 11, 0, 0, 6.29); g.fill();
       g.fillStyle = 'rgba(226,232,255,' + (0.10 + 0.08 * (0.5 + 0.5 * anS)) + ')';
-      g.beginPath(); g.ellipse(cx, eY, eR * 1.20, eR * 0.90, 0, 0, 6.29); g.fill();
+      g.beginPath(); g.ellipse(cx, eY - 0.8, eR * 1.20, eR * 0.96, 0, 0, 6.29); g.fill();
       var bolts = [
         [[1, 2], [7, 0], [4, -3], [11, -6]],
         [[-1, 1], [-8, -2], [-5, -6], [-12, -9]],
@@ -16646,10 +16646,12 @@
         g.lineCap = 'round'; g.lineJoin = 'round';
         for (var bI2 = 0; bI2 < bolts.length; bI2++) {
           var bp = bolts[bI2], bRoot = arcY(((bph || 0) + bI2 / 3) % 1);
+          var bMax = 0;
+          for (var bM = 0; bM < bp.length; bM++) if (bp[bM][1] > bMax) bMax = bp[bM][1];
+          if (bRoot - 1 - bMax < nkB + 1.4) bRoot = nkB + 2.4 + bMax;   // arcs crawl the COIL, never the neck
           g.beginPath();
           g.moveTo(cx, bRoot);
-          for (var kI = 0; kI < bp.length; kI++)     // clamped: an arc across the neck is what filled it
-            g.lineTo(cx + bp[kI][0], Math.max(nkB + 1.4, bRoot - 1 - bp[kI][1]));
+          for (var kI = 0; kI < bp.length; kI++) g.lineTo(cx + bp[kI][0], bRoot - 1 - bp[kI][1]);
           g.stroke();
         }
         // one arc licking the electrode, phase-shifted the other way
