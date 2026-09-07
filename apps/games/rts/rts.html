@@ -10548,7 +10548,7 @@
           for (sg = -1; sg <= 1; sg += 2)
             isoBox(g, cx + px * wid * 0.36 * sg - fx * 0.6,
                    by - 2.9 + py * wid * 0.36 * sg - fy * 0.6,
-                   len * 0.76, 1.4, 3.2, a, panel, PEDGE);
+                   len * 0.76, 1.4, 2.8, a, panel, PEDGE);
           bumper(len * 0.41, wid * 0.22, by - 1.6);
           for (i2 = -1; i2 <= 1; i2 += 2)
             lamp(cx + fx * len * 0.39 + px * wid * 0.24 * i2,
@@ -10660,105 +10660,89 @@
           // one clean rectangular outline, and its face is a legible grid.
           // Ours was mid-grey clutter with no edge. Contrast and a readable
           // face, at the reference's own proportions.
-          var LU = 3.8, LV = 3.5, LH = 6.6;                    // half-length / half-beam / height
-          // ...and the block is MID-TONE, not dark. Measured off the rip:
-          // its launcher rows average value **0.462** against the hull's
-          // **0.571** — a separation of only 0.109. What makes RA2's block
-          // read is the dark CELL GRID inside it and its clean rectangular
-          // outline, not the block itself being dark. Drawn at 0.36 (the
-          // first cut) the block matched the hull's own shadow tone and the
-          // whole vehicle went muddy: ours measured mean value 0.427 against
-          // RA2's 0.560 over the same mask, i.e. a third darker, which is a
-          // better explanation of "not recognisable at 45 px" than anything
-          // about the turret's shape.
-          // 0x98, not 0x76. `prism()` paints far faces at 0.58 of the body
-          // colour and near ones at 0.84, then gradients each by 0.82-1.20 —
-          // so a block whose own value is 0.545 puts its far side at 0.26-0.38
-          // and that shaded side is the single largest dark block in the
-          // sprite's colour census. The body colour has to be picked for what
-          // the SHADED faces land on, not for what the flat colour reads as.
-          var LBODY = '#98a0ad';                               // mid-tone; the CELLS carry the contrast
-          // ...and it sits BACK on the hull, which is the last thing the rip
-          // settles. RA2 puts the launcher over the rear axles with the long
-          // pale bonnet clear in front of it — a profile no tank has, because
-          // a tank's turret is central or forward. Centred (the first cut of
-          // this block) the IFV reads as a turreted vehicle and the mask says
-          // so: `ifv | rhino` 0.657 -> 0.686 and `flaktrack | ifv` 0.555 ->
-          // 0.604 the moment the tubes became a box.
+          // A CLUSTER OF TUBES, not a cabinet. Magnify the rip 9x beside
+          // ours and the difference stops being subtle: RA2's launcher is a
+          // BRISTLING bundle of separate rounded tube-boxes at slightly
+          // different heights, with gaps you can see daylight through — the
+          // outline itself is notched and mechanical. Ours was one smooth
+          // extruded box, and the cell grid drawn on its front face was
+          // painted over by the house panel and the roof cap, so what
+          // survived was a grey cabinet with a big cyan window. The user's
+          // words for it: "it looks nothing like ra2's ifv". They are right,
+          // and no amount of resizing a box fixes a box.
+          //
+          // So the tubes are drawn as SEPARATE volumes with gaps, rear pair
+          // standing higher than the front pair, each with its own dark
+          // mouth. The silhouette is what carries this, which is why the
+          // gaps matter more than the detail inside them.
+          // MID-TONE, not dark, and picked for its SHADED faces: `prism()`
+          // paints far faces at 0.58 of the body colour and gradients each by
+          // 0.82-1.20, so a 0.545 body puts its far side at 0.26-0.38. RA2's
+          // launcher rows average value 0.462 against its hull's 0.571 — a
+          // separation of only 0.109 — and what makes that cluster read is
+          // the dark MOUTHS and the gaps between the tubes, not the tubes
+          // being dark.
+          var LBODY = '#98a0ad';
+          var TW2 = 1.55, TL = 2.5, TH2 = 5.2;                  // half-beam / half-length / height
+          var lby = ivy - 1.2 - fy * 1.7;
           var lcx = ivx - fx * 1.7;
-          var lby = ivy - 1.0 - fy * 1.7;                       // the block's base
-          isoBox(g, lcx - fx * 0.4, lby + 1.4 - fy * 0.4, 4.4, 5.0, 2.0, a,
-                 shade(deck, 0.80), dark);                      // the mount under it
-          prism(lcx, lby, [[LU, -LV], [LU, LV], [-LU - 0.4, LV - 0.5], [-LU - 0.4, -LV + 0.5]],
-                LH, LBODY, dark);
-          // a point on the block, in (along, across, up) — the cell grid and
-          // the flank band are both laid out in the launcher's own frame so
-          // they turn with it instead of billboarding
-          var LP = function (u, v, h) {
-            return [lcx + fx * u + px * v, lby + fy * u + py * v - h];
-          };
-          // THE CELL FACE: three cells across, two up, dark mouths with a lit
-          // sill. This grid IS the unit's signature at 1:1 — the rip's head-on
-          // bearing is almost nothing else.
-          for (i2 = 0; i2 < 3; i2++)
-            for (sg = 0; sg < 2; sg++) {
-              var v0 = -LV + (2 * LV) * ((i2 + 0.14) / 3), v1 = -LV + (2 * LV) * ((i2 + 0.86) / 3);
-              var h0 = 0.9 + sg * 2.7, h1 = h0 + 2.1;
-              var k0 = LP(LU, v0, h0), k1 = LP(LU, v1, h0),
-                  k2 = LP(LU, v1, h1), k3 = LP(LU, v0, h1);
-              g.beginPath();
-              g.moveTo(k0[0], k0[1]); g.lineTo(k1[0], k1[1]);
-              g.lineTo(k2[0], k2[1]); g.lineTo(k3[0], k3[1]); g.closePath();
-              g.fillStyle = '#15181d'; g.fill();
-              g.strokeStyle = '#828a96'; g.lineWidth = 0.8; g.stroke();
-              g.fillStyle = '#3d434c';                          // the missile seated in it
-              g.beginPath();
-              g.moveTo(k0[0] * 0.72 + k1[0] * 0.28, k0[1] * 0.72 + k1[1] * 0.28);
-              g.lineTo(k0[0] * 0.28 + k1[0] * 0.72, k0[1] * 0.28 + k1[1] * 0.72);
-              g.lineTo(k3[0] * 0.28 + k2[0] * 0.72, k3[1] * 0.28 + k2[1] * 0.72);
-              g.lineTo(k3[0] * 0.72 + k2[0] * 0.28, k3[1] * 0.72 + k2[1] * 0.28);
-              g.closePath(); g.fill();
+          isoBox(g, lcx, lby + 1.6, 6.4, 6.8, 2.4, a,
+                 shade(deck, 1.04), dark);                      // the mount
+          for (sg = -1; sg <= 1; sg += 2)                       // ONE thin house band on the mount
+            isoBox(g, lcx + px * 3.4 * sg, lby + 0.4 + py * 3.4 * sg,
+                   6.0, 0.8, 1.5, a, panel, PEDGE);
+          var tubes = [];
+          for (i2 = -1; i2 <= 1; i2 += 2)                       // along: front / rear
+            for (sg = -1; sg <= 1; sg += 2) {                   // across
+              var tu = i2 * 1.95, tv = sg * 1.85;
+              tubes.push([tu, tv, i2 < 0 ? 1.5 : 0,             // rear pair stands higher
+                          lby + fy * tu + py * tv]);
             }
-          // the house-colour patch on the block's near flank — one bright
-          // panel, which is exactly what the rip carries there
-          var bF = py >= 0 ? LV : -LV;
-          var f0 = LP(LU - 0.6, bF, 1.0), f1 = LP(-LU + 0.4, bF, 1.0),
-              f2 = LP(-LU + 0.4, bF, LH - 0.8), f3 = LP(LU - 0.6, bF, LH - 0.8);
-          g.beginPath();
-          g.moveTo(f0[0], f0[1]); g.lineTo(f1[0], f1[1]);
-          g.lineTo(f2[0], f2[1]); g.lineTo(f3[0], f3[1]); g.closePath();
-          g.fillStyle = panel; g.fill();
-          g.strokeStyle = PEDGE; g.lineWidth = 0.7; g.stroke();
-          g.fillStyle = plit;                                   // lit upper strake on the panel
-          g.beginPath();
-          g.moveTo(f3[0], f3[1]); g.lineTo(f2[0], f2[1]);
-          g.lineTo(f2[0], f2[1] + 2.4); g.lineTo(f3[0], f3[1] + 2.4); g.closePath(); g.fill();
-          // the same patch on the FAR flank, so the census sees it from every
-          // bearing rather than from four of eight — this is the cheapest
-          // owner colour on the unit and it is where the rip puts it
-          var bB = -bF;
-          var b0 = LP(LU - 0.6, bB, 1.0), b1 = LP(-LU + 0.4, bB, 1.0),
-              b2 = LP(-LU + 0.4, bB, LH - 0.8), b3 = LP(LU - 0.6, bB, LH - 0.8);
-          g.beginPath();
-          g.moveTo(b0[0], b0[1]); g.lineTo(b1[0], b1[1]);
-          g.lineTo(b2[0], b2[1]); g.lineTo(b3[0], b3[1]); g.closePath();
-          g.fillStyle = pdark; g.fill();
-          g.strokeStyle = PEDGE; g.lineWidth = 0.7; g.stroke();
-          // roof: a lit cap plate and the sight box the rip puts dead centre
-          isoBox(g, lcx - fx * 0.6, lby - LH - fy * 0.6, LU * 1.6, LV * 1.6, 0.8, a,
-                 shade(LBODY, 1.34), dark);
-          // NO bright house cap. The census wanted the owner colour back and
-          // a strake round the roof gave it, at the cost of turning the block
-          // BLUE — and the rip is a dark grey box with a blue patch on its
-          // side, not a blue box. The budget goes on the hull's long flank
-          // band instead, which is the second place RA2 actually paints it.
-          isoBox(g, lcx - fx * 1.2, lby - LH - 1.4 - fy * 1.2, 1.6, 2.2, 1.4, a,
-                 shade(LBODY, 0.80), dark);
+          tubes.sort(function (m, n) { return m[3] - n[3]; });   // far to near
+          for (i2 = 0; i2 < tubes.length; i2++) {
+            var tu2 = tubes[i2][0], tv2 = tubes[i2][1], tz = tubes[i2][2];
+            var bx2 = lcx + fx * tu2 + px * tv2, by2 = lby + fy * tu2 + py * tv2 - tz;
+            // OCTAGONAL in plan, not square. Four hard-edged boxes read as
+            // stacked crates; RA2's tubes are rounded, and cutting the
+            // corners is the cheapest way to say "tube" at this size.
+            prism(bx2, by2, [[TL, -TW2 + 0.55], [TL, TW2 - 0.55],
+                             [TL - 0.7, TW2], [-TL + 0.7, TW2 - 0.15],
+                             [-TL, TW2 - 0.7], [-TL, -TW2 + 0.7],
+                             [-TL + 0.7, -TW2 + 0.15], [TL - 0.7, -TW2]],
+                  TH2, LBODY, '#2c323b');
+            // A HOUSE BAND round each tube. Dropping the big panel off the
+            // old cabinet cost `hue.vehicleOwnerMean` 0.1753 -> 0.1671, and
+            // §1.4's rule is that the remap belongs ON the identity feature —
+            // which is now four tubes rather than one slab. The rip carries a
+            // bright blue patch in the middle of the cluster, so this is also
+            // where RA2 puts it. A band per tube reads at 1:1 as colour
+            // without filling the shape in, which is what the panel did.
+            prism(bx2, by2 - TH2 * 0.34, [[TL + 0.12, -TW2 + 0.45], [TL + 0.12, TW2 - 0.45],
+                                          [TL - 0.6, TW2 + 0.12], [-TL + 0.6, TW2 - 0.03],
+                                          [-TL - 0.12, TW2 - 0.6], [-TL - 0.12, -TW2 + 0.6],
+                                          [-TL + 0.6, -TW2 + 0.03], [TL - 0.6, -TW2 - 0.12]],
+                  2.9, panel, PEDGE);
+            // the mouth, on the tube's forward face
+            var m0 = [bx2 + fx * TL + px * (TW2 - 0.35), by2 + fy * TL + py * (TW2 - 0.35) - 1.0];
+            var m1 = [bx2 + fx * TL - px * (TW2 - 0.35), by2 + fy * TL - py * (TW2 - 0.35) - 1.0];
+            g.beginPath();
+            g.moveTo(m0[0], m0[1]); g.lineTo(m1[0], m1[1]);
+            g.lineTo(m1[0], m1[1] - (TH2 - 2.0)); g.lineTo(m0[0], m0[1] - (TH2 - 2.0));
+            g.closePath();
+            g.fillStyle = '#1b1f25'; g.fill();
+            g.strokeStyle = shade(LBODY, 1.30); g.lineWidth = 0.8; g.stroke();
+            g.fillStyle = '#454c56';                             // the round of the missile in it
+            g.beginPath();
+            g.moveTo(m0[0] * 0.74 + m1[0] * 0.26, m0[1] * 0.74 + m1[1] * 0.26 - 0.6);
+            g.lineTo(m0[0] * 0.26 + m1[0] * 0.74, m0[1] * 0.26 + m1[1] * 0.74 - 0.6);
+            g.lineTo(m0[0] * 0.26 + m1[0] * 0.74, m0[1] * 0.26 + m1[1] * 0.74 - (TH2 - 2.6));
+            g.lineTo(m0[0] * 0.74 + m1[0] * 0.26, m0[1] * 0.74 + m1[1] * 0.26 - (TH2 - 2.6));
+            g.closePath(); g.fill();
           }
-          // The IFV's own colour: a hazard-yellow rotating beacon and a short
-          // chevron band. Everything else on this vehicle is white, pale grey
-          // or the owner's hue, which is nine tenths of why it read as "a
-          // light vehicle" and not as the IFV.
+          // sight head on the pivot, between the rear tubes
+          puck(lcx - fx * 3.4, lby - 4.0 - fy * 3.4, 1.15, 1.8,
+               shade(LBODY, 0.82), shade(LBODY, 1.22), '#2c323b');
+          }
           // NO HAZARD YELLOW. It was this project's invention, added to get
           // the IFV off `colour.vehicleAchromatic` (it failed at .121), and
           // `docs/ra2-ref/sprites/allied-ifv.png` settles that RA2 paints no

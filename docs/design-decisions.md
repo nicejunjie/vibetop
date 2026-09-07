@@ -11764,3 +11764,29 @@ faces. 0.408 -> 0.476.
 **Deliberately NOT done.** The other three. A roster-wide value lift is a
 visible aesthetic change and belongs to the user, not to the tail of an IFV fix.
 
+
+### Two measurements of the same sprite, and neither could see it was the wrong SHAPE
+
+**Symptom.** Three passes on the RTS IFV, each measured and each rejected:
+*"ifv is still not recoganizable"*, *"and it looks nothing like ra2's ifv"*.
+
+**Cause.** By the second pass the real `[FV]` rip was in the repo and had been
+measured twice — a row-width profile (launcher = 33% of height, 50% of width)
+and a dark/pale ASCII map. Both answered questions about **proportion and
+value**; neither could answer **structure**, because neither ever put the two
+images side by side. RA2's launcher is a bristling bundle of separate rounded
+tube-boxes at two heights with visible gaps; ours was one smooth extruded box
+with a house panel on its side, and the cell grid drawn on its front face had
+been painted over by that panel and the roof cap. A correctly-proportioned,
+correctly-valued box is still a box.
+
+**Fix.** Magnify both 9x and look. Then four separate volumes, octagonal in
+plan (four square prisms read as stacked crates), rear pair 1.5 units higher
+than the front, a dark mouth per tube, gaps you can see ground through. The
+silhouette carries it.
+
+**The general lesson, and it is about method.** A measurement only answers the
+question it was asked. `docs/ra2-ref/sprites/README.md` step 3 already says
+"open the image and LOOK at it" — that step was skipped in favour of numbers
+for two consecutive passes, and the numbers were all correct.
+

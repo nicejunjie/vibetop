@@ -116,6 +116,42 @@ side; the budget went to a patch on each flank of the block plus the hull's
 long band instead, which is where RA2 paints it, and the census came out ahead
 anyway (`hue.vehicleOwnerMean` 0.1715).
 
+### The IFV, third time — a CLUSTER, and why two measurements both missed it
+
+*"ifv is still not recoganizable"* … *"and it looks nothing like ra2's ifv"*.
+
+Both true, and the reason is a method failure rather than a taste one. I had
+the rip by this point and measured it **twice** — a row-width profile, then a
+dark/pale ASCII map — and both told me about *proportion and value*. Neither
+could tell me about **structure**, because neither ever showed me the picture.
+Magnifying the rip 9x beside ours settles it in one look:
+
+* **RA2:** a bristling bundle of separate rounded tube-boxes at two heights,
+  with visible gaps between them. The OUTLINE is notched and mechanical.
+* **ours:** one smooth extruded box with a big cyan panel on its side — a grey
+  cabinet with a window. The "cell grid" I drew on its front face had been
+  painted over by the house panel and the roof cap, so nothing survived of it.
+
+No amount of resizing a box fixes a box. The launcher is now **four separate
+volumes** — octagonal in plan, because four square prisms read as stacked
+crates — with the rear pair standing 1.5 units higher than the front pair, a
+dark mouth on each tube's forward face, and gaps you can see the ground
+through. The gaps are the point: the silhouette carries this, not the detail
+inside it.
+
+**What each of the three attempts got wrong, in order.** Pass one sized the
+weapon up and changed nothing else — right instinct, wrong axis. Pass two used
+the rip's *proportions* and made a correctly-sized box — a measurement can only
+answer the question you ask it. Pass three looked at the two images side by
+side at 9x, which is what the standing rule in `ra2-ref/sprites/README.md`
+("open the image and LOOK at it") has said all along.
+
+House colour moved with the shape: the big side panel is gone and each tube
+carries a band, which is both where §1.4 wants the remap (on the identity
+feature) and where the rip has its blue patch. `hue.vehicleOwnerMean` 0.1753 ->
+0.1760, `iou.groundCombat.mean` 0.4646 -> 0.4642, `colour.vehicle.meanDist`
+1.0043 -> 1.0056, no regressions.
+
 ### The measurement that actually explains it: our vehicles are a fifth too DARK
 
 The user, after the rebuilt IFV shipped: *"deployed? I don't see any diff"*. It
