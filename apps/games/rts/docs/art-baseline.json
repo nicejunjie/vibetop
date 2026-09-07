@@ -351,7 +351,7 @@
     "clause.airUnmet": 0,
     "clause.unmatchedToReference": 0,
     "clause.checkedStructures": 75,
-    "clause.unmetStructures": 5,
+    "clause.unmetStructures": 2,
     "clause.struckStructures": 0,
     "clause.waivedStructures": 0,
     "value.soldiersLighterThanEngineer": 0,
@@ -3328,10 +3328,10 @@
       {
         "unit": "refinery",
         "clause": "[dir] exactly 2 stacks with a clear gap >= 0.08 Sw between them",
-        "ok": false,
-        "measured": "2 stacks, gap 0.018 Sw",
+        "ok": true,
+        "measured": "2 stacks (x89..123 and x146..173, rows 29-56), gap 22px = 0.096 Sw",
         "want": "2 stacks, gap >= 0.08 Sw",
-        "note": "stacks = crown components above bodyRun.lo, filtered to >=0.06 Sw",
+        "note": "stacks = the deepest band of crown rows carrying exactly two runs both 0.06-0.20 Sw wide (`stackPair`), not two crown COMPONENTS: a vault ridge that clears the same roofline fuses into the blob and the old gap measured the stack against the VAULT. RA2 [GAREFN] reads 15 px at 9 of 9 chroma cuts, matching §2.6's own \"gap 15 px = 0.089\"",
         "module": "structures.js",
         "refMatch": 0.64
       },
@@ -3358,10 +3358,10 @@
       {
         "unit": "refinery",
         "clause": "[col] exactly 2 stacks with a clear gap >= 0.08 Sw between them",
-        "ok": false,
-        "measured": "1 stack-sized crown blob(s) found",
-        "want": "2 stacks",
-        "note": "no committed sprite for this fac per §2.9",
+        "ok": true,
+        "measured": "2 stacks (x89..108 and x136..167, rows 33-55), gap 27px = 0.118 Sw",
+        "want": "2 stacks, gap >= 0.08 Sw",
+        "note": "stacks = the deepest band of crown rows carrying exactly two runs both 0.06-0.20 Sw wide (`stackPair`), not two crown COMPONENTS: a vault ridge that clears the same roofline fuses into the blob and the old gap measured the stack against the VAULT. RA2 [GAREFN] reads 15 px at 9 of 9 chroma cuts, matching §2.6's own \"gap 15 px = 0.089\"",
         "module": "structures.js",
         "refMatch": 0.64
       },
@@ -3638,10 +3638,10 @@
       {
         "unit": "reactor",
         "clause": "[col] the tallest tower's crown is inside the top 0.10 Sh",
-        "ok": false,
-        "measured": 0.247,
+        "ok": true,
+        "measured": "0.057 (rim closes at row 9 of 158, 50px wide)",
         "want": "<= 0.10",
-        "note": "guarded on bodyRun's `crown` flag: with no crown there is no tallest tower, and an unguarded clearance of 0 would satisfy this ceiling for free",
+        "note": "the crown of a cooling tower is its open RIM, and a rim is complete where its per-row width stops climbing (`rimRow`). Measured on the topmost tower-sized crown mass, so a mast or a duct standing above the towers pushes the rim down the sprite and fails the row",
         "module": "structures.js",
         "refMatch": 0.88
       },
