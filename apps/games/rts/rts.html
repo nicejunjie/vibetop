@@ -36381,10 +36381,11 @@
     // right-click will do, so it is worth an assertion of its own.
     cursorAt: function (gx, gy) {
       var was = headless; headless = false;
-      mouse.in = true; mouse.x = sx(gx, gy); mouse.y = sy(gx, gy);
-      hoverTile.x = Math.round(gx); hoverTile.y = Math.round(gy);
-      pickCursor();
-      headless = was;
+      try {
+        mouse.in = true; mouse.x = sx(gx, gy); mouse.y = sy(gx, gy);
+        hoverTile.x = Math.round(gx); hoverTile.y = Math.round(gy);
+        pickCursor();
+      } finally { headless = was; }        // a throw in here must not leave the sim rendering
       return curKind;
     },
     cursorKind: function () { return curKind; },
