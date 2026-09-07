@@ -31992,6 +31992,12 @@
   }
   function onCmdClick(e) {
     var b = e.target.closest('button'); if (!b || !G || state !== 'play') return;
+    // A clicked button KEEPS focus, and the browser then re-activates it on
+    // Space and Enter — so Space, which is "jump to the last radar event",
+    // would silently fire the last command a second time (click Deploy, tap
+    // Space, and the GIs you just dug in pack straight back up). The bar is
+    // a mouse surface; the keyboard belongs to the game.
+    b.blur();
     resumeAudio();
     var c = b.getAttribute('data-cmd');
     if (c === 'same') selectSameType();
