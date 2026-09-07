@@ -11727,3 +11727,40 @@ DARK on a PALE hull with one clean outline and a legible face, which is a
 contrast property, not an area one. See `apps/games/rts/docs/per-unit-art-log.md`,
 "the IFV, done twice".
 
+
+### Our RTS vehicles are a fifth darker than RA2's, and nothing measures value
+
+**Symptom.** After an art pass that rebuilt nine sprites the user said of the
+IFV *"deployed? I don't see any diff"*. The deploy was genuine (same md5 on disk
+and over HTTP, `no-cache, no-store`, one copy under `/opt/vibetop`, and
+`/rts.html` is not in `sw.js`'s PRECACHE so the service worker never serves it).
+The change really was too small to see.
+
+**Cause.** Mean HSV value over each unit's own ink, contact shadow excluded:
+ours vs RA2's rip is IFV 0.408/0.548, Rhino 0.388/0.521, Apocalypse
+0.375/0.486, Terror Drone 0.443/0.501. **Every vehicle with a reference is
+12-28% too dark.** At 45 px a dark unit on grass is a blob and its identifying
+feature becomes a dark shape inside a dark shape — which is a better
+explanation of poor recognition than the size of the weapon. `art-metrics.js`
+has 57 metrics and none reads absolute value; the `value.*` family is about
+infantry engineer-lightness only.
+
+Two contributing mechanisms, both general:
+
+* **`prism()` shades far faces to 0.58 of the body colour** and near ones to
+  0.84, then gradients each by 0.82-1.20. A body colour is therefore a choice
+  about where its SHADED faces land, not about how the flat swatch reads — a
+  0.545 body puts its far side at 0.26-0.38.
+* **Invented accents cost value.** The IFV's hazard yellow existed only to
+  clear `colour.vehicleAchromatic`, and its dark olive edging alone was 7.3% of
+  the sprite's non-shadow ink.
+
+**Fix (partial).** The IFV: accent dropped and `ACHROMATIC_EXEMPT` given `ifv`
+with the citation the metric's own note asks for; launcher block moved to
+mid-tone (RA2's own block-to-hull separation is only 0.109, and what makes it
+read is the dark cell grid inside it); body colour re-picked for its shaded
+faces. 0.408 -> 0.476.
+
+**Deliberately NOT done.** The other three. A roster-wide value lift is a
+visible aesthetic change and belongs to the user, not to the tail of an IFV fix.
+

@@ -983,7 +983,16 @@ const HUE_EXEMPT = new Set(['dog', 'tanya']);
 // the unit. Today that is one sentence, §1.4's Grizzly:
 //   "**Grizzly Tank** (blue owner): two discrete panels ... on a PALE SILVER body"
 // Everything else on the field is debt until its own citation turns up.
-const ACHROMATIC_EXEMPT = new Set(['lancer']);
+// `ifv` joined 2026-09-07 on a reference that did not exist before that day.
+// `docs/ra2-ref/sprites/allied-ifv.png` is an 8-bearing in-game turnaround of
+// [FV] and it carries NO third hue: grey-white body, blue remap, nothing else.
+// The hazard yellow it used to wear was this project's own invention, added
+// purely to clear this metric, and a colour census put 7.3% of the sprite's
+// non-shadow ink in that accent's dark olive edging alone — on a unit already
+// measuring mean value 0.427 against the rip's 0.560. Which is exactly the
+// case this metric's note describes: "do not force paint onto a unit RA2
+// keeps grey, cite the reference and exempt it instead."
+const ACHROMATIC_EXEMPT = new Set(['lancer', 'ifv']);
 const GROUND_COMBAT = ['lancer', 'rhino', 'mammoth', 'mirage', 'prismtank',
                        'teslatank', 'flaktrack', 'ifv', 'v3'];
 const round = (v, n) => Math.round(v * 10 ** n) / 10 ** n;

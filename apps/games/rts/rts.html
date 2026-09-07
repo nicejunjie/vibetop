@@ -9175,7 +9175,7 @@
     if (kind === 'lancer')       { hull = '#acb2bc'; deck = '#3a3f4c'; }   // pale silver-grey
     else if (kind === 'spectre') { hull = '#565c66'; deck = '#33373f'; }   // neutral grey
     else if (kind === 'mammoth') { hull = '#6e7442'; deck = '#474a28'; }   // a REAL olive, per 1.4
-    else if (kind === 'ifv')     { hull = '#c4cad4'; deck = '#5d646f'; }   // white body, grey cab
+    else if (kind === 'ifv')     { hull = '#ccd2db'; deck = '#828a97'; }   // white body, LIGHT grey cab
     else if (kind === 'mirage')  { hull = '#4a505b'; deck = '#2b2f37'; }   // dark neutral slate
     else if (kind === 'rhino')     { hull = '#8b8b6d'; deck = '#55563f'; } // olive-khaki, as the sprite
     else if (kind === 'flaktrack') { hull = '#d2cfc0'; deck = '#8a8a46'; } // cream body, OLIVE rear bed
@@ -10661,7 +10661,23 @@
           // Ours was mid-grey clutter with no edge. Contrast and a readable
           // face, at the reference's own proportions.
           var LU = 3.8, LV = 3.5, LH = 6.6;                    // half-length / half-beam / height
-          var LBODY = '#4b525d';                               // DARK against the pale hull
+          // ...and the block is MID-TONE, not dark. Measured off the rip:
+          // its launcher rows average value **0.462** against the hull's
+          // **0.571** — a separation of only 0.109. What makes RA2's block
+          // read is the dark CELL GRID inside it and its clean rectangular
+          // outline, not the block itself being dark. Drawn at 0.36 (the
+          // first cut) the block matched the hull's own shadow tone and the
+          // whole vehicle went muddy: ours measured mean value 0.427 against
+          // RA2's 0.560 over the same mask, i.e. a third darker, which is a
+          // better explanation of "not recognisable at 45 px" than anything
+          // about the turret's shape.
+          // 0x98, not 0x76. `prism()` paints far faces at 0.58 of the body
+          // colour and near ones at 0.84, then gradients each by 0.82-1.20 —
+          // so a block whose own value is 0.545 puts its far side at 0.26-0.38
+          // and that shaded side is the single largest dark block in the
+          // sprite's colour census. The body colour has to be picked for what
+          // the SHADED faces land on, not for what the flat colour reads as.
+          var LBODY = '#98a0ad';                               // mid-tone; the CELLS carry the contrast
           // ...and it sits BACK on the hull, which is the last thing the rip
           // settles. RA2 puts the launcher over the rear axles with the long
           // pale bonnet clear in front of it — a profile no tank has, because
@@ -10743,21 +10759,21 @@
           // chevron band. Everything else on this vehicle is white, pale grey
           // or the owner's hue, which is nine tenths of why it read as "a
           // light vehicle" and not as the IFV.
-          // ...and it rides the HULL'S LOWER FLANK, clear of the launcher.
-          // The reference's brightest mark is the blue house patch on the
-          // block; two gold blobs beside it were louder than the thing they
-          // were meant to sit next to, and RA2 has nothing like them up there.
-          // The hazard yellow stays — it is what keeps this unit off
-          // `colour.vehicleAchromatic`, which it failed at 0.121 before it
-          // existed — but as a low stripe where nothing else competes.
-          puck(ivx - fx * 5.0, ivy + 2.6 - fy * 5.0, 0.75, 1.4,
-               shade(VACC.ifv, 0.62), VACC.ifv, '#4a4410');
-          for (sg = -1; sg <= 1; sg += 2)
-            isoBox(g, ivx + fx * 1.8 + px * 4.6 * sg, ivy + 4.2 + fy * 1.8 + py * 4.6 * sg,
-                   6.4, 0.7, 1.5, a, VACC.ifv, '#4a4410');
-          for (sg = -1; sg <= 1; sg += 2)                        // and one on the nose plate
-            isoBox(g, ivx + fx * 6.2 + px * 2.2 * sg, ivy + 3.4 + fy * 6.2 + py * 2.2 * sg,
-                   1.0, 1.6, 1.3, a, VACC.ifv, '#4a4410');
+          // NO HAZARD YELLOW. It was this project's invention, added to get
+          // the IFV off `colour.vehicleAchromatic` (it failed at .121), and
+          // `docs/ra2-ref/sprites/allied-ifv.png` settles that RA2 paints no
+          // third hue on this unit at all — grey-white body, blue remap, and
+          // nothing else. The metric's own note says what to do about that:
+          // "do not force paint onto a unit RA2 keeps grey, cite the
+          // reference and exempt it instead", and until this pass there WAS
+          // no reference to cite. `ACHROMATIC_EXEMPT` now carries `ifv`.
+          //
+          // It also cost more than a hue. A colour census of the sprite put
+          // 7.3% of its non-shadow ink in `#404010` — the dark olive edging
+          // of those two chevrons — which is a large share of a 45 px unit
+          // spent going DARK. Ours measured mean value 0.427 against the
+          // rip's 0.560 over the same mask; the yellow and its outline were
+          // the single biggest identifiable block of that gap.
         }
 
       } else if (kind === 'rhino') {

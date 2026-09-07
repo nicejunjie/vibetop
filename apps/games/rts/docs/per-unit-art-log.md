@@ -116,6 +116,57 @@ side; the budget went to a patch on each flank of the block plus the hull's
 long band instead, which is where RA2 paints it, and the census came out ahead
 anyway (`hue.vehicleOwnerMean` 0.1715).
 
+### The measurement that actually explains it: our vehicles are a fifth too DARK
+
+The user, after the rebuilt IFV shipped: *"deployed? I don't see any diff"*. It
+WAS deployed — same md5 on disk and over HTTP, `Cache-Control: no-cache,
+no-store`, one copy under `/opt/vibetop`, `/rts.html` is not in `sw.js`'s
+PRECACHE so it is never served from the service worker. The deploy was real and
+the change was **too small to see**, which is a fair thing to say about it.
+
+So the sprites were measured instead of admired. Mean HSV **value** over the
+unit's own ink (contact shadow dropped at v < 0.14, background masked):
+
+| unit | ours | RA2's rip | gap |
+|---|---|---|---|
+| IFV | 0.408 | **0.548** | **-0.140** |
+| Rhino | 0.388 | **0.521** | **-0.133** |
+| Apocalypse | 0.375 | **0.486** | **-0.111** |
+| Terror Drone | 0.443 | **0.501** | -0.058 |
+
+**Every vehicle we have a rip for is 12-28% darker than RA2 draws it.** That is
+a far better explanation of "units are hard to recognise at 45 px" than
+anything about how big the weapon is: a dark unit on grass is a blob, and the
+identifying feature is then a dark shape inside a dark shape. No metric in
+`art-metrics.js` reads absolute value — the `value.*` family is about infantry
+engineer-lightness only — so this has never once been looked at.
+
+The IFV was taken from **0.408 to 0.476** against the rip's 0.548 by three
+changes, each measured:
+
+* **The hazard yellow is gone**, and `ACHROMATIC_EXEMPT` carries `ifv` with the
+  citation it never had. That accent was this project's own invention, added to
+  clear `colour.vehicleAchromatic` (which the unit failed at .121), and the rip
+  settles that RA2 paints no third hue on `[FV]` at all. A colour census put
+  **7.3% of the sprite's non-shadow ink in `#404010`** — the dark olive edging
+  of two chevrons — on a unit that was already too dark. The metric's own note
+  says exactly this: *"do not force paint onto a unit RA2 keeps grey, cite the
+  reference and exempt it instead."* Until this pass there was no reference.
+* **The launcher block is mid-tone, not dark.** RA2's launcher rows average
+  **0.462** against its hull's **0.571** — a separation of only **0.109**. What
+  makes that block read is the dark CELL GRID inside it and its clean
+  rectangular outline, not the block being dark. Drawn at 0.36 it matched the
+  hull's own shadow tone and the vehicle went muddy.
+* **A body colour has to be picked for its SHADED faces.** `prism()` paints far
+  faces at 0.58 of the body colour and near ones at 0.84, then gradients each
+  by 0.82-1.20 — so a block whose flat value is 0.545 puts its far side at
+  0.26-0.38, and that face was the largest single dark block in the census.
+  `#767d8b` -> `#98a0ad`.
+
+**The other three rows in that table are untouched and open.** Lifting the whole
+ground roster's value is a visible, aesthetic, roster-wide change and it should
+be a decision, not a side effect of an IFV fix.
+
 **What the gate said.** Nothing, at first — which is the point of Rule 4b. Run
 against the pre-pass baseline the nine rebuilt sprites moved
 `iou.groundCombat.mean` 0.4660 -> 0.4646, `colour.vehicle.meanDist` 0.9714 ->
