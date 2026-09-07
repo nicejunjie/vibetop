@@ -412,7 +412,7 @@ const TARGETS = {
   // two-sample statistic self(k) + self(p) - 2*cross(k,p), flagged when it
   // goes negative. corr(swing, statistic) over the 13 vehicles fell from
   // +0.545 to -0.049, and the rectangle control turned from -0.0786 (FLAGGED)
-  // to +0.1017 (neutral). Four of the six rows were the artefact and are gone:
+  // to +0.0997 (neutral). Four of the six rows were the artefact and are gone:
   // dread, squid, sub and v3 all clear it, and the V3's row closed with no art
   // change whatsoever.
   //
