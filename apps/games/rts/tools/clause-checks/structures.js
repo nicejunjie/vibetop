@@ -857,7 +857,9 @@ exports.check = function (ctx) {
     const splays = band.count > 0 && neck < f.w && span > neck;
     add('gapgen', '[dir] exactly 4 talons, countable, each 2px at >= 25% contrast, splaying so the crown is wider at its top than the column beneath it',
       talons === 4 && splays,
-      `${talons} dark-outlier talon(s) >=2px wide, resolved over rows ${band.y0}-${band.y1}; span ${span}px vs neck ${neck === f.w ? 'n/a' : neck + 'px'}`,
+      talons
+        ? `${talons} dark-outlier talon(s) >=2px wide, resolved over rows ${band.y0}-${band.y1}; span ${span}px vs neck ${neck === f.w ? 'n/a' : neck + 'px'}`
+        : `no >=2px dark-outlier run holds over 2 consecutive rows in the crown (${body.crown ? 'roofline row ' + body.lo : 'bodyRun found NO crown'})`,
       '4 talons, span > neck',
       'talons counted by `resolveBand` -- the largest number of >=2px dark-outlier runs that HOLDS over >=2 consecutive crown rows -- because the four talons share a root round the mast and are ONE '
       + 'connected component, so a `components` count cannot reach 4 for any drawing of them (the Sentry Gun barrel row is the same trap). Dark, not bright: §2.7\'s talons are black, and the row this '
