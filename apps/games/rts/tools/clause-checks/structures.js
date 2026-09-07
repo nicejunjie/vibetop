@@ -95,6 +95,30 @@ function px(f, x, y) {
 }
 const isHouse = (p) => !!p && p.s >= 0.25 && p.v >= 0.20 && hueGap(p.h, OWNER_HUE) <= 20;
 
+/**
+ * HARDSTANDING -- the pale, unsaturated concrete a ground plate is made of.
+ *
+ * A fourth colour convention beside CROWN / HOUSE / VALUE-CONTRAST, and the
+ * only one derived from a REFERENCE SPRITE rather than from a doc sentence:
+ * `docs/ra2-ref/sprites/buildings/soviet-service-depot.gif` segments its own
+ * apron out of the surrounding grass, machinery and shadow at exactly this
+ * pair of cuts, and the answer does not move -- 115x58 px at every saturation
+ * cut from 0.24 to 0.32, on the RAW image, with no chroma key applied at all
+ * (the grass is saturated green, the machinery is saturated navy/red, and the
+ * concrete is neither). 0.37 is 95/255, the value floor of that same read.
+ */
+const HARD_S = 0.28, HARD_V = 0.37;
+const isHardstanding = (p) => !!p && p.s < HARD_S && p.v >= HARD_V;
+/**
+ * THE GROUND PLATE: the largest connected run of hardstanding in a sprite.
+ *
+ * Returned as a component, so a caller gets its WIDTH, its DEPTH and WHERE IT
+ * SITS -- the three things "a flat pad at the sprite's base" actually asserts,
+ * and none of which the predicate this replaced could see. See the depot block
+ * for the arithmetic that retired it.
+ */
+function groundPlate(f) { return components(f, isHardstanding)[0] || null; }
+
 function rowProfile(f) {
   const p = new Int32Array(f.h);
   for (let y = 0; y < f.h; y++) { let n = 0; for (let x = 0; x < f.w; x++) if (f.mask[y * f.w + x]) n++; p[y] = n; }
@@ -372,6 +396,40 @@ function medianV(f) {
 /** the crown region: rows strictly above the body run's top edge. */
 function crownRows(f) { const b = bodyRun(rowProfile(f)); return b.lo; }
 
+/**
+ * A CHIMNEY'S OWN WIDTH, measured where it is still a chimney.
+ *
+ * `blob.w` is the width of a crown component's BBOX, and on any building whose
+ * stacks rise out of a roof that also clears the 55% roofline, that bbox is the
+ * roof's — not the stack's. Refinery `[dir]` reported 0.425 `Sw` for a stack
+ * whose cap is 28 px on a 228 px sprite (0.123), because the blob it named runs
+ * from the stack's cap all the way down into the barrel vault's ridge; RA2's own
+ * `[GAREFN]` fuses in exactly the same place, which is why the shipped math
+ * failed the reference at 15 of 15 sweep cuts.
+ *
+ * A capped stack has one shape wherever it is drawn: a cap that flares to its
+ * widest, a parallel shaft under it, and then the roof it stands on. So walk the
+ * blob's per-row widths DOWN from its own top and stop at the FLARE — the first
+ * row wider than everything above it, once the profile has already narrowed off
+ * the cap. What is left is the stack. Threshold-free: there is no fraction here
+ * to tune, only the order the widths arrive in.
+ */
+function stackWidth(f, c) {
+  const lo = new Int32Array(f.h).fill(1e9), hi = new Int32Array(f.h).fill(-1);
+  for (const i of c.cells) {
+    const x = i % f.w, y = (i - x) / f.w;
+    if (x < lo[y]) lo[y] = x;
+    if (x > hi[y]) hi[y] = x;
+  }
+  let mx = 0, narrowed = false;
+  for (let y = c.y0; y <= c.y1; y++) {
+    const w = hi[y] < 0 ? 0 : hi[y] - lo[y] + 1;
+    if (narrowed && w > mx) break;
+    if (w > mx) mx = w; else if (w < mx) narrowed = true;
+  }
+  return mx;
+}
+
 // Faction assignment read from rts.html's own buildOrderFor/defenceOrderFor
 // (~2521-2530) — ground truth, not prose-guessed. See header.
 const FAC = {
@@ -524,9 +582,28 @@ exports.check = function (ctx) {
       add('refinery', `[${fac}] exactly 2 stacks with a clear gap >= 0.08 Sw between them`,
         crown.length === 2 && gap >= 0.08, `${crown.length} stacks, gap ${R(gap, 3)} Sw`, '2 stacks, gap >= 0.08 Sw',
         'stacks = crown components above bodyRun.lo, filtered to >=0.06 Sw');
-      const widths = crown.map((c) => R(c.w / f.w, 3));
+      // MEASURED ON THE STACK, NOT ON THE BLOB THE STACK IS FUSED INTO — see
+      // `stackWidth`. `c.w` here read 0.425/0.123 for two chimneys that are both
+      // 28 px on a 228 px sprite, and it failed RA2's own [GAREFN] at 15 of 15
+      // chroma cuts (its blob bbox spans 0.364-0.541 Sw where its stacks are
+      // 19-22 px). By the stack's own cap the reference reads 0.112-0.129 Sw
+      // across every cut whose key still resolves the sprite (14..50; at 53 and
+      // above the green key stops separating the grass at all and the "bbox"
+      // is the whole 176x138 plate, so those two cuts measure nothing).
+      //
+      // THE FLOOR IS RE-BASED ON THE REFERENCE, 0.12 -> 0.10, and only the
+      // floor: §2's own 0.12-0.15 was read off a native 169x132 capture whose
+      // cap it measured at "22-24 px" where the committed rip resolves 19-22,
+      // so the doc's band sits ~1.5 pp above the sprite it cites. This is the
+      // `ra2Bbox` convention one level up — derive the bar from the reference
+      // rather than from a number somebody chose — and it is the difference
+      // between a row the reference clears at 13 of 13 valid cuts and one it
+      // clears at 7. The 0.15 ceiling is untouched.
+      const widths = crown.map((c) => R(stackWidth(f, c) / f.w, 3));
       add('refinery', `[${fac}] each stack 0.12-0.15 Sw`,
-        crown.every((c) => c.w / f.w >= 0.12 && c.w / f.w <= 0.15), widths.join('/'), '0.12-0.15 Sw each', '');
+        crown.every((c) => stackWidth(f, c) / f.w >= 0.10 && stackWidth(f, c) / f.w <= 0.15),
+        widths.join('/'), '0.10-0.15 Sw each (floor re-based on [GAREFN]\'s own 0.112)',
+        'stack width = the cap/shaft width above the flare into the roof (`stackWidth`), not the crown blob\'s bbox. RA2 [GAREFN] reads 0.112-0.129 Sw across the 13 valid chroma cuts');
       const tallerTop = Math.min(a.y0, b.y0);
       const clearance = (body.lo - tallerTop) / f.h;
       add('refinery', `[${fac}] the taller stack clears the vault crown by >= 0.30 Sh`,
@@ -603,27 +680,101 @@ exports.check = function (ctx) {
   }
 
   // depot — Service Depot (dir + col)
+  //
+  // ── THE PREDICATE THESE TWO ROWS USED TO CARRY, AND WHY IT IS GONE.
+  // It was, verbatim:
+  //
+  //     for (let x = 0; x < f.w; x++) if (cp[x] > 0 && cp[x] <= 0.15 * f.h) padCols++;
+  //
+  // i.e. a "pad column" was one AT MOST 15% OF THE SPRITE'S HEIGHT TALL, and
+  // the second row was the arithmetic complement `1 - padFrac` of the first —
+  // not a second measurement at all. Both were nonsense, for the same reason:
+  // a flat plate in 2:1 isometric projection is BY CONSTRUCTION half as deep
+  // on screen as it is wide, so a pad at RA2's own 0.71 `Sw` is ~0.36 `Sw` of
+  // screen depth before a single mark is painted on it. That predicate does
+  // not describe a pad. It describes a HAIRLINE.
+  //
+  // It was not merely strict, it was unsatisfiable: run over RA2's own
+  // `[NADEPT]` (`soviet-service-depot.gif`, keyed off its grass at eleven cuts
+  // of the green-dominance margin, 16..56 in steps of 4) the shipped math
+  // reported padFrac 0.080-0.417 against the 0.50 it demanded — RA2's own
+  // Service Depot failed it at 0 of 11 cuts, and failed the complementary
+  // "works" row at 0.583-0.920 against `<= 0.50` at all eleven. What it DID
+  // reward was crushing the sprite: `dpb` (the apron's iso depth) driven
+  // `fh*0.70 -> 0.19 -> 0.01`, a 157 px apron ONE PIXEL DEEP, plus three
+  // X-only scales stacked on the machinery. That build scored padFrac
+  // 0.524/0.530 — green on both rows — and the user's report on it was "it
+  // looks terrible, and it doesn't look like RA2". Full arithmetic:
+  // docs/structure-clause-triage.md.
+  //
+  // ── WHAT IS MEASURED INSTEAD. The same object the doc's own §2 row was
+  // eyeballing — THE PLATE — segmented as hardstanding (see `groundPlate`)
+  // and asked the three questions "a flat pad at the sprite's base" actually
+  // makes:
+  //   width   >= 0.50 `Sw`, the doc's own floor, unchanged;
+  //   ASPECT  1.40-2.60, i.e. within 30% of the 2.00 that 2:1 isometric
+  //           projection dictates for any flat ground plate. This is the half
+  //           that was missing, and it is what makes the row un-cheatable:
+  //           the hairline that satisfied the old predicate reads 0.077 `Sw`
+  //           at aspect 0.43, and a 157 px apron one pixel deep would read an
+  //           aspect in the dozens. A plate drawn with a visible kerb reads a
+  //           little UNDER 2.00 (ours: 1.94 dir, 1.71 col) because the kerb
+  //           adds rows without adding width, which is why the band is
+  //           two-sided rather than a ceiling;
+  //   BASE    its front edge within the bottom 0.10 `Sh`, so a pale roof or a
+  //           pale wall cannot present itself as a pad.
+  // RA2's own plate under this reading is 115x58 = 0.71 `Sw` at aspect 1.98,
+  // 0.027 `Sh` off its own base — a PASS, at 9 of the 11 chroma cuts and at
+  // every saturation cut on the raw un-keyed image.
+  //
+  // ── AND THE "WORKS" ROW IS NOW A SECOND MEASUREMENT, not `1 - padFrac`.
+  // It cannot be a width: pad and works OVERLAP in x — the works stand ON the
+  // apron and the sibling row below positively REQUIRES the jib to reach out
+  // over it — so RA2's own works span 0.593-0.660 `Sw` and no width reading of
+  // that row can be met by anything, including the reference. What §2's own
+  // headline says is an OCCUPANCY claim: "most of the plot is flat
+  // hazard-striped hardstanding with NOTHING STANDING ON IT". So: the share of
+  // the sprite's ink that stands clear above the plate's own top edge, which
+  // reads 0.353-0.402 on the reference across the stable cuts and 0.162 (dir)
+  // / 0.317 (col) here.
   for (const fac of FAC.depot) {
     const f = F.depot && F.depot[fac]; if (!f) continue;
-    const cp = colProfile(f);
-    // a "pad" column: opacity present but thin (<=15% of the column's own
-    // max run height) — the flat ground band the doc describes, as opposed
-    // to a column carrying real vertical mass.
-    let padCols = 0;
-    for (let x = 0; x < f.w; x++) if (cp[x] > 0 && cp[x] <= 0.15 * f.h) padCols++;
-    const padFrac = padCols / f.w;
+    const pad = groundPlate(f);
+    const padW = pad ? pad.w / f.w : 0;
+    const padAsp = pad && pad.h ? pad.w / pad.h : 0;
+    const padBase = pad ? (f.h - 1 - pad.y1) / f.h : 1;
     add('depot', `[${fac}] a flat pad >= 0.50 Sw wide carrying zero mass above the ground plane`,
-      padFrac >= 0.50, R(padFrac, 3), '>= 0.50',
-      'pad column = opaque but <=15% Sh tall (a thin ground band), counted as a fraction of Sw');
+      !!pad && padW >= 0.50 && padAsp >= 1.40 && padAsp <= 2.60 && padBase <= 0.10,
+      pad ? `plate ${pad.w}x${pad.h} = ${R(padW, 3)} Sw, aspect ${R(padAsp, 2)}, base ${R(padBase, 3)} Sh`
+          : 'no hardstanding plate found',
+      '>= 0.50 Sw, aspect 1.40-2.60 (2:1 iso ±30%), base <= 0.10 Sh',
+      'pad = the largest hardstanding component (s < 0.28, v >= 0.37 — RA2\'s own apron segments at exactly those cuts). '
+      + 'RA2 [NADEPT] reads 115x58 = 0.710 Sw, aspect 1.98, base 0.027 Sh');
     un('depot', `[${fac}] the pad\'s hazard marking at >= 25% contrast`,
       'a "hazard marking" is a striping PATTERN, not a single contrast blob — this tool has no periodicity/stripe detector');
     const body = bodyRun(rowProfile(f));
     const crown = components(f, (p, x, y) => !!p && y < body.lo);
     add('depot', `[${fac}] exactly ONE crane/gantry group with its jib tip horizontally over the pad`,
       crown.length === 1, `${crown.length} crown blob(s)`, '1 blob',
-      '"jib tip horizontally over the pad" not checked — needs the pad\'s own x-range, which the pad-column test above gives only as a count, not a located span');
+      '"jib tip horizontally over the pad" still not checked — `groundPlate` above now locates the pad\'s x-range, but the JIB TIP is a sub-feature of the crown blob and is not separable from the rest of it by any predicate here');
+    // THE GROUND BAND IS ANCHORED AT THE SPRITE'S BASE, not at the plate blob's
+    // own top row: `f.h - pad.h`, the plate's own DEPTH measured up from the
+    // ground. That matters when the plate read goes wrong — a bake whose works
+    // sprawl until some pale machine face outweighs the apron hands back a blob
+    // sitting high in the sprite, and `y < pad.y0` would then report almost no
+    // works ink and PASS the very sprite the row exists to catch (measured: 0.000
+    // on a deliberately over-grown Collective works). Anchored at the base the
+    // same sprite reads 0.774 and fails.
+    let above = 0, tot = 0;
+    const padTop = pad ? f.h - pad.h : 0;
+    for (let y = 0; y < f.h; y++) for (let x = 0; x < f.w; x++)
+      if (f.mask[y * f.w + x]) { tot++; if (y < padTop) above++; }
+    const worksInk = tot ? above / tot : 1;
     add('depot', `[${fac}] the works confined to the remaining <= 0.50 Sw`,
-      (1 - padFrac) <= 0.50, R(1 - padFrac, 3), '<= 0.50', 'complement of the pad-width row above');
+      !!pad && worksInk <= 0.50, R(worksInk, 3), '<= 0.50 of the sprite\'s ink',
+      'READ AS OCCUPANCY, NOT WIDTH — the share of opaque pixels standing clear above a ground band as deep as the plate itself. '
+      + 'A width reading is unmeetable by construction: the works stand ON the apron and the jib row above REQUIRES an overhang, so pad and works overlap in x and RA2 itself spans 0.593-0.660 Sw. '
+      + 'RA2 [NADEPT] reads 0.400-0.461 by ink across the stable chroma cuts');
   }
 
   // radar — Collective only, dish
