@@ -89,6 +89,30 @@ function px(f, x, y) {
 }
 const isHouse = (p) => !!p && p.s >= 0.25 && p.v >= 0.20 && hueGap(p.h, OWNER_HUE) <= 20;
 
+/**
+ * HARDSTANDING -- the pale, unsaturated concrete a ground plate is made of.
+ *
+ * A fourth colour convention beside CROWN / HOUSE / VALUE-CONTRAST, and the
+ * only one derived from a REFERENCE SPRITE rather than from a doc sentence:
+ * `docs/ra2-ref/sprites/buildings/soviet-service-depot.gif` segments its own
+ * apron out of the surrounding grass, machinery and shadow at exactly this
+ * pair of cuts, and the answer does not move -- 115x58 px at every saturation
+ * cut from 0.24 to 0.32, on the RAW image, with no chroma key applied at all
+ * (the grass is saturated green, the machinery is saturated navy/red, and the
+ * concrete is neither). 0.37 is 95/255, the value floor of that same read.
+ */
+const HARD_S = 0.28, HARD_V = 0.37;
+const isHardstanding = (p) => !!p && p.s < HARD_S && p.v >= HARD_V;
+/**
+ * THE GROUND PLATE: the largest connected run of hardstanding in a sprite.
+ *
+ * Returned as a component, so a caller gets its WIDTH, its DEPTH and WHERE IT
+ * SITS -- the three things "a flat pad at the sprite's base" actually asserts,
+ * and none of which the predicate this replaced could see. See the depot block
+ * for the arithmetic that retired it.
+ */
+function groundPlate(f) { return components(f, isHardstanding)[0] || null; }
+
 function rowProfile(f) {
   const p = new Int32Array(f.h);
   for (let y = 0; y < f.h; y++) { let n = 0; for (let x = 0; x < f.w; x++) if (f.mask[y * f.w + x]) n++; p[y] = n; }
@@ -377,27 +401,91 @@ exports.check = function (ctx) {
   }
 
   // depot — Service Depot (dir + col)
+  //
+  // ── THE PREDICATE THESE TWO ROWS USED TO CARRY, AND WHY IT IS GONE.
+  // It was, verbatim:
+  //
+  //     for (let x = 0; x < f.w; x++) if (cp[x] > 0 && cp[x] <= 0.15 * f.h) padCols++;
+  //
+  // i.e. a "pad column" was one AT MOST 15% OF THE SPRITE'S HEIGHT TALL, and
+  // the second row was the arithmetic complement `1 - padFrac` of the first —
+  // not a second measurement at all. Both were nonsense, for the same reason:
+  // a flat plate in 2:1 isometric projection is BY CONSTRUCTION half as deep
+  // on screen as it is wide, so a pad at RA2's own 0.71 `Sw` is ~0.36 `Sw` of
+  // screen depth before a single mark is painted on it. That predicate does
+  // not describe a pad. It describes a HAIRLINE.
+  //
+  // It was not merely strict, it was unsatisfiable: run over RA2's own
+  // `[NADEPT]` (`soviet-service-depot.gif`, keyed off its grass at eleven cuts
+  // of the green-dominance margin, 16..56 in steps of 4) the shipped math
+  // reported padFrac 0.080-0.417 against the 0.50 it demanded — RA2's own
+  // Service Depot failed it at 0 of 11 cuts, and failed the complementary
+  // "works" row at 0.583-0.920 against `<= 0.50` at all eleven. What it DID
+  // reward was crushing the sprite: `dpb` (the apron's iso depth) driven
+  // `fh*0.70 -> 0.19 -> 0.01`, a 157 px apron ONE PIXEL DEEP, plus three
+  // X-only scales stacked on the machinery. That build scored padFrac
+  // 0.524/0.530 — green on both rows — and the user's report on it was "it
+  // looks terrible, and it doesn't look like RA2". Full arithmetic:
+  // docs/structure-clause-triage.md.
+  //
+  // ── WHAT IS MEASURED INSTEAD. The same object the doc's own §2 row was
+  // eyeballing — THE PLATE — segmented as hardstanding (see `groundPlate`)
+  // and asked the three questions "a flat pad at the sprite's base" actually
+  // makes:
+  //   width   >= 0.50 `Sw`, the doc's own floor, unchanged;
+  //   ASPECT  1.40-2.60, i.e. within 30% of the 2.00 that 2:1 isometric
+  //           projection dictates for any flat ground plate. This is the half
+  //           that was missing, and it is what makes the row un-cheatable:
+  //           the hairline that satisfied the old predicate reads 0.077 `Sw`
+  //           at aspect 0.43, and a 157 px apron one pixel deep would read an
+  //           aspect in the dozens. A plate drawn with a visible kerb reads a
+  //           little UNDER 2.00 (ours: 1.94 dir, 1.71 col) because the kerb
+  //           adds rows without adding width, which is why the band is
+  //           two-sided rather than a ceiling;
+  //   BASE    its front edge within the bottom 0.10 `Sh`, so a pale roof or a
+  //           pale wall cannot present itself as a pad.
+  // RA2's own plate under this reading is 115x58 = 0.71 `Sw` at aspect 1.98,
+  // 0.027 `Sh` off its own base — a PASS, at 9 of the 11 chroma cuts and at
+  // every saturation cut on the raw un-keyed image.
+  //
+  // ── AND THE "WORKS" ROW IS NOW A SECOND MEASUREMENT, not `1 - padFrac`.
+  // It cannot be a width: pad and works OVERLAP in x — the works stand ON the
+  // apron and the sibling row below positively REQUIRES the jib to reach out
+  // over it — so RA2's own works span 0.593-0.660 `Sw` and no width reading of
+  // that row can be met by anything, including the reference. What §2's own
+  // headline says is an OCCUPANCY claim: "most of the plot is flat
+  // hazard-striped hardstanding with NOTHING STANDING ON IT". So: the share of
+  // the sprite's ink that stands clear above the plate's own top edge, which
+  // reads 0.353-0.402 on the reference across the stable cuts and 0.162 (dir)
+  // / 0.317 (col) here.
   for (const fac of FAC.depot) {
     const f = F.depot && F.depot[fac]; if (!f) continue;
-    const cp = colProfile(f);
-    // a "pad" column: opacity present but thin (<=15% of the column's own
-    // max run height) — the flat ground band the doc describes, as opposed
-    // to a column carrying real vertical mass.
-    let padCols = 0;
-    for (let x = 0; x < f.w; x++) if (cp[x] > 0 && cp[x] <= 0.15 * f.h) padCols++;
-    const padFrac = padCols / f.w;
+    const pad = groundPlate(f);
+    const padW = pad ? pad.w / f.w : 0;
+    const padAsp = pad && pad.h ? pad.w / pad.h : 0;
+    const padBase = pad ? (f.h - 1 - pad.y1) / f.h : 1;
     add('depot', `[${fac}] a flat pad >= 0.50 Sw wide carrying zero mass above the ground plane`,
-      padFrac >= 0.50, R(padFrac, 3), '>= 0.50',
-      'pad column = opaque but <=15% Sh tall (a thin ground band), counted as a fraction of Sw');
+      !!pad && padW >= 0.50 && padAsp >= 1.40 && padAsp <= 2.60 && padBase <= 0.10,
+      pad ? `plate ${pad.w}x${pad.h} = ${R(padW, 3)} Sw, aspect ${R(padAsp, 2)}, base ${R(padBase, 3)} Sh`
+          : 'no hardstanding plate found',
+      '>= 0.50 Sw, aspect 1.40-2.60 (2:1 iso ±30%), base <= 0.10 Sh',
+      'pad = the largest hardstanding component (s < 0.28, v >= 0.37 — RA2\'s own apron segments at exactly those cuts). '
+      + 'RA2 [NADEPT] reads 115x58 = 0.710 Sw, aspect 1.98, base 0.027 Sh');
     un('depot', `[${fac}] the pad\'s hazard marking at >= 25% contrast`,
       'a "hazard marking" is a striping PATTERN, not a single contrast blob — this tool has no periodicity/stripe detector');
     const body = bodyRun(rowProfile(f));
     const crown = components(f, (p, x, y) => !!p && y < body.lo);
     add('depot', `[${fac}] exactly ONE crane/gantry group with its jib tip horizontally over the pad`,
       crown.length === 1, `${crown.length} crown blob(s)`, '1 blob',
-      '"jib tip horizontally over the pad" not checked — needs the pad\'s own x-range, which the pad-column test above gives only as a count, not a located span');
+      '"jib tip horizontally over the pad" still not checked — `groundPlate` above now locates the pad\'s x-range, but the JIB TIP is a sub-feature of the crown blob and is not separable from the rest of it by any predicate here');
+    let above = 0, tot = 0;
+    for (let y = 0; y < f.h; y++) for (let x = 0; x < f.w; x++)
+      if (f.mask[y * f.w + x]) { tot++; if (pad && y < pad.y0) above++; }
+    const worksInk = tot ? above / tot : 1;
     add('depot', `[${fac}] the works confined to the remaining <= 0.50 Sw`,
-      (1 - padFrac) <= 0.50, R(1 - padFrac, 3), '<= 0.50', 'complement of the pad-width row above');
+      !!pad && worksInk <= 0.50, R(worksInk, 3), '<= 0.50 of the sprite\'s ink',
+      'READ AS OCCUPANCY, NOT WIDTH — the share of opaque pixels standing clear above the plate\'s own top edge. '
+      + 'A width reading is unmeetable by construction: the works stand ON the apron and the jib row above REQUIRES an overhang, so pad and works overlap in x and RA2 itself spans 0.593-0.660 Sw. RA2 [NADEPT] reads 0.353-0.402 by ink');
   }
 
   // radar — Collective only, dish
