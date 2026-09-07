@@ -226,6 +226,7 @@ its own diamond cancels the cell size, the zoom, and any capture scale.
 | `soviet-barracks.png` | `[NAHAND]` | 2x2 | 117x205 | **3.42** | The statue IS the building. This is why ours at 3.84 footprint-heights was left alone. |
 | `soviet-radar-tower.png` | `[NARADR]` | 2x2 | 103x136 | 2.27 | Tight crop. |
 | `nuclear-reactor.gif` | `[NANRCT]` | 4x4 | 166x129 | 1.08 | 241 colours. |
+| `soviet-sentry-gun.gif` | `[NALASR]` | 1x1 | 49x39 (opaque 46x35) | 1.30 | Grass-backed, 151 colours — native palette, no resample. **Looked at**: twin long thin barrels raised steeply off a small red-and-navy receiver on a splayed dark tripod, exactly §2.7's "an OPEN machine, not a bunker", with sky between the legs and no drum anywhere. Fetched by exact title `File:RA2 Sentry Gun.gif` per the method above. Green-keyed it resolves at **46x35 across tolerance 1-4**; at 0 it under-keys to a 27x23 fragment and at >=5 the grass stops keying and the whole 49x39 frame survives, so 1-4 is the only window a claim may be made in. Committed because `sentrygun:col`'s "zero enclosing drum or roof" clause had no reference at all and was rewritten against it. |
 
 Plus two already here: `prism-tower.png` (`[GAPRIS]`, 1x1, 57x104 = 3.47) and
 `grand-cannon.png` (`[GTGCAN]`, 2x2, 117x85 = 1.42).
