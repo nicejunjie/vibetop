@@ -393,49 +393,43 @@ const SPIKES = {
 // baseline toward them and prints the remaining gap every run so the debt stays
 // visible instead of quietly becoming the new normal.
 const TARGETS = {
-  // THE <= 0 TARGET IS UNREACHABLE FOR ELONGATED GROUPS, and there is now
-  // evidence rather than suspicion. When the fleet was wrong this could not be
-  // told apart from a real fault; now that every naval, vehicle and infantry
-  // unit sits INSIDE RA2's aspect band, the units still flagged are:
-  //     aegis, destroyer, dread, squid, sub, v3
-  // — the six longest on the board, mean aspect 2.68 against 1.22 for the 35
-  // that are clean. Their proportions are verified correct against RA2's own
-  // sprite bboxes, so the flag cannot be reporting a proportion fault.
+  // THE ROW USED TO BE UNREACHABLE, AND THAT WAS THE METRIC'S FAULT, NOT THE
+  // ART'S. Six units were flagged — aegis, destroyer, dread, squid, sub, v3 —
+  // the six longest on the board, mean aspect 2.68 against 1.22 for the 35
+  // that were clean, with every one of their proportions verified correct
+  // against RA2's own sprite bboxes. A sweep proved no art could close it:
+  // DELETING the V3's missile still left the row failing, and flattening the
+  // V3 toward a tank RAISED the tanks' own cross terms (Rhino 0.5409 ->
+  // 0.6529). `tools/peer-vs-self-control.js` then reproduced the V3's whole
+  // failure on PLAIN FILLED RECTANGLES at its measured aspects — margin
+  // -0.0786 against the V3's measured -0.0787, four decimal places, from
+  // shapes with no art in them at all.
   //
-  // corr(aspect, peersBeatingSelf) is +0.477 AFTER the metric's asymmetry was
-  // repaired (it was +0.529 before, +0.487 immediately after). The repair made
-  // both sides average over the same bearing pairs, which removed the
-  // indefensible part; what remains is that ten long low hulls genuinely do
-  // resemble each other BY MASK. legibility.js — which sees colour, value and
-  // superstructure — finds ZERO confusable naval pairs in all three windows.
+  // The cause was the estimator, and it is repaired below (2026-09-06): the
+  // old test charged a unit for its own silhouette's SWING and gave it no
+  // credit for the peer's, so any hull that changes shape as it turns lost to
+  // a compact peer sitting near its cloud's centre. It is now the unbiased
+  // two-sample statistic self(k) + self(p) - 2*cross(k,p), flagged when it
+  // goes negative. corr(swing, statistic) over the 13 vehicles fell from
+  // +0.545 to -0.049, and the rectangle control turned from -0.0786 (FLAGGED)
+  // to +0.1017 (neutral). Four of the six rows were the artefact and are gone:
+  // dread, squid, sub and v3 all clear it, and the V3's row closed with no art
+  // change whatsoever.
   //
-  // So this debt is a property of a MASK-ONLY comparison of a correctly
-  // proportioned fleet, not unfinished art. Do not "close" it by making ships
-  // rounder: that is exactly the tugboat error the aspect gate exists to catch.
-  //
-  // AND IT IS NOW A PROOF, NOT A CORRELATION (2026-09-06). Elongation is the
-  // correlate; the CAUSE is how much a unit's silhouette SWINGS as it turns,
-  // and elongated things swing most. `tools/peer-vs-self-control.js` runs the
-  // arithmetic below on filled RECTANGLES, which cannot carry an art defect:
-  // eight at the V3's own measured aspects, against eight identical ones at
-  // their mean, give a margin of -0.0786 against the V3's measured -0.0787.
-  // The whole of that unit's failure is reproduced with no missile, no truck
-  // and no pixels. The control's sweep flips sign at a swing of 1.0, so the
-  // only silhouette this row cannot fault is one that does not change as the
-  // unit turns — the opposite of what it is for.
-  //
-  // The 2026-09-05 repair argued the aspect term "appears on both and
-  // cancels". What cancels is a CONSTANT aspect; what survives is a CHANGING
-  // one, because `self` is the mean dissimilarity WITHIN a unit's cloud of
-  // eight silhouettes while `peer` is the mean from that cloud to another
-  // unit's, and a compact peer near the cloud's centre beats the cloud's own
-  // spread. That is a property of means. Repairing it moves all six rows at
-  // once and wants its own pass; until then, do not spend art against it.
-  'peerVsSelf.total':            { want: 0,    dir: 'down', note: 'reference §1.2/§0 bar: no unit beaten by a peer. SEE THE NOTE ABOVE — the residue is elongation, not art' },
-  'peerVsSelf.vehicle':          { want: 0,    dir: 'down', note: 'audit §2: 11 of 13 today. The one flagged is the V3, the only vehicle whose silhouette is a long member held at an angle ABOVE the hull, so it swings from an 80x55 diagonal to a 39x70 near-vertical to a 39x45 box across the eight bearings — aspect swing 2.61, second only to the Grizzly and the largest that has peers its own size. MEASURED, one lever at a time: dropping the rail rise to ZERO (the missile flat on the bed) leaves it beaten by 2, lengthening the truck 22 -> 28 makes it 5, narrowing the beam 19 -> 15 makes it 5, and DELETING THE MISSILE ENTIRELY still leaves it beaten by 2 while opening aspect.vehicleOutsideRA2Band and clause.vehicleUnmet. There is no V3 that passes this row. See the block note above and tools/peer-vs-self-control.js' },
-  'peerVsSelf.infantry':         { want: 0,    dir: 'down', note: 'audit §2: 11 of 14 today' },
-  'peerVsSelf.naval':            { want: 0,    dir: 'down', note: 'audit §2: 8 of 10 today' },
-  'peerVsSelf.air':              { want: 0,    dir: 'down', note: 'audit §2: 0 of 4 — the control that says this is real' },
+  // TWO SURVIVE, AND THEY ARE A REAL PAIR: destroyer and aegis, at mmd2
+  // -0.0337 — the only negative on the board, against +0.0281 for the next
+  // closest pair in the game. That is the same unit flagged twice, once from
+  // each side, so it is ONE art finding: two Allied warships whose eight
+  // silhouettes occupy the same region of shape space. legibility.js, which
+  // sees colour and value as well as mask, still finds zero confusable naval
+  // pairs, so this is a mask-only reading and the fix is superstructure, not
+  // proportion — do NOT close it by making either hull rounder or shorter,
+  // which is the tugboat error the aspect gate exists to catch.
+  'peerVsSelf.total':            { want: 0,    dir: 'down', note: 'reference §1.2/§0 bar: no unit whose silhouette cloud is statistically indistinguishable from a peer\'s. 2 today — destroyer and aegis, the same pair counted from both sides. SEE THE NOTE ABOVE' },
+  'peerVsSelf.vehicle':          { want: 0,    dir: 'down', note: 'audit §2: 13 of 13 today. The V3 sat here until 2026-09-06 and was never an art fault — it was the estimator charging it for an aspect swing of 2.61. Its nearest peer is now the War Miner at mmd2 +0.0281, comfortably clear' },
+  'peerVsSelf.infantry':         { want: 0,    dir: 'down', note: 'audit §2: 14 of 14 today. The closest infantry pair is conscript/cleg at mmd2 +0.0746' },
+  'peerVsSelf.naval':            { want: 0,    dir: 'down', note: 'audit §2: 8 of 10 today. The two are destroyer and aegis — ONE pair, counted from each side, and the only genuinely confusable silhouette pair the repaired metric finds. Closing it needs superstructure that differs, not a different hull length: both hulls are inside RA2\'s aspect band and must stay there' },
+  'peerVsSelf.air':              { want: 0,    dir: 'down', note: 'audit §2: 0 of 4 — the control that says this is real. It was clean under the broken estimator too, which is what made the four-unit air group the only group that never argued with it' },
   'iou.groundCombat.mean':       { want: 0.45, dir: 'down', note: 'plan §0 headline 0.679; 0.45 is the air groups 0.30 with slack for a shared ground plane' },
   'iou.vehicle.mean':            { want: 0.45, dir: 'down', note: 'as above, over all 13 ground vehicles' },
   'iou.infantry.mean':           { want: 0.55, dir: 'down', note: 'RA2 infantry share a silhouette by design (ref §1.2); colour carries them, so the ceiling is looser' },
@@ -1046,26 +1040,74 @@ function compute(recs, extra) {
   }
   const P = (a, b) => pair.get(pkey(a, b));
 
-  // ── peer-vs-self: is a unit's best silhouette match a PEER, or itself at
-  //    another bearing? No threshold to tune — audit §2's most diagnostic line.
+  // ── peer-vs-self: are a unit's eight silhouettes DISTINGUISHABLE from a
+  //    peer's eight? No threshold to tune — audit §2's most diagnostic line.
   //
-  // IT USED TO MEASURE ASPECT, NOT IDENTITY, and it took a fleet of tugboats
-  // to expose it. The two sides were not the same quantity:
+  // THIS TEST HAS BEEN WRONG TWICE, in two different ways, and both times it
+  // measured how much a hull CHANGES SHAPE AS IT TURNS rather than whether two
+  // units look alike. Both confounds are recorded here because the second one
+  // hid inside the fix for the first for a month, and cost an art pass.
+  //
+  // CONFOUND 1 — STATIC ASPECT (found by a fleet of tugboats, fixed 2026-09-05).
+  // The two sides were not the same quantity:
   //   self  = mean over the 28 pairs of DIFFERENT bearings
   //   peer  = mean over the 8 bearings, SAME bearing for both units
   // Rotating an elongated hull changes its mask enormously, so its self term
-  // collapses while the peer term does not. For a centred rectangle of aspect
+  // collapsed while the peer term did not. For a centred rectangle of aspect
   // a the orthogonal term is exactly 1/(2a-1) — 1.00 at a=1, 0.26 at a=2.4.
-  // MEASURED over all 41 units before this fix: corr(aspect, selfIoU) = -0.737
-  // and corr(aspect, peersBeatingSelf) = +0.529; flagged units averaged aspect
-  // 2.29 against 1.13 for the rest. In other words it punished units for being
-  // DIRECTIONAL, which is the property that makes a silhouette readable, and
-  // it would have argued against every correct proportion fix forever.
+  // MEASURED over all 41 units before that fix: corr(aspect, selfIoU) = -0.737
+  // and corr(aspect, peersBeatingSelf) = +0.529. It punished units for being
+  // DIRECTIONAL, which is the property that makes a silhouette readable.
+  // The repair averaged BOTH sides over the same cross-bearing set.
   //
-  // Both sides now average over the SAME set of cross-bearing pairs, so the
-  // aspect term appears on both and cancels. The question it asks is unchanged
-  // in spirit — "across every relative orientation, is a peer's shape closer to
-  // mine than my own rotations are?" — and it still has no threshold to tune.
+  // CONFOUND 2 — THE CLOUD'S OWN SPREAD (this fix, 2026-09-06). That repair
+  // argued "the aspect term appears on both sides and cancels". What cancels
+  // is an aspect that is CONSTANT. What survives is an aspect that CHANGES
+  // across the eight bearings, and that is a different property:
+  //   self  = mean dissimilarity WITHIN a unit's cloud of eight silhouettes
+  //   peer  = mean dissimilarity FROM that cloud TO another unit's
+  // A compact peer parked near the cloud's CENTRE beats the cloud's own spread
+  // for the same reason the mean distance between two random points of a disc
+  // (0.905 R) exceeds the mean distance from the disc to its centre (0.667 R).
+  // It is a property of means, so it faults ANY unit whose silhouette changes
+  // as it turns, and no art can escape it: DELETING the V3's missile — its
+  // whole defining feature — still left the row failing, and flattening the V3
+  // toward a tank RAISED the tanks' own cross terms (Rhino 0.5409 -> 0.6529).
+  // PROVEN, not inferred, in tools/peer-vs-self-control.js: this same
+  // arithmetic run on PLAIN FILLED RECTANGLES at the V3's measured aspects
+  // returns margin -0.0786 against the V3's own measured -0.0787. Four decimal
+  // places, from shapes that have no missile, no truck, no colour and no art.
+  //
+  // THE REPAIR: add the peer's own spread back, which is what makes the
+  // comparison symmetric. The quantity below is the standard UNBIASED
+  // two-sample kernel statistic (MMD^2_u) over the two clouds of eight, with
+  // silhouette IoU — the Jaccard kernel — as its kernel:
+  //
+  //     mmd2(k,p) = self(k) + self(p) - 2 * cross(k,p)
+  //
+  // and the pair is flagged when it goes NEGATIVE, i.e. when the two clouds
+  // are closer to each other than they are to themselves. The old test is the
+  // same expression with `self(p)` missing, which is exactly why a spread
+  // cloud lost to a compact one: it was charged for its own spread and given
+  // no credit for the peer's. The estimator's shape was ALREADY right for this
+  // — cross() drops the i===j diagonal only when a === b, which is precisely
+  // MMD^2_u's within-sample/cross-sample convention — so the repair is the one
+  // missing term, not a new arithmetic.
+  //
+  // WHY IT IS BLIND TO ASPECT SWING. Swing enters mmd2 through self(k), and it
+  // enters cross(k,p) again with the same sign; the -2*cross cancels it to
+  // first order, and self(p) supplies the peer's half. MEASURED over the 13
+  // vehicles, worst peer per unit:
+  //     corr(swing, self)      = -0.823   (the swing signal, undisputed)
+  //     corr(swing, OLD margin)= +0.545   (the old test inherits it)
+  //     corr(swing, mmd2)      = -0.049   (this test does not)
+  // It still has no threshold to tune: zero is where a two-sample statistic's
+  // own null sits, not a number anyone chose.
+  //
+  // IT STILL BITES. `peer-vs-self-control.js` re-bakes one real unit as a
+  // near-copy of another through ART_HTML and this row fires on it; on the
+  // shipped art it fires on Destroyer/Aegis, a real pair, at mmd2 = -0.0337
+  // against +0.0281 for the next-closest pair in the game.
   const crossPair = new Map();
   const ckey = (a, b) => a + '>' + b;
   const crossIoU = (a, b) => {
@@ -1079,14 +1121,23 @@ function compute(recs, extra) {
     const v2 = s2 / n2; crossPair.set(ck, v2); return v2;
   };
   for (const k of keys) unit[k].selfIoUCross = round(crossIoU(k, k), 4);
+  // The two-sample statistic itself. Kept as a named function so the control
+  // script and any future audit can call the SAME arithmetic the gate counts.
+  const mmd2 = (a, b) => crossIoU(a, a) + crossIoU(b, b) - 2 * crossIoU(a, b);
   const peerVsSelf = { total: 0, vehicle: 0, infantry: 0, naval: 0, air: 0 };
   for (const k of keys) {
     const peers = keys.filter((j) => j !== k && grp[j] === grp[k]);
     if (!peers.length) continue;
-    const beaten = peers.filter((j) => crossIoU(k, j) > unit[k].selfIoUCross);
+    const beaten = peers.filter((j) => mmd2(k, j) < 0);
     const best = peers.reduce((x, j) => (P(k, j) > P(k, x) ? j : x), peers[0]);
+    // The CLOSEST peer by the statistic the gate reads, which is not always
+    // the closest by same-bearing IoU — recorded so a red row names the pair
+    // to look at rather than leaving it to be re-derived.
+    const near = peers.reduce((x, j) => (mmd2(k, j) < mmd2(k, x) ? j : x), peers[0]);
     unit[k].bestPeer = unit[best].name;
     unit[k].bestPeerIoU = round(P(k, best), 4);
+    unit[k].nearestPeer = unit[near].name;
+    unit[k].nearestPeerMMD2 = round(mmd2(k, near), 4);
     unit[k].peersBeatingSelf = beaten.length;
     unit[k].peers = peers.length;
     if (beaten.length) { peerVsSelf.total++; peerVsSelf[grp[k]]++; }
@@ -1678,6 +1729,7 @@ function compute(recs, extra) {
         selfIoUCross: unit[k].selfIoUCross,
         broadsideAspect: unit[k].broadsideAspect, ra2Aspect: unit[k].ra2Aspect, vsRA2: unit[k].vsRA2,
         bestPeer: unit[k].bestPeer, bestPeerIoU: unit[k].bestPeerIoU,
+        nearestPeer: unit[k].nearestPeer, nearestPeerMMD2: unit[k].nearestPeerMMD2,
         peersBeatingSelf: unit[k].peersBeatingSelf,
       }])),
       counts: { units: keys.length, sprites: recs.length,
