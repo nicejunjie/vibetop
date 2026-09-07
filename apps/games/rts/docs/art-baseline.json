@@ -1,6 +1,6 @@
 {
   "_": "Recorded by apps/games/rts/tools/art-metrics.js — do not hand-edit except to RE-RECORD after a deliberate art improvement (node apps/games/rts/tools/art-metrics.js --record). `metrics` is ratcheted by apps/games/rts/rts-art.test.js: a regression fails, and so does an improvement, which is what makes progress stick. `detail` is informational only.",
-  "recorded": "2026-09-06",
+  "recorded": "2026-09-07",
   "env": {
     "dpr": 1,
     "zoom": 1,
