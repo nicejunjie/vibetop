@@ -173,6 +173,40 @@ barrel starts where the hull ends. The V3's missile overhangs both ends of the
 truck. The Flak Trooper's barrel is above the helmet. A feature drawn *inside*
 the body outline is a texture, not a spike, and it dies first at low zoom.
 
+**Rule 4b — the spike is thin; the WEAPON is not, and this file spent a year
+stating only the first half.** Rules 3 and 4 describe a *sliver* — 2 px thick,
+15-30% of the long axis — and they are correct about the Grizzly's barrel and
+the Nighthawk's blades. They are the wrong model for every unit whose identity
+is a **mount** rather than a tube, and RA2's own plates say so plainly:
+
+* `docs/ra2-ref/cameos/ifv.png` — a low pale wheeled hull under a **quad
+  missile rack that is about half the plate's visible mass**, splayed across
+  the beam, raked up, and overhanging the nose.
+* `flaktrack.png` — a flak sheaf on a pedestal standing **as tall as the truck
+  under it**.
+* `mammoth.png` — twin cannons that overhang the hull by a third of its length
+  and are as thick as a road wheel.
+* `prismtank.png` — an emitter housing that is the top third of the vehicle.
+* `warminer.png` — the gun is small, but it is *there*, and it is the only
+  thing separating that plate from a Chrono Miner's.
+
+RA2 draws these **oversized against life**, on purpose: the unit is 45-55 px
+wide on screen and a correctly-proportioned weapon at that size is three
+pixels of grey. **The identifying weapon is drawn at 35-55% of the sprite's
+visible mass and it overhangs the body.** A thin spike and a big mount are not
+alternatives — the Apocalypse has both — but a unit whose identity is a mount
+and which was given only a spike reads as a vehicle with clutter on the roof.
+
+That is exactly what nine of ours were, and none of the gate's 57 metrics
+could say so: **aspect, size, IoU, spike thickness and the hue census are all
+blind to the weapon's SHARE of the unit.** They measure the outline, the
+scale, the pairwise separation and the paint. A launcher drawn at a quarter of
+its reference size keeps every one of those numbers green. The 2026-09-07 pass
+(`per-unit-art-log.md`) rebuilt them against this rule; the gate's answer was
+that `iou.groundCombat.mean`, `colour.vehicle.meanDist`, `hue.vehicleOwnerMean`
+and `mass.groundCombatSpan` all moved the RIGHT way — i.e. the metrics agreed
+once a human said where to look, and had nothing to say until then.
+
 ### 1.4 The house-colour remap: how much, and exactly where
 
 RA2's remap is a 16-index palette ramp per house, and `rules.ini:2827

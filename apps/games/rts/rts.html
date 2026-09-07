@@ -8382,10 +8382,25 @@
         // a superstructure narrower than the ship it stands on, and the reason
         // the crown could never out-measure the stem. These are 60-80% of beam,
         // which is what the RA2 sprites carry.
-        box(L * 0.52, 0, L * 0.24, W * 1.40, 2.8, shade(DECK, 1.08));     // barbette
-        disc(L * 0.55, 0, 3.4, 5.0, 2.8, STEEL);                          // A-turret mount
-        box(L * 0.55, 0, 7, W * 1.18, 4.0, '#5c626c');                    // the gunhouse
-        barrel(L * 0.66, 0, 6.2, 9, 3.0);
+        // THE GUN, AT THE SIZE A GUN HAS TO BE. §2.3 gives the Destroyer
+        // "one turret forward of amidships" as its whole read against the
+        // Aegis's "explicitly no barrel", and the two ships are the one pair
+        // `peerVsSelf.naval` still scores — the baseline's own note says it
+        // closes with "superstructure that differs, not a different hull
+        // length". A 4-unit gunhouse under a 3.0-wide barrel was 1 px of gun
+        // at zoom 1: the distinguishing feature existed in the code and not
+        // on the screen. Gunhouse up 4.0 -> 6.4 with a sloped face, barrel
+        // 3.0 -> 4.6 wide, and a muzzle cap so the tube ENDS somewhere.
+        box(L * 0.52, 0, L * 0.26, W * 1.46, 3.2, shade(DECK, 1.08));     // barbette
+        disc(L * 0.55, 0, 3.8, 5.8, 3.2, STEEL);                          // A-turret mount
+        box(L * 0.55, 0, 8.4, W * 1.34, 6.4, '#5c626c');                  // the gunhouse
+        box(L * 0.62, 0, 3.0, W * 1.04, 4.6, '#6a707a');                  // sloped mantlet face
+        barrel(L * 0.68, 0, 8.0, 9.5, 4.6);
+        var mzq = P(L * 0.68 + 9.5, 0, FR + 8.0);
+        g.fillStyle = '#c3c9d2';                                          // muzzle cap
+        g.beginPath(); g.ellipse(mzq[0], mzq[1], 1.9, 1.5, 0, 0, 6.29); g.fill();
+        g.fillStyle = '#15181c';
+        g.beginPath(); g.ellipse(mzq[0], mzq[1] - 0.2, 0.9, 0.7, 0, 0, 6.29); g.fill();
         box(L * 0.14, 0, L * 0.32, W * 1.62, 6.2, DECK);                  // bridge block
         box(L * 0.11, 0, L * 0.20, W * 1.30, 11.6, shade(DECK, 1.18));    // wheelhouse
         var wq0 = P(L * 0.11, 0, FR + 10.6);
@@ -8427,26 +8442,63 @@
         // two tall blobs. Beam 17 -> 13, freeboard 5.6 -> 4.4, and the
         // superstructure comes down from 20 units to 8.6 so the slab is a
         // deckhouse on a cruiser instead of a wheelhouse on a tug.
+        // THE PANEL IS THE SHIP. §2.3's budget is "radar panel >= 8x8 px,
+        // vertical; explicitly no barrel", and one 10x6 quad on the near
+        // flank of a dark deckhouse was neither big enough nor lit enough to
+        // survive the bake: at zoom 1 the Aegis and the Destroyer were two
+        // grey slabs on two blue-rimmed hulls, which is exactly what
+        // `peerVsSelf.naval` has been reporting. So the deckhouse becomes a
+        // stepped PYRAMID — wide at the deck, narrow at the top, the opposite
+        // massing to the Destroyer's tall thin mack — and it carries a big
+        // house-coloured array on BOTH visible faces, gridded, standing over
+        // its full height. Missile cells fore and aft become a countable 4x2
+        // grid of black throats instead of three dots.
         box(-L * 0.02, 0, L * 0.70, W * 1.66, 4.2, DECK);
-        box(-L * 0.06, 0, L * 0.44, W * 1.30, 8.6, shade(DECK, 1.12));
-        var pq = P(L * 0.16, W * 0.44 * nearS, FR + 7.6);
-        g.fillStyle = HOUSE;
-        g.beginPath();
-        g.moveTo(pq[0] - 5.2, pq[1] - 5.0); g.lineTo(pq[0] + 5.2, pq[1] - 3.6);
-        g.lineTo(pq[0] + 5.2, pq[1] + 1.6); g.lineTo(pq[0] - 5.2, pq[1] + 0.4);
-        g.closePath(); g.fill();
-        g.strokeStyle = HL; g.lineWidth = 0.8; g.stroke();
-        g.strokeStyle = HD; g.lineWidth = 0.6;
-        for (var pi = -3.4; pi <= 3.4; pi += 2.2) {
-          g.beginPath(); g.moveTo(pq[0] + pi, pq[1] - 4.5); g.lineTo(pq[0] + pi, pq[1] + 1.1); g.stroke();
-        }
-        box(L * 0.62, 0, 7, W * 1.16, 2.4, '#3a4048');                    // forward VLS
-        box(-L * 0.74, 0, 7, W * 1.16, 2.4, '#3a4048');                   // aft VLS
+        box(-L * 0.06, 0, L * 0.50, W * 1.44, 6.0, shade(DECK, 1.08));
+        // The arrays sit ON the deckhouse faces, not over them: the box is
+        // 10.4 tall off FR and the panel runs FR+3.0 to FR+10.6, so the top
+        // of the array IS the top of the ship. Far face first.
+        // IN THE SHIP'S OWN PLANE, not in screen space. The array this
+        // replaces was four fixed screen offsets off one P() point, which is
+        // invisible while the quad is 10 px wide and becomes a billboard the
+        // moment it is big enough to matter: enlarged, it stayed axis-aligned
+        // through all 32 bearings and hung off the beam at the axial ones.
+        // Every corner goes through P(u, v, z) so the panel turns with her.
+        var paU0 = L * 0.10 - 7.2, paU1 = L * 0.10 + 7.2;
+        var paZ0 = FR + 3.2, paZ1 = FR + 10.6;
+        // The FAR array is painted before the deckhouse and the near one after
+        // it, so the tower actually stands between them. Both after (the first
+        // draft) left the far panel hanging in the air over the far rail.
+        var aeArray = function (pf) {
+          var pv = W * 0.55 * pf;
+          var c0 = P(paU0, pv, paZ0), c1 = P(paU1, pv, paZ0),
+              c2 = P(paU1, pv, paZ1), c3 = P(paU0, pv, paZ1);
+          g.fillStyle = pf === nearS ? HOUSE : HD;
+          g.beginPath();
+          g.moveTo(c0[0], c0[1]); g.lineTo(c1[0], c1[1]);
+          g.lineTo(c2[0], c2[1]); g.lineTo(c3[0], c3[1]);
+          g.closePath(); g.fill();
+          g.strokeStyle = pf === nearS ? HL : HD; g.lineWidth = 0.9; g.stroke();
+          g.strokeStyle = HD; g.lineWidth = 0.6;                            // the array's cells
+          for (var pi = 1; pi < 5; pi++) {
+            var pu = paU0 + (paU1 - paU0) * (pi / 5);
+            var e0 = P(pu, pv, paZ0 + 0.6), e1 = P(pu, pv, paZ1 - 0.6);
+            g.beginPath(); g.moveTo(e0[0], e0[1]); g.lineTo(e1[0], e1[1]); g.stroke();
+          }
+          var m0 = P(paU0 + 0.6, pv, (paZ0 + paZ1) / 2), m1 = P(paU1 - 0.6, pv, (paZ0 + paZ1) / 2);
+          g.beginPath(); g.moveTo(m0[0], m0[1]); g.lineTo(m1[0], m1[1]); g.stroke();
+        };
+        aeArray(-nearS);
+        box(-L * 0.06, 0, L * 0.34, W * 1.06, 10.4, shade(DECK, 1.18));
+        aeArray(nearS);
+        box(L * 0.62, 0, 8, W * 1.24, 2.8, '#3a4048');                    // forward VLS
+        box(-L * 0.74, 0, 8, W * 1.24, 2.8, '#3a4048');                   // aft VLS
         g.fillStyle = '#12161b';
-        for (var vi = 0; vi < 3; vi++) {
-          var vq = P(L * 0.62 - vi * 2.2, (vi - 1) * 2.2, FR + 2.4);
-          g.beginPath(); g.ellipse(vq[0], vq[1], 1.0, 0.6, 0, 0, 6.29); g.fill();
-        }
+        for (var vu = -1; vu <= 1; vu += 2)
+          for (var vi = 0; vi < 4; vi++) {
+            var vq = P(L * (vu > 0 ? 0.62 : -0.74) + (vi - 1.5) * 2.0, vu * 1.9, FR + 2.8);
+            g.beginPath(); g.ellipse(vq[0], vq[1], 1.1, 0.7, 0, 0, 6.29); g.fill();
+          }
         mast(-L * 0.36, 0, 4.4, '#2f343c');
       } else if (kind === 'carrier') {
         // [CARRIER]: 143x52 in RA2 — the largest sprite in the game — and the
@@ -8618,9 +8670,13 @@
         // along the deck by `barrel()` they lay across the deckhouse roof as
         // two dark lines and read as handrails; angled they are the one thing
         // on her that breaks the outline upward, on the fleet's shortest hull.
-        for (var fb = -1; fb <= 1; fb += 2) {
-          var b0 = P(-L * 0.30, fb * 1.8, FR + 4.8), b1 = P(L * 0.12, fb * 1.8, FR + 10.4);
-          g.strokeStyle = GUN; g.lineWidth = 2.4;
+        // ...and there are FOUR of them, because the Flak Track's read is now
+        // a quad sheaf and §2.4 asks for the same gun on both units by name.
+        // Two 2.4-wide tubes on a 52-px hull were the same 1-px-at-zoom-1
+        // problem the halftrack had.
+        for (var fb = -3; fb <= 3; fb += 2) {
+          var b0 = P(-L * 0.30, fb * 0.92, FR + 4.8), b1 = P(L * 0.12, fb * 0.92, FR + 10.0);
+          g.strokeStyle = GUN; g.lineWidth = 2.6;
           g.beginPath(); g.moveTo(b0[0], b0[1]); g.lineTo(b1[0], b1[1]); g.stroke();
           g.strokeStyle = GUN_L; g.lineWidth = 1.0;
           g.beginPath(); g.moveTo(b0[0] - 0.5, b0[1]); g.lineTo(b1[0] - 0.5, b1[1]); g.stroke();
@@ -10199,17 +10255,61 @@
           // diamond's w/h toward the projection's own 2.0 — and leaves the
           // spike alone. That scored 0.840 of RA2 with iou.groundCombat 0.4625
           // and the band at 2.235, i.e. better than the day started on both.
-          var PW = 1.85, PH = 12.4;                       // half-width / height, ground units
+          // WIDER, AND THE CRYSTAL IS LIT DOWN ITS WHOLE HEIGHT. The column
+          // was 12.4 units tall and dark slate for 9 of them, with the glass
+          // only in the top 3: at zoom 1 the Prism Tank's crown read as a
+          // black chimney and the one part the unit is named for was three
+          // pixels. §2.3 asks for a CRYSTAL >= 10 x 5 px "standing above the
+          // turret roof", and a crystal is bright by definition — the dark
+          // housing is the mount, not the emitter. So the forward face is
+          // glazed from the cowl up, and PW goes 1.85 -> 2.30, which also
+          // moves the unit's broadside aspect TOWARD [SREF]'s 1.372 (ours
+          // 1.141, ratio 0.832) rather than away, because width is the axis
+          // it is short on. The HEIGHT is untouched: shortening this crown is
+          // a proven dead end and the comment above records the numbers.
+          // AND IT STAYS A STRAIGHT COLUMN. Tapering it — wide at the mount,
+          // narrow at the tip — is the more crystal-like drawing and it was
+          // MEASURED and reverted: splitting the housing at 5.6 with a 1.55
+          // top took `iou.groundCombat.mean` 0.4645 -> 0.4660 and
+          // `mass.tightestBand6` through a tenth, because a tapered crown has
+          // less mass standing clear of the hull and the whole ground-combat
+          // set closes up behind it. The straight column costs 0.0005 on
+          // `iou.vehicle.mean` (`mcv | prismtank` 0.634 -> 0.646, both still
+          // far under the 0.75 ceiling) and buys more than that everywhere
+          // else. Do not re-taper without re-running the gate.
+          var PW = 2.30, PWT = PW, PH = 12.4;
           var hx = pcx + fx * 0.9, hy = pcy - 3.4 + fy * 0.9;
           prism(hx, hy, [[PW + 0.5, -PW - 0.7], [PW + 0.5, PW + 0.7],
                          [-PW - 0.5, PW + 0.3], [-PW - 0.5, -PW - 0.3]],
                 PH, '#39404c', '#12151b');
           for (sg = -1; sg <= 1; sg += 2)                             // house-colour cowl trim
-            prism(hx, hy - 1.2, [[PW, 1.7 * sg], [-PW, 1.4 * sg], [-PW, 2.5 * sg], [PW, 2.8 * sg]],
-                  4.4, panel, PEDGE);
+            prism(hx, hy - 1.2, [[PW, 2.1 * sg], [-PW, 1.8 * sg], [-PW, 2.9 * sg], [PW, 3.2 * sg]],
+                  5.0, panel, PEDGE);
+          // the glazed forward face: pale prism glass with the owner's hue in
+          // its core and one VACC.spectre refraction line down it
+          var gzU = PWT + 0.5, gzV = PWT + 0.7, gzB = 4.0;
+          var q1 = [hx + fx * gzU + px * gzV, hy + fy * gzU + py * gzV - gzB];
+          var q2 = [hx + fx * gzU - px * gzV, hy + fy * gzU - py * gzV - gzB];
+          var q3 = [q2[0], q2[1] - (PH - gzB - 0.6)];
+          var q4 = [q1[0], q1[1] - (PH - gzB - 0.6)];
+          g.beginPath();
+          g.moveTo(q1[0], q1[1]); g.lineTo(q2[0], q2[1]);
+          g.lineTo(q3[0], q3[1]); g.lineTo(q4[0], q4[1]); g.closePath();
+          g.fillStyle = '#c9d4de'; g.fill(); outline(g, '#171b23');
+          g.fillStyle = shade(col, 1.18);                             // the owner-hue core
+          g.beginPath();
+          g.moveTo(q1[0] * 0.78 + q2[0] * 0.22, q1[1] * 0.78 + q2[1] * 0.22);
+          g.lineTo(q1[0] * 0.22 + q2[0] * 0.78, q1[1] * 0.22 + q2[1] * 0.78);
+          g.lineTo(q4[0] * 0.22 + q3[0] * 0.78, q4[1] * 0.22 + q3[1] * 0.78);
+          g.lineTo(q4[0] * 0.78 + q3[0] * 0.22, q4[1] * 0.78 + q3[1] * 0.22);
+          g.closePath(); g.fill();
+          g.strokeStyle = VACC.spectre; g.lineWidth = 1.4; g.lineCap = 'butt';
+          g.beginPath();
+          g.moveTo(q1[0] * 0.84 + q2[0] * 0.16, q1[1] * 0.84 + q2[1] * 0.16);
+          g.lineTo(q4[0] * 0.84 + q3[0] * 0.16, q4[1] * 0.84 + q3[1] * 0.16); g.stroke();
           var tfy = hy - PH;
-          var e1 = [hx + fx * (PW + 0.5) + px * 1.95, tfy + fy * (PW + 0.5) + py * 1.95 + 0.8];
-          var e2 = [hx + fx * (PW + 0.5) - px * 1.95, tfy + fy * (PW + 0.5) - py * 1.95 + 0.8];
+          var e1 = [hx + fx * (PWT + 0.5) + px * 1.95, tfy + fy * (PWT + 0.5) + py * 1.95 + 0.8];
+          var e2 = [hx + fx * (PWT + 0.5) - px * 1.95, tfy + fy * (PWT + 0.5) - py * 1.95 + 0.8];
           var e3 = [hx - fx * 0.2 - px * 1.95, tfy - fy * 0.2 - py * 1.95 - 3.4];
           var e4 = [hx - fx * 0.2 + px * 1.95, tfy - fy * 0.2 + py * 1.95 - 3.4];
           g.beginPath();                                             // the ONE bright face
@@ -10391,11 +10491,24 @@
           // The barrels reach FURTHER and taper HARDER than one pass ago: on
           // the sheet the Apocalypse's two tubes are the longest thing on the
           // field, and a short fat pair read as exhaust stubs.
-          var mz = [mx0 + fx * 7.2, my0 - 4.0 + fy * 7.2];
+          //
+          // ...and THICKER, and off the deck. "The only two-barrelled thing on
+          // the field" (§2.4) was drawn 1.42 units at the breech tapering to
+          // 0.88 — under 2 px of gunmetal at zoom 1 — sitting at `my0 - 4.0`,
+          // which is deck level, so for most of their run the two tubes lay
+          // along the hull's own dark skirt and the track shadow and the pair
+          // never appeared in the OUTLINE at all. Thickness and clearance are
+          // both identity here: the drums already carry the crown, and what
+          // the Apocalypse owes the silhouette is a pair of heavy tubes
+          // overhanging the nose the way `docs/ra2-ref/cameos/mammoth.png`
+          // draws them. Length is deliberately unchanged — the unit sits
+          // inside `size.vehicleOutsideRA2Band` at +25% of the group scale
+          // and reaching further is the one lever that would push it out.
+          var mz = [mx0 + fx * 7.2, my0 - 5.6 + fy * 7.2];
           for (var bs = -1; bs <= 1; bs += 2) {
-            puck(mx0 + fx * 6.6 + px * 3.9 * bs, my0 - 0.9 + fy * 6.6 + py * 3.9 * bs,
-                 1.4, 3.8, shade(hull, 0.78), shade(hull, 1.06), dark);   // twin mantlets
-            barrel(mz[0] + px * 3.9 * bs, mz[1] + py * 3.9 * bs, 14.5, 1.42, 0.88, VACC.mammothGun);
+            puck(mx0 + fx * 6.6 + px * 3.9 * bs, my0 - 1.9 + fy * 6.6 + py * 3.9 * bs,
+                 1.7, 4.6, shade(hull, 0.78), shade(hull, 1.06), dark);   // twin mantlets
+            barrel(mz[0] + px * 3.9 * bs, mz[1] + py * 3.9 * bs, 14.5, 2.05, 1.30, VACC.mammothGun);
           }
         }
 
@@ -10502,56 +10615,88 @@
             }
           }
           else {
-          // The launcher is a BOX that stands up — six units tall against the
-          // body's five — because that upright mass is the whole silhouette.
-          prism(ivx, ivy - 1.5, [[2.6, -2.9], [2.6, 2.9], [-2.9, 2.5], [-2.9, -2.5]],
-                6.2, shade(deck, 1.06), dark);
-          for (sg = -1; sg <= 1; sg += 2)                     // owner colour rides the box sides
-            prism(ivx, ivy - 2.4, [[2.5, 2.3 * sg], [-2.8, 2.0 * sg], [-2.8, 3.3 * sg], [2.5, 3.6 * sg]],
-                  4.6, panel, PEDGE);
-          g.fillStyle = plit;                                 // owner flash on the box front
-          var bfy = ivy - 7.7;
-          g.beginPath();
-          g.moveTo(ivx + fx * 2.6 + px * 2.6, bfy + fy * 2.6 + py * 2.6);
-          g.lineTo(ivx + fx * 2.6 - px * 2.6, bfy + fy * 2.6 - py * 2.6);
-          g.lineTo(ivx + fx * 2.6 - px * 2.6, bfy + fy * 2.6 - py * 2.6 + 2.4);
-          g.lineTo(ivx + fx * 2.6 + px * 2.6, bfy + fy * 2.6 + py * 2.6 + 2.4);
-          g.closePath(); g.fill();
-          // the tubes are SHORT and angled steeply up — in the sprite only the
-          // muzzle ends clear the housing. Sorted far-to-near so the near tube
-          // caps the one behind it.
+          // THE MISSILE RACK IS THE UNIT. `docs/ra2-ref/cameos/ifv.png` is a
+          // low pale wheeled hull carrying a quad launcher that is nearly as
+          // big as the hull itself: four long tubes on an open yoke, splayed
+          // across the beam, raked up, and overhanging the nose. That bank is
+          // roughly HALF the plate's visible mass, and it is why the IFV is
+          // identifiable at a glance in a game where it is 45 px wide.
+          //
+          // What was here drew the opposite: a closed BOX standing 6.2 units
+          // tall with six 4-unit stubs whose muzzles barely cleared its own
+          // roof. Every part of it was inside the hull's own footprint, so at
+          // zoom 1 the whole turret was ~7 px of grey clutter on a white car
+          // and the unit read as "a light vehicle", not as the IFV. The
+          // §2.3 row's PROSE ("a tall blocky launcher housing") was drawn and
+          // the thing the prose is ABOUT was not.
+          //
+          // So the housing becomes a low OPEN yoke and the tubes carry the
+          // silhouette. Their length is set from the body, not by eye: the
+          // hull nose sits at `+len*0.43` along, and the muzzles run past it
+          // deliberately — an overhang is the cheapest silhouette break there
+          // is, and it is what the reference does.
+          prism(ivx, ivy - 0.4, [[2.2, -3.5], [2.2, 3.5], [-2.8, 3.1], [-2.8, -3.1]],
+                2.6, shade(deck, 1.06), dark);                 // the yoke: low and WIDE
+          for (sg = -1; sg <= 1; sg += 2)                      // owner colour on the yoke cheeks
+            prism(ivx, ivy - 0.9, [[2.1, 2.9 * sg], [-2.7, 2.6 * sg], [-2.7, 3.9 * sg], [2.1, 4.2 * sg]],
+                  2.0, panel, PEDGE);
+          puck(ivx - fx * 0.6, ivy - 3.0 - fy * 0.6, 1.6, 1.5,  // elevation trunnion
+               pdark, plit, PEDGE);
+          // FOUR tubes across the beam, fanning outward toward the muzzle so
+          // the bank reads as four and not as one slab. Sorted far-to-near.
           var tub = [];
-          for (i2 = 0; i2 < 2; i2++)
-            for (sg = -1; sg <= 1; sg++) {
-              var tb = ivy - 5.6 - i2 * 1.8;
-              tub.push([[ivx + fx * -0.8 + px * sg * 1.9, tb + fy * -0.8 + py * sg * 1.9],
-                        [ivx + fx * 3.2 + px * sg * 1.9, tb - 3.0 + fy * 3.2 + py * sg * 1.9]]);
-            }
+          for (sg = -3; sg <= 3; sg += 2) {
+            var ac = sg * 1.5;
+            tub.push([[ivx + fx * -5.0 + px * ac,        ivy + 0.4 + fy * -5.0 + py * ac],
+                      [ivx + fx * 6.9 + px * ac * 1.30, ivy - 8.4 + fy * 6.9 + py * ac * 1.30]]);
+          }
           tub.sort(function (m, n) { return m[1][1] - n[1][1]; });
           for (i2 = 0; i2 < tub.length; i2++) {
             var t0 = tub[i2][0], t1 = tub[i2][1];
-            g.strokeStyle = '#22262c'; g.lineWidth = 2.4; g.lineCap = 'round';
+            var tdx = t1[0] - t0[0], tdy = t1[1] - t0[1];
+            g.strokeStyle = '#20242a'; g.lineWidth = 3.2; g.lineCap = 'round';
             g.beginPath(); g.moveTo(t0[0], t0[1]); g.lineTo(t1[0], t1[1]); g.stroke();
-            g.strokeStyle = '#767e8a'; g.lineWidth = 1.1;     // lit upper edge
+            g.strokeStyle = '#828a96'; g.lineWidth = 1.2;      // lit upper edge of the tube
             g.beginPath();
-            g.moveTo(t0[0] - 0.5, t0[1] - 0.7); g.lineTo(t1[0] - 0.5, t1[1] - 0.7); g.stroke();
-            g.fillStyle = '#0e1014';                          // muzzle
-            g.beginPath(); g.ellipse(t1[0], t1[1], 1.0, 0.9, 0, 0, 6.29); g.fill();
-            g.strokeStyle = '#aab2bd'; g.lineWidth = 0.7;
-            g.beginPath(); g.ellipse(t1[0], t1[1], 1.0, 0.9, 0, 0, 6.29); g.stroke();
+            g.moveTo(t0[0] - 0.6, t0[1] - 1.0); g.lineTo(t1[0] - 0.6, t1[1] - 1.0); g.stroke();
+            // The owner band is 34% of the tube, not 16%. §1.4 puts the house
+            // colour ON the identity feature, and a rack this big is a lot of
+            // new neutral gunmetal — `hue.vehicleOwnerMean` measured the cost
+            // the moment it landed. Paying it back here rather than on the
+            // hull keeps the remap where the eye already is.
+            g.strokeStyle = shade(panel, 0.92); g.lineWidth = 2.4;   // owner band at the root
+            g.beginPath();
+            g.moveTo(t0[0] + tdx * 0.06, t0[1] + tdy * 0.06);
+            g.lineTo(t0[0] + tdx * 0.40, t0[1] + tdy * 0.40); g.stroke();
+            g.fillStyle = '#cfd5de';                           // pale warhead cone
+            g.beginPath();
+            g.moveTo(t1[0] + tdx * 0.055, t1[1] + tdy * 0.055);
+            g.lineTo(t1[0] - tdx * 0.10 - 1.7, t1[1] - tdy * 0.10);
+            g.lineTo(t1[0] - tdx * 0.10 + 1.7, t1[1] - tdy * 0.10);
+            g.closePath(); g.fill();
+            g.strokeStyle = '#3a4049'; g.lineWidth = 0.7; g.stroke();
+            for (var fw = -1; fw <= 1; fw += 2) {              // tail fins, at the breech
+              g.strokeStyle = '#4c525c'; g.lineWidth = 1.1;
+              g.beginPath();
+              g.moveTo(t0[0] + tdx * 0.05, t0[1] + tdy * 0.05);
+              g.lineTo(t0[0] + tdx * 0.05 + fw * 1.8, t0[1] + tdy * 0.05 - 1.5); g.stroke();
+            }
           }
-          puck(ivx - fx * 2.6, ivy - 8.0 - fy * 2.6, 1.1, 1.5,   // sight box on the roof
+          puck(ivx - fx * 3.4, ivy - 3.6 - fy * 3.4, 1.1, 1.5,   // sight box, behind the rack
                shade(deck, 0.82), shade(deck, 1.20), dark);
           }
           // The IFV's own colour: a hazard-yellow rotating beacon on the box
           // roof and a short chevron band under it. Everything else on this
           // vehicle is white, pale grey or the owner's hue, which is nine
           // tenths of why it read as "a light vehicle" and not as the IFV.
-          puck(ivx + fx * 1.6, ivy - 8.6 + fy * 1.6, 0.85, 1.6,
+          // ...and it rides the HULL, not the rack. Sat at the rack's root it
+          // was two gold blobs in the middle of the launcher, which is the
+          // one place on this unit nothing else may occupy.
+          puck(ivx - fx * 4.4, ivy - 1.4 - fy * 4.4, 0.8, 1.5,
                shade(VACC.ifv, 0.62), VACC.ifv, '#4a4410');
           for (sg = -1; sg <= 1; sg += 2)
-            isoBox(g, ivx + px * 2.9 * sg, ivy - 3.4 + py * 2.9 * sg,
-                   3.4, 0.7, 1.1, a, VACC.ifv, '#4a4410');
+            isoBox(g, ivx + fx * 3.2 + px * 3.9 * sg, ivy + 1.6 + fy * 3.2 + py * 3.9 * sg,
+                   3.0, 0.7, 1.0, a, VACC.ifv, '#4a4410');
         }
 
       } else if (kind === 'rhino') {
@@ -10727,34 +10872,63 @@
           puck(kx, ky, 3.1, 2.4, pdark, panel, PEDGE);              // house-colour pintle ring
           prism(kx - fx * 0.6, ky - 2.4, [[2.4, -2.6], [2.4, 2.6], [-2.6, 2.1], [-2.6, -2.1]],
                 3.6, panel, PEDGE);                                 // house-colour turret cone
-          isoBox(g, kx - fx * 1.4, ky - 5.6 - fy * 1.4, 2.8, 4.4, 2.4,
+          isoBox(g, kx - fx * 1.2, ky - 5.6 - fy * 1.2, 3.6, 5.4, 3.0,
                  a, '#3d434c', '#14171c');                          // breech housing
           // STEEPER and HIGHER than one pass ago. "Gun raised >= 10 px above
           // the bed line" (unit-identity-reference.md 2.4) is the Flak
           // Track's whole read, and a shallow jib left its crown the same fat
           // box the IFV wears -- the two lightest vehicles in the game, and
           // the pair the gate scored at 0.709.
-          var gx0 = kx + fx * 0.8, gy0 = ky - 7.2 + fy * 0.8;
-          var gx1 = kx + fx * 3.6, gy1 = ky - 19.4 + fy * 3.6;
-          g.strokeStyle = '#15181c'; g.lineWidth = 3.6; g.lineCap = 'butt';
-          g.beginPath(); g.moveTo(gx0, gy0); g.lineTo(gx1, gy1); g.stroke();
-          g.strokeStyle = '#5e656f'; g.lineWidth = 2.0;             // dark gunmetal tube
-          g.beginPath(); g.moveTo(gx0, gy0); g.lineTo(gx1, gy1); g.stroke();
-          g.strokeStyle = '#aab2bd'; g.lineWidth = 0.9;             // upper glint
+          //
+          // And it is a FLAKVIERLING, not a rifle. [HTK] is a half-track
+          // carrying a quad 2cm mount, and RA2's own plate shows a fat
+          // multi-barrel cluster with a wide muzzle group — a shape nothing
+          // else on the field has. One 2.0-wide tube (what was here) is 1 px
+          // of gunmetal at zoom 1: correct height, no gun. Four tubes in a
+          // 2x2 sheaf carry the same crown at four times the ink, and the
+          // sheaf is what reads as anti-air.
+          var gAlong = kx + fx * 0.8, gAlongY = ky - 7.2 + fy * 0.8;
+          var gTipX = kx + fx * 3.6, gTipY = ky - 19.4 + fy * 3.6;
+          var quad = [];
+          for (i2 = -1; i2 <= 1; i2 += 2)
+            for (sg = -1; sg <= 1; sg += 2)
+              quad.push([px * 1.25 * sg + fx * 0.85 * i2, py * 1.25 * sg + fy * 0.85 * i2]);
+          quad.sort(function (m, n) { return m[1] - n[1]; });       // far barrels first
+          for (i2 = 0; i2 < quad.length; i2++) {
+            var qx = quad[i2][0], qy = quad[i2][1];
+            g.strokeStyle = '#15181c'; g.lineWidth = 3.0; g.lineCap = 'butt';
+            g.beginPath(); g.moveTo(gAlong + qx, gAlongY + qy); g.lineTo(gTipX + qx, gTipY + qy); g.stroke();
+            g.strokeStyle = '#5e656f'; g.lineWidth = 1.7;           // dark gunmetal tube
+            g.beginPath(); g.moveTo(gAlong + qx, gAlongY + qy); g.lineTo(gTipX + qx, gTipY + qy); g.stroke();
+            g.strokeStyle = '#aab2bd'; g.lineWidth = 0.8;           // upper glint
+            g.beginPath();
+            g.moveTo(gAlong + qx - 0.7, gAlongY + qy - 0.5); g.lineTo(gTipX + qx - 0.7, gTipY + qy - 0.5); g.stroke();
+            g.fillStyle = '#cdd4dc';                                // muzzle brake
+            g.beginPath(); g.ellipse(gTipX + qx, gTipY + qy, 1.35, 1.15, 0, 0, 6.29); g.fill();
+            outline(g, '#3a4048');
+            g.fillStyle = '#15181c';
+            g.beginPath(); g.ellipse(gTipX + qx, gTipY + qy - 0.2, 0.62, 0.55, 0, 0, 6.29); g.fill();
+          }
+          // the sheaf's clamp — one bar across all four, two thirds up, so the
+          // cluster reads as ONE weapon rather than four loose rods
+          var clT = 0.62;
+          g.strokeStyle = panel; g.lineWidth = 2.4; g.lineCap = 'round';
           g.beginPath();
-          g.moveTo(gx0 - 0.8, gy0 - 0.6); g.lineTo(gx1 - 0.8, gy1 - 0.6); g.stroke();
-          g.fillStyle = '#cdd4dc';                                  // muzzle brake
-          g.beginPath(); g.ellipse(gx1, gy1, 1.5, 1.25, 0, 0, 6.29); g.fill();
-          outline(g, '#3a4048');
-          g.fillStyle = '#15181c';
-          g.beginPath(); g.ellipse(gx1, gy1 - 0.2, 0.7, 0.6, 0, 0, 6.29); g.fill();
+          g.moveTo(gAlong + (gTipX - gAlong) * clT - px * 2.1, gAlongY + (gTipY - gAlongY) * clT - py * 2.1);
+          g.lineTo(gAlong + (gTipX - gAlong) * clT + px * 2.1, gAlongY + (gTipY - gAlongY) * clT + py * 2.1);
+          g.stroke();
           // the small pale shield, drawn LAST so it stands in front of the breech
-          isoBox(g, kx + fx * 1.8, ky - 3.2 + fy * 1.8, 1.1, 5.2, 3.4,
+          // ...and it grew with the breech behind it. A quad mount needs a
+          // bigger shield than a single tube did, the reference draws one,
+          // and it puts back the ordnance green the new gunmetal displaced
+          // (`colour.vehicle.meanDist` reads the hue HISTOGRAM, so a unit
+          // that gains 60 px of grey has to gain some of its own hue too).
+          isoBox(g, kx + fx * 1.8, ky - 3.2 + fy * 1.8, 1.2, 6.4, 4.6,
                  a, VACC.flaktrack, '#22402f');
           g.fillStyle = 'rgba(255,255,255,.34)';
-          g.fillRect(kx + fx * 1.7 - 2.0, ky - 6.4 + fy * 1.7, 4.0, 0.9);
+          g.fillRect(kx + fx * 1.7 - 2.4, ky - 7.6 + fy * 1.7, 4.8, 1.0);
           g.fillStyle = 'rgba(20,23,28,.55)';                       // gun slot in the shield
-          g.fillRect(kx + fx * 1.7 - 0.9, ky - 6.0 + fy * 1.7, 1.8, 2.4);
+          g.fillRect(kx + fx * 1.7 - 1.0, ky - 7.2 + fy * 1.7, 2.0, 2.8);
           puck(kx - fx * 2.8, ky - 3.0 - fy * 2.8, 1.3, 2.0,        // ammo drum at the breech
                '#3d434c', '#7f8792', '#14171c');
         }
@@ -11279,13 +11453,21 @@
           // badge on the flank — the whole nose drum glows indigo, and that
           // one violet mass is the unit's name at 1:1. It is also the Chrono
           // Miner's entry in VACC: the one violet mass in the ground fleet.
-          puck(nx, ny, 4.3, 5.2, shade(VACC.chronominer, 0.48), VACC.chronominer, '#1c1430');
-          for (i2 = -2; i2 <= 2; i2++) {                            // ribs across the drum face
-            var rvx = nx + fx * 2.1 + px * i2 * 1.8, rvy = ny - 4.8 + fy * 2.1 + py * i2 * 1.8;
-            g.strokeStyle = shade(VACC.chronominer, 1.42); g.lineWidth = 1.4; g.lineCap = 'round';
-            g.beginPath(); g.moveTo(rvx, rvy); g.lineTo(rvx, rvy + 3.6); g.stroke();
+          // THE DRUM IS THE UNIT AND IT HAS TO BE BIG. This is the one part
+          // the unit is NAMED after and at radius 4.3 it baked as a violet
+          // smudge on a dark truck — the Chrono Miner was the weakest read on
+          // the board at zoom 1. It grows in the GROUND PLANE only: `puck`'s
+          // radius spreads the footprint in x and y at the same height, and
+          // the height is what §2.3's "height <= 0.55 x length" is measured
+          // on (0.522 today, and it must stay under). Radius 4.3 -> 5.3 is
+          // +52% of violet area for zero rows of bbox.
+          puck(nx, ny, 5.3, 5.2, shade(VACC.chronominer, 0.48), VACC.chronominer, '#1c1430');
+          for (i2 = -3; i2 <= 3; i2++) {                            // ribs across the drum face
+            var rvx = nx + fx * 2.6 + px * i2 * 1.7, rvy = ny - 4.8 + fy * 2.6 + py * i2 * 1.7;
+            g.strokeStyle = shade(VACC.chronominer, 1.52); g.lineWidth = 1.5; g.lineCap = 'round';
+            g.beginPath(); g.moveTo(rvx, rvy); g.lineTo(rvx, rvy + 3.8); g.stroke();
             g.strokeStyle = '#2a1f47'; g.lineWidth = 0.7;
-            g.beginPath(); g.moveTo(rvx + 0.9, rvy + 0.3); g.lineTo(rvx + 0.9, rvy + 3.6); g.stroke();
+            g.beginPath(); g.moveTo(rvx + 0.9, rvy + 0.3); g.lineTo(rvx + 0.9, rvy + 3.8); g.stroke();
           }
           for (i2 = -1; i2 <= 1; i2++)                              // three feed pipes over the drum
             puck(nx - fx * 1.0 + px * 2.6 * i2, ny - 5.0 - fy * 1.0 + py * 2.6 * i2,
@@ -11315,19 +11497,23 @@
           var gxx = cx + fx * Q * 8.9 + px * 3.5 * nearS;
           var gyy = by - 4.8 + nz + fy * Q * 8.9 + py * 3.5 * nearS;
           var ga0 = dig ? Math.PI / 8 : 0;
+          // The gear grows with the drum, and for the same reason: it is the
+          // machinery that makes the nose read as a chrono rig rather than as
+          // a paint job. It rides the drum's FLANK, so its growth is across
+          // the beam and costs the height clause nothing.
           g.fillStyle = shade(VACC.chronominer, dig ? 0.62 : 0.54);
           for (i2 = 0; i2 < 8; i2++) {                             // gear teeth
             var ga = ga0 + i2 * Math.PI / 4;
             g.beginPath();
-            g.ellipse(gxx + Math.cos(ga) * 2.8, gyy + Math.sin(ga) * 1.7, 1.05, 0.72, 0, 0, 6.29);
+            g.ellipse(gxx + Math.cos(ga) * 3.5, gyy + Math.sin(ga) * 2.1, 1.25, 0.86, 0, 0, 6.29);
             g.fill();
           }
           g.fillStyle = shade(VACC.chronominer, dig ? 1.06 : 0.94);   // disc
-          g.beginPath(); g.ellipse(gxx, gyy, 2.6, 1.6, 0, 0, 6.29); g.fill();
+          g.beginPath(); g.ellipse(gxx, gyy, 3.3, 2.0, 0, 0, 6.29); g.fill();
           outline(g, '#2a1f47');
           g.fillStyle = shade(VACC.chronominer, dig ? 1.44 : 1.30);   // lit rim, swung with the gear
           g.beginPath();
-          g.ellipse(gxx + (dig ? 0.6 : -0.6), gyy - 0.5, 1.8, 1.0, 0, 0, 6.29); g.fill();
+          g.ellipse(gxx + (dig ? 0.7 : -0.7), gyy - 0.6, 2.3, 1.3, 0, 0, 6.29); g.fill();
           g.fillStyle = '#e6dcfa';                                 // hub
           g.beginPath(); g.ellipse(gxx, gyy, 0.9, 0.6, 0, 0, 6.29); g.fill();
           for (var lI = -1; lI <= 1; lI += 2)                      // headlamps
@@ -11374,7 +11560,7 @@
           // citation, not a new opinion. Longer and broader, not TALLER: the
           // height is what the previous pass measured as lifting the bbox to
           // 60 px against the reference's 47, and it is left alone.
-          crate(bcx, bcy, 14.6 * W, 16.6, 16.4, BIN, BIN_E);
+          crate(bcx, bcy, 15.6 * W, 17.4, 16.4, BIN, BIN_E);
         };
         var drawFront2 = function () {
           // white fore-chassis under the boom
@@ -11392,6 +11578,19 @@
           gEllipse(dx0, dy0 - 9.0, 2.1); g.fill();                  // lit cap
           g.strokeStyle = PEDGE; g.lineWidth = 0.8;
           gEllipse(dx0, dy0 - 5.2, 3.3); g.stroke();                // band
+          // THE GUN. §2.4 gives this unit one sentence — "a harvester with a
+          // TURRET; the bin plus a small gun" — and `UNITS.warminer` has
+          // `turret: true` and fires `mg`, so the sim has always known it is
+          // armed. Nothing drew it. `docs/ra2-ref/cameos/warminer.png` puts a
+          // barrel out over the nose, and it is the one part of the War Miner
+          // that a Chrono Miner can never have: without it the two harvesters
+          // differ only in colour and bin size, which is exactly the reading
+          // that made them the pair the gate scored worst. The drum was
+          // already in the right place to BE the turret ring — it just needed
+          // a gun coming out of it.
+          var wgx = dx0 + fx * 2.6, wgy = dy0 - 6.4 + fy * 2.6;
+          isoBox(g, wgx, wgy, 3.0, 4.6, 2.8, a, panel, PEDGE);              // mantlet block
+          barrel(wgx + fx * 1.6, wgy - 1.0 + fy * 1.6, 9.4, 1.35, 0.92, '#22262c');
           // boom: two silver rails from under the drum forward and DOWN to the
           // bucket. Digging swings the whole assembly to the dirt.
           var tipU = (dig ? 12.4 : 11.0) * W, tipY = dig ? by - 0.6 : by - 5.4;

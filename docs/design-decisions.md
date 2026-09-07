@@ -11657,3 +11657,38 @@ projects to. Checked every other dockable structure the same way, with a
 rendered frame and a per-cell pick map: the Service Depot's repair apron, the
 Airforce Command's helipad and the Shipyard's deck all sit **inside** their
 footprints. The refinery was the only one whose art and hit box disagreed.
+
+### The identity gate measures the outline, not the weapon's share of it
+
+**Symptom.** The user, on a roster that passes 57 art metrics: *"还有很多art
+问题，因为单位在游戏中很小，需要特点突出方便辨认，比如盟军防空车，在ra2中它的防空炮
+占据整个车身…很多单位都有这个问题"* — the IFV's launcher, the Flak Track's gun, the
+Apocalypse's twin cannons, the Prism Tank's crystal and the Aegis's radar array
+were each a quarter of the size RA2 draws them, and the War Miner had no gun at
+all on a unit the sim arms and fires.
+
+**Cause.** `apps/games/rts/tools/art-metrics.js` measures aspect, size, silhouette
+IoU, spike THICKNESS, the hue census and pairwise separation. Every one of those
+is blind to what fraction of the sprite the identifying weapon occupies. A
+launcher drawn inside the hull footprint at a quarter scale keeps all of them
+green — and `unit-identity-reference.md` §1.3's Rules 3 and 4 describe only the
+*thin* half of RA2's vocabulary ("a 2-px sliver, 15-30% of the long axis"),
+which is right for the Grizzly's barrel and wrong for every unit whose identity
+is a MOUNT.
+
+**Fix.** §1.3 gains **Rule 4b**: RA2 draws the identifying weapon oversized
+against life, at 35-55% of the sprite's visible mass, overhanging the body,
+because a correctly-proportioned weapon on a 45-px unit is three pixels of
+grey. Nine sprites rebuilt to it (`per-unit-art-log.md`, 2026-09-07). The gate
+then agreed — `iou.groundCombat.mean`, `colour.vehicle.meanDist`,
+`hue.vehicleOwnerMean`, `mass.groundCombatSpan` and `size.crossGroupSpread` all
+improved — and it caught three real defects the rebuild introduced (the IFV's
+aspect band, the Sea Scorpion's, and the owner-colour census the new gunmetal
+diluted). It had nothing to say until a human said where to look.
+
+**Rejected.** Adding a "weapon mass fraction" metric in the same pass. There is
+no way to segment "the weapon" from a procedurally drawn sprite without the
+bake declaring its own parts, and a metric that guesses would have ratcheted a
+guess. The rule is stated in §1.3 where a human reads it before drawing, which
+is where it was missing.
+

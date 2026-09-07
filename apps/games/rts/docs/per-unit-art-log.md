@@ -26,6 +26,86 @@ unit came back "(not in the panel)" — the rig's fault, not the art's).
 | **Tesla Trooper** | §2.2 asks for a silver carapace over >= 40% of the torso; the chest measured 7-8% silver and 74% house colour, and the block's own comment said the budget "cannot go there" while drawing house colour there | torso split horizontally — silver yoke + steel pauldrons and vambraces over a house breastplate; the owner colour moved to a neck gorget and new thigh plates. 43.3% |
 | **superweapon clocks** | M1's caption was baked onto the 56x42 clock icon, straight across the countdown numerals | `cameoFor(..., noCap)`, cache key carries it |
 
+## 2026-09-07 — "the weapon has to occupy the vehicle"
+
+The user's instruction, in their own words: *"因为单位在游戏中很小，需要特点突出方便
+辨认，比如盟军防空车，在ra2中它的防空炮占据整个车身，非常有特点，这是设计这类游戏
+单位的一个重要思路，但你没有get到。很多单位都有这个问题。"* — units are small on
+screen, so the identifying feature has to be EXAGGERATED; RA2's Allied AA
+vehicle has an AA gun that takes up the whole body, and many of ours do not.
+
+They were right, and why it survived this long is written up as **Rule 4b** in
+`unit-identity-reference.md` §1.3: the gate has 57 metrics and not one of them
+reads the weapon's SHARE of the unit. Every sprite below was green on aspect,
+size, IoU, spike thickness and the hue census while its identifying mount was a
+quarter of the size the reference draws it.
+
+| unit | what was wrong | fix |
+|---|---|---|
+| **IFV** | the launcher was a closed BOX 6.2 units tall with six 4-unit stubs whose muzzles barely cleared its own roof — every part inside the hull footprint, ~7 px of grey clutter at zoom 1. `docs/ra2-ref/cameos/ifv.png` is half rack | low open yoke + **four fat tubes** fanning across the beam, overhanging the nose |
+| **Flak Track** | one 2.0-wide tube — 1 px of gunmetal at zoom 1. [HTK] carries a quad 2cm mount | **Flakvierling**: four tubes in a 2x2 sheaf with a clamp bar across them, bigger breech, bigger green shield |
+| **Apocalypse** | "the only two-barrelled thing on the field" was 1.42 units tapering to 0.88 at `my0 - 4.0` — deck level, so the tubes lay along the hull's own dark skirt for most of their run and never entered the outline | 2.05 -> 1.30, raised 1.6 units off the deck, mantlets up. Length **unchanged** — the unit is at +25% of the group scale and reaching further trips `size.vehicleOutsideRA2Band` |
+| **War Miner** | **no gun at all**, on a unit whose `UNITS` entry says `turret: true`, which fires `mg`, and whose §2.4 row is one sentence: "a harvester with a TURRET" | owner-coloured mantlet block on the drum that was already in the turret's place, plus a barrel over the nose. The bin grew to pay back "bin >= 35% of body px" (it fell to 0.348) |
+| **Chrono Miner** | the drum the unit is NAMED after baked as a violet smudge: radius 4.3 on a 55-px truck | radius 5.3 and a bigger gear — **in the ground plane only**, because `height <= 0.55 x length` measures 0.522 and that budget is nearly spent |
+| **Prism Tank** | a 12.4-unit column, dark slate for 9 of them, glass only in the top 3: the crown read as a black chimney | glazed forward face from the cowl up, owner-hue core, PW 1.85 -> 2.30 (which also moves the broadside aspect toward [SREF]'s, the axis it is short on) |
+| **Destroyer** | §2.3's whole read against the Aegis is "one turret forward" vs "explicitly no barrel", and the gunhouse was 4.0 units under a 3.0-wide barrel | gunhouse 6.4 with a sloped mantlet, barrel 4.6 wide with a muzzle cap |
+| **Aegis Cruiser** | one 10x6 house-coloured quad on a dark deckhouse. The two ships were two grey slabs on two blue-rimmed hulls, which is what `peerVsSelf.naval` has been reporting for weeks | a **big gridded phased array on each face**, far one painted before the deckhouse and near one after so the tower stands between them |
+| **Sea Scorpion** | two 2.4-wide tubes, where §2.4 asks for the Flak Track's own read by name | four, sheafed |
+
+**What the gate said.** Nothing, at first — which is the point of Rule 4b. Run
+against the pre-pass baseline the nine rebuilt sprites moved
+`iou.groundCombat.mean` 0.4660 -> 0.4646, `colour.vehicle.meanDist` 0.9714 ->
+0.9923, `hue.vehicleOwnerMean` 0.1702 -> 0.1714, `mass.groundCombatSpan` 5.696
+-> 5.875 and `size.crossGroupSpread` 1.607 -> 1.594. Every one of those was
+already green before the pass started.
+
+**Three things the gate DID catch, and all three were mine.**
+
+* **The IFV's aspect.** Reaching the rack forward took the sprite to 53x42 —
+  1.262 against §2.3's 1.0-1.2 band. The fix is that a launcher gains its size
+  by ELEVATING, not by reaching: tip 8.6 -> 6.9 along, -6.6 -> -8.4 up, and
+  1.262 -> 1.174 with the rack no smaller.
+* **The Sea Scorpion's.** Spreading four barrels across a 27-unit hull put 7 px
+  of height on her and `aspect.navalOutsideRA2Band` went 0 -> 1 (0.783 of
+  [HYD], band floor 0.80). Sheaf 1.15 -> 0.92 across, tip 0.4 down.
+* **The owner-colour census.** All that new gunmetal cost
+  `hue.vehicleOwnerMean` 0.1702 -> 0.1632 and `colour.vehicle.meanDist` 0.9714
+  -> 0.9669 — a real regression and the right one to report, because §1.4's
+  rule is that the house colour belongs ON the identity feature. Paid back
+  where the eye already is: the IFV's tube root band 16% -> 34% of the run, the
+  flak sheaf's clamp in the owner's hue, the War Miner's new mantlet in it, and
+  the flak shield grown with the breech behind it.
+
+**One trade taken with open eyes.** `iou.vehicle.mean` 0.4110 -> 0.4115,
+because the wider prism column pulls `mcv | prismtank` 0.634 -> 0.646 — the
+MCV's identity is also a tall slab. Tapering the crystal is the obvious answer,
+it is the more crystal-like drawing, and it was **measured and reverted**:
+splitting the housing at 5.6 with a 1.55 top took `iou.groundCombat.mean`
+0.4645 -> 0.4660 and `mass.tightestBand6` through a tenth, because a tapered
+crown has less mass standing clear of the hull. Both numbers stay far under
+their targets (0.45 mean, 0.75 same-faction ceiling), and `rts.html` says in as
+many words not to re-taper without re-running the gate.
+
+**Looked at and left.** The Grizzly (deliberately the flattest and smallest
+thing on the ground; its barrel is 24% of its width and clears the hull, which
+is Rule 3 satisfied), the Rhino, the Tesla Tank's copper coil pair, the V3 —
+whose missile is this rule already applied correctly, and the model for the
+rest — the Mirage's emitter slab, the MCV's amber boom, the Dreadnought's
+launch boxes, the Terror Drone, the Amphibious Transport, and every aircraft.
+**Infantry were checked and not touched:** the Flak Trooper looked thin on a
+contact sheet and measured fine on `cmp-flak.png` — a pale cannon standing a
+head clear of the helmet. A sheet crop is not a measurement.
+
+**Still open.** `peerVsSelf.naval` stays at 2 — `destroyer | aegis`, silhouette
+IoU 0.724 -> 0.729. The two ships are now unmistakable to a person and almost
+identical to the metric, because IoU reads the opaque MASK and both changes (a
+barrel, two panels on the deckhouse faces) live inside or barely outside the
+existing outline. Pushing the arrays outboard far enough to break the outline
+is the obvious next move and it costs her aspect: she sits at 0.809 of
+[AEGIS] against a 0.80 floor, and at the broadside bearing beam projects to
+HEIGHT.
+
+
 ## Looked at, and deliberately LEFT ALONE
 
 Not inventing work is part of the job.
