@@ -856,3 +856,72 @@ rip that is not in the repo**, at an elevation this still does not show. That
 limit is recorded here rather than smoothed over, and it is why row D's rewrite
 is proved by BITE alone — including the strongest bite available, that it fails
 the art shipping today.
+
+### What was done, and the acceptance numbers
+
+Three checker rewrites and **one** art change of 1.3 px. `clause.unmetStructures`
+**5 -> 1** (the survivor is the peer's `tesla:col` neck); `checkedStructures`
+**75 -> 75**; `unmatchedToReference` **0**; all 57 gate metrics compared and
+`unmetStructures` is the only one that moved; cameo floors Directorate 225 /
+Collective 247, unchanged.
+
+| row | old predicate | new predicate | ours | RA2, swept |
+|---|---|---|---|---|
+| A `refinery:dir` | `gapBetween(crown[0], crown[1])` | `stackPair(f, body.lo)` — the deepest crown band carrying exactly two runs both 0.06-0.20 `Sw` | 22 px = **0.096** | **15 px = 0.086-0.091 at 9/9** |
+| B `refinery:col` | `components(y < body.lo).length >= 2` | same `stackPair` | 27 px = **0.118** | same 9/9 |
+| C `reactor:col` | `bodyRun.lo / Sh` | `rimRow(f, tallestCrown).row / Sh` | **0.057** | **0.047-0.076 at 7/7** |
+| D `sentrygun:col` | `components(y < body.lo).length === 2` | `resolveBand` in the top half + `bandRuns` gap, `gap <= wMax`, top row inside a member | **2 barrels, gap 2 px** | *cannot validate — see above* |
+
+The `0.20 Sw` ceiling in `stackPair` is the one new number and it is not tuned:
+§2.6's own stack width is 0.12-0.15 `Sw`, so a run half again as wide as the
+widest stack the doc allows is the roof. Without it the band runs on down until
+the vault touches the second stack and the gap collapses to 0 — which is the
+bug being fixed, one level down.
+
+`refinery:col`'s width and clearance rows stay UNEMITTED, and that is deliberate
+rather than an oversight: `stackWidth` needs the stack as its own connected
+blob, and handed a column strip of `col`'s fused crown it starts at the
+chimney's narrow tip and reports 0.053 `Sw` for a cap that is 24 px. A row that
+would report a wrong number is logged unmeasurable instead, per this file's own
+rule. `checkedStructures` is unchanged either way: the count row that used to be
+`col`'s only row is now measured properly instead of standing in for it.
+
+### The art change, and the version of it that was rejected
+
+Only `rts.html:19304`'s two `sgBar` calls move, by 1.30 px along the
+perpendicular to `sgA` and 1.50 px back along the barrel axis (lengths +1.5, so
+the muzzles stay exactly where they were). Axis separation 4.54 -> 7.14, drawn
+sky gap 2.64 px, bake reads 2.
+
+**Rendered and looked at before it was kept**, on opaque grass, at idle and at
+all eight aim bearings via `bakeBuilding(key, col, fac, 0, dir)`. Two things
+that only the picture settles:
+
+- A **1.98 px** perpendicular shift (drawn gap 4.0 px) was built first and
+  **rejected**: the pair reads splayed rather than as a twin mount, and the near
+  breech lifts off the ammo plate. The 1.50 px axial seat-back exists for the
+  same reason — without it even the 1.30 px version leaves the near breech
+  floating.
+- Over the aim range `gunAim` at `el = 1.082` puts `sgA` between -1.90 and
+  -1.23, where the new roots give a drawn gap of 3.7-6.3 px and the old ones
+  gave 1.2-4.5, closing to almost nothing at one extreme. The pair now reads as
+  two at every bearing, which it did not before.
+
+### Bite tests
+
+| broken build | row | reads |
+|---|---|---|
+| `refinery:dir` stacks pushed to `ssx = cx+26` | A | **FAIL** — gap 1 px = 0.004 `Sw` |
+| `refinery:col` near furnace pushed to `nfx = cx+8` | B | **FAIL** — gap 1 px = 0.004 `Sw` |
+| a 34 px mast above the tallest cooling tower | C | **FAIL** — 0.181, rim closes at row 33 of 182 |
+| **the art that shipped on `5719bfc`** | D | **FAIL** — 1 member at the widest top-half cut |
+| one `sgBar` call deleted | D | **FAIL** — 1 member |
+| a 20 px optic mast beside the barrels | D | **FAIL** — gap 17 px against a 5 px member |
+
+The last one is the interesting one, because the first draft of D's rewrite
+**passed** it: a mast standing beside one barrel resolves as "2 members" exactly
+the way two barrels do, and `resolveBand` takes the widest cut, so on a taller
+sprite it simply found a different pair. The row now also asserts that the clear
+gap is no wider than a member (`gap <= wMax`) — a ratio of 1, not a threshold —
+which is what "a pair on one trunnion" means and what separates this from a
+decoration. Ours reads 2 px against a 5 px member; the mast build 17 against 5.
