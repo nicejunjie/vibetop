@@ -182,6 +182,71 @@ function components(f, pred) {
   }
   return out.sort((a, b) => b.n - a.n);
 }
+/**
+ * COUNTING MEMBERS THAT SHARE A ROOT — the primitive `components` cannot be.
+ *
+ * A crown of talons, a pair of barrels, a rack of masts: every one of them is
+ * ONE 8-connected component, because the thing that makes them a set is that
+ * they are joined at the bottom. Counting them with `components` therefore
+ * counts 1 no matter how many are drawn, and no art change can move that
+ * number -- the Sentry Gun's barrel row is the same trap, recorded in
+ * docs/design-decisions.md as "unreachable by a crown primitive".
+ *
+ * The eye does not count them by connectivity. It counts them across a CUT:
+ * at some height the members stand apart, and how many stand there is how many
+ * there are. `rowRuns` takes that cut -- the maximal horizontal runs of a
+ * predicate on one row, each at least `minW` wide -- and `resolveBand` finds
+ * the cut worth reporting.
+ *
+ * WHY A BAND AND NOT A SINGLE ROW. One row is noise: an antialiasing fringe or
+ * a rim highlight splits a run for exactly one row and invents a member. A
+ * talon/barrel/mast is TALL, so a cut that genuinely resolves it resolves it
+ * on its neighbours too. `resolveBand` therefore reports the largest count
+ * that HOLDS over `minRows` consecutive rows. That is a definition of
+ * "countable", not a tuned threshold: on the Gap Generator's own crown the
+ * one-row accidents (5 dark runs across the instrument pods at row 27, gone
+ * again at 26 and 28) are exactly what it drops, while the real four-talon cut
+ * at rows 9-10 survives because talons are tall.
+ *
+ * It returns the WIDEST cut, not the topmost: members of unequal height (the
+ * Gap Generator draws two short outer talons and two tall inner ones) are all
+ * present only below the shortest one's tip. Reported with its own row range
+ * and x-span so a reader can see WHERE the count was taken rather than trust
+ * that it was taken somewhere sensible.
+ */
+function rowRuns(f, y, pred, minW) {
+  const out = [];
+  let s = -1;
+  for (let x = 0; x < f.w; x++) {
+    const on = !!pred(px(f, x, y), x, y);
+    if (on && s < 0) s = x;
+    if (s >= 0 && (!on || x === f.w - 1)) {
+      const e = on ? x : x - 1;
+      if (e - s + 1 >= minW) out.push([s, e]);
+      s = -1;
+    }
+  }
+  return out;
+}
+function resolveBand(f, yTop, yBot, pred, minW, minRows) {
+  const per = [];
+  for (let y = yTop; y < yBot; y++) per.push(rowRuns(f, y, pred, minW));
+  let best = { count: 0, y0: -1, y1: -1, x0: 0, x1: -1, rows: 0 };
+  for (let i = 0; i < per.length; i++) {
+    const n = per[i].length;
+    if (!n) continue;
+    let j = i;
+    while (j + 1 < per.length && per[j + 1].length === n) j++;
+    const rows = j - i + 1;
+    if (rows >= minRows && n > best.count) {
+      let x0 = f.w, x1 = -1;
+      for (let k = i; k <= j; k++) for (const [a, b] of per[k]) { if (a < x0) x0 = a; if (b > x1) x1 = b; }
+      best = { count: n, y0: yTop + i, y1: yTop + j, x0, x1, rows };
+    }
+    i = j;
+  }
+  return best;
+}
 function gapBetween(f, A, B) {
   let best = 1e9;
   for (const i of A.cells) {
@@ -690,12 +755,48 @@ exports.check = function (ctx) {
   if (F.gapgen && F.gapgen.dir) {
     const f = F.gapgen.dir;
     const med = medianV(f);
-    const body = bodyRun(rowProfile(f));
-    const talons = components(f, (p, x, y) => !!p && y < body.lo && (p.v - med) >= CONTRAST).filter((c) => Math.min(c.w, c.h) >= 2);
-    const crownAll = components(f, (p, x, y) => !!p && y < body.lo);
-    const topW = crownAll.length ? Math.max(...crownAll.map((c) => c.x1)) - Math.min(...crownAll.map((c) => c.x0)) : 0;
+    const rp2 = rowProfile(f);
+    const body = bodyRun(rp2);
+    // TWO defects were in the row this replaces, and they compound.
+    //
+    // 1. POLARITY. It filtered `(p.v - med) >= CONTRAST` -- a BRIGHT outlier --
+    //    on a clause about talons §2.7 describes as black, and which this
+    //    sprite draws at #141518/#26292f against a median V of 0.76. The
+    //    sibling row twenty lines up, patriot's four tube mouths, filters
+    //    `(med - p.v)` and is correct. No legal drawing of a black talon can
+    //    pass a bright-outlier filter, and painting them light to satisfy it
+    //    would break both §2.7 and the colour rule. Measured 0 for its whole
+    //    life; there are three dark blobs on the same mask at the same cut.
+    //
+    // 2. AND FLIPPING IT IS NOT ENOUGH -- it reads 3, and 4 is undrawable.
+    //    The talons are joined at their roots round the mast, so the dark
+    //    crown mask is ONE component (28x29, all four talons plus the mast)
+    //    plus two fragments of platform rim. A component count of a set of
+    //    members that share a root counts the root, and cannot reach 4 for
+    //    ANY drawing -- the same trap as the Sentry Gun's two barrels. So the
+    //    predicate is replaced, not merely negated: count them across a CUT
+    //    (`resolveBand`), which is how they are countable to the eye.
+    //
+    // The second half of the sentence was `topW > 0` -- an identity, since a
+    // non-empty crown always spans at least one pixel. It now compares the
+    // talons' own span against the NECK they stand on: the narrowest
+    // silhouette row between the resolving band and the roofline. That is
+    // what "splaying" means dimensionally, and it is a comparison the sprite
+    // can fail.
+    const isTalon = (p, x, y) => !!p && y < body.lo && (med - p.v) >= CONTRAST;
+    const band = resolveBand(f, 0, body.lo, isTalon, 2, 2);
+    const talons = band.count;
+    const span = band.x1 - band.x0 + 1;
+    let neck = f.w;
+    for (let y = band.y1 + 1; y < body.lo; y++) if (rp2[y] > 0 && rp2[y] < neck) neck = rp2[y];
+    const splays = band.count > 0 && neck < f.w && span > neck;
     add('gapgen', '[dir] exactly 4 talons, countable, each 2px at >= 25% contrast, splaying so the crown is wider at its top than the column beneath it',
-      talons.length === 4 && topW > 0, `${talons.length} bright-outlier crown blob(s) >=2px; crown span ${topW}px`, '4 blobs', '');
+      talons === 4 && splays,
+      `${talons} dark-outlier talon(s) >=2px wide, resolved over rows ${band.y0}-${band.y1}; span ${span}px vs neck ${neck === f.w ? 'n/a' : neck + 'px'}`,
+      '4 talons, span > neck',
+      'talons counted by `resolveBand` -- the largest number of >=2px dark-outlier runs that HOLDS over >=2 consecutive crown rows -- because the four talons share a root round the mast and are ONE '
+      + 'connected component, so a `components` count cannot reach 4 for any drawing of them (the Sentry Gun barrel row is the same trap). Dark, not bright: §2.7\'s talons are black, and the row this '
+      + 'replaced filtered for bright outliers and had measured 0 since the day it was written. "Neck" = the narrowest silhouette row between the resolving band and the roofline, i.e. what the crown stands on');
     const houseRings = components(f, (p) => isHouse(p));
     add('gapgen', '[dir] exactly 2 house collar rings and nothing else remapped',
       houseRings.length === 2, `${houseRings.length} house-coloured blob(s)`, '2 blobs', '');
