@@ -539,57 +539,130 @@ test.describe('rts', () => {
       .toBeLessThan(3);
   });
 
-  // Reported: "there is no way I can let miner to go back to refinery, refinery
-  // isn't an end point". Right-clicking your own building fell through to a
-  // plain `move` onto tiles the building occupies, so the miner stopped 4.0
-  // cells short, state 'idle', and never docked. The auto-return machinery
-  // (homeRef + state 'toref') already existed; nothing could reach it.
-  test('right-clicking your own refinery sends a loaded miner home', async ({ page }) => {
-  await page.goto('/rts.html');
-  await page.waitForFunction(() => !!window.__rts, null, { timeout: 15000 });
-  await page.locator('#ovA').click();
-  await expect.poll(async () => page.evaluate(() => window.__rts().state), { timeout: 12000 }).toBe('play');
-  const setup = await page.evaluate(() => {
-    const H = window.__rtsTest, g = H.get();
-    H.give(0, 30000); g.seen.fill(1);
-    const base = g.blds.find((b) => b.p === 0 && b.type === 'base');
-    if (!g.blds.some((b) => b.p === 0 && b.type === 'refinery'))
-      for (let r = 2; r < 10; r++) { let done = false;
-        for (let dy = -r; dy <= r && !done; dy++) for (let dx = -r; dx <= r && !done; dx++)
-          if (H.api.canPlace(g, 0, 'refinery', base.x + dx, base.y + dy)) { H.build('refinery', 0, base.x + dx, base.y + dy); done = true; }
-        if (done) break; }
-    H.step(5);
-    const ref = g.blds.find((b) => b.p === 0 && b.type === 'refinery');
-    const harv = g.units.find((u) => window.__rtsTables.UNITS[u.type].harv && u.p === 0);
-    harv.cargo = window.__rtsTables.UNITS[harv.type].cap || 100; harv.cargoV = 500; harv.state = 'idle'; harv.order = null; harv.path = null;
-    harv.x = ref.cx + 6; harv.y = ref.cy + 5;
-    H.centerOn(Math.round(ref.cx), Math.round(ref.cy));
-    // select the miner the way a player does
-    window.__rtsTest.select ? window.__rtsTest.select([harv]) : null;
-    return { ref: { x: Math.round(ref.cx), y: Math.round(ref.cy) }, harv: harv.type,
-             sel: !!window.__rtsTest.select };
-  });
-  console.log('  ' + JSON.stringify(setup));
-  // box-select the miner, then right-click the refinery on screen
-  const p = await page.evaluate((r) => window.__rtsScreen(r.x, r.y), setup.ref);
-  const hp = await page.evaluate(() => {
-    const g = window.__rtsTest.get();
-    const h = g.units.find((u) => window.__rtsTables.UNITS[u.type].harv && u.p === 0);
-    return window.__rtsScreen(h.x, h.y);
-  });
-  await page.mouse.click(hp.x, hp.y);          // click the miner itself
-  await page.waitForTimeout(250);
-  const selN = await page.evaluate(() => window.__rts().sel);
-  await page.mouse.move(p.x, p.y);
-  await page.mouse.down({ button: 'right' }); await page.mouse.up({ button: 'right' });
-  await page.waitForTimeout(300);
-  const after = await page.evaluate(() => {
-    const g = window.__rtsTest.get();
-    const h = g.units.find((u) => window.__rtsTables.UNITS[u.type].harv && u.p === 0);
-    return { state: h.state, homeRef: !!h.homeRef };
-  });
-  expect(after.homeRef, 'the miner was given a refinery to go to').toBe(true);
-  expect(['toref', 'unload', 'tomine', 'warp']).toContain(after.state);
+  // Reported TWICE: "there is no way I can let miner to go back to refinery,
+  // refinery isn't an end point". The order was wired the first time; what was
+  // not wired was everything that makes it look like it worked — the cursor
+  // said `select`, a Chrono Miner drove where the automatic return teleports,
+  // and a stale seam clock handed the miner to the NEAREST refinery on the
+  // first tick instead of the one clicked.
+  //
+  // The previous version of this test set the miner's cargo to full, which a
+  // full miner answers by returning home ON ITS OWN — it passed without the
+  // click doing anything at all. It also fed __rtsScreen's canvas-relative
+  // coordinates straight to page.mouse, which takes PAGE coordinates, so every
+  // click landed ~40px high (the trap recorded in order-target-audit.md).
+  // Both are fixed here: a PART-loaded miner that is actively mining, and the
+  // canvas bounding box added to every click.
+  test('right-clicking your own refinery docks a part-loaded miner at THAT refinery', async ({ page }) => {
+    await boot(page);
+    const setup = await page.evaluate(() => {
+      const H = window.__rtsTest, T = window.__rtsTables, g = H.get();
+      H.give(0, 30000); g.seen.fill(1);
+      const s = g.start[0], ore = H.findOre(s.x, s.y);
+      const seat = (nx, ny) => {
+        for (let r = 1; r < 20; r++)
+          for (let oy = -r; oy <= r; oy++) for (let ox = -r; ox <= r; ox++) {
+            if (Math.max(Math.abs(ox), Math.abs(oy)) !== r) continue;
+            const bx = nx + ox, by = ny + oy;
+            if (bx < 2 || by < 2 || bx > T.MAP - 6 || by > T.MAP - 6) continue;
+            let clear = true;
+            for (let y = by; y < by + 4 && clear; y++)
+              for (let x = bx; x < bx + 5; x++)
+                if (g.terrain[y * T.MAP + x] !== 0) { clear = false; break; }
+            if (clear) { const b = H.build('refinery', 0, bx, by); if (b) return b; }
+          }
+        return null;
+      };
+      // Two refineries: one ON the seam, one well away. We click the FAR one,
+      // so "it went home" and "it went where it was told" are different facts.
+      const near = seat(ore.x, ore.y);
+      let far = null;
+      for (let d = 10; d < 26 && !far; d += 2) {
+        const c = seat(Math.max(3, ore.x - d), Math.max(3, ore.y - d));
+        if (c && c !== near && Math.hypot(c.cx - near.cx, c.cy - near.cy) > 8) far = c;
+      }
+      const h = H.spawn('warminer', 0, ore.x + 1, ore.y + 1);   // drives, so the trip is real
+      if (!near || !far || !h) return { ok: false };
+      H.centerOn(Math.round(far.cx), Math.round(far.cy));
+      return { ok: true, far: { cx: far.cx, cy: far.cy }, near: { cx: near.cx, cy: near.cy } };
+    });
+    expect(setup.ok, 'the fixture seated two refineries and a miner').toBe(true);
+
+    // Wait for the EXACT state the bug needs, rather than a fixed sleep: still
+    // mining, carrying something, and with a seam clock older than the
+    // 900-tick give-up. ('mining' never refreshes stallAt, so the clock ages
+    // through the stint.) A fixed sleep raced the miner's own full-load
+    // return and sometimes sampled it empty, mid-automatic-cycle.
+    await expect.poll(async () => page.evaluate(() => {
+      const g = window.__rtsTest.get();
+      const h = g.units.find((u) => window.__rtsTables.UNITS[u.type].harv && u.p === 0);
+      return !!h && h.state === 'mining' && h.cargo > 20 && (g.tick - (h.stallAt || 0)) > 900;
+    }), { timeout: 90000, message: 'miner never reached a loaded, stale-clock mining stint' }).toBe(true);
+
+    const at = (gx, gy) => page.evaluate(({ gx, gy }) => {
+      const c = document.getElementById('cv').getBoundingClientRect();
+      const s = window.__rtsScreen(gx, gy);
+      return { x: c.left + s.x, y: c.top + s.y };   // PAGE coords, not canvas
+    }, { gx, gy });
+
+    const h0 = await page.evaluate(() => {
+      const g = window.__rtsTest.get();
+      const h = g.units.find((u) => window.__rtsTables.UNITS[u.type].harv && u.p === 0);
+      return { x: h.x, y: h.y, cargo: h.cargo, credits: g.side[0].credits };
+    });
+    expect(h0.cargo, 'the miner is carrying something to bank').toBeGreaterThan(0);
+
+    const hp = await at(h0.x, h0.y);
+    await page.mouse.click(hp.x, hp.y);
+    await expect.poll(async () => page.evaluate(() => window.__rts().sel), { timeout: 5000 }).toBe(1);
+
+    // The cursor must SAY the refinery is an order target. RA2 docking is
+    // action 0x03 Enter — which is why both miners carry a VoiceEnter= line.
+    const rp = await at(setup.far.cx, setup.far.cy);
+    await page.mouse.move(rp.x, rp.y);
+    await page.waitForTimeout(250);
+    expect(await page.evaluate(() => window.__rtsTest.cursorKind()),
+      'a miner over your own refinery gets RA2\'s ENTER cursor, not "select"').toBe('enter');
+
+    // Record WHERE it unloads from inside the page. Polling from the test
+    // cannot: by the time a poll round-trips, the miner has already driven
+    // back out to the seam (which is RA2-correct — after a hand-sent return it
+    // mines the nearest ore — but it means the position has moved on).
+    await page.evaluate(() => {
+      const g = window.__rtsTest.get();
+      const h = g.units.find((u) => window.__rtsTables.UNITS[u.type].harv && u.p === 0);
+      window.__dockAt = null;
+      let last = h.cargo;
+      const tick = () => {
+        if (!window.__dockAt && h.cargo < last - 0.01) window.__dockAt = { x: h.x, y: h.y };
+        last = h.cargo;
+        requestAnimationFrame(tick);
+      };
+      requestAnimationFrame(tick);
+    });
+
+    await page.mouse.down({ button: 'right' });
+    await page.mouse.up({ button: 'right' });
+
+    // It must actually BANK, and at the refinery that was clicked.
+    await expect.poll(async () => page.evaluate(() => {
+      const g = window.__rtsTest.get();
+      return g.side[0].credits;
+    }), { timeout: 60000, message: 'the miner never unloaded' }).toBeGreaterThan(h0.credits);
+
+    const done = await page.evaluate(({ far, near }) => {
+      const g = window.__rtsTest.get();
+      const h = g.units.find((u) => window.__rtsTables.UNITS[u.type].harv && u.p === 0);
+      const w = window.__dockAt || { x: h.x, y: h.y };
+      return { dFar: Math.hypot(w.x - far.cx, w.y - far.cy),
+               dNear: Math.hypot(w.x - near.cx, w.y - near.cy),
+               sampled: !!window.__dockAt,
+               homeIsFar: !!h.homeRef && Math.abs(h.homeRef.cx - far.cx) < 0.01 };
+    }, setup);
+    expect(done.sampled, 'caught the moment it unloaded').toBe(true);
+    expect(done.homeIsFar, 'it kept the refinery the player clicked').toBe(true);
+    expect(done.dFar, 'it banked at the clicked refinery, not the nearer one')
+      .toBeLessThan(done.dNear);
   });
 
   test('a rally point is visible, routed, and actually used', async ({ page }) => {

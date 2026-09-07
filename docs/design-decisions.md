@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_264 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_265 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
 - [Scheduled terminal messages ("resume when the token limit resets")](#scheduled-terminal-messages-resume-when-the-token-limit-resets)
@@ -287,6 +287,7 @@ _264 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [The Tesla Coil's missing neck was the sphere's HALO, not the helix (2026-09-06)](#the-tesla-coils-missing-neck-was-the-spheres-halo-not-the-helix-2026-09-06)
 - [A width fraction is not a part boundary, and a FLOOR's convention is not a CEILING's](#a-width-fraction-is-not-a-part-boundary-and-a-floors-convention-is-not-a-ceilings)
 - [A count across a cut can be fooled by anything that stands at the same height](#a-count-across-a-cut-can-be-fooled-by-anything-that-stands-at-the-same-height)
+- [A forced miner return has to be the SAME journey as an automatic one](#a-forced-miner-return-has-to-be-the-same-journey-as-an-automatic-one)
 
 <!-- END TOC -->
 
@@ -11424,3 +11425,79 @@ sits at roughly 20-25 degrees of elevation, where the pair self-occludes into a
 single 13 px bright run, against our 62. §2.7's row is sourced from a 41x40
 MAKE-frame rip that is not in the repo. This row is proved by BITE alone — and
 the strongest of those bites is that it FAILS the art that shipped on `5719bfc`.
+
+## A forced miner return has to be the SAME journey as an automatic one
+
+**Symptom.** Reported twice, five days apart, in almost the same words: *"there
+is no way I can let miner to go back to refinery, refinery isn't an end
+point"*, then *"cannot force miner to return to refinery"*. The first report
+was answered on 2026-09-04 by wiring the order (`order-target-audit.md`), and
+the report came back anyway.
+
+**Cause — three of them, none of which is the order.** The order worked. What
+did not work was everything that tells a player it worked.
+
+1. **The cursor said no.** Hovering your own refinery with a miner selected
+   fell through `pickCursor`'s ladder to `select`. The single cue the game
+   gives about what a click will do was actively saying the refinery was not
+   an order target — which is precisely what both reports said, in the
+   player's own words. MEASURED in a browser before the fix: `select`.
+2. **The Chrono Miner drove.** `applyCmd`'s `own` case hand-set
+   `state = 'toref'`. The automatic full-load return, twenty lines away,
+   *also* tests `chronoHome` and warps. So the Directorate's miner — the
+   default faction's — teleported home when it filled up and trundled the
+   whole way on its wheels when you ordered it to. Same order, two different
+   journeys, and the slow one reads as "my click did nothing".
+3. **It went to the wrong refinery.** `stallAt` is the "has not got anywhere
+   in fifteen seconds" clock, and `'mining'` never touches it. A miner that
+   had been chewing a seam for fifteen seconds therefore entered `'toref'`
+   already past the 900-tick give-up, and the escape swapped the player's
+   refinery for `findRefinery`'s nearest one on the **first tick**. Measured:
+   stallAt age 954, retargeted after 1 tick, unloaded 24 cells from the
+   refinery that had been clicked. With one refinery on the map this is
+   invisible, which is why it survived a fix and a test.
+
+**Fix.** One `sendHome(g, u, ref, forced)` that both the automatic return and
+the player's order go through, so there is no second, shabbier copy of the trip
+to drift. It resets the seam clock, picks warp-or-drive from `chronoHome` for
+both callers, and records `forcedDock` — which the give-up branch honours by
+keeping the player's refinery and only re-running its own approach. Plus the
+`enter` cursor rung, and help text that says the capability exists.
+
+**Sourced against Westwood's own `rulesmd.ini`,** not against what seemed
+reasonable: `[HARV]`/`[CMIN]` carry `Dock=NAREFN,GAREFN` and a `VoiceEnter=`
+line each (the Chrono Miner's is a dedicated `ChronoMinerReturn` clip), so
+docking is RA2's **Enter** mission and takes the Enter cursor. `[GAREFN]`/
+`[NAREFN]` answer `DockUnload=yes` with `NumberOfDocks=1`, and
+`[General] HarvesterTooFarDistance=5` exists — Westwood's comment says so
+outright — to stop a miner bouncing to a further refinery rather than waiting
+for a busy one. So a hand-picked refinery is never silently swapped. The C&C
+wiki settles the Chrono Miner: it warps home when full *"or when explicitly
+ordered to dock"*, and rolls on its wheels otherwise.
+
+**Deliberately NOT changed, and why.** After a *forced* return RA2 mines the
+**nearest** ore (Seke's XWIS miner guide: "the miner automatically goes and
+mines the closest ore"), which is what nulling `u.order` already gives us.
+After an *automatic* return RA2 heads back toward the patch it was working —
+ours takes the nearest there too. That is a real divergence, left alone
+because it moves every economy and soak number in the balance suite and
+belongs to its own pass, not to a bug fix. Likewise RA2's brief **pause at the
+refinery door on automatic returns only** (the thing manual returns exist to
+skip) is absent here; adding it is an economy nerf and wants measuring first.
+Fleeing under fire deliberately does **not** route through `sendHome`: a
+Chrono Miner that teleported out of every ambush would be unkillable.
+
+**Rejected — a new `'dock'` order type.** It is what RA2 models, but it would
+touch the generic order dispatch, waypoints and every non-harvester path for a
+mechanic the existing `homeRef` + `'toref'` machinery already implements
+correctly. The bug was never that the machinery was missing.
+
+**The lesson, which is the reason this is written down.** The 2026-09-04 pass
+fixed the order and shipped a test that asserted `homeRef` was set and the
+state was one of four — with the miner's cargo set to FULL. A full miner
+returns home **on its own**; the test passed without the click doing anything
+at all, and it also fed `__rtsScreen`'s canvas-relative coordinates straight to
+`page.mouse`, which takes page coordinates. A test that cannot fail is worse
+than no test: it converts "unverified" into "verified". The replacement uses a
+part-loaded miner that is actively mining, so only the click can send it home,
+and it was proved red against the pre-fix build before being kept.
