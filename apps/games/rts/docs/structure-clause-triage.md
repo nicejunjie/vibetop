@@ -452,3 +452,133 @@ starts editing.
 | `radar:col` top 45% | a dish that sags down its own mast into the base instead of standing clear on it (proved: 0.447 -> 0.480 on a dish dropped 40 px) |
 | `sentrygun:col` drum | the sprite turning back into the closed armoured bunker its comment says it used to be, instead of an open machine on splayed legs (proved: 0 -> 1 band on a wrapped drum) |
 | `tesla:col` neck | a coil head that sits on a fat stalk instead of a thin one — the single proportion that makes a Tesla Coil read as a Tesla Coil (proved: 0.269 -> 0.358 fatter, -> 0.090 when a real neck is drawn) |
+
+## 2026-09-06, a SEPARATE pass — rows 1 and 13 are closed IN THE CHECKER
+
+> **Append-only on purpose.** This section was written on a branch taken from
+> `4a9e9d8`, where `clause.unmetStructures` was **15** and rows 1, 3, 6, 7, 10,
+> 11, 13 were all still red. It touches rows **1** (`base` crane) and **13**
+> (`gapgen` talons) ONLY, and no other row's numbers above are restated or
+> revised here. Measured delta on that base: **15 -> 13**, `checkedStructures`
+> held at **75**, and `clause.unmetStructures` is the ONLY metric in the whole
+> gate that moves (every metric compared, not spot-checked).
+
+Both were fixed the way this file says broken checks must be: by rewriting the
+predicate, with no art touched. Full argument, the rejected alternatives and the
+per-sprite arithmetic are in `docs/design-decisions.md`, "Two clauses that could
+not read the part they named".
+
+### Row 13 — `gapgen:dir` talons: TWO defects, and the polarity flip alone does not close it
+
+The polarity bug is real and is exactly as this file recorded it: `:694` filtered
+`(p.v - med) >= CONTRAST`, a BRIGHT outlier, for talons §2.7 calls black and the
+sprite draws at `#141518`/`#26292f` against a median V of 0.761.
+
+**But flipping the sign takes the row from 0 blobs to 3, not 4.** The four talons
+are joined at their roots round the mast, so the dark crown mask is ONE component
+— 28x29 at `x26..53 y0..28`, all four talons plus the mast — plus two rim
+fragments. A component count of members that share a root counts the root. That
+is row 9's Sentry Gun barrel trap in a second costume, and it is why the
+predicate had to be REPLACED rather than negated.
+
+New primitives `rowRuns`/`resolveBand` count members across a CUT: the largest
+number of `>=2px` runs of the predicate that HOLDS over `>=2` consecutive rows.
+The band rule is the definition of "countable", not a tuned threshold — on this
+crown it drops the one-row accident (4 dark runs across the instrument pods at
+row 27, gone again at 26 and 28) and keeps the real cut at rows 9-10, because
+talons are tall.
+
+    0 bright-outlier blobs  ->  4 talons over rows 9-10, span 28px vs neck 18px
+
+The sentence's second half was `topW > 0` — an identity, since a non-empty crown
+always spans at least one pixel. It now compares the talons' span against the
+neck they stand on.
+
+**Row 13's ART IS NOT DEFECTIVE.** All four talons are drawn and countable; the
+row was red because of the checker alone.
+
+**And there is still no `[GAGAP]` reference sprite.** A search of the C&C wiki,
+cnc-central, the Spriters Resource and six other-language wikis found no
+chroma-keyed SHP rip — the `File:RA2 <Name>.gif` convention simply has no
+gap-generator entry — so this file's "(no rip)" stays accurate. The hunt did
+turn up that `docs/ra2-ref/allied-gap-generator.png` (118x130), which `rts.html`'s
+own gapgen block cites as its reference, is the pre-release **ALPHA** design: the
+wiki captions it "Alpha appearance", the released structure carries a blue collar
+where the alpha has green rings, and `art.ini` gives `[GAGAP] Remapable=no`, so
+that difference cannot be an owner-colour difference. The released design still
+shows four dark talons round a mast. **Art work for a peer, not for this pass.**
+
+### Row 1 — `base`: the crane is not on the roof, in either game
+
+The row read `components above bodyRun.lo`. That is the HALL. The reference
+numbers this file already records are confirmed byte-for-byte, and they settle
+it: `[GACNST]` reads 0 groups and `crown:false`, identical to ours; `[NACNST]`
+reads 3. **No roofline-based count can pass RA2's own art on both facs**, so the
+note `6c941a3` put on the row — that our 0 was "an ART finding, not a measurement
+gap" — is false. RA2 draws its Allied Yard the way we draw ours: the barrel
+hall's arch is the topmost mass and the crane stands beside it, off to the left,
+entirely below the arch.
+
+The crane is found where it is: the yard's block of STRONG CHROMA at the left —
+orange on `[GACNST]`, red on `[NACNST]`, amber and house-blue on ours. The
+largest `s >= 0.60` component whose left edge falls inside the left quarter lands
+on the crane, and only the crane, on all four sprites:
+
+    |          | blob                | x0/Sw | reach | rise  | of opaque |
+    | ours dir | x47..105 y38..79    | 0.190 | 0.238 | 0.268 |     3.18% |
+    | ours col | x45..90  y14..96    | 0.173 | 0.177 | 0.428 |     4.59% |
+    | [GACNST] | x39..90  y39..68    | 0.183 | 0.244 | 0.219 |     2.93% |
+    | [NACNST] | x35..77  y17..110   | 0.172 | 0.211 | 0.614 |     8.73% |
+
+An `x0` cluster of 0.172-0.190 across four sprites from two games is the fact the
+selector rests on. **0.60 is bracketed by measurement on both sides, not tuned:**
+below 0.55 the rips' own TERRAIN enters the mask and fuses with the crane
+(`[NACNST]` reads `x2..77` and 14.4% of opaque at 0.50); at 0.70 our Collective
+crane drops out, because owner-0 house colour sits at `s` 0.66. 0.55-0.65
+identifies the same crane on all four. That the Collective side rides on the
+owner-0 house saturation is a real fragility, recorded rather than hidden.
+
+**"exactly ONE" is now reported and not gated.** It is not measurable on this
+sprite family: both RA2 yards and both of ours carry several crane-scale
+saturated masses — turntable, grab, deck rail markings, roof flukes — and at the
+same cut our own dir bake presents the amber boom (754 px) AND the house-blue
+base drum (431 px), both rooted in the left quarter. Same treatment the Grand
+Cannon's outriggers already get in this file.
+
+**Four alternatives were measured and discarded before chroma:**
+
+- *Skyline peaks / topographic prominence.* RA2's own crane is not a local peak:
+  `[GACNST]`'s turntable sits at `top=24` on a skyline that climbs monotonically
+  past it to `top=4`, so its prominence is **0**. Ours has 13 px = 0.083 `Sh`,
+  under the row's own 0.10 floor.
+- *The crown primitive applied to the sprite's left half.* Unstable — at 0.45 our
+  dir bake goes monotone (`crown:false`); at 0.50-0.55 the largest left-half
+  crown blob is the hall's own blue chevron at `x88..135`, not the crane.
+- *A plain saturation filter with no left-quarter root.* On the rips the terrain
+  is one connected saturated mass of 26-42% of opaque and the crane fuses into
+  it; on our dir bake the largest saturated blob is the hall's chevron, beating
+  the crane by 28%.
+- *Keeping the "exactly ONE" gate.* See the census above.
+
+### Both rewrites BITE — a clause that passes good art and broken art alike is decoration
+
+Each was re-baked from a deliberately broken `ART_HTML` build and re-measured:
+
+| broken build | row | reads |
+|---|---|---|
+| gapgen talon loop disabled | 13 | **FAIL** — the four instrument pods still resolve as 4 members, but span 20 px against a 26 px neck |
+| gapgen loop drawing only 3 talons | 13 | **FAIL** — reads exactly **3** |
+| Allied mast-crane block deleted (87 lines) | 1 | **FAIL** — "no `s>=0.6` mass rooted in the left quarter" |
+| Soviet big plated boom deleted (94 lines) | 1 | **FAIL** — collapses to a 1-px blob, 0.004 `Sw` |
+
+Note what the first row hands over: **the count alone does not separate four
+talons from four pods** — the splay half is the discriminator, which is why
+replacing that half's `topW > 0` identity was not cosmetic.
+
+### And what `base:col` hands back
+
+It PASSED before, on "1 crown group, thickest 58px". That group was the **bell
+spire**, with the crane fused into it. It now passes on the crane itself,
+`x45..90 y14..96`. A false pass became a true one, and because the row's OK bit
+did not change, nothing in the gate would ever have shown it. That is the third
+false pass this family of rows has produced, after the two `6c941a3` found.

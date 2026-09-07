@@ -225,3 +225,80 @@ floor itself did not move and is not expected to.
    prove the build still runs.** Both traps have been paid for in this project —
    `STATURE.dog` moving zero pixels, and a "8x cameo improvement" that was 24 of
    40 bakes throwing (`per-unit-art-log.md`, "The trap this pass paid for").
+
+
+---
+
+## Update, 2026-09-06 (a separate branch) — **B7 and O1 are closed in the CHECKER**
+
+> **Append-only on purpose.** Written on a branch taken from `4a9e9d8`, where
+> `clause.unmetStructures` was **15**. It revises **B7** and **O1** only; no
+> other row above is restated. Measured delta on that base: **15 -> 13**,
+> `checkedStructures` held at **75**, and `unmetStructures` is the only metric in
+> the whole gate that moves. Full arithmetic: `structure-clause-triage.md`'s
+> last section and `docs/design-decisions.md`, "Two clauses that could not read
+> the part they named".
+
+| row | was | now | verdict |
+|---|---|---|---|
+| **B7** `gapgen:dir` talons | 0 bright-outlier blobs | **4 talons over rows 9-10**, span 28 px vs neck 18 px | **CLOSED — MET.** This audit's source reading was right about the polarity and *incomplete*: flipping it reads **3**, not 4 |
+| **O1** `base:dir` crane | 0 crown groups, clearance 0 | **crane blob `x47..105 y38..79`**, reach 0.238 `Sw`, rise 0.268 `Sh` | **NOT OPEN ART — it was a BROKEN CHECK.** Closed in the checker; no art was touched |
+
+**B7's verdict needed one more step than this audit gave it.** The polarity call
+was correct — `:694` filtered a BRIGHT outlier for black talons while `:624`'s
+patriot row filters a dark one — but a sign flip does not close the row. The four
+talons are joined at their roots round the mast, so the dark crown mask is ONE
+component (28x29 at `x26..53 y0..28`) plus two rim fragments: **a component count
+of members that share a root counts the root**, which is B5's Sentry Gun barrel
+trap in a second costume. New primitives `rowRuns`/`resolveBand` count across a
+CUT instead — the largest number of `>=2px` runs that HOLDS over `>=2`
+consecutive rows. **And the gapgen ART is not defective**: all four talons were
+drawn all along.
+
+**O1 was filed as "OPEN — real art, and it was a FALSE PASS for the row's whole
+life", and the second half of that is right while the first is not.** Its
+prescribed next step — *"Raise the Allied crane above the hall's arch, or lower
+the arch"* — would have made our sprite LESS like RA2, because RA2 does not do
+that either. Running the shipped math over the committed rips:
+
+    ours dir  248x157   0 crown groups, crown:false, clearance 0
+    [GACNST]  213x137   0 crown groups, crown:false, clearance 0   <- IDENTICAL
+    [NACNST]  204x153   3 crown groups, thickest 41px
+
+Both profiles rise monotonically from row 0 to their own 55% row, so `bodyRun`
+vetoes the crown on both. **Both of RA2's committed Construction Yards fail the
+old clause, one at 0 and one at 3.** The crane is instead found by CHROMA at the
+left — the largest `s >= 0.60` component rooted in the left quarter — which lands
+on the crane and only the crane on all four sprites (`x0/Sw` 0.190 / 0.173 /
+0.183 / 0.172). Four other routes were measured and discarded first, including
+skyline prominence, on which **RA2's own crane scores 0**.
+
+This also retires the trap O1 flagged: `61b1f9d` nudged the Allied crane's anchor
+12 px DOWN to satisfy the phantom reading. That edit was aimed at a check that
+was looking at the hall, and nothing further should be built on it.
+
+**Headline counts, revised for these two rows only:** the BROKEN-CHECK column
+gains B7-as-closed and O1-as-a-broken-check-not-open work; O1 leaves the OPEN
+list without any art being done.
+
+### Both rewrites were proved to still BITE
+
+Per this ledger's own rule 4 — a null result must prove the edit landed. Each
+clause was re-baked from a deliberately broken `ART_HTML` build:
+
+| broken build | row | reads |
+|---|---|---|
+| gapgen talon loop disabled | B7 | **FAIL** (span 20 px vs a 26 px neck) |
+| gapgen drawing only 3 talons | B7 | **FAIL** — reads exactly **3** |
+| Allied mast-crane deleted (87 lines) | O1 | **FAIL** — "no `s>=0.6` mass rooted in the left quarter" |
+| Soviet big plated boom deleted (94 lines) | O1 | **FAIL** — collapses to a 1-px blob |
+
+### One finding this pass did not own
+
+`docs/ra2-ref/allied-gap-generator.png` (118x130), cited by `rts.html`'s gapgen
+block as its 1:1 reference, is the **pre-release ALPHA** design. The wiki
+captions it "Alpha appearance"; the released structure carries a blue collar
+where the alpha has green rings, and `art.ini` gives `[GAGAP] Remapable=no`, so
+that cannot be an owner-colour difference. **No chroma-keyed `[GAGAP]` SHP rip
+exists** on any credible source, so this clause has no reference sprite and none
+can be fetched. Real art debt, for a peer.

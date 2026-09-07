@@ -351,7 +351,7 @@
     "clause.airUnmet": 0,
     "clause.unmatchedToReference": 0,
     "clause.checkedStructures": 75,
-    "clause.unmetStructures": 12,
+    "clause.unmetStructures": 10,
     "clause.struckStructures": 0,
     "clause.waivedStructures": 0,
     "value.soldiersLighterThanEngineer": 0,
@@ -3247,13 +3247,13 @@
       },
       {
         "unit": "base",
-        "clause": "[dir] exactly ONE crane/boom group above the hall roofline, its jib >= 3 px thick and clearing the roof by >= 0.10 Sh",
-        "ok": false,
-        "measured": "0 crown group(s), thickest 0px, clearance 0",
-        "want": "1 group, >=3px thick, clearance >= 0.10",
-        "note": "crown = components above bodyRun.lo (§2.5's crown primitive); a second group here is flagged because §2.6 says a second mast group is the Battle Lab's read, not the Yard's. The dir bake reads ZERO groups and that is an ART finding, not a measurement gap: its row profile widens monotonically from the arch apex down to the 55% row, so bodyRun reports no crown, and the render agrees -- the hall's own arch is the topmost mass and the yellow crane sits entirely BELOW it, off to the left. The 1-group pass this row used to report was the arch's top 36 rows counted as a crane. The col bake, which has a real waist above its roofline, still reads its crane and still passes",
+        "clause": "[dir] exactly ONE crane/boom group, its jib >= 3 px thick and clearing >= 0.10 Sh — read at the LEFT of the yard, not above the hall roofline",
+        "ok": true,
+        "measured": "crane blob x47..105 y38..79, thickest 42px, reach 0.238 Sw, rise 0.268 Sh (2 crane-scale mass(es) rooted left)",
+        "want": "a crane at the left: >=3px thick, reach >= 0.15 Sw, rise >= 0.10 Sh",
+        "note": "crane = the largest s>=0.60 component whose left edge is inside the left quarter of the sprite. This replaces \"components above bodyRun.lo\", which measured the HALL: RA2's own [GACNST] reads 0 groups under that math, byte-identical to ours, because its crane also sits entirely below its arch, and [NACNST] reads 3. Floors are set under the four measured sprites (reach 0.177-0.244, rise 0.219-0.614, thickness 30-46px), and \"thickest\" is the blob bbox's smaller side -- the same proxy for \"jib >= 3 px thick\" the old row used, not a stroke-width measurement. The \"exactly ONE\" half is reported, not gated: see the block comment above for the census that shows it is unmeasurable on both of RA2's yards and on both of ours",
         "module": "structures.js",
-        "refMatch": 0.67
+        "refMatch": 0.75
       },
       {
         "unit": "base",
@@ -3277,13 +3277,13 @@
       },
       {
         "unit": "base",
-        "clause": "[col] exactly ONE crane/boom group above the hall roofline, its jib >= 3 px thick and clearing the roof by >= 0.10 Sh",
+        "clause": "[col] exactly ONE crane/boom group, its jib >= 3 px thick and clearing >= 0.10 Sh — read at the LEFT of the yard, not above the hall roofline",
         "ok": true,
-        "measured": "1 crown group(s), thickest 58px, clearance 0.299",
-        "want": "1 group, >=3px thick, clearance >= 0.10",
-        "note": "crown = components above bodyRun.lo (§2.5's crown primitive); a second group here is flagged because §2.6 says a second mast group is the Battle Lab's read, not the Yard's. The dir bake reads ZERO groups and that is an ART finding, not a measurement gap: its row profile widens monotonically from the arch apex down to the 55% row, so bodyRun reports no crown, and the render agrees -- the hall's own arch is the topmost mass and the yellow crane sits entirely BELOW it, off to the left. The 1-group pass this row used to report was the arch's top 36 rows counted as a crane. The col bake, which has a real waist above its roofline, still reads its crane and still passes",
+        "measured": "crane blob x45..90 y14..96, thickest 46px, reach 0.177 Sw, rise 0.428 Sh (1 crane-scale mass(es) rooted left)",
+        "want": "a crane at the left: >=3px thick, reach >= 0.15 Sw, rise >= 0.10 Sh",
+        "note": "crane = the largest s>=0.60 component whose left edge is inside the left quarter of the sprite. This replaces \"components above bodyRun.lo\", which measured the HALL: RA2's own [GACNST] reads 0 groups under that math, byte-identical to ours, because its crane also sits entirely below its arch, and [NACNST] reads 3. Floors are set under the four measured sprites (reach 0.177-0.244, rise 0.219-0.614, thickness 30-46px), and \"thickest\" is the blob bbox's smaller side -- the same proxy for \"jib >= 3 px thick\" the old row used, not a stroke-width measurement. The \"exactly ONE\" half is reported, not gated: see the block comment above for the census that shows it is unmeasurable on both of RA2's yards and on both of ours",
         "module": "structures.js",
-        "refMatch": 0.67
+        "refMatch": 0.75
       },
       {
         "unit": "base",
@@ -3898,10 +3898,10 @@
       {
         "unit": "gapgen",
         "clause": "[dir] exactly 4 talons, countable, each 2px at >= 25% contrast, splaying so the crown is wider at its top than the column beneath it",
-        "ok": false,
-        "measured": "0 bright-outlier crown blob(s) >=2px; crown span 46px",
-        "want": "4 blobs",
-        "note": "",
+        "ok": true,
+        "measured": "4 dark-outlier talon(s) >=2px wide, resolved over rows 9-10; span 28px vs neck 18px",
+        "want": "4 talons, span > neck",
+        "note": "talons counted by `resolveBand` -- the largest number of >=2px dark-outlier runs that HOLDS over >=2 consecutive crown rows -- because the four talons share a root round the mast and are ONE connected component, so a `components` count cannot reach 4 for any drawing of them (the Sentry Gun barrel row is the same trap). Dark, not bright: §2.7's talons are black, and the row this replaced filtered for bright outliers and had measured 0 since the day it was written. \"Neck\" = the narrowest silhouette row between the resolving band and the roofline, i.e. what the crown stands on",
         "module": "structures.js",
         "refMatch": 0.88
       },
