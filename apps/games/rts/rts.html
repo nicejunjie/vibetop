@@ -10538,10 +10538,17 @@
           g.fillStyle = 'rgba(214,220,228,.34)';
           g.beginPath();
           g.ellipse(wsx + fx * 0.5, wsy - 2.5 + fy * 0.5, 2.7, 1.1, 0, 0, 6.29); g.fill();
-          for (sg = -1; sg <= 1; sg += 2)                     // ONE short flank flash
-            isoBox(g, cx + px * wid * 0.36 * sg - fx * 1.4,
-                   by - 2.6 + py * wid * 0.36 * sg - fy * 1.4,
-                   len * 0.42, 1.4, 2.4, a, panel, PEDGE);
+          // The flank stripe runs nearly the WHOLE hull, which is what the rip
+          // carries: a dark house-coloured band under the deck line from the
+          // front wheel to the back one. It used to be one short flash, and
+          // when the launcher became a dark block rather than owner-banded
+          // tubes this unit's remap fell 0.1714 -> 0.1661 on the census. §1.4
+          // wants the colour on the identity feature; the band is the second
+          // place the reference actually puts it.
+          for (sg = -1; sg <= 1; sg += 2)
+            isoBox(g, cx + px * wid * 0.36 * sg - fx * 0.6,
+                   by - 2.9 + py * wid * 0.36 * sg - fy * 0.6,
+                   len * 0.76, 1.4, 3.2, a, panel, PEDGE);
           bumper(len * 0.41, wid * 0.22, by - 1.6);
           for (i2 = -1; i2 <= 1; i2 += 2)
             lamp(cx + fx * len * 0.39 + px * wid * 0.24 * i2,
@@ -10615,88 +10622,142 @@
             }
           }
           else {
-          // THE MISSILE RACK IS THE UNIT. `docs/ra2-ref/cameos/ifv.png` is a
-          // low pale wheeled hull carrying a quad launcher that is nearly as
-          // big as the hull itself: four long tubes on an open yoke, splayed
-          // across the beam, raked up, and overhanging the nose. That bank is
-          // roughly HALF the plate's visible mass, and it is why the IFV is
-          // identifiable at a glance in a game where it is 45 px wide.
+          // THE MISSILE RACK IS THE UNIT — and it is a BOX OF CELLS, not a
+          // sheaf of tubes. Measured off the real thing, fetched 2026-09-07
+          // and committed as `docs/ra2-ref/sprites/allied-ifv.png` (the wiki's
+          // 8-bearing in-game turnaround) plus `allied-ifv-voxel.png` (the
+          // [FV] voxel render). Two passes got this wrong in opposite
+          // directions and the reference settles both:
           //
-          // What was here drew the opposite: a closed BOX standing 6.2 units
-          // tall with six 4-unit stubs whose muzzles barely cleared its own
-          // roof. Every part of it was inside the hull's own footprint, so at
-          // zoom 1 the whole turret was ~7 px of grey clutter on a white car
-          // and the unit read as "a light vehicle", not as the IFV. The
-          // §2.3 row's PROSE ("a tall blocky launcher housing") was drawn and
-          // the thing the prose is ABOUT was not.
+          //   * The launcher is roughly **55% of the sprite's height and 70%
+          //     of its length** — it dominates the vehicle, which is why the
+          //     IFV is identifiable at 45 px. Drawing it at a quarter of that
+          //     (a 6.2-unit box inside the hull footprint) is what made ours
+          //     read as "a light vehicle with clutter on the roof".
+          //   * But it does NOT reach forward. `art.ini [FV]
+          //     Weapon1FLH=64,48,180` puts the missile muzzle **64 leptons
+          //     ahead of centre** — a quarter of a cell — against [GTNK] and
+          //     [HTNK] at 150, and **180 up**, the second-highest muzzle in
+          //     the vehicle list. High and short, not long and raked. The
+          //     head-on bearing of the rip is a GRID OF SQUARE CELL MOUTHS
+          //     filling the vehicle's whole width; the tubes barely protrude
+          //     at all.
           //
-          // So the housing becomes a low OPEN yoke and the tubes carry the
-          // silhouette. Their length is set from the body, not by eye: the
-          // hull nose sits at `+len*0.43` along, and the muzzles run past it
-          // deliberately — an overhang is the cheapest silhouette break there
-          // is, and it is what the reference does.
-          prism(ivx, ivy - 0.4, [[2.2, -3.5], [2.2, 3.5], [-2.8, 3.1], [-2.8, -3.1]],
-                2.6, shade(deck, 1.06), dark);                 // the yoke: low and WIDE
-          for (sg = -1; sg <= 1; sg += 2)                      // owner colour on the yoke cheeks
-            prism(ivx, ivy - 0.9, [[2.1, 2.9 * sg], [-2.7, 2.6 * sg], [-2.7, 3.9 * sg], [2.1, 4.2 * sg]],
-                  2.0, panel, PEDGE);
-          puck(ivx - fx * 0.6, ivy - 3.0 - fy * 0.6, 1.6, 1.5,  // elevation trunnion
-               pdark, plit, PEDGE);
-          // FOUR tubes across the beam, fanning outward toward the muzzle so
-          // the bank reads as four and not as one slab. Sorted far-to-near.
-          var tub = [];
-          for (sg = -3; sg <= 3; sg += 2) {
-            var ac = sg * 1.5;
-            tub.push([[ivx + fx * -5.0 + px * ac,        ivy + 0.4 + fy * -5.0 + py * ac],
-                      [ivx + fx * 6.9 + px * ac * 1.30, ivy - 8.4 + fy * 6.9 + py * ac * 1.30]]);
-          }
-          tub.sort(function (m, n) { return m[1][1] - n[1][1]; });
-          for (i2 = 0; i2 < tub.length; i2++) {
-            var t0 = tub[i2][0], t1 = tub[i2][1];
-            var tdx = t1[0] - t0[0], tdy = t1[1] - t0[1];
-            g.strokeStyle = '#20242a'; g.lineWidth = 3.2; g.lineCap = 'round';
-            g.beginPath(); g.moveTo(t0[0], t0[1]); g.lineTo(t1[0], t1[1]); g.stroke();
-            g.strokeStyle = '#828a96'; g.lineWidth = 1.2;      // lit upper edge of the tube
-            g.beginPath();
-            g.moveTo(t0[0] - 0.6, t0[1] - 1.0); g.lineTo(t1[0] - 0.6, t1[1] - 1.0); g.stroke();
-            // The owner band is 34% of the tube, not 16%. §1.4 puts the house
-            // colour ON the identity feature, and a rack this big is a lot of
-            // new neutral gunmetal — `hue.vehicleOwnerMean` measured the cost
-            // the moment it landed. Paying it back here rather than on the
-            // hull keeps the remap where the eye already is.
-            g.strokeStyle = shade(panel, 0.92); g.lineWidth = 2.4;   // owner band at the root
-            g.beginPath();
-            g.moveTo(t0[0] + tdx * 0.06, t0[1] + tdy * 0.06);
-            g.lineTo(t0[0] + tdx * 0.40, t0[1] + tdy * 0.40); g.stroke();
-            g.fillStyle = '#cfd5de';                           // pale warhead cone
-            g.beginPath();
-            g.moveTo(t1[0] + tdx * 0.055, t1[1] + tdy * 0.055);
-            g.lineTo(t1[0] - tdx * 0.10 - 1.7, t1[1] - tdy * 0.10);
-            g.lineTo(t1[0] - tdx * 0.10 + 1.7, t1[1] - tdy * 0.10);
-            g.closePath(); g.fill();
-            g.strokeStyle = '#3a4049'; g.lineWidth = 0.7; g.stroke();
-            for (var fw = -1; fw <= 1; fw += 2) {              // tail fins, at the breech
-              g.strokeStyle = '#4c525c'; g.lineWidth = 1.1;
+          // A previous pass built "a long flat wedge with six tubes reaching
+          // forward past the nose" and its own comment recorded that it "read
+          // as a rocket buggy from a different game". The pass before this one
+          // read that comment, fixed the SIZE, and rebuilt the rocket buggy.
+          // So: block first, cells on its face, nothing overhanging the nose.
+          // AND THE SIZE IS MEASURED OFF THE RIP, not estimated from it. A
+          // row-width profile of the reference's 3/4 bearing (the mask is
+          // `b >= g - 4`; this rip is on grass, so blue-over-green separates
+          // the vehicle cleanly) gives 45 rows total, of which the launcher is
+          // **rows 4-18 — 33% of the height — and 21 px wide against a 42 px
+          // hull, i.e. 50% of the width.** A first cut at this block ran 48%
+          // and 74% and was as wrong in the other direction as the box it
+          // replaced. The reason RA2's reads so much bigger than 33%/50% has
+          // nothing to do with area: the block is DARK on a PALE hull, it has
+          // one clean rectangular outline, and its face is a legible grid.
+          // Ours was mid-grey clutter with no edge. Contrast and a readable
+          // face, at the reference's own proportions.
+          var LU = 3.8, LV = 3.5, LH = 6.6;                    // half-length / half-beam / height
+          var LBODY = '#4b525d';                               // DARK against the pale hull
+          // ...and it sits BACK on the hull, which is the last thing the rip
+          // settles. RA2 puts the launcher over the rear axles with the long
+          // pale bonnet clear in front of it — a profile no tank has, because
+          // a tank's turret is central or forward. Centred (the first cut of
+          // this block) the IFV reads as a turreted vehicle and the mask says
+          // so: `ifv | rhino` 0.657 -> 0.686 and `flaktrack | ifv` 0.555 ->
+          // 0.604 the moment the tubes became a box.
+          var lcx = ivx - fx * 1.7;
+          var lby = ivy - 1.0 - fy * 1.7;                       // the block's base
+          isoBox(g, lcx - fx * 0.4, lby + 1.4 - fy * 0.4, 4.4, 5.0, 2.0, a,
+                 shade(deck, 0.80), dark);                      // the mount under it
+          prism(lcx, lby, [[LU, -LV], [LU, LV], [-LU - 0.4, LV - 0.5], [-LU - 0.4, -LV + 0.5]],
+                LH, LBODY, dark);
+          // a point on the block, in (along, across, up) — the cell grid and
+          // the flank band are both laid out in the launcher's own frame so
+          // they turn with it instead of billboarding
+          var LP = function (u, v, h) {
+            return [lcx + fx * u + px * v, lby + fy * u + py * v - h];
+          };
+          // THE CELL FACE: three cells across, two up, dark mouths with a lit
+          // sill. This grid IS the unit's signature at 1:1 — the rip's head-on
+          // bearing is almost nothing else.
+          for (i2 = 0; i2 < 3; i2++)
+            for (sg = 0; sg < 2; sg++) {
+              var v0 = -LV + (2 * LV) * ((i2 + 0.14) / 3), v1 = -LV + (2 * LV) * ((i2 + 0.86) / 3);
+              var h0 = 0.9 + sg * 2.7, h1 = h0 + 2.1;
+              var k0 = LP(LU, v0, h0), k1 = LP(LU, v1, h0),
+                  k2 = LP(LU, v1, h1), k3 = LP(LU, v0, h1);
               g.beginPath();
-              g.moveTo(t0[0] + tdx * 0.05, t0[1] + tdy * 0.05);
-              g.lineTo(t0[0] + tdx * 0.05 + fw * 1.8, t0[1] + tdy * 0.05 - 1.5); g.stroke();
+              g.moveTo(k0[0], k0[1]); g.lineTo(k1[0], k1[1]);
+              g.lineTo(k2[0], k2[1]); g.lineTo(k3[0], k3[1]); g.closePath();
+              g.fillStyle = '#15181d'; g.fill();
+              g.strokeStyle = '#828a96'; g.lineWidth = 0.8; g.stroke();
+              g.fillStyle = '#3d434c';                          // the missile seated in it
+              g.beginPath();
+              g.moveTo(k0[0] * 0.72 + k1[0] * 0.28, k0[1] * 0.72 + k1[1] * 0.28);
+              g.lineTo(k0[0] * 0.28 + k1[0] * 0.72, k0[1] * 0.28 + k1[1] * 0.72);
+              g.lineTo(k3[0] * 0.28 + k2[0] * 0.72, k3[1] * 0.28 + k2[1] * 0.72);
+              g.lineTo(k3[0] * 0.72 + k2[0] * 0.28, k3[1] * 0.72 + k2[1] * 0.28);
+              g.closePath(); g.fill();
             }
+          // the house-colour patch on the block's near flank — one bright
+          // panel, which is exactly what the rip carries there
+          var bF = py >= 0 ? LV : -LV;
+          var f0 = LP(LU - 0.6, bF, 1.0), f1 = LP(-LU + 0.4, bF, 1.0),
+              f2 = LP(-LU + 0.4, bF, LH - 0.8), f3 = LP(LU - 0.6, bF, LH - 0.8);
+          g.beginPath();
+          g.moveTo(f0[0], f0[1]); g.lineTo(f1[0], f1[1]);
+          g.lineTo(f2[0], f2[1]); g.lineTo(f3[0], f3[1]); g.closePath();
+          g.fillStyle = panel; g.fill();
+          g.strokeStyle = PEDGE; g.lineWidth = 0.7; g.stroke();
+          g.fillStyle = plit;                                   // lit upper strake on the panel
+          g.beginPath();
+          g.moveTo(f3[0], f3[1]); g.lineTo(f2[0], f2[1]);
+          g.lineTo(f2[0], f2[1] + 2.4); g.lineTo(f3[0], f3[1] + 2.4); g.closePath(); g.fill();
+          // the same patch on the FAR flank, so the census sees it from every
+          // bearing rather than from four of eight — this is the cheapest
+          // owner colour on the unit and it is where the rip puts it
+          var bB = -bF;
+          var b0 = LP(LU - 0.6, bB, 1.0), b1 = LP(-LU + 0.4, bB, 1.0),
+              b2 = LP(-LU + 0.4, bB, LH - 0.8), b3 = LP(LU - 0.6, bB, LH - 0.8);
+          g.beginPath();
+          g.moveTo(b0[0], b0[1]); g.lineTo(b1[0], b1[1]);
+          g.lineTo(b2[0], b2[1]); g.lineTo(b3[0], b3[1]); g.closePath();
+          g.fillStyle = pdark; g.fill();
+          g.strokeStyle = PEDGE; g.lineWidth = 0.7; g.stroke();
+          // roof: a lit cap plate and the sight box the rip puts dead centre
+          isoBox(g, lcx - fx * 0.6, lby - LH - fy * 0.6, LU * 1.6, LV * 1.6, 0.8, a,
+                 shade(LBODY, 1.34), dark);
+          // NO bright house cap. The census wanted the owner colour back and
+          // a strake round the roof gave it, at the cost of turning the block
+          // BLUE — and the rip is a dark grey box with a blue patch on its
+          // side, not a blue box. The budget goes on the hull's long flank
+          // band instead, which is the second place RA2 actually paints it.
+          isoBox(g, lcx - fx * 1.2, lby - LH - 1.4 - fy * 1.2, 1.6, 2.2, 1.4, a,
+                 shade(LBODY, 0.80), dark);
           }
-          puck(ivx - fx * 3.4, ivy - 3.6 - fy * 3.4, 1.1, 1.5,   // sight box, behind the rack
-               shade(deck, 0.82), shade(deck, 1.20), dark);
-          }
-          // The IFV's own colour: a hazard-yellow rotating beacon on the box
-          // roof and a short chevron band under it. Everything else on this
-          // vehicle is white, pale grey or the owner's hue, which is nine
-          // tenths of why it read as "a light vehicle" and not as the IFV.
-          // ...and it rides the HULL, not the rack. Sat at the rack's root it
-          // was two gold blobs in the middle of the launcher, which is the
-          // one place on this unit nothing else may occupy.
-          puck(ivx - fx * 4.4, ivy - 1.4 - fy * 4.4, 0.8, 1.5,
+          // The IFV's own colour: a hazard-yellow rotating beacon and a short
+          // chevron band. Everything else on this vehicle is white, pale grey
+          // or the owner's hue, which is nine tenths of why it read as "a
+          // light vehicle" and not as the IFV.
+          // ...and it rides the HULL'S LOWER FLANK, clear of the launcher.
+          // The reference's brightest mark is the blue house patch on the
+          // block; two gold blobs beside it were louder than the thing they
+          // were meant to sit next to, and RA2 has nothing like them up there.
+          // The hazard yellow stays — it is what keeps this unit off
+          // `colour.vehicleAchromatic`, which it failed at 0.121 before it
+          // existed — but as a low stripe where nothing else competes.
+          puck(ivx - fx * 5.0, ivy + 2.6 - fy * 5.0, 0.75, 1.4,
                shade(VACC.ifv, 0.62), VACC.ifv, '#4a4410');
           for (sg = -1; sg <= 1; sg += 2)
-            isoBox(g, ivx + fx * 3.2 + px * 3.9 * sg, ivy + 1.6 + fy * 3.2 + py * 3.9 * sg,
-                   3.0, 0.7, 1.0, a, VACC.ifv, '#4a4410');
+            isoBox(g, ivx + fx * 1.8 + px * 4.6 * sg, ivy + 4.2 + fy * 1.8 + py * 4.6 * sg,
+                   6.4, 0.7, 1.5, a, VACC.ifv, '#4a4410');
+          for (sg = -1; sg <= 1; sg += 2)                        // and one on the nose plate
+            isoBox(g, ivx + fx * 6.2 + px * 2.2 * sg, ivy + 3.4 + fy * 6.2 + py * 2.2 * sg,
+                   1.0, 1.6, 1.3, a, VACC.ifv, '#4a4410');
         }
 
       } else if (kind === 'rhino') {

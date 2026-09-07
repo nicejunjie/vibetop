@@ -179,9 +179,16 @@ stating only the first half.** Rules 3 and 4 describe a *sliver* — 2 px thick,
 the Nighthawk's blades. They are the wrong model for every unit whose identity
 is a **mount** rather than a tube, and RA2's own plates say so plainly:
 
-* `docs/ra2-ref/cameos/ifv.png` — a low pale wheeled hull under a **quad
-  missile rack that is about half the plate's visible mass**, splayed across
-  the beam, raked up, and overhanging the nose.
+* `docs/ra2-ref/sprites/allied-ifv.png` — the RIP, not the plate (the plate
+  misled a whole pass; see `per-unit-art-log.md`, "the IFV, done twice"). A
+  row-width profile of its 3/4 bearing gives 45 rows, of which the launcher is
+  rows 4-18 — **33% of the height and 50% of the width** — set BACK over the
+  rear axles. It reads far bigger than those numbers because the block is
+  **dark on a pale hull, has one clean rectangular outline, and its face is a
+  legible grid of cell mouths**. Contrast and a readable face, not area alone:
+  a mount drawn at RA2's own 33% still dominates if it is the darkest, most
+  structured thing on a pale vehicle, and a mount at 50% disappears if it is
+  mid-grey clutter with no edge.
 * `flaktrack.png` — a flak sheaf on a pedestal standing **as tall as the truck
   under it**.
 * `mammoth.png` — twin cannons that overhang the hull by a third of its length

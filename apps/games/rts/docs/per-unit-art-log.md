@@ -42,7 +42,7 @@ quarter of the size the reference draws it.
 
 | unit | what was wrong | fix |
 |---|---|---|
-| **IFV** | the launcher was a closed BOX 6.2 units tall with six 4-unit stubs whose muzzles barely cleared its own roof — every part inside the hull footprint, ~7 px of grey clutter at zoom 1. `docs/ra2-ref/cameos/ifv.png` is half rack | low open yoke + **four fat tubes** fanning across the beam, overhanging the nose |
+| **IFV** | the launcher was a closed BOX 6.2 units tall with six 4-unit stubs whose muzzles barely cleared its own roof — every part inside the hull footprint, ~7 px of grey clutter at zoom 1 | see **the IFV, done twice** below — the first attempt was wrong and the user said so |
 | **Flak Track** | one 2.0-wide tube — 1 px of gunmetal at zoom 1. [HTK] carries a quad 2cm mount | **Flakvierling**: four tubes in a 2x2 sheaf with a clamp bar across them, bigger breech, bigger green shield |
 | **Apocalypse** | "the only two-barrelled thing on the field" was 1.42 units tapering to 0.88 at `my0 - 4.0` — deck level, so the tubes lay along the hull's own dark skirt for most of their run and never entered the outline | 2.05 -> 1.30, raised 1.6 units off the deck, mantlets up. Length **unchanged** — the unit is at +25% of the group scale and reaching further trips `size.vehicleOutsideRA2Band` |
 | **War Miner** | **no gun at all**, on a unit whose `UNITS` entry says `turret: true`, which fires `mg`, and whose §2.4 row is one sentence: "a harvester with a TURRET" | owner-coloured mantlet block on the drum that was already in the turret's place, plus a barrel over the nose. The bin grew to pay back "bin >= 35% of body px" (it fell to 0.348) |
@@ -51,6 +51,70 @@ quarter of the size the reference draws it.
 | **Destroyer** | §2.3's whole read against the Aegis is "one turret forward" vs "explicitly no barrel", and the gunhouse was 4.0 units under a 3.0-wide barrel | gunhouse 6.4 with a sloped mantlet, barrel 4.6 wide with a muzzle cap |
 | **Aegis Cruiser** | one 10x6 house-coloured quad on a dark deckhouse. The two ships were two grey slabs on two blue-rimmed hulls, which is what `peerVsSelf.naval` has been reporting for weeks | a **big gridded phased array on each face**, far one painted before the deckhouse and near one after so the tower stands between them |
 | **Sea Scorpion** | two 2.4-wide tubes, where §2.4 asks for the Flak Track's own read by name | four, sheafed |
+
+### The IFV, done twice — and the second time with a real sprite
+
+The user, after the first attempt shipped: *"ifv is still not recoganizable
+enough, did you even find a real ra2 ifv to see?"* **No. I had not.** I built it
+off `docs/ra2-ref/cameos/ifv.png` — a painted hero plate — and this file's own
+standing rule is one line long: **a cameo is not a sprite.** `rts.html` had
+been citing `allied-ifv-idle.png` for two passes and that file has never
+existed in this repo.
+
+So it was fetched. `docs/ra2-ref/sprites/README.md` records the method and its
+own note that the wiki 403'd a previous attempt; the wiki's `api.php` answers
+fine, and both files are now committed with their titles and dimensions:
+`allied-ifv.png` (an 8-bearing in-game turnaround) and `allied-ifv-voxel.png`
+(the `[FV]` voxel in four views).
+
+**The rip says the plate was misleading in the one way that mattered.** RA2's
+launcher is a **BOX OF CELLS**, not a sheaf of tubes: square muzzle mouths in a
+grid, sitting on a short pedestal, set BACK over the rear axles with the pale
+bonnet clear in front. `art.ini` agrees and always did — `[FV]
+Weapon1FLH=64,48,180` puts the missile muzzle **64 leptons ahead of centre**
+against `[GTNK]` and `[HTNK]` at 150, and **180 up**, the second-highest muzzle
+in the vehicle list. High and short. My four tubes raked forward past the nose
+were a rocket buggy — which is *the same mistake the block's own comment
+recorded a pass earlier*, and I read that comment, fixed the size it was
+complaining about, and rebuilt the buggy.
+
+**And then it was measured, not estimated.** A row-width profile of the rip's
+3/4 bearing (mask `b >= g - 4`, since blue-over-green separates a grey vehicle
+from grass cleanly):
+
+| | rows | launcher rows | launcher width |
+|---|---|---|---|
+| RA2 `[FV]` | 45 | 4-18 = **33%** | 21 px of 42 = **50%** |
+| ours, first block | 54 | **48%** | **74%** |
+| ours, shipped | 50 | 44%* | 74%* |
+
+*the shipped split is not comparable row-for-row because our cab roof sits
+above the turret ring and lands in the same rows as the block; the block's own
+ground extents are 7.6 x 7.0 x 6.6 against a 14.6 x 10.2 chassis.
+
+The first block was as wrong in one direction as the original box was in the
+other. **RA2's reads far bigger than 33%/50% for reasons that have nothing to
+do with area:** the block is DARK on a PALE hull, it has one clean rectangular
+outline, and its face is a legible grid. Ours was mid-grey clutter with no
+edge. That is the actual content of the user's note, and Rule 4b is written
+around the wrong half of it if it is read as area alone.
+
+Setting the block BACK is what recovered the mask. Centred, a box on a wheeled
+hull reads as a turret — `ifv | rhino` went 0.657 -> 0.686 and `flaktrack |
+ifv` 0.555 -> 0.604 the moment the tubes became a block. Over the rear axles
+with the bonnet clear, both come back and `iou.groundCombat.mean` lands at
+0.4645, under where the whole pass started. The unit's broadside aspect is
+**1.060 against [FV]'s 1.111 — 0.954 of the reference, the closest it has ever
+been.**
+
+Two smaller corrections came out of the same rip. The hazard-yellow accent sat
+beside the launcher and was the brightest thing on the unit where RA2's
+brightest mark is the blue house patch; it moved to the hull's lower flank. And
+a house strake round the block's roof — added to recover the census — turned
+the launcher BLUE, when the rip is a dark grey box with a blue patch on its
+side; the budget went to a patch on each flank of the block plus the hull's
+long band instead, which is where RA2 paints it, and the census came out ahead
+anyway (`hue.vehicleOwnerMean` 0.1715).
 
 **What the gate said.** Nothing, at first — which is the point of Rule 4b. Run
 against the pre-pass baseline the nine rebuilt sprites moved
