@@ -16487,8 +16487,23 @@
       var pW = 5.6;                                       // pylon half-width
       var pyl = [[-19.4, 0, 34], [11.4, 0, 34], [-9.0, 6.5, 30], [19.2, 6.5, 30]];
       var mTop = baseY - 26;                               // machinery deck
-      var cB = baseY - 34, cT = baseY - 56;                // coil bottom / top
-      var eY = baseY - 68, eR = 13.0;                      // electrode centre / radius
+      var cB = baseY - 34, cT = baseY - 51;                // coil bottom / top
+      var eY = baseY - 70, eR = 13.0;                      // electrode centre / radius
+      // THE NECK BAND. [NATSLA]'s silhouette is head / NECK / shaft / plinth,
+      // and the neck is the whole point of the shape: 42x81, head rows 0-18
+      // (0.235 Sh, 20 px = 0.476 Sw at its widest), then rows 19-21 at 4-3-4 px
+      // -- 0.071 Sw and 0.037 Sh -- then the shaft resumes at 8 px and widens.
+      // Ours had the same head (0.478 Sw) and NO neck: the 7 px collar was
+      // buried under an electrode seated on it with zero gap, a 16 px helix
+      // wrapping past it, and -- the part that made narrowing the helix move
+      // the number by exactly zero -- the sphere's own 31 px halo, whose
+      // rgba(...,.18) counts as ink at the bake's alpha>8 cut and reached 15 px
+      // BELOW the collar's bottom. The pinch read 18 px = 0.269 Sw.
+      //   nkT..nkB is the band NOTHING may paint into except the collar.
+      // Everything below keeps off it explicitly: the electrode and its halo
+      // and contact shadow stop above nkT, the coil core, the helix, the
+      // discharge glow and the crawling bolts all stop below nkB.
+      var nkT = baseY - 58, nkB = baseY - 54;
 
       // Central machinery the pylons brace: PALE plant between dark legs, the
       // light patch that keeps the base from going to mud at 1:1.
@@ -16525,11 +16540,12 @@
       // passes so the turns behind the core are dim and the ones in front are
       // bright silver-white - which is what the sprite reads as at 1:1.
       cylinder(g, cx, cB, 4.4, cB - cT, COIL_D, '#26272e', '#050507');
-      var hR = 8.0, turns = 6, steps = 120, hSpan = cB - cT - 3;
+      var hRb = 11.0, hRt = 5.2, turns = 4, steps = 120, hSpan = cB - cT - 3;
       var hPt = function (i) {
-        var t = i / steps * turns * 6.2832;
-        return [cx + Math.sin(t) * hR,
-                cB - 2 - i / steps * hSpan + Math.cos(t) * hR * 0.30,
+        var f = i / steps, r = hRb + (hRt - hRb) * f;   // f: 0 at the bottom, 1 at the top
+        var t = f * turns * 6.2832;
+        return [cx + Math.sin(t) * r,
+                cB - 2 - f * hSpan + Math.cos(t) * r * 0.30,
                 Math.cos(t)];
       };
       g.lineCap = 'round'; g.lineJoin = 'round';
@@ -16553,9 +16569,9 @@
       // Short dark collar, then the electrode seated straight on it - no
       // spindle. Pale silver going lavender-white at the crown, deliberately
       // NOT saturated, so it is the same on a blue base and a red one.
-      cylinder(g, cx, cT + 2, 3.6, 8, shade(IRON, 1.14), IRON_L, IRON_D);
-      g.fillStyle = shade(WIND_D, 0.88);
-      g.beginPath(); g.ellipse(cx, cT - 6, 5.6, 2.2, 0, 0, 6.29); g.fill();
+      cylinder(g, cx, nkB + 1, 2.0, 10, shade(IRON, 1.62), shade(IRON_L, 1.10), IRON_D);
+      g.fillStyle = shade(WIND_D, 0.88);                   // insulator plate the neck stands on,
+      g.beginPath(); g.ellipse(cx, nkB + 2, 5.0, 1.9, 0, 0, 6.29); g.fill();   // kept BELOW nkB
       g.fillStyle = SHELL;
       g.beginPath(); g.ellipse(cx, eY, eR, eR * 0.93, 0, 0, 6.29); g.fill();
       outline(g, '#4b4b60');
@@ -16577,7 +16593,7 @@
       g.beginPath(); g.ellipse(cx - eR * 0.40, eY - eR * 0.60, eR * 0.22, eR * 0.11, 0, 0, 6.29); g.fill();
       g.restore();
       g.fillStyle = 'rgba(20,22,30,.40)';                  // seated on the collar
-      g.beginPath(); g.ellipse(cx, eY + eR * 0.86, eR * 0.36, 1.7, 0, 0, 6.29); g.fill();
+      g.beginPath(); g.ellipse(cx, eY + eR * 0.74, eR * 0.36, 1.7, 0, 0, 6.29); g.fill();
 
       // Four buttress pylons at the corners of the iso base, drawn back to
       // front. These are the house colour and the biggest mass on the sprite:
@@ -16616,9 +16632,9 @@
       // coil never carries the opposing hue.
       var arcY = function (t) { return cB - 6 - t * (cB - cT - 12); };
       g.fillStyle = 'rgba(196,206,240,.10)';
-      g.beginPath(); g.ellipse(cx, arcY(0.5), 11, 15, 0, 0, 6.29); g.fill();
+      g.beginPath(); g.ellipse(cx, arcY(0.5), 11, 11, 0, 0, 6.29); g.fill();
       g.fillStyle = 'rgba(226,232,255,' + (0.10 + 0.08 * (0.5 + 0.5 * anS)) + ')';
-      g.beginPath(); g.ellipse(cx, eY, eR * 1.20, eR * 1.14, 0, 0, 6.29); g.fill();
+      g.beginPath(); g.ellipse(cx, eY - 0.8, eR * 1.20, eR * 0.96, 0, 0, 6.29); g.fill();
       var bolts = [
         [[1, 2], [7, 0], [4, -3], [11, -6]],
         [[-1, 1], [-8, -2], [-5, -6], [-12, -9]],
@@ -16630,6 +16646,9 @@
         g.lineCap = 'round'; g.lineJoin = 'round';
         for (var bI2 = 0; bI2 < bolts.length; bI2++) {
           var bp = bolts[bI2], bRoot = arcY(((bph || 0) + bI2 / 3) % 1);
+          var bMax = 0;
+          for (var bM = 0; bM < bp.length; bM++) if (bp[bM][1] > bMax) bMax = bp[bM][1];
+          if (bRoot - 1 - bMax < nkB + 1.4) bRoot = nkB + 2.4 + bMax;   // arcs crawl the COIL, never the neck
           g.beginPath();
           g.moveTo(cx, bRoot);
           for (var kI = 0; kI < bp.length; kI++) g.lineTo(cx + bp[kI][0], bRoot - 1 - bp[kI][1]);
@@ -16637,7 +16656,7 @@
         }
         // one arc licking the electrode, phase-shifted the other way
         g.beginPath();
-        g.moveTo(cx + eR * 0.2, eY + eR * 0.8);
+        g.moveTo(cx + eR * 0.2, eY + eR * 0.72);
         g.lineTo(cx + eR * (0.8 + 0.3 * anS), eY + eR * 0.2);
         g.lineTo(cx + eR * (0.5 + 0.2 * anS), eY - eR * 0.4);
         g.lineTo(cx + eR * (1.1 + 0.2 * anS), eY - eR * 0.9);
@@ -23501,7 +23520,8 @@
         // have fired the bolt out of thin air 36 px over the electrode. This
         // is a HAND-MIRRORED constant — the bake and the shot pass do not
         // share it — so `eY` and these two numbers move together or not at all.
-        oz: src.kind === 'b' ? (src.type === 'tesla' ? 68 : 86) : 15,
+        // 68 -> 70 when the electrode was lifted to clear the neck band.
+        oz: src.kind === 'b' ? (src.type === 'tesla' ? 70 : 86) : 15,
         rocket: src.kind === 'u' && UNITS[src.type] && UNITS[src.type].splash > 0.2 ||
                 src.type === 'rocket' || src.type === 'patriot' || src.type === 'harrier',
         bomb: !!spec.bomb, flak: !!spec.flak && isAir(tgt),
@@ -34269,7 +34289,7 @@
     ctx.save();
     ctx.globalCompositeOperation = 'lighter';
     if (b.type === 'tesla') {
-      var topY2 = py - 68, footY = py - 12;   // electrode / coil foot — see bakeBuilding's `eY`
+      var topY2 = py - 70, footY = py - 12;   // electrode / coil foot — see bakeBuilding's `eY` (68 -> 70 with the neck)
       var climb = footY + (topY2 - footY) * Math.min(1, q * 1.15);
       for (var a = 0; a < 3; a++) {                     // arcs crawling up the coil
         var seed2 = G.tick * 2.3 + a * 11 + b.id;
