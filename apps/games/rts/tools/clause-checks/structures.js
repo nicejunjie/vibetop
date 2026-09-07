@@ -182,6 +182,102 @@ function components(f, pred) {
   }
   return out.sort((a, b) => b.n - a.n);
 }
+/**
+ * THE DEEPEST INTERIOR WAIST — a real pinch, not a roofline.
+ *
+ * `bodyRun` proposes a roofline at 55% of the widest row. That is a WIDTH
+ * FRACTION, and for any building whose base is its widest mass -- every tower
+ * ever drawn -- it lands in the BASE. Three clauses used it (or `top.y1`, the
+ * bottom of the largest top-half blob) as a stand-in for "where the mast
+ * starts", and all three then measured the wrong object:
+ *
+ *   radar   `components(y <= body.hi)` admits crown + neck + base as ONE
+ *           4-connected blob, so `dish.w === f.w` and `dish.y1 === body.hi`
+ *           IDENTICALLY. 100 of 100 structure bakes read `Sw 1.000`, and so
+ *           does RA2's own [NARADR].
+ *   tesla   the neck scan starts at `top.y1 + 1`, below the neck, so it reads
+ *           the BUTTRESS SPREAD. On RA2's own 42x81 [NATSLA] mask the shipped
+ *           math reports 0.310-0.333 `Sw` against its own `<= 0.10` demand,
+ *           while the sprite's real neck -- the documented 3 px, row 20 --
+ *           is 0.071 and sails through.
+ *
+ * A pinch is a LOCAL property and is found as one: row `y` is a waist when it
+ * is strictly narrower than something above it AND something below it, which
+ * is the same "a waist is what separates two parts" definition `bodyRun`'s own
+ * veto is written around. Searching only above the widest row keeps the base's
+ * own kerb wiggles out of it; requiring a row above excludes row 0, which is
+ * narrow on every sprite because the bbox is cut to the apex; requiring a row
+ * below excludes the bottom taper for the same reason. The DEEPEST such waist
+ * is the pinch, because a 1 px profile wiggle is a waist too and the mast is
+ * not competing with it.
+ *
+ * Threshold-free: there is no fraction here to tune towards a clause passing.
+ * Returns `{ row: -1 }` when the silhouette has no interior waist at all --
+ * the honest answer for a smooth mound, and the callers report it as such
+ * rather than substituting a roofline.
+ */
+function pinch(profile) {
+  const h = profile.length;
+  let mx = 0, hiRow = 0;
+  for (let y = 0; y < h; y++) if (profile[y] > mx) { mx = profile[y]; hiRow = y; }
+  const below = new Int32Array(h);                 // max profile strictly BELOW y
+  let m = 0;
+  for (let y = h - 1; y >= 0; y--) { below[y] = m; if (profile[y] > m) m = profile[y]; }
+  let above = 0, row = -1, val = 0;
+  for (let y = 1; y < hiRow; y++) {
+    if (profile[y - 1] > above) above = profile[y - 1];
+    if (profile[y] > 0 && profile[y] < above && profile[y] < below[y] && (row < 0 || profile[y] < val)) {
+      row = y; val = profile[y];
+    }
+  }
+  return { row, val, hiRow, mx };
+}
+/**
+ * WIDE SOLID BANDS — "an enclosing drum or roof", read as enclosure.
+ *
+ * The old `sentrygun` predicate was `components(y >= body.lo).filter(w >= 0.5
+ * Sw)`, which returns the below-roofline mass of any connected sprite. The
+ * bbox is cut TO the sprite, so its widest row is 1.000 `Sw` BY CONSTRUCTION
+ * and lies below the roofline BY DEFINITION: 100 of 100 structure bakes and
+ * every RA2 rip report exactly one such blob at exactly 1.000 `Sw`. No drawing
+ * of anything can read 0.
+ *
+ * What §2.7 actually asks is whether the machine is ENCLOSED -- "an OPEN
+ * machine, not a bunker", barrels and receiver on splayed legs. A drum wraps
+ * the receiver and a roof caps it, and either one puts WIDE, SOLID mass up
+ * where the machine is. Splayed legs and a small receiver do not: their upper
+ * silhouette is narrow, and what mass they do have down at the footprint is
+ * shot through with sky between the legs.
+ *
+ * So a band is drum-like when it is wide (`spanMin` of `Sw`), SOLID across its
+ * own span (`fillMin` -- this is what separates a drum wall from splayed legs,
+ * which span just as wide and are mostly air), and DEEP enough to be a
+ * cylinder rather than a plate edge or a ground line (`depthMin` of `Sh`).
+ * Restricted to the TOP HALF, the file's own already-used region convention
+ * (tesla's sphere, prism's crown), because that is where an enclosure would sit.
+ *
+ * Discriminating, unlike the identity it replaces: RA2's own [NALASR] Sentry
+ * Gun reads 0 at every cut where the key resolves it, [NATSLA] and [GAPRIS]
+ * read 0, and [GACNST] -- a hall with a roof -- reads 1.
+ */
+function solidBands(f, spanMin, fillMin, depthMin) {
+  const half = Math.floor(f.h * 0.5), out = [];
+  let run = 0, start = 0, deepest = 0;
+  const close = (end) => {
+    if (run > deepest) deepest = run;
+    if (run >= depthMin * f.h) out.push({ y0: start, y1: end, h: run });
+    run = 0;
+  };
+  for (let y = 0; y < half; y++) {
+    let a = f.w, b = -1, n = 0;
+    for (let x = 0; x < f.w; x++) if (f.mask[y * f.w + x]) { n++; if (x < a) a = x; if (x > b) b = x; }
+    const span = b < 0 ? 0 : b - a + 1;
+    if (span >= spanMin * f.w && n >= fillMin * span) { if (!run) start = y; run++; }
+    else if (run) close(y - 1);
+  }
+  if (run) close(half - 1);
+  return { bands: out, deepest, deepestFrac: f.h ? deepest / f.h : 0 };
+}
 function gapBetween(f, A, B) {
   let best = 1e9;
   for (const i of A.cells) {
@@ -403,15 +499,42 @@ exports.check = function (ctx) {
   // radar — Collective only, dish
   if (F.radar && F.radar.col) {
     const f = F.radar.col;
-    const body = bodyRun(rowProfile(f));
-    const dish = components(f, (p, x, y) => !!p && y <= body.hi).sort((a, b) => b.n - a.n)[0];
+    // THE DISH IS THE MASS ABOVE THE MAST'S PINCH, not above a roofline. The
+    // old predicate was `y <= bodyRun.hi`, and `hi` is the LAST row at or above
+    // 55% of the widest -- which for a tower is in the BASE -- so it admitted
+    // dish + mast + base as one 4-connected blob and `dish.w === f.w` was an
+    // IDENTITY. Measured that way our sprite and RA2's own [NARADR] both read
+    // `Sw 1.000`, as do all 100 structure bakes; the reference then FAILED its
+    // own aspect row at 0.831 and its own top-45% row at 0.904. Cut at the real
+    // pinch instead (`pinch()` above) and both sprites resolve a dish:
+    //   ours      pinch row 85 = 21 px (0.160 Sw)  ->  0.695 Sw, aspect 1.071
+    //   [NARADR]  pinch row 60 = 13 px (0.133 Sw)  ->  0.643 Sw, aspect 1.050
+    // and the reference now PASSES the row it used to fail, at every cut of the
+    // warmth-margin key that resolves it (tol 8-16, bbox 90x126 / 98x127 --
+    // this rip is ground-backed, so only what holds across the sweep is
+    // claimed). 0.643-0.700 also reconciles the two readings §2.7 records for
+    // this dish and could not choose between: it is the 0.69 the 90x125 rip
+    // gives, not the 0.563 the padded 103x136 capture gives.
+    const rp = rowProfile(f);
+    const pin = pinch(rp);
+    const dish = pin.row > 0 ? components(f, (p, x, y) => !!p && y < pin.row).sort((a, b) => b.n - a.n)[0] : null;
+    const dishNote = dish
+      ? `dish = the component above the silhouette's deepest interior waist (row ${pin.row}, ${pin.val}px = ${R(pin.val / f.w, 3)} Sw), i.e. the mass the mast carries`
+      : 'no interior waist: this silhouette has no mast pinch, so no dish is separable from the base';
     if (dish) {
       const dw = dish.w / f.w, dasp = dish.w / dish.h;
       add('radar', '[col] dish >= 0.55 Sw and essentially circular, aspect 0.90-1.10',
         dw >= 0.55 && dasp >= 0.90 && dasp <= 1.10, `Sw ${R(dw, 3)}, aspect ${R(dasp, 3)}`, '>=0.55 Sw, aspect 0.90-1.10',
-        'dish = largest opaque component whose rows lie within the body run (rowProfile\'s widest band)');
+        dishNote);
       add('radar', '[col] the dish lies wholly inside the top 45% of Sh',
-        dish.y1 / f.h <= 0.45, R(dish.y1 / f.h, 3), '<= 0.45', '');
+        dish.y1 / f.h <= 0.45, R(dish.y1 / f.h, 3), '<= 0.45',
+        dishNote + '. The old read was `bodyRun.hi / Sh`, a roofline in the base and not a dish bottom at all (ours 0.888, [NARADR] 0.904 -- the reference failing its own row). '
+        + 'Re-measured off the real pinch [NARADR] reads 0.460-0.465 against a tight opaque bbox and 0.434 against the 103x136 committed capture that §2.7\'s own '
+        + '"y 3..55 = 2%-40%" parenthetical was computed on -- 9 of those 136 rows are bare ground above and below the building. So the reference sits AT this ceiling, '
+        + 'not comfortably inside it, and the row now discriminates on ~2pp rather than on an identity');
+    } else {
+      add('radar', '[col] dish >= 0.55 Sw and essentially circular, aspect 0.90-1.10', false, 'no dish', '>=0.55 Sw, aspect 0.90-1.10', dishNote);
+      add('radar', '[col] the dish lies wholly inside the top 45% of Sh', false, 'no dish', '<= 0.45', dishNote);
     }
     un('radar', '[col] >= 3 ribs resolvable at 2px each at >= 25% contrast',
       'ribs are thin radial lines across a round face — no line/edge detector here, only blob/contrast-region detectors, which would over- or under-count curved 2px ribs');
@@ -545,10 +668,26 @@ exports.check = function (ctx) {
     add('sentrygun', '[col] exactly 2 barrels, resolvable as two at 2px each with a gap >= 2px between them, and they are the topmost mass',
       crown.length === 2 && gap !== null && gap >= 2,
       `${crown.length} crown blob(s)${gap !== null ? `, gap ${gap}px` : ''}`, '2 blobs, gap >= 2px', '');
-    const drum = components(f, (p, x, y) => !!p && y >= body.lo).filter((c) => c.w >= 0.5 * f.w);
+    // ENCLOSURE, not "a wide blob below a roofline". The old predicate was
+    // `components(y >= body.lo).filter(w >= 0.5 Sw)`, which is an identity: the
+    // bbox is cut TO the sprite, so its widest row is 1.000 Sw by construction
+    // and lies below the roofline by definition. 100 of 100 structure bakes and
+    // 4 of 4 RA2 rips reported exactly one such blob at exactly 1.000 Sw -- the
+    // check could not read 0 for any drawing of anything, so no art change could
+    // ever have closed it. `solidBands` (above) reads what §2.7's row means by
+    // "an OPEN machine, not a bunker": wide mass that is SOLID and DEEP up where
+    // the receiver is. Splayed legs span just as wide and are mostly sky.
+    //   ours              0 bands, deepest solid top-half band 0 px
+    //   RA2 [NALASR]      0 bands, deepest 2 px = 0.057 Sh, at every sweep cut
+    //                     (tol 1-4) where the grass key resolves it at 46x35
+    //   RA2 [GACNST]      1 band, 44 px = 0.321 Sh -- a hall with a roof, so
+    //                     the check is discriminating and not vacuously 0
+    const drum = solidBands(f, 0.60, 0.90, 0.15);
     add('sentrygun', '[col] zero enclosing drum or roof',
-      drum.length === 0, `${drum.length} wide (>=0.5 Sw) below-roofline blob(s)`, '0 blobs',
-      'drum/roof read as a below-crown component spanning most of Sw — an open-legs receiver should not produce one');
+      drum.bands.length === 0,
+      `${drum.bands.length} enclosing band(s); deepest wide+solid top-half band ${drum.deepest}px = ${R(drum.deepestFrac, 3)} Sh`,
+      '0 bands',
+      'drum/roof = a top-half band >=0.60 Sw wide, >=90% solid across its own span and >=0.15 Sh deep — a cylinder or a lid, which splayed legs (wide span, mostly sky) cannot make');
     un('sentrygun', '[col] the legs visible as separate members under the receiver (counts only)',
       'leg members below the receiver are thin and close together; this bake\'s below-roofline mask did not resolve into countable leg components distinctly from the receiver body, and forcing a count would be a guess dressed as a measurement');
   }
@@ -563,14 +702,26 @@ exports.check = function (ctx) {
       const sw = top.w / f.w, sh = top.h / f.h;
       add('tesla', '[col] the sphere a single blob >= 0.45 Sw and >= 0.20 Sh',
         sw >= 0.45 && sh >= 0.20, `${R(sw, 3)} Sw, ${R(sh, 3)} Sh`, '>=0.45 Sw, >=0.20 Sh', 'sphere = largest opaque blob in the top half of the sprite');
-      // neck: the narrowest column band directly beneath the sphere and above the base spread
-      const cp = colProfile(f);
-      let neckMin = f.w;
-      for (let y = top.y1 + 1; y < f.h * 0.75; y++) { const n = rp[y]; if (n > 0 && n < neckMin) neckMin = n; }
-      const neckFrac = neckMin === f.w ? null : neckMin / f.w;
+      // THE NECK IS THE SILHOUETTE'S PINCH, and the old scan never reached it.
+      // It started at `top.y1 + 1`, where `top` is the largest blob in the whole
+      // TOP HALF -- on a continuous tower that is everything above the midline,
+      // so the scan began BELOW the neck and measured the BUTTRESS SPREAD. Run
+      // over RA2's own [NATSLA] (blue key, opaque bbox exactly 42x81 at every
+      // tolerance 25-60, the size §2.7 records) the shipped math reports 0.310
+      // Sw against its own `<= 0.10` demand: the reference fails its own clause
+      // by 3.1x, while that sprite's real neck -- row 20, the documented 3 px --
+      // is 0.071 Sw and passes. `pinch()` finds it directly.
+      //   [NATSLA]  pinch row 20 = 3 px  = 0.071 Sw   PASSES
+      //   ours      pinch row 27 = 18 px = 0.269 Sw   FAILS -- and that is an
+      //             ART finding the broken scan was hiding, not a checker gap:
+      //             our coil head sits on an 18 px stalk where RA2's sits on 3.
+      const pin = pinch(rp);
+      const offSphere = pin.row > top.y0;   // "off the sphere": below the sphere's own apex
+      const neckFrac = pin.row < 0 || !offSphere ? null : pin.val / f.w;
       add('tesla', '[col] a neck beneath the sphere pinching to <= 0.10 Sw, off the sphere, the entire silhouette pinch',
-        neckFrac !== null && neckFrac <= 0.10, neckFrac === null ? 'no narrower band found beneath the sphere' : R(neckFrac, 3), '<= 0.10 Sw',
-        'neck = the narrowest rowProfile value strictly below the sphere and above the bottom quarter');
+        neckFrac !== null && neckFrac <= 0.10,
+        neckFrac === null ? 'no interior waist beneath the sphere' : `${R(neckFrac, 3)} (row ${pin.row}, ${pin.val}px)`, '<= 0.10 Sw',
+        'neck = the silhouette\'s deepest interior waist above its widest row (pinch()) — a row narrower than something above it AND something below it, which is what "the entire silhouette pinch" names');
     }
     const body = bodyRun(rp);
     const bottomThird = { lo: Math.floor(f.h * 2 / 3), hi: f.h - 1 };
