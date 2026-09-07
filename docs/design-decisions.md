@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_257 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_258 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
 - [Scheduled terminal messages ("resume when the token limit resets")](#scheduled-terminal-messages-resume-when-the-token-limit-resets)
@@ -280,6 +280,7 @@ _257 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [`peerVsSelf` measures how much a silhouette SWINGS, not whether it is confusable (2026-09-06)](#peervsself-measures-how-much-a-silhouette-swings-not-whether-it-is-confusable-2026-09-06)
 - [The end of the terminal tab strip was a 60px sliver (v1.19.313)](#the-end-of-the-terminal-tab-strip-was-a-60px-sliver-v119313)
 - [A clause that no isometric ground plate can satisfy squashed the Service Depot into a hairline](#a-clause-that-no-isometric-ground-plate-can-satisfy-squashed-the-service-depot-into-a-hairline)
+- [Rewriting the four clauses whose predicate could not name the object it measured (2026-09-06)](#rewriting-the-four-clauses-whose-predicate-could-not-name-the-object-it-measured-2026-09-06)
 
 <!-- END TOC -->
 
@@ -10876,3 +10877,93 @@ the pad at roughly 0.30 `Sw` — under half RA2's 0.71 — so the "flat pad >= 0
 Sw" row can only be satisfied by a pad that is not a pad. The predicate wants
 rewriting as a GROUND-BAND test (columns whose opaque mass is confined near the
 ground plane) rather than a thinness test.
+
+## Rewriting the four clauses whose predicate could not name the object it measured (2026-09-06)
+
+**Symptom.** Five structure clauses were red on art that is right, and RA2's own
+committed sprites failed them too: the Service Depot's pad rows (`depot:dir` +
+`depot:col`, "flat pad >= 0.50 `Sw`" and "the works confined to <= 0.50 `Sw`")
+and the Refinery's "each stack 0.12-0.15 `Sw`". The depot pair had already cost
+the project a user-visible regression — four anamorphic squashes fitted to them,
+and the user's verdict on the result was "it looks terrible, and it doesn't look
+like RA2".
+
+**Cause — one mistake, three shapes.** Each predicate located a *proxy* for the
+part and then measured the proxy:
+
+- **A thinness test standing in for a ground plane.** A "pad column" was one at
+  most `0.15 * Sh` tall. A flat plate in 2:1 isometric is by construction half as
+  deep on screen as it is wide, so RA2's own 0.71 `Sw` apron needs ~0.36 `Sw` of
+  depth *before anything is painted on it*. `[NADEPT]` scored 0.080-0.417 against
+  a demanded 0.50 across eleven chroma cuts — 0 of 11. The only drawing that
+  passes is a hairline, and that is exactly what got drawn.
+- **An arithmetic complement standing in for a second measurement.** The works
+  row was literally `1 - padFrac`. It could never disagree with the row above it,
+  so it could never catch anything the row above missed.
+- **A bbox standing in for a chimney.** `blob.w` is a crown *component's* bbox,
+  and a refinery stack's component runs from its cap down into the barrel
+  vault's ridge. Ours read 0.425 `Sw` for a stack whose cap is 28 px on a 228 px
+  sprite; `[GAREFN]`'s own blobs span 0.364-0.541 `Sw` where its stacks are
+  19-22 px, and it failed at 15 of 15 cuts.
+
+**Fix.** Segment the object the clause names, then ask the clause's own
+questions of it.
+
+- `groundPlate()` — the largest connected run of **hardstanding** (`s < 0.28`,
+  `v >= 0.37`). Those cuts are not chosen: `soviet-service-depot.gif` segments
+  its own apron out of grass, machinery and shadow at every saturation cut from
+  0.24 to 0.32 and returns the same 115x58 px, on the raw image with no chroma
+  key at all. The row then asks width (`>= 0.50 Sw`, §2's own floor, unchanged),
+  **aspect** (1.40-2.60, within 30% of the 2.00 that 2:1 isometric projection
+  dictates) and **base** (front edge inside the bottom 0.10 `Sh`). The aspect
+  half is what makes the row un-cheatable — it is the same 2:1 that broke the old
+  predicate, used the right way round.
+- The works row becomes **occupancy**: the share of ink standing clear above a
+  ground band as deep as the plate, anchored at the sprite's base. A width
+  reading is unmeetable by construction — the works stand ON the apron and the
+  sibling row positively REQUIRES the jib to overhang it, so pad and works
+  overlap in x and the reference itself spans 0.593-0.660 `Sw`.
+- `stackWidth()` — walk a crown blob's per-row widths down from its own top and
+  stop at the FLARE, the first row wider than everything above it once the
+  profile has already narrowed off the cap. Threshold-free: no fraction to tune,
+  only the order the widths arrive in.
+
+**Both halves of the acceptance test, because either alone is worthless.**
+
+| | RA2's own sprite | ours | a deliberately broken build |
+|---|---|---|---|
+| pad | 115x58 = **0.710 `Sw`**, aspect 1.98, base 0.027 — PASS at 9 of 9 valid cuts | 0.757/1.94 dir, 0.713/1.71 col | `6ab22eb`'s four squashes: **0.223 `Sw`, aspect 1.06** and **0.257, 0.49** — FAIL |
+| works | **0.400-0.461** by ink | 0.226 dir, 0.359 col | same squash, dir **0.593**; a Collective works grown x2.5, col **0.774** — FAIL |
+| stack | **0.112-0.129 `Sw`** | 0.123/0.123 | stacks re-drawn at r=20: **0.184/0.184** — FAIL |
+
+**Rejected — a silhouette-only pad segmentation.** Four were built and measured.
+Column purity ("columns carrying nothing overhead") tops out at 0.44 `Sw` on the
+reference, because RA2's own works stand on the apron's left third — no
+column-counting reading can reach 0.50 for anyone. A base-band connected
+component finds RA2's plate exactly (116-118 px against the colour read's 115)
+but not ours, whose works reach the ground at the front. A maximal iso-consistent
+band (`h_(k) <= k/2`) collapses to zero on every sprite whose plate edge is a
+side vertex rather than a ramp. A front-half mirror about the plate's waist is
+clean on the reference and wrong on ours, whose visible waist is 13 rows below
+its true one because the works and the hazard box cover the apron's rear half.
+
+**Rejected — leaving the works row keyed to `pad.y0`.** Measured: an
+over-grown Collective works returns a plate blob sitting high in the sprite, and
+`y < pad.y0` then reports **0.000** works ink and PASSES the very sprite the row
+exists to catch. Anchoring the band at the sprite's base instead reads 0.774.
+
+**Rejected — keeping the stack row's 0.12 floor.** §2's band was read off a
+native 169x132 capture whose caps it measured at "22-24 px" where the committed
+rip resolves 19-22, so the doc sits ~1.5 pp above the sprite it cites and the
+reference clears the row at only 7 of 15 cuts. The floor is re-based to 0.10 on
+the `ra2Bbox` convention — derive the bar from the reference, not from a number
+somebody chose — and **only** the floor: the 0.15 ceiling is untouched, and it is
+the ceiling that does the biting.
+
+**Rejected — tightening `isHardstanding` until pale machinery is excluded.** It
+cannot be done by colour: our own silver (`#b6bac6`, s 0.081) is *less* saturated
+than the concrete it would have to be told apart from (`#9b9787`, s 0.129). The
+failure mode is left in, and it is the safe direction — a bake with pale
+machinery welded to its apron returns one fused mass and the aspect row goes red
+with the fused number on it, which is a sprite whose apron no longer reads as an
+apron.

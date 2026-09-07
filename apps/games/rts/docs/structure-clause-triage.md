@@ -256,3 +256,101 @@ the 18px the gap row wants, and the back furnace's cone would have to drop below
 the roofline entirely for the width row to come into range. Both Refinery rows
 are therefore recorded as ceilings: not reachable without redrawing the
 building, and reachable-looking only until the arithmetic is done.
+
+---
+
+## 2026-09-06 — the depot's four pad rows and the refinery's stack row are REWRITTEN (15 -> 10)
+
+The four depot rows added above, plus row 3, are closed **in the checker**. No
+art changed; `rts.html` was not touched. `checkedStructures` held at **75** and
+`unmatchedToReference` at **0** — every rewritten row still names a real §2
+clause (refMatch 0.42-0.93).
+
+### Method
+
+Both halves, for every row, because either alone proves nothing:
+
+**(a) the reference must PASS.** The shipped module is `require`d and run with a
+`ctx` whose `byBldFac` hands back RA2's own sprite in place of our bake, across
+the full chroma sweep. **(b) the row must still BITE.** The same module is run
+against bakes produced from a deliberately broken `ART_HTML` build — for the
+depot pad, `6ab22eb`, which *is* the four-squash build the user rejected.
+
+### The three rewrites
+
+| | old predicate | new predicate |
+|---|---|---|
+| pad | `cp[x] > 0 && cp[x] <= 0.15 * f.h`, counted over `Sw` | `groundPlate()` — the largest hardstanding component (`s < 0.28`, `v >= 0.37`) — asked for width `>= 0.50 Sw`, **aspect 1.40-2.60** (2:1 iso ±30%) and its front edge inside the bottom `0.10 Sh` |
+| works | `1 - padFrac`, an identity | the share of ink standing clear above a ground band as deep as the plate, anchored at the sprite's BASE |
+| stack | `blob.w / f.w`, a crown bbox | `stackWidth()` — the blob's width above the FLARE into the roof, band `0.10-0.15` (floor re-based on the reference; ceiling untouched) |
+
+`0.28 / 0.37` are not chosen numbers: `soviet-service-depot.gif` returns the same
+**115x58 px** apron at every saturation cut from 0.24 to 0.32, on the **raw**
+image with no chroma key applied — the grass is saturated green, the machinery
+saturated navy/red, the concrete neither. That is the same 0.71 `Sw` / 1.85-1.98
+plate `4a9e9d8` measured independently.
+
+### (a) The reference, swept — every row PASSES
+
+    [NADEPT] soviet-service-depot.gif        pad row                 works row
+      cut 16  103x122  key collapsed         FAIL 0.184/0.90         FAIL 0.941
+      cut 20  103x122  key collapsed         FAIL 0.184/0.90         FAIL 0.948
+      cut 24  161x149                        PASS 0.702 Sw / 2.40    FAIL 0.582
+      cut 28  161x149                        PASS 0.714 Sw / 1.98    PASS 0.400
+      cut 32..56 (7 cuts)                    PASS 0.701-0.710 / 1.98 PASS 0.402-0.461
+
+    [GAREFN] allied-ore-refinery.gif         stack row
+      cut 14..23  (the 4 cuts whose key resolves two crown blobs at all)
+                                             PASS 0.112-0.121 Sw each
+      cut 26..50  (single fused blob, so the row is not emitted — the "2 stacks"
+                   row takes over) stackWidth still reads 0.118-0.129 Sw
+      cut 53, 56  key stops separating the grass; "bbox" is the whole 176x138
+                   plate, so those two cuts measure nothing
+
+Cuts 16 and 20 crop the depot to 103x122 — a **rip failure**, not a clause
+failure, the same way cuts 53+ are for the refinery. On the nine valid cuts the
+pad row passes 9 of 9 and the works row 8 of 9 (cut 24 keys away the apron's
+rear, so the band shallows to 47 px and the ink share rises to 0.582).
+
+Against **0 of 11** and **0 of 15** for the predicates these replaced.
+
+### (b) The bite, on deliberately broken builds
+
+| build | row | reading | |
+|---|---|---|---|
+| `6ab22eb` — the four squashes, `dpb fh*0.01` | `depot:dir` pad | plate **37x35 = 0.223 `Sw`, aspect 1.06**, base 0.122 | **FAIL** |
+| `6ab22eb` | `depot:col` pad | plate **52x107 = 0.257 `Sw`, aspect 0.49**, base 0.212 | **FAIL** |
+| `6ab22eb` | `depot:dir` works | **0.593** | **FAIL** |
+| `dpb fh*0.01` + `sdB fh*0.15` only | `depot:dir` pad / works | **0.077 `Sw` / 0.43** · **0.796** | **FAIL** |
+| Collective works `x2.5` (`shHw/shHh 0.26 -> 0.66`, lift 50 -> 132) | `depot:col` works | **0.774** | **FAIL** |
+| refinery stacks re-drawn at `r=20` | `refinery:dir` stack | **0.184/0.184** | **FAIL** |
+
+The squash build scored **0.524 / 0.530** — GREEN — under the old predicate. It
+is the build the user reported as "it looks terrible". Old check: passed the bad
+sprite, failed the reference. New check: the exact opposite, on both.
+
+### What each row now catches, in one line
+
+- **pad** — a Service Depot whose apron is not an isometric plate: a hairline, a
+  sliver, a pale mass that isn't at the ground, or an apron so far from 2:1 that
+  it no longer reads as a ground plane.
+- **works** — a depot whose machinery has eaten the parking apron: more than half
+  the sprite's ink standing clear of the ground band.
+- **stack** — a refinery chimney drawn at the wrong calibre (fat enough to read
+  as a tower, thin enough to read as a pipe), independent of the vault it stands on.
+
+### Two findings recorded rather than fixed
+
+1. **§2's own depot sentence is wrong about the reference.** It says "the pad
+   octagon runs x≈62..160 of 161 = 0.61 `Sw`, and over those columns the sprite
+   is a thin ground band only". Measured on the sprite it cites, RA2's works
+   stand over the apron's left third: only **63 of the 115 pad columns** (0.39
+   `Sw`) carry nothing above them. No column-purity reading of that row can reach
+   0.50 for the reference, which is why the row is now read as a plate and not as
+   a column count.
+2. **The hardstanding key cannot separate pale machinery from concrete.** Our own
+   silver `#b6bac6` (s 0.081) is *less* saturated than the concrete `#9b9787`
+   (s 0.129). A bake that welds a pale machine face to its apron returns one
+   fused mass and the aspect row goes red carrying the fused number — the safe
+   direction, and observed on two probe builds. Not an art defect today: both
+   shipped bakes segment cleanly at every cut.
