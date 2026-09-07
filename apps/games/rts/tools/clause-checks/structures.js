@@ -429,6 +429,121 @@ function stackWidth(f, c) {
   }
   return mx;
 }
+/**
+ * THE TWO STACKS, FOUND ACROSS A CUT — never as two crown BLOBS.
+ *
+ * `stackWidth` above moved the Refinery's WIDTH row off `c.w` because the crown
+ * blob "runs from the stack's cap all the way down into the barrel vault's
+ * ridge". The GAP row was the other half of the same sentence and kept calling
+ * `gapBetween(crown[0], crown[1])` — so it measured the distance from the
+ * second stack to the VAULT, which on our bake is 4 px and on RA2's own
+ * `[GAREFN]` is 2-4 px. The reference FAILS that row at every chroma cut where
+ * it resolves two crown blobs (0.012-0.018 `Sw` against a demanded 0.08), and
+ * at the other six cuts its crown fuses into ONE blob and it fails the COUNT
+ * instead — exactly as our `col` bake does, where `grille1` bridges the two
+ * furnaces at the single seam column. Neither row was ever about our art.
+ *
+ * §2.6 states the measurement it wants: "exactly 2 stacks with a clear gap
+ * >= 0.08 `Sw` between them (measured: x 35..57 and 72..96 of 169, gap 15 px =
+ * 0.089)" — two x-spans and the clear run between them. That is members counted
+ * across a CUT, the `rowRuns` idiom, not connectivity: two chimneys that share
+ * a roof are one component however far apart they stand.
+ *
+ * A row RESOLVES the stacks when it carries exactly two runs and BOTH are
+ * stack-sized. The floor 0.06 `Sw` is the one the crown filter in this file
+ * already used; the 0.20 `Sw` ceiling is what keeps the band off the vault —
+ * §2.6's own stack width is 0.12-0.15 `Sw`, so a run half again as wide as the
+ * widest stack the doc allows is the roof, and without that ceiling the band
+ * runs on down until the vault touches the second stack and the gap collapses
+ * to 0. The DEEPEST such band is taken, for the reason `pinch` takes the
+ * deepest waist: a two-row accident is not a pair of chimneys.
+ *
+ * On RA2's own refinery this returns **15 px at 9 of 9 sweep cuts** — §2.6's
+ * stated number to the pixel — over the same band, rows 21-45, every time.
+ */
+function stackPair(f, lo) {
+  const MINW = 0.06 * f.w, MAXW = 0.20 * f.w, per = [];
+  for (let y = 0; y < lo; y++) {
+    const runs = rowRuns(f, y, (p) => !!p, 2);
+    per.push(runs.length === 2 && runs.every(([a, b]) => b - a + 1 >= MINW && b - a + 1 <= MAXW) ? runs : null);
+  }
+  let best = null;
+  for (let i = 0; i < per.length;) {
+    if (!per[i]) { i++; continue; }
+    let j = i;
+    while (j + 1 < per.length && per[j + 1]) j++;
+    if (!best || j - i > best.j - best.i) best = { i, j };
+    i = j + 1;
+  }
+  if (!best) return null;
+  let gap = Infinity; const A = [f.w, -1], B = [f.w, -1];
+  for (let y = best.i; y <= best.j; y++) {
+    const [[a0, a1], [b0, b1]] = per[y];
+    if (b0 - a1 - 1 < gap) gap = b0 - a1 - 1;
+    if (a0 < A[0]) A[0] = a0; if (a1 > A[1]) A[1] = a1;
+    if (b0 < B[0]) B[0] = b0; if (b1 > B[1]) B[1] = b1;
+  }
+  return { y0: best.i, y1: best.j, rows: best.j - best.i + 1, gap, A, B };
+}
+/**
+ * WHERE A CROWN'S RIM IS COMPLETE — the row a "crown" clause can point at.
+ *
+ * `bodyRun.lo / Sh` is this module's convention for "the crown clears the
+ * roofline by >= X `Sh`", and it is right for a FLOOR. Applied to a CEILING it
+ * inverts the sentence: `reactor`'s "the tallest tower's crown is inside the
+ * top 0.10 `Sh`" became "the crown region is at most 10% of the sprite deep",
+ * which forbids the three tall cooling towers the sibling row in the same block
+ * demands. RA2's own `[NANRCT]` reads **0.326-0.341 at 7 of 7 chroma cuts**
+ * against that `<= 0.10` — it fails its own row by 3.3x, and by more than we do.
+ *
+ * A cooling tower's crown IS its open rim, and a rim is complete where its
+ * per-row width stops climbing: the mass opens out from the apex to the rim's
+ * widest line and then turns back in. So walk the component's own per-row
+ * widths down from its top and stop at the first narrowing; the row where the
+ * width last INCREASED is the rim. Threshold-free — only the order the widths
+ * arrive in — and the same reading `stackWidth` makes one flare later.
+ *
+ * On `[NANRCT]` the tallest tower opens `2 15 16 24 29 30 33 33 35 36 36 36 35`:
+ * 36 px at row 9, narrowing at row 12. Row 9 of 129 = **0.070**, against §2.7's
+ * own hand-measured "y≈8 of 129 → 0.06" — one row apart, and the only one of
+ * three candidate readings that reproduces the doc at all (`bodyRun.lo / Sh`
+ * gives 0.333; the tower's top row gives 0.000, an identity on a tight bbox).
+ */
+function rimRow(f, c) {
+  const lo = new Int32Array(f.h).fill(1e9), hi = new Int32Array(f.h).fill(-1);
+  for (const i of c.cells) {
+    const x = i % f.w, y = (i - x) / f.w;
+    if (x < lo[y]) lo[y] = x;
+    if (x > hi[y]) hi[y] = x;
+  }
+  let mx = 0, row = c.y0;
+  for (let y = c.y0; y <= c.y1; y++) {
+    const w = hi[y] < 0 ? 0 : hi[y] - lo[y] + 1;
+    if (w > mx) { mx = w; row = y; } else if (w < mx) break;
+  }
+  return { row, w: mx };
+}
+/**
+ * The narrowest clear run between adjacent members over a band `resolveBand`
+ * chose, and the widest member on it.
+ *
+ * Both numbers, because a count alone cannot tell a PAIR from two unrelated
+ * masses that happen to stand at the same height: an optic mast beside one
+ * barrel resolves as "2 members" exactly the way two barrels do. Members of one
+ * mount are close together — `gap <= wMax` says the clear sky between them is
+ * no wider than a member, which is a statement about being a pair and carries
+ * no tuned number (the ratio is 1, and ours reads 2 px against 5 px where a
+ * mast-plus-barrel build reads 17 against 5).
+ */
+function bandRuns(f, band, pred, minW) {
+  let gap = Infinity, wMax = 0;
+  for (let y = band.y0; y <= band.y1; y++) {
+    const r = rowRuns(f, y, pred, minW);
+    for (const [a, b] of r) if (b - a + 1 > wMax) wMax = b - a + 1;
+    for (let i = 1; i < r.length; i++) if (r[i][0] - r[i - 1][1] - 1 < gap) gap = r[i][0] - r[i - 1][1] - 1;
+  }
+  return { gap: gap === Infinity ? 0 : gap, wMax };
+}
 
 // Faction assignment read from rts.html's own buildOrderFor/defenceOrderFor
 // (~2521-2530) — ground truth, not prose-guessed. See header.
@@ -576,12 +691,26 @@ exports.check = function (ctx) {
     const f = F.refinery && F.refinery[fac]; if (!f) continue;
     const body = bodyRun(rowProfile(f));
     const crown = components(f, (p, x, y) => !!p && y < body.lo).filter((c) => c.w >= 0.06 * f.w);
+    // THE STACKS ARE COUNTED ACROSS A CUT, AND THE GAP IS MEASURED BETWEEN
+    // THEM -- see `stackPair`. `gapBetween(crown[0], crown[1])` measured the
+    // second stack against the barrel VAULT (both stacks and the vault ridge
+    // clear the 55% roofline, and the vault is inside crown[0]), so it read
+    // 0.018 `Sw` here and 0.012-0.018 on RA2's own [GAREFN] -- the reference
+    // failing this row at every cut where it resolves two crown blobs, and
+    // failing the COUNT at the six cuts where its crown fuses into one, which
+    // is the same fusion `refinery:col`'s `grille1` produces here. Across a cut
+    // the reference reads 15 px at 9 of 9 cuts, which is §2.6's own stated
+    // number, and ours read 22 px (dir) and 27 px (col).
+    const pair = stackPair(f, body.lo);
+    const pgap = pair ? pair.gap / f.w : 0;
+    add('refinery', `[${fac}] exactly 2 stacks with a clear gap >= 0.08 Sw between them`,
+      !!pair && pgap >= 0.08,
+      pair ? `2 stacks (x${pair.A[0]}..${pair.A[1]} and x${pair.B[0]}..${pair.B[1]}, rows ${pair.y0}-${pair.y1}), gap ${pair.gap}px = ${R(pgap, 3)} Sw`
+           : 'no two stack-sized members stand apart anywhere in the crown',
+      '2 stacks, gap >= 0.08 Sw',
+      'stacks = the deepest band of crown rows carrying exactly two runs both 0.06-0.20 Sw wide (`stackPair`), not two crown COMPONENTS: a vault ridge that clears the same roofline fuses into the blob and the old gap measured the stack against the VAULT. RA2 [GAREFN] reads 15 px at 9 of 9 chroma cuts, matching §2.6\'s own "gap 15 px = 0.089"');
     if (crown.length >= 2) {
       const [a, b] = crown;
-      const gap = gapBetween(f, a, b) / f.w;
-      add('refinery', `[${fac}] exactly 2 stacks with a clear gap >= 0.08 Sw between them`,
-        crown.length === 2 && gap >= 0.08, `${crown.length} stacks, gap ${R(gap, 3)} Sw`, '2 stacks, gap >= 0.08 Sw',
-        'stacks = crown components above bodyRun.lo, filtered to >=0.06 Sw');
       // MEASURED ON THE STACK, NOT ON THE BLOB THE STACK IS FUSED INTO — see
       // `stackWidth`. `c.w` here read 0.425/0.123 for two chimneys that are both
       // 28 px on a 228 px sprite, and it failed RA2's own [GAREFN] at 15 of 15
@@ -608,10 +737,19 @@ exports.check = function (ctx) {
       const clearance = (body.lo - tallerTop) / f.h;
       add('refinery', `[${fac}] the taller stack clears the vault crown by >= 0.30 Sh`,
         clearance >= 0.30, R(clearance, 3), '>= 0.30', '');
-    } else {
-      add('refinery', `[${fac}] exactly 2 stacks with a clear gap >= 0.08 Sw between them`,
-        false, `${crown.length} stack-sized crown blob(s) found`, '2 stacks', 'no committed sprite for this fac per §2.9' );
     }
+    // The width and clearance rows above stay on the CROWN-COMPONENT route on
+    // purpose, and so are emitted for `dir` only. `stackWidth` needs the stack
+    // as its own connected blob to walk down from its cap; handed a strip cut
+    // out of `col`'s fused crown it starts at the chimney's narrow tip and
+    // reports 0.053 `Sw` for a stack whose cap is 24 px — a measurement
+    // artefact of the strip, not the art. A row that would report a wrong
+    // number is not emitted, per this file's "logged as unmeasurable rather
+    // than faked" rule; `checkedStructures` is unchanged either way, because
+    // the count row that used to be `col`'s only row is now measured properly
+    // instead of being a stand-in for it.
+    if (crown.length < 2) un('refinery', `[${fac}] each stack 0.12-0.15 Sw, and the taller clears the vault crown by >= 0.30 Sh`,
+      'the Collective crown is one connected mass (the fanned grille bridges the two furnaces at the seam), so `stackWidth` has no per-stack component to walk down from — the count and the gap are resolved across a cut, but a cap width read off a column strip of the fused blob starts at the chimney tip and reports 0.053 Sw for a 24 px cap');
     un('refinery', 'an unroofed dock plane at ground level where the harvester parks, its marking at >= 25% contrast',
       'a "dock plane" is a flat-ground region identified by CONTEXT (where the harvester parks), not by any silhouette or colour predicate this tool has access to');
   }
@@ -880,11 +1018,26 @@ exports.check = function (ctx) {
     add('reactor', '[col] exactly 3 towers, each with a visible waist <= 0.75 of its own rim width',
       crown.length === 3, `${crown.length} tower-sized crown blob(s)`, '3 blobs',
       'the waist ratio itself is not measured per-blob (needs a rim-vs-waist row split within each blob\'s own colProfile, which the doc\'s own worked example does by hand on one tower)');
-    const clearance = body.lo / f.h;
+    // THE CROWN IS THE TALLEST TOWER'S RIM, AND IT IS FOUND WHERE THE RIM
+    // CLOSES -- see `rimRow`. This row used to read `body.lo / f.h`, this
+    // module's convention for a ">= X clearance" FLOOR, applied to a "<= X
+    // containment" CEILING; read that way it does not say "the crown is near
+    // the top", it says "the crown REGION is at most 10% of the sprite deep",
+    // which forbids the three tall cooling towers the row directly above needs
+    // resolvable as three separate crown masses. RA2's own [NANRCT] reads
+    // 0.326-0.341 at 7 of 7 chroma cuts against that <= 0.10 -- failing its own
+    // row by 3.3x, and by more than our 0.247 did.
+    //   [NANRCT]  rim row 9 of 129 = 0.070 (0.047-0.076 over the sweep)
+    //   §2.7      "measured y≈8 of 129 -> 0.06"   <- the only reading that
+    //             reproduces the doc's own hand measurement
+    //   ours      rim row 9 of 158 = 0.057, rim 50 px
+    const tallest = crown.slice().sort((a, b) => (a.y0 - b.y0) || (b.n - a.n))[0];
+    const rim = tallest ? rimRow(f, tallest) : null;
+    const clearance = rim ? rim.row / f.h : 1;
     add('reactor', '[col] the tallest tower\'s crown is inside the top 0.10 Sh',
-      body.crown && clearance <= 0.10,
-      body.crown ? R(clearance, 3) : 'no crown — the silhouette widens continuously to the 55% row', '<= 0.10',
-      'guarded on bodyRun\'s `crown` flag: with no crown there is no tallest tower, and an unguarded clearance of 0 would satisfy this ceiling for free');
+      !!rim && clearance <= 0.10,
+      rim ? `${R(clearance, 3)} (rim closes at row ${rim.row} of ${f.h}, ${rim.w}px wide)` : 'no tower-sized crown mass at all', '<= 0.10',
+      'the crown of a cooling tower is its open RIM, and a rim is complete where its per-row width stops climbing (`rimRow`). Measured on the topmost tower-sized crown mass, so a mast or a duct standing above the towers pushes the rim down the sprite and fails the row');
     un('reactor', '[col] >= 3 ducts resolvable at 2px linking vessel to towers',
       'thin linking ducts are a line-detection problem, not a blob/contrast one — same limitation as radar\'s ribs');
     let hn = 0; for (let i = 0; i < f.w * f.h; i++) if (f.mask[i] && isHouse(px(f, i % f.w, (i - (i % f.w)) / f.w))) hn++;
@@ -943,12 +1096,59 @@ exports.check = function (ctx) {
   if (F.sentrygun && F.sentrygun.col) {
     const f = F.sentrygun.col;
     const body = bodyRun(rowProfile(f));
-    const crown = components(f, (p, x, y) => !!p && y < body.lo).filter((c) => c.w >= 2 && c.h >= 2);
-    let gap = null;
-    if (crown.length === 2) gap = gapBetween(f, crown[0], crown[1]);
+    // BARRELS ARE COUNTED ACROSS A CUT, LIKE THE GAP GENERATOR'S TALONS.
+    //
+    // The old predicate was `components(y < body.lo)`, and it could not read 2
+    // for two reasons at once. (a) `bodyRun` reports `crown: false` on a squat
+    // silhouette, and RA2's own `soviet-sentry-gun.gif` is squat: `lo` collapses
+    // to 0, `y < lo` is empty, and the reference reports **0 crown blobs at 12
+    // of 12 chroma cuts** (9 olive, 3 green) — worse than our 1, and no drawing
+    // of anything could have moved it. (b) `components` counts members joined at
+    // a root as ONE, and a twin barrel on a shared trunnion is that by
+    // construction — the same trap `rowRuns`/`resolveBand` was written for on
+    // the Gap Generator's talons, which docs/design-decisions.md names this row
+    // as sharing.
+    //
+    // So: the widest cut in the TOP HALF (this file's own region convention for
+    // tesla's sphere and prism's crown, and where §2.7 says the barrels are —
+    // "the barrels are the top of the silhouette") that holds over two rows,
+    // plus the clear run between the members, which is the "gap >= 2 px" the
+    // row states and which no connectivity test can see.
+    //
+    // WHAT THE COMMITTED RIP CAN AND CANNOT SETTLE. It settles that the old
+    // predicate was broken (0 at 12 of 12). It cannot validate this rewrite:
+    // at 41x33 its gun sits at ~20-25 degrees of elevation, where the pair
+    // self-occludes into a single 13 px bright run, against our own 62. §2.7's
+    // row is sourced from rts.html:18765's reading of a 41x40 MAKE-frame rip
+    // that is not in the repo, at an elevation this still does not show. The
+    // row is therefore proved by BITE, including the strongest one available:
+    // it FAILED the art that shipped on 5719bfc, whose two barrels were drawn
+    // tangent (perpendicular axis separation 4.54 px against a summed half
+    // width of 4.50), and it reads 1 on a build with one barrel deleted.
+    const half = Math.floor(f.h * 0.5);
+    const bar = resolveBand(f, 0, half, (p) => !!p, 2, 2);
+    const brun = bar.count >= 2 ? bandRuns(f, bar, (p) => !!p, 2) : { gap: 0, wMax: 0 };
+    // "and they are the topmost mass": whatever reaches row 0 has to BE one of
+    // the members, and the pair has to be a PAIR. Membership is taken as
+    // connected masses rather than as x-ranges, because a barrel raised 62
+    // degrees carries its muzzle well outside the x-span of the cut that
+    // resolved it, so comparing spans would fail on a correct sprite. `gap <=
+    // wMax` is what stops an optic mast — the exact part rts.html:19199's own
+    // comment says the old build wrongly had — from being counted as the second
+    // barrel: it resolves as a member at the same height, but it stands 17 px
+    // off a 5 px barrel, and members of one trunnion do not.
+    const upper = components(f, (p, x, y) => !!p && y <= bar.y1);
+    const atTop = upper.filter((c) => c.y0 === 0);
+    const paired = bar.count === 2 && brun.gap >= 2 && brun.gap <= brun.wMax;
+    const topmost = bar.count > 0 && atTop.length > 0
+      && atTop.every((c) => c.y1 >= bar.y0 && c.x1 >= bar.x0 && c.x0 <= bar.x1);
     add('sentrygun', '[col] exactly 2 barrels, resolvable as two at 2px each with a gap >= 2px between them, and they are the topmost mass',
-      crown.length === 2 && gap !== null && gap >= 2,
-      `${crown.length} crown blob(s)${gap !== null ? `, gap ${gap}px` : ''}`, '2 blobs, gap >= 2px', '');
+      paired && topmost,
+      bar.count === 2
+        ? `2 barrels across rows ${bar.y0}-${bar.y1} (x${bar.x0}..${bar.x1}), gap ${brun.gap}px vs member ${brun.wMax}px, topmost ${topmost}`
+        : `${bar.count} member(s) at the widest top-half cut`,
+      '2 barrels, gap >= 2px and no wider than a barrel, and the sprite\'s own top row inside their span',
+      'counted across a cut (`resolveBand`), not by connectivity: two barrels on one trunnion are a single 8-connected component however far apart they are drawn, and the reference reads 0 under the old crown predicate at every chroma cut');
     // ENCLOSURE, not "a wide blob below a roofline". The old predicate was
     // `components(y >= body.lo).filter(w >= 0.5 Sw)`, which is an identity: the
     // bbox is cut TO the sprite, so its widest row is 1.000 Sw by construction

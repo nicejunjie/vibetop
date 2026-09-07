@@ -351,7 +351,7 @@
     "clause.airUnmet": 0,
     "clause.unmatchedToReference": 0,
     "clause.checkedStructures": 75,
-    "clause.unmetStructures": 4,
+    "clause.unmetStructures": 0,
     "clause.struckStructures": 0,
     "clause.waivedStructures": 0,
     "value.soldiersLighterThanEngineer": 0,
@@ -2546,14 +2546,6 @@
         ""
       ],
       [
-        "sentrygun:col",
-        "1x1",
-        "56x59",
-        1.844,
-        0.875,
-        ""
-      ],
-      [
         "oilderrick:neut",
         "2x2",
         "131x118",
@@ -2567,6 +2559,14 @@
         "164x146",
         1.825,
         1.025,
+        ""
+      ],
+      [
+        "sentrygun:col",
+        "1x1",
+        "56x58",
+        1.813,
+        0.875,
         ""
       ],
       [
@@ -3410,10 +3410,10 @@
       {
         "unit": "refinery",
         "clause": "[dir] exactly 2 stacks with a clear gap >= 0.08 Sw between them",
-        "ok": false,
-        "measured": "2 stacks, gap 0.018 Sw",
+        "ok": true,
+        "measured": "2 stacks (x89..123 and x146..173, rows 29-56), gap 22px = 0.096 Sw",
         "want": "2 stacks, gap >= 0.08 Sw",
-        "note": "stacks = crown components above bodyRun.lo, filtered to >=0.06 Sw",
+        "note": "stacks = the deepest band of crown rows carrying exactly two runs both 0.06-0.20 Sw wide (`stackPair`), not two crown COMPONENTS: a vault ridge that clears the same roofline fuses into the blob and the old gap measured the stack against the VAULT. RA2 [GAREFN] reads 15 px at 9 of 9 chroma cuts, matching §2.6's own \"gap 15 px = 0.089\"",
         "module": "structures.js",
         "refMatch": 0.64
       },
@@ -3440,10 +3440,10 @@
       {
         "unit": "refinery",
         "clause": "[col] exactly 2 stacks with a clear gap >= 0.08 Sw between them",
-        "ok": false,
-        "measured": "1 stack-sized crown blob(s) found",
-        "want": "2 stacks",
-        "note": "no committed sprite for this fac per §2.9",
+        "ok": true,
+        "measured": "2 stacks (x89..108 and x136..167, rows 33-55), gap 27px = 0.118 Sw",
+        "want": "2 stacks, gap >= 0.08 Sw",
+        "note": "stacks = the deepest band of crown rows carrying exactly two runs both 0.06-0.20 Sw wide (`stackPair`), not two crown COMPONENTS: a vault ridge that clears the same roofline fuses into the blob and the old gap measured the stack against the VAULT. RA2 [GAREFN] reads 15 px at 9 of 9 chroma cuts, matching §2.6's own \"gap 15 px = 0.089\"",
         "module": "structures.js",
         "refMatch": 0.64
       },
@@ -3720,10 +3720,10 @@
       {
         "unit": "reactor",
         "clause": "[col] the tallest tower's crown is inside the top 0.10 Sh",
-        "ok": false,
-        "measured": 0.247,
+        "ok": true,
+        "measured": "0.057 (rim closes at row 9 of 158, 50px wide)",
         "want": "<= 0.10",
-        "note": "guarded on bodyRun's `crown` flag: with no crown there is no tallest tower, and an unguarded clearance of 0 would satisfy this ceiling for free",
+        "note": "the crown of a cooling tower is its open RIM, and a rim is complete where its per-row width stops climbing (`rimRow`). Measured on the topmost tower-sized crown mass, so a mast or a duct standing above the towers pushes the rim down the sprite and fails the row",
         "module": "structures.js",
         "refMatch": 0.88
       },
@@ -3751,7 +3751,7 @@
         "unit": "sentry",
         "clause": "height over footprint strictly BELOW the Sentry Gun's (art.ini ranks Pillbox 1 against Sentry Gun 2)",
         "ok": true,
-        "measured": "pillbox 1.281 vs sentry gun 1.844",
+        "measured": "pillbox 1.281 vs sentry gun 1.813",
         "want": "pillbox < sentry gun",
         "note": "footprint height = Sh / ((gw+gh)*16), §2.5's diamond-height primitive Fh, both read on their own faction bake",
         "module": "structures.js",
@@ -3780,10 +3780,10 @@
       {
         "unit": "sentrygun",
         "clause": "[col] exactly 2 barrels, resolvable as two at 2px each with a gap >= 2px between them, and they are the topmost mass",
-        "ok": false,
-        "measured": "1 crown blob(s)",
-        "want": "2 blobs, gap >= 2px",
-        "note": "",
+        "ok": true,
+        "measured": "2 barrels across rows 5-16 (x23..42), gap 2px vs member 7px, topmost true",
+        "want": "2 barrels, gap >= 2px and no wider than a barrel, and the sprite's own top row inside their span",
+        "note": "counted across a cut (`resolveBand`), not by connectivity: two barrels on one trunnion are a single 8-connected component however far apart they are drawn, and the reference reads 0 under the old crown predicate at every chroma cut",
         "module": "structures.js",
         "refMatch": 0.83
       },
@@ -3931,7 +3931,7 @@
         "unit": "flakcannon",
         "clause": "the Height= ordering holds against the Sentry Gun (4 against 2)",
         "ok": true,
-        "measured": "flak 2.688 vs sentry gun 1.844",
+        "measured": "flak 2.688 vs sentry gun 1.813",
         "want": "flak > sentry gun",
         "note": "footprint-height ordering, §2.5's Fh primitive",
         "module": "structures.js",

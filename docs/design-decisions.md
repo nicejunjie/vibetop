@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_261 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_264 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
 - [Scheduled terminal messages ("resume when the token limit resets")](#scheduled-terminal-messages-resume-when-the-token-limit-resets)
@@ -285,6 +285,8 @@ _261 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [Two clauses that could not read the part they named: a polarity bug, and a crane RA2 does not put on the roof](#two-clauses-that-could-not-read-the-part-they-named-a-polarity-bug-and-a-crane-ra2-does-not-put-on-the-roof)
 - [Rewriting the four clauses whose predicate could not name the object it measured (2026-09-06)](#rewriting-the-four-clauses-whose-predicate-could-not-name-the-object-it-measured-2026-09-06)
 - [The Tesla Coil's missing neck was the sphere's HALO, not the helix (2026-09-06)](#the-tesla-coils-missing-neck-was-the-spheres-halo-not-the-helix-2026-09-06)
+- [A width fraction is not a part boundary, and a FLOOR's convention is not a CEILING's](#a-width-fraction-is-not-a-part-boundary-and-a-floors-convention-is-not-a-ceilings)
+- [A count across a cut can be fooled by anything that stands at the same height](#a-count-across-a-cut-can-be-fooled-by-anything-that-stands-at-the-same-height)
 
 <!-- END TOC -->
 
@@ -11307,3 +11309,118 @@ coil from 139.
 in the shot pass and `topY2 = py - 68` in `drawCharge` are the bolt origin and
 the charge glow; both were moved to 70 with `eY`. Nothing links them — a surface
 sweep is the only thing that finds them.
+## A width fraction is not a part boundary, and a FLOOR's convention is not a CEILING's
+
+**Symptom.** Three structure clauses had sat in `apps/games/rts/docs/debt-ledger.md`
+as **OPEN — real art** for several passes, one of them with an explicit note that
+it was *"explicitly NOT claimed as a broken clause by the pass that got closest"*.
+`refinery:dir` reported a stack gap of 0.018 `Sw` against 0.08; `refinery:col`
+reported one crown blob where §2.6 wants two; `reactor:col` reported a crown
+clearance of 0.247 against `<= 0.10`. Two of them had had art moved for them
+already (`7b4467a`, `94a8890`) with no result.
+
+**Cause.** All three references — `nuclear-reactor.gif`, `allied-ore-refinery.gif`,
+`soviet-sentry-gun.gif` — are backed by the same OLIVE grass, and
+`ra2-clause-probe/key.py`'s green key **cannot cut it**: that grass is
+`(152,156,64)`, so `g - max(r,b)` is **4**, and at any usable margin the entire
+plate survives as one component. Every earlier sweep against these three was
+measuring the file, not the building, which is why the last attempt could only
+record "passes at 2 of 15 cuts — inconclusive". Keyed on `min(r,g) - b` instead
+(48-88 on the grass, 12-20 on the buildings' brick, navy and concrete), with the
+background taken **border-connected** so pale roof pixels inside the silhouette
+survive, the crops stop moving — and `nuclear-reactor.gif` lands at exactly the
+166x**129** the reference document records.
+
+Run the shipped math over them and all three rows are BROKEN CHECKS:
+
+    [GAREFN]  gap  0.012-0.018 Sw   (ours 0.018)  FAIL at every cut resolving 2 blobs
+    [GAREFN]  crown blobs  1 at 6 of 9 cuts       — fuses exactly as our `col` bake does
+    [NANRCT]  clearance 0.326-0.341 at 7 of 7     against its own `<= 0.10`
+
+The reactor is the sharpest case: **RA2's own sprite fails that row by 3.3x, and
+fails it by more than ours did.** The cause is a convention applied to the wrong
+kind of bar. `bodyRun.lo / Sh` is the module's reading of *"the crown clears the
+roofline by >= X `Sh`"* — a FLOOR. This row says *"the crown is inside the top
+0.10 `Sh`"* — a CEILING — and read the same way it stops meaning "the crown is
+near the top" and starts meaning "the crown REGION is at most 10% of the sprite
+deep", which forbids the three tall cooling towers the row directly above it
+requires. The refinery pair is the same disease one level along: `gapBetween` on
+two crown components measures the second stack against the barrel VAULT, because
+the vault's ridge clears the same 55% roofline and is inside the first blob —
+the other half of the sentence `a2cb67d` had already fixed for the WIDTH row.
+
+**Fix — two threshold-free primitives, and the reference's own numbers as
+acceptance.** `stackPair` takes the deepest band of crown rows carrying exactly
+two runs both of stack width, and measures the clear columns between them:
+`[GAREFN]` reads **15 px at 9 of 9 cuts**, which is §2.6's own stated
+*"gap 15 px = 0.089"* to the pixel, and ours read 22 px (dir) and 27 px (col).
+`rimRow` walks the tallest crown mass's per-row widths down from its apex and
+stops where the rim closes — a cooling tower's crown IS its open rim:
+`[NANRCT]` **0.070** (row 9 of 129) against §2.7's hand-measured *"y≈8 of 129 →
+0.06"*, ours **0.057**. Of three candidate readings of the reactor row it is the
+only one that reproduces the document's own measurement at all; `bodyRun.lo/Sh`
+gives 0.333 and "the tower's top row" gives 0.000, an identity on a tight bbox.
+Both bite: stacks pushed together read 0.004 `Sw`, and a 34 px mast above the
+tallest tower reads 0.181.
+
+**Rejected — the ledger's own plan for `refinery:col`.** O4 asked for `grille1`
+to be shifted off the x134 seam so the two Collective furnaces stop fusing.
+Measured, that takes the count UP: the clause block emits one row below two
+crowns and three at or above, and the fused crown's `stackWidth` is 0.088 `Sw`,
+under the 0.10 floor. The fusion was never the defect and `grille1` has not moved.
+
+**Rejected — emitting `refinery:col`'s width and clearance rows now that its
+stacks resolve.** `stackWidth` needs the stack as its own connected blob; handed
+a column strip of the fused crown it starts at the chimney's narrow tip and
+reports 0.053 `Sw` for a cap that is 24 px. Logged unmeasurable instead, which
+also holds `checkedStructures` at 75 rather than buying a bigger number with a
+row that reports something false.
+
+## A count across a cut can be fooled by anything that stands at the same height
+
+**Symptom.** `sentrygun:col`'s *"exactly 2 barrels ... with a gap >= 2 px between
+them, and they are the topmost mass"* had been carried as an unreachable broken
+check — `docs/design-decisions.md`'s own closing note on `bodyRun` says "no
+horizontal roofline whatsoever resolves these two barrels — 1 component at every
+cut from 1 to 58" — and a previous attempt to satisfy it by art was reverted on
+the two-pillar rule after it left the guns floating off the receiver.
+
+**Cause, and it is two faults not one.** (a) The check: `bodyRun` reports
+`crown: false` on a squat silhouette, so on RA2's own sprite `lo` collapses to 0,
+the crown region is empty, and the reference reads **0 crown blobs at 12 of 12
+chroma cuts** — worse than our 1. And `components` counts members joined at a
+root as ONE, which a twin barrel on a shared trunnion is by construction. (b)
+**The art was also short of §2.7, which no previous pass measured.**
+`sgBar(-6.2, 2.6, …, 2.6)` and `sgBar(1.6, -2.4, …, 2.8)` are **4.54 px** apart
+along the perpendicular to `sgA = -1.082`, against a summed half-width of
+**4.50** — tangent, with four hundredths of a pixel to spare. At 1:1 the pair
+read as one fat ribbed tube.
+
+**Fix.** The count moves to `resolveBand` (members across a cut, the primitive
+already used for the Gap Generator's talons) over the top half, plus `bandRuns`
+for the clear gap. The barrels move 1.30 px apart along that perpendicular and
+1.50 px back along their own axis, lengths +1.5 so the muzzles do not move:
+axis separation 4.54 -> 7.14, drawn gap 2.64 px, bake reads 2. Over the whole
+aim range the drawn gap is now 3.7-6.3 px where the old roots gave 1.2-4.5 and
+closed to almost nothing at one extreme.
+
+**The first draft of the rewrite was a decoration and a bite test caught it.**
+An `ART_HTML` build with a 20 px optic mast beside one barrel — the exact part
+`rts.html:19199`'s own comment says the old sprite wrongly had — **PASSED**: the
+mast resolves as "2 members" the way two barrels do, and `resolveBand` takes the
+widest cut, so on the taller sprite it simply found a different pair. The row now
+also asserts `gap <= wMax`: the clear sky between the two is no wider than a
+member, which is what "a pair on one trunnion" means. Ratio 1, not a threshold.
+Ours reads 2 px against a 5 px member; the mast build 17 against 5.
+
+**Rejected — a 1.98 px perpendicular shift (drawn gap 4.0 px).** It was built
+first, and rejected by eye on opaque grass: the pair reads splayed rather than as
+a twin mount and the near breech lifts off the ammo plate. The 1.50 px axial
+seat-back exists for the same reason.
+
+**What the reference cannot settle, recorded rather than smoothed over.**
+`soviet-sentry-gun.gif` cannot validate this rewrite either: at 41x33 its gun
+sits at roughly 20-25 degrees of elevation, where the pair self-occludes into a
+single 13 px bright run, against our 62. §2.7's row is sourced from a 41x40
+MAKE-frame rip that is not in the repo. This row is proved by BITE alone — and
+the strongest of those bites is that it FAILS the art that shipped on `5719bfc`.

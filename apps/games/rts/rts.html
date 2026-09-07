@@ -19320,7 +19320,30 @@
             g.beginPath(); g.ellipse(tx3 + 1.0, ty3 - 0.6, 1.6, 1.2, 0, 0, 6.29); g.fill();
           }
         };
-        sgBar(-6.2, 2.6, 18, 2.6); sgBar(1.6, -2.4, 20, 2.8);
+        // DAYLIGHT BETWEEN THE TWO BARRELS. §2.7 asks for "two long thin
+        // barrels ... resolvable as two at 2 px each with a gap >= 2 px
+        // between them", and the pair used to be drawn TANGENT: roots
+        // (-6.2, 2.6) and (1.6, -2.4) are 4.54 px apart measured along the
+        // perpendicular to sgA = -1.082, against a summed half-width of
+        // (2.6+1.8)/2 + (2.8+1.8)/2 = 4.50 — four hundredths of a pixel of
+        // clearance, so at 1:1 the pair read as one fat ribbed tube and the
+        // building's whole identity sentence ("an OPEN machine, not a bunker",
+        // twin barrels raised steeply) was carried by a seam. Both roots move
+        // 1.30 px along that perpendicular in opposite directions, and 1.50 px
+        // BACK along the barrel axis (with the lengths +1.5 to hold the muzzles
+        // exactly where they were), so each breech still seats on the trunnion
+        // instead of hanging off the ammo plate. Axis separation 4.54 -> 7.14,
+        // drawn sky gap 2.64 px, of which the bake reads 2 once the dark
+        // outline's antialiasing has taken ~0.3 px off each edge. Same
+        // elevation, same muzzle positions, same trunnion, same stagger.
+        //
+        // Swept over the aim range too, not just the idle bake: `gunAim` at
+        // el = 1.082 puts `sgA` between -1.90 and -1.23, and the drawn gap runs
+        // 3.7-6.3 px across it where the old roots ran 1.2-4.5 and closed to
+        // almost nothing at one extreme. 1.98 px of perpendicular was tried
+        // first and rejected by eye: at 4.0 px the pair reads splayed and the
+        // near breech lifts off the plate.
+        sgBar(-8.05, 3.31, 19.5, 2.6); sgBar(2.04, -0.47, 21.5, 2.8);
         g.lineWidth = 1;
       } else {
         // Directorate never builds this (Soviet-only in RA2): plain block.
