@@ -553,7 +553,7 @@ test.describe('rts', () => {
   // click landed ~40px high (the trap recorded in order-target-audit.md).
   // Both are fixed here: a PART-loaded miner that is actively mining, and the
   // canvas bounding box added to every click.
-  test('right-clicking your own refinery docks a part-loaded miner at THAT refinery', async ({ page }) => {
+  test('right-clicking the dock a refinery DRAWS docks a part-loaded miner at THAT refinery', async ({ page }) => {
     // This one has to WAIT for real game states — a mining stint long enough
     // for the seam clock to go stale (900 ticks) and then a drive across the
     // map — so it does not fit the suite's 30s default even at top speed.
@@ -593,7 +593,16 @@ test.describe('rts', () => {
       const h = H.spawn('warminer', 0, ore.x + 1, ore.y + 1);   // drives, so the trip is real
       if (!near || !far || !h) return { ok: false };
       H.centerOn(Math.round(far.cx), Math.round(far.cy));
-      return { ok: true, far: { cx: far.cx, cy: far.cy }, near: { cx: near.cx, cy: near.cy } };
+      return { ok: true,
+               far: { cx: far.cx, cy: far.cy, gw: far.gw, gh: far.gh },
+               near: { cx: near.cx, cy: near.cy },
+               // WHERE A PLAYER ACTUALLY AIMS. Both refinery sprites draw the
+               // dock — ramp, pit, hoist mouth — on the apron row OUTSIDE the
+               // 4x3 foundation, and this test used to click the roof. That is
+               // how "clicking the docking sign has no effect" survived a fix
+               // and a rewrite of this very test: the centre picked the
+               // building, the dock picked bare ground and became a move.
+               dock: { x: Math.round(far.cx), y: Math.round(far.cy + far.gh / 2 - 0.5) + 1 } };
     });
     expect(setup.ok, 'the fixture seated two refineries and a miner').toBe(true);
 
@@ -636,11 +645,16 @@ test.describe('rts', () => {
 
     // The cursor must SAY the refinery is an order target. RA2 docking is
     // action 0x03 Enter — which is why both miners carry a VoiceEnter= line.
-    const rp = await at(setup.far.cx, setup.far.cy);
+    // Aimed at the DRAWN DOCK, not at the building's centre: the centre was
+    // always an order target, and clicking it is not what anyone reported.
+    const rp = await at(setup.dock.x, setup.dock.y);
     await page.mouse.move(rp.x, rp.y);
     await page.waitForTimeout(250);
+    expect(await page.evaluate(() => window.__rtsTest.hover()),
+      'the pointer is over the drawn dock, so the cursor below is about the right tile')
+      .toMatchObject({ x: setup.dock.x, y: setup.dock.y, in: true });
     expect(await page.evaluate(() => window.__rtsTest.cursorKind()),
-      'a miner over your own refinery gets RA2\'s ENTER cursor, not "select"').toBe('enter');
+      'a miner over the dock its refinery DRAWS gets RA2\'s ENTER cursor, not a move cursor').toBe('enter');
 
     await page.mouse.down({ button: 'right' });
     await page.mouse.up({ button: 'right' });
