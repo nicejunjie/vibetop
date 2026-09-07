@@ -640,7 +640,7 @@
     <h2>How to play</h2>
     <dl>
       <dt>Select</dt><dd>Left-click a unit, or left-drag a box. Double-click selects every visible unit of that type.</dd>
-      <dt>Order</dt><dd>Right-click: move there, attack an enemy, or send a harvester to an ore patch. <b>Ctrl</b>+right-click <b>force-fires</b> at a spot (or at your own units); <b>Ctrl+Shift</b>+right-click is an <b>attack-move</b> — they advance and engage whatever they meet. <b>F</b> then click a friendly unit to <b>follow</b> it.</dd>
+      <dt>Order</dt><dd>Right-click: move there, attack an enemy, or send a harvester to an ore patch. Right-click <b>your own Ore Refinery</b> with a miner selected and it <b>docks and unloads at once</b>, however full it is — the cursor turns to the enter arrow over anything a unit can be sent into. <b>Ctrl</b>+right-click <b>force-fires</b> at a spot (or at your own units); <b>Ctrl+Shift</b>+right-click is an <b>attack-move</b> — they advance and engage whatever they meet. <b>F</b> then click a friendly unit to <b>follow</b> it.</dd>
       <dt>Hold ground</dt><dd><b>S</b> stops dead — the unit fires at what comes into range but never moves. <b>G</b> guards: it leaves its post by up to two cells to engage, then walks back. <b>X</b> scatters.</dd>
       <dt>Deploy</dt><dd><b>D</b> digs a GI in behind sandbags — longer reach and double the rate of fire, and it will not move again until you press <b>D</b> to pack up. The same key unfolds an MCV into a Construction Yard and empties a garrisoned building.</dd>
       <dt>Camera</dt><dd><b>Right-drag</b> (or middle-drag) grabs the map and looks around — it never gives an order, whatever is selected. <b>Arrow keys</b>, mouse to a screen edge, or click the minimap to jump.</dd>
@@ -651,7 +651,7 @@
       <dt>Build</dt><dd>Pick from the right-hand panel. A finished <b>building</b> turns purple — click it, then click the map to place it (it must touch your base area).</dd>
       <dt>Rally</dt><dd>Select a Barracks or War Factory, then right-click the map: new units walk that route as they roll out. The line stays drawn while the building is selected. Click an already-selected factory again to make it <b>primary</b> — the one that builds.</dd>
       <dt>Sidebar</dt><dd>Hover a cameo for its cost, power draw and prerequisites. <b>Q W E R</b> pick the four tabs, <b>PageUp</b> / <b>PageDown</b> scroll the list, <b>T</b> selects every unit of one type, <b>K</b> / <b>L</b> are repair and sell, and <b>Power</b> switches a structure off to free its drain.</dd>
-      <dt>Economy</dt><dd>Harvesters mine ore and drive it back to a refinery. More refineries, more income. Ore patches run dry — expand.</dd>
+      <dt>Economy</dt><dd>Harvesters mine ore and drive it back to a refinery. More refineries, more income. Ore patches run dry — expand. Right-click a refinery to <b>send a miner home early</b> and bank what it is carrying; it goes to the one you clicked, and afterwards mines the nearest ore.</dd>
       <dt>Power</dt><dd>Every structure draws power. Go negative and construction crawls. Bombing a power plant hurts.</dd>
       <dt>Win</dt><dd>Destroy every enemy structure. Lose them all yourself and it's over. With <b>Short game</b> off you must also destroy every last enemy unit.</dd>
       <dt>Also</dt><dd><b>Space</b> jumps to the last radar event · <b>H</b> jumps home · <b>Delete</b> self-destructs the selection · <b>P</b> pauses · <b>Esc</b> cancels, and with nothing to cancel opens the <b>options</b> card (sound, scroll speed, restart, abort).</dd>
@@ -22573,7 +22573,7 @@
       x: gx, y: gy, hp: d.hp, maxhp: d.hp, dead: false,
       face: ((gx + gy) & 7) * 4, fsub: 0, tsub: 0, cool: 0, target: null, order: null,     // order: {t:'move'|'attack'|'harvest', x,y,id}
       path: null, pi: 0, repath: 0, repathAt: -999, stuck: 0, lastx: gx, lasty: gy,
-      cargo: 0, cargoV: 0, mineAt: null, homeRef: null, state: 'idle', fleeAt: -999, noGo: null, noProg: 0,
+      cargo: 0, cargoV: 0, mineAt: null, homeRef: null, forcedDock: false, state: 'idle', fleeAt: -999, noGo: null, noProg: 0,
       pax: [],                                                       // RA2 Passengers=: who is riding in this hull
       bestD: 1e9, stallAt: 0, holdUntil: 0, movedAt: -99, tface: null, aimAt: 0,
       kills: 0, rank: 0, wp: null,                                   // veterancy: 3 kills veteran, 6 elite
@@ -23852,6 +23852,48 @@
   // further than that across the map drives home instead, so it stays on its
   // own side rather than blinking across two bases and walking all the way back.
   var CHRONO_DELAY = 60 * 2, CHRONO_HARV_TOOFAR = 50;
+
+  // THE ONE WAY A HARVESTER IS SENT HOME. The automatic full-load return and
+  // the player's forced dock order both come through here, so a forced return
+  // is the same journey as an automatic one rather than a second, shabbier
+  // imitation of it.
+  //
+  // That mattered most for [CMIN] Teleporter=yes. The C&C wiki is explicit
+  // that a Chrono Miner warps home when it is full "or when explicitly
+  // ordered to dock", and rolls "back on their wheels" otherwise — so the
+  // warp belongs to BOTH callers. Before this, the forced path set 'toref'
+  // by hand and the Chrono Miner trundled all the way home on its wheels
+  // while the identical automatic return teleported. Same order, two
+  // completely different journeys, and the slow one reads as "my click did
+  // nothing" — which is exactly how this was reported, twice.
+  //
+  // `forced` marks the refinery as the PLAYER's choice, which the 'toref'
+  // escape below must not quietly overrule.
+  function sendHome(g, u, ref, forced) {
+    if (!ref || ref.dead) { u.state = 'idle'; u.forcedDock = false; return false; }
+    var hd = UNITS[u.type];
+    u.homeRef = ref; u.forcedDock = !!forced;
+    // stallAt is the "has not got anywhere for fifteen seconds" clock. It is
+    // last set when the harvester STARTS a trip, and 'mining' never touches
+    // it, so a miner that has been chewing a seam for fifteen seconds arrives
+    // in 'toref' already over the limit: the escape fired on the very first
+    // tick and swapped the player's refinery for the nearest one. MEASURED —
+    // a forced return with a stallAt age of 954 ticks retargeted after 1 tick
+    // and unloaded at a refinery 24 cells from the one that was clicked.
+    u.noProg = 0; u.stallAt = g.tick; u.bestD = 1e9;
+    if (hd.chronoHome && dist(u, ref) <= CHRONO_HARV_TOOFAR) {
+      // It does not drive home. It stands still for ChronoDelay and
+      // then it is simply THERE — and drives back out normally.
+      u.state = 'warp'; u.warpAt = g.tick + CHRONO_DELAY; u.path = null;
+      if (!headless) sfx('charge');
+    } else {
+      var dk = refDock(g, ref);
+      u.state = 'toref'; u.path = null; u.repathAt = -999;
+      requestPath(g, u, dk.x, dk.y);
+    }
+    return true;
+  }
+
   function stepHarvester(g, u) {
     var d = UNITS[u.type];
     // [HARV] OpportunityFire=yes + Turret=yes: the War Miner keeps its 20mm
@@ -23979,7 +24021,12 @@
     if (g.tick - u.fleeAt < 240 && (u.state === 'mining' || u.state === 'tomine')) {
       var safe = findRefinery(g, u.p, u.x, u.y);
       if (safe) {
+        // Not routed through sendHome on purpose: a Chrono Miner that
+        // teleported out of every ambush would be unkillable, and running for
+        // cover is the harvester's own decision, so it cannot inherit — or
+        // keep — the player's claim on a particular refinery.
         u.homeRef = safe; u.state = 'toref'; u.path = null; u.repathAt = -999; u.noProg = 0;
+        u.forcedDock = false; u.stallAt = g.tick;
         return;
       }
     }
@@ -24004,22 +24051,12 @@
       }
       if (g.ore[mi] <= 0.5) { g.terrain[mi] = T_GROUND; g.ore[mi] = 0; u.mineAt = null; }
       if (u.cargo >= ucap(g, u) - 0.01 || !u.mineAt) {
-        if (u.cargo > 20) {
-          var ref = findRefinery(g, u.p, u.x, u.y);
-          if (ref) {
-            var dock = refDock(g, ref);
-            u.homeRef = ref; u.noProg = 0; u.stallAt = g.tick;
-            if (d.chronoHome && dist(u, ref) <= CHRONO_HARV_TOOFAR) {
-              // It does not drive home. It stands still for ChronoDelay and
-              // then it is simply THERE — and drives back out normally.
-              u.state = 'warp'; u.warpAt = g.tick + CHRONO_DELAY; u.path = null;
-              if (!headless) sfx('charge');
-            } else {
-              u.state = 'toref';
-              requestPath(g, u, dock.x, dock.y);
-            }
-          } else u.state = 'idle';
-        } else u.state = 'idle';
+        // [General] HarvesterTooFarDistance=5, and Seke's XWIS miner guide:
+        // a full RA2 miner heads for the NEAREST refinery. It is not bound to
+        // a parent refinery at build time — the stickiness players notice is
+        // last-visited memory plus proximity.
+        if (u.cargo > 20) sendHome(g, u, findRefinery(g, u.p, u.x, u.y), false);
+        else u.state = 'idle';
       }
       return;
     }
@@ -24027,12 +24064,12 @@
     if (u.state === 'toref') {
       var ref2 = u.homeRef;
       if (!ref2 || ref2.dead) {
-        var alt = findRefinery(g, u.p, u.x, u.y);
-        if (!alt) { u.state = 'idle'; return; }
-        var ad = refDock(g, alt);
-        u.homeRef = alt; u.path = null; u.repathAt = -999;
-        u.noProg = 0; u.stallAt = g.tick;
-        requestPath(g, u, ad.x, ad.y);
+        // The refinery was shot out from under it. Take the nearest survivor;
+        // with none left, go idle rather than hold a pointer to a dead
+        // building (RA2Web: "harvesters should permanently halt when no
+        // refineries remain"). A forced order cannot survive its own target,
+        // so the player's claim on it lapses here too.
+        sendHome(g, u, findRefinery(g, u.p, u.x, u.y), false);
         return;
       }
       if (atRefinery(u, ref2)) {
@@ -24045,7 +24082,15 @@
         g.side[u.p].credits += _got; g.side[u.p].harv += _got;
         if (u.p === ME && !headless) creditPop(Math.round(u.cargoV));
         u.cargo = 0; u.cargoV = 0; u.state = 'idle'; u.path = null; u.noProg = 0; u.stallAt = g.tick;
-        sfx('dump', u.x, u.y); sfx('cash');
+        // The order is DISCHARGED here, not abandoned: 'idle' falls into the
+        // seam search on the next tick with no order set, which takes the
+        // nearest ore. That is what RA2 does after a hand-sent return —
+        // Seke: "the miner automatically goes and mines the closest ore" —
+        // as against the default trip, which heads back out to the patch it
+        // was working. The forced dock cleared u.order for exactly this.
+        u.forcedDock = false; u.mineAt = null;
+        sfx('dump', u.x, u.y);
+        if (_got > 0) sfx('cash');       // no cash register for an empty hold
         return;
       }
       var dk = refDock(g, ref2);
@@ -24055,8 +24100,17 @@
       // Re-choosing the refinery re-runs the dock search against current
       // ground, which is what clears a blocked approach.
       if (u.noProg > 180 || g.tick - (u.stallAt || 0) > 900) {
-        var re = findRefinery(g, u.p, u.x, u.y);
-        u.homeRef = re || ref2; u.path = null; u.repathAt = -999;
+        // A HAND-PICKED REFINERY IS NOT NEGOTIABLE. RA2 has one dock per
+        // refinery ([GAREFN]/[NAREFN] NumberOfDocks=1) and a miner whose
+        // refinery is busy WAITS for it — HarvesterTooFarDistance=5 exists
+        // precisely to stop it bouncing off to a further one, and RA2Web
+        // fixed the same thing ("should no longer try to dump ore to a far
+        // away refinery while the closest one is temporarily blocked"). So
+        // only an UNFORCED trip may re-choose; a forced one keeps its target
+        // and merely re-runs its own approach, which is the half of this
+        // branch that actually clears a blocked dock.
+        var re = u.forcedDock ? ref2 : (findRefinery(g, u.p, u.x, u.y) || ref2);
+        u.homeRef = re; u.path = null; u.repathAt = -999;
         u.noProg = 0; u.stallAt = g.tick;
       }
       return;
@@ -28490,11 +28544,24 @@
             requestPath(g, u, Math.round(tgt.cx), Math.round(tgt.cy));
             nown++; what = 'Engineer will repair ' + bspecOfB(g, tgt).name;
           } else if (isHarv(u) && tgt.kind === 'b' && tgt.type === 'refinery') {
-            // Reuse the auto-return path verbatim — `homeRef` + state 'toref' is
-            // exactly what a full harvester sets for itself, including the
-            // unload and the walk back to the seam.
+            // RA2's ENTER mission on a refinery. It is a first-class order in
+            // the real game, not an inference: [HARV]/[CMIN] both carry
+            // `Dock=NAREFN,GAREFN` and a `VoiceEnter=` bark of their own
+            // (the Chrono Miner's is a dedicated ChronoMinerReturn clip),
+            // and [GAREFN]/[NAREFN] answer with `DockUnload=yes`.
+            //
+            // It overrides the mining cycle at ANY load — that is the whole
+            // point of it. Seke's XWIS miner guide: "start sending miners
+            // back manually despite not being full, 2/5 or 3/5 is fine".
+            // What an EMPTY miner does is unsourced; we obey the order, which
+            // is the rule everywhere else in this file (an order refused in
+            // silence is indistinguishable from a bug).
+            //
+            // `null`ing the order is what makes it mine the NEAREST seam
+            // after unloading rather than driving back to a hand-assigned
+            // one — see the unload branch in stepHarvester.
             u.guard = false; u.stopped = false; u.wp = null; u.order = null;
-            u.homeRef = tgt; u.state = 'toref'; u.path = null; u.repathAt = -999; u.noProg = 0;
+            sendHome(g, u, tgt, true);
             nown++; what = u.cargo ? 'Returning to the refinery' : 'Heading for the refinery';
           } else if (UNITS[u.type].cls === 'v' && !u.air && tgt.kind === 'b' && tgt.type === 'depot') {
             // AIM AT A CELL THE UNIT CAN ACTUALLY REACH.
@@ -31385,6 +31452,14 @@
       // Our own transport with room in it, under a unit that fits: RA2's ENTER.
       else if (hov && hov.kind === 'u' && hov.p === ME && paxCapOf(hov) &&
                units.some(function (u) { return canBoard(G, hov, u); })) k = 'enter';
+      // A miner over our own Ore Refinery. RA2 shows the ENTER cursor here:
+      // docking is action 0x03 Enter, which is why both miners carry a
+      // `VoiceEnter=` line. Ours fell through to `select`, so the one cue the
+      // player had said the refinery was NOT an order target — and it was
+      // reported in exactly those words: "refinery isn't an end point".
+      // The order had already been wired; nothing on screen ever said so.
+      else if (hov && hov.kind === 'b' && hov.p === ME && hov.type === 'refinery' &&
+               units.some(function (u) { return isHarv(u); })) k = 'enter';
       else if (hov && hov.p === ME && !hov.bomb && units.some(function (u) { return UNITS[u.type].ivan; })) k = 'attack';
       else if (hov && hov.p === ME) k = 'select';
       else if (!inMap(hoverTile.x, hoverTile.y)) k = 'nomove';
@@ -32140,7 +32215,7 @@
       u.wp = null; u.guard = false; u.stopped = false;
       if (onOre && isHarv(u)) {
         u.order = { t: 'harvest', x: gx, y: gy, id: 0 };
-        u.mineAt = { x: gx, y: gy }; u.state = 'tomine'; u.path = null;
+        u.mineAt = { x: gx, y: gy }; u.state = 'tomine'; u.path = null; u.forcedDock = false;
         u.noProg = 0; u.bestD = 1e9; u.stallAt = g.tick;
         requestPath(g, u, gx, gy);
         n++;
@@ -32153,7 +32228,7 @@
       var tx = sp.x, ty = sp.y;
       u.order = { t: 'move', x: tx, y: ty, id: 0 };
       u.guardX = tx; u.guardY = ty; u.repathAt = -999; u.path = null;
-      if (isHarv(u)) { u.state = 'idle'; u.mineAt = null; u.noProg = 0; }
+      if (isHarv(u)) { u.state = 'idle'; u.mineAt = null; u.noProg = 0; u.forcedDock = false; }
       requestPath(g, u, tx, ty);
       n++;
     });
@@ -32175,7 +32250,7 @@
       u.wp = null; u.guard = false; u.stopped = false;
       u.order = { t: 'amove', x: sp.x, y: sp.y, id: 0 };
       u.guardX = sp.x; u.guardY = sp.y; u.repathAt = -999; u.path = null; u.rtb = false;
-      if (isHarv(u)) { u.state = 'idle'; u.mineAt = null; }
+      if (isHarv(u)) { u.state = 'idle'; u.mineAt = null; u.forcedDock = false; }
       requestPath(g, u, sp.x, sp.y);
       n++;
     });
