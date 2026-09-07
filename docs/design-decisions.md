@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_260 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_261 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
 - [Scheduled terminal messages ("resume when the token limit resets")](#scheduled-terminal-messages-resume-when-the-token-limit-resets)
@@ -278,6 +278,7 @@ _260 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [Two more structure clauses measure the wrong object — and RA2's own sprite fails one of them](#two-more-structure-clauses-measure-the-wrong-object-and-ra2s-own-sprite-fails-one-of-them)
 - [The Allied Power Plant's fused crowns: an ink budget, not a spacing accident (2026-09-06)](#the-allied-power-plants-fused-crowns-an-ink-budget-not-a-spacing-accident-2026-09-06)
 - [`peerVsSelf` measures how much a silhouette SWINGS, not whether it is confusable (2026-09-06)](#peervsself-measures-how-much-a-silhouette-swings-not-whether-it-is-confusable-2026-09-06)
+- [`peerVsSelf` repaired: the missing term was the PEER's own spread (2026-09-06)](#peervsself-repaired-the-missing-term-was-the-peers-own-spread-2026-09-06)
 - [The end of the terminal tab strip was a 60px sliver (v1.19.313)](#the-end-of-the-terminal-tab-strip-was-a-60px-sliver-v119313)
 - [A clause that no isometric ground plate can satisfy squashed the Service Depot into a hairline](#a-clause-that-no-isometric-ground-plate-can-satisfy-squashed-the-service-depot-into-a-hairline)
 - [A width fraction is not a part boundary — four structure clauses measured the wrong object, and RA2's own sprites failed three of them](#a-width-fraction-is-not-a-part-boundary-four-structure-clauses-measured-the-wrong-object-and-ra2s-own-sprites-failed-three-of-them)
@@ -10723,10 +10724,14 @@ sign did not move. The recorded naval "elongation ceiling" and this vehicle row
 are one bug: elongation is the correlate, swing is the cause, and long hulls
 swing most. corr(aspectSwing, selfIoUCross) = **-0.823** over the 13 vehicles.
 
-**Fix.** None to the art, and none to the metric *yet*. The finding is recorded
-where the next pass will hit it — the block note above `TARGETS`, the
+**Fix.** None to the art, and none to the metric *in this pass*. The finding is
+recorded where the next pass will hit it — the block note above `TARGETS`, the
 `peerVsSelf.vehicle` note, `apps/games/rts/docs/per-unit-art-log.md` — and the
 control is a runnable file so the arithmetic never has to be re-derived.
+
+> **Repaired on 2026-09-06** by the entry immediately below, which supplies the
+> missing term and takes the row 6 → 2 with no art change. Read that one for
+> what the metric now measures; this one is the diagnosis it rests on.
 
 **Rejected — every art lever, baked and measured one at a time.** Rail rise
 x0.70 (which lands the broadside aspect on RA2's own 1.75, 1.7174): still beaten
@@ -10742,6 +10747,109 @@ more confusable, which is the opposite of what it is named for.
 `peerVsSelf.naval` (5 rows) and `.vehicle` (1) together: a six-row change to a
 ratcheted gate, out of scope for a pass assigned one unit, and it wants its own
 before/after on the whole roster.
+
+## `peerVsSelf` repaired: the missing term was the PEER's own spread (2026-09-06)
+
+**Symptom.** The entry above proves `peerVsSelf` was measuring aspect *swing*
+rather than confusability, and leaves six rows standing (`total` 6 = naval 5 +
+vehicle 1) with the note "do not spend art against it". A gate row nobody may
+act on is a gate row that will be ignored, and this one had already survived one
+repair by looking principled.
+
+**Cause.** The old test was one-sided:
+
+```
+    OLD:  flag k if  cross(k,p) - self(k) > 0
+```
+
+`self(k)` is the mean dissimilarity *within* k's cloud of eight silhouettes and
+`cross(k,p)` the mean from that cloud to a peer's, so k is charged for its own
+spread and given **no credit for the peer's**. A compact peer parked near k's
+centre therefore always wins — the disc-vs-centre artefact (mean distance
+between two random points of a disc 0.905 R, mean distance from disc to centre
+0.667 R).
+
+**Fix.** Add the missing term. The row is now the standard **unbiased two-sample
+kernel statistic** over the two clouds of eight, with silhouette IoU — the
+Jaccard kernel — as its kernel:
+
+```
+    NEW:  flag the pair if  self(k) + self(p) - 2*cross(k,p) < 0
+```
+
+The estimator's *shape* was already right for this: `crossIoU` drops the `i===j`
+diagonal only when `a === b`, which is exactly MMD²ᵤ's within-sample /
+cross-sample convention. So the repair is **one missing term, not a new
+arithmetic**, and it keeps the property the row was valued for — zero is where a
+two-sample statistic's own null sits, not a number anyone chose.
+
+**Why it is blind to swing.** Swing enters through `self(k)` and enters
+`cross(k,p)` again with the same sign; `-2*cross` cancels it to first order and
+`self(p)` supplies the peer's half. Measured over the 13 vehicles, worst peer
+per unit:
+
+| | corr with aspect swing |
+|---|---|
+| `self` (the swing signal itself) | **-0.823** |
+| OLD margin | **+0.545** |
+| NEW statistic | **-0.049** |
+
+**The control is now the regression test.** `tools/peer-vs-self-control.js` runs
+both estimators side by side and exits non-zero if either half stops holding;
+`tools/peer-vs-self-control.test.js` asserts it in the **default hermetic tier**
+(60 ms — rectangles need no browser, which is the point of the control being
+rectangles). Three numbers:
+
+* **Neutral.** The V3's own aspects as rectangles against a compact peer:
+  OLD **+0.0786** FLAGGED (the V3 itself measured +0.0787), NEW **+0.0997**
+  neutral. Over a swing sweep 1.0→2.8 the OLD flags 8/9 rows, the NEW 0/9.
+* **It still bites.** Two clouds with the same swing, one a scaled near-copy:
+  NEW flags down to a same-bearing overlap of **0.9026**, below which
+  `iou.sameFactionOver75` (ceiling 0.75) owns the band, so the gate is not blind
+  between them.
+* **Proven red against the broken build.** With `mmd2` swapped back in a scratch
+  copy, the test fails with `mmd2 = -0.0786` — the published figure.
+
+Also, `--bite` re-bakes `rts.html` through `ART_HTML` with the Mirage drawn as
+the Prism Tank's art at 0.96x and measures it with `art-metrics.js` itself:
+mmd2 **-0.0148**, `peerVsSelf.vehicle` **0 → 2**. A metric that flags nothing is
+not a fix.
+
+**Result. `peerVsSelf.total` 6 → 2, `.vehicle` 1 → 0, `.naval` 5 → 2, and
+nothing else moved** — 3 of 57 metrics, verified by diffing the whole
+`art-baseline.json` metrics block. Four of the six rows were the artefact: the
+V3, Dreadnought, Squid and Submarine all cleared with **no art change
+whatsoever**, and the V3's row — the one an entire measured pass could not close
+with the missile *deleted* — closed for free.
+
+**The two that survive are a real finding, and they are one pair.** Destroyer
+and Aegis Cruiser, at mmd2 **-0.0337** — the only negative on the board, against
+**+0.0281** for the next-closest pair in the game — counted once from each side.
+Their bboxes track each other at every octant (70x51/67x43, 89x42/82x37,
+46x57/48x49) and their broadside aspects are 2.119 and 2.216. Two independent
+instruments agree: their same-bearing IoU is **0.724**, which sneaks *under*
+`iou.sameFactionOver75`'s 0.75 ceiling, and `legibility.js` — which sees colour
+and value, not just mask — ranks `destroyer | aegis` its **worst pair in all
+three zoom windows** (48.5 at ZMIN against a threshold of 40.1). So this is the
+case the row exists for and no other metric in the gate catches it. **The art
+fix is superstructure, not proportion**: both hulls sit inside RA2's aspect band
+and must stay there — do not close it by shortening or rounding either one,
+which is the tugboat error the aspect gate exists to catch.
+
+**Rejected: normalising the statistic by the pooled spread** (`mmd2 / (2 -
+self(k) - self(p))`). It cannot change the *sign*, so it moves no row unless a
+positive threshold is also chosen — which trades the one property that makes
+this row trustworthy (no threshold) for nothing.
+
+**Rejected: comparing each unit to a peer at the SAME bearing and taking the
+worst pair.** The worst same-bearing pair of two units is the bearing where they
+happen to coincide, so a compact peer scores ~1.0 against a swinging unit at
+whichever bearing matches its mean — the rectangle control fails it too. It is
+the same artefact wearing a different face.
+
+**Rejected: deleting the row.** It catches something no other metric does, and
+the shipped art proves it: Destroyer/Aegis are invisible to `iou.sameFactionOver75`
+by 0.026 of IoU.
 
 ## The end of the terminal tab strip was a 60px sliver (v1.19.313)
 
