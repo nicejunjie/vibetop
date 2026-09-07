@@ -196,12 +196,6 @@ bug this whole file is about.
 
 ## Still open, deliberately
 
-* **The dock is a proximity test, not a dock.** `atRefinery` is
-  `dist < max(gw,gh)/2 + 1.9`, so a miner unloads standing up to ~1.9 cells
-  clear of the footprint. RA2 drives it **onto** the building
-  (`NumberImpassableRows=3`, with Westwood's own comment about "I can drive on
-  you"), swaps to an unloading art class (`UnloadingClass=HORV`/`CMON`) and
-  reverses out. Ours banks the money from the kerb.
 * **No pause at the door.** RA2 pauses a returning miner briefly at the
   refinery *unless* it was micro-ed — that pause is the whole reason manual
   returns are worth doing. We have no pause on either path, so a forced return
@@ -209,3 +203,97 @@ bug this whole file is about.
 * **Automatic returns should head back to the patch they left**; ours takes the
   nearest ore, which is RA2's behaviour after a *forced* return. Both of these
   move every economy number in the balance suite and want their own pass.
+
+
+---
+
+# Third pass, 2026-09-07 — *"clicking the docking sign has no effect"*
+
+The same area, a third report, and this time with the **aim point** in it:
+
+> "I can force miner go to refinery, but it stays there, doesn't go in dock,
+> doesn't unload ore." … "to force miner go back to refinery, clicking the
+> docking sign has no effect. I click a bit in front of the refinery, and the
+> cursor is a moving cursor not a docking cursor."
+
+Both passes above tested the ORDER and never the CLICK. `orderOwn` is handed
+the refinery; the e2e clicked its **centre**. The player aims at the dock — and
+the dock is not on the foundation.
+
+| defect | measured before | after |
+|---|---|---|
+| click on the drawn dock ramp | `pickAt` -> **null** -> a plain `move`; the miner drove to the kerb, parked, banked nothing (1200 ticks at (11.86,6.77) with `atRefinery` **true**) | resolves to the refinery; `cmd('own')`; docks |
+| cursor over the drawn dock ramp | **`move`** | `enter` |
+| `refDock` for a 4x3 refinery at cy 6 | **(7, 9)** — the footprint ends at y 7 and the ramp is drawn on y 8, so the destination was a clear tile of grass *beyond the building's own art* | (7, 8), the apron the sprite draws |
+| where the ore was banked | wherever the miner first crossed `dist < 3.90` — **margin 0.00-0.04 of a cell over 16 approach bearings**, up to 4 cells from the dock, sometimes behind the building | standing within half a cell of a door cell, every bearing |
+
+**Both refinery sprites draw their dock outside the foundation** — the Soviet
+pale ramp slab running off the dished pit, the Allied hoist mouth under the
+drum — and `pickAt` resolves a building from its foundation rectangle only. So
+the most obvious thing on the building to aim at was the one part of it that
+was bare ground. The art file had been saying so in its own words the whole
+time: *"the dock tile centre is (cx - 64, baseY + 32)"*, i.e. two cells down the
+`+gy` face, one closer than `refDock` was aiming.
+
+**This was never about `forcedDock`.** The automatic full-load return shares
+every one of these faults: same `refDock`, same `atRefinery`. `forcedDock`
+removed the accident that used to paper over the arrival mismatch (an unforced
+give-up re-chose the nearest refinery, which sometimes unloaded it by luck), it
+did not create one.
+
+## The shape of the fix
+
+`footBounds(b)` gives the footprint in cell indices — the missing primitive.
+`b.cx` sits on a **half** cell whenever the span is even, which is exactly what
+`Math.round(cy + gh/2 + 1)` rounded a whole tile past. From it:
+
+* `dockApron(b)` — the cell row outside the `+gy` face, the face both sprites
+  draw the dock on. `refDock` aims at it, and `dockAt()` makes a click on it
+  mean the refinery for a harvester, in **`rightOrder` and `pickCursor` alike**
+  so the cue and the order cannot disagree.
+* `atRefinery` is the **same band**, one cell clear of the footprint plus half
+  a cell of hull slop. A footprint is a rectangle and its ring of doors is a
+  rectangular band; the old circle-about-a-rectangle was both too tight at the
+  corners and 1.4 cells too loose along the faces. Every dock cell satisfies
+  the band by construction, so "reached my dock" implies "docked".
+
+`dockAt` is deliberately **not** folded into `pickAt`: the apron is ordinary
+walkable ground that every other unit must still be sendable to, and force-fire
+must not treat it as a structure.
+
+## The other dockable structures — checked, and clear
+
+Measured the same way (a rendered frame, every cell in a 11x10 window coloured
+by whether a click on it picks the building):
+
+| structure | drawn dock affordance | inside the clickable footprint? |
+|---|---|---|
+| Ore Refinery, both factions | ramp / pit / hoist mouth on the `+gy` apron | **NO** — the defect above |
+| Service Depot, both factions | the toothed repair apron | yes (the Soviet gantry mast overhangs, but that is superstructure, not the dock) |
+| Airforce Command | the helipad | yes |
+| Naval Shipyard | the rig deck | yes (drum edges overhang) |
+
+The Service Depot's *order* also already aims at `floor(gw/2) + 1` — the
+adjacent kerb — which is the arithmetic `refDock` should have had. The refinery
+was the only structure whose dock affordance and clickable cells disagreed.
+
+## Proof
+
+`clickCell` / `rightClickCell` / `cursorAt` / `hover` run the real
+`clickSelect`, `rightOrder` and `pickCursor` at the pixel a grid cell projects
+to, so the **pick** is under test and not just the command behind it. Committed
+as plumbing first and the tests proved red on that commit:
+
+* `refDock says y=7, the footprint ends at y=5, the sprite's ramp is at y=6`
+* `hovering the drawn dock with a miner selected: cursor 'move', expected 'enter'`
+
+The e2e was proved red twice against the pre-fix build — once on the cursor,
+and once with the cursor assertion removed so the ORDER assertion is
+independently red (*"the dock order never took"*).
+
+Played in a real browser, 12 scenarios: both factions x empty/part/full x one
+refinery and two. Every one shows the `enter` cursor over the drawn dock, takes
+the dock order from a right-click there, goes to the refinery that was
+**clicked** (not the nearer one), banks credits, and goes back to mining. The
+Chrono Miner warps onto the ramp itself; the War Miner drives up against the
+plate.
