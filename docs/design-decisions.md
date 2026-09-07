@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_266 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_267 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
 - [Scheduled terminal messages ("resume when the token limit resets")](#scheduled-terminal-messages-resume-when-the-token-limit-resets)
@@ -289,6 +289,7 @@ _266 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [A count across a cut can be fooled by anything that stands at the same height](#a-count-across-a-cut-can-be-fooled-by-anything-that-stands-at-the-same-height)
 - [RTS: the command bar belongs at the bottom of the SCREEN, and RA2 really does have one](#rts-the-command-bar-belongs-at-the-bottom-of-the-screen-and-ra2-really-does-have-one)
 - [A forced miner return has to be the SAME journey as an automatic one](#a-forced-miner-return-has-to-be-the-same-journey-as-an-automatic-one)
+- [The refinery's dock was drawn where nothing could click it](#the-refinerys-dock-was-drawn-where-nothing-could-click-it)
 
 <!-- END TOC -->
 
@@ -11577,3 +11578,82 @@ at all, and it also fed `__rtsScreen`'s canvas-relative coordinates straight to
 than no test: it converts "unverified" into "verified". The replacement uses a
 part-loaded miner that is actively mining, so only the click can send it home,
 and it was proved red against the pre-fix build before being kept.
+
+## The refinery's dock was drawn where nothing could click it
+
+**Symptom.** Third report on the same mechanic in four days. *"I can force miner
+go to refinery, but it stays there, doesn't go in dock, doesn't unload ore"* —
+and then the detail that broke it open: *"clicking the docking sign has no
+effect. I click a bit in front of the refinery, and the cursor is a moving
+cursor not a docking cursor."*
+
+**Cause — the affordance was outside the building.** Both refinery sprites draw
+their dock on the apron row **outside** the 4x3 foundation: the Soviet pale ramp
+slab running off the dished pit, the Allied hoist mouth under the drum.
+`pickAt` resolves a building from its foundation rectangle. So the most obvious
+thing on the building to aim at was the one part of it that resolved to bare
+ground: the right-click became a plain `move`, the miner drove to the kerb and
+parked there with a full hold, and the cursor said MOVE the whole time.
+MEASURED — a click on the drawn ramp picked nothing; the miner then sat at
+(11.86,6.77) for 1200 ticks with `atRefinery` **true** and banked nothing. That
+is the first report word for word, and it is indistinguishable from a broken
+order because from the outside it *is* a move order.
+
+**Cause — and the dock stood in a field.** `refDock` aimed at
+`Math.round(cy + gh/2 + 1)`. `b.cx`/`b.cy` sit on a **half** cell whenever the
+span is even, so for a 4x3 refinery at cy 6 that is `round(8.5) = 9` — but the
+footprint ends at 7 and the sprite draws its ramp on 8. The miner's destination
+was a clear tile of grass beyond the building's own art. The art file had said
+so in its own words all along: *"the dock tile centre is (cx - 64, baseY + 32)"*.
+
+**Cause — and arrival was a circle drawn round a rectangle.** `atRefinery` was
+`dist < max(gw,gh)/2 + 1.9`, an independent constant with nothing tying it to
+where the dock is. On a 4x3 it reached 3.90 along +x where the door is 2.5, and
+cut the corners it should have covered. MEASURED over sixteen approach bearings
+on a clear arena: every delivery banked on a margin of **0.00 to 0.04 of a
+cell** — the miner never reached its dock at all, it crossed the radius
+somewhere on the way past and unloaded there, up to four cells away and
+sometimes behind the building. One extra cell of stand-off — a blocked
+approach, a second miner already on the ramp — and "docks" becomes "parks
+against the wall forever".
+
+**Fix — one definition of where the door is, read by all four callers.**
+`footBounds(b)` gives the footprint in cell indices; it is the primitive whose
+absence caused the half-cell rounding. From it, `dockApron(b)` is the cell row
+outside the `+gy` face, the face both sprites draw the dock on. `refDock` aims
+at it. `dockAt()` makes a click on it mean the refinery for a harvester in
+**`rightOrder` and `pickCursor` alike**, so the one cue the game gives cannot
+disagree with what the click will do. And `atRefinery` is that same band — one
+cell clear of the footprint plus half a cell of hull slop — so every dock cell
+satisfies arrival by construction and "reached my dock" implies "docked".
+
+**`forcedDock` did not cause this.** The automatic full-load return shares every
+fault above: same `refDock`, same `atRefinery`. What `forcedDock` removed was
+the accident that used to paper the arrival mismatch over — an unforced give-up
+re-chose the *nearest* refinery, which sometimes unloaded the miner by luck.
+
+**Rejected — folding the apron into `pickAt`.** It would have made the cursor,
+the click and the tooltip agree for free. But the apron is ordinary walkable
+ground: a plain move order onto it must still work for every other unit, and
+Ctrl+click force-fire would have started shooting the player's own refinery
+because they aimed at grass that happens to have a ramp drawn on it. The dock
+resolution is a harvester-order concern, so it lives in the two places that ask
+that question.
+
+**Rejected — requiring the miner to stand on the exact dock cell.** The most
+RA2-faithful reading (`NumberOfDocks=1`), and the most dangerous: with
+`HarvestersPerRefinery=2` the separation nudge pushes the second miner ~0.85 of
+a cell off the ramp, and a forced dock keeps its refinery forever, so a miner
+that can never satisfy the test never unloads. A **band** is the same single
+definition without the deadlock.
+
+**The lesson.** Two passes tested the ORDER and neither tested the CLICK:
+`orderOwn` is handed the refinery, and the e2e clicked its **centre** — which
+was always an order target. The whole reported bug lived in the gap between
+"the command works" and "the thing on screen issues the command". The harness
+now has `clickCell` / `rightClickCell` / `cursorAt` / `hover`, which run the
+real `clickSelect` / `rightOrder` / `pickCursor` at the pixel a grid cell
+projects to. Checked every other dockable structure the same way, with a
+rendered frame and a per-cell pick map: the Service Depot's repair apron, the
+Airforce Command's helipad and the Shipyard's deck all sit **inside** their
+footprints. The refinery was the only one whose art and hit box disagreed.
