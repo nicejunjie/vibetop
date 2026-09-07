@@ -677,3 +677,182 @@ sprite, failed the reference. New check: the exact opposite, on both.
    fused mass and the aspect row goes red carrying the fused number — the safe
    direction, and observed on two probe builds. Not an art defect today: both
    shipped bakes segment cleanly at every cut.
+
+---
+
+## 2026-09-06, a FOURTH pass — the last five rows, triaged before anything is touched
+
+> **Append-only, and written BEFORE any edit.** Branch taken from `5719bfc`,
+> where `clause.unmetStructures` is **5**. Row 5 (`tesla:col`'s neck) belongs to
+> a peer and is not touched or restated here. The other four are triaged below
+> with the arithmetic, and **three of the four had already been recorded in this
+> file as CEILINGS. All three are wrong: they are broken checks, and RA2's own
+> sprite fails every one of them.**
+
+The five, enumerated from `node apps/games/rts/tools/art-metrics.js` on that commit:
+
+| # | key | clause | ours | verdict reached below |
+|---|---|---|---|---|
+| A | `refinery:dir` | 2 stacks, clear gap >= 0.08 `Sw` | 2 stacks, gap **0.018** | **BROKEN** (was: CEILING) |
+| B | `refinery:col` | 2 stacks | **1** stack-sized crown blob | **BROKEN** (was: CEILING) |
+| C | `reactor:col` | tallest tower's crown inside the top 0.10 `Sh` | **0.247** | **BROKEN** (was: CEILING) |
+| D | `sentrygun:col` | 2 barrels, 2 px each, gap >= 2 px, topmost | **1** crown blob | **BROKEN check AND a real ART defect** |
+| E | `tesla:col` | neck pinching to <= 0.10 `Sw` | 0.269 | *peer's row — untouched* |
+
+### A new key, and why the old sweeps were inconclusive
+
+Three of the four references (`nuclear-reactor.gif`, `allied-ore-refinery.gif`,
+`soviet-sentry-gun.gif`) are backed by the same OLIVE grass, and `key.py`'s
+green key cannot cut it: that grass is `(152,156,64)`, so `g - max(r,b)` is
+**4**, and at any usable margin the whole plate survives as one component
+(`nuclear-reactor.gif` -> 173x136 at every margin from 4 to 56 — the file
+itself). That is why the earlier `[GAREFN]` sweep in this file could only say
+"passes at 2 of 15 cuts — inconclusive".
+
+The olive grass separates on `min(r,g) - b`, which is **48-88** on every grass
+colour in these plates and **12-20** on the buildings' own brick, navy and
+concrete. With the background taken border-connected (so pale roof pixels
+inside the silhouette survive) the answer stops moving:
+
+    nuclear-reactor.gif    tol 20..36   ->  170..172 x 129   <- 129 is exactly the
+                                                                166x129 §2 records
+    allied-ore-refinery.gif tol 16..48  ->  165..175 x 133/134
+    soviet-sentry-gun.gif  tol 16..48   ->  41..42 x 33       <- §2 cites a 41x40 rip
+
+**Every number below is stated across that sweep, never at one cut**, and every
+one was produced by `run-clause.js` loading `tools/clause-checks/structures.js`
+verbatim off disk — the probe reproduces all fourteen shipped structure numbers
+for these three keys byte-for-byte before it is allowed to say anything.
+
+### C — `reactor:col`: the reference fails its own row by 3.3x, and fails it WORSE than we do
+
+    tol    bbox        clearance (the SHIPPED read)
+     20   170x129        0.341
+     24   171x129        0.333
+     28   171x129        0.333
+     32   171x129        0.333
+     36   172x129        0.333
+     40   172x130        0.338
+     44   173x132        0.326
+
+**0.326-0.341 against a clause demanding `<= 0.10`, at 7 of 7 cuts** — where our
+own bake reads 0.247. There is no drawing of this building that passes, and the
+"the flood-fill segmentation is not stable enough to tune against" note this
+file put on the row in `94a8890` was measuring the wrong thing to begin with.
+
+The cause is one line: `clearance = body.lo / f.h`. That is convention #3 in
+this module's own header — *"crown clears the roofline by >= X `Sh` is read
+directly as `bodyRun.lo / Sh`"* — which is written for a **`>=` FLOOR** and is
+applied here to a **`<=` CEILING**. Read that way the row does not say "the
+crown is near the top"; it says **"the crown region is at most 10% of the
+sprite deep"**, i.e. the three cooling towers must rise barely at all above the
+55%-of-widest roofline. That directly contradicts the sibling row in the same
+block, which needs those towers resolvable as three separate crown masses.
+
+**§2.7's own worked number settles which reading is meant**: *"the tallest
+tower's crown inside the top 0.10 `Sh` (measured y≈8 of 129 → 0.06)"*. Three
+candidate readings, run on the sprite the doc cites:
+
+| reading | `[NANRCT]` | reproduces the doc's 0.06? |
+|---|---|---|
+| `bodyRun.lo / Sh` (shipped) | **0.333** | no — 5x out |
+| tallest tower's top row / `Sh` | **0.000** | no — and it is an identity on a tight bbox |
+| **the row where the tallest tower's RIM is complete** | **0.070** (row 9 of 129) | **yes** |
+
+A cooling tower's crown IS its open rim, and the rim is complete where its
+per-row width stops climbing. The reference's tallest tower opens
+`2 15 16 24 29 30 33 33 35 36 36 36 35` — it reaches 36 px at row 9 and
+narrows at row 12. Row 9 of 129 = **0.070**; the doc says row 8 = 0.062. One
+row apart, on a number measured by eye.
+
+    swept:   tol   20     24     28     32     36     40     44
+             ref  0.047  0.070  0.070  0.070  0.070  0.069  0.076
+             ours 0.057 (row 9 of 158, rim 50 px)
+
+**Passes at 7 of 7 cuts, and ours passes too** — so this row goes green with no
+art change, which is why it needs a bite test to be worth anything (below, in
+the implementation section).
+
+### A and B — the Refinery: `gapBetween` measures the VAULT, not the second stack
+
+Run the shipped math over `[GAREFN]` on the new key:
+
+    tol    bbox       crown blobs   the SHIPPED gap row
+     16   165x133          2        2 stacks, gap 0.018 Sw   FAIL
+     20   170x134          2        2 stacks, gap 0.018 Sw   FAIL
+     24   170x134          2        2 stacks, gap 0.012 Sw   FAIL
+     28   172x134          1        "1 stack-sized crown blob(s) found"  FAIL
+     32   172x134          1        "1 stack-sized crown blob(s) found"  FAIL
+     36 ..48               1        "1 stack-sized crown blob(s) found"  FAIL
+
+**RA2's own Ore Refinery fails row A at every cut where it resolves two stacks
+— at 0.012-0.018 `Sw`, the same number our bake reads (0.018) — and fails row B
+at the other six, fusing its crown into ONE blob exactly the way our `col` bake
+does.** Both rows are broken, and neither is the ceiling this file recorded.
+
+The cause is the other half of the sentence `a2cb67d` already fixed. That commit
+moved the WIDTH row off `c.w` because *"the blob it named runs from the stack's
+cap all the way down into the barrel vault's ridge"*. The GAP row still calls
+`gapBetween(crown[0], crown[1])` on those same two blobs — so it measures the
+distance from the second stack to the **vault**, which on both sprites is one or
+two pixels, and never the distance between the two stacks.
+
+**§2.6 states the measurement it wants**: *"exactly 2 stacks with a clear gap
+>= 0.08 `Sw` between them (measured: x 35..57 and 72..96 of 169, gap **15 px** =
+0.089)"* — two x-spans and the clear run between them. Resolve the stacks as the
+two members that stand apart across a CUT (the `rowRuns`/`resolveBand` idiom
+this file introduced for the Gap Generator's talons), take the deepest band on
+which the crown resolves into exactly two runs both of stack width, and measure
+the clear columns between them:
+
+    [GAREFN]   tol  16    20    24    28    32    36    40    44    48
+               gap  15px  15px  15px  15px  15px  15px  15px  15px  15px
+               Sw  .091  .088  .088  .087  .087  .087  .087  .086  .086
+               band rows 21-45 at every cut,  stacks x32..50 and x65..95
+
+**15 px at 9 of 9 cuts — §2's own number, to the pixel**, and 0.086-0.091 `Sw`
+against a floor of 0.08. Our own bakes on the same measurement:
+
+    refinery:dir   stacks x99..123 and x146..173, band rows 29-56, gap 22px = 0.096 Sw
+    refinery:col   stacks x89..108 and x136..167, band rows 33-55, gap 27px = 0.118 Sw
+
+**Both pass, and the art does not move.** In particular the ledger's row O4 — the
+plan to un-fuse `refinery:col`'s crown by shifting `grille1` off the x134 seam,
+which was measured to take the count UP because the clause block emits one row
+below 2 crowns and three at or above — **is dead on arrival and stays undone**:
+the fusion was never the defect, `grille1` stays where it is, and the count is
+resolved across a cut that the grille does not reach.
+
+### D — `sentrygun:col`: the check reads ZERO on the reference, and our barrels really do touch
+
+    olive tol  16 20 24 28 32 36 40 44 48  ->  "0 crown blob(s)"   FAIL, 9 of 9
+    green tol   1  3  4                    ->  "0 crown blob(s)"   FAIL, 3 of 3
+
+Twelve cuts, zero every time — the reference does not merely miss the count, it
+cannot find a crown at all, because `bodyRun` reports `crown: false` on that
+squat silhouette and `lo` collapses to 0, leaving `y < lo` empty. And the count
+primitive is the one this file has already retired twice: `components` returns
+**one** blob for any set of members joined at a root, which is precisely what a
+twin barrel on a shared trunnion is. `docs/design-decisions.md` names this row
+by name as the same trap as the Gap Generator's talons.
+
+**And the art is short of §2 as well, which is new.** `rts.html:19304` draws
+`sgBar(-6.2, 2.6, 18, 2.6)` and `sgBar(1.6, -2.4, 20, 2.8)` off a trunnion at
+`sgA = -1.082`. The perpendicular separation between the two barrel axes is
+
+    offset (7.8, -5.0) . perp(0.8829, 0.4695) = 6.887 - 2.348 = 4.54 px
+
+against a summed half-width of `(2.6+1.8)/2 + (2.8+1.8)/2` = **4.50 px**. The two
+barrels are TANGENT, with four hundredths of a pixel to spare — so §2.7's *"two
+long thin barrels ... resolvable as two at 2 px each with a **gap >= 2 px**
+between them"* is not drawn, and at 1:1 the pair reads as one fat ribbed tube.
+
+**What the committed rip can and cannot settle.** It settles that the shipped
+check is broken (0 at 12 of 12). It cannot validate a rewrite: at 41x33 its gun
+sits at roughly 20-25 degrees of elevation, where the pair self-occludes into a
+single 13-px bright run (`row 15: ############`), against our own 62 degrees.
+§2.7's row is sourced from `rts.html:18765`'s reading of a **41x40 MAKE-frame
+rip that is not in the repo**, at an elevation this still does not show. That
+limit is recorded here rather than smoothed over, and it is why row D's rewrite
+is proved by BITE alone — including the strongest bite available, that it fails
+the art shipping today.
