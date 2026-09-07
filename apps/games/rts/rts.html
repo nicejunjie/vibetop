@@ -36254,6 +36254,31 @@
     // Frame cost: the renderer on its own, so a perf check measures drawing
     // and not the browser's idle time between animation frames.
     render: function () { render(); },
+    // THE PLAYER'S OWN INPUT PATH, addressed by grid cell instead of by pixel.
+    // `orderOwn` above reaches applyCmd but starts from a building the test
+    // handed it, so it can only ever prove that an order WORKS once issued —
+    // never that clicking the thing on screen issues it. Every reported miner
+    // failure so far has been in the half these skip: the click resolved to
+    // bare ground, the order was a `move`, and the miner parked. These run the
+    // real `clickSelect` / `rightOrder` at the pixel the cell projects to, so
+    // the pick is under test too. Commands still travel the lockstep layer —
+    // step `__rtsNet.delay() + 1` after one.
+    clickCell: function (gx, gy, shift) { clickSelect(sx(gx, gy), sy(gx, gy), !!shift); return sel.slice(); },
+    rightClickCell: function (gx, gy, shift, ctrl) { rightOrder(sx(gx, gy), sy(gx, gy), !!shift, !!ctrl); return sel.slice(); },
+    selected: function () { return sel.slice(); },
+    // What the cursor WOULD be over a given cell, without a pointer. pickCursor
+    // reads `mouse`/`hoverTile` and bails headless, so a test cannot ask it
+    // anything; this sets the hover the way a real pointermove does and reads
+    // the answer back. The cursor is the only cue the game gives about what a
+    // right-click will do, so it is worth an assertion of its own.
+    cursorAt: function (gx, gy) {
+      var was = headless; headless = false;
+      mouse.in = true; mouse.x = sx(gx, gy); mouse.y = sy(gx, gy);
+      hoverTile.x = Math.round(gx); hoverTile.y = Math.round(gy);
+      pickCursor();
+      headless = was;
+      return curKind;
+    },
     cursorKind: function () { return curKind; },
     cursorSet: function () { buildCursors(); return CURSORS; },
     // Every module-level cache the SIMULATION reads back. A match must start

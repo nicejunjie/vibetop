@@ -6086,3 +6086,126 @@ test("a forced dock is obeyed at any load, and the miner goes back to work after
     assert.ok(working, `${load_}: it parked at the refinery instead of going back to work (state ${h.state})`);
   }
 });
+
+// Reported a THIRD time, and this time with the aim point in it: "to force
+// miner go back to refinery, clicking the docking sign has no effect. I click
+// a bit in front of the refinery, and the cursor is a moving cursor not a
+// docking cursor."
+//
+// That is the half the two rounds before this never tested. `orderOwn` and the
+// e2e both START from the refinery — one is handed the building, the other
+// clicks its CENTRE — so both could only ever prove that the order works once
+// issued. The player aims at the DOCK: both refinery sprites draw a ramp (the
+// Soviet pale slab off the dished pit, the Allied hoist mouth) on the apron row
+// just outside the 4x3 foundation, and `pickAt` tests the foundation only. So
+// the most obvious thing on the building to aim at was the one part of it that
+// resolved to bare ground: the click became a `move`, the miner drove to the
+// kerb, parked, and banked nothing — which is exactly the first report,
+// "it stays there, doesn't go in dock, doesn't unload ore".
+//
+// These drive `clickSelect` / `rightOrder` at the pixel the cell projects to,
+// so the PICK is under test and not just the command behind it.
+function apronFixture(W, seed, minerType) {
+  const H = W.__rtsTest, T = W.__rtsTables;
+  const g = H.begin(seed, "normal");
+  H.give(0, 40000);
+  const ore = H.findOre(g.start[0].x, g.start[0].y);
+  assert.ok(ore, "the start has ore near it");
+  let ref = null;
+  for (let r = 1; r < 20 && !ref; r++)
+    for (let oy = -r; oy <= r && !ref; oy++) for (let ox = -r; ox <= r && !ref; ox++) {
+      if (Math.max(Math.abs(ox), Math.abs(oy)) !== r) continue;
+      const bx = ore.x + ox, by = ore.y + oy;
+      if (bx < 3 || by < 3 || bx > T.MAP - 8 || by > T.MAP - 8) continue;
+      let clear = true;
+      for (let y = by - 1; y < by + 6 && clear; y++)
+        for (let x = bx - 1; x < bx + 6; x++)
+          if (g.terrain[y * T.MAP + x] !== 0) { clear = false; break; }
+      if (clear) ref = H.build("refinery", 0, bx, by);
+    }
+  assert.ok(ref, "seated a refinery beside the seam");
+  const m = H.spawn(minerType, 0, ore.x + 1, ore.y + 1);
+  assert.ok(m, `${minerType} did not spawn`);
+  // The apron: the cell row immediately outside the +gy face, which is the face
+  // both sprites draw their dock on. Worked out here from the footprint the
+  // same way the art was, so the test does not inherit the code's arithmetic.
+  const footBottom = Math.round(ref.cy + ref.gh / 2 - 0.5);
+  const apron = { x: Math.round(ref.cx), y: footBottom + 1 };
+  H.centerOn(ref.cx, ref.cy);
+  return { g, H, T, m, ref, ore, apron, footBottom };
+}
+
+test("the cell the refinery draws its dock on IS the cell the miner is sent to", () => {
+  // refDock aimed at `Math.round(cy + gh/2 + 1)`. For the 4x3 refinery that is
+  // round(cy + 2.5) = cy + 3, but the footprint ends at cy + 1 — so the dock
+  // stood a whole clear tile beyond the drawn ramp, in open grass, and the
+  // miner's destination was a field. The art file says so in its own words:
+  // "the dock tile centre is (cx - 64, baseY + 32)", which is cy + 2.
+  const W = load();
+  const { g, ref, apron, footBottom } = apronFixture(W, 4801, "warminer");
+  const dk = W.__rtsTest.api3.refDock(g, ref);
+  assert.equal(dk.y, apron.y,
+    `the dock is on the wrong row: refDock says y=${dk.y}, the footprint ends at y=${footBottom} ` +
+    `and the sprite's ramp is at y=${apron.y}`);
+  assert.ok(Math.abs(dk.x - ref.cx) <= ref.gw / 2,
+    `the dock is off the side of the building: x=${dk.x} against a footprint centred on ${ref.cx}`);
+});
+
+test("clicking the drawn dock — not the roof — docks the miner and says so in the cursor", () => {
+  for (const minerType of ["warminer", "chronominer"]) {
+    const W = load();
+    const { g, H, m, ref, apron } = apronFixture(W, 4802, minerType);
+    const N = W.__rtsNet;
+    for (let i = 0; i < 60 * 90 && m.state !== "mining"; i++) H.step(1);
+    assert.equal(m.state, "mining", `${minerType}: never started mining`);
+    for (let i = 0; i < 60 * 20 && m.cargo < 120; i++) H.step(1);
+    assert.ok(m.cargo > 20, `${minerType}: it is carrying something to bank`);
+
+    // Select it the way a player does, then hover the dock.
+    H.clickCell(m.x, m.y);
+    assert.equal(H.selected().length, 1, `${minerType}: the miner did not select`);
+    assert.equal(H.cursorAt(apron.x, apron.y), "enter",
+      `${minerType}: hovering the drawn dock with a miner selected must give RA2's ENTER cursor, not a move cursor`);
+
+    const credits0 = H.credits(0), cargo0 = m.cargo;
+    H.rightClickCell(apron.x, apron.y);
+    for (let i = 0; i < N.delay() + 2; i++) H.step(1);
+    assert.ok(m.state === "toref" || m.state === "warp",
+      `${minerType}: clicking the dock left the miner in state '${m.state}' — the click was a move order, not a dock order`);
+    assert.equal(m.homeRef, ref, `${minerType}: it is not going to the refinery whose dock was clicked`);
+
+    let banked = 0;
+    for (let t = 1; t <= 60 * 60 && !banked; t++) { H.step(1); if (H.credits(0) > credits0) banked = t; }
+    assert.ok(banked, `${minerType}: it never unloaded (state ${m.state}, cargo ${Math.round(m.cargo)})`);
+    assert.ok(m.cargo < cargo0, `${minerType}: credits moved but the hold did not empty`);
+  }
+});
+
+test("a miner standing anywhere on a refinery's door counts as docked", () => {
+  // The arrival test and the dock cell are two numbers that have to agree, and
+  // for one release they did not: the dock sat 3.04 cells off the centre
+  // against an arrival radius of 3.90, and the miner banked the instant it
+  // crossed 3.90 — MEASURED at margins of 0.00 to 0.04 of a cell over sixteen
+  // approach bearings. Anything that widened the gap by one cell (a blocked
+  // approach, a second miner already at the dock) turned "docks" into "parks
+  // forever". This pins the property instead of the constant: every cell of the
+  // ring the dock is chosen from must count as arrived.
+  const W = load();
+  const { g, H, ref } = apronFixture(W, 4803, "warminer");
+  const x0 = Math.round(ref.cx - ref.gw / 2 + 0.5), x1 = Math.round(ref.cx + ref.gw / 2 - 0.5);
+  const y0 = Math.round(ref.cy - ref.gh / 2 + 0.5), y1 = Math.round(ref.cy + ref.gh / 2 - 0.5);
+  const miss = [];
+  for (let y = y0 - 1; y <= y1 + 1; y++)
+    for (let x = x0 - 1; x <= x1 + 1; x++) {
+      if (x >= x0 && x <= x1 && y >= y0 && y <= y1) continue;      // inside the footprint
+      const h = H.spawn("warminer", 0, x, y);
+      h.x = x; h.y = y; h.cargo = 100; h.cargoV = 100;
+      h.state = "toref"; h.homeRef = ref; h.path = null;
+      const c0 = H.credits(0);
+      H.step(1);
+      if (H.credits(0) <= c0) miss.push(`(${x},${y})`);
+      h.dead = true;
+    }
+  assert.equal(miss.length, 0,
+    `a miner touching the refinery must be able to unload; these door cells did not: ${miss.join(" ")}`);
+});
