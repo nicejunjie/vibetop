@@ -36333,6 +36333,16 @@
       return n;
     },
     orderInfil: function (units, b) { return G ? orderAttack(G, units, b) : 0; },
+    // The player's right-click on one of their OWN buildings. This runs the
+    // real `applyCmd` case rather than re-implementing it, because the hooks
+    // beside it that DO re-implement their command (orderCoil, orderCapture)
+    // can pass while the path the player actually takes is broken — which is
+    // how the miner-to-refinery order shipped broken twice.
+    orderOwn: function (units, tgt) {
+      if (!G || !tgt) return 0;
+      applyCmd(G, ME, { t: 'own', u: idsOf(units), id: tgt.id });
+      return units.length;
+    },
     deploy: function (units, on) {
       units.forEach(function (u) { u.deployed = !!on; u.order = null; u.path = null; });
       return units.length;
