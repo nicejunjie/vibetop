@@ -59,6 +59,28 @@ the same broken check, all of them on the depot's pad. Full arithmetic in
 |---|---|---|
 | **BROKEN-CHECK** | `depot:dir` + `depot:col`, "flat pad >= 0.50 Sw" and "works confined <= 0.50 Sw" | The clause's "pad column" is one **<= 15% of Sh tall**. A flat plate in 2:1 isometric is by construction half as tall on screen as it is wide, so a pad at RA2's own 0.71 Sw runs to ~0.32 Sh — over twice the allowance — before anything is drawn on it. **RA2's own `soviet-service-depot.gif` fails the row at 0 of 11 sweep cuts** (padFrac 0.086-0.385, works 0.615-0.914). The predicate wants rewriting as a GROUND-BAND test, not a thinness test. |
 
+**15 -> 12** (the clause-rewrite pass): B2, B3 and B6 are **closed by fixing the
+checker**, exactly as this table said they should be, and B1 is closed as a
+broken check and **re-opened as a real art defect**. All four had located a real
+part with a WIDTH FRACTION (`bodyRun`'s 55% roofline, or the largest top-half
+blob's bottom edge) instead of with a part boundary; two threshold-free
+primitives — `pinch()` (deepest interior waist) and `solidBands()` (wide + solid
++ deep top-half mass) — replace it. RA2's own sprites now PASS all four:
+`[NARADR]` 0.643-0.700 `Sw` / aspect 1.050-1.068 where the shipped math read
+1.000/0.831; `[NATSLA]` 0.071 `Sw` where it read 0.310; `[NALASR]` — **fetched
+and committed by this pass, closing B6's "no reference sprite was run against
+it" caveat** — 0 enclosing bands at every valid sweep cut, against `[GACNST]`'s
+1. Each rewrite is proved to still BITE against a deliberately broken
+`ART_HTML` build. `checkedStructures` held at 75; full arithmetic in
+`structure-clause-triage.md`'s last section.
+
+| row | was | now | verdict |
+|---|---|---|---|
+| **B1** `tesla:col` neck | 0.627 (buttress spread) | **0.269** (row 27, 18 px) | **now OPEN — real art.** The collar at `rts.html:16555` is 7.2 px and *is* the neck, but the 26 px electrode sits on it with no gap and the 16 px helix wraps past it, so no row is ever narrow. RA2 leaves ~8 rows of bare 3 px stalk |
+| **B2** `radar:col` dish Sw/aspect | `Sw 1.000`, aspect 0.780 | **0.695 / 1.071** | **CLOSED — MET.** The ledger's own prediction ("fixing the segmentation should close B2 and B3 together with no further art work") is confirmed |
+| **B3** `radar:col` top 45% | 0.888 (`body.hi/Sh`) | **0.447** | **CLOSED — MET.** Note the reference lands at 0.460-0.465 on a tight bbox, so this ceiling is ~1.5 pp tighter than RA2's own tower |
+| **B6** `sentrygun:col` drum | 1 blob @ 1.000 `Sw` | **0 bands** | **CLOSED — MET**, and no longer the weakest proof of the seven: it now has a reference sprite and a two-sided control |
+
 **These four rows going red is a deliberate, user-directed trade.** They were
 green only because the pad had been squashed to satisfy them: `dpb` driven
 `fh*0.70 -> 0.19 -> 0.01` (a 157 px apron ONE PIXEL deep) plus three anamorphic
@@ -105,6 +127,11 @@ Sprite widths referenced below, from this run's `detail.bldAll`:
 `gapgen:dir` 75x86.
 
 ### The 7 BROKEN-CHECK rows
+
+> **B1, B2, B3 and B6 were rewritten on 2026-09-06** — see the update section
+> above. B2, B3 and B6 are MET; B1 is now a real art defect with an honest
+> number. B4 (`prism:dir`) was already closed by `106f9e8`. The rows are kept
+> below as the diagnosis that earned the fix.
 
 | # | key | clause (§2 text as the check states it) | measured | want | verdict | evidence |
 |---|---|---|---|---|---|---|
