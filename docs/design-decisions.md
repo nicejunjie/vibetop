@@ -10818,7 +10818,7 @@ not a fix.
 **Result. `peerVsSelf.total` 6 → 2, `.vehicle` 1 → 0, `.naval` 5 → 2, and
 nothing else moved** — 3 of 57 metrics, verified by diffing the whole
 `art-baseline.json` metrics block. Four of the six rows were the artefact: the
-V3, Dreadnought, Squid and Submarine all cleared with **no art change
+V3, Dreadnought, Giant Squid and Typhoon all cleared with **no art change
 whatsoever**, and the V3's row — the one an entire measured pass could not close
 with the missile *deleted* — closed for free.
 
