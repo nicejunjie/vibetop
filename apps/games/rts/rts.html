@@ -16540,11 +16540,12 @@
       // passes so the turns behind the core are dim and the ones in front are
       // bright silver-white - which is what the sprite reads as at 1:1.
       cylinder(g, cx, cB, 4.4, cB - cT, COIL_D, '#26272e', '#050507');
-      var hR = 8.0, turns = 4, steps = 120, hSpan = cB - cT - 4;   // 3.25 px/turn, the pitch 6-over-19 had
+      var hRb = 11.0, hRt = 5.2, turns = 4, steps = 120, hSpan = cB - cT - 3;
       var hPt = function (i) {
-        var t = i / steps * turns * 6.2832;
-        return [cx + Math.sin(t) * hR,
-                cB - 2 - i / steps * hSpan + Math.cos(t) * hR * 0.30,
+        var f = i / steps, r = hRb + (hRt - hRb) * f;   // f: 0 at the bottom, 1 at the top
+        var t = f * turns * 6.2832;
+        return [cx + Math.sin(t) * r,
+                cB - 2 - f * hSpan + Math.cos(t) * r * 0.30,
                 Math.cos(t)];
       };
       g.lineCap = 'round'; g.lineJoin = 'round';
@@ -16568,7 +16569,7 @@
       // Short dark collar, then the electrode seated straight on it - no
       // spindle. Pale silver going lavender-white at the crown, deliberately
       // NOT saturated, so it is the same on a blue base and a red one.
-      cylinder(g, cx, nkB + 1, 2.0, 10, shade(IRON, 1.14), IRON_L, IRON_D);
+      cylinder(g, cx, nkB + 1, 2.0, 10, shade(IRON, 1.62), shade(IRON_L, 1.10), IRON_D);
       g.fillStyle = shade(WIND_D, 0.88);                   // insulator plate the neck stands on,
       g.beginPath(); g.ellipse(cx, nkB + 2, 5.0, 1.9, 0, 0, 6.29); g.fill();   // kept BELOW nkB
       g.fillStyle = SHELL;
