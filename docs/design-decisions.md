@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_264 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_265 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
 - [Scheduled terminal messages ("resume when the token limit resets")](#scheduled-terminal-messages-resume-when-the-token-limit-resets)
@@ -287,6 +287,7 @@ _264 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [The Tesla Coil's missing neck was the sphere's HALO, not the helix (2026-09-06)](#the-tesla-coils-missing-neck-was-the-spheres-halo-not-the-helix-2026-09-06)
 - [A width fraction is not a part boundary, and a FLOOR's convention is not a CEILING's](#a-width-fraction-is-not-a-part-boundary-and-a-floors-convention-is-not-a-ceilings)
 - [A count across a cut can be fooled by anything that stands at the same height](#a-count-across-a-cut-can-be-fooled-by-anything-that-stands-at-the-same-height)
+- [RTS: the command bar belongs at the bottom of the SCREEN, and RA2 really does have one](#rts-the-command-bar-belongs-at-the-bottom-of-the-screen-and-ra2-really-does-have-one)
 
 <!-- END TOC -->
 
@@ -11424,3 +11425,79 @@ sits at roughly 20-25 degrees of elevation, where the pair self-occludes into a
 single 13 px bright run, against our 62. §2.7's row is sourced from a 41x40
 MAKE-frame rip that is not in the repo. This row is proved by BITE alone — and
 the strongest of those bites is that it FAILS the art that shipped on `5719bfc`.
+
+---
+
+## RTS: the command bar belongs at the bottom of the SCREEN, and RA2 really does have one
+
+**Symptom.** The six quick commands (Team 1, Team 2, Same, Deploy, Guard, Plan)
+sat in a 3x2 grid in the bottom-right corner of the build menu, as six words with
+no pictures, and **Scatter had no button at all** — it had been deleted on the
+reasoning recorded in the code: *"Stop and Scatter are the S and X keys, and
+never had buttons in RA2."*
+
+**Cause — a half-right reading of RA2's UI.** RA2's `ui.ini` does describe the
+six buttons in that order, so the ORDER was right. What the note got wrong is
+where they live. RA2 has an **Advanced Command Bar**: a Westwood retail feature
+(manual pp. 15, 23-24), a strip along the very bottom of the screen spanning the
+battlefield and stopping at the sidebar, opened by a tab at its left end.
+`ui.ini` lives inside `ra2.mix -> local.mix` and carries exactly two sections,
+`[AdvancedCommandBar]` and `[MultiplayerAdvancedCommandBar]`, with one key,
+`ButtonList=`. It is not a leftover and not a CnCNet/Ares addition. Measured off
+two in-game screenshots (1024x768 and 1366x768, identical row structure): 196 px
+sidebar, **32 px bar**, **52 px button pitch**, cells ~46x28 — **landscape, not
+square** — and the button group **left-aligned** in the leftmost ~310 px with the
+rest of the strip empty. RA2's HUD is fixed-pixel: a wider window shows more map,
+it does not inflate the chrome.
+
+**Fix.** `#stage` and `#cmdbar` became siblings inside a new `#field` column, so
+the bar is a **layout row and not an overlay** — the canvas ends where the bar
+begins, the bar covers no ground, and every unit on screen stays clickable.
+`resize()` still measures `#stage`, which is why the bar had to be a sibling
+rather than a child. Proportions follow the measurements: full battlefield width,
+left-aligned group inset about a button-width, 78x44 cells on an 83 px pitch —
+1.77:1, against RA2's 1.8:1.
+
+**Scatter is back, and it is the one deliberate departure.** RA2 gives it no
+button (`Scatter` is not even a legal `ButtonList` token; `Stop` is legal but not
+a default). The old note used that to justify deleting it, which left the only
+panic command in the game reachable solely by a key you had to already know. It
+sits next to Guard because those two are the same kind of order. It reuses the
+existing `cmd('scatter', …)` path exactly — `onCmdClick` already routed
+`data-cmd="scatter"`, so only the markup was ever missing.
+
+**The icons are drawn paths, and they are RA2's own designs.** Same technique as
+the top bar's gear (see the U+2699 note in `rts.html`): inline SVG on a 24-unit
+box, `fill: currentColor`, never a font glyph. Team = RA2's **ellipse ring**
+around a numeral; TypeSelect = a single pip, an arrow, and a **3x3 grid of nine**;
+Deploy = **four diagonal wedges around a centre diamond**; Guard = a **bevelled
+heraldic shield**; PlanningMode = **square nodes tracing the letter Z** (the same
+letter as its hotkey) ending in a flag on a pole. Every one was rendered at its
+real 20 px and looked at before it was kept — four first drafts were thrown away
+there, not in review.
+
+**Rejected — Roman numerals in the team rings.** RA2 draws I and II. At 20 px
+they are one bar and two bars; the research pass noted that even RA2's own
+greyscale scans make II read as a single fat bar. The ring is RA2's, the numeral
+is Arabic, and legibility wins over the transcription.
+
+**Rejected — a centred button group.** Built first and it looks tidier with
+labelled buttons, but the measurement says left-aligned, and "true RA2, every
+detail" decides ties.
+
+**Rejected — hotkey letters on the button faces.** RA2 prints none (verified
+against the manual art and two screenshots) and its buttons carry no per-button
+frames either. The hotkey stays in the drawn tooltip.
+
+**Rejected — dropping the Power toggle to match RA2.** Vanilla RA2/YR has no
+power button and no underlying power-toggle function at all; Ares re-adds it as
+a mod feature. But this game HAS that feature, and the fix for "RA2 lacks it" is
+not to delete something that works. Sell and Repair keep RA2's own position —
+directly under the radar, above the production tabs — with Power beside them.
+
+**A bug the move surfaced: Space re-fired the last button.** A clicked button
+keeps DOM focus, and the browser then re-activates it on Space and Enter — so
+Space, which is "jump to the last radar event", silently fired the last command a
+second time (click Deploy, tap Space, and the GIs you just dug in packed straight
+back up). `onCmdClick` now calls `b.blur()` first. The bar is a mouse surface;
+the keyboard belongs to the game.
