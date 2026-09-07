@@ -24080,7 +24080,11 @@
         var _pur = (hasBld(g, u.p, 'purifier') ? 1 : 0) + aiVirtualPurifiers(g, u.p);
         var _got = Math.round(u.cargoV * (1 + 0.25 * _pur));
         g.side[u.p].credits += _got; g.side[u.p].harv += _got;
-        if (u.p === ME && !headless) creditPop(Math.round(u.cargoV));
+        // An EMPTY miner can be sent home by hand, so this branch now runs
+        // with nothing in the hold. A floating "+0" over the refinery and a
+        // cash register for no money are both wrong; the dump still plays,
+        // because it did dock.
+        if (u.p === ME && !headless && _got > 0) creditPop(Math.round(u.cargoV));
         u.cargo = 0; u.cargoV = 0; u.state = 'idle'; u.path = null; u.noProg = 0; u.stallAt = g.tick;
         // The order is DISCHARGED here, not abandoned: 'idle' falls into the
         // seam search on the next tick with no order set, which takes the

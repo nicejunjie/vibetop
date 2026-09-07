@@ -554,10 +554,19 @@ test.describe('rts', () => {
   // Both are fixed here: a PART-loaded miner that is actively mining, and the
   // canvas bounding box added to every click.
   test('right-clicking your own refinery docks a part-loaded miner at THAT refinery', async ({ page }) => {
+    // This one has to WAIT for real game states — a mining stint long enough
+    // for the seam clock to go stale (900 ticks) and then a drive across the
+    // map — so it does not fit the suite's 30s default even at top speed.
+    test.setTimeout(180_000);
     await boot(page);
     const setup = await page.evaluate(() => {
       const H = window.__rtsTest, T = window.__rtsTables, g = H.get();
       H.give(0, 30000); g.seen.fill(1);
+      // SLOWEST speed on purpose. The render loop keeps running between our
+      // round-trips, and at speed 6 the miner drifted far enough between
+      // "read its position" and "click it" that the click missed. Progress in
+      // this test is driven by step() instead, which is exact.
+      g.opt.speed = 1;
       const s = g.start[0], ore = H.findOre(s.x, s.y);
       const seat = (nx, ny) => {
         for (let r = 1; r < 20; r++)
@@ -588,16 +597,25 @@ test.describe('rts', () => {
     });
     expect(setup.ok, 'the fixture seated two refineries and a miner').toBe(true);
 
-    // Wait for the EXACT state the bug needs, rather than a fixed sleep: still
-    // mining, carrying something, and with a seam clock older than the
-    // 900-tick give-up. ('mining' never refreshes stallAt, so the clock ages
-    // through the stint.) A fixed sleep raced the miner's own full-load
-    // return and sometimes sampled it empty, mid-automatic-cycle.
-    await expect.poll(async () => page.evaluate(() => {
-      const g = window.__rtsTest.get();
-      const h = g.units.find((u) => window.__rtsTables.UNITS[u.type].harv && u.p === 0);
-      return !!h && h.state === 'mining' && h.cargo > 20 && (g.tick - (h.stallAt || 0)) > 900;
-    }), { timeout: 90000, message: 'miner never reached a loaded, stale-clock mining stint' }).toBe(true);
+    // Reach the EXACT state the bug needs — still mining, carrying something,
+    // and with a seam clock older than the 900-tick give-up ('mining' never
+    // refreshes stallAt, so the clock ages through the stint). Driven with the
+    // harness's own step() rather than by waiting on the clock: waiting raced
+    // the miner's full-load return and sampled it empty mid-cycle, and took
+    // 15-50s of wall time to do it. Staging with the sim API is what
+    // playtest.md allows; the ORDER below is still a real mouse click through
+    // the real path, which is the part under test.
+    const staged = await page.evaluate(() => {
+      const H = window.__rtsTest, T = window.__rtsTables;
+      for (let i = 0; i < 60 * 400; i++) {
+        const g = H.get();
+        const h = g.units.find((u) => T.UNITS[u.type].harv && u.p === 0);
+        if (h && h.state === 'mining' && h.cargo > 20 && (g.tick - (h.stallAt || 0)) > 900) return true;
+        H.step(1);
+      }
+      return false;
+    });
+    expect(staged, 'miner reached a loaded, stale-clock mining stint').toBe(true);
 
     const at = (gx, gy) => page.evaluate(({ gx, gy }) => {
       const c = document.getElementById('cv').getBoundingClientRect();
@@ -624,45 +642,28 @@ test.describe('rts', () => {
     expect(await page.evaluate(() => window.__rtsTest.cursorKind()),
       'a miner over your own refinery gets RA2\'s ENTER cursor, not "select"').toBe('enter');
 
-    // Record WHERE it unloads from inside the page. Polling from the test
-    // cannot: by the time a poll round-trips, the miner has already driven
-    // back out to the seam (which is RA2-correct — after a hand-sent return it
-    // mines the nearest ore — but it means the position has moved on).
-    await page.evaluate(() => {
-      const g = window.__rtsTest.get();
-      const h = g.units.find((u) => window.__rtsTables.UNITS[u.type].harv && u.p === 0);
-      window.__dockAt = null;
-      let last = h.cargo;
-      const tick = () => {
-        if (!window.__dockAt && h.cargo < last - 0.01) window.__dockAt = { x: h.x, y: h.y };
-        last = h.cargo;
-        requestAnimationFrame(tick);
-      };
-      requestAnimationFrame(tick);
-    });
-
     await page.mouse.down({ button: 'right' });
     await page.mouse.up({ button: 'right' });
 
-    // It must actually BANK, and at the refinery that was clicked.
-    await expect.poll(async () => page.evaluate(() => {
-      const g = window.__rtsTest.get();
-      return g.side[0].credits;
-    }), { timeout: 60000, message: 'the miner never unloaded' }).toBeGreaterThan(h0.credits);
-
-    const done = await page.evaluate(({ far, near }) => {
+    // The order took, and it took the refinery that was CLICKED. Polled, not
+    // read once: a command goes through the lockstep schedule and lands a
+    // couple of ticks after the mouse-up, so reading immediately sees the
+    // miner still mining.
+    await expect.poll(async () => page.evaluate(({ far }) => {
+      window.__rtsTest.step(1);
       const g = window.__rtsTest.get();
       const h = g.units.find((u) => window.__rtsTables.UNITS[u.type].harv && u.p === 0);
-      const w = window.__dockAt || { x: h.x, y: h.y };
-      return { dFar: Math.hypot(w.x - far.cx, w.y - far.cy),
-               dNear: Math.hypot(w.x - near.cx, w.y - near.cy),
-               sampled: !!window.__dockAt,
-               homeIsFar: !!h.homeRef && Math.abs(h.homeRef.cx - far.cx) < 0.01 };
-    }, setup);
-    expect(done.sampled, 'caught the moment it unloaded').toBe(true);
-    expect(done.homeIsFar, 'it kept the refinery the player clicked').toBe(true);
-    expect(done.dFar, 'it banked at the clicked refinery, not the nearer one')
-      .toBeLessThan(done.dNear);
+      return !!h.homeRef && Math.abs(h.homeRef.cx - far.cx) < 0.01 && h.order === null &&
+             (h.state === 'toref' || h.state === 'warp');
+    }, setup), { timeout: 20000, message: 'the dock order never took, or took the wrong refinery' }).toBe(true);
+
+    // ...and it really unloads. (WHERE it unloads is asserted tick-exactly by
+    // the three headless tests in rts.test.js; sampling that from out here
+    // races the miner's drive back out to the seam.)
+    await expect.poll(async () => page.evaluate(() => {
+      window.__rtsTest.step(120);
+      return window.__rtsTest.get().side[0].credits;
+    }), { timeout: 60000, message: 'the miner never unloaded' }).toBeGreaterThan(h0.credits);
   });
 
   test('a rally point is visible, routed, and actually used', async ({ page }) => {
