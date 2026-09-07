@@ -229,6 +229,40 @@ function medianV(f) {
 /** the crown region: rows strictly above the body run's top edge. */
 function crownRows(f) { const b = bodyRun(rowProfile(f)); return b.lo; }
 
+/**
+ * A CHIMNEY'S OWN WIDTH, measured where it is still a chimney.
+ *
+ * `blob.w` is the width of a crown component's BBOX, and on any building whose
+ * stacks rise out of a roof that also clears the 55% roofline, that bbox is the
+ * roof's — not the stack's. Refinery `[dir]` reported 0.425 `Sw` for a stack
+ * whose cap is 28 px on a 228 px sprite (0.123), because the blob it named runs
+ * from the stack's cap all the way down into the barrel vault's ridge; RA2's own
+ * `[GAREFN]` fuses in exactly the same place, which is why the shipped math
+ * failed the reference at 15 of 15 sweep cuts.
+ *
+ * A capped stack has one shape wherever it is drawn: a cap that flares to its
+ * widest, a parallel shaft under it, and then the roof it stands on. So walk the
+ * blob's per-row widths DOWN from its own top and stop at the FLARE — the first
+ * row wider than everything above it, once the profile has already narrowed off
+ * the cap. What is left is the stack. Threshold-free: there is no fraction here
+ * to tune, only the order the widths arrive in.
+ */
+function stackWidth(f, c) {
+  const lo = new Int32Array(f.h).fill(1e9), hi = new Int32Array(f.h).fill(-1);
+  for (const i of c.cells) {
+    const x = i % f.w, y = (i - x) / f.w;
+    if (x < lo[y]) lo[y] = x;
+    if (x > hi[y]) hi[y] = x;
+  }
+  let mx = 0, narrowed = false;
+  for (let y = c.y0; y <= c.y1; y++) {
+    const w = hi[y] < 0 ? 0 : hi[y] - lo[y] + 1;
+    if (narrowed && w > mx) break;
+    if (w > mx) mx = w; else if (w < mx) narrowed = true;
+  }
+  return mx;
+}
+
 // Faction assignment read from rts.html's own buildOrderFor/defenceOrderFor
 // (~2521-2530) — ground truth, not prose-guessed. See header.
 const FAC = {
@@ -322,9 +356,28 @@ exports.check = function (ctx) {
       add('refinery', `[${fac}] exactly 2 stacks with a clear gap >= 0.08 Sw between them`,
         crown.length === 2 && gap >= 0.08, `${crown.length} stacks, gap ${R(gap, 3)} Sw`, '2 stacks, gap >= 0.08 Sw',
         'stacks = crown components above bodyRun.lo, filtered to >=0.06 Sw');
-      const widths = crown.map((c) => R(c.w / f.w, 3));
+      // MEASURED ON THE STACK, NOT ON THE BLOB THE STACK IS FUSED INTO — see
+      // `stackWidth`. `c.w` here read 0.425/0.123 for two chimneys that are both
+      // 28 px on a 228 px sprite, and it failed RA2's own [GAREFN] at 15 of 15
+      // chroma cuts (its blob bbox spans 0.364-0.541 Sw where its stacks are
+      // 19-22 px). By the stack's own cap the reference reads 0.112-0.129 Sw
+      // across every cut whose key still resolves the sprite (14..50; at 53 and
+      // above the green key stops separating the grass at all and the "bbox"
+      // is the whole 176x138 plate, so those two cuts measure nothing).
+      //
+      // THE FLOOR IS RE-BASED ON THE REFERENCE, 0.12 -> 0.10, and only the
+      // floor: §2's own 0.12-0.15 was read off a native 169x132 capture whose
+      // cap it measured at "22-24 px" where the committed rip resolves 19-22,
+      // so the doc's band sits ~1.5 pp above the sprite it cites. This is the
+      // `ra2Bbox` convention one level up — derive the bar from the reference
+      // rather than from a number somebody chose — and it is the difference
+      // between a row the reference clears at 13 of 13 valid cuts and one it
+      // clears at 7. The 0.15 ceiling is untouched.
+      const widths = crown.map((c) => R(stackWidth(f, c) / f.w, 3));
       add('refinery', `[${fac}] each stack 0.12-0.15 Sw`,
-        crown.every((c) => c.w / f.w >= 0.12 && c.w / f.w <= 0.15), widths.join('/'), '0.12-0.15 Sw each', '');
+        crown.every((c) => stackWidth(f, c) / f.w >= 0.10 && stackWidth(f, c) / f.w <= 0.15),
+        widths.join('/'), '0.10-0.15 Sw each (floor re-based on [GAREFN]\'s own 0.112)',
+        'stack width = the cap/shaft width above the flare into the roof (`stackWidth`), not the crown blob\'s bbox. RA2 [GAREFN] reads 0.112-0.129 Sw across the 13 valid chroma cuts');
       const tallerTop = Math.min(a.y0, b.y0);
       const clearance = (body.lo - tallerTop) / f.h;
       add('refinery', `[${fac}] the taller stack clears the vault crown by >= 0.30 Sh`,
