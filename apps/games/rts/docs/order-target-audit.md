@@ -29,7 +29,7 @@ cure. Nothing ever reached it.
 
 | selected | own target | RA2 | ours before | status |
 |---|---|---|---|---|
-| Harvester | Refinery | dock, unload, resume | `move`, stops short | **FIXED** — reuses `homeRef` + state `toref`, the same path a full miner sets for itself |
+| Harvester | Refinery | dock, unload, resume | `move`, stops short | **FIXED TWICE** — see the second pass below; the order was right, everything around it was not |
 | Vehicle (damaged) | Service Depot | drive onto pad, repair | `move`, stops short | **FIXED** — aims at the pad centre so the existing repair can see it |
 | Tesla Trooper | Tesla Coil | hand-charge | `own` -> `coil` | ok |
 | Engineer | damaged own building | repair | `own` -> `capture` | ok |
@@ -150,3 +150,62 @@ rule this document sets does not bite, and the click is not silent. *(Inferred:
 RA2 agrees — a Terror Drone only infests hostile vehicles, `Temporal` is not
 offered on friendlies, Yuri cannot control his own side, and none of the three
 has an `AttackCursorOnFriendlies` equivalent, unlike `[IVAN]`.)* No fix.
+
+
+---
+
+# Second pass, 2026-09-06 — the same report came back
+
+*"cannot force miner to return to refinery"*, five days after the row above was
+marked FIXED. The order was never the problem the second time. Three things
+around it were, and each one on its own is enough to make a player conclude the
+refinery is not an order target.
+
+| defect | measured before | after |
+|---|---|---|
+| cursor over your own refinery, miner selected | **`select`** — the one cue the game gives said "not an order target" | `enter` (RA2's Enter mission; both miners carry `VoiceEnter=`) |
+| Chrono Miner, forced dock | **drives** (`toref`) while the automatic full-load return *warps* | warps, identically — one `sendHome()` serves both |
+| target refinery, stale seam clock | **retargets to the nearest after 1 tick** (stallAt age 954; unloaded 24 cells from the one clicked) | keeps the clicked refinery |
+
+`stallAt` is the give-up clock and `'mining'` never refreshes it, so any miner
+that had been working a seam for fifteen seconds entered `'toref'` already past
+the 900-tick limit. **With one refinery on the map this is invisible** — which
+is how it survived both a fix and a test.
+
+## Why the first pass's test did not catch any of it
+
+It set the miner's cargo to **full** and then asserted `homeRef` was truthy and
+the state was one of four. A full miner returns home on its own: the assertions
+were true before the click, and would have been true if the click had done
+nothing whatsoever. It also passed `__rtsScreen`'s canvas-relative coordinates
+to `page.mouse`, which takes page coordinates — the exact trap recorded two
+sections above in this same file, so every click landed about 40 px high.
+
+The replacement drives a **part-loaded, actively mining** miner (nothing but
+the click can send it home), adds the canvas bounding box to every click,
+checks the cursor, and asserts the miner banks credits **at the refinery that
+was clicked** with a second refinery sitting closer. Proved red against the
+pre-fix build first: `Expected "enter", Received "select"`.
+
+Three headless regression tests in `rts.test.js` cover the same ground through
+`applyCmd`'s real `own` case, reached by a new `orderOwn` harness hook. That
+hook exists because the hooks beside it (`orderCoil`, `orderCapture`)
+**re-implement** their command instead of calling it — a test written against
+one of those cannot fail when the player's path breaks, which is the shape of
+bug this whole file is about.
+
+## Still open, deliberately
+
+* **The dock is a proximity test, not a dock.** `atRefinery` is
+  `dist < max(gw,gh)/2 + 1.9`, so a miner unloads standing up to ~1.9 cells
+  clear of the footprint. RA2 drives it **onto** the building
+  (`NumberImpassableRows=3`, with Westwood's own comment about "I can drive on
+  you"), swaps to an unloading art class (`UnloadingClass=HORV`/`CMON`) and
+  reverses out. Ours banks the money from the kerb.
+* **No pause at the door.** RA2 pauses a returning miner briefly at the
+  refinery *unless* it was micro-ed — that pause is the whole reason manual
+  returns are worth doing. We have no pause on either path, so a forced return
+  saves less than it should.
+* **Automatic returns should head back to the patch they left**; ours takes the
+  nearest ore, which is RA2's behaviour after a *forced* return. Both of these
+  move every economy number in the balance suite and want their own pass.

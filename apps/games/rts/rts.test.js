@@ -5942,3 +5942,147 @@ test("the RA2 aspect gate matches the reference table it was transcribed from", 
   assert.ok(n >= 30, `expected the whole roster in RA2_ASPECT, parsed ${n} rows`);
   assert.equal(bad.length, 0, bad.join("\n  "));
 });
+
+// Reported twice: "there is no way I can let miner to go back to refinery".
+// The ORDER was wired the first time round; what was not wired was everything
+// that makes the order look like it worked. These drive `applyCmd`'s real
+// 'own' case through the harness hook, not a copy of it.
+//
+// Sourced against Westwood's rulesmd.ini: [HARV]/[CMIN] Dock=NAREFN,GAREFN
+// with a VoiceEnter= bark each, [GAREFN]/[NAREFN] DockUnload=yes
+// NumberOfDocks=1, [General] HarvesterTooFarDistance=5.
+function dockFixture(W, seed, minerType) {
+  const H = W.__rtsTest, T = W.__rtsTables;
+  const g = H.begin(seed, "normal");
+  const s = g.start[0];
+  const ore = H.findOre(s.x, s.y);
+  assert.ok(ore, "the start has ore near it");
+  const seat = (nx, ny) => {
+    for (let r = 1; r < 20; r++)
+      for (let oy = -r; oy <= r; oy++) for (let ox = -r; ox <= r; ox++) {
+        if (Math.max(Math.abs(ox), Math.abs(oy)) !== r) continue;
+        const bx = nx + ox, by = ny + oy;
+        if (bx < 2 || by < 2 || bx > T.MAP - 6 || by > T.MAP - 6) continue;
+        let clear = true;
+        for (let y = by; y < by + 4 && clear; y++)
+          for (let x = bx; x < bx + 5; x++)
+            if (g.terrain[y * T.MAP + x] !== 0) { clear = false; break; }
+        if (!clear) continue;
+        const b = H.build("refinery", 0, bx, by);
+        if (b) return b;
+      }
+    return null;
+  };
+  const near = seat(ore.x, ore.y);
+  assert.ok(near, "seated a refinery on the seam");
+  // A SECOND refinery, deliberately further from the seam than the first.
+  let far = null;
+  for (let d = 10; d < 26 && !far; d += 2) {
+    const c = seat(Math.max(3, ore.x - d), Math.max(3, ore.y - d));
+    if (c && c !== near && Math.hypot(c.cx - near.cx, c.cy - near.cy) > 8) far = c;
+  }
+  assert.ok(far, "seated a second refinery well away from the first");
+  const h = H.spawn(minerType, 0, ore.x + 1, ore.y + 1);
+  assert.ok(h, `${minerType} did not spawn`);
+  return { g, H, T, h, near, far, ore };
+}
+
+test("a forced dock unloads at the refinery that was CLICKED, not the nearest", () => {
+  const W = load();
+  const { g, H, h, near, far } = dockFixture(W, 777, "warminer");
+  for (let i = 0; i < 60 * 60 && h.state !== "mining"; i++) H.step(1);
+  assert.equal(h.state, "mining", `the miner never started mining (state ${h.state})`);
+  // Let the seam clock go STALE. 'mining' never touches stallAt, so a miner
+  // that has been working for fifteen seconds used to arrive in 'toref'
+  // already past the 900-tick give-up and swap the player's refinery for the
+  // nearest one on the very first tick.
+  while (g.tick - (h.stallAt || 0) <= 900) H.step(1);
+  assert.ok(h.cargo > 0, "it is carrying something to bank");
+
+  assert.ok(Math.hypot(h.x - near.cx, h.y - near.cy) < Math.hypot(h.x - far.cx, h.y - far.cy),
+    "the fixture is only meaningful if the CLICKED refinery is the further one");
+  const credits0 = H.credits(0);
+  assert.equal(H.orderOwn([h], far), 1);
+
+  let where = null;
+  for (let i = 0; i < 60 * 180 && where === null; i++) {
+    H.step(1);
+    if (H.credits(0) > credits0) where = { x: h.x, y: h.y };
+  }
+  assert.ok(where, `the miner never unloaded at all (state ${h.state}, cargo ${Math.round(h.cargo)})`);
+  const dFar = Math.hypot(where.x - far.cx, where.y - far.cy);
+  const dNear = Math.hypot(where.x - near.cx, where.y - near.cy);
+  assert.ok(dFar < dNear,
+    `it banked at the wrong refinery: ${dFar.toFixed(1)} from the one clicked, ${dNear.toFixed(1)} from the nearest`);
+  assert.equal(h.homeRef, far, "it kept the refinery the player picked");
+});
+
+test("a Chrono Miner warps home on a forced dock, exactly as it does when full", () => {
+  // [CMIN] Teleporter=yes. The C&C wiki: it warps home when full "or when
+  // explicitly ordered to dock", and rolls on its wheels otherwise. The forced
+  // path used to hand-set 'toref', so the same order produced a long slow
+  // drive where the automatic return teleported.
+  const W = load();
+  const { H, h, far } = dockFixture(W, 4242, "chronominer");
+  for (let i = 0; i < 60 * 60 && h.state !== "mining"; i++) H.step(1);
+  assert.equal(h.state, "mining", `the miner never started mining (state ${h.state})`);
+  assert.equal(H.orderOwn([h], far), 1);
+  assert.equal(h.state, "warp", "a Chrono Miner ordered to dock teleports, it does not drive");
+  assert.equal(h.homeRef, far, "and it warps to the refinery that was clicked");
+
+  // A War Miner has no teleporter and must still take the road.
+  const W2 = load();
+  const f2 = dockFixture(W2, 4242, "warminer");
+  for (let i = 0; i < 60 * 60 && f2.h.state !== "mining"; i++) f2.H.step(1);
+  assert.equal(f2.H.orderOwn([f2.h], f2.far), 1);
+  assert.equal(f2.h.state, "toref", "a War Miner drives home");
+});
+
+test("a forced dock is obeyed at any load, and the miner goes back to work after it", () => {
+  // Seke's XWIS miner guide is built on sending miners back early — "despite
+  // not being full, 2/5 or 3/5 is fine". What an EMPTY miner does is
+  // unsourced; we obey, because an order refused in silence is
+  // indistinguishable from a bug.
+  for (const load_ of ["empty", "part", "full"]) {
+    const W = load();
+    const { g, H, h, near, far } = dockFixture(W, 909, "warminer");
+    for (let i = 0; i < 60 * 60 && h.state !== "mining"; i++) H.step(1);
+    assert.equal(h.state, "mining", `${load_}: never started mining`);
+    if (load_ === "part") for (let i = 0; i < 60 * 8; i++) H.step(1);
+    if (load_ === "full") for (let i = 0; i < 60 * 400 && h.cargo < 900; i++) H.step(1);
+    // Age the seam clock the way any real mining stint does — 'mining' never
+    // refreshes stallAt, and a stale one is what used to hand the miner to
+    // the nearest refinery on the first tick of the trip.
+    while (g.tick - (h.stallAt || 0) <= 900) H.step(1);
+    if (load_ === "empty") { h.cargo = 0; h.cargoV = 0; }
+    const cargo0 = h.cargo, credits0 = H.credits(0);
+
+    assert.equal(H.orderOwn([h], far), 1, `${load_}: the order was refused`);
+    assert.ok(h.state === "toref" || h.state === "warp",
+      `${load_}: the order did not take (state ${h.state})`);
+    assert.equal(h.order, null, `${load_}: a dock order replaces whatever it was doing`);
+
+    let where = null;
+    for (let i = 0; i < 60 * 240 && where === null; i++) {
+      H.step(1);
+      if (h.cargo < cargo0 - 0.01 || (cargo0 === 0 && h.state === "idle")) where = { x: h.x, y: h.y };
+    }
+    assert.ok(where, `${load_}: it never reached the refinery (state ${h.state})`);
+    if (cargo0 > 0) assert.ok(H.credits(0) > credits0, `${load_}: it docked but banked nothing`);
+    // Whatever it was carrying, it must dock at the one that was CLICKED. A
+    // full miner has been mining long enough for the seam clock to go stale,
+    // which is exactly when the give-up branch used to hand it to the nearest
+    // refinery instead.
+    const dFar = Math.hypot(where.x - far.cx, where.y - far.cy);
+    const dNear = Math.hypot(where.x - near.cx, where.y - near.cy);
+    assert.ok(dFar < dNear,
+      `${load_}: docked at the wrong refinery — ${dFar.toFixed(1)} from the one clicked, ${dNear.toFixed(1)} from the nearest`);
+    // ...and it must not sit there. RA2 sends it straight back out.
+    let working = false;
+    for (let i = 0; i < 60 * 90 && !working; i++) {
+      H.step(1);
+      if (h.state === "tomine" || h.state === "mining") working = true;
+    }
+    assert.ok(working, `${load_}: it parked at the refinery instead of going back to work (state ${h.state})`);
+  }
+});
