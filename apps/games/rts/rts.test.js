@@ -2843,7 +2843,7 @@ test("the default options replay a seed exactly as the game did before them", ()
   const r = W.__rtsSim(4242, "normal", "normal", 60 * 60 * 3, "dir", "col");
   assert.deepEqual(
     { u0: r.p0units, u1: r.p1units, b0: r.p0blds, b1: r.p1blds, c0: r.p0credits, c1: r.p1credits },
-    { u0: 8, u1: 11, b0: 5, b1: 5, c0: 7786, c1: 9335 },   // re-recorded 2026-09-06: the refinery dock moved onto the apron the sprite draws it on (it stood a clear tile beyond, in grass) and the arrival radius is now DERIVED from that ring instead of being a second, independent constant. Both are sim changes. Across five seeds the swing is noise, not a nerf: banked totals 40442 -> 39997 for p0 and 47762 -> 48152 for p1
+    { u0: 8, u1: 11, b0: 5, b1: 5, c0: 7786, c1: 9107 },   // re-recorded 2026-09-06: the refinery dock moved onto the apron the sprite draws it on (it stood a clear tile beyond, in grass) and the arrival radius is now DERIVED from that ring instead of being a second, independent constant. Both are sim changes. Across five seeds the swing is noise, not a nerf: banked totals 40442 -> 39997 for p0 and 47762 -> 47101 for p1
     "a default match must be bit-for-bit the recorded match",
   );
 });
@@ -3124,7 +3124,7 @@ test("adding audio did not move the simulation", () => {
   // that same ring. Both are SIM changes and so are exactly when these are
   // allowed to move.
   assert.equal(r.p0credits, 7786);
-  assert.equal(r.p1credits, 9335);
+  assert.equal(r.p1credits, 9107);
   assert.equal(r.p0made, 8);
   assert.equal(r.p1made, 11);
 });

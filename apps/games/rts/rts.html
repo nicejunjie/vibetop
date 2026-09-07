@@ -23902,9 +23902,10 @@
   // (cx - 64, baseY + 32)", i.e. two cells down the +gy face). It is where the
   // miner is sent AND, since a player aims at the dock, what a click on the
   // dock has to mean.
+  var DOCK_OUT = 1;                  // the door stands ONE clear cell off the footprint
   function dockApron(b) {
     var f = footBounds(b), cells = [];
-    for (var x = f.x0; x <= f.x1; x++) cells.push({ x: x, y: f.y1 + 1 });
+    for (var x = f.x0; x <= f.x1; x++) cells.push({ x: x, y: f.y1 + DOCK_OUT });
     return cells;
   }
   function refDock(g, b) {
@@ -23914,14 +23915,14 @@
     // the other three faces — a blocked ramp is still better answered by the
     // back door than by standing in the road.
     var ring = [
-      [mx, f.y1 + 1], [mx - 1, f.y1 + 1], [mx + 1, f.y1 + 1],
-      [mx, f.y0 - 1], [f.x1 + 1, my], [f.x0 - 1, my]
+      [mx, f.y1 + DOCK_OUT], [mx - 1, f.y1 + DOCK_OUT], [mx + 1, f.y1 + DOCK_OUT],
+      [mx, f.y0 - DOCK_OUT], [f.x1 + DOCK_OUT, my], [f.x0 - DOCK_OUT, my]
     ];
     for (var i = 0; i < ring.length; i++) {
       var x = ring[i][0], y = ring[i][1];
       if (inMap(x, y) && !blocked(g, x, y)) return { x: x, y: y };
     }
-    return { x: mx, y: f.y1 + 1 };
+    return { x: mx, y: f.y1 + DOCK_OUT };
   }
 
   // ARRIVAL IS DEFINED BY THE DOCK, NOT BESIDE IT.
@@ -23937,20 +23938,27 @@
   // becomes "parks against the wall forever", which is the shape of every
   // report this code has had.
   //
-  // So the radius is DERIVED: it is the furthest a hull standing on any cell
-  // of the ring refDock chooses from can be from the centre, plus the half
-  // cell its centre sits off a cell centre. A miner that reaches its dock
-  // therefore ALWAYS counts as arrived, by construction, and so does one
-  // pressed against any face of the building — there is one definition of
-  // where the door is and both callers read it.
-  var DOCK_SLOP = 0.5;
-  function dockReach(b) {
+  // And the shape was wrong as well as the number: a footprint is a RECTANGLE
+  // and its ring of doors is a rectangular band, so testing a CIRCLE about the
+  // centre is both too tight at the corners and far too loose along the faces.
+  // On a 4x3 that circle reached 3.90 out along +x where the door is 2.5 —
+  // MEASURED, the War Miner banked its ore from (22.3,18.7), a cell and a half
+  // clear of the building, standing in the road. The player watches the hold
+  // empty into thin air.
+  //
+  // So arrival is the SAME BAND refDock draws its cells from, one cell clear of
+  // the footprint, plus the half cell a hull's centre sits off a cell centre.
+  // Every dock cell satisfies it by construction — |dx| there is gw/2 + 0.5
+  // against a bound of gw/2 + 1.5 — so "reached my dock" implies "docked" and
+  // the two can no longer drift. It is a band and not a point on purpose: a
+  // second miner nudged off the ramp by separation, or one pressed against the
+  // far wall, still docks instead of stalling forever with a full hold.
+  var DOCK_SLOP = 0.5;               // ...and a hull's centre sits up to half a cell off it
+  function atRefinery(u, b) {
     var f = footBounds(b);
-    var dx = Math.max(b.cx - (f.x0 - 1), (f.x1 + 1) - b.cx);
-    var dy = Math.max(b.cy - (f.y0 - 1), (f.y1 + 1) - b.cy);
-    return Math.sqrt(dx * dx + dy * dy) + DOCK_SLOP;
+    return u.x >= f.x0 - DOCK_OUT - DOCK_SLOP && u.x <= f.x1 + DOCK_OUT + DOCK_SLOP &&
+           u.y >= f.y0 - DOCK_OUT - DOCK_SLOP && u.y <= f.y1 + DOCK_OUT + DOCK_SLOP;
   }
-  function atRefinery(u, b) { return dist(u, b) <= dockReach(b); }
 
   // WHICH REFINERY A CLICK ON BARE GROUND MEANS.
   //
@@ -36361,6 +36369,11 @@
     clickCell: function (gx, gy, shift) { clickSelect(sx(gx, gy), sy(gx, gy), !!shift); return sel.slice(); },
     rightClickCell: function (gx, gy, shift, ctrl) { rightOrder(sx(gx, gy), sy(gx, gy), !!shift, !!ctrl); return sel.slice(); },
     selected: function () { return sel.slice(); },
+    // Where the game thinks the pointer is. A browser test that computes a
+    // pixel, moves the mouse and then asserts on the cursor is really making
+    // two claims at once; this separates them, so "the cursor is wrong" can be
+    // told apart from "the test aimed at the wrong tile".
+    hover: function () { return { x: hoverTile.x, y: hoverTile.y, mx: mouse.x, my: mouse.y, in: mouse.in }; },
     // What the cursor WOULD be over a given cell, without a pointer. pickCursor
     // reads `mouse`/`hoverTile` and bails headless, so a test cannot ask it
     // anything; this sets the hover the way a real pointermove does and reads
