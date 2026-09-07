@@ -235,9 +235,16 @@ function run() {
   L.push('');
   L.push(`     NEW flagged ${bit}/8 rows, down to a same-bearing overlap of ${firesTo.toFixed(4)}.`);
   L.push('     Below that `iou.sameFactionOver75` (ceiling 0.75) owns the band, so the');
-  L.push('     gate is not blind between them. NOTE THE OLD ESTIMATOR IS SILENT HERE:');
-  L.push('     it cannot flag a near-copy that swings the same way it does, which is');
-  L.push('     the failure the swing artefact was hiding.');
+  L.push('     gate is not blind between them.');
+  L.push('');
+  L.push('     THE OLD ESTIMATOR ALSO FIRES ON THESE ROWS, and that is the point: it');
+  L.push('     fires on BOTH tables, so a red row never said which one you had. Read');
+  L.push('     its two columns together and it is worse than uninformative — a plain');
+  L.push('     rectangle\'s aspect swing scored +0.0786 in table 1, while a genuine');
+  L.push('     0.95x near-copy of itself, 0.90 overlapping at every bearing, scored');
+  L.push('     only +0.0105 here. It ranked the non-defect SEVEN TIMES more confusable');
+  L.push('     than the real one, and went silent altogether at 0.93. The repaired');
+  L.push('     statistic is neutral on the first table and negative on this one.');
   L.push('');
   if (!bit) fail.push('(3) the repaired statistic flags NO near-copy — a metric that bites nothing is not a fix');
 
