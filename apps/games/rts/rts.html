@@ -76,11 +76,16 @@
   #sndBtn svg { width: 15px; height: 15px; fill: currentColor; display: block; }
 
   .wrap { flex: 1; min-height: 0; display: flex; position: relative; }
-  #stage { flex: 1; min-width: 0; position: relative; overflow: hidden; }
+  /* The battlefield column: the tactical view with the command bar under it.
+     `#stage` keeps its own box because `resize()` measures it for the canvas
+     and a ResizeObserver watches it — the bar is a SIBLING, never a child, so
+     the map is never sized as if the bar were part of it. */
+  #field { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+  #stage { flex: 1; min-width: 0; min-height: 0; position: relative; overflow: hidden; }
   #cv { display: block; width: 100%; height: 100%; cursor: default; touch-action: none; }
   #cv.placing { cursor: crosshair; }
   #cv.noair { cursor: not-allowed; }
-  /* ---- the RA2 command bar (right-hand sidebar) -------------------------
+  /* ---- the RA2 sidebar --------------------------------------------------
      RA2's sidebar is a fixed metal panel and every part of it is a picture:
      the credit total counts one step at a time at the top, the radar sits in
      a riveted bezel, a vertical power meter with a needle runs down the left
@@ -126,13 +131,23 @@
     display: block; width: 100%; height: auto; background: #05070b; cursor: pointer;
     box-shadow: 0 0 0 1px #05070b, inset 0 0 14px rgba(0,0,0,.9);
   }
-  /* RA2's three sidebar toggles live under the radar, not in the command bar. */
+  /* RA2's three structure toggles live under the radar — they act on the
+     BASE, through the sidebar, which is where RA2 keeps them. The unit
+     commands moved out to the bottom of the screen; these did not. */
   #sbtools { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; padding: 0 6px 6px; flex-shrink: 0; }
   #sbtools button, #cmdbar button {
-    min-height: 26px; padding: 0 1px; border-radius: 3px; cursor: pointer;
-    font: 700 9.5px/1 system-ui, sans-serif; letter-spacing: .05em; text-transform: uppercase;
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px;
+    border-radius: 3px; cursor: pointer;
+    font: 700 8.5px/1 system-ui, sans-serif; letter-spacing: .05em; text-transform: uppercase;
     color: #a9b6c8; background: linear-gradient(180deg, #2b333f, #1a2029); border: 1px solid #3c4757;
   }
+  /* Every command wears its picture as well as its name. The icons are DRAWN
+     paths, never font glyphs — the same reason the top bar's gear is an svg
+     and not U+2699: at 15-20px a text-presentation symbol is a thin ring, a
+     tofu box, or an emoji substitution, depending on the family. */
+  #sbtools button svg, #cmdbar button svg { fill: currentColor; display: block; flex: none; }
+  #sbtools button { min-height: 34px; padding: 3px 1px 4px; }
+  #sbtools button svg { width: 15px; height: 15px; }
   #sbtools button:hover, #cmdbar button:hover { color: #e9eff7; border-color: #5f6d82; background: linear-gradient(180deg, #36404e, #202836); }
   #sbtools button.on, #cmdbar button.on {
     color: #1a1400; border-color: #ffe07a;
@@ -218,8 +233,38 @@
     .pit.rdy::after { animation: none; }
     .ptab div.hasready::after { animation: none; }
   }
-  /* RA2's six-button command bar, at the foot of the sidebar. */
-  #cmdbar { flex-shrink: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; padding: 5px 6px 6px; border-top: 1px solid #333d4a; }
+  /* ---- the command bar: the BOTTOM OF THE SCREEN, across the battlefield.
+     It is a strip of chrome the full width of the tactical view, not a
+     corner of the build menu — the unit commands are what you reach for
+     mid-fight, and the sidebar is where you go to spend money.
+
+     It is a LAYOUT row, not an overlay: the canvas ends where the bar
+     begins, so the bar covers no ground and every unit on screen stays
+     clickable. `#tl` (the superweapon and paradrop clocks, and the EVA
+     line under them) is anchored top-left INSIDE `#stage` and so is never
+     touched by it. */
+  #cmdbar {
+    flex-shrink: 0; padding: 5px 8px 6px;
+    background: linear-gradient(180deg, #232a35 0%, #1a212b 55%, #131820 100%);
+    border-top: 1px solid #39424f;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.05);
+  }
+  /* The buttons are a fixed-size centred group, RA2's proportions: a squat
+     row of near-square plates, not six controls stretched across a 4K
+     monitor. */
+  #cmdbar .cmdrow { display: flex; justify-content: center; align-items: stretch; gap: 5px; }
+  #cmdbar button { flex: 0 1 78px; min-width: 42px; min-height: 44px; padding: 5px 2px 4px; }
+  #cmdbar button svg { width: 20px; height: 20px; }
+  #sbtools button .cl, #cmdbar button .cl { max-width: 100%; overflow: hidden; white-space: nowrap; }
+  /* A desktop window narrow enough that the labels no longer fit drops to
+     icons — the drawn tooltip still names every one. This is the same guard
+     `.bar` already makes at 560px; it is NOT a mobile layout (#nomob turns
+     touch devices away outright). */
+  @media (max-width: 820px) { #cmdbar button .cl { display: none; } #cmdbar button { flex: 0 1 46px; } }
+  /* The front menu is a screen, not a dialog over a live HUD: a command bar
+     for a match that does not exist reads as a dead row of buttons. Hidden
+     the same way, and for the same reason, as the sidebar beside it. */
+  body.atmenu #cmdbar { visibility: hidden; }
   /* The drawn tooltip — a canvas, not a browser title. */
   #ptip { position: absolute; z-index: 20; pointer-events: none; display: none; }
 
@@ -583,12 +628,25 @@
 </div>
 
 <div class="wrap">
-  <div id="stage">
-    <canvas id="cv"></canvas>
-    <div id="marq"></div>
-    <div id="tl"><div id="swbar"></div><div id="tip"></div></div>
-    <div id="hov" hidden><b id="hovName"></b><span id="hovSub"></span></div>
-    <div id="paused"><b>Paused</b><span>Click anywhere to resume</span></div>
+  <div id="field">
+    <div id="stage">
+      <canvas id="cv"></canvas>
+      <div id="marq"></div>
+      <div id="tl"><div id="swbar"></div><div id="tip"></div></div>
+      <div id="hov" hidden><b id="hovName"></b><span id="hovSub"></span></div>
+      <div id="paused"><b>Paused</b><span>Click anywhere to resume</span></div>
+    </div>
+    <div id="cmdbar">
+      <div class="cmdrow">
+        <button data-cmd="t1" aria-label="Team 1"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.4 8.4V4.6a1.2 1.2 0 0 1 1.2-1.2h3.8M20.6 8.4V4.6a1.2 1.2 0 0 0-1.2-1.2h-3.8M3.4 15.6v3.8a1.2 1.2 0 0 0 1.2 1.2h3.8M20.6 15.6v3.8a1.2 1.2 0 0 1-1.2 1.2h-3.8" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.9"/><text x="12" y="16.4" text-anchor="middle" fill="currentColor" font-family="ui-monospace,SFMono-Regular,Menlo,monospace" font-size="13" font-weight="700">1</text></svg><span class="cl">Team 1</span></button>
+        <button data-cmd="t2" aria-label="Team 2"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.4 8.4V4.6a1.2 1.2 0 0 1 1.2-1.2h3.8M20.6 8.4V4.6a1.2 1.2 0 0 0-1.2-1.2h-3.8M3.4 15.6v3.8a1.2 1.2 0 0 0 1.2 1.2h3.8M20.6 15.6v3.8a1.2 1.2 0 0 1-1.2 1.2h-3.8" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.9"/><text x="12" y="16.4" text-anchor="middle" fill="currentColor" font-family="ui-monospace,SFMono-Regular,Menlo,monospace" font-size="13" font-weight="700">2</text></svg><span class="cl">Team 2</span></button>
+        <button data-cmd="same" aria-label="Select same type"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="1.4" y="2.2" width="12.4" height="12.4" rx="2.2" fill="none" stroke="currentColor" stroke-width="2.1"/><rect x="6.1" y="6.9" width="12.4" height="12.4" rx="2.2" fill="none" stroke="currentColor" stroke-width="2.1"/><rect x="10.8" y="11.6" width="11.8" height="11.8" rx="2.2"/></svg><span class="cl">Same</span></button>
+        <button data-cmd="deploy" aria-label="Deploy"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="10.6" y="1.3" width="2.8" height="3.1" rx="1"/><path d="M12 8.1 8.1 3.6h7.8z"/><path d="M6.3 17.4 8.9 10.2h6.2l2.6 7.2z"/><rect x="1.4" y="19.3" width="21.2" height="3.3" rx="1.4"/></svg><span class="cl">Deploy</span></button>
+        <button data-cmd="guard" aria-label="Guard"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 1.6 21 5v6.6c0 5.3-3.7 9.2-9 10.8-5.3-1.6-9-5.5-9-10.8V5z"/><path d="M12 5.6v12.9c3.3-1.3 5.6-4 5.6-7.5V7z" fill="#000" opacity=".24"/></svg><span class="cl">Guard</span></button>
+        <button data-cmd="scatter" aria-label="Scatter"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="3.9" cy="3.9" r="3.2"/><circle cx="20.1" cy="3.9" r="3.2"/><circle cx="3.9" cy="20.1" r="3.2"/><circle cx="20.1" cy="20.1" r="3.2"/><circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" stroke-width="1.9" opacity=".5"/></svg><span class="cl">Scatter</span></button>
+        <button data-cmd="path" aria-label="Planning mode"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="3.4" cy="20.6" r="2.9"/><path d="M5.6 18.6 12.7 10.4" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" stroke-dasharray="3 2.7"/><path d="M15.1 22.6V1.6" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.3"/><path d="M16.2 2.6 16.2 10.2 23.4 6.4z"/></svg><span class="cl">Plan</span></button>
+      </div>
+    </div>
   </div>
 
   <div class="overlay" id="ov"><div class="card" id="ovCard">
@@ -673,9 +731,9 @@
     </div>
     <div id="radarwrap"><canvas id="mini" width="184" height="184"></canvas></div>
     <div id="sbtools">
-      <button data-cmd="sell">Sell</button>
-      <button data-cmd="repair">Repair</button>
-      <button data-cmd="power">Power</button>
+      <button data-cmd="sell" aria-label="Sell"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 1.6v20.8" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.1"/><path d="M16.9 7.1c0-2.1-2.2-3.5-4.9-3.5S7.1 5 7.1 7.1c0 4.6 9.8 2.5 9.8 7.5 0 2.3-2.2 3.7-4.9 3.7s-4.9-1.4-4.9-3.7" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.4"/></svg><span class="cl">Sell</span></button>
+      <button data-cmd="repair" aria-label="Repair"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M22.6 18.9 13.5 9.8a5.9 5.9 0 0 0-1.5-6.9 5.9 5.9 0 0 0-7.4-1.3L8.9 6 6 8.9 1.6 4.6a5.9 5.9 0 0 0 1.3 7.4 5.9 5.9 0 0 0 6.9 1.5l9.1 9.1c.4.4 1 .4 1.4 0l2.3-2.3a1 1 0 0 0 0-1.4z"/></svg><span class="cl">Repair</span></button>
+      <button data-cmd="power" aria-label="Power"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M13.4 1.4 4.2 13.9h6.2L10.6 22.6 19.8 10.1h-6.2z"/></svg><span class="cl">Power</span></button>
     </div>
     <div id="sbody">
       <div id="pwrwrap"><canvas id="pwr" width="24" height="200"></canvas></div>
@@ -688,14 +746,6 @@
         </div>
         <div id="plist"></div>
       </div>
-    </div>
-    <div id="cmdbar">
-      <button data-cmd="t1">Team 1</button>
-      <button data-cmd="t2">Team 2</button>
-      <button data-cmd="same">Same</button>
-      <button data-cmd="deploy">Deploy</button>
-      <button data-cmd="guard">Guard</button>
-      <button data-cmd="path">Plan</button>
     </div>
   </div>
   <canvas id="ptip"></canvas>
@@ -30927,6 +30977,17 @@
   function placeTip(anchor, size) {
     var wr = document.querySelector('.wrap').getBoundingClientRect();
     var r = anchor.getBoundingClientRect();
+    // The command bar is at the foot of the SCREEN, so its tooltip belongs
+    // directly above the button — hanging it off the sidebar would answer a
+    // hover on the far bottom-left with a card on the far bottom-right.
+    if (anchor.closest && anchor.closest('#cmdbar')) {
+      var cx = r.left - wr.left + r.width / 2 - size.w / 2;
+      cx = Math.max(6, Math.min(wr.width - size.w - 6, cx));
+      ptip.style.left = Math.round(cx) + 'px';
+      ptip.style.top = Math.round(Math.max(6, r.top - wr.top - size.h - 8)) + 'px';
+      ptip.style.display = 'block';
+      return;
+    }
     // Hang it off the sidebar's outer edge, not the control's, so it never
     // lands on top of the panel it is describing.
     var edge = sideEl ? sideEl.getBoundingClientRect().left : r.left;
@@ -31808,8 +31869,18 @@
   // ---- RA2's command bar + the three sidebar toggles ---------------------
   // ui.ini's [AdvancedCommandBar] is six buttons — Team01, Team02,
   // TypeSelect, Deploy, Guard, PlanningMode — and Sell / Repair / Power are
-  // the three TOGGLES on the sidebar itself, under the radar. Stop and
-  // Scatter are the S and X keys, and never had buttons in RA2.
+  // the three TOGGLES on the sidebar itself, under the radar.
+  //
+  // SCATTER is the seventh, added by hand. An earlier pass cut it on the
+  // grounds that RA2 gives it no button, only the X key — which left the one
+  // panic command in the game reachable only by a key you have to already
+  // know. It is back, next to Guard, because those two are the same kind of
+  // order (what the selection does when it is not being driven) and a player
+  // looking for one is looking for the other. Stop stays keyboard-only: S is
+  // Guard's neighbour in meaning, and the bar is a row you scan, not a list.
+  //
+  // The bar itself lives at the BOTTOM OF THE SCREEN across the battlefield,
+  // not in the corner of the build menu — see the #cmdbar CSS.
   var cmdMode = null;          // 'sell' | 'repair' | 'power' | null
   var pathMode = false;        // waypoint mode: right-clicks queue
   var cmdbar = document.getElementById('cmdbar');
@@ -31820,6 +31891,7 @@
     same:   ['Select same type', 'Every unit of this type on screen', 'Hotkey T'],
     deploy: ['Deploy', 'An MCV unfolds; GIs dig in behind sandbags', 'Hotkey D'],
     guard:  ['Guard', 'Hold this post, engage within ' + GUARD_STRAY + ' cells, then return', 'Hotkey G · S stops dead instead'],
+    scatter: ['Scatter', 'Break formation — every unit steps clear of the group', 'Hotkey X'],
     path:   ['Planning mode', 'Right-clicks queue waypoints (or hold Shift)', 'Hotkey Z'],
     sell:   ['Sell', 'Click one of your structures for half its cost', 'Hotkey L'],
     repair: ['Repair', 'Click a structure to start or stop repairs', 'Hotkey K'],
