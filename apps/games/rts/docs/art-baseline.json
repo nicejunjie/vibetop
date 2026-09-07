@@ -351,7 +351,7 @@
     "clause.airUnmet": 0,
     "clause.unmatchedToReference": 0,
     "clause.checkedStructures": 75,
-    "clause.unmetStructures": 2,
+    "clause.unmetStructures": 1,
     "clause.struckStructures": 0,
     "clause.waivedStructures": 0,
     "value.soldiersLighterThanEngineer": 0,
@@ -2464,14 +2464,6 @@
         ""
       ],
       [
-        "sentrygun:col",
-        "1x1",
-        "56x59",
-        1.844,
-        0.875,
-        ""
-      ],
-      [
         "oilderrick:neut",
         "2x2",
         "131x118",
@@ -2485,6 +2477,14 @@
         "164x146",
         1.825,
         1.025,
+        ""
+      ],
+      [
+        "sentrygun:col",
+        "1x1",
+        "56x58",
+        1.813,
+        0.875,
         ""
       ],
       [
@@ -3669,7 +3669,7 @@
         "unit": "sentry",
         "clause": "height over footprint strictly BELOW the Sentry Gun's (art.ini ranks Pillbox 1 against Sentry Gun 2)",
         "ok": true,
-        "measured": "pillbox 1.281 vs sentry gun 1.844",
+        "measured": "pillbox 1.281 vs sentry gun 1.813",
         "want": "pillbox < sentry gun",
         "note": "footprint height = Sh / ((gw+gh)*16), §2.5's diamond-height primitive Fh, both read on their own faction bake",
         "module": "structures.js",
@@ -3698,10 +3698,10 @@
       {
         "unit": "sentrygun",
         "clause": "[col] exactly 2 barrels, resolvable as two at 2px each with a gap >= 2px between them, and they are the topmost mass",
-        "ok": false,
-        "measured": "1 crown blob(s)",
-        "want": "2 blobs, gap >= 2px",
-        "note": "",
+        "ok": true,
+        "measured": "2 barrels across rows 5-16 (x23..42), gap 2px vs member 7px, topmost true",
+        "want": "2 barrels, gap >= 2px and no wider than a barrel, and the sprite's own top row inside their span",
+        "note": "counted across a cut (`resolveBand`), not by connectivity: two barrels on one trunnion are a single 8-connected component however far apart they are drawn, and the reference reads 0 under the old crown predicate at every chroma cut",
         "module": "structures.js",
         "refMatch": 0.83
       },
@@ -3849,7 +3849,7 @@
         "unit": "flakcannon",
         "clause": "the Height= ordering holds against the Sentry Gun (4 against 2)",
         "ok": true,
-        "measured": "flak 2.688 vs sentry gun 1.844",
+        "measured": "flak 2.688 vs sentry gun 1.813",
         "want": "flak > sentry gun",
         "note": "footprint-height ordering, §2.5's Fh primitive",
         "module": "structures.js",

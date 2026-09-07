@@ -523,14 +523,26 @@ function rimRow(f, c) {
   }
   return { row, w: mx };
 }
-/** the narrowest clear run between adjacent members, over a band `resolveBand` chose. */
-function runGap(f, band, pred, minW) {
-  let g = Infinity;
+/**
+ * The narrowest clear run between adjacent members over a band `resolveBand`
+ * chose, and the widest member on it.
+ *
+ * Both numbers, because a count alone cannot tell a PAIR from two unrelated
+ * masses that happen to stand at the same height: an optic mast beside one
+ * barrel resolves as "2 members" exactly the way two barrels do. Members of one
+ * mount are close together — `gap <= wMax` says the clear sky between them is
+ * no wider than a member, which is a statement about being a pair and carries
+ * no tuned number (the ratio is 1, and ours reads 2 px against 5 px where a
+ * mast-plus-barrel build reads 17 against 5).
+ */
+function bandRuns(f, band, pred, minW) {
+  let gap = Infinity, wMax = 0;
   for (let y = band.y0; y <= band.y1; y++) {
     const r = rowRuns(f, y, pred, minW);
-    for (let i = 1; i < r.length; i++) if (r[i][0] - r[i - 1][1] - 1 < g) g = r[i][0] - r[i - 1][1] - 1;
+    for (const [a, b] of r) if (b - a + 1 > wMax) wMax = b - a + 1;
+    for (let i = 1; i < r.length; i++) if (r[i][0] - r[i - 1][1] - 1 < gap) gap = r[i][0] - r[i - 1][1] - 1;
   }
-  return g === Infinity ? 0 : g;
+  return { gap: gap === Infinity ? 0 : gap, wMax };
 }
 
 // Faction assignment read from rts.html's own buildOrderFor/defenceOrderFor
@@ -1084,12 +1096,59 @@ exports.check = function (ctx) {
   if (F.sentrygun && F.sentrygun.col) {
     const f = F.sentrygun.col;
     const body = bodyRun(rowProfile(f));
-    const crown = components(f, (p, x, y) => !!p && y < body.lo).filter((c) => c.w >= 2 && c.h >= 2);
-    let gap = null;
-    if (crown.length === 2) gap = gapBetween(f, crown[0], crown[1]);
+    // BARRELS ARE COUNTED ACROSS A CUT, LIKE THE GAP GENERATOR'S TALONS.
+    //
+    // The old predicate was `components(y < body.lo)`, and it could not read 2
+    // for two reasons at once. (a) `bodyRun` reports `crown: false` on a squat
+    // silhouette, and RA2's own `soviet-sentry-gun.gif` is squat: `lo` collapses
+    // to 0, `y < lo` is empty, and the reference reports **0 crown blobs at 12
+    // of 12 chroma cuts** (9 olive, 3 green) — worse than our 1, and no drawing
+    // of anything could have moved it. (b) `components` counts members joined at
+    // a root as ONE, and a twin barrel on a shared trunnion is that by
+    // construction — the same trap `rowRuns`/`resolveBand` was written for on
+    // the Gap Generator's talons, which docs/design-decisions.md names this row
+    // as sharing.
+    //
+    // So: the widest cut in the TOP HALF (this file's own region convention for
+    // tesla's sphere and prism's crown, and where §2.7 says the barrels are —
+    // "the barrels are the top of the silhouette") that holds over two rows,
+    // plus the clear run between the members, which is the "gap >= 2 px" the
+    // row states and which no connectivity test can see.
+    //
+    // WHAT THE COMMITTED RIP CAN AND CANNOT SETTLE. It settles that the old
+    // predicate was broken (0 at 12 of 12). It cannot validate this rewrite:
+    // at 41x33 its gun sits at ~20-25 degrees of elevation, where the pair
+    // self-occludes into a single 13 px bright run, against our own 62. §2.7's
+    // row is sourced from rts.html:18765's reading of a 41x40 MAKE-frame rip
+    // that is not in the repo, at an elevation this still does not show. The
+    // row is therefore proved by BITE, including the strongest one available:
+    // it FAILED the art that shipped on 5719bfc, whose two barrels were drawn
+    // tangent (perpendicular axis separation 4.54 px against a summed half
+    // width of 4.50), and it reads 1 on a build with one barrel deleted.
+    const half = Math.floor(f.h * 0.5);
+    const bar = resolveBand(f, 0, half, (p) => !!p, 2, 2);
+    const brun = bar.count >= 2 ? bandRuns(f, bar, (p) => !!p, 2) : { gap: 0, wMax: 0 };
+    // "and they are the topmost mass": whatever reaches row 0 has to BE one of
+    // the members, and the pair has to be a PAIR. Membership is taken as
+    // connected masses rather than as x-ranges, because a barrel raised 62
+    // degrees carries its muzzle well outside the x-span of the cut that
+    // resolved it, so comparing spans would fail on a correct sprite. `gap <=
+    // wMax` is what stops an optic mast — the exact part rts.html:19199's own
+    // comment says the old build wrongly had — from being counted as the second
+    // barrel: it resolves as a member at the same height, but it stands 17 px
+    // off a 5 px barrel, and members of one trunnion do not.
+    const upper = components(f, (p, x, y) => !!p && y <= bar.y1);
+    const atTop = upper.filter((c) => c.y0 === 0);
+    const paired = bar.count === 2 && brun.gap >= 2 && brun.gap <= brun.wMax;
+    const topmost = bar.count > 0 && atTop.length > 0
+      && atTop.every((c) => c.y1 >= bar.y0 && c.x1 >= bar.x0 && c.x0 <= bar.x1);
     add('sentrygun', '[col] exactly 2 barrels, resolvable as two at 2px each with a gap >= 2px between them, and they are the topmost mass',
-      crown.length === 2 && gap !== null && gap >= 2,
-      `${crown.length} crown blob(s)${gap !== null ? `, gap ${gap}px` : ''}`, '2 blobs, gap >= 2px', '');
+      paired && topmost,
+      bar.count === 2
+        ? `2 barrels across rows ${bar.y0}-${bar.y1} (x${bar.x0}..${bar.x1}), gap ${brun.gap}px vs member ${brun.wMax}px, topmost ${topmost}`
+        : `${bar.count} member(s) at the widest top-half cut`,
+      '2 barrels, gap >= 2px and no wider than a barrel, and the sprite\'s own top row inside their span',
+      'counted across a cut (`resolveBand`), not by connectivity: two barrels on one trunnion are a single 8-connected component however far apart they are drawn, and the reference reads 0 under the old crown predicate at every chroma cut');
     // ENCLOSURE, not "a wide blob below a roofline". The old predicate was
     // `components(y >= body.lo).filter(w >= 0.5 Sw)`, which is an identity: the
     // bbox is cut TO the sprite, so its widest row is 1.000 Sw by construction
