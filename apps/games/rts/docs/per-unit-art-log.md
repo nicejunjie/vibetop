@@ -116,6 +116,86 @@ side; the budget went to a patch on each flank of the block plus the hull's
 long band instead, which is where RA2 paints it, and the census came out ahead
 anyway (`hue.vehicleOwnerMean` 0.1715).
 
+### 2026-09-10 — one scale for the ground roster
+
+The user: *"some tanks are just too small, like grizzly tank and ifv, while
+mirage and prism are huge. make them uniform in sizes, same for russian tanks."*
+
+Measured — broadside width over RA2's own broadside width, per unit — they were
+right and it was not close:
+
+| | | | |
+|---|---|---|---|
+| flaktrack 0.956 | lancer 0.963 | chronominer 1.000 | ifv 1.060 |
+| rhino 1.161 | warminer 1.232 | v3 1.270 | mirage 1.322 |
+| drone 1.333 | teslatank 1.346 | mammoth 1.492 | prismtank 1.508 |
+| mcv 1.522 | | | |
+
+RA2 draws every one of those at 1.00 by construction; its ground vehicles run
+45-69 px and its **tanks 54-59, a 1.09x band**. Ours carried a **1.59x
+inconsistency** — a Grizzly at 0.96 of its own reference standing beside a
+Prism Tank at 1.51 of its.
+
+**Collapsing all thirteen onto one scale was tried first and is not
+shippable.** `iou.sameFactionOver75` went 0 -> 2 (Chrono Miner | Mirage 0.779,
+Apocalypse | War Miner 0.754) and `iou.groundCombat.mean` 0.4642 -> 0.5774. RA2
+gets away with a flat scale because its ASPECTS carry the separation instead —
+`[CMIN]` 1.96 against `[RTNK]` 1.51, `[MTNK]` 1.74 against `[HARV]` 1.17 — and
+ours are all squashed toward the middle at 0.81-0.92 of their references. With
+size gone there is nothing left to tell those pairs apart.
+
+**Shipped: deviations compressed to 35% (20% for the two the user named).**
+Scale spread **1.59x -> 1.20x**; the roster now runs 54-96 px against 43-105.
+The Grizzly goes 52 -> 64 px, the IFV 53 -> 60, the Prism Tank 89 -> 80, the
+MCV 105 -> 96.
+
+**Four things that had to move with it.**
+
+* **The Apocalypse's aspect.** 1.436 against `[MTNK]`'s 1.735 was the
+  second-worst ratio in the group and it is what made `Apocalypse | War Miner`
+  a 0.75 pair once size stopped hiding it. Flattening the canister drums
+  reaches the aspect and **breaks their count** — the long comment already in
+  that block explains why in advance: at the gated octant `px` is exactly 0,
+  the two flank drums share a screen column, and the only thing that can
+  separate them is the far one showing ABOVE the near one, which is a function
+  of drum HEIGHT. Swept cv 0.322-0.430, the count stays at two. So the drums
+  are back at 9.6 and the aspect comes from the **barrels** instead — 14.5 ->
+  17.5, which is where `docs/ra2-ref/sprites/apocalypse.png` puts it anyway
+  (they overhang the hull by a third of its length). Aspect 1.436 -> 1.78.
+* **The Rhino's five house blocks.** Its flank plates were spaced in absolute
+  units (7.4 apart, `len * 0.155` long); the hull grew 65 -> 70 px and the
+  middle plate split against the fender, so the check read SIX blocks with a
+  2 px sliver and a 1 px gap. Both spacing and length are `len`-relative now.
+* **`mass.tightestBand6`, which was a target 67% above its own reference.**
+  RA2's nine ground-combat areas are 1242, 1568, 1924, 2006, 2025, 2250, 2268,
+  2301, 2537 — tightest six-window **1.20**, full span **2.04**. The span floor
+  beside it was taken from RA2; this one was not, and at 2.0 it actively
+  demanded the unevenness the user was complaining about. Corrected to 1.20 and
+  derived from `RA2_SIZE` rather than written as a literal, exactly as the
+  Destroyer's and the MCV's ratios already are.
+* **`dog | tanya`.** The friend-vs-foe anchor is a MEDIAN over the roster of
+  each unit's own blue-vs-red distance, so growing most of the vehicles raised
+  it — and this pair, pinned at 12.5 in the fit window, fell under. The pair is
+  the real defect: a near-black head over tan skin is the attack dog's own
+  palette, and §2.3's row for Tanya asks for "bare pale limbs + a bright
+  BLONDE 2x2 head — the highest-value head on the field". We had drawn it
+  `#2c1e16`. Blonde plus dark trousers: 12.5 -> 13.0, back over the floor, and
+  `colour.infantry.meanDist` 1.348 -> 1.3553.
+
+**The cost, stated plainly.** `iou.groundCombat.mean` 0.4642 -> 0.5475 and
+`iou.vehicle.mean` 0.4114 -> 0.4738. Size was doing real separation work and
+this spends it. The way to buy it back is the ASPECT column above — every
+ground vehicle sits at 0.81-0.92 of its reference's aspect, which is the
+separation RA2 uses instead of size — and that is the next job, not this one.
+
+**One thing I could not explain.** `hue.vehicleOwnerMean` fell 0.176 -> 0.1646,
+and it is a pure function of SCALE: holding the Flak Track's art fixed and
+moving only its VSC, its measured owner fraction goes 0.1795 at 0.820 to 0.1295
+at 1.035. Same drawing, 26% bigger, 28% less owner colour by the census. The
+sprites look right at both sizes and the number is still 43% above its plan
+target, so this is recorded as an open question about the MEASUREMENT rather
+than fixed by painting over it.
+
 ### The IFV, third time — a CLUSTER, and why two measurements both missed it
 
 *"ifv is still not recoganizable"* … *"and it looks nothing like ra2's ifv"*.

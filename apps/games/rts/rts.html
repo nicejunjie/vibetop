@@ -4941,7 +4941,14 @@
     mcv:       '#e0a33c',   // amber folded-crane boom on a grey crawler
     harv:      '#b0955a',   // tan slatted ore bin
     engineer:  '#e8c33c',   // amber hard hat — the engineer's one loud surface
-    tanya:     '#2c1e16',   // near-black hair, the only bare head on the field
+    // BLONDE, which is what §2.3's row for her actually says: "bare pale
+    // limbs + a bright blonde 2x2 head — the HIGHEST-VALUE head on the field
+    // over the lowest house-colour fraction in RA2 (14.3%)". We drew it
+    // near-black, and near-black hair over tan skin is the attack dog's own
+    // palette — which is why `dog | tanya` has been pinned at the
+    // friend-vs-foe floor in the fit window. A bright head is a note the dog
+    // cannot carry, and it is the reference's.
+    tanya:     '#e8d489',   // bright blonde — the highest-value head on the field
     ifv:       '#e6eaf0',   // white lower body under the blue flank stripe
     mirage:    '#e9edf2',   // the ribbed white emitter stack on the deck
     rhino:     '#2b2f36',   // NEUTRAL gunmetal barrel. The Lancer's navy put an
@@ -5004,7 +5011,17 @@
     rocket:    { coat: '#49512f', boot: '#22242a', skin: '#d8a878' },  // Guardian GI: heavy olive
     rocketS:   { coat: '#575049', boot: '#22242a', skin: '#d8a878' },  // Flak Trooper: grey-brown
     engineer:  { coat: '#e9e5d6', boot: '#6d6653', skin: '#d8a878' },  // NEAR-WHITE hazmat coverall — the only light-value body on the field (ref §2.1). The boot stays DARK on purpose: it is worth 0.005 of the value gate, and a near-white figure needs one dark note at the ground or he floats
-    tanya:     { coat: '#8a8a5c', boot: '#1c1e24', skin: '#e6b98f' },  // LIGHT khaki combat trousers, L=133
+    // DARK combat trousers, not light khaki. At L=133 khaki she was the same
+    // value and nearly the same hue as the attack dog's tan coat, and
+    // `dog | tanya` has sat at 12.5 in the fit window — exactly ON the
+    // friend-vs-foe anchor — for as long as that anchor has been below it.
+    // The anchor is a MEDIAN over the roster, so the 2026-09-10 size pass
+    // raised it (most vehicles grew, so the median unit's own blue-vs-red
+    // distance went up) and the pair fell under. Fixing the pair beats
+    // holding the anchor down, and §2.3's row for her is "BARE PALE LIMBS +
+    // a bright head" over "the LOWEST house-colour fraction in RA2 (14.3%)"
+    // — a contrast read that a light khaki body cancels out.
+    tanya:     { coat: '#2f3138', boot: '#15171c', skin: '#e6b98f' },  // dark combat trousers, L=49
     teslatrooper: { coat: '#1e2338', boot: '#868d97', skin: '#d8a878' },// navy armour, steel greaves
     ivan:      { coat: '#3b2f26', boot: '#4a4e57', skin: '#dfae82' },   // WARM BROWN trousers, L=50, grey boots
     rocketeer: { coat: '#6f7782', boot: '#2a2e35', skin: '#d8a878' },   // grey pressure suit
@@ -9231,12 +9248,59 @@
     // rhino|chronominer at 0.760 and mirage|warminer at 0.771, the two worst
     // vehicle pairs on the field. The Chrono Miner drops a class and gets
     // LONGER (see `len`/`wid`); the War Miner goes up one and gets SHORTER.
-    var VSC = kind === 'harv' ? (sov ? 1.080 : 0.940) : ({
-      lancer: 0.655, rhino: 0.900,                     // the flattest / the line heavy
-      flaktrack: 0.820, ifv: 1.200,                    // the light class
-      teslatank: 1.100, mirage: 1.330, spectre: 1.420, // the mid specials
-      v3: 1.260, mammoth: 1.240,                       // the longest / the heaviest
-      mcv: 1.320, drone: 0.880, hornet: 0.45,
+    // ── ONE SCALE FOR THE WHOLE GROUP (2026-09-07) ────────────────────────
+    // The user, looking at the field: "some tanks are just too small, like
+    // grizzly tank and ifv, while mirage and prism are huge. make them
+    // uniform in sizes, same for russian tanks."
+    //
+    // Measured, they were right and it was not close. Broadside width over
+    // RA2's own broadside width, per unit:
+    //
+    //   flaktrack 0.956  lancer 0.963  chronominer 1.000  ifv 1.060
+    //   rhino 1.161  warminer 1.232  v3 1.270  mirage 1.322  drone 1.333
+    //   teslatank 1.346  mammoth 1.492  prismtank 1.508  mcv 1.522
+    //
+    // RA2 draws every one of those at 1.00 by construction — its ground
+    // vehicles run 45-69 px and its TANKS 54-59, a 1.09x band. Ours ran a
+    // **1.59x inconsistency**: the Grizzly at 0.96 of its reference beside a
+    // Prism Tank at 1.51 of its own, which is exactly the "some tiny, some
+    // huge" the user is describing. Every VSC below is now `old x (1.2698 /
+    // its measured scale)`, i.e. every unit sits at the group scale and the
+    // roster's proportions become RA2's.
+    //
+    // THIS DELIBERATELY GIVES UP A SEPARATION CUE, and the two metrics that
+    // were living on it say so — see `mass.groundCombatSpan` and
+    // `mass.tightestBand6` in tools/art-metrics.js, both of which were set
+    // ABOVE RA2's own figures on the argument that "RA2's own nine
+    // ground-combat vehicles span only x2.04 by broadside area, which at our
+    // 0.55 minimum zoom is not enough separation". That argument produced a
+    // fleet whose sizes are not RA2's, and the user is the one looking at it.
+    // Collapsing all thirteen onto 1.2698 exactly was TRIED FIRST and it is
+    // not shippable: `iou.sameFactionOver75` went 0 -> 2 (Chrono Miner |
+    // Mirage 0.779, Apocalypse | War Miner 0.754) and
+    // `iou.groundCombat.mean` 0.4642 -> 0.5774. RA2 gets away with a flat
+    // scale because its ASPECTS carry the separation instead — [CMIN] 1.96
+    // against [RTNK] 1.51, [MTNK] 1.74 against [HARV] 1.17 — and ours are all
+    // squashed toward the middle at 0.81-0.88 of their references, so with
+    // size gone there is nothing left to tell those pairs apart.
+    //
+    // So the deviations are COMPRESSED to 35% rather than to zero: scale
+    // spread 1.59x -> 1.17x, which is the visible half of the complaint (the
+    // Grizzly goes 52 -> 63 px and the Prism Tank 89 -> 80) without spending
+    // the cue that is currently doing the work. Closing the rest is an ASPECT
+    // job on the units sitting at 0.81-0.88, not a size one; that is written
+    // up in `unit-identity-reference.md` and is the honest next step.
+    var VSC = kind === 'harv' ? (sov ? 1.102 : 1.106) : ({
+      // The two the user named FIRST — "grizzly tank and ifv" — are pulled in
+      // further than the rest (20% of their deviation kept, not 35%), because
+      // they were the two furthest under and they are the ones being looked
+      // at. The Grizzly can afford it: its aspect is 2.39, the most
+      // distinctive in the group, so size is not what was separating it.
+      lancer: 0.822, rhino: 0.955,                     // the flattest / the line heavy
+      flaktrack: 1.035, ifv: 1.354,                    // the light class
+      teslatank: 1.060, mirage: 1.296, spectre: 1.274, // the mid specials
+      v3: 1.260, mammoth: 1.075,                       // the longest / the heaviest
+      mcv: 1.203, drone: 0.853, hornet: 0.45,
       // THE TWO AIRCRAFT, sized against RA2 rather than against each other.
       // Aspect is scale-INVARIANT, so the whole art gate was blind to a unit
       // drawn at the wrong SIZE until `size.*OutsideRA2Band` existed: RA2
@@ -10422,6 +10486,15 @@
               // file. The plateau is `cv` 0.302 - 0.330 and this sits in the
               // middle of it; below 0.302 the far drum's visible sliver drops
               // under the check's h >= 1.5w and it stops being a cylinder.
+              // SQUAT DRUMS CANNOT BE COUNTED, and the long comment above
+              // says why in advance: at the gated octant `px` is exactly 0,
+              // the two flank drums share a screen column, and the ONLY thing
+              // that can separate them is the far one showing above the near
+              // one. That margin is a function of DRUM HEIGHT, so cutting
+              // them to 5.2 to buy the Apocalypse's aspect took the count
+              // from four to two at every spacing swept (cv 0.322 - 0.430).
+              // The height is back; the aspect it was bought for comes from
+              // the BARRELS instead, which is where the reference puts it.
               var cu = -len * 0.235 - i2 * len * 0.215, cv = sg * wid * 0.322;
               cans.push([cx + fx * cu + px * cv, by - 9.4 + fy * cu + py * cv]);
             }
@@ -10464,6 +10537,22 @@
             // collar in `dark` reads as the drums standing in the hull's
             // shadow instead of in a black tube, and the metric goes the other
             // way: 0.9714.
+            // SHORT AND WIDE, not chimneys. `docs/ra2-ref/sprites/apocalypse.png`
+            // shows the red canisters sitting LOW on the hull shoulders, about
+            // as tall as they are wide, with the turret roof above them — and
+            // the tank reading long and flat. Ours stood them 9.6 units proud
+            // of the deck, which is 13 of the sprite's 55 rows and the whole
+            // reason its aspect measured **1.436 against [MTNK]'s 1.735**, the
+            // second-worst ratio in the group. That height was also what made
+            // `Apocalypse | War Miner` a 0.75 silhouette pair the moment the
+            // size spread was compressed: two big tracked hulls with tall
+            // furniture on the deck. RA2 separates them by aspect (1.74
+            // against [HARV]'s 1.17) and this is where ours went.
+            //
+            // Fatter as they come down, so "each canister >= 6x6 px and
+            // individually countable" survives the change — the clause is
+            // about COUNTABILITY, and four squat drums with real gaps count
+            // as easily as four tall ones.
             puck(cans[i2][0], cans[i2][1], 1.95, 11.20, dark, dark, dark);
             puck(cans[i2][0], cans[i2][1], 1.90, 9.6, pdark, panel, PEDGE);
             gEllipse(cans[i2][0], cans[i2][1] - 9.6, 1.10);      // dark throat in the cap
@@ -10508,7 +10597,13 @@
           for (var bs = -1; bs <= 1; bs += 2) {
             puck(mx0 + fx * 6.6 + px * 3.9 * bs, my0 - 1.9 + fy * 6.6 + py * 3.9 * bs,
                  1.7, 4.6, shade(hull, 0.78), shade(hull, 1.06), dark);   // twin mantlets
-            barrel(mz[0] + px * 3.9 * bs, mz[1] + py * 3.9 * bs, 14.5, 2.05, 1.30, VACC.mammothGun);
+            // 17.5, not 14.5: the unit came down 10% with the group's size
+            // pass and its declared spike ("twin barrels >= 19 px long") went
+            // under budget with it. `docs/ra2-ref/sprites/apocalypse.png`
+            // draws these overhanging the hull by a third of its length, so
+            // the longer gun is the reference's own answer and it lifts the
+            // aspect toward [MTNK]'s 1.735 at the same time.
+            barrel(mz[0] + px * 3.9 * bs, mz[1] + py * 3.9 * bs, 17.5, 2.05, 1.30, VACC.mammothGun);
           }
         }
 
@@ -10796,11 +10891,16 @@
           // carries no shape information at all. Countable plates do, which
           // is also what separates the Rhino from the Tesla Tank's identical
           // olive lozenge without spending a pixel more paint.
+          // Spacing and plate length both move with `len` now. They were
+          // absolute (7.4 units apart, `len * 0.155` long) and the group's
+          // size pass grew this hull 65 -> 70 px, which split the middle
+          // plate against the fender and left the check reading SIX blocks
+          // with a 2 px sliver and a 1 px gap where it wants five with 3.
           for (sg = -1; sg <= 1; sg += 2)
             for (i2 = -1; i2 <= 1; i2++)
-              isoBox(g, cx + px * wid * 0.425 * sg + fx * (i2 * 7.4 - 0.6),
-                     by - 4.2 + py * wid * 0.425 * sg + fy * (i2 * 7.4 - 0.6),
-                     len * 0.155, 1.8, 4.8, a, i2 > 0 ? plit : panel, PEDGE);
+              isoBox(g, cx + px * wid * 0.425 * sg + fx * (i2 * len * 0.268 - 0.6),
+                     by - 4.2 + py * wid * 0.425 * sg + fy * (i2 * len * 0.268 - 0.6),
+                     len * 0.128, 1.8, 4.8, a, i2 > 0 ? plit : panel, PEDGE);
           fenders(len * 0.44, 4.4);
           bumper(len * 0.42, wid * 0.24, by - 1.6);
           lamp(cx + fx * len * 0.40 + px * wid * 0.24, by - 5.8 + fy * len * 0.40 + py * wid * 0.24);
