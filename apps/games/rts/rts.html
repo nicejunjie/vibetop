@@ -29843,6 +29843,16 @@
     return true;
   }
 
+  // Autosave to the 'auto' key (outside the numbered slots), flag a resume,
+  // and reload. Boot reads the flag, loads the autosave and enters the match
+  // without touching the menu.
+  var RESUME_KEY = 'vibetop:rts:resume';
+  function reloadKeepMatch() {
+    if (!G || (state !== 'play' && state !== 'paused')) { location.reload(); return; }
+    if (!saveGame('auto')) { say('Could not save — storage is full', true); return; }
+    lsSet(RESUME_KEY, '1');
+    location.reload();
+  }
   function lsGet(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
   function lsSet(k, v) { try { localStorage.setItem(k, v); } catch (e) {} }
 
@@ -35767,7 +35777,12 @@
     optButtons(scrRow, [['slow', 'Slow'], ['normal', 'Normal'], ['fast', 'Fast']],
       function (k) { return k === scrollRate; },
       function (k) { scrollRate = k; lsSet('vibetop:rts:scroll', k); buildOptRows(); });
-    optButtons(gameRow, [['restart', 'Restart match']], null, function () {
+    // Debug mode adds "Save & reload": the art is baked at page load, so a
+    // deploy only shows in a reloaded page — this autosaves the running
+    // match, reloads, and the page resumes it (see the resume flag at boot).
+    optButtons(gameRow, debugMode ? [['restart', 'Restart match'], ['reload', 'Save & reload']]
+                                  : [['restart', 'Restart match']], null, function (k) {
+      if (k === 'reload') { reloadKeepMatch(); return; }
       optOpen = false; optCard.style.display = 'none'; hideCard();
       startMatch();
     });
@@ -35841,7 +35856,7 @@
     MUS.set(G.theatre); MUS.start();
     buildFacRow(); buildMapRow(); buildDiffRow();
     buildPanel(); refreshSW();
-    say('Slot ' + n + ' restored — ' + (MAPS[G.mapId] || MAPS.frontier).name + ' at ' + mmss(Math.floor(G.tick / 60)), false, 320);
+    say((n === 'auto' ? 'Match resumed' : 'Slot ' + n + ' restored') + ' — ' + (MAPS[G.mapId] || MAPS.frontier).name + ' at ' + mmss(Math.floor(G.tick / 60)), false, 320);
     eva('Battlefield control online', 30000);
   }
   VSL.forEach(function (v) {
@@ -36823,6 +36838,7 @@
     saveBlob: function () { return serialiseGame(G); },
     loadBlob: function (blob) { G = restoreGame(JSON.parse(JSON.stringify(blob))); return G; },
     slots: function () { return saveSlots(); },
+    reloadKeep: function () { reloadKeepMatch(); },
     score: function (p) { return scoreOf(G, p); },
     crates: function () { return G ? G.crates : []; },
     spawnCrate: function (kind, x, y) {
@@ -37095,7 +37111,8 @@
   else window.addEventListener('resize', resize);
 
   buildPanel();
-  menu();
+  if (lsGet(RESUME_KEY) === '1' && (lsSet(RESUME_KEY, '0'), loadGame('auto'))) enterLoaded('auto');
+  else menu();
   requestAnimationFrame(tick);
 })();
 </script>
