@@ -12062,3 +12062,40 @@ and SW with a cross-origin Access stand-in in Chromium and iPhone WebKit; it
 exercises the prompt, keyboard/touch sizing, loaded draft preservation, sign-in,
 return to the desktop, and another expiry on a cached cold load. An installed
 iOS PWA's real Access cookie jar remains an on-device verification item.
+
+
+### "Your tanks look like lego" — every part outlined itself, and RA2 outlines only the silhouette
+
+**Symptom.** With sizes and values on RA2's, the user: *"the tank is full of
+rectangular shapes, unlike ra2 looks like a single piece. your tanks look
+like lego, many rectangular blocks visibly put together, a lot of lines
+going across. try fix ifv first."*
+
+**Cause.** `isoBox`, `prism` and `puck` each stroke a 0.7 px outline round
+every face they draw, and `isoBox` adds a 20%-white "lit top rim" on every
+face besides. A vehicle is fifteen to twenty-five of those calls, so it is
+fifteen to twenty-five outlined boxes: the internal lines are the drawing.
+RA2's units are voxel renders — one continuous shaded surface with a dark
+line only where the unit meets the ground, and the IFV's hull, cab and
+launcher read as one casting.
+
+**Fix, on the IFV first.** A `NO_RIM` flag beside `VLIFT`: while a SMOOTH
+kind bakes, every primitive draws plain shaded faces (no outline, no rim)
+onto a scratch sheet; `bakeVehicle.frame` then stamps that sheet in eight
+directions, tints the result dark with `source-in`, lays it under the sheet,
+and the unit gets ONE outline at its silhouette. The IFV itself went from
+five outlined hull boxes plus four outlined launcher tubes with owner bands
+to: three tyres a side, one raked body, one rear step in the same tone, a
+windscreen patch, one stripe, and ONE dark launcher block (6.2 x 7.6 x 6.4,
+40% of the sprite's height) with four cell mouths — the "gun" the user
+could not see.
+
+**Rejected.** Dropping the outlines only, with no silhouette pass: the unit
+melts into the terrain at zoom 1 (RA2's dark ground line is what holds a
+pale sprite on grass). Keeping the per-part outlines but thinner: still
+lego, just fainter.
+
+**Where this goes next.** Every other ground vehicle is drawn the same way
+and reads the same way; `SMOOTH` is a per-kind list so they can be moved
+across one at a time, each against its own rip, rather than flipping the
+roster and hoping. The Grizzly and Rhino are the next two.
