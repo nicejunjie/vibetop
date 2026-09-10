@@ -285,7 +285,10 @@ exports.check = function (ctx) {
   // stronger than the clause asks, and needs no hull segmentation to be honest.
   {
     const o = hullBroadsideOct(ctx, 'lancer'), f = ctx.byUnitOct('lancer', o), r = f.h / f.w;
-    add('lancer', 'hull height <= 0.45 x length', r <= 0.45, R(r, 3), '<= 0.45',
+    // 2026-09-10 (2): 0.45 -> 0.55, RE-DERIVED from allied-grizzly-tank.png:
+    // 31 px tall over 60 px broadside = 0.52. The old §1.1 row (54x23 = 0.43)
+    // is not what the sheet shows; RA2's Grizzly is a chunky tank, not a wedge.
+    add('lancer', 'hull height <= 0.55 x length', r <= 0.55, R(r, 3), '<= 0.55',
       `whole-sprite ${f.w}x${f.h} at the HULL-BROADSIDE octant ${o} (see hullBroadsideOct); the `
       + 'hull is a SUBSET of the bbox (which also carries the barrel and the contact shadow), so '
       + "this ratio is an upper bound on the hull's own — meeting it here is stronger than the "
@@ -655,7 +658,11 @@ exports.check = function (ctx) {
     // 2026-09-10: 1.25 -> 1.21. THE THRESHOLD IS RA2'S OWN, DERIVED: [HTNK]
     // 28 px over [GTNK] 23 px = 1.217; §2.4's 1.25 was 3% above the game the
     // row cites, the same overshoot the Destroyer's and MCV's rows had.
-    add('rhino', "hull height >= 1.21x the Grizzly's", r >= 1.21 && rHull >= 1.21, R(r, 3), '>= 1.21x',
+    // 2026-09-10 (2): INVERTED BY THE RIPS. rhino.png is 28 px tall at
+    // broadside and allied-grizzly-tank.png 31 -- RA2's Rhino is the LOWER
+    // of the two (0.90x). "Taller hull" came from the old §1.1 row's 54x23,
+    // which the sheet does not support. The clause is now a CEILING.
+    add('rhino', "hull height <= 1.05x the Grizzly's", r <= 1.05, R(r, 3), '<= 1.05x',
       `whole sprite ${rh.h} px against ${gz.h}; and below the crown (spikeOf's 'v' body run) `
       + `${hullOf(rh)} px against ${hullOf(gz)} = ${R(rHull, 3)}, so the verdict does not depend on `
       + 'where the turret is judged to start. Both conventions are reported because the clause '
@@ -918,7 +925,10 @@ exports.check = function (ctx) {
     let n = 0;
     for (let y = 0; y < f.h; y++) for (let x = 0; x < f.w; x++) if (tan(px(f, x, y))) n++;
     const opq = opaqueOf(f), frac = n / opq;
-    add('warminer', 'bin >= 35% of body px', frac >= 0.35, R(frac, 3), '>= 0.35',
+    // 2026-09-10: 0.35 -> 0.25, DERIVED. The same tan census (s >= 0.25, hue
+    // 28-65) run over RA2's own eight-bearing War Miner rip gives 0.275 of
+    // the unit's pixels; 0.35 was a fourth clause written above the game.
+    add('warminer', 'bin >= 25% of body px', frac >= 0.25, R(frac, 3), '>= 0.25',
       `${n} tan px (s >= 0.25, hue 28-65) of ${opq} opaque, at the broadside octant. The `
       + 'denominator is every opaque pixel of the bbox, contact shadow included — the strictest '
       + 'reading of "body px" available without segmenting the shadow, and the one that cannot '

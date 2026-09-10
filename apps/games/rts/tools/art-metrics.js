@@ -82,25 +82,37 @@ const ACHROMATIC = 0.14;
 // nobody had written down — RA2's IFV really is nearly square.
 const RA2_BBOX = {
   // ---- vehicles (unit-identity-reference.md §1.1) ----
-  drone: [21, 14],  // [DRON]    21x14
+  // 2026-09-10: SEVEN ROWS RE-MEASURED FROM THE RIPS THEMSELVES. §1.1's
+  // numbers were transcribed from an unstated source; with eight-bearing
+  // rips for eleven vehicles now in docs/ra2-ref/sprites/ (all one sprite
+  // series, one scale — the Rhino/Apocalypse/Flak rows agree with the sheets
+  // to 2-3 px), each sheet was segmented off its background and the widest
+  // LOW-aspect box (the broadside) taken. Seven rows disagreed with the
+  // sheets by more than the projection could explain, and every one of them
+  // had been steering a unit the user named: the Grizzly (54x23 -> 60x31, a
+  // chunky tank of Rhino bulk, not a sliver), the Chrono Miner (55x28 ->
+  // 63x39, a tall boxy truck), the War Miner (56x48 -> 66x37, a LONG LOW
+  // truck, the table had its aspect inverted), the Drone (21x14 -> 30x20,
+  // same aspect, wrong scale), the IFV, the Mirage and the MCV.
+  drone: [30, 20],  // [DRON]    30x20 — terror-drone.png (was 21x14)
   hornet: [27, 15],  // [HORNET]  27x15
   flaktrack: [45, 45],  // [HTK]     45x45 — square, and so is ours
-  ifv: [50, 45],  // [FV]      50x45
+  ifv: [54, 48],  // [FV]      54x48 — allied-ifv.png (was 50x45)
   teslatank: [52, 37],  // [TTNK]    52x37
-  lancer: [54, 23],  // [GTNK]    54x23 — the Grizzly
-  chronominer: [55, 28],  // [CMIN]    55x28
+  lancer: [60, 31],  // [GTNK]    60x31 — the Grizzly, allied-grizzly-tank.png (was 54x23)
+  chronominer: [63, 39],  // [CMIN]    63x39 — allied-chrono-miner.png (was 55x28)
   rhino: [56, 28],  // [HTNK]    56x28
   mammoth: [59, 34],  // [MTNK]    59x34 — the Apocalypse. CORRECTED 2026-09-05 from
                       // the 56x41 the document carried: that is a mid bearing, not the
                       // broadside. Measured off the real eight-bearing sheet, and the
                       // sheet also contains a 59x43 = 1.37 frame, which is where the old
                       // number came from. See docs/ra2-ref/sprites/README.md
-  warminer: [56, 48],  // [HARV]    56x48
-  mirage: [59, 39],  // [RTNK]    59x39
+  warminer: [66, 37],  // [HARV]    66x37 — soviet-war-miner.png (was 56x48: the table had it TALL, the sheet has it LONG)
+  mirage: [61, 42],  // [RTNK]    61x42 — allied-mirage-tank.png (was 59x39)
   prismtank: [59, 43],  // [SREF]    59x43
   v3: [63, 36],  // [V3]      63x36
   nighthawk: [64, 21],  // [SHAD]    64x21
-  mcv: [69, 47],  // [AMCV]    69x47
+  mcv: [91, 46],  // [AMCV]    91x46 — allied-mcv.png broadside (was 69x47; the sheet's diagonal is 109x88)
   harrier: [71, 44],  // [ORCA]    71x44 — measured by SPAN, wings out
   kirov: [139, 62],  // [ZEP]    139x62 — the largest airframe in the game
   // ---- infantry (same table) ----
@@ -440,8 +452,10 @@ const TARGETS = {
   'spike.belowFloor':            { want: 0,    dir: 'down', note: 'plan §2 option 1: every spike >=3.64 px at zoom 1 so it clears 2 px at ZMIN' },
   'spike.minThickAtZmin':        { want: SPIKE_FLOOR_ZMIN, dir: 'up', note: 'RA2 bottoms out at 2 px of thickness' },
   'spike.belowDeclaredBudget':   { want: 0,    dir: 'down', note: 'every unit meets its own §2 pixel budget' },
-  'mass.groundCombatSpan':       { want: 2.04, dir: 'up',   note: "RA2's span over the NINE ground-combat vehicles this metric covers: Grizzly 54x23 -> Prism 59x43 = x2.04. The x6.8 originally written here was RA2's whole vehicle-AND-SHIP class (Terror Drone 21px -> Carrier 143px) applied to a metric that measures neither — a target-definition error, corrected 2026-09-04. We sit ABOVE RA2 deliberately: our renderer goes to 0.55x where RA2's never left 1.0x" },
-  'mass.tightestBand6':          { want: 1.2,  dir: 'up',   note: "the tightest six-of-nine window of ground-combat broadside AREAS. CORRECTED 2026-09-10 from 2.0, which was a target 67% ABOVE the reference it claims to serve. RA2's own nine are [GTNK] 54x23, [HTNK] 56x28, [MTNK] 59x34, [TTNK] 52x37, [V3] 63x36, [RTNK] 59x39, [HTK] 45x45, [FV] 50x45, [SREF] 59x43 — areas 1242, 1568, 1924, 2006, 2025, 2250, 2268, 2301, 2537, whose tightest six-window is 2301/1924 = **1.20** (and whose full span is 2537/1242 = 2.04, which is exactly where the `mass.groundCombatSpan` floor beside it came from). So the span floor was taken from RA2 and this one was not. A row demanding more separation than RA2 itself has is the one kind of clause this project has already ruled against — see the Destroyer's 1.7x and the MCV's 1.20x, both corrected to RA2's own ratios in `unit-identity-reference.md` §2.3 — and it is what kept the roster's sizes 1.59x more uneven than the reference until the user said so out loud: 'some tanks are just too small, like grizzly tank and ifv, while mirage and prism are huge'. Derived from RA2_SIZE rather than written as a literal, for the same reason those two are" },
+  'mass.groundCombatSpan':       { want: 1.65, dir: 'up',   // 2026-09-10: 2.04 -> 1.65 after the seven RA2_BBOX rows were re-measured from the rips (Rhino 56x28 -> IFV 54x48 = 2592/1568)
+                                     note: "RA2's span over the NINE ground-combat vehicles this metric covers: Grizzly 54x23 -> Prism 59x43 = x2.04. The x6.8 originally written here was RA2's whole vehicle-AND-SHIP class (Terror Drone 21px -> Carrier 143px) applied to a metric that measures neither — a target-definition error, corrected 2026-09-04. We sit ABOVE RA2 deliberately: our renderer goes to 0.55x where RA2's never left 1.0x" },
+  'mass.tightestBand6':          { want: 1.29, dir: 'up',   // 2026-09-10: 1.20 -> 1.29, same re-measurement (areas 1568,1860,1924,2006,2025,2268,2537,2562,2592; tightest six-window 2592/2006)
+                                     note: "the tightest six-of-nine window of ground-combat broadside AREAS. CORRECTED 2026-09-10 from 2.0, which was a target 67% ABOVE the reference it claims to serve. RA2's own nine are [GTNK] 54x23, [HTNK] 56x28, [MTNK] 59x34, [TTNK] 52x37, [V3] 63x36, [RTNK] 59x39, [HTK] 45x45, [FV] 50x45, [SREF] 59x43 — areas 1242, 1568, 1924, 2006, 2025, 2250, 2268, 2301, 2537, whose tightest six-window is 2301/1924 = **1.20** (and whose full span is 2537/1242 = 2.04, which is exactly where the `mass.groundCombatSpan` floor beside it came from). So the span floor was taken from RA2 and this one was not. A row demanding more separation than RA2 itself has is the one kind of clause this project has already ruled against — see the Destroyer's 1.7x and the MCV's 1.20x, both corrected to RA2's own ratios in `unit-identity-reference.md` §2.3 — and it is what kept the roster's sizes 1.59x more uneven than the reference until the user said so out loud: 'some tanks are just too small, like grizzly tank and ifv, while mirage and prism are huge'. Derived from RA2_SIZE rather than written as a literal, for the same reason those two are" },
   // --- colour. Every metric above is computed off the ALPHA MASK, so none of
   // them can see a colour change at all: C2 raised the infantry remap by a
   // third and moved them by zero. For infantry that is the whole mechanism

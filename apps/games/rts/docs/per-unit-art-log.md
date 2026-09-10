@@ -4306,3 +4306,42 @@ and scale moved it between -0.003 and -0.017 without clearing it, and each
 one moved the Mirage toward the V3 instead) and `iou.groundCombat.mean` ~0.62
 against a 0.45 target that a flat scale cannot meet. `no two units are
 confusable` is 0 pairs throughout.
+
+## 2026-09-10 (third pass) — the sheets, not the table; and the value census
+
+*"i have told you many times, some tanks are too small ... 你真的参考ra2了么"*.
+Honest answer: no — I had referenced a TABLE that said it was RA2.
+
+**Segmenting the eleven rip sheets** (one series, one scale) and putting ours
+beside them at 1:1 (`scratch sbs.png`) showed, per unit, widest / broadside
+box:
+
+    unit         sheet             ours (before)     verdict
+    grizzly      63x43 / 60x31     46x33 / 63x26     a sliver — 0.73 of the bulk
+    rhino        58x43 / 53x28     57x39 / 69x32     too LONG (gun + hull)
+    chrono       64x41 / 63x39     62x39 / 57x27     too low
+    warminer     63x49 / 66x37     64x60 / 54x47     too tall, table aspect inverted
+    mcv         109x88 / 91x46     82x58 / 73x46     too small
+    drone        30x20             26x18             too small
+    ifv/mirage/prism/flak/apoc                        within a few px
+
+Seven `RA2_BBOX` rows re-measured; §1.1 footnoted.
+
+**The value census** (v > 0.75 light, v < 0.25 dark, over the unit's own px):
+
+    RA2 sheets   light 0.13-0.32   dark 0.11-0.21
+    ours before  light 0.03-0.09   dark 0.27-0.47
+    ours after   light 0.08-0.29   dark 0.28-0.44
+
+Light is fixed by `VLIFT` (1.25 on low-saturation colours while a ground
+vehicle bakes) and lifted hull colours; dark is structural (0.7 px face
+outlines on every prism, tracks, guns, the contact shadow) and is the next
+thing to take on if the field still reads heavy.
+
+**Per unit:** Grizzly wid 15 -> 20, hull 3.8 -> 5.0, plates taller, gun
+thicker (2.05 -> 2.5), VSC 0.80 -> 0.90. Rhino len 30 -> 25, gun 21.5 ->
+17.5. Apocalypse len 29 -> 27, VSC 0.88 -> 0.84, hull lifted to pale olive.
+War Miner len 26 -> 36, wid 25 -> 20, crate 15.4 -> 6.6, turret lowered to
+match. MCV len 36 -> 42, VSC 1.03 -> 1.19, every block and the boom lower.
+Chrono Miner crate 4.0 -> 6.0 tall, VSC 1.106 -> 1.15. Drone VSC 0.80 ->
+0.92. Rhino / Tesla / V3 / Prism hulls lifted.

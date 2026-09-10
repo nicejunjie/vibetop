@@ -81,22 +81,22 @@ pixels.** That is the entire canvas the game has to work with, and it is
 
 | class | unit | RA2 id | bbox | aspect |
 |---|---|---|---|---|
-| tiny | Terror Drone | `DRON` | **21x14** | 1.50 |
+| tiny | Terror Drone ¹ | `DRON` | **30x20** | 1.50 |
 | | Hornet | `HORNET` | 27x15 | 1.80 |
 | light | Flak Track | `HTK` | **45x45** | **1.00** |
-| | IFV | `FV` | 50x45 | 1.11 |
+| | IFV ¹ | `FV` | 54x48 | 1.13 |
 | medium | Tesla Tank | `TTNK` | 52x37 | 1.41 |
-| | Grizzly Tank | `GTNK` | **54x23** | **2.35** |
-| | Chrono Miner | `CMIN` | 55x28 | 1.96 |
+| | Grizzly Tank ¹ | `GTNK` | **60x31** | **1.94** |
+| | Chrono Miner ¹ | `CMIN` | 63x39 | 1.62 |
 | | Rhino Tank | `HTNK` | **56x28** | 2.00 |
 | | Apocalypse | `MTNK` | **59x34** | **1.74** |
-| | War Miner | `HARV` | 56x48 | 1.17 |
-| | Mirage Tank | `RTNK` | 59x39 | 1.51 |
+| | War Miner ¹ | `HARV` | 66x37 | 1.78 |
+| | Mirage Tank ¹ | `RTNK` | 61x42 | 1.45 |
 | | Prism Tank | `SREF` | 59x**43** | 1.37 |
 | | Sea Scorpion | `HYD` | 59x32 | 1.84 |
 | heavy | V3 Launcher | `V3` | **63**x36 | 1.75 |
 | | Nighthawk | `SHAD` | 64x**21** | **3.05** |
-| | MCV (Allied) | `AMCV` | 69x47 | 1.47 |
+| | MCV (Allied) ¹ | `AMCV` | 91x46 | 1.98 |
 | | Harrier (span) | `ORCA` | 71x44 | 1.61 |
 | | Typhoon Sub (surfaced) | `SUB` | 75x**14** | **5.36** |
 | capital | Aegis Cruiser | `AEGIS` | 91x35 | 2.60 |
@@ -105,6 +105,8 @@ pixels.** That is the entire canvas the game has to work with, and it is
 | | Dreadnought | `DRED` | 133x45 | 2.96 |
 | | **Kirov Airship** | `ZEP` | **139x62** | 2.24 |
 | | Aircraft Carrier | `CARRIER` | **143**x52 | 2.75 |
+
+¹ Re-measured 2026-09-10 from the eight-bearing rips in `ra2-ref/sprites/` (sheet segmented off its background, widest low-aspect box = the broadside). The previous numbers on these seven rows were transcribed from an unstated source and disagreed with the sheets by 10-45%; the Rhino, Apocalypse and Flak Track rows agree with their sheets to 2-3 px, which is what dates the rest. Every one of the seven had been steering a unit the user named as the wrong size.
 
 **Rule 1 — the mass hierarchy is monotone and it spans 6.8x.** Smallest
 combat body 21 px, largest 143 px. There is no bunching: every class occupies
@@ -391,7 +393,7 @@ structure clauses are deliberately outside the 96 and outside `clause.checked`.
 
 | our unit | RA2 counterpart | the ONE silhouette feature | size class | pixel budget |
 |---|---|---|---|---|
-| `lancer` Grizzly Tank | `[GTNK]`, 54x23, aspect **2.35** | **The flattest thing on the ground** — a 16-px-tall hull with a 13 px x 2 px gun barrel overhanging 24% of its length. Two discrete house panels (turret cheek, hull flank) with a gap between them. | M | hull height <= 0.45 x length; barrel >= 13 px x 2.2 px, entirely clear of the hull; exactly 2 house blocks, each 4-8 px, individually countable (gap >= 2 px, no fusing) |
+| `lancer` Grizzly Tank | `[GTNK]`, 54x23, aspect **2.35** | **The flattest thing on the ground** — a 16-px-tall hull with a 13 px x 2 px gun barrel overhanging 24% of its length. Two discrete house panels (turret cheek, hull flank) with a gap between them. | M | hull height <= 0.55 x length (rip: 31/60 = 0.52); barrel >= 13 px x 2.2 px, entirely clear of the hull; exactly 2 house blocks, each 4-8 px, individually countable (gap >= 2 px, no fusing) |
 | `ifv` IFV | `[FV]`, 50x45, aspect **1.11** | **Nearly square** — a tall boxy turret that is proportionally huge on a small wheeled body, and it swaps per passenger (`TurretCount=4`, art.ini:569). | S | body aspect 1.0-1.2; ~~turret >= 45% of total height~~ (**struck — it cannot coexist with the aspect clause beside it, see below**); four distinct turret models must be visually distinct at >= 8x8 px each |
 | `mirage` Mirage Tank | `[RTNK]`, 59x39 | **A dark tank with a box turret, a LONG thin gun, and a tall PALE UPRIGHT PROJECTOR PANEL standing behind the turret** — the panel is the tell, the gun is a Grizzly's. (Rewritten 2026-09-10 from the real rip `ra2-ref/sprites/mirage.png`; the previous "wide flat emitter housing and NO long gun" row was written from a cameo and was wrong.) Plus the tree-disguise state. | M | panel >= 6 px above the turret roof and >= 50% of hull width; gun >= 12 px clear of the body |
 | `prismtank` Prism Tank | `[SREF]`, 59x**43** | **The tallest tank profile** — an upright prism crystal block on a low box turret, the top 10 px of the silhouette. | M, tallest tank | crystal >= 10 px tall x >= 5 px wide, standing above the turret roof; total height >= 1.10x the Mirage's (RA2's own: [SREF] 43 / [RTNK] 39) |
@@ -521,12 +523,12 @@ structure clauses are deliberately outside the 96 and outside `clause.checked`.
 
 | our unit | RA2 counterpart | the ONE silhouette feature | size class | pixel budget |
 |---|---|---|---|---|
-| `rhino` Rhino Tank | `[HTNK]`, 56x28, 886 body px | A **long, thick, dark gun** (the rip `ra2-ref/sprites/rhino.png` shows it reaching ~45% of the hull past the glacis — "shorter than the Grizzly's" was a cameo reading, corrected 2026-09-10) on a **taller** hull, and **five** house blocks (three flank panels + two turret cheeks) against the Grizzly's two. | M | hull height >= 1.21x the Grizzly's (RA2's own: [HTNK] 28 / [GTNK] 23); 5 discrete house blocks, each 4-6 px, gaps >= 3 px; gun >= 1.6x the Grizzly's barrel thickness |
+| `rhino` Rhino Tank | `[HTNK]`, 56x28, 886 body px | A **long, thick, dark gun** (the rip `ra2-ref/sprites/rhino.png` shows it reaching ~45% of the hull past the glacis — "shorter than the Grizzly's" was a cameo reading, corrected 2026-09-10) on a **taller** hull, and **five** house blocks (three flank panels + two turret cheeks) against the Grizzly's two. | M | hull height <= 1.05x the Grizzly's (RA2's own rips: [HTNK] 28 / [GTNK] 31 = 0.90 — the Rhino is the LOWER tank); 5 discrete house blocks, each 4-6 px, gaps >= 3 px; gun >= 1.6x the Grizzly's barrel thickness |
 | `mammoth` Apocalypse | `[MTNK]`, 59x34 | **Four house-coloured canister drums stacked 2x2 on the rear deck**, plus **twin** barrels — the only two-barrelled thing on the field. | M, heaviest | each canister >= 6x6 px and individually countable (gaps >= 2 px); twin barrels >= 19 px, visibly two, tapering |
 | `teslatank` Tesla Tank | `[TTNK]`, 52x37 | **Two coil columns standing above the deck with an arc between them** — the only paired vertical masts on a hull. | M | each column >= 9 px tall x 3 px wide; gap between them >= 5 px so the pair reads as two |
 | `v3` V3 Launcher | `[V3]`, **63x36** — the longest land vehicle | **A white missile on a rail overhanging both ends of its truck**, with a red nose cone and red tail fins and nothing else coloured. | L | missile >= 1.10x the truck length, overhanging >= 5 px at the nose; nose cone and fins in house hue, midbody pure white |
 | `flaktrack` Flak Track | `[HTK]`, **45x45**, aspect **1.00** | **The only square vehicle** — a short open-bed halftrack with a gun raised off the bed. (The aspect clause was waived 2026-09-07; the **waiver was retired 2026-09-10** when the roster height pass took the jib to ~45° and the unit to 52x52 = 1.00, RA2's own.) | S | body aspect 0.95-1.10; gun raised >= 10 px above the bed line |
-| `warminer` War Miner | `[HARV]`, 56x48 | **A harvester with a turret** — the bin plus a small gun; the tallest non-MCV Collective vehicle. | M | turret >= 6x6 px on the bin's shoulder; bin >= 35% of body px |
+| `warminer` War Miner | `[HARV]`, 56x48 | **A harvester with a turret** — the bin plus a small gun; the tallest non-MCV Collective vehicle. | M | turret >= 6x6 px on the bin's shoulder; bin >= 25% of body px |
 | `drone` Terror Drone | `[DRON]`, **21x14**, 89 body px, `Voxel=no` | **Four splayed blade legs round a tiny core** — an insect. The smallest thing on the field, 38.7% house on the core. | XS, smallest | total <= 0.55x the smallest tank; legs >= 4 px reach beyond the core, tapered blades not wires; core in house hue |
 | `apc` Amphibious Transport | `[SAPC]` | **An open-topped hovercraft** — a fat inflatable skirt round a red (house) inner deck with visible seat blocks. | M | skirt a continuous rounded band round the whole hull; deck cavity visible as a house-hued interior |
 | `kirov` Kirov Airship | `[ZEP]`, **139x62**, **no `Remapable` key** | **Mass** — 2.2x the Harrier's span and the largest airframe in the game, a cigar envelope with structural hoops, a hanging gondola and a painted shark mouth. Its identity is deliberately not colour. | XL | span >= 2.0x the Harrier's *on screen*; gondola visibly separated below the envelope by >= 4 px; the existing 1.3x draw scale (`rts.html:29398`) is a symptom of the bake being too small |
