@@ -186,3 +186,35 @@ test('the strips survive a shell that never published pushDesktop', () => {
   const { sandbox } = load(src);
   assert.doesNotThrow(() => sandbox.toggleClaudeUsage(), 'must not require pushDesktop to exist');
 });
+
+// A five-day-old Codex reading rendered as "8121m ago" — minutes stayed the unit
+// long past the point where anyone counts in them.
+test('the reading age is shown in the unit a person would use', () => {
+  const { sandbox, nodes } = load(src);
+  const now = Math.floor(Date.now() / 1000);
+  const base = { enabled: true, session: { pct: .4, reset: now + 3600 }, weekly: { pct: .1, reset: now + 86400 } };
+  sandbox.applyServerCodexUsage(true, Object.assign({}, base, { ageSec: 8121 * 60 }));
+  assert.match(nodes['cx-strip'].innerHTML, /5d ago/);
+  assert.doesNotMatch(nodes['cx-strip'].innerHTML, /8121m/);
+  sandbox.applyServerCodexUsage(true, Object.assign({}, base, { ageSec: 3 * 3600 + 20 }));
+  assert.match(nodes['cx-strip'].innerHTML, /3h ago/);
+  sandbox.applyServerCodexUsage(true, Object.assign({}, base, { ageSec: 7 * 60 }));
+  assert.match(nodes['cx-strip'].innerHTML, /7m ago/);
+  sandbox.applyServerClaudeUsage(true, Object.assign({}, base, { ageSec: 2 * 86400 + 3600 }));
+  assert.match(nodes['cu-strip'].innerHTML, /2d ago/);
+});
+
+// When the account cannot be asked, the server says so in `note`; the strip
+// shows it, beside the log-based numbers when there are any and instead of the
+// "waiting" text when there are none.
+test('the Codex strip surfaces the server note', () => {
+  const { sandbox, nodes } = load(src);
+  const now = Math.floor(Date.now() / 1000);
+  sandbox.applyServerCodexUsage(true, { enabled: true, note: 'Codex login expired — run codex to refresh',
+    session: { pct: .4, reset: now + 3600 }, weekly: { pct: .1, reset: now + 86400 } });
+  assert.match(nodes['cx-strip'].innerHTML, /login expired/);
+  assert.match(nodes['cx-strip'].innerHTML, /40%/, 'the last numbers still show');
+  sandbox.applyServerCodexUsage(true, { enabled: true, note: 'account unreachable' });
+  assert.match(nodes['cx-strip'].innerHTML, /account unreachable/);
+  assert.doesNotMatch(nodes['cx-strip'].innerHTML, /waiting for first/);
+});

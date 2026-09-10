@@ -27,6 +27,16 @@
 // glanceable session/weekly % bar. The on/off state is server-side (shared), so
 // the strip shows on EVERY client whenever it's enabled; the strip ✕ and the
 // Start-menu toggle both turn the feature off everywhere (no per-tab hide).
+// "8121m ago" is what a five-day-old reading rendered as. Minutes are the unit
+// only while they are the readable one.
+function ageText(sec) {
+  var m = Math.round((sec || 0) / 60);
+  if (m < 60) return m + 'm';
+  var h = Math.floor(m / 60);
+  if (h < 48) return h + 'h';
+  return Math.floor(h / 24) + 'd';
+}
+
 (function claudeUsage() {
   var strip = document.getElementById('cu-strip');
   if (!strip) return;
@@ -114,8 +124,8 @@
     // three words of scaffolding holding up one number — and every px it took
     // came straight out of the reset time on the row beside it.
     var asof = (d.stale || ageMin >= 1)
-      ? '<span class="cu-asof" title="usage data was read ' + ageMin + ' minutes ago">' +
-        ageMin + 'm ago</span>' : '<span class="cu-asof is-empty" aria-hidden="true">0m ago</span>';
+      ? '<span class="cu-asof" title="usage data was read ' + ageText(d.ageSec) + ' ago">' +
+        ageText(d.ageSec) + ' ago</span>' : '<span class="cu-asof is-empty" aria-hidden="true">0m ago</span>';
     var html = '<span class="cu-who"><span class="cu-brand">Claude</span>' + asof + '</span>' +
                '<span class="cu-metrics">';
     if (d.session && d.session.pct != null) {
@@ -274,14 +284,17 @@
     if (!enabled) { strip.hidden = true; return; }
     strip.hidden = false;
     var age = Math.round(((data && data.ageSec) || 0) / 60);
-    var asof = age >= 1 ? '<span class="cu-asof">' + age + 'm ago</span>' :
+    var asof = age >= 1 ? '<span class="cu-asof">' + ageText(data.ageSec) + ' ago</span>' :
       '<span class="cu-asof is-empty" aria-hidden="true">0m ago</span>';
     var html = '<span class="cu-who"><span class="cu-brand">Codex</span>' + asof + '</span><span class="cu-metrics">';
     if (data && data.session && data.session.pct != null) {
       html += segment('session', data.session);
       if (data.weekly && data.weekly.pct != null) html += segment('week', data.weekly);
     } else {
-      html += '<span class="cu-dim">waiting for first Codex response…</span>';
+      html += '<span class="cu-dim">' + (data && data.note ? data.note : 'waiting for first Codex response…') + '</span>';
+    }
+    if (data && data.note && data.session && data.session.pct != null) {
+      html += '<span class="cu-dim" title="showing the last reading from this machine\'s Codex logs">· ' + data.note + '</span>';
     }
     strip.innerHTML = html + '</span><span class="cu-x" id="cx-x" title="Turn off Codex Limit (all devices)">✕</span>';
     var close = document.getElementById('cx-x');
