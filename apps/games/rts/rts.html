@@ -9695,7 +9695,7 @@
         g.fillStyle = rim; g.fill();
       }
       // Three tyres a side, near side drawn last so it caps the far row.
-      function wheels(wb, r, n) {
+      function wheels(wb, r, n, tyre, rim) {
         var off = wid * 0.40, i3, side, ws = [];
         for (side = -1; side <= 1; side += 2)
           for (i3 = 0; i3 < n; i3++) {
@@ -9705,7 +9705,7 @@
           }
         ws.sort(function (m, n2) { return m[1] - n2[1]; });
         for (i3 = 0; i3 < ws.length; i3++)
-          wheelDisc(ws[i3][0], ws[i3][1], r, 0.62, '#14161a', '#8b929d');
+          wheelDisc(ws[i3][0], ws[i3][1], r, 0.62, tyre || '#14161a', rim || '#8b929d');
       }
       // Hull: dark underbody, body box, raked glacis, lit contour.
       function chassis(hx, hy, hl2, hw2, h, body, edge, rake) {
@@ -10692,19 +10692,25 @@
           // outlined once, at the silhouette.
           // the body rides HIGH on three big tyres a side: on the rip the
           // wheels are a third of the hull's height and show at every bearing
-          wheels(len * 0.80, 3.4, 3);
-          chassis(cx, by - 2.8, len * 0.88, wid * 0.70, 3.6, hull, null, 2.8);
-          isoBox(g, cx - fx * 2.0, by - 6.4 - fy * 2.0, len * 0.58, wid * 0.66, 2.4, a,
-                 shade(hull, 0.97), null);                   // rear step, same tone
-          var wsx = cx + fx * 3.0, wsy = by - 6.4 + fy * 3.0;
-          isoBox(g, wsx, wsy, 1.0, wid * 0.48, 2.4, a, '#2a3039', null);   // windscreen
+          // (5) the body is a LOW WEDGE that is mostly tyres -- on the rip the
+          // pale hull is a shallow band over three big wheels, high at the
+          // rear and falling to the nose, and the launcher stands as tall as
+          // the whole body again, right over the rear axle.
+          // tyres a shade lighter with big pale hubs, as the rip's: black
+          // discs read as three holes in the sprite at 1:1
+          wheels(len * 0.82, 3.8, 3, '#262a31', '#b4bbc5');
+          chassis(cx, by - 3.2, len * 0.90, wid * 0.70, 2.6, hull, null, 3.4);
+          // (no rear step: it showed as a white plinth round the launcher;
+          // on the rip the launcher's mount IS the rear of the hull)
+          var wsx = cx + fx * 2.0, wsy = by - 5.8 + fy * 2.0;
+          isoBox(g, wsx, wsy, 1.0, wid * 0.46, 1.8, a, '#2a3039', null);   // windscreen
           for (sg = -1; sg <= 1; sg += 2)                      // ONE low stripe a flank
             isoBox(g, cx + px * wid * 0.35 * sg - fx * 0.6,
-                   by - 3.6 + py * wid * 0.35 * sg - fy * 0.6,
-                   len * 0.62, 1.2, 1.8, a, panel, null);
+                   by - 3.9 + py * wid * 0.35 * sg - fy * 0.6,
+                   len * 0.62, 1.2, 1.5, a, panel, null);
           for (i2 = -1; i2 <= 1; i2 += 2)
-            lamp(cx + fx * len * 0.42 + px * wid * 0.25 * i2,
-                 by - 5.0 + fy * len * 0.42 + py * wid * 0.25 * i2);
+            lamp(cx + fx * len * 0.43 + px * wid * 0.25 * i2,
+                 by - 4.6 + fy * len * 0.43 + py * wid * 0.25 * i2);
         }
         if (wantT) {
           var ivx = cx - fx * 1.2, ivy = by - RING - fy * 1.2;
@@ -10782,9 +10788,9 @@
           // and ~40% of the sprite's height, which is what makes the IFV the
           // IFV at any zoom.
           var LBODY = '#4f5764';
-          var LL = 6.2, LW = 7.6, LH = 6.4;                   // along / across / tall
-          var lcx = cx - fx * 2.4, lby = ivy - 2.2 - fy * 2.4;
-          isoBox(g, lcx, lby + 1.6, 5.0, 6.0, 1.6, a, shade(deck, 0.96), null);   // low mount
+          var LL = 7.6, LW = 9.0, LH = 7.6;                   // along / across / tall
+          var lcx = cx - fx * 3.8, lby = ivy - 1.6 - fy * 3.8;
+          isoBox(g, lcx, lby + 1.4, 6.0, 7.0, 1.4, a, shade(deck, 0.96), null);   // low mount
           isoBox(g, lcx, lby, LL, LW, LH, a, LBODY, null);                        // THE BLOCK
           g.strokeStyle = 'rgba(20,24,30,.55)'; g.lineWidth = 0.7;               // one roof groove
           g.beginPath();

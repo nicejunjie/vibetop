@@ -4355,3 +4355,13 @@ launcher block with four mouths (see design-decisions). Bakes at 60x56
 against RA2's 54x48 x 1.13 = 61x54. Gate: no regression; ratchet unchanged
 to the third decimal. The method is per-kind (`SMOOTH`), so the rest of the
 roster follows one unit at a time against its rip.
+
+**Fifth pass, same day** — *"the ratio of the gun and body should be
+matched, and the overall shape should be similar"*. Beside the rip at 5x the
+body was a tall white box with the block mid-hull. Now: tyres 3.4 -> 3.8
+with pale hubs (a `wheels()` tyre/rim override, black discs read as holes),
+hull 3.6 -> 2.6 tall on a 3.4 rake, the rear step removed (it was a white
+plinth round the block), launcher 6.2x7.6x6.4 -> 7.6x9.0x7.6 set 3.8 units
+aft. Launcher-to-body now matches the rip's ~45% of height at the down-right
+bearing. Still not RA2's: the rip's launcher leans back and is a lumpy
+cluster; ours is a clean box.
