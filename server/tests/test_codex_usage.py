@@ -74,7 +74,8 @@ def test_a_real_hundred_percent_is_reported_as_a_hundred_percent(mgr, tmp_path):
 
 
 def test_codex_usage_missing_and_disabled(mgr, tmp_path):
-    assert mgr._codex_usage_payload(str(tmp_path), True) == {"enabled": True}
+    got = mgr._codex_usage_payload(str(tmp_path), True)
+    assert got == {"enabled": True, "source": "logs"}, got
     assert mgr._codex_usage_payload(str(tmp_path), False) == {"enabled": False}
 
 
@@ -337,3 +338,98 @@ def test_a_real_roll_is_still_detected_across_the_idle_gap(mgr, tmp_path):
     got = mgr._codex_usage_payload(str(tmp_path), True)
     assert got["session"]["pct"] == 0.0, "the new window's 0% must beat the old 100%"
     assert got["session"]["reset"] == 2000000000 + 300 * 60 + 1078
+
+
+# ---- the account, not the logs ---------------------------------------------
+# Measured 2026-09-10: the last local record said "weekly 100%, resets Sep 8",
+# the reset passed with no local turn, and the strip showed two 0% bars with no
+# reset while Codex's own /status said "weekly 5%, resets Sep 15". Usage made on
+# another device and time passing are both invisible to a scan of this
+# machine's logs. The endpoint Codex polls is the truth; the scan is the fallback.
+
+_API = {"plan_type": "plus", "rate_limit": {
+    "allowed": True, "limit_reached": False,
+    "primary_window": {"used_percent": 0, "limit_window_seconds": 18000,
+                       "reset_after_seconds": 18000, "reset_at": 1789091762},
+    "secondary_window": {"used_percent": 5, "limit_window_seconds": 604800,
+                         "reset_after_seconds": 411182, "reset_at": 1789484943}}}
+
+
+def _fresh_cache(mgr):
+    mgr._codex_api_cache.clear()
+
+
+def test_the_account_answer_is_shaped_like_the_log_reading(mgr):
+    got = mgr._codex_usage_from_api(_API)
+    assert got["session"] == {"pct": 0.0, "reset": 1789091762, "minutes": 300}
+    assert got["weekly"] == {"pct": .05, "reset": 1789484943, "minutes": 10080}
+    assert got["plan"] == "plus" and got["limited"] is False
+    assert mgr._codex_usage_from_api({"rate_limit": "nope"}) is None
+    assert mgr._codex_usage_from_api(None) is None
+
+
+def test_the_payload_prefers_the_account_over_the_logs(mgr, tmp_path, monkeypatch):
+    """The logs say 100% weekly with a reset in the past (so: rolled, 0%, no
+    reset); the account says 5% with a reset next week. The account wins, and
+    an idle 5-hour window keeps its reset time instead of losing it."""
+    _fresh_cache(mgr)
+    sessions = tmp_path / ".codex/sessions/2026/09/05"
+    sessions.mkdir(parents=True)
+    ev = _event("2026-09-05T05:30:00Z", 45, 100)
+    ev["payload"]["rate_limits"]["primary"]["resets_at"] = 1788603527   # long past
+    ev["payload"]["rate_limits"]["secondary"]["resets_at"] = 1788891174
+    (sessions / "r.jsonl").write_text(json.dumps(ev) + "\n")
+    monkeypatch.setattr(mgr, "_codex_usage_fetch", lambda home: _API)
+    mgr._codex_usage_refresh(str(tmp_path))
+    got = mgr._codex_usage_payload(str(tmp_path), True)
+    assert got["source"] == "api"
+    assert got["weekly"]["pct"] == .05 and got["weekly"]["reset"] == 1789484943
+    assert got["session"]["reset"] == 1789091762, "an idle window still has a reset"
+    assert got["ageSec"] < 5 and got["stale"] is False and "note" not in got
+
+
+def test_before_the_first_answer_the_logs_serve_and_a_fetch_is_kicked(mgr, tmp_path, monkeypatch):
+    _fresh_cache(mgr)
+    sessions = tmp_path / ".codex/sessions/2026/09/05"
+    sessions.mkdir(parents=True)
+    (sessions / "r.jsonl").write_text(json.dumps(_event("2026-09-05T05:30:00Z", 45, 60)) + "\n")
+    started = []
+    monkeypatch.setattr(mgr.threading, "Thread",
+                        lambda **kw: started.append(kw) or type("T", (), {"start": lambda s: None})())
+    got = mgr._codex_usage_payload(str(tmp_path), True)
+    assert got["source"] == "logs" and got["session"]["pct"] == .45
+    assert "note" not in got, "nothing has failed yet"
+    assert len(started) == 1 and started[0]["args"] == (str(tmp_path),)
+    # a second heartbeat inside the TTL does not start another
+    mgr._codex_usage_payload(str(tmp_path), True)
+    assert len(started) == 1
+
+
+def test_a_failed_fetch_keeps_the_last_good_answer_and_names_the_reason(mgr, tmp_path, monkeypatch):
+    _fresh_cache(mgr)
+    monkeypatch.setattr(mgr, "_codex_usage_fetch", lambda home: _API)
+    mgr._codex_usage_refresh(str(tmp_path))
+
+    def boom(home):
+        raise OSError("HTTP Error 401: Unauthorized")
+    monkeypatch.setattr(mgr, "_codex_usage_fetch", boom)
+    mgr._codex_usage_refresh(str(tmp_path))
+    got = mgr._codex_usage_payload(str(tmp_path), True)
+    assert got["source"] == "api" and got["weekly"]["pct"] == .05, "last good answer survives"
+    # ...until it is stale: then the logs (here: none) serve, with the reason
+    with mgr._codex_api_lock:
+        mgr._codex_api_cache[str(tmp_path)]["at"] -= mgr.CODEX_USAGE_STALE_SEC + 1
+    got = mgr._codex_usage_payload(str(tmp_path), True)
+    assert got["source"] == "logs" and got["note"].startswith("Codex login expired")
+    assert "session" not in got
+
+
+def test_an_api_key_login_has_no_account_to_ask(mgr, tmp_path):
+    _fresh_cache(mgr)
+    (tmp_path / ".codex").mkdir()
+    (tmp_path / ".codex/auth.json").write_text(json.dumps({"auth_mode": "apikey", "OPENAI_API_KEY": "sk-x"}))
+    assert mgr._codex_auth(str(tmp_path)) is None
+    assert mgr._codex_usage_fetch(str(tmp_path)) is None
+    mgr._codex_usage_refresh(str(tmp_path))
+    got = mgr._codex_usage_payload(str(tmp_path), True)
+    assert got["source"] == "logs" and got["note"] == "account unreachable"

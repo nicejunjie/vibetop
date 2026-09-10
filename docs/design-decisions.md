@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_267 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_268 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
 - [Scheduled terminal messages ("resume when the token limit resets")](#scheduled-terminal-messages-resume-when-the-token-limit-resets)
@@ -290,6 +290,7 @@ _267 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [RTS: the command bar belongs at the bottom of the SCREEN, and RA2 really does have one](#rts-the-command-bar-belongs-at-the-bottom-of-the-screen-and-ra2-really-does-have-one)
 - [A forced miner return has to be the SAME journey as an automatic one](#a-forced-miner-return-has-to-be-the-same-journey-as-an-automatic-one)
 - [The refinery's dock was drawn where nothing could click it](#the-refinerys-dock-was-drawn-where-nothing-could-click-it)
+- [The Codex strip read this machine's logs and could not see the account (2026-09-10)](#the-codex-strip-read-this-machines-logs-and-could-not-see-the-account-2026-09-10)
 
 <!-- END TOC -->
 
@@ -11979,3 +11980,45 @@ the two marginal Soviet pairs; the Destroyer's length clause (RA2's MCV is
 91 px, so RA2's own Destroyer/MCV ratio is 1.11 and ours is 0.91 — a naval
 pass, not this one); the Chrono Miner's turret-mass check (reads a crate's
 diagonal roofline); the Apocalypse drum gap at one bearing.
+
+## The Codex strip read this machine's logs and could not see the account (2026-09-10)
+
+**Symptom.** Five days after the limits were hit, the Codex strip showed two
+0% bars, no reset time on either, and "8121m ago". Codex's own `/status` at
+the same moment: 5-hour 0% resetting in 5h, weekly **5%** resetting Sep 15.
+The user's read: "it lost the last valid API return value".
+
+**Cause.** Nothing was lost; the strip had never asked an API. It was built on
+a scan of `~/.codex/sessions` rollouts — the `rate_limits` snapshots Codex
+writes after each turn made *from this machine*. The last local `limit_id:
+codex` record (Sep 5, 00:30) said weekly 100% with `resets_at` Sep 8 13:12.
+The Sep 7 attempt was refused at the limit and wrote only the `premium`
+credits record (both windows null, correctly ignored). Then both resets passed
+with no local turn, and `rolled()` did exactly what it was written to do: a
+window past its reset reads 0% with no next reset, because the next window
+does not exist until the first request. Meanwhile the weekly window had been
+used to 5% — from another device, which the logs cannot see either. Two
+blind spots in one week: time passing, and usage made elsewhere.
+
+**Fix.** Ask the account. Codex's `/status` reads
+`https://chatgpt.com/backend-api/wham/usage` with the ChatGPT bearer token
+and account id from `~/.codex/auth.json`; `_codex_usage_api` does the same
+as the requesting user, in a background daemon thread, single-flight per
+home, no more than once per `CODEX_USAGE_API_TTL` (60s), and the 5s desktop
+heartbeat only ever reads the cache. The answer is shaped into the payload
+the log scan already produced, so the client is unchanged. Note the idle
+5-hour window: the endpoint reports 0% with `reset_at = now + 5h`, which is
+what the strip now shows — a reset time on every window, always. The scan
+stays as the fallback (API-key login, expired token, no network, the first
+heartbeat after a restart), and a `note` field tells the strip why. The age
+stamp also learned hours and days: "8121m ago" was the unit failing, not the
+number.
+
+**Rejected.** *Refreshing the token ourselves* when it expires (Codex does it
+with the `refresh_token` and a fixed client id): that means the root manager
+writing a credential file into a user's home, racing Codex for it. Codex
+refreshes on every run; the fallback note says "run codex". *Projecting the
+next reset* from the last one (`reset + n*span`): ruled out already on
+2026-09-04 — the 5-hour window is anchored to first use after expiry, so the
+projection is wrong by exactly the idle gap. *Deleting the log scan:* it is
+the only source for an API-key login, and it carries the first heartbeat.

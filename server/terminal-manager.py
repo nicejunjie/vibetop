@@ -681,6 +681,126 @@ CODEX_USAGE_STALE_SEC = 15 * 60
 _codex_rate_cache = {}
 _codex_rate_cache_lock = threading.Lock()
 
+# THE ACCOUNT, NOT THE LOGS. The rollout scan below only ever sees requests made
+# from THIS machine, so it cannot see time passing (a window that rolled while
+# Codex sat idle) or usage from any other device (the phone app, a laptop). Both
+# happened at once on 2026-09-08..10: the last local record said "weekly 100%,
+# resets Sep 8", the reset passed, no local turn followed, and the strip showed
+# two 0% bars with no reset and "8121m ago" while Codex's own /status said
+# "weekly 5%, resets Sep 15". Codex's /status reads the same endpoint Codex
+# itself polls, with the ChatGPT token Codex keeps in ~/.codex/auth.json, so
+# the strip does too. The scan stays as the fallback for an API-key login, an
+# expired token, or no network.
+#
+# The call runs in a BACKGROUND thread, single-flight per user, no more than
+# once per CODEX_USAGE_API_TTL: the desktop heartbeat that carries this payload
+# fires every 5s and must never wait on chatgpt.com. The first heartbeat after
+# a restart gets the log reading; the next gets the account's.
+CODEX_USAGE_URL = "https://chatgpt.com/backend-api/wham/usage"
+CODEX_USAGE_API_TTL = 60
+_codex_api_cache = {}          # home -> {"at", "tried", "epoch", "payload", "err", "inflight"}
+_codex_api_lock = threading.Lock()
+
+
+def _codex_auth(home):
+    """(access_token, account_id) from ~/.codex/auth.json, or None when Codex is
+    logged in with an API key (no ChatGPT token) or not at all. Read only; the
+    token is never refreshed or written back -- Codex owns that file."""
+    try:
+        with open(os.path.join(home, ".codex", "auth.json")) as f:
+            auth = json.load(f)
+        tokens = auth.get("tokens") or {}
+        tok, acct = tokens.get("access_token"), tokens.get("account_id")
+        if tok and acct:
+            return tok, acct
+    except (OSError, ValueError, AttributeError):
+        pass
+    return None
+
+
+def _codex_usage_fetch(home):
+    """One GET to Codex's usage endpoint as this user. Returns the decoded JSON,
+    None when there is no ChatGPT token to send, or raises on any failure."""
+    auth = _codex_auth(home)
+    if not auth:
+        return None
+    import urllib.request
+    req = urllib.request.Request(CODEX_USAGE_URL, headers={
+        "Authorization": "Bearer " + auth[0],
+        "ChatGPT-Account-Id": auth[1],
+        "Accept": "application/json",
+        "User-Agent": "vibetop-codex-usage"})
+    with urllib.request.urlopen(req, timeout=10) as r:
+        return json.loads(r.read().decode("utf-8"))
+
+
+def _codex_usage_from_api(raw):
+    """Shape the endpoint's answer into the strip's payload (same keys the log
+    scan produces, so the client cannot tell them apart)."""
+    if not isinstance(raw, dict):
+        return None
+    limit = raw.get("rate_limit")
+    if not isinstance(limit, dict):
+        return None
+
+    def window(w):
+        if not isinstance(w, dict) or w.get("used_percent") is None:
+            return None
+        try:
+            pct = float(w["used_percent"])
+        except (TypeError, ValueError):
+            return None
+        secs = w.get("limit_window_seconds")
+        return {"pct": max(0.0, min(1.0, pct / 100.0)),
+                "reset": w.get("reset_at"),
+                "minutes": int(secs // 60) if secs else None}
+    return {"session": window(limit.get("primary_window")),
+            "weekly": window(limit.get("secondary_window")),
+            "plan": raw.get("plan_type"),
+            "limited": bool(limit.get("limit_reached"))}
+
+
+def _codex_usage_refresh(home):
+    """Synchronous fetch + cache update for one user. Keeps the last good answer
+    across failures (the payload reports its age; past CODEX_USAGE_STALE_SEC the
+    caller drops to the logs) and remembers the error for the note."""
+    try:
+        raw = _codex_usage_fetch(home)
+        if raw is None:
+            shaped, err = None, "no ChatGPT login"
+        else:
+            shaped = _codex_usage_from_api(raw)
+            err = None if shaped is not None else "unexpected reply"
+    except Exception as e:                       # network, 401, JSON -- all "not now"
+        shaped, err = None, str(e)[:120]
+    now = time.monotonic()
+    with _codex_api_lock:
+        ent = _codex_api_cache.setdefault(home, {})
+        ent["tried"], ent["inflight"], ent["err"] = now, False, err
+        if shaped is not None:
+            ent["at"], ent["epoch"], ent["payload"] = now, int(time.time()), shaped
+    return shaped
+
+
+def _codex_usage_api(home):
+    """The cached account reading for `home`, refreshing in the background when
+    it is older than CODEX_USAGE_API_TTL. Returns (payload, epoch, err) where
+    payload is None until the first fetch has landed, or after the last good one
+    has aged past CODEX_USAGE_STALE_SEC."""
+    now = time.monotonic()
+    with _codex_api_lock:
+        ent = _codex_api_cache.setdefault(home, {})
+        due = now - ent.get("tried", -1e9) >= CODEX_USAGE_API_TTL
+        if due and not ent.get("inflight"):
+            ent["inflight"] = True
+            ent["tried"] = now
+            threading.Thread(target=_codex_usage_refresh, args=(home,),
+                             name="codex-usage", daemon=True).start()
+        payload, epoch, err = ent.get("payload"), ent.get("epoch"), ent.get("err")
+        if payload is not None and now - ent["at"] > CODEX_USAGE_STALE_SEC:
+            payload = None
+    return payload, epoch, err
+
 
 # Codex writes SEVERAL families of rate-limit record into the same rollout, and
 # only one of them is the 5-hour/weekly pair this strip shows. Measured over
@@ -808,7 +928,10 @@ def _last_codex_rate_limit(path):
 def _codex_usage_payload(home=None, enabled=True):
     """Latest Codex 5-hour/weekly usage snapshot for the requesting user.
 
-    Read from the rollout logs under ~/.codex/sessions. Only `limit_id: codex`
+    Asked of the account (`_codex_usage_api`) when Codex has a ChatGPT login;
+    otherwise -- and until the first answer lands, and after the last one has
+    gone stale -- read from the rollout logs under ~/.codex/sessions, with a
+    `note` saying why. Only `limit_id: codex`
     records are consulted (`_is_codex_limit`); each window reports the best
     reading for its current generation (`_codex_better`); and a window whose
     `resets_at` has passed reads 0% (`rolled`).
@@ -828,6 +951,17 @@ def _codex_usage_payload(home=None, enabled=True):
     if not enabled:
         return out
     home = home or _office_home()
+    api, epoch, err = _codex_usage_api(home)
+    if api is not None:
+        age = max(0, int(time.time()) - epoch)
+        out.update(api)
+        out.update({"source": "api", "updated": epoch, "ageSec": age,
+                    "stale": age > CODEX_USAGE_STALE_SEC})
+        return out
+    out["source"] = "logs"
+    if err:
+        out["note"] = ("Codex login expired — run codex to refresh"
+                       if "401" in err or "403" in err else "account unreachable")
     paths = glob.glob(os.path.join(home, ".codex", "sessions", "**", "*.jsonl"),
                       recursive=True)
     paths.sort(key=lambda p: os.path.getmtime(p) if os.path.exists(p) else 0,
