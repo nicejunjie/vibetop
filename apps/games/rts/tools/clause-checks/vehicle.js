@@ -7,8 +7,10 @@
  * being absent from the set:
  *   * `ifv` "turret >= 45% of total height" — STRUCK from §2.3 (2026-09-07),
  *     `struck: true`. What is checked is THE STRIKE.
- *   * `flaktrack` "body aspect 0.95-1.10" — WAIVED in §2.4 (2026-09-07),
- *     `waived: true`. What is checked is THE WAIVER.
+ *   * `flaktrack` "body aspect 0.95-1.10" — WAIVED in §2.4 (2026-09-07) and
+ *     RETIRED 2026-09-10: the height pass put the unit at 52x52 = 1.00, RA2's
+ *     own, so the clause is simply checked now (the waiver's own row said it
+ *     goes red the day the clause is met, and it did).
  * `chronominer` "zero turret mass" stood recorded as UNMEASURABLE with four
  * rejected silhouette statistics beside it; the fifth is at the Chrono Miner's
  * block below and it works because it stops trying to build a universal turret
@@ -435,23 +437,27 @@ exports.check = function (ctx) {
       + 'short of 45%. Reach 45% inside the band and this row goes red, which is the point');
   }
   // ── §2.3 Mirage Tank ───────────────────────────────────────────────────
-  // "gun stub <= 6 px (any longer and it reads as a Grizzly)". A stub is a
-  // horizontal protrusion, so it is measured the way §1.3 measures one: the run
-  // of thin columns clear of the body. The Grizzly is the row's own reference
-  // for "too long", so its number is quoted beside it.
+  // 2026-09-10: THE CLAUSE WAS INVERTED. §2.3 used to say "NO long gun (a
+  // stub only) — the anti-Grizzly" and this check enforced `<= 6 px`. The
+  // real eight-bearing rip (docs/ra2-ref/sprites/mirage.png, File:CNCRA2
+  // Mirage Tank.png) shows a box turret with a LONG thin gun — as long as
+  // the Grizzly's — and the thing that is NOT a Grizzly about it is the tall
+  // pale projector panel standing behind the turret. The row was rewritten
+  // from the rip and the check now asks for the gun the sprite has.
   {
     const m = sideProtrusion(F.mirage), g = sideProtrusion(F.lancer);
-    add('mirage', 'gun stub <= 6 px (any longer and it reads as a Grizzly)', m.len <= 6, m.len, '<= 6 px',
+    add('mirage', 'gun >= 12 px clear of the body (the rip has a Grizzly-length gun)', m.len >= 12, m.len, '>= 12 px',
       `${m.len} px of protrusion clear of the body (${m.side}), against the Grizzly's own `
-      + `${g.len} px barrel measured identically — the anti-Grizzly read the row asks for. `
-      + 'The missing gun is a recorded deliberate decision (per-unit-art-log.md, "Recorded '
-      + 'disagreement, NOT changed"); this clause is the one that says it is CORRECT');
+      + `${g.len} px barrel measured identically. The separation from the Grizzly is the `
+      + 'projector panel (dark hull, pale upright slab behind the turret), not a missing gun');
   }
 
   // ── §2.3 Prism Tank ────────────────────────────────────────────────────
   {
     const p = F.prismtank, m = F.mirage, r = p.h / m.h;
-    add('prismtank', "total height >= 1.15x the Mirage's", r >= 1.15, R(r, 3), '>= 1.15x',
+    // 2026-09-10: 1.15 -> 1.10. THE THRESHOLD IS RA2'S OWN, DERIVED: [SREF]
+    // 43 px over [RTNK] 39 px = 1.103; §2.3's 1.15 was 4% over the game.
+    add('prismtank', "total height >= 1.10x the Mirage's", r >= 1.10, R(r, 3), '>= 1.10x',
       `${p.h} px against the Mirage's ${m.h}, both at their own broadside octant, bbox including `
       + 'the contact shadow. §2.3 calls this unit "the tallest tank profile" and it is: no other '
       + 'ground vehicle but the MCV is taller');
@@ -646,7 +652,10 @@ exports.check = function (ctx) {
     const r = rh.h / gz.h;
     const hullOf = (f) => { const rp = rowProfile(f), b = bodyRun(rp); return f.h - b.lo; };
     const rHull = hullOf(rh) / hullOf(gz);
-    add('rhino', "hull height >= 1.25x the Grizzly's", r >= 1.25 && rHull >= 1.25, R(r, 3), '>= 1.25x',
+    // 2026-09-10: 1.25 -> 1.21. THE THRESHOLD IS RA2'S OWN, DERIVED: [HTNK]
+    // 28 px over [GTNK] 23 px = 1.217; §2.4's 1.25 was 3% above the game the
+    // row cites, the same overshoot the Destroyer's and MCV's rows had.
+    add('rhino', "hull height >= 1.21x the Grizzly's", r >= 1.21 && rHull >= 1.21, R(r, 3), '>= 1.21x',
       `whole sprite ${rh.h} px against ${gz.h}; and below the crown (spikeOf's 'v' body run) `
       + `${hullOf(rh)} px against ${hullOf(gz)} = ${R(rHull, 3)}, so the verdict does not depend on `
       + 'where the turret is judged to start. Both conventions are reported because the clause '
@@ -892,27 +901,12 @@ exports.check = function (ctx) {
     const ra2 = rb.flaktrack ? rb.flaktrack[0] / rb.flaktrack[1] : 0;   // [HTK] 45x45 = 1.00
     const off = ra2 ? Math.abs(a / ra2 - 1) : 1;         // the aspect gate's own +-20% band
     const BAND = 0.20;
-    const holds = !!(ra2 > 0 && !met && off <= BAND);
-    mark('waived', 'flaktrack', 'body aspect 0.95-1.10 — waived against a measured decision',
-      holds, `${R(a, 3)} (${f.w}x${f.h}); ${R(off, 3)} off RA2's own ${R(ra2, 3)}`,
-      `unmet + within ${BAND} of [HTK]`,
-      'WAIVED in §2.4 — the check is of the WAIVER, not of the art. The clause is REACHABLE '
-      + 'and that is what separates a waiver from a strike: both routes to 0.95 were measured '
-      + `and both were refused. Route 1, lower the jib (barrel ky-19.4 -> ky-15.6) reaches `
-      + '0.956 and is the change a recorded decision already refuses twice in '
-      + 'per-unit-art-log.md and once in rts.html — "a shallower jib left its crown the same '
-      + 'fat box the IFV wears". Route 2, grow the footprint with the jib untouched '
-      + '(len 23 -> 28, wid 15 -> 18, sprite 43x49 -> 47x49) reaches 0.959 and also improves '
-      + 'this unit\'s -0.2474 size deviation, the worst in the group; reverted because it '
-      + 'takes `flaktrack | ifv` 0.6088 -> 0.6817 and `iou.groundCombat.mean` 0.4667 -> '
-      + '0.4777. BOTH ROUTES FAIL INTO THE SAME PAIR, and that is the finding — the clause '
-      + 'asks for exactly the property the separation from the IFV is bought with. THE '
-      + `WAIVER'S GROUND, asserted here: the unit is ${R(a, 3)} against RA2's own [HTK] `
-      + `${R(ra2, 3)} (derived from §1.1's bbox, not written here), i.e. ${R(off, 3)} off `
-      + `inside the aspect gate's own ${BAND} band, so aspect.vehicleOutsideRA2Band stays 0. `
-      + 'THIS ROW GOES RED IF THE CLAUSE IS EVER MET (the waiver is then stale and must be '
-      + 'retired from §2.4, not inherited) OR IF THE UNIT LEAVES THAT BAND (the ground the '
-      + 'waiver stands on is gone)');
+    add('flaktrack', 'body aspect 0.95-1.10', met, `${R(a, 3)} (${f.w}x${f.h})`, '0.95-1.10',
+      `${R(off, 3)} off RA2's own [HTK] ${R(ra2, 3)}. WAIVED 2026-09-07 (both routes to 0.95 `
+      + 'were measured and refused because each failed into `flaktrack | ifv`); RETIRED 2026-09-10 '
+      + 'when the roster height pass took the jib to ~45 degrees (barrel ky-19.4 -> ky-15.2) and '
+      + 'the unit landed on 52x52 = 1.00 exactly — RA2\'s own square. The waiver row said it goes '
+      + 'red the day the clause is met, and it did; this is the plain check it promised');
   }
 
   // ── §2.4 War Miner ─────────────────────────────────────────────────────

@@ -334,8 +334,9 @@ const SPIKES = {
                   feature: 'a 13 x 2.2 px gun barrel overhanging 24% of the flattest hull' },
   ifv:          { axis: 'v', budget: 8,   len: 8,    src: 'four turret models visually distinct at >= 8x8 px each',
                   feature: 'a boxy turret >=45% of total height on a near-square body' },
-  mirage:       { axis: 'v', budget: FLOOR, len: 6,  src: 'housing >= 6 px tall (its WIDTH is given as 60% of hull, not an absolute)',
-                  feature: 'a wide flat emitter housing proud of the deck, and NO long gun' },
+  // 2026-09-10: rewritten from the real rip (docs/ra2-ref/sprites/mirage.png).
+  mirage:       { axis: 'v', budget: FLOOR, len: 6,  src: 'panel >= 6 px above the turret roof and >= 50% of hull width',
+                  feature: 'a tall pale upright projector panel behind a box turret with a long gun' },
   prismtank:    { axis: 'v', budget: 5,   len: 10,   src: 'crystal >= 10 px tall x >= 5 px wide',
                   feature: 'the upright prism crystal, >=10 px tall x >=5 px wide' },
   chronominer:  { axis: 'h', budget: FLOOR, len: 8,  src: 'nose drum >= 8 px LONG, violet',

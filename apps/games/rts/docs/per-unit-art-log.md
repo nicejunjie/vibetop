@@ -4249,3 +4249,60 @@ offender is too BIG. `worstOffGroupScale` is now held by two vehicles that are
 too SMALL (Flak Track 43 px vs a 57 px group scale, Grizzly 52 vs 66), where
 there is no appendage to trim and growing them is the standing "shrink the big
 ones, do not grow the fleet" direction in reverse. Expect that row to stall.
+
+## 2026-09-10 (second pass) — heights, and the rips the rows never had
+
+The user's verdict on the size pass earlier today was that it had not
+landed: *"tank大小还是参差不齐，小的特别小，大大巨大 ... ra2里的art分辨率并不高，但很有氛围，各单位特征明显，这才是我们的方向"*.
+Rendered at play zoom beside the rips, both halves were right.
+
+**Measured on both axes** (scratch `measure.js`, RA2 bbox x 1.15):
+
+    kind          before (w/h ratio)   after
+    mcv           1.21 / 1.50          1.03 / 1.07
+    prismtank     1.18 / 1.42          1.02 / 0.97
+    mammoth       1.21 / 1.36          1.00 / 1.15
+    teslatank     1.12 / 1.34          1.00 / 1.06
+    v3            1.10 / 1.33          1.04 / 1.18
+    flaktrack     1.04 / 1.22          1.00 / 1.00
+    rhino         1.09 / 1.21          1.07 / 0.99
+    warminer      1.10 / 1.21          0.99 / 1.07
+    ifv           1.04 / 1.14          0.99 / 1.04
+    mirage        1.13 / 1.11          0.96 / 0.91
+    lancer        1.03 / 1.02          1.01 / 0.98
+
+Widths were never the problem. Heights were, on every unit with a
+superstructure, and the previous pass's metric read widths.
+
+**Identity, from real rips fetched and LOOKED AT this session** (all eight
+now in `docs/ra2-ref/sprites/`, each with a "looked at" line):
+
+* **Mirage** — rebuilt. RA2's is a dark tank with a box turret, a long thin
+  gun and a tall pale upright projector panel behind the turret. Ours had no
+  gun and a horizontal white "stack", because the reference row said so and
+  the row was written from a cameo. Row, spike entry and clause rewritten.
+* **Rhino** — gun 16.0 -> 21.5, fatter, dark. The rip's gun is the longest
+  on any RA2 tank bar the Grizzly's; "shorter than the Grizzly's" was wrong.
+* **Prism** — crystal 12.4 -> 6.8 and narrower. The rip is a short mast with
+  a small bright head on a Grizzly-sized hull, not a tower.
+* **IFV** — launcher '#98a0ad' -> '#666e7b' and 4.5 tall. The rip's launcher
+  is the DARKEST thing on the vehicle, over a pale hull; the tall owner band
+  on every tube had made it a bright blue cabinet.
+* **Flak Track** — jib to ~45 degrees (barrel tip ky-19.4 -> ky-15.2). The
+  waived aspect clause is now met at exactly 1.00 and the waiver retired.
+* **Tesla, V3, Apocalypse, MCV, War Miner** — height only; the features
+  (coils, rocket, twin guns + drums, boom, bin + turret) are all still there,
+  drawn at RA2's heights.
+
+**What the gate cost, and what it did not.** `clause.vehicleUnmet` 0 -> 7 on
+first run, back to 0: three thresholds re-derived from RA2 (Rhino 1.21,
+Prism 1.10, Flak waiver retired), the Apocalypse's drums lifted clear of the
+skirt plates and the turret plate moved off their feet (the house-mask check
+was fusing plate + two drums into one blob), the War Miner's bin widened
+and its turret raised clear of the bin. Left as recorded debt:
+`peerVsSelf.vehicle` 2 (Apocalypse | V3, mmd2 -0.011 — the two largest Soviet
+hulls, both ~70 px with a long forward spike; four nudges of the V3's rocket
+and scale moved it between -0.003 and -0.017 without clearing it, and each
+one moved the Mirage toward the V3 instead) and `iou.groundCombat.mean` ~0.62
+against a 0.45 target that a flat scale cannot meet. `no two units are
+confusable` is 0 pairs throughout.

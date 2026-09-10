@@ -11828,3 +11828,99 @@ clear — growing the vehicles pushed `dog | tanya` under it, and the fix was to
 repair that pair (Tanya's hair is blonde now, as §2.3 always said) rather than
 to hold the roster down.
 
+
+
+### The size defect was HEIGHT, and the width metric could not see it
+
+**Symptom.** After the 2026-09-10 uniform-size pass (previous entry) the user
+came back: *"tank大小还是参差不齐，小的特别小，大大巨大"* — sizes still ragged,
+small ones tiny, big ones huge. And *"各战斗unit的特色不够明显，依旧难以辨认"*.
+The width numbers said the roster was within 1.20x. The eye said no.
+
+**Cause.** Every size measurement in the gate and in the previous pass was a
+BROADSIDE WIDTH. Measured on both axes against `RA2_BBOX` at a common scale
+(K = 1.15), widths sat at 1.01-1.21 of RA2 and HEIGHTS at 1.02-**1.50**: MCV
+1.50, Prism Tank 1.42, Apocalypse 1.36, Tesla Tank 1.34, V3 1.33, Flak Track
+1.22, Rhino 1.21. Every superstructure — the Prism's 12.4-unit crystal column,
+the MCV's crane boom at by-26.6, the Tesla coils' ten windings, the V3's
+near-vertical rocket, the Apocalypse's 11-unit drums — was drawn taller than
+its reference, and a width metric is blind to all of it. The same blindness
+had let §2.3's budgets ("crystal >= 10 px", "total height >= 1.15x the
+Mirage's") ratchet the heights UP over several passes.
+
+**Fix.** `VSC` fitted to RA2's widths per unit; the height overshoot taken out
+of the superstructures in each kind's block (crystal 12.4 -> 6.8, boom
+by-26.6 -> by-19.2 with the works block 9.0 -> 6.2, coils ten -> eight
+windings, rocket -21.4 -> -20.4, IFV launcher 5.2 -> 4.5, bin 16.4 -> 15.4).
+Result: every ground vehicle within 0.96-1.07 of RA2 on width and 0.91-1.18 on
+height; the Grizzly and Rhino are the same broadside width, as in RA2. A
+scratch tool that prints both ratios per unit is the measurement to keep; the
+`size.*` metrics only read one axis.
+
+**Rejected.** Fitting height by VSC alone (it drags the width under with it —
+the units are the wrong SHAPE, not the wrong size); and shortening the
+Apocalypse's drums (tried at 8.2, the count check went 4 -> 2 exactly as the
+block's own comment predicts, so the height came off the drums' BASE instead).
+
+**Cost, stated.** `iou.groundCombat.mean` 0.5475 -> ~0.62 and
+`peerVsSelf.vehicle` 0 -> 2 (the Apocalypse | V3 pair, mmd2 -0.01 against
+the naval pair's -0.05). Both metrics reward size spread and RA2 does not
+have size spread; the human-legibility gate (`no two units are confusable`)
+is clean at 0 pairs. Recorded as debt, not hidden.
+
+
+### The Mirage Tank's reference row was written from a cameo, and inverted
+
+**Symptom.** Our Mirage Tank had NO GUN — a ribbed white "emitter stack" and a
+stub muzzle — because `unit-identity-reference.md` §2.3 said *"a wide flat
+emitter housing over the deck and NO long gun (a stub only) — the
+anti-Grizzly"*, and `clause-checks/vehicle.js` enforced `gun stub <= 6 px`.
+
+**Cause.** The row was never checked against an in-game sprite. The real
+eight-bearing rip (`File:CNCRA2 Mirage Tank.png`, now
+`docs/ra2-ref/sprites/allied-mirage-tank.png`) shows a dark tank with a BOX
+TURRET, a LONG THIN GUN as long as the Grizzly's, and a tall PALE UPRIGHT
+PROJECTOR PANEL standing behind the turret. Both halves of the row were
+wrong, and the check made the wrong art the one that passed. The Rhino's
+"thicker, SHORTER gun than the Grizzly's" and the Prism's "tallest tank
+profile" were the same failure at smaller scale: `rhino.png` shows the
+longest gun on any RA2 tank bar the Grizzly's, and `allied-prism-tank.png` a
+short mast with a small bright head.
+
+**Fix.** Mirage rebuilt from the rip (dark hull, box turret, 13.5-unit gun,
+8.4-unit pale panel with the hologram-green strip on its face); the row, the
+`SPIKES` entry and the clause check rewritten to ask for what the sprite
+has. Rhino gun 16.0 -> 21.5 and fatter. Eight new rips committed under
+`docs/ra2-ref/sprites/` with a "looked at" line each (README method).
+
+**The rule this adds.** A reference row that names a shape needs a rip cited
+beside it. Every row corrected this month (IFV, Mirage, Rhino, Prism, Flak
+Track) was one written from memory or a cameo, and each was enforced by a
+check that then defended the error.
+
+
+### Three clause thresholds sat ABOVE the game they cite — again
+
+**Symptom.** After the height pass, `clause.vehicleUnmet` went 0 -> 7. Three
+of the seven were the Rhino ("hull height >= 1.25x the Grizzly's": 1.148),
+the Prism ("total height >= 1.15x the Mirage's": 1.143) and the MCV (">=
+1.17x the widest tank"), all failing by a few percent with every unit now ON
+its RA2 size.
+
+**Cause.** RA2's own ratios are [HTNK] 28 / [GTNK] 23 = **1.22** and [SREF]
+43 / [RTNK] 39 = **1.10**. §2.3/§2.4 had written 1.25 and 1.15. A roster that
+matches RA2 cannot meet a clause set above RA2 — the third time this pattern
+has been found here (Destroyer 1.7x, MCV 1.20x, `mass.tightestBand6` 2.0).
+
+**Fix.** Thresholds re-derived from `RA2_BBOX` (1.21, 1.10) in both the row
+and the check, with the derivation on the line. The Flak Track's waived
+aspect clause was RETIRED rather than inherited: the pass put the unit at
+52x52 = 1.00 exactly, and the waiver's own row said it goes red the day the
+clause is met.
+
+**Also found, and worth the paragraph.** The Chrono Miner's "zero turret
+mass" check reads a peaked roofline at the DIAGONAL octants (a flat crate's
+roof projects to a diamond whose ridge stands 7 px over the median roofline),
+so it passes or fails on whether the nose drum happens to be as tall as that
+ridge. It is left as-is at the drum height that passes; the check needs a
+box-roof baseline before it can say anything about turrets.
