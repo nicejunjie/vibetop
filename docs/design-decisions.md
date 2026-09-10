@@ -11790,3 +11790,41 @@ question it was asked. `docs/ra2-ref/sprites/README.md` step 3 already says
 "open the image and LOOK at it" — that step was skipped in favour of numbers
 for two consecutive passes, and the numbers were all correct.
 
+
+### A metric that demanded MORE size spread than RA2 has
+
+**Symptom.** The user, looking at the RTS field: *"some tanks are just too
+small, like grizzly tank and ifv, while mirage and prism are huge."* Measured,
+our ground vehicles ran 0.956x to 1.522x of their own RA2 references — a 1.59x
+inconsistency where RA2 is 1.00 by construction and its tanks sit in a 1.09x
+band.
+
+**Cause.** `mass.tightestBand6` wanted **2.0** and `mass.groundCombatSpan`
+**2.04**. The second is RA2's own figure (its nine ground-combat broadside
+areas span 2537/1242). The first is not: RA2's own tightest six-window is
+**1.20**, so the target was 67% above the reference it claims to serve, and it
+actively rewarded drawing the roster more unevenly than RA2 draws it. This
+repo has ruled against exactly that shape of clause twice before (the
+Destroyer's "1.7x any land vehicle" and the MCV's "1.20x the widest tank",
+both corrected to RA2's own ratios).
+
+**Fix.** Target corrected to 1.20, derived from `RA2_SIZE` rather than written
+as a literal. Deviations compressed to 35% of their previous value (20% for the
+two units the user named); scale spread 1.59x -> 1.20x.
+
+**Rejected: collapsing onto one scale exactly.** `iou.sameFactionOver75` 0 -> 2
+(Chrono Miner | Mirage 0.779, Apocalypse | War Miner 0.754). RA2 can afford a
+flat scale because its ASPECTS separate — [CMIN] 1.96 vs [RTNK] 1.51, [MTNK]
+1.74 vs [HARV] 1.17 — and ours are squashed to 0.81-0.92 of their references,
+so removing size leaves nothing. The aspect work is the prerequisite, not the
+size change.
+
+**Two second-order effects worth knowing about.** Clauses written in ABSOLUTE
+pixels break when a unit is rescaled (the Rhino's flank plates were spaced 7.4
+units apart and split against the fender at the new size; they are `len`-
+relative now). And the friend-vs-foe anchor in `legibility.js` is a MEDIAN over
+the roster, so improving most units raises the floor every other pair must
+clear — growing the vehicles pushed `dog | tanya` under it, and the fix was to
+repair that pair (Tanya's hair is blonde now, as §2.3 always said) rather than
+to hold the roster down.
+
