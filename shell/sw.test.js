@@ -175,3 +175,35 @@ test("no deployed shell script carries an unstamped @TOKEN@", () => {
       `install.sh only substitutes files in its RENDERED table.`);
   }
 });
+
+// Execute the actual worker: classification alone cannot prove that reauth
+// avoids a cached shell on redirects, errors, or a stalled network.
+for (const outcome of ['redirect', 'error', 'pending']) {
+  test(`vtreauth is network-only even when the network is ${outcome}`, async () => {
+    const vm = require('node:vm');
+    const handlers = {};
+    let networkCalls = 0, result;
+    const redirect = { type: 'opaqueredirect', status: 0 };
+    const networkError = { type: 'error', status: 0 };
+    vm.runInNewContext(SRC, {
+      URL, location: { origin: 'https://vibetop.test' },
+      self: { addEventListener: (name, fn) => { handlers[name] = fn; } },
+      caches: { open() { assert.fail('reauth must never consult the shell cache'); } },
+      setTimeout() { assert.fail('reauth must never time out to a cached shell'); },
+      Response: { error: () => networkError },
+      fetch() {
+        networkCalls++;
+        if (outcome === 'error') return Promise.reject(new Error('offline'));
+        if (outcome === 'pending') return new Promise(() => {});
+        return Promise.resolve(redirect);
+      }
+    });
+    handlers.fetch({
+      request: { method: 'GET', mode: 'navigate', url: 'https://vibetop.test/?vtreauth=123' },
+      respondWith(promise) { result = promise; }
+    });
+    assert.equal(networkCalls, 1);
+    assert.ok(result);
+    if (outcome !== 'pending') assert.equal(await result, outcome === 'error' ? networkError : redirect);
+  });
+}
