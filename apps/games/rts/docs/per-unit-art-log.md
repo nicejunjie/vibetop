@@ -4345,3 +4345,13 @@ War Miner len 26 -> 36, wid 25 -> 20, crate 15.4 -> 6.6, turret lowered to
 match. MCV len 36 -> 42, VSC 1.03 -> 1.19, every block and the boom lower.
 Chrono Miner crate 4.0 -> 6.0 tall, VSC 1.106 -> 1.15. Drone VSC 0.80 ->
 0.92. Rhino / Tesla / V3 / Prism hulls lifted.
+
+## 2026-09-10 (fourth pass) — the IFV as one piece
+
+*"your tanks look like lego ... try fix ifv first."* Every primitive was
+outlining every face. `NO_RIM` + a silhouette pass in `frame()`; the IFV
+rebuilt from nine outlined parts to one body on visible tyres and one dark
+launcher block with four mouths (see design-decisions). Bakes at 60x56
+against RA2's 54x48 x 1.13 = 61x54. Gate: no regression; ratchet unchanged
+to the third decimal. The method is per-kind (`SMOOTH`), so the rest of the
+roster follows one unit at a time against its rip.
