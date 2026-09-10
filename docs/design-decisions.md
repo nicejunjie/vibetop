@@ -11924,3 +11924,58 @@ roof projects to a diamond whose ridge stands 7 px over the median roofline),
 so it passes or fails on whether the nose drum happens to be as tall as that
 ridge. It is left as-is at the drum height that passes; the check needs a
 box-roof baseline before it can say anything about turrets.
+
+
+### "Did you really reference RA2?" — the table was not the sprites, and the sprites are LIGHT
+
+**Symptom.** After two size passes in one day the user came back a third
+time: *"i have told you many times, some tanks are too small. and
+坦克的特色依旧不够明显，你真的参考ra2了么"*. Every metric said the roster
+was within a few percent of `RA2_BBOX`.
+
+**Cause, in two halves.** (1) `RA2_BBOX` was not RA2. Its rows were
+transcribed from an unstated source; segmenting the eleven eight-bearing rips
+now in `docs/ra2-ref/sprites/` (one sprite series, one scale — the Rhino,
+Apocalypse and Flak Track rows agree with their sheets to 2-3 px) showed
+seven rows off by 10-45%, and each one had been steering a unit the user
+named: the Grizzly (54x23 in the table, **60x31** on the sheet — a chunky tank
+of Rhino bulk, which the table had as a sliver), the War Miner (56x48 vs
+**66x37** — the aspect INVERTED: a long low truck, not a tall box), the Chrono
+Miner (55x28 vs 63x39), the Drone (21x14 vs 30x20), the IFV, the Mirage, the
+MCV (69x47 vs 91x46). Matching the table had put the Grizzly at 0.73 of the
+sheet's bulk at the diagonal. (2) A pixel census of the rips: RA2's vehicles
+are **13-32% light pixels (v > 0.75) and 11-21% dark (v < 0.25)**; ours were
+3-9% light and 27-47% dark. RA2 reads as pale bodies with black guns; ours
+were dark bodies with dark guns, so no feature had contrast to read with.
+The earlier "vehicles are a fifth darker" finding had been applied to one
+unit.
+
+**Fix.** Seven `RA2_BBOX` rows re-measured from the sheets (with the §1.1
+table footnoted and the two mass targets re-derived); the Grizzly rebuilt as
+a chunky tank (wid 15 -> 20, hull 3.8 -> 5.0, VSC 0.80 -> 0.90), the Rhino
+shortened (len 30 -> 25, gun 21.5 -> 17.5), the War Miner and MCV made long
+low trucks, the Drone and Chrono Miner grown. A `VLIFT` factor (1.25) applied
+inside `shade()` while a GROUND vehicle bakes, gated on saturation so owner
+panels and accents never lift (an ungated lift clipped the APC's house-hued
+deck to white and its clause caught it), plus the darker hull colours raised
+toward the sheets' values. Light fraction now 0.08-0.29.
+
+**Clauses that the sheets inverted.** "Rhino hull height >= 1.21x the
+Grizzly's" — the sheets have the Rhino at 0.90x, LOWER; now a ceiling.
+"Grizzly hull height <= 0.45 x length" — the sheet is 0.52; now 0.55. "War
+Miner bin >= 35%" — the sheet's own tan census is 0.275; now 0.25. Fifth,
+sixth and seventh clauses this month found written above, or against, the
+game they cite.
+
+**Rejected.** Reading the value census and lifting only the hulls' base
+colours: the FACE SHADING (0.58 far / 0.80 near, top 1.02-1.24) was doing
+the darkening on every unit, so the lift had to be in the primitive — and
+the primitive is shared with buildings, hence the bake-scoped factor rather
+than new constants.
+
+**Debt recorded with the baseline.** `peerVsSelf.vehicle` 5: Grizzly | Rhino
+(mmd2 -0.046 — RA2's own two are the same silhouette; the sheets say so) and
+the two marginal Soviet pairs; the Destroyer's length clause (RA2's MCV is
+91 px, so RA2's own Destroyer/MCV ratio is 1.11 and ours is 0.91 — a naval
+pass, not this one); the Chrono Miner's turret-mass check (reads a crate's
+diagonal roofline); the Apocalypse drum gap at one bearing.
