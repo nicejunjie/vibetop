@@ -24,27 +24,59 @@
 })();
 </script>
 <script>
-/* Auth guard (runs first). If Cloudflare Access — or the vibetop session — has
-   expired, the service worker can serve the cached, un-authenticated shell → a
-   black screen (you had to close+reopen to get the login). Probe auth on load;
-   on a redirect/401, force a NETWORK-ONLY reload (?vtreauth, honored by sw.js) so
-   the browser follows the redirect to the login page. Guarded to fire once per
-   session so a persistent failure can't reload-loop. Async — no delay when authed. */
+/* Auth guard. Keep this inline so even a cached/offline shell can recover when
+   Access blocks its subresources. A load-only check misses sessions that expire
+   while the desktop is open. Probe on wake/reconnect and periodically; a failed
+   heartbeat/SSE connection also asks for a probe (never infers auth from a generic
+   network failure). Sign-in is a TOP-LEVEL, network-only navigation via vtreauth. */
 (function () {
-  function reauth() {
-    try { if (sessionStorage.getItem('vt:reauth')) return; sessionStorage.setItem('vt:reauth', '1'); } catch (e) {}
-    location.replace('/?vtreauth=' + Date.now());
+  if (window.top !== window.self) return;
+  var pending = false, expired = false, lastCheck = -Infinity;
+  function showExpired() {
+    if (expired) return;
+    expired = true;
+    window.vibeAuthExpired = true;
+    function show() {
+      var dialog = document.getElementById('auth-expired');
+      var link = document.getElementById('auth-sign-in');
+      link.href = '/?vtreauth=' + Date.now();
+      // No automatic reload or sessionStorage latch: a failed sign-in can always
+      // be retried, and detecting expiry doesn't discard the loaded apps.
+      link.addEventListener('click', function() { link.href = '/?vtreauth=' + Date.now(); });
+      dialog.addEventListener('cancel', function(e) { e.preventDefault(); });
+      dialog.showModal();
+      link.focus();
+    }
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', show, { once: true });
+    else show();
   }
-  try {
-    fetch('/api/me', { redirect: 'manual', cache: 'no-store' }).then(function (r) {
+  function checkAuth() {
+    if (expired || pending || document.hidden || Date.now() - lastCheck < 5000) return;
+    pending = true;
+    lastCheck = Date.now();
+    var controller = new AbortController();
+    var timeout = setTimeout(function() { controller.abort(); }, 10000);
+    // manual exposes Access's redirect as opaqueredirect instead of following
+    // its cross-origin login and losing the auth signal to a CORS fetch error.
+    Promise.resolve().then(function() {
+      return fetch('/api/me', { redirect: 'manual', cache: 'no-store',
+        credentials: 'same-origin', signal: controller.signal });
+    }).then(function(r) {
       if (!r) return;
-      if (r.status === 200) { try { sessionStorage.removeItem('vt:reauth'); } catch (e) {} return; }
-      // Re-auth ONLY on a clear auth failure: an opaque redirect (Cloudflare Access
-      // login) or a 401/403 (expired vibetop session). NOT on 5xx / network errors —
-      // those can be transient and must never trigger a reload.
-      if (r.type === 'opaqueredirect' || r.status === 401 || r.status === 403) reauth();
-    }).catch(function () {});
-  } catch (e) {}
+      if (r.type === 'opaqueredirect' || r.status === 401 || r.status === 403 ||
+          (r.status === 200 && /text\/html/i.test(r.headers.get('Content-Type') || ''))) showExpired();
+    }).catch(function() {
+      // Offline, a stalled connection, or a server outage is not proof of expiry.
+    }).finally(function() {
+      clearTimeout(timeout);
+      pending = false;
+    });
+  }
+  window.vibeCheckAuth = checkAuth;
+  document.addEventListener('visibilitychange', checkAuth);
+  ['focus', 'pageshow', 'online'].forEach(function(event) { window.addEventListener(event, checkAuth); });
+  setInterval(checkAuth, 30000);
+  checkAuth();
 })();
 </script>
 <!-- PWA: installable, full-screen home-screen app. The manifest + apple-* tags
@@ -74,6 +106,21 @@
     background: #0e1117; font-family: system-ui, sans-serif; color: #e0e0e0;
     display: flex; flex-direction: column; position: relative;
   }
+  #auth-expired {
+    margin: auto; width: min(360px, calc(100% - 32px)); padding: 24px;
+    border: 1px solid #303d50; border-radius: 16px;
+    background: #161b22; color: #e0e0e0; box-shadow: 0 16px 64px #0008;
+  }
+  #auth-expired::backdrop { background: #0e1117cc; }
+  #auth-expired h2 { font-size: 20px; margin-bottom: 12px; }
+  #auth-expired p { color: #aab8ca; font-size: 14px; line-height: 1.5; }
+  #auth-sign-in {
+    display: flex; justify-content: center; align-items: center; min-height: 44px;
+    margin-top: 20px; padding: 10px 16px; border-radius: 8px;
+    background: #2d6cc0; color: #fff; font-weight: 600; text-decoration: none;
+  }
+  #auth-sign-in:hover { background: #3a7adb; }
+  #auth-sign-in:focus-visible { outline: 2px solid #a8cbff; outline-offset: 3px; }
 
   /* === Claude usage strip (opt-in) — thin full-width bar above the app area.
      A flex child before .frames, so it simply shrinks the app viewport; hidden
@@ -1050,6 +1097,11 @@
   <script src="/apph.js"></script>
 </head>
 <body>
+  <dialog id="auth-expired" aria-labelledby="auth-expired-title" aria-describedby="auth-expired-desc">
+    <h2 id="auth-expired-title">Session expired</h2>
+    <p id="auth-expired-desc">Sign in again to reconnect to Vibetop.</p>
+    <a id="auth-sign-in" href="/?vtreauth=1" target="_top">Sign in again</a>
+  </dialog>
   <!-- System-health warning banner (disk-full etc.) — driven by the heartbeat's
        `warnings` array (see renderWarnings). Hidden until there's something to say.
        FIRST flex child, above the usage strip: it must SHRINK the app area, never
@@ -2571,6 +2623,7 @@
   // immediately instead of waiting up to 5s for the next heartbeat.
   function pushDesktop() {
     if (persistTimer) { clearTimeout(persistTimer); persistTimer = null; }
+    if (window.vibeAuthExpired) return Promise.resolve();
     // Pick up nested app frames created since the last beat (a new terminal tab,
     // a new Files tab) for click-to-focus. Idempotent and a no-op outside window
     // mode — see wireWinFocus.
@@ -2579,7 +2632,10 @@
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ instance: INSTANCE_ID, open: openApps, active: active })
-    }).then(function(r) { return r.json(); }).then(onDesktopResp).catch(function() {});
+    }).then(function(r) {
+      if (!r.ok) throw new Error('Desktop heartbeat failed');
+      return r.json();
+    }).then(onDesktopResp).catch(function() { window.vibeCheckAuth(); });
   }
   window.pushDesktop = pushDesktop;   // usage-strips.js calls it after a toggle
 
@@ -4034,6 +4090,7 @@
         else if (e.data && e.data !== loadedShellVer) triggerRefresh();
       });
       es.addEventListener('reload', triggerRefresh);
+      es.addEventListener('error', function() { window.vibeCheckAuth(); });
       // A CLI in a terminal opened a URL in this user's Browser (via the xdg-open
       // shim) — there's no front-end in that path, so the manager pushes this to
       // surface it. Reuse the existing switch-to-browser message handler.

@@ -139,6 +139,15 @@ node --test shell/*.test.js shared/*.test.js apps/everyday/terminal/lib/*.test.j
 node --test shell/coach.test.js                      # one file
 ```
 
+The isolated session-expiry browser regression needs the existing Playwright
+dependencies/browsers in `tests/e2e`, but no running host, VM, or credentials:
+`node --test tests/e2e/auth-expiry.test.js`. It serves the real shell and service
+worker locally, simulates Access with a cross-origin login redirect, and checks
+desktop Chromium + iPhone WebKit: expiry during use, a cached cold load, an
+actionable/focused prompt, top-level sign-in, and return to the desktop. The
+guard's wake/reconnect/timeout/error decisions also run in the hermetic tier
+(`shell/auth-guard.test.js`).
+
 **Pass FILES, not directories.** `node --test landing/` worked on older Node but
 on Node ≥ 22 the directory argument is resolved as a *module* and the run fails
 with `Cannot find module …/landing` — which looks like a test failure. `run-tests.sh`

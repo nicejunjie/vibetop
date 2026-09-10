@@ -120,6 +120,11 @@ check the real behaviour.
    on-screen and scrollable — never hidden below the physical edge. Real iPhone only.
 4. **Terminal reconnect / device-switch.** After idle, network blips, or switching
    devices, the terminal reconnects in place (no reload loop, scrollback preserved).
+   **Expired Access login:** leave the desktop open past expiry, then resume it.
+   A visible **Session expired → Sign in again** prompt must recover in the top
+   window, including a cached PWA load. Network outages must not claim expiry.
+   Automated local coverage: `node --test tests/e2e/auth-expiry.test.js` (Chromium
+   + mobile WebKit); the installed iOS PWA still needs an on-device spot check.
 5. **Browser (xpra) with two devices + reopen.** No reload loop; typing works after a
    new device connects (keymap re-applied).
 

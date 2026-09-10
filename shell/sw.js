@@ -17,7 +17,7 @@
  * caches. sw.js itself is served no-store (nginx `location /`), so the browser
  * re-checks it on navigation and picks up the new VERSION.
  */
-const VERSION = 'v577';
+const VERSION = 'v578';
 const CACHE = 'shell-' + VERSION;
 
 const PRECACHE = [
@@ -81,8 +81,8 @@ self.addEventListener('fetch', (e) => {
   if (BYPASS.test(url.pathname)) return;           // live/auth paths: network only
 
   if (req.mode === 'navigate') {
-    // Forced re-auth reload (the shell appends ?vtreauth when it detects an
-    // expired session): go STRAIGHT to the network so Cloudflare's redirect to
+    // Re-auth navigation (the shell's "Sign in again" link adds ?vtreauth):
+    // go STRAIGHT to the network so Cloudflare's redirect to
     // the login page comes through. Never the cached (un-authenticated) shell —
     // that's the black-screen-on-expired-Access bug. No timeout, no fallback.
     if (url.searchParams.has('vtreauth')) {

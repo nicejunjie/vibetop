@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_268 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_269 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
 - [Scheduled terminal messages ("resume when the token limit resets")](#scheduled-terminal-messages-resume-when-the-token-limit-resets)
@@ -291,6 +291,7 @@ _268 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [A forced miner return has to be the SAME journey as an automatic one](#a-forced-miner-return-has-to-be-the-same-journey-as-an-automatic-one)
 - [The refinery's dock was drawn where nothing could click it](#the-refinerys-dock-was-drawn-where-nothing-could-click-it)
 - [The Codex strip read this machine's logs and could not see the account (2026-09-10)](#the-codex-strip-read-this-machines-logs-and-could-not-see-the-account-2026-09-10)
+- [Cloudflare Access expiry left an open desktop blank (2026-09-10)](#cloudflare-access-expiry-left-an-open-desktop-blank-2026-09-10)
 
 <!-- END TOC -->
 
@@ -12022,3 +12023,42 @@ next reset* from the last one (`reset + n*span`): ruled out already on
 2026-09-04 — the 5-hour window is anchored to first use after expiry, so the
 projection is wrong by exactly the idle gap. *Deleting the log scan:* it is
 the only source for an API-key login, and it carries the first heartbeat.
+
+---
+
+## Cloudflare Access expiry left an open desktop blank (2026-09-10)
+
+**Symptom.** An open Vibetop desktop became blank when its Cloudflare Access
+login expired, with no way to sign in again inside the desktop.
+
+**Cause.** The inline auth guard checked `/api/me` only at page load. Later
+heartbeat failures were swallowed, SSE retried without checking auth, and the
+iframes could encounter Access's login redirect without any top-level response.
+The previous `vt:reauth` sessionStorage latch could also permanently suppress
+recovery until another successful initial auth probe cleared it.
+
+**Fix.** Keep the guard inline so a cached shell needs no external script to
+recover. Probe on load, every 30 seconds while visible, and on wake/online;
+heartbeat and SSE failures request the same coalesced probe. A manual redirect
+exposes the Access challenge without following it into a CORS error. Only an
+auth response (redirect, 401/403, or HTML replacing `/api/me` JSON) opens a native
+modal with **Session expired → Sign in again**. The action navigates the top
+window to `/?vtreauth=…`, preserving the existing network-only SW route. The
+native dialog supplies focus containment and makes the underlying frames inert;
+the action has a 44px minimum touch target. Desktop heartbeats pause after expiry
+so an externally renewed login cannot accept an empty cached shell's state.
+
+**Recovery limits.** A probe aborts after 10 seconds and later checks retry.
+Network failures, timeouts, and 5xx do not prove expiry. There is no automatic
+reload and no persisted latch: the explicit action remains available, and a
+second expiry works the same way. Reauthentication never calls reset or logout;
+already loaded app contents stay put until the user chooses to navigate.
+
+**Verification.** The inline guard has executable tests for active-session
+expiry, every wake event, repeated failures, hidden tabs, coalescing, timeouts,
+and early responses before DOM ready. SW execution tests pin the no-cache,
+no-timeout reauth path. The isolated Playwright fixture serves the actual shell
+and SW with a cross-origin Access stand-in in Chromium and iPhone WebKit; it
+exercises the prompt, keyboard/touch sizing, loaded draft preservation, sign-in,
+return to the desktop, and another expiry on a cached cold load. An installed
+iOS PWA's real Access cookie jar remains an on-device verification item.
