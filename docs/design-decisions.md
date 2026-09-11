@@ -12329,6 +12329,19 @@ the edge, while hovering a button, cameo, tab or the minimap scrolls nothing.
 The flying-pointer filter still stops a purposeful dash to a cameo from
 dragging the map.
 
+**And reverted AGAIN (v1.19.329) — the user's actual rule.** "I asked you to
+put the navigation area of right and bottom to be OUTSIDE the menu, yet you
+still put them on the edge of the map, and when I move the cursor to the
+build menu or bottom control menu, the view moves." Both earlier readings
+were wrong: the zone is neither the map's border beside a panel nor the
+panel itself. It is a strip OUTSIDE the panels — which is also what "add a
+black surrounding area for easier navigation" meant. So: a black navigation
+GUTTER (`--gut`, 26 px, body padding) round the whole frame, right of the
+build panel and below the command bar, with directional resize cursors;
+`edgeTarget` reads `pageMouse` against the window edges with the gutter's
+width as the band, and nothing else scrolls. The strip exists because a
+floating desktop window does not stop the cursor: it is what you park on.
+
 ## RTS: a resumed or loaded match was dead to clicks — the selection flag rode along in the save (2026-09-11)
 
 **Symptom.** (user) "after refresh or from a saved game, all controls are

@@ -7,13 +7,26 @@
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
   html, body { height: 100%; overflow: hidden; }
+  /* The navigation GUTTER: a black strip round the whole frame — outside the
+     build panel and the command bar, not on the map's edge and not on the
+     panels. It is the only place edge-scrolling happens (the user, 2026-09-11:
+     "put the navigation area of right and bottom OUTSIDE the menu"). It is a
+     strip rather than a zero-width window edge because a floating desktop
+     window does not stop the cursor; the strip is what you park on. */
+  :root { --gut: 26px; }
   body {
     display: flex; flex-direction: column;
-    background: #0e1117; color: #d4d8de;
+    padding: var(--gut);
+    background: #050608; color: #d4d8de;
     font-family: system-ui, sans-serif;
     -webkit-tap-highlight-color: transparent;
     overscroll-behavior: none;
   }
+  .gut { position: fixed; z-index: 5; }
+  .gut-l { left: 0; top: 0; bottom: 0; width: var(--gut); cursor: w-resize; }
+  .gut-r { right: 0; top: 0; bottom: 0; width: var(--gut); cursor: e-resize; }
+  .gut-t { top: 0; left: 0; right: 0; height: var(--gut); cursor: n-resize; }
+  .gut-b { bottom: 0; left: 0; right: 0; height: var(--gut); cursor: s-resize; }
   .bar {
     display: flex; align-items: center; gap: 8px; flex-shrink: 0;
     min-height: 40px; padding: 4px 10px;
@@ -619,6 +632,7 @@
 </style>
 </head>
 <body>
+<div class="gut gut-l"></div><div class="gut gut-r"></div><div class="gut gut-t"></div><div class="gut gut-b"></div>
 
 <div class="bar">
   <span class="title"><span class="txt">Iron Frontier</span></span>
@@ -33622,7 +33636,7 @@
   // pageMouse, which only leaving the window clears — see trackPageMouse.
   document.getElementById('side').addEventListener('pointerenter', function () { mouse.in = false; });
   document.querySelector('.bar').addEventListener('pointerenter', function () { mouse.in = false; });
-  document.addEventListener('pointerleave', function () { mouse.in = false; pageMouse.in = false; menuEdge = null; });
+  document.addEventListener('pointerleave', function () { mouse.in = false; pageMouse.in = false; });
 
   // Minimap click jumps the camera.
   mini.addEventListener('pointerdown', function (e) {
@@ -33670,26 +33684,22 @@
   var EDGE_BAND = 44;           // px — narrow enough to stay out of the way
   var EDGE_MIN = 80;            // px/s at the inner lip
   var EDGE_MAX = 900;           // px/s at the outer edge and beyond
-  // WHERE the band is. RA2 scrolls at the SCREEN edge because the screen edge
-  // stops the cursor: you shove the mouse and it parks there. This game runs
-  // in a floating desktop window with no hard stop anywhere, so a thin zone
-  // at the window edge (tried: 6 px over the panels) cannot be landed on by
-  // hand — "navigation only works on the left", where the band was still
-  // 44 px. The windowed answer: a wide band at every CANVAS edge, and the
-  // build panel, command bar and top bar act as the WALL beyond it — resting
-  // on a panel's background keeps the map scrolling toward that panel, as if
-  // the cursor were pinned at the edge, while hovering a button, cameo, tab
-  // or the minimap scrolls nothing, so the panel stays usable (menuEdge).
-  var EDGE_BANDS = { l: { band: EDGE_BAND, dead: 0 }, t: { band: EDGE_BAND, dead: 0 },
-                     r: { band: EDGE_BAND, dead: 0 }, b: { band: EDGE_BAND, dead: 0 } };
-  // Which way each panel pushes the map, and what on it counts as a control.
-  var MENU_EDGE = { side: { x: 1, y: 0 }, cmdbar: { x: 0, y: 1 }, bar: { x: 0, y: -1 } };
-  var MENU_CONTROL = 'button, canvas, input, select, a, [role="button"], .ptab, .ptab div, label';
-  var menuEdge = null;                  // {x, y} while the pointer rests on a panel's background
-  function menuEdgeFor(panelKey, overControl) {
-    if (overControl || !MENU_EDGE[panelKey]) return null;
-    return MENU_EDGE[panelKey];
+  // WHERE the band is: the navigation GUTTER, the black strip round the whole
+  // frame (body padding, --gut). It sits OUTSIDE the build panel and the
+  // command bar, so the map's own border and the panels never scroll — the
+  // user's rule, 2026-09-11, after two wrong turns: a zone on the map edge
+  // beside the panel (overshot into the panel), then the panels as walls
+  // (hovering the build menu moved the view). RA2's zone is the screen edge,
+  // which stops the cursor; a floating desktop window stops nothing, so the
+  // zone is a visible strip you can park on. Its width IS the band.
+  function gutterPx() {
+    var v = 26;
+    try { v = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--gut')) || 26; } catch (e) {}
+    return v;
   }
+  var GUT = gutterPx();
+  var EDGE_BANDS = { l: { band: GUT, dead: 0 }, t: { band: GUT, dead: 0 },
+                     r: { band: GUT, dead: 0 }, b: { band: GUT, dead: 0 } };
   // Pure: pointer (x, y) in a w x h window -> scroll target {tx, ty} in -1..1,
   // 0 outside the bands, growing from the (dead) inner lip to 1 at the edge.
   function edgeTarget(x, y, w, h, bands) {
@@ -33723,20 +33733,6 @@
     pageMouse.x = nx; pageMouse.y = ny; pageMouse.in = true;
   }
   document.addEventListener('pointermove', trackPageMouse);
-  // The panels as walls (see EDGE_BANDS): background = keep scrolling toward
-  // the panel; a control = hold still. Cleared the moment the pointer leaves.
-  function wirePanelEdge(el, key) {
-    if (!el) return;
-    el.addEventListener('pointermove', function (e) {
-      if (e.pointerType === 'touch') { menuEdge = null; return; }
-      var t = e.target;
-      menuEdge = menuEdgeFor(key, !!(t && t.closest && t.closest(MENU_CONTROL)));
-    });
-    el.addEventListener('pointerleave', function () { menuEdge = null; });
-  }
-  wirePanelEdge(document.getElementById('side'), 'side');
-  wirePanelEdge(document.getElementById('cmdbar'), 'cmdbar');
-  wirePanelEdge(document.querySelector('.bar'), 'bar');
 
   // A pointer FLYING across the band is on its way somewhere — usually the
   // command bar — and must not drag the map with it. A pointer that arrives
@@ -33787,17 +33783,11 @@
         return;
       }
 
-      if (!drag && !pointerFlying()) {
-        if (mouse.in) {
-          var et = edgeTarget(mouse.x, mouse.y, cvW, cvH, EDGE_BANDS);
-          if (et.tx) wx += Math.sign(et.tx) * edgeSpeed(Math.abs(et.tx));
-          if (et.ty) wy += Math.sign(et.ty) * edgeSpeed(Math.abs(et.ty));
-        } else if (menuEdge && pageMouse.in) {
-          // Resting on a panel's background: the cursor is "pinned at the
-          // edge" beyond the band, full speed toward that panel.
-          if (menuEdge.x) wx += menuEdge.x * edgeSpeed(1);
-          if (menuEdge.y) wy += menuEdge.y * edgeSpeed(1);
-        }
+      if (pageMouse.in && !drag && !pointerFlying()) {
+        // The gutter: the pointer against the window's edges, outside every panel.
+        var et = edgeTarget(pageMouse.x, pageMouse.y, window.innerWidth, window.innerHeight, EDGE_BANDS);
+        if (et.tx) wx += Math.sign(et.tx) * edgeSpeed(Math.abs(et.tx));
+        if (et.ty) wy += Math.sign(et.ty) * edgeSpeed(Math.abs(et.ty));
       }
       // Leaving the WINDOW stops navigation. Off-window acceleration was tried
       // and is wrong here: a browser cursor is not locked to the viewport, so
@@ -37296,7 +37286,7 @@
     // Read-only camera, so a test can tell "the view moved" from "the scene
     // animated" — a canvas screenshot cannot.
     cam: function () { return { x: cam.x, y: cam.y }; },
-    edgeTarget: edgeTarget, edgeBands: function () { return EDGE_BANDS; }, menuEdgeFor: menuEdgeFor,
+    edgeTarget: edgeTarget, edgeBands: function () { return EDGE_BANDS; }, gutter: function () { return GUT; },
     clampCam: function () { clampCam(); return { x: cam.x, y: cam.y }; },
     setCam: function (x, y) { cam.x = x; cam.y = y; },
     // Cursors are CSS, so a screenshot never shows them: these let the art

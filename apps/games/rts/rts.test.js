@@ -6243,27 +6243,27 @@ test("an unload outside a match clears the resume flag, so a stale autosave is n
 });
 
 // ------------------------------------------------------ edge scrolling zones //
-// A floating desktop window has no hard stop for the cursor, so the band is a
-// wide zone at every CANVAS edge, and the panels beyond it act as the wall:
-// resting on a panel's background scrolls toward it, a control never does.
+// The navigation gutter: the black strip round the frame, OUTSIDE the build
+// panel and the command bar, is the only scroll zone. Neither the map's own
+// border nor the panels scroll.
 
-test("every canvas edge has the wide band, and the panels are walls except on their controls", () => {
-  const H = W.__rtsTest, B = H.edgeBands();
+test("only the gutter scrolls: the map border, the panels and their controls never do", () => {
+  const H = W.__rtsTest, B = H.edgeBands(), G = H.gutter();
   const w = 1200, h = 800;
-  for (const k of ["l", "t", "r", "b"]) assert.equal(B[k].band, 44), assert.equal(B[k].dead, 0);
-  // Next to the build panel border: scrolling right, fast near the edge.
-  assert.equal(H.edgeTarget(w - 4, 400, w, h, B).tx > 0.85, true);
-  assert.equal(H.edgeTarget(w - 30, 400, w, h, B).tx > 0, true);
-  assert.equal(H.edgeTarget(w - 60, 400, w, h, B).tx, 0);
-  assert.equal(H.edgeTarget(600, h - 4, w, h, B).ty > 0.85, true);
-  assert.equal(H.edgeTarget(600, 4, w, h, B).ty < -0.85, true);
-  assert.equal(H.edgeTarget(2, 400, w, h, B).tx < -0.9, true);
-  // The panels as walls.
-  assert.deepEqual(H.menuEdgeFor("side", false), { x: 1, y: 0 });
-  assert.deepEqual(H.menuEdgeFor("cmdbar", false), { x: 0, y: 1 });
-  assert.deepEqual(H.menuEdgeFor("bar", false), { x: 0, y: -1 });
-  assert.equal(H.menuEdgeFor("side", true), null);      // a cameo, a button, the minimap
-  assert.equal(H.menuEdgeFor("nothing", false), null);
+  assert.ok(G >= 20, "a strip you can park on");
+  for (const k of ["l", "t", "r", "b"]) assert.equal(B[k].band, G), assert.equal(B[k].dead, 0);
+  // In the gutter: full speed at the window edge, easing to zero at its inner edge.
+  assert.equal(H.edgeTarget(w - 1, 400, w, h, B).tx > 0.9, true);
+  assert.equal(H.edgeTarget(w - G / 2, 400, w, h, B).tx > 0, true);
+  assert.equal(H.edgeTarget(600, h - 1, w, h, B).ty > 0.9, true);
+  assert.equal(H.edgeTarget(600, 1, w, h, B).ty < -0.9, true);
+  assert.equal(H.edgeTarget(1, 400, w, h, B).tx < -0.9, true);
+  // Just inside the frame — over the build panel, the command bar, the map border: nothing.
+  assert.deepEqual(H.edgeTarget(w - G - 2, 400, w, h, B), { tx: 0, ty: 0 });   // the panel's outer column
+  assert.deepEqual(H.edgeTarget(w - 100, 400, w, h, B), { tx: 0, ty: 0 });     // a cameo
+  assert.deepEqual(H.edgeTarget(w - 220, 400, w, h, B), { tx: 0, ty: 0 });     // the map next to the panel
+  assert.deepEqual(H.edgeTarget(600, h - G - 10, w, h, B), { tx: 0, ty: 0 });  // a command button
+  assert.deepEqual(H.edgeTarget(600, G + 10, w, h, B), { tx: 0, ty: 0 });      // the top bar
 });
 
 test("the camera can bring any map edge to the centre of the view", () => {
