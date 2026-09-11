@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_274 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_275 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
 - [Scheduled terminal messages ("resume when the token limit resets")](#scheduled-terminal-messages-resume-when-the-token-limit-resets)
@@ -297,6 +297,7 @@ _274 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [RTS: the edge-scroll band moved from the canvas edge to the window edge (2026-09-11)](#rts-the-edge-scroll-band-moved-from-the-canvas-edge-to-the-window-edge-2026-09-11)
 - [RTS: a resumed or loaded match was dead to clicks — the selection flag rode along in the save (2026-09-11)](#rts-a-resumed-or-loaded-match-was-dead-to-clicks-the-selection-flag-rode-along-in-the-save-2026-09-11)
 - [Browser: a tab torn off its strip followed the cursor forever — the release happened outside the frame (2026-09-11)](#browser-a-tab-torn-off-its-strip-followed-the-cursor-forever-the-release-happened-outside-the-frame-2026-09-11)
+- [RTS: a closed page or app starts fresh; only a reload resumes (2026-09-11)](#rts-a-closed-page-or-app-starts-fresh-only-a-reload-resumes-2026-09-11)
 
 <!-- END TOC -->
 
@@ -12374,4 +12375,30 @@ frame last saw pressed (tracked from `e.buttons`), then clears. Window
 **Rejected.** Releasing on `pointerleave`: a legitimate drag that briefly
 leaves the frame (a fast scrollbar pull) would drop mid-gesture. The release
 must follow the real button-up, which the two signals above do.
+
+## RTS: a closed page or app starts fresh; only a reload resumes (2026-09-11)
+
+**Symptom.** (user) "a closed rts browser page shouldn't resume the game but
+should start new on a new load. Same for the game app, if the user manually
+closed it, it should start fresh next time." Resume-on-reload saved on every
+unload, and a close is an unload.
+
+**Cause.** `pagehide` cannot tell a refresh from a close. The decision has to
+move to the NEXT load. Standalone, `performance.getEntriesByType('navigation')`
+says `reload` for a refresh and `navigate` for a fresh open. Inside the
+desktop an iframe ALWAYS says `navigate` (measured: first open, desktop
+reload, close-and-reopen all identical), so the frame reads the TOP
+document's entry instead — the desktop's deploy push and refresh are reloads
+of the top — and the shell calls `__vibetopClosing()` on the frame
+synchronously as it closes the app. Synchronously matters: a posted message
+would die with the document; the hook sets `closedByUser` so the frame's own
+pagehide cannot re-arm the flag.
+
+**Fix.** `resumeWanted()` at boot: `keep` (the Options card's own Reload)
+always resumes; `1` resumes only when the top navigation is `reload` (or
+there is no entry — an old browser); anything else is a fresh start.
+
+**Rejected.** A `beforeunload` heuristic on the unload side; the browser gives
+no reload-vs-close bit there, and sessionStorage is cleared on a tab close
+but SURVIVES a reload of an iframe's parent only sometimes.
 
