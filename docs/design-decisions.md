@@ -12312,6 +12312,20 @@ terrain at all.
 it covers the right cameo column, and over the 55 px command bar most of the
 buttons — parking to click would scroll. RA2's own zone is a few pixels.
 
+**And then reverted the same day (v1.19.324).** (user) "map navigation only
+works on the left side, fails on all other 3 directions". RA2's screen-edge
+zone works because the screen edge STOPS the cursor; a floating desktop
+window stops nothing, so a 6 px zone cannot be landed on by hand, while the
+left edge still had its 44 px band. Measured in the desktop: every edge did
+scroll when the pointer was placed on it to the pixel — the design was
+unusable, not broken. The windowed answer: the wide band at every CANVAS
+edge again, and the panels beyond it act as the WALL — `menuEdge`: resting
+on the build panel's, command bar's or top bar's background keeps the map
+scrolling toward that panel at full speed, as if the cursor were pinned at
+the edge, while hovering a button, cameo, tab or the minimap scrolls nothing.
+The flying-pointer filter still stops a purposeful dash to a cameo from
+dragging the map.
+
 ## RTS: a resumed or loaded match was dead to clicks — the selection flag rode along in the save (2026-09-11)
 
 **Symptom.** (user) "after refresh or from a saved game, all controls are
