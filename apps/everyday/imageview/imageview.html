@@ -29,6 +29,14 @@
   }
   .bar button:hover { background: #253044; }
   .bar button:focus-visible { outline: 2px solid #8a4adb; outline-offset: 1px; }
+  /* The Close every viewer shares — the video player's: bold, red-tinted,
+     generous padding, at the right end of the bar. A small grey ✕ at the
+     corner was hard to hit (user, 2026-09-11). */
+  .xclose { font-weight: 700 !important; color: #ffb3b3 !important; background: #341c20 !important;
+            border: 1px solid #7a3c44 !important; border-radius: 8px !important; padding: 8px 16px !important;
+            min-height: 36px !important; font-size: 13px !important; line-height: 1; white-space: nowrap; }
+  .xclose:hover { background: #c0392b !important; border-color: #c0392b !important; color: #fff !important; }
+  @media (max-width: 600px) { .xclose { padding: 9px 14px !important; min-height: 40px !important; } }
   .stage { position: relative; flex: 1; min-height: 0; overflow: hidden; touch-action: none; }
   .stage img {
     position: absolute; left: 50%; top: 50%;
@@ -62,7 +70,7 @@
     <span class="name" id="name"></span>
     <span class="cnt" id="cnt"></span>
     <button id="dl" title="Download">⭳ Download</button>
-    <button id="close" title="Close">✕</button>
+    <button id="close" class="xclose" title="Close (Esc)">✕ Close</button>
   </div>
   <div class="stage" id="stage">
     <button class="nav prev" id="prev" aria-label="Previous image">‹</button>
