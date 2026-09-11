@@ -4396,3 +4396,32 @@ GUN a low pale dome with a navy band and a short black MG off the left cheek;
 ARM an articulated blue arm rising to a grey two-finger claw; TECH a pale
 hemisphere on a navy collar. Body lavender-grey with a navy flank stripe and
 a vent slot on the bonnet.
+
+## 2026-09-10 (ninth pass) — the IFV against the voxel render, at 3x
+
+The user came back on the same reference: *"this is what the RA2 IFV looks
+like ... I want you to make it match, exactly match."* The eighth pass had
+read the render at contact-sheet size, and every proportion was off. Read
+again at 3x and 5x (`ref_34.png`, `ref_side.png`, `ref_detail.png` in the
+session scratch), with the body's length as the unit:
+
+| part | measured on the render | what was shipping |
+|---|---|---|
+| wheels | D 0.22, wheelbase 0.62 set 0.07 aft (the nose overhangs the front axle by a quarter of the body); big cream hubs | r 3.8 = D 0.35, centred |
+| body | TWO levels — low bonnet over the front half (0.35 high), raised deck over the rear half (0.44); wheels hang 0.6 D below the skirt | one wedge, deck at 0.34, wheels buried |
+| bonnet | a long dark grille slot along the LEFT, a short one at the deck's left front; two square lamps + tow hooks low on the nose; no windscreen | a vent, round lamps, a windscreen |
+| stripe | mid-height on the DECK's flank, thick, navy | low on the skirt, thin |
+| ring | a dark grey pedestal, 0.28 wide | owner-colour puck |
+| ROCKET | a box 0.46 x 0.23 x ~0.22 nose-up ~35 degrees — the waist band runs top-left to bottom-right on the broadside, so the axis is FLAT, not 60 degrees; the six cells are RAISED bumps in two columns of three on the TIP face | dark charcoal, 40 degrees, slit mouths |
+| GUN | a lavender dome 0.48 wide on a thick navy collar, a black BOXY MG with a fat muzzle off the left cheek at collar height | white dome, slim barrel |
+| ARM | navy BOXY segments: shoulder leaning back ~58 degrees, a block elbow, a forearm reaching forward ~20 degrees, a big grey two-finger C-claw opening forward | a light-blue stroked tube with a ring |
+| TECH | the same dome, flatter, cream running from the cap down the front | white dome, one seam |
+
+The pod and the arm needed a shape the kit did not have — a box canted off
+horizontal — so the block now carries `cbox`: a real (u, v, z) box projected
+through the sheet's own transform with its faces culled against the
+projection's line of sight (design-decisions, "A canted box for the IFV").
+Body tone `#8588a2`, ring `RING` 7.4 -> 9.5 (the deck top). Sprite 59x56
+broadside, aspect 1.054 against [FV]'s 1.125 (band 1.0-1.2, met);
+`iou.sameFactionOver75` 1 -> 0 (the IFV no longer overlaps the Prism Tank);
+`clause.unmet` unchanged at 5.

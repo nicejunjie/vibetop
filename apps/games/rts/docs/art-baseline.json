@@ -308,20 +308,20 @@
     "peerVsSelf.infantry": 0,
     "peerVsSelf.naval": 2,
     "peerVsSelf.air": 0,
-    "iou.groundCombat.mean": 0.6776,
-    "iou.vehicle.mean": 0.5907,
+    "iou.groundCombat.mean": 0.6731,
+    "iou.vehicle.mean": 0.5868,
     "iou.infantry.mean": 0.5399,
     "iou.naval.mean": 0.4007,
     "iou.air.mean": 0.1859,
-    "iou.sameFactionOver75": 1,
+    "iou.sameFactionOver75": 0,
     "spike.belowFloor": 0,
     "spike.minThickAtZmin": 2.2,
     "spike.belowDeclaredBudget": 0,
     "mass.groundCombatSpan": 1.423,
-    "mass.tightestBand6": 1.241,
+    "mass.tightestBand6": 1.235,
     "hue.infantryOwnerMean": 0.3084,
     "hue.infantryBelowBudget": 0,
-    "hue.vehicleOwnerMean": 0.1927,
+    "hue.vehicleOwnerMean": 0.1822,
     "hue.vehicleOwnerMax": 0.2646,
     "hue.maxImpostor": 0.0051,
     "aspect.navalOutsideRA2Band": 0,
@@ -358,7 +358,7 @@
     "value.engineerLightPct": 0.6384,
     "value.engineerMarginOverNext": 0.2803,
     "colour.infantry.meanDist": 1.3542,
-    "colour.vehicle.meanDist": 0.827,
+    "colour.vehicle.meanDist": 0.8318,
     "colour.vehicleAchromatic": 5
   },
   "detail": {
@@ -545,16 +545,16 @@
       },
       "ifv": {
         "group": "vehicle",
-        "aspect": 1.148,
-        "selfIoU": 0.722,
-        "selfIoUCross": 0.722,
-        "broadsideAspect": 1.148,
+        "aspect": 1.054,
+        "selfIoU": 0.7125,
+        "selfIoUCross": 0.7125,
+        "broadsideAspect": 1.054,
         "ra2Aspect": 1.125,
-        "vsRA2": 1.02,
-        "bestPeer": "Prism Tank",
-        "bestPeerIoU": 0.762,
-        "nearestPeer": "V3 Launcher",
-        "nearestPeerMMD2": 0.058,
+        "vsRA2": 0.937,
+        "bestPeer": "Flak Track",
+        "bestPeerIoU": 0.7541,
+        "nearestPeer": "Flak Track",
+        "nearestPeerMMD2": 0.0205,
         "peersBeatingSelf": 0
       },
       "mirage": {
@@ -608,9 +608,9 @@
         "ra2Aspect": 1,
         "vsRA2": 1,
         "bestPeer": "IFV",
-        "bestPeerIoU": 0.7136,
+        "bestPeerIoU": 0.7541,
         "nearestPeer": "IFV",
-        "nearestPeerMMD2": 0.1106,
+        "nearestPeerMMD2": 0.0205,
         "peersBeatingSelf": 0
       },
       "v3": {
@@ -691,8 +691,8 @@
         "broadsideAspect": 1.373,
         "ra2Aspect": 1.372,
         "vsRA2": 1.001,
-        "bestPeer": "IFV",
-        "bestPeerIoU": 0.762,
+        "bestPeer": "War Miner",
+        "bestPeerIoU": 0.7453,
         "nearestPeer": "War Miner",
         "nearestPeerMMD2": 0.0663,
         "peersBeatingSelf": 0
@@ -938,7 +938,7 @@
     },
     "iouGroups": {
       "vehicle": {
-        "mean": 0.5907,
+        "mean": 0.5868,
         "pairs": 78,
         "max": 0.8617,
         "over75": 3
@@ -962,20 +962,14 @@
         "over75": 0
       },
       "groundCombat": {
-        "mean": 0.6776,
+        "mean": 0.6731,
         "pairs": 36,
         "max": 0.8617,
         "over75": 2
       },
-      "sameFactionOver75": 1
+      "sameFactionOver75": 0
     },
-    "worstSameFactionPairs": [
-      {
-        "a": "IFV",
-        "b": "Prism Tank",
-        "iou": 0.762
-      }
-    ],
+    "worstSameFactionPairs": [],
     "closestColourPairs": [
       {
         "a": "engineer",
@@ -1032,17 +1026,7 @@
       {
         "a": "lancer",
         "b": "ifv",
-        "dist": 0.056
-      },
-      {
-        "a": "ifv",
-        "b": "flaktrack",
-        "dist": 0.062
-      },
-      {
-        "a": "ifv",
-        "b": "prismtank",
-        "dist": 0.08
+        "dist": 0.034
       },
       {
         "a": "lancer",
@@ -1050,9 +1034,19 @@
         "dist": 0.086
       },
       {
+        "a": "ifv",
+        "b": "prismtank",
+        "dist": 0.1
+      },
+      {
         "a": "lancer",
         "b": "flaktrack",
         "dist": 0.118
+      },
+      {
+        "a": "ifv",
+        "b": "flaktrack",
+        "dist": 0.119
       },
       {
         "a": "flaktrack",
@@ -1070,14 +1064,14 @@
         "dist": 0.305
       },
       {
-        "a": "ifv",
-        "b": "mirage",
-        "dist": 0.317
-      },
-      {
         "a": "lancer",
         "b": "mirage",
         "dist": 0.357
+      },
+      {
+        "a": "ifv",
+        "b": "mirage",
+        "dist": 0.371
       }
     ],
     "topImpostors": [
@@ -1128,7 +1122,7 @@
       "mammoth": 0.2187,
       "engineer": 0.4098,
       "dog": 0.0663,
-      "ifv": 0.1703,
+      "ifv": 0.0349,
       "mirage": 0.2515,
       "tanya": 0.1604,
       "rhino": 0.1727,
@@ -1171,7 +1165,7 @@
       "mammoth": 0.1896,
       "engineer": 0.095,
       "dog": 0.4858,
-      "ifv": 0.1519,
+      "ifv": 0.1742,
       "mirage": 0.1326,
       "tanya": 0.2385,
       "rhino": 0.1422,
@@ -1212,10 +1206,10 @@
     "tightestMassBand": [
       "Rhino Tank",
       "Tesla Tank",
+      "IFV",
       "Mirage Tank",
       "Apocalypse",
-      "V3 Launcher",
-      "IFV"
+      "V3 Launcher"
     ],
     "ra2Aspect": [
       {
@@ -1380,6 +1374,13 @@
         "ratio": 1.09
       },
       {
+        "key": "ifv",
+        "wh": "59x56",
+        "ours": 1.054,
+        "ra2": 1.125,
+        "ratio": 0.937
+      },
+      {
         "key": "drone",
         "wh": "31x22",
         "ours": 1.409,
@@ -1420,13 +1421,6 @@
         "ours": 1.579,
         "ra2": 1.614,
         "ratio": 0.979
-      },
-      {
-        "key": "ifv",
-        "wh": "62x54",
-        "ours": 1.148,
-        "ra2": 1.125,
-        "ratio": 1.02
       },
       {
         "key": "mammoth",
@@ -1596,6 +1590,16 @@
         "dev": 0.0588
       },
       {
+        "key": "ifv",
+        "group": "vehicle",
+        "ours": 59,
+        "ra2": 54,
+        "ra2WH": "54x48",
+        "scale": 1.0926,
+        "groupScale": 1.1607,
+        "dev": -0.0587
+      },
+      {
         "key": "chronominer",
         "group": "vehicle",
         "ours": 69,
@@ -1724,16 +1728,6 @@
         "scale": 0.9011,
         "groupScale": 0.8889,
         "dev": 0.0137
-      },
-      {
-        "key": "ifv",
-        "group": "vehicle",
-        "ours": 62,
-        "ra2": 54,
-        "ra2WH": "54x48",
-        "scale": 1.1481,
-        "groupScale": 1.1607,
-        "dev": -0.0109
       },
       {
         "key": "teslatank",
@@ -3168,7 +3162,7 @@
         "ok": false,
         "measured": 1.119,
         "want": ">= 1.33x",
-        "note": "destroyer 94 px broadside against the widest land vehicle, MCV at 84 px — she is SHORTER than a tank. THE THRESHOLD IS RA2'S OWN, DERIVED: [DEST] 101 px over the widest RA2 land vehicle ([AMCV] 76 px) = 1.329. §2.3 stated 1.7x, 16% ABOVE the game the row cites, and 1.7 would need a 179 px hull (Carrier 264 px on a 150 px sheet). CORRECTING IT CLOSES NOTHING AND IS NOT MEANT TO: at 1.119 the row is still unmet by a factor of 1.19, and the SIGN is the defect. WHAT THIS CLAUSE ACTUALLY MEASURES is the cross-group bake scale, exactly: our 1.119 = RA2's 1.329 x (destroyer scale 0.9307 / MCV scale 1.1053), to four decimals. The fleet is baked at 0.889x RA2's own sprite widths while the ground vehicles sit at 1.217x — a 1.37x CROSS-GROUP mismatch that NEITHER size gate can see, because `size.navalOutsideRA2Band` and `size.vehicleOutsideRA2Band` both normalise against their own group's median. `size.crossGroupSpread` exists to hold it and is ratcheted at 1.607. THE CEILING IS NOW MEASURED, NOT ARGUED (2026-09-06). Growing the fleet is off the table — it spends the board's best-proportioned group (7 hulls, spread 1.06x, every hull within 5% of its scale) — so the only route left is shrinking the ground roster until the widest land vehicle fits: 70 px against today's 84, i.e. the WHOLE vehicle group at x0.571. That was baked and measured, and it does close this row (1.483) while breaking six gates at once: `size.crossGroupSpread` 1.607 -> 1.899 (the ground roster lands at 0.725 of RA2, BELOW the fleet it was meant to catch, with infantry left at 1.417), `size.vehicleOutsideRA2Band` 0 -> 2, `spike.belowDeclaredBudget` 0 -> 4, `colour.vehicleAchromatic` 0 -> 4, `iou.groundCombat.mean` 0.4652 -> 0.4745, and `clause.unmet` 5 -> 9: the Rhino, Apocalypse, Tesla Tank, V3 and War Miner all lose their own §2 pixel budgets because the sprites are too small to hold the detail. ONE ROW CLOSES AND FIVE OPEN. Left UNMET on purpose, with the arithmetic rather than an estimate. per-unit-art-log.md.",
+        "note": "destroyer 94 px broadside against the widest land vehicle, MCV at 84 px — she is SHORTER than a tank. THE THRESHOLD IS RA2'S OWN, DERIVED: [DEST] 101 px over the widest RA2 land vehicle ([AMCV] 76 px) = 1.329. §2.3 stated 1.7x, 16% ABOVE the game the row cites, and 1.7 would need a 179 px hull (Carrier 264 px on a 150 px sheet). CORRECTING IT CLOSES NOTHING AND IS NOT MEANT TO: at 1.119 the row is still unmet by a factor of 1.19, and the SIGN is the defect. WHAT THIS CLAUSE ACTUALLY MEASURES is the cross-group bake scale, exactly: our 1.119 = RA2's 1.329 x (destroyer scale 0.9307 / MCV scale 1.1053), to four decimals. The fleet is baked at 0.889x RA2's own sprite widths while the ground vehicles sit at 1.2x — a 1.35x CROSS-GROUP mismatch that NEITHER size gate can see, because `size.navalOutsideRA2Band` and `size.vehicleOutsideRA2Band` both normalise against their own group's median. `size.crossGroupSpread` exists to hold it and is ratcheted at 1.607. THE CEILING IS NOW MEASURED, NOT ARGUED (2026-09-06). Growing the fleet is off the table — it spends the board's best-proportioned group (7 hulls, spread 1.06x, every hull within 5% of its scale) — so the only route left is shrinking the ground roster until the widest land vehicle fits: 70 px against today's 84, i.e. the WHOLE vehicle group at x0.571. That was baked and measured, and it does close this row (1.483) while breaking six gates at once: `size.crossGroupSpread` 1.607 -> 1.899 (the ground roster lands at 0.725 of RA2, BELOW the fleet it was meant to catch, with infantry left at 1.417), `size.vehicleOutsideRA2Band` 0 -> 2, `spike.belowDeclaredBudget` 0 -> 4, `colour.vehicleAchromatic` 0 -> 4, `iou.groundCombat.mean` 0.4652 -> 0.4745, and `clause.unmet` 5 -> 9: the Rhino, Apocalypse, Tesla Tank, V3 and War Miner all lose their own §2 pixel budgets because the sprites are too small to hold the detail. ONE ROW CLOSES AND FIVE OPEN. Left UNMET on purpose, with the arithmetic rather than an estimate. per-unit-art-log.md.",
         "module": "naval-air.js",
         "refMatch": 1
       },
@@ -4097,9 +4091,9 @@
         "unit": "ifv",
         "clause": "body aspect 1.0-1.2",
         "ok": true,
-        "measured": 1.148,
+        "measured": 1.054,
         "want": "1.0 - 1.2",
-        "note": "whole-sprite 62x54; RA2's own [FV] is 50x45 = 1.111 measured the same way, and art-metrics' aspect gate reads this unit at 1.033 of it",
+        "note": "whole-sprite 59x56; RA2's own [FV] is 50x45 = 1.111 measured the same way, and art-metrics' aspect gate reads this unit at 0.948 of it",
         "module": "vehicle.js",
         "refMatch": 1
       },
@@ -4107,9 +4101,9 @@
         "unit": "ifv",
         "clause": "turret >= 45% of total height — struck: it cannot coexist with the aspect clause beside it",
         "ok": true,
-        "measured": "crown 0.389 (21 px of 62x54), headroom 0.426",
+        "measured": "crown 0.286 (16 px of 59x56), headroom 0.473",
         "want": "2:1 camera + aspect in 1.0-1.2 + crown < 0.45",
-        "note": "STRUCK from §2.3 — the check is of the STRIKE, not of the art, and it is a WATCHDOG on the strike's premises rather than a re-derivation of it. The tile is 64x32, so ISO_Y/ISO_X = 0.5 (both definitions source-verified: true) and at this unit's gated octant a ground footprint of screen width w projects to w/2 of screen HEIGHT carrying no vertical structure: h = w/2 + V. The unit measures 62x54 = aspect 1.148, inside the 1.0-1.2 the OTHER clause on this row states (true), which caps the whole wheels-to-crown budget at 0.426 of the sprite height. The crown ships at 0.389. HONEST LIMIT: 0.426 is ABOVE 0.45, and every aspect in the row's band below 1.10 is analytically compatible with 45%, so this is NOT the pure contradiction the Nighthawk's rotor row is. The exclusion is the MEASURED frontier — 0.420 at aspect 1.000, 0.45 first at 0.943 = 0.849 of [FV]'s own 1.111, four levers swept (per-unit-art-log.md §2) — which a check cannot re-run. So the row asserts what a check CAN own: the camera, the clause beside it still binding, and the crown still short of 45%. Reach 45% inside the band and this row goes red, which is the point",
+        "note": "STRUCK from §2.3 — the check is of the STRIKE, not of the art, and it is a WATCHDOG on the strike's premises rather than a re-derivation of it. The tile is 64x32, so ISO_Y/ISO_X = 0.5 (both definitions source-verified: true) and at this unit's gated octant a ground footprint of screen width w projects to w/2 of screen HEIGHT carrying no vertical structure: h = w/2 + V. The unit measures 59x56 = aspect 1.054, inside the 1.0-1.2 the OTHER clause on this row states (true), which caps the whole wheels-to-crown budget at 0.473 of the sprite height. The crown ships at 0.286. HONEST LIMIT: 0.473 is ABOVE 0.45, and every aspect in the row's band below 1.10 is analytically compatible with 45%, so this is NOT the pure contradiction the Nighthawk's rotor row is. The exclusion is the MEASURED frontier — 0.420 at aspect 1.000, 0.45 first at 0.943 = 0.849 of [FV]'s own 1.111, four levers swept (per-unit-art-log.md §2) — which a check cannot re-run. So the row asserts what a check CAN own: the camera, the clause beside it still binding, and the crown still short of 45%. Reach 45% inside the band and this row goes red, which is the point",
         "struck": true,
         "module": "vehicle.js",
         "refMatch": 0.85
@@ -4815,9 +4809,9 @@
         "selfIoU": 0.6781,
         "selfIoUCross": 0.6781,
         "bestPeer": "IFV",
-        "bestPeerIoU": 0.7136,
+        "bestPeerIoU": 0.7541,
         "nearestPeer": "IFV",
-        "nearestPeerMMD2": 0.1106,
+        "nearestPeerMMD2": 0.0205,
         "peersBeatingSelf": 0,
         "peers": 12,
         "spike": {
@@ -4906,29 +4900,29 @@
         "name": "IFV",
         "group": "vehicle",
         "fac": "dir",
-        "mass": 1903,
-        "bboxW": 62,
+        "mass": 1719,
+        "bboxW": 59,
         "bboxH": 56,
-        "aspect": 1.025,
-        "broadsideWH": "62x54",
-        "broadsideAspect": 1.148,
+        "aspect": 0.944,
+        "broadsideWH": "59x56",
+        "broadsideAspect": 1.054,
         "ra2Aspect": 1.125,
-        "vsRA2": 1.02,
-        "selfIoU": 0.722,
-        "selfIoUCross": 0.722,
-        "bestPeer": "Prism Tank",
-        "bestPeerIoU": 0.762,
-        "nearestPeer": "V3 Launcher",
-        "nearestPeerMMD2": 0.058,
+        "vsRA2": 0.937,
+        "selfIoU": 0.7125,
+        "selfIoUCross": 0.7125,
+        "bestPeer": "Flak Track",
+        "bestPeerIoU": 0.7541,
+        "nearestPeer": "Flak Track",
+        "nearestPeerMMD2": 0.0205,
         "peersBeatingSelf": 0,
         "peers": 12,
         "spike": {
           "axis": "v",
-          "len": 21,
-          "thick": 28,
+          "len": 20,
+          "thick": 23.5,
           "budget": 8,
           "floor": 3.64,
-          "atZmin": 15.4,
+          "atZmin": 12.93,
           "floorAtZmin": 2,
           "lenBudget": 8,
           "fails": null,
@@ -5220,8 +5214,8 @@
         "vsRA2": 1.001,
         "selfIoU": 0.8097,
         "selfIoUCross": 0.8097,
-        "bestPeer": "IFV",
-        "bestPeerIoU": 0.762,
+        "bestPeer": "War Miner",
+        "bestPeerIoU": 0.7453,
         "nearestPeer": "War Miner",
         "nearestPeerMMD2": 0.0663,
         "peersBeatingSelf": 0,

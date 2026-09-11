@@ -9220,7 +9220,7 @@
     if (kind === 'lancer')       { hull = '#626a7b'; deck = '#3e4450'; }   // slate-navy with a pale top, as allied-grizzly-tank.png (VLIFT lifts it)
     else if (kind === 'spectre') { hull = '#464e5d'; deck = '#30353f'; }   // dark navy-slate, as allied-prism-tank.png
     else if (kind === 'mammoth') { hull = '#8c925a'; deck = '#5a5e34'; }   // a REAL olive, per 1.4 -- pale, as apocalypse.png (29% light px)
-    else if (kind === 'ifv')     { hull = '#9c9fb4'; deck = '#7e8394'; }   // lavender-grey body, as the [FV] voxel render (VLIFT lifts it)
+    else if (kind === 'ifv')     { hull = '#8588a2'; deck = '#7e8394'; }   // lavender-grey body, as the [FV] voxel render (VLIFT lifts it)
     else if (kind === 'mirage')  { hull = '#3f4552'; deck = '#262a33'; }   // dark slate-navy, as mirage.png
     else if (kind === 'rhino')     { hull = '#a0a080'; deck = '#63644b'; } // sand-khaki, as rhino.png (32% light px)
     else if (kind === 'flaktrack') { hull = '#d2cfc0'; deck = '#c2bfae'; } // cream body AND bed, as soviet-flak-track.png
@@ -9247,7 +9247,7 @@
     // per high against the reference's 1.41), and the deck the turret sits on
     // is where most of that height was.
     var RING = kind === 'mammoth' ? 9.6 : (kind === 'spectre' ? 6.4 :
-               (kind === 'ifv' ? 7.4 : (kind === 'rhino' ? 8.8 :
+               (kind === 'ifv' ? 9.5 : (kind === 'rhino' ? 8.8 :
                (kind === 'flaktrack' ? 9.0 : 7.4))));
 
     // ── SIZE CLASS ────────────────────────────────────────────────────────
@@ -10677,125 +10677,184 @@
         }
 
       } else if (kind === 'ifv') {
-        // IFV — measured off `allied-ifv-idle.png` the RA2 sprite is almost
-        // SQUARE (41x42 at the down-right facing): a SHORT pale wheeled body
-        // sitting on three big road tyres a side, with a TALL blocky launcher
-        // housing standing on the back deck. The previous pass built a long
-        // flat wedge with six tubes reaching forward past the nose, which read
-        // as a rocket buggy from a different game. Height, not length, is the
-        // identity — and the owner colour lives on the turret, not in two
-        // stripes down the full flank.
+        // IFV -- 2026-09-10 (9): rebuilt from `allied-ifv-voxel.png` (the
+        // wiki's File:IFV Voxel Render.jpg, which the user pointed at:
+        // "reproduce it exactly"), measured at 3x with the body's length as
+        // the unit:
+        //   wheels   D 0.22, three a side, wheelbase 0.62 set 0.07 AFT of
+        //            centre (the nose overhangs the front axle by a quarter
+        //            of the body); dark tyres, big cream hubs
+        //   body     TWO levels: a low bonnet over the front half (top at
+        //            0.35) and a raised deck over the rear half (0.44) with
+        //            one step between them; a dark grille slot along the
+        //            LEFT of the bonnet and a short one on the deck's left
+        //            front; two square lamps low on the nose with tow hooks
+        //            under them; the navy stripe mid-height on the deck's
+        //            flank. No windscreen -- the step face is plain.
+        //   ring     a dark grey pedestal on the deck, 0.28 wide
+        //   ROCKET   a lavender box 0.46 long x 0.23 thick, NOSE-UP ~30
+        //            degrees (not 60: the waist band runs top-left to
+        //            bottom-right on the broadside, so the axis is flat),
+        //            its TIP face carrying the six cells in two columns of
+        //            three, a navy band round its waist
+        //   GUN      a pale dome 0.48 wide on a navy collar, a black boxy MG
+        //            off the left cheek at collar height, fat muzzle
+        //   ARM      a navy BOXY arm: a shoulder segment leaning back, a
+        //            block elbow, a forearm reaching forward, a grey two-
+        //            finger C-claw opening forward
+        //   TECH     the same dome, flatter, a cream cap running down its
+        //            front
+        // The pod and the arm are the one shape the kit did not have -- a box
+        // canted off horizontal -- so `cbox` below projects a real (u, v, z)
+        // box through the sheet's own transform and culls its faces against
+        // the projection's line of sight, which is what makes the tip face
+        // show at the nose-toward-camera bearings and the back at the rest.
+        var KF = ISO_X * 1.4142;                          // screen px per ground unit at broadside
+        var P3 = function (u, v, z) { return [cx + fx * u + px * v, by + fy * u + py * v - z]; };
+        var Lu = px, Lv = -fx, Lz = fy * px - py * fx;    // line of sight toward the camera, in (u, v, z)
+        if (Lz < 0) { Lu = -Lu; Lv = -Lv; Lz = -Lz; }
+        var poly = function (pts, col) {
+          g.beginPath(); g.moveTo(pts[0][0], pts[0][1]);
+          for (var q = 1; q < pts.length; q++) g.lineTo(pts[q][0], pts[q][1]);
+          g.closePath(); g.fillStyle = col; g.fill();
+        };
+        var quad3 = function (c0, c1, c2, c3, col) {
+          poly([P3(c0[0], c0[1], c0[2]), P3(c1[0], c1[1], c1[2]), P3(c2[0], c2[1], c2[2]), P3(c3[0], c3[1], c3[2])], col);
+        };
+        // A box canted `th` off horizontal in the (forward, up) plane: base-
+        // end centre (u0, z0), L along the axis, T through it, W across.
+        // `deco(face, pt)` is called for each VISIBLE face so a caller can
+        // paint a band or a cell grid on it in the face's own (i, j, k) space.
+        var cbox = function (u0, z0, th, L, T, W, col, deco) {
+          var au = Math.cos(th) / KF * L, az = Math.sin(th) * L;
+          var tu = -Math.sin(th) / KF * T, tz = Math.cos(th) * T;
+          var pt = function (i, j, k) { return [u0 + au * i + tu * (j - 0.5), W * (k - 0.5), z0 + az * i + tz * (j - 0.5)]; };
+          var cen = pt(0.5, 0.5, 0.5);
+          var F = [[[0, 0, 0], [0, 1, 0], [0, 1, 1], [0, 0, 1], 'base'], [[1, 0, 0], [1, 0, 1], [1, 1, 1], [1, 1, 0], 'tip'],
+                   [[0, 0, 0], [1, 0, 0], [1, 0, 1], [0, 0, 1], 'bot'],  [[0, 1, 0], [0, 1, 1], [1, 1, 1], [1, 1, 0], 'top'],
+                   [[0, 0, 0], [1, 0, 0], [1, 1, 0], [0, 1, 0], 'side0'], [[0, 0, 1], [0, 1, 1], [1, 1, 1], [1, 0, 1], 'side1']];
+          for (var q = 0; q < F.length; q++) {
+            var f = F[q], c0 = pt.apply(null, f[0]), c1 = pt.apply(null, f[1]), c2 = pt.apply(null, f[2]);
+            var e1 = [c1[0] - c0[0], c1[1] - c0[1], c1[2] - c0[2]], e2 = [c2[0] - c0[0], c2[1] - c0[1], c2[2] - c0[2]];
+            var n = [e1[1] * e2[2] - e1[2] * e2[1], e1[2] * e2[0] - e1[0] * e2[2], e1[0] * e2[1] - e1[1] * e2[0]];
+            if (n[0] * (cen[0] - c0[0]) + n[1] * (cen[1] - c0[1]) + n[2] * (cen[2] - c0[2]) > 0) { n[0] = -n[0]; n[1] = -n[1]; n[2] = -n[2]; }
+            if (n[0] * Lu + n[1] * Lv + n[2] * Lz <= 0) continue;
+            var nm = f[4], sh = nm === 'top' ? 1.00 : (nm === 'tip' ? 0.86 : (nm === 'base' ? 0.76 : (nm === 'bot' ? 0.55 : 0.64)));   // shade() lifts a grey once more (VLIFT)
+            var pts = [];
+            for (var r = 0; r < 4; r++) { var cq = pt.apply(null, f[r]); pts.push(P3(cq[0], cq[1], cq[2])); }
+            poly(pts, shade(col, sh));
+            g.strokeStyle = shade(col, 0.55); g.lineWidth = 0.45; g.stroke();        // the voxel's own edge between faces
+            if (deco) deco(nm, pt);
+          }
+          return pt;
+        };
+        var HL = len * 0.45;                              // half the body's length (chassis draws len*0.90)
         if (wantH) {
-          // 2026-09-10 (4) -- ONE PIECE. `allied-ifv.png` is a single pale
-          // six-wheeled body: a sloped nose, a slightly raised rear, one blue
-          // stripe low along the flank. It was drawn as five outlined boxes
-          // (body, cab, cab roof, windscreen, two stripes) and read as lego.
-          // Now: wheels, one raked body, one rear step in the SAME tone so
-          // the two read as one surface, the windscreen as a dark patch, one
-          // stripe -- and no part carries an outline (NO_RIM); the sheet is
-          // outlined once, at the silhouette.
-          // the body rides HIGH on three big tyres a side: on the rip the
-          // wheels are a third of the hull's height and show at every bearing
-          // (5) the body is a LOW WEDGE that is mostly tyres -- on the rip the
-          // pale hull is a shallow band over three big wheels, high at the
-          // rear and falling to the nose, and the launcher stands as tall as
-          // the whole body again, right over the rear axle.
-          // tyres a shade lighter with big pale hubs, as the rip's: black
-          // discs read as three holes in the sprite at 1:1
-          wheels(len * 0.82, 3.8, 3, '#262a31', '#b4bbc5');
-          chassis(cx, by - 3.2, len * 0.90, wid * 0.70, 2.6, hull, null, 3.4);
-          // (no rear step: it showed as a white plinth round the launcher;
-          // on the rip the launcher's mount IS the rear of the hull)
-          var wsx = cx + fx * 2.0, wsy = by - 5.8 + fy * 2.0;
-          isoBox(g, wsx, wsy, 1.0, wid * 0.46, 1.8, a, '#2a3039', null);   // windscreen
-          for (sg = -1; sg <= 1; sg += 2)                      // ONE low NAVY stripe a flank (the voxel's is dark)
-            isoBox(g, cx + px * wid * 0.35 * sg - fx * 0.6,
-                   by - 3.9 + py * wid * 0.35 * sg - fy * 0.6,
-                   len * 0.62, 1.2, 1.5, a, pdark, null);
-          isoBox(g, cx + fx * 4.4, by - 5.9 + fy * 4.4, 1.1, wid * 0.40, 0.5, a, '#2a2e3a', null);   // the vent slot on the bonnet
-          for (i2 = -1; i2 <= 1; i2 += 2)
-            lamp(cx + fx * len * 0.43 + px * wid * 0.25 * i2,
-                 by - 4.6 + fy * len * 0.43 + py * wid * 0.25 * i2);
+          var WR = 2.7, wpos = [];
+          for (sg = -1; sg <= 1; sg += 2) for (i2 = 0; i2 < 3; i2++) {
+            var wu = -len * 0.07 + (i2 - 1) * len * 0.31, wv = wid * 0.42 * sg;
+            wpos.push([cx + fx * wu + px * wv, by - WR * 0.84 + fy * wu + py * wv]);
+          }
+          wpos.sort(function (m, n2) { return m[1] - n2[1]; });
+          for (i2 = 0; i2 < wpos.length; i2++) wheelDisc(wpos[i2][0], wpos[i2][1], WR, 0.62, '#2a2b2f', '#cfcfc0');
+          chassis(cx, by - 3.0, len * 0.90, wid * 0.70, 3.2, hull, null, 3.2);           // underbody + bonnet-height body, raked nose; the wheels hang 0.6 D below the skirt, as the render's
+          var du = -len * 0.20;
+          isoBox(g, cx + fx * du, by - 7.5 + fy * du, len * 0.50, wid * 0.70, 2.0, a, hull, null);   // the raised rear deck (top = RING)
+          for (sg = -1; sg <= 1; sg += 2) if (sg * Lv > 0) {                                  // the navy stripe, mid-height on the NEAR flank of the deck
+            var fv = sg * (wid * 0.35 + 0.02);
+            quad3([-len * 0.43, fv, 7.7], [-len * 0.02, fv, 7.7], [-len * 0.02, fv, 9.3], [-len * 0.43, fv, 9.3], shade(col, 0.62));
+          }
+          var sv = wid * 0.21;                                                                  // grille slots, LEFT side (+v is the vehicle's left)
+          du = len * 0.22;
+          isoBox(g, cx + fx * du + px * sv, by - 7.5 + fy * du + py * sv, len * 0.34, wid * 0.18, 0.6, a, '#383a42', null);
+          du = -len * 0.03;
+          isoBox(g, cx + fx * du + px * sv, by - 9.5 + fy * du + py * sv, len * 0.16, wid * 0.15, 0.6, a, '#383a42', null);
+          if (Lu > 0) {                                                                         // the nose faces us: lamps + tow hooks
+            var nu = HL + 0.25;
+            for (sg = -1; sg <= 1; sg += 2) {
+              var lv = wid * 0.24 * sg;
+              quad3([nu, lv - 0.8, 3.9], [nu, lv + 0.8, 3.9], [nu, lv + 0.8, 5.5], [nu, lv - 0.8, 5.5], '#1e2026');
+              quad3([nu, lv - 0.5, 4.2], [nu, lv + 0.5, 4.2], [nu, lv + 0.5, 5.2], [nu, lv - 0.5, 5.2], '#ece9dc');
+              quad3([nu, lv - 0.45, 2.6], [nu, lv + 0.45, 2.6], [nu, lv + 0.45, 3.5], [nu, lv - 0.45, 3.5], '#181a1f');
+            }
+          }
         }
         if (wantT) {
-          var ivx = cx - fx * 1.2, ivy = by - RING - fy * 1.2;
-          var ivT = tv || 0;
-          puck(ivx, ivy, 3.4, 1.6, pdark, panel, PEDGE);      // house-colour turret ring
-          // ---- turret 1: the GUN mount ([FV] MachineGunTurretIndex=1) -----
-          // GI, Conscript, Spy, Flak Trooper, Rocketeer, Tanya, a sniper: all
-          // of them fire out of the same low, wide cupola with a slim barrel
-          // over the front lip and a shield beside it, which is why the RA2
-          // sprite for six different passengers is one model.
-          // 2026-09-10 (8) -- THE FOUR TURRETS, from `allied-ifv-voxel.png`
-          // (File:IFV Voxel Render.jpg), which the user pointed at: "this is
-          // what the RA2 IFV looks like, and it changes shape when a
-          // different troop enters it, reproduce it exactly". Four models:
-          //   GUN    a low pale DOME with a navy band and a short black
-          //          machine gun with a fat muzzle, off the left cheek
-          //   ARM    an articulated BLUE arm rising up and forward from a
-          //          pedestal to a grey two-finger claw
-          //   TECH   a big pale HEMISPHERE on a navy collar
-          //   ROCKET a chunky cell pod CANTED UP ~30 degrees on a short
-          //          pedestal, dark grey with a blue band round its middle
-          var HB = shade(hull, 0.92), HT = shade(hull, 1.10);
+          var ivu = -1.2, ivx = cx + fx * ivu, ivy = by - RING + fy * ivu;
+          var ivT = tv || 0, NAVY = shade(col, 0.62);                          // the render's remap is a deep navy
+          var RGT = RING + 1.4;                                                 // the ring's top
+          puck(ivx, ivy, 3.2, 1.4, '#474a58', '#3b3e4b', null);                // dark grey turret ring
+          var DOME = function (flat) {
+            puck(ivx, ivy - 1.4, 3.9, 1.3, NAVY, NAVY, null);                   // navy collar
+            var zc = 2.7, steps = flat ? [[3.9, 1.0, 0.70], [3.3, 0.9, 0.74], [2.4, 0.8, 0.79], [1.4, 0.6, 0.84]]
+                                        : [[3.9, 1.2, 0.70], [3.4, 1.1, 0.74], [2.6, 1.0, 0.79], [1.5, 0.7, 0.84]];
+            for (i2 = 0; i2 < steps.length; i2++) {
+              puck(ivx, ivy - zc, steps[i2][0], steps[i2][1], shade(hull, steps[i2][2]), shade(hull, steps[i2][2] + 0.05), null);
+              zc += steps[i2][1];
+            }
+            return zc;
+          };
           if (ivT === IFV_TUR_GUN) {
-            puck(ivx, ivy - 1.2, 3.0, 2.0, HB, HT, null);                    // the low dome base
-            puck(ivx, ivy - 2.0, 3.05, 0.9, pdark, pdark, null);              // navy band
-            g.fillStyle = shade(hull, 1.16); gEllipse(ivx, ivy - 3.3, 2.5); g.fill();
-            g.fillStyle = shade(hull, 1.30); gEllipse(ivx - fx * 0.3, ivy - 3.9 - fy * 0.3, 1.5); g.fill();
-            var gbx = ivx + fx * 2.0 - px * 1.4, gby = ivy - 3.0 + fy * 2.0 - py * 1.4;
-            barrel(gbx, gby, 8.0, 1.05, 0.85, '#15161a');                    // short MG, left cheek
-            g.fillStyle = '#1c1f26';                                          // the fat muzzle
-            g.beginPath(); g.ellipse(gbx + fx * 8.0, gby + fy * 8.0, 1.3, 1.0, 0, 0, 6.29); g.fill();
+            var zt = DOME(false);
+            g.fillStyle = shade(hull, 0.96); gEllipse(ivx - 0.9, ivy - zt + 0.9, 1.3, 0.9); g.fill();   // the highlight, up-left
+            var gu = ivu + 1.6, gv = 2.7, gz = RING + 1.2;                    // the black boxy MG, off the LEFT cheek (+v) at collar height
+            isoBox(g, cx + fx * gu + px * gv, by - gz + fy * gu + py * gv, 2.8, 2.0, 2.2, a, '#15161a', null);
+            isoBox(g, cx + fx * (gu + 0.1) + px * gv, by - gz - 2.2 + fy * (gu + 0.1) + py * gv, 2.0, 1.5, 0.4, a, '#4a4d58', null);   // its grey top
+            var bu = gu + 2.3;
+            isoBox(g, cx + fx * bu + px * gv, by - gz + 0.2 + fy * bu + py * gv, 1.6, 1.4, 1.6, a, '#0f1014', null);          // the muzzle block
           }
           else if (ivT === IFV_TUR_ARM) {
-            puck(ivx, ivy - 1.2, 2.6, 2.2, HB, HT, null);                    // pedestal
-            puck(ivx, ivy - 2.2, 2.65, 0.8, pdark, pdark, null);
-            var jx = ivx, jy = ivy - 3.4;                                     // shoulder
-            var ex1 = jx + fx * 1.6, ey1 = jy - 6.4 + fy * 1.6;              // elbow, high
-            var ex2 = ex1 + fx * 4.6, ey2 = ey1 - 1.2 + fy * 4.6;            // wrist, forward
-            g.strokeStyle = pdark; g.lineWidth = 3.0; g.lineCap = 'round'; g.lineJoin = 'round';
-            g.beginPath(); g.moveTo(jx, jy); g.lineTo(ex1, ey1); g.lineTo(ex2, ey2); g.stroke();
-            g.strokeStyle = panel; g.lineWidth = 1.6;                        // lit edge of the blue arm
-            g.beginPath(); g.moveTo(jx - 0.5, jy - 0.6); g.lineTo(ex1 - 0.5, ey1 - 0.6); g.lineTo(ex2 - 0.5, ey2 - 0.6); g.stroke();
-            g.strokeStyle = '#b9c0ca'; g.lineWidth = 1.5; g.lineCap = 'round'; // the grey claw
-            g.beginPath(); g.arc(ex2 + fx * 1.2, ey2 + fy * 1.2, 1.9, -2.4, 0.6); g.stroke();
-            g.beginPath(); g.arc(ex2 + fx * 1.2, ey2 + fy * 1.2 + 0.4, 1.9, 0.9, 3.6); g.stroke();
+            puck(ivx, ivy - 1.4, 1.5, 1.0, '#3a3d4a', '#454956', null);        // shoulder block
+            var su = ivu + 0.9, sz = RGT + 0.6, TH1 = 2.4;
+            var pt1 = cbox(su, sz + 0.4, 2.13, 6.6, TH1, 2.6, NAVY, null);    // upper arm, leaning BACK ~58 degrees
+            var E = pt1(1, 0.5, 0.5);                                          // the elbow
+            cbox(E[0] - 1.3 / KF, E[2] - 1.3, 0, 2.7, 2.7, 2.7, shade(NAVY, 0.85), null);   // block elbow
+            var pt2 = cbox(E[0] - 0.9, E[2] + 0.2, 0.35, 8.8, 2.2, 2.3, NAVY, null);    // forearm, reaching forward ~20 degrees
+            var Wp = pt2(1, 0.5, 0.5);
+            var cu = Wp[0] + 1.6, cz = Wp[2], rc = 3.5;                        // the C-claw, opening forward
+            for (sg = -1; sg <= 1; sg += 2) {
+              for (var pass = 0; pass < 2; pass++) {
+                g.strokeStyle = pass ? '#eceef2' : '#b4b6c2'; g.lineWidth = pass ? 0.7 : 1.5; g.lineCap = 'round';
+                g.beginPath();
+                for (i2 = 0; i2 <= 14; i2++) {
+                  var t = (0.95 + i2 / 14 * 4.38);                             // 55 -> 305 degrees: the gap faces forward
+                  var q3 = P3(cu + rc * Math.cos(t) / KF, sg * 1.3, cz + rc * Math.sin(t) - (pass ? 0.3 : 0));
+                  if (i2 === 0) g.moveTo(q3[0], q3[1]); else g.lineTo(q3[0], q3[1]);
+                }
+                g.stroke();
+              }
+            }
+            quad3([Wp[0] - 0.3, -1.2, Wp[2] - 1.1], [Wp[0] - 0.3, 1.2, Wp[2] - 1.1], [Wp[0] - 0.3, 1.2, Wp[2] + 1.1], [Wp[0] - 0.3, -1.2, Wp[2] + 1.1], '#8e919f');   // wrist plate
           }
           else if (ivT === IFV_TUR_TECH) {
-            puck(ivx, ivy - 1.0, 3.6, 1.6, pdark, pdark, null);              // navy collar
-            puck(ivx, ivy - 2.6, 3.5, 1.5, HB, HT, null);                    // the hemisphere, in steps
-            puck(ivx, ivy - 4.1, 2.9, 1.3, shade(hull, 0.98), shade(hull, 1.16), null);
-            puck(ivx, ivy - 5.4, 2.0, 1.1, shade(hull, 1.06), shade(hull, 1.24), null);
-            g.fillStyle = shade(hull, 1.34); gEllipse(ivx - fx * 0.2, ivy - 6.7 - fy * 0.2, 1.0); g.fill();
-            g.strokeStyle = pdark; g.lineWidth = 0.8;                        // one navy seam over the dome
-            g.beginPath();
-            g.moveTo(ivx + fx * 3.2, ivy - 2.8 + fy * 3.2); g.lineTo(ivx - fx * 0.2, ivy - 6.6 - fy * 0.2);
-            g.stroke();
+            var zt2 = DOME(true), DR = 3.9, DH = zt2 - 2.7, DZ = RING + 2.7;   // the dome: radius, height, collar top
+            g.fillStyle = '#dcd7c5'; gEllipse(ivx, ivy - zt2 + 0.05, 1.9); g.fill();                    // cream cap
+            if (Lu > 0.15) {                                                                            // the cream runs down the FRONT of the dome
+              var cp = [], ee, PH = 0.62;
+              for (ee = 0; ee <= 6; ee++) { var el = 0.18 + ee / 6 * 1.32; cp.push([ivu + DR * Math.cos(el) * Math.cos(PH), DR * Math.cos(el) * Math.sin(PH), DZ + DH * Math.sin(el)]); }
+              for (ee = 6; ee >= 0; ee--) { var el2 = 0.18 + ee / 6 * 1.32; cp.push([ivu + DR * Math.cos(el2) * Math.cos(PH), -DR * Math.cos(el2) * Math.sin(PH), DZ + DH * Math.sin(el2)]); }
+              var sp = []; for (ee = 0; ee < cp.length; ee++) sp.push(P3(cp[ee][0], cp[ee][1], cp[ee][2]));
+              poly(sp, '#d3cebc');
+            }
           }
           else {
-          var LBODY = '#4f5764';
-          var lcx = cx - fx * 2.4, lby = ivy - 1.6 - fy * 2.4;
-          isoBox(g, lcx, lby + 1.2, 3.2, 3.6, 2.6, a, HB, null);             // short pedestal
-          // the pod: seven slices, each stepped FORWARD, so the block leans
-          // up and ahead ~30 degrees the way the voxel's does; the middle
-          // slice is the blue band
-          var NS = 6, SL = 6.4, SW = 7.4, SH = 1.1, STEP = 0.95;   // ~40 deg of lean, as the render's
-          for (i2 = 0; i2 < NS; i2++)
-            isoBox(g, lcx + fx * STEP * i2, lby - 1.4 - SH * i2 + fy * STEP * i2, SL, SW, SH, a,
-                   (i2 === 3) ? panel : LBODY, null);
-          // the cell mouths on the raised forward face: two rows of three
-          var fU = SL / 2;
-          for (i2 = 0; i2 < 2; i2++)
-            for (sg = -1; sg <= 1; sg++) {
-              var ii = 5 - i2 * 2;                                            // which slice's face (5 and 3 of 0..5)
-              var mx0 = lcx + fx * (STEP * ii + fU) + px * (sg * 2.3), my0 = lby - 1.4 - SH * ii + fy * (STEP * ii + fU) + py * (sg * 2.3);
-              g.fillStyle = '#171a20';
-              g.beginPath();
-              g.moveTo(mx0 + px * 0.9, my0 + py * 0.9); g.lineTo(mx0 - px * 0.9, my0 - py * 0.9);
-              g.lineTo(mx0 - px * 0.9, my0 - py * 0.9 - 1.7); g.lineTo(mx0 + px * 0.9, my0 + py * 0.9 - 1.7);
-              g.closePath(); g.fill();
-            }
+            // the pod's rear-bottom corner sits IN the ring; the tip carries the cells
+            var PL = 8.6, PT = 5.8, PW = 4.8, TH = 0.66;
+            isoBox(g, ivx - fx * 0.8, ivy - 1.4 - fy * 0.8, 3.0, 3.0, 1.6, a, '#2e313c', null);   // the dark neck the pod sits on
+            cbox(ivu - 3.4, RGT + 1.4, TH, PL, PT, PW, hull, function (nm, pt) {
+              if (nm === 'side0' || nm === 'side1') {                            // the navy waist band
+                var k = nm === 'side0' ? 0 : 1;
+                quad3(pt(0.50, 0, k), pt(0.66, 0, k), pt(0.66, 1, k), pt(0.50, 1, k), NAVY);
+              } else if (nm === 'tip') {                                          // 2 columns x 3 rows of cells
+                for (var rr = 0; rr < 3; rr++) for (var cc = 0; cc < 2; cc++) {
+                  var j0 = 0.18 + rr * 0.32, k0 = 0.26 + cc * 0.48, hj = 0.15, hk = 0.225;   // raised pale bumps, a darker centre each
+                  quad3(pt(1.001, j0 - hj, k0 - hk), pt(1.001, j0 - hj, k0 + hk), pt(1.001, j0 + hj, k0 + hk), pt(1.001, j0 + hj, k0 - hk), shade(hull, 1.02));
+                  quad3(pt(1.002, j0 - hj * 0.6, k0 - hk * 0.6), pt(1.002, j0 - hj * 0.6, k0 + hk * 0.6), pt(1.002, j0 + hj * 0.6, k0 + hk * 0.6), pt(1.002, j0 + hj * 0.6, k0 - hk * 0.6), shade(hull, 0.66));
+                }
+              } else if (nm === 'top') {                                          // a dark seam where the band crosses the back
+                quad3(pt(0.50, 1, 0), pt(0.66, 1, 0), pt(0.66, 1, 1), pt(0.50, 1, 1), shade(hull, 0.72));
+              }
+            });
           }
         }
 
