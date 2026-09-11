@@ -245,13 +245,15 @@ test.describe('native Files — layout and thumbnails', () => {
     await expect(page.locator('#ql-body')).toContainText('hello from the e2e fixture');
     await expect(page.locator('#ed.open')).toHaveCount(0);            // a preview, not the editor
 
-    const idxOf = async (name) => +(await rowNamed(page, name).getAttribute('data-i'));
-    const nextName = (await page.locator('.row').nth((await idxOf('notes.txt')) + 1).locator('.nm').textContent()).trim();
-    await page.keyboard.press('ArrowDown');
-    await expect(page.locator('#ql-name')).toHaveText(nextName);
-    await expect(rowNamed(page, nextName)).toHaveClass(/\bsel\b/);
-    await expect(rowNamed(page, 'notes.txt')).not.toHaveClass(/\bsel\b/);
+    // notes.txt sorts last (folders first), so walk UP to its neighbour and back.
+    const idx = +(await rowNamed(page, 'notes.txt').getAttribute('data-i'));
+    expect(idx).toBeGreaterThan(0);
+    const prevName = (await page.locator('.row').nth(idx - 1).locator('.nm').textContent()).trim();
     await page.keyboard.press('ArrowUp');
+    await expect(page.locator('#ql-name')).toHaveText(prevName);
+    await expect(rowNamed(page, prevName)).toHaveClass(/\bsel\b/);
+    await expect(rowNamed(page, 'notes.txt')).not.toHaveClass(/\bsel\b/);
+    await page.keyboard.press('ArrowDown');
     await expect(page.locator('#ql-name')).toHaveText('notes.txt');
 
     await page.keyboard.press('Space');
