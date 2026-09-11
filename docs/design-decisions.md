@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_280 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_281 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
 - [Scheduled terminal messages ("resume when the token limit resets")](#scheduled-terminal-messages-resume-when-the-token-limit-resets)
@@ -303,6 +303,7 @@ _280 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [RTS: a player's attack order has exclusive focus; the AI's keeps the loose rule (2026-09-11)](#rts-a-players-attack-order-has-exclusive-focus-the-ais-keeps-the-loose-rule-2026-09-11)
 - [RTS build audit (2026-09-11): the ghost and the click disagreed on where a building goes](#rts-build-audit-2026-09-11-the-ghost-and-the-click-disagreed-on-where-a-building-goes)
 - [RTS orders audit (2026-09-11): twelve ways the click and the cursor disagreed](#rts-orders-audit-2026-09-11-twelve-ways-the-click-and-the-cursor-disagreed)
+- [RTS session audit (2026-09-11): the modal that was not, the keyboard the shell dropped, and the state a save forgot](#rts-session-audit-2026-09-11-the-modal-that-was-not-the-keyboard-the-shell-dropped-and-the-state-a-save-forgot)
 
 <!-- END TOC -->
 
@@ -12557,4 +12558,36 @@ the map. A deployed GI stands up and walks (RA2 — this reverses the earlier
 walk on both seats). The naval refusal names
 "ashore" when the cell is land. Unit tests for the depot rule, the adjacent
 goal and the queued attack; the player-path suite is the regression net.
+
+## RTS session audit (2026-09-11): the modal that was not, the keyboard the shell dropped, and the state a save forgot
+
+**Symptom.** A click-driven audit of session flow, camera, keyboard and the
+desktop shell: (1) the Options card's backdrop was a child of `.wrap`, so the
+top bar sat outside it — a click on any bar button resumed the sim behind a
+card that said "paused", Help and the leaderboard stacked over Options with
+Esc closing the wrong one, and the gutter panned the paused map; (2) in the
+desktop, one touch of the chrome (Start menu, the app's own taskbar button)
+left the game without a keyboard until the canvas was clicked; (3) Settings
+was a dead click after "New → Keep playing"; (4) control groups and (5)
+camera bookmarks were lost on every load and every resume; (6) a coach tip
+placed at the top covered the game's top gutter in full-screen mode; (7) the
+floating window's resize grips ate the outer 8 px of the gutter on three
+sides; (8) edge and arrow scrolling scaled with zoom while the right-drag pan
+did not; (9) the minimap only jumped on click; (10) the match ran on at full
+speed while backgrounded.
+
+**Fix.** `body:not(.atmenu) .overlay { position: fixed }` — modal over the
+whole page in a match, the bar reachable at the front menu; a `cardStack` so
+Esc closes the card opened last; the New card clears `optOpen`. The save
+blob carries `groups` (ids) and `views`, restored by `restoreSession()` after
+enterLoaded's reset. Scroll speeds divide by `zoom` (a screen rate). The
+minimap scrubs under a held button. `vibetop:active` for another app, or a
+hidden tab, pauses a single-player match (RA2 pauses on focus loss). Shell:
+`notifyActiveFrame` defers its `focus()` past the click's own default focus
+handling, `closeMenu` hands the keyboard back to the active app, the
+cross-device tip sits at the bottom. The grips were left alone: their ring
+is a coupled model (winrz-css.test.js — outside reaches tile the 5 px seam
+between tiled windows, inside reach has an 8 px mouse floor), so in a
+floating window the outer 8 px of the gutter on three sides stay the
+window's edge grip; 18 px of strip remain, accepted.
 

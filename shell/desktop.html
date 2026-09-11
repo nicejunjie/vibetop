@@ -2745,7 +2745,11 @@
   // user already switched away doesn't steal focus.
   function notifyActiveFrame(f, id) {
     if (!f || f.dataset.id !== active) return;
-    try { f.focus(); } catch (e) {}
+    // Deferred: a synchronous focus() inside a click handler is undone by the
+    // browser's own default focus handling for that click (it lands on body
+    // afterwards), which left the active app without a keyboard after any
+    // touch of the desktop chrome (session audit, 2026-09-11).
+    setTimeout(function () { if (f.dataset.id === active) { try { f.focus(); } catch (e) {} } }, 0);
     if (f.contentWindow) {
       try { f.contentWindow.postMessage({ type: 'vibetop:active', active: id }, '*'); } catch (e) {}
       // iOS Safari quirk: an iframe laid out while display:none can keep stale
@@ -2988,11 +2992,16 @@
     // (that's the case where the ⏻ is the only way to reach/close it).
     try {
       if (window.vibeCoach && runningGlobal.some(function (a) { return openApps.indexOf(a) === -1; })) {
-        vibeCoach({ key: 'vibetop:tip:crossclose:v1', text: 'Tip: an app running on another device shows a ⏻ here — tap it to close that app on every device' }, { top: 8 });
+        vibeCoach({ key: 'vibetop:tip:crossclose:v1', text: 'Tip: an app running on another device shows a ⏻ here — tap it to close that app on every device' }, { bottom: 60 });
       }
     } catch (e) {}
   }
-  function closeMenu() { menuEl.classList.remove('open'); startBtn.classList.remove('open'); scrimEl.style.display = 'none'; closeAllFlyouts(); notifyBrowserMenu(false); }
+  function closeMenu() {
+    menuEl.classList.remove('open'); startBtn.classList.remove('open'); scrimEl.style.display = 'none'; closeAllFlyouts(); notifyBrowserMenu(false);
+    // The keyboard goes back to the app the menu was opened over.
+    var af = active && frameOf(active);
+    if (af && af.src) notifyActiveFrame(af, active);
+  }
   function toggleMenu() { menuEl.classList.contains('open') ? closeMenu() : openMenu(); }
 
   // --- Submenu flyouts (Utilities, Games): side flyout on desktop, in-menu
