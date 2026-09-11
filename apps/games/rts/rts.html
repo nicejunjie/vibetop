@@ -9578,10 +9578,9 @@
                 (kind === 'mirage' ? 19 : (kind === 'rhino' ? 18.5 :
                 (kind === 'flaktrack' ? 15 : (kind === 'v3' ? 19 :
                 (kind === 'drone' ? 12 : (kind === 'teslatank' ? 19 : 17)))))))))))));
-      // The MCV is the biggest thing that drives: a Construction Yard folded
-      // onto a crawler. Appended here rather than threaded into the ternaries
-      // above so no other kind's numbers move.
-      if (kind === 'mcv') { len = 37.5; wid = 14.2; }   // 2026-09-11: the sheet is about 76x36 broadside / 66x46 diagonal -- a dense works carrier, not a stretched pickup
+      // MCV bounds include the wide tyres and retracted stabilizer feet;
+      // its articulated construction plant is authored below in 3D.
+      if (kind === 'mcv') { len = 38.4; wid = 17.0; }
       // The Nighthawk is a light helicopter: long for its beam, and the tail
       // boom runs past the hull, so the sheet's length is mostly boom.
       if (kind === 'nighthawk') { len = 34; wid = 13; }
@@ -11890,8 +11889,8 @@
 
       // MCV: reconstructed from Allied_MCV_Voxel_Render.jpg and the eight
       // in-game bearings in allied-mcv.png. +u is forward, +v across, +z up.
-      // A six-wheel chassis carries an angular cab, folded channel sections
-      // in a steel saddle, and a transverse machinery bridge over rear rods.
+      // A wide six-wheel chassis carries folded foundation wings, retracted
+      // stabilizers, a loaded steel cradle and its exposed hinge machinery.
       if (kind === 'mcv' && wantH) (function () {
         VLIFT = 1;
         var faces = [], casters = [], KF = ISO_X * Math.SQRT2;
@@ -11924,7 +11923,7 @@
           // The former diffuse-only multiplier made even bare steel matte.
           var reflection = Math.pow(Math.max(0, dot(n, halfLight)), finish === 2 ? 26 : 42);
           var gloss = unlit ? 0 : reflection * (finish === 2 ? 165 : finish === 1 ? 60 : 0);
-          var illumination = unlit ? 1 : 0.43 + 0.65 * incidence;
+          var illumination = unlit ? 1 : finish === 2 ? 0.62 + 0.68 * incidence : 0.43 + 0.65 * incidence;
           var axis = Math.abs(n[2]) >= Math.max(Math.abs(n[0]), Math.abs(n[1])) ? 2 : Math.abs(n[0]) > Math.abs(n[1]) ? 0 : 1;
           faces.push({ p: pts, col: unlit ? color : shade(color, illumination), finish: finish, axis: axis, gloss: gloss, lit: incidence });
         }
@@ -11982,8 +11981,8 @@
           solid(pts, ids, color);
         }
         function tyre(u, v) {
-          var loops = [], radius = 3.65, z = 3.25, n = 16;
-          [[-0.95, 0.89], [-0.64, 1], [0.64, 1], [0.95, 0.89]].forEach(function (r) {
+          var loops = [], radius = 4.25, z = 3.8, n = 20;
+          [[-1.42, 0.87], [-1.08, 1], [1.08, 1], [1.42, 0.87]].forEach(function (r) {
             var loop = [];
             for (var q = 0; q < n; q++) { var t = q * Math.PI * 2 / n; loop.push([u + radius / KF * r[1] * Math.cos(t), v + r[0], z + radius * r[1] * Math.sin(t)]); }
             loops.push(loop);
@@ -11993,12 +11992,16 @@
           for (var side = -1; side <= 1; side += 2) {
             surface(loops[side < 0 ? 0 : 3], RUBBER, [u, v, z]);
             var hub = [];
-            for (var q = 0; q < n; q++) { var t = q * Math.PI * 2 / n; hub.push([u + radius / KF * 0.62 * Math.cos(t), v + side * 0.97, z + radius * 0.62 * Math.sin(t)]); }
+            for (var q = 0; q < n; q++) { var t = q * Math.PI * 2 / n; hub.push([u + radius / KF * 0.64 * Math.cos(t), v + side * 1.44, z + radius * 0.64 * Math.sin(t)]); }
             surface(hub, LIGHT, [u, v, z]);
-            var inset = hub.map(function (p) { return [u + (p[0] - u) * 0.62, p[1] + side * 0.025, z + (p[2] - z) * 0.62]; });
-            surface(inset, '#858498', [u, v, z]);
-            var boss = inset.map(function (p) { return [u + (p[0] - u) * 0.38, p[1] + side * 0.025, z + (p[2] - z) * 0.38]; });
-            surface(boss, '#616377', [u, v, z]);
+            var inset = hub.map(function (p) { return [u + (p[0] - u) * 0.79, p[1] + side * 0.03, z + (p[2] - z) * 0.79]; });
+            surface(inset, '#576073', [u, v, z]);
+            var boss = inset.map(function (p) { return [u + (p[0] - u) * 0.53, p[1] + side * 0.04, z + (p[2] - z) * 0.53]; });
+            surface(boss, STEEL, [u, v, z]);
+            for (var q = 0; q < 6; q++) {
+              var t = q * Math.PI / 3, bu = u + Math.cos(t) * 1.37 / KF, bz = z + Math.sin(t) * 1.37;
+              box(bu-0.16,bu+0.16,v+side*1.53-0.025,v+side*1.53+0.025,bz-0.18,bz+0.18,LIGHT);
+            }
           }
         }
         function drum(u0, u1, v, z, radius, color) {
@@ -12012,209 +12015,265 @@
             loops.push(loop);
           });
           for (var q = 0; q < n; q++)
-            surface([loops[0][q], loops[0][(q + 1) % n], loops[1][(q + 1) % n], loops[1][q]], color, [u0, v, z]);
-          surface(loops[0], '#596066', [u0, v, z]);
-          surface(loops[1], '#c2c4bb', [u1, v, z]);
+            surface([loops[0][q], loops[0][(q + 1) % n], loops[1][(q + 1) % n], loops[1][q]], color, [(u0+u1)/2, v, z]);
+          surface(loops[0], '#596066', [(u0+u1)/2, v, z]);
+          surface(loops[1], STEEL, [(u0+u1)/2, v, z]);
           box(u0 + 0.28, u0 + 0.42, v - radius * 0.82, v + radius * 0.82, z - 0.12, z + 0.12, '#343a3e');
         }
-        // One front axle and a closely spaced tandem at the rear. The tank
-        // between them is suspended below a deep fabricated chassis rail.
-        [11.3, -4.6, -12.8].forEach(function (u) { tyre(u, -6.05); tyre(u, 6.05); });
-        // A deep under-frame sits below the bed. It remains visible between
-        // the axles and gives the vehicle the suspended, load-bearing stance
-        // of the voxel model instead of a light pickup ladder frame.
-        box(-17.9, 17.3, -5.2, 5.2, 2.65, 5.85, '#2d3238');
-        [11.3, -4.6, -12.8].forEach(function (u) {
-          box(u - 1.35, u + 1.35, -6.35, 6.35, 4.05, 5.55, '#50565c');
-        });
-        box(-17.8, 10.0, -5.85, 5.85, 6.1, 8.0, PAINT);
-        for (var side = -1; side <= 1; side += 2) {
-          var v = side * 6.3;
-          var rail = [[-18.3, 8.9], [10.0, 8.9], [10.0, 6.8], [7.9, 4.1], [-1.2, 4.1],
-            [-2.1, 6.0], [-3.2, 6.7], [-6.0, 6.7], [-7.1, 6.0], [-8.0, 4.5],
-            [-9.5, 4.5], [-10.4, 6.0], [-11.4, 6.7], [-14.2, 6.7], [-15.3, 6.0], [-16.2, 4.1], [-17.7, 5.0]];
-          profile(rail, v - 0.45, v + 0.45, RAIL);
-          // Rail lip, inset long channel, butt joints, and pale hinge blocks.
-          box(-17.7, 9.2, v - 0.46, v + 0.46, 8.6, 9.0, '#9292a5');
-          box(-16.8, 8.7, v + side * 0.47 - 0.025, v + side * 0.47 + 0.025, 7.45, 8.05, '#4f526a');
-          [-15.7, -8.3, -0.8, 6.9].forEach(function (u) {
-            box(u, u + 0.32, v + side * 0.49 - 0.045, v + side * 0.49 + 0.045, 7.1, 8.65, '#a1a0ae');
-            box(u + 0.35, u + 0.6, v + side * 0.49 - 0.04, v + side * 0.49 + 0.04, 7.2, 8.55, '#434858');
+        function hinge(u,v,z,radius) {
+          var center=[u,v,z],loops=[];
+          [-0.36,0.36].forEach(function(offset){
+            var loop=[];for(var q=0;q<12;q++){var t=q*Math.PI/6;loop.push([u+Math.cos(t)*radius/KF,v+offset,z+Math.sin(t)*radius]);}
+            loops.push(loop);
           });
-          [-10.2, 0.3, 7.1].forEach(function (u) {
-            box(u - 0.75, u + 0.75, v - 0.52, v + 0.52, 5.7, 6.5, STEEL);
-          });
-          profile([[0, 1.5], [5.8, 1.5], [6.3, 2], [6.3, 4.4], [5.7, 4.9], [0.1, 4.9], [-0.5, 4.3], [-0.5, 2]], v - 0.65, v + 0.65, STEEL);
-          box(-0.1, 5.9, v - 0.69, v + 0.69, 1.9, 2.25, LIGHT);
-          box(-0.6, 6.4, v - 0.1, v + 0.1, 4.95, 5.75, NAVY);
-          // Heavy side sponsons are interrupted at each wheel opening. Their
-          // stepped lower edge is a separate armour plate, not empty rail.
-          [[-17.2, -14.2], [-11.6, -5.8], [-2.9, 9.2]].forEach(function (span) {
-            box(span[0], span[1], v - 0.58, v + 0.58, 5.15, 7.45, '#4d5360');
-            box(span[0] + 0.35, span[1] - 0.35, v + side * 0.59 - 0.045, v + side * 0.59 + 0.045, 6.0, 6.18, '#8c8d9a');
-          });
-        }
-        // Three short ribbed drums sit behind the folded channels in the
-        // source voxel. Their end caps are brighter than the painted truck,
-        // and the dark collars make the rear read as exposed machinery.
-        [-2.65, 0, 2.65].forEach(function (v) {
-          drum(-16.0, -11.35, v, 11.45, 1.5, STEEL);
-          box(-15.45, -11.55, v - 0.1, v + 0.1, 10.05, 10.25, '#50565a');
-        });
-        // Cab: short, tall and raked, with no projecting car bonnet. Roof,
-        // windshield, grille, bumper and door are separate material surfaces.
-        profile([[11.0, 5.3], [14.1, 5.3], [15, 3.6], [19.0, 3.6], [19.0, 7.7],
-          [17.8, 8.5], [17.8, 10.5], [14.5, 13.0], [11.1, 13.0]], -6.1, 6.1, PAINT);
-        surface([[17.82, -5.5, 8.65], [17.82, 5.5, 8.65], [17.82, 5.5, 10.35], [17.82, -5.5, 10.35]], GLASS, [14, 0, 7], true);
-        // A front-facing recessed windscreen is deliberately a thin solid so
-        // it remains visible in the cardinal bearing after face culling.
-        box(17.91, 18.03, -4.95, 4.95, 8.72, 10.38, GLASS);
-        box(17.84, 17.89, -0.13, 0.13, 8.65, 10.35, '#878895');
-        box(19.02, 19.12, -4.8, 4.8, 4.45, 6.9, '#a8adaa');
-        box(19.13, 19.18, -3.55, 3.55, 4.65, 6.3, '#292f30');
-        for (var z = 4.95; z < 6.3; z += 0.45) box(19.19, 19.23, -3.45, 3.45, z, z + 0.10, '#676e6c');
-        box(18.1, 19.6, -6.45, 6.45, 2.1, 4.05, STEEL);
-        box(19.61, 19.67, -6.2, 6.2, 3.6, 3.95, LIGHT);
-        for (var side = -1; side <= 1; side += 2) {
-          var v = side * 6.13;
-          surface([[11.65, v, 9.0], [16.9, v, 8.6], [16.9, v, 10.55], [14.25, v, 12.45], [11.65, v, 12.45]], '#192227', [14, 0, 7], true);
-          // The rear pillar and door seam stop the cab reading as one black cap.
-          box(11.5, 11.95, v - 0.08, v + 0.08, 7.0, 12.75, '#9795a8');
-          box(12.0, 12.25, v - 0.08, v + 0.08, 6.9, 9.0, '#494c61');
-          box(12.6, 13.55, v - 0.12, v + 0.12, 8.1, 8.4, LIGHT);
-          box(13.6, 16.9, v - 0.10, v + 0.10, 6.0, 6.25, '#9190a6');
-          box(12.55, 16.65, v - side * 0.035, v + side * 0.035, 8.72, 10.95, GLASS);
-          box(16.68, 17.02, v - side * 0.06, v + side * 0.06, 8.6, 11.25, '#77788b');
-          box(19.23, 19.3, side * 4.55 - 0.58, side * 4.55 + 0.58, 5.7, 6.45, '#d0d2bb');
-        }
-        // Dark separation behind the cab, with a narrow exposed connector.
-        box(9.7, 10.5, -3.4, 3.4, 7.1, 9.4, '#2d3437');
-        // Steel saddle: bevelled all the way round, wide at the bottom, with
-        // a visible silver leading slope immediately behind the cab.
-        solid([[-5.3,-5.65,8.05],[9.25,-5.65,8.05],[9.25,5.65,8.05],[-5.3,5.65,8.05],
-               [-4.6,-4.25,10.55],[7.25,-4.25,10.55],[7.25,4.25,10.55],[-4.6,4.25,10.55]], boxFaces, STEEL);
-        for (var side = -1; side <= 1; side += 2) {
-          // Thick outer cheeks carry the folded yard when it opens. The blue
-          // channels sit between these cheeks; they do not float above a flat
-          // truck bed.
-          box(-5.0, 7.0, side * 4.85 - 0.62, side * 4.85 + 0.62, 8.0, 10.75, STEEL);
-          box(-4.8, 6.75, side * 5.45 - 0.18, side * 5.45 + 0.18, 9.15, 9.48, '#686e72');
-          [-3.8, -0.6, 2.6, 5.4].forEach(function (u) {
-            box(u, u + 0.20, side * 5.18 - 0.12, side * 5.18 + 0.12, 8.3, 9.0, LIGHT);
-          });
-        }
-        box(-4.35, 6.8, -3.7, 3.7, 10.56, 10.75, '#333f48');
-        // Two folded blue channels, with a real longitudinal recess between.
-        // Thin top lips catch blue light; the inner walls remain near-black.
-        for (var side = -1; side <= 1; side += 2) {
-          var cross = [[0.8,10.75],[4.0,10.75],[3.7,11.9],[2.8,13.1],[0.8,13.1]];
-          section(cross.map(function (p) { return [p[0] * side, p[1]]; }), -2.2, 6.35, NAVY);
-          box(-2.1, 6.1, side * 0.81 - 0.055, side * 0.81 + 0.055, 11.0, 12.8, shade(NAVY, 0.42));
-          box(-2.1, 5.7, side * 2.15 - 0.5, side * 2.15 + 0.5, 13.11, 13.18, shade(NAVY, 1.12));
-          [-1.2, 0.9, 3.0, 5.0].forEach(function (u) {
-            box(u - 0.055, u + 0.055, side * 0.72 - 0.06, side * 0.72 + 0.06, 11.15, 12.75, '#293650');
-          });
-        }
-        box(-4.0, 6.35, -0.73, 0.73, 10.8, 11.0, '#151f30');
-        for (var side = -1; side <= 1; side += 2)
-          box(-6.25, -2.2, side * 2.5 - 0.48, side * 2.5 + 0.48, 10.8, 11.55, shade(NAVY, 0.65));
-        // Rear transverse bridge. The top is graphite, bevels are bare steel,
-        // and its legs meet the perimeter frame; there is no large cargo box.
-        profile([[-10.9, 8.6],[-6.0, 8.6],[-6.0, 12.6],[-7.2, 14.2],[-10.3, 14.2],[-10.9, 13.5]], -5.1, 5.1, STEEL);
-        box(-10.1, -7.3, -4.7, 4.7, 14.22, 14.36, '#626762');
-        for (var side = -1; side <= 1; side += 2) {
-          box(-10.5, -6.35, side * 5.13 - 0.035, side * 5.13 + 0.035, 9.0, 10.0, '#bfc2b7');
-          box(-10.0, -9.65, side * 5.15 - 0.04, side * 5.15 + 0.04, 10.3, 12.9, '#797f78');
-          // Exposed twin actuators run behind the bridge, parallel to the bed.
-          var vv = side * 2.5;
-          section([[vv-0.8,9.0],[vv+0.8,9.0],[vv+0.8,10.6],[vv+0.4,11.1],[vv-0.4,11.1],[vv-0.8,10.6]], -15.9, -11.0, '#7e8580');
-          box(-15.55, -11.1, vv - 0.27, vv + 0.27, 11.11, 11.28, LIGHT);
-          box(-16.25, -15.5, vv - 0.9, vv + 0.9, 8.8, 11.6, STEEL);
-          box(-17.4, -10.95, side * 5.25 - 0.45, side * 5.25 + 0.45, 8.8, 10.25, '#737984');
-        }
-        box(-17.35, -11.0, -1.15, 1.15, 8.15, 9.35, shade(NAVY, 0.85));
-        box(-18.05, -17.3, -6.0, 6.0, 7.0, 9.45, RAIL);
-        box(-18.15, -18.06, -5.7, 5.7, 8.8, 9.15, '#abacb5');
-        box(-18.2, -17.8, -2.8, 2.8, 4.7, 6.1, '#343940');
-
-        // Rasterize with depth per pixel. Sorting whole faces by their centre
-        // buries small details (lamps, remap strips, cell mouths) underneath a
-        // large bonnet or pod face, even though they are physically in front.
-        // Two samples per axis keep shared polygon edges watertight at zoom 1.
-        var samples = 2, raster = mkCanvas(s.w * samples, s.h * samples);
-        var rw = raster.c.width, rh = raster.c.height;
-        var pixels = raster.g.getImageData(0, 0, rw, rh), data = pixels.data;
-        var depths = new Float32Array(rw * rh);
-        depths.fill(-Infinity);
-        var rasterScale = DPR * samples, vehicleScale = USC_V * VSC;
-        function triangle(v0, v1, v2, color, finish) {
-          var area = (v1[0] - v0[0]) * (v2[1] - v0[1]) - (v1[1] - v0[1]) * (v2[0] - v0[0]);
-          if (Math.abs(area) < 0.0001) return;
-          var x0 = Math.max(0, Math.floor(Math.min(v0[0], v1[0], v2[0]))), x1 = Math.min(rw - 1, Math.ceil(Math.max(v0[0], v1[0], v2[0])));
-          var y0 = Math.max(0, Math.floor(Math.min(v0[1], v1[1], v2[1]))), y1 = Math.min(rh - 1, Math.ceil(Math.max(v0[1], v1[1], v2[1])));
-          for (var y = y0; y <= y1; y++) for (var x = x0; x <= x1; x++) {
-            var xx = x + 0.5, yy = y + 0.5;
-            var b1 = ((xx - v0[0]) * (v2[1] - v0[1]) - (yy - v0[1]) * (v2[0] - v0[0])) / area;
-            var b2 = ((v1[0] - v0[0]) * (yy - v0[1]) - (v1[1] - v0[1]) * (xx - v0[0])) / area;
-            var b0 = 1 - b1 - b2;
-            if (b0 < -0.00001 || b1 < -0.00001 || b2 < -0.00001) continue;
-            var depth = b0 * v0[2] + b1 * v1[2] + b2 * v2[2], index = y * rw + x;
-            if (depth < depths[index] - 0.00001) continue;
-            depths[index] = depth;
-            // Finish is anchored to the metal surface, so it rotates with the
-            // vehicle. Small cast/paint patches and fine brushed bands keep
-            // large panels from becoming uniformly filled vector polygons.
-            var grain = 0;
-            if (finish) {
-              var tu = b0 * v0[3] + b1 * v1[3] + b2 * v2[3];
-              var tv = b0 * v0[4] + b1 * v1[4] + b2 * v2[4];
-              var gu = Math.floor(tu / 1.25), gv = Math.floor(tv / 0.8);
-              var hash = Math.imul(gu + 400, 73856093) ^ Math.imul(gv + 400, 19349663);
-              grain = ((hash >>> 3) % 13 - 6) * (finish === 1 ? 1.3 : 0.8);
-              if (finish === 2) grain += Math.sin(tv * 7.5) * 3;
-            }
-            var at = index * 4;
-            data[at] = color[0] + grain; data[at + 1] = color[1] + grain;
-            data[at + 2] = color[2] + grain; data[at + 3] = 255;
+          for(var q=0;q<12;q++)surface([loops[0][q],loops[0][(q+1)%12],loops[1][(q+1)%12],loops[1][q]],STEEL,center);
+          for(var side=-1;side<=1;side+=2){
+            var end=loops[side<0?0:1];surface(end,LIGHT,center);
+            surface(end.map(function(p){return [u+(p[0]-u)*0.64,p[1]+side*0.035,z+(p[2]-z)*0.64];}),DARK,center);
+            box(u-0.3,u+0.3,v+side*0.43-0.03,v+side*0.43+0.03,z-0.32,z+0.32,STEEL);
           }
         }
-        if (data.length === rw * rh * 4) faces.forEach(function (face) {
-          var pts = face.p.map(function (p) {
-            var v = P3(p);
-            return [(cx + (v[0] - cx) * vehicleScale) * rasterScale,
-                    (by + (v[1] - by) * vehicleScale) * rasterScale,
-                    p[0] * Lu + p[1] * Lv + p[2] * Lz,
-                    (face.axis === 0 ? p[1] : p[0]) * KF, face.axis === 2 ? p[1] * KF : p[2]];
+        // A low, wide works chassis: large exposed tyres support a deep
+        // boxed frame. All folding equipment attaches to these load paths.
+        [11.2,-5.1,-13.1].forEach(function (u) { tyre(u,-6.95); tyre(u,6.95); });
+        bevel(-18.3,18.3,-5.85,5.85,3.0,7.2,0.75,DARK);
+        box(-18.1,10.2,-6.65,6.65,6.8,9.6,PAINT);
+        [11.2,-5.1,-13.1].forEach(function (u) {
+          bevel(u-1.3,u+1.3,-7.1,7.1,3.2,5.2,0.3,STEEL);
+        });
+        for (var side=-1;side<=1;side+=2) {
+          var v=side*7.0;
+          var rail=[[-18.5,9.9],[9.2,9.9],[9.2,7.8],[7.7,5.5],[-1.3,5.5],
+            [-2.3,7.25],[-3.6,8.0],[-6.7,8.0],[-8.0,7.25],[-8.7,5.5],[-9.4,5.5],
+            [-10.4,7.3],[-11.7,8.0],[-14.6,8.0],[-15.9,7.2],[-16.7,5.5],[-18.4,6.1]];
+          profile(rail,v-0.60,v+0.60,RAIL);
+          box(-18.0,9.0,v-0.64,v+0.64,9.6,10.05,STEEL);
+          box(-17.7,8.75,v+side*0.65-0.025,v+side*0.65+0.025,8.7,9.25,DARK);
+          [-16.8,-8.8,-1.6,7.9].forEach(function (u) {
+            box(u,u+0.55,v-0.70,v+0.70,8.3,10.13,STEEL);
+            box(u+0.14,u+0.37,v+side*0.72-0.03,v+side*0.72+0.03,9.45,9.72,LIGHT);
+          });
+          // Plate stacks are the folded foundation wings. Each has actual
+          // thickness, a dark separation and a narrow machined outer lip.
+          for (var layer=0;layer<3;layer++) {
+            var z=10.1+layer*0.77;
+            bevel(-16.9,8.8,v-0.95,v+0.35,z,z+0.57,0.2,layer===2?PAINT:RAIL);
+            box(-15.7,7.9,v+side*0.39-0.05,v+side*0.39+0.05,z+0.4,z+0.56,STEEL);
+          }
+          // Suspended steel reservoir between the first and second axles.
+          bevel(-0.9,5.6,v-0.73,v+0.73,1.55,5.45,0.5,STEEL);
+          box(-0.5,5.2,v+side*0.77-0.04,v+side*0.77+0.04,2.35,2.65,LIGHT);
+          [0.0,4.35].forEach(function (u) {box(u,u+0.48,v-0.78,v+0.78,1.8,5.5,DARK);});
+          // Retracted outrigger jacks and feet. Their hinge pins connect the
+          // foundation wings to the chassis, clearly showing how it unfolds.
+          [-17.0,6.25].forEach(function (u) {
+            bevel(u-1.1,u+1.1,v-0.70,v+0.70,4.3,8.4,0.38,RAIL);
+            box(u-0.3,u+0.3,v+side*0.8-0.12,v+side*0.8+0.12,4.6,7.65,STEEL);
+            bevel(u-1.5,u+1.5,v-1.1,v+1.1,3.65,4.55,0.25,STEEL);
+            box(u-0.58,u+0.58,v+side*0.76-0.06,v+side*0.76+0.06,7.8,8.55,DARK);
+            box(u-0.3,u+0.3,v+side*0.86-0.09,v+side*0.86+0.09,7.95,8.4,LIGHT);
+          });
+        }
+
+        // Compact armoured cab, with bevelled roof shoulders. The tall nose
+        // occupies the front fifth of the vehicle, below the folded plant.
+        profile([[10.8,6.0],[14.2,6.0],[15.1,3.9],[18.9,3.9],[18.9,8.5],
+          [17.35,9.25],[17.35,11.0],[14.0,13.1],[10.8,13.1]],-6.45,6.45,PAINT);
+        bevel(10.65,14.5,-6.55,6.55,12.1,13.7,0.5,PAINT);
+        surface([[17.39,-5.6,9.35],[17.39,5.6,9.35],[17.39,5.6,10.83],[17.39,-5.6,10.83]],GLASS,[14,0,7],true);
+        box(17.41,17.5,-0.13,0.13,9.3,10.85,STEEL);
+        box(17.43,17.5,-5.5,5.5,9.3,9.52,'#5e7884');
+        bevel(17.9,19.45,-6.8,6.8,2.5,4.5,0.45,STEEL);
+        bevel(18.91,19.18,-4.8,4.8,4.75,7.5,0.1,STEEL);
+        box(19.19,19.24,-3.65,3.65,5.0,7.1,GLASS);
+        for (var z=5.15;z<7.1;z+=0.5) box(19.25,19.29,-3.6,3.6,z,z+0.14,STEEL);
+        for (var side=-1;side<=1;side+=2) {
+          var v=side*6.49;
+          surface([[11.55,v,9.2],[16.6,v,9.05],[16.6,v,10.8],[13.8,v,12.6],[11.55,v,12.6]],GLASS,[14,0,7],true);
+          box(11.05,11.6,v-0.08,v+0.08,7.15,12.9,STEEL);
+          box(11.8,12.05,v-0.08,v+0.08,6.7,9.15,DARK);
+          box(12.5,13.45,v-0.14,v+0.14,8.1,8.42,LIGHT);
+          box(14.45,16.95,v-0.09,v+0.09,5.3,5.85,STEEL);
+          box(19.2,19.32,side*5.05-0.60,side*5.05+0.60,6.25,7.25,GLASS);
+          box(19.33,19.37,side*5.05-0.38,side*5.05+0.38,6.5,7.0,LIGHT);
+          box(18.75,19.55,side*3.9-0.26,side*3.9+0.26,2.2,3.05,DARK);
+        }
+
+        // The load fills the bed: a faceted steel cradle and two nested
+        // folded booms above three layers of foundation panels.
+        bevel(-7.1,9.8,-6.6,6.6,9.55,11.35,0.65,DARK);
+        solid([[-7.0,-6.5,10.7],[9.7,-6.5,10.7],[9.7,6.5,10.7],[-7.0,6.5,10.7],
+          [-6.3,-4.75,13.2],[7.8,-4.75,13.2],[7.8,4.75,13.2],[-6.3,4.75,13.2]],boxFaces,STEEL);
+        box(-6.1,7.8,-4.3,4.3,13.22,13.5,DARK);
+        for (var side=-1;side<=1;side+=2) {
+          // Chamfered folded channel; the narrow inner trough casts a deep
+          // shadow while the outer inclined wall catches a metal reflection.
+          var cross=[[0.95,13.45],[4.6,13.45],[4.6,14.05],[3.25,16.1],[0.95,16.1]];
+          section(cross.map(function (p) {return [side*p[0],p[1]];}),-4.9,7.0,NAVY);
+          box(-4.75,6.8,side*0.97-0.035,side*0.97+0.035,13.5,15.9,'#152439');
+          box(-4.55,6.5,side*2.75-0.22,side*2.75+0.22,16.11,16.27,shade(NAVY,1.45));
+          // Parallel nested booms disappear into the rear hinge housing.
+          box(-8.6,-4.85,side*2.7-0.65,side*2.7+0.65,13.55,14.6,RAIL);
+          box(-8.5,-5.0,side*2.7-0.2,side*2.7+0.2,14.61,14.78,STEEL);
+          // Thick silver cheek, bearing blocks and split seams along the
+          // cradle's slope are structural, not decorative painted stripes.
+          for (var q=0;q<3;q++) {
+            var u=-4.8+q*4.5;
+            beam([u,side*6.35,10.95],[u,side*4.8,13.25],0.42,0.28,LIGHT);
+            bevel(u-0.55,u+0.55,side*6.25-0.45,side*6.25+0.45,10.9,11.9,0.18,DARK);
+          }
+          beam([8.5,side*5.65,12.5],[7.25,side*4.0,14.3],0.72,0.68,LIGHT);
+          // A retracted side ram links the crosshead to the cradle. Its
+          // chrome rod and large journal make the folding mechanism legible.
+          beam([-7.9,side*6.05,12.8],[-1.2,side*6.25,11.6],0.95,0.95,DARK);
+          beam([-1.2,side*6.25,11.6],[5.9,side*6.45,11.3],0.42,0.42,LIGHT);
+          hinge(-7.9,side*6.3,12.8,1.30);
+          hinge(5.9,side*6.65,11.3,0.98);
+        }
+        box(-5.1,7.2,-0.86,0.86,13.25,13.65,'#151d26');
+        bevel(7.65,9.5,-5.2,5.2,11.7,12.6,0.3,STEEL);
+
+        // Rear crosshead: two broad steel cheeks and a transverse beam over
+        // the dark hinge. Openings reveal the cylinders behind it.
+        bevel(-11.6,-7.6,-4.9,4.9,10.4,15.1,0.55,DARK);
+        for (var side=-1;side<=1;side+=2) {
+          var v=side*4.55;
+          profile([[-12.0,10.2],[-7.1,10.2],[-7.1,14.55],[-8.7,16.8],[-11.35,16.8],[-12.0,15.9]],v-1.25,v+1.25,STEEL);
+          box(-11.2,-9.0,v-1.28,v+1.28,10.85,11.25,LIGHT);
+          bevel(-11.4,-8.5,v-1.3,v+1.3,12.2,14.1,0.35,RAIL);
+          box(-10.65,-9.3,v+side*1.32-0.04,v+side*1.32+0.04,12.7,13.05,LIGHT);
+        }
+        bevel(-11.35,-8.65,-5.8,5.8,15.6,16.9,0.38,STEEL);
+        box(-10.95,-9.0,-4.85,4.85,16.91,17.03,'#414a52');
+        // Polished actuator shafts inside dark stepped collars. They remain
+        // visibly mechanical at gameplay size, with no white cargo lumps.
+        for (var side=-1;side<=1;side+=2) {
+          var v=side*3.1;
+          drum(-17.05,-11.8,v,12.25,1.35,STEEL);
+          drum(-16.9,-16.0,v,12.25,1.65,DARK);
+          drum(-13.1,-12.25,v,12.25,1.55,RAIL);
+          beam([-15.8,v-0.15,13.58],[-13.3,v-0.15,13.58],0.4,0.15,LIGHT);
+          beam([-18.1,side*5.5,10.3],[-18.1,side*2.2,13.6],1.0,1.15,STEEL);
+          bevel(-18.0,-12.0,side*6.0-0.45,side*6.0+0.45,10.6,11.8,0.28,RAIL);
+        }
+        beam([-18.1,-2.2,13.6],[-18.1,2.2,13.6],1.0,0.9,STEEL);
+        bevel(-18.5,-17.7,-3.0,3.0,9.65,10.8,0.28,NAVY);
+        bevel(-18.8,-17.45,-7.1,7.1,6.4,9.9,0.5,RAIL);
+        box(-18.9,-18.82,-6.7,6.7,9.25,9.55,STEEL);
+        bevel(-19.0,-18.35,-2.8,2.8,4.35,5.95,0.3,DARK);
+
+        var samples=2,raster=mkCanvas(s.w*samples,s.h*samples);
+        var rw=raster.c.width,rh=raster.c.height,pixels=raster.g.getImageData(0,0,rw,rh),data=pixels.data;
+        var hasPixels=data.length===rw*rh*4;
+        // Shadow and colour share the same geometry. This matters where
+        // folded panels overhang the lower wing, or a ram enters its collar.
+        var shadowW=192, shadowScale=3.8, shadowDepth=new Float32Array(shadowW*shadowW);
+        shadowDepth.fill(-Infinity);
+        var lightRight=normalized([light[1],-light[0],0]);
+        var lightUp=[light[1]*lightRight[2]-light[2]*lightRight[1],light[2]*lightRight[0]-light[0]*lightRight[2],light[0]*lightRight[1]-light[1]*lightRight[0]];
+        function lightPoint(p) {return [96+dot(p,lightRight)*shadowScale,96+dot(p,lightUp)*shadowScale,dot(p,light)];}
+        function triangulate(pts,draw) {
+          pts=pts.slice(); var sign=0;
+          for(var i=0;i<pts.length;i++) {var j=(i+1)%pts.length;sign+=pts[i][0]*pts[j][1]-pts[j][0]*pts[i][1];}
+          sign=sign<0?-1:1;
+          function cross(a,b,c) {return ((b[0]-a[0])*(c[1]-a[1])-(b[1]-a[1])*(c[0]-a[0]))*sign;}
+          while(pts.length>3) {
+            var clipped=false;
+            for(var i=0;i<pts.length;i++) {
+              var prev=(i+pts.length-1)%pts.length,next=(i+1)%pts.length;
+              var a=pts[prev],b=pts[i],c=pts[next];
+              if(cross(a,b,c)<0.00001)continue;
+              var inside=false;
+              for(var q=0;q<pts.length;q++) {
+                if(q===prev||q===i||q===next)continue;
+                if(cross(a,b,pts[q])>0.00001&&cross(b,c,pts[q])>0.00001&&cross(c,a,pts[q])>0.00001){inside=true;break;}
+              }
+              if(inside)continue;
+              draw(a,b,c);pts.splice(i,1);clipped=true;break;
+            }
+            if(!clipped)break;
+          }
+          if(pts.length===3)draw(pts[0],pts[1],pts[2]);
+        }
+        function rasterTriangle(a,b,c,w,h,pixel) {
+          var area=(b[0]-a[0])*(c[1]-a[1])-(b[1]-a[1])*(c[0]-a[0]);
+          if(Math.abs(area)<0.00001)return;
+          var x0=Math.max(0,Math.floor(Math.min(a[0],b[0],c[0]))),x1=Math.min(w-1,Math.ceil(Math.max(a[0],b[0],c[0])));
+          var y0=Math.max(0,Math.floor(Math.min(a[1],b[1],c[1]))),y1=Math.min(h-1,Math.ceil(Math.max(a[1],b[1],c[1])));
+          for(var y=y0;y<=y1;y++)for(var x=x0;x<=x1;x++) {
+            var xx=x+0.5-a[0],yy=y+0.5-a[1];
+            var bb=(xx*(c[1]-a[1])-yy*(c[0]-a[0]))/area;
+            var cc=((b[0]-a[0])*yy-(b[1]-a[1])*xx)/area,aa=1-bb-cc;
+            if(aa>=-0.00001&&bb>=-0.00001&&cc>=-0.00001)pixel(y*w+x,aa,bb,cc);
+          }
+        }
+        if(hasPixels) casters.forEach(function(face) {
+          triangulate(face.map(lightPoint),function(a,b,c) {
+            rasterTriangle(a,b,c,shadowW,shadowW,function(at,aa,bb,cc) {
+              var z=aa*a[2]+bb*b[2]+cc*c[2];if(z>shadowDepth[at])shadowDepth[at]=z;
+            });
+          });
+        });
+
+        // Ground contact follows the rotating chassis and upper machinery,
+        // rather than the previous horizontal oval sticking out of end views.
+        var footprint=[];
+        casters.forEach(function(face){face.forEach(function(p){
+          var u=p[0]-p[2]*light[0]/light[2]*0.28,v=p[1]-p[2]*light[1]/light[2]*0.28;
+          footprint.push([cx+fx*u+px*v,by+fy*u+py*v+0.55]);
+        });});
+        footprint.sort(function(a,b){return a[0]-b[0]||a[1]-b[1];});
+        function turn(a,b,c){return (b[0]-a[0])*(c[1]-a[1])-(b[1]-a[1])*(c[0]-a[0]);}
+        var lower=[],upper=[];
+        footprint.forEach(function(p){while(lower.length>1&&turn(lower[lower.length-2],lower[lower.length-1],p)<=0)lower.pop();lower.push(p);});
+        for(var q=footprint.length-1;q>=0;q--){var p=footprint[q];while(upper.length>1&&turn(upper[upper.length-2],upper[upper.length-1],p)<=0)upper.pop();upper.push(p);}
+        var outline=lower.slice(0,-1).concat(upper.slice(0,-1));
+        s.g.beginPath();outline.forEach(function(p,i){if(i)s.g.lineTo(p[0],p[1]);else s.g.moveTo(p[0],p[1]);});
+        s.g.closePath();s.g.fillStyle='rgba(13,19,21,0.30)';s.g.fill();
+
+        var depths=new Float32Array(rw*rh);depths.fill(-Infinity);
+        var rasterScale=DPR*samples,vehicleScale=USC_V*VSC;
+        // The non-browser test canvas has no real pixel backing store.
+        if(hasPixels) faces.forEach(function(face) {
+          var pts=face.p.map(function(p) {
+            var v=P3(p),lp=lightPoint(p);
+            return [(cx+(v[0]-cx)*vehicleScale)*rasterScale,(by+(v[1]-by)*vehicleScale)*rasterScale,
+              p[0]*Lu+p[1]*Lv+p[2]*Lz,(face.axis===0?p[1]:p[0])*KF,face.axis===2?p[1]*KF:p[2],lp[0],lp[1],lp[2]];
           });
           var color;
-          if (face.col.charAt(0) === '#') { var c = parseInt(face.col.slice(1), 16); color = [(c >> 16) & 255, (c >> 8) & 255, c & 255]; }
-          else color = face.col.match(/[\d.]+/g).map(Number);
-          // Ear clipping also handles the concave wheel-arch profile.
-          var sign = 0;
-          for (var q = 0; q < pts.length; q++) { var q1 = (q + 1) % pts.length; sign += pts[q][0] * pts[q1][1] - pts[q1][0] * pts[q][1]; }
-          sign = sign < 0 ? -1 : 1;
-          function cross(a, b, c) { return ((b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0])) * sign; }
-          while (pts.length > 3) {
-            var clipped = false;
-            for (var q = 0; q < pts.length; q++) {
-              var prev = (q + pts.length - 1) % pts.length, next = (q + 1) % pts.length;
-              var a0 = pts[prev], b0 = pts[q], c0 = pts[next];
-              if (cross(a0, b0, c0) < 0.00001) continue;
-              var inside = false;
-              for (var k = 0; k < pts.length; k++) {
-                if (k === prev || k === q || k === next) continue;
-                if (cross(a0, b0, pts[k]) > 0.00001 && cross(b0, c0, pts[k]) > 0.00001 && cross(c0, a0, pts[k]) > 0.00001) { inside = true; break; }
+          if(face.col.charAt(0)==='#'){var c=parseInt(face.col.slice(1),16);color=[(c>>16)&255,(c>>8)&255,c&255];}
+          else color=face.col.match(/[\d.]+/g).map(Number);
+          triangulate(pts,function(a,b,c) {
+            rasterTriangle(a,b,c,rw,rh,function(at,aa,bb,cc) {
+              var depth=aa*a[2]+bb*b[2]+cc*c[2];if(depth<depths[at]-0.00001)return;
+              depths[at]=depth;
+              var tu=aa*a[3]+bb*b[3]+cc*c[3],tv=aa*a[4]+bb*b[4]+cc*c[4];
+              var sx=aa*a[5]+bb*b[5]+cc*c[5],sy=aa*a[6]+bb*b[6]+cc*c[6],sz=aa*a[7]+bb*b[7]+cc*c[7];
+              var occluded=0;
+              for(var dy=-1;dy<=1;dy+=2)for(var dx=-1;dx<=1;dx+=2) {
+                var ix=Math.floor(sx+dx*0.45),iy=Math.floor(sy+dy*0.45);
+                if(ix>=0&&iy>=0&&ix<shadowW&&iy<shadowW&&shadowDepth[iy*shadowW+ix]>sz+0.42)occluded+=0.25;
               }
-              if (inside) continue;
-              triangle(a0, b0, c0, color, face.finish); pts.splice(q, 1); clipped = true; break;
-            }
-            if (!clipped) break;
-          }
-          if (pts.length === 3) triangle(pts[0], pts[1], pts[2], color, face.finish);
+              var shadow=1-occluded*(0.34+face.lit*0.25);
+              var grain=0,sheen=0;
+              if(face.finish) {
+                var gu=Math.floor(tu/1.55),gv=Math.floor(tv/0.7);
+                var hash=Math.imul(gu+400,73856093)^Math.imul(gv+400,19349663);
+                grain=((hash>>>3)%13-6)*(face.finish===1?0.75:0.45);
+                // A narrow reflected band travels over the steel as the
+                // vehicle turns. Diffuse paint keeps only a muted response.
+                var band=Math.pow(0.5+0.5*Math.sin(tu*0.31+tv*0.72+d*FANG*0.28),14);
+                sheen=band*(face.finish===2?29:5)+face.gloss*(0.62+band*0.38);
+              }
+              var offset=at*4;
+              for(var channel=0;channel<3;channel++)data[offset+channel]=color[channel]*shadow+sheen*(1-occluded*0.88)+grain;
+              data[offset+3]=255;
+            });
+          });
         });
-        raster.g.putImageData(pixels, 0, 0);
-        g.save(); g.setTransform(DPR, 0, 0, DPR, 0, 0);
-        g.drawImage(raster.c, 0, 0, s.w, s.h); g.restore();
+        raster.g.putImageData(pixels,0,0);
+        g.save();g.setTransform(DPR,0,0,DPR,0,0);
+        g.drawImage(raster.c,0,0,s.w,s.h);g.restore();
       })();
 
       // ---- Nighthawk ([SHAD], art `SHAD.VXL`) --------------------------- //
@@ -12530,7 +12589,9 @@
       var metalSeed = 0;
       for (var ms = 0; ms < kind.length; ms++) metalSeed = (metalSeed + kind.charCodeAt(ms) * (ms + 3)) & 255;
       if (SMOOTH) {
-        metalFinish(sc.c, metalSeed);
+        // MCV shades its metal, rubber and glass separately in the mesh
+        // rasterizer; the generic grain pass would put metal marks on tyres.
+        if (kind !== 'mcv') metalFinish(sc.c, metalSeed);
         NO_RIM = false;
         // the silhouette outline: the scratch sheet stamped in eight
         // directions and tinted dark, under the sheet itself
@@ -30197,9 +30258,16 @@
   }
   // The one place entities are written out in full; everywhere else in the
   // blob they are {$r:id}.
+  // `sel` is the SESSION's selection flag, not world state: saved, it came
+  // back true on a restored entity while the session's `sel` list was empty,
+  // so clicking anything that was selected at save time did nothing (the
+  // `if (!e.sel)` guard) and clearSel never reached it. A resumed match read
+  // as "every control is dead" (2026-09-11).
+  var ENT_SKIP = { sel: 1 };
   function serEnt(e) {
     var o = {}, k;
     for (k in e) if (Object.prototype.hasOwnProperty.call(e, k)) {
+      if (ENT_SKIP[k]) continue;
       var sv = ser(e[k]);
       if (sv !== null || e[k] === null) o[k] = sv;
     }
@@ -30214,8 +30282,10 @@
   function restoreGame(blob) {
     var g = deser(blob.g), i;
     g.byId = {};
-    for (i = 0; i < g.units.length; i++) g.byId[g.units[i].id] = g.units[i];
-    for (i = 0; i < g.blds.length; i++) g.byId[g.blds[i].id] = g.blds[i];
+    // Older saves carry the session flag (see ENT_SKIP): a restored entity is
+    // never selected, whatever the blob says.
+    for (i = 0; i < g.units.length; i++) { g.units[i].sel = false; g.byId[g.units[i].id] = g.units[i]; }
+    for (i = 0; i < g.blds.length; i++) { g.blds[i].sel = false; g.byId[g.blds[i].id] = g.blds[i]; }
     var pq = deser(blob.pq || []);
     resolveRefs(g, g.byId, []);
     resolveRefs(pq, g.byId, []);

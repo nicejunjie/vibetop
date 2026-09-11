@@ -6281,3 +6281,20 @@ test("the camera can bring any map edge to the centre of the view", () => {
   assert.equal(Math.abs(lo.x) < 1e-6, true);
   assert.equal(Math.abs((hi.y - lo.y) - (32 * W.__rtsTables.MAP + 400)) < 1e-6, true);
 });
+
+// A selection is SESSION state: it must not ride along in a save, and a save
+// that carries it (older blobs) must come back unselected — otherwise the
+// `if (!e.sel)` guard in clickSelect makes the unit dead to clicks forever.
+test("a selected unit is not selected in the save, nor after a restore of a blob that says it is", () => {
+  const H = W.__rtsTest;
+  H.startWith(9901, "normal", "frontier");
+  const u = H.spawn("lancer", 0, 12, 12);
+  u.sel = true;
+  const blob = H.saveBlob();
+  const saved = blob.g.units.find((x) => x.id === u.id);
+  assert.equal(saved.sel, undefined, "the session flag is not serialised");
+  saved.sel = true;                                   // an older save that did carry it
+  H.loadBlob(blob);
+  const back = H.saveBlob().g.units.find((x) => x.id === u.id);
+  assert.equal(back.sel, undefined);   // the live entity is clear: that is what clickSelect reads
+});
