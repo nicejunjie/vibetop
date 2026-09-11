@@ -4365,3 +4365,11 @@ plinth round the block), launcher 6.2x7.6x6.4 -> 7.6x9.0x7.6 set 3.8 units
 aft. Launcher-to-body now matches the rip's ~45% of height at the down-right
 bearing. Still not RA2's: the rip's launcher leans back and is a lumpy
 cluster; ours is a clean box.
+
+## 2026-09-10 (sixth pass) — one-piece bake for every ground vehicle
+
+`SMOOTH` = all ground kinds. Then, pair by pair against the sheets: Grizzly
+navy and small-turreted; Prism navy with a pale head; Apocalypse squat pods
++ one skirt; Mirage a thick projector block; MCV rebuilt as the sheet's
+eight-wheeled truck; Rhino 0.88. Three pairs rescued from the moved median
+(dog | tanya, ivan | yuri, destroyer | aegis). Details in design-decisions.

@@ -12099,3 +12099,40 @@ lego, just fainter.
 and reads the same way; `SMOOTH` is a per-kind list so they can be moved
 across one at a time, each against its own rip, rather than flipping the
 roster and hoping. The Grizzly and Rhino are the next two.
+
+
+### The one-piece bake, applied to the whole ground roster — and what each rip corrected
+
+**Symptom.** After the IFV: *"good, apply similar idea to all units."*
+
+**What "the idea" is.** `SMOOTH` is now every ground vehicle (aircraft and
+the hovercraft APC keep their own path): parts draw without per-face outlines
+or rims onto a scratch sheet, and the unit is outlined once at its
+silhouette. That alone took the "lego" out of thirteen units in one line.
+
+**What each rip then corrected, unit by unit, at the down-right bearing.**
+Grizzly: RA2's is a slate-NAVY tank with a pale top and a small low turret,
+not the pale silver wedge with a big turret ours was — hull darkened
+(`VLIFT` still lifts its top faces), turret 0.82x, owner colour a patch, not
+a skirt. Prism: same navy, one flank plate, and the head PALE and bigger —
+the brightest thing on the tank, not a dark housing with a pink stripe.
+Apocalypse: the pods are SQUAT boxes on the rear shoulders and the red is
+the hull SKIRT, so the tall drums (which three passes had been fighting a
+clause over) became low pods and the skirt one long plate; the pod clause
+lost its standing-cylinder test. Mirage: the projector is a thick pale
+BLOCK filling the rear, not a slab. MCV: rebuilt as a long dark blue-grey
+eight-wheeled truck with a blue cab — the crane crawler matched nothing on
+the sheet. Rhino: a touch larger; it was already the closest.
+
+**Second-order effects, again the friend-vs-foe median.** The vehicles'
+owner fraction rose with the skirts and cabs, the roster median rose with
+it, and three marginal pairs fell under: dog | tanya (dog darker brown),
+ivan | yuri (Yuri's coat lighter violet), destroyer | aegis (Aegis
+deckhouse paler, destroyer gunhouse darker). The Mirage was trimmed back
+from the owner-colour maximum.
+
+**Debt recorded.** `peerVsSelf.vehicle` 5 (Grizzly | Rhino is RA2's own
+pair), the MCV width clause (RA2's MCV is 1.5x its widest tank; ours is
+1.39x, and its aspect check compares a diagonal against the table's
+broadside), the Chrono Miner roofline artefact, the Apocalypse pods fusing
+with the skirt in the house-mask check, and the Destroyer's length clause.

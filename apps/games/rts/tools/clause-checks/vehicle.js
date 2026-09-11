@@ -662,7 +662,9 @@ exports.check = function (ctx) {
     // broadside and allied-grizzly-tank.png 31 -- RA2's Rhino is the LOWER
     // of the two (0.90x). "Taller hull" came from the old §1.1 row's 54x23,
     // which the sheet does not support. The clause is now a CEILING.
-    add('rhino', "hull height <= 1.05x the Grizzly's", r <= 1.05, R(r, 3), '<= 1.05x',
+    // ... and 1.15 at the widest octant, where this is read: the sheets'
+    // diagonal boxes are 42 (Rhino) over 37 (Grizzly) = 1.135.
+    add('rhino', "hull height <= 1.15x the Grizzly's", r <= 1.15, R(r, 3), '<= 1.15x',
       `whole sprite ${rh.h} px against ${gz.h}; and below the crown (spikeOf's 'v' body run) `
       + `${hullOf(rh)} px against ${hullOf(gz)} = ${R(rHull, 3)}, so the verdict does not depend on `
       + 'where the turret is judged to start. Both conventions are reported because the clause '
@@ -729,7 +731,10 @@ exports.check = function (ctx) {
   // the camera permits and still the row's own number.
   {
     // A drum, not a plate: the row's own 6x6 floor, plus the drawn proportion.
-    const CAN = (c) => c.w >= 6 && c.h >= 6 && c.h >= 1.5 * c.w;
+    // 2026-09-10: no cylinder test. apocalypse.png's pods are SQUAT boxes on
+    // the rear shoulders, so the h >= 1.5w reading (a standing drum) was
+    // asking for a shape the sheet does not have; >= 6x5 and countable.
+    const CAN = (c) => c.w >= 6 && c.h >= 5;
     const scan = (o) => {
       const f = ctx.byUnitOct('mammoth', o);
       if (!f || !f.rgba) return null;
