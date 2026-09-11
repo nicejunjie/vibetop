@@ -1001,6 +1001,9 @@ per state, for every structure and defence, both factions.
   the better column bolded, then Leadership/Economy/Technology as
   percentages — **approximations** of Westwood's, not the shipped formula
   (the weights are in no readable .ini); the leaderboard follows it.
+- ☑ Edge scrolling at the WINDOW edges (over the build panel and command bar,
+  RA2's rule) with a dead lip over the controls, and half a viewport of black
+  void around the map so any edge can be centred (2026-09-11).
 - ☑ Resume on reload: any unload mid-match (a deploy push, a browser refresh,
   a backgrounded tab) autosaves to the `auto` key and boot re-enters the match;
   the menu and game over clear the flag (2026-09-11).

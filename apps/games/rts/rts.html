@@ -30020,10 +30020,15 @@
     cam.x = worldX(gx, gy);
     cam.y = worldY(gx, gy);
   }
+  // The map floats in a black void the camera may scroll into, as RA2's does:
+  // half a viewport of it on every side, so ANY point on the map's edge can be
+  // brought to the centre of the screen. A fixed 260 px used to leave the
+  // corners of the diamond pinned against the view, which made the last row of
+  // a base the hardest place on the map to work in.
   function clampCam() {
-    var margin = 260;
-    cam.x = Math.max(-(MAP * TW / 2) - margin, Math.min((MAP * TW / 2) + margin, cam.x));
-    cam.y = Math.max(-margin, Math.min(MAP * TH + margin, cam.y));
+    var mx = Math.max(260, cvW / 2 / zoom), my = Math.max(260, cvH / 2 / zoom);
+    cam.x = Math.max(-(MAP * TW / 2) - mx, Math.min((MAP * TW / 2) + mx, cam.x));
+    cam.y = Math.max(-my, Math.min(MAP * TH + my, cam.y));
   }
   var APRON = 16;                                 // how far the terrain runs past the border
   function sx(gx, gy) { return worldX(gx, gy) - cam.x + cvW / 2; }
@@ -32721,19 +32726,8 @@
     // fast flick could finish between frames and be mistaken for a click.
     if (pan && pan.right && !pan.moved &&
         (Math.abs(nx - pan.x0) > RIGHT_SLOP || Math.abs(ny - pan.y0) > RIGHT_SLOP)) pan.moved = true;
-    var now = performance.now(), dtm = now - lastMoveT;
-    if (dtm > 0 && dtm < 120) {
-      var dpx = Math.sqrt((nx - lastMoveX) * (nx - lastMoveX) + (ny - lastMoveY) * (ny - lastMoveY));
-      moveSpeed = moveSpeed * 0.45 + (dpx / dtm * 1000) * 0.55;
-    } else {
-      // No usable previous sample — the pointer has just (re-)entered the
-      // canvas, typically coming BACK from the command bar and therefore
-      // crossing the right-hand band on the way in. Treating unknown as
-      // stationary made the map lurch the instant you returned from the menu.
-      // Unknown means travelling until a real measurement says otherwise.
-      moveSpeed = MOVE_FAST + 1;
-    }
-    lastMoveT = now; lastMoveX = nx; lastMoveY = ny;
+    // (Pointer speed for the edge band is measured at the document level —
+    // see trackPageMouse — because the band now lives at the WINDOW edges.)
     mouse.x = nx; mouse.y = ny; mouse.in = true;
     var hovE = drag ? null : pickAt(nx, ny);
     updateHover(hovE, nx, ny);
@@ -33499,11 +33493,11 @@
   // not navigating — so the map stops immediately. This is what makes a
   // right-hand panel coexist with edge scrolling (C&C does the same); the
   // few pixels the pointer earns crossing the slow inner lip never land.
-  // Anything that is not the map holds the map still: the command bar, the top
-  // bar, and leaving the window altogether.
+  // `mouse.in` is the CANVAS hover (cursor, tooltips); the edge band reads
+  // pageMouse, which only leaving the window clears — see trackPageMouse.
   document.getElementById('side').addEventListener('pointerenter', function () { mouse.in = false; });
   document.querySelector('.bar').addEventListener('pointerenter', function () { mouse.in = false; });
-  document.addEventListener('pointerleave', function () { mouse.in = false; });
+  document.addEventListener('pointerleave', function () { mouse.in = false; pageMouse.in = false; });
 
   // Minimap click jumps the camera.
   mini.addEventListener('pointerdown', function (e) {
@@ -33551,6 +33545,51 @@
   var EDGE_BAND = 44;           // px — narrow enough to stay out of the way
   var EDGE_MIN = 80;            // px/s at the inner lip
   var EDGE_MAX = 900;           // px/s at the outer edge and beyond
+  // WHERE the band is: the edges of the WINDOW, not of the map canvas — RA2's
+  // rule. The build panel is on the right and the command bar along the
+  // bottom, and a band at the canvas edge next to them was a thin strip the
+  // pointer overshot into the panel every time (the panel then held the map
+  // still). Now the pointer is shoved to the screen edge like in RA2, panel
+  // or no panel. Over a panel the band is NARROW and its inner lip is DEAD,
+  // so parking on the outermost cameo column or the bottom of a command
+  // button scrolls nothing; only the outer 6 px past the controls do. The
+  // left edge is bare map and keeps the wide, dwell-free band.
+  var MENU_BAND = 14, MENU_DEAD = 8;    // live zone = the outer 6 px
+  var EDGE_BANDS = { l: { band: EDGE_BAND, dead: 0 }, t: { band: MENU_BAND, dead: MENU_DEAD },
+                     r: { band: MENU_BAND, dead: MENU_DEAD }, b: { band: MENU_BAND, dead: MENU_DEAD } };
+  // Pure: pointer (x, y) in a w x h window -> scroll target {tx, ty} in -1..1,
+  // 0 outside the bands, growing from the (dead) inner lip to 1 at the edge.
+  function edgeTarget(x, y, w, h, bands) {
+    function t(d, bd) {                       // d: distance in from the edge
+      if (d >= bd.band) return 0;
+      var live = bd.band - bd.dead;
+      return live <= 0 ? 1 : Math.max(0, Math.min(1, (bd.band - d - bd.dead) / live));
+    }
+    var tx = 0, ty = 0;
+    if (x < bands.l.band) tx = -t(x, bands.l);
+    else if (x > w - bands.r.band) tx = t(w - x, bands.r);
+    if (y < bands.t.band) ty = -t(y, bands.t);
+    else if (y > h - bands.b.band) ty = t(h - y, bands.b);
+    return { tx: tx, ty: ty };
+  }
+  var pageMouse = { x: -1, y: -1, in: false };
+  function trackPageMouse(e) {
+    if (e.pointerType === 'touch') return;    // touch pans by dragging, never by the edge
+    var nx = e.clientX, ny = e.clientY;
+    var now = performance.now(), dtm = now - lastMoveT;
+    if (dtm > 0 && dtm < 120) {
+      var dpx = Math.sqrt((nx - lastMoveX) * (nx - lastMoveX) + (ny - lastMoveY) * (ny - lastMoveY));
+      moveSpeed = moveSpeed * 0.45 + (dpx / dtm * 1000) * 0.55;
+    } else {
+      // No usable previous sample — the pointer has just (re-)entered the
+      // window. Unknown means travelling until a real measurement says
+      // otherwise, so an arrival at the edge never lurches.
+      moveSpeed = MOVE_FAST + 1;
+    }
+    lastMoveT = now; lastMoveX = nx; lastMoveY = ny;
+    pageMouse.x = nx; pageMouse.y = ny; pageMouse.in = true;
+  }
+  document.addEventListener('pointermove', trackPageMouse);
 
   // A pointer FLYING across the band is on its way somewhere — usually the
   // command bar — and must not drag the map with it. A pointer that arrives
@@ -33601,19 +33640,14 @@
         return;
       }
 
-      if (mouse.in && !drag && !pointerFlying()) {
-        var tx = 0, ty = 0;
-        if (mouse.x < EDGE_BAND) tx = -(1 - mouse.x / EDGE_BAND);
-        else if (mouse.x > cvW - EDGE_BAND) tx = 1 - (cvW - mouse.x) / EDGE_BAND;
-        if (mouse.y < EDGE_BAND) ty = -(1 - mouse.y / EDGE_BAND);
-        else if (mouse.y > cvH - EDGE_BAND) ty = 1 - (cvH - mouse.y) / EDGE_BAND;
-        if (tx) wx += Math.sign(tx) * edgeSpeed(Math.abs(tx));
-        if (ty) wy += Math.sign(ty) * edgeSpeed(Math.abs(ty));
+      if (pageMouse.in && !drag && !pointerFlying()) {
+        var et = edgeTarget(pageMouse.x, pageMouse.y, window.innerWidth, window.innerHeight, EDGE_BANDS);
+        if (et.tx) wx += Math.sign(et.tx) * edgeSpeed(Math.abs(et.tx));
+        if (et.ty) wy += Math.sign(et.ty) * edgeSpeed(Math.abs(et.ty));
       }
-      // Leaving the canvas — any edge, panel or window — stops navigation.
-      // Off-window acceleration was tried and is wrong here: a browser cursor
-      // is not locked to the viewport, so wandering out of the game left the
-      // map running away on its own.
+      // Leaving the WINDOW stops navigation. Off-window acceleration was tried
+      // and is wrong here: a browser cursor is not locked to the viewport, so
+      // wandering out of the game left the map running away on its own.
     }
 
     // Velocity easing, frame-rate INDEPENDENT. `Math.min(1, dt * 16)` saturates
@@ -37098,6 +37132,9 @@
     // Read-only camera, so a test can tell "the view moved" from "the scene
     // animated" — a canvas screenshot cannot.
     cam: function () { return { x: cam.x, y: cam.y }; },
+    edgeTarget: edgeTarget, edgeBands: function () { return EDGE_BANDS; },
+    clampCam: function () { clampCam(); return { x: cam.x, y: cam.y }; },
+    setCam: function (x, y) { cam.x = x; cam.y = y; },
     // Cursors are CSS, so a screenshot never shows them: these let the art
     // review render the whole set as a contact sheet and assert the context
     // picker chose the right one.

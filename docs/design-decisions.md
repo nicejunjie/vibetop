@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_271 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_272 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
 - [Scheduled terminal messages ("resume when the token limit resets")](#scheduled-terminal-messages-resume-when-the-token-limit-resets)
@@ -294,6 +294,7 @@ _271 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [Cloudflare Access expiry left an open desktop blank (2026-09-10)](#cloudflare-access-expiry-left-an-open-desktop-blank-2026-09-10)
 - [Files: Quick Look is a panel over the listing, and grid columns are read off the layout (2026-09-11)](#files-quick-look-is-a-panel-over-the-listing-and-grid-columns-are-read-off-the-layout-2026-09-11)
 - [RTS: a refresh resumed only when the game itself asked for it (2026-09-11)](#rts-a-refresh-resumed-only-when-the-game-itself-asked-for-it-2026-09-11)
+- [RTS: the edge-scroll band moved from the canvas edge to the window edge (2026-09-11)](#rts-the-edge-scroll-band-moved-from-the-canvas-edge-to-the-window-edge-2026-09-11)
 
 <!-- END TOC -->
 
@@ -12284,4 +12285,25 @@ lockstep pair cannot resume alone. Covered by two unit tests in rts.test.js.
 
 **Rejected.** A periodic autosave: the two named cases both fire `pagehide`,
 and serialising the world every minute is a hitch the player would feel.
+
+## RTS: the edge-scroll band moved from the canvas edge to the window edge (2026-09-11)
+
+**Symptom.** (user) "navigation should be on the edge of those menus instead of
+the edge of the map, same as RA2". The build panel is on the right and the
+command bar along the bottom, and the scroll band sat on the canvas edge
+beside them: a thin strip the pointer overshot into the panel every time,
+where a `pointerenter` handler then held the map still.
+
+**Fix.** `edgeTarget()` measures the pointer against the WINDOW edges
+(`pageMouse`, tracked on the document, which is also where the flying-pointer
+speed is now measured so crossing the panel is one continuous sample). Over a
+panel the band is 14 px with an 8 px dead inner lip, so the outermost cameo
+column and the bottom of a command button (6 px from the edge) scroll nothing
+and only the outer 6 px do; the bare left edge keeps the wide 44 px band with
+its live lip. `clampCam()` also grew from a fixed 260 px to half a viewport of
+void on every side, so any map edge can be brought to the centre of the view.
+
+**Rejected.** A uniform 44 px band at the window edge: over the 176 px sidebar
+it covers the right cameo column, and over the 55 px command bar most of the
+buttons — parking to click would scroll. RA2's own zone is a few pixels.
 

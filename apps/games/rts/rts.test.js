@@ -6241,3 +6241,40 @@ test("an unload outside a match clears the resume flag, so a stale autosave is n
   assert.equal(H.resumeFlag(), "0");
   H.setState("play");
 });
+
+// ------------------------------------------------------ edge scrolling zones //
+// RA2's rule: the band sits at the WINDOW edges, so the build panel on the
+// right and the command bar along the bottom are scrolled INTO, not stopped
+// by. Over a panel the band is narrow with a dead inner lip, so the controls
+// themselves never scroll the map.
+
+test("the scroll band is at the window edge, not the map/panel border", () => {
+  const H = W.__rtsTest, B = H.edgeBands();
+  const w = 1400, h = 900, side = 176;
+  // Parked on the map right next to the panel border: nothing.
+  assert.equal(H.edgeTarget(w - side - 4, 400, w, h, B).tx, 0);
+  // Parked over the panel but short of the window edge (a cameo): nothing.
+  assert.equal(H.edgeTarget(w - 12, 400, w, h, B).tx, 0);
+  // Shoved to the window edge over the panel: full speed.
+  assert.equal(H.edgeTarget(w - 1, 400, w, h, B).tx > 0.8, true);
+  // The bottom of a command button (6 px above the window edge): nothing.
+  assert.equal(H.edgeTarget(600, h - 6, w, h, B).ty, 0);
+  assert.equal(H.edgeTarget(600, h - 1, w, h, B).ty > 0.8, true);
+  // The bare left edge keeps its wide band with a live inner lip.
+  assert.equal(H.edgeTarget(2, 400, w, h, B).tx < -0.9, true);
+  assert.equal(H.edgeTarget(30, 400, w, h, B).tx < 0, true);
+  assert.equal(H.edgeTarget(60, 400, w, h, B).tx, 0);
+});
+
+test("the camera can bring any map edge to the centre of the view", () => {
+  const H = W.__rtsTest;
+  H.startWith(4321, "normal", "frontier");
+  H.setCam(-1e9, -1e9);
+  const lo = H.clampCam();
+  H.setCam(1e9, 1e9);
+  const hi = H.clampCam();
+  // Half a viewport of void on every side (the harness view is 800x600 at
+  // zoom 1): the old fixed 260 px margin could not centre a corner.
+  assert.equal(lo.y, -300);
+  assert.ok(hi.y - lo.y > 600 && hi.x - lo.x > 800);
+});
