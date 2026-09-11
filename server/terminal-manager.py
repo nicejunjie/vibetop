@@ -5062,6 +5062,15 @@ class Handler(http.server.BaseHTTPRequestHandler):
         if active is not None and not isinstance(active, str):
             self._json(400, {"error": "active must be a string or null"})
             return
+        # DIAGNOSTIC (2026-09-11, temporary): the shell ships its un-minimize
+        # stack log on the heartbeat; surface it here so it can be read from
+        # the manager log without the user's devtools.
+        diag = data.get("diag")
+        if diag:
+            try:
+                log.warning("desktop diag %s: %s", instance, json.dumps(diag)[:6000])
+            except (TypeError, ValueError):
+                pass
         now = time.time()
         # Shell-tier polls folded onto this 5s heartbeat (consolidate within the
         # tier): the Claude-Usage flag, the terminal count for the Start-menu
