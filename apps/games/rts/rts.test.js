@@ -6252,12 +6252,18 @@ test("only the gutter scrolls: the map border, the panels and their controls nev
   const w = 1200, h = 800;
   assert.ok(G >= 20, "a strip you can park on");
   for (const k of ["l", "t", "r", "b"]) assert.equal(B[k].band, G), assert.equal(B[k].dead, 0);
-  // In the gutter: full speed at the window edge, easing to zero at its inner edge.
-  assert.equal(H.edgeTarget(w - 1, 400, w, h, B).tx > 0.9, true);
-  assert.equal(H.edgeTarget(w - G / 2, 400, w, h, B).tx > 0, true);
-  assert.equal(H.edgeTarget(600, h - 1, w, h, B).ty > 0.9, true);
-  assert.equal(H.edgeTarget(600, 1, w, h, B).ty < -0.9, true);
-  assert.equal(H.edgeTarget(1, 400, w, h, B).tx < -0.9, true);
+  // In the gutter: ONE speed across the whole strip, on every side — a
+  // depth-scaled band felt different per side by where the hand stopped.
+  assert.equal(H.edgeTarget(w - 1, 400, w, h, B).tx, 1);
+  assert.equal(H.edgeTarget(w - G / 2, 400, w, h, B).tx, 1);
+  assert.equal(H.edgeTarget(w - G + 1, 400, w, h, B).tx, 1);
+  assert.equal(H.edgeTarget(600, h - 1, w, h, B).ty, 1);
+  assert.equal(H.edgeTarget(600, h - G / 2, w, h, B).ty, 1);
+  assert.equal(H.edgeTarget(600, 1, w, h, B).ty, -1);
+  assert.equal(H.edgeTarget(600, G / 2, w, h, B).ty, -1);
+  assert.equal(H.edgeTarget(1, 400, w, h, B).tx, -1);
+  assert.equal(H.edgeTarget(G / 2, 400, w, h, B).tx, -1);
+  assert.deepEqual(H.edgeTarget(w - 2, h - 2, w, h, B), { tx: 1, ty: 1 });   // a corner: both
   // Just inside the frame — over the build panel, the command bar, the map border: nothing.
   assert.deepEqual(H.edgeTarget(w - G - 2, 400, w, h, B), { tx: 0, ty: 0 });   // the panel's outer column
   assert.deepEqual(H.edgeTarget(w - 100, 400, w, h, B), { tx: 0, ty: 0 });     // a cameo

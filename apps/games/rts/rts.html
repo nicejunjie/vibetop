@@ -33698,13 +33698,18 @@
     return v;
   }
   var GUT = gutterPx();
-  var EDGE_BANDS = { l: { band: GUT, dead: 0 }, t: { band: GUT, dead: 0 },
-                     r: { band: GUT, dead: 0 }, b: { band: GUT, dead: 0 } };
+  // FLAT: one speed across the whole strip. A depth-scaled band (80 px/s at
+  // the inner lip, 900 at the edge) made each side feel different by where
+  // the hand happened to stop — the user: "the navigation speed on the four
+  // sides isn't consistent". RA2's edge scroll is one constant rate.
+  var EDGE_BANDS = { l: { band: GUT, dead: 0, flat: true }, t: { band: GUT, dead: 0, flat: true },
+                     r: { band: GUT, dead: 0, flat: true }, b: { band: GUT, dead: 0, flat: true } };
   // Pure: pointer (x, y) in a w x h window -> scroll target {tx, ty} in -1..1,
   // 0 outside the bands, growing from the (dead) inner lip to 1 at the edge.
   function edgeTarget(x, y, w, h, bands) {
     function t(d, bd) {                       // d: distance in from the edge
       if (d >= bd.band) return 0;
+      if (bd.flat) return 1;                  // the whole strip is the edge
       var live = bd.band - bd.dead;
       return live <= 0 ? 1 : Math.max(0, Math.min(1, (bd.band - d - bd.dead) / live));
     }
@@ -33786,8 +33791,11 @@
       if (pageMouse.in && !drag && !pointerFlying()) {
         // The gutter: the pointer against the window's edges, outside every panel.
         var et = edgeTarget(pageMouse.x, pageMouse.y, window.innerWidth, window.innerHeight, EDGE_BANDS);
-        if (et.tx) wx += Math.sign(et.tx) * edgeSpeed(Math.abs(et.tx));
-        if (et.ty) wy += Math.sign(et.ty) * edgeSpeed(Math.abs(et.ty));
+        var ex = et.tx ? Math.sign(et.tx) * edgeSpeed(Math.abs(et.tx)) : 0;
+        var ey = et.ty ? Math.sign(et.ty) * edgeSpeed(Math.abs(et.ty)) : 0;
+        // A corner scrolls diagonally at the SAME speed as a side, not 1.41x.
+        if (ex && ey) { ex *= Math.SQRT1_2; ey *= Math.SQRT1_2; }
+        wx += ex; wy += ey;
       }
       // Leaving the WINDOW stops navigation. Off-window acceleration was tried
       // and is wrong here: a browser cursor is not locked to the viewport, so

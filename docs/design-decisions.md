@@ -12341,6 +12341,10 @@ build panel and below the command bar, with directional resize cursors;
 `edgeTarget` reads `pageMouse` against the window edges with the gutter's
 width as the band, and nothing else scrolls. The strip exists because a
 floating desktop window does not stop the cursor: it is what you park on.
+And the strip is FLAT (v1.19.330): one speed everywhere in it, and a corner
+scrolls diagonally at a side's speed, not 1.41x. The depth-scaled curve
+made "the navigation speed on the four sides inconsistent" — it was really
+inconsistent by where the hand stopped in the strip, which nobody controls.
 
 ## RTS: a resumed or loaded match was dead to clicks — the selection flag rode along in the save (2026-09-11)
 
