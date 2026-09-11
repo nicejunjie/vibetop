@@ -12189,3 +12189,41 @@ right-click -> selection cleared; right-drag -> camera moved.
 
 **Rejected.** Keeping right-click-to-order alongside: two buttons that both
 order is how mis-clicks happen, and it is not what the user asked for.
+
+
+### A canted box for the IFV — one projected primitive, culled by the line of sight, and the double value-lift it exposed
+
+**Symptom.** The IFV's rocket pod leans nose-up and its repair arm is two
+navy beams at angles; the vehicle kit only has upright shapes (`isoBox`,
+`puck`, `prism`). The eighth pass faked the lean by stepping six flat
+slices forward, which read as a staircase, and drew the arm as a stroked
+line, which read as a tube. The user asked for an exact match to the voxel
+render.
+
+**Fix.** `cbox(u0, z0, th, L, T, W, col, deco)` inside the IFV block: a box
+with its axis tilted `th` off horizontal in the (forward, up) plane, built
+from eight (u, v, z) corners and projected by the same `fx/fy/px/py` the
+rest of the bake uses (`P3`). Each face is culled by the projection's own
+line of sight — `d = (px, -fx, fy*px - py*fx)`, flipped so it points up,
+which is the null vector of the 2x3 projection — against the face's
+outward normal (cross product of two edges, oriented away from the box
+centre). Any coordinate system works for that test as long as the normal
+and `d` are in the same one, so no orthonormalisation is needed. A convex
+solid's visible faces never overlap in projection, so they draw in any
+order. `deco(face, pt)` is called per visible face with the face's own
+(i, j, k) parametrisation, which is how the pod's navy waist band lands on
+the sides and its six cells on the tip. Ground units and screen pixels are
+different scales (`KF = ISO_X*sqrt2` px per ground unit at broadside), so
+the axis is converted once: `au = cos(th)/KF*L`, `az = sin(th)*L`.
+
+**The trap it exposed.** The first render came out white. `shade()` applies
+`VLIFT` (1.25) to every low-saturation colour it is handed — and the pod
+was `shade(shade(hull, 0.98), faceShade)`: lifted twice, 1.5x, and clipped.
+Pass the raw hull hex to any helper that shades again, and set the face
+multipliers knowing one lift is coming (top 1.00, tip 0.86, side 0.64 on
+the IFV). The same nesting is why the eighth pass's dome read as white.
+
+**Rejected.** A general 3D renderer for vehicles: the kit's flat parts are
+what keep the rest of the roster cheap and consistent, and the IFV is the
+one unit whose reference has two canted volumes.
+
