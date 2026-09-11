@@ -12136,3 +12136,31 @@ pair), the MCV width clause (RA2's MCV is 1.5x its widest tank; ours is
 1.39x, and its aspect check compares a diagonal against the table's
 broadside), the Chrono Miner roofline artefact, the Apocalypse pods fusing
 with the skirt in the house-mask check, and the Destroyer's length clause.
+
+
+### The MCV rebuilt twice in one day — a segmented thumbnail is not a sprite
+
+**Symptom.** *"mcv looks terrible, even worse than before. do you even look
+at what ra2 unit is??????"* — after the MCV had been "rebuilt against
+`allied-mcv.png`" earlier the same afternoon.
+
+**Cause.** The sheet had been read through the segmenter (a bbox and a
+4x crop in a contact sheet) and described as "a long low eight-wheeled
+truck with a blue cab". At that size the cab and the load merge into one
+lozenge and the eye fills in a slab. Opened at 5x, the Allied MCV is a TALL
+semi-truck: a high boxy cab at the nose, as tall as anything behind it, a
+rounded deep-blue load, silver machinery at the tail, three axles of large
+wheels. 76x36 broadside, 66x46 diagonal. The `RA2_BBOX` row (91x46) that
+the same pass had written was also the segmenter's — it had swallowed the
+shadow and sand noise.
+
+**Fix.** Rebuilt from the 5x read (cab 8.2 units tall on a `len` 40 /
+`wid` 16 flatbed, blue load in two segments, silver tail, six wheels); the
+table row corrected to 76x36; the README row rewritten to say what was
+looked at and at what size.
+
+**The rule, made explicit.** "Look at the image" (README step 3) means at
+a magnification where the parts separate — 4-5x for a 60 px sprite — and
+before writing a single number down. Every unit corrected today that had
+been "checked against its rip" and was still wrong (Mirage, Grizzly, MCV)
+had been checked at contact-sheet size.
