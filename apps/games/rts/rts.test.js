@@ -4129,7 +4129,10 @@ test("a person at seat 1 plays by the same rules as a person at seat 0", () => {
   const dug = H.spawn("rifle", 1, 30, 30);
   dug.deployed = true;
   H.orderMove([dug], 40, 40);
-  assert.equal(dug.order, null, "a person's deployed GI at seat 1 stays put");
+  // RA2: a deployed GI given a move order stands up and walks (2026-09-11,
+  // orders audit) — on BOTH seats.
+  assert.equal(dug.order && dug.order.t, "move", "a person's deployed GI at seat 1 takes the move");
+  assert.equal(!!dug.deployed, false, "and packed up to do it");
 
   // 2. Nor does he dig in by himself when something wanders into range.
   const gi0 = H.spawn("rifle", 0, 60, 60), bait0 = H.spawn("conscript", 1, 62, 60);
@@ -6432,4 +6435,47 @@ test("the placement origin is one rule for every pointer position and footprint"
       assert.deepEqual(o, ghost, `${d.gw}x${d.gh} at ${gp.x},${gp.y}`);
     }
   }
+});
+
+// Orders audit (2026-09-11): the own-target rule covers the Service Depot and
+// the Airforce Command; an ENTER goal is a free cell beside the hull; a
+// Shift-click on an enemy queues the attack behind the current order.
+test("a vehicle over the Service Depot is an order (the own-target rule's missing rung)", () => {
+  const H = W.__rtsTest;
+  H.startWith(9961, "normal", "frontier");
+  const st = H.world().start[0];
+  const depot = H.build("depot", 0, st.x + 6, st.y + 6);
+  assert.ok(depot, "a depot was placed");
+  const tank = H.spawn("lancer", 0, st.x + 10, st.y + 10), gi = H.spawn("rifle", 0, st.x + 10, st.y + 8);
+  assert.equal(H.ownTargetOrder(depot, [tank]), true, "tank + depot: ENTER");
+  assert.equal(H.ownTargetOrder(depot, [gi]), false, "a GI has no business in a depot: SELECT");
+});
+
+// The audit's frozen boarding: a man arriving on a DIAGONAL neighbour of the
+// hull sits 1.41 cells away, and the 1.4 board check never let him in.
+test("a man on a diagonal neighbour cell of the transport boards it", () => {
+  const H = W.__rtsTest;
+  H.startWith(9963, "normal", "frontier");
+  const M = W.__rtsTables.MAP, cx = Math.floor(M / 2), cy = Math.floor(M / 2);
+  const tr = H.spawn("ifv", 0, cx, cy); tr.stopped = true;
+  const gi = H.spawn("rifle", 0, cx + 1, cy + 1);
+  assert.equal(H.orderEnter([gi], tr), 1);
+  H.step(30);
+  assert.equal(H.passengers(tr).length, 1, "he stepped in from the diagonal");
+});
+
+test("Shift on an enemy queues the attack behind the current move, and it fires when the move ends", () => {
+  const H = W.__rtsTest;
+  H.startWith(9962, "normal", "frontier");
+  const M = W.__rtsTables.MAP, cx = Math.floor(M / 2), cy = Math.floor(M / 2);
+  const tank = H.spawn("lancer", 0, cx, cy), foe = H.spawn("rifle", 1, cx, cy + 6);
+  assert.equal(H.orderMove([tank], cx + 2, cy), 1);
+  assert.equal(H.orderAttack([tank], foe, true, true), 1, "queued");
+  assert.equal(tank.order.t, "move", "the move is not replaced");
+  assert.equal(tank.wp.length, 1);
+  assert.equal(tank.wp[0].attack, foe.id);
+  assert.equal(H.nextWaypoint(tank), true);
+  assert.equal(tank.order.t, "attack");
+  assert.equal(tank.order.id, foe.id);
+  assert.equal(tank.order.focus, 1);
 });

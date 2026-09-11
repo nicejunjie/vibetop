@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_279 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_280 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
 - [Scheduled terminal messages ("resume when the token limit resets")](#scheduled-terminal-messages-resume-when-the-token-limit-resets)
@@ -302,6 +302,7 @@ _279 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [RTS: troops could not enter an IFV — "select own" pre-empted the enter order (2026-09-11)](#rts-troops-could-not-enter-an-ifv-select-own-pre-empted-the-enter-order-2026-09-11)
 - [RTS: a player's attack order has exclusive focus; the AI's keeps the loose rule (2026-09-11)](#rts-a-players-attack-order-has-exclusive-focus-the-ais-keeps-the-loose-rule-2026-09-11)
 - [RTS build audit (2026-09-11): the ghost and the click disagreed on where a building goes](#rts-build-audit-2026-09-11-the-ghost-and-the-click-disagreed-on-where-a-building-goes)
+- [RTS orders audit (2026-09-11): twelve ways the click and the cursor disagreed](#rts-orders-audit-2026-09-11-twelve-ways-the-click-and-the-cursor-disagreed)
 
 <!-- END TOC -->
 
@@ -12521,3 +12522,39 @@ Both clocks sweep from noon. The wall run says "Wall finished".
 **Why an audit found what tests did not.** Every one of these lives in the
 input path — the cursor's promise, the click's rule, the text the player
 reads — which the sim hooks bypass (see the player-path suite's header).
+
+## RTS orders audit (2026-09-11): twelve ways the click and the cursor disagreed
+
+**Symptom.** A click-driven audit of unit orders: the NO cursor over rock or
+water and the click ordered a move anyway (re-homed to the nearest passable
+cell, "Moving" as confirmation); a damaged vehicle onto the Service Depot and
+a plane onto its Airforce Command just selected the building (two rungs of
+`wantsOwn` missing from the new own-target rule); a GI told to board a
+transport froze for the match when the hull's own cell had no route from his
+side (1-4 of 6 boardings); double-clicking an MCV selected all of them AND
+deployed them; the click that un-paused also issued the order under it;
+capture / garrison / infiltrate were announced as "Attacking"; Shift on a
+selected unit did not drop it; Shift on an enemy replaced the order instead
+of queueing; nothing promised the rally point; a deployed GI showed MOVE and
+refused; a ship ordered ashore was told about sea routes; "infantrymanmen".
+
+**Fix.** `rightOrder` refuses a cell no selected mover can enter, with the
+cursor's own test. `ownTargetOrder` and `pickCursor` gain the depot and
+airforce rungs. A man on a DIAGONAL neighbour cell of the hull is 1.41 away and
+the 1.4 board check never let him in — that was the frozen boarding; the
+check is 1.5 now, and enter-class orders `giveUpEnter` after 90 ticks without
+progress far from the hull, like a move (a squad queueing beside it is not
+a lost route — an adjacent-free-cell goal was tried and made the squad fight
+over one cell). The
+`dblclick` deploy is gone (D and the button remain). The resume press sets
+`eatResumeClick`, which the canvas pointerdown consumes. `orderAttack`
+records `attackMission` for the message and the voice, and takes `queue`:
+a Shift-queued attack is a waypoint carrying `attack: id` that
+`nextWaypoint` turns into a focused attack. Shift on a selected unit
+removes it. A selected Barracks / War Factory shows the waypoint cursor over
+the map. A deployed GI stands up and walks (RA2 — this reverses the earlier
+"press D first" rule and its seat-symmetry test, which now asserts the
+walk on both seats). The naval refusal names
+"ashore" when the cell is land. Unit tests for the depot rule, the adjacent
+goal and the queued attack; the player-path suite is the regression net.
+

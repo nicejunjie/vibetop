@@ -25727,7 +25727,7 @@
       var gb = entById(g, u.order.id);
       if (!gb || gb.dead || !garrisonable(g, gb, u.p)) { u.order = null; return; }
       if (dist(u, gb) <= Math.max(gb.gw, gb.gh) / 2 + 1.1) { enterGarrison(g, gb, u); return; }
-      advance(g, u, Math.round(gb.cx), Math.round(gb.cy), uspd(u), 60);
+      if (!advance(g, u, Math.round(gb.cx), Math.round(gb.cy), uspd(u), 60) && !u.path && u.noProg > 90) giveUpEnter(g, u, 'that building');
       return;
     }
     // ENTER a transport. RA2's Enter mission again: walk to the hull, then
@@ -25736,12 +25736,17 @@
     if (u.order && u.order.t === 'enter') {
       var tr = entById(g, u.order.id);
       if (!tr || tr.dead || tr.kind !== 'u' || paxCount(tr) >= paxCapOf(tr) || tr.p !== u.p) { u.order = null; return; }
-      if (dist(u, tr) <= 1.4) {
+      if (dist(u, tr) <= 1.5) {                                  // any of the 8 neighbour cells (a diagonal is 1.41)
         if (tr.air && !tr.landed) { u.path = null; return; }     // wait for it to touch down
         if (boardTransport(g, tr, u)) return;
         u.order = null; return;
       }
-      advance(g, u, Math.round(tr.x), Math.round(tr.y), uspd(u), 24);
+      // Give up only when stuck FAR from the hull: a squad queueing round a
+      // transport makes no progress for a while and that is not a lost route.
+      // (The stuck-forever case the audit found was the 1.4 threshold above:
+      // a man arriving on a DIAGONAL neighbour cell sits 1.41 away and never
+      // boarded — "1 on the way" for the rest of the match.)
+      if (!advance(g, u, Math.round(tr.x), Math.round(tr.y), uspd(u), 24) && !u.path && u.noProg > 90 && dist(u, tr) > 3) giveUpEnter(g, u, 'the transport');
       return;
     }
     if (u.order && u.order.t === 'capture') {
@@ -25807,7 +25812,7 @@
         else if (oldP === ME) eva('Structure captured by the enemy', 3000);
         return;
       }
-      advance(g, u, Math.round(cb.cx), Math.round(cb.cy), uspd(u), 60);
+      if (!advance(g, u, Math.round(cb.cx), Math.round(cb.cy), uspd(u), 60) && !u.path && u.noProg > 90) giveUpEnter(g, u, 'that building');
       return;
     }
     // ATTACK-MOVE. RA2's AttackMove advances on a spot and stops to kill what
@@ -29444,11 +29449,14 @@
       case 'attack':
         us = entsOf(g, c.u); tgt = entOf(g, c.id);
         if (!tgt) return;
-        n = orderAttack(g, us, tgt, !!c.force, true);   // a player's order: exclusive focus
+        n = orderAttack(g, us, tgt, !!c.force, true, !!c.queue);   // a player's order: exclusive focus
         if (!local) return;
         if (!n) { say(c.force ? 'Nothing selected can shoot that' : (isAir(tgt) ? 'Nothing selected can shoot aircraft' : 'Nothing selected can attack that'), true); sfx('no'); return; }
-        say((c.force ? 'Force-firing on ' : 'Attacking ') + describe(tgt).replace(/ —.*$/, ''));
-        sfx('click'); unitAck(us, 'attack');
+        var verb = c.queue ? 'Queued: ' : '';
+        verb += c.force ? 'Force-firing on ' : attackMission === 'capture' ? 'Capturing ' : attackMission === 'garrison' ? 'Entering '
+              : attackMission === 'infil' ? 'Infiltrating ' : 'Attacking ';
+        say(verb + describe(tgt).replace(/ —.*$/, ''));
+        sfx('click'); unitAck(us, attackMission === 'attack' ? 'attack' : 'move');
         return;
 
       case 'ffire':
@@ -29618,7 +29626,7 @@
         held.forEach(function (b) { out += ejectGarrison(g, b); });
         if (!local) return;
         sel = sel.filter(function (e) { return !e.dead; });
-        say(out ? 'Evacuated — ' + out + ' infantryman' + (out === 1 ? '' : 'men') + ' back on the street'
+        say(out ? 'Evacuated — ' + out + (out === 1 ? ' infantryman' : ' infantrymen') + ' back on the street'
                 : 'Nowhere to put them — the street is blocked', !out);
         sfx(out ? 'click' : 'no'); refreshCmdbar();
         return;
@@ -32506,6 +32514,12 @@
       var units = [];
       for (var i = 0; i < sel.length; i++) if (sel[i].kind === 'u' && !sel[i].dead && sel[i].p === ME) units.push(sel[i]);
       if (cmdMode === 'follow') k = (hov && hov.p === ME && hov.kind === 'u' && units.length) ? 'guard' : 'nomove';
+      // A selected Barracks / War Factory takes a rally point from a click on
+      // the map: the cursor has to say so (it stayed `select`, so the one
+      // affordance was invisible until tried — audit).
+      else if (!units.length && !hov && sel.length && sel.every(function (b) {
+                 return b.kind === 'b' && b.p === ME && !b.dead && (BLDS[b.type].makes === 'i' || BLDS[b.type].makes === 'v');
+               }) && inMap(hoverTile.x, hoverTile.y)) k = 'waypoint';
       else if (!units.length) k = 'select';
       else if (mod.ctrl && mod.shift) k = 'amove';
       else if (mod.ctrl) k = 'ffire';
@@ -32540,6 +32554,12 @@
       // The order had already been wired; nothing on screen ever said so.
       else if (hov && hov.kind === 'b' && hov.p === ME && hov.type === 'refinery' &&
                units.some(function (u) { return isHarv(u); })) k = 'enter';
+      // A vehicle over our Service Depot, a pad aircraft over its Airforce
+      // Command: both are ENTER (the click sends them in — rightOrder's wantsOwn).
+      else if (hov && hov.kind === 'b' && hov.p === ME && hov.type === 'depot' &&
+               units.some(function (u) { return UNITS[u.type].cls === 'v' && !u.air; })) k = 'enter';
+      else if (hov && hov.kind === 'b' && hov.p === ME && hov.type === 'airforce' &&
+               units.some(function (u) { return UNITS[u.type].ammo && u.pad; })) k = 'enter';
       else if (hov && hov.p === ME && !hov.bomb && units.some(function (u) { return UNITS[u.type].ivan; })) k = 'attack';
       else if (hov && hov.p === ME) k = 'select';
       else if (!inMap(hoverTile.x, hoverTile.y)) k = 'nomove';
@@ -32797,6 +32817,10 @@
     if (e.type === 'tesla' && units.some(function (u) { return UNITS[u.type].coiler; })) return true;
     if (e.hp < e.maxhp && !BLDS[e.type].hut && units.some(function (u) { return UNITS[u.type].capture; })) return true;
     if (e.type === 'refinery' && units.some(function (u) { return isHarv(u); })) return true;
+    // The two rungs of rightOrder's wantsOwn the first cut of this rule
+    // missed (audit): a vehicle into the Service Depot, a plane home.
+    if (e.type === 'depot' && units.some(function (u) { return UNITS[u.type].cls === 'v' && !u.air; })) return true;
+    if (e.type === 'airforce' && units.some(function (u) { return UNITS[u.type].ammo && u.pad; })) return true;
     return false;
   }
   function leftClick(px, py, shift, ctrl) {
@@ -32897,6 +32921,7 @@
 
   cv.addEventListener('pointerdown', function (e) {
     resumeAudio();
+    if (eatResumeClick) { eatResumeClick = false; return; }   // it un-paused; that is all it does
     if (!G || (state !== 'play' && state !== 'paused')) return;
     var r = cv.getBoundingClientRect();
     var px = e.clientX - r.left, py = e.clientY - r.top;
@@ -32959,12 +32984,9 @@
     }
   });
   cv.addEventListener('pointerup', function (e) { wallDrag = null; endDrag(e); });
-  // RA2 deploys an MCV on a double-click as well as on D.
-  cv.addEventListener('dblclick', function () {
-    if (!G || state !== 'play') return;
-    var m = sel.filter(function (u) { return u.kind === 'u' && !u.dead && u.p === ME && UNITS[u.type].deploysInto; });
-    if (m.length) unitsCmd('deploy');
-  });
+  // (No double-click deploy: the double-click is "select all of this type",
+  // and one gesture that ALSO unpacked every MCV planted a Construction Yard
+  // from a select-all — audit, 2026-09-11. D and the Deploy button deploy.)
   cv.addEventListener('pointercancel', endDrag);
   cv.addEventListener('lostpointercapture', endDrag);
   cv.addEventListener('pointerleave', function () { mouse.in = false; updateHover(null); });
@@ -33270,6 +33292,10 @@
 
     if (!shift) clearSel();
     if (!e.sel) { e.sel = true; sel.push(e); }
+    else if (shift) {                                   // RA2: Shift on a selected unit drops it
+      e.sel = false; var si = sel.indexOf(e); if (si >= 0) sel.splice(si, 1);
+      say(describe(e) + ' — removed from the selection'); refreshCmdbar(); return;
+    }
     say(describe(e));
     if (e.kind === 'u') unitAck([e], 'select');   // RA2 VoiceSelect — the line the game never had
   }
@@ -33327,8 +33353,8 @@
     opts = opts || {};
     var onOre = oreT(g.terrain[idx(gx, gy)]), n = 0, taken = {}, held = 0, wet = 0;
     units.forEach(function (u, i) {
-      // RA2: a deployed GI does not take move orders — D packs him up first.
-      if (u.deployed && !isAiSide(g, u.p) && !opts.queue) { held++; return; }
+      // RA2: a deployed GI given a move order stands up and walks.
+      if (u.deployed && !opts.queue) u.deployed = false;
       // A hull will not accept an order into a body of water it is not in.
       // Taking it and never arriving is worse than refusing it: the ship
       // re-paths for the rest of the match and the player never learns why.
@@ -33357,8 +33383,7 @@
       n++;
     });
     if (opts.voice && n) unitAck(units, onOre ? 'harvest' : 'move');
-    if (held && !n && !headless) { say('Deployed — press D to pack up before moving', true); sfx('no'); }
-    else if (wet && !n && !headless) { say('No sea route — that water is not joined to ours', true); sfx('no'); }
+    if (wet && !n && !headless) { say(g.terrain[idx(gx, gy)] === T_WATER ? 'No sea route — that water is not joined to ours' : 'A ship cannot go ashore', true); sfx('no'); }
     return n;
   }
   // ---- RA2's three "go and fight" orders ---------------------------------
@@ -33378,7 +33403,7 @@
       requestPath(g, u, sp.x, sp.y);
       n++;
     });
-    if (wet && !n && !headless) { say('No sea route — that water is not joined to ours', true); sfx('no'); }
+    if (wet && !n && !headless) { say(g.terrain[idx(gx, gy)] === T_WATER ? 'No sea route — that water is not joined to ours' : 'A ship cannot go ashore', true); sfx('no'); }
     return n;
   }
   // Force-fire at a patch of ground (RA2 Ctrl+click): the unit closes to
@@ -33448,9 +33473,19 @@
   function nextWaypoint(g, u) {
     if (!u.wp || !u.wp.length) return false;
     var w = u.wp.shift();
+    if (w.attack) {                                     // a Shift-queued attack (RA2 waypoint mode)
+      var at = entById(g, w.attack);
+      if (at && !at.dead && orderAttack(g, [u], at, false, true)) return true;
+    }
     u.order = { t: 'move', x: w.x, y: w.y, id: 0 }; u.guardX = w.x; u.guardY = w.y;
     u.path = null; u.repathAt = -999; requestPath(g, u, w.x, w.y);
     return true;
+  }
+  // An enter-class order (board, garrison, capture) with no route: drop it
+  // and say so, as the move order does — never a man frozen for the match.
+  function giveUpEnter(g, u, what) {
+    u.order = null; u.noProg = 0; u.guardX = u.x; u.guardY = u.y;
+    if (u.p === ME && !headless) { say('Can’t reach ' + what, true); sfx('no'); }
   }
 
   function rightOrder(px, py, shift, ctrl) {
@@ -33540,7 +33575,7 @@
       return;
     }
     if (tgt && tgt.p !== ME && !tgt.dead) {
-      cmd('attack', { u: idsOf(units), id: tgt.id, force: 0 });
+      cmd('attack', { u: idsOf(units), id: tgt.id, force: 0, queue: (!!shift || pathMode) ? 1 : 0 });
       return;
     }
     // The DOCK a refinery draws, clicked with a miner selected. Reached only
@@ -33555,6 +33590,12 @@
         return;
       }
     }
+    // The NO cursor is a promise too (audit, 2026-09-11): a cell no selected
+    // mover can enter is refused here, not accepted and quietly re-homed to
+    // the nearest passable cell with "Moving" as the confirmation.
+    if (!units.some(function (u) { return u.air || terrPass(G.terrain[idx(gx, gy)], moverOf(u)); })) {
+      say('Cannot go there', true); sfx('no'); return;
+    }
     cmd('move', { u: idsOf(units), x: gx, y: gy, queue: !!shift || pathMode,
                   ore: oreT(G.terrain[idx(gx, gy)]) ? 1 : 0 });
   }
@@ -33565,25 +33606,29 @@
   // `focus`: a PLAYER's order (via the command layer). RA2 gives it exclusive
   // aim — see the combat step. The AI's own waves set their orders directly
   // and keep the loose "shoot what is in range on the way" rule.
-  function orderAttack(g, units, tgt, force, focus) {
+  var attackMission = 'attack';         // what the last orderAttack turned into, for the message
+  function orderAttack(g, units, tgt, force, focus, queue) {
     var n = 0;
+    attackMission = 'attack';
     units.forEach(function (u) {
+      // Shift: behind the current order (RA2 waypoint mode), as a move does.
+      if (queue && u.order) { (u.wp || (u.wp = [])).push({ x: entX(tgt), y: entY(tgt), attack: tgt.id }); n++; return; }
       u.guard = false; u.stopped = false;
       if (UNITS[u.type].capture && tgt.kind === 'b' && !force) {
-        u.order = { t: 'capture', x: 0, y: 0, id: tgt.id }; u.repathAt = -999;
+        u.order = { t: 'capture', x: 0, y: 0, id: tgt.id }; u.repathAt = -999; attackMission = 'capture';
         requestPath(g, u, Math.round(tgt.cx), Math.round(tgt.cy)); n++; return;
       }
       // An Occupier told to "attack" a garrisonable block moves IN instead —
       // the same right-click RA2 uses, with the same enter cursor.
       if (canOccupy(u.type) && tgt.kind === 'b' && !force && garrisonable(g, tgt, u.p)) {
-        u.order = { t: 'garrison', x: 0, y: 0, id: tgt.id }; u.repathAt = -999;
+        u.order = { t: 'garrison', x: 0, y: 0, id: tgt.id }; u.repathAt = -999; attackMission = 'garrison';
         requestPath(g, u, Math.round(tgt.cx), Math.round(tgt.cy)); n++; return;
       }
       // [SPY] Infiltrate=yes — a Spy told to "attack" an enemy structure walks
       // into it instead. Never a wall, never a neutral block.
       if (UNITS[u.type].infil && tgt.kind === 'b' && !force && tgt.p !== u.p && !neutral(tgt.p) &&
           !BLDS[tgt.type].wall && !BLDS[tgt.type].gate && !BLDS[tgt.type].neut) {
-        u.order = { t: 'infil', x: 0, y: 0, id: tgt.id }; u.repathAt = -999;
+        u.order = { t: 'infil', x: 0, y: 0, id: tgt.id }; u.repathAt = -999; attackMission = 'infil';
         requestPath(g, u, Math.round(tgt.cx), Math.round(tgt.cy)); n++; return;
       }
       if (!canHit(UNITS[u.type], tgt, u)) return;
@@ -36808,12 +36853,14 @@
   // Paused is a state you should be able to leave without aiming at anything:
   // a click anywhere in the window resumes. The pause button is excluded so
   // its own toggle isn't run twice, and the cards keep their own buttons.
+  var eatResumeClick = false;           // the press that resumed must not also order
   document.addEventListener('pointerdown', function (e) {
     if (state !== 'paused') return;
     var t = e.target;
     if (t && t.closest && (t.closest('#pauseBtn') || t.closest('.overlay'))) return;
     resumeAudio();
     togglePause();
+    eatResumeClick = true;
   }, true);
 
   document.getElementById('newBtn').addEventListener('click', function () {
@@ -37354,7 +37401,8 @@
     give: function (p, n) { if (G) G.side[p].credits += n; },
     setPrimary: function (b) { return G ? setPrimary(G, b) : false; },
     orderMove: function (units, gx, gy) { return G ? orderUnitsTo(G, units, gx, gy) : 0; },
-    orderAttack: function (units, tgt, focus) { return G ? orderAttack(G, units, tgt, false, !!focus) : 0; },
+    orderAttack: function (units, tgt, focus, queue) { return G ? orderAttack(G, units, tgt, false, !!focus, !!queue) : 0; },
+    nextWaypoint: function (u) { return G ? nextWaypoint(G, u) : false; },
     padSlot: padSlot,
     // Cliff seam profiles, exposed so the seam property can be tested as a
     // PROPERTY rather than by pattern-matching the source text.
