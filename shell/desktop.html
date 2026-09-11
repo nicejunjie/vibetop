@@ -1335,43 +1335,11 @@
     return w >= 900 && !!(window.matchMedia && matchMedia('(pointer: fine)').matches);
   }
   function frameBox() { var r = framesEl.getBoundingClientRect(); return { w: r.width, h: r.height }; }
-  // DIAGNOSTIC (2026-09-11, temporary): the user sees a minimized Browser come
-  // back un-minimized (not focused) when the RTS opens, and it could not be
-  // reproduced headlessly. Record a stack trace on every minimized->shown flip;
-  // pushDesktop ships the log to the manager (logged server-side) and clears it.
-  function trackMin(g) {
-    if (!g || Object.getOwnPropertyDescriptor(g, 'min') && Object.getOwnPropertyDescriptor(g, 'min').set) return g;
-    var v = !!g.min;
-    Object.defineProperty(g, 'min', { enumerable: true, configurable: true,
-      get: function() { return v; },
-      set: function(nv) {
-        nv = !!nv;
-        if (v && !nv) {
-          try {
-            var st = String(new Error('un-minimize').stack || '').split('\n').slice(0, 8).join(' | ');
-            var log = JSON.parse(localStorage.getItem('vibetop:diag:unmin') || '[]');
-            log.push({ t: new Date().toISOString(), active: active, open: openApps.slice(), stack: st });
-            localStorage.setItem('vibetop:diag:unmin', JSON.stringify(log.slice(-10)));
-            console.warn('[vibetop diag] un-minimize', st);
-          } catch (e) {}
-        }
-        v = nv;
-      } });
-    return g;
-  }
-  function takeDiag() {
-    try {
-      var raw = localStorage.getItem('vibetop:diag:unmin');
-      if (!raw) return undefined;
-      localStorage.removeItem('vibetop:diag:unmin');
-      return JSON.parse(raw);
-    } catch (e) { return undefined; }
-  }
   function winGeom(id) {
     if (!wins[id]) {
       var g = window.VibeWin ? VibeWin.defaultGeom(frameBox(), openApps.indexOf(id), VibeWin.MARGIN)
                              : { left: 40, top: 30, width: 900, height: 640 };
-      g.z = ++zTop; wins[id] = trackMin(g);
+      g.z = ++zTop; wins[id] = g;
     }
     return wins[id];
   }
@@ -1902,7 +1870,7 @@
       var s = JSON.parse(localStorage.getItem('vibetop:wins') || '{}');
       if (s && typeof s === 'object') {
         wins = s;
-        Object.keys(wins).forEach(function(k){ trackMin(wins[k]); var z = wins[k] && wins[k].z; if (z > zTop) zTop = z; });
+        Object.keys(wins).forEach(function(k){ var z = wins[k] && wins[k].z; if (z > zTop) zTop = z; });
       }
     } catch (e) {}
   }
@@ -2677,7 +2645,7 @@
     return fetch('/api/desktop', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ instance: INSTANCE_ID, open: openApps, active: active, diag: takeDiag() })
+      body: JSON.stringify({ instance: INSTANCE_ID, open: openApps, active: active })
     }).then(function(r) {
       if (!r.ok) throw new Error('Desktop heartbeat failed');
       return r.json();
