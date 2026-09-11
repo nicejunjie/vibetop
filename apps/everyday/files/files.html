@@ -73,6 +73,14 @@
     cursor: pointer; min-height: 30px;
   }
   .viewer .vhead button:hover { background: #253044; }
+  /* The Close every viewer shares — the video player's: bold, red-tinted,
+     generous padding, at the right end of the bar. A small grey ✕ at the
+     corner was hard to hit (user, 2026-09-11). */
+  .xclose { font-weight: 700 !important; color: #ffb3b3 !important; background: #341c20 !important;
+            border: 1px solid #7a3c44 !important; border-radius: 8px !important; padding: 8px 16px !important;
+            min-height: 36px !important; font-size: 13px !important; line-height: 1; white-space: nowrap; }
+  .xclose:hover { background: #c0392b !important; border-color: #c0392b !important; color: #fff !important; }
+  @media (max-width: 600px) { .xclose { padding: 9px 14px !important; min-height: 40px !important; } }
   .viewer iframe { flex: 1; min-height: 0; width: 100%; border: 0; background: #0e1117; }
 </style>
 </head>
@@ -88,7 +96,7 @@
     <div class="vhead">
       <span class="vname" id="v-name"></span>
       <button id="v-dl" title="Download the original file">⭳ Download</button>
-      <button id="v-close" title="Close">✕</button>
+      <button id="v-close" class="xclose" title="Close (Esc)">✕ Close</button>
     </div>
     <iframe id="v-frame" title="Viewer" allow="fullscreen"></iframe>
   </div>
