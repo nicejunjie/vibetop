@@ -223,7 +223,7 @@
      filter over the whole plate), and the early game is MOSTLY unaffordable
      rows — so this is the dominant reading condition, not an edge case. The
      caption is a second canvas layered over the plate and excluded here. */
-  .pit.locked .em canvas:not(.cap), .pit.dis .em canvas:not(.cap) { filter: grayscale(.65) brightness(.6); }
+  .pit.locked .em canvas:not(.cap), .pit.dis .em canvas:not(.cap) { filter: grayscale(.9) brightness(.42); }
   /* Build progress is RA2's clock wipe: a dark sector sweeping clockwise. */
   .pit .fill { position: absolute; inset: 0; pointer-events: none; display: none; }
   .pit .qn {
@@ -2854,7 +2854,7 @@
       sw: swInit()                                 // superweapon charge timers, one per weapon
     };
   }
-  function newQueue() { return { list: [], prog: 0, ready: null, paid: 0, hold: false }; }
+  function newQueue() { return { list: [], prog: 0, ready: null, paid: 0, hold: false, pause: false }; }
 
   function idx(x, y) { return y * MAP + x; }
   function inMap(x, y) { return x >= 0 && y >= 0 && x < MAP && y < MAP; }
@@ -26796,20 +26796,22 @@
   // Cancelling refunds exactly what has been PAID so far (RA2 rule): an item
   // still waiting in the queue has cost nothing, the one building has cost
   // `q.paid`, and a finished structure waiting for a spot has cost all of it.
+  // Returns the amount refunded (0 for an item that had cost nothing yet),
+  // or false when there was nothing to cancel.
   function cancelLast(g, p, lane, key) {
-    var q = g.side[p].queues[lane];
+    var q = g.side[p].queues[lane], back = 0;
     for (var i = q.list.length - 1; i >= 0; i--) {
       if (q.list[i] === key) {
-        if (i === 0) { g.side[p].credits += q.paid || 0; q.paid = 0; q.prog = 0; q.hold = false; }
+        if (i === 0) { back = q.paid || 0; g.side[p].credits += back; q.paid = 0; q.prog = 0; q.hold = false; q.pause = false; }
         q.list.splice(i, 1);
-        if (p === ME) eva('Canceled', 3000);                 // eva.ini #51
-        return true;
+        if (p === ME) eva('Cancelled', 3000);                // eva.ini #51
+        return back;
       }
     }
     if (isBldLane(lane) && q.ready === key) {
-      g.side[p].credits += bspecOf(g, key, p).cost; q.ready = null;
-      if (p === ME) eva('Canceled', 3000);                   // eva.ini #51
-      return true;
+      back = bspecOf(g, key, p).cost; g.side[p].credits += back; q.ready = null;
+      if (p === ME) eva('Cancelled', 3000);                  // eva.ini #51
+      return back;
     }
     return false;
   }
@@ -26880,6 +26882,10 @@
         continue;
       }
       if (isBldLane(lane) && !hasBld(g, p, 'base')) continue;
+      // RA2's right-click on the building cameo: the first puts it ON HOLD
+      // (a player's choice, unlike `hold`, which the bank sets and clears),
+      // the second cancels. A left click resumes.
+      if (q.pause) continue;
 
       // ---- RA2 progressive charging -----------------------------------
       // RA2 does not take the money when you click a cameo; it draws it down
@@ -29692,13 +29698,27 @@
 
       case 'queue':
         if (!canBuild(g, p, c.k, isBldLane(c.lane))) return;
-        if (enqueue(g, p, c.k, c.lane) && local) sfx('click');
+        if (enqueue(g, p, c.k, c.lane)) { if (local) sfx('click'); }
+        else if (local) { say('Queue is full — ' + QUEUE_MAX + ' items', true); sfx('no'); }
+        return;
+
+      case 'pause':                                    // RA2: right-click holds, click resumes
+        var pq = g.side[p].queues[c.lane];
+        if (!pq || pq.list[0] !== c.k || (isBldLane(c.lane) && pq.ready)) return;
+        pq.pause = !pq.pause;
+        if (local) {
+          sfx('click');
+          var pn = (isBldLane(c.lane) ? bspecOf(g, c.k, p) : UNITS[c.k]).name;
+          say(pq.pause ? 'On hold — ' + pn + ' (click to resume, right-click again to cancel)' : 'Resumed — ' + pn);
+        }
         return;
 
       case 'cancel':
-        if (cancelLast(g, p, c.lane, c.k) && local) {
+        var refunded = cancelLast(g, p, c.lane, c.k);
+        if (refunded !== false && local) {
           sfx('click');
-          say('Cancelled ' + (isBldLane(c.lane) ? bspecOf(g, c.k, p) : UNITS[c.k]).name + ' — refunded');
+          say('Cancelled ' + (isBldLane(c.lane) ? bspecOf(g, c.k, p) : UNITS[c.k]).name +
+              (refunded > 0 ? ' — refunded $' + Math.round(refunded) : ''));
         }
         return;
 
@@ -31462,7 +31482,7 @@
       var hold = !st.ready && !powered(G, ME);
       el._cd.textContent = st.ready ? 'READY' : hold ? 'LOW POWER' : (Math.floor(left / 60) + ':' + ('0' + (left % 60)).slice(-2));
       el.title = SW[k].name + (hold ? ' — charging halted: low power (' + Math.floor(left / 60) + ':' + ('0' + (left % 60)).slice(-2) + ' left)' : '');
-      el._arc.style.background = 'conic-gradient(from 180deg, rgba(110,231,168,.32) ' +
+      el._arc.style.background = 'conic-gradient(from 0deg, rgba(110,231,168,.32) ' +
                                  (frac * 360).toFixed(0) + 'deg, rgba(0,0,0,0) 0)';
       el.className = 'swic' + (st.ready ? ' rdy' : '') + (hold ? ' hold' : '') + (swMode && swMode.key === k ? ' arm' : '');
     }
@@ -31564,7 +31584,12 @@
       b.addEventListener('click', function (ev) { onPanelClick(it, ev); });
       b.addEventListener('contextmenu', function (ev) {
         ev.preventDefault();
-        cmd('cancel', { lane: it.lane, k: it.k });
+        if (!G) return;
+        var cq = G.side[ME].queues[it.lane];
+        // RA2: the first right-click on the item being built holds it; the
+        // second (or one on a queued/finished item) cancels.
+        var building = cq && cq.list[0] === it.k && cq.prog > 0 && !cq.pause && !(isBldLane(it.lane) && cq.ready);
+        cmd(building ? 'pause' : 'cancel', { lane: it.lane, k: it.k });
       });
       b.addEventListener('pointerenter', function () { showItemTip(b, it, it.fac); });
       b.addEventListener('pointerleave', hideTip);
@@ -32051,6 +32076,17 @@
     if (sz) placeTip(anchor, sz);
   }
   function hideTip() { if (ptip) ptip.style.display = 'none'; }
+  // The producer a lane needs and does not have — the reason a cameo is grey
+  // when its own prerequisites are met. One table for the click's message and
+  // the tooltip: the naval lane fell off the click's else-ladder and said
+  // "You need a Construction Yard", and the tooltip said nothing (audit).
+  function laneNeeds(lane) {
+    if (lane === 'i' && !hasBld(G, ME, 'barracks')) return 'Build a Barracks first';
+    if (lane === 'v' && !hasBld(G, ME, 'factory')) return 'Build a War Factory first';
+    if (lane === 'a') return hasBld(G, ME, 'airforce') ? 'Every Harrier pad is taken — build another Airforce Command' : 'Build an Airforce Command first';
+    if (lane === 'n' && !hasBld(G, ME, 'shipyard')) return 'Build a Shipyard first';
+    return null;
+  }
   // The build item's card: cost, power draw, queue depth, and — only when it
   // is out of reach — the reason.
   function showItemTip(el, it, fac) {
@@ -32063,11 +32099,13 @@
     if (sp.desc && cost.indexOf(sp.desc) < 0) lines.push({ t: sp.desc, c: '#8f9bae' });   // a plant's desc IS its power line
     var tone = null;
     if (!reqMet(G, ME, sp)) { lines.push({ t: 'Requires ' + reqName(sp, fac), c: '#ff9c8f' }); tone = 'bad'; }
+    else if (!isBldLane(it.lane) && laneNeeds(it.lane)) { lines.push({ t: laneNeeds(it.lane), c: '#ff9c8f' }); tone = 'bad'; }
     else if (s.credits < sp.cost) { lines.push({ t: 'Not enough credits', c: '#ff9c8f' }); tone = 'bad'; }
     var q = s.queues[it.lane], n = 0;
     if (q) for (var i = 0; i < q.list.length; i++) if (q.list[i] === it.k) n++;
     if (isBldLane(it.lane) && q && q.ready === it.k) lines.push({ t: 'Ready — click, then click the map', c: '#ffe14d' });
-    else if (n) lines.push({ t: n + ' queued · right-click to cancel', c: '#a8b8cc' });
+    else if (q && q.pause && q.list[0] === it.k) lines.push({ t: 'On hold — click to resume · right-click to cancel', c: '#ffcf8f' });
+    else if (n) lines.push({ t: n + ' queued · right-click to ' + (q.list[0] === it.k && q.prog > 0 ? 'hold' : 'cancel'), c: '#a8b8cc' });
     showTip(el, sp.name, lines, tone);
   }
 
@@ -32085,13 +32123,12 @@
       sfx('click');
       return;
     }
+    if (s.queues[it.lane].pause && s.queues[it.lane].list[0] === it.k) { cmd('pause', { lane: it.lane, k: it.k }); return; }   // resume
     if (!canBuild(G, ME, it.k, isBldLane(it.lane))) {
       if (s.credits < it.spec.cost) { say('Not enough credits for ' + it.spec.name + ' ($' + it.spec.cost + ')', true); eva('Insufficient funds', 4000); }
       else if (!reqMet(G, ME, it.spec)) say(it.spec.name + ' requires ' + reqName(it.spec, it.fac), true);
       else if (it.spec.max) say('Only ' + it.spec.max + ' ' + it.spec.name + ' at a time', true);
-      else if (it.lane === 'i') say('Build a Barracks first', true);
-      else if (it.lane === 'v') say('Build a War Factory first', true);
-      else if (it.lane === 'a') say(hasBld(G, ME, 'airforce') ? 'Every Harrier pad is taken — build another Airforce Command' : 'Build an Airforce Command first', true);
+      else if (laneNeeds(it.lane)) say(laneNeeds(it.lane), true);
       else say('You need a Construction Yard', true);
       sfx('no');
       return;
@@ -32164,7 +32201,7 @@
         // Two layers: the bright clock hand at the leading edge, and the
         // unbuilt sector behind it. A HELD item's hand goes cold, because a
         // bright hand that never advances reads as the game having frozen.
-        var hand = q.hold ? 'rgba(255,120,110,.9)' : 'rgba(255,230,150,.95)';
+        var hand = (q.hold || q.pause) ? 'rgba(255,120,110,.9)' : 'rgba(255,230,150,.95)';
         fl.style.background =
           'conic-gradient(from ' + deg + 'deg, ' + hand + ' 0deg 2.4deg, rgba(0,0,0,0) 2.4deg),' +
           'conic-gradient(from 0deg, rgba(0,0,0,0) 0deg ' + deg + 'deg, rgba(4,6,11,.8) ' + deg + 'deg 360deg)';
@@ -32456,12 +32493,14 @@
                         : (swMode.key === 'para' ? 'deploy' : 'curtain')));
     else if (placing) {
       var pd = bspecFor(placing, keyFac(G, ME, placing, true));
-      k = canPlace(G, ME, placing, hoverTile.x - Math.floor((pd.gw - 1) / 2),
-                   hoverTile.y - Math.floor((pd.gh - 1) / 2)) ? 'deploy' : 'nomove';
+      var po = placeOrigin(hoverTile, pd);
+      k = canPlace(G, ME, placing, po.x, po.y) ? 'deploy' : 'nomove';
     }
-    else if (cmdMode === 'sell') k = 'sell';
-    else if (cmdMode === 'repair') k = 'repair';
-    else if (cmdMode === 'power') k = 'power';
+    else if (cmdMode === 'sell' || cmdMode === 'repair' || cmdMode === 'power') {
+      // The mode cursor is a promise: only over one of your own structures.
+      var mh = (mouse.in && !drag) ? pickAt(mouse.x, mouse.y) : null;
+      k = (mh && mh.kind === 'b' && mh.p === ME) ? cmdMode : 'nomove';
+    }
     else {
       var hov = (mouse.in && !drag) ? pickAt(mouse.x, mouse.y) : null;
       var units = [];
@@ -32654,7 +32693,7 @@
       if (lk === 't') { selectSameType(); return; }
       if (lk === 'k') { setCmdMode('repair'); return; }
       if (lk === 'l') { setCmdMode('sell'); return; }
-      if (lk === 'z') { pathMode = !pathMode; say(pathMode ? 'Waypoint mode: right-clicks queue stops' : 'Waypoint mode off'); refreshCmdbar(); pickCursor(); return; }
+      if (lk === 'z') { pathMode = !pathMode; say(pathMode ? 'Waypoint mode: clicks queue stops' : 'Waypoint mode off'); refreshCmdbar(); pickCursor(); return; }
       if (lk === 'n') { nextObject(); return; }         // keyboard.ini NextObject=78
       if (lk === 'f') {                                  // keyboard.ini Follow=70
         if (!units0.length) { say('Select the units that should follow first', true); sfx('no'); return; }
@@ -32875,7 +32914,11 @@
     } else if (e.button === 2) {
       e.preventDefault();
       if (swCancel()) return;
-      if (placing) { placing = null; wallDrag = null; cv.classList.remove('placing'); say('Placement cancelled'); return; }
+      if (placing) {
+        var ranWall = !!wallDrag;
+        placing = null; wallDrag = null; cv.classList.remove('placing');
+        say(ranWall ? 'Wall finished' : 'Placement cancelled'); return;
+      }
       // The right button only LOOKS: a drag pans, and a click that never
       // travelled deselects (see endPan). Orders are the left button's.
       pan = { x: px, y: py, x0: px, y0: py, right: true, moved: false,
@@ -32970,7 +33013,7 @@
     deploy: ['Deploy', 'An MCV unfolds; GIs dig in behind sandbags', 'Hotkey D'],
     guard:  ['Guard', 'Hold this post, engage within ' + GUARD_STRAY + ' cells, then return', 'Hotkey G · S stops dead instead'],
     scatter: ['Scatter', 'Break formation — every unit steps clear of the group', 'Hotkey X'],
-    path:   ['Planning mode', 'Right-clicks queue waypoints (or hold Shift)', 'Hotkey Z'],
+    path:   ['Planning mode', 'Clicks queue waypoints (or hold Shift)', 'Hotkey Z'],
     sell:   ['Sell', 'Click one of your structures for half its cost', 'Hotkey L'],
     repair: ['Repair', 'Click a structure to start or stop repairs', 'Hotkey K'],
     power:  ['Power', 'Click a structure to switch its power off or on', 'Frees the drain; the building goes dark']
@@ -33079,7 +33122,7 @@
     resumeAudio();
     var c = b.getAttribute('data-cmd');
     if (c === 'same') selectSameType();
-    else if (c === 'path') { pathMode = !pathMode; say(pathMode ? 'Waypoint mode: right-clicks queue stops' : 'Waypoint mode off'); refreshCmdbar(); }
+    else if (c === 'path') { pathMode = !pathMode; say(pathMode ? 'Waypoint mode: clicks queue stops' : 'Waypoint mode off'); refreshCmdbar(); }
     else if (c[0] === 't' && /^\d$/.test(c[1])) teamCmd(c[1], e.shiftKey || e.ctrlKey);
     else if (c === 'guard' || c === 'stop' || c === 'scatter' || c === 'deploy') unitsCmd(c);
     else if (c === 'sell' || c === 'repair' || c === 'power') setCmdMode(c);
@@ -33238,8 +33281,8 @@
       if (d.makes === 'i' || d.makes === 'v') {
         if (producersOf(G, e.p, d.makes).length > 1)
           t += isPrimary(G, e) ? ' · PRIMARY' : ' · click again to make it primary';
-        t += e.rally ? ' · rally set (right-click to move it)'
-                     : ' · right-click the map to set a rally point';
+        t += e.rally ? ' · rally set (click the map to move it)'
+                     : ' · click the map to set a rally point';
       }
       return t;
     }
@@ -33631,10 +33674,19 @@
     }
     return laid;
   }
+  // THE placement origin, shared by the ghost footprint, the deploy/nomove
+  // cursor and the click itself. tryPlace used to round AFTER subtracting the
+  // half-footprint while the ghost rounded BEFORE, so for any even footprint
+  // (Power Plant, Radar, Barracks, Refinery…) the building landed one cell
+  // from the green ghost over ~75% of a tile, and a green cursor could be
+  // refused with "can't build there" (audit, 2026-09-11).
+  function placeOrigin(gp, d) {
+    return { x: Math.round(gp.x) - Math.floor((d.gw - 1) / 2), y: Math.round(gp.y) - Math.floor((d.gh - 1) / 2) };
+  }
   function tryPlace(px, py) {
     var gp = screenToGrid(px, py);
     var d = bspecFor(placing, keyFac(G, ME, placing, true));
-    var gx = Math.round(gp.x - (d.gw - 1) / 2), gy = Math.round(gp.y - (d.gh - 1) / 2);
+    var po = placeOrigin(gp, d), gx = po.x, gy = po.y;
     if (d.wall) {
       // The queued segment is the paid one; the drag charges for the rest.
       wallFree = true;
@@ -34154,7 +34206,7 @@
     // faced and how much of the view it ate.
     if (placing) {
       var d = bspecFor(placing, keyFac(G, ME, placing, true));
-      var ggx = hoverTile.x - Math.floor((d.gw - 1) / 2), ggy = hoverTile.y - Math.floor((d.gh - 1) / 2);
+      var gpo = placeOrigin(hoverTile, d), ggx = gpo.x, ggy = gpo.y;
       var ok = canPlace(G, ME, placing, ggx, ggy);
       ctx.globalAlpha = 0.5;
       for (y = ggy; y < ggy + d.gh; y++) for (x = ggx; x < ggx + d.gw; x++) {
@@ -36848,7 +36900,7 @@
 
     matchUIReset();
     setTimeout(touchHint, 4000);                 // after the opening tip has had its say
-    say('Left-drag to select · Right-click to move or attack · Right-drag to look around · Esc clears the selection', false, 420);
+    say('Left-drag to select · Left-click to move or attack · Right-drag to look around · Esc clears the selection', false, 420);
     say(FACTIONS[faction].name + ' vs ' + FACTIONS[G.side[P_AI].fac].name +
         ' — build a Power Plant, then a Refinery. Harvesters mine on their own.', false, 340);
   }
@@ -37474,6 +37526,9 @@
     setResumeFlag: function (v) { lsSet(RESUME_KEY, v); },
     world: function () { return G; },
     ownTargetOrder: ownTargetOrder,
+    placeOrigin: placeOrigin,
+    cancelLast: function (lane, key) { return G ? cancelLast(G, 0, lane, key) : false; },
+    cmd: function (type, payload) { return cmd(type, payload); },
     plate: function (k) { return mapPlate(k); },
     resumeWanted: resumeWanted,
     unclose: function () { closedByUser = false; },

@@ -175,3 +175,32 @@ test('only the black gutter scrolls: the panels and the map border do not', asyn
   await recenter(); expect(await park(side.x - 4, 400)).toEqual({ dx: 0, dy: 0 });                                       // map border
   await recenter(); expect(await park(cmd.x + cmd.width - 60, cmd.y + cmd.height / 2)).toEqual({ dx: 0, dy: 0 });      // command bar
 });
+
+test('a structure lands exactly on the green ghost, and a green cursor is never refused', async ({ page }) => {
+  await startMatch(page);
+  await page.evaluate(() => window.__rtsTest.give(0, 100000));
+  await page.locator('#plist button.pit').first().click();                 // Power Plant, 2x2 (even: the failing case)
+  await page.waitForFunction(() => window.__rtsTest.saveBlob().g.side[0].queues.b.ready === 'power', null, { timeout: 90_000 });
+  await page.locator('#plist button.pit').first().click();                 // ready -> placing
+  await page.waitForTimeout(200);
+  const st = await page.evaluate(() => window.__rtsTest.world().start[0]);
+  let tried = 0, placed = 0;
+  for (const [dx, dy] of [[5, 5], [6, 5], [5, 6], [7, 7], [-5, 5], [5, -5], [8, 2], [2, 8]]) {
+    const p = await screenOf(page, st.x + dx, st.y + dy, 0);
+    await page.mouse.move(p.x + 20, p.y + 6);                              // off-centre in the tile: where the two rules disagreed
+    await page.waitForTimeout(120);
+    const promise = await page.evaluate(() => {
+      const H = window.__rtsTest, h = H.hover(), o = H.placeOrigin({ x: h.x, y: h.y }, { gw: 2, gh: 2 });
+      return { kind: H.cursorKind(), origin: o, n: H.saveBlob().g.blds.length };
+    });
+    if (promise.kind !== 'deploy') continue;
+    tried++;
+    await page.mouse.click(p.x + 20, p.y + 6); await page.waitForTimeout(300);
+    const after = await page.evaluate(() => { const g = window.__rtsTest.saveBlob().g; const b = g.blds[g.blds.length - 1]; return { n: g.blds.length, x: b.x, y: b.y, type: b.type }; });
+    expect(after.n).toBe(promise.n + 1);                                    // the green cursor was honoured
+    expect([after.x, after.y]).toEqual([promise.origin.x, promise.origin.y]); // and it landed on the ghost
+    placed++;
+    break;
+  }
+  expect(placed).toBe(1);
+});

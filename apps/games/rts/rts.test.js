@@ -6391,3 +6391,45 @@ test("a player's attack order ignores what is in range on the way; an AI order d
     }
   }
 });
+
+// RA2's cameo right-click: the first holds the item being built, the second
+// cancels; a left click resumes. A hold is the player's, separate from the
+// bank's `hold`, and the clock does not move while it is on.
+test("a cameo right-click holds the build first and cancels second; a click resumes", () => {
+  const H = W.__rtsTest;
+  H.startWith(9951, "normal", "frontier");
+  H.give(0, 100000);
+  const q = () => H.world().side[0].queues.b;
+  assert.ok(H.cmd("queue", { lane: "b", k: "power" }));
+  H.step(60);
+  const p1 = q().prog;
+  assert.ok(p1 > 0, "building");
+  H.cmd("pause", { lane: "b", k: "power" }); H.step(5);      // the command lands LOCKSTEP_DELAY ticks later
+  assert.equal(q().pause, true);
+  const p2 = q().prog; H.step(60);
+  assert.equal(q().prog, p2, "the clock stopped");
+  H.cmd("pause", { lane: "b", k: "power" }); H.step(60);
+  assert.equal(q().pause, false);
+  assert.ok(q().prog > p2, "and resumed");
+  const paid = q().paid, credits = H.world().side[0].credits;
+  H.cmd("pause", { lane: "b", k: "power" });
+  const back = H.cancelLast("b", "power");
+  assert.ok(Math.abs(back - paid) < 1e-6, "cancel refunds exactly what was paid");
+  assert.equal(q().list.length, 0);
+  assert.equal(q().pause, false, "a cancel clears the hold");
+  assert.ok(H.world().side[0].credits > credits);
+});
+
+// The ghost, the cursor and the click must derive the placement origin from
+// ONE rule. tryPlace used to round after subtracting the half-footprint while
+// the ghost rounded before, so even footprints landed a cell off the ghost.
+test("the placement origin is one rule for every pointer position and footprint", () => {
+  const H = W.__rtsTest;
+  for (const d of [{ gw: 2, gh: 2 }, { gw: 3, gh: 2 }, { gw: 4, gh: 3 }, { gw: 3, gh: 3 }, { gw: 1, gh: 1 }]) {
+    for (const gp of [{ x: 1.3, y: 2.4 }, { x: 1.6, y: 2.6 }, { x: 5.5, y: 7.49 }, { x: 5.5, y: 7.51 }]) {
+      const o = H.placeOrigin(gp, d);
+      const ghost = { x: Math.round(gp.x) - Math.floor((d.gw - 1) / 2), y: Math.round(gp.y) - Math.floor((d.gh - 1) / 2) };
+      assert.deepEqual(o, ghost, `${d.gw}x${d.gh} at ${gp.x},${gp.y}`);
+    }
+  }
+});

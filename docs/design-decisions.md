@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_278 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_279 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
 - [Scheduled terminal messages ("resume when the token limit resets")](#scheduled-terminal-messages-resume-when-the-token-limit-resets)
@@ -301,6 +301,7 @@ _278 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [RTS: after a resume, units selected but never obeyed — the map thumbnails stole the lockstep client (2026-09-11)](#rts-after-a-resume-units-selected-but-never-obeyed-the-map-thumbnails-stole-the-lockstep-client-2026-09-11)
 - [RTS: troops could not enter an IFV — "select own" pre-empted the enter order (2026-09-11)](#rts-troops-could-not-enter-an-ifv-select-own-pre-empted-the-enter-order-2026-09-11)
 - [RTS: a player's attack order has exclusive focus; the AI's keeps the loose rule (2026-09-11)](#rts-a-players-attack-order-has-exclusive-focus-the-ais-keeps-the-loose-rule-2026-09-11)
+- [RTS build audit (2026-09-11): the ghost and the click disagreed on where a building goes](#rts-build-audit-2026-09-11-the-ghost-and-the-click-disagreed-on-where-a-building-goes)
 
 <!-- END TOC -->
 
@@ -12488,3 +12489,35 @@ full health and closes the distance; the AI-style order shoots the bystander.
 **Rejected.** Focus for everyone: the AI's waves would march past live
 defences again, the exact regression the loose rule was written for.
 
+
+
+## RTS build audit (2026-09-11): the ghost and the click disagreed on where a building goes
+
+**Symptom.** A click-driven audit of the build path found: the placement
+ghost (green footprint) and the deploy cursor put a structure's origin at
+`round(pointer) - floor((gw-1)/2)` while `tryPlace` used
+`round(pointer - (gw-1)/2)`. For any EVEN footprint (Power Plant, Radar,
+Barracks, Refinery, Shipyard…) they disagree by one cell over ~75% of a tile,
+so the building landed beside its ghost, and a green cursor could be refused
+with "can't build there". Plus a dozen smaller findings: the opening tip,
+the rally hint and the waypoint texts still said "right-click" after the
+mouse-scheme change; a naval cameo without a Shipyard said "You need a
+Construction Yard" and its tooltip gave no reason; Sell/Repair/Power cursors
+claimed bare ground; a cameo right-click cancelled outright where RA2 pauses
+first; a full queue swallowed the click; "refunded" printed for $0; the
+superweapon clock swept from 6 o'clock; ending a wall run said "Placement
+cancelled"; disabled cameos were barely dimmer than enabled ones.
+
+**Fix.** One `placeOrigin(gp, spec)` for the ghost, the cursor and the click
+(unit test over five footprints and four pointer positions; a player-path
+contract places a Power Plant off-centre in a tile and asserts it lands on
+the ghost's origin). `laneNeeds(lane)` names the missing producer for both
+the click's message and the tooltip. The mode cursors promise only over
+your own structures. A queue `pause` flag, distinct from the bank's `hold`,
+with a `pause` command: right-click holds the item being built, a second
+right-click cancels, a click resumes. `cancelLast` returns the refund.
+Both clocks sweep from noon. The wall run says "Wall finished".
+
+**Why an audit found what tests did not.** Every one of these lives in the
+input path — the cursor's promise, the click's rule, the text the player
+reads — which the sim hooks bypass (see the player-path suite's header).
