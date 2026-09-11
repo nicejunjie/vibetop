@@ -6366,3 +6366,28 @@ test("a left click on an own transport with room orders the selected infantry ab
   const gi2 = H.spawn("rifle", 0, 21, 21);
   assert.equal(H.ownTargetOrder(ifv, [gi2]), false, "a full IFV: SELECT");
 });
+
+// A player's attack order has exclusive focus (RA2): the unit drives to the
+// named target and shoots nothing else on the way. The AI's own orders keep
+// the loose rule, so a wave still answers a turret it marches past.
+test("a player's attack order ignores what is in range on the way; an AI order does not", () => {
+  const H = W.__rtsTest;
+  for (const focus of [true, false]) {
+    H.startWith(9941 + (focus ? 1 : 0), "normal", "frontier");
+    // Mid-map, away from both bases' guards, so nothing but the tank can shoot.
+    const M = W.__rtsTables.MAP, cx = Math.floor(M / 2), cy = Math.floor(M / 2);
+    const tank = H.spawn("lancer", 0, cx, cy);
+    const near = H.spawn("rifle", 1, cx + 2, cy);               // in range from the start
+    const far = H.spawn("rifle", 1, cx, cy + 10);               // the named target, out of range
+    const d0 = Math.hypot(tank.x - far.x, tank.y - far.y);
+    assert.equal(H.orderAttack([tank], far, focus), 1);
+    H.step(150);
+    const d1 = Math.hypot(tank.x - far.x, tank.y - far.y);
+    if (focus) {
+      assert.equal(near.hp, near.maxhp, "the bystander is not shot");
+      assert.ok(d1 < d0 - 2, `drove toward the named target (${d0.toFixed(1)} -> ${d1.toFixed(1)})`);
+    } else {
+      assert.ok(near.hp < near.maxhp, "the AI-style order engages what is in range");
+    }
+  }
+});

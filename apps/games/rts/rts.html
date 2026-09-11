@@ -25909,12 +25909,20 @@
       else if (edgeDist(u, ordered) <= rngVs(weaponFor(d, ordered, u), ordered)
                && !tooClose(weaponFor(d, ordered, u), edgeDist(u, ordered))) tgt = ordered;
     }
+    // A PLAYER's attack order is RA2's: the target it names is the only thing
+    // this unit shoots at until it is dead. Nothing on the way is engaged and
+    // nothing already in range holds it back — before this, a tank told to
+    // hit a far building parked on the nearest conscript instead, and a new
+    // order changed nothing while the old target stayed in range ("can't
+    // fully control the attack target", 2026-09-11). The loose rule above
+    // stays for the AI's own waves, which set their orders directly.
+    var focus = !!(ordered && u.order.focus);
     // [RepairBullet]: an IFV with an Engineer aboard has no gun, it has a
     // welding arm, and it uses it on the vehicles around it.
     if (d.ifv && ifvSpec(u).repair) { stepRepairIFV(g, u); if (!u.order) return; }
     // ThreatPosed=0 / CanPassiveAquire=no on [SHAD]: a transport never picks
     // its own fight, it shoots only what it was told to.
-    if (!tgt && !d.passive) tgt = findTarget(g, u, reachOf(d, u));
+    if (!tgt && !d.passive && !focus) tgt = findTarget(g, u, reachOf(d, u));
     // AI-driven GIs deploy when something is in sandbag range and pack up
     // after five quiet seconds; a human deploys with D, as in RA2.
     if (d.dep && isAiSide(g, u.p)) {
@@ -25938,7 +25946,7 @@
       if (av) u.tgtAt = g.tick;
       if (!u.deployed && av && !(u.order && u.order.t === 'move')) u.deployed = true;
       else if (u.deployed && !av && g.tick - (u.tgtAt || 0) > 180) u.deployed = false;
-      if (u.deployed && !tgt) tgt = av;                  // braced: the missile can reach it now
+      if (u.deployed && !tgt && !focus) tgt = av;        // braced: the missile can reach it now
     }
 
     if (tgt) {
@@ -29430,7 +29438,7 @@
       case 'attack':
         us = entsOf(g, c.u); tgt = entOf(g, c.id);
         if (!tgt) return;
-        n = orderAttack(g, us, tgt, !!c.force);
+        n = orderAttack(g, us, tgt, !!c.force, true);   // a player's order: exclusive focus
         if (!local) return;
         if (!n) { say(c.force ? 'Nothing selected can shoot that' : (isAir(tgt) ? 'Nothing selected can shoot aircraft' : 'Nothing selected can attack that'), true); sfx('no'); return; }
         say((c.force ? 'Force-firing on ' : 'Attacking ') + describe(tgt).replace(/ —.*$/, ''));
@@ -33511,7 +33519,10 @@
   // Attack (or capture) order for a group. Units whose weapon cannot reach
   // the target — a rifleman told to shoot a Kirov — are left alone rather
   // than marched under it. Returns how many took the order.
-  function orderAttack(g, units, tgt, force) {
+  // `focus`: a PLAYER's order (via the command layer). RA2 gives it exclusive
+  // aim — see the combat step. The AI's own waves set their orders directly
+  // and keep the loose "shoot what is in range on the way" rule.
+  function orderAttack(g, units, tgt, force, focus) {
     var n = 0;
     units.forEach(function (u) {
       u.guard = false; u.stopped = false;
@@ -33533,7 +33544,7 @@
         requestPath(g, u, Math.round(tgt.cx), Math.round(tgt.cy)); n++; return;
       }
       if (!canHit(UNITS[u.type], tgt, u)) return;
-      u.order = { t: 'attack', x: 0, y: 0, id: tgt.id, force: force ? 1 : 0 };
+      u.order = { t: 'attack', x: 0, y: 0, id: tgt.id, force: force ? 1 : 0, focus: focus ? 1 : 0 };
       u.guardX = tgt.kind === 'b' ? tgt.cx : tgt.x;
       u.guardY = tgt.kind === 'b' ? tgt.cy : tgt.y;
       u.repathAt = -999; u.rtb = false;
@@ -37291,7 +37302,7 @@
     give: function (p, n) { if (G) G.side[p].credits += n; },
     setPrimary: function (b) { return G ? setPrimary(G, b) : false; },
     orderMove: function (units, gx, gy) { return G ? orderUnitsTo(G, units, gx, gy) : 0; },
-    orderAttack: function (units, tgt) { return G ? orderAttack(G, units, tgt) : 0; },
+    orderAttack: function (units, tgt, focus) { return G ? orderAttack(G, units, tgt, false, !!focus) : 0; },
     padSlot: padSlot,
     // Cliff seam profiles, exposed so the seam property can be tested as a
     // PROPERTY rather than by pattern-matching the source text.
