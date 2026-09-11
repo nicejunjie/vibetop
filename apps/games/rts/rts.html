@@ -701,19 +701,19 @@
   <div class="overlay help" id="hv"><div class="card">
     <h2>How to play</h2>
     <dl>
-      <dt>Select</dt><dd>Left-click a unit, or left-drag a box. Double-click selects every visible unit of that type.</dd>
-      <dt>Order</dt><dd>Right-click: move there, attack an enemy, or send a harvester to an ore patch. Right-click <b>your own Ore Refinery</b> with a miner selected and it <b>docks and unloads at once</b>, however full it is — the cursor turns to the enter arrow over anything a unit can be sent into. <b>Ctrl</b>+right-click <b>force-fires</b> at a spot (or at your own units); <b>Ctrl+Shift</b>+right-click is an <b>attack-move</b> — they advance and engage whatever they meet. <b>F</b> then click a friendly unit to <b>follow</b> it.</dd>
+      <dt>Select</dt><dd>Left-click one of your units, or left-drag a box. Double-click selects every visible unit of that type. <b>Right-click</b> (without dragging) deselects.</dd>
+      <dt>Order</dt><dd>With units selected, <b>left-click</b>: move there, attack an enemy, or send a harvester to an ore patch — as in RA2. Left-click <b>your own Ore Refinery</b> with a miner selected and it <b>docks and unloads at once</b>, however full it is — the cursor turns to the enter arrow over anything a unit can be sent into. <b>Ctrl</b>+click <b>force-fires</b> at a spot (or at your own units); <b>Ctrl+Shift</b>+click is an <b>attack-move</b> — they advance and engage whatever they meet. <b>F</b> then click a friendly unit to <b>follow</b> it.</dd>
       <dt>Hold ground</dt><dd><b>S</b> stops dead — the unit fires at what comes into range but never moves. <b>G</b> guards: it leaves its post by up to two cells to engage, then walks back. <b>X</b> scatters.</dd>
       <dt>Deploy</dt><dd><b>D</b> digs a GI in behind sandbags — longer reach and double the rate of fire, and it will not move again until you press <b>D</b> to pack up. The same key unfolds an MCV into a Construction Yard and empties a garrisoned building.</dd>
-      <dt>Camera</dt><dd><b>Right-drag</b> (or middle-drag) grabs the map and looks around — it never gives an order, whatever is selected. <b>Arrow keys</b>, mouse to a screen edge, or click the minimap to jump.</dd>
+      <dt>Camera</dt><dd><b>Right-drag</b> (or middle-drag) grabs the map and looks around — the right button never gives an order. <b>Arrow keys</b>, mouse to a screen edge, or click the minimap to jump.</dd>
       <dt>Teams</dt><dd><b>Ctrl+1…0</b> stores the selection, <b>1…0</b> recalls it, <b>Shift+digit</b> adds to it, <b>Alt+digit</b> jumps the camera to it.</dd>
       <dt>Views</dt><dd><b>Ctrl+F1…F4</b> saves a camera bookmark, <b>F1…F4</b> returns to it. <b>N</b> steps through everything you own. <b>Ctrl+C</b> saves a screenshot of the field.</dd>
       <dt>Settings</dt><dd><b>Game settings</b> on the front menu carries RA2's skirmish options — starting credits and units, game speed, Bases, Short Game, Crates, Superweapons, and your house colour out of the eight. <b>Esc</b> in a match pauses and opens the same card with three <b>save slots</b>, the speed slider and Restart.</dd>
       <dt>Faster</dt><dd>A second Barracks or War Factory speeds that queue up (20% off each, up to six — as in RA2) and gives units another exit.</dd>
       <dt>Build</dt><dd>Pick from the right-hand panel. A finished <b>building</b> turns purple — click it, then click the map to place it (it must touch your base area).</dd>
-      <dt>Rally</dt><dd>Select a Barracks or War Factory, then right-click the map: new units walk that route as they roll out. The line stays drawn while the building is selected. Click an already-selected factory again to make it <b>primary</b> — the one that builds.</dd>
+      <dt>Rally</dt><dd>Select a Barracks or War Factory, then left-click the map: new units walk that route as they roll out. The line stays drawn while the building is selected. Click an already-selected factory again to make it <b>primary</b> — the one that builds.</dd>
       <dt>Sidebar</dt><dd>Hover a cameo for its cost, power draw and prerequisites. <b>Q W E R</b> pick the four tabs, <b>PageUp</b> / <b>PageDown</b> scroll the list, <b>T</b> selects every unit of one type, <b>K</b> / <b>L</b> are repair and sell, and <b>Power</b> switches a structure off to free its drain.</dd>
-      <dt>Economy</dt><dd>Harvesters mine ore and drive it back to a refinery. More refineries, more income. Ore patches run dry — expand. Right-click a refinery to <b>send a miner home early</b> and bank what it is carrying; it goes to the one you clicked, and afterwards mines the nearest ore.</dd>
+      <dt>Economy</dt><dd>Harvesters mine ore and drive it back to a refinery. More refineries, more income. Ore patches run dry — expand. Left-click a refinery with a miner selected to <b>send it home early</b> and bank what it is carrying; it goes to the one you clicked, and afterwards mines the nearest ore.</dd>
       <dt>Power</dt><dd>Every structure draws power. Go negative and construction crawls. Bombing a power plant hurts.</dd>
       <dt>Win</dt><dd>Destroy every enemy structure. Lose them all yourself and it's over. With <b>Short game</b> off you must also destroy every last enemy unit.</dd>
       <dt>Also</dt><dd><b>Space</b> jumps to the last radar event · <b>H</b> jumps home · <b>Delete</b> self-destructs the selection · <b>P</b> pauses · <b>Esc</b> cancels, and with nothing to cancel opens the <b>options</b> card (sound, scroll speed, restart, abort).</dd>
@@ -32129,7 +32129,7 @@
     // but once the map has actually moved it stays navigation and nothing is
     // ordered — a jittery right-click must never send an army somewhere.
     if (p.right && !p.moved && Math.abs(mouse.x - p.x0) <= RIGHT_SLOP && Math.abs(mouse.y - p.y0) <= RIGHT_SLOP &&
-        G && state === 'play') rightOrder(p.x0, p.y0, p.shift, p.ctrl);
+        G && state === 'play') { clearSel(); refreshCmdbar(); }   // RA2: a still right-click deselects
   }
 
   function endDrag() {
@@ -32139,8 +32139,21 @@
     marq.style.display = 'none';
     if (!G || state !== 'play') return;
     var w = Math.abs(d.x2 - d.x1), h = Math.abs(d.y2 - d.y1);
-    if (w < 5 && h < 5) { clickSelect(d.x2, d.y2, d.shift); return; }
+    if (w < 5 && h < 5) { leftClick(d.x2, d.y2, d.shift, d.ctrl); return; }
     boxSelect(Math.min(d.x1, d.x2), Math.min(d.y1, d.y2), w, h, d.shift);
+  }
+  // RA2's mouse (2026-09-10, on request): the LEFT button both selects and
+  // orders -- click one of your own to select it, click anything else with a
+  // selection to order it there (move / attack / harvest / enter, all in
+  // rightOrder, whose name is now historical); the RIGHT button only looks
+  // around (drag) and, without moving, deselects. Modifiers as before: Shift
+  // adds to a selection or queues an order, Ctrl force-fires.
+  function leftClick(px, py, shift, ctrl) {
+    var e = pickAt(px, py);
+    var own = sel.some(function (u) { return u.p === ME && !u.dead; });
+    if (e && e.p === ME && !(ctrl && own)) { clickSelect(px, py, shift); return; }
+    if (own) { rightOrder(px, py, shift, ctrl); return; }
+    clickSelect(px, py, shift);
   }
 
   // ---- Touch: one finger taps (select own / order at) or drags to pan; two
@@ -32156,7 +32169,7 @@
   function touchRight(px, py) {
     if (swCancel()) return;
     if (placing) { placing = null; wallDrag = null; cv.classList.remove('placing'); say('Placement cancelled'); return; }
-    if (G && state === 'play') rightOrder(px, py, false, false);
+    if (G && state === 'play') { clearSel(); refreshCmdbar(); }
   }
   function touchTap(px, py) {
     if (swMode) { swClickMap(px, py); return; }
@@ -32239,7 +32252,7 @@
     if (e.button === 0) {
       if (swMode) { swClickMap(px, py); return; }
       if (placing) { tryPlace(px, py); return; }
-      drag = { x1: px, y1: py, x2: px, y2: py, shift: e.shiftKey };
+      drag = { x1: px, y1: py, x2: px, y2: py, shift: e.shiftKey, ctrl: e.ctrlKey || e.metaKey };
       try { cv.setPointerCapture(e.pointerId); } catch (err) {}
     } else if (e.button === 1) {
       e.preventDefault();                       // middle-drag pans the map
@@ -32250,11 +32263,8 @@
       e.preventDefault();
       if (swCancel()) return;
       if (placing) { placing = null; wallDrag = null; cv.classList.remove('placing'); say('Placement cancelled'); return; }
-      // The right button always begins a pan; the ORDER is issued on release,
-      // and only if the pointer never travelled (see endPan). Before this the
-      // same gesture meant two different things depending on whether anything
-      // was selected — drag-to-look worked, until you had an army, and then it
-      // silently became an order. One gesture, one meaning, always.
+      // The right button only LOOKS: a drag pans, and a click that never
+      // travelled deselects (see endPan). Orders are the left button's.
       pan = { x: px, y: py, x0: px, y0: py, right: true, moved: false,
               shift: e.shiftKey, ctrl: e.ctrlKey || e.metaKey };
       pickCursor();
@@ -33064,12 +33074,7 @@
     var gp = mmToGrid((e.clientX - r.left) / r.width * MM_PX, (e.clientY - r.top) / r.height * MM_PX);
     var gx = Math.max(0, Math.min(MAP - 1, Math.round(gp.x)));
     var gy = Math.max(0, Math.min(MAP - 1, Math.round(gp.y)));
-    if (e.button === 2) {
-      // RA2: a right-click on the radar is an order to that spot.
-      var own = sel.filter(function (u) { return u.kind === 'u' && u.p === ME && !u.dead; });
-      if (own.length && state === 'play') cmd('move', { u: idsOf(own), x: gx, y: gy, queue: 0, ore: 0 });
-      return;
-    }
+    if (e.button === 2) return;                     // the right button never orders (2026-09-10)
     centerOn(gp.x, gp.y);
     clampCam();
   });
@@ -36636,6 +36641,7 @@
     // Pick whatever is under the CENTRE of a grid cell, the way a click on
     // that cell would. Exposed for the footprint-geometry test.
     pickCell: function (gx, gy) { return pickAtW(sx(gx, gy), sy(gx, gy)); },
+    toScreen: function (gx, gy) { return { x: (sx(gx, gy) - cvW / 2) * zoom + cvW / 2, y: (sy(gx, gy) - cvH / 2) * zoom + cvH / 2 }; },
     zoom: function (z) { if (z) setZoom(z, cvW / 2, cvH / 2); return zoom; },
     isPrimary: function (b) { return G ? isPrimary(G, b) : false; },
     killBld: function (b) { if (G) killBld(G, b); },

@@ -12164,3 +12164,28 @@ a magnification where the parts separate — 4-5x for a 60 px sprite — and
 before writing a single number down. Every unit corrected today that had
 been "checked against its rip" and was still wrong (Mirage, Grizzly, MCV)
 had been checked at contact-sheet size.
+
+
+### RTS mouse: the left button orders, the right button only looks (RA2's scheme)
+
+**Symptom.** *"change the mouse control logic, left click to set path or to
+attack. right click only to move navigation."* The game had the modern
+scheme: left selects, right orders, right-drag pans (with "one gesture, one
+meaning" reasoning recorded on the right-button branch).
+
+**Decision.** RA2's own scheme, on request: the LEFT button both selects and
+orders — click one of your own to select it, click anything else with a
+selection to order it there (move, attack, harvest, enter, rally; the old
+`rightOrder` does the work and keeps its name); the RIGHT button only looks
+— a drag pans, a click that never travelled deselects. Modifiers unchanged
+(Shift adds / queues, Ctrl force-fires, Ctrl+Shift attack-moves). The
+minimap's right-click move order is gone (the right button never orders);
+two-finger tap on touch deselects. Help text rewritten to match.
+
+**Proven headless** (`scratch mousetest.js`, via a new
+`__rtsTest.toScreen(gx, gy)` hook): left-click own -> selected; left-click
+ground -> path set; left-click enemy -> `u.order` targets it; still
+right-click -> selection cleared; right-drag -> camera moved.
+
+**Rejected.** Keeping right-click-to-order alongside: two buttons that both
+order is how mis-clicks happen, and it is not what the user asked for.
