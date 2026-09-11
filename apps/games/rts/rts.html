@@ -3307,6 +3307,75 @@
     return { c: c, g: g, w: w, h: h };
   }
 
+  // RA2's vehicle voxels are painted metal, not clean vector fills. The
+  // geometry already supplies the large planes; this deterministic finish
+  // adds the small value changes that make a plane feel machined at 1:1:
+  // a restrained grain inside the face, a light-catching upper edge and a
+  // darker lower edge. It runs on the scratch bake before the single outer
+  // silhouette is stamped, so it never creates the old LEGO outlines.
+  function metalFinish(canvas, seed) {
+    var cg = canvas.getContext('2d'), W = canvas.width, H = canvas.height;
+    var im = cg.getImageData(0, 0, W, H), d = im.data;
+    // Read from an untouched copy. The finish is a material pass, so a mark
+    // must not change the contrast test for the pixel next to it; otherwise a
+    // long run of pixels slowly turns into a soft airbrushed stripe.
+    var base = new Uint8ClampedArray(d);
+    function opaque(x, y) {
+      return x >= 0 && y >= 0 && x < W && y < H && base[(y * W + x) * 4 + 3] > 96;
+    }
+    function clamp(v) { return v < 0 ? 0 : (v > 255 ? 255 : v); }
+    function lum(x, y) {
+      var j = (y * W + x) * 4;
+      return base[j] * 0.24 + base[j + 1] * 0.67 + base[j + 2] * 0.09;
+    }
+    for (var y = 1; y < H - 1; y++) for (var x = 1; x < W - 1; x++) {
+      var at = (y * W + x) * 4, al = d[at + 3];
+      if (al < 96) continue;
+      var shift = 0;
+      // The projection's upper breaks catch a little light; the underside
+      // loses it. Keep this narrow so the face remains a single plate.
+      if (!opaque(x, y - 1)) shift += 15;
+      if (!opaque(x, y + 1)) shift -= 12;
+      // Sharpen an existing plane break. Voxel metal gets its depth from
+      // adjacent value steps; the old pass left those steps so smooth that a
+      // turret and its hull looked like one plastic gradient. Only a strong
+      // local change is touched, which keeps the silhouette and owner panels
+      // stable while giving fabricated plates a crisp weld boundary.
+      var here = lum(x, y), best = 0, delta, nx, ny;
+      for (var ni = 0; ni < 4; ni++) {
+        nx = x + (ni === 0 ? 1 : ni === 1 ? -1 : 0);
+        ny = y + (ni === 2 ? 1 : ni === 3 ? -1 : 0);
+        if (!opaque(nx, ny)) continue;
+        delta = here - lum(nx, ny);
+        if (Math.abs(delta) > Math.abs(best)) best = delta;
+      }
+      if (Math.abs(best) > 24) shift += best > 0 ? 7 : -7;
+      // Directional brushed grain: short vertical strokes and occasional
+      // neutral weld pin highlights. Saturated owner paint is left clean so
+      // the faction colour remains a readable marking rather than noise.
+      var mx = base[at], mn = Math.min(mx, base[at + 1], base[at + 2]);
+      var sat = mx ? (Math.max(mx, base[at + 1], base[at + 2]) - mn) / Math.max(mx, base[at + 1], base[at + 2]) : 0;
+      var h = (x * 17 + y * 31 + seed * 13) % 37;
+      if (sat < 0.48) {
+        // Keep the neutral planes on a compact voxel-like value ramp. A
+        // continuous vector gradient is what makes the same hull look like a
+        // soft toy at map scale; an eight-step luminance ramp preserves the
+        // lighting while restoring the hard pixel bands of the source art.
+        var qv = Math.round(here / 8) * 8;
+        shift += Math.max(-4, Math.min(4, qv - here));
+        if ((x + seed * 3) % 19 === 0 && (y + seed) % 3 !== 0) shift -= 5;
+        if (h === 0) shift -= 7;
+        else if (h === 1 || h === 2) shift += 5;
+        if ((x * 31 + y * 17 + seed * 7) % 113 === 0) shift += 10;
+      }
+      if (!shift) continue;
+      d[at] = clamp(d[at] + shift);
+      d[at + 1] = clamp(d[at + 1] + shift);
+      d[at + 2] = clamp(d[at + 2] + shift);
+    }
+    cg.putImageData(im, 0, 0);
+  }
+
   // Must accept its OWN output: sprites shade an already-shaded colour (a
   // turret on a hull, a roof box on a roof). Parsing only '#rrggbb' made
   // parseInt('gb(88,...') return NaN, canvas rejected the colour, and the
@@ -4866,7 +4935,21 @@
       grd.addColorStop(0.55, shade(col2, f));
       grd.addColorStop(1, shade(col2, f * 0.80));
       g.fillStyle = grd; g.fill();
-      if (NO_RIM) return;
+      if (NO_RIM) {
+        // Smooth vehicle bakes suppress the heavy construction outlines, but
+        // a completely unmarked face reads as flat plastic. A hairline on the
+        // upper break restores the thin specular edge visible on RA2 voxel
+        // panels without turning every primitive into a LEGO outline.
+        if (hgt > 1.0) {
+          g.strokeStyle = 'rgba(224,231,235,.30)'; g.lineWidth = 0.55;
+          g.beginPath(); g.moveTo(p[0], p[1] - hgt); g.lineTo(q[0], q[1] - hgt); g.stroke();
+        }
+        if (hgt > 2.4 && Math.hypot(q[0] - p[0], q[1] - p[1]) > 3.5) {
+          g.strokeStyle = 'rgba(24,29,35,.16)'; g.lineWidth = 0.42;
+          g.beginPath(); g.moveTo(p[0], p[1]); g.lineTo(p[0], p[1] - hgt); g.stroke();
+        }
+        return;
+      }
       if (outline) { g.strokeStyle = outline; g.lineWidth = 0.7; g.stroke(); }
       g.strokeStyle = 'rgba(255,255,255,.20)'; g.lineWidth = 0.8;   // lit top rim
       g.beginPath();
@@ -9219,7 +9302,7 @@
     var hull, deck;
     if (kind === 'lancer')       { hull = '#626a7b'; deck = '#3e4450'; }   // slate-navy with a pale top, as allied-grizzly-tank.png (VLIFT lifts it)
     else if (kind === 'spectre') { hull = '#464e5d'; deck = '#30353f'; }   // dark navy-slate, as allied-prism-tank.png
-    else if (kind === 'mammoth') { hull = '#8c925a'; deck = '#5a5e34'; }   // a REAL olive, per 1.4 -- pale, as apocalypse.png (29% light px)
+    else if (kind === 'mammoth') { hull = '#555a51'; deck = '#373b35'; }   // cold olive-grey; low value and hard plane separation keep the Apocalypse severe
     else if (kind === 'ifv')     { hull = '#8588a2'; deck = '#7e8394'; }   // lavender-grey body, as the [FV] voxel render (VLIFT lifts it)
     else if (kind === 'mirage')  { hull = '#3f4552'; deck = '#262a33'; }   // dark slate-navy, as mirage.png
     else if (kind === 'rhino')     { hull = '#a0a080'; deck = '#63644b'; } // sand-khaki, as rhino.png (32% light px)
@@ -9238,7 +9321,10 @@
     else if (kind === 'nighthawk') { hull = '#6d747e'; deck = '#363b43'; } // gunship grey, LIGHTER than the jet
     else if (kind === 'apc')       { hull = '#8a8d76'; deck = '#4d5042'; } // olive-grey hovercraft
     else                         { hull = sov ? '#4c515a' : '#40454e'; deck = '#2a2e35'; }
-    var dark = shade(hull, 0.40);
+    // The Apocalypse carries a neutral charcoal shadow instead of a warm
+    // olive one. It keeps the recesses and gun housings visually cold while
+    // the mid-tone hull remains a restrained Soviet olive.
+    var dark = kind === 'mammoth' ? '#1d2020' : shade(hull, 0.40);
     var turreted = kind === 'lancer' || kind === 'spectre' || kind === 'mammoth' ||
                    kind === 'ifv' || kind === 'rhino' || kind === 'flaktrack';
     // Deck height the turret ring stands on — per kind, facing-independent.
@@ -9246,7 +9332,7 @@
     // our tanks stood 15-25% too tall for their length (Apocalypse 1.21 wide
     // per high against the reference's 1.41), and the deck the turret sits on
     // is where most of that height was.
-    var RING = kind === 'mammoth' ? 9.6 : (kind === 'spectre' ? 6.4 :
+    var RING = kind === 'mammoth' ? 7.6 : (kind === 'spectre' ? 6.4 :
                (kind === 'ifv' ? 9.5 : (kind === 'rhino' ? 8.8 :
                (kind === 'flaktrack' ? 9.0 : 7.4))));
 
@@ -9378,7 +9464,11 @@
       // vehicle-only value lift, see the definition. GROUND vehicles only:
       // the aircraft's detail census ("do not add detail it cannot carry")
       // counts the lift's extra gradient tones as detail on the Hornet.
-      VLIFT = (kind === 'harrier' || kind === 'kirov' || kind === 'hornet' || kind === 'nighthawk') ? 1 : 1.25;
+      // The MCV's purple cab and steel machinery are already close to the
+      // source value range; giving it the fleet-wide 1.25 lift clips the rear
+      // casing to white and makes the works truck look like a toy. Keep the
+      // common metal lift for the combat fleet, with a restrained MCV lift.
+      VLIFT = (kind === 'harrier' || kind === 'kirov' || kind === 'hornet' || kind === 'nighthawk') ? 1 : (kind === 'mcv' ? 1.08 : 1.25);
       var wantH = part !== 't', wantT = part !== 'h';
       var a = d * FANG;
       // The Kirov is 137px broadside in RA2 against a Rhino's ~60: it gets a
@@ -9426,9 +9516,9 @@
       // The Grizzly is narrowed (not shortened): at 17 wide against 30 long it
       // was almost square in plan and read as a Rhino. The War Miner is a size
       // class up on the Chrono Miner, which is half of telling them apart.
-      // The IFV is a size class DOWN on every tank: 26x15 against the
-      // Grizzly's 30x15 is the RA2 ratio, and it is half of telling a rocket
-      // buggy from a light tank at 1:1.
+      // The IFV is a size class DOWN on every tank: its 24x12 chassis is
+      // narrow and nearly square in the isometric view, which is half of
+      // telling the rocket buggy from a tracked tank at 1:1.
       // The Rhino is the boxy heavy: shorter and BROADER than the Lancer's
       // wedge (32x19 against 30x15), which is the RA2 plan ratio and what
       // stops the Collective's line tank reading as a recoloured Grizzly.
@@ -9445,19 +9535,11 @@
       // same LENGTH and opposite HEIGHTS; ours were the same both ways, so
       // the Chrono Miner is stretched to a long low truck (36x14 in plan) and
       // the War Miner shortened and broadened into a bin on tracks (27x23).
-      // The IFV is 17 long against 15 wide — NEARLY SQUARE, and by far the
-      // shortest thing that drives (every other vehicle is 22-30). RA2's IFV
-      // is a longer eight-wheeled car, and it is tempting to stretch ours,
-      // because it turns up in four of the sidebar's eight worst pairs.
-      // MEASURED: DO NOT. Its shortness is load-bearing for the SIZE LADDER.
-      // At len 24 the art gate returned peerVsSelf.vehicle 1 -> 3 (three
-      // vehicles matching a PEER better than their own other bearings),
-      // iou.groundCombat over its 0.45 ceiling, and mass.tightestBand6
-      // 2.093 -> 1.801, under its floor of 2. At len 20 it still failed
-      // (2 / 0.4785 / 1.939). Lengthening crowds the 22-24 band that mirage,
-      // flaktrack and v3 already share, so the IFV stops being separable BY
-      // SIZE and every ground shape gets closer together. Fix its cameo
-      // collisions some other way — value or prop, not length.
+      // The IFV keeps a compact 24-unit body under a tall launcher. Its
+      // footprint is deliberately narrower than the tank line while the
+      // raised turret supplies the vertical identity visible in the voxel
+      // reference; changing only length makes it collide with Mirage,
+      // Flak Track and V3 silhouettes.
       // The PRISM TANK is BEAMY (`wid` 22, widest thing on tracks bar the
       // Apocalypse), and that is not an invention: §1.1 measures [SREF] at
       // 59x43 against [MTNK]'s 56x41, so RA2's Prism Tank is the LARGER of
@@ -9479,13 +9561,13 @@
       // Beam is roughly five times the lever length is, in the opposite
       // direction to the one written here. Grow beam for separation with open
       // eyes; do not grow it expecting aspect.
-      var len = kind === 'harv' ? (sov ? 33 : 27) : (kind === 'ifv' ? 17 :
+      var len = kind === 'harv' ? (sov ? 33 : 27) : (kind === 'ifv' ? 24 :
                 (kind === 'drone' ? 9 : (kind === 'spectre' ? 24 :
                 (kind === 'flaktrack' ? 23 : (kind === 'mammoth' ? 27 :
                 (kind === 'rhino' ? 25 : (kind === 'v3' ? 22 :
                 (kind === 'mirage' ? 24 : (kind === 'lancer' ? 26 :
                 (kind === 'teslatank' ? 27 : 30))))))))));
-      var wid = kind === 'harv' ? (sov ? 20 : 18) : (kind === 'ifv' ? 15 :
+      var wid = kind === 'harv' ? (sov ? 20 : 18) : (kind === 'ifv' ? 12 :
                 (kind === 'drone' ? 8 : (kind === 'spectre' ? 22 :
                 (kind === 'mammoth' ? 21 : (kind === 'harv' ? (sov ? 22 : 18) :
                 (kind === 'lancer' ? 20 : (kind === 'ifv' ? 15 :
@@ -9495,7 +9577,7 @@
       // The MCV is the biggest thing that drives: a Construction Yard folded
       // onto a crawler. Appended here rather than threaded into the ternaries
       // above so no other kind's numbers move.
-      if (kind === 'mcv') { len = 40; wid = 16; }   // 2026-09-10 (7): the sheet, at 5x, is 76x36 broadside / 66x46 diagonal -- a LONG narrow tall truck
+      if (kind === 'mcv') { len = 36; wid = 19; }   // 2026-09-11: the sheet is about 76x36 broadside / 66x46 diagonal -- a full-bodied works truck, only slightly longer than its heavy load
       // The Nighthawk is a light helicopter: long for its beam, and the tail
       // boom runs past the hull, so the sheet's length is mostly boom.
       if (kind === 'nighthawk') { len = 34; wid = 13; }
@@ -9566,7 +9648,16 @@
           gr.addColorStop(0, shade(body, f2 * 1.20));
           gr.addColorStop(1, shade(body, f2 * 0.82));
           g.fillStyle = gr; g.fill();
-          if (edge && !NO_RIM) { g.strokeStyle = edge; g.lineWidth = 0.7; g.stroke(); }
+          if (NO_RIM) {
+            if (h > 1.0) {
+              g.strokeStyle = 'rgba(224,231,235,.27)'; g.lineWidth = 0.50;
+              g.beginPath(); g.moveTo(p0[0], p0[1] - h); g.lineTo(p1[0], p1[1] - h); g.stroke();
+            }
+            if (h > 2.4 && Math.hypot(p1[0] - p0[0], p1[1] - p0[1]) > 3.5) {
+              g.strokeStyle = 'rgba(24,29,35,.13)'; g.lineWidth = 0.40;
+              g.beginPath(); g.moveTo(p0[0], p0[1]); g.lineTo(p0[0], p0[1] - h); g.stroke();
+            }
+          } else if (edge) { g.strokeStyle = edge; g.lineWidth = 0.7; g.stroke(); }
         }
         var ty0 = 1e9, ty1 = -1e9;
         g.beginPath();
@@ -9579,7 +9670,16 @@
         var tg = g.createLinearGradient(0, ty0, 0, ty1 + 0.5);
         tg.addColorStop(0, shade(body, 1.26)); tg.addColorStop(1, shade(body, 1.00));
         g.fillStyle = tg; g.fill();
-        if (edge && !NO_RIM) { g.strokeStyle = edge; g.lineWidth = 0.7; g.stroke(); }
+        if (NO_RIM) {
+          if (h > 1.0) {
+            g.strokeStyle = 'rgba(224,231,235,.26)'; g.lineWidth = 0.50;
+            g.beginPath();
+            for (i = 0; i < P.length; i++) {
+              if (i === 0) g.moveTo(P[i][0], P[i][1] - h); else g.lineTo(P[i][0], P[i][1] - h);
+            }
+            g.closePath(); g.stroke();
+          }
+        } else if (edge) { g.strokeStyle = edge; g.lineWidth = 0.7; g.stroke(); }
         return P;
       }
       // Stadium outline in the ground plane, sampled as a polygon: straight
@@ -9659,8 +9759,8 @@
       }
       // Both runs, just outside the hull line. Past ~0.42 of hull width the
       // tracks visibly detach, so 0.40 is the ceiling here.
-      function tracks(tl, th2, tw, wheelCol) {
-        var off = wid * 0.40;
+      function tracks(tl, th2, tw, wheelCol, offScale) {
+        var off = wid * (offScale == null ? 0.40 : offScale);
         for (var side = -1; side <= 1; side += 2)
           trackRun(cx + px * off * side, by - 1 + py * off * side, tl, tw, th2, wheelCol);
       }
@@ -9710,8 +9810,8 @@
           wheelDisc(ws[i3][0], ws[i3][1], r, 0.62, tyre || '#14161a', rim || '#8b929d');
       }
       // Hull: dark underbody, body box, raked glacis, lit contour.
-      function chassis(hx, hy, hl2, hw2, h, body, edge, rake) {
-        isoBox(g, hx, hy, hl2 * 0.96, hw2 * 1.04, 1.5, a, '#2a2e35', '#0b0d10');
+      function chassis(hx, hy, hl2, hw2, h, body, edge, rake, underH) {
+        isoBox(g, hx, hy, hl2 * 0.96, hw2 * 1.04, underH == null ? 1.5 : underH, a, '#2a2e35', '#0b0d10');
         isoBox(g, hx, hy - 1.3, hl2, hw2, h, a, body, edge);
         if (rake) {
           var HL = hl2 / 2, HW = hw2 / 2, cy0 = hy - 1.3 - h;
@@ -9732,11 +9832,41 @@
           g.strokeStyle = shade(body, 1.62); g.lineWidth = 1;        // lit silhouette edge
           g.beginPath(); g.moveTo(q1[0], q1[1]); g.lineTo(q2[0], q2[1]); g.stroke();
         }
+        // Shared fabricated-hull pass. RA2's bodies are assembled from broad
+        // welded plates, so a clean gradient alone reads as painted plastic.
+        // These hairline breaks sit only on the visible flank: one lower
+        // rubbing seam, two short plate joints, and four subdued rivets. They
+        // stay inside the silhouette and keep the owner colour untouched.
+        if (flank > 0.14 && h > 2.4) {
+          var cs = nearS, csy = hy + py * hw2 * 0.515 * cs;
+          function cpoint(u, z) {
+            return [hx + fx * u + px * hw2 * 0.515 * cs,
+                    csy + fy * u - z];
+          }
+          var cp0 = cpoint(-hl2 * 0.41, 1.3 + h * 0.20), cp1 = cpoint(hl2 * 0.41, 1.3 + h * 0.20);
+          g.strokeStyle = 'rgba(20,24,29,.34)'; g.lineWidth = 0.55;
+          g.beginPath(); g.moveTo(cp0[0], cp0[1]); g.lineTo(cp1[0], cp1[1]); g.stroke();
+          g.strokeStyle = 'rgba(215,220,224,.24)'; g.lineWidth = 0.42;
+          cp0 = cpoint(-hl2 * 0.40, 1.3 + h * 0.78); cp1 = cpoint(hl2 * 0.40, 1.3 + h * 0.78);
+          g.beginPath(); g.moveTo(cp0[0], cp0[1]); g.lineTo(cp1[0], cp1[1]); g.stroke();
+          for (var cj = -1; cj <= 1; cj += 2) {
+            var cu = hl2 * 0.22 * cj, ca = cpoint(cu, 1.3 + h * 0.28), cb = cpoint(cu, 1.3 + h * 0.72);
+            g.strokeStyle = 'rgba(24,28,33,.28)'; g.lineWidth = 0.48;
+            g.beginPath(); g.moveTo(ca[0], ca[1]); g.lineTo(cb[0], cb[1]); g.stroke();
+          }
+          for (var cr = -1; cr <= 1; cr += 2) {
+            var rv = cpoint(hl2 * 0.36 * cr, 1.3 + h * 0.55);
+            g.fillStyle = 'rgba(210,216,220,.62)';
+            g.beginPath(); g.ellipse(rv[0], rv[1] - 0.22, 0.34, 0.28, 0, 0, 6.29); g.fill();
+            g.fillStyle = 'rgba(30,34,39,.48)';
+            g.beginPath(); g.ellipse(rv[0] + 0.10, rv[1] + 0.08, 0.16, 0.13, 0, 0, 6.29); g.fill();
+          }
+        }
       }
       // Pale bumper strip along the lower front — on every RA2 chassis.
       function bumper(bl, bw2, byb) {
         var fxp = cx + fx * bl, fyp = byb + fy * bl;
-        g.strokeStyle = BAND; g.lineWidth = 2.2; g.lineCap = 'butt';
+        g.strokeStyle = kind === 'mammoth' ? '#858980' : BAND; g.lineWidth = 2.2; g.lineCap = 'butt';
         g.beginPath();
         g.moveTo(fxp + px * bw2, fyp + py * bw2); g.lineTo(fxp - px * bw2, fyp - py * bw2);
         g.stroke();
@@ -9756,10 +9886,14 @@
       // Track guards that overhang the nose. In the reference every Allied
       // and Soviet tank shows two pale horns ahead of the glacis, and that
       // forked front is what stops the head-on facings reading as a slab.
-      function fenders(fu, fh) {
+      function fenders(fu, fh, offScale, widthScale, lengthScale) {
+        var fo = wid * (offScale == null ? 0.40 : offScale);
+        var fw = wid * (widthScale == null ? 0.27 : widthScale);
+        var fl = len * (lengthScale == null ? 0.17 : lengthScale);
         for (var q = -1; q <= 1; q += 2)
-          isoBox(g, cx + fx * fu + px * wid * 0.40 * q, by - fh + fy * fu + py * wid * 0.40 * q,
-                 len * 0.17, wid * 0.27, 1.7, a, STEEL, '#282c33');
+          isoBox(g, cx + fx * fu + px * fo * q, by - fh + fy * fu + py * fo * q,
+                 fl, fw, kind === 'mammoth' ? 1.3 : 1.7, a,
+                 kind === 'mammoth' ? '#59605a' : STEEL, '#282c33');
       }
       // The three fitments every vehicle carries, so the fleet reads as one
       // design language: a hatch ring on the deck, a headlamp at the nose, a
@@ -10182,12 +10316,11 @@
       }
 
       if (kind === 'lancer') {
-        // GRIZZLY / RHINO — a LONG LOW WEDGE with two pale track horns ahead
-        // of the glacis and a thin gun that reaches about 40% of the hull
-        // length past the nose. That overhang plus the forked nose is the
-        // whole read at 1:1. House colour goes on a SEGMENTED skirt (the
-        // reference carries three separate panels a side, not one bar) and on
-        // the turret cheeks, so it reads side-on and from above alike.
+        // GRIZZLY BATTLE TANK — the real eight-bearing rip is a LOW, pale
+        // grey-blue wedge with a compact box turret and one long thin gun.
+        // Its blue remap is restrained: two countable patches on the flank
+        // and small cheek plates, never a continuous cyan stripe. The pale
+        // horns ahead of the glacis and the gun overhang carry the silhouette.
         if (wantH) {
           // THE FAR FLANK'S PANEL GOES ON BEFORE THE HULL. That is a
           // rendering-ORDER fix, not a tuning knob, and it is the defect the
@@ -10208,10 +10341,10 @@
           function flankPlate(s2) {
             isoBox(g, cx + px * wid * 0.365 * s2 - fx * 1.2,
                    by - 0.4 + py * wid * 0.365 * s2 - fy * 1.2,
-                   len * 0.50, 1.7, 3.0, a, panel, PEDGE);   // a patch, not a skirt: the rip's blue is small
+                   len * 0.24, 1.55, 2.35, a, shade(panel, 0.82), PEDGE);   // the rip's blue is a short patch, not a skirt
             isoBox(g, cx + px * wid * 0.345 * s2 - fx * 1.2,
                    by - 2.6 + py * wid * 0.345 * s2 - fy * 1.2,
-                   len * 0.58, 1.3, 0.9, a, plit, PEDGE);          // lit cap on the same plate
+                   len * 0.19, 1.25, 0.75, a, shade(panel, 0.88), PEDGE);          // a separate lit cap, with a real gap
           }
           tracks(len * 1.04, 3.4, wid * 0.30, '#b0b7c2');
           for (sg = -1; sg <= 1; sg += 2) if (py * sg < 0) flankPlate(sg);
@@ -10270,8 +10403,8 @@
           // gave up, so the budget holds while the count drops to two.
           for (sg = -1; sg <= 1; sg += 2)
             prism(tx - fx * 1.8, ty - 0.4 - fy * 1.8,
-                  [[0.8, 2.9 * sg], [-2.6, 2.6 * sg], [-2.7, 5.0 * sg], [0.8, 5.6 * sg]],
-                  3.0, panel, PEDGE);
+                  [[0.8, 2.5 * sg], [-2.6, 2.3 * sg], [-2.7, 4.2 * sg], [0.8, 4.7 * sg]],
+                  2.25, shade(panel, 0.82), PEDGE);
           prism(tx - fx * 0.7, ty - 4.4 - fy * 0.7,                  // chamfered cap
                 [[4.6, -1.8], [4.6, 1.8], [0.8, 3.8], [-4.4, 2.9], [-4.4, -2.9], [0.8, -3.8]],
                 1.3, shade(hull, 1.06), dark);
@@ -10455,408 +10588,383 @@
         }
 
       } else if (kind === 'mammoth') {
-        // APOCALYPSE — huge, TWIN parallel tapering cannons at deck level and
-        // — the tell that no other unit has — four MISSILE CANISTERS a side
-        // standing on the hull shoulders in two rows, each a separately
-        // visible stubby cylinder with a lit round cap. Boxes with two dots
-        // punched in them (the previous pass) read as luggage; the reference
-        // shows the tubes.
+        // APOCALYPSE — a long, low Soviet tank. The eight-bearing rip has a
+        // narrow tracked hull, a compact faceted turret and twin guns that do
+        // the visual work; the red remap is four small rear shoulder blocks.
+        // This branch is intentionally self-contained so its proportions do
+        // not inherit the rounded furniture used by the other vehicles.
+        var mmOff = 0.28, mmLen = len * 0.80;
         if (wantH) {
-          tracks(len * 1.02, 5.0, wid * 0.30, '#b0b7c2');
-          chassis(cx, by - 1.6, len * 0.88, wid * 0.80, 6.6, hull, dark, 3.8);
-          deckPlate(-0.5, len * 0.68, wid * 0.56, 9.2, shade(hull, 1.10));
-          isoBox(g, cx + fx * len * 0.31, by - 9.0 + fy * len * 0.31, len * 0.18, wid * 0.54, 1.8,
-                 a, STEEL, dark);
-          isoBox(g, cx - fx * 6.4, by - 9.2 - fy * 6.4, len * 0.38, wid * 0.58, 1.8, a, deck, dark);
-          for (sg = -1; sg <= 1; sg += 2) {                     // full-length skirts
-            isoBox(g, cx + px * wid * 0.39 * sg, by - 3.2 + py * wid * 0.39 * sg,
-                   len * 0.86, 1.8, 4.0, a, shade(hull, 0.74), dark);
-            // The unbroken colour band that used to run this skirt is gone.
-            // On the sheet the Apocalypse's house colour IS its canister
-            // drums (unit-identity-reference.md 1.4); a bar down the skirt
-            // spent the whole budget on the one surface every other tank
-            // also has. Two short shoulder plates keep the flank from going
-            // mute, and the drums below carry the rest.
-            isoBox(g, cx + px * wid * 0.40 * sg + fx * 0.5,      // ONE long owner skirt a side, as the sheet
-                   by - 4.0 + py * wid * 0.40 * sg + fy * 0.5,
-                   len * 0.62, 1.8, 3.0, a, panel, PEDGE);
+          // Slim envelope pass: the Apocalypse carries its weight along a
+          // long track run. Narrow track spacing, a low skirt and a thin
+          // glacis leave the twin barrels to establish the heavy silhouette.
+          tracks(mmLen * 1.10, 4.2, wid * 0.22, '#969d93', mmOff);
+          chassis(cx, by - 1.05, mmLen * 0.95, wid * 0.58, 4.35, hull, dark, 4.35, 0.9);
+          deckPlate(-0.35, mmLen * 0.70, wid * 0.37, 6.6, shade(hull, 1.06));
+          // A low engine deck at the rear and a short front glacis step give
+          // the hull the two hard planes visible in the source rip.
+          isoBox(g, cx - fx * 5.9, by - 6.4 - fy * 5.9,
+                 mmLen * 0.30, wid * 0.40, 0.95, a, deck, dark);
+          isoBox(g, cx + fx * 6.8, by - 4.2 + fy * 6.8,
+                 mmLen * 0.16, wid * 0.40, 0.72, a, shade(hull, 0.86), dark);
+          for (var mmS = -1; mmS <= 1; mmS += 2) {
+            // Narrow skirts sit close to the hull rather than making a second
+            // wide body. Their lower edge is almost black, as in the rip.
+            isoBox(g, cx + px * wid * mmOff * mmS,
+                   by - 1.95 + py * wid * mmOff * mmS,
+                   mmLen * 0.90, 1.16, 2.65, a, shade(hull, 0.60), dark);
+            // Two short structural ribs are neutral; house colour stays on
+            // the four recognizable rear blocks.
+            for (var mmR = -1; mmR <= 1; mmR += 2)
+              isoBox(g, cx + fx * (mmR * mmLen * 0.24) + px * wid * (mmOff + 0.02) * mmS,
+                     by - 2.55 + fy * (mmR * mmLen * 0.24) + py * wid * (mmOff + 0.02) * mmS,
+                     mmLen * 0.12, 1.04, 0.58, a, shade(hull, 0.78), dark);
           }
-          fenders(len * 0.44, 4.8);
-          bumper(len * 0.42, wid * 0.28, by - 2.0);
-          lamp(cx + fx * len * 0.40 + px * wid * 0.26, by - 5.8 + fy * len * 0.40 + py * wid * 0.26);
-          lamp(cx + fx * len * 0.40 - px * wid * 0.26, by - 5.8 + fy * len * 0.40 - py * wid * 0.26);
-          exhaust(cx - fx * len * 0.42 + px * wid * 0.20, by - 7.6 - fy * len * 0.42 + py * wid * 0.20);
-          // THE CANISTERS. FOUR drums stacked 2x2 on the REAR DECK, each fat
-          // enough to be counted at 1:1 with a clear gap round it, and each
-          // one in the owner's hue: on `soviet-apocalypse-tank.png` the red
-          // is these drums, not a stripe, and no other unit on the field
-          // carries a countable cluster like it. Eight thin tubes strung
-          // down both flanks (the last pass) read as ribs on a skirt from
-          // two tiles away and put the tell where every tank already has a
-          // skirt; four drums standing proud of the deck put it in the
-          // OUTLINE, where a silhouette can carry it.
-          var cans = [];
-          for (sg = -1; sg <= 1; sg += 2)
-            for (i2 = 0; i2 < 2; i2++) {
-              // 2026-09-06, the §2.4 clause pass. "each canister >= 6x6 px and
-              // individually countable (gaps >= 2 px)" had nothing measuring
-              // it, and measured, the four drums baked as ONE 22x31 house
-              // component at the broadside octant: the seam between the near
-              // and far columns was 1 px, and its anti-aliased blend is still
-              // owner-hued, so the mask bridges straight across it. The drums
-              // move APART across the beam and along the axis and lose a
-              // quarter-unit of radius; nothing else moves, so the hull keeps
-              // its 87x55 and the "beam is the denominator" warning above does
-              // not apply — these are furniture on the deck, not the deck.
-              //
-              // 2026-09-05, and the pass above fixed HALF of it. The tightened
-              // check (tools/clause-checks/vehicle.js) counts a canister as a
-              // STANDING CYLINDER, and it found two, not four, at every one of
-              // the eight bearings: the drums that separated were the two the
-              // camera separates HORIZONTALLY, and the other pair stayed fused
-              // one axis over.
-              //
-              // `cu` — the separation along the hull axis, the lever the last
-              // pass reached for again — CANNOT fix it, and that is provable
-              // rather than a preference. Under this camera the two bearings
-              // that could resolve four all have ONE of the two cluster axes
-              // projecting to zero screen X: at the broadside octant
-              // `px = ISO_X * (-sin a - cos a)` is exactly 0, so the two
-              // FLANK drums land in the same screen column no matter what,
-              // and at the axial octant `fx` is 0 and the two HULL drums do.
-              // Whichever pair shares a column can only be separated
-              // VERTICALLY, and `cu` moves the pair that is already apart.
-              // Swept: `cu` step 0.215 -> 0.380 (the point at which the rear
-              // drum leaves the hull and broadside grows 87 -> 96 px) holds
-              // the count at TWO the whole way.
-              //
-              // So the fix is the OTHER axis plus a seam. `cv` 0.215 -> 0.322
-              // opens the flank pair until the far drum still shows 14 px of
-              // its own above the near one, and the collar below makes that
-              // seam survive the bake. `cv` alone reaches four and stops at a
-              // ONE-pixel seam at every value swept (0.300 - 0.350) — the same
-              // anti-aliased owner-hued bridge, for the fifth time in this
-              // file. The plateau is `cv` 0.302 - 0.330 and this sits in the
-              // middle of it; below 0.302 the far drum's visible sliver drops
-              // under the check's h >= 1.5w and it stops being a cylinder.
-              // SQUAT DRUMS CANNOT BE COUNTED, and the long comment above
-              // says why in advance: at the gated octant `px` is exactly 0,
-              // the two flank drums share a screen column, and the ONLY thing
-              // that can separate them is the far one showing above the near
-              // one. That margin is a function of DRUM HEIGHT, so cutting
-              // them to 5.2 to buy the Apocalypse's aspect took the count
-              // from four to two at every spacing swept (cv 0.322 - 0.430).
-              // The height is back; the aspect it was bought for comes from
-              // the BARRELS instead, which is where the reference puts it.
-              var cu = -len * 0.235 - i2 * len * 0.215, cv = sg * wid * 0.380;
-              // 2026-09-10: the base must stay CLEAR of the skirt plates' top (by-7.8):
-              // at by-6.6 the drums' feet touched the blue flank plates and the
-              // house-mask component check fused all four into one wide blob.
-              cans.push([cx + fx * cu + px * cv, by - 9.4 + fy * cu + py * cv]);
+          fenders(mmLen * 0.46, 3.35, mmOff, 0.22, 0.13);
+          bumper(mmLen * 0.46, wid * 0.20, by - 1.45);
+          lamp(cx + fx * mmLen * 0.42 + px * wid * 0.23,
+               by - 5.05 + fy * mmLen * 0.42 + py * wid * 0.23);
+          lamp(cx + fx * mmLen * 0.42 - px * wid * 0.23,
+               by - 5.05 + fy * mmLen * 0.42 - py * wid * 0.23);
+          exhaust(cx - fx * mmLen * 0.40 + px * wid * 0.18,
+                  by - 5.9 - fy * mmLen * 0.40 + py * wid * 0.18);
+
+          // Five small road wheels on the visible flank and two larger end
+          // sprockets make the long track read as a machined assembly. They
+          // are drawn after the skirt so the detail is not swallowed by its
+          // top face.
+          if (flank > 0.14) {
+            var mmHw = wid * 0.22 / 2, mmSt = Math.max(0.5, mmLen * 1.10 / 2 - mmHw);
+            for (var mmW = -2; mmW <= 2; mmW++) {
+              var mmU = mmW * mmSt * 0.46;
+              var mmX = cx + fx * mmU + px * (wid * mmOff + mmHw * 0.94) * nearS;
+              var mmY = by - 0.7 + fy * mmU + py * (wid * mmOff + mmHw * 0.94) * nearS - 3.8 * 0.46;
+              g.fillStyle = '#171a1d';
+              g.beginPath(); g.ellipse(mmX, mmY, 1.58, 1.34, 0, 0, 6.29); g.fill();
+              g.fillStyle = '#969b90';
+              g.beginPath(); g.ellipse(mmX, mmY - 0.20, 0.84, 0.66, 0, 0, 6.29); g.fill();
+              g.fillStyle = '#303631';
+              g.beginPath(); g.ellipse(mmX, mmY - 0.25, 0.32, 0.26, 0, 0, 6.29); g.fill();
             }
-          cans.sort(function (m, n) { return m[1] - n[1]; });
-          for (i2 = 0; i2 < cans.length; i2++) {
-            // 9.6 units of drum, not 6.2: 2x2 canisters that stop level with
-            // the turret ring are a pattern on the deck, and the spec asks for
-            // a COUNTABLE cluster standing in the outline. Four vertical
-            // columns are also the only crown on the field that is four
-            // things, which is what the Apocalypse's silhouette owes the gate.
-            //
-            // THE SEAM, DRAWN rather than hoped for. The drums are sorted
-            // far-to-near, so each is painted OVER the one behind it, and at
-            // the broadside octant the far drum's FOOT lands 1.8 px inside the
-            // near drum's silhouette. The two edges that meet there are both
-            // owner-hued, puck()'s 0.7-wide PEDGE stroke anti-aliases to
-            // something still owner-hued, and the house mask walks across —
-            // the fifth instance of that bridge in the art log.
-            //
-            // WIDENING `cv` CANNOT OPEN IT, which is why the seam is drawn and
-            // not spaced: the far drum's visible foot is DEFINED BY the near
-            // drum's shoulder, so it moves down with it. Swept 0.300 - 0.350,
-            // the seam is 1 px at every value. A dark puck painted FIRST, 1.60
-            // taller than the drum, puts 3 px of real black above each cap,
-            // and THAT is what the drum behind lands on.
-            //
-            // Taller, barely fatter (1.95 against 1.90), never lower. Nothing
-            // stands within 15 px of a drum's flank, so collar spent sideways
-            // or downward is owner colour spent for nothing: at 2.35 the drums
-            // read as black chimneys with a blue stripe. A symmetric collar
-            // also ate the neighbouring drum at every height that opened the
-            // seam, because the same 2 px lands on the drum BELOW.
-            //
-            // In `dark`, the hull's OWN shadow tone, not PEDGE. Both break the
-            // house mask (hue 68 against the owner's 197), and the seam does
-            // not care which — but the census does: PEDGE is the near-black
-            // every unit on the field outlines with, so spending 4 x 3 px of
-            // the Apocalypse on more of it moved `colour.vehicle.meanDist`
-            // 0.9634 -> 0.9561, the one number this pass regressed. The same
-            // collar in `dark` reads as the drums standing in the hull's
-            // shadow instead of in a black tube, and the metric goes the other
-            // way: 0.9714.
-            // SHORT AND WIDE, not chimneys. `docs/ra2-ref/sprites/apocalypse.png`
-            // shows the red canisters sitting LOW on the hull shoulders, about
-            // as tall as they are wide, with the turret roof above them — and
-            // the tank reading long and flat. Ours stood them 9.6 units proud
-            // of the deck, which is 13 of the sprite's 55 rows and the whole
-            // reason its aspect measured **1.436 against [MTNK]'s 1.735**, the
-            // second-worst ratio in the group. That height was also what made
-            // `Apocalypse | War Miner` a 0.75 silhouette pair the moment the
-            // size spread was compressed: two big tracked hulls with tall
-            // furniture on the deck. RA2 separates them by aspect (1.74
-            // against [HARV]'s 1.17) and this is where ours went.
-            //
-            // Fatter as they come down, so "each canister >= 6x6 px and
-            // individually countable" survives the change — the clause is
-            // about COUNTABILITY, and four squat drums with real gaps count
-            // as easily as four tall ones.
-            // 2026-09-10: the height pass tried 8.2 here and the count went
-            // 4 -> 2 exactly as the paragraph above predicts. Drum height is
-            // restored; the sprite's height came off the BASE (by-9.4 -> by-7.2).
-            // 2026-09-10: radius 1.90 -> 2.30. At VSC 0.90 a 1.90 drum bakes
-            // 5 px wide and the check's ">= 6x6" stops counting it at all.
-            // r 2.05: at the gated octant the FAR pair shows only ~11 px above
-            // the turret, and the check wants h >= 1.5w, so 7 px wide is the cap.
-            // 2026-09-10 (6): SQUAT. apocalypse.png's pods are low boxes on
-            // the rear shoulders, not chimneys; the red on that sheet is the
-            // hull SKIRT. Height 10.4 -> 5.4, radius up, and the skirt below.
-            puck(cans[i2][0], cans[i2][1], 2.5, 7.8, dark, dark, dark);
-            puck(cans[i2][0], cans[i2][1], 2.45, 6.6, pdark, panel, PEDGE);
-            gEllipse(cans[i2][0], cans[i2][1] - 6.6, 1.3);       // dark throat in the cap
-            g.fillStyle = '#1a1d22'; g.fill();
-            g.fillStyle = plit;                                  // lit lip
-            gEllipse(cans[i2][0] - 0.55, cans[i2][1] - 7.2, 0.7); g.fill();
+            for (var mmE = -1; mmE <= 1; mmE += 2) {
+              var mmEX = cx + fx * mmSt * mmE + px * (wid * mmOff + mmHw * 0.94) * nearS;
+              var mmEY = by - 0.7 + fy * mmSt * mmE + py * (wid * mmOff + mmHw * 0.94) * nearS - 3.8 * 0.46;
+              g.fillStyle = '#101216';
+              g.beginPath(); g.ellipse(mmEX, mmEY, 1.98, 1.72, 0, 0, 6.29); g.fill();
+              g.strokeStyle = '#969b90'; g.lineWidth = 0.65;
+              g.beginPath(); g.ellipse(mmEX, mmEY - 0.20, 1.02, 0.84, 0, 0, 6.29); g.stroke();
+            }
+          }
+
+          // The four shoulder blocks are low and separated in both axes. They
+          // carry the Soviet remap without turning the side skirt into a red
+          // ribbon or a row of tall silos.
+          var mmPods = [];
+          for (mmS = -1; mmS <= 1; mmS += 2)
+            for (i2 = 0; i2 < 2; i2++) {
+              var mmCu = -mmLen * 0.23 - i2 * mmLen * 0.19;
+              var mmCv = mmS * wid * 0.25;
+              mmPods.push([cx + fx * mmCu + px * mmCv,
+                           by - 5.35 + fy * mmCu + py * mmCv]);
+            }
+          mmPods.sort(function (m, n) { return m[1] - n[1]; });
+          for (i2 = 0; i2 < mmPods.length; i2++) {
+            isoBox(g, mmPods[i2][0], mmPods[i2][1], mmLen * 0.13, 1.32, 1.60, a,
+                   dark, PEDGE);
+            isoBox(g, mmPods[i2][0], mmPods[i2][1], mmLen * 0.11, 1.10, 1.24, a,
+                   shade(panel, 0.56), dark);
+            isoBox(g, mmPods[i2][0] - fx * 0.08, mmPods[i2][1] - fy * 0.08,
+                   mmLen * 0.055, 0.66, 0.20, a, shade(panel, 0.84), dark);
           }
         }
         if (wantT) {
-          var mx0 = cx, my0 = by - RING;
-          prism(mx0, my0, [[7.4, -3.2], [7.4, 3.2], [2.2, 7.0], [-4.6, 6.0],
-                           [-7.4, 2.6], [-7.4, -2.6], [-4.6, -6.0], [2.2, -7.0]],
-                6.2, shade(hull, 1.10), dark);
-          prism(mx0 - fx * 1.0, my0 - 6.2 - fy * 1.0,                // chamfered cap
-                [[5.4, -2.2], [5.4, 2.2], [1.2, 5.0], [-5.2, 4.2], [-5.2, -4.2], [1.2, -5.0]],
-                1.3, shade(hull, 1.22), dark);
-          // 2026-09-10: 8.4 -> 5.4 wide and forward of the ring centre. At the
-          // facing-camera octant this plate's aft edge touched the near drums'
-          // feet and the house-mask check counted plate + two drums as ONE blob.
-          isoBox(g, mx0 + fx * 0.6, my0 - 7.5 + fy * 0.6, 3.6, 5.4, 1.2, a, panel, PEDGE);
-          puck(mx0 - fx * 4.4, my0 - 7.2 - fy * 4.4, 1.6, 2.4,        // cupola
-               shade(hull, 0.86), shade(hull, 1.22), dark);
-          g.strokeStyle = '#2a2d33'; g.lineWidth = 1.2; g.lineCap = 'round';
-          g.beginPath();                                             // mast
-          g.moveTo(mx0 - fx * 6.4, my0 - 6.8 - fy * 6.4);
-          g.lineTo(mx0 - fx * 6.4, my0 - 10.6 - fy * 6.4);
+          var mmx = cx + fx * 0.25, mmy = by - RING;
+          // Six hard armour planes: the roof is deliberately shorter than the
+          // hull, and the rear corners pull in instead of bulging outward.
+          var mmPlan = [[5.25, -1.75], [5.25, 1.75], [2.35, 2.70], [-3.55, 2.45],
+                        [-4.50, 1.15], [-4.50, -1.15], [-3.55, -2.45], [2.35, -2.70]];
+          var mmGround = prism(mmx, mmy, mmPlan, 3.50, shade(hull, 0.64), dark);
+          g.strokeStyle = 'rgba(19,23,23,.78)'; g.lineWidth = 0.62;
+          g.beginPath();
+          for (var mmP = 0; mmP < mmGround.length; mmP++) {
+            var mmQ = mmGround[mmP];
+            if (mmP === 0) g.moveTo(mmQ[0], mmQ[1] - 3.50); else g.lineTo(mmQ[0], mmQ[1] - 3.50);
+          }
+          g.closePath(); g.stroke();
+          prism(mmx - fx * 0.38, mmy - 3.50 - fy * 0.38,
+                [[4.20, -1.35], [4.20, 1.35], [1.65, 2.20], [-3.05, 2.00],
+                 [-3.80, 0.95], [-3.80, -0.95], [-3.05, -2.00], [1.65, -2.20]],
+                0.70, shade(hull, 0.90), dark);
+          // Deep cheek plates are structural and the two small red plates are
+          // the only colour on the turret besides the shoulder blocks.
+          for (mmS = -1; mmS <= 1; mmS += 2)
+            isoBox(g, mmx + px * 1.82 * mmS, mmy - 2.70 + py * 1.82 * mmS,
+                   2.20, 0.78, 0.68, a, shade(panel, 0.60), dark);
+          isoBox(g, mmx - fx * 2.70, mmy - 3.72 - fy * 2.70,
+                 2.05, 1.42, 0.76, a, shade(hull, 0.58), dark);
+          isoBox(g, mmx - fx * 2.82, mmy - 4.62 - fy * 2.82,
+                 1.18, 0.72, 0.20, a, shade(hull, 0.98), dark);
+          g.strokeStyle = '#272c2d'; g.lineWidth = 1.0; g.lineCap = 'butt';
+          g.beginPath();
+          g.moveTo(mmx - fx * 5.8, mmy - 5.7 - fy * 5.8);
+          g.lineTo(mmx - fx * 4.35, mmy - 6.35 - fy * 4.35);
           g.stroke();
-          // The barrels reach FURTHER and taper HARDER than one pass ago: on
-          // the sheet the Apocalypse's two tubes are the longest thing on the
-          // field, and a short fat pair read as exhaust stubs.
-          //
-          // ...and THICKER, and off the deck. "The only two-barrelled thing on
-          // the field" (§2.4) was drawn 1.42 units at the breech tapering to
-          // 0.88 — under 2 px of gunmetal at zoom 1 — sitting at `my0 - 4.0`,
-          // which is deck level, so for most of their run the two tubes lay
-          // along the hull's own dark skirt and the track shadow and the pair
-          // never appeared in the OUTLINE at all. Thickness and clearance are
-          // both identity here: the drums already carry the crown, and what
-          // the Apocalypse owes the silhouette is a pair of heavy tubes
-          // overhanging the nose the way `docs/ra2-ref/cameos/mammoth.png`
-          // draws them. Length is deliberately unchanged — the unit sits
-          // inside `size.vehicleOutsideRA2Band` at +25% of the group scale
-          // and reaching further is the one lever that would push it out.
-          var mz = [mx0 + fx * 7.2, my0 - 5.6 + fy * 7.2];
-          for (var bs = -1; bs <= 1; bs += 2) {
-            puck(mx0 + fx * 6.6 + px * 3.9 * bs, my0 - 1.9 + fy * 6.6 + py * 3.9 * bs,
-                 1.7, 4.6, shade(hull, 0.78), shade(hull, 1.06), dark);   // twin mantlets
-            // 17.5, not 14.5: the unit came down 10% with the group's size
-            // pass and its declared spike ("twin barrels >= 19 px long") went
-            // under budget with it. `docs/ra2-ref/sprites/apocalypse.png`
-            // draws these overhanging the hull by a third of its length, so
-            // the longer gun is the reference's own answer and it lifts the
-            // aspect toward [MTNK]'s 1.735 at the same time.
-            barrel(mz[0] + px * 3.9 * bs, mz[1] + py * 3.9 * bs, 20.5, 2.05, 1.30, VACC.mammothGun);
+
+          // The mantlets are square collars set into the front shoulder. The
+          // guns overhang the hull by roughly one third, matching the real rip.
+          var mmz = [mmx + fx * 5.25, mmy - 2.40 + fy * 5.25];
+          for (var mmB = -1; mmB <= 1; mmB += 2) {
+            isoBox(g, mmx + fx * 4.85 + px * 2.72 * mmB,
+                   mmy - 0.92 + fy * 4.85 + py * 2.72 * mmB,
+                   2.35, 1.58, 1.45, a, shade(hull, 0.50), dark);
+            barrel(mmz[0] + px * 2.72 * mmB, mmz[1] + py * 2.72 * mmB,
+                   18.8, 1.38, 1.02, VACC.mammothGun);
           }
         }
 
       } else if (kind === 'ifv') {
-        // IFV -- 2026-09-10 (9): rebuilt from `allied-ifv-voxel.png` (the
-        // wiki's File:IFV Voxel Render.jpg, which the user pointed at:
-        // "reproduce it exactly"), measured at 3x with the body's length as
-        // the unit:
-        //   wheels   D 0.22, three a side, wheelbase 0.62 set 0.07 AFT of
-        //            centre (the nose overhangs the front axle by a quarter
-        //            of the body); dark tyres, big cream hubs
-        //   body     TWO levels: a low bonnet over the front half (top at
-        //            0.35) and a raised deck over the rear half (0.44) with
-        //            one step between them; a dark grille slot along the
-        //            LEFT of the bonnet and a short one on the deck's left
-        //            front; two square lamps low on the nose with tow hooks
-        //            under them; the navy stripe mid-height on the deck's
-        //            flank. No windscreen -- the step face is plain.
-        //   ring     a dark grey pedestal on the deck, 0.28 wide
-        //   ROCKET   a lavender box 0.46 long x 0.23 thick, NOSE-UP ~30
-        //            degrees (not 60: the waist band runs top-left to
-        //            bottom-right on the broadside, so the axis is flat),
-        //            its TIP face carrying the six cells in two columns of
-        //            three, a navy band round its waist
-        //   GUN      a pale dome 0.48 wide on a navy collar, a black boxy MG
-        //            off the left cheek at collar height, fat muzzle
-        //   ARM      a navy BOXY arm: a shoulder segment leaning back, a
-        //            block elbow, a forearm reaching forward, a grey two-
-        //            finger C-claw opening forward
-        //   TECH     the same dome, flatter, a cream cap running down its
-        //            front
-        // The pod and the arm are the one shape the kit did not have -- a box
-        // canted off horizontal -- so `cbox` below projects a real (u, v, z)
-        // box through the sheet's own transform and culls its faces against
-        // the projection's line of sight, which is what makes the tip face
-        // show at the nose-toward-camera bearings and the back at the rest.
-        var KF = ISO_X * 1.4142;                          // screen px per ground unit at broadside
-        var P3 = function (u, v, z) { return [cx + fx * u + px * v, by + fy * u + py * v - z]; };
-        var Lu = px, Lv = -fx, Lz = fy * px - py * fx;    // line of sight toward the camera, in (u, v, z)
+        // Modelled against the user's IFV_Voxel_Render.jpg (the four-model
+        // reference in docs/ra2-ref/sprites/allied-ifv-voxel.png). Coordinates
+        // are shared by hull and turret: +u forward, +v left, +z up. Surfaces
+        // are culled and sorted in 3D so wheels, fenders, launch cells and the
+        // repair arm occlude correctly at all 32 bearings.
+        VLIFT = 1;
+        var faces = [], KF = ISO_X * Math.SQRT2;
+        var Lu = px, Lv = -fx, Lz = fy * px - py * fx;
         if (Lz < 0) { Lu = -Lu; Lv = -Lv; Lz = -Lz; }
-        var poly = function (pts, col) {
-          g.beginPath(); g.moveTo(pts[0][0], pts[0][1]);
-          for (var q = 1; q < pts.length; q++) g.lineTo(pts[q][0], pts[q][1]);
-          g.closePath(); g.fillStyle = col; g.fill();
-        };
-        var quad3 = function (c0, c1, c2, c3, col) {
-          poly([P3(c0[0], c0[1], c0[2]), P3(c1[0], c1[1], c1[2]), P3(c2[0], c2[1], c2[2]), P3(c3[0], c3[1], c3[2])], col);
-        };
-        // A box canted `th` off horizontal in the (forward, up) plane: base-
-        // end centre (u0, z0), L along the axis, T through it, W across.
-        // `deco(face, pt)` is called for each VISIBLE face so a caller can
-        // paint a band or a cell grid on it in the face's own (i, j, k) space.
-        var cbox = function (u0, z0, th, L, T, W, col, deco) {
-          var au = Math.cos(th) / KF * L, az = Math.sin(th) * L;
-          var tu = -Math.sin(th) / KF * T, tz = Math.cos(th) * T;
-          var pt = function (i, j, k) { return [u0 + au * i + tu * (j - 0.5), W * (k - 0.5), z0 + az * i + tz * (j - 0.5)]; };
-          var cen = pt(0.5, 0.5, 0.5);
-          var F = [[[0, 0, 0], [0, 1, 0], [0, 1, 1], [0, 0, 1], 'base'], [[1, 0, 0], [1, 0, 1], [1, 1, 1], [1, 1, 0], 'tip'],
-                   [[0, 0, 0], [1, 0, 0], [1, 0, 1], [0, 0, 1], 'bot'],  [[0, 1, 0], [0, 1, 1], [1, 1, 1], [1, 1, 0], 'top'],
-                   [[0, 0, 0], [1, 0, 0], [1, 1, 0], [0, 1, 0], 'side0'], [[0, 0, 1], [0, 1, 1], [1, 1, 1], [1, 0, 1], 'side1']];
-          for (var q = 0; q < F.length; q++) {
-            var f = F[q], c0 = pt.apply(null, f[0]), c1 = pt.apply(null, f[1]), c2 = pt.apply(null, f[2]);
-            var e1 = [c1[0] - c0[0], c1[1] - c0[1], c1[2] - c0[2]], e2 = [c2[0] - c0[0], c2[1] - c0[1], c2[2] - c0[2]];
-            var n = [e1[1] * e2[2] - e1[2] * e2[1], e1[2] * e2[0] - e1[0] * e2[2], e1[0] * e2[1] - e1[1] * e2[0]];
-            if (n[0] * (cen[0] - c0[0]) + n[1] * (cen[1] - c0[1]) + n[2] * (cen[2] - c0[2]) > 0) { n[0] = -n[0]; n[1] = -n[1]; n[2] = -n[2]; }
-            if (n[0] * Lu + n[1] * Lv + n[2] * Lz <= 0) continue;
-            var nm = f[4], sh = nm === 'top' ? 1.00 : (nm === 'tip' ? 0.86 : (nm === 'base' ? 0.76 : (nm === 'bot' ? 0.55 : 0.64)));   // shade() lifts a grey once more (VLIFT)
-            var pts = [];
-            for (var r = 0; r < 4; r++) { var cq = pt.apply(null, f[r]); pts.push(P3(cq[0], cq[1], cq[2])); }
-            poly(pts, shade(col, sh));
-            g.strokeStyle = shade(col, 0.55); g.lineWidth = 0.45; g.stroke();        // the voxel's own edge between faces
-            if (deco) deco(nm, pt);
+        var light = [-0.55 * cd - 0.8 * sd, 0.55 * sd - 0.8 * cd, 1.6];
+        var P3 = function (p) { return [cx + fx * p[0] + px * p[1], by + fy * p[0] + py * p[1] - p[2]]; };
+        // The source uses a saturated navy remap ramp. Preserve the owner's
+        // hue while taking its pale UI colour down to that ramp.
+        var rgb = parseInt(col.slice(1), 16), cr = [(rgb >> 16) & 255, (rgb >> 8) & 255, rgb & 255];
+        var cmin = Math.min.apply(null, cr), cspan = Math.max.apply(null, cr) - cmin || 1;
+        var NAVY = 'rgb(' + cr.map(function (v) { return Math.round(8 + 94 * Math.pow((v - cmin) / cspan, 4)); }).join(',') + ')';
+        var BODY = '#b6b5cd', STEEL_IV = '#9191ac', RUBBER = '#303132';
+        function surface(pts, color, center, unlit) {
+          var p = pts[0], e = pts[1].map(function (v, i) { return v - p[i]; });
+          var f = pts[2].map(function (v, i) { return v - p[i]; });
+          var n = [e[1] * f[2] - e[2] * f[1], e[2] * f[0] - e[0] * f[2], e[0] * f[1] - e[1] * f[0]];
+          if (center && n[0] * (center[0] - p[0]) + n[1] * (center[1] - p[1]) + n[2] * (center[2] - p[2]) > 0)
+            n = n.map(function (v) { return -v; });
+          if (n[0] * Lu + n[1] * Lv + n[2] * Lz <= 0) return;
+          var length = Math.hypot(n[0], n[1], n[2]) || 1;
+          var illumination = 0.62 + 0.38 * Math.max(0, (n[0] * light[0] + n[1] * light[1] + n[2] * light[2]) / (length * 1.87));
+          var depth = 0;
+          for (var q = 0; q < pts.length; q++) depth += pts[q][0] * Lu + pts[q][1] * Lv + pts[q][2] * Lz;
+          faces.push({ p: pts, col: unlit ? color : shade(color, illumination), depth: depth / pts.length });
+        }
+        function solid(points, indices, color) {
+          var center = [0, 0, 0];
+          points.forEach(function (p) { for (var q = 0; q < 3; q++) center[q] += p[q] / points.length; });
+          indices.forEach(function (ids) { surface(ids.map(function (i) { return points[i]; }), color, center); });
+        }
+        var boxFaces = [[0, 3, 2, 1], [4, 5, 6, 7], [0, 1, 5, 4], [1, 2, 6, 5], [2, 3, 7, 6], [3, 0, 4, 7]];
+        function box(u0, u1, v0, v1, z0, z1, color) {
+          solid([[u0, v0, z0], [u1, v0, z0], [u1, v1, z0], [u0, v1, z0],
+                 [u0, v0, z1], [u1, v0, z1], [u1, v1, z1], [u0, v1, z1]], boxFaces, color);
+        }
+        // Extrude a side profile; the hull's bonnet and wheel-arch skirts are
+        // continuous surfaces rather than the old box plus protruding wedge.
+        function profile(outline, v0, v1, color) {
+          var pts = [], ids = [], count = outline.length;
+          [v0, v1].forEach(function (v) { outline.forEach(function (p) { pts.push([p[0], v, p[1]]); }); });
+          ids.push(outline.map(function (_, i) { return i; }));
+          ids.push(outline.map(function (_, i) { return i + count; }));
+          for (var q = 0; q < count; q++) ids.push([q, (q + 1) % count, (q + 1) % count + count, q + count]);
+          solid(pts, ids, color);
+        }
+        // Faceted rings and domes, including real side walls and cream hubs.
+        function lathe(u, v, z, rings, color, segments, panel) {
+          var loops = [], n = segments || 16;
+          rings.forEach(function (r) {
+            var loop = [];
+            for (var q = 0; q < n; q++) { var t = q * Math.PI * 2 / n; loop.push([u + r[0] * Math.cos(t), v + r[0] * Math.sin(t), z + r[1]]); }
+            loops.push(loop);
+          });
+          for (var row = 0; row < loops.length - 1; row++) for (var q = 0; q < n; q++) {
+            var q1 = (q + 1) % n, c = panel ? panel(row, q, n) : color;
+            surface([loops[row][q], loops[row][q1], loops[row + 1][q1], loops[row + 1][q]], c, [u, v, z]);
           }
+          surface(loops[loops.length - 1], color, [u, v, z]);
+        }
+        function tyre(u, v) {
+          var loops = [], radius = 3.55, z = 3.05, n = 16;
+          [[-0.85, 0.91], [-0.58, 1], [0.58, 1], [0.85, 0.91]].forEach(function (r) {
+            var loop = [];
+            for (var q = 0; q < n; q++) { var t = q * Math.PI * 2 / n; loop.push([u + radius / KF * r[1] * Math.cos(t), v + r[0], z + radius * r[1] * Math.sin(t)]); }
+            loops.push(loop);
+          });
+          for (var row = 0; row < 3; row++) for (var q = 0; q < n; q++)
+            surface([loops[row][q], loops[row][(q + 1) % n], loops[row + 1][(q + 1) % n], loops[row + 1][q]], RUBBER, [u, v, z]);
+          for (var side = -1; side <= 1; side += 2) {
+            surface(loops[side < 0 ? 0 : 3], RUBBER, [u, v, z]);
+            var hub = [];
+            for (var q = 0; q < n; q++) { var t = q * Math.PI * 2 / n; hub.push([u + radius / KF * 0.58 * Math.cos(t), v + side * 0.88, z + radius * 0.58 * Math.sin(t)]); }
+            surface(hub, '#cecec5', [u, v, z]);
+            hub = hub.map(function (p) { return [u + (p[0] - u) * 0.70, p[1] + side * 0.03, z + (p[2] - z) * 0.70]; });
+            surface(hub, '#e4e2d5', [u, v, z]);
+          }
+        }
+        // Oriented prism: its local x is along the boom / launch tube, y is
+        // across the vehicle, z is perpendicular to the inclined tube.
+        function inclined(u, v, z, angle, length, width, height, color, decor) {
+          var ca = Math.cos(angle), sa = Math.sin(angle);
+          function pt(x, y, h) { return [u + (x * ca - h * sa) / KF, v + y, z + x * sa + h * ca]; }
+          solid([pt(0, -width / 2, -height / 2), pt(length, -width / 2, -height / 2), pt(length, width / 2, -height / 2), pt(0, width / 2, -height / 2),
+                 pt(0, -width / 2, height / 2), pt(length, -width / 2, height / 2), pt(length, width / 2, height / 2), pt(0, width / 2, height / 2)], boxFaces, color);
+          if (decor) decor(pt);
           return pt;
-        };
-        var HL = len * 0.45;                              // half the body's length (chassis draws len*0.90)
+        }
         if (wantH) {
-          var WR = 2.7, wpos = [];
-          for (sg = -1; sg <= 1; sg += 2) for (i2 = 0; i2 < 3; i2++) {
-            var wu = -len * 0.07 + (i2 - 1) * len * 0.31, wv = wid * 0.42 * sg;
-            wpos.push([cx + fx * wu + px * wv, by - WR * 0.84 + fy * wu + py * wv]);
+          [-9.0, -2.0, 6.7].forEach(function (u) { tyre(u, -5.7); tyre(u, 5.7); });
+          box(-11.8, 11.5, -4.2, 4.2, 3.0, 4.7, '#707080');
+          profile([[-12, 4.4], [12, 4.4], [12, 5.7], [9.5, 7.0], [2.5, 7.0], [1.3, 8.2], [-11.2, 8.2], [-12, 7.3]], -4.75, 4.75, BODY);
+          // Fender strips dip between the three arches, exposing the tyres.
+          var skirt = [[-12.1, 4.3], [-11.8, 6.5], [-10.9, 7.1], [1.8, 7.1], [3.1, 6.4], [10.2, 6.4], [12.1, 5.6], [12.1, 3.8], [9.1, 3.8]];
+          [6.7, -2.0, -9.0].forEach(function (u) {
+            skirt.push([u + 2.45, 3.8], [u + 1.8, 5.25], [u + 0.9, 5.85], [u - 0.9, 5.85], [u - 1.8, 5.25], [u - 2.45, 3.8]);
+          });
+          profile(skirt, -6.05, -5.15, STEEL_IV); profile(skirt, 5.15, 6.05, STEEL_IV);
+          for (sg = -1; sg <= 1; sg += 2) {
+            box(-10.4, 0.8, sg < 0 ? -5.25 : 5.18, sg < 0 ? -5.18 : 5.25, 6.55, 7.75, NAVY);
+            // Front corner blocks, square lamps, and the small black tow eyes.
+            box(10.0, 12.45, sg * 4.55 - 1.15, sg * 4.55 + 1.15, 3.8, 5.5, STEEL_IV);
+            box(12.46, 12.62, sg * 3.8 - 0.55, sg * 3.8 + 0.55, 4.4, 5.45, '#414149');
+            box(12.63, 12.7, sg * 3.8 - 0.36, sg * 3.8 + 0.36, 4.65, 5.22, '#dfdcca');
+            box(12.1, 12.55, sg * 2.7 - 0.42, sg * 2.7 + 0.42, 3.15, 3.95, '#303037');
+            box(12.56, 12.6, sg * 2.7 - 0.23, sg * 2.7 + 0.23, 3.34, 3.76, '#b5b5c1');
           }
-          wpos.sort(function (m, n2) { return m[1] - n2[1]; });
-          for (i2 = 0; i2 < wpos.length; i2++) wheelDisc(wpos[i2][0], wpos[i2][1], WR, 0.62, '#2a2b2f', '#cfcfc0');
-          chassis(cx, by - 3.0, len * 0.90, wid * 0.70, 3.2, hull, null, 3.2);           // underbody + bonnet-height body, raked nose; the wheels hang 0.6 D below the skirt, as the render's
-          var du = -len * 0.20;
-          isoBox(g, cx + fx * du, by - 7.5 + fy * du, len * 0.50, wid * 0.70, 2.0, a, hull, null);   // the raised rear deck (top = RING)
-          for (sg = -1; sg <= 1; sg += 2) if (sg * Lv > 0) {                                  // the navy stripe, mid-height on the NEAR flank of the deck
-            var fv = sg * (wid * 0.35 + 0.02);
-            quad3([-len * 0.43, fv, 7.7], [-len * 0.02, fv, 7.7], [-len * 0.02, fv, 9.3], [-len * 0.43, fv, 9.3], shade(col, 0.62));
-          }
-          var sv = wid * 0.21;                                                                  // grille slots, LEFT side (+v is the vehicle's left)
-          du = len * 0.22;
-          isoBox(g, cx + fx * du + px * sv, by - 7.5 + fy * du + py * sv, len * 0.34, wid * 0.18, 0.6, a, '#383a42', null);
-          du = -len * 0.03;
-          isoBox(g, cx + fx * du + px * sv, by - 9.5 + fy * du + py * sv, len * 0.16, wid * 0.15, 0.6, a, '#383a42', null);
-          if (Lu > 0) {                                                                         // the nose faces us: lamps + tow hooks
-            var nu = HL + 0.25;
-            for (sg = -1; sg <= 1; sg += 2) {
-              var lv = wid * 0.24 * sg;
-              quad3([nu, lv - 0.8, 3.9], [nu, lv + 0.8, 3.9], [nu, lv + 0.8, 5.5], [nu, lv - 0.8, 5.5], '#1e2026');
-              quad3([nu, lv - 0.5, 4.2], [nu, lv + 0.5, 4.2], [nu, lv + 0.5, 5.2], [nu, lv - 0.5, 5.2], '#ece9dc');
-              quad3([nu, lv - 0.45, 2.6], [nu, lv + 0.45, 2.6], [nu, lv + 0.45, 3.5], [nu, lv - 0.45, 3.5], '#181a1f');
-            }
-          }
+          // The long transverse black slot is at the back of the low bonnet.
+          box(5.0, 6.15, -4.1, 4.1, 7.04, 7.9, '#333536');
+          box(4.55, 4.98, -4.1, 4.1, 7.03, 7.5, '#cdcad4');
+          box(-10.4, -7.6, 3.6, 4.65, 8.22, 8.42, '#4a4b50');
         }
         if (wantT) {
-          var ivu = -1.2, ivx = cx + fx * ivu, ivy = by - RING + fy * ivu;
-          var ivT = tv || 0, NAVY = shade(col, 0.62);                          // the render's remap is a deep navy
-          var RGT = RING + 1.4;                                                 // the ring's top
-          puck(ivx, ivy, 3.2, 1.4, '#474a58', '#3b3e4b', null);                // dark grey turret ring
-          var DOME = function (flat) {
-            puck(ivx, ivy - 1.4, 3.9, 1.3, NAVY, NAVY, null);                   // navy collar
-            var zc = 2.7, steps = flat ? [[3.9, 1.0, 0.70], [3.3, 0.9, 0.74], [2.4, 0.8, 0.79], [1.4, 0.6, 0.84]]
-                                        : [[3.9, 1.2, 0.70], [3.4, 1.1, 0.74], [2.6, 1.0, 0.79], [1.5, 0.7, 0.84]];
-            for (i2 = 0; i2 < steps.length; i2++) {
-              puck(ivx, ivy - zc, steps[i2][0], steps[i2][1], shade(hull, steps[i2][2]), shade(hull, steps[i2][2] + 0.05), null);
-              zc += steps[i2][1];
-            }
-            return zc;
-          };
-          if (ivT === IFV_TUR_GUN) {
-            var zt = DOME(false);
-            g.fillStyle = shade(hull, 0.96); gEllipse(ivx - 0.9, ivy - zt + 0.9, 1.3, 0.9); g.fill();   // the highlight, up-left
-            var gu = ivu + 1.6, gv = 2.7, gz = RING + 1.2;                    // the black boxy MG, off the LEFT cheek (+v) at collar height
-            isoBox(g, cx + fx * gu + px * gv, by - gz + fy * gu + py * gv, 2.8, 2.0, 2.2, a, '#15161a', null);
-            isoBox(g, cx + fx * (gu + 0.1) + px * gv, by - gz - 2.2 + fy * (gu + 0.1) + py * gv, 2.0, 1.5, 0.4, a, '#4a4d58', null);   // its grey top
-            var bu = gu + 2.3;
-            isoBox(g, cx + fx * bu + px * gv, by - gz + 0.2 + fy * bu + py * gv, 1.6, 1.4, 1.6, a, '#0f1014', null);          // the muzzle block
-          }
-          else if (ivT === IFV_TUR_ARM) {
-            puck(ivx, ivy - 1.4, 1.5, 1.0, '#3a3d4a', '#454956', null);        // shoulder block
-            var su = ivu + 0.9, sz = RGT + 0.6, TH1 = 2.4;
-            var pt1 = cbox(su, sz + 0.4, 2.13, 6.6, TH1, 2.6, NAVY, null);    // upper arm, leaning BACK ~58 degrees
-            var E = pt1(1, 0.5, 0.5);                                          // the elbow
-            cbox(E[0] - 1.3 / KF, E[2] - 1.3, 0, 2.7, 2.7, 2.7, shade(NAVY, 0.85), null);   // block elbow
-            var pt2 = cbox(E[0] - 0.9, E[2] + 0.2, 0.35, 8.8, 2.2, 2.3, NAVY, null);    // forearm, reaching forward ~20 degrees
-            var Wp = pt2(1, 0.5, 0.5);
-            var cu = Wp[0] + 1.6, cz = Wp[2], rc = 3.5;                        // the C-claw, opening forward
-            for (sg = -1; sg <= 1; sg += 2) {
-              for (var pass = 0; pass < 2; pass++) {
-                g.strokeStyle = pass ? '#eceef2' : '#b4b6c2'; g.lineWidth = pass ? 0.7 : 1.5; g.lineCap = 'round';
-                g.beginPath();
-                for (i2 = 0; i2 <= 14; i2++) {
-                  var t = (0.95 + i2 / 14 * 4.38);                             // 55 -> 305 degrees: the gap faces forward
-                  var q3 = P3(cu + rc * Math.cos(t) / KF, sg * 1.3, cz + rc * Math.sin(t) - (pass ? 0.3 : 0));
-                  if (i2 === 0) g.moveTo(q3[0], q3[1]); else g.lineTo(q3[0], q3[1]);
-                }
-                g.stroke();
+          var ivT = tv || 0, Z = 8.2;
+          lathe(0, 0, Z, [[4.15, 0], [4.15, 0.8], [3.6, 1.45]], STEEL_IV, 16);
+          if (ivT === IFV_TUR_ROCKET) {
+            box(-2.4, 0.4, -1.8, 1.8, Z + 1.2, Z + 3.0, '#59596a');
+            var angle = 0.63, L = 9.8, PW = 10.7, PH = 6.6;
+            inclined(-3.65, 0, Z + 3.1, angle, L, PW, PH, STEEL_IV, function (pt) {
+              // Broad waist band on both cheeks and the crown, following the
+              // launch axis. Its dark blue also appears around the rear edge.
+              for (var side = -1; side <= 1; side += 2) {
+                var v = side * (PW / 2 + 0.025);
+                surface([pt(4.2, v, -PH / 2), pt(5.8, v, -PH / 2), pt(5.8, v, PH / 2), pt(4.2, v, PH / 2)], NAVY, pt(L / 2, 0, 0));
               }
-            }
-            quad3([Wp[0] - 0.3, -1.2, Wp[2] - 1.1], [Wp[0] - 0.3, 1.2, Wp[2] - 1.1], [Wp[0] - 0.3, 1.2, Wp[2] + 1.1], [Wp[0] - 0.3, -1.2, Wp[2] + 1.1], '#8e919f');   // wrist plate
-          }
-          else if (ivT === IFV_TUR_TECH) {
-            var zt2 = DOME(true), DR = 3.9, DH = zt2 - 2.7, DZ = RING + 2.7;   // the dome: radius, height, collar top
-            g.fillStyle = '#dcd7c5'; gEllipse(ivx, ivy - zt2 + 0.05, 1.9); g.fill();                    // cream cap
-            if (Lu > 0.15) {                                                                            // the cream runs down the FRONT of the dome
-              var cp = [], ee, PH = 0.62;
-              for (ee = 0; ee <= 6; ee++) { var el = 0.18 + ee / 6 * 1.32; cp.push([ivu + DR * Math.cos(el) * Math.cos(PH), DR * Math.cos(el) * Math.sin(PH), DZ + DH * Math.sin(el)]); }
-              for (ee = 6; ee >= 0; ee--) { var el2 = 0.18 + ee / 6 * 1.32; cp.push([ivu + DR * Math.cos(el2) * Math.cos(PH), -DR * Math.cos(el2) * Math.sin(PH), DZ + DH * Math.sin(el2)]); }
-              var sp = []; for (ee = 0; ee < cp.length; ee++) sp.push(P3(cp[ee][0], cp[ee][1], cp[ee][2]));
-              poly(sp, '#d3cebc');
-            }
-          }
-          else {
-            // the pod's rear-bottom corner sits IN the ring; the tip carries the cells
-            var PL = 8.6, PT = 5.8, PW = 4.8, TH = 0.66;
-            isoBox(g, ivx - fx * 0.8, ivy - 1.4 - fy * 0.8, 3.0, 3.0, 1.6, a, '#2e313c', null);   // the dark neck the pod sits on
-            cbox(ivu - 3.4, RGT + 1.4, TH, PL, PT, PW, hull, function (nm, pt) {
-              if (nm === 'side0' || nm === 'side1') {                            // the navy waist band
-                var k = nm === 'side0' ? 0 : 1;
-                quad3(pt(0.50, 0, k), pt(0.66, 0, k), pt(0.66, 1, k), pt(0.50, 1, k), NAVY);
-              } else if (nm === 'tip') {                                          // 2 columns x 3 rows of cells
-                for (var rr = 0; rr < 3; rr++) for (var cc = 0; cc < 2; cc++) {
-                  var j0 = 0.18 + rr * 0.32, k0 = 0.26 + cc * 0.48, hj = 0.15, hk = 0.225;   // raised pale bumps, a darker centre each
-                  quad3(pt(1.001, j0 - hj, k0 - hk), pt(1.001, j0 - hj, k0 + hk), pt(1.001, j0 + hj, k0 + hk), pt(1.001, j0 + hj, k0 - hk), shade(hull, 1.02));
-                  quad3(pt(1.002, j0 - hj * 0.6, k0 - hk * 0.6), pt(1.002, j0 - hj * 0.6, k0 + hk * 0.6), pt(1.002, j0 + hj * 0.6, k0 + hk * 0.6), pt(1.002, j0 + hj * 0.6, k0 - hk * 0.6), shade(hull, 0.66));
-                }
-              } else if (nm === 'top') {                                          // a dark seam where the band crosses the back
-                quad3(pt(0.50, 1, 0), pt(0.66, 1, 0), pt(0.66, 1, 1), pt(0.50, 1, 1), shade(hull, 0.72));
+              surface([pt(4.2, -PW / 2, PH / 2 + 0.025), pt(5.8, -PW / 2, PH / 2 + 0.025), pt(5.8, PW / 2, PH / 2 + 0.025), pt(4.2, PW / 2, PH / 2 + 0.025)], NAVY, pt(L / 2, 0, 0));
+              // Six individual raised launch-cell collars, two columns by
+              // three rows. Real extrusions keep the stepped edge in profile.
+              for (var row = 0; row < 3; row++) for (var column = 0; column < 2; column++) {
+                var vv = (column - 0.5) * 5.15, zz = (row - 1) * 2.15, cell = [];
+                [[L, 2.3, 0.94], [L + 1.0, 2.05, 0.76]].forEach(function (r) {
+                  cell.push(pt(r[0], vv - r[1], zz - r[2]), pt(r[0], vv + r[1], zz - r[2]), pt(r[0], vv + r[1], zz + r[2]), pt(r[0], vv - r[1], zz + r[2]));
+                });
+                solid(cell, boxFaces, '#9e9db7');
+                surface([pt(L + 1.02, vv - 1.32, zz - 0.48), pt(L + 1.02, vv + 1.32, zz - 0.48), pt(L + 1.02, vv + 1.32, zz + 0.48), pt(L + 1.02, vv - 1.32, zz + 0.48)], '#686980', pt(L / 2, 0, 0));
               }
             });
+          } else if (ivT === IFV_TUR_GUN || ivT === IFV_TUR_TECH) {
+            var tech = ivT === IFV_TUR_TECH;
+            lathe(0, 0, Z + 1.4, [[5.55, 0], [5.55, 0.9], [5.3, 1.25]], NAVY, 16);
+            lathe(0, 0, Z + 2.5, tech ? [[5.3, 0], [5.1, 1.25], [3.95, 2.8], [2.65, 3.8]]
+                : [[5.3, 0], [5.0, 1.65], [3.8, 3.2], [2.2, 4.0]], STEEL_IV, 16,
+              function (row, q, n) {
+                if (tech) return q <= 1 || q >= n - 2 || (q >= 6 && q <= 9) ? '#d4d0c0' : (q % 4 === 1 ? '#a7a6bd' : STEEL_IV);
+                return row === 1 && (q === 0 || q === 5 || q === 7) ? '#c7c5d5' : STEEL_IV;
+              });
+            if (tech) {
+              box(-1.0, 1.0, -1.4, 1.4, Z + 6.22, Z + 6.38, '#ccc8b9');
+            } else {
+              // Short black gun mounted off the left cheek at collar height.
+              box(3.6, 6.7, 1.3, 3.8, Z + 1.9, Z + 3.8, '#35353d');
+              box(6.6, 8.15, 1.45, 3.65, Z + 1.8, Z + 3.65, '#202124');
+              box(8.16, 8.24, 1.7, 3.4, Z + 2.03, Z + 3.38, '#101214');
+            }
+          } else if (ivT === IFV_TUR_ARM) {
+            box(-1.35, 1.35, -1.5, 1.5, Z + 1.25, Z + 2.4, '#34343c');
+            var shoulder = inclined(0.8, 0, Z + 2.6, 2.45, 10.8, 2.65, 2.4, NAVY, function (pt) {
+              for (var side = -1; side <= 1; side += 2) surface([pt(0.8, side * 1.34, -0.6), pt(10.0, side * 1.34, -0.6), pt(10.0, side * 1.34, 0.35), pt(0.8, side * 1.34, 0.35)], '#9190ab', pt(5.4, 0, 0));
+            });
+            var elbow = shoulder(10.8, 0, 0);
+            box(elbow[0] - 1.15, elbow[0] + 1.15, -1.7, 1.7, elbow[2] - 1.2, elbow[2] + 1.2, NAVY);
+            var forearm = inclined(elbow[0], 0, elbow[2] + 0.45, 0.18, 12.8, 2.75, 2.25, NAVY);
+            var wrist = forearm(12.8, 0, 0);
+            box(wrist[0] - 0.3, wrist[0] + 0.75, -1.15, 1.15, wrist[2] - 1.0, wrist[2] + 1.0, '#77778e');
+            // Two angular jaws, with thickness and small inward-facing tips.
+            for (var jaw = -1; jaw <= 1; jaw += 2) {
+              var joints = [[wrist[0] + 0.2, wrist[2]], [wrist[0] + 0.7, wrist[2] + jaw * 2.9],
+                [wrist[0] + 2.65, wrist[2] + jaw * 4.5], [wrist[0] + 4.5, wrist[2] + jaw * 4.0], [wrist[0] + 5.2, wrist[2] + jaw * 2.5]];
+              for (var q = 0; q < joints.length - 1; q++) {
+                var p0 = joints[q], p1 = joints[q + 1], du = (p1[0] - p0[0]) * KF, dz = p1[1] - p0[1];
+                inclined(p0[0], 0, p0[1], Math.atan2(dz, du), Math.hypot(du, dz), 1.9, 1.25, '#bdbbd0');
+              }
+            }
           }
         }
+        // Rasterize with depth per pixel. Sorting whole faces by their centre
+        // buries small details (lamps, remap strips, cell mouths) underneath a
+        // large bonnet or pod face, even though they are physically in front.
+        // Two samples per axis keep shared polygon edges watertight at zoom 1.
+        var samples = 2, raster = mkCanvas(s.w * samples, s.h * samples);
+        var rw = raster.c.width, rh = raster.c.height;
+        var pixels = raster.g.getImageData(0, 0, rw, rh), data = pixels.data;
+        var depths = new Float32Array(rw * rh);
+        depths.fill(-Infinity);
+        var rasterScale = DPR * samples, vehicleScale = USC_V * VSC;
+        function triangle(v0, v1, v2, color) {
+          var area = (v1[0] - v0[0]) * (v2[1] - v0[1]) - (v1[1] - v0[1]) * (v2[0] - v0[0]);
+          if (Math.abs(area) < 0.0001) return;
+          var x0 = Math.max(0, Math.floor(Math.min(v0[0], v1[0], v2[0]))), x1 = Math.min(rw - 1, Math.ceil(Math.max(v0[0], v1[0], v2[0])));
+          var y0 = Math.max(0, Math.floor(Math.min(v0[1], v1[1], v2[1]))), y1 = Math.min(rh - 1, Math.ceil(Math.max(v0[1], v1[1], v2[1])));
+          for (var y = y0; y <= y1; y++) for (var x = x0; x <= x1; x++) {
+            var xx = x + 0.5, yy = y + 0.5;
+            var b1 = ((xx - v0[0]) * (v2[1] - v0[1]) - (yy - v0[1]) * (v2[0] - v0[0])) / area;
+            var b2 = ((v1[0] - v0[0]) * (yy - v0[1]) - (v1[1] - v0[1]) * (xx - v0[0])) / area;
+            var b0 = 1 - b1 - b2;
+            if (b0 < -0.00001 || b1 < -0.00001 || b2 < -0.00001) continue;
+            var depth = b0 * v0[2] + b1 * v1[2] + b2 * v2[2], index = y * rw + x;
+            if (depth < depths[index] - 0.00001) continue;
+            depths[index] = depth;
+            var at = index * 4; data[at] = color[0]; data[at + 1] = color[1]; data[at + 2] = color[2]; data[at + 3] = 255;
+          }
+        }
+        if (data.length === rw * rh * 4) faces.forEach(function (face) {
+          var pts = face.p.map(function (p) {
+            var v = P3(p);
+            return [(cx + (v[0] - cx) * vehicleScale) * rasterScale,
+                    (by + (v[1] - by) * vehicleScale) * rasterScale,
+                    p[0] * Lu + p[1] * Lv + p[2] * Lz];
+          });
+          var color;
+          if (face.col.charAt(0) === '#') { var c = parseInt(face.col.slice(1), 16); color = [(c >> 16) & 255, (c >> 8) & 255, c & 255]; }
+          else color = face.col.match(/[\d.]+/g).map(Number);
+          // Ear clipping also handles the concave wheel-arch profile.
+          var sign = 0;
+          for (var q = 0; q < pts.length; q++) { var q1 = (q + 1) % pts.length; sign += pts[q][0] * pts[q1][1] - pts[q1][0] * pts[q][1]; }
+          sign = sign < 0 ? -1 : 1;
+          function cross(a, b, c) { return ((b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0])) * sign; }
+          while (pts.length > 3) {
+            var clipped = false;
+            for (var q = 0; q < pts.length; q++) {
+              var prev = (q + pts.length - 1) % pts.length, next = (q + 1) % pts.length;
+              var a0 = pts[prev], b0 = pts[q], c0 = pts[next];
+              if (cross(a0, b0, c0) < 0.00001) continue;
+              var inside = false;
+              for (var k = 0; k < pts.length; k++) {
+                if (k === prev || k === q || k === next) continue;
+                if (cross(a0, b0, pts[k]) > 0.00001 && cross(b0, c0, pts[k]) > 0.00001 && cross(c0, a0, pts[k]) > 0.00001) { inside = true; break; }
+              }
+              if (inside) continue;
+              triangle(a0, b0, c0, color); pts.splice(q, 1); clipped = true; break;
+            }
+            if (!clipped) break;
+          }
+          if (pts.length === 3) triangle(pts[0], pts[1], pts[2], color);
+        });
+        raster.g.putImageData(pixels, 0, 0);
+        g.save(); g.setTransform(DPR, 0, 0, DPR, 0, 0);
+        g.drawImage(raster.c, 0, 0, s.w, s.h); g.restore();
 
       } else if (kind === 'rhino') {
         // RHINO — the Collective's line tank, and the most-seen sprite in the
@@ -11792,39 +11900,100 @@
       // fleet's tracks/chassis/fitments without touching another kind's art.
       if (kind === 'mcv') {
         if (wantH) {
-          // 2026-09-10 (7) -- LOOKED AT allied-mcv.png at 5x this time. The
-          // Allied MCV is a TALL SEMI-TRUCK: a high boxy purple-grey CAB at the
-          // nose (as tall as anything behind it, with a dark windscreen band
-          // and a pale grille), then a flatbed carrying a big rounded BLUE
-          // load -- the folded yard, in owner colour -- with a block of silver
-          // machinery at the tail, all on three axles of large pale-hubbed
-          // wheels. 76x36 broadside, 66x46 diagonal on the sheet: a bit bigger
-          // than a tank, not twice one. The low slab this replaces was drawn
-          // from a segmented thumbnail, not from the sprite.
-          var CAB = '#5b5573', CABD = '#4e4a62', LOAD = '#aeb5be';
-          wheels(len * 0.78, 3.6, 3, '#262a31', '#c2c8d0');
-          chassis(cx, by - 2.8, len * 0.94, wid * 0.72, 2.6, hull, null, 1.4);   // the flatbed
-          // the cab: tall, forward, the full beam
-          var cbu = len * 0.31;
-          isoBox(g, cx + fx * cbu, by - 5.4 + fy * cbu, len * 0.26, wid * 0.80, 8.2, a, CAB, null);
-          isoBox(g, cx + fx * (cbu + len * 0.13), by - 9.6 + fy * (cbu + len * 0.13),
-                 0.8, wid * 0.70, 4.0, a, '#1a1f2a', null);                 // windscreen: most of the cab's face is dark glass
-          isoBox(g, cx + fx * (cbu + len * 0.13), by - 6.0 + fy * (cbu + len * 0.13),
-                 0.8, wid * 0.56, 1.6, a, '#d8dce2', null);                 // grille
-          isoBox(g, cx + fx * cbu, by - 13.6 + fy * cbu, len * 0.22, wid * 0.70, 0.8, a,
-                 shade(CAB, 1.18), null);                                   // cab roof
-          // the load: a big rounded blue mass behind the cab, in two segments
-          var ldu = -len * 0.06;
-          isoBox(g, cx + fx * ldu, by - 5.4 + fy * ldu, len * 0.40, wid * 0.74, 6.4, a, panel, null);
-          isoBox(g, cx + fx * ldu, by - 11.8 + fy * ldu, len * 0.30, wid * 0.50, 1.2, a, pdark, null);   // a darker cap, not a lit one: the sheet's load is deep blue
-          isoBox(g, cx + fx * (ldu + len * 0.20), by - 5.4 + fy * (ldu + len * 0.20),
-                 0.9, wid * 0.76, 6.0, a, pdark, null);                     // the seam between the segments
-          // silver machinery at the tail
-          var mcu = -len * 0.36;
-          isoBox(g, cx + fx * mcu, by - 5.4 + fy * mcu, len * 0.18, wid * 0.66, 5.2, a, LOAD, null);
-          isoBox(g, cx + fx * mcu, by - 10.6 + fy * mcu, len * 0.14, wid * 0.50, 1.4, a, shade(LOAD, 0.86), null);
-          lamp(cx + fx * len * 0.45 + px * wid * 0.28, by - 4.6 + fy * len * 0.45 + py * wid * 0.28);
-          lamp(cx + fx * len * 0.45 - px * wid * 0.28, by - 4.6 + fy * len * 0.45 - py * wid * 0.28);
+          // 2026-09-11 -- rebuilt from the verified allied-mcv.png at 5x.
+          // It is a WORKS TRUCK, not a coloured pickup: a high purple cab
+          // with a sloped nose, a deep-blue folded yard module on a long
+          // metal bed, and a pale ribbed machinery bay at the rear. The
+          // source's material read comes from dark rails, white wheel hubs,
+          // hard panel breaks and small bolts, so those are explicit here.
+          var MCV_CAB = '#484958', MCV_CAB_L = '#5e6170', MCV_FRAME = '#252a32';
+          var MCV_BLUE = shade(panel, 0.58), MCV_BLUE_D = shade(panel, 0.40), MCV_BLUE_L = shade(panel, 0.78);
+          var MCV_STEEL = '#7f8991', MCV_STEEL_D = '#4b545d', MCV_STEEL_L = '#aeb8bf';
+          var MCV_GLASS = '#1b2938', MCV_EDGE = '#171b22';
+          wheels(len * 0.82, 4.20, 3, '#151a20', '#b8c0ca');
+          chassis(cx, by - 3.10, len * 0.94, wid * 0.82, 3.05, MCV_FRAME, MCV_EDGE, 2.8, 1.30);
+          // The long side rail is visible under every module and breaks the
+          // single purple slab into a fabricated chassis.
+          for (var mcvSide = -1; mcvSide <= 1; mcvSide += 2)
+            isoBox(g, cx + px * wid * 0.365 * mcvSide,
+                   by - 4.25 + py * wid * 0.425 * mcvSide,
+                   len * 0.86, 0.88, 1.75, a, MCV_CAB, MCV_EDGE);
+          // Sloped cab at the forward end. A lower nose, set-back windshield
+          // and a thin roof produce the stepped silhouette of the rip.
+          var mcvCabU = len * 0.31;
+          chassis(cx + fx * mcvCabU, by - 3.25 + fy * mcvCabU,
+                  len * 0.30, wid * 0.78, 4.95, MCV_CAB, MCV_EDGE, 4.0, 0.75);
+          isoBox(g, cx + fx * (mcvCabU - len * 0.025), by - 7.45 + fy * (mcvCabU - len * 0.025),
+                 len * 0.20, wid * 0.70, 2.60, a, MCV_CAB_L, MCV_EDGE);
+          // The windshield is a recessed dark band, not a glossy pale block.
+          isoBox(g, cx + fx * (mcvCabU + len * 0.135), by - 8.00 + fy * (mcvCabU + len * 0.135),
+                 0.62, wid * 0.72, 2.55, a, MCV_GLASS, MCV_EDGE);
+          isoBox(g, cx + fx * (mcvCabU + len * 0.145), by - 5.55 + fy * (mcvCabU + len * 0.145),
+                 0.68, wid * 0.64, 1.05, a, MCV_STEEL_L, MCV_EDGE);
+          isoBox(g, cx + fx * (mcvCabU - len * 0.02), by - 10.05 + fy * (mcvCabU - len * 0.02),
+                 len * 0.20, wid * 0.64, 0.78, a, shade(MCV_CAB, 1.12), MCV_EDGE);
+          // Side doors and their handles are inset into the cab flanks.
+          for (mcvSide = -1; mcvSide <= 1; mcvSide += 2) {
+            isoBox(g, cx + fx * (mcvCabU - len * 0.02) + px * wid * 0.355 * mcvSide,
+                   by - 4.95 + fy * (mcvCabU - len * 0.02) + py * wid * 0.39 * mcvSide,
+                   len * 0.18, 0.38, 2.90, a, shade(MCV_CAB, 0.72), MCV_EDGE);
+            isoBox(g, cx + fx * (mcvCabU - len * 0.04) + px * wid * 0.375 * mcvSide,
+                   by - 6.65 + fy * (mcvCabU - len * 0.04) + py * wid * 0.405 * mcvSide,
+                   len * 0.07, 0.20, 0.18, a, MCV_STEEL_L, MCV_EDGE);
+          }
+          // Folded construction module: three hard stepped shells, with the
+          // narrow top and a central seam giving the blue load a machined
+          // curve without returning to a rounded toy-like box.
+          var mcvLoadU = -len * 0.045;
+          prism(cx + fx * mcvLoadU, by - 4.30 + fy * mcvLoadU,
+                [[7.6, -3.8], [7.6, 3.8], [4.3, 5.0], [-6.0, 4.4],
+                 [-7.6, 2.5], [-7.6, -2.5], [-6.0, -4.4], [4.3, -5.0]],
+                4.45, MCV_BLUE_D, MCV_EDGE);
+          prism(cx + fx * (mcvLoadU - 0.15), by - 8.02 + fy * (mcvLoadU - 0.15),
+                [[5.4, -2.7], [5.4, 2.7], [2.7, 3.5], [-4.3, 3.1],
+                 [-5.4, 1.8], [-5.4, -1.8], [-4.3, -3.1], [2.7, -3.5]],
+                1.28, MCV_BLUE, MCV_EDGE);
+          isoBox(g, cx + fx * (mcvLoadU + len * 0.07), by - 8.55 + fy * (mcvLoadU + len * 0.07),
+                 0.58, wid * 0.60, 0.36, a, MCV_BLUE_L, MCV_EDGE);
+          isoBox(g, cx + fx * (mcvLoadU + len * 0.10), by - 5.15 + fy * (mcvLoadU + len * 0.10),
+                 0.82, wid * 0.82, 4.65, a, MCV_BLUE_D, MCV_EDGE);
+          // Grey hinge tower between the folded module and the rear bay.
+          var mcvHingeU = -len * 0.22;
+          isoBox(g, cx + fx * mcvHingeU, by - 4.45 + fy * mcvHingeU,
+                 len * 0.11, wid * 0.68, 5.45, a, MCV_STEEL_D, MCV_EDGE);
+          isoBox(g, cx + fx * (mcvHingeU + 0.1), by - 9.70 + fy * (mcvHingeU + 0.1),
+                 len * 0.07, wid * 0.48, 0.78, a, MCV_STEEL_L, MCV_EDGE);
+          // Ribbed rear machinery bay: a pale casing, dark vent slots and a
+          // narrow top cap are visible in the broadside rip.
+          var mcvRearU = -len * 0.36;
+          isoBox(g, cx + fx * mcvRearU, by - 4.25 + fy * mcvRearU,
+                 len * 0.20, wid * 0.70, 4.75, a, MCV_STEEL, MCV_EDGE);
+          isoBox(g, cx + fx * mcvRearU, by - 8.75 + fy * mcvRearU,
+                 len * 0.15, wid * 0.50, 0.82, a, MCV_STEEL_L, MCV_EDGE);
+          for (var mcvVent = -1; mcvVent <= 1; mcvVent++)
+            isoBox(g, cx + fx * (mcvRearU + mcvVent * len * 0.052),
+                   by - 6.55 + fy * (mcvRearU + mcvVent * len * 0.052),
+                   0.42, wid * 0.50, 2.0, a, MCV_STEEL_D, MCV_EDGE);
+          // Thin blue owner panels sit on the side rail; the rest stays metal.
+          for (mcvSide = -1; mcvSide <= 1; mcvSide += 2)
+            isoBox(g, cx + px * wid * 0.382 * mcvSide,
+                   by - 4.30 + py * wid * 0.382 * mcvSide,
+                   len * 0.20, 0.22, 1.15, a, shade(panel, 0.68), MCV_EDGE);
+          // Rivets and panel bolts: tiny, neutral highlights that break the
+          // procedural gradients at the same scale as the source's metal.
+          if (flank > 0.14) {
+            var mcvNear = nearS;
+            for (var mcvBoltU = -len * 0.39; mcvBoltU <= len * 0.37; mcvBoltU += len * 0.19) {
+              var mcvBoltX = cx + fx * mcvBoltU + px * wid * 0.405 * mcvNear;
+              var mcvBoltY = by - 5.05 + fy * mcvBoltU + py * wid * 0.405 * mcvNear;
+              g.fillStyle = '#c0c5c8';
+              g.beginPath(); g.ellipse(mcvBoltX, mcvBoltY, 0.42, 0.34, 0, 0, 6.29); g.fill();
+              g.fillStyle = 'rgba(25,29,35,.72)';
+              g.beginPath(); g.ellipse(mcvBoltX + 0.12, mcvBoltY + 0.12, 0.20, 0.16, 0, 0, 6.29); g.fill();
+            }
+          }
+          lamp(cx + fx * len * 0.46 + px * wid * 0.28, by - 4.55 + fy * len * 0.46 + py * wid * 0.28);
+          lamp(cx + fx * len * 0.46 - px * wid * 0.28, by - 4.55 + fy * len * 0.46 - py * wid * 0.28);
         }
       }
 
@@ -12138,11 +12307,14 @@
         }
       }
       VLIFT = 1;
+      var metalSeed = 0;
+      for (var ms = 0; ms < kind.length; ms++) metalSeed = (metalSeed + kind.charCodeAt(ms) * (ms + 3)) & 255;
       if (SMOOTH) {
+        metalFinish(sc.c, metalSeed);
         NO_RIM = false;
         // the silhouette outline: the scratch sheet stamped in eight
         // directions and tinted dark, under the sheet itself
-        var oc = mkCanvas(s.w, s.h), og = oc.g, od = 0.65;
+        var oc = mkCanvas(s.w, s.h), og = oc.g, od = kind === 'ifv' ? 0.25 : 0.65;
         for (var oi = 0; oi < 8; oi++) {
           var oa = oi * Math.PI / 4;
           og.drawImage(sc.c, Math.cos(oa) * od, Math.sin(oa) * od, sc.w, sc.h);
@@ -12152,6 +12324,11 @@
         s.g.setTransform(DPR, 0, 0, DPR, 0, 0);
         s.g.drawImage(oc.c, 0, 0, oc.w, oc.h);
         s.g.drawImage(sc.c, 0, 0, sc.w, sc.h);
+      } else if (kind === 'apc') {
+        // The hovercraft keeps its deliberately outlined construction pass,
+        // but its broad olive skirt and hull still need the same restrained
+        // machining grain as the tracked fleet.
+        metalFinish(s.c, metalSeed);
       }
       return s;
     }

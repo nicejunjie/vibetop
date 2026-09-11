@@ -15,6 +15,14 @@ zoom 1 on the game's own ground, RA2's real plate. It follows the unit's
 faction (an early version only built a Directorate base, so every Collective
 unit came back "(not in the panel)" — the rig's fault, not the art's).
 
+For the vehicle voxel rips, the direct reference comparison is
+`node apps/games/rts/tools/ra2-compare.js [key ...]`. It writes one
+`art/out/ra2-compare-<key>.png` per requested unit: the verified RA2 sprite
+sheet (and the IFV voxel plate where available) beside eight canonical
+bearings from the current bake, followed by a live in-game map render of the
+same unit. With no keys it generates the complete set
+registered in `docs/ra2-ref/sprites/README.md`.
+
 ## Fixed
 
 | unit | what was wrong | fix |
@@ -25,6 +33,43 @@ unit came back "(not in the panel)" — the rig's fault, not the art's).
 | **Terror Drone** | a squat body with stubby legs; RA2's splayed spider legs ARE the silhouette | leg reach +25%, arch deliberately unchanged (it is what carries the scale gate at ZMIN) |
 | **Tesla Trooper** | §2.2 asks for a silver carapace over >= 40% of the torso; the chest measured 7-8% silver and 74% house colour, and the block's own comment said the budget "cannot go there" while drawing house colour there | torso split horizontally — silver yoke + steel pauldrons and vambraces over a house breastplate; the owner colour moved to a neck gorget and new thigh plates. 43.3% |
 | **superweapon clocks** | M1's caption was baked onto the 56x42 clock icon, straight across the countdown numerals | `cameoFor(..., noCap)`, cache key carries it |
+
+## 2026-09-10 (eleventh pass) — Apocalypse against the real eight-bearing rip
+
+The first Mammoth bake was too colorful and too tall in the wrong places: a
+bright yellow-green hull, blue cylindrical towers on both shoulders, and a
+rounded turret that made the unit look like a toy. The verified
+`docs/ra2-ref/sprites/apocalypse.png` shows a low olive-grey tracked hull, a
+compact hard-edged turret, twin dark guns, and small owner blocks integrated
+into the shoulders.
+
+The bake now follows that read. The hull and deck use a muted olive-grey
+palette, the turret is two stepped angular boxes, the guns are thinner and
+shorter while still overhanging the hull, the shoulder remap is four low
+separate plates, and the front fenders are smaller and darker. The remap stays
+visible at 1:1 without becoming a bright stripe. The comparison is regenerated
+at `art/out/ra2-compare-mammoth.png`, including the live map render below the
+reference and eight baked bearings.
+
+## 2026-09-10 (twelfth pass) — remove the soft forms
+
+The next review called out a rounded, colorful read. The turret commander's
+hatch and twin gun mantlets are now squared armour blocks, the turret shadow is
+neutral charcoal, and two recessed roof seams divide the broad top plate. Five
+near-side road wheels and the end sprockets are drawn over the track slab so the
+heavy chassis has the small mechanical rhythm visible in the RA2 broadside.
+The four owner marks remain low, separate shoulder blocks. The comparison's
+static bake uses the Soviet red remap to match `apocalypse.png`; the live map
+row remains in the in-game owner context.
+
+## 2026-09-10 (thirteenth pass) — Mammoth proportion reset
+
+The rounded branch was removed and rebuilt around the rip's silhouette instead
+of being tuned with more attachments. The new body uses a shorter axial plan,
+closer track offsets and a lower skirt; height comes from the hull armour and
+turret planes rather than tall pods. A faceted turret, square mantlets and
+long twin barrels now carry the read, while four low shoulder blocks and a
+small visible wheel train supply the detail at in-play scale.
 
 ## 2026-09-07 — "the weapon has to occupy the vehicle"
 
@@ -4425,3 +4470,58 @@ Body tone `#8588a2`, ring `RING` 7.4 -> 9.5 (the deck top). Sprite 59x56
 broadside, aspect 1.054 against [FV]'s 1.125 (band 1.0-1.2, met);
 `iou.sameFactionOver75` 1 -> 0 (the IFV no longer overlaps the Prism Tank);
 `clause.unmet` unchanged at 5.
+
+## 2026-09-10 (tenth pass) — Grizzly against the real eight-bearing rip
+
+The next unit was the Allied Grizzly (`lancer`), checked against
+`docs/ra2-ref/sprites/allied-grizzly-tank.png` (`File:CNCRA2 Grizzly Battle
+Tank.png`). The rip is a low pale grey-blue wedge with a compact box turret,
+one long thin gun, and two restrained blue remap patches. The old bake used a
+long cyan side strip and oversized turret cheeks, so it read as a coloured
+slab at 1:1. The flank patches are now short, separated, and darkened; the
+cheek plates were reduced to match the rip's small blue accents. The gun,
+forked pale nose and low hull remain the silhouette cues. `unit-compare.js`
+now shows the updated Grizzly beside the rip at four bearings.
+
+## 2026-09-11 (fourteenth pass) — slim the Apocalypse envelope
+
+The Mammoth still read as a heavy rounded block beside `apocalypse.png`, even
+after its colour and canister layout were corrected. The bake now uses a
+narrower track stance and track band, a 4.35-unit low hull with a thin
+underbody, shorter front fenders, and a compact eight-sided turret. The turret
+roof and mantlets were reduced with hard charcoal shadow planes; the twin guns
+remain 18.8 units long so the Apocalypse keeps its one unmistakable weapon
+silhouette. Road wheels were reduced and their pale hubs restored so the lower
+edge reads as a machined track train instead of one thick black bar. The four
+owner blocks stay discrete and low on the rear shoulders. `tools/ra2-compare.js`
+was regenerated with the red RA2 remap at all eight bearings and the live-map
+comparison below it.
+
+## 2026-09-11 (fifteenth pass) — MCV rebuilt as a metal works truck
+
+The MCV was still reading as a toy pickup: oversized colour blocks, no
+mechanical separation, and the wrong side proportions. Against the verified
+`allied-mcv.png`, it is now a 36x19 three-axle chassis with a sloped purple
+cab, recessed dark windshield, deep-blue folded construction module, silver
+hinge tower and ribbed rear machinery bay. Dark side rails, panel seams,
+wheel hubs and small neutral bolts break the surfaces into fabricated metal;
+the owner blue is confined to the folded module and two side panels. The
+special length/beam is now 36/19 so the broadside stays near the reference's
+76x36 works-truck ratio. The shared smooth-vehicle box and prism paths also
+carry an upper/lower edge response, sharpened plane breaks, directional grain
+and sparse weld points. The MCV uses a restrained value lift so the rear
+casing stays steel-grey instead of clipping white; the same finish is applied
+to every smooth ground vehicle and the APC without bringing back the heavy
+LEGO outlines.
+
+## 2026-09-11 (sixteenth pass) — shared metal finish for the ground fleet
+
+The same flat, plastic reading was present across the other vehicle types,
+even when their silhouettes were correct. Every smooth ground vehicle now gets
+one deterministic finish after its geometry is assembled: neutral planes are
+kept on an eight-step voxel value ramp, strong adjacent plane changes are
+sharpened, exposed edges catch light, undersides fall off, and sparse vertical
+grain and weld points break up large vector gradients. The APC receives the
+finish after its outlined hovercraft pass as well. Owner-colour panels are
+excluded from the grain so faction identification remains clean; aircraft and
+ships keep their own material treatment.
