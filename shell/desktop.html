@@ -2968,6 +2968,14 @@
 
     openApps.splice(i, 1);
     var w = winOf(id);
+    // Tell the app it is being CLOSED, not reloaded — synchronously, because
+    // the document dies with the frame and a posted message would never
+    // arrive. A game uses it to drop its resume-on-reload autosave: an app
+    // the user closed starts fresh next time; only a reload resumes.
+    var fr = frameOf(id);
+    try {
+      if (fr && fr.contentWindow && typeof fr.contentWindow.__vibetopClosing === 'function') fr.contentWindow.__vibetopClosing();
+    } catch (e) {}
     if (w) w.parentNode.removeChild(w);     // fully unload the app (window + its iframe)
     // Keep this app's geometry for the next open, but never its minimized flag —
     // a reopened app must not come back already hidden.

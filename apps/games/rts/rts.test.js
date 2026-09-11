@@ -6298,3 +6298,32 @@ test("a selected unit is not selected in the save, nor after a restore of a blob
   const back = H.saveBlob().g.units.find((x) => x.id === u.id);
   assert.equal(back.sel, undefined);   // the live entity is clear: that is what clickSelect reads
 });
+
+// Only an INVOLUNTARY reload resumes. A page the user closed, or an app the
+// desktop closed on the user's click, starts fresh on its next open.
+
+test("a close from the desktop drops the autosave, and the frame's own unload cannot re-arm it", () => {
+  const H = W.__rtsTest;
+  H.unclose();
+  H.startWith(9911, "normal", "frontier");
+  H.autosave();
+  assert.equal(H.resumeFlag(), "1");
+  W.__vibetopClosing();                         // the shell's synchronous close hook
+  assert.equal(H.resumeFlag(), "0");
+  H.autosave();                                 // pagehide fires as the frame is torn down
+  assert.equal(H.resumeFlag(), "0");
+  H.unclose();
+});
+
+test("resume follows the navigation type: reload yes, a fresh open no, the Options card's Reload always", () => {
+  const H = W.__rtsTest;
+  const nav = (type) => { W.performance.getEntriesByType = () => (type ? [{ type }] : []); };
+  nav("reload");   H.setResumeFlag("1"); assert.equal(H.resumeWanted(), true);
+  assert.equal(H.resumeFlag(), "0", "read once");
+  nav("navigate"); H.setResumeFlag("1"); assert.equal(H.resumeWanted(), false);
+  nav("back_forward"); H.setResumeFlag("1"); assert.equal(H.resumeWanted(), false);
+  nav("navigate"); H.setResumeFlag("keep"); assert.equal(H.resumeWanted(), true);
+  nav(null);       H.setResumeFlag("1"); assert.equal(H.resumeWanted(), true, "no entry: an old browser resumes");
+  nav("reload");   H.setResumeFlag("0"); assert.equal(H.resumeWanted(), false);
+  delete W.performance.getEntriesByType;
+});

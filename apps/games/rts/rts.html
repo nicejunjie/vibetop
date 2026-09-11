@@ -30336,7 +30336,7 @@
   function reloadKeepMatch() {
     if (!G || (state !== 'play' && state !== 'paused')) { location.reload(); return; }
     if (!saveGame('auto')) { say('Could not save — storage is full', true); return; }
-    lsSet(RESUME_KEY, '1');
+    lsSet(RESUME_KEY, 'keep');                         // asked for: resumes whatever the navigation says
     location.reload();
   }
   // ANY reload keeps the match, not only the Options card's own Reload: the
@@ -30348,9 +30348,31 @@
   // tab that was backgrounded mid-match and later finished the game must not
   // resume that finished match on its next refresh. A two-player match is
   // never autosaved — half of a lockstep pair cannot resume alone.
+  // A page or app the user CLOSED starts fresh next time; only an involuntary
+  // reload (a deploy push, a browser refresh) resumes. The unload handler
+  // cannot tell the two apart, so the decision is made at BOOT (resumeWanted)
+  // from the navigation type — and the desktop shell, whose iframes always
+  // report "navigate", calls __vibetopClosing synchronously as it closes the
+  // app (a posted message would die with the document), which drops the
+  // autosave before the frame's own pagehide can re-arm it.
+  var closedByUser = false;
+  window.__vibetopClosing = function () { closedByUser = true; lsSet(RESUME_KEY, '0'); };
   function autosaveForReload() {
-    var inMatch = !!G && (state === 'play' || state === 'paused') && !G.mp;
+    var inMatch = !closedByUser && !!G && (state === 'play' || state === 'paused') && !G.mp;
     if (inMatch && saveGame('auto')) lsSet(RESUME_KEY, '1'); else lsSet(RESUME_KEY, '0');
+  }
+  function resumeWanted() {
+    var flag = lsGet(RESUME_KEY);
+    lsSet(RESUME_KEY, '0');                            // read once, whatever it said
+    if (flag === 'keep') return true;                  // the Options card's own Reload
+    if (flag !== '1') return false;
+    // The TOP document's navigation: a reload of the page (standalone) or of
+    // the desktop around this frame resumes; a fresh open — a closed tab or
+    // app opened again — does not. No entry at all (an old browser) resumes.
+    var top = window; try { top = window.top || window; } catch (e) {}
+    var nav = null;
+    try { nav = (top.performance.getEntriesByType('navigation')[0] || {}).type || null; } catch (e) {}
+    return nav === null || nav === 'reload';
   }
   window.addEventListener('pagehide', autosaveForReload);
   document.addEventListener('visibilitychange', function () { if (document.hidden) autosaveForReload(); });
@@ -37411,6 +37433,9 @@
     reloadKeep: function () { reloadKeepMatch(); },
     autosave: function () { autosaveForReload(); },
     resumeFlag: function () { return lsGet(RESUME_KEY); },
+    setResumeFlag: function (v) { lsSet(RESUME_KEY, v); },
+    resumeWanted: resumeWanted,
+    unclose: function () { closedByUser = false; },
     setState: function (st) { state = st; },
     score: function (p) { return scoreOf(G, p); },
     crates: function () { return G ? G.crates : []; },
@@ -37684,7 +37709,7 @@
   else window.addEventListener('resize', resize);
 
   buildPanel();
-  if (lsGet(RESUME_KEY) === '1' && (lsSet(RESUME_KEY, '0'), loadGame('auto'))) enterLoaded('auto');
+  if (resumeWanted() && loadGame('auto')) enterLoaded('auto');
   else menu();
   requestAnimationFrame(tick);
 })();
