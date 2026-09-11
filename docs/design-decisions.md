@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_276 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_277 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
 - [Scheduled terminal messages ("resume when the token limit resets")](#scheduled-terminal-messages-resume-when-the-token-limit-resets)
@@ -299,6 +299,7 @@ _276 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [Browser: a tab torn off its strip followed the cursor forever — the release happened outside the frame (2026-09-11)](#browser-a-tab-torn-off-its-strip-followed-the-cursor-forever-the-release-happened-outside-the-frame-2026-09-11)
 - [RTS: a closed page or app starts fresh; only a reload resumes (2026-09-11)](#rts-a-closed-page-or-app-starts-fresh-only-a-reload-resumes-2026-09-11)
 - [RTS: after a resume, units selected but never obeyed — the map thumbnails stole the lockstep client (2026-09-11)](#rts-after-a-resume-units-selected-but-never-obeyed-the-map-thumbnails-stole-the-lockstep-client-2026-09-11)
+- [RTS: troops could not enter an IFV — "select own" pre-empted the enter order (2026-09-11)](#rts-troops-could-not-enter-an-ifv-select-own-pre-empted-the-enter-order-2026-09-11)
 
 <!-- END TOC -->
 
@@ -12442,4 +12443,23 @@ object bound to the same world.
 
 **Rejected.** Making `newState` not attach: every real caller relies on it,
 and the thumbnail is the only non-match use.
+
+## RTS: troops could not enter an IFV — "select own" pre-empted the enter order (2026-09-11)
+
+**Symptom.** (user) "can't let troops enter IFV". The cursor showed ENTER over
+the IFV, the click selected the IFV instead.
+
+**Cause.** RA2's mouse scheme (2026-09-10) made the left button both select
+and order, with the rule "a click on one of your own selects it". That rule
+ran before any order test, so every order whose target is your OWN thing —
+board a transport, reinforce a garrison, hand-charge a coil, patch a
+building with an Engineer, dock a miner — was unreachable by mouse.
+
+**Fix.** `ownTargetOrder(e, units)` repeats pickCursor's own-target branches;
+`leftClick` selects an own target only when that says there is no order for
+it (Shift still adds to the selection). Unit-tested for the IFV: room,
+no room, a tank that cannot board, the IFV itself.
+
+**Rejected.** Reading the cursor kind itself: pickCursor is hover-state
+bound (mouse, hoverTile, drag) and not callable for an arbitrary click.
 
