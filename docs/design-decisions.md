@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_272 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_273 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
 - [Scheduled terminal messages ("resume when the token limit resets")](#scheduled-terminal-messages-resume-when-the-token-limit-resets)
@@ -295,6 +295,7 @@ _272 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [Files: Quick Look is a panel over the listing, and grid columns are read off the layout (2026-09-11)](#files-quick-look-is-a-panel-over-the-listing-and-grid-columns-are-read-off-the-layout-2026-09-11)
 - [RTS: a refresh resumed only when the game itself asked for it (2026-09-11)](#rts-a-refresh-resumed-only-when-the-game-itself-asked-for-it-2026-09-11)
 - [RTS: the edge-scroll band moved from the canvas edge to the window edge (2026-09-11)](#rts-the-edge-scroll-band-moved-from-the-canvas-edge-to-the-window-edge-2026-09-11)
+- [RTS: a resumed or loaded match was dead to clicks — the selection flag rode along in the save (2026-09-11)](#rts-a-resumed-or-loaded-match-was-dead-to-clicks-the-selection-flag-rode-along-in-the-save-2026-09-11)
 
 <!-- END TOC -->
 
@@ -12310,4 +12311,28 @@ terrain at all.
 **Rejected.** A uniform 44 px band at the window edge: over the 176 px sidebar
 it covers the right cameo column, and over the 55 px command bar most of the
 buttons — parking to click would scroll. RA2's own zone is a few pixels.
+
+## RTS: a resumed or loaded match was dead to clicks — the selection flag rode along in the save (2026-09-11)
+
+**Symptom.** (user) "after refresh or from a saved game, all controls are
+invalid, I can't click anywhere, nothing happens". Reproduced: the sim ticked,
+the pick found the unit, the click reached `clickSelect`'s own-unit branch, and
+the selection still came back empty.
+
+**Cause.** Selecting an entity sets `e.sel = true` on the entity, and
+`serEnt` writes every own field, so the flag went into the blob. After a
+restore the session's `sel` list is empty but the flag is still true, so the
+`if (!e.sel)` guard in `clickSelect` skipped the push, and `clearSel` (which
+walks the list) could never reset it. Everything selected at the moment of
+the save was unselectable after the load — with resume-on-reload now saving
+on every unload, that was whatever the player had in hand.
+
+**Fix.** `ENT_SKIP` drops `sel` from `serEnt`, and `restoreGame` clears it on
+every unit and building so older blobs come back clean. Found by serving an
+instrumented copy of the page through Playwright request interception
+(`page.route('**/rts.html')`) and logging each stage of the click — no deploy
+needed to add tracing to the live page.
+
+**Rejected.** Clearing the flag in `enterLoaded`: the harness and the
+two-player path restore without it, so the invariant belongs to the blob.
 
