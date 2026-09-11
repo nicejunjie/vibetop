@@ -4501,12 +4501,12 @@ comparison below it.
 
 The MCV was still reading as a toy pickup: oversized colour blocks, no
 mechanical separation, and the wrong side proportions. Against the verified
-`allied-mcv.png`, it is now a 36x19 three-axle chassis with a sloped purple
+`allied-mcv.png`, it is now a 37.5x14.2 three-axle chassis with a sloped purple
 cab, recessed dark windshield, deep-blue folded construction module, silver
 hinge tower and ribbed rear machinery bay. Dark side rails, panel seams,
 wheel hubs and small neutral bolts break the surfaces into fabricated metal;
 the owner blue is confined to the folded module and two side panels. The
-special length/beam is now 36/19 so the broadside stays near the reference's
+special length/beam is now 37.5/14.2 so the broadside stays near the reference's
 76x36 works-truck ratio. The shared smooth-vehicle box and prism paths also
 carry an upper/lower edge response, sharpened plane breaks, directional grain
 and sparse weld points. The MCV uses a restrained value lift so the rear
@@ -4525,3 +4525,43 @@ grain and weld points break up large vector gradients. The APC receives the
 finish after its outlined hovercraft pass as well. Owner-colour panels are
 excluded from the grain so faction identification remains clean; aircraft and
 ships keep their own material treatment.
+
+## 2026-09-11 (seventeenth pass) — line tanks lose the toy-dome silhouette
+
+The Grizzly and Rhino were still reading too full in three-quarter view. Their
+actual RA2 rips are low, hard-edged machines: the Grizzly is a narrow wedge with
+a compact turret, while the Rhino has a squat angular turret over a broad but
+low Soviet hull. The bake now narrows both plan beams and track runs, lowers the
+ring, hull deck, cheek plates and commander hatch, and shortens the mantlets and
+barrels to the proportions in `allied-grizzly-tank.png` and `rhino.png`. Rhino's
+body was also moved back from washed-out sand to a restrained olive gunmetal.
+The comparison generator now uses the red remap seat for the Rhino so its eight
+static views are judged against the red RA2 rip, and both comparison files retain
+the live in-battle render below the reference sheet.
+
+## 2026-09-11 (eighteenth pass) — rebuild the MCV around its metal frame
+
+The previous MCV pass still had the wrong visual grammar: three large boxes made
+it read as a small pickup with a coloured cargo bed. I re-read the exact
+`CNCRA2 Allied MCV.png` eight-bearing sheet and added the verified voxel render
+`allied-mcv-voxel.webp` to the reference directory. The source has a short, tall,
+raked cab; one front axle followed by a close rear tandem; a deep side rail with
+wheel-arch cutouts; two folded blue channels sitting in a wide silver saddle; and
+a rear bridge with exposed cylinders and actuators. Those are now authored as
+continuous 3D profiles and section extrusions, with a per-pixel depth buffer so
+the near rail, wheels, saddle, and machinery occlude in the correct order at all
+32 bearings.
+
+Metal is treated as a material rather than a global colour: painted lavender
+panels use broad value steps, bare steel uses a tighter bright edge response,
+glass and rubber stay dark, and the raster pass adds restrained directional
+grain. Recessed windshield/glazing, grille slats, panel joints, wheel-hub rings,
+drum collars, folded-panel grooves, and neutral fasteners are separate surfaces.
+The blue remap is confined to the folded construction equipment and small side
+marks, matching the source's restrained colour balance.
+
+`tools/ra2-compare.js mcv` now writes a dedicated comparison at
+`art/out/ra2-compare-mcv.png`: the real voxel render and eight same-bearing
+in-game crops are shown in paired 3x nearest-neighbour panels, followed by the
+live game renderer at matching bearings. The map shot explicitly reveals the
+terrain and crops around the vehicles so the units remain visible at game scale.

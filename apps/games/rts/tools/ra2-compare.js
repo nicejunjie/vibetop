@@ -36,17 +36,18 @@ const REFS = {
   mammoth:     { file: 'apocalypse.png', fac: 'col', owner: 1, name: 'Apocalypse' },
   ifv:         { file: 'allied-ifv.png', extra: 'allied-ifv-voxel.png', fac: 'dir', name: 'IFV' },
   mirage:      { file: 'allied-mirage-tank.png', fac: 'dir', name: 'Mirage Tank' },
-  rhino:       { file: 'rhino.png', fac: 'col', name: 'Rhino Tank' },
+  rhino:       { file: 'rhino.png', fac: 'col', owner: 1, name: 'Rhino Tank' },
   flaktrack:   { file: 'soviet-flak-track.png', fac: 'col', name: 'Flak Track' },
   v3:          { file: 'soviet-v3.png', fac: 'col', name: 'V3 Launcher' },
   drone:       { file: 'terror-drone.png', fac: 'col', name: 'Terror Drone' },
   teslatank:   { file: 'soviet-tesla-tank-sheet.png', fac: 'col', name: 'Tesla Tank' },
   prismtank:   { file: 'allied-prism-tank.png', fac: 'dir', name: 'Prism Tank' },
-  mcv:         { file: 'allied-mcv.png', fac: 'dir', name: 'MCV' },
+  mcv:         { file: 'allied-mcv.png', extra: 'allied-mcv-voxel.webp', fac: 'dir', name: 'MCV' },
 };
 
 function mimeOf(buf) {
   if (buf.subarray(0, 4).toString('ascii') === 'RIFF') return 'image/webp';
+  if (buf.subarray(0, 2).equals(Buffer.from([0xff, 0xd8]))) return 'image/jpeg';
   return 'image/png';
 }
 
@@ -142,6 +143,45 @@ async function main() {
         g.drawImage(im, x + Math.round((w - dw) / 2), y + Math.round((h - dh) / 2), dw, dh);
         return { w: dw, h: dh };
       }
+      function mcvReview(ref, voxel, shots, faces) {
+        // Pair actual in-game pixels with the same bearing of our canvas
+        // sprite. Every direction uses 3x: never stretch each unit to its tile.
+        const crops = [[176,130,83,60], [133,154,45,68], [58,129,75,59], [22,89,84,43],
+          [58,41,76,51], [136,8,40,61], [179,40,71,55], [202,88,86,45]];
+        const labels = ['Front right', 'Front', 'Front left', 'Left side', 'Rear left', 'Rear', 'Rear right', 'Right side'];
+        const [c, g] = canvas(1461, 1300);
+        g.fillStyle = '#11171e'; g.fillRect(0, 0, c.width, c.height);
+        g.fillStyle = '#edf4fc'; g.font = 'bold 23px system-ui, sans-serif';
+        g.fillText('MCV — original RA2 geometry and material comparison', 22, 34);
+        g.fillStyle = '#a7b7c9'; g.font = '13px system-ui, sans-serif';
+        g.fillText('Source: Allied MCV Voxel Render.jpg + CNCRA2 Allied MCV.png (C&C Wiki). All paired views below use 3x nearest-neighbour.', 22, 58);
+        drawContain(g, voxel, 22, 77, 470, 245);
+        g.fillStyle = '#d6e1ec'; g.font = 'bold 17px system-ui, sans-serif';
+        g.fillText('Shape and construction', 535, 100);
+        g.font = '15px system-ui, sans-serif';
+        ['Short raked cab; front axle separated from a rear tandem.',
+          'Deep wheel-arch rails, suspended tank, exposed pale hubs.',
+          'Blue folded channels inside a bevelled steel saddle.',
+          'Rear transverse bridge and exposed paired actuators.'].forEach((s, i) => g.fillText(s, 535, 130 + i * 25));
+        g.font = 'bold 17px system-ui, sans-serif'; g.fillText('Metal surfaces', 535, 247);
+        g.font = '15px system-ui, sans-serif';
+        g.fillText('Plane shading, steel bevel highlights, recessed seams and cast shadow.', 535, 277);
+        g.fillText('Paint, bare steel, dark glazing and rubber use separate tones.', 535, 302);
+        for (let i = 0; i < 8; i++) {
+          const x = 18 + (i % 2) * 718, y = 340 + Math.floor(i / 2) * 239;
+          g.fillStyle = '#202a34'; g.fillRect(x, y, 704, 229);
+          g.fillStyle = '#ecf0f4'; g.font = 'bold 14px system-ui, sans-serif';
+          g.fillText(`${labels[i]} / bearing ${faces[i]}`, x + 12, y + 20);
+          const b = crops[i], shot = shots[i], bb = bounds(shot);
+          g.drawImage(ref, ...b, x + Math.round((342 - b[2] * 3) / 2), y + 24 + Math.round((198 - b[3] * 3) / 2), b[2] * 3, b[3] * 3);
+          g.fillStyle = '#5a645c'; g.fillRect(x + 354, y + 29, 337, 174);
+          g.drawImage(shot, ...bb, x + 354 + Math.round((337 - bb[2] * 3) / 2), y + 27 + Math.round((174 - bb[3] * 3) / 2), bb[2] * 3, bb[3] * 3);
+          g.fillStyle = '#c0cedd'; g.font = '11px system-ui, sans-serif';
+          g.fillText('RA2 in-game sprite', x + 12, y + 219);
+          g.fillText('Our game sprite — identical magnification', x + 366, y + 219);
+        }
+        return c;
+      }
 
       const out = {};
       for (const key of wanted) {
@@ -159,8 +199,8 @@ async function main() {
         const tileW = 185, tileH = 265, gap = 14, pad = 18;
         const leftW = 625, rightW = tileW * 4 + gap * 3;
         const W = pad * 3 + leftW + rightW;
-        const H2 = 790;
-        const [c, g] = canvas(W, H2);
+        let H2 = 790;
+        let [c, g] = canvas(W, H2);
         g.fillStyle = '#0a1017'; g.fillRect(0, 0, W, H2);
         g.fillStyle = '#edf4fc'; g.font = 'bold 20px system-ui, sans-serif';
         g.fillText(`${cfg.name} (${key}) — real RA2 render vs current bake`, pad, 29);
@@ -180,14 +220,16 @@ async function main() {
 
         const bg = d.nav ? '#234d70' : '#4b633b';
         const originX = pad + leftW + pad;
+        const shotScale = Math.min(mag, ...shots.map(shot => {
+          const bb = bounds(shot);
+          return Math.min((tileW - 18) / bb[2], (tileH - 36) / bb[3]);
+        }));
         for (let i = 0; i < shots.length; i++) {
           const col = i % 4, row = (i / 4) | 0;
           const x = originX + col * (tileW + gap), y = 98 + row * (tileH + gap);
           g.fillStyle = bg; g.fillRect(x, y, tileW, tileH);
           const shot = shots[i], bb = bounds(shot);
-          const dw = bb[2] * mag, dh = bb[3] * mag;
-          const scale = Math.min((tileW - 18) / dw, (tileH - 36) / dh);
-          const rw = Math.max(1, Math.round(dw * scale)), rh = Math.max(1, Math.round(dh * scale));
+          const rw = Math.max(1, Math.round(bb[2] * shotScale)), rh = Math.max(1, Math.round(bb[3] * shotScale));
           g.drawImage(shot, bb[0], bb[1], bb[2], bb[3],
             x + Math.round((tileW - rw) / 2), y + 9 + Math.round((tileH - 30 - rh) / 2), rw, rh);
           g.fillStyle = '#d7e4f1'; g.font = '11px system-ui, sans-serif';
@@ -195,13 +237,17 @@ async function main() {
         }
         g.fillStyle = '#8097ad'; g.font = '11px system-ui, sans-serif';
         g.fillText('Reference images are source rips and may contain their original grass/snow/chroma background.', pad, H2 - 10);
+        if (key === 'mcv') { c = mcvReview(ref, extra, shots, faces); H2 = c.height; }
 
         // Capture the same unit in the real map renderer. This is intentionally
         // a fresh match per key so a previous unit's buildings, camera, or
         // animation cannot contaminate the comparison.
         document.querySelectorAll('.show').forEach(e => e.classList.remove('show'));
         document.body.classList.remove('atmenu');
-        const live = H.begin(9300 + wanted.indexOf(key), 'normal', null, false, true);
+        const live = H.begin(9300 + wanted.indexOf(key), 'normal', null, true, true);
+        // begin() does not run a simulation tick, where debug normally
+        // reveals terrain. Reveal explicitly before the first map render.
+        live.seen.fill(1);
         // The live renderer is viewed from seat 0 and its shroud hides seat
         // 1's starting area. Put every reference unit on the visible seat and
         // change that seat's faction instead, so Collective and Directorate
@@ -210,10 +256,11 @@ async function main() {
         live.side[owner].fac = cfg.fac;
         live.side[1 - owner].fac = cfg.fac === 'col' ? 'dir' : 'col';
         const start = live.start[owner];
-        const offsets = [[-6, 0], [-3, 2], [0, -2], [3, 1], [6, -1], [0, 5], [4, 5], [-4, 5]];
+        const offsets = [[-5, 0], [-2.5, -2.5], [0, -5], [2.5, -7.5], [-2, 3], [0.5, 0.5], [3, -2], [5.5, -4.5]];
+        const spawned = [];
         for (let i = 0; i < offsets.length; i++) {
           const u = H.spawn(key, owner, start.x + offsets[i][0], start.y + offsets[i][1]);
-          if (u) { u.face = faces[i]; u.tface = faces[i]; u.stopped = true; }
+          if (u) { u.face = faces[i]; u.tface = faces[i]; u.stopped = true; spawned.push(u); }
         }
         // A pair of opposing infantry gives the shot a battle context while
         // keeping the unit under review unobscured. They remain stationary;
@@ -222,11 +269,25 @@ async function main() {
           const e = H.spawn('rifle', 1 - owner, start.x + 12 + i * 2, start.y - 8 + i * 2);
           if (e) { e.face = 20; e.tface = 20; e.stopped = true; }
         }
-        H.centerOn(start.x + 1, start.y + 1); H.zoom(1.35); H.render();
+        H.centerOn(start.x + 0.25, start.y - 2.25); H.zoom(1.35); H.render();
         const liveCanvas = document.querySelector('canvas');
         const gameplay = liveCanvas ? liveCanvas.toDataURL('image/png').split(',')[1] : null;
+        // Crop the real canvas around the eight vehicles so the review
+        // preserves game-scale detail instead of shrinking a whole viewport.
+        let detail = null;
+        if (liveCanvas && spawned.length) {
+          const positions = spawned.map(u => H.toScreen(u.x, u.y));
+          const x = Math.max(0, Math.floor(Math.min(...positions.map(p => p.x)) - 88));
+          const y = Math.max(0, Math.floor(Math.min(...positions.map(p => p.y)) - 112));
+          const w = Math.min(liveCanvas.width - x, Math.ceil(Math.max(...positions.map(p => p.x)) - x + 88));
+          const h = Math.min(liveCanvas.height - y, Math.ceil(Math.max(...positions.map(p => p.y)) - y + 52));
+          const [crop, ctx] = canvas(w, h);
+          ctx.drawImage(liveCanvas, x, y, w, h, 0, 0, w, h);
+          detail = crop;
+        }
         const finalH = H2 + 430;
         const [combined, cg] = canvas(W, finalH);
+        cg.fillStyle = '#11171e'; cg.fillRect(0, 0, W, finalH);
         cg.drawImage(c, 0, 0);
         cg.fillStyle = '#edf4fc'; cg.font = 'bold 16px system-ui, sans-serif';
         cg.fillText('IN GAME — live map render, eight units at matching bearings', pad, H2 + 25);
@@ -234,7 +295,7 @@ async function main() {
         if (gameplay) {
           const gi = new Image();
           await new Promise(resolve => { gi.onload = resolve; gi.onerror = resolve; gi.src = 'data:image/png;base64,' + gameplay; });
-          drawContain(cg, gi, pad + 12, H2 + 50, W - pad * 2 - 24, 350);
+          drawContain(cg, detail || gi, pad + 12, H2 + 50, W - pad * 2 - 24, 350);
         } else {
           cg.fillStyle = '#e07a7a'; cg.font = '12px system-ui, sans-serif';
           cg.fillText('live canvas unavailable', pad + 20, H2 + 70);
