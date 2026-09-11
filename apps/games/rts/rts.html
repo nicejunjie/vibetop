@@ -9220,7 +9220,7 @@
     if (kind === 'lancer')       { hull = '#626a7b'; deck = '#3e4450'; }   // slate-navy with a pale top, as allied-grizzly-tank.png (VLIFT lifts it)
     else if (kind === 'spectre') { hull = '#464e5d'; deck = '#30353f'; }   // dark navy-slate, as allied-prism-tank.png
     else if (kind === 'mammoth') { hull = '#8c925a'; deck = '#5a5e34'; }   // a REAL olive, per 1.4 -- pale, as apocalypse.png (29% light px)
-    else if (kind === 'ifv')     { hull = '#ccd2db'; deck = '#828a97'; }   // white body, LIGHT grey cab
+    else if (kind === 'ifv')     { hull = '#9c9fb4'; deck = '#7e8394'; }   // lavender-grey body, as the [FV] voxel render (VLIFT lifts it)
     else if (kind === 'mirage')  { hull = '#3f4552'; deck = '#262a33'; }   // dark slate-navy, as mirage.png
     else if (kind === 'rhino')     { hull = '#a0a080'; deck = '#63644b'; } // sand-khaki, as rhino.png (32% light px)
     else if (kind === 'flaktrack') { hull = '#d2cfc0'; deck = '#c2bfae'; } // cream body AND bed, as soviet-flak-track.png
@@ -10708,10 +10708,11 @@
           // on the rip the launcher's mount IS the rear of the hull)
           var wsx = cx + fx * 2.0, wsy = by - 5.8 + fy * 2.0;
           isoBox(g, wsx, wsy, 1.0, wid * 0.46, 1.8, a, '#2a3039', null);   // windscreen
-          for (sg = -1; sg <= 1; sg += 2)                      // ONE low stripe a flank
+          for (sg = -1; sg <= 1; sg += 2)                      // ONE low NAVY stripe a flank (the voxel's is dark)
             isoBox(g, cx + px * wid * 0.35 * sg - fx * 0.6,
                    by - 3.9 + py * wid * 0.35 * sg - fy * 0.6,
-                   len * 0.62, 1.2, 1.5, a, panel, null);
+                   len * 0.62, 1.2, 1.5, a, pdark, null);
+          isoBox(g, cx + fx * 4.4, by - 5.9 + fy * 4.4, 1.1, wid * 0.40, 0.5, a, '#2a2e3a', null);   // the vent slot on the bonnet
           for (i2 = -1; i2 <= 1; i2 += 2)
             lamp(cx + fx * len * 0.43 + px * wid * 0.25 * i2,
                  by - 4.6 + fy * len * 0.43 + py * wid * 0.25 * i2);
@@ -10725,115 +10726,77 @@
           // of them fire out of the same low, wide cupola with a slim barrel
           // over the front lip and a shield beside it, which is why the RA2
           // sprite for six different passengers is one model.
+          // 2026-09-10 (8) -- THE FOUR TURRETS, from `allied-ifv-voxel.png`
+          // (File:IFV Voxel Render.jpg), which the user pointed at: "this is
+          // what the RA2 IFV looks like, and it changes shape when a
+          // different troop enters it, reproduce it exactly". Four models:
+          //   GUN    a low pale DOME with a navy band and a short black
+          //          machine gun with a fat muzzle, off the left cheek
+          //   ARM    an articulated BLUE arm rising up and forward from a
+          //          pedestal to a grey two-finger claw
+          //   TECH   a big pale HEMISPHERE on a navy collar
+          //   ROCKET a chunky cell pod CANTED UP ~30 degrees on a short
+          //          pedestal, dark grey with a blue band round its middle
+          var HB = shade(hull, 0.92), HT = shade(hull, 1.10);
           if (ivT === IFV_TUR_GUN) {
-            prism(ivx, ivy - 1.4, [[2.4, -2.7], [2.4, 2.7], [-2.6, 2.3], [-2.6, -2.3]],
-                  3.2, shade(deck, 1.10), dark);
-            isoBox(g, ivx, ivy - 4.6, 4.6, 4.2, 1.1, a, panel, PEDGE);       // owner-colour cupola band
-            barrel(ivx + fx * 2.2, ivy - 5.0 + fy * 2.2, 11.0, 0.95, 0.60, '#15161a');
-            for (sg = -1; sg <= 1; sg += 2)                                   // gunner's shield ears
-              isoBox(g, ivx + fx * 1.4 + px * 2.4 * sg, ivy - 5.2 + fy * 1.4 + py * 2.4 * sg,
-                     1.2, 0.9, 2.2, a, STEEL, PEDGE);
-            g.fillStyle = '#b7bec8';                                          // ammo box on the near cheek
-            gEllipse(ivx - fx * 1.8, ivy - 5.4 - fy * 1.8, 0.9); g.fill();
+            puck(ivx, ivy - 1.2, 3.0, 2.0, HB, HT, null);                    // the low dome base
+            puck(ivx, ivy - 2.0, 3.05, 0.9, pdark, pdark, null);              // navy band
+            g.fillStyle = shade(hull, 1.16); gEllipse(ivx, ivy - 3.3, 2.5); g.fill();
+            g.fillStyle = shade(hull, 1.30); gEllipse(ivx - fx * 0.3, ivy - 3.9 - fy * 0.3, 1.5); g.fill();
+            var gbx = ivx + fx * 2.0 - px * 1.4, gby = ivy - 3.0 + fy * 2.0 - py * 1.4;
+            barrel(gbx, gby, 8.0, 1.05, 0.85, '#15161a');                    // short MG, left cheek
+            g.fillStyle = '#1c1f26';                                          // the fat muzzle
+            g.beginPath(); g.ellipse(gbx + fx * 8.0, gby + fy * 8.0, 1.3, 1.0, 0, 0, 6.29); g.fill();
           }
-          // ---- turret 2: the REPAIR ARM ([FV] RepairTurretIndex=2) --------
-          // [RepairBullet] Warhead=Mechanical, AttachedParticleSystem=WeldingSys:
-          // an articulated boom on a flat deck with a welding head on the end,
-          // and no gun anywhere on it.
           else if (ivT === IFV_TUR_ARM) {
-            isoBox(g, ivx, ivy - 1.2, 5.2, 4.8, 1.6, a, shade(deck, 1.02), dark);
-            isoBox(g, ivx - fx * 1.6, ivy - 2.8 - fy * 1.6, 2.6, 3.2, 2.2, a, panel, PEDGE);
-            var jx = ivx + fx * 0.6, jy = ivy - 5.0 + fy * 0.6;              // shoulder joint
-            puck(jx, jy + 1.2, 1.15, 1.2, pdark, plit, PEDGE);
-            var ex1 = jx + fx * 3.4, ey1 = jy - 3.4 + fy * 3.4;              // upper arm, raked up
-            var ex2 = ex1 + fx * 3.2, ey2 = ey1 + 1.1 + fy * 3.2;            // forearm, dropping to the work
-            g.strokeStyle = '#454b54'; g.lineWidth = 2.4; g.lineCap = 'round';
+            puck(ivx, ivy - 1.2, 2.6, 2.2, HB, HT, null);                    // pedestal
+            puck(ivx, ivy - 2.2, 2.65, 0.8, pdark, pdark, null);
+            var jx = ivx, jy = ivy - 3.4;                                     // shoulder
+            var ex1 = jx + fx * 1.6, ey1 = jy - 6.4 + fy * 1.6;              // elbow, high
+            var ex2 = ex1 + fx * 4.6, ey2 = ey1 - 1.2 + fy * 4.6;            // wrist, forward
+            g.strokeStyle = pdark; g.lineWidth = 3.0; g.lineCap = 'round'; g.lineJoin = 'round';
             g.beginPath(); g.moveTo(jx, jy); g.lineTo(ex1, ey1); g.lineTo(ex2, ey2); g.stroke();
-            g.strokeStyle = '#8f97a2'; g.lineWidth = 0.9;                     // lit upper edge of the boom
-            g.beginPath(); g.moveTo(jx, jy - 1.0); g.lineTo(ex1, ey1 - 1.0); g.stroke();
-            puck(ex1, ey1 + 0.9, 0.9, 0.9, '#2a2e34', '#7b828d', PEDGE);      // elbow
-            g.fillStyle = '#c8ced7';                                          // welding head
-            g.beginPath(); g.ellipse(ex2, ey2, 1.5, 1.2, 0, 0, 6.29); g.fill();
-            g.fillStyle = 'rgba(150,215,255,.85)';                            // the arc at the tip
-            g.beginPath(); g.ellipse(ex2 + fx * 1.0, ey2 + fy * 1.0, 0.9, 0.8, 0, 0, 6.29); g.fill();
+            g.strokeStyle = panel; g.lineWidth = 1.6;                        // lit edge of the blue arm
+            g.beginPath(); g.moveTo(jx - 0.5, jy - 0.6); g.lineTo(ex1 - 0.5, ey1 - 0.6); g.lineTo(ex2 - 0.5, ey2 - 0.6); g.stroke();
+            g.strokeStyle = '#b9c0ca'; g.lineWidth = 1.5; g.lineCap = 'round'; // the grey claw
+            g.beginPath(); g.arc(ex2 + fx * 1.2, ey2 + fy * 1.2, 1.9, -2.4, 0.6); g.stroke();
+            g.beginPath(); g.arc(ex2 + fx * 1.2, ey2 + fy * 1.2 + 0.4, 1.9, 0.9, 3.6); g.stroke();
           }
-          // ---- turret 3: the HIGH-TECH emitter ([FV] ShockTurretIndex=3) --
-          // Shock Trooper, Ivan, Yuri, Desolator, Chrono Legionnaire, a cow:
-          // RA2 hangs all six off ONE model — a drum with a dish and a lens.
           else if (ivT === IFV_TUR_TECH) {
-            prism(ivx, ivy - 1.4, [[2.2, -2.5], [2.2, 2.5], [-2.5, 2.2], [-2.5, -2.2]],
-                  4.4, shade(deck, 0.96), dark);
-            puck(ivx, ivy - 5.8, 2.5, 2.0, pdark, panel, PEDGE);              // owner-colour collar
-            var dsx = ivx + fx * 1.9, dsy = ivy - 8.6 + fy * 1.9;             // the dish, tilted forward
-            g.fillStyle = '#2a2f37';
-            g.beginPath(); g.ellipse(dsx, dsy, 3.2, 2.2, 0, 0, 6.29); g.fill();
-            g.strokeStyle = '#9aa2ae'; g.lineWidth = 0.8; g.stroke();
-            g.fillStyle = 'rgba(158,214,255,.9)';                             // the lens in its throat
-            g.beginPath(); g.ellipse(dsx, dsy, 1.35, 0.95, 0, 0, 6.29); g.fill();
-            for (sg = -1; sg <= 1; sg += 2) {                                 // two emitter rods
-              g.strokeStyle = '#7d8590'; g.lineWidth = 1.1; g.lineCap = 'round';
-              g.beginPath();
-              g.moveTo(ivx + px * 2.0 * sg, ivy - 6.6 + py * 2.0 * sg);
-              g.lineTo(ivx + px * 2.6 * sg + fx * 1.2, ivy - 10.4 + py * 2.6 * sg + fy * 1.2);
-              g.stroke();
-              g.fillStyle = '#cfe6ff';
-              g.beginPath();
-              g.ellipse(ivx + px * 2.6 * sg + fx * 1.2, ivy - 10.4 + py * 2.6 * sg + fy * 1.2, 0.8, 0.7, 0, 0, 6.29);
-              g.fill();
-            }
+            puck(ivx, ivy - 1.0, 3.6, 1.6, pdark, pdark, null);              // navy collar
+            puck(ivx, ivy - 2.6, 3.5, 1.5, HB, HT, null);                    // the hemisphere, in steps
+            puck(ivx, ivy - 4.1, 2.9, 1.3, shade(hull, 0.98), shade(hull, 1.16), null);
+            puck(ivx, ivy - 5.4, 2.0, 1.1, shade(hull, 1.06), shade(hull, 1.24), null);
+            g.fillStyle = shade(hull, 1.34); gEllipse(ivx - fx * 0.2, ivy - 6.7 - fy * 0.2, 1.0); g.fill();
+            g.strokeStyle = pdark; g.lineWidth = 0.8;                        // one navy seam over the dome
+            g.beginPath();
+            g.moveTo(ivx + fx * 3.2, ivy - 2.8 + fy * 3.2); g.lineTo(ivx - fx * 0.2, ivy - 6.6 - fy * 0.2);
+            g.stroke();
           }
           else {
-          // 2026-09-10 (4) -- ONE BLOCK, and BIGGER. The rip's launcher is a
-          // single dark chunky block over the rear axles, nearly the hull's
-          // width, with four square cell mouths in its forward face and one
-          // blue plate on its flank. Four separate outlined tubes with owner
-          // bands round each (the cluster pass) read as lego at 1:1; the
-          // block reads as the gun. It is the darkest thing on the vehicle
-          // and ~40% of the sprite's height, which is what makes the IFV the
-          // IFV at any zoom.
           var LBODY = '#4f5764';
-          var LL = 7.6, LW = 9.0, LH = 7.6;                   // along / across / tall
-          var lcx = cx - fx * 3.8, lby = ivy - 1.6 - fy * 3.8;
-          isoBox(g, lcx, lby + 1.4, 6.0, 7.0, 1.4, a, shade(deck, 0.96), null);   // low mount
-          isoBox(g, lcx, lby, LL, LW, LH, a, LBODY, null);                        // THE BLOCK
-          g.strokeStyle = 'rgba(20,24,30,.55)'; g.lineWidth = 0.7;               // one roof groove
-          g.beginPath();
-          g.moveTo(lcx + fx * LL / 2, lby - LH + fy * LL / 2); g.lineTo(lcx - fx * LL / 2, lby - LH - fy * LL / 2);
-          g.stroke();
-          var fU = LL / 2;                                     // the four mouths, forward face
+          var lcx = cx - fx * 2.4, lby = ivy - 1.6 - fy * 2.4;
+          isoBox(g, lcx, lby + 1.2, 3.2, 3.6, 2.6, a, HB, null);             // short pedestal
+          // the pod: seven slices, each stepped FORWARD, so the block leans
+          // up and ahead ~30 degrees the way the voxel's does; the middle
+          // slice is the blue band
+          var NS = 6, SL = 6.4, SW = 7.4, SH = 1.1, STEP = 0.95;   // ~40 deg of lean, as the render's
+          for (i2 = 0; i2 < NS; i2++)
+            isoBox(g, lcx + fx * STEP * i2, lby - 1.4 - SH * i2 + fy * STEP * i2, SL, SW, SH, a,
+                   (i2 === 3) ? panel : LBODY, null);
+          // the cell mouths on the raised forward face: two rows of three
+          var fU = SL / 2;
           for (i2 = 0; i2 < 2; i2++)
-            for (sg = -1; sg <= 1; sg += 2) {
-              var mv = sg * LW * 0.24, mz = LH * (0.70 - i2 * 0.42);
-              var c0 = [lcx + fx * fU + px * (mv + 1.25), lby + fy * fU + py * (mv + 1.25) - mz];
-              var c1 = [lcx + fx * fU + px * (mv - 1.25), lby + fy * fU + py * (mv - 1.25) - mz];
+            for (sg = -1; sg <= 1; sg++) {
+              var ii = 5 - i2 * 2;                                            // which slice's face (5 and 3 of 0..5)
+              var mx0 = lcx + fx * (STEP * ii + fU) + px * (sg * 2.3), my0 = lby - 1.4 - SH * ii + fy * (STEP * ii + fU) + py * (sg * 2.3);
+              g.fillStyle = '#171a20';
               g.beginPath();
-              g.moveTo(c0[0], c0[1]); g.lineTo(c1[0], c1[1]);
-              g.lineTo(c1[0], c1[1] - 2.0); g.lineTo(c0[0], c0[1] - 2.0);
-              g.closePath(); g.fillStyle = '#171a20'; g.fill();
-              g.fillStyle = '#6d7683';
-              g.beginPath();
-              g.ellipse((c0[0] + c1[0]) / 2, (c0[1] + c1[1]) / 2 - 1.0, 0.8, 0.65, 0, 0, 6.29); g.fill();
+              g.moveTo(mx0 + px * 0.9, my0 + py * 0.9); g.lineTo(mx0 - px * 0.9, my0 - py * 0.9);
+              g.lineTo(mx0 - px * 0.9, my0 - py * 0.9 - 1.7); g.lineTo(mx0 + px * 0.9, my0 + py * 0.9 - 1.7);
+              g.closePath(); g.fill();
             }
-          isoBox(g, lcx + px * (LW / 2 - 0.3) * nearS, lby - 2.2 + py * (LW / 2 - 0.3) * nearS,
-                 LL * 0.62, 0.6, 2.4, a, panel, null);                    // one owner plate, near flank
-          puck(lcx - fx * 3.6, lby - LH - fy * 3.6 + 0.4, 1.0, 1.4,          // sight
-               shade(LBODY, 0.9), shade(LBODY, 1.3), null);
           }
-          // NO HAZARD YELLOW. It was this project's invention, added to get
-          // the IFV off `colour.vehicleAchromatic` (it failed at .121), and
-          // `docs/ra2-ref/sprites/allied-ifv.png` settles that RA2 paints no
-          // third hue on this unit at all — grey-white body, blue remap, and
-          // nothing else. The metric's own note says what to do about that:
-          // "do not force paint onto a unit RA2 keeps grey, cite the
-          // reference and exempt it instead", and until this pass there WAS
-          // no reference to cite. `ACHROMATIC_EXEMPT` now carries `ifv`.
-          //
-          // It also cost more than a hue. A colour census of the sprite put
-          // 7.3% of its non-shadow ink in `#404010` — the dark olive edging
-          // of those two chevrons — which is a large share of a 45 px unit
-          // spent going DARK. Ours measured mean value 0.427 against the
-          // rip's 0.560 over the same mask; the yellow and its outline were
-          // the single biggest identifiable block of that gap.
         }
 
       } else if (kind === 'rhino') {

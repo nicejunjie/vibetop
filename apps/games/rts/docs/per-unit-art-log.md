@@ -4384,3 +4384,15 @@ whole length at ~20 degrees with the nose past the cab (`soviet-v3.png`).
 Chrono Miner: crate 6 -> 7. War Miner: crate 6.6 -> 10.4 over the rear half,
 a small red cab, smaller drum. Drone: wire-thin legs. MCV: rebuilt AGAIN
 from a 5x read — see design-decisions, "The MCV rebuilt twice in one day".
+
+## 2026-09-10 (eighth pass) — the IFV's four turrets from the voxel render
+
+The user pointed at `File:IFV Voxel Render.jpg` (in the repo as
+`allied-ifv-voxel.png`): "reproduce it exactly, and it changes shape when a
+different troop enters it". Four models rebuilt from it: ROCKET a chunky
+cell pod canted up ~40 degrees on a short pedestal (six stepped slices,
+the middle one the blue band, two rows of three mouths on the raised face);
+GUN a low pale dome with a navy band and a short black MG off the left cheek;
+ARM an articulated blue arm rising to a grey two-finger claw; TECH a pale
+hemisphere on a navy collar. Body lavender-grey with a navy flank stripe and
+a vent slot on the bonnet.
