@@ -135,10 +135,28 @@
                    : name + ' (' + n + ')';
   }
 
+  // Arrow-key step over a listing laid out `cols` tiles per line (1 = a flat
+  // list). Finder's rules: Left/Right walk the order, Up/Down move a whole
+  // line, the top and bottom lines hold rather than wrap, and Down from a line
+  // above a SHORT last line lands on its last tile instead of going nowhere.
+  // `i` is the current index (-1 = nothing selected: any arrow picks the first).
+  function gridStep(i, key, cols, n) {
+    if (n <= 0) return -1;
+    cols = Math.max(1, cols | 0);
+    if (i < 0) return 0;
+    if (i >= n) i = n - 1;
+    var line = Math.floor(i / cols), lastLine = Math.floor((n - 1) / cols);
+    if (key === 'ArrowLeft') return Math.max(0, i - 1);
+    if (key === 'ArrowRight') return Math.min(n - 1, i + 1);
+    if (key === 'ArrowUp') return line === 0 ? i : i - cols;
+    if (key === 'ArrowDown') return line === lastLine ? i : Math.min(n - 1, i + cols);
+    return i;
+  }
+
   var api = { OFF_RE: OFF_RE, IMG_RE: IMG_RE, VID_RE: VID_RE, AUD_RE: AUD_RE, ARC_RE: ARC_RE,
               KIND_MAP: KIND_MAP, normPath: normPath, relParent: relParent, fmtSize: fmtSize,
               fmtRel: fmtRel, iconFor: iconFor, kindOf: kindOf, fmtMode: fmtMode,
-              nextName: nextName };
+              nextName: nextName, gridStep: gridStep };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.FilesxCore = api;
 })(typeof self !== 'undefined' ? self : this);

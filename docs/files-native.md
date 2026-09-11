@@ -86,7 +86,9 @@ Listing with real image thumbnails; List / Grid / Gallery layouts (persisted);
 clickable sortable column headers plus a Sort menu; hidden-files toggle;
 symlink markers. Navigation: a home button, the full clickable breadcrumb, an
 editable path (accepting `~`, relative and `..`), Back/Forward, copy-path, and
-`Backspace` to go up. Selection: click / ctrl / shift on a mouse, tap-to-select
+`Backspace` to go up, the arrow keys (a whole line at a time in Grid/Gallery),
+and Finder's spacebar: `Space` Quick-Looks the selection in a panel that the
+arrows keep walking. Selection: click / ctrl / shift on a mouse, tap-to-select
 plus a Select mode on touch, Select all. Verbs: Open, Get Info (with volume
 usage and lazy checksums), Share, Open in Browser, Edit in Office, Rename,
 Move to… (destination picker), Copy / Cut / Paste (with progress), Download

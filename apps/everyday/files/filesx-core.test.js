@@ -142,3 +142,42 @@ test('a taken name gains a counter before the extension, not after', () => {
   assert.equal(C.nextName('README', 2), 'README (2)');
   assert.equal(C.nextName('.bashrc', 2), '.bashrc (2)');   // dot at 0 is not an extension
 });
+
+// -- gridStep: the arrow keys over a list or a grid of tiles ----------------
+
+test('a flat list: Up/Down and Left/Right both walk the order and hold at the ends', () => {
+  assert.equal(C.gridStep(2, 'ArrowDown', 1, 5), 3);
+  assert.equal(C.gridStep(2, 'ArrowUp', 1, 5), 1);
+  assert.equal(C.gridStep(2, 'ArrowRight', 1, 5), 3);
+  assert.equal(C.gridStep(2, 'ArrowLeft', 1, 5), 1);
+  assert.equal(C.gridStep(0, 'ArrowUp', 1, 5), 0);
+  assert.equal(C.gridStep(4, 'ArrowDown', 1, 5), 4);
+});
+
+test('a grid: Up/Down move a whole line, Left/Right one tile', () => {
+  // 4 per line, 10 tiles: lines are [0..3] [4..7] [8,9]
+  assert.equal(C.gridStep(5, 'ArrowUp', 4, 10), 1);
+  assert.equal(C.gridStep(1, 'ArrowDown', 4, 10), 5);
+  assert.equal(C.gridStep(5, 'ArrowRight', 4, 10), 6);
+  assert.equal(C.gridStep(4, 'ArrowLeft', 4, 10), 3);   // Left crosses to the previous line's end
+});
+
+test('a grid holds at the top and bottom lines instead of wrapping', () => {
+  assert.equal(C.gridStep(2, 'ArrowUp', 4, 10), 2);
+  assert.equal(C.gridStep(9, 'ArrowDown', 4, 10), 9);
+  assert.equal(C.gridStep(0, 'ArrowLeft', 4, 10), 0);
+  assert.equal(C.gridStep(9, 'ArrowRight', 4, 10), 9);
+});
+
+test('Down onto a short last line lands on its last tile, not nowhere', () => {
+  // from tile 7 (line 2, column 4) there is no tile 11: Finder picks tile 9
+  assert.equal(C.gridStep(7, 'ArrowDown', 4, 10), 9);
+  assert.equal(C.gridStep(6, 'ArrowDown', 4, 10), 9);
+});
+
+test('with nothing selected any arrow picks the first item; an empty listing stays empty', () => {
+  assert.equal(C.gridStep(-1, 'ArrowDown', 4, 10), 0);
+  assert.equal(C.gridStep(-1, 'ArrowUp', 1, 10), 0);
+  assert.equal(C.gridStep(-1, 'ArrowDown', 4, 0), -1);
+  assert.equal(C.gridStep(3, 'ArrowDown', 4, 0), -1);
+});

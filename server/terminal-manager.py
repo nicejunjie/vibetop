@@ -6042,7 +6042,13 @@ class Handler(http.server.BaseHTTPRequestHandler):
                          ".aac": "audio/aac", ".ogg": "audio/ogg",
                          ".oga": "audio/ogg", ".opus": "audio/ogg",
                          ".wav": "audio/wav", ".flac": "audio/flac",
-                         ".weba": "audio/webm"}.get(ext)
+                         ".weba": "audio/webm",
+                         # video the Files app's Quick Look plays in a plain
+                         # <video> (containers browsers demux themselves; the
+                         # rest go through /api/video/media's remux)
+                         ".mp4": "video/mp4", ".m4v": "video/mp4",
+                         ".webm": "video/webm", ".mov": "video/quicktime",
+                         ".ogv": "video/ogg"}.get(ext)
                         or _IMAGE_MIME.get(ext) or "application/octet-stream")
             self.send_response(200)
             self.send_header("Content-Type", mime)

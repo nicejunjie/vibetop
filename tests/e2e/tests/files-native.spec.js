@@ -231,4 +231,72 @@ test.describe('native Files — layout and thumbnails', () => {
     await expect(page.locator('.row')).not.toHaveCount(0, { timeout: 15_000 });
     await expect(page.locator('#main.gv')).toHaveCount(0);
   });
+
+  // Finder's spacebar. Space on a selection opens a preview PANEL (not the
+  // editor, not a folder change); the arrows keep walking the folder with the
+  // panel open and the selection follows; Space again closes, leaving the
+  // selection where the walk ended.
+  test('Space quick-looks the selection; arrows walk the folder while it stays open', async ({ page }) => {
+    await openFiles(page);
+    await rowNamed(page, 'notes.txt').click();
+    await page.keyboard.press('Space');
+    await expect(page.locator('#ql.open')).toBeVisible();
+    await expect(page.locator('#ql-name')).toHaveText('notes.txt');
+    await expect(page.locator('#ql-body')).toContainText('hello from the e2e fixture');
+    await expect(page.locator('#ed.open')).toHaveCount(0);            // a preview, not the editor
+
+    const idxOf = async (name) => +(await rowNamed(page, name).getAttribute('data-i'));
+    const nextName = (await page.locator('.row').nth((await idxOf('notes.txt')) + 1).locator('.nm').textContent()).trim();
+    await page.keyboard.press('ArrowDown');
+    await expect(page.locator('#ql-name')).toHaveText(nextName);
+    await expect(rowNamed(page, nextName)).toHaveClass(/\bsel\b/);
+    await expect(rowNamed(page, 'notes.txt')).not.toHaveClass(/\bsel\b/);
+    await page.keyboard.press('ArrowUp');
+    await expect(page.locator('#ql-name')).toHaveText('notes.txt');
+
+    await page.keyboard.press('Space');
+    await expect(page.locator('#ql.open')).toHaveCount(0);
+    await expect(rowNamed(page, 'notes.txt')).toHaveClass(/\bsel\b/);
+    expect(page.url()).toContain(encodeURIComponent(DIR));           // still in the same folder
+  });
+
+  test('Grid: Left/Right step one tile, Up/Down move a whole line', async ({ page }) => {
+    await openFiles(page);
+    // Enough tiles to wrap into at least two lines at any desktop width.
+    await page.evaluate(async (dir) => {
+      await fetch('/api/fs/op', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ op: 'mkdir', path: dir }) });
+      for (let i = 0; i < 24; i++) {
+        await fetch('/api/fs/upload?path=' + encodeURIComponent(dir + '/tile-' + String(i).padStart(2, '0') + '.txt'),
+          { method: 'POST', body: 'x\n' });
+      }
+    }, DIR + '/grid');
+    await page.goto('/filesx.html#' + encodeURIComponent(DIR + '/grid'));
+    await page.waitForSelector('.row', { timeout: 20_000 });
+    await page.locator('#layoutbtn').click();
+    await page.locator('.morepop button', { hasText: 'Grid' }).click();
+    await expect(page.locator('#main.gv')).toHaveCount(1);
+
+    // Columns as the layout actually wrapped them.
+    const cols = await page.evaluate(() => {
+      const els = document.querySelectorAll('.row[data-i]');
+      let c = 0; for (const r of els) { if (r.offsetTop !== els[0].offsetTop) break; c++; }
+      return c;
+    });
+    expect(cols).toBeGreaterThan(1);
+    expect(cols).toBeLessThan(24);
+    const selIdx = () => page.locator('.row.sel').getAttribute('data-i');
+
+    await page.locator('.row[data-i="0"]').click();
+    await page.keyboard.press('ArrowRight');
+    expect(await selIdx()).toBe('1');
+    await page.keyboard.press('ArrowLeft');
+    expect(await selIdx()).toBe('0');
+    await page.keyboard.press('ArrowUp');                              // top line holds
+    expect(await selIdx()).toBe('0');
+    await page.keyboard.press('ArrowDown');                            // a whole line down
+    expect(await selIdx()).toBe(String(cols));
+    await page.keyboard.press('ArrowUp');
+    expect(await selIdx()).toBe('0');
+  });
 });
