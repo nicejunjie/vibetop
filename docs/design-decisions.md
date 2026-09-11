@@ -12300,8 +12300,12 @@ speed is now measured so crossing the panel is one continuous sample). Over a
 panel the band is 14 px with an 8 px dead inner lip, so the outermost cameo
 column and the bottom of a command button (6 px from the edge) scroll nothing
 and only the outer 6 px do; the bare left edge keeps the wide 44 px band with
-its live lip. `clampCam()` also grew from a fixed 260 px to half a viewport of
-void on every side, so any map edge can be brought to the centre of the view.
+its live lip. `clampCam()` also changed from a fixed 260 px world margin to a
+clamp in GRID space a few cells past each of the diamond's four edges, so any
+map edge can be brought to the centre of the view with void beyond it. The
+first cut clamped the bounding BOX half a viewport out; the screenshot at a
+box corner was a full black screen, because a diamond's box corners hold no
+terrain at all.
 
 **Rejected.** A uniform 44 px band at the window edge: over the 176 px sidebar
 it covers the right cameo column, and over the 55 px command bar most of the
