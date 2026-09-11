@@ -32734,10 +32734,29 @@
   // rightOrder, whose name is now historical); the RIGHT button only looks
   // around (drag) and, without moving, deselects. Modifiers as before: Shift
   // adds to a selection or queues an order, Ctrl force-fires.
+  // A left click on one of your OWN things is a SELECT — unless the selection
+  // has an order for it, which the cursor already announces: ENTER over a
+  // transport with room, a garrisonable block, a Tesla Coil under a Trooper,
+  // a damaged building under an Engineer, a refinery under a miner; ATTACK
+  // for Crazy Ivan. The same tests as pickCursor's own-target branches, so
+  // the click does what the cursor showed. Before this, "select own" won and
+  // troops could not be put into an IFV at all (2026-09-11). Shift still
+  // ADDS the own unit to the selection, as it always did.
+  function ownTargetOrder(e, units) {
+    if (!e || e.dead || e.p !== ME || !units.length) return false;
+    if (!e.bomb && units.some(function (u) { return UNITS[u.type].ivan; })) return true;
+    if (e.kind === 'u') return !!paxCapOf(e) && units.some(function (u) { return u !== e && canBoard(G, e, u); });
+    if (garrisonable(G, e, ME) && units.some(function (u) { return canOccupy(u.type); })) return true;
+    if (e.type === 'tesla' && units.some(function (u) { return UNITS[u.type].coiler; })) return true;
+    if (e.hp < e.maxhp && !BLDS[e.type].hut && units.some(function (u) { return UNITS[u.type].capture; })) return true;
+    if (e.type === 'refinery' && units.some(function (u) { return isHarv(u); })) return true;
+    return false;
+  }
   function leftClick(px, py, shift, ctrl) {
     var e = pickAt(px, py);
+    var mine = sel.filter(function (u) { return u.kind === 'u' && u.p === ME && !u.dead; });
     var own = sel.some(function (u) { return u.p === ME && !u.dead; });
-    if (e && e.p === ME && !(ctrl && own)) { clickSelect(px, py, shift); return; }
+    if (e && e.p === ME && !(ctrl && own) && !(!shift && ownTargetOrder(e, mine))) { clickSelect(px, py, shift); return; }
     if (own) { rightOrder(px, py, shift, ctrl); return; }
     clickSelect(px, py, shift);
   }
@@ -37443,6 +37462,7 @@
     resumeFlag: function () { return lsGet(RESUME_KEY); },
     setResumeFlag: function (v) { lsSet(RESUME_KEY, v); },
     world: function () { return G; },
+    ownTargetOrder: ownTargetOrder,
     plate: function (k) { return mapPlate(k); },
     resumeWanted: resumeWanted,
     unclose: function () { closedByUser = false; },

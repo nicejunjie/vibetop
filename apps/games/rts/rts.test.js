@@ -6349,3 +6349,20 @@ test("building a map thumbnail leaves the running match's lockstep client in pla
   assert.strictEqual(N.active().g, H.world(), "still bound to the running world");
   assert.equal(H.saveBlob().tick, tick, "nothing stepped");
 });
+
+// A left click on an own unit selects it — unless the selection has an order
+// for it. "Can't let troops enter the IFV": the select-own rule pre-empted the
+// enter order the cursor was already showing.
+test("a left click on an own transport with room orders the selected infantry aboard", () => {
+  const H = W.__rtsTest;
+  H.startWith(9931, "normal", "frontier");
+  const ifv = H.spawn("ifv", 0, 20, 20), gi = H.spawn("rifle", 0, 21, 20), tank = H.spawn("lancer", 0, 22, 20);
+  assert.equal(H.ownTargetOrder(ifv, [gi]), true, "GI + IFV with room: ENTER");
+  assert.equal(H.ownTargetOrder(tank, [gi]), false, "a Grizzly carries nobody: SELECT");
+  assert.equal(H.ownTargetOrder(ifv, [tank]), false, "a tank does not fit: SELECT");
+  assert.equal(H.ownTargetOrder(ifv, []), false, "nothing selected: SELECT");
+  assert.equal(H.ownTargetOrder(ifv, [ifv]), false, "the IFV itself: SELECT");
+  assert.ok(H.board(ifv, gi), "fill it");
+  const gi2 = H.spawn("rifle", 0, 21, 21);
+  assert.equal(H.ownTargetOrder(ifv, [gi2]), false, "a full IFV: SELECT");
+});
