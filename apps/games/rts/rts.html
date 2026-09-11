@@ -36220,6 +36220,15 @@
     if (thumbPlate[k]) return thumbPlate[k];
     var o = mkCanvas(THUMB_W, THUMB_W), g = o.g;
     g.fillStyle = '#0b0e14'; g.fillRect(0, 0, THUMB_W, THUMB_W);
+    // newState is a MATCH constructor: it attaches a fresh lockstep client
+    // (NET.active), resets the spatial hash and path queue, and reseeds the
+    // RNG. A thumbnail must leave the running match's client and caches
+    // exactly as they were — enterLoaded builds this row AFTER a restore,
+    // and the thumb's client silently replaced the match's, so every order
+    // after a resume was scheduled on a client nobody stepped (2026-09-11:
+    // "can select a unit but can't make it move or build").
+    netStash();
+    var prevNet = NET.active, prevG = G;
     try {
       var st = newState(THUMB_SEED, 'normal', k), x, y;
       for (y = 0; y < MAP; y++) for (x = 0; x < MAP; x++) {
@@ -36228,6 +36237,7 @@
       }
       thumbStart[k] = st.start.map(function (sp) { return { x: sp.x, y: sp.y }; });
     } catch (e) { thumbStart[k] = []; }
+    finally { if (prevNet) netLoad(prevNet); else { NET.active = null; G = prevG; } }
     thumbPlate[k] = o.c;
     return o.c;
   }
@@ -37434,6 +37444,8 @@
     autosave: function () { autosaveForReload(); },
     resumeFlag: function () { return lsGet(RESUME_KEY); },
     setResumeFlag: function (v) { lsSet(RESUME_KEY, v); },
+    world: function () { return G; },
+    plate: function (k) { return mapPlate(k); },
     resumeWanted: resumeWanted,
     unclose: function () { closedByUser = false; },
     setState: function (st) { state = st; },

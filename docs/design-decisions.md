@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_275 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_276 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
 - [Scheduled terminal messages ("resume when the token limit resets")](#scheduled-terminal-messages-resume-when-the-token-limit-resets)
@@ -298,6 +298,7 @@ _275 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [RTS: a resumed or loaded match was dead to clicks — the selection flag rode along in the save (2026-09-11)](#rts-a-resumed-or-loaded-match-was-dead-to-clicks-the-selection-flag-rode-along-in-the-save-2026-09-11)
 - [Browser: a tab torn off its strip followed the cursor forever — the release happened outside the frame (2026-09-11)](#browser-a-tab-torn-off-its-strip-followed-the-cursor-forever-the-release-happened-outside-the-frame-2026-09-11)
 - [RTS: a closed page or app starts fresh; only a reload resumes (2026-09-11)](#rts-a-closed-page-or-app-starts-fresh-only-a-reload-resumes-2026-09-11)
+- [RTS: after a resume, units selected but never obeyed — the map thumbnails stole the lockstep client (2026-09-11)](#rts-after-a-resume-units-selected-but-never-obeyed-the-map-thumbnails-stole-the-lockstep-client-2026-09-11)
 
 <!-- END TOC -->
 
@@ -12401,4 +12402,27 @@ there is no entry — an old browser); anything else is a fresh start.
 **Rejected.** A `beforeunload` heuristic on the unload side; the browser gives
 no reload-vs-close bit there, and sessionStorage is cleared on a tab close
 but SURVIVES a reload of an iframe's parent only sometimes.
+
+## RTS: after a resume, units selected but never obeyed — the map thumbnails stole the lockstep client (2026-09-11)
+
+**Symptom.** (user) "after browser refresh, my cursor can select a unit, or a
+building item, but can't click to let it build or let the unit move." Slot
+loads from the menu were fine.
+
+**Cause.** Traced with an instrumented page: the order was emitted, but
+`NET.active.g !== G` — scheduled on a client nobody stepped. `mapPlate()`
+draws each map thumbnail from `newState(THUMB_SEED, …)`, and `newState` is a
+match constructor: it calls `netAttach`, which installs a fresh client and
+resets the spatial hash and path queue. `enterLoaded` builds the map row
+AFTER the restore, so on a resume the last thumbnail's client replaced the
+match's. From the menu the thumbnails are already cached, which is why only
+the refresh path showed it.
+
+**Fix.** `mapPlate` brackets its `newState` with `netStash()` / `netLoad(prev)`
+(or `NET.active = null` when there was none), restoring client, caches, RNG
+seed and `G`. Unit test: building a plate mid-match leaves the same client
+object bound to the same world.
+
+**Rejected.** Making `newState` not attach: every real caller relies on it,
+and the thumbnail is the only non-match use.
 

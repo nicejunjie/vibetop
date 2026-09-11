@@ -6327,3 +6327,19 @@ test("resume follows the navigation type: reload yes, a fresh open no, the Optio
   nav("reload");   H.setResumeFlag("0"); assert.equal(H.resumeWanted(), false);
   delete W.performance.getEntriesByType;
 });
+
+// The load card's map thumbnails are built with the match constructor, which
+// installs a fresh lockstep client. Built AFTER a restore (enterLoaded), that
+// client replaced the match's and no order was ever applied again.
+test("building a map thumbnail leaves the running match's lockstep client in place", () => {
+  const H = W.__rtsTest, N = W.__rtsNet;
+  H.startWith(9921, "normal", "frontier");
+  H.step(30);
+  const before = N.active(), tick = H.saveBlob().tick;
+  assert.strictEqual(before.g, H.world(), "sanity: the client owns the world");
+  H.plate("frontier");
+  H.plate("frontier");                         // cached path too
+  assert.strictEqual(N.active(), before, "same client object");
+  assert.strictEqual(N.active().g, H.world(), "still bound to the running world");
+  assert.equal(H.saveBlob().tick, tick, "nothing stepped");
+});
