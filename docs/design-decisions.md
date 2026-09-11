@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_277 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_278 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
 - [Scheduled terminal messages ("resume when the token limit resets")](#scheduled-terminal-messages-resume-when-the-token-limit-resets)
@@ -300,6 +300,7 @@ _277 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [RTS: a closed page or app starts fresh; only a reload resumes (2026-09-11)](#rts-a-closed-page-or-app-starts-fresh-only-a-reload-resumes-2026-09-11)
 - [RTS: after a resume, units selected but never obeyed — the map thumbnails stole the lockstep client (2026-09-11)](#rts-after-a-resume-units-selected-but-never-obeyed-the-map-thumbnails-stole-the-lockstep-client-2026-09-11)
 - [RTS: troops could not enter an IFV — "select own" pre-empted the enter order (2026-09-11)](#rts-troops-could-not-enter-an-ifv-select-own-pre-empted-the-enter-order-2026-09-11)
+- [RTS: a player's attack order has exclusive focus; the AI's keeps the loose rule (2026-09-11)](#rts-a-players-attack-order-has-exclusive-focus-the-ais-keeps-the-loose-rule-2026-09-11)
 
 <!-- END TOC -->
 
@@ -12462,4 +12463,28 @@ no room, a tank that cannot board, the IFV itself.
 
 **Rejected.** Reading the cursor kind itself: pickCursor is hover-state
 bound (mouse, hoverTile, drag) and not callable for an arbitrary click.
+
+## RTS: a player's attack order has exclusive focus; the AI's keeps the loose rule (2026-09-11)
+
+**Symptom.** (user) "can't fully control the attack target — sometimes the
+units focus on the first target I assigned, sometimes they attack the things
+on the way and don't move to the final target."
+
+**Cause.** The combat step let anything already in range pre-empt the
+ordered target ("an attack order says where to GO, not what to ignore on the
+way"), written so the AI's waves would answer a turret they marched past.
+For the player it meant a tank told to hit a far building parked on the
+nearest conscript, and a new order changed nothing while the old target
+stayed in range — both of the reported symptoms.
+
+**Fix.** `orderAttack(..., focus)`: orders that arrive through the command
+layer (every player order, local or peer) carry `focus: 1`, and the combat
+step then skips `findTarget` and the Guardian's braced auto-target, so the
+unit fires only at the named target and otherwise advances. The AI sets its
+orders directly and keeps the old rule. Unit test: mid-map, a bystander in
+range and the named target out of range — focus leaves the bystander at
+full health and closes the distance; the AI-style order shoots the bystander.
+
+**Rejected.** Focus for everyone: the AI's waves would march past live
+defences again, the exact regression the loose rule was written for.
 
