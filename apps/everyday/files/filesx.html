@@ -567,6 +567,34 @@
   }
   .pv-body.msg { display: flex; align-items: center; justify-content: center; color: #6b7488; font-family: system-ui, sans-serif; font-size: 13px; white-space: normal; }
 
+  /* ---- Quick Look (Space): Finder's spacebar preview. A panel OVER the
+     listing rather than a full-screen overlay, so the selection behind it
+     stays visible and the arrow keys walk the folder while the panel updates
+     in place; closing leaves you on whatever you last looked at. ---- */
+  .ql { position: fixed; inset: 0; z-index: 11; display: none; align-items: center; justify-content: center; background: #0e1117b8; padding: 18px; }
+  .ql.open { display: flex; }
+  .ql-panel {
+    display: flex; flex-direction: column; width: min(960px, 100%); height: min(760px, 100%);
+    background: #161b22; border: 1px solid #2a3040; border-radius: 12px; overflow: hidden;
+    box-shadow: 0 24px 64px #0009; outline: none;
+  }
+  .ql-body { flex: 1; min-height: 0; display: flex; align-items: center; justify-content: center; background: #0e1117; overflow: auto; }
+  .ql-body img, .ql-body video { max-width: 100%; max-height: 100%; object-fit: contain; }
+  .ql-body audio { width: min(480px, 90%); }
+  .ql-body iframe { align-self: stretch; flex: 1; min-height: 0; width: 100%; border: 0; background: #161b22; }
+  .ql-body pre {
+    align-self: stretch; flex: 1; min-width: 0; margin: 0; padding: 14px 18px; overflow: auto;
+    font: 12.5px/1.55 ui-monospace, SFMono-Regular, Menlo, monospace; color: #d4d8de; white-space: pre; tab-size: 4;
+  }
+  .ql-msg { display: flex; flex-direction: column; align-items: center; gap: 12px; color: #8a93a6; font: 13px system-ui, sans-serif; text-align: center; padding: 24px; }
+  .ql-msg .big { font-size: 72px; line-height: 1; }
+  .ql-foot { flex-shrink: 0; padding: 4px 12px; font: 11.5px system-ui, sans-serif; color: #6b7488; background: #161b22; border-top: 1px solid #2a3040; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  @media (max-width: 736px) {
+    .ql { padding: 0; }
+    .ql-panel { width: 100%; height: 100%; border-radius: 0; border: 0; }
+    .ql-foot { display: none; }                      /* no keyboard, no key hints */
+  }
+
   /* ---- editor overlay (editable text ≤1MB; header/✕ reuse .pv-head) ---- */
   .ed { position: fixed; inset: 0; z-index: 10; display: none; flex-direction: column; background: #0e1117; }
   .ed.open { display: flex; }
@@ -865,6 +893,19 @@
     <div class="ed-foot"><span id="ed-size"></span><span id="ed-pos"></span></div>
   </div>
 
+  <div class="ql" id="ql" role="dialog" aria-modal="true" aria-label="Quick Look">
+    <div class="ql-panel" id="ql-panel" tabindex="-1">
+      <div class="pv-head">
+        <span class="pv-name" id="ql-name"></span>
+        <span class="pv-info" id="ql-info"></span>
+        <button id="ql-open" title="Open (Enter)">Open</button>
+        <button id="ql-close" title="Close (Space / Esc)">✕</button>
+      </div>
+      <div class="ql-body" id="ql-body"></div>
+      <div class="ql-foot">Space or Esc closes · ← → ↑ ↓ step through the folder · Enter opens</div>
+    </div>
+  </div>
+
   <div class="pdfov" id="pdfov" role="dialog" aria-modal="true" aria-label="PDF viewer">
     <div class="pv-head">
       <span class="pv-name" id="pdf-name"></span>
@@ -890,7 +931,8 @@
   // Path/format/type helpers live in filesx-core.js (pure, tested). Bound to the
   // same local names so the call sites below read exactly as they always did.
   var OFF_RE = FilesxCore.OFF_RE, IMG_RE = FilesxCore.IMG_RE, VID_RE = FilesxCore.VID_RE,
-      AUD_RE = FilesxCore.AUD_RE, ARC_RE = FilesxCore.ARC_RE, KIND_MAP = FilesxCore.KIND_MAP;
+      AUD_RE = FilesxCore.AUD_RE, ARC_RE = FilesxCore.ARC_RE, KIND_MAP = FilesxCore.KIND_MAP,
+      gridStep = FilesxCore.gridStep;
 (function() {
   // Native Files view (Files-native phases 1-4a — docs/files-native.md).
   // Loaded by files.html's tab wrapper with #/abs/path; listing/stat/read and
@@ -1418,6 +1460,7 @@
     });
     mainEl.appendChild(frag);
     if (searchOpen) updateScope();
+    qlRebind();                              // a refresh may have re-sorted the rows
     if (pendingFocusName) {
       for (var i = 0; i < rows.length; i++) {
         if (rows[i].name === pendingFocusName) { setOnly(i); break; }
@@ -1467,6 +1510,7 @@
     var my = ++seq;
     var st = keepScroll ? mainEl.scrollTop : 0;
     if (p !== path) {
+      qlClose();                            // a Quick Look belongs to one folder
       clearSel(true);
       filterText = '';                      // a filter belongs to one folder
       if (searchOpen && !searchActive) sqEl.value = '';
@@ -2414,7 +2458,7 @@
   function dropAllowed() {
     return !!path && !uploading && !modalOpen && !searchActive &&
            !edEl.classList.contains('open') && !pvEl.classList.contains('open') &&
-           !pdfovEl.classList.contains('open');
+           !pdfovEl.classList.contains('open') && !qlIsOpen();
   }
   function hideDropz() { dragDepth = 0; dropzEl.classList.remove('on'); }
   document.addEventListener('dragenter', function(ev) {
@@ -2500,6 +2544,14 @@
   document.addEventListener('keydown', function(ev) {
     if (modalOpen) return;                          // the choice card handles keys
     var mod = ev.ctrlKey || ev.metaKey;
+    if (qlIsOpen()) {
+      // Finder's spacebar panel: Space/Esc close, Enter opens for real, and
+      // the arrows keep walking the folder (the selection follows underneath).
+      if (ev.key === 'Escape' || ev.key === ' ') { ev.preventDefault(); qlClose(); }
+      else if (ev.key === 'Enter') { ev.preventDefault(); qlOpenEntry(); }
+      else if (ev.key.indexOf('Arrow') === 0) { ev.preventDefault(); qlStep(ev.key); }
+      return;
+    }
     if (pvEl.classList.contains('open')) {
       if (ev.key === 'Escape') { ev.preventDefault(); closePreview(); }
       return;
@@ -2534,10 +2586,9 @@
       syncSelDom();
       return;
     }
-    if (ev.key === ' ' && selCount === 1) {          // Quick Look
+    if (ev.key === ' ' && selCount) {                // Quick Look (Finder's spacebar)
       ev.preventDefault();
-      var qe = selEntry();
-      if (qe) openEntry(qe);
+      quickLook(qlTarget());
       return;
     }
     // No Ctrl+Shift+N / Ctrl+Shift+C here: the browser owns both (incognito
@@ -2595,8 +2646,12 @@
       }
       return;
     }
-    if (ev.key === 'ArrowDown') { ev.preventDefault(); setOnly(Math.min(rows.length - 1, anchor + 1)); }
-    else if (ev.key === 'ArrowUp') { ev.preventDefault(); setOnly(Math.max(0, anchor < 0 ? 0 : anchor - 1)); }
+    if (ev.key.indexOf('Arrow') === 0) {
+      // Up/Down move a whole line of tiles in Grid/Gallery (one row in List);
+      // Left/Right always step through the order. The rules are gridStep's.
+      ev.preventDefault();
+      setOnly(gridStep(anchor, ev.key, gridCols(), rows.length));
+    }
     else if (ev.key === 'Enter' && anchor >= 0 && rows[anchor]) { ev.preventDefault(); openEntry(rows[anchor]); }
   });
 
@@ -2635,6 +2690,148 @@
     audEl.hidden = true;
   }
   document.getElementById('aud-x').addEventListener('click', stopAudio);
+
+  // ---- Quick Look: Space previews the selection in place, like Finder's
+  //      spacebar. Images, video, audio, PDF and Office render natively; text
+  //      shows its first 256 KB; anything else shows what it is. The arrows
+  //      step through the folder while the panel is open, moving the listing's
+  //      selection with them, so closing leaves you on the last thing you saw. ----
+  var qlEl = document.getElementById('ql'), qlPanel = document.getElementById('ql-panel');
+  var qlNameEl = document.getElementById('ql-name'), qlInfoEl = document.getElementById('ql-info');
+  var qlBodyEl = document.getElementById('ql-body');
+  var qlSeq = 0, qlReturnFocus = null, qlIdx = -1;
+  var QL_TEXT_MAX = 262144;
+  var QL_IMG_RE = /\.(png|jpe?g|gif|webp|bmp|svg|avif|ico)$/i;   // what /api/file/image serves
+  var QL_VID_RE = /\.(mp4|m4v|webm|mov|ogv)$/i;                  // containers a <video> plays as-is
+  function qlIsOpen() { return qlEl.classList.contains('open'); }
+  // Tiles per line in Grid/Gallery, read off the layout itself — the tiles
+  // wrap by width, so counting the first line is the only honest answer. 1 in List.
+  function gridCols() {
+    if (!mainEl.classList.contains('gv')) return 1;
+    var els = mainEl.querySelectorAll('.row[data-i]');
+    if (!els.length) return 1;
+    var top = els[0].offsetTop, c = 0;
+    for (var i = 0; i < els.length; i++) { if (els[i].offsetTop !== top) break; c++; }
+    return c || 1;
+  }
+  // What Space previews: the anchor row when it is selected, else the first selected.
+  function qlTarget() {
+    if (anchor >= 0 && rows[anchor] && selected[rows[anchor].name]) return anchor;
+    for (var i = 0; i < rows.length; i++) if (selected[rows[i].name]) return i;
+    return -1;
+  }
+  function quickLook(i) {
+    if (!rows[i]) return;
+    if (!qlIsOpen()) {
+      qlReturnFocus = document.activeElement;
+      qlEl.classList.add('open');
+    }
+    qlIdx = i;
+    qlRender(rows[i]);
+    qlPanel.focus();                        // keys go to the panel, not a button
+  }
+  function qlStop() {
+    var m = qlBodyEl.querySelector('video, audio');
+    if (m) { try { m.pause(); m.removeAttribute('src'); m.load(); } catch (e) {} }
+    qlBodyEl.innerHTML = '';
+  }
+  function qlMsg(icon, text) {
+    var box = el('div', 'ql-msg');
+    box.appendChild(el('div', 'big', icon));
+    box.appendChild(el('div', null, text));
+    return box;
+  }
+  function qlRender(e) {
+    var seq = ++qlSeq, abs = joinPath(path, e.name), name = e.name;
+    qlNameEl.textContent = name; qlNameEl.title = abs;
+    qlInfoEl.textContent = e.isDir ? 'Folder' : kindOf(name, false) + ' · ' + fmtSize(e.size);
+    qlStop();
+    var body = qlBodyEl;
+    function fallback(text) {
+      if (seq !== qlSeq) return;
+      qlStop();
+      body.appendChild(qlMsg(iconFor(name, e.isDir), text || 'No preview for this file — Enter opens it.'));
+    }
+    if (e.isDir) {
+      body.appendChild(qlMsg(iconFor(name, true), 'Enter opens this folder.'));
+      api('/api/fs/list?path=' + encodeURIComponent(abs)).then(function(d) {
+        if (seq !== qlSeq || !d || !d.ok) return;
+        var n = (d.entries || []).length;
+        qlInfoEl.textContent = 'Folder · ' + n + ' item' + (n === 1 ? '' : 's');
+      }).catch(function() {});
+      return;
+    }
+    if (QL_IMG_RE.test(name)) {
+      var im = document.createElement('img');
+      im.alt = name; im.decoding = 'async';
+      im.src = '/api/file/image?path=' + encodeURIComponent(abs);
+      im.onerror = function() { fallback('Couldn’t load this image.'); };
+      body.appendChild(im);
+      return;
+    }
+    var isVid = QL_VID_RE.test(name);
+    if (isVid || AUD_RE.test(name)) {
+      var m = document.createElement(isVid ? 'video' : 'audio');
+      m.controls = true; m.autoplay = true; m.preload = 'metadata';
+      m.src = '/api/fs/download?inline=1&path=' + encodeURIComponent(abs);
+      m.onerror = function() {
+        fallback(isVid ? 'This video needs the full player — Enter opens it.' : 'Couldn’t play this audio.');
+      };
+      body.appendChild(m);
+      return;
+    }
+    if (VID_RE.test(name)) { fallback('This format needs the full player — Enter opens it.'); return; }
+    if (/\.pdf$/i.test(name) || OFF_RE.test(name)) {
+      var f = document.createElement('iframe');
+      f.title = name;
+      f.src = /\.pdf$/i.test(name)
+        ? '/api/fs/download?inline=1&path=' + encodeURIComponent(abs)
+        : '/api/office/preview?path=' + encodeURIComponent(abs.replace(/^\//, '')) + '#toolbar=0';
+      body.appendChild(f);
+      return;
+    }
+    if (ARC_RE.test(name) || e.size > 32 * 1048576) { fallback(); return; }
+    body.appendChild(el('div', 'ql-msg', 'Loading…'));
+    api('/api/fs/read?path=' + encodeURIComponent(abs) + '&max=' + QL_TEXT_MAX).then(function(d) {
+      if (seq !== qlSeq) return;
+      if (!d || !d.ok) {
+        fallback(d && d.code === 'eperm' ? 'You don’t have permission to read this file.' : 'Couldn’t read this file.');
+        return;
+      }
+      if (d.binary) { fallback(); return; }
+      qlStop();
+      body.appendChild(el('pre', null, d.text || ''));
+      if (d.truncated) qlInfoEl.textContent += ' · first ' + fmtSize(QL_TEXT_MAX);
+    }).catch(function() { fallback('Couldn’t read this file.'); });
+  }
+  function qlClose() {
+    if (!qlIsOpen()) return;
+    qlEl.classList.remove('open');
+    qlStop();
+    qlIdx = -1;
+    if (qlReturnFocus && qlReturnFocus.focus) { try { qlReturnFocus.focus(); } catch (e) {} }
+  }
+  function qlOpenEntry() {
+    var e = rows[qlIdx];
+    qlClose();
+    if (e) openEntry(e);
+  }
+  function qlStep(key) {
+    var j = gridStep(qlIdx, key, gridCols(), rows.length);
+    if (j < 0 || j === qlIdx) return;
+    setOnly(j);
+    quickLook(j);
+  }
+  // After a re-render the row under the panel may have moved or gone.
+  function qlRebind() {
+    if (!qlIsOpen()) return;
+    var n = qlNameEl.textContent, k = -1;
+    for (var i = 0; i < rows.length; i++) if (rows[i].name === n) { k = i; break; }
+    if (k < 0) qlClose(); else qlIdx = k;
+  }
+  document.getElementById('ql-close').addEventListener('click', qlClose);
+  document.getElementById('ql-open').addEventListener('click', qlOpenEntry);
+  qlEl.addEventListener('click', function(ev) { if (ev.target === qlEl) qlClose(); });
 
   // ---- read-only preview overlay (binary / >1MB / unreadable) ----
   var pvNameEl = document.getElementById('pv-name');
@@ -3639,6 +3836,7 @@
     var items = [];
     if (any) {
       if (one) items.push({ label: e1 && e1.isDir ? 'Open' : 'Open', run: function() { if (e1) openEntry(e1); } });
+      if (one) items.push({ label: 'Quick Look', run: function() { quickLook(qlTarget()); } });
       if (e1 && !e1.isDir) items.push({ label: 'Open in Browser', run: openInBrowserAct });
       if (e1 && OFF_RE.test(e1.name)) items.push({ label: 'Edit in Office', run: officeEditAct });
       items.push({ sep: true });

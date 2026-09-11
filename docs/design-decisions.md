@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_269 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_270 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
 - [Scheduled terminal messages ("resume when the token limit resets")](#scheduled-terminal-messages-resume-when-the-token-limit-resets)
@@ -292,6 +292,7 @@ _269 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [The refinery's dock was drawn where nothing could click it](#the-refinerys-dock-was-drawn-where-nothing-could-click-it)
 - [The Codex strip read this machine's logs and could not see the account (2026-09-10)](#the-codex-strip-read-this-machines-logs-and-could-not-see-the-account-2026-09-10)
 - [Cloudflare Access expiry left an open desktop blank (2026-09-10)](#cloudflare-access-expiry-left-an-open-desktop-blank-2026-09-10)
+- [Files: Quick Look is a panel over the listing, and grid columns are read off the layout (2026-09-11)](#files-quick-look-is-a-panel-over-the-listing-and-grid-columns-are-read-off-the-layout-2026-09-11)
 
 <!-- END TOC -->
 
@@ -12227,3 +12228,39 @@ the IFV). The same nesting is why the eighth pass's dome read as white.
 what keep the rest of the roster cheap and consistent, and the IFV is the
 one unit whose reference has two canted volumes.
 
+## Files: Quick Look is a panel over the listing, and grid columns are read off the layout (2026-09-11)
+
+**Symptom.** The native Files app had a "Quick Look" comment on the Space key
+that just ran Open — a folder changed directory, a text file opened the
+editor, an image left for the viewer overlay. Nothing you could flick
+through. The arrow keys only walked up and down, so in Grid and Gallery
+"down" jumped one tile sideways and Left/Right did nothing.
+
+**Cause.** Space was wired before any preview surface existed, and the arrows
+were written for the list, where index ± 1 is the whole story.
+
+**Fix.** Finder's scheme, exactly: Space on a selection opens a Quick Look
+*panel* (`#ql`, `quickLook()` in `filesx.html`) that renders the file in
+place — images via `/api/file/image`, browser-playable video and audio via
+`/api/fs/download?inline=1` (the manager's inline mime map gained mp4 / m4v /
+webm / mov / ogv for this), PDF and Office in an iframe, text through
+`/api/fs/read` capped at 256 KB, and a kind-and-size card for the rest.
+While it is open the arrows keep walking the folder and the listing's
+selection follows underneath, Enter opens for real, Space or Esc close. The
+panel is deliberately not a full-screen overlay like the editor: the
+listing stays visible around it, so you can see the selection move.
+
+The arrows share one pure rule, `gridStep()` in `filesx-core.js` (unit-tested):
+Left/Right step the order, Up/Down move a whole line, the top and bottom
+lines hold instead of wrapping, and Down onto a shorter last line lands on its
+last tile. The line width is not a constant — the tiles are `flex-wrap`
+against the viewport — so `gridCols()` counts the rows sharing the first
+tile's `offsetTop` at the moment the key is pressed. That is the only honest
+number; a computed `floor(width / tileWidth)` drifts from the real wrap the
+moment padding, gap or a scrollbar changes.
+
+**Rejected.** Reusing the wrapper's viewer overlay (`files.html`) for Quick
+Look: it hosts whole viewer pages in an iframe, so the arrow keys would land
+in the child document and the listing's selection could not follow. Shift+arrow
+range extension was left out on purpose — not asked for, and the anchor/cursor
+split it needs is a separate change.
