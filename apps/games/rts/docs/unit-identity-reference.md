@@ -96,7 +96,7 @@ pixels.** That is the entire canvas the game has to work with, and it is
 | | Sea Scorpion | `HYD` | 59x32 | 1.84 |
 | heavy | V3 Launcher | `V3` | **63**x36 | 1.75 |
 | | Nighthawk | `SHAD` | 64x**21** | **3.05** |
-| | MCV (Allied) ¹ | `AMCV` | 91x46 | 1.98 |
+| | MCV (Allied) ¹ | `AMCV` | 76x36 | 2.11 |
 | | Harrier (span) | `ORCA` | 71x44 | 1.61 |
 | | Typhoon Sub (surfaced) | `SUB` | 75x**14** | **5.36** |
 | capital | Aegis Cruiser | `AEGIS` | 91x35 | 2.60 |

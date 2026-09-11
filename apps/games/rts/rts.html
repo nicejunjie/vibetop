@@ -9223,11 +9223,11 @@
     else if (kind === 'ifv')     { hull = '#ccd2db'; deck = '#828a97'; }   // white body, LIGHT grey cab
     else if (kind === 'mirage')  { hull = '#3f4552'; deck = '#262a33'; }   // dark slate-navy, as mirage.png
     else if (kind === 'rhino')     { hull = '#a0a080'; deck = '#63644b'; } // sand-khaki, as rhino.png (32% light px)
-    else if (kind === 'flaktrack') { hull = '#d2cfc0'; deck = '#8a8a46'; } // cream body, OLIVE rear bed
-    else if (kind === 'v3')        { hull = '#868c4c'; deck = '#54582c'; } // olive-drab truck (1.4), lifted
+    else if (kind === 'flaktrack') { hull = '#d2cfc0'; deck = '#c2bfae'; } // cream body AND bed, as soviet-flak-track.png
+    else if (kind === 'v3')        { hull = '#9c9873'; deck = '#6a6748'; } // tan-khaki truck, as RA2 V3 Rocket Launcher.png
     else if (kind === 'drone')     { hull = '#9aa1ac'; deck = '#5a606b'; } // bare metal carapace
     else if (kind === 'teslatank') { hull = '#909372'; deck = '#565846'; } // olive, like the Rhino's kin, lifted
-    else if (kind === 'mcv')     { hull = '#4d5566'; deck = '#41464f'; }   // dark blue-grey truck, as allied-mcv.png
+    else if (kind === 'mcv')     { hull = '#5e5876'; deck = '#41464f'; }   // lavender-grey truck, as allied-mcv.png
     // NIGHTHAWK. This was '#31353d' matte charcoal, which put it at the SAME
     // value as the Harrier's airframe -- the one pair that failed
     // `tools/legibility.js` under all three windows. `docs/ra2-ref/cameos/
@@ -9339,7 +9339,7 @@
       flaktrack: 1.000, ifv: 1.300,                    // the light class
       teslatank: 0.950, mirage: 1.060, spectre: 1.100, // the mid specials
       v3: 1.180, mammoth: 0.840,                       // the longest / the heaviest
-      mcv: 1.150, drone: 0.920, hornet: 0.45,
+      mcv: 1.100, drone: 0.920, hornet: 0.45,
       // THE TWO AIRCRAFT, sized against RA2 rather than against each other.
       // Aspect is scale-INVARIANT, so the whole art gate was blind to a unit
       // drawn at the wrong SIZE until `size.*OutsideRA2Band` existed: RA2
@@ -9479,7 +9479,7 @@
       // Beam is roughly five times the lever length is, in the opposite
       // direction to the one written here. Grow beam for separation with open
       // eyes; do not grow it expecting aspect.
-      var len = kind === 'harv' ? (sov ? 36 : 27) : (kind === 'ifv' ? 17 :
+      var len = kind === 'harv' ? (sov ? 33 : 27) : (kind === 'ifv' ? 17 :
                 (kind === 'drone' ? 9 : (kind === 'spectre' ? 24 :
                 (kind === 'flaktrack' ? 23 : (kind === 'mammoth' ? 27 :
                 (kind === 'rhino' ? 25 : (kind === 'v3' ? 22 :
@@ -9495,7 +9495,7 @@
       // The MCV is the biggest thing that drives: a Construction Yard folded
       // onto a crawler. Appended here rather than threaded into the ternaries
       // above so no other kind's numbers move.
-      if (kind === 'mcv') { len = 42; wid = 22; }   // 2026-09-10: 36 -> 42, allied-mcv.png is 91 px broadside, a LONG low truck
+      if (kind === 'mcv') { len = 40; wid = 16; }   // 2026-09-10 (7): the sheet, at 5x, is 76x36 broadside / 66x46 diagonal -- a LONG narrow tall truck
       // The Nighthawk is a light helicopter: long for its beam, and the tail
       // boom runs past the hull, so the sheet's length is mostly boom.
       if (kind === 'nighthawk') { len = 34; wid = 13; }
@@ -11045,7 +11045,7 @@
             var qx = quad[i2][0], qy = quad[i2][1];
             g.strokeStyle = '#15181c'; g.lineWidth = 3.0; g.lineCap = 'butt';
             g.beginPath(); g.moveTo(gAlong + qx, gAlongY + qy); g.lineTo(gTipX + qx, gTipY + qy); g.stroke();
-            g.strokeStyle = '#5e656f'; g.lineWidth = 1.7;           // dark gunmetal tube
+            g.strokeStyle = '#c3cad3'; g.lineWidth = 1.7;           // SILVER tube, as the sheet
             g.beginPath(); g.moveTo(gAlong + qx, gAlongY + qy); g.lineTo(gTipX + qx, gTipY + qy); g.stroke();
             g.strokeStyle = '#aab2bd'; g.lineWidth = 0.8;           // upper glint
             g.beginPath();
@@ -11070,12 +11070,8 @@
           // and it puts back the ordnance green the new gunmetal displaced
           // (`colour.vehicle.meanDist` reads the hue HISTOGRAM, so a unit
           // that gains 60 px of grey has to gain some of its own hue too).
-          isoBox(g, kx + fx * 1.8, ky - 3.2 + fy * 1.8, 1.2, 6.4, 3.4,
-                 a, VACC.flaktrack, '#22402f');
-          g.fillStyle = 'rgba(255,255,255,.34)';
-          g.fillRect(kx + fx * 1.7 - 2.4, ky - 7.6 + fy * 1.7, 4.8, 1.0);
-          g.fillStyle = 'rgba(20,23,28,.55)';                       // gun slot in the shield
-          g.fillRect(kx + fx * 1.7 - 1.0, ky - 7.2 + fy * 1.7, 2.0, 2.8);
+          // (2026-09-10: the green gun shield is gone -- the sheet has none;
+          // the mount is red and the gun silver, and that is the whole read)
           puck(kx - fx * 2.8, ky - 3.0 - fy * 2.8, 1.3, 2.0,        // ammo drum at the breech
                '#3d434c', '#7f8792', '#14171c');
         }
@@ -11153,7 +11149,7 @@
           // board. The chord goes 23.6 -> 30.2 (1.37x the truck, 7 px of nose
           // clear of the bumper) and the rise comes down a shade with it, so
           // the rail keeps its diagonal at about 36 degrees instead of 39.
-          var tu = 14.3, tv = -20.4, hu = -15.9, hv = -4.4;   // 2026-09-10: elevation lowered; RA2 [V3] is 63x36
+          var tu = 18.5, tv = -11.5, hu = -15.5, hv = -3.6;   // 2026-09-10: the sheet's rocket lies along the WHOLE truck at ~20 deg, nose past the cab
           var tipx = cx + fx * tu, tipy = by + tv + fy * tu;
           var tlx = cx + fx * hu, tly = by + hv + fy * hu;
           var vx = tipx - tlx, vy = tipy - tly, vl = Math.hypot(vx, vy) || 1;
@@ -11243,7 +11239,7 @@
           var footx = cx + fx * lu + px * lv, footy = by + 0.2 + fy * lu + py * lv;
           // the blade's width runs perpendicular to the leg on screen
           var dxk = kneex - hipx, dyk = kneey - hipy, dl = Math.hypot(dxk, dyk) || 1;
-          var wnx = -dyk / dl, wny = dxk / dl, bw = near ? 2.3 : 1.9;
+          var wnx = -dyk / dl, wny = dxk / dl, bw = near ? 1.7 : 1.4;   // 2026-09-10: the sheet's legs are wire-thin
           g.beginPath();
           g.moveTo(hipx + wnx * bw * 0.8, hipy + wny * bw * 0.8);
           g.lineTo(kneex + wnx * bw, kneey + wny * bw);
@@ -11350,8 +11346,8 @@
           // base, capped by a chrome head — the same construction as the Tesla
           // Coil structure, one size down. Two fat pale cylinders (the first
           // attempt) read as fuel drums; it is the RIB COUNT that says coil.
-          var sx5 = cx + fx * 0.8, sy5 = by - 5.8 + fy * 0.8;
-          isoBox(g, sx5, sy5, len * 0.32, wid * 0.56, 2.0, a, '#4a505a', '#171a1f');
+          var sx5 = cx - fx * 3.6, sy5 = by - 5.8 - fy * 3.6;   // 2026-09-10: at the REAR, as RA2 Tesla Tank.png
+          isoBox(g, sx5, sy5, len * 0.32, wid * 0.56, 2.0, a, pdark, '#171a1f');   // the red housing
           isoBox(g, sx5, sy5 - 2.0, len * 0.28, wid * 0.50, 1.1, a, panel, PEDGE);
           // the core block stands PROUD of the coils so it still reads from
           // above when the two columns overlap it side-on. Its house-colour
@@ -11375,8 +11371,8 @@
           // (unit-identity-reference.md 2.4).
           var cols5 = [];
           for (sg = -1; sg <= 1; sg += 2)
-            cols5.push([sx5 + px * wid * 0.30 * sg + fx * len * 0.155 * sg,
-                        sy5 - 2.6 + py * wid * 0.30 * sg + fy * len * 0.155 * sg]);
+            cols5.push([sx5 + px * wid * 0.37 * sg + fx * len * 0.10 * sg,
+                        sy5 - 2.6 + py * wid * 0.37 * sg + fy * len * 0.10 * sg]);
           cols5.sort(function (m, n) { return m[1] - n[1]; });
           // TEN windings, not seven, and each a shade taller. The spec is
           // "each column >= 9 px tall x 3 px wide" (2.4) and seven rings at
@@ -11388,12 +11384,12 @@
           for (i2 = 0; i2 < cols5.length; i2++) {
             var kx5 = cols5[i2][0], ky5 = cols5[i2][1];
             puck(kx5, ky5, 2.1, 2.0, pdark, panel, PEDGE);                // colour foot
-            for (var w5 = 0; w5 < 8; w5++)                                // eight windings (2026-09-10: was ten; the rip's coils are SHORT)
-              puck(kx5, ky5 - 1.1 - w5 * 1.12, 1.62 - w5 * 0.072, 1.06,
-                   shade(VACC.teslatank, 0.80), shade(VACC.teslatank, 1.18), '#5c4227');
-            puck(kx5, ky5 - 10.4, 0.8, 1.4, '#767d87', '#cfd6de', '#3d434b'); // head stem
+            for (var w5 = 0; w5 < 5; w5++)                                // FIVE fat SILVER windings: the sheet's coils are short stubby chrome drums
+              puck(kx5, ky5 - 1.1 - w5 * 1.30, 2.15 - w5 * 0.06, 1.24,
+                   shade('#c6cdd6', 0.80), shade('#c6cdd6', 1.12), '#4a505a');
+            puck(kx5, ky5 - 7.8, 0.8, 1.4, '#767d87', '#cfd6de', '#3d434b'); // head stem
             g.fillStyle = '#dcecff';                                       // small tip glow
-            gEllipse(kx5, ky5 - 11.8, 0.85); g.fill();
+            gEllipse(kx5, ky5 - 9.2, 0.85); g.fill();
           }
           g.strokeStyle = 'rgba(224,240,255,.72)'; g.lineWidth = 0.8;      // arc across the pair
           g.lineCap = 'round'; g.lineJoin = 'round';
@@ -11402,7 +11398,7 @@
             var kt = ka / 4;
             var akx = cols5[0][0] + (cols5[1][0] - cols5[0][0]) * kt;
             var aky = cols5[0][1] + (cols5[1][1] - cols5[0][1]) * kt
-                    - 11.5 - Math.sin(kt * 3.14) * 1.6 + (ka & 1 ? 1.5 : -1.5);
+                    - 8.9 - Math.sin(kt * 3.14) * 1.6 + (ka & 1 ? 1.5 : -1.5);
             if (!ka) g.moveTo(akx, aky + (ka & 1 ? -1.5 : 1.5)); else g.lineTo(akx, aky);
           }
           g.stroke();
@@ -11542,11 +11538,11 @@
           // walks the broadside aspect from 0.849 of RA2's [CMIN] toward it,
           // the same direction the aspect gate wants. The bin is still the
           // deepest thing on the truck; it is no longer the tallest.
-          crate(bcx, bcy, 11.6 * Q, 11.6, 6.0, BIN, BIN_E);   // 2026-09-10: 4.0 -> 6.0 tall, the rip's crate is a BOX
+          crate(bcx, bcy, 11.6 * Q, 11.6, 7.0, BIN, BIN_E);   // 2026-09-10: the sheet's crate is as tall as the cab
           for (var br = -1; br <= 1; br += 2)                                 // steel bin rails
-            isoBox(g, bcx + px * 5.5 * br, bcy - 5.4 + py * 5.5 * br, 11.8 * Q, 1.4, 0.9, a, '#6f757e', '#31363d');
-          isoBox(g, bcx + fx * Q * 5.4, bcy - 5.4 + fy * Q * 5.4, 1.6, 2.8, 1.4, a, '#272b32', '#101216'); // chute
-          isoBox(g, bcx + fx * Q * 5.4, bcy - 6.8 + fy * Q * 5.4, 2.0, 3.2, 0.7, a, '#6f757e', '#101216');
+            isoBox(g, bcx + px * 5.5 * br, bcy - 6.4 + py * 5.5 * br, 11.8 * Q, 1.4, 0.9, a, '#6f757e', '#31363d');
+          isoBox(g, bcx + fx * Q * 5.4, bcy - 6.4 + fy * Q * 5.4, 1.6, 2.8, 1.4, a, '#272b32', '#101216'); // chute
+          isoBox(g, bcx + fx * Q * 5.4, bcy - 7.8 + fy * Q * 5.4, 2.0, 3.2, 0.7, a, '#6f757e', '#101216');
         };
         var drawFront = function () {
           // The cab is a DARK charcoal block; the house colour is the single
@@ -11677,7 +11673,7 @@
           // citation, not a new opinion. Longer and broader, not TALLER: the
           // height is what the previous pass measured as lifting the bbox to
           // 60 px against the reference's 47, and it is left alone.
-          crate(bcx, bcy, 18.4 * W, 16.4, 6.6, BIN, BIN_E);   // 2026-09-10: soviet-war-miner.png is a LONG LOW truck, 66x37 broadside
+          crate(bcx, bcy, 17.0 * W, 16.4, 10.4, BIN, BIN_E);   // 2026-09-10: the sheet's crate is TALL over the rear half
         };
         var drawFront2 = function () {
           // white fore-chassis under the boom
@@ -11687,10 +11683,10 @@
                  STEEL, '#4a4f58');                              // boom root housing
           // the house-colour mass at the crate's front shoulder, and the drum
           // standing on it
-          isoBox(g, cx + fx * W * 1.4, by - 4.6 + fy * W * 1.4, 6.8 * W, wid * 0.80, 6.0, a, panel, PEDGE);
+          isoBox(g, cx + fx * W * 1.4, by - 4.6 + fy * W * 1.4, 4.6 * W, wid * 0.56, 4.6, a, panel, PEDGE);   // a SMALL red cab, as the sheet
           isoBox(g, cx + fx * W * 1.4, by - 10.6 + fy * W * 1.4, 5.9 * W, wid * 0.70, 1.1, a, plit, PEDGE);
           var dx0 = cx + fx * W * 0.9, dy0 = by - 8.4 + fy * W * 0.9;
-          puck(dx0, dy0, 3.3, 9.0, pdark, panel, PEDGE);
+          puck(dx0, dy0, 2.6, 7.0, pdark, panel, PEDGE);
           g.fillStyle = plit;
           gEllipse(dx0, dy0 - 9.2, 2.1); g.fill();                  // lit cap
           g.strokeStyle = PEDGE; g.lineWidth = 0.8;
@@ -11774,25 +11770,39 @@
       // fleet's tracks/chassis/fitments without touching another kind's art.
       if (kind === 'mcv') {
         if (wantH) {
-          // 2026-09-10 (6) -- REBUILT against allied-mcv.png: a LONG dark
-          // blue-grey eight-wheeled TRUCK with a blue cab at the nose, a pale
-          // roof, and a segmented body. No crane, no tracks, no tower: the
-          // crawler-with-a-boom this replaces looked like nothing on the sheet.
-          wheels(len * 0.84, 3.6, 4, '#262a31', '#b4bbc5');
-          chassis(cx, by - 3.0, len * 0.94, wid * 0.72, 4.0, hull, null, 3.0);
-          isoBox(g, cx - fx * 3.0, by - 7.0 - fy * 3.0, len * 0.60, wid * 0.66, 3.2, a,
-                 shade(hull, 1.04), null);                          // the works body
-          isoBox(g, cx - fx * 3.0, by - 10.2 - fy * 3.0, len * 0.40, wid * 0.44, 1.2, a,
-                 '#b6bec8', null);                                  // pale roof panel
-          for (i2 = -1; i2 <= 1; i2++)                              // three body seams, as segments
-            isoBox(g, cx - fx * (3.0 + i2 * len * 0.18), by - 7.2 - fy * (3.0 + i2 * len * 0.18),
-                   0.6, wid * 0.68, 3.4, a, shade(hull, 0.84), null);
-          isoBox(g, cx + fx * len * 0.34, by - 7.0 + fy * len * 0.34, len * 0.18, wid * 0.64, 4.4, a,
-                 panel, null);                                      // the blue cab
-          isoBox(g, cx + fx * len * 0.41, by - 7.4 + fy * len * 0.41, 0.8, wid * 0.52, 2.6, a,
-                 '#20262e', null);                                  // windscreen
-          lamp(cx + fx * len * 0.44 + px * wid * 0.26, by - 4.8 + fy * len * 0.44 + py * wid * 0.26);
-          lamp(cx + fx * len * 0.44 - px * wid * 0.26, by - 4.8 + fy * len * 0.44 - py * wid * 0.26);
+          // 2026-09-10 (7) -- LOOKED AT allied-mcv.png at 5x this time. The
+          // Allied MCV is a TALL SEMI-TRUCK: a high boxy purple-grey CAB at the
+          // nose (as tall as anything behind it, with a dark windscreen band
+          // and a pale grille), then a flatbed carrying a big rounded BLUE
+          // load -- the folded yard, in owner colour -- with a block of silver
+          // machinery at the tail, all on three axles of large pale-hubbed
+          // wheels. 76x36 broadside, 66x46 diagonal on the sheet: a bit bigger
+          // than a tank, not twice one. The low slab this replaces was drawn
+          // from a segmented thumbnail, not from the sprite.
+          var CAB = '#5b5573', CABD = '#4e4a62', LOAD = '#aeb5be';
+          wheels(len * 0.78, 3.6, 3, '#262a31', '#c2c8d0');
+          chassis(cx, by - 2.8, len * 0.94, wid * 0.72, 2.6, hull, null, 1.4);   // the flatbed
+          // the cab: tall, forward, the full beam
+          var cbu = len * 0.31;
+          isoBox(g, cx + fx * cbu, by - 5.4 + fy * cbu, len * 0.26, wid * 0.80, 8.2, a, CAB, null);
+          isoBox(g, cx + fx * (cbu + len * 0.13), by - 9.6 + fy * (cbu + len * 0.13),
+                 0.8, wid * 0.70, 4.0, a, '#1a1f2a', null);                 // windscreen: most of the cab's face is dark glass
+          isoBox(g, cx + fx * (cbu + len * 0.13), by - 6.0 + fy * (cbu + len * 0.13),
+                 0.8, wid * 0.56, 1.6, a, '#d8dce2', null);                 // grille
+          isoBox(g, cx + fx * cbu, by - 13.6 + fy * cbu, len * 0.22, wid * 0.70, 0.8, a,
+                 shade(CAB, 1.18), null);                                   // cab roof
+          // the load: a big rounded blue mass behind the cab, in two segments
+          var ldu = -len * 0.06;
+          isoBox(g, cx + fx * ldu, by - 5.4 + fy * ldu, len * 0.40, wid * 0.74, 6.4, a, panel, null);
+          isoBox(g, cx + fx * ldu, by - 11.8 + fy * ldu, len * 0.30, wid * 0.50, 1.2, a, pdark, null);   // a darker cap, not a lit one: the sheet's load is deep blue
+          isoBox(g, cx + fx * (ldu + len * 0.20), by - 5.4 + fy * (ldu + len * 0.20),
+                 0.9, wid * 0.76, 6.0, a, pdark, null);                     // the seam between the segments
+          // silver machinery at the tail
+          var mcu = -len * 0.36;
+          isoBox(g, cx + fx * mcu, by - 5.4 + fy * mcu, len * 0.18, wid * 0.66, 5.2, a, LOAD, null);
+          isoBox(g, cx + fx * mcu, by - 10.6 + fy * mcu, len * 0.14, wid * 0.50, 1.4, a, shade(LOAD, 0.86), null);
+          lamp(cx + fx * len * 0.45 + px * wid * 0.28, by - 4.6 + fy * len * 0.45 + py * wid * 0.28);
+          lamp(cx + fx * len * 0.45 - px * wid * 0.28, by - 4.6 + fy * len * 0.45 - py * wid * 0.28);
         }
       }
 

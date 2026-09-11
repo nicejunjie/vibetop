@@ -4373,3 +4373,14 @@ navy and small-turreted; Prism navy with a pale head; Apocalypse squat pods
 + one skirt; Mirage a thick projector block; MCV rebuilt as the sheet's
 eight-wheeled truck; Rhino 0.88. Three pairs rescued from the moved median
 (dog | tanya, ivan | yuri, destroyer | aegis). Details in design-decisions.
+
+## 2026-09-10 (seventh pass) — the rest of the roster, and the MCV again
+
+Flak Track: cream bed, silver gun on a red mount, green shield gone. Tesla
+Tank: two short fat SILVER coils on a red housing at the REAR (the real
+sheet, `soviet-tesla-tank-sheet.png`), coil-column check switched from a
+copper to a silver predicate. V3: tan truck, the rocket lying along its
+whole length at ~20 degrees with the nose past the cab (`soviet-v3.png`).
+Chrono Miner: crate 6 -> 7. War Miner: crate 6.6 -> 10.4 over the rear half,
+a small red cab, smaller drum. Drone: wire-thin legs. MCV: rebuilt AGAIN
+from a 5x read — see design-decisions, "The MCV rebuilt twice in one day".

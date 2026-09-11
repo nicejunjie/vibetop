@@ -112,7 +112,7 @@ const RA2_BBOX = {
   prismtank: [59, 43],  // [SREF]    59x43
   v3: [63, 36],  // [V3]      63x36
   nighthawk: [64, 21],  // [SHAD]    64x21
-  mcv: [91, 46],  // [AMCV]    91x46 — allied-mcv.png broadside (was 69x47; the sheet's diagonal is 109x88)
+  mcv: [76, 36],  // [AMCV]    76x36 — allied-mcv.png broadside, READ AT 5x (2026-09-10 (7); the 91x46 the segmenter gave included shadow and sand noise, and 69x47 before that was the old table)
   harrier: [71, 44],  // [ORCA]    71x44 — measured by SPAN, wings out
   kirov: [139, 62],  // [ZEP]    139x62 — the largest airframe in the game
   // ---- infantry (same table) ----

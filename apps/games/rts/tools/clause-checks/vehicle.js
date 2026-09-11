@@ -785,7 +785,10 @@ exports.check = function (ctx) {
   // look along that axis they project onto each other and no separation
   // survives. Measured over all eight bearings instead, and the note says so.
   {
-    const copper = (p) => !!p && p.s >= 0.30 && p.h >= 12 && p.h <= 45;
+    // 2026-09-10: the coils are SILVER now, as on RA2 Tesla Tank.png (short
+    // chrome drums on a red housing), so a coil pixel is pale and unsaturated,
+    // not copper. The name is kept so the rest of the block reads unchanged.
+    const copper = (p) => !!p && p.s <= 0.20 && p.v >= 0.60;
     const per = [];
     for (let o = 0; o < 8; o++) {
       const f = ctx.byUnitOct('teslatank', o);
