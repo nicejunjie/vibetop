@@ -1406,6 +1406,20 @@
     var f = frameOf(id);
     if (f && f.contentWindow) { try { f.contentWindow.dispatchEvent(new Event('resize')); } catch (e) {} }
   }
+  // A mouse button released OUTSIDE an app's frame is invisible to that frame.
+  // The Browser (xpra) then keeps the button held on the remote — a Chromium
+  // tab torn off its strip followed the cursor until the next click inside.
+  // Tell every loaded frame the button went up; xpra-patches.js (patch 11)
+  // turns it into a release for the remote, other apps ignore it.
+  document.addEventListener('pointerup', function (e) {
+    if (e.pointerType === 'touch') return;
+    openApps.forEach(function (id) {
+      var f = frameOf(id);
+      if (f && f.src && f.contentWindow) {
+        try { f.contentWindow.postMessage({ type: 'vibetop:pointerup', button: e.button }, '*'); } catch (err) {}
+      }
+    });
+  }, true);
   function toggleMax(id) {
     var g = winGeom(id);
     if (g.max) { g.max = false; if (g.prev) { g.left = g.prev.left; g.top = g.prev.top; g.width = g.prev.width; g.height = g.prev.height; } }

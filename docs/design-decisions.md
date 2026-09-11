@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_273 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_274 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
 - [Scheduled terminal messages ("resume when the token limit resets")](#scheduled-terminal-messages-resume-when-the-token-limit-resets)
@@ -296,6 +296,7 @@ _273 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [RTS: a refresh resumed only when the game itself asked for it (2026-09-11)](#rts-a-refresh-resumed-only-when-the-game-itself-asked-for-it-2026-09-11)
 - [RTS: the edge-scroll band moved from the canvas edge to the window edge (2026-09-11)](#rts-the-edge-scroll-band-moved-from-the-canvas-edge-to-the-window-edge-2026-09-11)
 - [RTS: a resumed or loaded match was dead to clicks — the selection flag rode along in the save (2026-09-11)](#rts-a-resumed-or-loaded-match-was-dead-to-clicks-the-selection-flag-rode-along-in-the-save-2026-09-11)
+- [Browser: a tab torn off its strip followed the cursor forever — the release happened outside the frame (2026-09-11)](#browser-a-tab-torn-off-its-strip-followed-the-cursor-forever-the-release-happened-outside-the-frame-2026-09-11)
 
 <!-- END TOC -->
 
@@ -12349,4 +12350,28 @@ needed to add tracing to the live page.
 
 **Rejected.** Clearing the flag in `enterLoaded`: the harness and the
 two-player path restore without it, so the invariant belongs to the blob.
+
+## Browser: a tab torn off its strip followed the cursor forever — the release happened outside the frame (2026-09-11)
+
+**Symptom.** (user) "the entire browser tab follows my cursor and floats
+around in the browser canvas, and I can't even get it to stop."
+
+**Cause.** The Browser is xpra's HTML5 client in an iframe. A mouse button
+pressed over it and released OUTSIDE it (over the desktop, a panel, another
+window) never produces a mouseup the iframe can see, so no button release
+reaches the server and the remote Chromium keeps the button held: a tab
+drag, a text selection, a scrollbar grab all continue until the next click
+inside the frame.
+
+**Fix.** Two signals stand in for the missing release. The desktop shell
+forwards its own document-level `pointerup` to every loaded frame as
+`vibetop:pointerup`; and xpra-patches.js (patch 11) also watches the first
+`mousemove` back over the frame, whose `buttons === 0` says the button went
+up elsewhere. Either sends a `button-action` release for each button the
+frame last saw pressed (tracked from `e.buttons`), then clears. Window
+`blur` releases too. Unit-tested against the harness client.
+
+**Rejected.** Releasing on `pointerleave`: a legitimate drag that briefly
+leaves the frame (a fast scrollbar pull) would drop mid-gesture. The release
+must follow the real button-up, which the two signals above do.
 

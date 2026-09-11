@@ -767,4 +767,49 @@
   } catch(e) {
     console.warn('[xpra-patches] wake-repaint patch failed:', e.message);
   }
+
+  // 11. A mouse button released OUTSIDE the Browser frame never reaches xpra,
+  //     so the remote Chromium keeps the button held: a tab torn off its strip
+  //     follows the cursor forever, a drag-select never ends ("the entire
+  //     browser tab follows my cursor and I can't get it to stop",
+  //     2026-09-11). This frame only sees events over itself, so two signals
+  //     stand in for the missing release: the desktop shell forwards its own
+  //     pointerup as `vibetop:pointerup`, and the first mousemove back over
+  //     the frame reports `buttons === 0`. Either releases, on the remote,
+  //     every button this frame last saw pressed. Packet shape as patch 2.
+  try {
+    var pressed = 0;                          // DOM `buttons` bitmask this frame last saw down
+    var releaseStuck = function(c) {
+      c = c || window.client;
+      if (!pressed || !c || !c.connected || c.server_readonly) { pressed = 0; return 0; }
+      var mouse = c.getMouse ? c.getMouse({}) : { x: 0, y: 0 };
+      var coords = [Math.round(mouse.x), Math.round(mouse.y)];
+      var wid = c.topwindow || 0;
+      var win = wid && c.id_to_window ? c.id_to_window[wid] : null;
+      if (win && win.get_internal_geometry) {
+        var pos = win.get_internal_geometry();
+        coords.push(Math.round(mouse.x - pos.x)); coords.push(Math.round(mouse.y - pos.y));
+      }
+      var mods = c._keyb_get_modifiers ? c._keyb_get_modifiers({}) : [];
+      var n = 0;
+      // DOM `buttons` bit -> xpra button number: left 1->1, middle 4->2, right 2->3.
+      [[1, 1], [4, 2], [2, 3]].forEach(function(m) {
+        if (pressed & m[0]) { c.send([PACKET_TYPES.button_action, wid, m[1], false, coords, mods, []]); n++; }
+      });
+      pressed = 0;
+      return n;
+    };
+    window.__xpraStuckButtons = { release: releaseStuck, set: function(b) { pressed = b | 0; }, get: function() { return pressed; } };
+    document.addEventListener('mousedown', function(e) { pressed = e.buttons; }, true);
+    document.addEventListener('mouseup', function(e) { pressed = e.buttons; }, true);
+    document.addEventListener('mousemove', function(e) {
+      if (pressed && e.buttons === 0) releaseStuck(); else pressed = e.buttons;
+    }, true);
+    window.addEventListener('message', function(e) {
+      if (e.data && e.data.type === 'vibetop:pointerup') releaseStuck();
+    });
+    window.addEventListener('blur', function() { releaseStuck(); });
+  } catch(e) {
+    console.warn('[xpra-patches] stuck-button patch failed:', e.message);
+  }
 })();

@@ -62,7 +62,7 @@ function load() {
   // notch is a press+release pair).
   const notches = () => sent.filter((p) => p[3] === true).map((p) => p[2]);
 
-  return { wheel, rest, notches, sent, client };
+  return { wheel, rest, notches, sent, client, sandbox };
 }
 
 const PX_PER_CLICK = 45;   // must track the constant in the bundle
@@ -160,4 +160,32 @@ test("the idle flush cannot fire twice for one gesture", () => {
   rest();
   rest();                                  // a second timer must not exist
   assert.deepStrictEqual(notches(), [5], "exactly one rescue notch");
+});
+
+
+// Patch 11: a button released outside the frame is released on the remote.
+test("buttons the frame last saw pressed are released on the remote, once", () => {
+  const { sent, client, sandbox } = load();
+  const stuck = sandbox.__xpraStuckButtons;
+  assert.ok(stuck, "patch 11 installed");
+  client.topwindow = 7;
+  stuck.set(1 | 2);                                     // left + right held when the pointer left
+  assert.strictEqual(stuck.release(client), 2);
+  const rel = sent.filter((p) => p[0] === "button-action");
+  assert.deepStrictEqual(rel.map((p) => [p[1], p[2], p[3]]), [[7, 1, false], [7, 3, false]]);
+  assert.strictEqual(stuck.get(), 0);
+  assert.strictEqual(stuck.release(client), 0, "nothing left to release");
+});
+
+test("a stuck release is never sent to a disconnected or read-only server", () => {
+  const { sent, client, sandbox } = load();
+  const stuck = sandbox.__xpraStuckButtons;
+  client.connected = false;
+  stuck.set(1);
+  assert.strictEqual(stuck.release(client), 0);
+  assert.deepStrictEqual(sent, []);
+  client.connected = true; client.server_readonly = true;
+  stuck.set(1);
+  assert.strictEqual(stuck.release(client), 0);
+  assert.deepStrictEqual(sent, []);
 });
