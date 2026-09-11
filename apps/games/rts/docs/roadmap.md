@@ -1001,6 +1001,9 @@ per state, for every structure and defence, both factions.
   the better column bolded, then Leadership/Economy/Technology as
   percentages — **approximations** of Westwood's, not the shipped formula
   (the weights are in no readable .ini); the leaderboard follows it.
+- ☑ Resume on reload: any unload mid-match (a deploy push, a browser refresh,
+  a backgrounded tab) autosaves to the `auto` key and boot re-enters the match;
+  the menu and game over clear the flag (2026-09-11).
 - ☑ Save/load: three `localStorage` slots (map, clock, age) from the Esc
   options card, plus a "Load saved game" button on the front menu that only
   appears when a slot is full. Format and the determinism guarantee are in

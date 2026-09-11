@@ -30231,6 +30231,21 @@
     lsSet(RESUME_KEY, '1');
     location.reload();
   }
+  // ANY reload keeps the match, not only the Options card's own Reload: the
+  // desktop's deploy push reloads the whole page, and so does a plain browser
+  // refresh, and both used to land on the front menu with the match gone.
+  // The flag records whether the LAST unload happened mid-match. Boot clears
+  // it as it reads it, and leaving the match (menu, game over) clears it too,
+  // because the hidden-tab save below can set it long before the unload: a
+  // tab that was backgrounded mid-match and later finished the game must not
+  // resume that finished match on its next refresh. A two-player match is
+  // never autosaved — half of a lockstep pair cannot resume alone.
+  function autosaveForReload() {
+    var inMatch = !!G && (state === 'play' || state === 'paused') && !G.mp;
+    if (inMatch && saveGame('auto')) lsSet(RESUME_KEY, '1'); else lsSet(RESUME_KEY, '0');
+  }
+  window.addEventListener('pagehide', autosaveForReload);
+  document.addEventListener('visibilitychange', function () { if (document.hidden) autosaveForReload(); });
   function lsGet(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
   function lsSet(k, v) { try { localStorage.setItem(k, v); } catch (e) {} }
 
@@ -36551,6 +36566,7 @@
 
   function menu() {
     state = 'menu';
+    lsSet(RESUME_KEY, '0');                            // nothing to resume from the menu
     evaHush();                                         // nothing from the last match talks over the menu
     MUS.set('menu');
     mpClose();
@@ -36854,6 +36870,7 @@
 
   function finish(won) {
     state = 'over';
+    lsSet(RESUME_KEY, '0');                            // a finished match is not resumed
     evaHush();                                         // the score card is not read over
     var secs = Math.floor(G.tick / 60);
     if (window.vibeScores && !G.debug && !G.mp) {       // a cheated game is not a record, nor is a two-player one
@@ -37223,6 +37240,9 @@
     loadBlob: function (blob) { G = restoreGame(JSON.parse(JSON.stringify(blob))); return G; },
     slots: function () { return saveSlots(); },
     reloadKeep: function () { reloadKeepMatch(); },
+    autosave: function () { autosaveForReload(); },
+    resumeFlag: function () { return lsGet(RESUME_KEY); },
+    setState: function (st) { state = st; },
     score: function (p) { return scoreOf(G, p); },
     crates: function () { return G ? G.crates : []; },
     spawnCrate: function (kind, x, y) {

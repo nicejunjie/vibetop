@@ -6210,3 +6210,34 @@ test("a miner standing anywhere on a refinery's door counts as docked", () => {
   assert.equal(miss.length, 0,
     `a miner touching the refinery must be able to unload; these door cells did not: ${miss.join(" ")}`);
 });
+
+// ---------------------------------------------------------- resume on reload //
+// A reload (the desktop's deploy push, a browser refresh) used to land on the
+// front menu with the match gone. The unload handler autosaves and flags a
+// resume; boot reads the flag. The flag must NOT survive leaving the match.
+
+test("an unload mid-match autosaves and flags a resume that round-trips the state", () => {
+  const H = W.__rtsTest;
+  H.startWith(7777, "normal", "frontier");
+  H.step(60 * 20);
+  const before = H.hash();
+  H.autosave();
+  assert.equal(H.resumeFlag(), "1");
+  assert.ok(W.localStorage.getItem("vibetop:rts:save:auto"), "the auto slot was written");
+  assert.ok(H.load("auto"), "the auto slot loads");
+  assert.equal(H.hash(), before, "the resumed match is the one that was running");
+});
+
+test("an unload outside a match clears the resume flag, so a stale autosave is never resumed", () => {
+  const H = W.__rtsTest;
+  H.startWith(7778, "normal", "frontier");
+  H.autosave();
+  assert.equal(H.resumeFlag(), "1");
+  H.setState("over");            // game over, then the tab is refreshed
+  H.autosave();
+  assert.equal(H.resumeFlag(), "0");
+  H.setState("menu");
+  H.autosave();
+  assert.equal(H.resumeFlag(), "0");
+  H.setState("play");
+});
