@@ -6479,3 +6479,20 @@ test("Shift on an enemy queues the attack behind the current move, and it fires 
   assert.equal(tank.order.id, foe.id);
   assert.equal(tank.order.focus, 1);
 });
+
+// Session audit (2026-09-11): control groups and camera bookmarks are part of
+// the save, as RA2's are — they were lost on every load and every resume.
+test("control groups and camera views survive a save and a load", () => {
+  const H = W.__rtsTest;
+  H.startWith(9971, "normal", "frontier");
+  const M = W.__rtsTables.MAP, cx = Math.floor(M / 2), cy = Math.floor(M / 2);
+  const a = H.spawn("lancer", 0, cx, cy), b = H.spawn("rifle", 0, cx + 1, cy), dead = H.spawn("rifle", 0, cx + 2, cy);
+  H.setGroup("3", [a, b, dead]); dead.dead = true;
+  H.setView("2", { x: 400, y: 900, z: 1.5 });
+  assert.ok(H.save("auto"));
+  H.setGroup("3", []); H.setView("2", null);
+  assert.ok(H.load("auto"));
+  H.restoreSession();                                   // what enterLoaded does after the reset
+  assert.deepEqual(H.group("3").map((u) => u.id).sort(), [a.id, b.id].sort(), "the living members are back, by id");
+  assert.deepEqual(H.view("2"), { x: 400, y: 900, z: 1.5 });
+});

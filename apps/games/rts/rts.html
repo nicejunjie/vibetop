@@ -345,9 +345,16 @@
   /* ---- cards (shared house style: 44px targets, short-window collapse) ---- */
   .overlay {
     position: absolute; inset: 0; display: none;
+    /* In a match the backdrop is MODAL over the whole page — the top bar and
+       the gutter included — not just the field. It was a child of .wrap, so
+       the bar's buttons stayed clickable behind a card that said "paused":
+       a click resumed the sim, Help stacked over Options, the gutter panned
+       the map (session audit, 2026-09-11). At the front menu the bar stays
+       reachable (sound, help). */
     align-items: safe center; justify-content: center; overflow: auto;
     padding: 10px; background: rgba(11,14,20,.74); z-index: 5;
   }
+  body:not(.atmenu) .overlay { position: fixed; }
   /* The FRONT menu is a screen, not a dialog laid over a running HUD: with
      the sidebar left visible beside it you read a radar bezel, an empty
      cameo grid, SELL/REPAIR/POWER, a 0:00 clock and a 0-credit ticker for a
@@ -30303,8 +30310,27 @@
       v: SAVE_VER, at: Date.now(), tick: g.tick, seed: _seed,
       map: g.mapId, mapName: (MAPS[g.mapId] || MAPS.frontier).name,
       fac: g.side[ME].fac, diff: g.diff, opt: g.opt,
-      g: serWorld(g), pq: pathQ.map(function (r) { return { u: { $r: r.u.id }, tx: r.tx, ty: r.ty }; })
+      g: serWorld(g), pq: pathQ.map(function (r) { return { u: { $r: r.u.id }, tx: r.tx, ty: r.ty }; }),
+      // Session state RA2 keeps in its saves too: the control groups (as ids)
+      // and the four camera bookmarks. Both were lost on every load/resume.
+      groups: serGroups(), views: JSON.parse(JSON.stringify(views || {}))
     };
+  }
+  function serGroups() {
+    var o = {}, k;
+    for (k in groups) if (groups[k] && groups[k].length) o[k] = groups[k].filter(function (u) { return !u.dead; }).map(function (u) { return u.id; });
+    return o;
+  }
+  var loadedSession = null;                // {groups, views} from the blob, applied by enterLoaded
+  function restoreSession() {
+    if (!loadedSession || !G) return;
+    var k, out = {};
+    for (k in loadedSession.groups) {
+      var us = loadedSession.groups[k].map(function (id) { return G.byId[id]; }).filter(function (u) { return u && !u.dead; });
+      if (us.length) out[k] = us;
+    }
+    groups = out; views = loadedSession.views || {};
+    loadedSession = null;
   }
   // The one place entities are written out in full; everywhere else in the
   // blob they are {$r:id}.
@@ -30373,6 +30399,7 @@
     var g;
     try { g = restoreGame(blob); } catch (e) { return false; }
     G = g;
+    loadedSession = { groups: blob.groups || {}, views: blob.views || {} };
     difficulty = g.diff; faction = g.side[ME].fac; mapId = g.mapId;
     opts = normOpts(g.opt);
     applyHouse(opts.colour, opts.aiColour);
@@ -32605,9 +32632,14 @@
     readMod(e); pickCursor();
 
     if (e.key === 'Escape') {
+      // The card opened LAST closes first (help or the leaderboard can sit
+      // over the Options card when opened by key).
+      var top = cardStack.length ? cardStack[cardStack.length - 1] : null;
+      if (top === 'help' && hv.classList.contains('show')) { closeHelp(); return; }
+      if (top === 'lb' && lv.classList.contains('show')) { closeBoard(); return; }
       if (ov.classList.contains('show')) { if (optOpen) closeOptions(); return; }
       if (hv.classList.contains('show')) { closeHelp(); return; }
-      if (lv.classList.contains('show')) { lv.classList.remove('show'); return; }
+      if (lv.classList.contains('show')) { closeBoard(); return; }
       if (swCancel()) return;
       if (cmdMode) { cmdMode = null; refreshCmdbar(); pickCursor(); say('Mode cancelled'); return; }
       if (pathMode) { pathMode = false; refreshCmdbar(); say('Waypoint mode off'); return; }
@@ -33766,20 +33798,23 @@
   document.addEventListener('pointerleave', function () { mouse.in = false; pageMouse.in = false; });
 
   // Minimap click jumps the camera.
-  mini.addEventListener('pointerdown', function (e) {
-    if (!G) return;
-    // A dark radar takes no input at all — see radarUp().
-    if (!radarUp()) return;
+  function miniJump(e) {
     var r = mini.getBoundingClientRect();
     // The radar is isometric, so a click has to come back through the same
     // projection — a linear x/y read would land a whole quadrant away.
     var gp = mmToGrid((e.clientX - r.left) / r.width * MM_PX, (e.clientY - r.top) / r.height * MM_PX);
-    var gx = Math.max(0, Math.min(MAP - 1, Math.round(gp.x)));
-    var gy = Math.max(0, Math.min(MAP - 1, Math.round(gp.y)));
-    if (e.button === 2) return;                     // the right button never orders (2026-09-10)
     centerOn(gp.x, gp.y);
     clampCam();
+  }
+  mini.addEventListener('pointerdown', function (e) {
+    // A dark radar takes no input at all — see radarUp().
+    if (!G || !radarUp()) return;
+    if (e.button !== 0) return;                     // the right button never orders (2026-09-10)
+    miniJump(e);
+    try { mini.setPointerCapture(e.pointerId); } catch (err) {}
   });
+  // RA2 scrubs: drag across the radar and the view follows the finger.
+  mini.addEventListener('pointermove', function (e) { if (G && radarUp() && (e.buttons & 1)) miniJump(e); });
   mini.addEventListener('contextmenu', function (e) { e.preventDefault(); });
 
   // --- camera ------------------------------------------------------------
@@ -33902,7 +33937,7 @@
       if (keys.arrowdown) ky += 1;
       if (kx || ky) {
         var kl = Math.sqrt(kx * kx + ky * ky);
-        wx += kx / kl * KEY_SPEED * scrollMul(); wy += ky / kl * KEY_SPEED * scrollMul();
+        wx += kx / kl * KEY_SPEED * scrollMul() / zoom; wy += ky / kl * KEY_SPEED * scrollMul() / zoom;   // a SCREEN rate
       }
 
       if (pan) {                              // middle/right-drag beats everything
@@ -33922,7 +33957,7 @@
         var ey = et.ty ? Math.sign(et.ty) * edgeSpeed(Math.abs(et.ty)) : 0;
         // A corner scrolls diagonally at the SAME speed as a side, not 1.41x.
         if (ex && ey) { ex *= Math.SQRT1_2; ey *= Math.SQRT1_2; }
-        wx += ex; wy += ey;
+        wx += ex / zoom; wy += ey / zoom;     // a SCREEN rate, like the right-drag pan
       }
       // Leaving the WINDOW stops navigation. Off-window acceleration was tried
       // and is wrong here: a browser cursor is not locked to the viewport, so
@@ -36565,6 +36600,7 @@
     pauseBtn.innerHTML = PAUSE_SVG;
     pausedEl.classList.remove('show');
     sel = []; groups = {}; placing = null; swMode = null;
+    restoreSession();                       // the teams and the camera bookmarks come back with the match
     cmdMode = null; refreshCmdbar(); pickCursor();
     cv.classList.remove('placing');
     shownCred = 0; lastReady = null; toldRefinery = false; lastPowerWarn = 0;
@@ -36610,7 +36646,7 @@
   }
   function showOptions() {
     if (state === 'play') togglePause(true);
-    optOpen = true;
+    optOpen = true; cardPush('opt');
     onA = function () { closeOptions(); };
     onB = function () { optOpen = false; hideCard(); eva('Battle control terminated', 3000); menu(); };
     showCard('\u2699\ufe0f', 'Options', 'The match is paused.', 'Resume', 'Abort to menu', false, false);
@@ -36618,7 +36654,7 @@
     buildOptRows();
   }
   function closeOptions() {
-    optOpen = false;
+    optOpen = false; cardPop('opt');
     optCard.style.display = 'none';
     hideCard();
     if (state === 'paused') togglePause();
@@ -36786,8 +36822,8 @@
   ovB.addEventListener('click', function () { if (onB) onB(); });
 
   var helpPaused = false;
-  function openHelp() { hv.classList.add('show'); helpPaused = state === 'play'; if (helpPaused) togglePause(true); }
-  function closeHelp() { hv.classList.remove('show'); if (helpPaused && state === 'paused') togglePause(); helpPaused = false; }
+  function openHelp() { hv.classList.add('show'); cardPush('help'); helpPaused = state === 'play'; if (helpPaused) togglePause(true); }
+  function closeHelp() { hv.classList.remove('show'); cardPop('help'); if (helpPaused && state === 'paused') togglePause(); helpPaused = false; }
   document.getElementById('helpBtn').addEventListener('click', openHelp);
   wireOptBtn();
   document.getElementById('hvClose').addEventListener('click', closeHelp);
@@ -36809,8 +36845,13 @@
 
   function openBoard() {
     if (window.vibeScores) window.vibeScores.panel(document.getElementById('lbBody'), 'rts', difficulty);
-    lv.classList.add('show');
+    lv.classList.add('show'); cardPush('lb');
   }
+  function closeBoard() { lv.classList.remove('show'); cardPop('lb'); }
+  // Which cards are up, in the order they were opened — Esc closes the top.
+  var cardStack = [];
+  function cardPush(k) { cardPop(k); cardStack.push(k); }
+  function cardPop(k) { var i = cardStack.indexOf(k); if (i >= 0) cardStack.splice(i, 1); }
 
   var sndBtn = document.getElementById('sndBtn');
   function paintSnd() { sndBtn.innerHTML = soundOn ? SND_ON_SVG : SND_OFF_SVG; }
@@ -36849,6 +36890,16 @@
     }
   }
   pauseBtn.addEventListener('click', function () { resumeAudio(); togglePause(); });
+  // RA2 pauses a single-player match when it loses the screen. The desktop
+  // shell says which app is up (vibetop:active); the tab says when it is
+  // hidden. A click brings it back, as it always did. Two-player never pauses.
+  function pauseInBackground() {
+    if (state === 'play' && G && !G.mp && !headless) { togglePause(true); say('Paused — the game went to the background'); }
+  }
+  window.addEventListener('message', function (e) {
+    if (e.data && e.data.type === 'vibetop:active' && e.data.active && e.data.active !== 'rts') pauseInBackground();
+  });
+  document.addEventListener('visibilitychange', function () { if (document.hidden) pauseInBackground(); });
 
   // Paused is a state you should be able to leave without aiming at anything:
   // a click anywhere in the window resumes. The pause button is excluded so
@@ -36870,6 +36921,7 @@
       // New goes back to the front menu (side / difficulty / map), never
       // straight into another match; one confirm so a stray click cannot
       // throw away a game.
+      optOpen = false; cardPop('opt'); optCard.style.display = 'none';   // this card replaces the Options card
       onA = function () { hideCard(); eva('Battle control terminated', 3000); menu(); };
       onB = function () { hideCard(); if (state === 'paused') togglePause(); };
       showCard('🔄', 'Back to the menu?', 'This abandons the current match.', 'Back to menu', 'Keep playing', false, false);
@@ -37573,6 +37625,11 @@
     resumeFlag: function () { return lsGet(RESUME_KEY); },
     setResumeFlag: function (v) { lsSet(RESUME_KEY, v); },
     world: function () { return G; },
+    setGroup: function (k, units) { groups[k] = units.slice(); },
+    group: function (k) { return (groups[k] || []).slice(); },
+    setView: function (n, v) { views[n] = v; },
+    view: function (n) { return views[n] || null; },
+    restoreSession: function () { restoreSession(); },
     ownTargetOrder: ownTargetOrder,
     placeOrigin: placeOrigin,
     cancelLast: function (lane, key) { return G ? cancelLast(G, 0, lane, key) : false; },
