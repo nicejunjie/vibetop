@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_270 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_271 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
 - [Scheduled terminal messages ("resume when the token limit resets")](#scheduled-terminal-messages-resume-when-the-token-limit-resets)
@@ -293,6 +293,7 @@ _270 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [The Codex strip read this machine's logs and could not see the account (2026-09-10)](#the-codex-strip-read-this-machines-logs-and-could-not-see-the-account-2026-09-10)
 - [Cloudflare Access expiry left an open desktop blank (2026-09-10)](#cloudflare-access-expiry-left-an-open-desktop-blank-2026-09-10)
 - [Files: Quick Look is a panel over the listing, and grid columns are read off the layout (2026-09-11)](#files-quick-look-is-a-panel-over-the-listing-and-grid-columns-are-read-off-the-layout-2026-09-11)
+- [RTS: a refresh resumed only when the game itself asked for it (2026-09-11)](#rts-a-refresh-resumed-only-when-the-game-itself-asked-for-it-2026-09-11)
 
 <!-- END TOC -->
 
@@ -12264,3 +12265,23 @@ Look: it hosts whole viewer pages in an iframe, so the arrow keys would land
 in the child document and the listing's selection could not follow. Shift+arrow
 range extension was left out on purpose — not asked for, and the anchor/cursor
 split it needs is a separate change.
+
+## RTS: a refresh resumed only when the game itself asked for it (2026-09-11)
+
+**Symptom.** A deploy push or a browser refresh dropped a running match and
+showed the front menu. The Options card's own Reload kept the match.
+
+**Cause.** `reloadKeepMatch()` autosaved and set the resume flag before calling
+`location.reload()`; nothing else did, so every other reload booted cold.
+
+**Fix.** `autosaveForReload()` runs on `pagehide` and on the tab going hidden:
+mid-match it saves to the `auto` key and sets the flag, otherwise it clears
+the flag. `menu()` and `finish()` clear it too. That last part is the trap: the
+hidden-tab save sets the flag long before any unload, so a match that was
+backgrounded, resumed and finished would otherwise come back from the dead
+on the next refresh. Two-player matches are excluded (`G.mp`) — half of a
+lockstep pair cannot resume alone. Covered by two unit tests in rts.test.js.
+
+**Rejected.** A periodic autosave: the two named cases both fire `pagehide`,
+and serialising the world every minute is a hitch the player would feel.
+
