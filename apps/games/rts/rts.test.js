@@ -6273,8 +6273,11 @@ test("the camera can bring any map edge to the centre of the view", () => {
   const lo = H.clampCam();
   H.setCam(1e9, 1e9);
   const hi = H.clampCam();
-  // Half a viewport of void on every side (the harness view is 800x600 at
-  // zoom 1): the old fixed 260 px margin could not centre a corner.
-  assert.equal(lo.y, -300);
-  assert.ok(hi.y - lo.y > 600 && hi.x - lo.x > 800);
+  // The clamp follows the DIAMOND, m = 600/32/3 = 6.25 cells past each edge in
+  // the harness view: the top corner (grid -m,-m) is world (0, -200) and the
+  // bottom corner (MAP+m, MAP+m) is 32*MAP + 400 below it. A bounding-box
+  // clamp would put lo at a box corner instead — x well off zero.
+  assert.equal(lo.y, -200);
+  assert.equal(Math.abs(lo.x) < 1e-6, true);
+  assert.equal(Math.abs((hi.y - lo.y) - (32 * W.__rtsTables.MAP + 400)) < 1e-6, true);
 });

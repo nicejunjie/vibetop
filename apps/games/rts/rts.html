@@ -9604,7 +9604,7 @@
       // "the smallest thing that flies — half a Harrier; identity is size,
       // not detail" (unit-identity-reference.md 2.3).
       var isAirKind = kind === 'harrier' || kind === 'kirov' || kind === 'hornet';
-      if (wantH && !isAirKind && kind !== 'nighthawk') shadowBlob(s.g, cx, by, len * shR, wid * shRy);
+      if (wantH && !isAirKind && kind !== 'nighthawk' && kind !== 'mcv') shadowBlob(s.g, cx, by, len * shR, wid * shRy);
 
       // --- primitives -----------------------------------------------------
       // A circle of radius r in the GROUND plane projects to an AXIS-ALIGNED
@@ -11894,35 +11894,39 @@
       // in a steel saddle, and a transverse machinery bridge over rear rods.
       if (kind === 'mcv' && wantH) (function () {
         VLIFT = 1;
-        var faces = [], KF = ISO_X * Math.SQRT2;
+        var faces = [], casters = [], KF = ISO_X * Math.SQRT2;
         var Lu = px, Lv = -fx, Lz = fy * px - py * fx;
         if (Lz < 0) { Lu = -Lu; Lv = -Lv; Lz = -Lz; }
-        var light = [-0.55 * cd + 0.8 * sd, 0.55 * sd + 0.8 * cd, 1.6];
+        function normalized(v) { var l = Math.hypot(v[0], v[1], v[2]); return v.map(function (x) { return x / l; }); }
+        function dot(a, b) { return a[0] * b[0] + a[1] * b[1] + a[2] * b[2]; }
+        var light = normalized([-0.65 * cd + 0.9 * sd, 0.65 * sd + 0.9 * cd, 1.45]);
+        var eye = normalized([Lu, Lv, Lz]);
+        var halfLight = normalized(light.map(function (x, i) { return x + eye[i]; }));
         var P3 = function (p) { return [cx + fx * p[0] + px * p[1], by + fy * p[0] + py * p[1] - p[2]]; };
         var rgb = parseInt(col.slice(1), 16), cr = [(rgb >> 16) & 255, (rgb >> 8) & 255, rgb & 255];
         var cmin = Math.min.apply(null, cr), cspan = Math.max.apply(null, cr) - cmin || 1;
-        var NAVY = 'rgb(' + cr.map(function (v) { return Math.round(9 + 140 * Math.pow((v - cmin) / cspan, 4)); }).join(',') + ')';
-        // The source's paint is a deep violet gunmetal. Keeping the carrier
-        // darker than its bare steel is what gives the frame weight; the old
-        // lavender value made every panel read like a thin aluminium truck.
-        var PAINT = '#706d86', RAIL = '#64677e', STEEL = '#a9ada8', LIGHT = '#d8d9cf';
-        var DARK = '#363b42', RUBBER = '#242629', GLASS = '#11191d';
+        var NAVY = 'rgb(' + cr.map(function (v) { return Math.round(16 + 116 * Math.pow((v - cmin) / cspan, 3)); }).join(',') + ')';
+        var PAINT = '#86849c', RAIL = '#71788b', STEEL = '#aab3b9', LIGHT = '#dfe5df';
+        var DARK = '#333d49', RUBBER = '#232629', GLASS = '#111b22';
         function surface(pts, color, center, unlit) {
           var p = pts[0], e = pts[1].map(function (v, i) { return v - p[i]; });
           var f = pts[2].map(function (v, i) { return v - p[i]; });
           var n = [e[1] * f[2] - e[2] * f[1], e[2] * f[0] - e[0] * f[2], e[0] * f[1] - e[1] * f[0]];
           if (center && n[0] * (center[0] - p[0]) + n[1] * (center[1] - p[1]) + n[2] * (center[2] - p[2]) > 0)
             n = n.map(function (v) { return -v; });
-          if (n[0] * Lu + n[1] * Lv + n[2] * Lz <= 0) return;
           var length = Math.hypot(n[0], n[1], n[2]) || 1;
-          var incidence = Math.max(0, (n[0] * light[0] + n[1] * light[1] + n[2] * light[2]) / (length * 1.87));
-          var illumination = 0.56 + 0.44 * incidence;
-          // Bare steel catches a narrower highlight than painted panels;
-          // rubber and glass never receive this response.
-          if (color === STEEL || color === LIGHT) illumination = 0.73 + 0.39 * incidence + 0.12 * Math.pow(incidence, 10);
-          var finish = color === STEEL || color === LIGHT ? 2 : color === PAINT || color === RAIL ? 1 : 0;
+          n = n.map(function (x) { return x / length; });
+          casters.push(pts);
+          if (dot(n, eye) <= 0) return;
+          var incidence = Math.max(0, dot(n, light));
+          var finish = color === STEEL || color === LIGHT ? 2 : color === PAINT || color === RAIL || color === NAVY ? 1 : 0;
+          // Specular reflection uses both the light AND the viewing direction.
+          // The former diffuse-only multiplier made even bare steel matte.
+          var reflection = Math.pow(Math.max(0, dot(n, halfLight)), finish === 2 ? 26 : 42);
+          var gloss = unlit ? 0 : reflection * (finish === 2 ? 165 : finish === 1 ? 60 : 0);
+          var illumination = unlit ? 1 : 0.43 + 0.65 * incidence;
           var axis = Math.abs(n[2]) >= Math.max(Math.abs(n[0]), Math.abs(n[1])) ? 2 : Math.abs(n[0]) > Math.abs(n[1]) ? 0 : 1;
-          faces.push({ p: pts, col: unlit ? color : shade(color, illumination), finish: finish, axis: axis });
+          faces.push({ p: pts, col: unlit ? color : shade(color, illumination), finish: finish, axis: axis, gloss: gloss, lit: incidence });
         }
         function solid(points, indices, color) {
           var center = [0, 0, 0];
@@ -11931,8 +11935,33 @@
         }
         var boxFaces = [[0, 3, 2, 1], [4, 5, 6, 7], [0, 1, 5, 4], [1, 2, 6, 5], [2, 3, 7, 6], [3, 0, 4, 7]];
         function box(u0, u1, v0, v1, z0, z1, color) {
+          if (v1 < v0) { var swap = v0; v0 = v1; v1 = swap; }
           solid([[u0, v0, z0], [u1, v0, z0], [u1, v1, z0], [u0, v1, z0],
                  [u0, v0, z1], [u1, v0, z1], [u1, v1, z1], [u0, v1, z1]], boxFaces, color);
+        }
+        function bevel(u0, u1, v0, v1, z0, z1, b, color) {
+          var plan = [[u0+b,v0],[u1-b,v0],[u1,v0+b],[u1,v1-b],
+            [u1-b,v1],[u0+b,v1],[u0,v1-b],[u0,v0+b]];
+          var pts = [], ids = [], cu = (u0+u1)/2, cv = (v0+v1)/2;
+          [z0,z1-b,z1].forEach(function (z, row) {
+            plan.forEach(function (p) {
+              pts.push([row === 2 ? cu+(p[0]-cu)*(1-b/(u1-u0)) : p[0],
+                row === 2 ? cv+(p[1]-cv)*(1-b/(v1-v0)) : p[1],z]);
+            });
+          });
+          ids.push([0,1,2,3,4,5,6,7], [16,17,18,19,20,21,22,23]);
+          for (var row=0;row<2;row++) for(var q=0;q<8;q++) ids.push([row*8+q,row*8+(q+1)%8,(row+1)*8+(q+1)%8,(row+1)*8+q]);
+          solid(pts,ids,color);
+        }
+        function beam(a, b, width, height, color) {
+          var along = normalized(b.map(function (x,i) {return x-a[i];}));
+          var right = Math.abs(along[2]) > 0.98 ? [1,0,0] : normalized([-along[1],along[0],0]);
+          var up = [along[1]*right[2]-along[2]*right[1],along[2]*right[0]-along[0]*right[2],along[0]*right[1]-along[1]*right[0]];
+          var pts=[];
+          [a,b].forEach(function (p) { [[-1,-1],[1,-1],[1,1],[-1,1]].forEach(function (q) {
+            pts.push(p.map(function (x,i) {return x+right[i]*q[0]*width/2+up[i]*q[1]*height/2;}));
+          }); });
+          solid(pts,boxFaces,color);
         }
         function profile(outline, v0, v1, color) {
           var pts = [], ids = [], count = outline.length;
@@ -30020,15 +30049,19 @@
     cam.x = worldX(gx, gy);
     cam.y = worldY(gx, gy);
   }
-  // The map floats in a black void the camera may scroll into, as RA2's does:
-  // half a viewport of it on every side, so ANY point on the map's edge can be
-  // brought to the centre of the screen. A fixed 260 px used to leave the
-  // corners of the diamond pinned against the view, which made the last row of
-  // a base the hardest place on the map to work in.
+  // The map floats in a black void the camera may scroll into, as RA2's does,
+  // so ANY point on the map's edge can be brought to the centre of the screen
+  // with void beyond it. The clamp is in GRID space: the limit follows the
+  // diamond's four edges, a few cells out, rather than its bounding box —
+  // a box lets the centre reach the box's corners, which are nothing but
+  // void (a full black screen, tried and rejected), while a fixed 260 px
+  // world margin pinned the diamond's corners against the view.
   function clampCam() {
-    var mx = Math.max(260, cvW / 2 / zoom), my = Math.max(260, cvH / 2 / zoom);
-    cam.x = Math.max(-(MAP * TW / 2) - mx, Math.min((MAP * TW / 2) + mx, cam.x));
-    cam.y = Math.max(-my, Math.min(MAP * TH + my, cam.y));
+    var m = Math.max(4, (cvH / zoom) / TH / 3);        // cells past the edge: ~9 at 900 px
+    var gx = cam.x / TW + cam.y / TH, gy = cam.y / TH - cam.x / TW;   // inverse of worldX/worldY
+    gx = Math.max(-m, Math.min(MAP + m, gx));
+    gy = Math.max(-m, Math.min(MAP + m, gy));
+    cam.x = worldX(gx, gy); cam.y = worldY(gx, gy);
   }
   var APRON = 16;                                 // how far the terrain runs past the border
   function sx(gx, gy) { return worldX(gx, gy) - cam.x + cvW / 2; }
