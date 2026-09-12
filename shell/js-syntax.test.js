@@ -25,7 +25,7 @@ const REPO = path.join(__dirname, "..");
 function walk(dir, pat, out = []) {
   for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
     const full = path.join(dir, e.name);
-    if (e.isDirectory()) { if (e.name !== "art" && e.name !== "icons") walk(full, pat, out); }
+    if (e.isDirectory()) { if (e.name !== "art" && e.name !== "icons" && e.name !== "node_modules") walk(full, pat, out); }
     else if (pat.test(e.name)) out.push(path.relative(REPO, full));
   }
   return out;
