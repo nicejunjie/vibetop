@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_289 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_290 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
 - [Scheduled terminal messages ("resume when the token limit resets")](#scheduled-terminal-messages-resume-when-the-token-limit-resets)
@@ -312,6 +312,7 @@ _289 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [A phone went white on a Cloudflare Access expiry: the failed navigation now has a page, and a trace (2026-09-11)](#a-phone-went-white-on-a-cloudflare-access-expiry-the-failed-navigation-now-has-a-page-and-a-trace-2026-09-11)
 - [Files: FileBrowser retired, native is the only engine (2026-09-11)](#files-filebrowser-retired-native-is-the-only-engine-2026-09-11)
 - [Re-login left the desktop reloading for ever until a click (2026-09-12)](#re-login-left-the-desktop-reloading-for-ever-until-a-click-2026-09-12)
+- [RTS unit art split into one file per unit — textually, not as modules (2026-09-12)](#rts-unit-art-split-into-one-file-per-unit-textually-not-as-modules-2026-09-12)
 
 <!-- END TOC -->
 
@@ -12936,3 +12937,47 @@ resets the counter, so a real deploy is never blocked. Regression test in
 **Rejected.** Gating only the SSE path, or adding a separate SSE counter — the
 breaker already tracks "a reload that changed nothing," which is exactly the
 condition every reload trigger must respect, so it belongs at `doReload`.
+
+## RTS unit art split into one file per unit — textually, not as modules (2026-09-12)
+
+**Symptom.** (user) "can you make the art of each unit in a separate file,
+easier to work on individually." Every unit's drawing code was a branch of one
+of four bake functions inside the 38k-line `rts.html` — 875 lines for the
+Construction Yard, 410 for the MCV — found by grepping for `kind === 'rhino'`
+and edited in a 2.2 MB file.
+
+**Cause.** The branches are not separable code. Each one leans on dozens of
+locals of its bake function: the canvas, the anchor, the facing vectors, the
+size/colour tables computed above the chain, and the shared helpers
+(`chassis()`, `legs()`, `apron()`…) that are themselves closures over the same
+scope. A `var` declared in one branch is hoisted to the function. Turning a
+branch into a real function in a real file means threading every one of those
+through by hand, for 69 units and 13.6k lines, with no JS parser in the repo
+to list the free identifiers — and the art gate has already shown that
+"headless numbers pass while the renderer throws."
+
+**Fix.** The split is textual and lossless. `apps/games/rts/art/units/
+<class>/<kind>.js` holds the branch body de-indented (69 files: 14 infantry,
+15 vehicles, 2 aircraft, 9 ships, 29 structures); `rts.html` carries the same
+lines between `// @@ART <unit>` / `// @@END <unit>` markers, so the page is
+still one self-contained file and nothing in the delivery path — the install
+walk, the vm loader in `rts.test.js`, the art tools' loopback servers, the e2e
+`VIBETOP_RTS_HTML` override — changed. `tools/art-split.js inject|extract|
+check` copies in either direction and `rts-split.test.js` fails the commit
+while the two copies differ (naming the unit and which side is newer);
+`inject` refuses a file that does not parse as a strict function body. The
+markers were placed structurally (chain walker + brace matching at indent),
+and the resulting diff of `rts.html` against the previous commit is exactly
+the 138 marker lines. `art/units/README.md` lists the locals each class of
+file may use and what deliberately stays in the page (the colour and size
+tables, the aircraft prelude, sheet assembly).
+
+**Rejected.** Real script files (`<script src="rts-art-rhino.js">`) registering
+draw functions on a global — the scope plumbing above, plus ~70 more files at
+the flat web root. Making the unit files the only source and generating
+`rts.html` — a one-way build step; the two-way sync with an equality test is
+the same guarantee and also survives a session that edits the page directly.
+ES modules — no precedent in the page and `defer` semantics the boot does not
+want. Moving the per-kind hull-colour and size tables into the unit files —
+they are one shared block each whose rows are compared against each other
+(the "one scale for the whole group" pass); splitting them would hide that.

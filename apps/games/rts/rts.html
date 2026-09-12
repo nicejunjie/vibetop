@@ -5932,6 +5932,7 @@
     }
 
     if (kind === 'conscript') {
+      // @@ART infantry/conscript
       // Read straight off the RA2 sprite (soviet-conscript-anim-f0): a plain
       // STEEL helmet, a fat house-colour scarf filling the whole chest under
       // the chin, a near-black jacket with the sleeves the same value as the
@@ -6012,8 +6013,10 @@
       g.fillStyle = shade(CCAP, 1.55);                              // lit flat crown
       g.fillRect(ccx - ccw + 0.4, chy2 - 1.3, ccw * 1.1, 0.8);
       g.restore();
+      // @@END infantry/conscript
 
     } else if (kind === 'rocketeer') {
+      // @@ART infantry/rocketeer
       // ROCKETEER (Directorate). From the RA2 sprite and render: a grey
       // pressure suit with a domed helmet and dark visor, a squat jet PACK
       // on the back with a nozzle each side of the hips, legs hanging
@@ -6162,8 +6165,10 @@
         g.fillRect(vhx - 3.2 * vw, by - 20.8, 6.4 * vw, 0.7);
       }
       g.restore();
+      // @@END infantry/rocketeer
 
     } else if (kind === 'rocket' && !sov) {
+      // @@ART infantry/guardian-gi
       // GUARDIAN GI (Directorate). Heavier than the rifleman in every axis:
       // a slab vest that squares the shoulders, a deep helmet with a dark
       // visor band, and a stubby missile tube braced on the right shoulder
@@ -6324,8 +6329,10 @@
       g.fillRect(cx + sd * 1.1 / TURN + HEADX - 2.4, by - 21.9, 2.3, 0.65);
       }
       g.restore();
+      // @@END infantry/guardian-gi
 
     } else if (kind === 'rocket') {
+      // @@ART infantry/flak-trooper
       // FLAK TROOPER (Collective), read off soviet-flak-trooper-frames: a
       // dark tunic over BROWN trousers, a house-colour vest filling the
       // chest, a plain steel helmet, and the silhouette that names him — a
@@ -6447,8 +6454,10 @@
       g.fillStyle = '#2a2d33';                                      // chin strap
       g.fillRect(cx - 2.7, by - 19.4, 5.4, 0.8);
       g.restore();
+      // @@END infantry/flak-trooper
 
     } else if (kind === 'engineer') {
+      // @@ART infantry/engineer
       // ENGINEER, read off the RA2 walk frames (engineer-frames.png): a hi-vis
       // house-colour WAISTCOAT over a light work shirt, khaki trousers on a
       // brown tool belt, and the tell no other infantryman has — a
@@ -6582,8 +6591,10 @@
         g.fillRect(cx - 3.4, by - 22.6, 6.8, 0.65);
       }
       g.restore();
+      // @@END infantry/engineer
 
     } else if (kind === 'tanya') {
+      // @@ART infantry/tanya
       // TANYA, read off Tanya_animation.gif: shoulder-length BLACK hair on a
       // bare head — the only unhelmeted figure on the field — bare arms, a
       // house-colour top across the chest, olive combat trousers with pale
@@ -6682,8 +6693,10 @@
       g.beginPath();
       g.ellipse(cx - 1.05, by - 24.0, 1.45, 0.75, -0.35, 0, 6.29); g.fill();
       g.restore();
+      // @@END infantry/tanya
 
     } else if (kind === 'teslatrooper') {
+      // @@ART infantry/teslatrooper
       // TESLA TROOPER, read off soviet-tesla-trooper-frames: not a man in a
       // uniform but a man inside a SUIT. Everything is one size class up —
       // a SILVER carapace with rounded shoulder caps over a house-colour
@@ -6981,8 +6994,10 @@
         }
       }
       g.restore();
+      // @@END infantry/teslatrooper
 
     } else if (kind === 'ivan') {
+      // @@ART infantry/ivan
       // CRAZY IVAN, read off soviet-crazy-ivan-frames: a fur USHANKA in
       // house colour with the ear flaps hanging, a brown beard filling the
       // lower face, and a long dark coat worn OPEN — two house-colour lapel
@@ -7175,8 +7190,10 @@
       g.fillStyle = shade(col, 0.72);                               // shadowed brow band
       g.fillRect(cx - 2.8, by - 22.9, 5.6, 0.75);
       g.restore();
+      // @@END infantry/ivan
 
     } else if (kind === 'desolator') {
+      // @@ART infantry/desolator
       // DESOLATOR ([DESO]), read off docs/ra2-ref/ra2-deso-RA2_Desolator_
       // {Render,Manual_Render}. What actually identifies him at 1:1 is the
       // SHOULDER: a fat cylindrical rad cannon carried on the leading
@@ -7372,8 +7389,10 @@
       g.fillStyle = shade(col, 1.0);                                 // house-colour crest
       g.fillRect(cx + sd * 1.1 / TURN - 0.8, dhy - 3.6, 1.6, 3.2);
       g.restore();
+      // @@END infantry/desolator
 
     } else if (kind === 'yuri') {
+      // @@ART infantry/yuri
       // YURI ([YURI]). No sprite rip exists on the wiki (ns:File searches for
       // "Yuri RA2" / "Yuri Render" / "Yuri Cameo" return nothing), so this is
       // built from the character as RA2 presents him — the ONE unit in the
@@ -7513,8 +7532,10 @@
       }
       g.restore();
       g.restore();
+      // @@END infantry/yuri
 
     } else if (kind === 'cleg') {
+      // @@ART infantry/cleg
       // CHRONO LEGIONNAIRE ([CLEG]), read off docs/ra2-ref/ra2-cleg-CC_Legion
       // _Chrono_Legionnaire.png and the sprite animation. He is the PALEST
       // figure on the field: bone-white plate over a light blue-grey suit,
@@ -7753,8 +7774,10 @@
         g.beginPath(); g.ellipse(chx, chy + 1.2, 2.5, 1.4, 0, 0, Math.PI); g.fill();
       }
       g.restore();
+      // @@END infantry/cleg
 
     } else if (kind === 'spy') {
+      // @@ART infantry/spy
       // SPY ([SPY]), read off docs/ra2-ref/ra2-spy-RA2_Spy_Manual_Render: a
       // man in a long OVERCOAT — the only civilian silhouette in the army.
       // Bare dark head under a fedora, pale shirt strip and a dark tie down
@@ -8005,8 +8028,10 @@
       g.fillStyle = shade(SPY_FELT, 1.55);                           // lit crease along the crown
       g.fillRect(shx - scw * 0.52, by - 25.2, 1.5 / TURN, 2.0);
       g.restore();
+      // @@END infantry/spy
 
     } else {
+      // @@ART infantry/gi
       // GI ([E1]). The RA2 layout, and it is the OPPOSITE of what this branch
       // used to draw: a GREY POT HELMET over a house-colour TORSO BLOCK over
       // OLIVE legs (unit-identity-reference.md §1.5). The old pass had the
@@ -8068,6 +8093,7 @@
       face(by - 21.7);
       helmet(by - 23.5, 3.15, ACCENT.rifle, 0.95, 0.72);               // grey pot, NOT house colour
       g.restore();
+      // @@END infantry/gi
     }
     if (VG !== 1) valuePass(s, VG);       // the kind's rung on the value ladder
     return s;
@@ -8118,6 +8144,7 @@
   // --------------------------------------------------------------------- //
   var DOG_SEQ = { stand: 1, walk: 6, leap: 3 };
   function bakeDog(col, fac, phase, dir, state) {
+    // @@ART infantry/dog
     var s = unitCanvas(), g = s.g, cx = s.w / 2, by = s.h - UPAD;
     g.translate(cx, by); g.scale(USC_I, USC_I); g.translate(-cx, -by);
     // ...and the dog's own STATURE, about the same ground anchor, so coat,
@@ -8343,6 +8370,7 @@
       g.beginPath(); g.ellipse(cx + hxo + 0.6 * (0.4 + sd), hyo - 0.5, 0.65, 0.7, 0, 0, 6.29); g.fill();
     }
     return s;
+    // @@END infantry/dog
   }
 
 
@@ -8543,6 +8571,7 @@
       }
 
       if (kind === 'destroyer') {
+        // @@ART ships/destroyer
         // [DEST]: a raked stem, one turret forward, a stepped bridge tower
         // amidships and the Osprey's hangar and pad right aft — RA2's
         // Destroyer is THREE SEPARATED MASSES on a long narrow hull, which is
@@ -8601,7 +8630,9 @@
         disc(-L * 0.80, 0, 1.6, 3.0, 1.5, '#5d6a58');
         g.strokeStyle = '#2a2f33'; g.lineWidth = 0.9;
         g.beginPath(); g.moveTo(hq[0] - 4, hq[1] - 2.4); g.lineTo(hq[0] + 4, hq[1] - 2.0); g.stroke();
+        // @@END ships/destroyer
       } else if (kind === 'aegis') {
+        // @@ART ships/aegis
         // [AEGIS]: the whole ship is a missile battery, and §2.3's read is
         // "explicitly no barrel". ONE slab deckhouse running two thirds of her
         // length, carrying the four phased-array PANELS (the house colour lives
@@ -8676,7 +8707,9 @@
             g.beginPath(); g.ellipse(vq[0], vq[1], 1.1, 0.7, 0, 0, 6.29); g.fill();
           }
         mast(-L * 0.36, 0, 4.4, '#2f343c');
+        // @@END ships/aegis
       } else if (kind === 'carrier') {
+        // @@ART ships/carrier
         // [CARRIER]: 143x52 in RA2 — the largest sprite in the game — and the
         // whole identity is A FLAT FLIGHT DECK THE FULL LENGTH OF THE HULL,
         // with a centreline, a house-colour landing stripe and three Hornets
@@ -8755,7 +8788,9 @@
           g.fillStyle = HOUSE;
           g.beginPath(); g.ellipse(pq2[0] + 1.7, pq2[1] - 0.4, 0.9, 0.7, 0, 0, 6.29); g.fill();
         }
+        // @@END ships/carrier
       } else if (kind === 'dread') {
+        // @@ART ships/dread
         // [DRED]: the missile ship, and §2.4's read is "the V3's silhouette
         // logic at capital-ship scale". Two huge box launchers STANDING PROUD
         // of a low hull, angled up and aft.
@@ -8801,7 +8836,9 @@
         g.strokeStyle = '#8e2c2c'; g.lineWidth = 1.0;                      // hazard hatching fore
         var zq = P(L * 0.66, 0, FR + 0.4);
         g.beginPath(); g.moveTo(zq[0] - 4, zq[1] - 1.2); g.lineTo(zq[0] + 4, zq[1] + 1.2); g.stroke();
+        // @@END ships/dread
       } else if (kind === 'seascorp') {
+        // @@ART ships/seascorp
         // [HYD]: small, fast, and all gun — the shortest armed hull afloat.
         // A low planing hull, a stubby pilot house forward, and the FLAK MOUNT
         // standing on a tub over the stern with a house-coloured ammo cheek
@@ -8858,7 +8895,9 @@
           g.beginPath(); g.moveTo(b0[0] - 0.5, b0[1]); g.lineTo(b1[0] - 0.5, b1[1]); g.stroke();
         }
         mast(L * 0.06, 0, 4.2);
+        // @@END ships/seascorp
       } else if (kind === 'lcraft') {
+        // @@ART ships/lcraft
         // [LCRF]: an open well deck between two side walls, and the bow RAMP
         // — the one feature that says "this thing beaches".
         //
@@ -8900,7 +8939,9 @@
         g.strokeStyle = HOUSE; g.lineWidth = 1.8;                          // hinge band at the stem
         g.beginPath(); g.moveTo(m0[0], m0[1] - 0.6); g.lineTo(m1[0], m1[1] - 0.6); g.stroke();
         box(-L * 0.78, 0, 6, W * 0.50, 5.2, shade(DECK, 1.1));            // little wheelhouse aft
+        // @@END ships/lcraft
       } else if (kind === 'sub') {
+        // @@ART ships/sub
         // [SUB]: almost nothing above water. A long whaleback casing awash,
         // ONE SAIL with a house band, two short periscopes. What reads as a
         // submarine is that the deck is barely above the waterline and the
@@ -8947,7 +8988,9 @@
         g.strokeStyle = '#2b3038'; g.lineWidth = 1.6;
         var e0 = P(-L * 0.86, W * 1.15, 1.0), e1 = P(-L * 0.86, -W * 1.15, 1.0);
         g.beginPath(); g.moveTo(e0[0], e0[1]); g.lineTo(e1[0], e1[1]); g.stroke();
+        // @@END ships/sub
       } else if (kind === 'dolphin') {
+        // @@ART ships/dolphin
         // [DLPH]: an animal, not a boat. A fusiform body, a beak, a dorsal fin
         // and a fluke.
         //
@@ -9020,7 +9063,9 @@
         var eyq = P(L * 0.70, nearS * W * 0.30, FR + 2.4);
         g.fillStyle = '#101418';                                          // the eye
         g.beginPath(); g.ellipse(eyq[0], eyq[1], 0.7, 0.6, 0, 0, 6.29); g.fill();
+        // @@END ships/dolphin
       } else if (kind === 'squid') {
+        // @@ART ships/squid
         // [SQD]: a mantle and eight arms. No deck, no fittings — the only
         // straight line on it would kill the read.
         //
@@ -9108,6 +9153,7 @@
         g.beginPath(); g.ellipse(eyx, eyy, 1.5 * ss * 0.7, 1.2 * ss * 0.7, 0, 0, 6.29); g.fill();
         g.fillStyle = '#141018';
         g.beginPath(); g.ellipse(eyx, eyy, 0.7 * ss * 0.7, 0.9 * ss * 0.7, 0, 0, 6.29); g.fill();
+        // @@END ships/squid
       }
       // A bow wave on every surface hull: two pale chevrons off the stem, on
       // the water, so a ship reads as sitting IN something.
@@ -10099,6 +10145,7 @@
         var bodyTop = [nx2, ny2], gradA, gradB;
 
         if (kind === 'kirov') {
+          // @@ART aircraft/kirov
           // KIROV AIRSHIP. Measured off soviet-kirov.png: broadside 137x61
           // (w/h 2.25), nose-on 61x86 (0.71). A golden-tan ribbed envelope,
           // blunt nose, tapered tail; four house-colour tail fins and two
@@ -10270,7 +10317,9 @@
             g.stroke();
           }
           g.globalAlpha = 1;
+          // @@END aircraft/kirov
         } else {
+          // @@ART aircraft/harrier
           // HARRIER. From allied-harriers.png: a dark blue-grey jet with a
           // white belly and nose, swept wings, a tall house-colour fin and
           // house wingtips, a bubble canopy. Two Maverick missiles ride under
@@ -10362,11 +10411,13 @@
           var ex2 = pt(-0.98);
           g.fillStyle = '#15181d';
           g.beginPath(); g.ellipse(ex2[0], ex2[1] + 0.6, 2.2 * Math.max(0.5, 1 - AL / 1.4), 1.6, 0, 0, 6.29); g.fill();
+          // @@END aircraft/harrier
         }
         return s;
       }
 
       if (kind === 'lancer') {
+        // @@ART vehicles/lancer
         // GRIZZLY BATTLE TANK — the real eight-bearing rip is a LOW, pale
         // grey-blue wedge with a compact hard-edged turret and one long thin gun.
         // Its blue remap is restrained: two countable patches on the flank
@@ -10482,8 +10533,10 @@
           // feature that names it. Long and thin still, just not invisible.
           barrel(lz[0], lz[1], 18.0, 2.35, 1.5);
         }
+        // @@END vehicles/lancer
 
       } else if (kind === 'spectre') {
+        // @@ART vehicles/spectre
         // PRISM TANK — built against `allied-prism-tank.png` (52x40 at the
         // down-right facing). A COMPACT tank, not a long flat barge: a dark
         // slate hull with ONE solid owner-colour plate down each upper flank,
@@ -10638,8 +10691,10 @@
           g.fillStyle = '#f2f6f9';                                   // cap glint
           gEllipse(hx, hy - PH - 0.2, 1.3); g.fill();
         }
+        // @@END vehicles/spectre
 
       } else if (kind === 'mammoth') {
+        // @@ART vehicles/mammoth
         // APOCALYPSE — a long, low Soviet tank. The eight-bearing rip has a
         // narrow tracked hull, a compact faceted turret and twin guns that do
         // the visual work; the red remap is four small rear shoulder blocks.
@@ -10773,8 +10828,10 @@
                    18.8, 1.38, 1.02, VACC.mammothGun);
           }
         }
+        // @@END vehicles/mammoth
 
       } else if (kind === 'ifv') {
+        // @@ART vehicles/ifv
         // Modelled against the user's IFV_Voxel_Render.jpg (the four-model
         // reference in docs/ra2-ref/sprites/allied-ifv-voxel.png). Coordinates
         // are shared by hull and turret: +u forward, +v left, +z up. Surfaces
@@ -11017,8 +11074,10 @@
         raster.g.putImageData(pixels, 0, 0);
         g.save(); g.setTransform(DPR, 0, 0, DPR, 0, 0);
         g.drawImage(raster.c, 0, 0, s.w, s.h); g.restore();
+        // @@END vehicles/ifv
 
       } else if (kind === 'rhino') {
+        // @@ART vehicles/rhino
         // RHINO — the Collective's line tank, and the most-seen sprite in the
         // faction. Where the Lancer is a long low wedge, this is a dense but
         // low olive hull with a squat angular turret and a visibly thicker gun.
@@ -11122,8 +11181,10 @@
           // what the cameo suggested, never what the sprite shows.
           barrel(rz[0], rz[1], 16.0, 2.4, 1.5, VACC.rhinoGun);
         }
+        // @@END vehicles/rhino
 
       } else if (kind === 'flaktrack') {
+        // @@ART vehicles/flaktrack
         // FLAK TRACK — a HALF-TRACK, and the running gear is the whole point:
         // two rubber tyres under a cream bonnet at the nose, a short track run
         // under an olive armoured bed at the tail. Nothing else in the fleet
@@ -11248,8 +11309,10 @@
           puck(kx - fx * 2.8, ky - 3.0 - fy * 2.8, 1.3, 2.0,        // ammo drum at the breech
                '#3d434c', '#7f8792', '#14171c');
         }
+        // @@END vehicles/flaktrack
 
       } else if (kind === 'v3') {
+        // @@ART vehicles/v3
         // V3 LAUNCHER — a plain olive six-wheeled truck carrying a rocket so
         // big it IS the unit: a white body on an angled rail over the bed,
         // nose cone and tail fins in house colour, breaking well past both
@@ -11379,8 +11442,10 @@
         };
         if (fy > 0) { drawRig3(); drawCab3(); } else { drawCab3(); drawRig3(); }
         drawRocket3();
+        // @@END vehicles/v3
 
       } else if (kind === 'drone') {
+        // @@ART vehicles/drone
         // TERROR DRONE — vermin, and it has to LOOK like vermin: a body barely
         // wider than a tank's turret, slung low between four thin splayed
         // legs, with a pale carapace over a house-colour belly and a dark
@@ -11479,8 +11544,10 @@
           g.fill();
         }
         for (i2 = 2; i2 < 4; i2++) droneLeg(legOrder[i2][1][0], legOrder[i2][1][1], true);
+        // @@END vehicles/drone
 
       } else if (kind === 'teslatank') {
+        // @@ART vehicles/teslatank
         // TESLA TANK — a plain olive tracked hull whose whole identity stands
         // on the deck: TWIN pale coil columns, each a stack of ring windings,
         // flanking a house-colour core block, with a dark capacitor box at the
@@ -11578,8 +11645,10 @@
         };
         if (fy > 0) { drawTail5(); drawPod5(); } else { drawPod5(); drawTail5(); }
         lamp(cx + fx * len * 0.39 + px * wid * 0.24, by - 4.5 + fy * len * 0.39 + py * wid * 0.24);
+        // @@END vehicles/teslatank
 
       } else if (kind === 'mirage') {
+        // @@ART vehicles/mirage
         // MIRAGE TANK — a LOW WIDE tracked hull in neutral slate with one
         // CONTINUOUS house-colour band sweeping the whole flank (the segmented
         // skirt every other tank wears is wrong here: the reference shows an
@@ -11656,6 +11725,7 @@
         };
         if (fy > 0) { drawPanel(); drawTurret(); }
         else { drawTurret(); drawPanel(); }
+        // @@END vehicles/mirage
 
       // The tail of this chain is the two miners, which makes it the FALLBACK
       // for any kind the chain does not name. The Phase 8 transports assemble
@@ -11664,6 +11734,7 @@
       } else if (kind === 'nighthawk' || kind === 'apc' || kind === 'mcv') {
         /* built below */
       } else if (!sov) {
+        // @@ART vehicles/chronominer
         // CHRONO MINER — a LOW, DARK truck. In `allied-chrono-miner.png` the
         // body is near-black charcoal, the house colour is ONE bright band
         // across its middle, and the nose is a bulbous VIOLET ribbed cluster
@@ -11806,8 +11877,10 @@
             lamp(cx + fx * Q * 11.6 + px * 3.6 * lI, by - 4.2 + nz + fy * Q * 11.6 + py * 3.6 * lI);
         };
         if (fy > 0) { drawBin(); drawFront(); } else { drawFront(); drawBin(); }
+        // @@END vehicles/chronominer
 
       } else {
+        // @@ART vehicles/warminer
         // WAR MINER — NOT a recoloured Chrono Miner. A size class up, and
         // massed the opposite way: the big golden slatted bin IS the vehicle,
         // a squat house-colour DRUM stands on its front shoulder, and a white
@@ -11933,6 +12006,7 @@
             lamp(cx + fx * W * 9.0 + px * 3.9 * l2, by - 5.2 + fy * W * 9.0 + py * 3.9 * l2);
         };
         if (fy > 0) { drawBin2(); drawFront2(); } else { drawFront2(); drawBin2(); }
+        // @@END vehicles/warminer
       }
 
       // MCV: reconstructed from Allied_MCV_Voxel_Render.jpg and the eight
@@ -11940,6 +12014,7 @@
       // A wide six-wheel chassis carries folded foundation wings, retracted
       // stabilizers, a loaded steel cradle and its exposed hinge machinery.
       if (kind === 'mcv' && wantH) (function () {
+        // @@ART vehicles/mcv
         VLIFT = 1;
         var faces = [], casters = [], KF = ISO_X * Math.SQRT2;
         var Lu = px, Lv = -fx, Lz = fy * px - py * fx;
@@ -12350,6 +12425,7 @@
         raster.g.putImageData(pixels,0,0);
         g.save();g.setTransform(DPR,0,0,DPR,0,0);
         g.drawImage(raster.c,0,0,s.w,s.h);g.restore();
+        // @@END vehicles/mcv
       })();
 
       // ---- Nighthawk ([SHAD], art `SHAD.VXL`) --------------------------- //
@@ -12365,6 +12441,7 @@
       // band over each door and the fin flash, because a half-house-coloured
       // helicopter reads as a toy.
       if (kind === 'nighthawk') {
+        // @@ART vehicles/nighthawk
         if (wantH) {
           var hy = by - 5.4;                                  // the belly line
           // THE BOOM IS THE LENGTH, and `len` is not. Sweeping `len` 34/42/50
@@ -12551,6 +12628,7 @@
           g.fillStyle = '#e3d3b6';                                        // anti-collision lamp
           g.beginPath(); g.ellipse(mrx - fx * 2.4, mry + 1.6 - fy * 2.4, 0.8, 0.7, 0, 0, 6.29); g.fill();
         }
+        // @@END vehicles/nighthawk
       }
 
       // ---- Amphibious Transport ([SAPC], art `TRS.VXL`) ------------------ //
@@ -12568,6 +12646,7 @@
       // happened. House colour is one rubbing strake a flank plus the bridge
       // roof: a deck-wide band turns the vehicle into a slab of player hue.
       if (kind === 'apc') {
+        // @@ART vehicles/apc
         if (wantH) {
           var skHW = wid * 0.48, skST = Math.max(0.5, len * 0.46 - skHW);
           var SK = stadium(cx, by - 0.8, skST, skHW), i4, q0, q1;
@@ -12660,6 +12739,7 @@
             gEllipse(fnx, fny - 2.6, 2.35); g.stroke();
           }
         }
+        // @@END vehicles/apc
       }
       VLIFT = 1;
       var metalSeed = 0;
@@ -13284,6 +13364,7 @@
     //  basin and the two floodlights blink in turn.
     // ------------------------------------------------------------------- //
     if (key === 'shipyard') {
+      // @@ART structures/shipyard
       var ph = bph || 0;
       // A PRIVATE generator for the scatter below. `srand`/`rnd` are the
       // SIM's stream, and structure art is baked lazily now — a bake that
@@ -13709,6 +13790,7 @@
         floods([P(-1.12, 1.12, PH2), P(1.12, -1.12, PH2)]);
       }
       return { s: s, ax: cx, ay: baseY };
+      // @@END structures/shipyard
     }
 
     // RA2 structures are poured concrete and painted steel; the HOUSE colour
@@ -13830,6 +13912,7 @@
     }
 
     if (key === 'base') {
+      // @@ART structures/base
       // Rebuilt against the CLEAN in-game SHP rips of both Construction
       // Yards, then polished a second time at 1:1 against them (art pass 8):
       // the Soviet yard is a dark machine block and a pale limestone PORTAL
@@ -14705,7 +14788,9 @@
         g.quadraticCurveTo(clx - 11.4, cly + 8, clx - 6.9, cly + 14.4); g.stroke();
         g.lineCap = 'butt';
       }
+      // @@END structures/base
     } else if (key === 'power') {
+      // @@ART structures/power
       // Rebuilt at 1:1 from the RA2 sprites (art pass 8). Two different
       // buildings: the Allied plant is three slim capacitor towers standing on
       // flared house-coloured CONES around an upturned copper dish; the Soviet
@@ -15457,7 +15542,9 @@
           g.fillRect(vgx - 1, vgy - 7.6, 2, 2.8);
         }
       }
+      // @@END structures/power
     } else if (key === 'refinery') {
+      // @@ART structures/refinery
       // Ore Refinery, polished at 1:1 against the real RA2 sprites
       // (docs/ra2-ref/allied-ore-refinery-idle.png, soviet-ore-refinery-anim-last.png).
       // Two different buildings, not a recolour:
@@ -16037,7 +16124,9 @@
           g.fillStyle = 'rgb(128,0,255)'; g.fillRect(Math.round(spB[0])-1, Math.round(spB[1])-1, 3, 3);
         }
       }
+      // @@END structures/refinery
     } else if (key === 'barracks') {
+      // @@ART structures/barracks
       // Barracks, rebuilt against the real RA2 sprites.
       //   Directorate = Allied Barracks: TWO Quonset huts side by side in
       //   echelon, white-grey canvas over PLAYER-COLOURED arch frames (that
@@ -16591,7 +16680,9 @@
         g.fillStyle = SM2;                                    // right hand on the stock
         spoly([[10.4, -68.0], [15.6, -68.0], [15.6, -61.6], [10.4, -61.6]], SM2, SO2, 1.1);
       }
+      // @@END structures/barracks
     } else if (key === 'factory') {
+      // @@ART structures/factory
       // War Factory - both read at 1:1 off the RA2 build-up sprites
       // (docs/ra2-ref/{allied,soviet}-war-factory-idle.png, last frame of the
       // wiki gifs) and MIRRORED left-right: RA2 opens both doors on the
@@ -17205,7 +17296,9 @@
         var cq2 = IP(1.30, 0.86, 0); crates(g, cq2[0], cq2[1], 2, '#6d6552');
         var dr2 = IP(1.40, 1.22, 0); drums(g, dr2[0], dr2[1], 2, '#6b4a3a');
       }
+      // @@END structures/factory
     } else if (key === 'sentry') {
+      // @@ART structures/sentry
       // RA2 Allied Pillbox, re-read at 1:1 against a fresh RED-owner MAKE rip
       // (docs/ra2-ref/allied-pillbox-anim-last.png, last of 7 frames, 48x29,
       // aspect 1.655). The sprite's VALUES are the opposite of what was here:
@@ -17337,7 +17430,9 @@
         g.fillStyle = 'rgba(255,242,206,.85)';                 // both the game's SPR.bld[0]
         g.beginPath(); g.ellipse(slX + 1.6, slY, 2.0, 1.1, 0.22, 0, 6.29); g.fill();
       }                                                         // atlas and art-metrics.js is always ph6===0, so a flare there would be a permanent (not intermittent) saturated pixel and break "the lens is the sprite's only saturated pixels"
+      // @@END structures/sentry
     } else if (key === 'tesla') {
+      // @@ART structures/tesla
       // RA2 Tesla Coil, re-read at 1:1 against a fresh RED-owner rip
       // (docs/ra2-ref/soviet-tesla-coil-idle.png, last frame of the wiki's
       // `Tesla coil animation 2.gif`, 41x82, aspect 0.500). Massing was
@@ -17593,7 +17688,9 @@
         g.stroke();
       }
       g.lineWidth = 1;
+      // @@END structures/tesla
     } else if (key === 'airforce') {
+      // @@ART structures/airforce
       // --- RA2 Airforce Command HQ ----------------------------------------
       // Rebuilt at 1:1 against the RED-owner MAKE rip
       // (docs/ra2-ref/allied-airforce-command-idle.png, last of 24 frames,
@@ -17880,7 +17977,9 @@
       g.beginPath(); g.ellipse(ctx2 - 1, scTop - 23, 3.2, 2.8, 0, 0, 6.29); g.fill();
       g.fillStyle = '#5b6270';
       g.beginPath(); g.ellipse(ctx2 - 1, scTop - 24.6, 1.6, 1.4, 0, 0, 6.29); g.fill();
+      // @@END structures/airforce
     } else if (key === 'depot') {
+      // @@ART structures/depot
       // --- RA2 Service Depot -------------------------------------------------
       // Rebuilt at 1:1 against the RED-owner SHP rips (the last frame of the
       // wiki MAKE gifs): `allied-service-depot-idle.png` 140x87 w/h 1.61 and
@@ -18565,7 +18664,9 @@
         drums(g, cx - fw * 0.82, baseY + fh * 0.18, 3, '#4d5763');
         crates(g, cx - fw * 0.64, baseY + fh * 0.68, 2, '#7a6a45');
       }
+      // @@END structures/depot
     } else if (key === 'lab') {
+      // @@ART structures/lab
       // --- RA2 Battle Lab ----------------------------------------------------
       // Rebuilt at 1:1 against the RED-owner SHP rips (last frame of the wiki
       // MAKE gifs): `allied-battle-lab-idle.png` 118x213 w/h 0.554 and
@@ -19081,7 +19182,9 @@
           g.lineTo(cx + fw * 0.12 - 8, baseY - 156); g.stroke();
         }
       }
+      // @@END structures/lab
     } else if (key === 'purifier') {
+      // @@ART structures/purifier
       // --- RA2 Ore Purifier --------------------------------------------------
       // Rebuilt at 1:1 against the RED-owner MAKE rip
       // (docs/ra2-ref/allied-ore-purifier-anim-last.png, last frame, 127x105
@@ -19346,7 +19449,9 @@
         g.fillStyle = (ph6 % 2) ? shade(col, 1.22) : shade(col, 0.76);
         g.beginPath(); g.ellipse(puLX, puLY - 7, 2.4, 2.4, 0, 0, 6.29); g.fill();
       }
+      // @@END structures/purifier
     } else if (key === 'prism') {
+      // @@ART structures/prism
       // --- RA2 Prism Tower --------------------------------------------------
       // Re-read at 1:1 against the SHP rip (allied-prism-tower-anim-last.png,
       // 53x101 with the magenta shadow masked, aspect 0.525). The body is
@@ -19524,7 +19629,9 @@
       outline(g, PZ_NAVD);
       g.fillStyle = 'rgba(226,244,255,' + (0.06 + 0.07 * (0.5 + 0.5 * anS)) + ')';
       g.beginPath(); g.ellipse(cx, pzHub - 9, 16, 11, 0, 0, 6.29); g.fill();
+      // @@END structures/prism
     } else if (key === 'radar') {
+      // @@ART structures/radar
       // --- RA2 Soviet Radar Tower -------------------------------------------
       // Rebuilt at 1:1 against the RED-owner MAKE rip
       // (docs/ra2-ref/soviet-radar-tower-idle.png, last of 29 frames, 90x125,
@@ -19862,7 +19969,9 @@
         prism(g, cx, baseY, fw * 0.8, fh * 0.8, 30, '#6a6f78', '#8a9099', '#2a2e36');
         g.fillStyle = col; g.fillRect(cx - fw * 0.5, baseY - 32, fw, 4);
       }
+      // @@END structures/radar
     } else if (key === 'reactor') {
+      // @@ART structures/reactor
       // --- RA2 Nuclear Reactor ----------------------------------------------
       // Rebuilt at 1:1 against the in-game shot
       // (docs/ra2-ref/soviet-nuclear-reactor.png, 173x136, building 169x124,
@@ -20143,7 +20252,9 @@
         prism(g, cx, baseY, fw * 0.8, fh * 0.8, 30, '#6a6f78', '#8a9099', '#2a2e36');
         g.fillStyle = col; g.fillRect(cx - fw * 0.5, baseY - 32, fw, 4);
       }
+      // @@END structures/reactor
     } else if (key === 'sentrygun') {
+      // @@ART structures/sentrygun
       // --- RA2 Sentry Gun ---------------------------------------------------
       // Re-read at 1:1 against a fresh RED-owner MAKE rip
       // (docs/ra2-ref/soviet-sentry-gun-anim-last.png, last of 11 frames,
@@ -20280,7 +20391,9 @@
         prism(g, cx, baseY, fw * 0.8, fh * 0.8, 16, '#6a6f78', '#8a9099', '#2a2e36');
         g.fillStyle = col; g.fillRect(cx - fw * 0.5, baseY - 18, fw, 4);
       }
+      // @@END structures/sentrygun
     } else if (key === 'patriot') {
+      // @@ART structures/patriot
       // --- RA2 Patriot Missile System ---------------------------------------
       // Re-read at 1:1 against allied-patriot-anim-last.png (44x55 with the
       // magenta shadow masked, aspect 0.800 - the sprite is TALLER than wide).
@@ -20388,7 +20501,9 @@
       outline(g, PT_BOXD);
       g.fillStyle = (ph6 === 0 || ph6 === 3) ? '#ffe9a8' : '#6d7484';
       g.beginPath(); g.ellipse(cx - 13.6, baseY - 14.4, 1.5, 1.2, 0, 0, 6.29); g.fill();
+      // @@END structures/patriot
     } else if (key === 'flakcannon') {
+      // @@ART structures/flakcannon
       // --- RA2 Flak Cannon ----------------------------------------------------
       // Re-read at 1:1 against soviet-flak-cannon-anim-last.png (53x68 with
       // the magenta shadow masked, aspect 0.779 - taller than wide). The
@@ -20496,7 +20611,9 @@
       // this bright made its own island once the dark muzzle brake band cut it
       // off from the rest of the bright barrel, an extra "barrel" by count.
       g.lineWidth = 1;
+      // @@END structures/flakcannon
     } else if (key === 'chrono') {
+      // @@ART structures/chrono
       // --- RA2 Chronosphere (GACSPH) --------------------------------------
       // Rebuilt against `allied-chronosphere-idle.png` (178x109, w/h 1.63):
       // a pale panelled DOME with a grid of blue windows filling the right of
@@ -20597,8 +20714,10 @@
       g.beginPath(); g.ellipse(chCx, chTop - chR * 0.94, 8, 3.4, 0, 0, 6.29); g.fill(); outline(g, CH_ED);
       g.fillStyle = ph6 % 2 ? '#e2e9f1' : '#93a0b2';
       g.beginPath(); g.arc(chCx, chTop - chR * 0.99 - 3, 2.6, 0, 6.29); g.fill();
+      // @@END structures/chrono
 
     } else if (key === 'weather') {
+      // @@ART structures/weather
       // --- RA2 Weather Control Device (GAWEAT) ----------------------------
       // Rebuilt against `allied-weather-control-idle.png` (146x135, w/h 1.08):
       // a pale octagonal deck, a big dark steel ORB on a ribbed column with a
@@ -20718,8 +20837,10 @@
           g.lineTo(exp2, eyp); g.stroke();
         }
       }
+      // @@END structures/weather
 
     } else if (key === 'curtain') {
+      // @@ART structures/curtain
       // --- RA2 Iron Curtain Device (NACURE) -------------------------------
       // Rebuilt against `soviet-iron-curtain-idle.png` (138x101, w/h 1.37): a
       // round drum of RED radial panels, a heavy dark emitter sphere carried
@@ -20822,8 +20943,10 @@
           g.lineTo(bx1, by1); g.stroke();
         }
       }
+      // @@END structures/curtain
 
     } else if (key === 'nuke') {
+      // @@ART structures/nuke
       // --- RA2 Nuclear Missile Silo (NAMISL) ------------------------------
       // Rebuilt against `soviet-nuclear-silo-idle.png` (152x131, w/h 1.16): a
       // near-black ribbed TOWER on a broad pale concrete apron with railings,
@@ -20912,8 +21035,10 @@
       g.fillStyle = '#191715';
       g.beginPath(); g.ellipse(cx + nsHw * 0.42 + 2.7, nsRy - 20, 3.4, 1.5, 0, 0, 6.29); g.fill();
       steam(g, cx + nsHw * 0.42 + 2.7, nsRy - 24, 4, 3);
+      // @@END structures/nuke
 
     } else if (key === 'gapgen') {
+      // @@ART structures/gapgen
       // --- RA2 Gap Generator ([GAGAP]) ------------------------------------
       // Re-read at 1:1 off docs/ra2-ref/allied-gap-generator.png (118x130,
       // the in-game render on snow, GREEN owner — which is what proves where
@@ -21132,8 +21257,10 @@
       g.lineWidth = 1.6;
       g.beginPath(); g.ellipse(cx, dY - 18 - gRing * 12, 9 + gRing * 18, (9 + gRing * 18) * 0.42, 0, 0, 6.29); g.stroke();
       g.lineWidth = 1;
+      // @@END structures/gapgen
 
     } else if (key === 'grandcannon') {
+      // @@ART structures/grandcannon
       // --- RA2 Grand Cannon ([GTGCAN]) ------------------------------------
       // Re-read at 1:1 off docs/ra2-ref/allied-grand-cannon.png (181x133, the
       // in-game render, RED owner). The previous pass had this the wrong way
@@ -21284,8 +21411,10 @@
       g.fillStyle = '#12151a';
       g.beginPath(); g.ellipse(tipX + ux2 * 1.8, tipY + uy2 * 1.8 - 0.5, 2.6, 2.3, 0, 0, 6.29); g.fill();
       g.lineWidth = 1;
+      // @@END structures/grandcannon
 
     } else if (key === 'spysat') {
+      // @@ART structures/spysat
       // [GASPYSAT] SpySat Uplink. A low Allied signals bunker with a big
       // white parabolic dish on a yoke, tilted up at the sky, a feed horn on
       // three struts and a cable trunk running down into the roof.
@@ -21339,8 +21468,10 @@
       var ssPh = 0.5 + 0.5 * Math.sin((bph || 0) * 6.283 + 0.35);
       g.fillStyle = 'rgba(255,110,110,' + (0.35 + 0.6 * ssPh).toFixed(2) + ')';
       g.beginPath(); g.arc(cx - fw * 0.66, ssRy - 5, 2.6, 0, 6.29); g.fill();
+      // @@END structures/spysat
 
     } else if (key === 'psisensor') {
+      // @@ART structures/psisensor
       // [NAPSIS] Psychic Sensor. Soviet: a squat armoured drum, a ring of
       // dish antennae round its shoulder and a violet lens on a gantry that
       // pulses. `ConcentricRadialIndicator=true` is the ring motif.
@@ -21390,8 +21521,10 @@
       // concentric rings on the apron, the RadialIndicator motif
       g.strokeStyle = 'rgba(178,132,244,.20)'; g.lineWidth = 1.4;
       for (var psK = 1; psK <= 3; psK++) { diamond(g, cx, baseY + 4, fw * 0.7 * psK, fh * 0.7 * psK); g.stroke(); }
+      // @@END structures/psisensor
 
     } else if (key === 'cloningvats') {
+      // @@ART structures/cloningvats
       // [NACLON] Cloning Vats. A Soviet hall with four glass cylinders of
       // green fluid along its face, pipe runs into a control shed, and a
       // house-colour band under the eaves.
@@ -21426,6 +21559,7 @@
         g.strokeStyle = '#6a6c64'; g.lineWidth = 2.2;
         g.beginPath(); g.moveTo(vx, vy - 26); g.lineTo(vx + 4, vy - 34); g.stroke();
       }
+      // @@END structures/cloningvats
 
     } else {
       // Placeholder until the item's real-sprite branch lands: a drab block
@@ -21555,6 +21689,7 @@
   // in-game shots show a grey house turning them grey while the sandbags and
   // the rubble stay khaki and pink-grey.
   function bakeWallSeg(col, fac, mask) {
+    // @@ART structures/wall
     var fw = TW / 2, fh = TH / 2, pad = 18, head = 40;
     var s = mkCanvas(fw * 2 + pad * 2, fh * 2 + head + pad * 2), g = s.g;
     var cx = s.w / 2, by = s.h - pad - fh;
@@ -21705,6 +21840,7 @@
       g.beginPath(); g.ellipse(cx - 2.2, cTop - 3.3, 3.8, 1.7, 0, 0, 6.29); g.fill();
     }
     return { s: s, ax: cx, ay: by };
+    // @@END structures/wall
   }
 
   // [GAGATE_A]/[NAGATE_A]: the faction's own wall with the run cut open — a
@@ -21713,6 +21849,7 @@
   // a slab lying on the ground: a gate you can see through is the whole read.
   // `openF` 0 = shut, 1 = fully open. `vert` = the run is the NW-SE grid axis.
   function bakeGateSeg(col, fac, vert, openF) {
+    // @@ART structures/gate
     var fw = TW / 2, fh = TH / 2, pad = 18, head = 44;
     var s = mkCanvas(fw * 2 + pad * 2, fh * 2 + head + pad * 2), g = s.g;
     var cx = s.w / 2, by = s.h - pad - fh;
@@ -21784,6 +21921,7 @@
     // far half first, so the near pier closes over the near leaf's joint
     pier(-1); leaf(-1); leaf(1); pier(1);
     return { s: s, ax: cx, ay: by };
+    // @@END structures/gate
   }
 
   // Lazily-baked wall/gate atlases: 16 masks x 2 owners x 2 factions is 64

@@ -13,3 +13,11 @@ Then, from anywhere (`RTS_PORT` / `RTS_URL` pick the server, `RTS_OUT` the outpu
     node apps/games/rts/art/shot.js          # in-game 1:1 scene, as Directorate and as Collective
     node apps/games/rts/art/cmp.js           # each structure to its own PNG
     node apps/games/rts/art/airsheet.js      # air layer: Harrier/Kirov facings, Rocketeer, AA infantry (prints bbox aspects)
+
+## Editing the art itself
+
+Each unit's drawing code is its own file under `art/units/<class>/<kind>.js`
+(`infantry/`, `vehicles/`, `aircraft/`, `ships/`, `structures/`). Edit there,
+then `node apps/games/rts/tools/art-split.js inject` to splice it into
+`rts.html`, which is what everything above renders. `art/units/README.md`
+lists what a file may use; `rts-split.test.js` fails while the two differ.

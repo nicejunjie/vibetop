@@ -20,7 +20,7 @@ re-derive it here, and put new detail in the area doc rather than growing this f
 | Files, Notes, Upload, Update, Config, Claude-usage, Token Stats, Services, Tunnel | `docs/apps.md` |
 | Multi-user / identity (`APP_USER` vs `OPERATOR` vs the request user) | `docs/multi-user.md` |
 | Files app internals (the native engine, the file agent, the security invariant) | `docs/files-native.md` |
-| **RTS game (`apps/games/rts/rts.html`): the standing "true RA2 experience" requirement + roadmap** | `apps/games/rts/docs/roadmap.md` (then `docs/ra2-art-plan.md`) |
+| **RTS game (`apps/games/rts/rts.html`): the standing "true RA2 experience" requirement + roadmap** | `apps/games/rts/docs/roadmap.md` (then `docs/ra2-art-plan.md`); unit art is edited in `apps/games/rts/art/units/<class>/<kind>.js` and spliced in with `tools/art-split.js inject` |
 | Non-obvious traps that bite on real hosts | `docs/gotchas.md` |
 | Planned-but-not-started work (verdict + ordered steps, one file per effort) | `docs/plans/` |
 | **Why** something odd is the way it is (Symptom→Cause→Fix→Rejected) | `docs/design-decisions.md` |

@@ -46,6 +46,11 @@ way they are — colour policy, proportions, dock face, overlays).
    states, mining animation, hover names…).
 4. **Both factions, always.** A Directorate/Collective pair is two different
    things, not a recolour, unless RA2 itself shares the asset.
+5. **A unit's art is its own file.** `art/units/<class>/<kind>.js` is where it is
+   edited; `node apps/games/rts/tools/art-split.js inject` splices it into
+   `rts.html`, which is what runs (`art/units/README.md`). Editing the page
+   directly still works — run `extract` afterwards — but a commit with the two
+   out of step fails `rts-split.test.js`.
 
 ## Roadmap
 
