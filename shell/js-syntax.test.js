@@ -15,7 +15,6 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
 const vm = require("node:vm");
-const { spawnSync } = require("node:child_process");
 
 const REPO = path.join(__dirname, "..");
 
@@ -42,13 +41,6 @@ for (const rel of SCRIPTS) {
   test(`parses: ${rel}`, () => {
     const src = fs.readFileSync(path.join(REPO, rel), "utf8");
     // Throws SyntaxError on malformed JS; compiling does not execute it.
-    if (rel.startsWith("apps/games/rts/rts/")) {
-      // The RTS game is an ES-module tree (import/export), which vm.Script cannot
-      // parse; `node --check` honours apps/games/rts/rts/package.json {"type":"module"}.
-      const r = spawnSync(process.execPath, ["--check", path.join(REPO, rel)], { encoding: "utf8" });
-      assert.equal(r.status, 0, r.stderr);
-      return;
-    }
     assert.doesNotThrow(() => new vm.Script(src, { filename: rel }));
   });
 }

@@ -313,7 +313,7 @@ _291 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [Files: FileBrowser retired, native is the only engine (2026-09-11)](#files-filebrowser-retired-native-is-the-only-engine-2026-09-11)
 - [Re-login left the desktop reloading for ever until a click (2026-09-12)](#re-login-left-the-desktop-reloading-for-ever-until-a-click-2026-09-12)
 - [RTS unit art split into one file per unit, and rts.html became a built file (2026-09-12)](#rts-unit-art-split-into-one-file-per-unit-and-rtshtml-became-a-built-file-2026-09-12)
-- [The RTS became a native ES-module game, and the repo's last build step went away (2026-09-12)](#the-rts-became-a-native-es-module-game-and-the-repos-last-build-step-went-away-2026-09-12)
+- [The RTS became 117 plain scripts you can open by double-clicking, and the repo's last build step went away (2026-09-12)](#the-rts-became-117-plain-scripts-you-can-open-by-double-clicking-and-the-repos-last-build-step-went-away-2026-09-12)
 
 <!-- END TOC -->
 
@@ -12996,7 +12996,7 @@ tables into the unit files — they are one shared block each whose rows are
 compared against each other (the "one scale for the whole group" pass);
 splitting them would hide that.
 
-## The RTS became a native ES-module game, and the repo's last build step went away (2026-09-12)
+## The RTS became 117 plain scripts you can open by double-clicking, and the repo's last build step went away (2026-09-12)
 
 **Symptom.** The previous entry's build worked exactly as designed and the user
 rejected it on sight — "这不是垃圾么" — with the real requirement stated plainly:
@@ -13010,32 +13010,47 @@ inline IIFE — 1,118 top-level names in a single closure, 770 functions, 348 va
 — so the only way to make any part of it a separate file was to splice text back
 in before serving. The splice was the symptom; the single closure was the cause.
 
-**Fix.** The closure became 117 native ES modules under `apps/games/rts/rts/`,
-and `rts.html` became a tracked HTML+CSS page whose only script is
-`<script type="module" src="rts/main.js">`. `rts/*.js` is one module per
+**Fix.** The closure became 117 separate files under `apps/games/rts/rts/`, each
+a plain classic script, and `rts.html` became a tracked HTML+CSS page that lists
+all 117 as `<script src="rts/….js">` **in load order** (after the two shared
+scripts, `gamescore.js` and `vibe-modal.js`). `rts/*.js` is one file per
 subsystem (opts, world, rng, combat-tables, roster, blds, geom, factions, supers,
 state, mapgen, entities, path, combat, transport, ore, special, move, neutral,
 production, ai, shroud, net, watch, hooks, main), `rts/bake/*.js` the sprite
 bakers, `rts/ui/*.js` the presentation half (dom, screen, save, audio, hud,
 panel, cursors, input, render, minimap, menus, loop), and `rts/units/<class>/<kind>.js`
-the 69 unit-art modules, each now a real `export function drawX(C)` over one
-context object instead of a spliced branch body.
+the 69 unit-art files, each now a real `function drawX(C)` over one context
+object instead of a spliced branch body. **Double-clicking `rts.html` in a file
+manager opens and plays the game** — boots, bakes in ~640 ms, starts a match,
+zero errors — and the same page is unchanged over http and on the deployed site.
 
-Two mechanics carry the whole conversion:
+**ES modules were the first cut, and were replaced the same day.** The split
+originally shipped as native ESM with `<script type="module" src="rts/main.js">`,
+and it failed the requirement that motivated the whole exercise: a `file://`
+page has no origin, so the browser refuses to load modules from it (a CORS
+error) and a double-click showed nothing. The standing requirement is minimum
+setup and a self-contained game — "我要双击打开就能玩", "尽量减少setup和部署的复杂性,
+减少对第三方工具的依赖, 一切selfcontain". So every file lost its `import` header
+and its `export ` prefixes, the ~46 generated `set<Name>()` setters went away
+with them, and `rts/package.json` (an ESM marker and nothing else) was deleted.
+What ESM bought — per-file scope and an explicit dependency graph — was traded
+for the one thing the user actually asked for. The 117 files now share **one
+global scope**, which is how `combat.js` calls `sfx()` from `ui/audio.js` with
+no ceremony, and the ordering discipline the module system used to enforce is
+now enforced by a test instead.
 
-- **Reads are plain `import`; writes get a setter.** ES module bindings are
-  live, so a module that only reads another's variable needs nothing but the
-  import. The ~46 variables that are *written* from another module have a
-  generated `set<Name>()` in their owning module. This is not a style choice —
-  assigning to an imported binding is a *parse* error ("assignment to constant"),
-  so a missed one cannot become a silent aliasing bug the way a globals object
-  would; the file simply refuses to load.
-- **The import cycles are safe.** sim↔ui really is cyclic (`damage` calls `sfx`,
-  `applyCmd` reads `sel`) and untangling it was not attempted. Every edge in a
-  cycle carries only function *declarations*, which ESM hoists and instantiates
-  at link time, before any module body evaluates. A cycle edge carrying a
-  top-level `const` or an executed value would be a TDZ crash; `rts-modules.test.js`
-  is what keeps that true.
+The one rule classic scripts impose:
+
+- **Hoisting is per file, not across files.** A statement that *runs while the
+  page loads* may only call functions declared in an **earlier** file; calls
+  inside function bodies — event handlers, draw functions, helpers — run later
+  and are always fine. This moved `lsGet`/`lsSet` out of `rts/ui/save.js` into
+  `rts/opts.js`, an early file, because `ui/audio.js` and `ui/input.js` read
+  stored preferences at load time. `rts-modules.test.js` is the gate
+  (`forwardCalls()` in `tools/lib/bundle-for-vm.js`), and it checks the rest of
+  the contract too: `rts.html` lists every file exactly once, no file contains
+  `import`/`export`, no two files declare the same top-level name, and no
+  top-level name shadows a browser global like `name`/`status`/`open` (none do).
 
 `apps/games/rts/tools/modularize/` — the acorn-based AST tool that performed the
 split — was **deleted once the split landed and both gates passed**. It was the
@@ -13043,38 +13058,38 @@ repo's only third-party dependency outside the e2e suite (acorn, via an npm
 `package.json`), it had done its one job, and the tree it produced is now the
 source rather than an output. It is in git history at a228c88 if the mapping
 ever needs re-deriving. What remains has no dependencies at all —
-`tools/lib/`: `bundle-for-vm.js` concatenates the tree into one classic script
-for node's `vm` (`rts.test.js` needs two independent game instances in one
-process, which `import()` cannot give), `vm-sandbox.js` is its stub DOM,
-`serve-rts.js` serves the tree and doubles as the CLI for playing from the repo,
-and `sim-identity.js` is the 24-cell identity harness. `shell/install.sh` maps
-`apps/games/rts/rts/**` to `/rts/**` with `install -D` (a relative `import`
-needs its directory, which the flat web root would otherwise flatten away) and
-`shell/sw.js` BYPASSes `/rts/`, so a deploy can never serve a stale module under
-a freshly cached page. Playing from the repo needs no deploy at all:
-`node apps/games/rts/tools/lib/serve-rts.js`, or
-`cd apps/games/rts && python3 -m http.server 8099` and open `/rts.html`.
+`tools/lib/`: `bundle-for-vm.js` reads the script order out of `rts.html` and
+concatenates those files into one source for node's `vm` (`rts.test.js` needs
+two independent game instances in one process, which a single shared global
+scope cannot give), `vm-sandbox.js` is its stub DOM, `serve-rts.js` serves the
+tree for the art harness and the play-from-repo CLI, and `sim-identity.js` is
+the 24-cell identity harness. `shell/install.sh` maps `apps/games/rts/rts/**`
+to `/rts/**` with `install -D` (the tags address files by relative path, which
+the flat web root would otherwise flatten away) and `shell/sw.js` BYPASSes
+`/rts/`, so a deploy can never serve a stale script under a freshly cached page.
+Playing from the repo needs no deploy and no server at all: double-click
+`apps/games/rts/rts.html`.
 
 Deleted with the closure: `rts.src.html`, `art/units/**`, `tools/rts-build.py`,
 `rts-build.test.js`, the build tier in `run-tests.sh` and the build hook in
 `shell/install.sh`. **The repo now has no build step at all** — the root
 CLAUDE.md's "no build step" bullet is finally unconditional.
 
-**This is the exception `docs/plans/desktop-html-split.md` and
-`docs/plans/filesx-html-split.md` reserve, not a reversal of them.** Both say
-"NOT ES modules / do not invent a loader", and both are right about their own
-subject: a 4k-line page with no dependency graph, where module ceremony buys
-nothing and a hand-rolled loader is pure risk. The RTS is a different animal —
-a 24k-line program with 1,118 top-level names and a genuine subsystem graph,
-and the only page in the repo that *already had* a build step. Using the
-platform's own module loader is what "do not invent a loader" asks for; the
-rejected thing is a bespoke one. The desktop and Files rules stand unchanged.
+**`docs/plans/desktop-html-split.md` and `docs/plans/filesx-html-split.md` say
+"NOT ES modules / do not invent a loader", and they stand unchanged** — the RTS
+ended up agreeing with them. It is a different animal (a 24k-line program with
+1,118 top-level names and a genuine subsystem graph, and the only page in the
+repo that *already had* a build step), so it is split into files where they are
+not; but it is split with `<script>` tags and one shared scope, not with a
+module system and not with a loader of its own.
 
 **Verification.** Two gates, because neither alone is sufficient.
 *Simulation:* 24 cells (6 seeds x both faction orders x two difficulties x 30
 game minutes) compared per game-minute by `stateHash` — identical.
-*Art:* 107 sheets rendered from the real module page in headless Chromium —
-byte-identical. (`airsheet` fails on both the old and the new tree; it was
+*Art:* 107 sheets rendered from the real page in headless Chromium —
+byte-identical. Both were re-run after the ESM→classic-script conversion and
+stayed identical, and the full hermetic suite passes; the `file://` double-click
+was verified in a real browser (boots, 638 ms bake, a match starts, zero errors). (`airsheet` fails on both the old and the new tree; it was
 already broken before the split and is not a regression.)
 
 Both gates earned their keep by catching a bug the other could not see:
@@ -13107,9 +13122,11 @@ loader — ESM caches one instance per specifier and the lobby tests need two
 independent games in one process. `vm.SourceTextModule` — it needs
 `--experimental-vm-modules` on every single `node --test` invocation, including
 the pre-commit hook and CI. `.mjs` extensions — `rts/package.json` with
-`{"type":"module"}` is a one-line dev-only marker (excluded from the deploy
-walk) that makes `node --check` treat the whole tree as ESM, and the browser
-cares only about the `type="module"` attribute. Putting the runtime modules
+`{"type":"module"}` was a one-line dev-only marker while the tree was ESM, and
+it is deleted now that it is not. Keeping ES modules and telling the user to
+start a local server to play — the requirement was **double-click**, and a
+`file://` page has no origin, so modules cannot load there at all. Putting the
+runtime scripts
 under a directory named `art/` or `tools/` — both the installer walk and the
 JS syntax test skip those by name, so the game would have parsed nowhere and
 deployed as nothing.

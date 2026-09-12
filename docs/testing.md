@@ -228,16 +228,19 @@ each runner self-skips if its tool isn't installed.
 
 
 > **Nothing is built.** `run-tests.sh` runs no generator of any kind; the RTS
-> game is a native ES-module tree (`apps/games/rts/rts/**`) that the browser
-> loads directly, so every RTS test file runs standalone from a clean checkout.
+> game is 117 plain scripts (`apps/games/rts/rts/**`) that the browser loads
+> directly, in the order `apps/games/rts/rts.html` lists them, so every RTS test
+> file runs standalone from a clean checkout.
 > `rts.test.js` loads the tree through `apps/games/rts/tools/lib/bundle-for-vm.js`,
-> which concatenates the modules into one classic script for node's `vm` — the
-> lobby tests need two independent game instances in a single process, which
-> `import()` (one module registry per specifier) cannot give. `rts-modules.test.js`
-> guards the module graph itself: every module parses, every `import` resolves to
-> a file that exports that name, nothing imports a name it never uses, and the
-> cross-module writes all go through a generated `set<Name>()` rather than an
-> assignment to an imported binding.
+> which reads that script order out of `rts.html` and concatenates those files
+> into one source for node's `vm` — the lobby tests need two independent game
+> instances in a single process, which one shared global scope cannot give.
+> `rts-modules.test.js` is the **load-order gate**: classic scripts hoist per
+> file, so a statement that runs at load time may only call functions declared in
+> an earlier file (`forwardCalls()` in `bundle-for-vm.js` finds the violations).
+> It also checks that `rts.html` lists every file exactly once, that no file
+> contains `import`/`export`, that no two files declare the same top-level name,
+> and that no top-level name shadows a browser global (`name`, `status`, `open`).
 >
 > **Proving a refactor of the game changed no behaviour** is `tools/sim-identity.js`:
 > 24 headless simulation cells (6 seeds x both faction orders x two difficulties x
