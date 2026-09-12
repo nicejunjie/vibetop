@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_290 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_291 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
 - [Scheduled terminal messages ("resume when the token limit resets")](#scheduled-terminal-messages-resume-when-the-token-limit-resets)
@@ -313,6 +313,7 @@ _290 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [Files: FileBrowser retired, native is the only engine (2026-09-11)](#files-filebrowser-retired-native-is-the-only-engine-2026-09-11)
 - [Re-login left the desktop reloading for ever until a click (2026-09-12)](#re-login-left-the-desktop-reloading-for-ever-until-a-click-2026-09-12)
 - [RTS unit art split into one file per unit, and rts.html became a built file (2026-09-12)](#rts-unit-art-split-into-one-file-per-unit-and-rtshtml-became-a-built-file-2026-09-12)
+- [The RTS became a native ES-module game, and the repo's last build step went away (2026-09-12)](#the-rts-became-a-native-es-module-game-and-the-repos-last-build-step-went-away-2026-09-12)
 
 <!-- END TOC -->
 
@@ -12994,3 +12995,118 @@ semantics the boot does not want. Moving the per-kind hull-colour and size
 tables into the unit files — they are one shared block each whose rows are
 compared against each other (the "one scale for the whole group" pass);
 splitting them would hide that.
+
+## The RTS became a native ES-module game, and the repo's last build step went away (2026-09-12)
+
+**Symptom.** The previous entry's build worked exactly as designed and the user
+rejected it on sight — "这不是垃圾么" — with the real requirement stated plainly:
+"我需要的是个完全模块化的游戏", "模块化，且不需要部署就可以通过 rts.html 直接玩".
+A generated file you must regenerate before you can look at it is not modular; it
+is one file with extra steps. Opening `rts.html` from a fresh checkout showed
+nothing until a python script had run.
+
+**Cause.** The game was a 24.7k-line page whose entire program lived in one
+inline IIFE — 1,118 top-level names in a single closure, 770 functions, 348 vars
+— so the only way to make any part of it a separate file was to splice text back
+in before serving. The splice was the symptom; the single closure was the cause.
+
+**Fix.** The closure became 117 native ES modules under `apps/games/rts/rts/`,
+and `rts.html` became a tracked HTML+CSS page whose only script is
+`<script type="module" src="rts/main.js">`. `rts/*.js` is one module per
+subsystem (opts, world, rng, combat-tables, roster, blds, geom, factions, supers,
+state, mapgen, entities, path, combat, transport, ore, special, move, neutral,
+production, ai, shroud, net, watch, hooks, main), `rts/bake/*.js` the sprite
+bakers, `rts/ui/*.js` the presentation half (dom, screen, save, audio, hud,
+panel, cursors, input, render, minimap, menus, loop), and `rts/units/<class>/<kind>.js`
+the 69 unit-art modules, each now a real `export function drawX(C)` over one
+context object instead of a spliced branch body.
+
+Two mechanics carry the whole conversion:
+
+- **Reads are plain `import`; writes get a setter.** ES module bindings are
+  live, so a module that only reads another's variable needs nothing but the
+  import. The ~46 variables that are *written* from another module have a
+  generated `set<Name>()` in their owning module. This is not a style choice —
+  assigning to an imported binding is a *parse* error ("assignment to constant"),
+  so a missed one cannot become a silent aliasing bug the way a globals object
+  would; the file simply refuses to load.
+- **The import cycles are safe.** sim↔ui really is cyclic (`damage` calls `sfx`,
+  `applyCmd` reads `sel`) and untangling it was not attempted. Every edge in a
+  cycle carries only function *declarations*, which ESM hoists and instantiates
+  at link time, before any module body evaluates. A cycle edge carrying a
+  top-level `const` or an executed value would be a TDZ crash; `rts-modules.test.js`
+  is what keeps that true.
+
+`apps/games/rts/tools/modularize/` — the acorn-based AST tool that performed the
+split — stays in the tree as dev-only documentation of how the mapping was
+derived, and can re-derive it; `sections.json` is the module map. Supporting
+`tools/lib/`: `bundle-for-vm.js` concatenates the tree into one classic script
+for node's `vm` (`rts.test.js` needs two independent game instances in one
+process, which `import()` cannot give), `vm-sandbox.js` is its stub DOM,
+`serve-rts.js` serves the tree and doubles as the CLI for playing from the repo,
+and `sim-identity.js` is the 24-cell identity harness. `shell/install.sh` maps
+`apps/games/rts/rts/**` to `/rts/**` with `install -D` (a relative `import`
+needs its directory, which the flat web root would otherwise flatten away) and
+`shell/sw.js` BYPASSes `/rts/`, so a deploy can never serve a stale module under
+a freshly cached page. Playing from the repo needs no deploy at all:
+`node apps/games/rts/tools/lib/serve-rts.js`, or
+`cd apps/games/rts && python3 -m http.server 8099` and open `/rts.html`.
+
+Deleted with the closure: `rts.src.html`, `art/units/**`, `tools/rts-build.py`,
+`rts-build.test.js`, the build tier in `run-tests.sh` and the build hook in
+`shell/install.sh`. **The repo now has no build step at all** — the root
+CLAUDE.md's "no build step" bullet is finally unconditional.
+
+**This is the exception `docs/plans/desktop-html-split.md` and
+`docs/plans/filesx-html-split.md` reserve, not a reversal of them.** Both say
+"NOT ES modules / do not invent a loader", and both are right about their own
+subject: a 4k-line page with no dependency graph, where module ceremony buys
+nothing and a hand-rolled loader is pure risk. The RTS is a different animal —
+a 24k-line program with 1,118 top-level names and a genuine subsystem graph,
+and the only page in the repo that *already had* a build step. Using the
+platform's own module loader is what "do not invent a loader" asks for; the
+rejected thing is a bespoke one. The desktop and Files rules stand unchanged.
+
+**Verification.** Two gates, because neither alone is sufficient.
+*Simulation:* 24 cells (6 seeds x both faction orders x two difficulties x 30
+game minutes) compared per game-minute by `stateHash` — identical.
+*Art:* 107 sheets rendered from the real module page in headless Chromium —
+byte-identical. (`airsheet` fails on both the old and the new tree; it was
+already broken before the split and is not a regression.)
+
+Both gates earned their keep by catching a bug the other could not see:
+
+1. **The emitter sliced a setter's right-hand side out of the wrong string.**
+   `VLIFT = 1;` was emitted as `setVLIFT( );` — syntactically fine, so every
+   parse check passed, and the IFV painted `rgb(NaN,NaN,NaN)`. The simulation
+   gate passed too, because a headless run never bakes a sprite. Only the art
+   gate saw it. This is the standing "headless numbers pass while the renderer
+   throws" lesson, now with a second data point: *a refactor's acceptance gate
+   must execute the draw path.*
+2. **The source-scanning tests' comment stripper was lying.** It was a naive
+   two-regex replace, and it swallowed a third of the single-page build and 77%
+   of the module build — so every slice-based test that "scanned the whole game"
+   had for a long time been scanning a fraction of it and reporting green.
+   Replaced by a real `stripComments` in `tools/lib/bundle-for-vm.js`. Worth
+   remembering on its own: a test that *measures* its input should assert how
+   much input it got.
+
+**Rejected.** A bundler, or any build step at all — that is the thing the user
+rejected, and "no deploy needed to play `rts.html`" rules out every variant of
+it. One exported mutable state object (`S.foo = 1` everywhere) — it makes the
+cross-module writes trivial but rewrites ~1,100 call sites instead of adding
+~46 setters, and it re-introduces exactly the silent-aliasing failure mode the
+setter rule makes a parse error. An `events.js` sink to cut the sim↔ui cycles —
+a genuine redesign, proposed inside a pass whose entire acceptance criterion was
+byte-identical behaviour; the cycles are safe as they stand, and an event sink
+can be a later, separately-verified change. `await import()` as the node test
+loader — ESM caches one instance per specifier and the lobby tests need two
+independent games in one process. `vm.SourceTextModule` — it needs
+`--experimental-vm-modules` on every single `node --test` invocation, including
+the pre-commit hook and CI. `.mjs` extensions — `rts/package.json` with
+`{"type":"module"}` is a one-line dev-only marker (excluded from the deploy
+walk) that makes `node --check` treat the whole tree as ESM, and the browser
+cares only about the `type="module"` attribute. Putting the runtime modules
+under a directory named `art/` or `tools/` — both the installer walk and the
+JS syntax test skip those by name, so the game would have parsed nowhere and
+deployed as nothing.

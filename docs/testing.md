@@ -227,11 +227,32 @@ Bypass a single commit with `git commit --no-verify` or `SKIP_TESTS=1 git commit
 each runner self-skips if its tool isn't installed.
 
 
-> **The RTS page is built first.** `run-tests.sh` starts by running
-> `python3 apps/games/rts/tools/rts-build.py`, which assembles the gitignored
-> `apps/games/rts/rts.html` from `rts.src.html` + `art/units/**`; every RTS
-> test and art tool loads that output. Running a single RTS test file by hand
-> needs the build to have happened (`rts-build.test.js` says so if not).
+> **Nothing is built.** `run-tests.sh` runs no generator of any kind; the RTS
+> game is a native ES-module tree (`apps/games/rts/rts/**`) that the browser
+> loads directly, so every RTS test file runs standalone from a clean checkout.
+> `rts.test.js` loads the tree through `apps/games/rts/tools/lib/bundle-for-vm.js`,
+> which concatenates the modules into one classic script for node's `vm` — the
+> lobby tests need two independent game instances in a single process, which
+> `import()` (one module registry per specifier) cannot give. `rts-modules.test.js`
+> guards the module graph itself: every module parses, every `import` resolves to
+> a file that exports that name, nothing imports a name it never uses, and the
+> cross-module writes all go through a generated `set<Name>()` rather than an
+> assignment to an imported binding.
+>
+> **Proving a refactor of the game changed no behaviour** is `tools/sim-identity.js`:
+> 24 headless simulation cells (6 seeds x both faction orders x two difficulties x
+> 30 game minutes) hashed per game-minute. Record a baseline from the old tree, run
+> it again on the new one, and diff:
+>
+> ```bash
+> node apps/games/rts/tools/sim-identity.js --jobs 8 > /tmp/sim-before.txt   # on the old tree
+> node apps/games/rts/tools/sim-identity.js --jobs 8 > /tmp/sim-after.txt    # on the new one
+> diff /tmp/sim-before.txt /tmp/sim-after.txt                                # must be empty
+> ```
+>
+> `--jobs` defaults to every core. The simulation gate is blind to anything a
+> headless run never executes — draw code, in particular — so pair it with the
+> art sheets (`apps/games/rts/art/README.md`) and compare those PNGs byte for byte.
 
 ## Mobile key-bar / prompt-occlusion repro (`tests/kbd/keybar-occlusion.mjs`)
 

@@ -1,0 +1,808 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>Iron Frontier — Vibetop</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { height: 100%; overflow: hidden; }
+  /* The navigation GUTTER: a black strip round the whole frame — outside the
+     build panel and the command bar, not on the map's edge and not on the
+     panels. It is the only place edge-scrolling happens (the user, 2026-09-11:
+     "put the navigation area of right and bottom OUTSIDE the menu"). It is a
+     strip rather than a zero-width window edge because a floating desktop
+     window does not stop the cursor; the strip is what you park on. */
+  :root { --gut: 26px; }
+  body {
+    display: flex; flex-direction: column;
+    padding: var(--gut);
+    background: #050608; color: #d4d8de;
+    font-family: system-ui, sans-serif;
+    -webkit-tap-highlight-color: transparent;
+    overscroll-behavior: none;
+  }
+  .gut { position: fixed; z-index: 5; }
+  .gut-l { left: 0; top: 0; bottom: 0; width: var(--gut); cursor: w-resize; }
+  .gut-r { right: 0; top: 0; bottom: 0; width: var(--gut); cursor: e-resize; }
+  .gut-t { top: 0; left: 0; right: 0; height: var(--gut); cursor: n-resize; }
+  .gut-b { bottom: 0; left: 0; right: 0; height: var(--gut); cursor: s-resize; }
+  .bar {
+    display: flex; align-items: center; gap: 8px; flex-shrink: 0;
+    min-height: 40px; padding: 4px 10px;
+    background: #161b22; border-bottom: 1px solid #2a3040;
+    user-select: none; -webkit-user-select: none;
+  }
+  .bar .title { font-size: 13px; font-weight: 600; white-space: nowrap; }
+  /* No glyph before the title: U+2694 crossed swords collapses to a bare X
+     at 15px and reads as a close button next to a row of real buttons. */
+  @media (max-width: 560px) { .bar .title .txt { display: none; } }
+  /* Below ~560px the bar's buttons are wider than the window, and a
+     non-wrapping flex row does not clip them — it strands them off the right
+     edge, unreachable, with nothing to scroll. Let the row wrap (the spacer
+     becomes a full-width break, so the buttons take their own line). The game
+     still wants a real desktop window, but no control is ever placed where it
+     cannot be clicked. (The credit / power / army / clock readouts moved into
+     the sidebar; the bar is app chrome only.) */
+  @media (max-width: 560px) {
+    .bar { flex-wrap: wrap; row-gap: 4px; }
+    .bar .spacer { flex-basis: 100%; height: 0; }
+  }
+  /* Income pops INSIDE the credit readout, on the empty left of the digits —
+     above it and it would float over the app's top bar. */
+  .plus {
+    position: absolute; left: 7px; top: 6px; pointer-events: none;
+    font: 700 12px ui-monospace, SFMono-Regular, Menlo, monospace; color: #8ee0a4;
+    text-shadow: 0 1px 3px rgba(0,0,0,.9);
+    animation: plusrise .62s ease-out forwards;
+  }
+  @keyframes plusrise {
+    from { opacity: .95; transform: translateY(4px); }
+    to { opacity: 0; transform: translateY(-7px); }
+  }
+  .spacer { flex: 1; }
+  button {
+    background: #3a2a55; color: #d9c8f5; border: 1px solid #55407a;
+    border-radius: 6px; padding: 5px 12px; font: 12px system-ui, sans-serif;
+    cursor: pointer; min-height: 30px;
+  }
+  button:hover { background: #47336a; border-color: #8a4adb; }
+  button:focus-visible { outline: 2px solid #8a4adb; outline-offset: 1px; }
+  #helpBtn, #lbBtn, #pauseBtn, #sndBtn, #optBtn {
+    background: #1f2733; border-color: #2a3040; color: #aab4c5;
+    min-width: 32px; font-weight: 700; padding: 5px 9px;
+  }
+  #helpBtn:hover, #lbBtn:hover, #pauseBtn:hover, #sndBtn:hover, #optBtn:hover { background: #253044; border-color: #3a4358; }
+  /* U+2699 GEAR is a TEXT-presentation glyph: at 12px most families draw it
+     as a thin ring that reads as a dot, and the ones that do not are the
+     ones that substitute an emoji. Same font dependency that made the
+     paradrop clock a tofu box, so the gear is drawn, not typed. The word
+     rides along because a settings button is the one control nobody should
+     have to guess at. */
+  #optBtn { display: inline-flex; align-items: center; gap: 6px; padding: 5px 10px; font-weight: 600; }
+  #optBtn svg { width: 15px; height: 15px; fill: currentColor; display: block; flex: none; }
+  #pauseBtn { display: inline-flex; align-items: center; justify-content: center; }
+  #pauseBtn svg { width: 14px; height: 14px; fill: currentColor; display: block; }
+  .bar .title { display: inline-flex; align-items: center; }
+  #lbBtn { font-size: 14px; }
+  #sndBtn { display: inline-flex; align-items: center; justify-content: center; }
+  #sndBtn svg { width: 15px; height: 15px; fill: currentColor; display: block; }
+
+  .wrap { flex: 1; min-height: 0; display: flex; position: relative; }
+  /* The battlefield column: the tactical view with the command bar under it.
+     `#stage` keeps its own box because `resize()` measures it for the canvas
+     and a ResizeObserver watches it — the bar is a SIBLING, never a child, so
+     the map is never sized as if the bar were part of it. */
+  #field { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+  #stage { flex: 1; min-width: 0; min-height: 0; position: relative; overflow: hidden; }
+  #cv { display: block; width: 100%; height: 100%; cursor: default; touch-action: none; }
+  #cv.placing { cursor: crosshair; }
+  #cv.noair { cursor: not-allowed; }
+  /* ---- the RA2 sidebar --------------------------------------------------
+     RA2's sidebar is a fixed metal panel and every part of it is a picture:
+     the credit total counts one step at a time at the top, the radar sits in
+     a riveted bezel, a vertical power meter with a needle runs down the left
+     edge, the four tabs are icons, and the items are a two-column grid of
+     60x48 cameos with NO prose at all — name, cost, power draw and
+     prerequisites live in a canvas-drawn tooltip shown on hover. */
+  #side {
+    --acc: #4aa3db;
+    width: 176px; flex-shrink: 0; display: flex; flex-direction: column;
+    background: linear-gradient(180deg, #232a35 0%, #181e27 46%, #131820 100%);
+    border-left: 1px solid #39424f;
+    box-shadow: inset 1px 0 0 rgba(255,255,255,.05);
+    user-select: none; -webkit-user-select: none;
+  }
+  /* Credits: RA2's readout sits above the radar in its own recessed slot.
+     Army and clock ride quietly beside it — two 9px lines, no tiles. */
+  #sbtop { display: flex; align-items: stretch; gap: 5px; padding: 5px 7px 4px; }
+  #sbmeta {
+    font: 700 9px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace;
+    color: #6f7c90; white-space: nowrap; align-self: center; letter-spacing: .02em;
+  }
+  #sbcred {
+    position: relative; flex: 1; min-width: 0; text-align: right;
+    font: 700 17px/1 ui-monospace, SFMono-Regular, Menlo, monospace;
+    color: #ffe07a; letter-spacing: .5px; text-shadow: 0 0 7px rgba(255,224,122,.3);
+    background: #080b10; border: 1px solid #39424f; border-radius: 3px;
+    box-shadow: inset 0 1px 4px rgba(0,0,0,.85);
+    padding: 5px 6px 4px;
+  }
+  #sbcred.low { color: #ff9a86; text-shadow: 0 0 7px rgba(255,154,134,.3); }
+  /* Radar bezel: brushed metal with four rivets, drawn from gradients. */
+  #radarwrap {
+    margin: 0 6px 5px; padding: 9px; border-radius: 4px;
+    background:
+      radial-gradient(circle 2.4px at 4.5px 4.5px, #dbe3ee 0%, #7c8797 48%, #171c24 100%, rgba(0,0,0,0) 100%) no-repeat,
+      radial-gradient(circle 2.4px at calc(100% - 4.5px) 4.5px, #dbe3ee 0%, #7c8797 48%, #171c24 100%, rgba(0,0,0,0) 100%) no-repeat,
+      radial-gradient(circle 2.4px at 4.5px calc(100% - 4.5px), #dbe3ee 0%, #7c8797 48%, #171c24 100%, rgba(0,0,0,0) 100%) no-repeat,
+      radial-gradient(circle 2.4px at calc(100% - 4.5px) calc(100% - 4.5px), #dbe3ee 0%, #7c8797 48%, #171c24 100%, rgba(0,0,0,0) 100%) no-repeat,
+      linear-gradient(152deg, #566275 0%, #2c3441 30%, #1d232d 63%, #3d4756 100%);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.18), inset 0 -1px 0 rgba(0,0,0,.65), 0 2px 6px rgba(0,0,0,.55);
+  }
+  #mini {
+    display: block; width: 100%; height: auto; background: #05070b; cursor: pointer;
+    box-shadow: 0 0 0 1px #05070b, inset 0 0 14px rgba(0,0,0,.9);
+  }
+  /* RA2's three structure toggles live under the radar — they act on the
+     BASE, through the sidebar, which is where RA2 keeps them. The unit
+     commands moved out to the bottom of the screen; these did not. */
+  #sbtools { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; padding: 0 6px 6px; flex-shrink: 0; }
+  #sbtools button, #cmdbar button {
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px;
+    border-radius: 3px; cursor: pointer;
+    font: 700 8.5px/1 system-ui, sans-serif; letter-spacing: .05em; text-transform: uppercase;
+    color: #a9b6c8; background: linear-gradient(180deg, #2b333f, #1a2029); border: 1px solid #3c4757;
+  }
+  /* Every command wears its picture as well as its name. The icons are DRAWN
+     paths, never font glyphs — the same reason the top bar's gear is an svg
+     and not U+2699: at 15-20px a text-presentation symbol is a thin ring, a
+     tofu box, or an emoji substitution, depending on the family. */
+  #sbtools button svg, #cmdbar button svg { fill: currentColor; display: block; flex: none; }
+  #sbtools button { min-height: 34px; padding: 3px 1px 4px; }
+  #sbtools button svg { width: 15px; height: 15px; }
+  #sbtools button:hover, #cmdbar button:hover { color: #e9eff7; border-color: #5f6d82; background: linear-gradient(180deg, #36404e, #202836); }
+  #sbtools button.on, #cmdbar button.on {
+    color: #1a1400; border-color: #ffe07a;
+    background: linear-gradient(180deg, #ffd968, #b98d12);
+    box-shadow: inset 0 0 0 1px rgba(255,255,255,.35);
+  }
+  #cmdbar button.has { border-color: var(--acc); color: #dce8f5; }
+  /* Power meter + the tabs/cameo column sit side by side, RA2's layout. */
+  #sbody { flex: 1; min-height: 0; display: flex; }
+  #pwrwrap { flex-shrink: 0; display: flex; padding: 0 3px 6px 5px; }
+  #pwr { display: block; flex: 1; width: 12px; min-height: 0; }
+  #sbcol { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+  .ptab { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 3px; padding: 0 5px 4px; flex-shrink: 0; }
+  .ptab div {
+    position: relative; display: flex; align-items: center; justify-content: center;
+    height: 27px; cursor: pointer; border-radius: 3px;
+    background: linear-gradient(180deg, #252d38, #161b23); border: 1px solid #333d4a;
+  }
+  .ptab div canvas { display: block; width: 21px; height: 17px; opacity: .5; }
+  .ptab div:hover { border-color: #5f6d82; }
+  .ptab div:hover canvas { opacity: .85; }
+  .ptab div.on {
+    background: linear-gradient(180deg, #38455a, #1d2632); border-color: var(--acc);
+    box-shadow: inset 0 0 9px rgba(255,255,255,.12);
+  }
+  .ptab div.on canvas { opacity: 1; }
+  .ptab div.hasready::after {
+    content: ''; position: absolute; top: 2px; right: 2px;
+    width: 5px; height: 5px; border-radius: 50%;
+    background: #ffe14d; box-shadow: 0 0 6px rgba(255,225,77,.9);
+    animation: rdypulse 1.05s ease-in-out infinite;
+  }
+  #plist {
+    flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden;
+    display: grid; grid-template-columns: repeat(2, 64px); justify-content: center;
+    align-content: start; gap: 6px; padding: 2px 0 8px;
+  }
+  #plist::-webkit-scrollbar { width: 6px; }
+  #plist::-webkit-scrollbar-thumb { background: #3c4757; border-radius: 3px; }
+  /* One cameo = one button. No words: the tooltip carries the text. */
+  .pit {
+    position: relative; overflow: hidden; width: 64px; height: 52px; padding: 0;
+    background: #05070b; border: 1px solid #46515f; border-radius: 2px; cursor: pointer;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.13), inset 0 -1px 0 rgba(0,0,0,.7);
+  }
+  .pit:hover, .pit.dis:hover { background: #05070b; }
+  .pit:hover:not(.dis) { border-color: var(--acc); box-shadow: 0 0 0 1px var(--acc), inset 0 1px 0 rgba(255,255,255,.2); }
+  .pit.dis { cursor: not-allowed; }
+  .pit.dis:hover { border-color: #74808f; box-shadow: inset 0 1px 0 rgba(255,255,255,.13); }
+  /* An empty slot: RA2's grid is a fixed panel, not a list that stops. */
+  .slot { width: 64px; height: 52px; border: 1px solid #2a3240; border-radius: 2px;
+          background: rgba(255,255,255,.018); box-shadow: inset 0 1px 0 rgba(255,255,255,.05); }
+  .pit .em, .pit .em canvas { display: block; width: 60px; height: 48px; }
+  .pit .em { position: relative; }
+  .pit .em canvas.cap { position: absolute; left: 0; top: 0; }
+  .pit .nm, .pit .ct { display: none; }   /* kept for the tooltip's text, never rendered */
+  /* Locked / unaffordable: RA2 greys a cameo out, it never fades it away. */
+  /* The PLATE greys when you cannot afford the row; the NAME does not. Greying
+     roughly halves every pairwise distance (mean 52.0 -> 26.8 when this was one
+     filter over the whole plate), and the early game is MOSTLY unaffordable
+     rows — so this is the dominant reading condition, not an edge case. The
+     caption is a second canvas layered over the plate and excluded here. */
+  .pit.locked .em canvas:not(.cap), .pit.dis .em canvas:not(.cap) { filter: grayscale(.9) brightness(.42); }
+  /* Build progress is RA2's clock wipe: a dark sector sweeping clockwise. */
+  .pit .fill { position: absolute; inset: 0; pointer-events: none; display: none; }
+  .pit .qn {
+    position: absolute; right: 1px; bottom: 1px; min-width: 14px; padding: 0 2px;
+    font: 700 9px/13px ui-monospace, SFMono-Regular, Menlo, monospace; text-align: center;
+    color: #0b0e14; background: #ffe07a; border-radius: 2px; pointer-events: none;
+  }
+  .pit.rdy { border-color: #ffe14d; box-shadow: 0 0 10px rgba(255,225,77,.45); }
+  .pit.rdy::after {
+    content: 'READY'; position: absolute; inset: 0;
+    display: flex; align-items: center; justify-content: center;
+    background: rgba(10,8,2,.62);
+    color: #ffe14d; font: 800 11px/1 system-ui, sans-serif; letter-spacing: .16em;
+    text-shadow: 0 1px 3px rgba(0,0,0,.9);
+    animation: rdypulse 1.05s ease-in-out infinite;
+    pointer-events: none;
+  }
+  @keyframes rdypulse { 0%, 100% { opacity: 1; } 50% { opacity: .48; } }
+  @media (prefers-reduced-motion: reduce) {
+    .pit.rdy::after { animation: none; }
+    .ptab div.hasready::after { animation: none; }
+  }
+  /* ---- the command bar: the BOTTOM OF THE SCREEN, across the battlefield.
+     It is a strip of chrome the full width of the tactical view, not a
+     corner of the build menu — the unit commands are what you reach for
+     mid-fight, and the sidebar is where you go to spend money.
+
+     It is a LAYOUT row, not an overlay: the canvas ends where the bar
+     begins, so the bar covers no ground and every unit on screen stays
+     clickable. `#tl` (the superweapon and paradrop clocks, and the EVA
+     line under them) is anchored top-left INSIDE `#stage` and so is never
+     touched by it. */
+  #cmdbar {
+    flex-shrink: 0; padding: 5px 8px 6px;
+    background: linear-gradient(180deg, #232a35 0%, #1a212b 55%, #131820 100%);
+    border-top: 1px solid #39424f;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.05);
+  }
+  /* RA2's proportions, measured off two in-game screenshots (1024x768 and
+     1366x768): the bar runs the full width of the battlefield but the button
+     GROUP is LEFT-ALIGNED in it, starting about a button-width in, with the
+     rest of the strip empty. The cells are LANDSCAPE, not square — 46x28 on
+     a 52px pitch, 1.8:1, which is what 78x44 on an 83px pitch is here.
+     Sizes are fixed, never stretched: RA2's HUD is fixed-pixel and a wider
+     window shows more map, it does not inflate the chrome. */
+  #cmdbar .cmdrow { display: flex; justify-content: flex-start; align-items: stretch; gap: 5px; padding-left: 38px; }
+  #cmdbar button { flex: 0 1 78px; min-width: 42px; min-height: 44px; padding: 5px 2px 4px; }
+  #cmdbar button svg { width: 20px; height: 20px; }
+  #sbtools button .cl, #cmdbar button .cl { max-width: 100%; overflow: hidden; white-space: nowrap; }
+  /* A desktop window narrow enough that the labels no longer fit drops to
+     icons — the drawn tooltip still names every one. This is the same guard
+     `.bar` already makes at 560px; it is NOT a mobile layout (#nomob turns
+     touch devices away outright). */
+  @media (max-width: 820px) and (hover: hover) { #cmdbar button .cl { display: none; } #cmdbar button { flex: 0 1 46px; } #cmdbar .cmdrow { padding-left: 20px; } }
+  /* Touch (no hover): the labels are the only way to learn the bar, so they
+     stay and the row wraps; the hover gutter is dead weight, so it goes; and
+     every control meets a 44 px finger. */
+  @media (hover: none) and (pointer: coarse) {
+    #cmdbar .cmdrow { flex-wrap: wrap; row-gap: 6px; }
+    :root { --gut: 0px; }
+    .gut { display: none; }
+    .bar button { min-height: 44px; min-width: 44px; }
+    .ptab div, #sbtools button, .gslot button, .mbtns button, #optCard button { min-height: 44px; }
+    input[type=range] { height: 44px; }
+  }
+  /* The front menu is a screen, not a dialog over a live HUD: a command bar
+     for a match that does not exist reads as a dead row of buttons. Hidden
+     the same way, and for the same reason, as the sidebar beside it. */
+  body.atmenu #cmdbar { visibility: hidden; }
+  /* The drawn tooltip — a canvas, not a browser title. */
+  #ptip { position: absolute; z-index: 20; pointer-events: none; display: none; }
+
+  /* ---- selection marquee + floating hints ---- */
+  #marq { position: absolute; border: 1px solid #8ad0ff; background: rgba(138,208,255,.12); pointer-events: none; display: none; }
+  /* Top-left of the tactical view: RA2 stacks the superweapon clocks there,
+     and prints EVA / game messages under them in its own yellow type. */
+  #tl {
+    position: absolute; left: 10px; top: 10px; z-index: 5;
+    display: flex; flex-direction: column; align-items: flex-start; gap: 7px;
+    pointer-events: none; max-width: 46%;
+  }
+  #swbar { display: flex; flex-direction: column; gap: 6px; pointer-events: none; }
+  #swbar .swic { pointer-events: auto; }
+  .swic { position: relative; width: 62px; height: 62px; border: 1px solid #3a4456; border-radius: 6px;
+          background: linear-gradient(#161d29, #0c1015); box-shadow: 0 2px 7px rgba(0,0,0,.5);
+          font: 600 10px system-ui; color: #97a3b6; text-align: center; user-select: none; overflow: hidden; }
+  .swic .arc { position: absolute; inset: -1px; pointer-events: none; z-index: 1; }
+  .swic .em { position: relative; display: block; font-size: 21px; line-height: 1; padding-top: 4px; filter: grayscale(1) brightness(.75); }
+  .swic .em canvas { display: block; width: 56px; height: 42px; margin: 0 auto; border-radius: 2px; }
+  .swic .cd { position: absolute; left: 0; right: 0; bottom: 3px; z-index: 2; font-variant-numeric: tabular-nums; letter-spacing: .3px;
+              text-shadow: 0 1px 3px #000, 0 0 4px #000; }
+  .swic.rdy { cursor: pointer; border-color: #6ee7a8; color: #d8ffe9; animation: swpulse 1.15s ease-in-out infinite; }
+  .swic.rdy .em { filter: none; }
+  /* Low power halts the charge (RA2's IsPowered rule): say so on the clock
+     instead of leaving a frozen countdown the player reads as "broken". */
+  .swic.hold { border-color: #e5646c; color: #ffb3b8; }
+  .swic.hold .cd { font-size: 9px; font-weight: 700; letter-spacing: .4px; }
+  .swic.hold .arc { opacity: .35; }
+  .swic.arm { border-color: #ffd24a; color: #ffe9a8; animation: none; box-shadow: 0 0 0 2px rgba(255,210,74,.4); }
+  @keyframes swpulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(110,231,168,.5); } 50% { box-shadow: 0 0 0 6px rgba(110,231,168,0); } }
+  /* EVA / game text: a stacked list in RA2's yellow, newest at the bottom,
+     each line fading out on its own timer. */
+  #tip { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; }
+  .ev {
+    font: 600 12px/1.35 system-ui, sans-serif; color: #ffe07a;
+    text-shadow: 1px 1px 0 #000, 0 0 7px rgba(0,0,0,.95);
+    white-space: normal; word-break: break-word;
+  }
+  .ev.warn { color: #ff9c6b; }
+  /* Hover card: what is that building / unit (yours or the enemy's). */
+  #hov {
+    position: absolute; left: 0; top: 0; pointer-events: none; z-index: 5;
+    background: rgba(14,17,23,.9); border: 1px solid #2a3040; border-radius: 6px;
+    padding: 4px 8px; font-size: 12px; color: #cdd5e1; white-space: nowrap;
+  }
+  #hov b { display: block; font-size: 12px; color: #e6edf3; }
+  #hov span { font-size: 11px; color: #8f9bae; }
+  #hov.enemy { border-color: #5a2a30; } #hov.enemy b { color: #f0a0a8; }
+  #paused, #stall {
+    position: absolute; inset: 0; display: none; z-index: 4;
+    flex-direction: column; align-items: center; justify-content: center;
+    gap: 6px; pointer-events: none;                 /* clicks fall through */
+    background: rgba(14,17,23,.34);
+    text-shadow: 0 2px 10px rgba(0,0,0,.7);
+  }
+  #paused.show, #stall.show { display: flex; }
+  #paused b, #stall b { font-size: 30px; letter-spacing: .14em; color: #e6edf3; }
+  #paused span, #stall span { font-size: 13px; color: #aab4c5; }
+  #stall b { font-size: 22px; letter-spacing: .08em; }
+  .mpnote { font-size: 12px; color: #aab4c5; font-style: italic; line-height: 1.4; }
+
+  /* ---- cards (shared house style: 44px targets, short-window collapse) ---- */
+  .overlay {
+    position: absolute; inset: 0; display: none;
+    /* In a match the backdrop is MODAL over the whole page — the top bar and
+       the gutter included — not just the field. It was a child of .wrap, so
+       the bar's buttons stayed clickable behind a card that said "paused":
+       a click resumed the sim, Help stacked over Options, the gutter panned
+       the map (session audit, 2026-09-11). At the front menu the bar stays
+       reachable (sound, help). */
+    align-items: safe center; justify-content: center; overflow: auto;
+    padding: 10px; background: rgba(11,14,20,.74); z-index: 5;
+  }
+  body:not(.atmenu) .overlay { position: fixed; }
+  /* The FRONT menu is a screen, not a dialog laid over a running HUD: with
+     the sidebar left visible beside it you read a radar bezel, an empty
+     cameo grid, SELL/REPAIR/POWER, a 0:00 clock and a 0-credit ticker for a
+     match that does not exist yet. Hidden, not removed, so the stage keeps
+     its size and the canvas is not re-laid-out on every visit to the menu.
+     Scoped to `body.atmenu`, which only the front menu sets, so every
+     in-match card showCard() puts up still shows the HUD behind it. */
+  body.atmenu #side { visibility: hidden; }
+  .overlay.help { z-index: 6; }
+  .overlay.lb { z-index: 7; }
+  .overlay.show { display: flex; }
+  .card {
+    background: #161b22; border: 1px solid #2a3040; border-radius: 12px;
+    padding: 22px 28px; text-align: center; min-width: 210px;
+    box-shadow: 0 12px 40px rgba(0,0,0,.5);
+  }
+  /* A tall menu card (settings drawer open) scrolls inside the viewport and
+     keeps its Start button in reach instead of pushing it below the fold. */
+  #ov .card { max-height: calc(100vh - 96px); overflow-y: auto; }
+  #ov .card .cardfoot { position: sticky; bottom: -22px; background: #161b22; padding-bottom: 22px; margin-bottom: -22px; z-index: 1; }
+  .card .big { font-size: 30px; margin-bottom: 6px; }
+  .card h2 { font-size: 17px; margin-bottom: 4px; color: #e6edf3; }
+  .card p { font-size: 13px; color: #aab4c5; margin-bottom: 14px; line-height: 1.5; }
+  .card .btns { display: flex; flex-direction: column; gap: 8px; margin-top: 4px; }
+  .card .btns button, .card .primary, .card .ghost {
+    display: block; width: 100%; min-height: 44px; padding: 10px 18px;
+    font-size: 14px; font-weight: 600; border-radius: 9px; cursor: pointer;
+  }
+  .card .primary { background: #8a4adb; border-color: #8a4adb; color: #fff; }
+  .card .primary:hover { background: #9a5ceb; }
+  .card .ghost { background: #1f2733; border: 1px solid #2a3040; color: #cdd5e1; }
+  .card .ghost:hover { color: #e6edf3; background: #253044; }
+  .help .card { text-align: left; max-width: min(400px, 92vw); max-height: 86%; overflow: auto; }
+  .help .card h2 { text-align: center; }
+  .help dl { display: grid; grid-template-columns: auto 1fr; gap: 5px 12px; font-size: 12.5px; margin-bottom: 12px; }
+  .help dt { color: #c3a4f0; font-weight: 600; white-space: nowrap; }
+  .help dd { color: #aab4c5; line-height: 1.45; }
+  .lb .card { width: min(340px, 92vw); }
+  .lb h2 { font-size: 15px; margin-bottom: 10px; }
+  .lbfoot { margin-top: 14px; text-align: center; }
+  .lbfoot button {
+    background: #1f2733; border: 1px solid #2a3040; color: #8a94a6;
+    font-size: 11.5px; min-height: 30px; width: auto; display: inline-block; padding: 6px 14px;
+  }
+  .lbfoot button:hover { color: #e5646c; border-color: #5a3038; background: #241a1c; }
+
+  /* ---- front menu -------------------------------------------------------
+     RA2's skirmish setup, in this game's palette: a wordmark band, the two
+     sides as picture panels (emblem + a line-up drawn from the game's own
+     baked sprites), one segmented Opponent control, and a real generated
+     preview per map. No prose — the pictures are the description. The whole
+     UI takes the CHOSEN SIDE's colour as its accent, as RA2 does.
+     Everything here is scoped to `.card.menu`, because #ov is shared with
+     the confirm / victory / defeat cards, which must keep the plain look. */
+  .card.menu {
+    --acc: #4aa3db; --accH: #62b6ea; --emb: 104px;
+    width: min(880px, 100%); padding: 20px 24px 16px; text-align: left;
+    background: linear-gradient(180deg, #1a2029 0%, #12161e 100%);
+  }
+  #ov.col .card.menu { --acc: #d8434d; --accH: #e9616a; }
+  .card.menu .big, .card.menu h2, .card.menu p { display: none; }
+  .card.menu .mhead { display: block; }
+  .mhead {
+    display: none; text-align: center;
+    padding-bottom: 13px; margin-bottom: 15px; border-bottom: 1px solid #2a3040;
+  }
+  .wordmark {
+    display: inline-block; font-size: 31px; font-weight: 800; line-height: 1.05;
+    text-transform: uppercase; letter-spacing: .3em; text-indent: .3em;
+    background: linear-gradient(180deg, #ffffff 0%, #c9d5e4 32%, #7f8da3 50%, #e8eef7 60%, #6f7b8f 100%);
+    -webkit-background-clip: text; background-clip: text;
+    color: transparent; -webkit-text-fill-color: transparent;
+  }
+
+  /* --- the two side panels --- */
+  .facrow { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 14px; }
+  .facrow button {
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 8px; padding: 14px 12px 12px; border-radius: 10px; cursor: pointer;
+    background: linear-gradient(180deg, #151a23 0%, #0e121a 100%);
+    border: 1px solid #262c3a; color: #838fa2;
+  }
+  .facrow button.dir { --c: #4aa3db; --cg: rgba(74,163,219,.20); }
+  .facrow button.col { --c: #d8434d; --cg: rgba(216,67,77,.20); }
+  .facrow button:hover { background: linear-gradient(180deg, #171d27 0%, #101520 100%); border-color: #3a4358; color: #b3bdcc; }
+  .facrow button .emb { display: block; width: var(--emb); height: var(--emb); opacity: .62; }
+  .facrow button .fn {
+    font-size: 13px; font-weight: 700; text-transform: uppercase;
+    letter-spacing: .24em; text-indent: .24em;
+  }
+  .facrow button .lineup { display: block; width: 100%; max-width: 380px; height: auto; opacity: .72; }
+  .facrow button.on, .facrow button.on:hover {
+    color: #e6edf3; border-color: var(--c);
+    background: linear-gradient(180deg, #1c2430 0%, #10141c 100%);
+    box-shadow: inset 0 0 44px -8px var(--cg), inset 0 0 0 1px var(--c);
+  }
+  .facrow button.on .emb, .facrow button.on .lineup { opacity: 1; }
+
+  /* --- Opponent: one segmented control --- */
+  .olbl {
+    font-size: 10px; font-weight: 700; letter-spacing: .18em;
+    text-transform: uppercase; color: #6b7488; flex-shrink: 0;
+  }
+  .optrow { display: flex; align-items: center; gap: 14px; margin-bottom: 14px; }
+  .diffrow { display: flex; border: 1px solid #262c3a; border-radius: 8px; overflow: hidden; background: #0e121a; }
+  .diffrow button {
+    min-height: 36px; padding: 0 26px; font-size: 12px; font-weight: 600; letter-spacing: .04em;
+    background: transparent; color: #838fa2;
+    border: 0; border-left: 1px solid #262c3a; border-radius: 0;
+  }
+  .diffrow button:first-child { border-left: 0; }
+  .diffrow button:hover { background: #182029; color: #cdd5e1; }
+  .diffrow button.on, .diffrow button.on:hover { background: var(--acc); color: #fff; }
+
+  /* --- map previews (terrain generated once, painted at 2px a tile) --- */
+  .mapwrap { margin-bottom: 14px; }
+  .mapwrap .olbl { display: block; margin-bottom: 7px; }
+  /* Game settings: RA2's skirmish strip. Shut by default — the card must
+     still read as "pick a side, pick a map, go" — and one line of prose when
+     shut tells you what you would be changing. */
+  .setwrap { margin-bottom: 12px; }
+  .settog {
+    width: 100%; display: flex; align-items: center; gap: 8px;
+    background: #0e121a; border: 1px solid #262c3a; border-radius: 8px;
+    color: #8d97a8; font: 600 11px/1 inherit; letter-spacing: .08em; text-transform: uppercase;
+    padding: 9px 11px; cursor: pointer; text-align: left;
+  }
+  .settog:hover { color: #cdd5e1; border-color: #3a4358; background: #131924; }
+  .settog .cv { display: inline-block; transition: transform .12s; color: var(--acc); }
+  .settog.open .cv { transform: rotate(90deg); }
+  .settog .sum { margin-left: auto; text-transform: none; letter-spacing: 0; font-weight: 400; color: #6c7684; }
+  /* Two columns of label/control pairs — one column ran the card past the
+     fold on a 900px window and pushed Start Game off the bottom. */
+  .setgrid {
+    display: grid; grid-template-columns: auto minmax(0,1fr) auto minmax(0,1fr);
+    row-gap: 8px; column-gap: 14px; align-items: center;
+    padding: 11px 11px 2px; text-align: left;
+  }
+  .setgrid[hidden] { display: none; }
+  .huerow.wide { grid-column: 2 / -1; }
+  .slbl { font-size: 11px; color: #8d97a8; white-space: nowrap; }
+  .setgrid .diffrow { justify-self: start; }
+  .sldr { display: flex; align-items: center; gap: 9px; }
+  .sldr input[type=range] { flex: 1; max-width: 150px; accent-color: var(--acc); height: 16px; }
+  .sldr b { font-size: 12px; color: #cdd5e1; min-width: 14px; text-align: right; font-variant-numeric: tabular-nums; }
+  .huerow { display: flex; gap: 5px; flex-wrap: wrap; }
+  .huerow button {
+    width: 20px; height: 20px; border-radius: 5px; border: 1px solid #262c3a;
+    background: var(--h); cursor: pointer; padding: 0; opacity: .5;
+  }
+  .huerow button:hover { opacity: .82; }
+  .huerow button.on { opacity: 1; box-shadow: 0 0 0 2px #0e121a, 0 0 0 3px #cdd5e1; }
+  .huerow button.ai { opacity: .34; cursor: not-allowed; }
+  .huerow button.ai::after { content: ''; }
+  .huerow.busy { opacity: .55; pointer-events: none; }
+
+  /* RA2's score screen: the two houses side by side, then the tally. */
+  #scoreCard { width: 100%; border-collapse: collapse; margin: 2px 0 14px; text-align: right; }
+  #scoreCard th, #scoreCard td { padding: 3px 6px; font-size: 12px; font-variant-numeric: tabular-nums; }
+  #scoreCard th.rl { text-align: left; font-weight: 400; color: #8d97a8; white-space: nowrap; }
+  #scoreCard thead th { font-size: 11px; letter-spacing: .06em; text-transform: uppercase; padding-bottom: 6px; }
+  #scoreCard thead th span { display: inline-flex; align-items: center; gap: 6px; }
+  #scoreCard thead th i { width: 9px; height: 9px; border-radius: 2px; background: var(--h); display: inline-block; }
+  #scoreCard td { color: #cdd5e1; }
+  #scoreCard td.win { color: #fff; font-weight: 700; }
+  #scoreCard tbody tr:nth-child(odd) { background: rgba(255,255,255,.025); }
+  #scoreCard tr.rule td, #scoreCard tr.rule th { border-top: 1px solid #262c3a; padding-top: 8px; }
+  #scoreCard tr.pct td { color: #e6edf3; }
+  #scoreCard + #scores:not(:empty) { margin-bottom: 14px; }
+
+  /* Esc options: three save slots, each its own row. */
+  .optrow.slots { align-items: flex-start; }
+  /* The card sizes to its content, so a flex:1 column with an ellipsised
+     name in it collapses to the width of the two buttons. */
+  .slotlist { display: flex; flex-direction: column; gap: 5px; flex: 1; min-width: 290px; }
+  /* `.slot` is already taken by the sidebar's 64x52 cameo plate — this one
+     needs its own name or it inherits that fixed width and collapses. */
+  .gslot { display: flex; align-items: center; gap: 7px; }
+  .gslot .sname {
+    flex: 1 1 auto; min-width: 0; text-align: left; font-size: 11px; color: #8d97a8;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .gslot .sname b { color: #cdd5e1; font-weight: 600; }
+  .gslot .sname i { font-style: normal; color: #5c6675; }
+  .gslot button {
+    background: #0e121a; border: 1px solid #262c3a; color: #8d97a8;
+    font: 600 10px/1 inherit; letter-spacing: .06em; text-transform: uppercase;
+    padding: 6px 9px; border-radius: 6px; cursor: pointer; flex: 0 0 auto;
+  }
+  .gslot button:hover:not(:disabled) { background: var(--acc); border-color: var(--acc); color: #fff; }
+  .gslot button:disabled { opacity: .3; cursor: default; }
+  #ovA.wide + #ovB { margin-top: 0; }
+  .card .btns .ghost.load { color: #8d97a8; }
+  .maprow { display: grid; grid-template-columns: repeat(6, 1fr); gap: 8px; }
+  .maprow button {
+    display: block; width: 100%; padding: 0; overflow: hidden; cursor: pointer;
+    background: #0b0e14; border: 1px solid #262c3a; border-radius: 8px;
+    color: #838fa2; min-height: 0;
+  }
+  .maprow canvas { display: block; width: 100%; height: auto; opacity: .68; }
+  .maprow .mn {
+    display: block; padding: 5px 4px 6px; font-size: 10.5px; font-weight: 600;
+    text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .maprow button:hover { border-color: #3a4358; color: #cdd5e1; }
+  .maprow button:hover canvas { opacity: .88; }
+  .maprow button.on, .maprow button.on:hover {
+    border-color: var(--acc); color: #e6edf3; box-shadow: inset 0 0 0 1px var(--acc);
+  }
+  .maprow button.on canvas { opacity: 1; }
+
+  /* --- footer: debug demoted to the left, Start the only loud thing --- */
+  .dbgrow { display: none; align-items: center; gap: 7px; font-size: 11.5px; color: #6b7488; cursor: pointer; }
+  .dbgrow input { accent-color: #e0b040; }
+  .dbgrow:hover { color: #9aa3b2; }
+  .card.menu .cardfoot {
+    display: flex; align-items: center; gap: 16px;
+    padding-top: 13px; border-top: 1px solid #2a3040;
+  }
+  .card.menu .dbgrow { display: flex; flex: 1; }
+  .card.menu .btns { flex-direction: row; margin-top: 0; flex-shrink: 0; }
+  .card.menu .btns button { width: auto; padding: 12px 44px; }
+  .card.menu .primary, .card.menu .primary:hover { background: var(--acc); border-color: var(--acc); }
+  .card.menu .primary:hover { background: var(--accH); border-color: var(--accH); }
+
+  /* Short windows (1024x600 landscape and the like): the same layout, smaller. */
+  @media (max-height: 730px) {
+    .card.menu { --emb: 64px; width: min(720px, 100%); padding: 13px 18px 11px; }
+    .wordmark { font-size: 23px; }
+    .mhead { padding-bottom: 9px; margin-bottom: 11px; }
+    .facrow button { padding: 11px 10px 9px; gap: 6px; }
+    .facrow, .optrow, .mapwrap { margin-bottom: 10px; }
+    .facrow button .fn { font-size: 12px; }
+    .maprow .mn { padding: 3px 4px 4px; font-size: 10px; }
+    .card.menu .cardfoot { padding-top: 9px; }
+    .card.menu .btns button { padding: 10px 32px; }
+  }
+  @media (max-height: 340px) {
+    .card { padding: 10px 12px; min-width: 0; }
+    .card .big, .card p { display: none; }
+    .card h2 { font-size: 13px; margin-bottom: 8px; }
+    .card .btns { flex-direction: row; flex-wrap: wrap; gap: 6px; }
+    .card .btns button { min-height: 38px; padding: 7px 10px; font-size: 12.5px; width: auto; flex: 1 1 auto; }
+  }
+  /* One short settle, nothing that loops. */
+  .overlay.show > .card { animation: cardin .17s ease-out; }
+  @keyframes cardin { from { opacity: 0; transform: scale(.985); } to { opacity: 1; transform: none; } }
+  @media (prefers-reduced-motion: reduce) { .overlay.show > .card { animation: none; } }
+
+  /* ---- phone gate: a PHONE cannot play this, a tablet can ----
+     The gate used to be "(hover: none) and (pointer: coarse)", which is every
+     touch screen — so it blocked iPads too, on a screen with room for the whole
+     UI and a touch layer that already handles select/order/pan/pinch. What a
+     phone actually lacks is SIZE, so that is what is measured.
+
+     The threshold is 540, and the headroom is the point. The largest phone is
+     440 on its short side (iPhone 17 Pro Max: 440 wide portrait, 430 tall
+     landscape), so 540 clears every phone by ~100px. It has to, because this
+     page is measured INSIDE THE DESKTOP'S IFRAME, not against the device: an
+     iPad mini in landscape is 744 tall, but the iframe gets 744 minus the
+     taskbar — about 700, which a 699 threshold blocked outright. Any number
+     tuned to the device's own size is wrong here by exactly the height of the
+     shell around it.
+
+     Two queries rather than one because there is no portable `min(w,h)` in a
+     media query — one catches portrait phones, one catches landscape. */
+  #nomob { display: none; }
+  html.no-gate #nomob { display: none !important; }   /* framed on a tablet/desktop: the window is small, the device is not (set at boot) */
+  @media (hover: none) and (pointer: coarse) and (max-width: 540px) {
+    #nomob { display: flex; }
+  }
+  @media (hover: none) and (pointer: coarse) and (max-height: 540px) {
+    #nomob { display: flex; }
+  }
+  @media (hover: none) and (pointer: coarse) {
+    #nomob {
+      position: fixed; inset: 0; z-index: 40;
+      align-items: center; justify-content: center; padding: 24px;
+      background: #0e1117; text-align: center;
+    }
+    #nomob .card p { margin-bottom: 0; }
+  }
+</style>
+</head>
+<body>
+<div class="gut gut-l"></div><div class="gut gut-r"></div><div class="gut gut-t"></div><div class="gut gut-b"></div>
+
+<div class="bar">
+  <span class="title"><span class="txt">Iron Frontier</span></span>
+  <span class="spacer"></span>
+  <button id="helpBtn" title="How to play">?</button>
+  <button id="lbBtn" title="Best results">🏆</button>
+  <button id="sndBtn" title="Sound on/off"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5,9.2 L7.2,9.2 L12.2,5.0 L12.2,19.0 L7.2,14.8 L3.5,14.8 Z"/><path d="M14.6,8.6 A5.2,5.2 0 0 1 14.6,15.4" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/><path d="M17.0,6.0 A8.4,8.4 0 0 1 17.0,18.0" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/></svg></button>
+  <button id="optBtn" title="Settings: volume, game speed, save/load (Esc)"><svg viewBox="0 0 24 24" aria-hidden="true"><path fill-rule="evenodd" d="M 19.44,9.65 L 22.41,9.98 L 22.41,14.02 L 19.44,14.35 L 18.92,15.60 L 20.79,17.93 L 17.93,20.79 L 15.60,18.92 L 14.35,19.44 L 14.02,22.41 L 9.98,22.41 L 9.65,19.44 L 8.40,18.92 L 6.07,20.79 L 3.21,17.93 L 5.08,15.60 L 4.56,14.35 L 1.59,14.02 L 1.59,9.98 L 4.56,9.65 L 5.08,8.40 L 3.21,6.07 L 6.07,3.21 L 8.40,5.08 L 9.65,4.56 L 9.98,1.59 L 14.02,1.59 L 14.35,4.56 L 15.60,5.08 L 17.93,3.21 L 20.79,6.07 L 18.92,8.40 Z M 15.60,12.00 A 3.6,3.6 0 1 0 8.40,12.00 A 3.6,3.6 0 1 0 15.60,12.00 Z"/></svg><span>Settings</span></button>
+  <button id="pauseBtn" title="Pause (P)"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="6.5" y="4.5" width="4.2" height="15" rx="1.2"/><rect x="13.3" y="4.5" width="4.2" height="15" rx="1.2"/></svg></button>
+  <button id="newBtn">New</button>
+</div>
+
+<div class="wrap">
+  <div id="field">
+    <div id="stage">
+      <canvas id="cv"></canvas>
+      <div id="marq"></div>
+      <div id="tl"><div id="swbar"></div><div id="tip"></div></div>
+      <div id="hov" hidden><b id="hovName"></b><span id="hovSub"></span></div>
+      <div id="paused"><b>Paused</b><span>Click anywhere to resume</span></div>
+      <div id="stall"><b>Waiting for the other player…</b><span>Your orders are held until both games are in step</span></div>
+    </div>
+    <div id="cmdbar">
+      <div class="cmdrow">
+        <button data-cmd="t1" aria-label="Team 1"><svg viewBox="0 0 24 24" aria-hidden="true"><ellipse cx="12" cy="12" rx="10.6" ry="8.6" fill="none" stroke="currentColor" stroke-width="2"/><text x="12" y="16.6" text-anchor="middle" fill="currentColor" font-family="ui-monospace,SFMono-Regular,Menlo,monospace" font-size="12.6" font-weight="700">1</text></svg><span class="cl">Team 1</span></button>
+        <button data-cmd="t2" aria-label="Team 2"><svg viewBox="0 0 24 24" aria-hidden="true"><ellipse cx="12" cy="12" rx="10.6" ry="8.6" fill="none" stroke="currentColor" stroke-width="2"/><text x="12" y="16.6" text-anchor="middle" fill="currentColor" font-family="ui-monospace,SFMono-Regular,Menlo,monospace" font-size="12.6" font-weight="700">2</text></svg><span class="cl">Team 2</span></button>
+        <button data-cmd="same" aria-label="Select same type"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="1" y="9.6" width="5" height="5" rx="1"/><path d="M7.6 12.1h3.2M9.7 9.8 12 12.1l-2.3 2.3" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.7"/><rect x="13.4" y="6.5" width="3.4" height="3.4" rx=".7"/><rect x="17.3" y="6.5" width="3.4" height="3.4" rx=".7"/><rect x="21.2" y="6.5" width="3.4" height="3.4" rx=".7"/><rect x="13.4" y="10.4" width="3.4" height="3.4" rx=".7"/><rect x="17.3" y="10.4" width="3.4" height="3.4" rx=".7"/><rect x="21.2" y="10.4" width="3.4" height="3.4" rx=".7"/><rect x="13.4" y="14.3" width="3.4" height="3.4" rx=".7"/><rect x="17.3" y="14.3" width="3.4" height="3.4" rx=".7"/><rect x="21.2" y="14.3" width="3.4" height="3.4" rx=".7"/></svg><span class="cl">Same</span></button>
+        <button data-cmd="deploy" aria-label="Deploy"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M1.1 1.1 9.4 4.1 4.1 9.4z"/><path d="M22.9 1.1 19.9 9.4 14.6 4.1z"/><path d="M1.1 22.9 4.1 14.6 9.4 19.9z"/><path d="M22.9 22.9 14.6 19.9 19.9 14.6z"/><path d="M12 8.2 15.8 12 12 15.8 8.2 12z"/></svg><span class="cl">Deploy</span></button>
+        <button data-cmd="stop" aria-label="Stop"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4.5" y="4.5" width="15" height="15" rx="2.2"/></svg><span class="cl">Stop</span></button>
+        <button data-cmd="amove" aria-label="Attack-move"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2.5 12h11" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/><path d="M10 7.5 14.5 12 10 16.5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/><circle cx="18.6" cy="12" r="3.4" fill="none" stroke="currentColor" stroke-width="1.8"/><circle cx="18.6" cy="12" r="1.2"/></svg><span class="cl">Attack-move</span></button>
+        <button data-cmd="guard" aria-label="Guard"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.4 2.4h17.2v8.1c0 5.4-3.6 9.6-8.6 11.6-5-2-8.6-6.2-8.6-11.6z"/><path d="M12 2.4h8.6v8.1c0 5.4-3.6 9.6-8.6 11.6z" fill="#000" opacity=".28"/></svg><span class="cl">Guard</span></button>
+        <button data-cmd="scatter" aria-label="Scatter"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3.4" fill="none" stroke="currentColor" stroke-width="1.7" stroke-dasharray="2.3 2.1" opacity=".55"/><circle cx="3.4" cy="6.2" r="2.9"/><circle cx="19.4" cy="3.3" r="2.6"/><circle cx="21.1" cy="15.3" r="3.1"/><circle cx="8.4" cy="21.2" r="2.7"/></svg><span class="cl">Scatter</span></button>
+        <button data-cmd="path" aria-label="Planning mode"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.6 4.4H12.4L3.6 16.2H12.4" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" opacity=".72"/><rect x="1.1" y="1.9" width="5" height="5" rx="1"/><rect x="9.9" y="1.9" width="5" height="5" rx="1"/><rect x="1.1" y="13.7" width="5" height="5" rx="1"/><rect x="9.9" y="13.7" width="5" height="5" rx="1"/><path d="M18.4 23V3.4" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.1"/><rect x="19.4" y="4.4" width="4.4" height="5.6"/></svg><span class="cl">Plan</span></button>
+      </div>
+    </div>
+  </div>
+
+  <div class="overlay" id="ov"><div class="card" id="ovCard">
+    <div class="mhead"><span class="wordmark">Iron Frontier</span></div>
+    <div class="big" id="ovIc">⚔️</div>
+    <h2 id="ovT">Iron Frontier</h2>
+    <p id="ovP">Build a base, mine ore, crush the enemy.</p>
+    <div class="facrow" id="facRow"></div>
+    <div class="optrow" id="mpWrap"><span class="olbl">Players</span><div class="diffrow" id="mpRow"></div></div>
+    <div class="optrow" id="mpNote" style="display:none"><span class="olbl"></span><span class="mpnote">The host picks the sides, the battlefield and the game settings. Your colour is the host's second colour.</span></div>
+    <div class="optrow" id="diffWrap"><span class="olbl">Opponent</span><div class="diffrow" id="diffRow"></div></div>
+    <div class="mapwrap" id="mapWrap"><span class="olbl">Battlefield</span><div class="maprow" id="mapRow"></div></div>
+    <div class="setwrap" id="setWrap">
+      <button class="settog" id="setTog" aria-expanded="false"><span class="cv">▸</span>Game settings<span class="sum" id="setSum"></span></button>
+      <div class="setgrid" id="setGrid" hidden>
+        <span class="slbl">Colour</span><div class="huerow wide" id="hueRow"></div>
+        <span class="slbl">Starting credits</span><div class="diffrow" id="credRow"></div>
+        <span class="slbl">Bases</span><div class="diffrow" id="baseRow"></div>
+        <span class="slbl">Starting units</span><div class="sldr"><input type="range" id="unitSl" min="0" max="10" step="1"><b id="unitVal">3</b></div>
+        <span class="slbl">Short game</span><div class="diffrow" id="shortRow"></div>
+        <span class="slbl">Game speed</span><div class="sldr"><input type="range" id="spdSl" min="1" max="6" step="1"><b id="spdVal">4</b></div>
+        <span class="slbl">Crates</span><div class="diffrow" id="crateRow"></div>
+        <span class="slbl"></span><span></span>
+        <span class="slbl">Superweapons</span><div class="diffrow" id="swRow"></div>
+      </div>
+    </div>
+    <div id="optCard" style="display:none">
+      <div class="optrow slots"><span class="olbl">Saved games</span><div class="slotlist" id="slotList"></div></div>
+      <div class="optrow"><span class="olbl">Game speed</span><div class="sldr"><input type="range" id="gspdSl" min="1" max="6" step="1"><b id="gspdVal">Fast</b></div></div>
+      <div class="optrow"><span class="olbl">Sound</span><div class="diffrow" id="sndRow"></div></div>
+      <div class="optrow"><span class="olbl">Music</span><div class="diffrow" id="musRow"></div></div>
+      <div class="optrow"><span class="olbl">Effects volume</span><div class="sldr"><input type="range" id="vsfxSl" min="0" max="100" step="5"><b id="vsfxVal">90%</b></div></div>
+      <div class="optrow"><span class="olbl">Voice volume</span><div class="sldr"><input type="range" id="vvoxSl" min="0" max="100" step="5"><b id="vvoxVal">85%</b></div></div>
+      <div class="optrow"><span class="olbl">Music volume</span><div class="sldr"><input type="range" id="vmusSl" min="0" max="100" step="5"><b id="vmusVal">45%</b></div></div>
+      <div class="optrow"><span class="olbl">Scroll speed</span><div class="diffrow" id="scrRow"></div></div>
+      <div class="optrow"><span class="olbl">Match</span><div class="diffrow" id="gameRow"></div></div>
+    </div>
+    <table id="scoreCard" hidden></table>
+    <div id="scores"></div>
+    <div class="cardfoot">
+      <label class="dbgrow" title="Cheats for testing: instant build, unlimited credits and the whole map revealed. Combat is exactly as in a normal game. Wins are not recorded."><input type="checkbox" id="dbgChk"> Debug mode</label>
+      <div class="btns">
+        <button class="primary" id="ovA">Start Game</button>
+        <button class="ghost" id="ovB" style="display:none">Cancel</button>
+      </div>
+    </div>
+  </div></div>
+
+  <div class="overlay help" id="hv"><div class="card">
+    <h2>How to play</h2>
+    <dl>
+      <dt>Touch</dt><dd>On a tablet: <b>tap</b> selects one of yours or gives the order, <b>drag</b> looks around, <b>pinch</b> zooms, a <b>two-finger tap</b> deselects or cancels a placement or mode, <b>hold</b> a cameo for its details (hold a queued one to hold or cancel it), hold <b>Team 1</b>/<b>Team 2</b> to assign the selection. The bar's <b>Stop</b> and <b>Attack-move</b> stand in for S and Ctrl+Shift.</dd>
+      <dt>Select</dt><dd>Left-click one of your units, or left-drag a box. Double-click selects every visible unit of that type. <b>Right-click</b> (without dragging) deselects.</dd>
+      <dt>Order</dt><dd>With units selected, <b>left-click</b>: move there, attack an enemy, or send a harvester to an ore patch — as in RA2. Left-click <b>your own Ore Refinery</b> with a miner selected and it <b>docks and unloads at once</b>, however full it is — the cursor turns to the enter arrow over anything a unit can be sent into. <b>Ctrl</b>+click <b>force-fires</b> at a spot (or at your own units); <b>Ctrl+Shift</b>+click is an <b>attack-move</b> — they advance and engage whatever they meet. <b>F</b> then click a friendly unit to <b>follow</b> it.</dd>
+      <dt>Hold ground</dt><dd><b>S</b> stops dead — the unit fires at what comes into range but never moves. <b>G</b> guards: it leaves its post by up to two cells to engage, then walks back. <b>X</b> scatters.</dd>
+      <dt>Deploy</dt><dd><b>D</b> digs a GI in behind sandbags — longer reach and double the rate of fire, and it will not move again until you press <b>D</b> to pack up. The same key unfolds an MCV into a Construction Yard and empties a garrisoned building.</dd>
+      <dt>Camera</dt><dd><b>Right-drag</b> (or middle-drag) grabs the map and looks around — the right button never gives an order. <b>Arrow keys</b>, mouse to a screen edge, or click the minimap to jump.</dd>
+      <dt>Teams</dt><dd><b>Ctrl+1…0</b> stores the selection, <b>1…0</b> recalls it, <b>Shift+digit</b> adds to it, <b>Alt+digit</b> jumps the camera to it.</dd>
+      <dt>Views</dt><dd><b>Ctrl+F1…F4</b> saves a camera bookmark, <b>F1…F4</b> returns to it. <b>N</b> steps through everything you own. <b>Ctrl+C</b> saves a screenshot of the field.</dd>
+      <dt>Settings</dt><dd><b>Game settings</b> on the front menu carries RA2's skirmish options — starting credits and units, game speed, Bases, Short Game, Crates, Superweapons, and your house colour out of the eight. <b>Esc</b> in a match pauses and opens the same card with three <b>save slots</b>, the speed slider and Restart.</dd>
+      <dt>Faster</dt><dd>A second Barracks or War Factory speeds that queue up (20% off each, up to six — as in RA2) and gives units another exit.</dd>
+      <dt>Build</dt><dd>Pick from the right-hand panel. A finished <b>building</b> turns purple — click it, then click the map to place it (it must touch your base area).</dd>
+      <dt>Rally</dt><dd>Select a Barracks or War Factory, then left-click the map: new units walk that route as they roll out. The line stays drawn while the building is selected. Click an already-selected factory again to make it <b>primary</b> — the one that builds.</dd>
+      <dt>Sidebar</dt><dd>Hover a cameo for its cost, power draw and prerequisites. <b>Q W E R</b> pick the four tabs, <b>PageUp</b> / <b>PageDown</b> scroll the list, <b>T</b> selects every unit of one type, <b>K</b> / <b>L</b> are repair and sell, and <b>Power</b> switches a structure off to free its drain.</dd>
+      <dt>Economy</dt><dd>Harvesters mine ore and drive it back to a refinery. More refineries, more income. Ore patches run dry — expand. Left-click a refinery with a miner selected to <b>send it home early</b> and bank what it is carrying; it goes to the one you clicked, and afterwards mines the nearest ore.</dd>
+      <dt>Power</dt><dd>Every structure draws power. Go negative and construction crawls. Bombing a power plant hurts.</dd>
+      <dt>Win</dt><dd>Destroy every enemy structure. Lose them all yourself and it's over. With <b>Short game</b> off you must also destroy every last enemy unit.</dd>
+      <dt>Also</dt><dd><b>Space</b> jumps to the last radar event · <b>H</b> jumps home · <b>Delete</b> self-destructs the selection · <b>P</b> pauses · <b>Esc</b> cancels, and with nothing to cancel opens the <b>options</b> card (sound, scroll speed, restart, abort).</dd>
+    </dl>
+    <div class="btns"><button class="ghost" id="hvClose">Got it</button></div>
+  </div></div>
+
+  <div class="overlay lb" id="lv"><div class="card">
+    <h2>🏆 Best results</h2>
+    <div id="lbBody"></div>
+    <div class="btns" style="margin-top:14px"><button class="ghost" id="lvClose">Close</button></div>
+    <div class="lbfoot"><button id="lbReset">Reset scores</button></div>
+  </div></div>
+
+  <div id="side">
+    <div id="sbtop">
+      <span id="sbmeta"><span id="vArmy">0</span><br><span id="vTime">0:00</span></span>
+      <span id="sbcred"><span id="vCred">0</span></span>
+    </div>
+    <div id="radarwrap"><canvas id="mini" width="184" height="184"></canvas></div>
+    <div id="sbtools">
+      <button data-cmd="sell" aria-label="Sell"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 1.6v20.8" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.1"/><path d="M16.9 7.1c0-2.1-2.2-3.5-4.9-3.5S7.1 5 7.1 7.1c0 4.6 9.8 2.5 9.8 7.5 0 2.3-2.2 3.7-4.9 3.7s-4.9-1.4-4.9-3.7" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.4"/></svg><span class="cl">Sell</span></button>
+      <button data-cmd="repair" aria-label="Repair"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M22.6 18.9 13.5 9.8a5.9 5.9 0 0 0-1.5-6.9 5.9 5.9 0 0 0-7.4-1.3L8.9 6 6 8.9 1.6 4.6a5.9 5.9 0 0 0 1.3 7.4 5.9 5.9 0 0 0 6.9 1.5l9.1 9.1c.4.4 1 .4 1.4 0l2.3-2.3a1 1 0 0 0 0-1.4z"/></svg><span class="cl">Repair</span></button>
+      <button data-cmd="power" aria-label="Power"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M13.4 1.4 4.2 13.9h6.2L10.6 22.6 19.8 10.1h-6.2z"/></svg><span class="cl">Power</span></button>
+    </div>
+    <div id="sbody">
+      <div id="pwrwrap"><canvas id="pwr" width="24" height="200"></canvas></div>
+      <div id="sbcol">
+        <div class="ptab">
+          <div data-tab="b" class="on"></div>
+          <div data-tab="d"></div>
+          <div data-tab="i"></div>
+          <div data-tab="v"></div>
+        </div>
+        <div id="plist"></div>
+      </div>
+    </div>
+  </div>
+  <canvas id="ptip"></canvas>
+</div>
+
+<div id="nomob"><div class="card">
+  <div class="big">🖱️</div>
+  <h2>Too small to command</h2>
+  <p>Iron Frontier needs room for the sidebar, the map and your army at once.<br><br>Open it on a tablet or a computer.</p>
+</div></div>
+
+<script src="gamescore.js"></script>
+<script src="vibe-modal.js"></script>
+<script type="module" src="rts/main.js"></script>
+</body>
+</html>

@@ -1,5 +1,48 @@
 # Iron Frontier (RTS) → a fully modular game: native ES modules, no build (plan, 2026-09-12)
 
+## Outcome (2026-09-12) — done
+
+Shipped as planned. `apps/games/rts/rts.html` is a tracked HTML+CSS page whose
+only script is `<script type="module" src="rts/main.js">`, and the game is 117
+native ES modules under `apps/games/rts/rts/` — 26 subsystem modules, 10 under
+`bake/`, 12 under `ui/`, 69 unit-art modules under `units/<class>/<kind>.js`,
+plus a dev-only `package.json` marker. Cross-module reads are plain imports
+(live bindings); the ~46 cross-module *writes* go through generated `set<Name>()`
+exports, which makes a missed one a parse error rather than a silent bug. The
+sim↔ui import cycles were left in place: every edge carries only function
+declarations, which ESM instantiates at link time.
+
+Deleted: `rts.src.html`, `art/units/**`, `tools/rts-build.py`,
+`rts-build.test.js`, the build tier in `run-tests.sh`, the build hook in
+`shell/install.sh`. **The repo has no build step at all any more.** The game is
+playable straight from a fresh checkout (`node apps/games/rts/tools/lib/serve-rts.js`,
+or any static server rooted at `apps/games/rts/`), which was the user's actual
+requirement. Delivery: `shell/install.sh` maps `rts/**` → `/rts/**` with
+`install -D`; `shell/sw.js` BYPASSes `/rts/`.
+
+**Both gates passed.** Simulation: 24 cells (6 seeds x both faction orders x two
+difficulties x 30 game minutes) compared per game-minute by `stateHash` —
+identical. Art: 107 sheets rendered from the real module page in headless
+Chromium — byte-identical. They found one bug each that the other could not
+see, both recorded in `docs/design-decisions.md`: the emitter slicing a setter's
+right-hand side out of the wrong string (`setVLIFT( );` → the IFV painted
+`rgb(NaN,NaN,NaN)`, invisible to a headless simulation), and the source-scanning
+tests' naive comment stripper, which had been discarding 77% of the module build
+before anything scanned it.
+
+**Deliberately NOT done** (none of these block anything):
+
+- `airsheet` still fails — it failed identically on the pre-split page. It was
+  already broken and fixing it is unrelated work.
+- `ui/render.js` and `ai.js` are still over 1,700 lines each. They are the two
+  obvious candidates for a further split, but splitting them changes real code
+  rather than moving it, so it does not belong in a pass whose acceptance
+  criterion was byte-identical behaviour.
+- The `events.js` sink that would cut the sim↔ui cycles remains optional. The
+  cycles are safe as they stand; this is a redesign, to be done and verified on
+  its own.
+
+
 ## Context
 
 The user asked for per-unit art files, rejected the marker/sync scheme ("no duplication"),

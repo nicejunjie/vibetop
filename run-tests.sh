@@ -43,12 +43,6 @@ hr() { printf '\033[1m── %s\033[0m\n' "$1"; }
 ok() { printf '\033[32m✓ %s\033[0m\n' "$1"; }
 no() { printf '\033[31m✗ %s\033[0m\n' "$1"; fail=1; }
 
-# --- Build: the RTS page ---------------------------------------------------
-# apps/games/rts/rts.html is generated from rts.src.html + art/units/** and is
-# what every tier below loads (docs/design-decisions.md, "RTS unit art split").
-hr "build — apps/games/rts/rts.html"
-if python3 apps/games/rts/tools/rts-build.py; then ok "rts build"; else no "rts build"; fi
-
 # --- Python: terminal manager (endpoints + pure logic + static) -------------
 if command -v python >/dev/null 2>&1 && python -m pytest --version >/dev/null 2>&1; then
     hr "pytest — manager (server/tests)"

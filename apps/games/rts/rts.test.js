@@ -17,82 +17,17 @@ const fs = require("node:fs");
 const path = require("node:path");
 const vm = require("node:vm");
 
-const SRC = path.join(__dirname, "rts.html");
-
-// ---- the smallest DOM that lets the page boot -------------------------- //
-function stubCtx() {
-  const noop = () => {};
-  return {
-    fillStyle: "", strokeStyle: "", lineWidth: 1, font: "", textAlign: "left",
-    globalAlpha: 1, globalCompositeOperation: "source-over",
-    fillRect: noop, strokeRect: noop, clearRect: noop, fillText: noop, strokeText: noop,
-    lineJoin: "miter", miterLimit: 10, textBaseline: "alphabetic",
-    beginPath: noop, closePath: noop, moveTo: noop, lineTo: noop,
-    fill: noop, stroke: noop, arc: noop, ellipse: noop, roundRect: noop, clip: noop,
-    quadraticCurveTo: noop, bezierCurveTo: noop, arcTo: noop, rect: noop,
-    save: noop, restore: noop, scale: noop, translate: noop, rotate: noop, setTransform: noop,
-    drawImage: noop, putImageData: noop,
-    getImageData: () => ({ data: [] }),
-    createRadialGradient: () => ({ addColorStop: noop }),
-    createLinearGradient: () => ({ addColorStop: noop }),
-    measureText: () => ({ width: 10 }),
-  };
-}
-function stubEl() {
-  const el = {
-    style: { setProperty: () => {}, removeProperty: () => {}, getPropertyValue: () => "" },
-    dataset: {}, textContent: "", innerHTML: "", className: "", hidden: false, value: "0",
-    width: 800, height: 600, _terr: null,
-    classList: { add: () => {}, remove: () => {}, toggle: () => {}, contains: () => false },
-    addEventListener: () => {}, removeEventListener: () => {},
-    appendChild: () => {}, removeChild: () => {}, setAttribute: () => {},
-    getAttribute: () => "b", setPointerCapture: () => {},
-    getContext: () => stubCtx(),
-    getBoundingClientRect: () => ({ left: 0, top: 0, width: 800, height: 600 }),
-  };
-  el.querySelector = () => stubEl();
-  el.querySelectorAll = () => [];
-  return el;
-}
+// The game is an ES-module tree (rts/main.js). Node cannot `import()` it once
+// per test — the two-tab lobby tests need two independent instances in one
+// process — so tools/lib/bundle-for-vm.js concatenates the modules in ESM
+// evaluation order into one classic script and tools/lib/vm-sandbox.js boots
+// it in a fresh vm context, exactly as the inline <script> used to be booted.
+// SRC is that concatenated program: the source-scanning tests below read it.
+const { load: bootSandbox } = require("./tools/lib/vm-sandbox.js");
+const SRC = require("./tools/lib/bundle-for-vm.js").source;
 
 function load(extra) {
-  const html = fs.readFileSync(SRC, "utf8");
-  const blocks = [...html.matchAll(/<script>([\s\S]*?)<\/script>/g)].map((m) => m[1]);
-  assert.equal(blocks.length, 1, "expected exactly one inline script block");
-
-  const store = {};
-  const win = {
-    devicePixelRatio: 1,
-    addEventListener: () => {}, removeEventListener: () => {},
-    requestAnimationFrame: () => 0,          // never start the render loop
-    performance: { now: () => 0 },
-    localStorage: {
-      getItem: (k) => (k in store ? store[k] : null),
-      setItem: (k, v) => { store[k] = String(v); },
-      removeItem: (k) => { delete store[k]; },
-    },
-    btoa: (b) => Buffer.from(b, "binary").toString("base64"),
-    atob: (b) => Buffer.from(b, "base64").toString("binary"),
-    Buffer, ArrayBuffer, Int8Array, Int16Array, URL,
-    setTimeout: () => 0,
-    Math, JSON, Date, isNaN, parseInt, parseFloat,
-    Float32Array, Int32Array, Uint8Array,
-  };
-  const doc = {
-    getElementById: () => stubEl(),
-    createElement: () => stubEl(),
-    querySelector: () => stubEl(),
-    querySelectorAll: () => [],
-    addEventListener: () => {},
-    removeEventListener: () => {},
-  };
-  Object.assign(win, extra || {});
-  win.window = win;
-  win.document = doc;
-  win.globalThis = win;
-  vm.createContext(win);
-  vm.runInContext(blocks[0], win, { filename: "rts.html" });
-  return win;
+  return bootSandbox(SRC, extra, "rts/main.js");
 }
 
 const W = load();
@@ -4676,7 +4611,7 @@ test("an ordinary match never sees the captured-production rule", () => {
 // Nothing in the suite looked for either. Now something does, over the whole
 // file rather than over a list of tables somebody has to remember to extend.
 test("no object literal declares the same key twice", () => {
-  const src = fs.readFileSync(SRC, "utf8");
+  const src = SRC;
 
   // Strip comments and string literals first, so a `key:` inside prose or a
   // template string cannot register, then walk the stream once. `prev` is
@@ -4836,7 +4771,7 @@ test("every weapon's rate is its rules.ini ROF x4", () => {
 // two paths, one question — so a future edit cannot re-introduce a second
 // answer without tripping it.
 test("the radar's input gate and its display gate are the same function", () => {
-  const src = fs.readFileSync(SRC, "utf8");
+  const src = SRC;
 
   const decl = /function radarUp\s*\(/.test(src);
   assert.ok(decl, "radarUp() is the one place that answers whether the radar is up");
@@ -4957,7 +4892,11 @@ test("a veteran fires faster and moves faster than a rookie, not only an elite",
 // The comment-stripper the radar test above needed: a structural assertion
 // that matches source TEXT must never be able to pass by reading prose. One
 // in this suite already did exactly that once.
-const nocomment = (t) => t.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/[^\n]*/g, "");
+// A comment stripper that knows about strings and regex literals. The two-regex
+// version this used to be swallowed a third of the file (a block-comment opener
+// inside a line comment ran to the next closer anywhere), so the slices below
+// were scanning less than they claimed to.
+const nocomment = require("./tools/lib/bundle-for-vm.js").stripComments;
 
 // ---- row 25: infantry firing is SIX frames, as the walk already was ------ //
 // art.ini:9660 `[E1Sequence] FireUp=164,6,6` and :9664 `FireProne=212,6,6` —
@@ -4969,7 +4908,7 @@ const nocomment = (t) => t.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/[^\n]*/
 // `art.fr('fire', d, ph)` over eight phases: 3 distinct canvases for `fire`
 // and 2 for `fireprone`, against 6 for `walk`. After: 6, 6 and 6.
 test("infantry fire and fireprone are six frames, like FireUp and FireProne", () => {
-  const src = nocomment(fs.readFileSync(SRC, "utf8"));
+  const src = nocomment(SRC);
 
   const m = src.match(/var INF_SEQ = \{([\s\S]*?)\};/);
   assert.ok(m, "INF_SEQ is the table of RA2 sequence lengths");
@@ -4983,7 +4922,9 @@ test("infantry fire and fireprone are six frames, like FireUp and FireProne", ()
   // the renderer's phase pick has to be checked too. `infSeqOf` is the one
   // place that chooses a soldier's sequence and frame.
   const i0 = src.indexOf("function infSeqOf(");
-  const i1 = src.indexOf("\n  }", i0);
+  // A top-level function closes at column 0 now that the game is a module tree
+  // (it used to be nested two spaces inside the page's IIFE).
+  const i1 = src.indexOf("\n}", i0);
   assert.ok(i0 > 0 && i1 > i0, "found infSeqOf");
   const body = src.slice(i0, i1);
   for (const st of ["fire", "fireprone"]) {
@@ -5037,7 +4978,7 @@ test("ore and gem cells have many variants and overhang their own diamond", () =
   // And the renderer must pick the variant off a real hash, not off the old
   // `(x * 5 + y * 11) & 3` diagonal, and draw ore AFTER the ground rather
   // than tile-then-ore per cell (which repaints the previous cell's overhang).
-  const src = nocomment(fs.readFileSync(SRC, "utf8"));
+  const src = nocomment(SRC);
   assert.ok(!/\(x \* 5 \+ y \* 11\) & 3/.test(src),
     "the ore variant is still picked by the diagonal-stripe expression");
   assert.ok(/ORES\.push\(/.test(src) && /ORES\.length = 0/.test(src),
@@ -5088,7 +5029,7 @@ test("an ore cell wears the theatre's dirt, never its pavement", () => {
 // strip at t = 0/4/8/14/22/34/60). What is pinned here is the shape of the
 // bug — a ground decal at full opacity on the tick the structure dies.
 test("structure rubble ramps in behind the explosion instead of popping", () => {
-  const src = nocomment(fs.readFileSync(SRC, "utf8"));
+  const src = nocomment(SRC);
 
   // The death still pushes at t: 0 — the fix is in the DRAW, not by delaying
   // the decal (which would leave the crater absent instead of hidden).
@@ -5130,7 +5071,7 @@ test("cliff cells have per-cell rock variants, and snow uses rock colours", () =
     assert.equal(S.cliff[th].length % 16, 0, "slots are mask | variant << 4");
   }
 
-  const src = nocomment(fs.readFileSync(SRC, "utf8"));
+  const src = nocomment(SRC);
   const c0 = src.indexOf("function bakeCliff(");
   const c1 = src.indexOf("function roadV(", c0);
   const cliff = src.slice(c0, c1);
@@ -5160,7 +5101,7 @@ test("cliff cells have per-cell rock variants, and snow uses rock colours", () =
 });
 
 test("the Kirov is baked at its drawn size, with no per-unit draw scale", () => {
-  const src = nocomment(fs.readFileSync(SRC, "utf8"));
+  const src = nocomment(SRC);
 
   // No draw-time scale survives anywhere in drawUnit.
   assert.ok(!/d\.bomb && d\.air \? 1\.3 : 1/.test(src),
@@ -5325,7 +5266,7 @@ test("ZMIN stays at or above the measured legibility floor", () => {
   // Lowering this again re-opens all four. If more zoom-out is wanted, the
   // honest route is R1's option (c) — bake a low-zoom sprite set with thickened
   // spikes — not moving this number.
-  const src = fs.readFileSync(SRC, "utf8");
+  const src = SRC;
   const m = src.match(/var ZMIN = ([0-9.]+)/);
   assert.ok(m, "ZMIN is declared");
   assert.ok(parseFloat(m[1]) >= 0.75,
@@ -5360,10 +5301,10 @@ test("every VERSES row matches rules.ini exactly", () => {
     if (parts.length === 11 && parts.every((x) => x !== "" && !isNaN(+x)))
       ini[sec] = parts.map((x) => Math.round(+x));
   }
-  const src = fs.readFileSync(SRC, "utf8");
+  const src = SRC;
   const wrong = [];
   let n = 0;
-  for (const m of src.matchAll(/^ {4}(\w+): \[([\d,\s]+)\],$/gm)) {
+  for (const m of src.matchAll(/^ {2}(\w+): \[([\d,\s]+)\],$/gm)) {
     const key = m[1], ours = m[2].split(",").map((x) => +x.trim());
     if (ours.length !== 11 || !ini[key]) continue;
     n++;

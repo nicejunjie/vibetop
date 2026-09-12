@@ -120,4 +120,23 @@ ref('map-lone-guardian','RA2A01.jpg','original RA2 mission panorama');
 ref('map-eagle-dawn','RA2A02.jpg','original RA2 mission panorama');
 ref('map-manhattan','Manhattan Mayhem.jpg','Yuri’s Revenge map render');
 
+// The game deliberately groups many regional civilian SHPs into ten visual
+// roles. These entries point to full original map renders so the structure is
+// seen at native battle scale and among the streets/units it was drawn for.
+// `ra2` names the closest concrete Westwood object instead of pretending the
+// game's generic role is itself an RA2 internal object.
+entry('building','gate','dir','Allied Gate','GAGATE_A',['map-lone-guardian'],'The surviving vanilla RA2 mission gate. See the striped road gate at the Allied base entrance.');
+entry('building','gate','col','Soviet Gate','GAGATE_A (shared reference)',['map-lone-guardian'],'Vanilla RA2 contains no completed Soviet gate art; the Soviet variant in this game is an adaptation of the one Allied mission gate.');
+entry('building','civflat','neutral','Apartment Block','CACITY01',['map-manhattan'],'Representative intact tall New York apartment block in the original map render.');
+entry('building','civware','neutral','Warehouse','CITY09 / CACHIG05',['map-manhattan'],'Representative low industrial warehouse; RA2 has several regional warehouse SHPs.');
+entry('building','civshop','neutral','Corner Shop','CITY10',['map-manhattan'],'Representative small urban storefront at native battle scale.');
+entry('building','civfuel','neutral','Filling Station','CAGAS01',['map-manhattan'],'The original RA2 gas-station family in city context.');
+entry('building','civoffice','neutral','Office Block','CITY03 / CANEWY06',['map-lone-guardian'],'Representative New York office towers, including damaged states.');
+entry('building','civrow','neutral','Shop Row','CACITY04 / CITY10',['map-manhattan'],'The game role combines RA2 storefront and small city-block SHPs.');
+entry('building','civruin','neutral','Ruined Block','CACITY01D family',['map-lone-guardian'],'Original damaged and burning city-building states are visible throughout this mission panorama.');
+entry('building','civsilo','neutral','Grain Depot','CAFARM02 / CATS01',['map-eagle-dawn'],'Original farm-storage and twin-silo structures in the snow village.');
+entry('building','civfarm','neutral','Farmhouse','CAFRMA / CAFARM01',['map-eagle-dawn'],'Original farmhouse family in the snow village.');
+entry('building','civbarn','neutral','Barn','CABARN02 / CATS01',['map-eagle-dawn'],'Original barn and agricultural outbuilding family in the snow village.');
+entry('building','bhut','neutral','Bridge Repair Hut','CABHUT',['map-lone-guardian'],'The bridge-control hut is shown beside the repaired bridge in the original mission panorama.');
+
 module.exports = { sources, entries };

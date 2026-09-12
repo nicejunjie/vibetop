@@ -1,4 +1,1 @@
-# BUILT by tools/rts-build.py from rts.src.html + art/units/ (run-tests.sh and
-# shell/install.sh run it). Never commit the output; edit the sources.
-rts.html
-.rts-build.sha
+# nothing generated here any more: the game IS its sources (rts.html + rts/**).

@@ -1,0 +1,2569 @@
+{
+  "schemaVersion": 1,
+  "reviewDate": "2026-09-12",
+  "report": {
+    "unitTypes": 41,
+    "buildingTypes": 43,
+    "expectedVariants": 97,
+    "listedVariants": 97,
+    "files": 112,
+    "missingEntries": [],
+    "extraEntries": [],
+    "duplicateEntries": [],
+    "missingFiles": [],
+    "brokenReferences": []
+  },
+  "entries": [
+    {
+      "type": "unit",
+      "key": "chronominer",
+      "faction": "dir",
+      "name": "Chrono Miner",
+      "ra2": "CMIN",
+      "refs": [
+        "chronominer",
+        "chronominer-voxel"
+      ],
+      "note": ""
+    },
+    {
+      "type": "unit",
+      "key": "warminer",
+      "faction": "col",
+      "name": "War Miner",
+      "ra2": "HARV",
+      "refs": [
+        "warminer"
+      ],
+      "note": ""
+    },
+    {
+      "type": "unit",
+      "key": "rifle",
+      "faction": "dir",
+      "name": "GI",
+      "ra2": "E1",
+      "refs": [
+        "rifle"
+      ],
+      "note": ""
+    },
+    {
+      "type": "unit",
+      "key": "conscript",
+      "faction": "col",
+      "name": "Conscript",
+      "ra2": "E2",
+      "refs": [
+        "conscript"
+      ],
+      "note": ""
+    },
+    {
+      "type": "unit",
+      "key": "rocket",
+      "faction": "dir",
+      "name": "Guardian GI",
+      "ra2": "GGI",
+      "refs": [
+        "rocket"
+      ],
+      "note": "Yuri’s Revenge unit; no vanilla RA2 equivalent. Includes deployed missile stance."
+    },
+    {
+      "type": "unit",
+      "key": "flak",
+      "faction": "col",
+      "name": "Flak Trooper",
+      "ra2": "FLAKT",
+      "refs": [
+        "flak"
+      ],
+      "note": ""
+    },
+    {
+      "type": "unit",
+      "key": "rocketeer",
+      "faction": "dir",
+      "name": "Rocketeer",
+      "ra2": "JUMPJET",
+      "refs": [
+        "rocketeer"
+      ],
+      "note": ""
+    },
+    {
+      "type": "unit",
+      "key": "harrier",
+      "faction": "dir",
+      "name": "Harrier",
+      "ra2": "ORCA",
+      "refs": [
+        "harrier",
+        "harrier-voxel"
+      ],
+      "note": ""
+    },
+    {
+      "type": "unit",
+      "key": "kirov",
+      "faction": "col",
+      "name": "Kirov Airship",
+      "ra2": "ZEP",
+      "refs": [
+        "kirov",
+        "kirov-voxel"
+      ],
+      "note": ""
+    },
+    {
+      "type": "unit",
+      "key": "lancer",
+      "faction": "dir",
+      "name": "Grizzly Battle Tank",
+      "ra2": "GTNK",
+      "refs": [
+        "lancer",
+        "lancer-voxel"
+      ],
+      "note": ""
+    },
+    {
+      "type": "unit",
+      "key": "mammoth",
+      "faction": "col",
+      "name": "Apocalypse Tank",
+      "ra2": "MTNK",
+      "refs": [
+        "mammoth",
+        "mammoth-voxel"
+      ],
+      "note": ""
+    },
+    {
+      "type": "unit",
+      "key": "engineer",
+      "faction": "dir",
+      "name": "Allied Engineer",
+      "ra2": "ENGINEER",
+      "refs": [
+        "engineer"
+      ],
+      "note": "Both factions use the same engineer SHP with owner remap; separate game identities share this source."
+    },
+    {
+      "type": "unit",
+      "key": "engineer",
+      "faction": "col",
+      "name": "Soviet Engineer",
+      "ra2": "SENGINEER",
+      "refs": [
+        "engineer"
+      ],
+      "note": "Both factions use the same engineer SHP with owner remap; separate game identities share this source."
+    },
+    {
+      "type": "unit",
+      "key": "dog",
+      "faction": "dir",
+      "name": "Allied Attack Dog",
+      "ra2": "ADOG",
+      "refs": [
+        "dog-dir",
+        "dog-dir-field"
+      ],
+      "note": ""
+    },
+    {
+      "type": "unit",
+      "key": "dog",
+      "faction": "col",
+      "name": "Soviet Attack Dog",
+      "ra2": "DOG",
+      "refs": [
+        "dog-col",
+        "dog-col-field"
+      ],
+      "note": ""
+    },
+    {
+      "type": "unit",
+      "key": "ifv",
+      "faction": "dir",
+      "name": "Infantry Fighting Vehicle",
+      "ra2": "FV",
+      "refs": [
+        "ifv",
+        "ifv-voxel"
+      ],
+      "note": ""
+    },
+    {
+      "type": "unit",
+      "key": "mirage",
+      "faction": "dir",
+      "name": "Mirage Tank",
+      "ra2": "MGTK",
+      "refs": [
+        "mirage",
+        "mirage-voxel"
+      ],
+      "note": ""
+    },
+    {
+      "type": "unit",
+      "key": "tanya",
+      "faction": "dir",
+      "name": "Tanya",
+      "ra2": "TANY",
+      "refs": [
+        "tanya"
+      ],
+      "note": ""
+    },
+    {
+      "type": "unit",
+      "key": "rhino",
+      "faction": "col",
+      "name": "Rhino Heavy Tank",
+      "ra2": "HTNK",
+      "refs": [
+        "rhino",
+        "rhino-voxel"
+      ],
+      "note": ""
+    },
+    {
+      "type": "unit",
+      "key": "flaktrack",
+      "faction": "col",
+      "name": "Flak Track",
+      "ra2": "HTK",
+      "refs": [
+        "flaktrack",
+        "flaktrack-voxel"
+      ],
+      "note": ""
+    },
+    {
+      "type": "unit",
+      "key": "v3",
+      "faction": "col",
+      "name": "V3 Rocket Launcher",
+      "ra2": "V3",
+      "refs": [
+        "v3"
+      ],
+      "note": ""
+    },
+    {
+      "type": "unit",
+      "key": "teslatrooper",
+      "faction": "col",
+      "name": "Tesla Trooper",
+      "ra2": "SHK",
+      "refs": [
+        "teslatrooper"
+      ],
+      "note": ""
+    },
+    {
+      "type": "unit",
+      "key": "ivan",
+      "faction": "col",
+      "name": "Crazy Ivan",
+      "ra2": "IVAN",
+      "refs": [
+        "ivan"
+      ],
+      "note": ""
+    },
+    {
+      "type": "unit",
+      "key": "drone",
+      "faction": "col",
+      "name": "Terror Drone",
+      "ra2": "DRON",
+      "refs": [
+        "drone",
+        "drone-animation"
+      ],
+      "note": ""
+    },
+    {
+      "type": "unit",
+      "key": "teslatank",
+      "faction": "col",
+      "name": "Tesla Tank",
+      "ra2": "TTNK",
+      "refs": [
+        "teslatank"
+      ],
+      "note": ""
+    },
+    {
+      "type": "unit",
+      "key": "prismtank",
+      "faction": "dir",
+      "name": "Prism Tank",
+      "ra2": "SREF",
+      "refs": [
+        "prismtank",
+        "prismtank-voxel"
+      ],
+      "note": ""
+    },
+    {
+      "type": "unit",
+      "key": "desolator",
+      "faction": "col",
+      "name": "Desolator",
+      "ra2": "DESO",
+      "refs": [
+        "desolator"
+      ],
+      "note": ""
+    },
+    {
+      "type": "unit",
+      "key": "yuri",
+      "faction": "col",
+      "name": "Yuri / Psi-Corps Trooper",
+      "ra2": "YURI",
+      "refs": [
+        "yuri"
+      ],
+      "note": ""
+    },
+    {
+      "type": "unit",
+      "key": "cleg",
+      "faction": "dir",
+      "name": "Chrono Legionnaire",
+      "ra2": "CLEG",
+      "refs": [
+        "cleg"
+      ],
+      "note": ""
+    },
+    {
+      "type": "unit",
+      "key": "spy",
+      "faction": "dir",
+      "name": "Spy",
+      "ra2": "SPY",
+      "refs": [
+        "spy"
+      ],
+      "note": ""
+    },
+    {
+      "type": "unit",
+      "key": "nighthawk",
+      "faction": "dir",
+      "name": "NightHawk Transport",
+      "ra2": "SHAD",
+      "refs": [
+        "nighthawk",
+        "nighthawk-voxel"
+      ],
+      "note": ""
+    },
+    {
+      "type": "unit",
+      "key": "apc",
+      "faction": "col",
+      "name": "Soviet Amphibious Transport",
+      "ra2": "SAPC",
+      "refs": [
+        "apc",
+        "apc-voxel"
+      ],
+      "note": ""
+    },
+    {
+      "type": "unit",
+      "key": "destroyer",
+      "faction": "dir",
+      "name": "Destroyer",
+      "ra2": "DEST",
+      "refs": [
+        "destroyer",
+        "destroyer-voxel"
+      ],
+      "note": ""
+    },
+    {
+      "type": "unit",
+      "key": "aegis",
+      "faction": "dir",
+      "name": "Aegis Cruiser",
+      "ra2": "AEGIS",
+      "refs": [
+        "aegis",
+        "aegis-voxel"
+      ],
+      "note": ""
+    },
+    {
+      "type": "unit",
+      "key": "carrier",
+      "faction": "dir",
+      "name": "Aircraft Carrier",
+      "ra2": "CARRIER",
+      "refs": [
+        "carrier",
+        "carrier-voxel"
+      ],
+      "note": ""
+    },
+    {
+      "type": "unit",
+      "key": "hornet",
+      "faction": "dir",
+      "name": "Hornet",
+      "ra2": "HORNET",
+      "refs": [
+        "hornet",
+        "hornet-voxel"
+      ],
+      "note": ""
+    },
+    {
+      "type": "unit",
+      "key": "dolphin",
+      "faction": "dir",
+      "name": "Dolphin",
+      "ra2": "DLPH",
+      "refs": [
+        "dolphin"
+      ],
+      "note": ""
+    },
+    {
+      "type": "unit",
+      "key": "lcraft",
+      "faction": "dir",
+      "name": "Allied Amphibious Transport",
+      "ra2": "LCRF",
+      "refs": [
+        "lcraft",
+        "lcraft-voxel"
+      ],
+      "note": ""
+    },
+    {
+      "type": "unit",
+      "key": "sub",
+      "faction": "col",
+      "name": "Typhoon Attack Sub",
+      "ra2": "SUB",
+      "refs": [
+        "sub",
+        "sub-voxel"
+      ],
+      "note": ""
+    },
+    {
+      "type": "unit",
+      "key": "seascorp",
+      "faction": "col",
+      "name": "Sea Scorpion",
+      "ra2": "HYD",
+      "refs": [
+        "seascorp",
+        "seascorp-voxel"
+      ],
+      "note": ""
+    },
+    {
+      "type": "unit",
+      "key": "dread",
+      "faction": "col",
+      "name": "Dreadnought",
+      "ra2": "DRED",
+      "refs": [
+        "dread",
+        "dread-voxel"
+      ],
+      "note": ""
+    },
+    {
+      "type": "unit",
+      "key": "squid",
+      "faction": "col",
+      "name": "Giant Squid",
+      "ra2": "SQD",
+      "refs": [
+        "squid"
+      ],
+      "note": ""
+    },
+    {
+      "type": "unit",
+      "key": "mcv",
+      "faction": "dir",
+      "name": "Allied Mobile Construction Vehicle",
+      "ra2": "AMCV",
+      "refs": [
+        "mcv-dir",
+        "mcv-dir-voxel",
+        "mcv-dir-deploy"
+      ],
+      "note": ""
+    },
+    {
+      "type": "unit",
+      "key": "mcv",
+      "faction": "col",
+      "name": "Soviet Mobile Construction Vehicle",
+      "ra2": "SMCV",
+      "refs": [
+        "mcv-col",
+        "mcv-col-deploy"
+      ],
+      "note": ""
+    },
+    {
+      "type": "building",
+      "key": "base",
+      "faction": "dir",
+      "name": "Allied Construction Yard",
+      "ra2": "GACNST",
+      "refs": [
+        "base-dir"
+      ],
+      "note": ""
+    },
+    {
+      "type": "building",
+      "key": "base",
+      "faction": "col",
+      "name": "Soviet Construction Yard",
+      "ra2": "NACNST",
+      "refs": [
+        "base-col"
+      ],
+      "note": ""
+    },
+    {
+      "type": "building",
+      "key": "power",
+      "faction": "dir",
+      "name": "Power Plant",
+      "ra2": "GAPOWR",
+      "refs": [
+        "power-dir"
+      ],
+      "note": ""
+    },
+    {
+      "type": "building",
+      "key": "power",
+      "faction": "col",
+      "name": "Tesla Reactor",
+      "ra2": "NAPOWR",
+      "refs": [
+        "power-col"
+      ],
+      "note": ""
+    },
+    {
+      "type": "building",
+      "key": "refinery",
+      "faction": "dir",
+      "name": "Allied Ore Refinery",
+      "ra2": "GAREFN",
+      "refs": [
+        "refinery-dir"
+      ],
+      "note": ""
+    },
+    {
+      "type": "building",
+      "key": "refinery",
+      "faction": "col",
+      "name": "Soviet Ore Refinery",
+      "ra2": "NAREFN",
+      "refs": [
+        "refinery-col"
+      ],
+      "note": ""
+    },
+    {
+      "type": "building",
+      "key": "barracks",
+      "faction": "dir",
+      "name": "Allied Barracks",
+      "ra2": "GAPILE",
+      "refs": [
+        "barracks-dir"
+      ],
+      "note": ""
+    },
+    {
+      "type": "building",
+      "key": "barracks",
+      "faction": "col",
+      "name": "Soviet Barracks",
+      "ra2": "NAHAND",
+      "refs": [
+        "barracks-col"
+      ],
+      "note": ""
+    },
+    {
+      "type": "building",
+      "key": "factory",
+      "faction": "dir",
+      "name": "Allied War Factory",
+      "ra2": "GAWEAP",
+      "refs": [
+        "factory-dir"
+      ],
+      "note": ""
+    },
+    {
+      "type": "building",
+      "key": "factory",
+      "faction": "col",
+      "name": "Soviet War Factory",
+      "ra2": "NAWEAP",
+      "refs": [
+        "factory-col"
+      ],
+      "note": ""
+    },
+    {
+      "type": "building",
+      "key": "shipyard",
+      "faction": "dir",
+      "name": "Allied Naval Shipyard",
+      "ra2": "GAYARD",
+      "refs": [
+        "shipyard-dir"
+      ],
+      "note": ""
+    },
+    {
+      "type": "building",
+      "key": "shipyard",
+      "faction": "col",
+      "name": "Soviet Naval Shipyard",
+      "ra2": "NAYARD",
+      "refs": [
+        "shipyard-col"
+      ],
+      "note": ""
+    },
+    {
+      "type": "building",
+      "key": "depot",
+      "faction": "dir",
+      "name": "Allied Service Depot",
+      "ra2": "GADEPT",
+      "refs": [
+        "depot-dir"
+      ],
+      "note": ""
+    },
+    {
+      "type": "building",
+      "key": "depot",
+      "faction": "col",
+      "name": "Soviet Service Depot",
+      "ra2": "NADEPT",
+      "refs": [
+        "depot-col"
+      ],
+      "note": ""
+    },
+    {
+      "type": "building",
+      "key": "lab",
+      "faction": "dir",
+      "name": "Allied Battle Lab",
+      "ra2": "GATECH",
+      "refs": [
+        "lab-dir"
+      ],
+      "note": ""
+    },
+    {
+      "type": "building",
+      "key": "lab",
+      "faction": "col",
+      "name": "Soviet Battle Lab",
+      "ra2": "NATECH",
+      "refs": [
+        "lab-col"
+      ],
+      "note": ""
+    },
+    {
+      "type": "building",
+      "key": "sentry",
+      "faction": "dir",
+      "name": "Pillbox",
+      "ra2": "GAPILL",
+      "refs": [
+        "sentry-dir"
+      ],
+      "note": ""
+    },
+    {
+      "type": "building",
+      "key": "tesla",
+      "faction": "col",
+      "name": "Tesla Coil",
+      "ra2": "TESLA (art: NATSLA)",
+      "refs": [
+        "tesla-col"
+      ],
+      "note": ""
+    },
+    {
+      "type": "building",
+      "key": "radar",
+      "faction": "col",
+      "name": "Radar Tower",
+      "ra2": "NARADR",
+      "refs": [
+        "radar-col"
+      ],
+      "note": ""
+    },
+    {
+      "type": "building",
+      "key": "airforce",
+      "faction": "dir",
+      "name": "Airforce Command Headquarters",
+      "ra2": "GAAIRC",
+      "refs": [
+        "airforce-dir"
+      ],
+      "note": ""
+    },
+    {
+      "type": "building",
+      "key": "purifier",
+      "faction": "dir",
+      "name": "Ore Purifier",
+      "ra2": "GAOREP",
+      "refs": [
+        "purifier-dir"
+      ],
+      "note": ""
+    },
+    {
+      "type": "building",
+      "key": "reactor",
+      "faction": "col",
+      "name": "Nuclear Reactor",
+      "ra2": "NANRCT",
+      "refs": [
+        "reactor-col"
+      ],
+      "note": ""
+    },
+    {
+      "type": "building",
+      "key": "prism",
+      "faction": "dir",
+      "name": "Prism Tower",
+      "ra2": "ATESLA (art: GAPRIS)",
+      "refs": [
+        "prism-dir"
+      ],
+      "note": ""
+    },
+    {
+      "type": "building",
+      "key": "wall",
+      "faction": "dir",
+      "name": "Allied Fortress Wall",
+      "ra2": "GAWALL",
+      "refs": [
+        "wall-dir"
+      ],
+      "note": ""
+    },
+    {
+      "type": "building",
+      "key": "wall",
+      "faction": "col",
+      "name": "Soviet Fortress Wall",
+      "ra2": "NAWALL",
+      "refs": [
+        "wall-col"
+      ],
+      "note": ""
+    },
+    {
+      "type": "building",
+      "key": "gapgen",
+      "faction": "dir",
+      "name": "Gap Generator",
+      "ra2": "GAGAP",
+      "refs": [
+        "gapgen-dir"
+      ],
+      "note": ""
+    },
+    {
+      "type": "building",
+      "key": "grandcannon",
+      "faction": "dir",
+      "name": "Grand Cannon",
+      "ra2": "GTGCAN",
+      "refs": [
+        "grandcannon-dir"
+      ],
+      "note": ""
+    },
+    {
+      "type": "building",
+      "key": "sentrygun",
+      "faction": "col",
+      "name": "Sentry Gun",
+      "ra2": "NALASR",
+      "refs": [
+        "sentrygun-col"
+      ],
+      "note": ""
+    },
+    {
+      "type": "building",
+      "key": "patriot",
+      "faction": "dir",
+      "name": "Patriot Missile System",
+      "ra2": "NASAM",
+      "refs": [
+        "patriot-dir"
+      ],
+      "note": ""
+    },
+    {
+      "type": "building",
+      "key": "flakcannon",
+      "faction": "col",
+      "name": "Flak Cannon",
+      "ra2": "NAFLAK",
+      "refs": [
+        "flakcannon-col"
+      ],
+      "note": ""
+    },
+    {
+      "type": "building",
+      "key": "chrono",
+      "faction": "dir",
+      "name": "Chronosphere",
+      "ra2": "GACSPH",
+      "refs": [
+        "chrono-dir"
+      ],
+      "note": ""
+    },
+    {
+      "type": "building",
+      "key": "weather",
+      "faction": "dir",
+      "name": "Weather Control Device",
+      "ra2": "GAWEAT",
+      "refs": [
+        "weather-dir"
+      ],
+      "note": ""
+    },
+    {
+      "type": "building",
+      "key": "curtain",
+      "faction": "col",
+      "name": "Iron Curtain",
+      "ra2": "NAIRON",
+      "refs": [
+        "curtain-col"
+      ],
+      "note": ""
+    },
+    {
+      "type": "building",
+      "key": "nuke",
+      "faction": "col",
+      "name": "Nuclear Missile Silo",
+      "ra2": "NAMISL",
+      "refs": [
+        "nuke-col"
+      ],
+      "note": ""
+    },
+    {
+      "type": "building",
+      "key": "spysat",
+      "faction": "dir",
+      "name": "SpySat Uplink",
+      "ra2": "GASPYSAT",
+      "refs": [
+        "spysat-dir"
+      ],
+      "note": ""
+    },
+    {
+      "type": "building",
+      "key": "psisensor",
+      "faction": "col",
+      "name": "Psychic Sensor",
+      "ra2": "NAPSIS",
+      "refs": [
+        "psisensor-col"
+      ],
+      "note": ""
+    },
+    {
+      "type": "building",
+      "key": "cloningvats",
+      "faction": "col",
+      "name": "Cloning Vats",
+      "ra2": "NACLON",
+      "refs": [
+        "cloningvats-col"
+      ],
+      "note": ""
+    },
+    {
+      "type": "building",
+      "key": "oilderrick",
+      "faction": "neutral",
+      "name": "Tech Oil Derrick",
+      "ra2": "CAOILD",
+      "refs": [
+        "oilderrick-neutral"
+      ],
+      "note": ""
+    },
+    {
+      "type": "building",
+      "key": "hospital",
+      "faction": "neutral",
+      "name": "Tech Hospital",
+      "ra2": "CATHOSP",
+      "refs": [
+        "hospital-neutral"
+      ],
+      "note": ""
+    },
+    {
+      "type": "building",
+      "key": "airport",
+      "faction": "neutral",
+      "name": "Tech Airport",
+      "ra2": "CAAIRP",
+      "refs": [
+        "airport-neutral"
+      ],
+      "note": ""
+    },
+    {
+      "type": "building",
+      "key": "gate",
+      "faction": "dir",
+      "name": "Allied Gate",
+      "ra2": "GAGATE_A",
+      "refs": [
+        "map-lone-guardian"
+      ],
+      "note": "The surviving vanilla RA2 mission gate. See the striped road gate at the Allied base entrance."
+    },
+    {
+      "type": "building",
+      "key": "gate",
+      "faction": "col",
+      "name": "Soviet Gate",
+      "ra2": "GAGATE_A (shared reference)",
+      "refs": [
+        "map-lone-guardian"
+      ],
+      "note": "Vanilla RA2 contains no completed Soviet gate art; the Soviet variant in this game is an adaptation of the one Allied mission gate."
+    },
+    {
+      "type": "building",
+      "key": "civflat",
+      "faction": "neutral",
+      "name": "Apartment Block",
+      "ra2": "CACITY01",
+      "refs": [
+        "map-manhattan"
+      ],
+      "note": "Representative intact tall New York apartment block in the original map render."
+    },
+    {
+      "type": "building",
+      "key": "civware",
+      "faction": "neutral",
+      "name": "Warehouse",
+      "ra2": "CITY09 / CACHIG05",
+      "refs": [
+        "map-manhattan"
+      ],
+      "note": "Representative low industrial warehouse; RA2 has several regional warehouse SHPs."
+    },
+    {
+      "type": "building",
+      "key": "civshop",
+      "faction": "neutral",
+      "name": "Corner Shop",
+      "ra2": "CITY10",
+      "refs": [
+        "map-manhattan"
+      ],
+      "note": "Representative small urban storefront at native battle scale."
+    },
+    {
+      "type": "building",
+      "key": "civfuel",
+      "faction": "neutral",
+      "name": "Filling Station",
+      "ra2": "CAGAS01",
+      "refs": [
+        "map-manhattan"
+      ],
+      "note": "The original RA2 gas-station family in city context."
+    },
+    {
+      "type": "building",
+      "key": "civoffice",
+      "faction": "neutral",
+      "name": "Office Block",
+      "ra2": "CITY03 / CANEWY06",
+      "refs": [
+        "map-lone-guardian"
+      ],
+      "note": "Representative New York office towers, including damaged states."
+    },
+    {
+      "type": "building",
+      "key": "civrow",
+      "faction": "neutral",
+      "name": "Shop Row",
+      "ra2": "CACITY04 / CITY10",
+      "refs": [
+        "map-manhattan"
+      ],
+      "note": "The game role combines RA2 storefront and small city-block SHPs."
+    },
+    {
+      "type": "building",
+      "key": "civruin",
+      "faction": "neutral",
+      "name": "Ruined Block",
+      "ra2": "CACITY01D family",
+      "refs": [
+        "map-lone-guardian"
+      ],
+      "note": "Original damaged and burning city-building states are visible throughout this mission panorama."
+    },
+    {
+      "type": "building",
+      "key": "civsilo",
+      "faction": "neutral",
+      "name": "Grain Depot",
+      "ra2": "CAFARM02 / CATS01",
+      "refs": [
+        "map-eagle-dawn"
+      ],
+      "note": "Original farm-storage and twin-silo structures in the snow village."
+    },
+    {
+      "type": "building",
+      "key": "civfarm",
+      "faction": "neutral",
+      "name": "Farmhouse",
+      "ra2": "CAFRMA / CAFARM01",
+      "refs": [
+        "map-eagle-dawn"
+      ],
+      "note": "Original farmhouse family in the snow village."
+    },
+    {
+      "type": "building",
+      "key": "civbarn",
+      "faction": "neutral",
+      "name": "Barn",
+      "ra2": "CABARN02 / CATS01",
+      "refs": [
+        "map-eagle-dawn"
+      ],
+      "note": "Original barn and agricultural outbuilding family in the snow village."
+    },
+    {
+      "type": "building",
+      "key": "bhut",
+      "faction": "neutral",
+      "name": "Bridge Repair Hut",
+      "ra2": "CABHUT",
+      "refs": [
+        "map-lone-guardian"
+      ],
+      "note": "The bridge-control hut is shown beside the repaired bridge in the original mission panorama."
+    }
+  ],
+  "sources": {
+    "chronominer": {
+      "title": "CNCRA2 Chrono Miner.png",
+      "kind": "in-game image",
+      "file": "sprites/allied-chrono-miner.png",
+      "source": "https://cnc.fandom.com/wiki/File:CNCRA2_Chrono_Miner.png",
+      "url": "https://static.wikia.nocookie.net/cnc_gamepedia_en/images/d/d9/CNCRA2_Chrono_Miner.png/revision/latest?format=original",
+      "sha256": "684599b90dfa3918e544869ca1b13b60b32662e449ab02587a0da12ae71d9d07",
+      "bytes": 17318,
+      "width": 299,
+      "height": 218,
+      "frames": 1,
+      "format": "WEBP"
+    },
+    "chronominer-voxel": {
+      "title": "Chrono Miner Voxel Render.jpg",
+      "kind": "voxel render",
+      "file": "sprites/library/chronominer-voxel.jpg",
+      "source": "https://cnc.fandom.com/wiki/File:Chrono_Miner_Voxel_Render.jpg",
+      "url": "https://static.wikia.nocookie.net/cnc_gamepedia_en/images/f/ff/Chrono_Miner_Voxel_Render.jpg/revision/latest?format=original",
+      "sha256": "25c0d6034ecd39bbf34732fbe4348259939842a188ec5446c7eeed3503a4606c",
+      "bytes": 167920,
+      "width": 882,
+      "height": 495,
+      "frames": 1,
+      "format": "JPEG"
+    },
+    "warminer": {
+      "title": "RA2 War Miner.png",
+      "kind": "in-game image",
+      "file": "sprites/soviet-war-miner.png",
+      "source": "https://cnc.fandom.com/wiki/File:RA2_War_Miner.png",
+      "url": "https://static.wikia.nocookie.net/cnc_gamepedia_en/images/c/ce/RA2_War_Miner.png/revision/latest?format=original",
+      "sha256": "4450120f7d207744e7087d8584cd9b7cf085d09457878cf525014e89a5cd6ef1",
+      "bytes": 16796,
+      "width": 328,
+      "height": 225,
+      "frames": 1,
+      "format": "WEBP"
+    },
+    "rifle": {
+      "title": "GI animation.gif",
+      "kind": "sprite animation",
+      "file": "sprites/library/rifle.gif",
+      "source": "https://cnc.fandom.com/wiki/File:GI_animation.gif",
+      "url": "https://static.wikia.nocookie.net/cnc_gamepedia_en/images/9/97/GI_animation.gif/revision/latest?format=original",
+      "sha256": "3b787c050158b7f4343d16d5550c40974b48bb34fc983e414d1c084a69bf9413",
+      "bytes": 411706,
+      "width": 78,
+      "height": 66,
+      "frames": 371,
+      "format": "GIF"
+    },
+    "conscript": {
+      "title": "Conscrip animation.gif",
+      "kind": "sprite animation",
+      "file": "sprites/library/conscript.gif",
+      "source": "https://cnc.fandom.com/wiki/File:Conscrip_animation.gif",
+      "url": "https://static.wikia.nocookie.net/cnc_gamepedia_en/images/e/ea/Conscrip_animation.gif/revision/latest?format=original",
+      "sha256": "b9b5dccc0878898b6ae071b2bef1c8bf67a5edae7a0600eb2240f7ca941e5154",
+      "bytes": 340882,
+      "width": 76,
+      "height": 96,
+      "frames": 300,
+      "format": "GIF"
+    },
+    "rocket": {
+      "title": "Guardian GI animation.gif",
+      "kind": "sprite animation",
+      "file": "sprites/library/rocket.gif",
+      "source": "https://cnc.fandom.com/wiki/File:Guardian_GI_animation.gif",
+      "url": "https://static.wikia.nocookie.net/cnc_gamepedia_en/images/e/e7/Guardian_GI_animation.gif/revision/latest?format=original",
+      "sha256": "baa3b53b3e0c68f21479bced4e16e000c6f3ad622b77b8ef76ef4398af6b0c62",
+      "bytes": 427988,
+      "width": 94,
+      "height": 78,
+      "frames": 371,
+      "format": "GIF"
+    },
+    "flak": {
+      "title": "Flak Trooper animation.gif",
+      "kind": "sprite animation",
+      "file": "sprites/library/flak.gif",
+      "source": "https://cnc.fandom.com/wiki/File:Flak_Trooper_animation.gif",
+      "url": "https://static.wikia.nocookie.net/cnc_gamepedia_en/images/3/32/Flak_Trooper_animation.gif/revision/latest?format=original",
+      "sha256": "11f46fccd0f2c7bca3e24a54f951bd270aebe513af0f154e74e39553f3895708",
+      "bytes": 359002,
+      "width": 98,
+      "height": 94,
+      "frames": 300,
+      "format": "GIF"
+    },
+    "rocketeer": {
+      "title": "Rocketeer animation.gif",
+      "kind": "sprite animation",
+      "file": "sprites/library/rocketeer.gif",
+      "source": "https://cnc.fandom.com/wiki/File:Rocketeer_animation.gif",
+      "url": "https://static.wikia.nocookie.net/cnc_gamepedia_en/images/7/7f/Rocketeer_animation.gif/revision/latest?format=original",
+      "sha256": "156af6252dfa7f683c026b45e1bfdcd01757fcfb09a4f1360ce46a7b8cea6cb4",
+      "bytes": 508688,
+      "width": 94,
+      "height": 120,
+      "frames": 426,
+      "format": "GIF"
+    },
+    "harrier": {
+      "title": "RA2 Harriers.png",
+      "kind": "in-game image",
+      "file": "sprites/library/harrier.png",
+      "source": "https://cnc.fandom.com/wiki/File:RA2_Harriers.png",
+      "url": "https://static.wikia.nocookie.net/cnc_gamepedia_en/images/9/91/RA2_Harriers.png/revision/latest?format=original",
+      "sha256": "ce9f3b1add31a220b9cc3806da09a6a24bdd668915d2f592886e979b50a726c8",
+      "bytes": 52628,
+      "width": 304,
+      "height": 200,
+      "frames": 1,
+      "format": "PNG"
+    },
+    "harrier-voxel": {
+      "title": "Harrier Voxel Render.jpg",
+      "kind": "voxel render",
+      "file": "sprites/library/harrier-voxel.jpg",
+      "source": "https://cnc.fandom.com/wiki/File:Harrier_Voxel_Render.jpg",
+      "url": "https://static.wikia.nocookie.net/cnc_gamepedia_en/images/c/cd/Harrier_Voxel_Render.jpg/revision/latest?format=original",
+      "sha256": "affc71ff66d68e8081d3809ddbd30877f863c9387b0188a9944c8b2955ede54d",
+      "bytes": 74588,
+      "width": 930,
+      "height": 631,
+      "frames": 1,
+      "format": "JPEG"
+    },
+    "kirov": {
+      "title": "CNCRA2 Kirov Airship.png",
+      "kind": "in-game image",
+      "file": "sprites/library/kirov.png",
+      "source": "https://cnc.fandom.com/wiki/File:CNCRA2_Kirov_Airship.png",
+      "url": "https://static.wikia.nocookie.net/cnc_gamepedia_en/images/2/20/CNCRA2_Kirov_Airship.png/revision/latest?format=original",
+      "sha256": "149e8fc311f2302f62c04ffa808b95d1a4bb6cb0103244de89a36d3da155d72a",
+      "bytes": 176140,
+      "width": 665,
+      "height": 498,
+      "frames": 1,
+      "format": "PNG"
+    },
+    "kirov-voxel": {
+      "title": "Kirov Voxel Render.jpg",
+      "kind": "voxel render",
+      "file": "sprites/library/kirov-voxel.jpg",
+      "source": "https://cnc.fandom.com/wiki/File:Kirov_Voxel_Render.jpg",
+      "url": "https://static.wikia.nocookie.net/cnc_gamepedia_en/images/9/98/Kirov_Voxel_Render.jpg/revision/latest?format=original",
+      "sha256": "f673176fda08a32591c708e214b7cd577fed0e5a8f4ddaf4ad0457dfaf7c03da",
+      "bytes": 226476,
+      "width": 1092,
+      "height": 593,
+      "frames": 1,
+      "format": "JPEG"
+    },
+    "lancer": {
+      "title": "CNCRA2 Grizzly Battle Tank.png",
+      "kind": "in-game image",
+      "file": "sprites/allied-grizzly-tank.png",
+      "source": "https://cnc.fandom.com/wiki/File:CNCRA2_Grizzly_Battle_Tank.png",
+      "url": "https://static.wikia.nocookie.net/cnc_gamepedia_en/images/7/7c/CNCRA2_Grizzly_Battle_Tank.png/revision/latest?format=original",
+      "sha256": "03a9c38c6ae130eaa0f46bc5c71fbc1db624a789ee01ae43a011ba51e2c9137f",
+      "bytes": 13616,
+      "width": 324,
+      "height": 219,
+      "frames": 1,
+      "format": "WEBP"
+    },
+    "lancer-voxel": {
+      "title": "Grizzly Battle Tank Voxel Render.jpg",
+      "kind": "voxel render",
+      "file": "sprites/library/lancer-voxel.jpg",
+      "source": "https://cnc.fandom.com/wiki/File:Grizzly_Battle_Tank_Voxel_Render.jpg",
+      "url": "https://static.wikia.nocookie.net/cnc_gamepedia_en/images/2/20/Grizzly_Battle_Tank_Voxel_Render.jpg/revision/latest?format=original",
+      "sha256": "9c4c9c44638e0abbe601756c0db28208c2f11ef70502f170b4763cadaf0586f4",
+      "bytes": 83043,
+      "width": 816,
+      "height": 382,
+      "frames": 1,
+      "format": "JPEG"
+    },
+    "mammoth": {
+      "title": "RA2 Apocalypse Tank.png",
+      "kind": "in-game image",
+      "file": "sprites/apocalypse.png",
+      "source": "https://cnc.fandom.com/wiki/File:RA2_Apocalypse_Tank.png",
+      "url": "https://static.wikia.nocookie.net/cnc_gamepedia_en/images/9/95/RA2_Apocalypse_Tank.png/revision/latest?format=original",
+      "sha256": "0acbdccc683da95ddf4b9e1611acee1ae7927f0fcad799a36610d1ddb7a9a4f3",
+      "bytes": 13962,
+      "width": 301,
+      "height": 217,
+      "frames": 1,
+      "format": "WEBP"
+    },
+    "mammoth-voxel": {
+      "title": "Apocalypse tank Voxel Render.jpg",
+      "kind": "voxel render",
+      "file": "sprites/library/mammoth-voxel.jpg",
+      "source": "https://cnc.fandom.com/wiki/File:Apocalypse_tank_Voxel_Render.jpg",
+      "url": "https://static.wikia.nocookie.net/cnc_gamepedia_en/images/3/31/Apocalypse_tank_Voxel_Render.jpg/revision/latest?format=original",
+      "sha256": "a17ec21365b81cc10dea230775726920c0bdd0266770c8841dd5b27f9ea543a1",
+      "bytes": 108566,
+      "width": 873,
+      "height": 445,
+      "frames": 1,
+      "format": "JPEG"
+    },
+    "engineer": {
+      "title": "RA2 Engineer animation.gif",
+      "kind": "sprite animation",
+      "file": "sprites/library/engineer.gif",
+      "source": "https://cnc.fandom.com/wiki/File:RA2_Engineer_animation.gif",
+      "url": "https://static.wikia.nocookie.net/cnc_gamepedia_en/images/3/38/RA2_Engineer_animation.gif/revision/latest?format=original",
+      "sha256": "378805f4af7c802b346dce807f76450d323fde72828366860281ff180cb3763d",
+      "bytes": 284847,
+      "width": 76,
+      "height": 80,
+      "frames": 252,
+      "format": "GIF"
+    },
+    "dog-dir": {
+      "title": "Allied Attack Dog animation.gif",
+      "kind": "sprite animation",
+      "file": "sprites/library/dog-dir.gif",
+      "source": "https://cnc.fandom.com/wiki/File:Allied_Attack_Dog_animation.gif",
+      "url": "https://static.wikia.nocookie.net/cnc_gamepedia_en/images/5/59/Allied_Attack_Dog_animation.gif/revision/latest?format=original",
+      "sha256": "53ae5412006b1aa0c7f465c366f65c05a35a6837c214e0b201603f0254f35b74",
+      "bytes": 186811,
+      "width": 74,
+      "height": 72,
+      "frames": 171,
+      "format": "GIF"
+    },
+    "dog-dir-field": {
+      "title": "CNCRA2 Allied Attack Dog.png",
+      "kind": "in-game image",
+      "file": "sprites/library/dog-dir-field.png",
+      "source": "https://cnc.fandom.com/wiki/File:CNCRA2_Allied_Attack_Dog.png",
+      "url": "https://static.wikia.nocookie.net/cnc_gamepedia_en/images/e/e4/CNCRA2_Allied_Attack_Dog.png/revision/latest?format=original",
+      "sha256": "7e420ff36f50b2d4c8111a11039302f1433c1702cc663a9f65bf12483e3df7b1",
+      "bytes": 49196,
+      "width": 264,
+      "height": 169,
+      "frames": 1,
+      "format": "PNG"
+    },
+    "dog-col": {
+      "title": "Soviet Attack Dog animation.gif",
+      "kind": "sprite animation",
+      "file": "sprites/library/dog-col.gif",
+      "source": "https://cnc.fandom.com/wiki/File:Soviet_Attack_Dog_animation.gif",
+      "url": "https://static.wikia.nocookie.net/cnc_gamepedia_en/images/d/d7/Soviet_Attack_Dog_animation.gif/revision/latest?format=original",
+      "sha256": "0176bb89fe5ba030d45bb35ed90f494b290fb7e2bea131cbd009c3c1e2058dcc",
+      "bytes": 186718,
+      "width": 74,
+      "height": 72,
+      "frames": 171,
+      "format": "GIF"
+    },
+    "dog-col-field": {
+      "title": "CNCRA2 Soviet Attack Dog.png",
+      "kind": "in-game image",
+      "file": "sprites/library/dog-col-field.png",
+      "source": "https://cnc.fandom.com/wiki/File:CNCRA2_Soviet_Attack_Dog.png",
+      "url": "https://static.wikia.nocookie.net/cnc_gamepedia_en/images/2/2e/CNCRA2_Soviet_Attack_Dog.png/revision/latest?format=original",
+      "sha256": "bb69aec4733b98a53f8805145663b7e0047bc7cd216e41648cc0550eb2ca5955",
+      "bytes": 24875,
+      "width": 243,
+      "height": 169,
+      "frames": 1,
+      "format": "PNG"
+    },
+    "ifv": {
+      "title": "CNCRA2 IFV Default.png",
+      "kind": "in-game image",
+      "file": "sprites/allied-ifv.png",
+      "source": "https://cnc.fandom.com/wiki/File:CNCRA2_IFV_Default.png",
+      "url": "https://static.wikia.nocookie.net/cnc_gamepedia_en/images/d/dc/CNCRA2_IFV_Default.png/revision/latest?format=original",
+      "sha256": "fc4e709e93fa16156f04b806b7c8d915547adf9adec5dc51a31f8dc350428d75",
+      "bytes": 85307,
+      "width": 368,
+      "height": 226,
+      "frames": 1,
+      "format": "PNG"
+    },
+    "ifv-voxel": {
+      "title": "IFV Voxel Render.jpg",
+      "kind": "voxel render",
+      "file": "sprites/allied-ifv-voxel.png",
+      "source": "https://cnc.fandom.com/wiki/File:IFV_Voxel_Render.jpg",
+      "url": "https://static.wikia.nocookie.net/cnc_gamepedia_en/images/6/6b/IFV_Voxel_Render.jpg/revision/latest?format=original",
+      "sha256": "a3c834ddbbe41dc3fe0da30f57d31d021a7d603e634981c5b7e25ca331d86f00",
+      "bytes": 279292,
+      "width": 664,
+      "height": 1272,
+      "frames": 1,
+      "format": "PNG"
+    },
+    "mirage": {
+      "title": "CNCRA2 Mirage Tank.png",
+      "kind": "in-game image",
+      "file": "sprites/allied-mirage-tank.png",
+      "source": "https://cnc.fandom.com/wiki/File:CNCRA2_Mirage_Tank.png",
+      "url": "https://static.wikia.nocookie.net/cnc_gamepedia_en/images/2/24/CNCRA2_Mirage_Tank.png/revision/latest?format=original",
+      "sha256": "11cb3707c7eb370a62853e3abffecc3245a08b65b93d33ec852aa7be84c48c8c",
+      "bytes": 54408,
+      "width": 381,
+      "height": 216,
+      "frames": 1,
+      "format": "WEBP"
+    },
+    "mirage-voxel": {
+      "title": "Mirage tank Voxel Render.jpg",
+      "kind": "voxel render",
+      "file": "sprites/library/mirage-voxel.jpg",
+      "source": "https://cnc.fandom.com/wiki/File:Mirage_tank_Voxel_Render.jpg",
+      "url": "https://static.wikia.nocookie.net/cnc_gamepedia_en/images/e/e5/Mirage_tank_Voxel_Render.jpg/revision/latest?format=original",
+      "sha256": "5339430f69710e4b430f016eea54f4ce97c4382bb3a9f3439d97e5f7680b7f3f",
+      "bytes": 68016,
+      "width": 644,
+      "height": 498,
+      "frames": 1,
+      "format": "JPEG"
+    },
+    "tanya": {
+      "title": "Tanya animation.gif",
+      "kind": "sprite animation",
+      "file": "sprites/library/tanya.gif",
+      "source": "https://cnc.fandom.com/wiki/File:Tanya_animation.gif",
+      "url": "https://static.wikia.nocookie.net/cnc_gamepedia_en/images/5/55/Tanya_animation.gif/revision/latest?format=original",
+      "sha256": "8d87df8c7c88d0d290fdf9f4aa4b7cd7f6fbab8dfba7718afce03a77490ebd26",
+      "bytes": 730573,
+      "width": 130,
+      "height": 110,
+      "frames": 618,
+      "format": "GIF"
+    },
+    "rhino": {
+      "title": "RA2 Rhino Tank.png",
+      "kind": "in-game image",
+      "file": "sprites/rhino.png",
+      "source": "https://cnc.fandom.com/wiki/File:RA2_Rhino_Tank.png",
+      "url": "https://static.wikia.nocookie.net/cnc_gamepedia_en/images/f/fd/RA2_Rhino_Tank.png/revision/latest?format=original",
+      "sha256": "d50f512c024111f437244f9cea6194e7ef14a7a3ef0ed80379a406160e37f600",
+      "bytes": 13120,
+      "width": 291,
+      "height": 212,
+      "frames": 1,
+      "format": "WEBP"
+    },
+    "rhino-voxel": {
+      "title": "Rhino Tank Voxel Render.jpg",
+      "kind": "voxel render",
+      "file": "sprites/library/rhino-voxel.jpg",
+      "source": "https://cnc.fandom.com/wiki/File:Rhino_Tank_Voxel_Render.jpg",
+      "url": "https://static.wikia.nocookie.net/cnc_gamepedia_en/images/e/e0/Rhino_Tank_Voxel_Render.jpg/revision/latest?format=original",
+      "sha256": "50cb95ceb2a59f54176114f5193b45f851a7354fd6e9cc9d49614c8582dbb607",
+      "bytes": 173845,
+      "width": 918,
+      "height": 600,
+      "frames": 1,
+      "format": "JPEG"
+    },
+    "flaktrack": {
+      "title": "RA2 Flak Track.png",
+      "kind": "in-game image",
+      "file": "sprites/soviet-flak-track.png",
+      "source": "https://cnc.fandom.com/wiki/File:RA2_Flak_Track.png",
+      "url": "https://static.wikia.nocookie.net/cnc_gamepedia_en/images/e/e0/RA2_Flak_Track.png/revision/latest?format=original",
+      "sha256": "2f7e25fe0955d5c5401671883de9792740ca3fe2e231a6fe543f1066a421a645",
+      "bytes": 13054,
+      "width": 290,
+      "height": 212,
+      "frames": 1,
+      "format": "WEBP"
+    },
+    "flaktrack-voxel": {
+      "title": "Flak track Voxel Render.jpg",
+      "kind": "voxel render",
+      "file": "sprites/library/flaktrack-voxel.jpg",
+      "source": "https://cnc.fandom.com/wiki/File:Flak_track_Voxel_Render.jpg",
+      "url": "https://static.wikia.nocookie.net/cnc_gamepedia_en/images/3/37/Flak_track_Voxel_Render.jpg/revision/latest?format=original",
+      "sha256": "008204c24a3f1e0b4c1b184cb7a4d98960080ef22c72b8f6935f61c1f07ec6e9",
+      "bytes": 101688,
+      "width": 748,
+      "height": 451,
+      "frames": 1,
+      "format": "JPEG"
+    },
+    "v3": {
+      "title": "RA2 V3 Rocket Launcher.png",
+      "kind": "in-game image",
+      "file": "sprites/soviet-v3.png",
+      "source": "https://cnc.fandom.com/wiki/File:RA2_V3_Rocket_Launcher.png",
+      "url": "https://static.wikia.nocookie.net/cnc_gamepedia_en/images/2/27/RA2_V3_Rocket_Launcher.png/revision/latest?format=original",
+      "sha256": "0b4ade3e6b94cebbbaac965c3bfff4035546fddca88164fa5a65723701d8d0a1",
+      "bytes": 14902,
+      "width": 316,
+      "height": 244,
+      "frames": 1,
+      "format": "WEBP"
+    },
+    "teslatrooper": {
+      "title": "Tesla Trooper animation.gif",
+      "kind": "sprite animation",
+      "file": "sprites/library/teslatrooper.gif",
+      "source": "https://cnc.fandom.com/wiki/File:Tesla_Trooper_animation.gif",
+      "url": "https://static.wikia.nocookie.net/cnc_gamepedia_en/images/0/07/Tesla_Trooper_animation.gif/revision/latest?format=original",
+      "sha256": "1a29f6da5f7bf50c79bb02af294255328bf9669e25cdfcab1cfc1a739887197b",
+      "bytes": 344250,
+      "width": 66,
+      "height": 76,
+      "frames": 300,
+      "format": "GIF"
+    },
+    "ivan": {
+      "title": "Crazy Ivan animation.gif",
+      "kind": "sprite animation",
+      "file": "sprites/library/ivan.gif",
+      "source": "https://cnc.fandom.com/wiki/File:Crazy_Ivan_animation.gif",
+      "url": "https://static.wikia.nocookie.net/cnc_gamepedia_en/images/f/f3/Crazy_Ivan_animation.gif/revision/latest?format=original",
+      "sha256": "1af5b9192c1b012466d8b9aa070d30bf4ff9a1373ef8705fcd1730446e7b0046",
+      "bytes": 303456,
+      "width": 100,
+      "height": 88,
+      "frames": 266,
+      "format": "GIF"
+    },
+    "drone": {
+      "title": "RA2 Terror Drone.png",
+      "kind": "in-game image",
+      "file": "sprites/terror-drone.png",
+      "source": "https://cnc.fandom.com/wiki/File:RA2_Terror_Drone.png",
+      "url": "https://static.wikia.nocookie.net/cnc_gamepedia_en/images/6/60/RA2_Terror_Drone.png/revision/latest?format=original",
+      "sha256": "66569b65873959ae132c8c68cdc638d09312ab3999c525d7efbd16d1a364fdeb",
+      "bytes": 8566,
+      "width": 258,
+      "height": 222,
+      "frames": 1,
+      "format": "WEBP"
+    },
+    "drone-animation": {
+      "title": "Terror Drone animation.gif",
+      "kind": "sprite animation",
+      "file": "sprites/library/drone-animation.gif",
+      "source": "https://cnc.fandom.com/wiki/File:Terror_Drone_animation.gif",
+      "url": "https://static.wikia.nocookie.net/cnc_gamepedia_en/images/5/5e/Terror_Drone_animation.gif/revision/latest?format=original",
+      "sha256": "496459a920efbef488dd4f41cb61919192cf4abebd1744c0d9fcd0636cbd7379",
+      "bytes": 93526,
+      "width": 77,
+      "height": 77,
+      "frames": 87,
+      "format": "GIF"
+    },
+    "teslatank": {
+      "title": "RA2 Tesla Tank.png",
+      "kind": "in-game image",
+      "file": "sprites/soviet-tesla-tank-sheet.png",
+      "source": "https://cnc.fandom.com/wiki/File:RA2_Tesla_Tank.png",
+      "url": "https://static.wikia.nocookie.net/cnc_gamepedia_en/images/b/bd/RA2_Tesla_Tank.png/revision/latest?format=original",
+      "sha256": "907ec8897b2b098fcf716bfc4a42f2f785b498b67c5825575d09f15a3f2c5111",
+      "bytes": 12352,
+      "width": 287,
+      "height": 204,
+      "frames": 1,
+      "format": "WEBP"
+    },
+    "prismtank": {
+      "title": "CNCRA2 Prism Tank.png",
+      "kind": "in-game image",
+      "file": "sprites/allied-prism-tank.png",
+      "source": "https://cnc.fandom.com/wiki/File:CNCRA2_Prism_Tank.png",
+      "url": "https://static.wikia.nocookie.net/cnc_gamepedia_en/images/e/e4/CNCRA2_Prism_Tank.png/revision/latest?format=original",
+      "sha256": "678cd833237bd9e954ba300aaca28882ace70384471915426b637617278ed4cd",
+      "bytes": 70412,
+      "width": 400,
+      "height": 269,
+      "frames": 1,
+      "format": "WEBP"
+    },
+    "prismtank-voxel": {
+      "title": "Prism Tank Voxel Render.jpg",
+      "kind": "voxel render",
+      "file": "sprites/library/prismtank-voxel.jpg",
+      "source": "https://cnc.fandom.com/wiki/File:Prism_Tank_Voxel_Render.jpg",
+      "url": "https://static.wikia.nocookie.net/cnc_gamepedia_en/images/4/49/Prism_Tank_Voxel_Render.jpg/revision/latest?format=original",
+      "sha256": "8e46667dfa3888baee2489385cbf9f844961fd2df4d54171ca23cf672e735a73",
+      "bytes": 56419,
+      "width": 628,
+      "height": 440,
+      "frames": 1,
+      "format": "JPEG"
+    },
+    "desolator": {
+      "title": "Desolator animation.gif",
+      "kind": "sprite animation",
+      "file": "sprites/library/desolator.gif",
+      "source": "https://cnc.fandom.com/wiki/File:Desolator_animation.gif",
+      "url": "https://static.wikia.nocookie.net/cnc_gamepedia_en/images/7/7e/Desolator_animation.gif/revision/latest?format=original",
+      "sha256": "d90f32a5a60f2f449def0a59aaca3056845038d74b02875b29d7e969d90cff3b",
+      "bytes": 202423,
+      "width": 200,
+      "height": 150,
+      "frames": 322,
+      "format": "GIF"
+    },
+    "yuri": {
+      "title": "RA2 Psi Corps Trooper.png",
+      "kind": "in-game image",
+      "file": "sprites/library/yuri.png",
+      "source": "https://cnc.fandom.com/wiki/File:RA2_Psi_Corps_Trooper.png",
+      "url": "https://static.wikia.nocookie.net/cnc_gamepedia_en/images/7/7b/RA2_Psi_Corps_Trooper.png/revision/latest?format=original",
+      "sha256": "9eab67f8ae1056d960095174e6150e3e2168e67aeeaafb1fe817fe956f59a28d",
+      "bytes": 24651,
+      "width": 197,
+      "height": 125,
+      "frames": 1,
+      "format": "PNG"
+    },
+    "cleg": {
+      "title": "Chrono Legionnaire animation.gif",
+      "kind": "sprite animation",
+      "file": "sprites/library/cleg.gif",
+      "source": "https://cnc.fandom.com/wiki/File:Chrono_Legionnaire_animation.gif",
+      "url": "https://static.wikia.nocookie.net/cnc_gamepedia_en/images/9/9b/Chrono_Legionnaire_animation.gif/revision/latest?format=original",
+      "sha256": "a32b0a0712281deaaa4ecf91dd42abfaf7564c308ad1a84d2eaf77ea04159891",
+      "bytes": 205418,
+      "width": 74,
+      "height": 88,
+      "frames": 172,
+      "format": "GIF"
+    },
+    "spy": {
+      "title": "Spy animation.gif",
+      "kind": "sprite animation",
+      "file": "sprites/library/spy.gif",
+      "source": "https://cnc.fandom.com/wiki/File:Spy_animation.gif",
+      "url": "https://static.wikia.nocookie.net/cnc_gamepedia_en/images/1/14/Spy_animation.gif/revision/latest?format=original",
+      "sha256": "7de1941d6afaac05a9e9e7786020cb454dd5cbfb473d741355d5c30ab5559b54",
+      "bytes": 212426,
+      "width": 86,
+      "height": 86,
+      "frames": 203,
+      "format": "GIF"
+    },
+    "nighthawk": {
+      "title": "CNCRA2 NightHawk Transport.png",
+      "kind": "in-game image",
+      "file": "sprites/library/nighthawk.png",
+      "source": "https://cnc.fandom.com/wiki/File:CNCRA2_NightHawk_Transport.png",
+      "url": "https://static.wikia.nocookie.net/cnc_gamepedia_en/images/f/fa/CNCRA2_NightHawk_Transport.png/revision/latest?format=original",
+      "sha256": "b99507525a591bfa7031f9fd54df09cbbe0aaa98426a99b36a514407c7c92a7e",
+      "bytes": 94555,
+      "width": 490,
+      "height": 273,
+      "frames": 1,
+      "format": "PNG"
+    },
+    "nighthawk-voxel": {
+      "title": "NightHawk Voxel Render.jpg",
+      "kind": "voxel render",
+      "file": "sprites/library/nighthawk-voxel.jpg",
+      "source": "https://cnc.fandom.com/wiki/File:NightHawk_Voxel_Render.jpg",
+      "url": "https://static.wikia.nocookie.net/cnc_gamepedia_en/images/b/bb/NightHawk_Voxel_Render.jpg/revision/latest?format=original",
+      "sha256": "72d49471835399583cb76d713eb96116a6b8645fcd2deed8eae70c20a120a0cf",
+      "bytes": 90169,
+      "width": 930,
+      "height": 445,
+      "frames": 1,
+      "format": "JPEG"
+    },
+    "apc": {
+      "title": "Amphibious Transport (Soviet).jpg",
+      "kind": "in-game image",
+      "file": "sprites/library/apc.jpg",
+      "source": "https://cnc.fandom.com/wiki/File:Amphibious_Transport_(Soviet).jpg",
+      "url": "https://static.wikia.nocookie.net/cnc_gamepedia_en/images/3/32/Amphibious_Transport_(Soviet).jpg/revision/latest?format=original",
+      "sha256": "cbdf819df803f75f86e224bddfad84701ca661cec301c33d14dd4cf94019217c",
+      "bytes": 2408,
+      "width": 76,
+      "height": 71,
+      "frames": 1,
+      "format": "JPEG"
+    },
+    "apc-voxel": {
+      "title": "Amphibious transport - Soviet Voxel Render.jpg",
+      "kind": "voxel render",
+      "file": "sprites/library/apc-voxel.jpg",
+      "source": "https://cnc.fandom.com/wiki/File:Amphibious_transport_-_Soviet_Voxel_Render.jpg",
+      "url": "https://static.wikia.nocookie.net/cnc_gamepedia_en/images/5/54/Amphibious_transport_-_Soviet_Voxel_Render.jpg/revision/latest?format=original",
+      "sha256": "3ccaa64c1a922d90dd608fb019f8f526d9d5a8824a7fb650956f1b720eb92f2a",
+      "bytes": 131776,
+      "width": 896,
+      "height": 638,
+      "frames": 1,
+      "format": "JPEG"
+    },
+    "destroyer": {
+      "title": "CNCRA2 Destroyer.png",
+      "kind": "in-game image",
+      "file": "sprites/library/destroyer.png",
+      "source": "https://cnc.fandom.com/wiki/File:CNCRA2_Destroyer.png",
+      "url": "https://static.wikia.nocookie.net/cnc_gamepedia_en/images/5/5e/CNCRA2_Destroyer.png/revision/latest?format=original",
+      "sha256": "0bb37702fa285a2c859911a371812236cd6f21169e238a410ceba078f442ce55",
+      "bytes": 182789,
+      "width": 536,
+      "height": 313,
+      "frames": 1,
+      "format": "PNG"
+    },
+    "destroyer-voxel": {
+      "title": "Destroyer Voxel Render.jpg",
+      "kind": "voxel render",
+      "file": "sprites/library/destroyer-voxel.jpg",
+      "source": "https://cnc.fandom.com/wiki/File:Destroyer_Voxel_Render.jpg",
+      "url": "https://static.wikia.nocookie.net/cnc_gamepedia_en/images/8/8a/Destroyer_Voxel_Render.jpg/revision/latest?format=original",
+      "sha256": "38bcb7f8cd465c0c468b396e8aea2c4046811cb8b6555baa498f71e9e24c579d",
+      "bytes": 195315,
+      "width": 1048,
+      "height": 864,
+      "frames": 1,
+      "format": "JPEG"
+    },
+    "aegis": {
+      "title": "CNCRA2 Aegis Cruiser.png",
+      "kind": "in-game image",
+      "file": "sprites/library/aegis.png",
+      "source": "https://cnc.fandom.com/wiki/File:CNCRA2_Aegis_Cruiser.png",
+      "url": "https://static.wikia.nocookie.net/cnc_gamepedia_en/images/b/bd/CNCRA2_Aegis_Cruiser.png/revision/latest?format=original",
+      "sha256": "51480a1bbd75a3ed4cc930297b47a7d2512bc6431746da2ce327b67754c93cb6",
+      "bytes": 146874,
+      "width": 498,
+      "height": 258,
+      "frames": 1,
+      "format": "PNG"
+    },
+    "aegis-voxel": {
+      "title": "Aegis Voxel Render.jpg",
+      "kind": "voxel render",
+      "file": "sprites/library/aegis-voxel.jpg",
+      "source": "https://cnc.fandom.com/wiki/File:Aegis_Voxel_Render.jpg",
+      "url": "https://static.wikia.nocookie.net/cnc_gamepedia_en/images/b/bf/Aegis_Voxel_Render.jpg/revision/latest?format=original",
+      "sha256": "33ab8124c8466d0bd15ae7805228fed73198a7964c7fbd1ebd36fff5d24a9f91",
+      "bytes": 109578,
+      "width": 918,
+      "height": 474,
+      "frames": 1,
+      "format": "JPEG"
+    },
+    "carrier": {
+      "title": "CNCRA2 Aircraft Carrier.png",
+      "kind": "in-game image",
+      "file": "sprites/library/carrier.png",
+      "source": "https://cnc.fandom.com/wiki/File:CNCRA2_Aircraft_Carrier.png",
+      "url": "https://static.wikia.nocookie.net/cnc_gamepedia_en/images/7/7f/CNCRA2_Aircraft_Carrier.png/revision/latest?format=original",
+      "sha256": "1afda6e13ef9899302979be5a510fb906f48aaf5aa365cc61f5ba467e9e757c6",
+      "bytes": 165913,
+      "width": 654,
+      "height": 376,
+      "frames": 1,
+      "format": "PNG"
+    },
+    "carrier-voxel": {
+      "title": "Aircraft Carrier Voxel Render.jpg",
+      "kind": "voxel render",
+      "file": "sprites/library/carrier-voxel.jpg",
+      "source": "https://cnc.fandom.com/wiki/File:Aircraft_Carrier_Voxel_Render.jpg",
+      "url": "https://static.wikia.nocookie.net/cnc_gamepedia_en/images/3/3c/Aircraft_Carrier_Voxel_Render.jpg/revision/latest?format=original",
+      "sha256": "e70938f84b0c11038c06ac6d302f8c6f5786f3573b701a74bb7fe86681f95ccb",
+      "bytes": 131658,
+      "width": 1040,
+      "height": 556,
+      "frames": 1,
+      "format": "JPEG"
+    },
+    "hornet": {
+      "title": "Hornet.jpg",
+      "kind": "in-game image",
+      "file": "sprites/library/hornet.jpg",
+      "source": "https://cnc.fandom.com/wiki/File:Hornet.jpg",
+      "url": "https://static.wikia.nocookie.net/cnc_gamepedia_en/images/c/c0/Hornet.jpg/revision/latest?format=original",
+      "sha256": "fbbc07c45340c507e7d03d0eb399ac46fbf573449995e0b4f6207e423d8acde7",
+      "bytes": 8440,
+      "width": 503,
+      "height": 187,
+      "frames": 1,
+      "format": "JPEG"
+    },
+    "hornet-voxel": {
+      "title": "Hornet Voxel Render.jpg",
+      "kind": "voxel render",
+      "file": "sprites/library/hornet-voxel.jpg",
+      "source": "https://cnc.fandom.com/wiki/File:Hornet_Voxel_Render.jpg",
+      "url": "https://static.wikia.nocookie.net/cnc_gamepedia_en/images/d/de/Hornet_Voxel_Render.jpg/revision/latest?format=original",
+      "sha256": "e670485f15c3d23f23e5b432af8ef0cdcf65abdf5d1a6d5fb54d96745d5bfe72",
+      "bytes": 44026,
+      "width": 652,
+      "height": 433,
+      "frames": 1,
+      "format": "JPEG"
+    },
+    "dolphin": {
+      "title": "CNCRA2 Dolphin.png",
+      "kind": "in-game image",
+      "file": "sprites/library/dolphin.png",
+      "source": "https://cnc.fandom.com/wiki/File:CNCRA2_Dolphin.png",
+      "url": "https://static.wikia.nocookie.net/cnc_gamepedia_en/images/4/4a/CNCRA2_Dolphin.png/revision/latest?format=original",
+      "sha256": "ec58d57f916229a29da0695249ea9da614ffc4692483660180dc4e5f6c0d7ebc",
+      "bytes": 79817,
+      "width": 358,
+      "height": 203,
+      "frames": 1,
+      "format": "PNG"
+    },
+    "lcraft": {
+      "title": "Amphibious Transport (Allied).jpg",
+      "kind": "in-game image",
+      "file": "sprites/library/lcraft.jpg",
+      "source": "https://cnc.fandom.com/wiki/File:Amphibious_Transport_(Allied).jpg",
+      "url": "https://static.wikia.nocookie.net/cnc_gamepedia_en/images/c/c3/Amphibious_Transport_(Allied).jpg/revision/latest?format=original",
+      "sha256": "8268c9f81de7b8b94a6e208af52763e78ea867a30ef5d6081d76cd5106a8dbc3",
+      "bytes": 1711,
+      "width": 72,
+      "height": 64,
+      "frames": 1,
+      "format": "JPEG"
+    },
+    "lcraft-voxel": {
+      "title": "Amphibious transport - Allied Voxel Render.jpg",
+      "kind": "voxel render",
+      "file": "sprites/library/lcraft-voxel.jpg",
+      "source": "https://cnc.fandom.com/wiki/File:Amphibious_transport_-_Allied_Voxel_Render.jpg",
+      "url": "https://static.wikia.nocookie.net/cnc_gamepedia_en/images/1/13/Amphibious_transport_-_Allied_Voxel_Render.jpg/revision/latest?format=original",
+      "sha256": "df38a9da16fd17192b6a3760706da179736bf94cc6a451897ae508e45a4772b8",
+      "bytes": 234580,
+      "width": 1038,
+      "height": 801,
+      "frames": 1,
+      "format": "JPEG"
+    },
+    "sub": {
+      "title": "CNCRA2 Typhoon Attack Sub.png",
+      "kind": "in-game image",
+      "file": "sprites/library/sub.png",
+      "source": "https://cnc.fandom.com/wiki/File:CNCRA2_Typhoon_Attack_Sub.png",
+      "url": "https://static.wikia.nocookie.net/cnc_gamepedia_en/images/2/24/CNCRA2_Typhoon_Attack_Sub.png/revision/latest?format=original",
+      "sha256": "4b7c03a623f000cca2e0429ca29075a6cc5b6b0b967a0c9be072bc3aac908f88",
+      "bytes": 111718,
+      "width": 518,
+      "height": 298,
+      "frames": 1,
+      "format": "PNG"
+    },
+    "sub-voxel": {
+      "title": "Typhoon Voxel Render.jpg",
+      "kind": "voxel render",
+      "file": "sprites/library/sub-voxel.jpg",
+      "source": "https://cnc.fandom.com/wiki/File:Typhoon_Voxel_Render.jpg",
+      "url": "https://static.wikia.nocookie.net/cnc_gamepedia_en/images/e/e7/Typhoon_Voxel_Render.jpg/revision/latest?format=original",
+      "sha256": "3698a508035cf331d4cd220d8d22d922b4c119ae0b4081bc86deb5e05ad8866f",
+      "bytes": 93726,
+      "width": 872,
+      "height": 551,
+      "frames": 1,
+      "format": "JPEG"
+    },
+    "seascorp": {
+      "title": "CNCRA2 Sea Scorpion.png",
+      "kind": "in-game image",
+      "file": "sprites/library/seascorp.png",
+      "source": "https://cnc.fandom.com/wiki/File:CNCRA2_Sea_Scorpion.png",
+      "url": "https://static.wikia.nocookie.net/cnc_gamepedia_en/images/4/45/CNCRA2_Sea_Scorpion.png/revision/latest?format=original",
+      "sha256": "c2d1c9e52d3d2c8e9a17a057b9c69cc3ce2b50365dffff1927df36873bc01906",
+      "bytes": 66705,
+      "width": 360,
+      "height": 199,
+      "frames": 1,
+      "format": "PNG"
+    },
+    "seascorp-voxel": {
+      "title": "Sea scorpion Voxel Render.jpg",
+      "kind": "voxel render",
+      "file": "sprites/library/seascorp-voxel.jpg",
+      "source": "https://cnc.fandom.com/wiki/File:Sea_scorpion_Voxel_Render.jpg",
+      "url": "https://static.wikia.nocookie.net/cnc_gamepedia_en/images/b/b1/Sea_scorpion_Voxel_Render.jpg/revision/latest?format=original",
+      "sha256": "d3968d8769fcfb20cc25b43486704fc88879774fc64f5b8dee691e16988b031c",
+      "bytes": 74523,
+      "width": 686,
+      "height": 401,
+      "frames": 1,
+      "format": "JPEG"
+    },
+    "dread": {
+      "title": "CNCRA2 Dreadnought.png",
+      "kind": "in-game image",
+      "file": "sprites/library/dread.png",
+      "source": "https://cnc.fandom.com/wiki/File:CNCRA2_Dreadnought.png",
+      "url": "https://static.wikia.nocookie.net/cnc_gamepedia_en/images/b/b3/CNCRA2_Dreadnought.png/revision/latest?format=original",
+      "sha256": "186e169f5c84ffe93940180a859c5557f26887cf9c11a8f49ac4096d69e7f298",
+      "bytes": 154858,
+      "width": 596,
+      "height": 316,
+      "frames": 1,
+      "format": "PNG"
+    },
+    "dread-voxel": {
+      "title": "Dreadnought Voxel Render.jpg",
+      "kind": "voxel render",
+      "file": "sprites/library/dread-voxel.jpg",
+      "source": "https://cnc.fandom.com/wiki/File:Dreadnought_Voxel_Render.jpg",
+      "url": "https://static.wikia.nocookie.net/cnc_gamepedia_en/images/5/55/Dreadnought_Voxel_Render.jpg/revision/latest?format=original",
+      "sha256": "356c01fea022d61edf4495c1ce000f960c3b8fbf52f6db148150a846a7200578",
+      "bytes": 181033,
+      "width": 1140,
+      "height": 542,
+      "frames": 1,
+      "format": "JPEG"
+    },
+    "squid": {
+      "title": "CNCRA2 Giant Squid.png",
+      "kind": "in-game image",
+      "file": "sprites/library/squid.png",
+      "source": "https://cnc.fandom.com/wiki/File:CNCRA2_Giant_Squid.png",
+      "url": "https://static.wikia.nocookie.net/cnc_gamepedia_en/images/c/cb/CNCRA2_Giant_Squid.png/revision/latest?format=original",
+      "sha256": "9b4aed38ec1a2d8456f391c1c2f01e87832ab089bfa6c74e3a24af6a07cfd3fc",
+      "bytes": 124162,
+      "width": 554,
+      "height": 292,
+      "frames": 1,
+      "format": "PNG"
+    },
+    "mcv-dir": {
+      "title": "CNCRA2 Allied MCV.png",
+      "kind": "in-game image",
+      "file": "sprites/allied-mcv.png",
+      "source": "https://cnc.fandom.com/wiki/File:CNCRA2_Allied_MCV.png",
+      "url": "https://static.wikia.nocookie.net/cnc_gamepedia_en/images/0/06/CNCRA2_Allied_MCV.png/revision/latest?format=original",
+      "sha256": "13860ca34efe5e0e5461b9da8a67573776315d4e5d79aa6c60fa9190787d2d70",
+      "bytes": 48044,
+      "width": 304,
+      "height": 225,
+      "frames": 1,
+      "format": "WEBP"
+    },
+    "mcv-dir-voxel": {
+      "title": "Allied MCV Voxel Render.jpg",
+      "kind": "voxel render",
+      "file": "sprites/allied-mcv-voxel.webp",
+      "source": "https://cnc.fandom.com/wiki/File:Allied_MCV_Voxel_Render.jpg",
+      "url": "https://static.wikia.nocookie.net/cnc_gamepedia_en/images/9/9f/Allied_MCV_Voxel_Render.jpg/revision/latest?format=original",
+      "sha256": "85cbbfa06c27accb32952c6190a3c27bc5f56231fe6379d74c74158af8f4cb3d",
+      "bytes": 21930,
+      "width": 734,
+      "height": 402,
+      "frames": 1,
+      "format": "WEBP"
+    },
+    "mcv-dir-deploy": {
+      "title": "Allied MCV animation.gif",
+      "kind": "deployment animation",
+      "file": "sprites/library/mcv-dir-deploy.gif",
+      "source": "https://cnc.fandom.com/wiki/File:Allied_MCV_animation.gif",
+      "url": "https://static.wikia.nocookie.net/cnc_gamepedia_en/images/a/a6/Allied_MCV_animation.gif/revision/latest?format=original",
+      "sha256": "e50d09ae57c820a29c30495355c2184ade28b2ba432260c5328e76409c0e4fb2",
+      "bytes": 168944,
+      "width": 284,
+      "height": 226,
+      "frames": 28,
+      "format": "GIF"
+    },
+    "mcv-col": {
+      "title": "CNCRA2 Soviet MCV.png",
+      "kind": "in-game image",
+      "file": "sprites/library/mcv-col.png",
+      "source": "https://cnc.fandom.com/wiki/File:CNCRA2_Soviet_MCV.png",
+      "url": "https://static.wikia.nocookie.net/cnc_gamepedia_en/images/e/e8/CNCRA2_Soviet_MCV.png/revision/latest?format=original",
+      "sha256": "d4520a9dd8b8a24d6af4e17304547ee26b22c407a90c22280c1e1004899abfcb",
+      "bytes": 103443,
+      "width": 304,
+      "height": 225,
+      "frames": 1,
+      "format": "PNG"
+    },
+    "mcv-col-deploy": {
+      "title": "Soviet MCV animation.gif",
+      "kind": "deployment animation",
+      "file": "sprites/library/mcv-col-deploy.gif",
+      "source": "https://cnc.fandom.com/wiki/File:Soviet_MCV_animation.gif",
+      "url": "https://static.wikia.nocookie.net/cnc_gamepedia_en/images/c/c6/Soviet_MCV_animation.gif/revision/latest?format=original",
+      "sha256": "59e93c109edf1bb30d5afa4e70d02b8a98002b6c2b473cbab0fc04e09d912560",
+      "bytes": 200118,
+      "width": 286,
+      "height": 224,
+      "frames": 30,
+      "format": "GIF"
+    },
+    "base-dir": {
+      "title": "Allied Construction Yard animation 1.gif",
+      "kind": "sprite animation",
+      "file": "sprites/buildings/allied-construction-yard.gif",
+      "source": "https://cnc.fandom.com/wiki/File:Allied_Construction_Yard_animation_1.gif",
+      "url": "https://static.wikia.nocookie.net/cnc_gamepedia_en/images/c/cb/Allied_Construction_Yard_animation_1.gif/revision/latest?format=original",
+      "sha256": "a068feef32c7c403dee3c1734d961767bd68aa8f10ea390485fcfad9429eb1e6",
+      "bytes": 371594,
+      "width": 284,
+      "height": 226,
+      "frames": 29,
+      "format": "GIF"
+    },
+    "base-col": {
+      "title": "Soviet Construction Yard animation 2.gif",
+      "kind": "sprite animation",
+      "file": "sprites/buildings/soviet-construction-yard.gif",
+      "source": "https://cnc.fandom.com/wiki/File:Soviet_Construction_Yard_animation_2.gif",
+      "url": "https://static.wikia.nocookie.net/cnc_gamepedia_en/images/b/b8/Soviet_Construction_Yard_animation_2.gif/revision/latest?format=original",
+      "sha256": "276970b9eb5231df9f50a205b79b5bde65e57d06247f72537f261e6b24374403",
+      "bytes": 357454,
+      "width": 338,
+      "height": 224,
+      "frames": 25,
+      "format": "GIF"
+    },
+    "power-dir": {
+      "title": "RA2 Power Plant.png",
+      "kind": "in-game image",
+      "file": "sprites/buildings/allied-power-plant.png",
+      "source": "https://cnc.fandom.com/wiki/File:RA2_Power_Plant.png",
+      "url": "https://static.wikia.nocookie.net/cnc_gamepedia_en/images/5/51/RA2_Power_Plant.png/revision/latest?format=original",
+      "sha256": "850757c29f75b5948c483a8361970f6c1f373346bd3c6ec55b84d10e022c9858",
+      "bytes": 7308,
+      "width": 86,
+      "height": 93,
+      "frames": 1,
+      "format": "PNG"
+    },
+    "power-col": {
+      "title": "Tesla reactor animation 1.gif",
+      "kind": "sprite animation",
+      "file": "sprites/library/power-col.gif",
+      "source": "https://cnc.fandom.com/wiki/File:Tesla_reactor_animation_1.gif",
+      "url": "https://static.wikia.nocookie.net/cnc_gamepedia_en/images/3/38/Tesla_reactor_animation_1.gif/revision/latest?format=original",
+      "sha256": "fb3b2a82f24d4f4d82896169cd61dd109fc13d1629f4ed6619ffd03f83e6fd1b",
+      "bytes": 8912,
+      "width": 210,
+      "height": 140,
+      "frames": 2,
+      "format": "GIF"
+    },
+    "refinery-dir": {
+      "title": "RA2 Ore Refinery.gif",
+      "kind": "sprite animation",
+      "file": "sprites/buildings/allied-ore-refinery.gif",
+      "source": "https://cnc.fandom.com/wiki/File:RA2_Ore_Refinery.gif",
+      "url": "https://static.wikia.nocookie.net/cnc_gamepedia_en/images/3/36/RA2_Ore_Refinery.gif/revision/latest?format=original",
+      "sha256": "57beb3b32b445d5b476994b338791dccbe4a052747a7c4c6774ed8b2baa0dd07",
+      "bytes": 20506,
+      "width": 176,
+      "height": 138,
+      "frames": 1,
+      "format": "GIF"
+    },
+    "refinery-col": {
+      "title": "Soviet Ore refinery animation.gif",
+      "kind": "sprite animation",
+      "file": "sprites/library/refinery-col.gif",
+      "source": "https://cnc.fandom.com/wiki/File:Soviet_Ore_refinery_animation.gif",
+      "url": "https://static.wikia.nocookie.net/cnc_gamepedia_en/images/b/be/Soviet_Ore_refinery_animation.gif/revision/latest?format=original",
+      "sha256": "486d6051d1af7eee7931f16d591161cfbc4440f54c604da7902b1ec14999c0d6",
+      "bytes": 119565,
+      "width": 210,
+      "height": 184,
+      "frames": 25,
+      "format": "GIF"
+    },
+    "barracks-dir": {
+      "title": "Allied Barrack animation 1.gif",
+      "kind": "sprite animation",
+      "file": "sprites/library/barracks-dir.gif",
+      "source": "https://cnc.fandom.com/wiki/File:Allied_Barrack_animation_1.gif",
+      "url": "https://static.wikia.nocookie.net/cnc_gamepedia_en/images/9/92/Allied_Barrack_animation_1.gif/revision/latest?format=original",
+      "sha256": "2c115a7797223b83f3966c7999252712c4b8da6251ccf58d791f4c8b4af1d113",
+      "bytes": 78185,
+      "width": 250,
+      "height": 148,
+      "frames": 24,
+      "format": "GIF"
+    },
+    "barracks-col": {
+      "title": "Soviet Barracks animation 2.gif",
+      "kind": "sprite animation",
+      "file": "sprites/library/barracks-col.gif",
+      "source": "https://cnc.fandom.com/wiki/File:Soviet_Barracks_animation_2.gif",
+      "url": "https://static.wikia.nocookie.net/cnc_gamepedia_en/images/0/02/Soviet_Barracks_animation_2.gif/revision/latest?format=original",
+      "sha256": "fbba6810feba0659fd75007b6aab207ffcb043dc5d6d368db7e6a5db99bd0cf2",
+      "bytes": 83635,
+      "width": 254,
+      "height": 230,
+      "frames": 24,
+      "format": "GIF"
+    },
+    "factory-dir": {
+      "title": "RA2 Allied War Factory.gif",
+      "kind": "sprite animation",
+      "file": "sprites/buildings/allied-war-factory.gif",
+      "source": "https://cnc.fandom.com/wiki/File:RA2_Allied_War_Factory.gif",
+      "url": "https://static.wikia.nocookie.net/cnc_gamepedia_en/images/8/8c/RA2_Allied_War_Factory.gif/revision/latest?format=original",
+      "sha256": "3a53ab7f43ec8b8a6f5013299630bd6c674f5af75334b297539f11ed8aa92b7b",
+      "bytes": 26743,
+      "width": 213,
+      "height": 158,
+      "frames": 1,
+      "format": "GIF"
+    },
+    "factory-col": {
+      "title": "Soviet War Factory animation.gif",
+      "kind": "sprite animation",
+      "file": "sprites/library/factory-col.gif",
+      "source": "https://cnc.fandom.com/wiki/File:Soviet_War_Factory_animation.gif",
+      "url": "https://static.wikia.nocookie.net/cnc_gamepedia_en/images/4/4e/Soviet_War_Factory_animation.gif/revision/latest?format=original",
+      "sha256": "135d21a9ee2bdc48cb1d0130dbf64c65939a6995efa9551ad569b1afd3d9e27f",
+      "bytes": 182080,
+      "width": 282,
+      "height": 224,
+      "frames": 24,
+      "format": "GIF"
+    },
+    "shipyard-dir": {
+      "title": "Allied Naval shipyard animation.gif",
+      "kind": "sprite animation",
+      "file": "sprites/library/shipyard-dir.gif",
+      "source": "https://cnc.fandom.com/wiki/File:Allied_Naval_shipyard_animation.gif",
+      "url": "https://static.wikia.nocookie.net/cnc_gamepedia_en/images/d/d5/Allied_Naval_shipyard_animation.gif/revision/latest?format=original",
+      "sha256": "8d4d12b674ca67f7d923cbc4a244d4b64177fc35a58ff0281b43723c189af28c",
+      "bytes": 161773,
+      "width": 432,
+      "height": 304,
+      "frames": 24,
+      "format": "GIF"
+    },
+    "shipyard-col": {
+      "title": "Soviet Naval shipyard animation.gif",
+      "kind": "sprite animation",
+      "file": "sprites/library/shipyard-col.gif",
+      "source": "https://cnc.fandom.com/wiki/File:Soviet_Naval_shipyard_animation.gif",
+      "url": "https://static.wikia.nocookie.net/cnc_gamepedia_en/images/3/38/Soviet_Naval_shipyard_animation.gif/revision/latest?format=original",
+      "sha256": "f9f5f6252596b54efc297459266929185907244a018975f45c4809afb5ac535d",
+      "bytes": 211109,
+      "width": 400,
+      "height": 246,
+      "frames": 24,
+      "format": "GIF"
+    },
+    "depot-dir": {
+      "title": "Allied Service depot animation.gif",
+      "kind": "sprite animation",
+      "file": "sprites/library/depot-dir.gif",
+      "source": "https://cnc.fandom.com/wiki/File:Allied_Service_depot_animation.gif",
+      "url": "https://static.wikia.nocookie.net/cnc_gamepedia_en/images/5/57/Allied_Service_depot_animation.gif/revision/latest?format=original",
+      "sha256": "bda46b8ee13dc33a28f2c6ba2dc2fee29a9b578ee9518875d568f1bc286b8e67",
+      "bytes": 88545,
+      "width": 190,
+      "height": 150,
+      "frames": 24,
+      "format": "GIF"
+    },
+    "depot-col": {
+      "title": "RA2 Soviet Service Depot.gif",
+      "kind": "sprite animation",
+      "file": "sprites/buildings/soviet-service-depot.gif",
+      "source": "https://cnc.fandom.com/wiki/File:RA2_Soviet_Service_Depot.gif",
+      "url": "https://static.wikia.nocookie.net/cnc_gamepedia_en/images/1/18/RA2_Soviet_Service_Depot.gif/revision/latest?format=original",
+      "sha256": "05a9c747b9be0dc3b78a71406be8c6b344fd7015bebaed367b71bb892fa54aac",
+      "bytes": 20592,
+      "width": 168,
+      "height": 152,
+      "frames": 1,
+      "format": "GIF"
+    },
+    "lab-dir": {
+      "title": "RA2 Allied Battle Lab.gif",
+      "kind": "sprite animation",
+      "file": "sprites/buildings/allied-battle-lab.gif",
+      "source": "https://cnc.fandom.com/wiki/File:RA2_Allied_Battle_Lab.gif",
+      "url": "https://static.wikia.nocookie.net/cnc_gamepedia_en/images/f/f8/RA2_Allied_Battle_Lab.gif/revision/latest?format=original",
+      "sha256": "f3e5c4e9f2c2293d18ba6fb83ddd465364e58bd57614039bd4b9a236fdc6363c",
+      "bytes": 23589,
+      "width": 128,
+      "height": 222,
+      "frames": 1,
+      "format": "GIF"
+    },
+    "lab-col": {
+      "title": "RA2 Soviet Battle Lab.gif",
+      "kind": "sprite animation",
+      "file": "sprites/buildings/soviet-battle-lab.gif",
+      "source": "https://cnc.fandom.com/wiki/File:RA2_Soviet_Battle_Lab.gif",
+      "url": "https://static.wikia.nocookie.net/cnc_gamepedia_en/images/2/23/RA2_Soviet_Battle_Lab.gif/revision/latest?format=original",
+      "sha256": "1596fededfdc94540b2017e016b86b4a987367c9da3c5ca4a0499c0b538f1802",
+      "bytes": 23520,
+      "width": 157,
+      "height": 172,
+      "frames": 1,
+      "format": "GIF"
+    },
+    "sentry-dir": {
+      "title": "Pillbox animation 1.gif",
+      "kind": "sprite animation",
+      "file": "sprites/library/sentry-dir.gif",
+      "source": "https://cnc.fandom.com/wiki/File:Pillbox_animation_1.gif",
+      "url": "https://static.wikia.nocookie.net/cnc_gamepedia_en/images/4/47/Pillbox_animation_1.gif/revision/latest?format=original",
+      "sha256": "ef04413eb035f8486d2f3809cfa2a15f4b960e0bcfb0afa7e9ad39f5be7443ad",
+      "bytes": 10148,
+      "width": 68,
+      "height": 64,
+      "frames": 7,
+      "format": "GIF"
+    },
+    "tesla-col": {
+      "title": "RA2 Tesla Coil.gif",
+      "kind": "sprite animation",
+      "file": "sprites/buildings/tesla-coil.gif",
+      "source": "https://cnc.fandom.com/wiki/File:RA2_Tesla_Coil.gif",
+      "url": "https://static.wikia.nocookie.net/cnc_gamepedia_en/images/d/dc/RA2_Tesla_Coil.gif/revision/latest?format=original",
+      "sha256": "ae65faa0c0771ed6bea8379de6710d582611e795ea02926221a4ed1669e4ccba",
+      "bytes": 38352,
+      "width": 166,
+      "height": 146,
+      "frames": 20,
+      "format": "GIF"
+    },
+    "radar-col": {
+      "title": "Radar Tower animation.gif",
+      "kind": "sprite animation",
+      "file": "sprites/library/radar-col.gif",
+      "source": "https://cnc.fandom.com/wiki/File:Radar_Tower_animation.gif",
+      "url": "https://static.wikia.nocookie.net/cnc_gamepedia_en/images/d/d8/Radar_Tower_animation.gif/revision/latest?format=original",
+      "sha256": "4640c1e6dd4a5f90c948b70136a55c73bf4c4370ec34de66ccab1e09d90bbb32",
+      "bytes": 79891,
+      "width": 226,
+      "height": 154,
+      "frames": 29,
+      "format": "GIF"
+    },
+    "airforce-dir": {
+      "title": "Airforce Command Headquarter animation.gif",
+      "kind": "sprite animation",
+      "file": "sprites/library/airforce-dir.gif",
+      "source": "https://cnc.fandom.com/wiki/File:Airforce_Command_Headquarter_animation.gif",
+      "url": "https://static.wikia.nocookie.net/cnc_gamepedia_en/images/3/3c/Airforce_Command_Headquarter_animation.gif/revision/latest?format=original",
+      "sha256": "013f26203315e773e8e2284527824217dd3f8d4b5c8f4c7f3574495665cfe22e",
+      "bytes": 95082,
+      "width": 188,
+      "height": 162,
+      "frames": 24,
+      "format": "GIF"
+    },
+    "purifier-dir": {
+      "title": "Ore purifier animation 1.gif",
+      "kind": "sprite animation",
+      "file": "sprites/library/purifier-dir.gif",
+      "source": "https://cnc.fandom.com/wiki/File:Ore_purifier_animation_1.gif",
+      "url": "https://static.wikia.nocookie.net/cnc_gamepedia_en/images/9/9f/Ore_purifier_animation_1.gif/revision/latest?format=original",
+      "sha256": "0b4d52fca7cc042ab6b12926dfe91225ee8c5ad8fd4ca67ba741f9c2daa9603d",
+      "bytes": 82928,
+      "width": 150,
+      "height": 168,
+      "frames": 24,
+      "format": "GIF"
+    },
+    "reactor-col": {
+      "title": "Nuclear reactor animation 2.gif",
+      "kind": "sprite animation",
+      "file": "sprites/library/reactor-col.gif",
+      "source": "https://cnc.fandom.com/wiki/File:Nuclear_reactor_animation_2.gif",
+      "url": "https://static.wikia.nocookie.net/cnc_gamepedia_en/images/5/53/Nuclear_reactor_animation_2.gif/revision/latest?format=original",
+      "sha256": "7a1e87936960508ba94569600c3d3ab7415cd5c08c22d7709fa6d29d3a5dc570",
+      "bytes": 169214,
+      "width": 276,
+      "height": 188,
+      "frames": 21,
+      "format": "GIF"
+    },
+    "prism-dir": {
+      "title": "Prism tower animation 1.gif",
+      "kind": "sprite animation",
+      "file": "sprites/library/prism-dir.gif",
+      "source": "https://cnc.fandom.com/wiki/File:Prism_tower_animation_1.gif",
+      "url": "https://static.wikia.nocookie.net/cnc_gamepedia_en/images/3/38/Prism_tower_animation_1.gif/revision/latest?format=original",
+      "sha256": "9d65507e98683cfb7bcfe9638b1878b2e46f5e5ba955f614aad15362f3448e90",
+      "bytes": 70491,
+      "width": 272,
+      "height": 256,
+      "frames": 20,
+      "format": "GIF"
+    },
+    "wall-dir": {
+      "title": "Allied Fortress Walls animation.gif",
+      "kind": "sprite animation",
+      "file": "sprites/library/wall-dir.gif",
+      "source": "https://cnc.fandom.com/wiki/File:Allied_Fortress_Walls_animation.gif",
+      "url": "https://static.wikia.nocookie.net/cnc_gamepedia_en/images/8/80/Allied_Fortress_Walls_animation.gif/revision/latest?format=original",
+      "sha256": "8a0bc176ba5712037fb960f5131d9f704eccb7e3f4404cdb0ba75027a12c0a74",
+      "bytes": 74898,
+      "width": 78,
+      "height": 70,
+      "frames": 47,
+      "format": "GIF"
+    },
+    "wall-col": {
+      "title": "Soviet Fortress Walls animation.gif",
+      "kind": "sprite animation",
+      "file": "sprites/library/wall-col.gif",
+      "source": "https://cnc.fandom.com/wiki/File:Soviet_Fortress_Walls_animation.gif",
+      "url": "https://static.wikia.nocookie.net/cnc_gamepedia_en/images/f/ff/Soviet_Fortress_Walls_animation.gif/revision/latest?format=original",
+      "sha256": "d35b4652eb7dcdccbf56817c8e18707e5d31800d76e009cdaabb9c815a82fb42",
+      "bytes": 70467,
+      "width": 80,
+      "height": 64,
+      "frames": 47,
+      "format": "GIF"
+    },
+    "gapgen-dir": {
+      "title": "Gapgenerator2.jpg",
+      "kind": "in-game image",
+      "file": "sprites/library/gapgen-dir.jpg",
+      "source": "https://cnc.fandom.com/wiki/File:Gapgenerator2.jpg",
+      "url": "https://static.wikia.nocookie.net/cnc_gamepedia_en/images/3/33/Gapgenerator2.jpg/revision/latest?format=original",
+      "sha256": "a8c449c1bde4715d9cdabdffd8806fb8d6e7a94f582de049b9ed6545cc89086b",
+      "bytes": 2722,
+      "width": 46,
+      "height": 112,
+      "frames": 1,
+      "format": "JPEG"
+    },
+    "grandcannon-dir": {
+      "title": "Grand Cannon animation.gif",
+      "kind": "sprite animation",
+      "file": "sprites/library/grandcannon-dir.gif",
+      "source": "https://cnc.fandom.com/wiki/File:Grand_Cannon_animation.gif",
+      "url": "https://static.wikia.nocookie.net/cnc_gamepedia_en/images/6/65/Grand_Cannon_animation.gif/revision/latest?format=original",
+      "sha256": "96315b9875fc83627ac019c79c78ae0d9ae02f1050f010a236afe431d145a7d1",
+      "bytes": 31246,
+      "width": 232,
+      "height": 168,
+      "frames": 11,
+      "format": "GIF"
+    },
+    "sentrygun-col": {
+      "title": "Sentry gun animation.gif",
+      "kind": "sprite animation",
+      "file": "sprites/library/sentrygun-col.gif",
+      "source": "https://cnc.fandom.com/wiki/File:Sentry_gun_animation.gif",
+      "url": "https://static.wikia.nocookie.net/cnc_gamepedia_en/images/0/0b/Sentry_gun_animation.gif/revision/latest?format=original",
+      "sha256": "6b755cc6305e3a4a6da45365871c349e22058315e8078dc58a7028cb27423c3f",
+      "bytes": 13962,
+      "width": 74,
+      "height": 58,
+      "frames": 11,
+      "format": "GIF"
+    },
+    "patriot-dir": {
+      "title": "Patriot missile system animation.gif",
+      "kind": "sprite animation",
+      "file": "sprites/library/patriot-dir.gif",
+      "source": "https://cnc.fandom.com/wiki/File:Patriot_missile_system_animation.gif",
+      "url": "https://static.wikia.nocookie.net/cnc_gamepedia_en/images/9/92/Patriot_missile_system_animation.gif/revision/latest?format=original",
+      "sha256": "00a09ef3cdc073eeebec9104c07ef70d35d9c75fdd7bfcb70efdc0c11fcfd117",
+      "bytes": 11089,
+      "width": 98,
+      "height": 68,
+      "frames": 7,
+      "format": "GIF"
+    },
+    "flakcannon-col": {
+      "title": "Flak cannon animation.gif",
+      "kind": "sprite animation",
+      "file": "sprites/library/flakcannon-col.gif",
+      "source": "https://cnc.fandom.com/wiki/File:Flak_cannon_animation.gif",
+      "url": "https://static.wikia.nocookie.net/cnc_gamepedia_en/images/c/c2/Flak_cannon_animation.gif/revision/latest?format=original",
+      "sha256": "d6050e725857c84a6e8c7007ab3844b70ac4513967ec43043a0e033d70080868",
+      "bytes": 12352,
+      "width": 118,
+      "height": 90,
+      "frames": 8,
+      "format": "GIF"
+    },
+    "chrono-dir": {
+      "title": "Chronosphere animation 1.gif",
+      "kind": "sprite animation",
+      "file": "sprites/library/chrono-dir.gif",
+      "source": "https://cnc.fandom.com/wiki/File:Chronosphere_animation_1.gif",
+      "url": "https://static.wikia.nocookie.net/cnc_gamepedia_en/images/e/ee/Chronosphere_animation_1.gif/revision/latest?format=original",
+      "sha256": "74409d6126959247bdd936e518dd0f362163979de2a23948811f555714b81926",
+      "bytes": 100865,
+      "width": 210,
+      "height": 194,
+      "frames": 24,
+      "format": "GIF"
+    },
+    "weather-dir": {
+      "title": "Weather Control Device animation 1.gif",
+      "kind": "sprite animation",
+      "file": "sprites/library/weather-dir.gif",
+      "source": "https://cnc.fandom.com/wiki/File:Weather_Control_Device_animation_1.gif",
+      "url": "https://static.wikia.nocookie.net/cnc_gamepedia_en/images/4/49/Weather_Control_Device_animation_1.gif/revision/latest?format=original",
+      "sha256": "1e52aa56f8e812e6cfd3dc03e052e7c679360240f420b583f61b7c22fa796541",
+      "bytes": 89107,
+      "width": 154,
+      "height": 154,
+      "frames": 24,
+      "format": "GIF"
+    },
+    "curtain-col": {
+      "title": "Iron curtain animation 2.gif",
+      "kind": "sprite animation",
+      "file": "sprites/library/curtain-col.gif",
+      "source": "https://cnc.fandom.com/wiki/File:Iron_curtain_animation_2.gif",
+      "url": "https://static.wikia.nocookie.net/cnc_gamepedia_en/images/0/0c/Iron_curtain_animation_2.gif/revision/latest?format=original",
+      "sha256": "4c139e7e0d4a5f8a6e62613220f4dfb11f867818823e468b948b5d23797265de",
+      "bytes": 106193,
+      "width": 164,
+      "height": 162,
+      "frames": 21,
+      "format": "GIF"
+    },
+    "nuke-col": {
+      "title": "Nuclear missile silo animation 1.gif",
+      "kind": "sprite animation",
+      "file": "sprites/library/nuke-col.gif",
+      "source": "https://cnc.fandom.com/wiki/File:Nuclear_missile_silo_animation_1.gif",
+      "url": "https://static.wikia.nocookie.net/cnc_gamepedia_en/images/f/fb/Nuclear_missile_silo_animation_1.gif/revision/latest?format=original",
+      "sha256": "49f6b76c1111ac368764469bbbc786adbdea689bd20cd4a1cb500cb39b5b2918",
+      "bytes": 187894,
+      "width": 238,
+      "height": 202,
+      "frames": 31,
+      "format": "GIF"
+    },
+    "spysat-dir": {
+      "title": "Spy Satellite Uplink animation.gif",
+      "kind": "sprite animation",
+      "file": "sprites/library/spysat-dir.gif",
+      "source": "https://cnc.fandom.com/wiki/File:Spy_Satellite_Uplink_animation.gif",
+      "url": "https://static.wikia.nocookie.net/cnc_gamepedia_en/images/0/08/Spy_Satellite_Uplink_animation.gif/revision/latest?format=original",
+      "sha256": "5058410fbf230c66832c3a4cd8b6536349e8e98295b73ac6a43fe36dab75047c",
+      "bytes": 76508,
+      "width": 186,
+      "height": 102,
+      "frames": 24,
+      "format": "GIF"
+    },
+    "psisensor-col": {
+      "title": "Psychic Sensor animation 1.gif",
+      "kind": "sprite animation",
+      "file": "sprites/library/psisensor-col.gif",
+      "source": "https://cnc.fandom.com/wiki/File:Psychic_Sensor_animation_1.gif",
+      "url": "https://static.wikia.nocookie.net/cnc_gamepedia_en/images/5/51/Psychic_Sensor_animation_1.gif/revision/latest?format=original",
+      "sha256": "2e84b7c73536da11eea6b36ae2af76e8adaa4911cfd29e3b692684551b35c7ca",
+      "bytes": 322924,
+      "width": 264,
+      "height": 208,
+      "frames": 79,
+      "format": "GIF"
+    },
+    "cloningvats-col": {
+      "title": "Soviet Cloning vat animation 2.gif",
+      "kind": "sprite animation",
+      "file": "sprites/library/cloningvats-col.gif",
+      "source": "https://cnc.fandom.com/wiki/File:Soviet_Cloning_vat_animation_2.gif",
+      "url": "https://static.wikia.nocookie.net/cnc_gamepedia_en/images/b/b9/Soviet_Cloning_vat_animation_2.gif/revision/latest?format=original",
+      "sha256": "b88e4507481d1a8ebc9d609ba8dd0326a041fb75e092fb458d0de443467298a3",
+      "bytes": 109202,
+      "width": 214,
+      "height": 174,
+      "frames": 24,
+      "format": "GIF"
+    },
+    "oilderrick-neutral": {
+      "title": "RA2 Tech Oil Derrick.png",
+      "kind": "in-game image",
+      "file": "sprites/library/oilderrick-neutral.png",
+      "source": "https://cnc.fandom.com/wiki/File:RA2_Tech_Oil_Derrick.png",
+      "url": "https://static.wikia.nocookie.net/cnc_gamepedia_en/images/f/f0/RA2_Tech_Oil_Derrick.png/revision/latest?format=original",
+      "sha256": "427e027442165a23ca0d2f21e52ca7c19be90f43aed68d3c55ec5fcde9ece97c",
+      "bytes": 17350,
+      "width": 124,
+      "height": 114,
+      "frames": 1,
+      "format": "PNG"
+    },
+    "hospital-neutral": {
+      "title": "Tech Hospital.png",
+      "kind": "in-game image",
+      "file": "sprites/library/hospital-neutral.png",
+      "source": "https://cnc.fandom.com/wiki/File:Tech_Hospital.png",
+      "url": "https://static.wikia.nocookie.net/cnc_gamepedia_en/images/6/64/Tech_Hospital.png/revision/latest?format=original",
+      "sha256": "51de49390dc0e28dadea9e9dee926ab16aa908f94f4b4c14561cb3644cbca784",
+      "bytes": 64905,
+      "width": 294,
+      "height": 237,
+      "frames": 1,
+      "format": "PNG"
+    },
+    "airport-neutral": {
+      "title": "TechAirport.png",
+      "kind": "in-game image",
+      "file": "sprites/library/airport-neutral.png",
+      "source": "https://cnc.fandom.com/wiki/File:TechAirport.png",
+      "url": "https://static.wikia.nocookie.net/cnc_gamepedia_en/images/2/26/TechAirport.png/revision/latest?format=original",
+      "sha256": "7df58cc75bd30d2dbeb1ff909664e31fb700c15aac5cee2b35fdcd4f30030b32",
+      "bytes": 21763,
+      "width": 207,
+      "height": 191,
+      "frames": 1,
+      "format": "PNG"
+    },
+    "map-lone-guardian": {
+      "title": "RA2A01.jpg",
+      "kind": "original RA2 mission panorama",
+      "file": "sprites/library/map-lone-guardian.jpg",
+      "source": "https://cnc.fandom.com/wiki/File:RA2A01.jpg",
+      "url": "https://static.wikia.nocookie.net/cnc_gamepedia_en/images/9/9a/RA2A01.jpg/revision/latest?format=original",
+      "sha256": "eaafd4d988edb10f9733fcc4f644551af85ec7819fd2eb56476d97899166b0a3",
+      "bytes": 3775668,
+      "width": 2910,
+      "height": 1800,
+      "frames": 1,
+      "format": "JPEG"
+    },
+    "map-eagle-dawn": {
+      "title": "RA2A02.jpg",
+      "kind": "original RA2 mission panorama",
+      "file": "sprites/library/map-eagle-dawn.jpg",
+      "source": "https://cnc.fandom.com/wiki/File:RA2A02.jpg",
+      "url": "https://static.wikia.nocookie.net/cnc_gamepedia_en/images/d/df/RA2A02.jpg/revision/latest?format=original",
+      "sha256": "c3b0486cad89b0cb664c4e0741fc67acf54291f235bbc792c45487d497bfe29f",
+      "bytes": 5541159,
+      "width": 6150,
+      "height": 2220,
+      "frames": 1,
+      "format": "JPEG"
+    },
+    "map-manhattan": {
+      "title": "Manhattan Mayhem.jpg",
+      "kind": "Yuri’s Revenge map render",
+      "file": "sprites/library/map-manhattan.jpg",
+      "source": "https://cnc.fandom.com/wiki/File:Manhattan_Mayhem.jpg",
+      "url": "https://static.wikia.nocookie.net/cnc_gamepedia_en/images/6/6a/Manhattan_Mayhem.jpg/revision/latest?format=original",
+      "sha256": "bd30c5972691950c1b23251c48d3a26dc65db33c6bf5b6a2087e0a13f999db9c",
+      "bytes": 1694500,
+      "width": 4980,
+      "height": 2925,
+      "frames": 1,
+      "format": "JPEG"
+    }
+  }
+}

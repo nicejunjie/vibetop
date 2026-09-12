@@ -46,11 +46,15 @@ way they are — colour policy, proportions, dock face, overlays).
    states, mining animation, hover names…).
 4. **Both factions, always.** A Directorate/Collective pair is two different
    things, not a recolour, unless RA2 itself shares the asset.
-5. **A unit's art is its own file, and `rts.html` is built.** Edit
-   `art/units/<class>/<kind>.js` (or `rts.src.html` for everything else), then
-   `python3 apps/games/rts/tools/rts-build.py` — `run-tests.sh` and the installer
-   run it anyway. `rts.html` is the gitignored, read-only output; the build
-   refuses to overwrite one edited by hand (`art/units/README.md`).
+5. **A unit's art is its own ES module, and nothing is built.** Edit
+   `apps/games/rts/rts/units/<class>/<kind>.js` — one `export function drawX(C)`
+   taking a single context object — or the subsystem module that owns whatever
+   else you are changing (`rts/*.js`, `rts/bake/*.js`, `rts/ui/*.js`). There is
+   no generator and no output file: `rts.html` is tracked HTML+CSS that loads
+   `rts/main.js` as a module, so a saved file is live on the next reload. Play
+   it straight from the repo with
+   `node apps/games/rts/tools/lib/serve-rts.js` and open the URL it prints.
+   The tree's own guide is `apps/games/rts/rts/README.md`.
 
 ## Roadmap
 

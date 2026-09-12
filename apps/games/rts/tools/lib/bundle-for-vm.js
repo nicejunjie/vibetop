@@ -131,6 +131,28 @@ function skipRegex(t, i) {
   return i;
 }
 
+// Strip JS comments, honouring strings, template holes and regex literals.
+//
+// The naive two-regex stripper the source-scanning tests used to carry is not
+// safe on this program: a block-comment opener that lives inside a line comment
+// or a string swallows everything up to the next closer anywhere in the file.
+// It was quietly eating a third of the single-page build and 77% of the module
+// build, which is how a test that "passes" can be scanning half a file.
+function stripComments(text) {
+  let out = '', i = 0, prev = '';
+  while (i < text.length) {
+    const c = text[i], two = text.slice(i, i + 2);
+    if (two === '//') { const j = text.indexOf('\n', i); i = j < 0 ? text.length : j; continue; }
+    if (two === '/*') { const j = text.indexOf('*/', i + 2); i = j < 0 ? text.length : j + 2; continue; }
+    if (c === '"' || c === "'" || c === '`') { const j = skipString(text, i); out += text.slice(i, j); i = j; prev = 'x'; continue; }
+    if (c === '/' && /[=(,:[!&|?{};+\-*%<>~^]/.test(prev)) { const j = skipRegex(text, i); out += text.slice(i, j); i = j; prev = 'x'; continue; }
+    out += c;
+    if (!/\s/.test(c)) prev = c;
+    i++;
+  }
+  return out;
+}
+
 /** Walk the graph from `entry`; returns { order, files, source }. */
 function bundle(entry) {
   entry = path.resolve(entry);
@@ -175,7 +197,7 @@ function bundle(entry) {
 const DEFAULT_ENTRY = path.join(__dirname, '..', '..', 'rts', 'main.js');
 let cached = null;
 module.exports = {
-  bundle, topLevelNames,
+  bundle, topLevelNames, stripComments,
   get source() { return (cached = cached || bundle(DEFAULT_ENTRY)).source; },
   get order() { return (cached = cached || bundle(DEFAULT_ENTRY)).order; },
   get files() { return (cached = cached || bundle(DEFAULT_ENTRY)).files; },

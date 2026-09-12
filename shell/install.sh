@@ -92,13 +92,6 @@ stamp_apphome() {   # $1=src $2=dst
   chmod 644 "$2"
 }
 
-# The RTS page is BUILT: rts.src.html + art/units/** -> rts.html (gitignored,
-# read-only). The walk below then copies the built page like any other; the
-# source page is skipped by name. apps/games/rts/tools/rts-build.py is a no-op
-# when the output is current and refuses to clobber a hand-edited one.
-python3 "$REPO/apps/games/rts/tools/rts-build.py" -q \
-  || { echo "shell/install.sh: rts build failed (see above)" >&2; exit 1; }
-
 # Build src->dst for every deployable file: the special cases above, then a walk
 # of the grouped tree for everything else. Tests, docs and the art pipeline are
 # source-only and never reach the web root.
