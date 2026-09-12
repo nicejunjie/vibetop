@@ -31,18 +31,59 @@
    network failure). Sign-in is a TOP-LEVEL, network-only navigation via vtreauth. */
 (function () {
   if (window.top !== window.self) return;
-  var pending = false, expired = false, lastCheck = -Infinity;
+  var pending = false, expired = false, lastCheck = -Infinity, flushed = false;
+  // A trace of what this guard saw (only the abnormal), kept in localStorage
+  // beside the worker's navigation ring, and posted to /api/clientlog by the
+  // first successful probe of a later load. A phone that went white on an
+  // Access expiry leaves nothing in any server log; this is the one witness.
+  var TRACE = 'vt:authtrace';
+  function jot(e) {
+    try {
+      var ring = JSON.parse(localStorage.getItem(TRACE) || '[]');
+      if (!Array.isArray(ring)) ring = [];
+      e.t = Date.now(); ring.push(e);
+      localStorage.setItem(TRACE, JSON.stringify(ring.slice(-40)));
+    } catch (err) {}
+  }
+  try {
+    jot({ k: 'boot', sa: !!(navigator.standalone || (window.matchMedia && matchMedia('(display-mode: standalone)').matches)),
+          hid: !!document.hidden, nav: (window.performance && performance.getEntriesByType && performance.getEntriesByType('navigation')[0] || {}).type || '',
+          sw: !!(navigator.serviceWorker && navigator.serviceWorker.controller) });
+  } catch (err) {}
+  function flush() {
+    if (flushed) return;
+    flushed = true;
+    var guard = [];
+    try { guard = JSON.parse(localStorage.getItem(TRACE) || '[]'); } catch (err) {}
+    var swp = (window.caches && caches.open) ? caches.open('vt-trace').then(function (c) { return c.match('/__vt/swtrace'); })
+      .then(function (r) { return r ? r.json() : []; }).catch(function () { return []; }) : Promise.resolve([]);
+    swp.then(function (sw) {
+      // Only worth a line when something other than this load's boot happened.
+      var quiet = guard.every(function (e) { return e.k === 'boot'; }) &&
+                  sw.every(function (e) { return e.how === 'net' && e.s === 200 && !e.rd; });
+      if (quiet) { try { localStorage.removeItem(TRACE); } catch (err) {} return; }
+      return fetch('/api/clientlog', { method: 'POST', credentials: 'same-origin', cache: 'no-store',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ guard: guard, sw: sw, ua: navigator.userAgent, at: Date.now() }) })
+        .then(function (r) {
+          if (!r.ok) return;
+          try { localStorage.removeItem(TRACE); } catch (err) {}
+          return caches.open('vt-trace').then(function (c) { return c.delete('/__vt/swtrace'); });
+        });
+    }).catch(function () {});
+  }
   function showExpired() {
     if (expired) return;
     expired = true;
     window.vibeAuthExpired = true;
+    jot({ k: 'expired' });
     function show() {
       var dialog = document.getElementById('auth-expired');
       var link = document.getElementById('auth-sign-in');
       link.href = '/?vtreauth=' + Date.now();
       // No automatic reload or sessionStorage latch: a failed sign-in can always
       // be retried, and detecting expiry doesn't discard the loaded apps.
-      link.addEventListener('click', function() { link.href = '/?vtreauth=' + Date.now(); });
+      link.addEventListener('click', function() { link.href = '/?vtreauth=' + Date.now(); jot({ k: 'signin' }); });
       dialog.addEventListener('cancel', function(e) { e.preventDefault(); });
       dialog.showModal();
       link.focus();
@@ -63,9 +104,14 @@
         credentials: 'same-origin', signal: controller.signal });
     }).then(function(r) {
       if (!r) return;
-      if (r.type === 'opaqueredirect' || r.status === 401 || r.status === 403 ||
-          (r.status === 200 && /text\/html/i.test(r.headers.get('Content-Type') || ''))) showExpired();
-    }).catch(function() {
+      var html = r.status === 200 && /text\/html/i.test(r.headers.get('Content-Type') || '');
+      if (r.type === 'opaqueredirect' || r.status === 401 || r.status === 403 || html) {
+        jot({ k: 'probe', ty: r.type, s: r.status, html: html });
+        showExpired();
+      } else if (r.status === 200) flush();
+      else jot({ k: 'probe', ty: r.type, s: r.status });
+    }).catch(function(err) {
+      jot({ k: 'probe', err: String(err && err.name || err) });
       // Offline, a stalled connection, or a server outage is not proof of expiry.
     }).finally(function() {
       clearTimeout(timeout);
