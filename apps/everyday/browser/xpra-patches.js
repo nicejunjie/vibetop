@@ -739,8 +739,18 @@
   //     shell's vibetop:active activation, and a timer-gap watchdog (system
   //     sleep stalls our interval; the gap on resume is the wake signal the
   //     browser never gives us). Throttled — a refresh is a full-screen encode.
+  //
+  //     BUT NOT ON EVERY SWITCH. A server refresh is a full-screen encode and
+  //     it SHOWS: the user (2026-09-11) — "every time I click another window
+  //     and click back, the browser flashes, very annoying". A canvas that was
+  //     off screen for a few seconds is intact; only a LONG absence loses the
+  //     backing store. So a return after less than LONG_AWAY gets a local
+  //     recomposite (a transform nudge — nothing on the wire, nothing on
+  //     screen), and only a return after a long absence, a pageshow, or the
+  //     watchdog's sleep gap asks the server.
   try {
-    var lastRefresh = 0;
+    var lastRefresh = 0, awayAt = 0;
+    var LONG_AWAY = 30000;
     var forceRepaint = function() {
       var c = window.client;
       if (!c || !c.connected) return;
@@ -749,14 +759,32 @@
       lastRefresh = now;
       try { c.resume(); } catch (e) {}   // per-window resume + buffer-refresh(q100) + redraw
     };
-    document.addEventListener('visibilitychange', function() { if (!document.hidden) forceRepaint(); });
-    window.addEventListener('focus', forceRepaint);
+    var nudge = function() {
+      try {
+        var s = screenElGet(), cs = s ? s.querySelectorAll('canvas') : [];
+        for (var i = 0; i < cs.length; i++) cs[i].style.transform = 'translateZ(0)';
+        requestAnimationFrame(function() { for (var j = 0; j < cs.length; j++) cs[j].style.transform = ''; });
+      } catch (e) {}
+    };
+    var away = function() { if (!awayAt) awayAt = Date.now(); };
+    var back = function() {
+      var gone = awayAt ? Date.now() - awayAt : 0;
+      awayAt = 0;
+      if (gone >= LONG_AWAY) forceRepaint(); else nudge();
+    };
+    window.__xpraWake = { back: back, away: away, LONG_AWAY: LONG_AWAY, forceRepaint: forceRepaint };   // test hook
+    document.addEventListener('visibilitychange', function() { if (document.hidden) away(); else back(); });
+    window.addEventListener('blur', away);
+    window.addEventListener('focus', back);
     window.addEventListener('pageshow', forceRepaint);
     // Shell activation (Browser AND /x11-display/, which this file is also
-    // injected into — any vibetop:active posted to THIS frame means it was
-    // just un-hidden). Deferred a tick: the iframe was display:none until now.
+    // injected into): our own id means we are on screen again; another app's
+    // id means we just went behind it. Deferred a tick on the way back: the
+    // iframe was display:none until now.
+    var MINE = { browser: 1, x11launcher: 1, x11: 1 };
     window.addEventListener('message', function(e) {
-      if (e.data && e.data.type === 'vibetop:active') setTimeout(forceRepaint, 50);
+      if (!e.data || e.data.type !== 'vibetop:active') return;
+      if (MINE[e.data.active]) setTimeout(back, 50); else away();
     });
     var lastTick = Date.now();
     setInterval(function() {
