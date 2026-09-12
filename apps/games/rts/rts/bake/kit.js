@@ -229,7 +229,7 @@ function outline(g, col) { g.strokeStyle = col; g.lineWidth = 1; g.stroke(); }
 // of each other.
 var TROOP = {
   rifle:     { coat: '#4f6136', boot: '#22242a', skin: '#d8a878' },  // olive fatigues
-  conscript: { coat: '#8f6c42', boot: '#1e2026', skin: '#d8a878' },  // TAN trousers (>=20 hue-deg off the GI's olive: ref §2.2)
+  conscript: { coat: '#a8865c', boot: '#1e2026', skin: '#d8a878' },  // TAN trousers (>=20 hue-deg off the GI's olive: ref §2.2)
   rocket:    { coat: '#49512f', boot: '#22242a', skin: '#d8a878' },  // Guardian GI: heavy olive
   rocketS:   { coat: '#575049', boot: '#22242a', skin: '#d8a878' },  // Flak Trooper: grey-brown
   engineer:  { coat: '#e9e5d6', boot: '#6d6653', skin: '#d8a878' },  // NEAR-WHITE hazmat coverall — the only light-value body on the field (ref §2.1). The boot stays DARK on purpose: it is worth 0.005 of the value gate, and a near-white figure needs one dark note at the ground or he floats
