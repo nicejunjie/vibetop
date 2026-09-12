@@ -118,9 +118,18 @@
     }
   }
   function setZoom(z) { zoom = Math.max(1, Math.min(6, z)); applyZoom(); }
+  // Zoom to `z` keeping the image point under (cx, cy) where it is, so the
+  // wheel zooms into what the cursor is on rather than the picture's centre.
+  function zoomAt(z, cx, cy) {
+    z = Math.max(1, Math.min(6, z));
+    var r = stage.getBoundingClientRect(), ox = cx - (r.left + r.width / 2), oy = cy - (r.top + r.height / 2);
+    var ux = (ox - panX) / zoom, uy = (oy - panY) / zoom;
+    zoom = z; panX = ox - z * ux; panY = oy - z * uy;
+    applyZoom();
+  }
   stage.addEventListener('wheel', function(e) {
     e.preventDefault();
-    setZoom(zoom * (e.deltaY < 0 ? 1.2 : 1 / 1.2));
+    zoomAt(zoom * (e.deltaY < 0 ? 1.2 : 1 / 1.2), e.clientX, e.clientY);
   }, { passive: false });
 
   var lastTapT = 0, lastTapX = 0, lastTapY = 0;
