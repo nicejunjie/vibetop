@@ -38,3 +38,8 @@ tests/matrix/logs/
 tests/matrix/.vagrant-*/
 logs/*.result
 apps/games/rts/art/out/
+
+# dev-only AST tool for the RTS module split (acorn); never deployed
+apps/games/rts/tools/modularize/node_modules/
+apps/games/rts/tools/modularize/package-lock.json
+!apps/games/rts/tools/modularize/sections.json

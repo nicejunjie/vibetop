@@ -1,0 +1,70 @@
+{
+  "_doc": [
+    "The module map for splitting rts.src.html's inline IIFE into ES modules (docs/plans/rts-modular.md).",
+    "Each section is anchored by the exact TEXT of the first top-level statement line it starts with",
+    "(2-space indent, as in the page), not by a line number, so edits above it do not shift it.",
+    "A top-level statement belongs to the last section whose anchor precedes it; the comment lines",
+    "immediately above a statement travel with that statement. `ranges` may list several anchors",
+    "(world = constants + the iso projection block). `moves` re-homes single declarations by name."
+  ],
+  "sections": [
+    { "file": "opts.js",             "anchors": ["  var STEP = 1000 / 60;"] },
+    { "file": "world.js",            "anchors": ["  var TW = 64, TH = 32;", "  function worldX(gx, gy) {"] },
+    { "file": "rng.js",              "anchors": ["  var _seed = 1;"] },
+    { "file": "combat-tables.js",    "anchors": ["  var ARMOURS = ["] },
+    { "file": "roster.js",           "anchors": ["  var UNITS = {", "  var IFV_TUR_ROCKET = 0"] },
+    { "file": "blds.js",             "anchors": ["  var BLDS = {"] },
+    { "file": "geom.js",             "anchors": ["  function isAir(e) {"] },
+    { "file": "factions.js",         "anchors": ["  var FACTIONS = {"] },
+    { "file": "supers.js",           "anchors": ["  var SW = {"] },
+    { "file": "state.js",            "anchors": ["  var G = null;"] },
+    { "file": "mapgen.js",           "anchors": ["  var MAPS = {"] },
+    { "file": "bake/terrain.js",     "anchors": ["  var SPR = {};"] },
+    { "file": "bake/kit.js",         "anchors": ["  var ISO_X = TW / 2 / Math.hypot(TW / 2, TH / 2);"] },
+    { "file": "bake/infantry.js",    "anchors": ["  function bakeInfantry(col, kind, fac, phase, dir, state) {"] },
+    { "file": "bake/ships.js",       "anchors": ["  function bakeShip(col, kind, fac) {"] },
+    { "file": "bake/vehicles.js",    "anchors": ["  function bakeVehicle(col, kind, fac, anim) {"] },
+    { "file": "bake/buildings.js",   "anchors": ["  function bakeBuilding(key, col, fac, bph, bdir, dopen) {"] },
+    { "file": "bake/walls.js",       "anchors": ["  function gproj(gx, gy) {"] },
+    { "file": "bake/civ.js",         "anchors": ["  function hiT(t) {", "  function neutCanvas(gw, gh, head) {"] },
+    { "file": "bake/states.js",      "anchors": ["  function lcg(seed) {"] },
+    { "file": "bake/bake.js",        "anchors": ["  function bakeAll() {"] },
+    { "file": "entities.js",         "anchors": ["  function spawnUnit(g, type, p, gx, gy) {"] },
+    { "file": "path.js",             "anchors": ["  function gateOpen(g, i) {"] },
+    { "file": "combat.js",           "anchors": ["  var CELL = 6;", "  function swNear(g, x, y, r, fn) {"] },
+    { "file": "transport.js",        "anchors": ["  function spawnStock(u) {"] },
+    { "file": "ore.js",              "anchors": ["  var NOGO_TTL = 60 * 25;"] },
+    { "file": "special.js",          "anchors": ["  var PARASITE_DMG = 50, PARASITE_ROF = 240;"] },
+    { "file": "move.js",             "anchors": ["  function crusher(u) {", "  function stepUnit(g, u) {"] },
+    { "file": "neutral.js",          "anchors": ["  var OCCUPIER = { rifle: 1, conscript: 1 };"] },
+    { "file": "production.js",       "anchors": ["  function canBuild(g, p, key, isBld) {"] },
+    { "file": "ai.js",               "anchors": ["  var DIFF = {"] },
+    { "file": "shroud.js",           "anchors": ["  function revealFor(g, p) {"] },
+    { "file": "net.js",              "anchors": ["  var SP_DELAY = 2, MP_DELAY = 4;"] },
+    { "file": "watch.js",            "anchors": ["  function techCount(g, p) {"] },
+    { "file": "ui/screen.js",        "anchors": ["  var cv = document.getElementById('cv');"] },
+    { "file": "ui/save.js",          "anchors": ["  var SAVE_SLOTS = 3, SAVE_VER = 1;"] },
+    { "file": "ui/audio.js",         "anchors": ["  var AC = null, master = null, BUS = null;"] },
+    { "file": "ui/hud.js",           "anchors": ["  var vCred = document.getElementById('vCred');"] },
+    { "file": "ui/panel.js",         "anchors": ["  var plist = document.getElementById('plist');"] },
+    { "file": "ui/cursors.js",       "anchors": ["  var CUR_SZ = 32;"] },
+    { "file": "ui/input.js",         "anchors": ["  var keys = {};"] },
+    { "file": "ui/render.js",        "anchors": ["  var VX0 = 0, VY0 = 0, VX1 = 800, VY1 = 600;"] },
+    { "file": "ui/minimap.js",       "anchors": ["  var MM_PX = 184;"] },
+    { "file": "ui/menus.js",         "anchors": ["  var ov = document.getElementById('ov'), ovIc = document.getElementById('ovIc')"] },
+    { "file": "ui/loop.js",          "anchors": ["  var last = 0, acc = 0, hudT = 0, stallT = 0;"] },
+    { "file": "hooks.js",            "anchors": ["  window.__rts = function () {"] },
+    { "file": "main.js",             "anchors": ["  difficulty = lsGet('vibetop:rts:diff') || 'normal';"] }
+  ],
+  "moves": {
+    "DIFF": "state.js"
+  },
+  "units": {
+    "_doc": "Unit-art modules: art/units/<class>/<kind>.js -> rts/units/<class>/<kind>.js, each exporting one function. Whole-function files export the bake function itself.",
+    "wholeFunction": {
+      "infantry/dog": "bakeDog",
+      "structures/wall": "bakeWallSeg",
+      "structures/gate": "bakeGateSeg"
+    }
+  }
+}
