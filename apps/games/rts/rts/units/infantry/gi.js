@@ -66,7 +66,7 @@ g.fillStyle = shade(T.coat, 1.02);                            // olive forearms 
 g.beginPath(); g.roundRect(cx - 4.5, by - 12.4, 3.4, 2.1, 1.0); g.fill();
 g.beginPath(); g.roundRect(cx + 1.4, by - 14.0, 3.0, 2.0, 1.0); g.fill();
 outline(g, shade(T.coat, 0.5));
-carbine(cx - 5.2, by - 11.0 + gt.sw * 0.4, cx + 7.2, by - 15.6 - gt.sw * 0.4, 1.9);
+carbine(cx - 3.4, by - 11.0 + gt.sw * 0.4, cx + 5.0, by - 15.6 - gt.sw * 0.4, 1.9);
 face(by - 21.7);
 helmet(by - 23.5, 3.15, ACCENT.rifle, 0.95, 0.72);               // grey pot, NOT house colour
 g.restore();

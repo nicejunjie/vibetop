@@ -43,10 +43,47 @@ const REFS = {
   teslatank:   { file: 'soviet-tesla-tank-sheet.png', fac: 'col', name: 'Tesla Tank' },
   prismtank:   { file: 'allied-prism-tank.png', fac: 'dir', name: 'Prism Tank' },
   mcv:         { file: 'allied-mcv.png', extra: 'allied-mcv-voxel.webp', fac: 'dir', name: 'MCV' },
+  apc:         { file: 'library/apc.jpg', extra: 'library/apc-voxel.jpg', fac: 'dir', name: 'Amphibious Transport' },
+
+  // ---- infantry -------------------------------------------------------- //
+  // The rips are the wiki's animation GIFs: one walk cycle at the SHP's own
+  // facings, which is what our lazy facing/state atlas has to match.
+  rifle:        { file: 'library/rifle.gif', fac: 'dir', name: 'GI' },
+  rocket:       { file: 'library/rocket.gif', fac: 'dir', name: 'Guardian GI' },
+  rocketeer:    { file: 'library/rocketeer.gif', fac: 'dir', name: 'Rocketeer' },
+  tanya:        { file: 'library/tanya.gif', fac: 'dir', name: 'Tanya' },
+  cleg:         { file: 'library/cleg.gif', fac: 'dir', name: 'Chrono Legionnaire' },
+  engineer:     { file: 'library/engineer.gif', fac: 'dir', name: 'Engineer' },
+  spy:          { file: 'library/spy.gif', fac: 'dir', name: 'Spy' },
+  dog:          { file: 'library/dog-dir.gif', extra: 'library/dog-dir-field.png', fac: 'dir', name: 'Attack Dog' },
+  conscript:    { file: 'library/conscript.gif', fac: 'col', owner: 1, name: 'Conscript' },
+  flak:         { file: 'library/flak.gif', fac: 'col', owner: 1, name: 'Flak Trooper' },
+  teslatrooper: { file: 'library/teslatrooper.gif', fac: 'col', owner: 1, name: 'Tesla Trooper' },
+  desolator:    { file: 'library/desolator.gif', fac: 'col', owner: 1, name: 'Desolator' },
+  ivan:         { file: 'library/ivan.gif', fac: 'col', owner: 1, name: 'Crazy Ivan' },
+  yuri:         { file: 'library/yuri.png', fac: 'col', owner: 1, name: 'Yuri' },
+
+  // ---- aircraft -------------------------------------------------------- //
+  harrier:      { file: 'library/harrier.png', extra: 'library/harrier-voxel.jpg', fac: 'dir', name: 'Harrier' },
+  hornet:       { file: 'library/hornet.jpg', extra: 'library/hornet-voxel.jpg', fac: 'dir', name: 'Hornet' },
+  nighthawk:    { file: 'library/nighthawk.png', extra: 'library/nighthawk-voxel.jpg', fac: 'dir', name: 'Nighthawk' },
+  kirov:        { file: 'library/kirov.png', extra: 'library/kirov-voxel.jpg', fac: 'col', owner: 1, name: 'Kirov Airship' },
+
+  // ---- naval ----------------------------------------------------------- //
+  destroyer:    { file: 'library/destroyer.png', extra: 'library/destroyer-voxel.jpg', fac: 'dir', name: 'Destroyer' },
+  aegis:        { file: 'library/aegis.png', extra: 'library/aegis-voxel.jpg', fac: 'dir', name: 'Aegis Cruiser' },
+  carrier:      { file: 'library/carrier.png', extra: 'library/carrier-voxel.jpg', fac: 'dir', name: 'Aircraft Carrier' },
+  dolphin:      { file: 'library/dolphin.png', fac: 'dir', name: 'Dolphin' },
+  lcraft:       { file: 'library/lcraft.jpg', extra: 'library/lcraft-voxel.jpg', fac: 'dir', name: 'Amphibious Transport' },
+  dread:        { file: 'library/dread.png', extra: 'library/dread-voxel.jpg', fac: 'col', owner: 1, name: 'Dreadnought' },
+  sub:          { file: 'library/sub.png', extra: 'library/sub-voxel.jpg', fac: 'col', owner: 1, name: 'Typhoon Sub' },
+  squid:        { file: 'library/squid.png', fac: 'col', owner: 1, name: 'Giant Squid' },
+  seascorp:     { file: 'library/seascorp.png', extra: 'library/seascorp-voxel.jpg', fac: 'col', owner: 1, name: 'Sea Scorpion' },
 };
 
 function mimeOf(buf) {
   if (buf.subarray(0, 4).toString('ascii') === 'RIFF') return 'image/webp';
+  if (buf.subarray(0, 3).toString('ascii') === 'GIF') return 'image/gif';
   if (buf.subarray(0, 2).equals(Buffer.from([0xff, 0xd8]))) return 'image/jpeg';
   return 'image/png';
 }
