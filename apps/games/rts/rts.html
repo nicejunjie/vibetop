@@ -11954,14 +11954,36 @@
         var cmin = Math.min.apply(null, cr), cspan = Math.max.apply(null, cr) - cmin || 1;
         var NAVY = 'rgb(' + cr.map(function (v) { return Math.round(16 + 116 * Math.pow((v - cmin) / cspan, 3)); }).join(',') + ')';
         // The hull is a desaturated tint of the owner colour — RA2's Allied MCV
-        // wears a periwinkle/slate body, not a fixed grey. Blue reads slate-blue,
-        // red reads dusty rose, green reads sage, and so on: the house hue stays,
-        // the saturation drops, so the saturated owner panel (NAVY) still leads
-        // the eye. The base (118) is a MEDIUM slate — the reference hull is a
-        // mid-value blue-slate, not a bright grey — and the span (50) keeps the
-        // house channel clearly dominant so the hull reads as a tinted metal,
-        // never a neutral grey.
-        var BODY = 'rgb(' + cr.map(function (v) { return Math.round(118 + 50 * Math.pow((v - cmin) / cspan, 2.1)); }).join(',') + ')';
+        // wears a periwinkle/slate body, not a fixed grey. The reference hull is
+        // a NEUTRAL periwinkle (R≈G<B, hue 240°), not a desaturated copy of the
+        // owner's exact hue: Blue's blue-cyan (203°) would read green-cast, so the
+        // hull takes the owner's hue at low saturation (13%) and mid lightness
+        // (53%), with Blue's hue nudged to pure blue (240°) to match the reference.
+        // Red reads dusty rose, green reads sage, and so on — the house hue stays,
+        // the saturation drops, so the saturated owner panel (NAVY) still leads the eye.
+        var hullHue = (function (r, g, b) {
+          var mx = Math.max(r, g, b), mn = Math.min(r, g, b);
+          if (mx === mn) return 0;
+          var d = mx - mn, h;
+          if (mx === r) h = ((g - b) / d + 6) % 6;
+          else if (mx === g) h = (b - r) / d + 2;
+          else h = (r - g) / d + 4;
+          h *= 60;
+          if (h >= 200 && h <= 215) h = 240;   // Blue's blue-cyan → neutral periwinkle
+          return h;
+        })(cr[0], cr[1], cr[2]);
+        var BODY = (function (h, s, l) {
+          s /= 100; l /= 100;
+          var c = (1 - Math.abs(2 * l - 1)) * s, x = c * (1 - Math.abs((h / 60) % 2 - 1)), m = l - c / 2;
+          var r, g, b;
+          if (h < 60) { r = c; g = x; b = 0; }
+          else if (h < 120) { r = x; g = c; b = 0; }
+          else if (h < 180) { r = 0; g = c; b = x; }
+          else if (h < 240) { r = 0; g = x; b = c; }
+          else if (h < 300) { r = x; g = 0; b = c; }
+          else { r = c; g = 0; b = x; }
+          return 'rgb(' + Math.round((r + m) * 255) + ',' + Math.round((g + m) * 255) + ',' + Math.round((b + m) * 255) + ')';
+        })(hullHue, 13, 53);
         var PAINT = '#86849c', RAIL = '#71788b', STEEL = '#aab3b9', LIGHT = '#dfe5df';
         var DARK = '#333d49', RUBBER = '#232629', GLASS = '#111b22';
         function surface(pts, color, center, unlit) {
@@ -12177,7 +12199,7 @@
         }
 
         // The folded construction yard, front to rear: a broad navy folded
-        // channel (the dominant mass), a greenish tarp band, a light container
+        // channel (the dominant mass), a slate tarp band, a light container
         // box, and a ribbed drum at the very rear — the full deployable plant.
         bevel(-10.6,8.6,-6.1,6.1,10.2,11.6,0.5,STEEL);
         // The navy folded channel: two broad channels with a dark seam, the
@@ -12187,9 +12209,12 @@
           box(1.4,7.8,side*2.9-2.1,side*2.9+2.1,16.6,16.85,shade(NAVY,1.45));
         }
         box(1.6,7.6,-0.6,0.6,11.6,16.4,'#152439');
-        // A greenish tarp band folds across the middle of the load.
-        box(-4.2,1.2,-5.4,5.4,11.4,15.2,'#5c6b4a');
-        box(-4.0,1.0,-5.2,5.2,15.2,15.45,shade('#5c6b4a',1.35));
+        // A slate tarp band folds across the middle of the load — a desaturated
+        // blue-grey that sits between the saturated navy channel and the light box.
+        // Neutral periwinkle (R=G) to match the reference hull; a green-cast
+        // (G>R) here read as a separate paint and broke the periwinkle read.
+        box(-4.2,1.2,-5.4,5.4,11.4,15.2,'#69697d');
+        box(-4.0,1.0,-5.2,5.2,15.2,15.45,shade('#69697d',1.35));
         // A light container box sits toward the rear of the channel.
         box(-8.6,-4.4,-4.6,4.6,11.4,16.2,LIGHT);
         box(-8.4,-4.6,-4.4,4.4,16.2,16.45,shade(LIGHT,1.1));
