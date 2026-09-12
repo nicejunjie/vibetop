@@ -139,8 +139,8 @@ for (const [name, engine, options] of [
 
     await signIn.click();
     await expect(page.getByRole('heading', { name: 'Cloudflare sign-in stand-in' })).toBeVisible();
-    assert.ok(host.requests.some(r => r.pathname === '/' && r.search.includes('vtreauth=')),
-      'the sign-in link must reach the network despite a cached shell');
+    assert.ok(host.requests.some(r => r.pathname === '/reauth.html'),
+      'the sign-in link must reach the network, on the hop the worker never answers');
     assert.equal(page.frames().length, 1, 'sign-in must replace the top-level page');
     await page.getByRole('link', { name: 'Sign in', exact: true }).click();
     await expect(page.locator('#start-btn')).toBeVisible();
@@ -162,6 +162,15 @@ for (const [name, engine, options] of [
     await page.getByRole('link', { name: 'Sign in', exact: true }).click();
     await expect(page.locator('#start-btn')).toBeVisible();
     await expect.poll(posted).toBe(2);                   // the second expiry's witness
+    // A cold load whose navigation Access redirects: the worker hands the
+    // browser to /reauth.html and the browser follows the login redirect
+    // itself, so the login page shows — not a white page.
+    host.mode = 'expired';
+    await page.goto(host.origin + '/');
+    await expect(page.getByRole('heading', { name: 'Cloudflare sign-in stand-in' })).toBeVisible();
+    assert.ok(host.requests.some(r => r.pathname === '/reauth.html'), 'the redirect hop went through /reauth.html');
+    await page.getByRole('link', { name: 'Sign in', exact: true }).click();
+    await expect(page.locator('#start-btn')).toBeVisible();
     // A sign-in navigation the network cannot answer is a page with a way
     // forward, never the browser's blank error page.
     host.mode = 'down';

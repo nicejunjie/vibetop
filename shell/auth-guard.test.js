@@ -71,7 +71,7 @@ test('a session expiring AFTER a healthy load shows one actionable prompt', asyn
   assert.equal(h.dialog.shown, 1);
   assert.equal(h.window.vibeAuthExpired, true);
   assert.equal(h.link.focused, true);
-  assert.equal(h.link.href, '/?vtreauth=30000');
+  assert.equal(h.link.href, '/reauth.html?vt=30000');
   h.advance(30000);
   h.intervals[0].fn();
   h.emit('window', 'focus');
@@ -79,7 +79,7 @@ test('a session expiring AFTER a healthy load shows one actionable prompt', asyn
   assert.equal(h.dialog.shown, 1);
   assert.equal(h.calls.length, 2);
   h.emit('link', 'click');
-  assert.equal(h.link.href, '/?vtreauth=60000', 'explicit retries get a fresh network URL');
+  assert.equal(h.link.href, '/reauth.html?vt=60000', 'explicit retries get a fresh network URL');
   let prevented = false;
   h.emit('dialog', 'cancel', { preventDefault() { prevented = true; } });
   assert.equal(prevented, true, 'Escape must not hide the only recovery action');

@@ -1,0 +1,14 @@
+<!doctype html>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Vibetop</title>
+<!-- The sign-in hop. This page is NEVER answered by the service worker
+     (sw.js BYPASS), so a browser that loads it makes a native navigation and
+     Cloudflare Access's redirect to its login page is followed by the browser
+     itself — an installed iOS web app went white when the worker relayed
+     that redirect (2026-09-11). Once this page loads, the session is good,
+     and it moves on to the desktop through the worker's network-only route. -->
+<meta http-equiv="refresh" content="1;url=/?vtreauth=1">
+<style>html{background:#0e1117;color:#aab4c5;font:15px system-ui,sans-serif}body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center}</style>
+<p>Signing in…</p>
+<script>location.replace('/?vtreauth=' + Date.now());</script>

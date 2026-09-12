@@ -292,7 +292,9 @@ def test_doctor_proxied_prefixes_cover_the_sw_bypass_list():
     assert m, "could not find PROXIED_RE in tools/doctor.sh"
     doc_prefixes = prefixes(m.group(1))
 
-    served_from_disk = {"services.json"}
+    # reauth.html is the sign-in hop: bypassed by sw.js so the browser follows
+    # Cloudflare's redirect natively, but a real file in the web root.
+    served_from_disk = {"services.json", "reauth.html"}
     missing = sw_prefixes - doc_prefixes - served_from_disk
     assert not missing, (
         "tools/doctor.sh PROXIED_RE is missing proxied prefixes that sw.js "
