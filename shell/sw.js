@@ -101,7 +101,7 @@ const SHELL_PAGES = new Set(PRECACHE.filter((p) => p === '/' || p.endsWith('.htm
 // /filesx.html, both ordinary cacheable shell pages served from the web root.
 // `reauth.html` is the sign-in hop: a navigation the worker must never answer,
 // so the browser itself follows Cloudflare Access's redirect (see below).
-const BYPASS = /^\/(api|browser|x11-display|office|onlyoffice|t\d|terminals|fileview|services\.json|cdn-cgi|reauth\.html)/;
+const BYPASS = /^\/(api|browser|x11-display|office|onlyoffice|t\d|terminals|fileview|services\.json|cdn-cgi|reauth\.html|rts\/)/;
 
 self.addEventListener('install', (e) => {
   e.waitUntil((async () => {
