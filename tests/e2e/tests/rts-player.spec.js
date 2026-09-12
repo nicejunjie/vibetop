@@ -215,3 +215,29 @@ test('a structure lands exactly on the green ghost, and a green cursor is never 
   }
   expect(placed).toBe(1);
 });
+
+// Touch (a tablet): a tap is the left click, own-target rule included — on a
+// tablet no troop could board an IFV and no miner could dock (touch audit).
+test.describe('touch', () => {
+  test.use({ hasTouch: true });
+  test('a tap on an own IFV with a GI selected puts the GI aboard; a two-finger tap deselects', async ({ page }) => {
+    await startMatch(page);
+    const s = await stage(page, [['ifv', 'ifv', 0, 0, 0], ['gi', 'rifle', 0, 0, 2]]);
+    const g = await screenOf(page, s.gi.x, s.gi.y);
+    await page.touchscreen.tap(g.x, g.y); await page.waitForTimeout(250);
+    expect(await selected(page)).toEqual(['rifle']);
+    const v = await screenOf(page, s.ifv.x, s.ifv.y);
+    await page.touchscreen.tap(v.x, v.y); await page.waitForTimeout(3000);
+    expect(await page.evaluate((id) => (window.__rtsTest.saveBlob().g.units.find((u) => u.id === id).pax || []).length, s.ifv.id)).toBe(1);
+    // a long, still press is still a tap (it used to do nothing past 400 ms)
+    const t = await stage(page, [['t', 'lancer', 0, 3, 3]]);
+    const tp = await screenOf(page, t.t.x, t.t.y);
+    await page.evaluate(([x, y]) => {
+      const cv = document.getElementById('cv');
+      const ev = (type, extra) => cv.dispatchEvent(new PointerEvent(type, Object.assign({ bubbles: true, cancelable: true, pointerType: 'touch', pointerId: 7, isPrimary: true, clientX: x, clientY: y, button: 0, buttons: 1 }, extra || {})));
+      ev('pointerdown'); return new Promise((r) => setTimeout(() => { ev('pointerup', { buttons: 0 }); r(); }, 700));
+    }, [tp.x, tp.y]);
+    await page.waitForTimeout(250);
+    expect(await selected(page)).toEqual(['lancer']);
+  });
+});
