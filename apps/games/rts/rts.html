@@ -32882,6 +32882,9 @@
     var mine = sel.filter(function (u) { return u.kind === 'u' && u.p === ME && !u.dead; });
     var own = sel.some(function (u) { return u.p === ME && !u.dead; });
     if (cmdMode === 'amove' && own) { rightOrder(px, py, shift, ctrl); return; }   // the mode decides, not what is under the click
+    // Sell / repair / power / follow: the click is the mode's, never an order —
+    // a tap on the ground in Sell mode used to march the selection there.
+    if (cmdMode) { clickSelect(px, py, shift); return; }
     if (e && e.p === ME && !(ctrl && own) && !(!shift && ownTargetOrder(e, mine))) { clickSelect(px, py, shift); return; }
     if (own) { rightOrder(px, py, shift, ctrl); return; }
     clickSelect(px, py, shift);

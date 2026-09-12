@@ -1560,6 +1560,7 @@
       }
       if (!d || !d.ok) { renderError(d || {}); return; }
       entries = d.entries || [];
+      listSig = sigOf(entries);
       lastGood = p;
       renderList();
       if (d.truncated) {
@@ -1573,6 +1574,40 @@
     });
   }
   function refresh() { if (path) load(path, true); }
+
+  // ---- auto-refresh while in front (user, 2026-09-11) ----
+  // The listing follows the disk while Files is the app on screen: every
+  // POLL_MS it re-lists the folder and re-renders only when something changed
+  // (names, sizes, times), keeping scroll and selection. Behind another app or
+  // in a hidden tab it stops; coming back to the front refreshes once at once.
+  // Never while the user is mid-gesture: a rename box, a drag, a modal, an
+  // open editor or preview, an upload, a search.
+  var POLL_MS = 4000, inFront = !document.hidden, listSig = null;
+  function sigOf(list) {
+    return list.map(function(e) { return e.name + '\u0001' + e.size + '\u0001' + e.mtime + '\u0001' + (e.isDir ? 1 : 0); }).join('\n');
+  }
+  function pollQuiet() {
+    return inFront && !!path && !searchActive && !uploading && !modalOpen && !drag && !dragCand &&
+           !mainEl.querySelector('input.edit') && !edEl.classList.contains('open') && !qlIsOpen() &&
+           !pvEl.classList.contains('open') && !pdfovEl.classList.contains('open');
+  }
+  function pollOnce() {
+    if (!pollQuiet()) return;
+    var p = path, my = seq;
+    api('/api/fs/list?path=' + encodeURIComponent(p)).then(function(d) {
+      if (seq !== my || path !== p || !d || !d.ok || !pollQuiet()) return;
+      if (sigOf(d.entries || []) !== listSig) load(p, true);
+    }).catch(function() {});
+  }
+  function setFront(on) {
+    var was = inFront; inFront = on;
+    if (on && !was) pollOnce();                     // back in front: catch up now
+  }
+  setInterval(pollOnce, POLL_MS);
+  document.addEventListener('visibilitychange', function() { setFront(!document.hidden); });
+  window.addEventListener('message', function(e) {
+    if (e.data && e.data.type === 'vibetop:active') setFront(e.data.active === 'files' && !document.hidden);
+  });
 
   // Navigate = update the hash (so browser back/forward walk the folder trail).
   // Back/Forward state: hash navigation gives us history entries, but nothing

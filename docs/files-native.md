@@ -86,7 +86,10 @@ Listing with real image thumbnails; List / Grid / Gallery layouts (persisted);
 clickable sortable column headers plus a Sort menu; hidden-files toggle;
 symlink markers. Navigation: a home button, the full clickable breadcrumb, an
 editable path (accepting `~`, relative and `..`), Back/Forward, copy-path, and
-`Backspace` to go up, the arrow keys (a whole line at a time in Grid/Gallery),
+`Backspace` to go up. The listing auto-refreshes every few seconds while Files is
+the app on screen (re-rendering only when something changed), stops behind
+another app or in a hidden tab, and catches up the moment it is back. Also the
+arrow keys (a whole line at a time in Grid/Gallery),
 and Finder's spacebar: `Space` Quick-Looks the selection in a panel that the
 arrows keep walking. Selection: click / ctrl / shift on a mouse, tap-to-select
 plus a Select mode on touch, Select all. Verbs: Open, Get Info (with volume

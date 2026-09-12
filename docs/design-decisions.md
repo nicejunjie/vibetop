@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_283 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_284 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
 - [Scheduled terminal messages ("resume when the token limit resets")](#scheduled-terminal-messages-resume-when-the-token-limit-resets)
@@ -306,6 +306,7 @@ _283 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [RTS session audit (2026-09-11): the modal that was not, the keyboard the shell dropped, and the state a save forgot](#rts-session-audit-2026-09-11-the-modal-that-was-not-the-keyboard-the-shell-dropped-and-the-state-a-save-forgot)
 - [Browser: it flashed on every switch back — the wake repaint asked the server every time (2026-09-11)](#browser-it-flashed-on-every-switch-back-the-wake-repaint-asked-the-server-every-time-2026-09-11)
 - [RTS touch audit (2026-09-11): a tap that was not a click, and a bar with no finger in mind](#rts-touch-audit-2026-09-11-a-tap-that-was-not-a-click-and-a-bar-with-no-finger-in-mind)
+- [Files: the listing follows the disk while the app is in front (2026-09-11)](#files-the-listing-follows-the-disk-while-the-app-is-in-front-2026-09-11)
 
 <!-- END TOC -->
 
@@ -12648,4 +12649,24 @@ press selects.
 
 **Left as designed.** An accidental second finger deselects (the two-finger
 tap IS the right button); box-select stays mouse-only, as RA2 on glass
-would be.
+would be. The minimap ignores touch until a Radar stands, as it ignores the
+mouse — the audit's scene had none.
+
+**Found on re-verification.** In Sell / Repair / Power / Follow mode a tap or
+click on the ground marched the selection there: `leftClick` reached
+`rightOrder` before `clickSelect`'s mode branch. A command mode now owns
+the click outright.
+
+## Files: the listing follows the disk while the app is in front (2026-09-11)
+
+**Ask.** (user) "let the Files app auto refresh when in the front. No refresh
+when minimized, but it should refresh once it comes up to the front."
+
+**Fix.** filesx.html polls the folder every 4 s while `inFront`, re-rendering
+only when the listing's signature (names, sizes, times) changed, with scroll
+and selection kept; never mid-gesture (a rename box, a drag, a modal, an open
+editor or preview, an upload, a search). `inFront` follows the tab's
+visibility and the desktop's `vibetop:active`, which the wrapper files.html
+now relays to its engine tabs; coming back to the front polls at once. The
+e2e contract writes a file through the API in front, behind another app, and
+on return, and was seen failing on the build before this.

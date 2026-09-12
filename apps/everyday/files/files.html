@@ -435,6 +435,16 @@
     else if (d.type === 'close-app') closeViewer();
   });
 
+  // The desktop tells THIS frame which app is up (vibetop:active); the engine
+  // tabs inside need it too — the native listing auto-refreshes only while it
+  // is the app on screen, and catches up the moment it comes back.
+  window.addEventListener('message', function(e) {
+    if (e.origin !== location.origin || !e.data || e.data.type !== 'vibetop:active') return;
+    document.querySelectorAll('iframe').forEach(function(f) {
+      if (f !== vFrame && f.contentWindow) { try { f.contentWindow.postMessage(e.data, location.origin); } catch (err) {} }
+    });
+  });
+
   var _lastOpen = { path: null, t: 0 };
   window.addEventListener('message', function(e) {
     if (e.origin !== location.origin) return;

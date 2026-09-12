@@ -302,3 +302,25 @@ test.describe('native Files — layout and thumbnails', () => {
     expect(await selIdx()).toBe('0');
   });
 });
+
+
+// The listing follows the disk while Files is the app on screen, stops behind
+// another app, and catches up the moment it is back (user, 2026-09-11).
+test.describe('native Files — auto-refresh', () => {
+  onDesktop(test);
+  test('a file that appears on disk shows up in front, waits while another app is up, and appears on return', async ({ page }) => {
+    await openFiles(page);
+    const put = (name) => page.evaluate(async ({ dir, name }) => {
+      await fetch('/api/fs/upload?path=' + encodeURIComponent(dir + '/' + name), { method: 'POST', body: 'x\n' });
+    }, { dir: DIR, name });
+    await page.evaluate(() => window.postMessage({ type: 'vibetop:active', active: 'files' }, '*'));
+    await put('auto-front.txt');
+    await expect(rowNamed(page, 'auto-front.txt')).toBeVisible({ timeout: 8000 });     // in front: within a poll
+    await page.evaluate(() => window.postMessage({ type: 'vibetop:active', active: 'notes' }, '*'));
+    await put('auto-behind.txt');
+    await page.waitForTimeout(6000);
+    await expect(rowNamed(page, 'auto-behind.txt')).toHaveCount(0);                     // behind another app: no refresh
+    await page.evaluate(() => window.postMessage({ type: 'vibetop:active', active: 'files' }, '*'));
+    await expect(rowNamed(page, 'auto-behind.txt')).toBeVisible({ timeout: 3000 });     // back in front: caught up at once
+  });
+});
