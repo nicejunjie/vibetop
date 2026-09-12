@@ -55,10 +55,11 @@ async function stage(page, spawns, radius = 5) {
     const ok = new Set([T.TER.GROUND, T.TER.ORE, T.TER.GEM, T.TER.ROAD]);           // passable for ground units
     const ground = (x, y) => x >= 0 && y >= 0 && x < M && y < M && ok.has(g.terrain[y * M + x]);
     const farFromBases = (x, y) => g.start.every((st) => Math.hypot(x - st.x, y - st.y) > 16);
-    const clearAround = (x, y) => { if (!farFromBases(x, y)) return false; for (let dy = -radius; dy <= radius; dy++) for (let dx = -radius; dx <= radius; dx++) if (!ground(x + dx, y + dy)) return false; return true; };
+    const clearAround = (x, y, R) => { if (!farFromBases(x, y)) return false; for (let dy = -R; dy <= R; dy++) for (let dx = -R; dx <= R; dx++) if (!ground(x + dx, y + dy)) return false; return true; };
     let cx = Math.floor(M / 2), cy = Math.floor(M / 2), found = null;
-    for (let r = 0; r < M / 2 && !found; r++) for (let dy = -r; dy <= r && !found; dy++) for (let dx = -r; dx <= r && !found; dx++) if (clearAround(cx + dx, cy + dy)) found = [cx + dx, cy + dy];
-    if (!found) throw new Error('no clear ' + (2 * radius + 1) + 'x' + (2 * radius + 1) + ' area on this map');
+    // The map is random per match: take the largest clear area that exists.
+    for (const R of [radius, radius - 1, radius - 2]) for (let r = 0; r < M / 2 && !found; r++) for (let dy = -r; dy <= r && !found; dy++) for (let dx = -r; dx <= r && !found; dx++) if (clearAround(cx + dx, cy + dy, R)) found = [cx + dx, cy + dy];
+    if (!found) throw new Error('no clear area on this map');
     cx = found[0]; cy = found[1];
     const out = { c: { x: cx, y: cy } };
     for (const [key, type, p, dx, dy] of spawns) { const u = H.spawn(type, p, cx + dx, cy + dy); out[key] = { id: u.id, x: u.x, y: u.y }; }
