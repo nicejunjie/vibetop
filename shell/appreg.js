@@ -89,7 +89,7 @@
     // like the office viewer. Registered here so the taskbar/title can render it.
     video:    { label: 'Video player', icon: '🎬', src: '/video.html', desc: 'Play video files', hidden: true },
     // Native image viewer — opened by Files on an image click (image-view
-    // postMessage), replacing FileBrowser's previewer. Hidden like video.
+    // postMessage), the Files app's own previewer. Hidden like video.
     imageview: { label: 'Images', icon: '🖼', src: '/imageview.html', desc: 'View images', hidden: true },
     // Games — a small classic set (user request), each a self-contained page.
     // They ride every normal app behavior for free (windows, taskbar, dots).

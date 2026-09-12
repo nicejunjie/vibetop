@@ -3,7 +3,7 @@ const { defineConfig, devices } = require('@playwright/test');
 
 // The target is a RUNNING vibetop instance (the disposable Docker instance built
 // by ./docker, or any reachable host). Everything is driven over its real origin,
-// so nginx + the manager + ttyd + FileBrowser are all in the loop.
+// so nginx + the manager + ttyd + the per-user file agent are all in the loop.
 const BASE_URL = process.env.VIBETOP_BASE_URL || 'http://localhost:8080';
 
 module.exports = defineConfig({

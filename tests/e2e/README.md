@@ -10,7 +10,7 @@ tests/e2e/run-vm.sh
 ```
 
 This boots a **real KVM VM** (libvirt/vagrant), deploys the stack inside it
-(`deploy.sh --no-browser --no-office` → nginx + manager + ttyd + FileBrowser),
+(`deploy.sh --no-browser --no-office` → nginx + manager + ttyd),
 mints a session cookie **inside** the VM, runs Playwright against
 `http://localhost:8091` (the VM's forwarded port 80), then destroys the VM.
 
@@ -34,7 +34,7 @@ Flags: `--keep` (leave the VM up), `--up-only`, `-- <playwright args>`
 ## How it works
 
 - **Target = a real instance.** Everything is driven over the instance's real
-  origin, so nginx, the manager, the auth gate, ttyd and FileBrowser are all in the
+  origin, so nginx, the manager, the auth gate and ttyd are all in the
   loop. `deploy.sh` stamps the shell placeholders (`@VERSION@`, `@APP_HOME@`, …) and
   generates the nginx `sub_filter` config — which is exactly why we test against a
   deployed instance and not a hand-served copy (that would diverge).
@@ -84,10 +84,10 @@ Two specs guard the bugs that reached the operator this session — a per-user
 app silently 502ing, and X11 GUI-app launch behavior:
 
 - **`tests/surface-health.spec.js`** — as the logged-in user, every per-user app
-  endpoint (`/`, `/files/`, `/terminals/`, `/t1/`, and, where deployed, `/browser/`
+  endpoint (`/`, `/files.html`, `/terminals/`, `/t1/`, and, where deployed, `/browser/`
   + `/x11-display/`) must actually serve **200 with real content**, not a 502/500.
   This is the guard for the "stale baked-in port" class (a port-scheme change left
-  the xpra + FileBrowser units on their old ports → 502). The core endpoints run on
+  the xpra units on their old ports → 502). The core endpoints run on
   the lean VM; the two xpra endpoints **self-skip** where the browser stack isn't
   deployed.
 - **`tests/x11-lifecycle.spec.js`** — a GUI app launched onto the X11 display must

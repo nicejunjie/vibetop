@@ -168,7 +168,7 @@ def test_resolve_under_home_strips_leading_slash(mgr, home):
 
 def test_resolve_allows_readable_file_outside_home(mgr, home, tmp_path):
     # The NEW behavior: a real, readable file OUTSIDE home resolves (authorize-as-
-    # user), matching the file browser's reach. FileBrowser sends absolute paths.
+    # user), matching the Files app's reach. The app sends absolute paths.
     outside = tmp_path.parent / "clip_outside.docx"
     outside.write_text("x")
     absrel = str(outside).lstrip("/")

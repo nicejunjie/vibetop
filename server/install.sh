@@ -140,9 +140,9 @@ echo
 # ttyd is handled separately from nginx/acl: it is in Ubuntu's `universe` but has
 # NO package in Debian ("E: Package 'ttyd' has no installation candidate"), which
 # meant a distro we document as supported did not install at all. So prefer the
-# distro package and fall back to the pinned upstream static binary — the same
-# pattern apps/everyday/files/install.sh already uses for FileBrowser, and the portable answer
-# for any distro whose repos lack it.
+# distro package and fall back to the pinned upstream static binary — the portable
+# answer for any distro whose repos lack it (the same pattern the Files installer
+# used for the FileBrowser binary, before that app was retired).
 install_ttyd_binary() {
     local arch url sums tmp want got
     case "$(uname -m)" in

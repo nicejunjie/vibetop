@@ -1,20 +1,30 @@
 #!/usr/bin/env bash
-# Install FileBrowser as the Vibetop "Files" app: served at /files/ from
-# 127.0.0.1:8085, rooted at / (the whole filesystem — the user asked to browse
-# "/"; FileBrowser runs as APP_USER so it can only read/write what that user can,
-# same reach as their Terminal), no auth (Cloudflare Access or the LAN boundary is
-# the gate). Idempotent and re-runnable. --dry-run previews.
+# Install the Vibetop "Files" app.
+#
+# The app itself is vibetop's own code and needs no service: `filesx.html` is a
+# static page deployed by shell/install.sh, and every listing/mutation goes
+# through the per-user file agent (`fileagent.py`, launched on demand by the
+# manager straight from the checkout). So this installer only owns the three
+# things around it:
+#
+#   1. ffmpeg        — powers the in-Files video player (optional).
+#   2. the /fileview/ nginx snippet — raw-file serving for "Open in Browser".
+#   3. cleanup       — retire FileBrowser, which used to BE this app (its
+#                      binary, its legacy service, its per-user transient units
+#                      and its /files/ nginx snippet). Idempotent, and a no-op
+#                      on a host that never had it.
+#
+# It also stops any running per-user file agents so new agent code takes effect
+# immediately. Idempotent and re-runnable. --dry-run previews.
 #
 # Run AFTER server/install.sh (which creates the nginx extras dir + include).
 #
 # Configurable via env vars (all optional):
 #   APP_USER         system user that owns the files          (default: invoking user)
 #   APP_DIR          where this script lives                  (default: script dir)
-#   FB_PORT          loopback port FileBrowser binds          (default 8085)
-#   FB_BIN           filebrowser binary path                  (default /usr/local/bin/filebrowser)
-#   INSTALL_DEPS     download the filebrowser binary if absent (default 1)
-#   INSTALL_SYSTEMD  render & enable the systemd unit          (default 1)
-#   INSTALL_NGINX    write the /files/ nginx snippet           (default 1)
+#   INSTALL_DEPS     install ffmpeg if absent                  (default 1)
+#   INSTALL_SYSTEMD  touch systemd units (the FB cleanup)      (default 1)
+#   INSTALL_NGINX    write the /fileview/ nginx snippet        (default 1)
 #   DRY_RUN          print actions without executing           (default 0)
 set -euo pipefail
 
@@ -37,10 +47,6 @@ if ! id "$APP_USER" >/dev/null 2>&1; then
     echo "APP_USER '$APP_USER' does not exist on this system" >&2; exit 1
 fi
 APP_HOME="$(getent passwd "$APP_USER" | cut -d: -f6)"
-FB_PORT="${FB_PORT:-8085}"
-FB_BIN="${FB_BIN:-/usr/local/bin/filebrowser}"
-FB_VERSION="${FB_VERSION:-v2.63.3}"
-FB_DB="$APP_HOME/.config/filebrowser/filebrowser.db"
 NGINX_EXTRAS="/etc/nginx/snippets/vibetop-extras.d"
 INSTALL_DEPS="${INSTALL_DEPS:-1}"
 INSTALL_SYSTEMD="${INSTALL_SYSTEMD:-1}"
@@ -50,17 +56,12 @@ DRY_RUN="${DRY_RUN:-0}"
 for arg in "$@"; do
     case "$arg" in
         --dry-run|-n) DRY_RUN=1 ;;
-        --help|-h) sed -n '2,21p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+        --help|-h) sed -n '2,28p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
         *) echo "unknown flag: $arg" >&2; exit 2 ;;
     esac
 done
 
 run() { if (( DRY_RUN )); then printf '+ %s\n' "$*"; else "$@"; fi; }
-write_root() {
-    local dest="$1"
-    if (( DRY_RUN )); then echo "+ write -> $dest"; sed 's/^/    | /'
-    else sudo tee "$dest" >/dev/null; fi
-}
 # Write an nginx conf from stdin only if it differs; flag a single reload so a
 # no-op deploy doesn't reload nginx (which severs live terminal/Browser sockets).
 NGINX_DIRTY=0
@@ -72,43 +73,18 @@ nginx_write() {
     if (( DRY_RUN )); then echo "+ nginx: would update $dest"; else sudo install -m 0644 "$tmp" "$dest"; fi
     rm -f "$tmp"; return 1
 }
-fb() { run sudo -u "$APP_USER" "$FB_BIN" --database "$FB_DB" "$@"; }
 
 cat <<EOF
-filebrowser install
+files install
   user        : $APP_USER   (home $APP_HOME)
-  port        : 127.0.0.1:$FB_PORT  ->  /files/   (root: /, no auth)
-  binary / db : $FB_BIN  |  $FB_DB
+  app         : filesx.html (static, deployed by shell/install.sh) + fileagent.py
+  nginx       : $NGINX_EXTRAS/fileview.conf   ->  /fileview/
   deps        : $INSTALL_DEPS   systemd: $INSTALL_SYSTEMD   nginx: $INSTALL_NGINX
   dry run     : $DRY_RUN
 EOF
 echo
 
-# 1. Binary ------------------------------------------------------------------
-if (( INSTALL_DEPS )) && ! [ -x "$FB_BIN" ]; then
-    echo "== installing filebrowser $FB_VERSION binary =="
-    if ! command -v curl >/dev/null 2>&1; then
-        run sudo DEBIAN_FRONTEND=noninteractive apt-get update -qq \
-            && run sudo DEBIAN_FRONTEND=noninteractive apt-get install -y curl
-    fi
-    case "$(uname -m)" in
-        x86_64)        fb_arch=amd64 ;;
-        aarch64|arm64) fb_arch=arm64 ;;
-        armv7l)        fb_arch=armv7 ;;
-        i386|i686)     fb_arch=386 ;;
-        riscv64)       fb_arch=riscv64 ;;
-        *) echo "unsupported arch $(uname -m) for filebrowser" >&2; exit 1 ;;
-    esac
-    # The release tarball holds the binary plus docs at its root; extract just it.
-    url="https://github.com/filebrowser/filebrowser/releases/download/${FB_VERSION}/linux-${fb_arch}-filebrowser.tar.gz"
-    run bash -c "curl -fsSL '$url' | sudo tar -xz -C /usr/local/bin filebrowser && sudo chmod 0755 /usr/local/bin/filebrowser"
-fi
-if ! [ -x "$FB_BIN" ] && (( ! DRY_RUN )); then
-    echo "filebrowser binary not found at $FB_BIN (set FB_BIN or INSTALL_DEPS=1)" >&2
-    exit 1
-fi
-
-# 1b. ffmpeg — powers the in-Files video player (probe tracks, remux per audio
+# 1. ffmpeg — powers the in-Files video player (probe tracks, remux per audio
 # track to a browser-playable MP4, extract subtitles to WebVTT). The manager
 # degrades gracefully if it's absent (the player shows "ffmpeg not installed").
 if (( INSTALL_DEPS )) && ! command -v ffprobe >/dev/null 2>&1; then
@@ -127,59 +103,71 @@ if (( INSTALL_DEPS )) && ! command -v ffprobe >/dev/null 2>&1; then
     fi
 fi
 
-# 2. Per-user FileBrowser — NO shared service ------------------------------
-# Multi-user: the manager launches a FileBrowser per logged-in user (as that
-# user, rooted at their home) on demand via systemd-run, each on its own port
-# (see terminal-manager.py `_start_user_filebrowser`). It provisions each user's
-# DB (~/.config/filebrowser/filebrowser.db) on first start. So there is no shared,
-# single-user FileBrowser service anymore — retire any lingering one from an older
-# deploy (its :$FB_PORT / root=/ instance would otherwise keep running as APP_USER).
-echo "== per-user FileBrowser (managed on demand by the manager) =="
-if (( INSTALL_SYSTEMD )); then
+# 2. Retire FileBrowser -----------------------------------------------------
+# FileBrowser WAS this app until the native Files app replaced it. A host that
+# ran it still has: per-user transient units (vibetop-ufiles-<user>.service,
+# started by the manager), possibly the legacy shared unit from a pre-multi-user
+# deploy, the binary this installer downloaded, and the /files/ nginx snippet
+# this installer wrote. All four are removed here — once, and then this section
+# is a no-op every later deploy. USER DATA IS NEVER TOUCHED: each user's
+# ~/.config/filebrowser/filebrowser.db is left exactly where it is (it is
+# theirs, it is tiny, and deleting files in a home directory is not an
+# installer's business).
+echo "== retiring FileBrowser (the app it replaced) =="
+if (( INSTALL_SYSTEMD )) && command -v systemctl >/dev/null 2>&1; then
+    # Per-user transient units, if any are still running.
+    fb_units=$(systemctl list-units --all --plain --no-legend 'vibetop-ufiles-*.service' \
+                 2>/dev/null | awk '{print $1}' || true)
+    if [ -n "$fb_units" ]; then
+        echo "   stopping per-user units: $(echo "$fb_units" | tr '\n' ' ')"
+        # shellcheck disable=SC2086
+        run sudo systemctl stop $fb_units 2>/dev/null || true
+        # shellcheck disable=SC2086
+        run sudo systemctl reset-failed $fb_units 2>/dev/null || true
+    fi
+    # The legacy shared unit from a pre-multi-user deploy.
     run sudo systemctl disable --now vibetop-filebrowser.service 2>/dev/null || true
+    if [ -f /etc/systemd/system/vibetop-filebrowser.service ]; then
+        run sudo rm -f /etc/systemd/system/vibetop-filebrowser.service
+        run sudo systemctl daemon-reload
+    fi
+fi
+# The binary this installer used to download. Only ever ours (/usr/local/bin).
+if [ -e /usr/local/bin/filebrowser ]; then
+    echo "   removing /usr/local/bin/filebrowser"
+    run sudo rm -f /usr/local/bin/filebrowser
+fi
+# The /files/ nginx snippet this installer used to write. It proxies to a
+# per-user port that authcheck no longer returns, so leaving it behind would
+# serve an error page at a URL nothing links to.
+if [ -e "$NGINX_EXTRAS/filebrowser.conf" ]; then
+    echo "   removing $NGINX_EXTRAS/filebrowser.conf"
+    run sudo rm -f "$NGINX_EXTRAS/filebrowser.conf"
+    NGINX_DIRTY=1
 fi
 
-# 4. nginx snippet -----------------------------------------------------------
+# 3. nginx snippet -----------------------------------------------------------
 if (( INSTALL_NGINX )); then
-    echo "== installing /files/ nginx snippet =="
+    echo "== installing /fileview/ nginx snippet =="
     if ! [ -d "$NGINX_EXTRAS" ]; then
         echo "   $NGINX_EXTRAS does not exist — run server/install.sh first" >&2
         exit 1
     fi
-    # Cache-buster for the injected filebrowser-patches.js, derived from its
-    # CONTENT, so editing it always changes the ?v= and busts nginx + the service
-    # worker — no manual bump to forget. The patch JS is a FILE OF THIS APP and
-    # now sits beside this installer; it used to live under landing/ and be
-    # reached with ../, which broke silently when the tree was regrouped.
-    #
-    # Refuse to continue if it is missing. The old `|| echo 0` fallback made that
-    # case invisible AND permanent: ?v=0 is a constant, so every later edit would
-    # have served stale JS forever with nothing reporting it.
-    FB_PATCH_FILE="$APP_DIR/filebrowser-patches.js"
-    if [ ! -f "$FB_PATCH_FILE" ]; then
-        echo "ERROR: $FB_PATCH_FILE missing — refusing to write a constant ?v= cache-buster." >&2
+    nginx_write "$NGINX_EXTRAS/fileview.conf" <"$APP_DIR/nginx/fileview.conf" || NGINX_DIRTY=1
+fi
+if (( NGINX_DIRTY )); then
+    if run sudo nginx -t; then
+        run sudo systemctl reload nginx
+    else
+        echo "ERROR: generated nginx config failed validation — not reloading" >&2
         exit 1
     fi
-    PATCH_VER=$(md5sum "$FB_PATCH_FILE" | cut -c1-10)
-    sed -e "s|@APP_HOME@|$APP_HOME|g" \
-        -e "s|@APP_USER@|$APP_USER|g" \
-        -e "s|@PATCH_VER@|$PATCH_VER|g" \
-        "$APP_DIR/nginx/filebrowser.conf" \
-        | nginx_write "$NGINX_EXTRAS/filebrowser.conf" || NGINX_DIRTY=1
-    if (( NGINX_DIRTY )); then
-        if run sudo nginx -t; then
-            run sudo systemctl reload nginx
-        else
-            echo "ERROR: generated nginx config failed validation — not reloading" >&2
-            exit 1
-        fi
-    else
-        echo "   nginx unchanged — skipping reload"
-    fi
+else
+    echo "   nginx unchanged — skipping reload"
 fi
 
 echo
-echo "done. open http://<host>/files/"
+echo "done. the Files app is served from the web root (/files.html)."
 
 # Files-native: restart any running per-user file agents so a deploy takes
 # effect immediately (they respawn on demand with the new code; without this

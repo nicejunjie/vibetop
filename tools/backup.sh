@@ -23,7 +23,6 @@
 #   .local/share/vibetop-shares.json         public share registry (service account)
 #   .local/share/desktop-notes.md            legacy single note (safety net)
 #   .local/share/desktop-notes/              all notes + index
-#   .config/filebrowser/filebrowser.db       FileBrowser settings/users
 #   .config/vibetop/onlyoffice.secret        legacy home-install JWT secret
 #   Documents/                               office docs created/edited in-app
 #   Uploads/                                 only with --with-uploads (transient bulk)
@@ -37,8 +36,8 @@
 #   /opt/vibetop/etc/*.secret        session + OnlyOffice secrets (system layout)
 #
 # THE ARCHIVE IS SECRET-BEARING. A root run holds the session secret (forging it
-# forges any user's cookie), the OnlyOffice JWT secret, and EVERY user's notes,
-# documents and FileBrowser DB. It is written 0600 into a 0700 BACKUP_DIR, which
+# forges any user's cookie), the OnlyOffice JWT secret, and EVERY user's notes
+# and documents. It is written 0600 into a 0700 BACKUP_DIR, which
 # defaults to the invoking admin's ~/vibetop-backups — point BACKUP_DIR at
 # encrypted storage before shipping these anywhere.
 #
@@ -92,7 +91,6 @@ PATHS=(
     ".local/share/vibetop-shares.json"
     ".local/share/desktop-notes.md"
     ".local/share/desktop-notes"
-    ".config/filebrowser/filebrowser.db"
     ".config/vibetop/onlyoffice.secret"
     "Documents"
 )
