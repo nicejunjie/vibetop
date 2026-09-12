@@ -22,6 +22,21 @@ test('desktop independently checks the deployed build and cache-busts reloads', 
   assert.match(shell, /searchParams\.set\('vtbuild', Date\.now\(\)\)/);
 });
 
+test('the reauth landing does not reload for ever (2026-09-12)', () => {
+  // 1) vtreauth is stripped on load, like vtbuild: leaving it in the URL keeps
+  //    the shell network-only under the SW, so a freshly deployed version is
+  //    never re-cached and a post-re-login version mismatch reloads endlessly.
+  assert.match(shell, /\['vtbuild', 'vtreauth'\]\.forEach/,
+    'both vtbuild and vtreauth must be cleaned from the URL on load');
+  // 2) the no-op-reload circuit breaker must gate the actual reload, not just
+  //    the build poll — otherwise the SSE `hello` and SW `controllerchange`
+  //    paths (both ungated) loop for ever against a stale cached shell.
+  const doReload = shell.match(/function doReload\(\) \{[\s\S]*?\n  \}/);
+  assert.ok(doReload, 'doReload() must be present');
+  assert.match(doReload[0], /if \(pollRefreshBlocked\) \{[\s\S]*?return;/,
+    'doReload must bail out once the breaker has tripped, so no trigger can loop');
+});
+
 test('desktop limit chips always show countdown and exact reset time', () => {
   assert.match(shell, /grid-template-columns: repeat\(2, 360px\)/);   // CSS stays inline
   const desktopFull = src.match(/!window\.matchMedia\('\(max-width: 680px\)'\)\.matches/g) || [];

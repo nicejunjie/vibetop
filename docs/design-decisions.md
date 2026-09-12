@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_288 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_289 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
 - [Scheduled terminal messages ("resume when the token limit resets")](#scheduled-terminal-messages-resume-when-the-token-limit-resets)
@@ -311,6 +311,7 @@ _288 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [RTS two-player audit (2026-09-11): the bake that reseeded the simulation, and a lobby that could not end](#rts-two-player-audit-2026-09-11-the-bake-that-reseeded-the-simulation-and-a-lobby-that-could-not-end)
 - [A phone went white on a Cloudflare Access expiry: the failed navigation now has a page, and a trace (2026-09-11)](#a-phone-went-white-on-a-cloudflare-access-expiry-the-failed-navigation-now-has-a-page-and-a-trace-2026-09-11)
 - [Files: FileBrowser retired, native is the only engine (2026-09-11)](#files-filebrowser-retired-native-is-the-only-engine-2026-09-11)
+- [Re-login left the desktop reloading for ever until a click (2026-09-12)](#re-login-left-the-desktop-reloading-for-ever-until-a-click-2026-09-12)
 
 <!-- END TOC -->
 
@@ -12900,3 +12901,38 @@ and on a host that never had FileBrowser. `uninstall.sh` KEEPS its
   the flag is never read again.
 - **Dropping the legacy tab-URL shape.** Cheaper to code, and it would have
   silently reset every user's open folders on deploy day.
+
+## Re-login left the desktop reloading for ever until a click (2026-09-12)
+
+**Symptom.** (user) "the login works when cloudflare credential expires, but
+after re-login the screen keeps flashing/reloading until I clicked someone
+[something]." The Cloudflare sign-in itself now completes (the v1.19.343
+`/reauth.html` hop); the desktop it lands on then reloads in a loop.
+
+**Cause.** Two things compound on the re-login landing at `/?vtreauth=<ts>`.
+(1) `vtreauth` was never stripped from the URL — only `vtbuild` was — so every
+subsequent navigation carried it, and the service worker's `vtreauth` branch is
+network-only by design, so the freshly deployed shell was never re-cached. The
+installed iOS PWA therefore kept running its OLD cached shell (v605 in the
+trace) while the server reported the new version (v609). (2) The desktop's
+auto-refresh reloads on any version mismatch, and its no-op-reload circuit
+breaker (`vt-refresh-from` / `REFRESH_MAX`) gated ONLY the 15 s build poll —
+the SSE `hello` (fires on every reconnect and compares versions) and the SW
+`controllerchange` paths were "deliberately NOT gated." So a stale shell that
+could not be re-cached reported a permanent mismatch and those two ungated
+paths reloaded endlessly; a click happened to let the network fetch or the new
+SW win a race, which is why tapping "fixed" it.
+
+**Fix.** Strip `vtreauth` on load in the same block that strips `vtbuild`
+(`replaceState`, no navigation), so the next shell fetch is an ordinary
+cacheable network-first request and the new version is cached. And move the
+circuit-breaker check into `doReload()` itself — the single choke point for the
+poll, the SSE `hello`, and `controllerchange` — so once `REFRESH_MAX` reloads
+in a row have failed to change the served version, all reloading stops and a
+usable (if briefly stale) desktop remains. A reload that DOES move the version
+resets the counter, so a real deploy is never blocked. Regression test in
+`shell/usage-strips.test.js` (the reauth landing does not reload for ever).
+
+**Rejected.** Gating only the SSE path, or adding a separate SSE counter — the
+breaker already tracks "a reload that changed nothing," which is exactly the
+condition every reload trigger must respect, so it belongs at `doReload`.
