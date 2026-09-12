@@ -1,16 +1,16 @@
 // Iron Frontier — ui/minimap.js
 // One subsystem of the game. Loaded as a native ES module; see rts/README.md.
 
-import { COL } from '../bake/buildings.js';
-import { powered } from '../entities.js';
-import { hasBld } from '../production.js';
-import { entSeen } from '../shroud.js';
-import { G, idx } from '../state.js';
-import { MAP, ME } from '../world.js';
-import { sfx } from './audio.js';
-import { cvH, cvW, mctx, mini } from './dom.js';
-import { terrCol } from './render.js';
-import { screenToGrid } from './screen.js';
+
+
+
+
+
+
+
+
+
+
 
 // --------------------------------------------------------------------- //
 //  Radar. RA2's radar is not a top-down plan: it is the SAME isometric
@@ -21,7 +21,7 @@ import { screenToGrid } from './screen.js';
 //  2:1 diamond is 92 px tall, so it is centred with letterbox above and
 //  below rather than stretched (RA2 letterboxes non-square maps too).
 // --------------------------------------------------------------------- //
-export var MM_PX = 184;
+var MM_PX = 184;
 
 var mmK = MM_PX / (2 * MAP);                       // radar px per half-tile
 
@@ -31,7 +31,7 @@ function mmX(gx, gy) { return mmOX + (gx - gy) * mmK; }
 
 function mmY(gx, gy) { return mmOY + (gx + gy) * mmK / 2; }
 
-export function mmToGrid(px, py) {
+function mmToGrid(px, py) {
   var a = (px - mmOX) / mmK;                       // gx - gy
   var b = (py - mmOY) * 2 / mmK;                   // gx + gy
   return { x: (b + a) / 2, y: (b - a) / 2 };
@@ -54,12 +54,12 @@ var lastRadar = null;
 // the INPUT was not: with the panel reading "RADAR OFFLINE" a click still
 // jumped the camera and a right-click still ordered units to a spot the
 // player could not see. One function now answers for both.
-export function radarUp() {
+function radarUp() {
   return !!G && (G.debug
     || ((hasBld(G, ME, 'radar') || hasBld(G, ME, 'airforce')) && powered(G, ME)));
 }
 
-export function drawMini() {
+function drawMini() {
   var radarOn = radarUp();
   // RA2 chirps when the radar comes up and drops when the grid does.
   if (lastRadar !== null && radarOn !== lastRadar) sfx(radarOn ? 'radaron' : 'radaroff');
@@ -148,4 +148,4 @@ var miniDirty = 0;
 // --- generated ---
 // ESM import bindings are read-only, so a write from another module goes
 // through the owner. Reads stay verbatim everywhere: the binding is live.
-export function setLastRadar(v) { lastRadar = v; }
+function setLastRadar(v) { lastRadar = v; }

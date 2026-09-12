@@ -2,10 +2,10 @@
 // Called by bakeBuilding() with one context object carrying the canvas, the anchor,
 // the facing and the helpers it draws with — see rts/README.md.
 
-import { shade } from '../../bake/terrain.js';
-import { cylinder, faceL, facePatch, faceR, prism } from '../../bake/vehicles.js';
 
-export function drawCloningvats(C) {
+
+
+function drawCloningvats(C) {
   var baseY = C.baseY, bph = C.bph, col = C.col, cx = C.cx, fh = C.fh, fw = C.fw, g = C.g;
 
 // [NACLON] Cloning Vats. A Soviet hall with four glass cylinders of

@@ -2,7 +2,7 @@
 // Called by bakeShip() with one context object carrying the canvas, the anchor,
 // the facing and the helpers it draws with — see rts/README.md.
 
-export function drawSub(C) {
+function drawSub(C) {
   var FR = C.FR, HOUSE = C.HOUSE, L = C.L, P = C.P, W = C.W, box = C.box, g = C.g, poly = C.poly;
 
 // [SUB]: almost nothing above water. A long whaleback casing awash,

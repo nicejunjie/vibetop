@@ -1,22 +1,22 @@
 // Iron Frontier — ui/loop.js
 // One subsystem of the game. Loaded as a native ES module; see rts/README.md.
 
-import { netMayStep, simStep } from '../net.js';
-import { OPT_DEF, STEP } from '../opts.js';
-import { G, state } from '../state.js';
-import { ME, P_HUMAN } from '../world.js';
-import { stepEva, tickCredits, updateHUD } from './hud.js';
-import { camScroll } from './input.js';
-import { finish, stallHide, stallShow } from './menus.js';
-import { refreshPanel } from './panel.js';
-import { render } from './render.js';
+
+
+
+
+
+
+
+
+
 
 // --------------------------------------------------------------------- //
 //  Main loop
 // --------------------------------------------------------------------- //
 var last = 0, acc = 0, hudT = 0, stallT = 0;
 
-export function tick(ts) {
+function tick(ts) {
   requestAnimationFrame(tick);
   if (!last) last = ts;
   var dt = Math.min(120, ts - last);

@@ -2,10 +2,10 @@
 // Called by bakeInfantry() with one context object carrying the canvas, the anchor,
 // the facing and the helpers it draws with — see rts/README.md.
 
-import { outline } from '../../bake/kit.js';
-import { shade } from '../../bake/terrain.js';
 
-export function drawRocketeer(C) {
+
+
+function drawRocketeer(C) {
   var FA = C.FA, HEADX = C.HEADX, T = C.T, TURN = C.TURN, ar = C.ar, arms = C.arms, by = C.by,
       carbine = C.carbine, col = C.col, cx = C.cx, face = C.face, g = C.g, gt = C.gt,
       helmet = C.helmet, sd = C.sd;

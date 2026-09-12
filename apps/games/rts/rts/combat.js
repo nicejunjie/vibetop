@@ -1,39 +1,39 @@
 // Iron Frontier — combat.js
 // One subsystem of the game. Loaded as a native ES module; see rts/README.md.
 
-import { FANG } from './bake/kit.js';
-import { lcg } from './bake/states.js';
-import { BLDS } from './blds.js';
-import { INF_DEATH, WH_WALL, bspecOfB, eliteOf, infCrawls, isHarv, isInfArmour, isWall, proneMul, psiImmune, versesVs, vetArmour, vetFire, vetRofU, weaponFor } from './combat-tables.js';
-import { killBld, powered } from './entities.js';
-import { facOf } from './factions.js';
-import { altOf, canHit, edgeDist, isAir, isNaval, isSub, rngVs, subSeen, tooClose } from './geom.js';
-import { PRISM_SUP_MOD } from './move.js';
-import { THREAT_PER_OCCUPANT, damageBridge, occCount, paraDrop } from './neutral.js';
-import { CHRONO_DELAY } from './ore.js';
-import { hasBld } from './production.js';
-import { _seed, rnd } from './rng.js';
-import { UNITS } from './roster.js';
-import { COIL_BOOST, RAD_MAX, addRad, coilCharged, defuseBomb, dropFromSel, infest, mindControl, plantBomb, popDrone, releaseMind, startErase } from './special.js';
-import { headless, idx, inMap } from './state.js';
-import { IRON_T, NUKE_FLIGHT, STORM_T, SW, SW_KEYS, ironed } from './supers.js';
-import { killPassengers, launchSpawns } from './transport.js';
-import { REPORT, eva, sfx } from './ui/audio.js';
-import { say } from './ui/hud.js';
-import { MAP, ME, P_AI, P_HUMAN, T_BRIDGE, T_GROUND, T_ORE, aiOf, neutral, waterish } from './world.js';
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 // --------------------------------------------------------------------- //
 //  Spatial hash — keeps target search O(neighbourhood) instead of O(n²).
 // --------------------------------------------------------------------- //
 var CELL = 6;
 
-export var hash = {};
+var hash = {};
 
-export var HASH_UNSET = -1e9;                          // "no index yet", forces a rebuild on tick 0
+var HASH_UNSET = -1e9;                          // "no index yet", forces a rebuild on tick 0
 
-export var hashAt = HASH_UNSET;                        // tick of the last rebuild
+var hashAt = HASH_UNSET;                        // tick of the last rebuild
 
-export function rebuildHash(g) {
+function rebuildHash(g) {
   for (var k in hash) hash[k].length = 0;     // keep the arrays, drop contents
   function add(e) {
     var ex = e.kind === 'b' ? e.cx : e.x, ey = e.kind === 'b' ? e.cy : e.y;
@@ -51,7 +51,7 @@ export function rebuildHash(g) {
 // lockstep clients that have run the same commands over the same ticks must
 // produce the same number; the first tick where they do not is the desync.
 // (It is also what the save/load round-trip test compares.)
-export function stateHash(g) {
+function stateHash(g) {
   var h = 2166136261 >>> 0, i, k;
   function mix(v) { h ^= (v | 0); h = Math.imul(h, 16777619) >>> 0; }
   mix(g.tick); mix(_seed); mix(Math.round(g.side[0].credits)); mix(Math.round(g.side[1].credits));
@@ -70,12 +70,12 @@ export function stateHash(g) {
 
 // Every match starts from the same derived state: emptied buckets and an
 // unset rebuild clock (see newState).
-export function resetHash() {
+function resetHash() {
   for (var k in hash) delete hash[k];
   hashAt = HASH_UNSET;
 }
 
-export function near(x, y, r, fn) {
+function near(x, y, r, fn) {
   var c0 = ((x - r) / CELL) | 0, c1 = ((x + r) / CELL) | 0;
   var d0 = ((y - r) / CELL) | 0, d1 = ((y + r) / CELL) | 0;
   for (var cx = c0; cx <= c1; cx++) for (var cy = d0; cy <= d1; cy++) {
@@ -85,13 +85,13 @@ export function near(x, y, r, fn) {
   }
 }
 
-export function dist(a, b) {
+function dist(a, b) {
   var ax = a.kind === 'b' ? a.cx : a.x, ay = a.kind === 'b' ? a.cy : a.y;
   var bx = b.kind === 'b' ? b.cx : b.x, by = b.kind === 'b' ? b.cy : b.y;
   return Math.sqrt((ax - bx) * (ax - bx) + (ay - by) * (ay - by));
 }
 
-export function armourOf(e) { return (e.kind === 'b' ? BLDS[e.type] : UNITS[e.type]).armour; }
+function armourOf(e) { return (e.kind === 'b' ? BLDS[e.type] : UNITS[e.type]).armour; }
 
 // RA2 Mirage Tank: standing still, it dresses itself as a tree of the
 // local theatre. Firing blows the disguise for two seconds, and an enemy
@@ -101,7 +101,7 @@ var MIRAGE_IDLE = 120;
 // `DetectDisguise=yes` is on exactly one thing in rules.ini's buildable set:
 // the Attack Dog. A hostile dog inside its Sight of 9 strips a Mirage of its
 // tree, for everybody — the tank is drawn, hoverable and shootable again.
-export function detected(g, u) {
+function detected(g, u) {
   for (var i = 0; i < g.units.length; i++) {
     var d = g.units[i];
     if (d.dead || d.p === u.p || !UNITS[d.type].detect) continue;
@@ -111,7 +111,7 @@ export function detected(g, u) {
   return false;
 }
 
-export function isDisguised(g, u) {
+function isDisguised(g, u) {
   if (u.kind !== 'u' || u.dead) return false;
   // [SPY] CanDisguise + PermaDisguise=yes: unlike the Mirage it does not
   // have to stand still, and moving never blows it — only a dog does
@@ -123,7 +123,7 @@ export function isDisguised(g, u) {
          !detected(g, u);
 }
 
-export function findTarget(g, e, rng) {
+function findTarget(g, e, rng) {
   // -Infinity, not -1: the score is a PREFERENCE between candidates, never a
   // threshold for engaging at all. With a -1 floor, a target this weapon is
   // merely bad against scored negative and was ignored entirely — a Sentry
@@ -187,7 +187,7 @@ export function findTarget(g, e, rng) {
   return best;
 }
 
-export function damage(g, src, tgt, amount, wh) {
+function damage(g, src, tgt, amount, wh) {
   if (ironed(g, tgt)) return;                 // Iron Curtain: the hit never lands
   if (tgt.kind === 'b' && BLDS[tgt.type].immune) return;    // [CABHUT] Immune=yes
   var spec = src.kind === 'b' ? BLDS[src.type] : UNITS[src.type];
@@ -260,7 +260,7 @@ export function damage(g, src, tgt, amount, wh) {
 // coil. Only vehicles fall through to the generic 12px blast.
 var INF_DEATH_LIFE = 84;
 
-export function infCorpse(g, u, wh, crushed) {
+function infCorpse(g, u, wh, crushed) {
   if (u.kind !== 'u' || !UNITS[u.type] || UNITS[u.type].cls !== 'i') return false;
   if (headless) return true;
   var mode = crushed ? 6 : INF_DEATH[wh];
@@ -303,7 +303,7 @@ function decal(g, x, y, kind) {
 // EXPLO*/TWLT*/S_* anim `Crater=yes` `Scorch=yes`, but rules.ini only
 // deforms the ground above `DeformThreshhold` (120-300), so a rifle round
 // marks nothing, a medium blast scorches, and a shell digs.
-export function boom(g, x, y, size, dig) {
+function boom(g, x, y, size, dig) {
   if (headless) return;
   g.fx.push({ x: x, y: y, t: 0, life: size > 30 ? 44 : (size > 20 ? 34 : 20), size: size });
   if (dig || size >= 24) decal(g, x, y, 'crater');
@@ -319,7 +319,7 @@ export function boom(g, x, y, size, dig) {
 // Scorpion, a Dolphin, a Squid) blows up like a vehicle.
 var SINK_LIFE = 150;
 
-export function shipSinks(u) {
+function shipSinks(u) {
   var d = UNITS[u.type];
   return !!d.nav && d.hp >= 300 && d.cls === 'n' && u.type !== 'seascorp';
 }
@@ -370,9 +370,9 @@ function crashAircraft(g, u) {
   });
 }
 
-export function wreckAlt(w) { var k = 1 - w.t / w.life; return w.alt0 * k * k; }   // it accelerates downward
+function wreckAlt(w) { var k = 1 - w.t / w.life; return w.alt0 * k * k; }   // it accelerates downward
 
-export function stepWrecks(g) {
+function stepWrecks(g) {
   for (var i = g.wrecks.length - 1; i >= 0; i--) {
     var w = g.wrecks[i];
     w.t++; w.x += w.vx; w.y += w.vy;
@@ -420,13 +420,13 @@ function swNear(g, x, y, r, fn) {
   }
 }
 
-export function entX(e) { return e.kind === 'b' ? e.cx : e.x; }
+function entX(e) { return e.kind === 'b' ? e.cx : e.x; }
 
-export function entY(e) { return e.kind === 'b' ? e.cy : e.y; }
+function entY(e) { return e.kind === 'b' ? e.cy : e.y; }
 
-export function isInf(u) { return u.kind === 'u' && UNITS[u.type].cls === 'i'; }
+function isInf(u) { return u.kind === 'u' && UNITS[u.type].cls === 'i'; }
 
-export function isVeh(u) { return u.kind === 'u' && UNITS[u.type].cls === 'v' && !u.air; }
+function isVeh(u) { return u.kind === 'u' && UNITS[u.type].cls === 'v' && !u.air; }
 
 // The countdown. RA2 charges a superweapon only while the base has power,
 // and a destroyed charger loses the progress with it.
@@ -446,7 +446,7 @@ function stepSW(g, p) {
   }
 }
 
-export function stepSuper(g) {
+function stepSuper(g) {
   stepSW(g, P_HUMAN); stepSW(g, P_AI);
   var i;
   for (i = g.storms.length - 1; i >= 0; i--) if (stepStorm(g, g.storms[i])) g.storms.splice(i, 1);
@@ -464,7 +464,7 @@ export function stepSuper(g) {
 // four of our ticks (a Grizzly's ROF=60 is our `rate: 240`), so the storm
 // runs twelve seconds and lands about fifty bolts -- where the old one
 // fired ten in twenty seconds and a playtest watched it miss everything.
-export var LIGHT_HIT = 40, LIGHT_SCATTER = 20, LIGHT_SPREAD = 5, LIGHT_SEP = 3;
+var LIGHT_HIT = 40, LIGHT_SCATTER = 20, LIGHT_SPREAD = 5, LIGHT_SEP = 3;
 
 function stormBolt(g, st, bx, by, direct) {
   var src = { kind: 'b', type: 'weather', p: st.p };
@@ -556,7 +556,7 @@ function stepNuke(g, nk) {
 
 // Fire one. Returns false if it was not charged — every path (icon, AI,
 // test hook) goes through here, so the timer can only be spent once.
-export function swFire(g, p, key, x, y, x2, y2) {
+function swFire(g, p, key, x, y, x2, y2) {
   var s = g.side[p], st = s.sw[key];
   if (!st || !st.ready) return false;
   if (!inMap(Math.round(x), Math.round(y))) return false;
@@ -625,12 +625,12 @@ export function swFire(g, p, key, x, y, x2, y2) {
   return true;
 }
 
-export function mmPing(g, x, y) {
+function mmPing(g, x, y) {
   g.mmFlash = { x: x, y: y, until: g.tick + 60 * 8 };
   g.radarEvent = { x: x, y: y, tick: g.tick };     // a superweapon always wins Space
 }
 
-export function fire(g, src, tgt) {
+function fire(g, src, tgt) {
   var spec = weaponFor(src.kind === 'b' ? BLDS[src.type] : UNITS[src.type], tgt, src);
   src.cool = spec.rate * vetRofU(src);                // [General] VeteranROF=0.6, at the rank this unit's own ability list grants it
   // Prism support: every tower that beamed into this one adds 150%.
@@ -761,5 +761,5 @@ export function fire(g, src, tgt) {
 // --- generated ---
 // ESM import bindings are read-only, so a write from another module goes
 // through the owner. Reads stay verbatim everywhere: the binding is live.
-export function setHash(v) { hash = v; }
-export function setHashAt(v) { hashAt = v; }
+function setHash(v) { hash = v; }
+function setHashAt(v) { hashAt = v; }

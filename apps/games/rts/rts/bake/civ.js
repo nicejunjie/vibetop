@@ -1,13 +1,13 @@
 // Iron Frontier — bake/civ.js
 // One subsystem of the game. Loaded as a native ES module; see rts/README.md.
 
-import { brnd, bsr, rnd, srand } from '../rng.js';
-import { idx, inMap } from '../state.js';
-import { MAP, TH, TW, T_CLIFF, T_RAMP } from '../world.js';
-import { outline } from './kit.js';
-import { copyArt } from './states.js';
-import { OCH, OCW, TCH, TCW, armPt, diamond, diamondT, feather, mkCanvas, roadPath, roadV, shade } from './terrain.js';
-import { cylinder, faceL, facePatch, faceR, prism } from './vehicles.js';
+
+
+
+
+
+
+
 
 // --------------------------------------------------------------------- //
 //  Step-3 terrain art: ramps, bridges, gems, civilian blocks, urban kit
@@ -17,9 +17,9 @@ import { cylinder, faceL, facePatch, faceR, prism } from './vehicles.js';
 // 1 +x (down-right), 2 +y (down-left), 3 -x (up-left).
 function hiT(t) { return t === T_CLIFF || t === T_RAMP; }
 
-export var RAMP_NB = [[0, -1], [1, 0], [0, 1], [-1, 0]];    // dir -> the neighbour it falls toward
+var RAMP_NB = [[0, -1], [1, 0], [0, 1], [-1, 0]];    // dir -> the neighbour it falls toward
 
-export function rampDir(g, x, y) {
+function rampDir(g, x, y) {
   if (g.hiAny && g.hf[idx(x, y)] > 0) {
     var best = -1, bh = 1e9;
     for (var d = 0; d < 4; d++) {
@@ -41,7 +41,7 @@ export function rampDir(g, x, y) {
 // face, bright at the foot where it rejoins the ground.
 var RAMP_SKIRT = 14, RAMP_SKIRT_ON = 14;
 
-export function bakeRamp(kind, dir, flat, walls) {
+function bakeRamp(kind, dir, flat, walls) {
   // A step only has to be PAINTED where the projection exposes it. The
   // drop shows toward the camera when the slope falls to +gx or +gy (dir 1
   // or 2), and the same two cases are the ones where the cell behind is a
@@ -155,7 +155,7 @@ export function bakeRamp(kind, dir, flat, walls) {
 // runs along grid y (screen down-left), 1 = along grid x (down-right). Baked
 // taller than a tile so the rail can stand above the diamond; the overlay is
 // centred on the tile, so the spare height sits half above, half below.
-export function bakeBridge(dir) {
+function bakeBridge(dir) {
   var HH = TCH + 20, s = mkCanvas(TCW, HH), g = s.g, cx = TCW / 2, cy = HH / 2, i;
   srand(3100 + dir * 97);
   var V = [[cx, cy - TCH / 2], [cx + TCW / 2, cy], [cx, cy + TCH / 2], [cx - TCW / 2, cy]];
@@ -207,7 +207,7 @@ export function bakeBridge(dir) {
 
 // What is left of a span that came down: broken deck plate half in the
 // water, a snapped pier stub and reinforcing bar sticking out of it.
-export function bakeBridgeWreck() {
+function bakeBridgeWreck() {
   var s = mkCanvas(TCW, TCH), g = s.g, cx = TCW / 2, cy = TCH / 2, i;
   srand(3311);
   g.save(); diamondT(g, cx, cy); g.clip();
@@ -239,7 +239,7 @@ export function bakeBridgeWreck() {
 
 // Gems: RA2's blue-violet crystal clusters. Taller and sharper than an ore
 // shard, with a cold rim light, on stained ground.
-export function bakeGem(level, variant) {
+function bakeGem(level, variant) {
   var s = mkCanvas(OCW, OCH), g = s.g, cx = OCW / 2, cy = OCH / 2;
   srand(7700 + level * 131 + variant * 4703);
   g.save(); diamondT(g, cx, cy); g.clip();
@@ -288,7 +288,7 @@ export function bakeGem(level, variant) {
 // brick, plaster and concrete and gives them NO owner colour — they are
 // scenery that blocks, not property. 0 shop, 1 apartment, 2 warehouse,
 // 3 filling station.
-export function bakeCiv(v) {
+function bakeCiv(v) {
   // Drawn at a comfortable 78x106 and scaled up: an RA2 civilian block
   // stands a good deal taller than a tile, and at map zoom a tile-sized one
   // vanishes into the pavement.
@@ -503,7 +503,7 @@ function neutPad(g, cx, baseY, fw, fh, tone) {
 // An occupied block: the windows RA2 lights up when men are inside, plus
 // the muzzle ports they shoot through. Drawn over the empty sprite so the
 // two frames register perfectly.
-export function bakeCivLit(src, ax, ay) {
+function bakeCivLit(src, ax, ay) {
   var d = copyArt(src), g = d.g, i;
   g.globalCompositeOperation = 'source-atop';
   g.fillStyle = 'rgba(255,196,96,.13)';                     // warm spill through the glass
@@ -528,7 +528,7 @@ export function bakeCivLit(src, ax, ay) {
 
 // [CAOILD] Tech Oil Derrick: a steel lattice tower over a concrete pad, a
 // nodding pump beside it and two crude tanks, with hazard-striped skirting.
-export function bakeOilDerrick() {
+function bakeOilDerrick() {
   var N = neutCanvas(2, 2, 118), g = N.g, cx = N.cx, by = N.baseY, fw = N.fw, i;
   neutPad(g, cx, by, fw, N.fh, '#9c968a');
   // the derrick: four legs converging, cross-braced
@@ -578,7 +578,7 @@ export function bakeOilDerrick() {
 
 // [CATHOSP] Tech Hospital: a pale two-storey ward block with a flat roof,
 // a red cross on the roof and over the ambulance canopy.
-export function bakeHospital() {
+function bakeHospital() {
   var N = neutCanvas(2, 2, 96), g = N.g, cx = N.cx, by = N.baseY, fw = N.fw, fh = N.fh, i;
   neutPad(g, cx, by, fw, fh, '#a8a79c');
   var lift = 40, hw = fw * 0.84, hh = fh * 0.84;
@@ -613,7 +613,7 @@ export function bakeHospital() {
 
 // [CAAIRP] Tech Airport: an apron with runway markings, a low terminal and
 // a glazed control tower — the building the paratroopers come off.
-export function bakeAirport() {
+function bakeAirport() {
   var N = neutCanvas(3, 2, 116), g = N.g, cx = N.cx, by = N.baseY, fw = N.fw, fh = N.fh, i;
   neutPad(g, cx, by, fw, fh, '#8f9490');
   // apron markings
@@ -656,7 +656,7 @@ export function bakeAirport() {
 
 // [CABHUT] Bridge repair hut: a bank hut with a corrugated roof, a girder
 // stack and a work light, standing at the head of the crossing.
-export function bakeHut() {
+function bakeHut() {
   var N = neutCanvas(1, 1, 60), g = N.g, cx = N.cx, by = N.baseY, fw = N.fw, i;
   neutPad(g, cx, by, fw, N.fh, '#8e8a80');
   prism(g, cx, by, fw * 0.72, N.fh * 0.72, 15, '#8a7f6d', '#a2977f', '#3a352c', 0);
@@ -688,7 +688,7 @@ export function bakeHut() {
 
 // [CrateRules] WoodCrateImg=CRATE: RA2's crate is a small wooden box with
 // an iron strap, sitting on the ground with a soft shadow.
-export function bakeCrate() {
+function bakeCrate() {
   var s = mkCanvas(34, 32), g = s.g, cx = 17, by = 24;
   g.fillStyle = 'rgba(8,10,12,.34)';
   g.beginPath(); g.ellipse(cx + 1, by + 2, 11, 4.4, 0, 0, 6.29); g.fill();
@@ -719,7 +719,7 @@ export function bakeCrate() {
 // Paved Roads, the urban connector set: an asphalt carriageway inside a
 // raised concrete kerb, both built from the same neighbour-mask union, so a
 // crossroads has proper radiused corners and a dead end has a kerb across it.
-export function bakeUrbanRoad(mask, vv) {
+function bakeUrbanRoad(mask, vv) {
   var s = mkCanvas(TCW, TCH), g = s.g, cx = TCW / 2, cy = TCH / 2, i, e;
   bsr(6100 + mask * 179 + (vv || 0) * 3571);
   var W = 0.37;
@@ -768,7 +768,7 @@ export function bakeUrbanRoad(mask, vv) {
 }
 
 // Urban decals: no grass tufts on concrete — soot, a manhole, a spill, chips.
-export function bakeUrbanDecal(v) {
+function bakeUrbanDecal(v) {
   var s = mkCanvas(TCW, TCH), g = s.g, cx = TCW / 2, cy = TCH / 2, i;
   srand(6400 + v * 233);
   g.save(); diamondT(g, cx, cy); g.clip();
@@ -797,7 +797,7 @@ export function bakeUrbanDecal(v) {
 }
 
 // Street trees: the temperate tree standing in a paved tree pit.
-export function bakeStreetTree(t) {
+function bakeStreetTree(t) {
   var s = mkCanvas(t.w, t.h), g = s.g;
   g.fillStyle = '#9fa3a3'; g.beginPath(); g.ellipse(t.ax, t.ay - 2, 13, 5.4, 0, 0, 6.29); g.fill();
   g.fillStyle = '#83878a'; g.beginPath(); g.ellipse(t.ax, t.ay - 2.6, 11.4, 4.6, 0, 0, 6.29); g.fill();
@@ -819,7 +819,7 @@ function tintTile(t, col, a) {
   return s;
 }
 
-export function tintSet(arr, col, a) {
+function tintSet(arr, col, a) {
   var out = [];
   for (var i = 0; i < arr.length; i++) out[i] = arr[i] ? tintTile(arr[i], col, a) : arr[i];
   return out;

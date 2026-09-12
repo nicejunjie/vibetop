@@ -1,12 +1,12 @@
 // Iron Frontier — mapgen.js
 // One subsystem of the game. Loaded as a native ES module; see rts/README.md.
 
-import { BLDS } from './blds.js';
-import { placeBld } from './entities.js';
-import { rint } from './rng.js';
-import { idx, inMap } from './state.js';
-import { lsGet } from './ui/save.js';
-import { MAP, P_NEUT, T_BRIDGE, T_CLIFF, T_GEM, T_GROUND, T_ORE, T_RAMP, T_ROAD, T_ROCK, T_TREE, T_WATER, buildableT, oreT } from './world.js';
+
+
+
+
+
+
 
 // --------------------------------------------------------------------- //
 //  Map generation — mirrored, so neither side gets a better start.
@@ -21,7 +21,7 @@ import { MAP, P_NEUT, T_BRIDGE, T_CLIFF, T_GEM, T_GROUND, T_ORE, T_RAMP, T_ROAD,
 // generates one of them by default, produced a gap-audit finding that "the
 // AI never garrisons" — measured over twelve matches on a map with zero
 // blocks to garrison. Given blocks, the AI garrisons on its own.
-export var MAPS = {
+var MAPS = {
   frontier: { name: 'Iron Frontier', theatre: 'temperate', light: { mul: '#fff0d0', a: 0.12 }, blurb: 'Open plains, rock outcrops, a road between the bases',
               gen: function (g) { g.tech2 = 'airport'; genCore(g, 26, null); mapRoad(g); mapFarms(g); mapTrees(g, 14); } },
   lake:     { name: 'Lake Divide',   theatre: 'temperate', light: { mul: '#cbd6e6', a: 0.20 }, blurb: 'A lake splits the middle; cliff ridges guard the flanks',
@@ -42,7 +42,7 @@ export var MAPS = {
                 function (mp, gp) { gp(31.5, 27, 3.4, 560); gp(27, 31.5, 3.0, 480); mp(19, 17, 3.0, 820); }); mapFarms(g); mapTrees(g, 10); } }
 };
 
-export function genMap(g) { (MAPS[g.mapId] || MAPS.frontier).gen(g); }
+function genMap(g) { (MAPS[g.mapId] || MAPS.frontier).gen(g); }
 
 function setT(g, x, y, t) { if (inMap(x, y) && g.terrain[idx(x, y)] === T_GROUND) g.terrain[idx(x, y)] = t; }
 
@@ -237,7 +237,7 @@ function techFits(g, x, y, w, h) {
 // Lay everything the generator queued. Done here rather than in the
 // generators so the whole set goes down AFTER the start pads are cleared
 // and after ore, and so a lot that something else claimed is simply skipped.
-export function placeNeutrals(g) {
+function placeNeutrals(g) {
   for (var i = 0; i < g.neut.length; i++) {
     var n = g.neut[i], d = BLDS[n.key], ok = true, xx, yy;
     // The lot was reserved while the generator was still laying terrain, so
@@ -265,7 +265,7 @@ export function placeNeutrals(g) {
 // BridgeStrength=1500 is the whole span's hit points.
 var BRIDGE_HP = 1500;
 
-export function indexBridges(g) {
+function indexBridges(g) {
   var seen = {}, i, x, y;
   for (x = 0; x < MAP; x++) for (y = 0; y < MAP; y++) {
     i = idx(x, y);
@@ -363,7 +363,7 @@ function genCore(g, rocks, features, extraOre) {
 // blend at their boundary. This is pure decoration (nothing reads it but
 // the renderer), so it runs off a cell hash and never touches rnd(): the
 // simulation's stream must stay exactly where the generator left it.
-export function computeGroundMat(g) {
+function computeGroundMat(g) {
   var sd = (g.seed || 1) >>> 0;
   function hs(a, b, k) {
     var v = (Math.imul(a | 0, 374761393) + Math.imul(b | 0, 668265263) + Math.imul(sd + k, 362437)) >>> 0;
@@ -395,7 +395,7 @@ export function computeGroundMat(g) {
 // untouched: a cliff top is level 1, any ground the map border cannot reach
 // without crossing a cliff is ENCLOSED and therefore also level 1, and a
 // ramp interpolates between the two ends of its run.
-export function computeHeight(g) {
+function computeHeight(g) {
   var i, x, y, n = MAP * MAP;
   var hi = new Uint8Array(n);                    // 1 = level 1
   for (i = 0; i < n; i++) if (g.terrain[i] === T_CLIFF) hi[i] = 1;
@@ -469,9 +469,9 @@ export function computeHeight(g) {
   }
 }
 
-export var mapId = MAPS[lsGet('vibetop:rts:map')] ? lsGet('vibetop:rts:map') : 'frontier';
+var mapId = MAPS[lsGet('vibetop:rts:map')] ? lsGet('vibetop:rts:map') : 'frontier';
 
 // --- generated ---
 // ESM import bindings are read-only, so a write from another module goes
 // through the owner. Reads stay verbatim everywhere: the binding is live.
-export function setMapId(v) { mapId = v; }
+function setMapId(v) { mapId = v; }

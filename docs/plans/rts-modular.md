@@ -1,29 +1,39 @@
-# Iron Frontier (RTS) → a fully modular game: native ES modules, no build (plan, 2026-09-12)
+# Iron Frontier (RTS) → a fully modular game, no build (plan, 2026-09-12)
 
 ## Outcome (2026-09-12) — done
 
-Shipped as planned. `apps/games/rts/rts.html` is a tracked HTML+CSS page whose
-only script is `<script type="module" src="rts/main.js">`, and the game is 117
-native ES modules under `apps/games/rts/rts/` — 26 subsystem modules, 10 under
-`bake/`, 12 under `ui/`, 69 unit-art modules under `units/<class>/<kind>.js`,
-plus a dev-only `package.json` marker. Cross-module reads are plain imports
-(live bindings); the ~46 cross-module *writes* go through generated `set<Name>()`
-exports, which makes a missed one a parse error rather than a silent bug. The
-sim↔ui import cycles were left in place: every edge carries only function
-declarations, which ESM instantiates at link time.
+Shipped, with one change to the plan. `apps/games/rts/rts.html` is a tracked
+HTML+CSS page that lists the game's 117 files as `<script src="rts/….js">` tags
+**in load order** — 26 subsystem files, 10 under `bake/`, 12 under `ui/`, 69
+unit-art files under `units/<class>/<kind>.js`.
+
+**The plan's "ES modules, not classic scripts" decision was reversed the same
+day it shipped.** Native ESM cannot load from `file://` (no origin → the browser
+refuses the import), and the requirement behind the whole effort was to open the
+page by double-clicking it. So every file lost its `import` header and `export `
+prefixes, the ~46 generated `set<Name>()` setters and `rts/package.json` were
+deleted, and the 117 files now share one global scope. The one rule that
+replaces the module system: hoisting is per file, so a statement that runs at
+load time may only call functions declared in an earlier file (this moved
+`lsGet`/`lsSet` from `ui/save.js` to `opts.js`). `rts-modules.test.js` enforces
+it, plus "every file listed exactly once", "no import/export anywhere", "no
+duplicate top-level names" and "no top-level name shadows a browser global".
+`tools/lib/bundle-for-vm.js` reads the script order out of `rts.html` rather
+than walking an import graph. The full entry is in `docs/design-decisions.md`.
 
 Deleted: `rts.src.html`, `art/units/**`, `tools/rts-build.py`,
 `rts-build.test.js`, the build tier in `run-tests.sh`, the build hook in
 `shell/install.sh`. **The repo has no build step at all any more.** The game is
-playable straight from a fresh checkout (`node apps/games/rts/tools/lib/serve-rts.js`,
-or any static server rooted at `apps/games/rts/`), which was the user's actual
-requirement. Delivery: `shell/install.sh` maps `rts/**` → `/rts/**` with
+playable straight from a fresh checkout by **double-clicking
+`apps/games/rts/rts.html`** (or via any static server rooted at
+`apps/games/rts/`), which was the user's actual requirement. Delivery: `shell/install.sh` maps `rts/**` → `/rts/**` with
 `install -D`; `shell/sw.js` BYPASSes `/rts/`.
 
 **Both gates passed.** Simulation: 24 cells (6 seeds x both faction orders x two
 difficulties x 30 game minutes) compared per game-minute by `stateHash` —
-identical. Art: 107 sheets rendered from the real module page in headless
-Chromium — byte-identical. They found one bug each that the other could not
+identical. Art: 107 sheets rendered from the real page in headless
+Chromium — byte-identical. Both gates were re-run after the classic-script
+conversion and stayed identical. They found one bug each that the other could not
 see, both recorded in `docs/design-decisions.md`: the emitter slicing a setter's
 right-hand side out of the wrong string (`setVLIFT( );` → the IFV painted
 `rgb(NaN,NaN,NaN)`, invisible to a headless simulation), and the source-scanning

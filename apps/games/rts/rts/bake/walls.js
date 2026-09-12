@@ -1,13 +1,13 @@
 // Iron Frontier — bake/walls.js
 // One subsystem of the game. Loaded as a native ES module; see rts/README.md.
 
-import { bakeGateSeg } from '../units/structures/gate.js';
-import { bakeWallSeg } from '../units/structures/wall.js';
-import { TH, TW } from '../world.js';
-import { COL } from './buildings.js';
-import { outline } from './kit.js';
-import { lcg } from './states.js';
-import { mixc, mkCanvas, shade } from './terrain.js';
+
+
+
+
+
+
+
 
 // Weapon-effect sprites, baked once. render() only ever scales/alphas and
 // drawImage()s these — no gradient is ever constructed per shot or per
@@ -28,7 +28,7 @@ import { mixc, mkCanvas, shade } from './terrain.js';
 //  Collective bolts rusted iron plate over a low dark-grey footing. The
 //  owner's colour is a single stripe on the cap; there is no faction paint.
 // --------------------------------------------------------------------- //
-export function gproj(gx, gy) { return [(gx - gy) * TW / 2, (gx + gy) * TH / 2]; }
+function gproj(gx, gy) { return [(gx - gy) * TW / 2, (gx + gy) * TH / 2]; }
 
 // An extruded ground polygon: side faces sorted back-to-front, then the cap.
 // `sideL`/`sideR` are the two lit values — a face whose screen run goes to
@@ -55,7 +55,7 @@ function extrude(g, pts, lift, top, sideL, sideR, edge) {
 }
 
 // A slab running from grid offset A to grid offset B, `hw` half-wide.
-export function gridSlab(g, cx, by, ax, ay, bx, byy, hw, lift, top, sL, sR, edge) {
+function gridSlab(g, cx, by, ax, ay, bx, byy, hw, lift, top, sL, sR, edge) {
   var dx = bx - ax, dy = byy - ay, L = Math.sqrt(dx * dx + dy * dy) || 1;
   var px = -dy / L * hw, py = dx / L * hw;
   var q = [[ax + px, ay + py], [bx + px, byy + py], [bx - px, byy - py], [ax - px, ay - py]];
@@ -64,12 +64,12 @@ export function gridSlab(g, cx, by, ax, ay, bx, byy, hw, lift, top, sL, sR, edge
   extrude(g, pts, lift, top, sL, sR, edge);
 }
 
-export var WALL_DIRS = [[1, 0, -0.5], [2, 0.5, 0], [4, 0, 0.5], [8, -0.5, 0]];   // bit, gx, gy
+var WALL_DIRS = [[1, 0, -0.5], [2, 0.5, 0], [4, 0, 0.5], [8, -0.5, 0]];   // bit, gx, gy
 
 // An upright OCTAGONAL prism in iso: the plan is a regular octagon squashed
 // 2:1, its eight side faces sorted back-to-front and lit by the direction
 // their screen run travels (right = toward the light), then the cap.
-export function octCol(g, cx, cy, rx, h, body, edge, cap) {
+function octCol(g, cx, cy, rx, h, body, edge, cap) {
   var i, P = [], f = [];
   for (i = 0; i < 8; i++) {
     var a = 0.3927 + i * 0.7854;
@@ -91,7 +91,7 @@ export function octCol(g, cx, cy, rx, h, body, edge, cap) {
 }
 
 // An extruded diamond centred on the cell, i.e. a plinth course.
-export function padSlab(g, cx, cy, hw, hh, lift, top, sL, sR, edge) {
+function padSlab(g, cx, cy, hw, hh, lift, top, sL, sR, edge) {
   extrude(g, [[cx, cy - hh], [cx + hw, cy], [cx, cy + hh], [cx - hw, cy]],
           lift, top, sL, sR, edge);
   return cy - lift;
@@ -123,14 +123,14 @@ export function padSlab(g, cx, cy, hw, hh, lift, top, sL, sR, edge) {
 // shape (the same trick as the infantry facing atlas).
 var _wallSpr = {}, _gateSpr = {};
 
-export function wallSprite(p, fk, mask) {
+function wallSprite(p, fk, mask) {
   var k = p + fk + mask;
   return _wallSpr[k] || (_wallSpr[k] = bakeWallSeg(COL[p], fk, mask));
 }
 
 var GATE_FRAMES = 5;
 
-export function gateSprite(p, fk, vert, openF) {
+function gateSprite(p, fk, vert, openF) {
   var fi = Math.max(0, Math.min(GATE_FRAMES - 1, Math.round(openF * (GATE_FRAMES - 1))));
   var k = p + fk + (vert ? 'v' : 'h') + fi;
   return _gateSpr[k] || (_gateSpr[k] = bakeGateSeg(COL[p], fk, vert, fi / (GATE_FRAMES - 1)));
@@ -145,7 +145,7 @@ export function gateSprite(p, fk, vert, openF) {
 // core is baked as its OWN frame so it can go down additively over the
 // smoke without the smoke brightening whatever it happens to overlap --
 // the old single radial blob, scaled, was one orange smudge at every size.
-export var EXPL_N = 11;                               // frames per family (RA2's run 8-12)
+var EXPL_N = 11;                               // frames per family (RA2's run 8-12)
 
 function bakeExplosionFamily(ref, lobes, seed, sooty, hotEnd, riseK) {
   var body = [], core = [], k, i;
@@ -215,14 +215,14 @@ function bakeExplosionFamily(ref, lobes, seed, sooty, hotEnd, riseK) {
 // rocket), 2 large (a vehicle), 3 building (the centre blast of a levelled
 // structure). `famOf` maps the fx's own size onto them, which is how
 // `Explosion=` reads in RA2: the warhead and the victim pick the family.
-export function bakeExplosions() {
+function bakeExplosions() {
   return [bakeExplosionFamily(56, 7, 0x51a3, false, 0.40, 0.10),
           bakeExplosionFamily(88, 11, 0x7c19, false, 0.50, 0.15),
           bakeExplosionFamily(128, 15, 0x2f61, true, 0.60, 0.21),
           bakeExplosionFamily(168, 19, 0x9b07, true, 0.68, 0.27)];
 }
 
-export function famOf(size) { return size <= 12 ? 0 : (size <= 22 ? 1 : (size <= 32 ? 2 : 3)); }
+function famOf(size) { return size <= 12 ? 0 : (size <= 22 ? 1 : (size <= 32 ? 2 : 3)); }
 
 // Ground decals an explosion leaves behind. art.ini gives every EXPLO*,
 // TWLT* and S_* anim `Crater=yes` / `Scorch=yes`, and ships twelve crater
@@ -230,7 +230,7 @@ export function famOf(size) { return size <= 12 ? 0 : (size <= 22 ? 1 : (size <=
 // real ground deformation on `Deform=10-15%` / `DeformThreshhold=120-300`,
 // which is why a rifle round leaves nothing and a shell leaves a hole.
 // Three variants each, so a firefight does not stamp the same blot.
-export function bakeScorchDecal(v) {
+function bakeScorchDecal(v) {
   var w = TW * 1.1, h = TH * 1.1, s = mkCanvas(w, h), g = s.g;
   var cx = w / 2, cy = h / 2, rnd = lcg(0x3311 + v * 977);
   for (var i = 0; i < 9; i++) {
@@ -250,7 +250,7 @@ export function bakeScorchDecal(v) {
   return { s: s, ax: cx, ay: cy };
 }
 
-export function bakeCraterDecal(v) {
+function bakeCraterDecal(v) {
   var w = TW * 0.92, h = TH * 0.92, s = mkCanvas(w, h), g = s.g;
   var cx = w / 2, cy = h / 2, rnd = lcg(0x77c1 + v * 613), i;
   for (i = 0; i < 7; i++) {                                   // the burn round the hole
@@ -283,7 +283,7 @@ export function bakeCraterDecal(v) {
 // Fallout on the nuke's crater. [Radiation] RadLevelMax=500, the nuke lays
 // 2000 units down and it decays over minutes; until the radiation ground
 // layer lands this is what marks the ground as poisoned.
-export function bakeRadDecal(v) {
+function bakeRadDecal(v) {
   var w = TW * 1.15, h = TH * 1.15, s = mkCanvas(w, h), g = s.g;
   var cx = w / 2, cy = h / 2, rnd = lcg(0x5ee1 + v * 331);
   for (var i = 0; i < 8; i++) {
@@ -304,7 +304,7 @@ export function bakeRadDecal(v) {
 }
 
 // Aircraft drop shadow: one soft ellipse, scaled per type by the renderer.
-export function bakeAirShadow() {
+function bakeAirShadow() {
   var w = 64, h = 32, s = mkCanvas(w, h), g = s.g;
   var grd = g.createRadialGradient(w / 2, h / 2, 0, w / 2, h / 2, w / 2);
   grd.addColorStop(0, 'rgba(0,0,0,.9)');
@@ -316,7 +316,7 @@ export function bakeAirShadow() {
   return s;
 }
 
-export function bakeMuzzleFlash() {
+function bakeMuzzleFlash() {
   var d = 40, r = d / 2;
   var s = mkCanvas(d, d), g = s.g;
   g.translate(r, r);
@@ -336,7 +336,7 @@ export function bakeMuzzleFlash() {
 
 // First row of a baked canvas with any opaque pixel (0 if unreadable, e.g.
 // the headless test stub).
-export function artTop(s) {
+function artTop(s) {
   try {
     var W = s.c.width, H = s.c.height, k = W / s.w;   // bitmap is DPR x the CSS size
     var d = s.g.getImageData(0, 0, W, H).data;
@@ -353,7 +353,7 @@ export function artTop(s) {
 // two-pixel radio mast forty pixels above the roof -- and a status bar hung
 // off that tip floats in open sky, detached from the building it belongs
 // to. RA2 hangs the bar just over the building's MASS, so measure the mass.
-export function artTopSolid(s, minRun) {
+function artTopSolid(s, minRun) {
   try {
     var W = s.c.width, H = s.c.height, k = W / s.w, need = Math.max(1, minRun * k);
     var d = s.g.getImageData(0, 0, W, H).data;
@@ -373,7 +373,7 @@ export function artTopSolid(s, minRun) {
 // so scan the WHOLE bitmap and divide by the ratio; scanning s.w x s.h read
 // only the top-left quarter on a HiDPI screen and gave sprite-dependent
 // wrong boxes (blank cameos, mis-set brackets).
-export function artBox(s) {
+function artBox(s) {
   var bb = { x0: 0, y0: 0, x1: s.w, y1: s.h };
   try {
     var W = s.c.width, H = s.c.height, k = W / s.w;
@@ -394,5 +394,5 @@ export function artBox(s) {
 // --- generated ---
 // ESM import bindings are read-only, so a write from another module goes
 // through the owner. Reads stay verbatim everywhere: the binding is live.
-export function set_gateSpr(v) { _gateSpr = v; }
-export function set_wallSpr(v) { _wallSpr = v; }
+function set_gateSpr(v) { _gateSpr = v; }
+function set_wallSpr(v) { _wallSpr = v; }

@@ -2,11 +2,11 @@
 // Called by bakeBuilding() with one context object carrying the canvas, the anchor,
 // the facing and the helpers it draws with — see rts/README.md.
 
-import { outline } from '../../bake/kit.js';
-import { shade } from '../../bake/terrain.js';
-import { cylinder, gunAim, prism, puckDrum } from '../../bake/vehicles.js';
 
-export function drawSentrygun(C) {
+
+
+
+function drawSentrygun(C) {
   var baseY = C.baseY, bdir = C.bdir, bph = C.bph, col = C.col, cx = C.cx, fh = C.fh, fw = C.fw,
       g = C.g, sov = C.sov;
 

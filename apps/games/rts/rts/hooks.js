@@ -1,41 +1,42 @@
 // Iron Frontier — hooks.js
 // One subsystem of the game. Loaded as a native ES module; see rts/README.md.
 
-import { AI_NAVAL_ADJ, AI_TEAMS, aiCanMake, aiDefencePlan, aiPickTarget, aiSwTarget, aiSwValue, hasShore, nearestWater, newAI } from './ai.js';
-import { COL, bakeBuilding } from './bake/buildings.js';
-import { SPR, bakeDecal, bakeGroundSheet, bakeOre, bakeTree, cliffEdgeId, cliffSeams } from './bake/terrain.js';
-import { gateSprite, wallSprite } from './bake/walls.js';
-import { BLDS } from './blds.js';
-import { ARMOURS, VERSES, bspecFor, bspecOfB, eliteOf, harvKey, isHarv, isWall, psiImmune, reachOf, uspd, verses, versesVs, vetArmour, vetFire, vetRof, vetRofAt, vetRofU, vetSpeed, weaponFor } from './combat-tables.js';
-import { damage, detected, findTarget, fire, hash, hashAt, isDisguised, shipSinks, stateHash, swFire } from './combat.js';
-import { canDeployMcv, deployMcv, killBld, placeBld, powered, spawnUnit } from './entities.js';
-import { FACTIONS, bfacOf, facAllows, hasFacBld, keyFac, panelKeys, producerOf, unitOrderFor } from './factions.js';
-import { SUB_SURFACE, altOf, canHit, dirtAt, hullZone, isAir, isNaval, isSensor, isSub, labelWater, moverOf, navReach, padSlot, subSeen, surfaced, waterZoneAt } from './geom.js';
-import { MAPS, genMap, indexBridges, placeNeutrals } from './mapgen.js';
-import { LAND_T } from './move.js';
-import { BcBus, LOCKSTEP_DELAY, LoopBus, NET, SP_DELAY, applyCmd, cmd, idsOf, netBind, netLoad, netStash, netStep, netUse, setLOCKSTEP_DELAY, simStep } from './net.js';
-import { ORE_SPREAD_T, canOccupy, collapseSpan, damageBridge, ejectGarrison, enterGarrison, garrisonable, occCapOf, occCount, openCrate, paraDrop, repairBridgeFrom, stepCrates, stepOreSpread } from './neutral.js';
-import { normOpts } from './opts.js';
-import { CHRONO_DELAY, findOre, findRefinery, refDock } from './ore.js';
-import { astar, blocked, gateOpen, pathQ, requestPath } from './path.js';
-import { adjOf, buildFactor, buildMask, canBuild, canPlace, cancelLast, countBld, countUnit, dockSpot, freeWaterNear, hasBld, isPrimary, prodSpeed, setPrimary, waterPlot } from './production.js';
-import { _seed } from './rng.js';
-import { IFV_MODE, IFV_MODES, UNITS, ifvModeOf, ifvSpec, ifvTurret } from './roster.js';
-import { applyGaps, cloneVatsOf, entSeen, gapped, spySatUp, tileSeen } from './shroud.js';
-import { COIL_BOOST, IVAN_BOMB_T, PARASITE_DMG, RAD_MAX, SPY_BLACKOUT, addRad, beginWarp, chronoDelayFor, coilCharged, defuseBomb, engineerDefuse, infest, killDrone, mindControl, plantBomb, popDrone, radAt, releaseMind, spyInfiltrate, startErase } from './special.js';
-import { DIFF, G, headless, newState, setG, setHeadless, setState, state } from './state.js';
-import { SW, SW_KEYS, reqMet, swBld } from './supers.js';
-import { boardTransport, canBoard, killPassengers, paxCapOf, paxCount, unloadTransport } from './transport.js';
-import { MUS, PLAY, REPORT, SPEC, VOX, VOXPAT, aLog, aStat, eva, evaLog, live, musicOn, setAckAt, setSfxAt, soundOn, unitAck, vol, voxLine } from './ui/audio.js';
-import { CURSORS, buildCursors, curKind, pickCursor } from './ui/cursors.js';
-import { cvH, cvW } from './ui/dom.js';
-import { EDGE_BANDS, GUT, clickSelect, edgeTarget, linkWall, mouse, nextWaypoint, orderAttack, orderUnitsTo, ownTargetOrder, pickAtW, placeOrigin, rightOrder, views } from './ui/input.js';
-import { MP, mapPlate, mpClose, mpStart, mpWire, onA, onB, opts, ovA, ovP, ovT, scoreOf, setMpMode, setOpts, stallOn, togglePause } from './ui/menus.js';
-import { render } from './ui/render.js';
-import { RESUME_KEY, autosaveForReload, loadGame, lsGet, lsSet, reloadKeepMatch, restoreGame, restoreSession, resumeWanted, saveGame, saveSlots, serialiseGame, setClosedByUser } from './ui/save.js';
-import { cam, centerOn, clampCam, groups, hoverTile, placing, sel, setZoom, sx, sy, zoom } from './ui/screen.js';
-import { economyDead, openingForce, techCount } from './watch.js';
-import { FOE, MAP, ME, MV_AMPH, MV_LAND, MV_NAVAL, P_AI, P_HUMAN, T_BRIDGE, T_CIV, T_CLIFF, T_GEM, T_GROUND, T_ORE, T_RAMP, T_ROAD, T_ROCK, T_TREE, T_WATER, isAiSide, terrPass } from './world.js';
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 // --------------------------------------------------------------------- //
 //  Test hooks — a canvas game cannot be asserted from the DOM, so the

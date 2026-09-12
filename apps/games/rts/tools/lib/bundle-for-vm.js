@@ -1,43 +1,79 @@
-// Iron Frontier — the module tree as ONE classic script, for node's `vm`.
+// Iron Frontier — the game's files as ONE script, for node's `vm`.
 //
-// The browser loads `rts/main.js` as native ES modules. Node's test harness
-// (rts.test.js, tools/sim-identity.js) needs the same program as a single
-// string it can boot in an isolated `vm` context — and it needs to boot it
-// SEVERAL times in one process (the two-tab lobby tests), which rules out
-// `import()` (one cached graph per process). So this walks the import graph
-// from main.js, orders the modules the way ESM evaluates them (post-order over
-// each module's imports in source order), strips the one-line import headers
-// and the `export ` keywords, and concatenates the bodies inside one strict
-// IIFE. That reproduces the closure the game was written as: every top-level
-// name is visible to every other module, exactly as `import`/`export` make it.
+// The game is 117 plain classic scripts listed in load order in `rts.html`.
+// A browser runs them in that order and they share one global scope, which is
+// what lets `combat.js` call `sfx()` from `ui/audio.js` with no ceremony — and
+// what lets the page be opened by double-clicking it, with no server and no
+// build (ES modules cannot: a `file://` page has no origin, so the browser
+// refuses to load them).
 //
-// It is exact only because the emitter (tools/modularize) keeps two invariants,
-// which rts-modules.test.js asserts on the tree:
-//   * every `import` is a single line of the form
-//       import { a, b } from './x.js';     or     import './x.js';
-//   * `export ` appears only as a prefix on a declaration (no lists, no default)
-// and one invariant this file checks itself: no two modules declare the same
-// top-level name (legal in ESM, but the concatenation would silently merge them).
+// Node's test harness needs the same program as a single string it can boot in
+// an isolated `vm` context — and boot it SEVERAL times in one process (the
+// two-tab lobby tests) — so this reads the order out of `rts.html`, reads those
+// files, and concatenates them inside one strict IIFE.
+//
+// `rts.html` is the single source of truth for load order. Nothing here parses
+// JavaScript to find it: there is no import graph any more.
 //
 //   const { source, order, files } = require('./lib/bundle-for-vm.js');
-//   // or, for a tree elsewhere: require('./lib/bundle-for-vm.js').bundle('/path/to/rts/main.js')
 'use strict';
 const fs = require('node:fs');
 const path = require('node:path');
 
-const IMPORT_RE = /^import (?:\{[^}]*\} from )?'(\.\.?\/[\w./-]+\.js)';$/;
-const EXPORT_RE = /^export (?=(?:var|let|const|function|class)\b)/gm;
+const RTS = path.join(__dirname, '..', '..');
+const SCRIPT_TAG = /<script src="(rts\/[^"]+\.js)"><\/script>/g;
 
-/**
- * Top-level declared names of a module body.
- *
- * Column 0 is NOT the test: a unit-art module is `export function drawRhino(C)
- * {` wrapping a body that is kept VERBATIM, i.e. still at column 0 inside the
- * function. Reading those as module-level declarations reported 112 name
- * collisions that do not exist (`f0` in harrier and dolphin, …). So track
- * brace depth across the file and only count a declaration that really sits at
- * depth 0, skipping strings, comments, regexes and template holes.
- */
+// Strip JS comments, honouring strings, template holes and regex literals.
+//
+// The naive two-regex stripper the source-scanning tests used to carry is not
+// safe on this program: a block-comment opener that lives inside a line comment
+// or a string swallows everything up to the next closer anywhere in the file.
+// It was quietly eating a third of it, which is how a test that "passes" can be
+// scanning half of what it claims to.
+function stripComments(text) {
+  let out = '', i = 0, prev = '';
+  while (i < text.length) {
+    const c = text[i], two = text.slice(i, i + 2);
+    if (two === '//') { const j = text.indexOf('\n', i); i = j < 0 ? text.length : j; continue; }
+    if (two === '/*') { const j = text.indexOf('*/', i + 2); i = j < 0 ? text.length : j + 2; continue; }
+    if (c === '"' || c === "'" || c === '`') { const j = skipString(text, i); out += text.slice(i, j); i = j; prev = 'x'; continue; }
+    if (c === '/' && /[=(,:[!&|?{};+\-*%<>~^]/.test(prev)) { const j = skipRegex(text, i); out += text.slice(i, j); i = j; prev = 'x'; continue; }
+    out += c;
+    if (!/\s/.test(c)) prev = c;
+    i++;
+  }
+  return out;
+}
+
+/** The `rts/…` script sources listed in a page, in load order. */
+function loadOrder(page) {
+  const html = fs.readFileSync(page || path.join(RTS, 'rts.html'), 'utf8');
+  const order = [...html.matchAll(SCRIPT_TAG)].map((m) => m[1]);
+  if (!order.length) throw new Error('bundle-for-vm: the page lists no rts/ scripts');
+  return order;
+}
+
+/** { source, order, files } for the page's scripts, concatenated in load order. */
+function bundle(page) {
+  const root = page ? path.dirname(path.resolve(page)) : RTS;
+  const order = loadOrder(page);
+  const seen = new Set();
+  const files = order.map((rel) => {
+    if (seen.has(rel)) throw new Error(`bundle-for-vm: ${rel} is listed twice`);
+    seen.add(rel);
+    const abs = path.join(root, rel);
+    if (!fs.existsSync(abs)) throw new Error(`bundle-for-vm: the page lists ${rel}, which does not exist`);
+    return { rel, body: fs.readFileSync(abs, 'utf8') };
+  });
+  const source = "(function () {\n'use strict';\n" +
+    files.map((f) => `// ===== ${f.rel} =====\n${f.body}`).join('\n') +
+    '\n})();\n';
+  return { source, order, files };
+}
+
+// ---- the small scanner the load-order gate and the source tests share ----- //
+
+/** Top-level declared names of a classic script (declarations at brace depth 0). */
 function topLevelNames(body, file) {
   const names = [];
   const lines = body.split('\n');
@@ -74,7 +110,6 @@ function braceDelta(line) {
   }
   return d;
 }
-/** True once `text` holds a complete statement (a `;` at bracket depth 0 outside strings/comments). */
 function statementEnds(text) { return scan(text).ended; }
 function declaratorNames(text) { return scan(text).names; }
 function scan(text) {
@@ -131,74 +166,44 @@ function skipRegex(t, i) {
   return i;
 }
 
-// Strip JS comments, honouring strings, template holes and regex literals.
-//
-// The naive two-regex stripper the source-scanning tests used to carry is not
-// safe on this program: a block-comment opener that lives inside a line comment
-// or a string swallows everything up to the next closer anywhere in the file.
-// It was quietly eating a third of the single-page build and 77% of the module
-// build, which is how a test that "passes" can be scanning half a file.
-function stripComments(text) {
-  let out = '', i = 0, prev = '';
-  while (i < text.length) {
-    const c = text[i], two = text.slice(i, i + 2);
-    if (two === '//') { const j = text.indexOf('\n', i); i = j < 0 ? text.length : j; continue; }
-    if (two === '/*') { const j = text.indexOf('*/', i + 2); i = j < 0 ? text.length : j + 2; continue; }
-    if (c === '"' || c === "'" || c === '`') { const j = skipString(text, i); out += text.slice(i, j); i = j; prev = 'x'; continue; }
-    if (c === '/' && /[=(,:[!&|?{};+\-*%<>~^]/.test(prev)) { const j = skipRegex(text, i); out += text.slice(i, j); i = j; prev = 'x'; continue; }
-    out += c;
-    if (!/\s/.test(c)) prev = c;
-    i++;
-  }
-  return out;
+/**
+ * Every load-time statement that would call a function declared in a LATER
+ * file. Classic scripts hoist per file, not across files, so this is the one
+ * ordering rule the game has to keep, and the only thing a browser reports as
+ * a bare ReferenceError on boot.
+ *
+ * A call inside a function body (an event handler, a helper) is fine and is not
+ * reported: only the part of a line that actually runs while the page loads is
+ * scanned, which is why the scan stops at the first `function` keyword.
+ */
+function forwardCalls(page) {
+  const b = bundle(page);
+  const declAt = new Map();
+  b.files.forEach((f, i) => {
+    for (const n of topLevelNames(f.body, f.rel)) if (!declAt.has(n)) declAt.set(n, { i, rel: f.rel });
+  });
+  const out = [];
+  b.files.forEach((f, i) => {
+    let depth = 0;
+    stripComments(f.body).split('\n').forEach((ln, k) => {
+      if (depth === 0 && /^[^ \t}]/.test(ln)) {
+        const cut = ln.search(/\bfunction\b/);
+        const head = cut < 0 ? ln : ln.slice(0, cut);
+        for (const m of head.matchAll(/\b([A-Za-z_$][\w$]*)\s*\(/g)) {
+          const o = declAt.get(m[1]);
+          if (o && o.i > i) out.push(`${f.rel}:${k + 1} calls ${m[1]}() at load time, but it is declared later, in ${o.rel}`);
+        }
+      }
+      depth += braceDelta(ln);
+    });
+  });
+  return [...new Set(out)];
 }
 
-/** Walk the graph from `entry`; returns { order, files, source }. */
-function bundle(entry) {
-  entry = path.resolve(entry);
-  const root = path.dirname(entry);
-  const seen = new Map();            // abs path -> { rel, body, imports }
-  const order = [];
-  function visit(abs, from) {
-    if (seen.has(abs)) return;
-    if (!fs.existsSync(abs)) throw new Error(`bundle-for-vm: ${from} imports ${abs}, which does not exist`);
-    const rel = path.relative(root, abs);
-    const text = fs.readFileSync(abs, 'utf8');
-    const imports = [];
-    const kept = [];
-    for (const line of text.split('\n')) {
-      if (line.startsWith('import ')) {
-        const m = IMPORT_RE.exec(line);
-        if (!m) throw new Error(`bundle-for-vm: ${rel}: import is not in the canonical single-line form: ${line}`);
-        imports.push(path.resolve(path.dirname(abs), m[1]));
-        kept.push('');                                        // keep line numbers
-      } else kept.push(line);
-    }
-    const body = kept.join('\n').replace(EXPORT_RE, '');
-    if (/^export\b/m.test(body)) throw new Error(`bundle-for-vm: ${rel}: an export that is not a declaration prefix`);
-    const rec = { rel, body, imports };
-    seen.set(abs, rec);
-    for (const dep of imports) visit(dep, rel);                // post-order = ESM evaluation order
-    order.push(rec);
-  }
-  visit(entry, '(entry)');
-  // no two modules may declare the same top-level name
-  const owner = new Map();
-  for (const rec of order) for (const n of topLevelNames(rec.body, rec.rel)) {
-    if (owner.has(n)) throw new Error(`bundle-for-vm: top-level name "${n}" is declared in both ${owner.get(n)} and ${rec.rel}`);
-    owner.set(n, rec.rel);
-  }
-  const source = "(function () {\n'use strict';\n" +
-    order.map((r) => `// ===== ${r.rel} =====\n${r.body}`).join('\n') +
-    '\n})();\n';
-  return { source, order: order.map((r) => r.rel), files: order, names: owner };
-}
-
-const DEFAULT_ENTRY = path.join(__dirname, '..', '..', 'rts', 'main.js');
 let cached = null;
 module.exports = {
-  bundle, topLevelNames, stripComments,
-  get source() { return (cached = cached || bundle(DEFAULT_ENTRY)).source; },
-  get order() { return (cached = cached || bundle(DEFAULT_ENTRY)).order; },
-  get files() { return (cached = cached || bundle(DEFAULT_ENTRY)).files; },
+  bundle, loadOrder, topLevelNames, stripComments, forwardCalls, braceDelta,
+  get source() { return (cached = cached || bundle()).source; },
+  get order() { return (cached = cached || bundle()).order; },
+  get files() { return (cached = cached || bundle()).files; },
 };

@@ -1,23 +1,23 @@
 // Iron Frontier — ui/panel.js
 // One subsystem of the game. Loaded as a native ES module; see rts/README.md.
 
-import { COL } from '../bake/buildings.js';
-import { iconFaceOf } from '../bake/kit.js';
-import { SPR } from '../bake/terrain.js';
-import { BLDS } from '../blds.js';
-import { bspecFor, bspecOf } from '../combat-tables.js';
-import { FACTIONS, facSig, panelKeys, panelListFor } from '../factions.js';
-import { cmd } from '../net.js';
-import { canBuild, hasBld, isBldLane, laneOfBld } from '../production.js';
-import { UNITS } from '../roster.js';
-import { G, faction, state } from '../state.js';
-import { reqMet, reqName } from '../supers.js';
-import { ME } from '../world.js';
-import { eva, resumeAudio, sfx } from './audio.js';
-import { cv } from './dom.js';
-import { say, sideEl } from './hud.js';
-import { wireHold } from './input.js';
-import { panel, setPanel, setPlacing } from './screen.js';
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 // --------------------------------------------------------------------- //
 //  Build panel
@@ -28,7 +28,7 @@ var panelRows = {};
 
 var panelSig = null;                    // facSig() at the moment the rows were made
 
-export function buildPanel() {
+function buildPanel() {
   hideTip();
   plist.innerHTML = '';
   panelRows = {};
@@ -247,7 +247,7 @@ function cameoCapLayer(key, isBld, fac) {
 // SUPERWEAPON CLOCK does not — that icon is 56x42, sits over the battlefield,
 // and already carries a countdown, so a squeezed caption lands straight on
 // top of the numerals and buries the one thing the clock exists to show.
-export function cameoFor(key, isBld, fac, ownFac, noCap) {
+function cameoFor(key, isBld, fac, ownFac, noCap) {
   var own = ownFac || fac;
   // The frame wears the PLAYER'S house colour, so the cache has to be keyed
   // on it: without this a player who picks green kept a sidebar full of the
@@ -504,7 +504,7 @@ export function cameoFor(key, isBld, fac, ownFac, noCap) {
 // ---- the drawn tooltip -------------------------------------------------
 // RA2 draws its own tooltip panel; the browser's `title=` waits a second,
 // renders in the OS font and cannot show a cost the way the game does.
-export var ptip = document.getElementById('ptip'), ptx = ptip ? ptip.getContext('2d') : null;
+var ptip = document.getElementById('ptip'), ptx = ptip ? ptip.getContext('2d') : null;
 
 function drawTip(title, lines, tone) {
   if (!ptx) return null;
@@ -563,12 +563,12 @@ function placeTip(anchor, size) {
   ptip.style.display = 'block';
 }
 
-export function showTip(anchor, title, lines, tone) {
+function showTip(anchor, title, lines, tone) {
   var sz = drawTip(title, lines, tone);
   if (sz) placeTip(anchor, sz);
 }
 
-export function hideTip() { if (ptip) ptip.style.display = 'none'; }
+function hideTip() { if (ptip) ptip.style.display = 'none'; }
 
 // The producer a lane needs and does not have — the reason a cameo is grey
 // when its own prerequisites are met. One table for the click's message and
@@ -633,7 +633,7 @@ function onPanelClick(it, ev) {
 
 var lastReady = null, toldRefinery = false, lastPowerWarn = -1e9;
 
-export function refreshPanel() {
+function refreshPanel() {
   if (!G) return;
   var s = G.side[ME];
   // An Engineer just changed what this house can build (or a captured shed
@@ -768,7 +768,7 @@ function tabIcon(kind) {
   return c;
 }
 
-export function selectTab(tab) {
+function selectTab(tab) {
   if (!TAB_NAME[tab] || panel === tab) return;
   document.querySelectorAll('.ptab div').forEach(function (o) { o.classList.toggle('on', o.getAttribute('data-tab') === tab); });
   setPanel(tab);
@@ -795,7 +795,7 @@ document.querySelectorAll('.ptab div').forEach(function (t) {
 // --- generated ---
 // ESM import bindings are read-only, so a write from another module goes
 // through the owner. Reads stay verbatim everywhere: the binding is live.
-export function setCameoCache(v) { cameoCache = v; }
-export function setLastPowerWarn(v) { lastPowerWarn = v; }
-export function setLastReady(v) { lastReady = v; }
-export function setToldRefinery(v) { toldRefinery = v; }
+function setCameoCache(v) { cameoCache = v; }
+function setLastPowerWarn(v) { lastPowerWarn = v; }
+function setLastReady(v) { lastReady = v; }
+function setToldRefinery(v) { toldRefinery = v; }

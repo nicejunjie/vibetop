@@ -1,30 +1,30 @@
 // Iron Frontier — net.js
 // One subsystem of the game. Loaded as a native ES module; see rts/README.md.
 
-import { stepAI } from './ai.js';
-import { BLDS } from './blds.js';
-import { bspecOf, bspecOfB, isHarv } from './combat-tables.js';
-import { HASH_UNSET, entX, entY, hash, hashAt, near, rebuildHash, setHash, setHashAt, stateHash, stepSuper, stepWrecks, swFire } from './combat.js';
-import { deployMcv, killBld, placeBld, recalcPower, spawnUnit, stepRubble } from './entities.js';
-import { isAir, moverOf } from './geom.js';
-import { LAND_T, stepUnit, tilePassable } from './move.js';
-import { ORE_GROW_T, ORE_SPREAD_T, canOccupy, ejectGarrison, hash3, stepBld, stepCrates, stepDrops, stepOreSpread } from './neutral.js';
-import { sendHome } from './ore.js';
-import { blocked, pathQ, requestPath, runPathQueue, setPathQ } from './path.js';
-import { QUEUE_MAX, canBuild, canPlace, cancelLast, countUnit, enqueue, freeTileNear, isBldLane, laneOfBld, stepQueues } from './production.js';
-import { _seed, set_seed } from './rng.js';
-import { UNITS } from './roster.js';
-import { applyGaps, revealFor } from './shroud.js';
-import { describeShort, stepBombs, stepErase, stepInfest, stepRad } from './special.js';
-import { headless, setG, setState } from './state.js';
-import { SW } from './supers.js';
-import { canBoard, paxCapOf, paxCount, unloadTransport } from './transport.js';
-import { eva, sfx, unitAck } from './ui/audio.js';
-import { refreshSW, say } from './ui/hud.js';
-import { attackMission, clearSel, describe, makeRally, orderAmove, orderAttack, orderFFire, orderFollow, orderUnitsTo, refreshCmdbar, sellBld } from './ui/input.js';
-import { sel, setSel } from './ui/screen.js';
-import { economyDead, stepEvaWatch } from './watch.js';
-import { GUARD_STRAY, MAP, ME, P_AI, P_HUMAN, neutral, oreT, setSeat } from './world.js';
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 // --------------------------------------------------------------------- //
 //  Lockstep command layer
@@ -72,30 +72,30 @@ import { GUARD_STRAY, MAP, ME, P_AI, P_HUMAN, neutral, oreT, setSeat } from './w
 // bundle it holds, so D=2 forces a full round trip every single tick and any
 // jitter on the wire shows up as a stutter. RA2 grows the delay for the same
 // reason (and shrinks it again on a fast link, which is still a ☐ here).
-export var SP_DELAY = 2, MP_DELAY = 4;
+var SP_DELAY = 2, MP_DELAY = 4;
 
-export var LOCKSTEP_DELAY = SP_DELAY;   // ticks between issuing an order and running it
+var LOCKSTEP_DELAY = SP_DELAY;   // ticks between issuing an order and running it
 
 var DESYNC_EVERY = 60;           // ticks between state-hash comparisons
 
-export var NET = { active: null };
+var NET = { active: null };
 
 // The module-level derived caches (`_seed`, the spatial hash, the path
 // queue) belong to whichever game is stepping. One page running two
 // clients has to SWAP them, or client B reads client A's neighbour buckets
 // and the two worlds drift apart in the first minute — the same failure the
 // per-match `resetHash()` fixed for back-to-back matches.
-export function netStash() {
+function netStash() {
   var c = NET.active;
   if (c) c.ctx = { seed: _seed, hash: hash, hashAt: hashAt, pathQ: pathQ };
 }
 
-export function netLoad(c) {
+function netLoad(c) {
   set_seed(c.ctx.seed); setHash(c.ctx.hash); setHashAt(c.ctx.hashAt); setPathQ(c.ctx.pathQ);
   setG(c.g); NET.active = c; setSeat(c.p);
 }
 
-export function netUse(c) {
+function netUse(c) {
   if (NET.active === c) { setG(c.g); setSeat(c.p); return; }
   netStash(); netLoad(c);
 }
@@ -209,7 +209,7 @@ function netEmit(c) {
   return true;
 }
 
-export function cmd(type, payload) {
+function cmd(type, payload) {
   var c = payload || {};
   c.t = type;
   return netEmit(c);
@@ -235,7 +235,7 @@ LocalNet.prototype.onCmd = function (fn) { this.sink = fn; };
 // sockets, no server — but every rule a real transport has to obey is
 // exercised: bundles arrive late, out of order relative to the other
 // player's, and the barrier is what keeps the two worlds on the same tick.
-export function LoopBus() { this.links = []; this.wire = []; this.clock = 0; }
+function LoopBus() { this.links = []; this.wire = []; this.clock = 0; }
 
 LoopBus.prototype.link = function (lat) {
   var L = new LoopbackNet(this, lat | 0);
@@ -334,7 +334,7 @@ LoopbackNet.prototype.send = function (b) { this.bus.post(this, b); };
 // `port` is anything with `post(msg)`; the page hands it a BroadcastChannel
 // and the tests hand it a scriptable pair, which is what lets an
 // arrival-order hazard be staged deterministically.
-export function BcNet(port, n) {
+function BcNet(port, n) {
   this.immediate = false;
   this.port = port; this.n = n | 0;
   this.client = null; this.have = {};
@@ -363,7 +363,7 @@ BcNet.prototype.onWire = function (m) {
 // test hands it one of these, so an arrival-order or latency hazard can be
 // staged deterministically against the very same transport code the two
 // tabs run.
-export function BcBus(lats) { this.nets = []; this.wire = []; this.clock = 0; this.lats = lats || []; }
+function BcBus(lats) { this.nets = []; this.wire = []; this.clock = 0; this.lats = lats || []; }
 
 BcBus.prototype.link = function (n) {
   var bus = this, i = this.nets.length;
@@ -398,7 +398,7 @@ BcBus.prototype.drain = function () { while (this.wire.length) this.pump(); };
 // Attach a fresh single-player client to a new game. Called at the end of
 // `newState`, so every entry point — the menu, the test hooks, the balance
 // harness — starts with an empty schedule and its own derived caches.
-export function netAttach(g, tr, pid, nplayers) {
+function netAttach(g, tr, pid, nplayers) {
   var t = tr || new LocalNet();
   var c = new NetClient(g, pid || 0, t, nplayers);
   if (t.join) t.join(c);
@@ -410,7 +410,7 @@ export function netAttach(g, tr, pid, nplayers) {
 
 // Re-point the game's client at a real transport once the opening force is
 // down. `netAttach` resets the derived caches, so it cannot be used here.
-export function netBind(tr, pid, nplayers) {
+function netBind(tr, pid, nplayers) {
   var c = NET.active;
   c.tr = tr; c.p = pid | 0; c.n = nplayers || 1; c.check = c.n > 1;
   setSeat(c.p);
@@ -419,7 +419,7 @@ export function netBind(tr, pid, nplayers) {
 }
 
 // The frame loop's gate. Single player never waits.
-export function netMayStep(g) {
+function netMayStep(g) {
   var c = NET.active;
   if (!c || c.g !== g) return true;          // no client owns this game: nothing to wait for
   if (c.desync) return false;                // the worlds disagree; stepping on makes it worse
@@ -430,7 +430,7 @@ export function netMayStep(g) {
 
 // One networked client's tick: post this tick's bundle, wait for the
 // barrier, step. Returns whether it actually stepped.
-export function netStep(c) {
+function netStep(c) {
   netUse(c);
   if (c.desync || c.g.over) return false;
   if (!c.tr.immediate && c.sent < c.due()) c.flush();
@@ -447,7 +447,7 @@ function entsOf(g, ids) {
   return a;
 }
 
-export function idsOf(list) {
+function idsOf(list) {
   var a = [];
   for (var i = 0; i < list.length; i++) a.push(list[i].id);
   return a;
@@ -459,7 +459,7 @@ function entOf(g, id) { var e = g.byId[id]; return e && !e.dead ? e : null; }
 // clients, on the same tick. The `local` guard is only ever about FEEDBACK —
 // the mutation above it is unconditional, so a spectator's world and the
 // issuing player's world take the identical change.
-export function applyCmd(g, p, c) {
+function applyCmd(g, p, c) {
   var local = cmdLocal(c), us, i, n, tgt;
   switch (c.t) {
 
@@ -882,7 +882,7 @@ function stepSettle(g) {
   }
 }
 
-export function simStep(g) {
+function simStep(g) {
   g.tick++;
   netApplyDue(g);
   if (g.tick - hashAt >= 3 || hashAt > g.tick) { rebuildHash(g); setHashAt(g.tick); }
@@ -989,4 +989,4 @@ export function simStep(g) {
 // --- generated ---
 // ESM import bindings are read-only, so a write from another module goes
 // through the owner. Reads stay verbatim everywhere: the binding is live.
-export function setLOCKSTEP_DELAY(v) { LOCKSTEP_DELAY = v; }
+function setLOCKSTEP_DELAY(v) { LOCKSTEP_DELAY = v; }

@@ -29,7 +29,12 @@ const diffs = opt('--diffs', 'normal,hard').split(',');
 const facs = [['dir', 'col'], ['col', 'dir']];
 
 let source, label;
-if (args.includes('--bundle')) {
+if (!args.includes('--html')) {
+  // The default subject is this checkout's game: the files rts.html lists,
+  // concatenated in load order. `--html <page>` is for comparing against an
+  // older single-page build kept somewhere else.
+  source = require('./lib/bundle-for-vm.js').source; label = 'this checkout';
+} else if (args.includes('--bundle')) {
   const entry = opt('--entry', null);                 // default: apps/games/rts/rts/main.js
   const B = require('./lib/bundle-for-vm.js');
   source = entry ? B.bundle(entry).source : B.source; label = 'bundle' + (entry ? ':' + entry : '');

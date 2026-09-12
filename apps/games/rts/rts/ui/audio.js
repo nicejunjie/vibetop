@@ -1,13 +1,13 @@
 // Iron Frontier — ui/audio.js
 // One subsystem of the game. Loaded as a native ES module; see rts/README.md.
 
-import { facOf } from '../factions.js';
-import { UNITS } from '../roster.js';
-import { G, headless } from '../state.js';
-import { ME, TH, TW, worldX, worldY } from '../world.js';
-import { say } from './hud.js';
-import { lsGet } from './save.js';
-import { cam } from './screen.js';
+
+
+
+
+
+
+
 
 // ------------------------------------------------------------------- //
 //  Audio — a synth kit, RA2's mixer rules, and an original score.
@@ -37,13 +37,13 @@ import { cam } from './screen.js';
 // ------------------------------------------------------------------- //
 var AC = null, master = null, BUS = null;
 
-export var soundOn = lsGet('vibetop:rts:sound') !== '0';
+var soundOn = lsGet('vibetop:rts:sound') !== '0';
 
-export var musicOn = lsGet('vibetop:rts:music') !== '0';
+var musicOn = lsGet('vibetop:rts:music') !== '0';
 
 function lsNum(k, d) { var v = parseFloat(lsGet(k)); return isNaN(v) ? d : Math.max(0, Math.min(1, v)); }
 
-export var vol = {
+var vol = {
   sfx:   lsNum('vibetop:rts:vol:sfx', 0.9),
   voice: lsNum('vibetop:rts:vol:voice', 0.85),
   music: lsNum('vibetop:rts:vol:music', 0.45)
@@ -57,7 +57,7 @@ try {
   document.addEventListener('keydown', function () { resumeAudio(); }, true);
 } catch (e) {}
 
-export function resumeAudio() {
+function resumeAudio() {
   if (headless || (!soundOn && !musicOn)) return;   // music alone is enough of a reason
   try {
     if (!AC) {
@@ -74,7 +74,7 @@ export function resumeAudio() {
   } catch (e) { AC = null; }
 }
 
-export function applyVol() {
+function applyVol() {
   if (!BUS) return;
   BUS.sfx.gain.value = vol.sfx;
   BUS.voice.gain.value = vol.voice;
@@ -161,7 +161,7 @@ var MINVOL = 0.5;                 // sound.ini [Defaults] MinVolume=50
 
 var MAXVOICE = 26;                // mixer size: past this the lowest priority is dropped
 
-export var SPEC = {
+var SPEC = {
   // -- small arms and cannon (rules.ini Report=) --
   shot:     { l: 4, p: 1, r: 12, v: 0.55 },   // GIAttack
   mg:       { l: 3, p: 1, r: 12, v: 0.5 },    // PillboxAttack / SentryGunAttack / IFVAttack
@@ -239,7 +239,7 @@ export var SPEC = {
 // SHOOTER because that is how rules.ini reads it: [RHINO] Primary=120mm ->
 // [120mm] Report=RhinoTankAttack. Anything not listed falls back on its
 // projectile kind, so a new unit is never silent.
-export var REPORT = {
+var REPORT = {
   rifle: 'shot', conscript: 'shot', tanya: 'shot', spy: 'shot', engineer: 'shot',
   rocket: 'rocket', rocketeer: 'rocket', patriot: 'rocket',
   flak: 'flak', flaktrack: 'flak', flakcannon: 'flak',
@@ -262,7 +262,7 @@ export var REPORT = {
 // ---- the synths ------------------------------------------------------- //
 // kind -> function(ctx, out, t). Each one is scheduled, never played, so
 // the same code drives the live context and the offline renderer.
-export var PLAY = {
+var PLAY = {
   // Small arms: a crack plus a short body. RA2's igiat1a/b/c differ only in
   // pitch, which is what the random playbackRate inside nz() reproduces.
   shot: function (c, o, t) { clk(c, o, t, 0.5, 3200); nz(c, o, t, 0.055, 0.3, 2000, 500, 1.4); },
@@ -488,13 +488,13 @@ var DUR = { v3: 1.6, nuke: 3.2, siren: 3.6, thunder: 2.0, bldboom: 2.4, boom3: 1
             bridge: 2.0, sell: 1.0, kbomb: 1.2, wind: 1.5, gcannon: 1.2, charge: 0.7, make: 0.7,
             dump: 0.8, curtain: 1.0, chronofx: 1.2, swready: 0.8, powon: 0.7, powoff: 1.0 };
 
-export var live = [];               // the voices in flight, for Limit and Priority
+var live = [];               // the voices in flight, for Limit and Priority
 
 var sfxAt = {};              // the 70 ms same-sound throttle, unchanged
 
-export var aStat = { calls: 0, played: 0, dropped: 0, ms: 0 };
+var aStat = { calls: 0, played: 0, dropped: 0, ms: 0 };
 
-export var aLog = [];               // ring of what actually played — the harness reads this
+var aLog = [];               // ring of what actually played — the harness reads this
 
 function prune(now) { for (var i = live.length - 1; i >= 0; i--) if (live[i].end <= now) live.splice(i, 1); }
 
@@ -536,7 +536,7 @@ function distGain(sp, gx, gy) {
 
 // The one entry point. `x`/`y` are GRID CELLS (distGain measures them
 // against the camera in cells); omit them for an interface or global sound.
-export function sfx(kind, x, y) {
+function sfx(kind, x, y) {
   if (headless || !soundOn || !AC || !BUS) return false;
   var sp = SPEC[kind], fn = PLAY[kind];
   if (!sp || !fn) return false;
@@ -583,7 +583,7 @@ function tone(freq, dur, type, v, to) { if (soundOn && AC && !headless) try { op
 // Syllable patterns: [semitone offset, milliseconds]. Cadence carries the
 // meaning — a select is short and level, a move falls away, an attack
 // rises and clips off.
-export var VOXPAT = [
+var VOXPAT = [
   [[0, 130], [3, 150]],                       // 0  two beats, lifting     (select)
   [[0, 110], [0, 130]],                       // 1  flat double            (select)
   [[2, 100], [0, 90], [-3, 200]],             // 2  three, falling         (move)
@@ -602,7 +602,7 @@ export var VOXPAT = [
 
 // Per unit kind: f = carrier pitch, b = formant brightness (a bigger man is
 // darker), r = rasp. Then the pattern indices each order may draw from.
-export var VOX = {
+var VOX = {
   rifle:       { f: 132, b: 1.05, r: 0.22, s: [0, 1], m: [2, 3, 4], a: [6, 7] },
   conscript:   { f: 104, b: 0.82, r: 0.42, s: [1, 12], m: [3, 2], a: [8, 6] },
   rocket:      { f: 140, b: 1.10, r: 0.20, s: [0, 5], m: [2, 4], a: [6, 12] },
@@ -668,7 +668,7 @@ function radio(c, o) {
 }
 
 // One acknowledgement: squelch open, the syllables, squelch closed.
-export function voxLine(c, o, t, f0, bright, rasp, pat, stretch) {
+function voxLine(c, o, t, f0, bright, rasp, pat, stretch) {
   var band = radio(c, o), at = t + 0.01;
   nz(c, band, t, 0.02, 0.5 + rasp * 0.4, 2200, 900, 1.2);           // the mic keying up
   for (var i = 0; i < pat.length; i++) {
@@ -694,7 +694,7 @@ export function voxLine(c, o, t, f0, bright, rasp, pat, stretch) {
 var ackAt = 0;
 
 // `kind` is RA2's VoiceSelect / VoiceMove / VoiceAttack / deploy / harvest.
-export function unitAck(units, kind) {
+function unitAck(units, kind) {
   if (headless || !soundOn || !AC || !BUS || !G) return false;
   var now = performance.now();
   var gap = kind === 'select' ? 900 : 2500;      // selecting is constant; RA2 lets it talk more often
@@ -739,7 +739,7 @@ export function unitAck(units, kind) {
 //  an intensity layer that opens up when weapons are firing near the
 //  camera — RA2's energy, none of its notes.
 // ------------------------------------------------------------------- //
-export var MUS = (function () {
+var MUS = (function () {
   function P(s) { var a = [], i; for (i = 0; i < s.length; i++) a.push(s.charAt(i)); return a; }
   var THEMES = {
     // Industrial march: four-on-the-floor under a minor-key ostinato.
@@ -840,7 +840,7 @@ export var MUS = (function () {
 //  that meant EVA silently said nothing at all; a chime plus the line on
 //  the message rail is what plays instead.
 // ------------------------------------------------------------------- //
-export var evaAt = {}, evaVoice = null, evaLog = [];
+var evaAt = {}, evaVoice = null, evaLog = [];
 
 // RA2 throttles the advisor in game FRAMES, not wall clock — at a faster
 // game speed the same event still gets the same number of ticks of quiet.
@@ -855,7 +855,7 @@ try {
   }
 } catch (e) {}
 
-export function eva(line, gap) {
+function eva(line, gap) {
   var now = evaNow();
   if (evaAt[line] !== undefined && now - evaAt[line] < (gap || 6000) && now >= evaAt[line]) return false;
   // No audio yet (nothing has been clicked since the load): log it, but do
@@ -889,9 +889,9 @@ export function eva(line, gap) {
 // --- generated ---
 // ESM import bindings are read-only, so a write from another module goes
 // through the owner. Reads stay verbatim everywhere: the binding is live.
-export function setAckAt(v) { ackAt = v; }
-export function setEvaAt(v) { evaAt = v; }
-export function setEvaLog(v) { evaLog = v; }
-export function setMusicOn(v) { musicOn = v; }
-export function setSfxAt(v) { sfxAt = v; }
-export function setSoundOn(v) { soundOn = v; }
+function setAckAt(v) { ackAt = v; }
+function setEvaAt(v) { evaAt = v; }
+function setEvaLog(v) { evaLog = v; }
+function setMusicOn(v) { musicOn = v; }
+function setSfxAt(v) { sfxAt = v; }
+function setSoundOn(v) { soundOn = v; }

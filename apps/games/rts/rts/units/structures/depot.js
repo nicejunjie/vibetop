@@ -2,11 +2,11 @@
 // Called by bakeBuilding() with one context object carrying the canvas, the anchor,
 // the facing and the helpers it draws with — see rts/README.md.
 
-import { outline } from '../../bake/kit.js';
-import { diamond, shade } from '../../bake/terrain.js';
-import { chevrons, crates, cylinder, drums, faceL, facePatch, faceR, lattice, prism } from '../../bake/vehicles.js';
 
-export function drawDepot(C) {
+
+
+
+function drawDepot(C) {
   var baseY = C.baseY, bph = C.bph, col = C.col, cx = C.cx, fh = C.fh, fw = C.fw, g = C.g,
       plot = C.plot, rnd = C.rnd, sov = C.sov, srand = C.srand;
 

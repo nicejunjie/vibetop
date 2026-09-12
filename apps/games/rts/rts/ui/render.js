@@ -1,41 +1,41 @@
 // Iron Frontier — ui/render.js
 // One subsystem of the game. Loaded as a native ES module; see rts/README.md.
 
-import { COL } from '../bake/buildings.js';
-import { RAMP_NB, rampDir } from '../bake/civ.js';
-import { FANG, NFACE, UPAD, faceOf, octOf } from '../bake/kit.js';
-import { AIMED, MCV_T, aimDmgOf, aimOf, dmgSetOf, doorDmgOf, doorOf, makeOf, offOf, portsOf, rubbleFor, unpackOf, wrenchSpr } from '../bake/states.js';
-import { APRON_BG, CLIFF_VAR, ORE_VAR, SPR, cliffSeams, diamond, diamondAdd, mixc } from '../bake/terrain.js';
-import { EXPL_N, WALL_DIRS, famOf, gateSprite, wallSprite } from '../bake/walls.js';
-import { BLDS } from '../blds.js';
-import { IDLE_T, bspecFor, isHarv, ucap } from '../combat-tables.js';
-import { LIGHT_SPREAD, entX, entY, isDisguised, wreckAlt } from '../combat.js';
-import { DOOR_T, MAKE_T, doorPos, powered } from '../entities.js';
-import { FACTIONS, bfacOf, facOf, keyFac } from '../factions.js';
-import { altOf, dirtAt, isSub, subSeen, surfaced } from '../geom.js';
-import { MAPS } from '../mapgen.js';
-import { CHARGE_T, GATE_T } from '../move.js';
-import { PARA_FALL, PARA_H, occCapOf, occCount } from '../neutral.js';
-import { buildMask, canPlace, isPrimary, producersOf } from '../production.js';
-import { UNITS, ifvTurret } from '../roster.js';
-import { entSeen } from '../shroud.js';
-import { RAD_MAX } from '../special.js';
-import { G, idx, inMap } from '../state.js';
-import { ironed } from '../supers.js';
-import { paxCapOf, paxCount } from '../transport.js';
-import { MAP, ME, P_AI, P_HUMAN, TH, TW, T_BRIDGE, T_CIV, T_CLIFF, T_GEM, T_GROUND, T_ORE, T_RAMP, T_ROAD, T_ROCK, T_TREE, T_WATER, buildableT, oreT, waterish } from '../world.js';
-import { ctx, cvH, cvW } from './dom.js';
-import { swMode } from './hud.js';
-import { placeOrigin } from './input.js';
-import { drawMini } from './minimap.js';
-import { APRON, hoverTile, placing, roadMask, screenToGrid, sx, sxF, sy, syFlat, zoom } from './screen.js';
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 // --------------------------------------------------------------------- //
 //  Rendering
 // --------------------------------------------------------------------- //
-export var VX0 = 0, VY0 = 0, VX1 = 800, VY1 = 600;   // visible window in unzoomed screen space
+var VX0 = 0, VY0 = 0, VX1 = 800, VY1 = 600;   // visible window in unzoomed screen space
 
-export function render() {
+function render() {
   updatePsi();
   ctx.fillStyle = (G && APRON_BG[G.theatre]) || '#0b0e14';
   ctx.fillRect(0, 0, cvW, cvH);
@@ -2075,7 +2075,7 @@ function hpBar(x, y, w, f) {
 
 // The one terrain palette: the minimap and the menu's map previews are the
 // same picture at two sizes, so they must not drift apart.
-export function terrCol(t, theatre) {
+function terrCol(t, theatre) {
   var snowy = theatre === 'snow', urb = theatre === 'urban';
   return t === T_GROUND ? (snowy ? '#aeb8be' : urb ? '#4b4f55' : '#2e3a24') : t === T_ROCK ? '#39414f'
        : t === T_ORE ? '#c9822f' : t === T_GEM ? '#8a6ae0'
@@ -2086,4 +2086,4 @@ export function terrCol(t, theatre) {
 // --- generated ---
 // ESM import bindings are read-only, so a write from another module goes
 // through the owner. Reads stay verbatim everywhere: the binding is live.
-export function setTRK_AT(v) { TRK_AT = v; }
+function setTRK_AT(v) { TRK_AT = v; }

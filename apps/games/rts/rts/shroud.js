@@ -1,11 +1,11 @@
 // Iron Frontier — shroud.js
 // One subsystem of the game. Loaded as a native ES module; see rts/README.md.
 
-import { BLDS } from './blds.js';
-import { powered } from './entities.js';
-import { UNITS } from './roster.js';
-import { inMap } from './state.js';
-import { MAP, ME } from './world.js';
+
+
+
+
+
 
 // --------------------------------------------------------------------- //
 //  Simulation step
@@ -14,7 +14,7 @@ import { MAP, ME } from './world.js';
 // once any of the player's units or structures has had it in sight. Enemy
 // entities on unrevealed tiles are neither drawn nor hoverable. The AI is
 // not shrouded — RA2's AI is not either.
-export function revealFor(g, p) {
+function revealFor(g, p) {
   var seen = g.seen, i, e, r, cx, cy, x, y, r2;
   // [GASPYSAT] SpySat=yes, Powered=true: no radius, no sweep — the map is
   // simply yours. Pull the power (or the building) and the shroud returns,
@@ -31,7 +31,7 @@ export function revealFor(g, p) {
   for (i = 0; i < g.blds.length; i++) { e = g.blds[i]; if (!e.dead && e.p === p) disc(e.cx, e.cy, BLDS[e.type].sight + Math.max(e.gw, e.gh) / 2); }
 }
 
-export function spySatUp(g, p) {
+function spySatUp(g, p) {
   for (var i = 0; i < g.blds.length; i++) {
     var b = g.blds[i];
     if (b.dead || b.p !== p || b.make > 0 || b.offline) continue;
@@ -42,7 +42,7 @@ export function spySatUp(g, p) {
 
 // [NACLON] Cloning=yes: the Vats runs a second copy of every man the
 // barracks turns out, free, and puts him at its own door.
-export function cloneVatsOf(g, p) {
+function cloneVatsOf(g, p) {
   for (var i = 0; i < g.blds.length; i++) {
     var b = g.blds[i];
     if (b.dead || b.p !== p || b.make > 0 || b.offline) continue;
@@ -64,7 +64,7 @@ export function cloneVatsOf(g, p) {
 //  ring, which keeps its ground and only takes the dark wash so the edge
 //  is soft instead of a cut circle.
 // --------------------------------------------------------------------- //
-export function applyGaps(g) {
+function applyGaps(g) {
   if (!g.gapM) g.gapM = [new Uint8Array(MAP * MAP), new Uint8Array(MAP * MAP)];
   var any = false, i, p;
   for (p = 0; p < 2; p++) g.gapM[p].fill(0);
@@ -90,16 +90,16 @@ export function applyGaps(g) {
   for (i = 0; i < seen.length; i++) if (hm[i] === 2) seen[i] = 0;
 }
 
-export function gapped(g, p, x, y) {
+function gapped(g, p, x, y) {
   return !!(g.gapAny && g.gapM && g.gapM[p][((y | 0) * MAP + (x | 0))] === 2);
 }
 
-export function tileSeen(g, x, y) {
+function tileSeen(g, x, y) {
   x = Math.round(x); y = Math.round(y);
   return !inMap(x, y) || g.seen[y * MAP + x] === 1;
 }
 
-export function entSeen(g, e) {
+function entSeen(g, e) {
   if (e.p === ME) return true;
   if (e.kind === 'u') return tileSeen(g, e.x, e.y);
   for (var yy = e.y; yy < e.y + e.gh; yy++) for (var xx = e.x; xx < e.x + e.gw; xx++) if (tileSeen(g, xx, yy)) return true;

@@ -2,10 +2,10 @@
 // Called by bakeVehicle() with one context object carrying the canvas, the anchor,
 // the facing and the helpers it draws with — see rts/README.md.
 
-import { ISO_X, ISO_Y, isoBox } from '../../bake/kit.js';
-import { shade } from '../../bake/terrain.js';
 
-export function drawNighthawk(C) {
+
+
+function drawNighthawk(C) {
   var PEDGE = C.PEDGE, STEEL = C.STEEL, a = C.a, anim = C.anim, barrel = C.barrel, by = C.by,
       chassis = C.chassis, cx = C.cx, fx = C.fx, fy = C.fy, g = C.g, hull = C.hull, i2 = C.i2,
       len = C.len, panel = C.panel, puck = C.puck, px = C.px, py = C.py, sg = C.sg, wantH = C.wantH,

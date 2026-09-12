@@ -2,10 +2,10 @@
 // Called by bakeVehicle() with one context object carrying the canvas, the anchor,
 // the facing and the helpers it draws with — see rts/README.md.
 
-import { isoBox, outline } from '../../bake/kit.js';
-import { shade } from '../../bake/terrain.js';
 
-export function drawFlaktrack(C) {
+
+
+function drawFlaktrack(C) {
   var PEDGE = C.PEDGE, RING = C.RING, a = C.a, bumper = C.bumper, by = C.by, chassis = C.chassis,
       cx = C.cx, dark = C.dark, deck = C.deck, exhaust = C.exhaust, fx = C.fx, fy = C.fy, g = C.g,
       hull = C.hull, i2 = C.i2, lamp = C.lamp, len = C.len, panel = C.panel, pdark = C.pdark,

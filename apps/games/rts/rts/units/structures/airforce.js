@@ -2,12 +2,12 @@
 // Called by bakeBuilding() with one context object carrying the canvas, the anchor,
 // the facing and the helpers it draws with — see rts/README.md.
 
-import { outline } from '../../bake/kit.js';
-import { shade } from '../../bake/terrain.js';
-import { cylinder, prism, railing } from '../../bake/vehicles.js';
-import { AFC_PAD } from '../../geom.js';
 
-export function drawAirforce(C) {
+
+
+
+
+function drawAirforce(C) {
   var VS = C.VS, baseY = C.baseY, bph = C.bph, col = C.col, cx = C.cx, fh = C.fh, fw = C.fw,
       g = C.g, rnd = C.rnd, srand = C.srand;
 

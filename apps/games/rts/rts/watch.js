@@ -1,18 +1,18 @@
 // Iron Frontier — watch.js
 // One subsystem of the game. Loaded as a native ES module; see rts/README.md.
 
-import { BLDS } from './blds.js';
-import { harvKey, isHarv } from './combat-tables.js';
-import { mmPing } from './combat.js';
-import { placeBld, powered, spawnUnit } from './entities.js';
-import { FACTIONS, facOf, ownedBy } from './factions.js';
-import { countUnit, freeTileNear, hasBld } from './production.js';
-import { UNITS } from './roster.js';
-import { headless } from './state.js';
-import { reqMet } from './supers.js';
-import { eva } from './ui/audio.js';
-import { say } from './ui/hud.js';
-import { FOE, ME } from './world.js';
+
+
+
+
+
+
+
+
+
+
+
+
 
 // ------------------------------------------------------------------- //
 //  eva.ini's standing watches.
@@ -27,7 +27,7 @@ import { FOE, ME } from './world.js';
 //  Presentation only: it makes no random draw and mutates nothing the sim
 //  reads, and it is skipped entirely when headless.
 // ------------------------------------------------------------------- //
-export function techCount(g, p) {
+function techCount(g, p) {
   var s = g.side[p], n = 0, k, d;
   if (!hasBld(g, p, 'base')) return 0;
   for (k in BLDS) {
@@ -61,7 +61,7 @@ function countCls(g, p, cls, harv) {
 var SW_DETECT = { nuke: 'Nuclear silo detected', curtain: 'Iron Curtain detected',
                   chrono: 'Chronosphere detected' };
 
-export function stepEvaWatch(g) {
+function stepEvaWatch(g) {
   if (headless) return;
   if (!g.ev) g.ev = { tech: -1, defOff: false, air: false, armour: false, inf: false, sw: {}, lab: false, minerOff: false };
   var ev = g.ev, i, b;
@@ -116,7 +116,7 @@ export function stepEvaWatch(g) {
 // gives you the MCV instead of the yard it would unfold into; "Units" is
 // the guard that starts beside it (0-10, three by default, which is what
 // the game always gave).
-export function openingForce(g, p) {
+function openingForce(g, p) {
   var st = g.start[p], sp, i;
   // The yard is centred on the start tile the same way the placement ghost
   // and the MCV deploy centre it, so a 4x4 Foundation= sits where a 3x3 did.
@@ -136,7 +136,7 @@ export function openingForce(g, p) {
   }
 }
 
-export function economyDead(g, p) {
+function economyDead(g, p) {
   if (countUnit(g, p, 'harvester') > 0) return false;
   var c = g.side[p].credits, hcost = UNITS[harvKey(facOf(g, p))].cost;
   if (c >= hcost && hasBld(g, p, 'factory')) return false;

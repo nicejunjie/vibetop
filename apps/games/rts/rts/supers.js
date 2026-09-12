@@ -1,9 +1,9 @@
 // Iron Frontier — supers.js
 // One subsystem of the game. Loaded as a native ES module; see rts/README.md.
 
-import { BLDS } from './blds.js';
-import { bspecFor } from './combat-tables.js';
-import { hasFacBld, ownedBy } from './factions.js';
+
+
+
 
 // --------------------------------------------------------------------- //
 //  Superweapons (RA2). The structure is only the charger: the TIMER lives
@@ -11,7 +11,7 @@ import { hasFacBld, ownedBy } from './factions.js';
 //  a second silo buys nothing — exactly RA2's rule. Charge times are the
 //  rules.ini ones and only advance while the owner's grid is powered.
 // --------------------------------------------------------------------- //
-export var SW = {
+var SW = {
   chrono:  { bld: 'chrono',  name: 'Chronosphere',           em: '\ud83c\udf00', charge: 60 * 60 * 7,  two: true,
              ready: 'Chronosphere ready',
              hint: 'Chronosphere \u2014 click the 3\u00d73 of vehicles to lift. Esc cancels.',
@@ -33,7 +33,7 @@ export var SW = {
              hint: 'Paratrooper Drop \u2014 click where the stick should land. Esc cancels.' }
 };
 
-export var SW_KEYS = ['chrono', 'storm', 'curtain', 'nuke', 'para'];
+var SW_KEYS = ['chrono', 'storm', 'curtain', 'nuke', 'para'];
 
 // [General] IronCurtainDuration=750 frames and LightningStormDuration=180.
 // rules.ini:693 says in Westwood's own words "In frames 900 is a minute for
@@ -41,9 +41,9 @@ export var SW_KEYS = ['chrono', 'storm', 'curtain', 'nuke', 'para'];
 // derived at 15 fps (180/15 = 12 s); IRON_T matched neither 15 nor 30 and
 // was simply short, which made the Collective's answer to a defended base
 // less than half the window RA2 gives it.
-export var IRON_T = 50 * 60, STORM_T = 12 * 60, NUKE_FLIGHT = 10 * 60;
+var IRON_T = 50 * 60, STORM_T = 12 * 60, NUKE_FLIGHT = 10 * 60;
 
-export function swInit() {
+function swInit() {
   var o = {};
   for (var i = 0; i < SW_KEYS.length; i++) o[SW_KEYS[i]] = { t: 0, ready: false, fired: 0, armed: false };
   return o;
@@ -51,12 +51,12 @@ export function swInit() {
 
 // Is this structure a superweapon? (The captured Airport carries the
 // Paratrooper special but is not buildable, so it never reaches canBuild.)
-export function swBld(key) {
+function swBld(key) {
   for (var i = 0; i < SW_KEYS.length; i++) if (SW[SW_KEYS[i]].bld === key) return true;
   return false;
 }
 
-export function swKeysFor(fac) {
+function swKeysFor(fac) {
   var a = [];
   for (var i = 0; i < SW_KEYS.length; i++) if (BLDS[SW[SW_KEYS[i]].bld].fac === fac) a.push(SW_KEYS[i]);
   return a;
@@ -64,7 +64,7 @@ export function swKeysFor(fac) {
 
 // Invulnerable under the Iron Curtain: checked by damage() before anything
 // else, so a shot at a curtained Rhino is not merely survived, it is void.
-export function ironed(g, e) { return !!e.ironUntil && g.tick < e.ironUntil; }
+function ironed(g, e) { return !!e.ironUntil && g.tick < e.ironUntil; }
 
 // Prerequisite check (RA2 tech tree): spec.req is one key or a list, any of.
 // `req` = any one of these (the faction's radar-class building); `reqAll` =
@@ -79,7 +79,7 @@ export function ironed(g, e) { return !!e.ironUntil && g.tick < e.ironUntil; }
 // item (fac null) keeps RA2's generic alias and takes either.
 // In an ordinary match this is a no-op: every building a house owns carries
 // that house's faction.
-export function reqMet(g, p, spec) {
+function reqMet(g, p, spec) {
   var fac = spec.fac || null;
   if (spec.reqAll) for (var j = 0; j < spec.reqAll.length; j++) if (!hasFacBld(g, p, spec.reqAll[j], fac)) return false;
   if (!spec.req) return true;
@@ -88,7 +88,7 @@ export function reqMet(g, p, spec) {
   return false;
 }
 
-export function reqName(spec, fac) {
+function reqName(spec, fac) {
   // Faction-aware: the Collective reads "Tesla Reactor", not "Power Plant",
   // and never sees the other side's radar-class building in an "or".
   var nm = function (k) { return bspecFor(k, fac || 'dir').name; };

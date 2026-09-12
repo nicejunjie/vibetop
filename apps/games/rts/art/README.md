@@ -1,8 +1,9 @@
 # rts art harness
 
 Playwright renders of `apps/games/rts/rts.html` sprites. Nothing is built —
-just serve the game directory (the page loads its ES modules from `rts/**`,
-so the server's root must be `apps/games/rts/`):
+just serve the game directory (the page loads its scripts from `rts/**`, so the
+server's root must be `apps/games/rts/`). The harness needs an http origin;
+to simply *play* the game you can double-click `rts.html` instead.
 
     node apps/games/rts/tools/lib/serve-rts.js &          # prints the URL
     # or: cd apps/games/rts && python3 -m http.server 8099 --bind 127.0.0.1 &
@@ -19,11 +20,11 @@ Then, from anywhere (`RTS_PORT` / `RTS_URL` pick the server, `RTS_OUT` the outpu
 
 ## Editing the art itself
 
-Each unit's drawing code is its own ES module under
+Each unit's drawing code is its own file under
 `apps/games/rts/rts/units/<class>/<kind>.js` (`infantry/`, `vehicles/`,
-`aircraft/`, `ships/`, `structures/`), exporting one `drawX(C)` that takes a
-single context object. `rts.html` — what everything above renders — loads them
-through `rts/main.js`; there is nothing to build, so a saved edit is live on the
-next reload. What a unit module may use, and the rest of the tree, is in
-`apps/games/rts/rts/README.md`. (The old `art/units/**` tree and
+`aircraft/`, `ships/`, `structures/`), a plain script declaring one `drawX(C)`
+that takes a single context object. `rts.html` — what everything above renders —
+lists them all as `<script src>` tags; there is nothing to build, so a saved
+edit is live on the next reload. What a unit file may use, and the rest of the
+tree, is in `apps/games/rts/rts/README.md`. (The old `art/units/**` tree and
 `tools/rts-build.py` are gone.)

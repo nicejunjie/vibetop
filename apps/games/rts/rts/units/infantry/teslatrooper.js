@@ -2,10 +2,10 @@
 // Called by bakeInfantry() with one context object carrying the canvas, the anchor,
 // the facing and the helpers it draws with — see rts/README.md.
 
-import { ACCENT, outline } from '../../bake/kit.js';
-import { shade } from '../../bake/terrain.js';
 
-export function drawTeslatrooper(C) {
+
+
+function drawTeslatrooper(C) {
   var FA = C.FA, T = C.T, TURN = C.TURN, arms = C.arms, by = C.by, col = C.col, cx = C.cx, g = C.g,
       gt = C.gt, legs = C.legs, sd = C.sd;
 

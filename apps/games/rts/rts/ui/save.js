@@ -1,19 +1,19 @@
 // Iron Frontier — ui/save.js
 // One subsystem of the game. Loaded as a native ES module; see rts/README.md.
 
-import { applyHouse } from '../bake/buildings.js';
-import { HASH_UNSET, setHashAt } from '../combat.js';
-import { MAPS, setMapId } from '../mapgen.js';
-import { netAttach } from '../net.js';
-import { normOpts } from '../opts.js';
-import { pathQ } from '../path.js';
-import { _seed, srand } from '../rng.js';
-import { G, setDifficulty, setFaction, setG, state } from '../state.js';
-import { ME } from '../world.js';
-import { say } from './hud.js';
-import { setViews, views } from './input.js';
-import { opts, setOpts } from './menus.js';
-import { groups, setGroups } from './screen.js';
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 // ------------------------------------------------------------------- //
 //  Save / load.
@@ -103,7 +103,7 @@ function resolveRefs(v, byId, seen) {
   }
 }
 
-export function serialiseGame(g) {
+function serialiseGame(g) {
   return {
     v: SAVE_VER, at: Date.now(), tick: g.tick, seed: _seed,
     map: g.mapId, mapName: (MAPS[g.mapId] || MAPS.frontier).name,
@@ -123,7 +123,7 @@ function serGroups() {
 
 var loadedSession = null;                // {groups, views} from the blob, applied by enterLoaded
 
-export function restoreSession() {
+function restoreSession() {
   if (!loadedSession || !G) return;
   var k, out = {};
   for (k in loadedSession.groups) {
@@ -160,7 +160,7 @@ function serWorld(g) {
   return o;
 }
 
-export function restoreGame(blob) {
+function restoreGame(blob) {
   var g = deser(blob.g), i;
   g.byId = {};
   // Older saves carry the session flag (see ENT_SKIP): a restored entity is
@@ -183,7 +183,7 @@ export function restoreGame(blob) {
 
 function saveKey(n) { return 'vibetop:rts:save:' + n; }
 
-export function saveSlots() {
+function saveSlots() {
   var out = [];
   for (var n = 1; n <= SAVE_SLOTS; n++) {
     var raw = lsGet(saveKey(n)), meta = null;
@@ -193,13 +193,13 @@ export function saveSlots() {
   return out;
 }
 
-export function saveGame(n) {
+function saveGame(n) {
   if (!G) return false;
   try { lsSet(saveKey(n), JSON.stringify(serialiseGame(G))); } catch (e) { return false; }
   return !!lsGet(saveKey(n));
 }
 
-export function loadGame(n) {
+function loadGame(n) {
   var raw = lsGet(saveKey(n));
   if (!raw) return false;
   var blob;
@@ -218,9 +218,9 @@ export function loadGame(n) {
 // Autosave to the 'auto' key (outside the numbered slots), flag a resume,
 // and reload. Boot reads the flag, loads the autosave and enters the match
 // without touching the menu.
-export var RESUME_KEY = 'vibetop:rts:resume';
+var RESUME_KEY = 'vibetop:rts:resume';
 
-export function reloadKeepMatch() {
+function reloadKeepMatch() {
   if (!G || (state !== 'play' && state !== 'paused')) { location.reload(); return; }
   if (!saveGame('auto')) { say('Could not save — storage is full', true); return; }
   lsSet(RESUME_KEY, 'keep');                         // asked for: resumes whatever the navigation says
@@ -247,12 +247,12 @@ var closedByUser = false;
 
 window.__vibetopClosing = function () { closedByUser = true; lsSet(RESUME_KEY, '0'); };
 
-export function autosaveForReload() {
+function autosaveForReload() {
   var inMatch = !closedByUser && !!G && (state === 'play' || state === 'paused') && !G.mp;
   if (inMatch && saveGame('auto')) lsSet(RESUME_KEY, '1'); else lsSet(RESUME_KEY, '0');
 }
 
-export function resumeWanted() {
+function resumeWanted() {
   var flag = lsGet(RESUME_KEY);
   lsSet(RESUME_KEY, '0');                            // read once, whatever it said
   if (flag === 'keep') return true;                  // the Options card's own Reload
@@ -270,11 +270,9 @@ window.addEventListener('pagehide', autosaveForReload);
 
 document.addEventListener('visibilitychange', function () { if (document.hidden) autosaveForReload(); });
 
-export function lsGet(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
 
-export function lsSet(k, v) { try { localStorage.setItem(k, v); } catch (e) {} }
 
 // --- generated ---
 // ESM import bindings are read-only, so a write from another module goes
 // through the owner. Reads stay verbatim everywhere: the binding is live.
-export function setClosedByUser(v) { closedByUser = v; }
+function setClosedByUser(v) { closedByUser = v; }

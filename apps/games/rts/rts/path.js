@@ -1,11 +1,11 @@
 // Iron Frontier — path.js
 // One subsystem of the game. Loaded as a native ES module; see rts/README.md.
 
-import { BLDS } from './blds.js';
-import { moverOf } from './geom.js';
-import { GATE_T } from './move.js';
-import { idx, inMap } from './state.js';
-import { MAP, terrPass } from './world.js';
+
+
+
+
+
 
 // --------------------------------------------------------------------- //
 //  Passability + pathfinding (A* on the tile grid, with a per-frame
@@ -15,7 +15,7 @@ import { MAP, terrPass } from './world.js';
 // only ever gets there because one of its OWNER's units came close enough
 // (stepGate), which is what makes a gate one-way in practice — an enemy
 // column stands at a shut gate exactly as it stands at a wall.
-export function gateOpen(g, i) {
+function gateOpen(g, i) {
   var id = g.occ[i];
   if (!id) return false;
   var b = g.byId[id];
@@ -33,7 +33,7 @@ function ownGate(g, i, p) {
   return !!(b && !b.dead && BLDS[b.type].gate && b.p === p);
 }
 
-export function blocked(g, x, y, p, mv) {
+function blocked(g, x, y, p, mv) {
   if (!inMap(x, y)) return true;
   var i = idx(x, y);
   if (!terrPass(g.terrain[i], mv)) return true;
@@ -42,13 +42,13 @@ export function blocked(g, x, y, p, mv) {
   return !(p !== undefined && ownGate(g, i, p));
 }
 
-export var pathQ = [];
+var pathQ = [];
 
 // Do NOT drop the current path here. Clearing it on request meant a unit
 // stopped dead until the queue reached it, so an AI that re-tasked often
 // (a FAST one) had an army that stood still — reaction speed became a
 // handicap. The old path stays valid until the new one replaces it.
-export function requestPath(g, u, tx, ty) {
+function requestPath(g, u, tx, ty) {
   if (u.air) return;                          // aircraft do not path
   for (var i = 0; i < pathQ.length; i++) {
     if (pathQ[i].u === u) { pathQ[i].tx = tx; pathQ[i].ty = ty; return; }
@@ -56,7 +56,7 @@ export function requestPath(g, u, tx, ty) {
   pathQ.push({ u: u, tx: tx, ty: ty });
 }
 
-export function runPathQueue(g, budget) {
+function runPathQueue(g, budget) {
   var n = 0;
   while (pathQ.length && n < budget) {
     var r = pathQ.shift(); n++;
@@ -70,7 +70,7 @@ export function runPathQueue(g, budget) {
 }
 
 // Binary-heap A*. Returns an array of {x,y} or null when unreachable.
-export function astar(g, sx, sy, tx, ty, p, mv) {
+function astar(g, sx, sy, tx, ty, p, mv) {
   sx = Math.max(0, Math.min(MAP - 1, sx)); sy = Math.max(0, Math.min(MAP - 1, sy));
   if (!inMap(tx, ty)) return null;
   if (sx === tx && sy === ty) return [];
@@ -161,4 +161,4 @@ export function astar(g, sx, sy, tx, ty, p, mv) {
 // --- generated ---
 // ESM import bindings are read-only, so a write from another module goes
 // through the owner. Reads stay verbatim everywhere: the binding is live.
-export function setPathQ(v) { pathQ = v; }
+function setPathQ(v) { pathQ = v; }

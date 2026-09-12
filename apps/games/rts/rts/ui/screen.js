@@ -1,13 +1,13 @@
 // Iron Frontier — ui/screen.js
 // One subsystem of the game. Loaded as a native ES module; see rts/README.md.
 
-import { G } from '../state.js';
-import { DPR, HSTEP, MAP, TH, TW, T_BRIDGE, T_ROAD, gridAt, worldX, worldY } from '../world.js';
-import { ctx, cv, cvH, cvW, setCvH, setCvW, stage } from './dom.js';
 
-export var cam = { x: 0, y: 0 };
 
-export var zoom = 1;                       // mouse-wheel zoom, about the cursor
+
+
+var cam = { x: 0, y: 0 };
+
+var zoom = 1;                       // mouse-wheel zoom, about the cursor
 
 // ZMIN 0.55 was the single thing voiding every other art measurement.
 // unit-identity-reference.md R1: RA2 authored its identity spikes at a 2 px
@@ -34,11 +34,11 @@ export var zoom = 1;                       // mouse-wheel zoom, about the cursor
 var ZMIN = 0.75, ZMAX = 2.0;
 
 // Screen px -> the unzoomed screen space that sx()/sy() work in.
-export function unzoom(px, py) {
+function unzoom(px, py) {
   return { x: (px - cvW / 2) / zoom + cvW / 2, y: (py - cvH / 2) / zoom + cvH / 2 };
 }
 
-export function setZoom(z, px, py) {
+function setZoom(z, px, py) {
   z = Math.max(ZMIN, Math.min(ZMAX, z));
   if (z === zoom) return;
   var before = screenToGrid(px, py);
@@ -50,17 +50,17 @@ export function setZoom(z, px, py) {
   clampCam();
 }
 
-export var sel = [];                       // selected entities (units and/or one building)
+var sel = [];                       // selected entities (units and/or one building)
 
-export var groups = {};                    // ctrl+N control groups
+var groups = {};                    // ctrl+N control groups
 
-export var placing = null;                 // structure key awaiting a click
+var placing = null;                 // structure key awaiting a click
 
-export var hoverTile = { x: 0, y: 0 };
+var hoverTile = { x: 0, y: 0 };
 
-export var panel = 'b';
+var panel = 'b';
 
-export function resize() {
+function resize() {
   var r = stage.getBoundingClientRect();
   setCvW(Math.max(200, Math.floor(r.width)));
   setCvH(Math.max(160, Math.floor(r.height)));
@@ -72,7 +72,7 @@ export function resize() {
   ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
 }
 
-export function centerOn(gx, gy) {
+function centerOn(gx, gy) {
   cam.x = worldX(gx, gy);
   cam.y = worldY(gx, gy);
 }
@@ -84,7 +84,7 @@ export function centerOn(gx, gy) {
 // a box lets the centre reach the box's corners, which are nothing but
 // void (a full black screen, tried and rejected), while a fixed 260 px
 // world margin pinned the diamond's corners against the view.
-export function clampCam() {
+function clampCam() {
   var m = Math.max(4, (cvH / zoom) / TH / 3);        // cells past the edge: ~9 at 900 px
   var gx = cam.x / TW + cam.y / TH, gy = cam.y / TH - cam.x / TW;   // inverse of worldX/worldY
   gx = Math.max(-m, Math.min(MAP + m, gx));
@@ -92,11 +92,11 @@ export function clampCam() {
   cam.x = worldX(gx, gy); cam.y = worldY(gx, gy);
 }
 
-export var APRON = 16;                                 // how far the terrain runs past the border
+var APRON = 16;                                 // how far the terrain runs past the border
 
-export function sx(gx, gy) { return worldX(gx, gy) - cam.x + cvW / 2; }
+function sx(gx, gy) { return worldX(gx, gy) - cam.x + cvW / 2; }
 
-export function sxF(gx, gy) { return worldX(gx, gy) - cam.x + cvW / 2; }
+function sxF(gx, gy) { return worldX(gx, gy) - cam.x + cvW / 2; }
 
 // Which of the four neighbours carry a road, for the connector set. A road
 // that runs off the board keeps going into the apron rather than stopping
@@ -107,7 +107,7 @@ function roadAt(xx, yy) {
   return (t === T_ROAD || t === T_BRIDGE) ? 1 : 0;
 }
 
-export function roadMask(x, y) {
+function roadMask(x, y) {
   return roadAt(x, y - 1) | (roadAt(x + 1, y) << 1) | (roadAt(x, y + 1) << 2) | (roadAt(x - 1, y) << 3);
 }
 
@@ -124,11 +124,11 @@ function hPx(gx, gy) {
 
 // EVERYTHING on a tile rides its height: units, structures, trees, decals,
 // shots, explosions. That is the whole point of folding it into sy().
-export function sy(gx, gy) { return worldY(gx, gy) - cam.y + cvH / 2 - hPx(gx, gy); }
+function sy(gx, gy) { return worldY(gx, gy) - cam.y + cvH / 2 - hPx(gx, gy); }
 
-export function syFlat(gx, gy) { return worldY(gx, gy) - cam.y + cvH / 2; }
+function syFlat(gx, gy) { return worldY(gx, gy) - cam.y + cvH / 2; }
 
-export function screenToGrid(px, py) {
+function screenToGrid(px, py) {
   var u = unzoom(px, py);
   return gridFromW(u.x, u.y);
 }
@@ -136,7 +136,7 @@ export function screenToGrid(px, py) {
 // The same inverse from ALREADY-UNZOOMED coordinates, so pickAtW can ask
 // "which tile is under this pixel" with the identical rounding the movement
 // orders use. One implementation, or the two drift.
-export function gridFromW(ux, uy) {
+function gridFromW(ux, uy) {
   var wx = ux - cvW / 2 + cam.x, wy = uy - cvH / 2 + cam.y;
   var p = gridAt(wx, wy);
   // Inverting a raised tile: add the height back and re-project. Two passes
@@ -148,7 +148,7 @@ export function gridFromW(ux, uy) {
 // --- generated ---
 // ESM import bindings are read-only, so a write from another module goes
 // through the owner. Reads stay verbatim everywhere: the binding is live.
-export function setGroups(v) { groups = v; }
-export function setPanel(v) { panel = v; }
-export function setPlacing(v) { placing = v; }
-export function setSel(v) { sel = v; }
+function setGroups(v) { groups = v; }
+function setPanel(v) { panel = v; }
+function setPlacing(v) { placing = v; }
+function setSel(v) { sel = v; }

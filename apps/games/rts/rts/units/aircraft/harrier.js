@@ -2,9 +2,9 @@
 // Called by bakeVehicle() with one context object carrying the canvas, the anchor,
 // the facing and the helpers it draws with — see rts/README.md.
 
-import { shade } from '../../bake/terrain.js';
 
-export function drawHarrier(C) {
+
+function drawHarrier(C) {
   var AL = C.AL, anim = C.anim, bodyPath = C.bodyPath, bodyR = C.bodyR, col = C.col, g = C.g,
       gradB = C.gradB, i2 = C.i2, nx2 = C.nx2, ny2 = C.ny2, pt = C.pt, px = C.px, py = C.py,
       rad = C.rad, secK = C.secK, ux2 = C.ux2, uy2 = C.uy2;

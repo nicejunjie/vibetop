@@ -13,7 +13,7 @@
 //  if the same seed produces the same match every time.
 // ===================================================================== //
 
-export var STEP = 1000 / 60;          // ms per simulation tick
+var STEP = 1000 / 60;          // ms per simulation tick
 
 // --------------------------------------------------------------------- //
 //  Skirmish options — RA2's setup screen, in one object.
@@ -31,14 +31,14 @@ export var STEP = 1000 / 60;          // ms per simulation tick
 //  0.25 .. 1.5 sim ticks per rendered frame with no interpolation at all.
 //  Speed 4 is exactly the old 60/s, RA2's "Fast" and our default.
 // --------------------------------------------------------------------- //
-export var OPT_DEF = { credits: 10000, units: 3, short: true, crates: true,
+var OPT_DEF = { credits: 10000, units: 3, short: true, crates: true,
                 supers: true, speed: 4, bases: true, colour: 2, aiColour: 1 };
 
 var OPT_CREDITS = [5000, 10000, 20000];
 
 // RA2's eight multiplayer house colours. Index 2 (blue) and 1 (red) are the
 // pair the game shipped with, so the default COL below is byte-identical.
-export var HOUSE = [
+var HOUSE = [
   { k: 'gold',   name: 'Gold',   c: '#e0bf49' },
   { k: 'red',    name: 'Red',    c: '#e5646c' },
   { k: 'blue',   name: 'Blue',   c: '#4aa3db' },
@@ -52,9 +52,9 @@ export var HOUSE = [
 // The AI never wears the player's colour. Blue and red stay each other's
 // opposite so the classic pairing survives; any other pick puts the AI in
 // red, or blue if the player took red.
-export function aiHouse(h) { return h === 1 ? 2 : 1; }
+function aiHouse(h) { return h === 1 ? 2 : 1; }
 
-export function normOpts(o) {
+function normOpts(o) {
   var r = {}, k;
   for (k in OPT_DEF) r[k] = OPT_DEF[k];
   if (o) for (k in OPT_DEF) if (o[k] !== undefined && o[k] !== null) r[k] = o[k];
@@ -67,3 +67,11 @@ export function normOpts(o) {
   if (r.aiColour === r.colour) r.aiColour = aiHouse(r.colour);
   return r;
 }
+
+// Local storage, wrapped so a browser with storage disabled (a private window,
+// blocked site data) degrades to defaults instead of throwing on boot. Kept in
+// this leaf module because preferences are read while other modules are still
+// loading — see rts/README.md on load order.
+function lsGet(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
+
+function lsSet(k, v) { try { localStorage.setItem(k, v); } catch (e) {} }

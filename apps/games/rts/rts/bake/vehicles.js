@@ -1,30 +1,30 @@
 // Iron Frontier — bake/vehicles.js
 // One subsystem of the game. Loaded as a native ES module; see rts/README.md.
 
-import { drawHarrier } from '../units/aircraft/harrier.js';
-import { drawKirov } from '../units/aircraft/kirov.js';
-import { drawApc } from '../units/vehicles/apc.js';
-import { drawChronominer } from '../units/vehicles/chronominer.js';
-import { drawDrone } from '../units/vehicles/drone.js';
-import { drawFlaktrack } from '../units/vehicles/flaktrack.js';
-import { drawIfv } from '../units/vehicles/ifv.js';
-import { drawLancer } from '../units/vehicles/lancer.js';
-import { drawMammoth } from '../units/vehicles/mammoth.js';
-import { drawMcv } from '../units/vehicles/mcv.js';
-import { drawMirage } from '../units/vehicles/mirage.js';
-import { drawNighthawk } from '../units/vehicles/nighthawk.js';
-import { drawRhino } from '../units/vehicles/rhino.js';
-import { drawSpectre } from '../units/vehicles/spectre.js';
-import { drawTeslatank } from '../units/vehicles/teslatank.js';
-import { drawV3 } from '../units/vehicles/v3.js';
-import { drawWarminer } from '../units/vehicles/warminer.js';
-import { DPR } from '../world.js';
-import { FANG, ISO_X, ISO_Y, NFACE, UPAD, USC_V, isoBox, outline, shadowBlob, unitCanvas } from './kit.js';
-import { VACC } from './ships.js';
-import { NO_RIM, diamond, metalFinish, mkCanvas, setNO_RIM, setVLIFT, shade } from './terrain.js';
-import { artBox } from './walls.js';
 
-export function bakeVehicle(col, kind, fac, anim) {
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+function bakeVehicle(col, kind, fac, anim) {
   var sov = fac === 'col';
   var dig = anim === 'mine';
   var TRK_TOP = '#4e535c', TRK_SIDE = '#2d3138', TRK_D = '#101316';
@@ -976,7 +976,7 @@ export function bakeVehicle(col, kind, fac, anim) {
 // getter, so the array reads like a plain baked strip and costs nothing
 // until it is indexed. `bb` is filled in here (bakeOwned used to walk every
 // frame to do it, which would have forced all 32).
-export function faceSheet(make) {
+function faceSheet(make) {
   var arr = new Array(NFACE);
   for (var i = 0; i < NFACE; i++) defineFace(arr, i, make);
   return arr;
@@ -1005,13 +1005,13 @@ function defineFace(arr, i, make) {
 // (hw,hh) are the half-extents of a footprint diamond centred at (cx,cy),
 // in the same 2:1 projection as the ground. `lift` extrudes it upward.
 // A short drum standing on its end: cylinder() with a flatter lid.
-export function puckDrum(g, cx, cy, r, h, body, top, edge) {
+function puckDrum(g, cx, cy, r, h, body, top, edge) {
   cylinder(g, cx, cy, r, h, body, top, edge);
   g.fillStyle = shade(top, 1.18);
   g.beginPath(); g.ellipse(cx, cy - h, r * 0.55, r * 0.26, 0, 0, 6.29); g.fill();
 }
 
-export function cylinder(g, cx, cy, rx, h, body, top, edge) {
+function cylinder(g, cx, cy, rx, h, body, top, edge) {
   g.fillStyle = body;
   g.beginPath();
   g.moveTo(cx - rx, cy); g.lineTo(cx - rx, cy - h);
@@ -1032,11 +1032,11 @@ export function cylinder(g, cx, cy, rx, h, body, top, edge) {
 // 0..1 along the wall from its outer corner to the near corner, v runs 0..1
 // bottom to top. Doors, bands and chevrons are all placed with these, so
 // they skew with the wall instead of sitting on it like a sticker.
-export function faceL(cx, cy, hw, hh, lift, t, v) { return [cx - hw + hw * t, cy + hh * t - lift * v]; }
+function faceL(cx, cy, hw, hh, lift, t, v) { return [cx - hw + hw * t, cy + hh * t - lift * v]; }
 
-export function faceR(cx, cy, hw, hh, lift, t, v) { return [cx + hw - hw * t, cy + hh * t - lift * v]; }
+function faceR(cx, cy, hw, hh, lift, t, v) { return [cx + hw - hw * t, cy + hh * t - lift * v]; }
 
-export function facePatch(g, F, cx, cy, hw, hh, lift, t0, t1, v0, v1, fill, edge) {
+function facePatch(g, F, cx, cy, hw, hh, lift, t0, t1, v0, v1, fill, edge) {
   var a = F(cx, cy, hw, hh, lift, t0, v0), b = F(cx, cy, hw, hh, lift, t1, v0),
       c = F(cx, cy, hw, hh, lift, t1, v1), d = F(cx, cy, hw, hh, lift, t0, v1);
   g.beginPath();
@@ -1087,7 +1087,7 @@ function drawWall(g, F, cx, cy, hw, hh, lift, col, lf, edge, seams) {
 }
 
 // A box in the ground projection. Returns the roof's y so callers can stack.
-export function prism(g, cx, cy, hw, hh, lift, wall, roof, edge, seams) {
+function prism(g, cx, cy, hw, hh, lift, wall, roof, edge, seams) {
   drawWall(g, faceL, cx, cy, hw, hh, lift, wall, 0.94, edge, seams);
   drawWall(g, faceR, cx, cy, hw, hh, lift, wall, 0.62, edge, seams);
   var ry = cy - lift;
@@ -1113,7 +1113,7 @@ export function prism(g, cx, cy, hw, hh, lift, wall, roof, edge, seams) {
 
 // --- greebles: the small ironmongery that makes a volume read as a working
 // --- installation instead of a shape. Cheap, and it is the whole difference.
-export function railing(g, ax, ay, bx, by, h, col) {
+function railing(g, ax, ay, bx, by, h, col) {
   g.strokeStyle = col; g.lineWidth = 1;
   var n = Math.max(2, Math.round(Math.hypot(bx - ax, by - ay) / 8));
   for (var i = 0; i <= n; i++) {
@@ -1125,7 +1125,7 @@ export function railing(g, ax, ay, bx, by, h, col) {
 }
 
 // Pipe run down a wall face, in that wall's own skew.
-export function pipeRun(g, F, cx, cy, hw, hh, lift, t, v0, v1, w, col) {
+function pipeRun(g, F, cx, cy, hw, hh, lift, t, v0, v1, w, col) {
   var a = F(cx, cy, hw, hh, lift, t, v0), b = F(cx, cy, hw, hh, lift, t, v1);
   g.lineCap = 'round';
   g.strokeStyle = shade(col, 0.55); g.lineWidth = w + 1.4;
@@ -1143,7 +1143,7 @@ export function pipeRun(g, F, cx, cy, hw, hh, lift, t, v0, v1, w, col) {
 
 // Rust/grime streaking down from a vent or a seam — RA2 structures are
 // filthy, and clean surfaces are a big part of what read as "toy".
-export function streak(g, F, cx, cy, hw, hh, lift, t, vTop, len, n) {
+function streak(g, F, cx, cy, hw, hh, lift, t, vTop, len, n) {
   for (var i = 0; i < n; i++) {
     var tt = t + (i - (n - 1) / 2) * 0.028;
     var a = F(cx, cy, hw, hh, lift, tt, vTop), b = F(cx, cy, hw, hh, lift, tt, Math.max(0, vTop - len));
@@ -1153,7 +1153,7 @@ export function streak(g, F, cx, cy, hw, hh, lift, t, vTop, len, n) {
   }
 }
 
-export function floodlight(g, x, y, dx, col) {
+function floodlight(g, x, y, dx, col) {
   g.strokeStyle = '#5a6068'; g.lineWidth = 1.4;
   g.beginPath(); g.moveTo(x, y); g.lineTo(x, y - 9); g.stroke();
   g.fillStyle = '#464c55';
@@ -1165,7 +1165,7 @@ export function floodlight(g, x, y, dx, col) {
   g.beginPath(); g.ellipse(x + dx * 5, y - 9.5, 6, 3.4, 0, 0, 6.29); g.fill();
 }
 
-export function drums(g, x, y, n, col) {                        // fuel drums on the apron
+function drums(g, x, y, n, col) {                        // fuel drums on the apron
   for (var i = 0; i < n; i++) {
     var dx2 = x + (i % 2) * 7 - i * 1.6, dy2 = y + Math.floor(i / 2) * 4;
     cylinder(g, dx2, dy2, 3.2, 7, shade(col, 0.86), shade(col, 1.12), '#2f2a1e');
@@ -1175,7 +1175,7 @@ export function drums(g, x, y, n, col) {                        // fuel drums on
   }
 }
 
-export function crates(g, x, y, n, col) {
+function crates(g, x, y, n, col) {
   for (var i = 0; i < n; i++) {
     var cxx = x + i * 9 - i * i * 0.5, cyy = y - (i % 2) * 3;
     isoBox(g, cxx, cyy, 8, 8, 6, 0, col, '#3a3226');
@@ -1275,7 +1275,7 @@ function coolTower(g, cx, cy, rb, rt, h, col, edge) {
   g.beginPath(); g.ellipse(cx, cy - h + 0.6, rt * 0.74, rt * 0.30, 0, 0, 6.29); g.fill();
 }
 
-export function steam(g, cx, cy, r, n) {
+function steam(g, cx, cy, r, n) {
   for (var i = 0; i < n; i++) {
     g.fillStyle = 'rgba(226,236,244,' + (0.30 - i * 0.055) + ')';
     g.beginPath();
@@ -1287,14 +1287,14 @@ export function steam(g, cx, cy, r, n) {
 
 // Hazard chevrons across a wall patch — the loudest "vehicles come out
 // here" cue RA2 uses, and it costs four quads.
-export function chevrons(g, F, cx, cy, hw, hh, lift, t0, t1, v0, v1, n, cA, cB) {
+function chevrons(g, F, cx, cy, hw, hh, lift, t0, t1, v0, v1, n, cA, cB) {
   for (var i = 0; i < n; i++) {
     var a = t0 + (t1 - t0) * i / n, b2 = t0 + (t1 - t0) * (i + 1) / n;
     facePatch(g, F, cx, cy, hw, hh, lift, a, b2, v0, v1, i % 2 ? cA : cB, null);
   }
 }
 
-export function lattice(g, x0, y0, x1, y1, w, col) {
+function lattice(g, x0, y0, x1, y1, w, col) {
   var dx = x1 - x0, dy = y1 - y0, L = Math.hypot(dx, dy) || 1;
   var nx = -dy / L * w / 2, ny = dx / L * w / 2;
   g.strokeStyle = col; g.lineWidth = 1.6; g.lineCap = 'round';
@@ -1335,7 +1335,7 @@ var PIXPAL = {
   '.': 'rgba(0,0,0,.34)'
 };
 
-export function bakePix(art, col) {
+function bakePix(art, col) {
   var rows = art.rows, cols = 0, i;
   for (i = 0; i < rows.length; i++) cols = Math.max(cols, rows[i].length);
   var s = mkCanvas(cols * PIXCELL, rows.length * PIXCELL), g = s.g;
@@ -1356,7 +1356,7 @@ export function bakePix(art, col) {
 
 // No grids authored: shape is what was wrong, not the medium, so every
 // structure renders from geometry below. bakePix stays for later.
-export var PIXBLD = {};
+var PIXBLD = {};
 
 // A gun raised `el` radians and traversed to WORLD bearing `th`, seen in
 // this isometric projection: `a` is the angle to draw the barrel at on the
@@ -1364,7 +1364,7 @@ export var PIXBLD = {};
 // vector of the bearing itself (what a launcher or a gun slit slides along).
 // At th = -PI/4 this returns exactly the head-on pose the defences were
 // drawn in, so a null bearing and bearing 7 look the same.
-export function gunAim(th, el) {
+function gunAim(th, el) {
   var sdx = Math.cos(th) - Math.sin(th), sdy = (Math.cos(th) + Math.sin(th)) * 0.5;
   var m = Math.sqrt(sdx * sdx + sdy * sdy) || 1;
   sdx /= m; sdy /= m;
@@ -1379,7 +1379,7 @@ export function gunAim(th, el) {
 // ignores it, and every existing caller passes nothing, which is shut.
 // (gw+gh) each structure's art was proportioned at before the footprints
 // moved to RA2's Foundation=. Used only to rescale the headroom allowance.
-export var FOOT0 = { base: 6, power: 4, refinery: 5, barracks: 4, factory: 6,
+var FOOT0 = { base: 6, power: 4, refinery: 5, barracks: 4, factory: 6,
               airforce: 4, depot: 6, lab: 4, purifier: 4, reactor: 4,
               chrono: 6, cloningvats: 5, gapgen: 4 };
 
@@ -1410,4 +1410,4 @@ export var FOOT0 = { base: 6, power: 4, refinery: 5, barracks: 4, factory: 6,
 // structure in its own game — and art.ini gives it Height=12 against the
 // Construction Yard's 4. The fault was 11% and 55%, not the 3.8x that the
 // raw footprint ratio suggests when there is nothing to compare it to.
-export var VPOW = { airforce: 1, depot: 1, lab: 0, 'factory:col': 1, reactor: 0 };
+var VPOW = { airforce: 1, depot: 1, lab: 0, 'factory:col': 1, reactor: 0 };

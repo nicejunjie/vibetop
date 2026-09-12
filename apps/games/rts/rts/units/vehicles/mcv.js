@@ -2,11 +2,11 @@
 // Called by bakeVehicle() with one context object carrying the canvas, the anchor,
 // the facing and the helpers it draws with — see rts/README.md.
 
-import { FANG, ISO_X, USC_V } from '../../bake/kit.js';
-import { VLIFT, mkCanvas, setVLIFT, shade } from '../../bake/terrain.js';
-import { DPR } from '../../world.js';
 
-export function drawMcv(C) {
+
+
+
+function drawMcv(C) {
   var VSC = C.VSC, by = C.by, cd = C.cd, col = C.col, cx = C.cx, d = C.d, fx = C.fx, fy = C.fy,
       g = C.g, px = C.px, py = C.py, s = C.s, sd = C.sd;
 

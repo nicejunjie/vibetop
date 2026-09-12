@@ -2,10 +2,10 @@
 // Called by bakeBuilding() with one context object carrying the canvas, the anchor,
 // the facing and the helpers it draws with — see rts/README.md.
 
-import { diamond, shade } from '../../bake/terrain.js';
-import { cylinder } from '../../bake/vehicles.js';
 
-export function drawPsisensor(C) {
+
+
+function drawPsisensor(C) {
   var baseY = C.baseY, bph = C.bph, col = C.col, cx = C.cx, fh = C.fh, fw = C.fw, g = C.g;
 
 // [NAPSIS] Psychic Sensor. Soviet: a squat armoured drum, a ring of

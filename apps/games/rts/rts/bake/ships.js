@@ -1,23 +1,23 @@
 // Iron Frontier — bake/ships.js
 // One subsystem of the game. Loaded as a native ES module; see rts/README.md.
 
-import { bakeDog } from '../units/infantry/dog.js';
-import { drawAegis } from '../units/ships/aegis.js';
-import { drawCarrier } from '../units/ships/carrier.js';
-import { drawDestroyer } from '../units/ships/destroyer.js';
-import { drawDolphin } from '../units/ships/dolphin.js';
-import { drawDread } from '../units/ships/dread.js';
-import { drawLcraft } from '../units/ships/lcraft.js';
-import { drawSeascorp } from '../units/ships/seascorp.js';
-import { drawSquid } from '../units/ships/squid.js';
-import { drawSub } from '../units/ships/sub.js';
-import { DOG_SEQ } from './infantry.js';
-import { FANG, ISO_X, ISO_Y, UPAD, USC_V, isoBox, octOf, unitCanvas } from './kit.js';
-import { lcg } from './states.js';
-import { mkCanvas, shade } from './terrain.js';
-import { faceSheet } from './vehicles.js';
 
-export function bakeShip(col, kind, fac) {
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+function bakeShip(col, kind, fac) {
   var sov = fac === 'col';
   var HOUSE = col, HD = shade(col, 0.74), HL = shade(col, 1.24);
   var GUN = '#191b20', GUN_L = '#5b616b', STEEL = '#9aa0a8', DKSTEEL = '#4a505a';
@@ -251,7 +251,7 @@ export function bakeShip(col, kind, fac) {
 
 // Same lazy atlas as infArt: one standing frame at load, the rest of the
 // 8 x 10 set baked the first time a dog actually faces that way.
-export function dogArt(col, fac) {
+function dogArt(col, fac) {
   var base = bakeDog(col, fac, 0, 1, 'stand');
   var cache = { 'stand1_0': base };
   base.inf = true;
@@ -277,7 +277,7 @@ export function dogArt(col, fac) {
 // colour on the emplacement is the man's own vest showing over the rim.
 // Baked as TWO canvases on the infantry sheet and anchor: `back` goes down
 // before the man, `front` over him.
-export function bakeSandbags(col) {
+function bakeSandbags(col) {
   var back = unitCanvas(), front = unitCanvas();
   var BAG = '#847b5e', BAGL = '#a39a7a', BAGD = '#3b352a', BAGX = '#5e5644';
   // A sack, not a cobble: an OBLONG laid along the ring's tangent, which is
@@ -386,7 +386,7 @@ export function bakeSandbags(col) {
 // This table is VEHICLE-ONLY and deliberately separate from ACCENT, which
 // infantry share: the two rosters have different hue budgets (2.1/2.2 vs
 // 2.3/2.4) and one table made every vehicle inherit a soldier's palette.
-export var VACC = {
+var VACC = {
   // -- Directorate
   lancer:      '#33bda6',  // 170 jade   — the vision block beside the Grizzly's mantlet.
                            //   Its BODY stays pale silver: 1.4 names it, and the

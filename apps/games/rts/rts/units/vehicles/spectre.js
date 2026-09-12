@@ -2,11 +2,11 @@
 // Called by bakeVehicle() with one context object carrying the canvas, the anchor,
 // the facing and the helpers it draws with — see rts/README.md.
 
-import { isoBox, outline } from '../../bake/kit.js';
-import { VACC } from '../../bake/ships.js';
-import { shade } from '../../bake/terrain.js';
 
-export function drawSpectre(C) {
+
+
+
+function drawSpectre(C) {
   var PEDGE = C.PEDGE, RING = C.RING, a = C.a, bumper = C.bumper, by = C.by, chassis = C.chassis,
       col = C.col, cx = C.cx, dark = C.dark, deck = C.deck, deckPlate = C.deckPlate,
       exhaust = C.exhaust, fenders = C.fenders, fx = C.fx, fy = C.fy, g = C.g,

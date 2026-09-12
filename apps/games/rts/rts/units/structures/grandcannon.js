@@ -2,12 +2,12 @@
 // Called by bakeBuilding() with one context object carrying the canvas, the anchor,
 // the facing and the helpers it draws with — see rts/README.md.
 
-import { outline } from '../../bake/kit.js';
-import { shade } from '../../bake/terrain.js';
-import { cylinder } from '../../bake/vehicles.js';
-import { gproj } from '../../bake/walls.js';
 
-export function drawGrandcannon(C) {
+
+
+
+
+function drawGrandcannon(C) {
   var baseY = C.baseY, bdir = C.bdir, col = C.col, cx = C.cx, g = C.g;
 
 // --- RA2 Grand Cannon ([GTGCAN]) ------------------------------------

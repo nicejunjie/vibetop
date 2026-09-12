@@ -2,10 +2,10 @@
 // Called by bakeVehicle() with one context object carrying the canvas, the anchor,
 // the facing and the helpers it draws with — see rts/README.md.
 
-import { isoBox } from '../../bake/kit.js';
-import { shade } from '../../bake/terrain.js';
 
-export function drawTeslatank(C) {
+
+
+function drawTeslatank(C) {
   var PEDGE = C.PEDGE, a = C.a, bumper = C.bumper, by = C.by, chassis = C.chassis, cx = C.cx,
       dark = C.dark, deckPlate = C.deckPlate, exhaust = C.exhaust, fenders = C.fenders, fx = C.fx,
       fy = C.fy, g = C.g, gEllipse = C.gEllipse, hull = C.hull, i2 = C.i2, lamp = C.lamp,

@@ -1,9 +1,9 @@
 // Iron Frontier — bake/kit.js
 // One subsystem of the game. Loaded as a native ES module; see rts/README.md.
 
-import { UNITS } from '../roster.js';
-import { TH, TW } from '../world.js';
-import { NO_RIM, mkCanvas, shade } from './terrain.js';
+
+
+
 
 // --- isometric solids -------------------------------------------------
 // Everything with volume is drawn as a box in the same projection as the
@@ -14,11 +14,11 @@ import { NO_RIM, mkCanvas, shade } from './terrain.js';
 // projected, or a box at dir=0 comes out as a screen-aligned rectangle
 // instead of a diamond — which is why the first pass looked like furniture
 // and tank barrels pointed straight down the screen.
-export var ISO_X = TW / 2 / Math.hypot(TW / 2, TH / 2);   // unit grid +X in screen px
+var ISO_X = TW / 2 / Math.hypot(TW / 2, TH / 2);   // unit grid +X in screen px
 
-export var ISO_Y = TH / 2 / Math.hypot(TW / 2, TH / 2);
+var ISO_Y = TH / 2 / Math.hypot(TW / 2, TH / 2);
 
-export function isoBox(g, cx, cy, len, wid, hgt, dir, col, outline) {
+function isoBox(g, cx, cy, len, wid, hgt, dir, col, outline) {
   var cd = Math.cos(dir), sd = Math.sin(dir);
   var fx = ISO_X * (cd - sd), fy = ISO_Y * (cd + sd);          // forward
   var sxv = ISO_X * (-sd - cd), syv = ISO_Y * (-sd + cd);      // sideways
@@ -87,7 +87,7 @@ export function isoBox(g, cx, cy, len, wid, hgt, dir, col, outline) {
   return { f: [fx, fy], top: hgt };
 }
 
-export function shadowBlob(g, cx, cy, rx, ry) {
+function shadowBlob(g, cx, cy, rx, ry) {
   g.fillStyle = 'rgba(0,0,0,.38)';
   g.beginPath(); g.ellipse(cx, cy, rx, ry, 0, 0, 6.29); g.fill();
 }
@@ -134,13 +134,13 @@ export function shadowBlob(g, cx, cy, rx, ry) {
 //     and `h - UPAD` is unchanged: the sprites sit exactly where they did
 //     and drawUnit still needs no edit, which is the same trick the width
 //     fix above used.
-export var UPAD = 40;
+var UPAD = 40;
 
-export var USC_I = 1.22, USC_V = 1.46;
+var USC_I = 1.22, USC_V = 1.46;
 
-export function unitCanvas() { return mkCanvas(104, 63 + UPAD); }
+function unitCanvas() { return mkCanvas(104, 63 + UPAD); }
 
-export var ACCENT = {
+var ACCENT = {
   // PALE STEEL POT, and it went UP from #9ba2ab for a measured reason. §2.1
   // asks this helmet for "a value distinct from both torso and legs"; banded
   // off the bake it measured 0.465 against a torso at 0.539 — a gap of 0.073
@@ -189,7 +189,7 @@ export var ACCENT = {
   yuri:      '#a86ff0'    // psychic violet at the temples
 };
 
-export function outline(g, col) { g.strokeStyle = col; g.lineWidth = 1; g.stroke(); }
+function outline(g, col) { g.strokeStyle = col; g.lineWidth = 1; g.stroke(); }
 
 // A soldier, drawn front-on and small. Silhouette separates the types: the
 // GI keeps his elbows in and the rifle angled across his chest, the
@@ -227,7 +227,7 @@ export function outline(g, col) { g.strokeStyle = col; g.lineWidth = 1; g.stroke
 // GI's twin and the leg hue is the whole separation), and the GI stays olive.
 // Nobody moved more than one band, and no two of the five now sit within 18 L
 // of each other.
-export var TROOP = {
+var TROOP = {
   rifle:     { coat: '#4f6136', boot: '#22242a', skin: '#d8a878' },  // olive fatigues
   conscript: { coat: '#8f6c42', boot: '#1e2026', skin: '#d8a878' },  // TAN trousers (>=20 hue-deg off the GI's olive: ref §2.2)
   rocket:    { coat: '#49512f', boot: '#22242a', skin: '#d8a878' },  // Guardian GI: heavy olive
@@ -330,7 +330,7 @@ export var TROOP = {
 // Untouched, because the measurement does not ask: the Guardian GI, the
 // Flak Trooper, the Tesla Trooper, Yuri and the dog (whose 0.57 saturation
 // already separates him from every man in the game).
-export var INF_VALUE = {
+var INF_VALUE = {
   ivan:      [1.73, 1.60, 1.43],   // darkest man on the field; the uneven
                                    //  channels DESATURATE as they darken -- a
                                    //  flat gamma turns his brown coat into a dark
@@ -429,7 +429,7 @@ export var INF_VALUE = {
 // direction of the light never changes — the man is still lit from the same
 // corner, on a shorter value range. Absent from this table means 0, i.e.
 // `edge()` IS `shade()` and no other trooper moves by a pixel.
-export var INF_EDGE = {
+var INF_EDGE = {
   engineer: 0.70,                //  a white hazmat suit shaded to 0.70, not to 0.38
   // ...and the Chrono Legionnaire, for the same arithmetic on a different
   // clause. §1.5 calls his suit SILVER and his own drawing block calls him
@@ -497,7 +497,7 @@ export var INF_EDGE = {
 // `cleg` is the one left outside the band, and deliberately: his rifle's
 // declared 9-column spike budget and his RA2 aspect cannot both be met.
 // The full measurement is recorded on the neutron rifle in his branch.
-export var STATURE = {
+var STATURE = {
   flak:         [0.87, 0.98],   // i-XL by BARREL: a narrow man under a tall gun
   rocket:       [1.12, 1.03],   // i-M 15x30 — the Guardian is the heavy one, and
                                 // deliberately NOT a tall one: §2.1/§2.2 put him at
@@ -582,7 +582,7 @@ export var STATURE = {
 // head and weapon move together like a body, not like separate parts.
 var INF_WALK = 6;
 
-export function gait(phase) {
+function gait(phase) {
   if ((phase | 0) < 0) return { ph: 0, swf: 0, cf: 1, sw: 0, amp: 0, bob: 0, lean: 0 };
   var ph = ((phase | 0) % INF_WALK + INF_WALK) % INF_WALK;
   var t = (ph + 0.5) / INF_WALK * 6.283185307;
@@ -602,14 +602,14 @@ export function gait(phase) {
 // exactly as `Walk=8,6,6` is. The walk was corrected to six in an earlier
 // pass and the fire cycle was not, so a burst played raise / recoil /
 // settle in three steps against the walk's six and read as a twitch.
-export var INF_SEQ = { stand: 1, walk: 6, fire: 6, down: 1, up: 1, prone: 1,
+var INF_SEQ = { stand: 1, walk: 6, fire: 6, down: 1, up: 1, prone: 1,
                 crawl: 6, fireprone: 6, idle1: 3, idle2: 3, cheer: 2 };
 
 // grid facing -> SCREEN octant. The iso projection sends d0 to SE, d1 to S,
 // d2 to SW, d3 to W, d4 to NW, d5 to N, d6 to NE, d7 to E (see "The RA2
 // vehicle sheets are FACING RINGS" in docs/design-decisions.md), and the
 // octant here is measured from "straight at the camera" toward screen-right.
-export var INF_OCT = [1, 0, 7, 6, 5, 4, 3, 2];
+var INF_OCT = [1, 0, 7, 6, 5, 4, 3, 2];
 
 // --- the facing model -------------------------------------------------
 // RA2's vehicles and aircraft are VOXELS, and a voxel is rendered at 32
@@ -620,7 +620,7 @@ export var INF_OCT = [1, 0, 7, 6, 5, 4, 3, 2];
 // art really is eight hand-drawn SHP facings — `octOf` is the one bridge
 // between the two, and it ROUNDS (not truncates) so a man facing bearing 2
 // or 3 stands on the same octant a 45-degree step would have given him.
-export var NFACE = 32, FANG = Math.PI * 2 / NFACE;
+var NFACE = 32, FANG = Math.PI * 2 / NFACE;
 
 // The bearing the cameos, the menu line-up and the placement ghost crop
 // from: due south, front-on to the camera (grid facing 1 of the old eight).
@@ -634,11 +634,11 @@ var ICON_FACE = 4;
 // shoots them as portraits and a face is a face.
 var ICON_FACE_SIDE = 0;
 
-export function iconFaceOf(d) { return (d && d.cls === 'i') ? ICON_FACE : ICON_FACE_SIDE; }
+function iconFaceOf(d) { return (d && d.cls === 'i') ? ICON_FACE : ICON_FACE_SIDE; }
 
-export function faceOf(dy, dx) { return ((Math.round(Math.atan2(dy, dx) / FANG) % NFACE) + NFACE) % NFACE; }
+function faceOf(dy, dx) { return ((Math.round(Math.atan2(dy, dx) / FANG) % NFACE) + NFACE) % NFACE; }
 
-export function octOf(f) { return (((f | 0) + 2) >> 2) & 7; }
+function octOf(f) { return (((f | 0) + 2) >> 2) & 7; }
 
 // Shortest signed step from a to b around the 32-facing ring, in facings.
 function faceDelta(a, b) {
@@ -654,14 +654,14 @@ function faceDelta(a, b) {
 // what a Grizzly's turret looks like in RA2.
 var ROT = { drone: 40, harrier: 3, kirov: 10 };
 
-export function rotOf(t) { return ROT[t] || 5; }
+function rotOf(t) { return ROT[t] || 5; }
 
 // A facing has to stay an INTEGER (it indexes a baked sheet), so the
 // fraction a sub-facing-per-tick rate leaves over is carried in a companion
 // field and folded back in next tick. `fk`/`sk` are the two field names,
 // so the same routine turns a hull ('face'/'fsub') and a turret
 // ('tface'/'tsub'). Returns true once it has ARRIVED.
-export function slew(u, fk, sk, want, rot) {
+function slew(u, fk, sk, want, rot) {
   var cur = u[fk] + (u[sk] || 0);
   var d = faceDelta(cur, want), step = (rot || 5) * 0.1;
   if (Math.abs(d) <= step) { u[fk] = want; u[sk] = 0; return true; }
@@ -680,9 +680,9 @@ var AIM_TOL = 1.0;
 // facings with no ROT in rules.ini: a rifleman turns where he stands and
 // shoots, and gating him behind a slew would be inventing a rule RA2 does
 // not have.
-export function slews(u) { var sp = UNITS[u.type]; return !!sp && sp.cls !== 'i'; }
+function slews(u) { var sp = UNITS[u.type]; return !!sp && sp.cls !== 'i'; }
 
-export function aimTurret(u, want, rot) {
+function aimTurret(u, want, rot) {
   if (!slews(u)) { u.tface = want; u.tsub = 0; return true; }
   if (u.tface == null) { u.tface = u.face | 0; u.tsub = 0; }
   if (slew(u, 'tface', 'tsub', want, rot)) return true;
@@ -691,7 +691,7 @@ export function aimTurret(u, want, rot) {
 
 // Same rule for a turretless hull (V3, Terror Drone, an aircraft's nose):
 // the whole vehicle is the mount, so the HULL has to come round.
-export function aimHull(u, want, rot) {
+function aimHull(u, want, rot) {
   if (!slews(u)) { u.face = want; u.fsub = 0; return true; }
   if (slew(u, 'face', 'fsub', want, rot)) return true;
   return Math.abs(faceDelta(u.face + (u.fsub || 0), want)) <= AIM_TOL;

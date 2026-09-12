@@ -50,13 +50,11 @@ a different destination name (`shell/desktop.html` → `index.html`,
 (`@VERSION@`/`@SW_VERSION@`, `@APP_HOME@`).
 
 Nothing is built — the installer only copies. One page brings a **subtree**
-with it: the RTS game is a tree of native ES modules, so `apps/games/rts/rts/**`
-deploys to `/rts/**` (with `install -D`, because a relative `import` resolves
-against the importing module's directory and the flat web root would otherwise
-lose the nesting). `rts/package.json` is a dev-only `{"type":"module"}` marker
-and is excluded from the walk. `*.src.html` no longer exists anywhere.
-`shell/sw.js` BYPASSes `/rts/`, so a deploy can never serve a stale module
-under a freshly cached page.
+with it: the RTS game is 117 plain scripts, so `apps/games/rts/rts/**` deploys
+to `/rts/**` (with `install -D`, because `rts.html` addresses them by relative
+path — `rts/ui/loop.js` — and the flat web root would otherwise lose the
+nesting). `*.src.html` no longer exists anywhere. `shell/sw.js` BYPASSes
+`/rts/`, so a deploy can never serve a stale script under a freshly cached page.
 
 Because the web root is flat, two grouped sources **can** collide on one URL —
 something the old list made impossible by construction. `install.sh` checks for

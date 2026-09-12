@@ -2,9 +2,9 @@
 // Called by bakeShip() with one context object carrying the canvas, the anchor,
 // the facing and the helpers it draws with — see rts/README.md.
 
-import { shade } from '../../bake/terrain.js';
 
-export function drawCarrier(C) {
+
+function drawCarrier(C) {
   var DECK = C.DECK, FR = C.FR, GLASS = C.GLASS, HD = C.HD, HOUSE = C.HOUSE, HULL = C.HULL, L = C.L,
       P = C.P, W = C.W, box = C.box, g = C.g, mast = C.mast, plan = C.plan;
 

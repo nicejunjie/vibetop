@@ -2,7 +2,7 @@
 // Called by bakeShip() with one context object carrying the canvas, the anchor,
 // the facing and the helpers it draws with — see rts/README.md.
 
-export function drawDread(C) {
+function drawDread(C) {
   var DECK = C.DECK, FR = C.FR, HD = C.HD, HOUSE = C.HOUSE, L = C.L, P = C.P, W = C.W, box = C.box,
       g = C.g, mast = C.mast;
 

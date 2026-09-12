@@ -1,33 +1,33 @@
 // Iron Frontier — ui/input.js
 // One subsystem of the game. Loaded as a native ES module; see rts/README.md.
 
-import { BLDS } from '../blds.js';
-import { bspecFor, bspecOfB, eliteOf, isHarv, ucap, vetFire, vetRofU } from '../combat-tables.js';
-import { boom, damage, entX, entY, near } from '../combat.js';
-import { MAKE_T, killBld } from '../entities.js';
-import { keyFac } from '../factions.js';
-import { altOf, canHit, hullZone, isAir, isNaval, moverOf, navReach } from '../geom.js';
-import { entById } from '../move.js';
-import { cmd, idsOf } from '../net.js';
-import { canOccupy, damageBridge, garrisonable, occCount } from '../neutral.js';
-import { dockAt } from '../ore.js';
-import { astar, requestPath } from '../path.js';
-import { canPlace, countBld, freeTileNear, isPrimary, producersOf, setPrimary, spreadSpot } from '../production.js';
-import { UNITS, ifvSpec } from '../roster.js';
-import { entSeen } from '../shroud.js';
-import { G, headless, idx, inMap, state } from '../state.js';
-import { canBoard, paxCapOf, paxCount } from '../transport.js';
-import { GUARD_STRAY, ME, T_WATER, neutral, oreT, terrPass } from '../world.js';
-import { eva, resumeAudio, sfx, unitAck } from './audio.js';
-import { pickCursor, setCurApplied } from './cursors.js';
-import { IS_TOUCH, cv, cvH, cvW, mini } from './dom.js';
-import { say, swCancel, swClickMap, swMode, updateHover } from './hud.js';
-import { cardStack, closeBoard, closeHelp, closeOptions, eatResumeClick, hv, lv, mmss, optOpen, ov, setEatResumeClick, showOptions, togglePause } from './menus.js';
-import { MM_PX, mmToGrid, radarUp } from './minimap.js';
-import { hideTip, ptip, selectTab, showTip } from './panel.js';
-import { VX0, VX1, VY0, VY1, render } from './render.js';
-import { lsGet } from './save.js';
-import { cam, centerOn, clampCam, gridFromW, groups, hoverTile, placing, screenToGrid, sel, setPlacing, setSel, setZoom, sx, sy, unzoom, zoom } from './screen.js';
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 // --------------------------------------------------------------------- //
 //  Input
@@ -37,17 +37,17 @@ var keys = {};
 // Held modifiers, kept as their own record: the cursor has to know that
 // Ctrl is down even when the mouse has not moved, and a right-click order
 // reads the same three flags the cursor drew itself from.
-export var mod = { ctrl: false, shift: false, alt: false };
+var mod = { ctrl: false, shift: false, alt: false };
 
 function readMod(e) { mod.ctrl = !!(e.ctrlKey || e.metaKey); mod.shift = !!e.shiftKey; mod.alt = !!e.altKey; }
 
-export var drag = null, pan = null, marq = document.getElementById('marq');
+var drag = null, pan = null, marq = document.getElementById('marq');
 
-export var mouse = { x: -1, y: -1, in: false };
+var mouse = { x: -1, y: -1, in: false };
 
 var lastClickT = 0, lastClickType = null;
 
-export var views = {};                     // keyboard.ini View1..4 camera bookmarks
+var views = {};                     // keyboard.ini View1..4 camera bookmarks
 
 window.addEventListener('keydown', function (e) {
   if (e.target && /^(INPUT|TEXTAREA)$/.test(e.target.tagName)) return;
@@ -268,7 +268,7 @@ function endDrag() {
 // the click does what the cursor showed. Before this, "select own" won and
 // troops could not be put into an IFV at all (2026-09-11). Shift still
 // ADDS the own unit to the selection, as it always did.
-export function ownTargetOrder(e, units) {
+function ownTargetOrder(e, units) {
   if (!e || e.dead || e.p !== ME || !units.length) return false;
   if (!e.bomb && units.some(function (u) { return UNITS[u.type].ivan; })) return true;
   if (e.kind === 'u') return !!paxCapOf(e) && units.some(function (u) { return u !== e && canBoard(G, e, u); });
@@ -489,7 +489,7 @@ window.addEventListener('blur', function () {
   keys = {}; mod.ctrl = mod.shift = mod.alt = false; endDrag(); mouse.in = false; pickCursor();
 });
 
-export function clearSel() { sel.forEach(function (u) { u.sel = false; }); setSel([]); }
+function clearSel() { sel.forEach(function (u) { u.sel = false; }); setSel([]); }
 
 // ---- RA2's command bar + the three sidebar toggles ---------------------
 // ui.ini's [AdvancedCommandBar] is six buttons — Team01, Team02,
@@ -506,9 +506,9 @@ export function clearSel() { sel.forEach(function (u) { u.sel = false; }); setSe
 //
 // The bar itself lives at the BOTTOM OF THE SCREEN across the battlefield,
 // not in the corner of the build menu — see the #cmdbar CSS.
-export var cmdMode = null;          // 'sell' | 'repair' | 'power' | null
+var cmdMode = null;          // 'sell' | 'repair' | 'power' | null
 
-export var pathMode = false;        // waypoint mode: right-clicks queue
+var pathMode = false;        // waypoint mode: right-clicks queue
 
 var cmdbar = document.getElementById('cmdbar');
 
@@ -593,7 +593,7 @@ function unitsCmd(kind) {
   else cmd('hold', { u: idsOf(us), kind: kind, sfx: 1 });
 }
 
-export function sellBld(g, b, local) {
+function sellBld(g, b, local) {
   if (b.sell) return;                               // already coming down
   // RA2 sells a structure by playing its BUILD-UP BACKWARDS: it stops
   // working, folds itself away over the same ~2.5s, and only then does the
@@ -605,7 +605,7 @@ export function sellBld(g, b, local) {
   if (b.make <= 0) { finishSell(g, b); return; }
 }
 
-export function finishSell(g, b) {
+function finishSell(g, b) {
   var refund = Math.round(bspecOfB(g, b).cost * 0.5);
   g.side[b.p].credits += refund; b.sell = false; b.make = 0; killBld(g, b, true); b.sel = false;
   if (b.p === ME) say('Sold ' + bspecOfB(g, b).name + ' for $' + refund);
@@ -621,7 +621,7 @@ function cmdButtons() {
   return a;
 }
 
-export function refreshCmdbar() {
+function refreshCmdbar() {
   var bs = cmdButtons();
   for (var i = 0; i < bs.length; i++) {
     var c = bs[i].getAttribute('data-cmd');
@@ -653,7 +653,7 @@ function onCmdClick(e) {
 // that follows the lift. Mouse and pen are untouched.
 var HOLD_MS = 450;
 
-export function wireHold(b, fn) {
+function wireHold(b, fn) {
   var timer = null;
   b.addEventListener('pointerdown', function (ev) {
     if (ev.pointerType !== 'touch') return;
@@ -718,14 +718,14 @@ function goHome() {
   camVel.x = camVel.y = 0;
 }
 
-export function pickAt(px, py) {
+function pickAt(px, py) {
   var uz = unzoom(px, py); return pickAtW(uz.x, uz.y);
 }
 
 // The same pick, in already-unzoomed space. Split out so a test can hand it
 // the exact screen point a grid cell projects to, which is the only way to
 // check the footprint geometry without driving a browser.
-export function pickAtW(px, py) {
+function pickAtW(px, py) {
   var best = null, bd = 1e9;
   var i, e, ex, ey, d;
   for (i = 0; i < G.units.length; i++) {
@@ -761,7 +761,7 @@ export function pickAtW(px, py) {
   return best;
 }
 
-export function clickSelect(px, py, shift) {
+function clickSelect(px, py, shift) {
   var e = pickAt(px, py);
   if (cmdMode === 'follow') {
     // keyboard.ini Follow=70 (F): pick the friendly unit to shadow.
@@ -831,7 +831,7 @@ export function clickSelect(px, py, shift) {
   else sfx('click');                            // a structure clicks
 }
 
-export function describe(e) {
+function describe(e) {
   if (e.kind === 'b') {
     var d = BLDS[e.type];
     var t = d.em + ' ' + d.name + ' — ' + Math.ceil(e.hp) + '/' + d.hp + ' hp';
@@ -880,7 +880,7 @@ function centerSelIfOffscreen() {
 
 // Move / harvest order for a group. Harvesters sent onto ore mine that
 // seam; sent anywhere else they go there and HOLD (see stepHarvester).
-export function orderUnitsTo(g, units, gx, gy, opts) {
+function orderUnitsTo(g, units, gx, gy, opts) {
   opts = opts || {};
   var onOre = oreT(g.terrain[idx(gx, gy)]), n = 0, taken = {}, held = 0, wet = 0;
   units.forEach(function (u, i) {
@@ -922,7 +922,7 @@ export function orderUnitsTo(g, units, gx, gy, opts) {
 // Attack-move: advance on a spot and engage whatever is met on the way,
 // resuming the advance when the road is clear again. RA2 lists AttackMove
 // in ui.ini's command bar; here it is Ctrl+Shift+right-click.
-export function orderAmove(g, units, gx, gy) {
+function orderAmove(g, units, gx, gy) {
   var taken = {}, n = 0, wet = 0;
   units.forEach(function (u) {
     if (!navReach(g, u, gx, gy)) { wet++; return; }
@@ -942,7 +942,7 @@ export function orderAmove(g, units, gx, gy) {
 // Force-fire at a patch of ground (RA2 Ctrl+click): the unit closes to
 // weapon range and keeps shooting the spot until told otherwise. This is
 // how you flush a Mirage, break a bridge or shell your own repair bay.
-export function orderFFire(g, units, gx, gy) {
+function orderFFire(g, units, gx, gy) {
   var n = 0;
   units.forEach(function (u) {
     var d = UNITS[u.type];
@@ -958,7 +958,7 @@ export function orderFFire(g, units, gx, gy) {
 
 // Follow (keyboard.ini Follow=70, F): stay with a friendly unit, fighting
 // opportunistically, until it dies or a new order arrives.
-export function orderFollow(g, units, tgt) {
+function orderFollow(g, units, tgt) {
   var n = 0;
   units.forEach(function (u) {
     if (u === tgt) return;
@@ -972,7 +972,7 @@ export function orderFollow(g, units, tgt) {
 // Firing at bare ground: there is no entity to hand `fire()`, so the shot
 // and its splash are resolved here against whatever is standing on the
 // spot — friend or foe, exactly as RA2's force-fire does.
-export function fireGround(g, u, gx, gy) {
+function fireGround(g, u, gx, gy) {
   var d = UNITS[u.type];
   // ground fire is always the primary weapon — but an elite one still
   // fires its `ElitePrimary=`, so this bypass of weaponFor has to make the
@@ -1005,7 +1005,7 @@ export function fireGround(g, u, gx, gy) {
 }
 
 // Next queued waypoint, if any, becomes the order when one completes.
-export function nextWaypoint(g, u) {
+function nextWaypoint(g, u) {
   if (!u.wp || !u.wp.length) return false;
   var w = u.wp.shift();
   if (w.attack) {                                     // a Shift-queued attack (RA2 waypoint mode)
@@ -1019,12 +1019,12 @@ export function nextWaypoint(g, u) {
 
 // An enter-class order (board, garrison, capture) with no route: drop it
 // and say so, as the move order does — never a man frozen for the match.
-export function giveUpEnter(g, u, what) {
+function giveUpEnter(g, u, what) {
   u.order = null; u.noProg = 0; u.guardX = u.x; u.guardY = u.y;
   if (u.p === ME && !headless) { say('Can’t reach ' + what, true); sfx('no'); }
 }
 
-export function rightOrder(px, py, shift, ctrl) {
+function rightOrder(px, py, shift, ctrl) {
   if (!sel.length) { say('Select something first — left-drag a box over your units'); return; }
   var gp = screenToGrid(px, py);
   var gx = Math.round(gp.x), gy = Math.round(gp.y);
@@ -1145,9 +1145,9 @@ export function rightOrder(px, py, shift, ctrl) {
 // `focus`: a PLAYER's order (via the command layer). RA2 gives it exclusive
 // aim — see the combat step. The AI's own waves set their orders directly
 // and keep the loose "shoot what is in range on the way" rule.
-export var attackMission = 'attack';         // what the last orderAttack turned into, for the message
+var attackMission = 'attack';         // what the last orderAttack turned into, for the message
 
-export function orderAttack(g, units, tgt, force, focus, queue) {
+function orderAttack(g, units, tgt, force, focus, queue) {
   var n = 0;
   attackMission = 'attack';
   units.forEach(function (u) {
@@ -1185,7 +1185,7 @@ export function orderAttack(g, units, tgt, force, focus, queue) {
 // A rally point stores the ROUTE, not just the destination: seeing the line
 // bend around a cliff is the difference between "units gather there" and
 // "units gather there, the long way round". Computed once, on set.
-export function makeRally(g, b, gx, gy) {
+function makeRally(g, b, gx, gy) {
   var from = freeTileNear(g, Math.round(b.cx), Math.round(b.cy + b.gh / 2 + 1)) ||
              { x: Math.round(b.cx), y: Math.round(b.cy) };
   var path = astar(g, from.x, from.y, gx, gy);
@@ -1238,7 +1238,7 @@ function dragWall(px, py) {
 // it by clicking rather than dragging.
 var WALL_LINK = 10;
 
-export function linkWall(gx, gy, key) {
+function linkWall(gx, gy, key) {
   key = key || placing;
   if (!key || !BLDS[key] || !BLDS[key].wall) return 0;
   var best = null, bd = 1e9;
@@ -1270,7 +1270,7 @@ export function linkWall(gx, gy, key) {
 // (Power Plant, Radar, Barracks, Refinery…) the building landed one cell
 // from the green ghost over ~75% of a tile, and a green cursor could be
 // refused with "can't build there" (audit, 2026-09-11).
-export function placeOrigin(gp, d) {
+function placeOrigin(gp, d) {
   return { x: Math.round(gp.x) - Math.floor((d.gw - 1) / 2), y: Math.round(gp.y) - Math.floor((d.gh - 1) / 2) };
 }
 
@@ -1356,7 +1356,7 @@ var KEY_SPEED = 900;          // px/s
 // agree with each other.
 var SCROLL_MUL = { slow: 0.6, normal: 1, fast: 1.6 };
 
-export var scrollRate = SCROLL_MUL[lsGet('vibetop:rts:scroll')] ? lsGet('vibetop:rts:scroll') : 'normal';
+var scrollRate = SCROLL_MUL[lsGet('vibetop:rts:scroll')] ? lsGet('vibetop:rts:scroll') : 'normal';
 
 function scrollMul() { return SCROLL_MUL[scrollRate] || 1; }
 
@@ -1398,18 +1398,18 @@ if (window.top !== window && !IS_TOUCH) { try { document.documentElement.style.s
 // phone. The gate reads the TOP window (touch audit, 2026-09-11).
 try { if (window.top !== window && Math.min(window.top.innerWidth, window.top.innerHeight) > 540) document.documentElement.classList.add('no-gate'); } catch (e) {}
 
-export var GUT = gutterPx();
+var GUT = gutterPx();
 
 // FLAT: one speed across the whole strip. A depth-scaled band (80 px/s at
 // the inner lip, 900 at the edge) made each side feel different by where
 // the hand happened to stop — the user: "the navigation speed on the four
 // sides isn't consistent". RA2's edge scroll is one constant rate.
-export var EDGE_BANDS = { l: { band: GUT, dead: 0, flat: true }, t: { band: GUT, dead: 0, flat: true },
+var EDGE_BANDS = { l: { band: GUT, dead: 0, flat: true }, t: { band: GUT, dead: 0, flat: true },
                    r: { band: GUT, dead: 0, flat: true }, b: { band: GUT, dead: 0, flat: true } };
 
 // Pure: pointer (x, y) in a w x h window -> scroll target {tx, ty} in -1..1,
 // 0 outside the bands, growing from the (dead) inner lip to 1 at the edge.
-export function edgeTarget(x, y, w, h, bands) {
+function edgeTarget(x, y, w, h, bands) {
   function t(d, bd) {                       // d: distance in from the edge
     if (d >= bd.band) return 0;
     if (bd.flat) return 1;                  // the whole strip is the edge
@@ -1465,7 +1465,7 @@ function edgeSpeed(t) {                    // t: 0 at the lip, 1 at the edge
   return (EDGE_MIN + (EDGE_MAX - EDGE_MIN) * t * t) * scrollMul();
 }
 
-export function camScroll(dtms) {
+function camScroll(dtms) {
   var dt = dtms / 1000;
   var wx = 0, wy = 0;
 
@@ -1549,7 +1549,7 @@ function screenCapture() {
 // --- generated ---
 // ESM import bindings are read-only, so a write from another module goes
 // through the owner. Reads stay verbatim everywhere: the binding is live.
-export function __setCmdMode(v) { cmdMode = v; }
-export function setScrollRate(v) { scrollRate = v; }
-export function setViews(v) { views = v; }
-export function setWallDrag(v) { wallDrag = v; }
+function __setCmdMode(v) { cmdMode = v; }
+function setScrollRate(v) { scrollRate = v; }
+function setViews(v) { views = v; }
+function setWallDrag(v) { wallDrag = v; }

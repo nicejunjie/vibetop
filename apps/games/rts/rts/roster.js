@@ -6,7 +6,7 @@
 // The asymmetry is deliberate and one-dimensional per side, so it is legible
 // in a fight rather than just a stat sheet: the Directorate outranges and
 // outruns you, the Collective outlasts and out-masses you.
-export var UNITS = {
+var UNITS = {
   // RA2 has TWO miners, not one hull in two colours: [CMIN] Chrono Miner
   // (Storage=20, no weapon, teleport locomotor, ChronoInSound) and [HARV]
   // War Miner (Storage=40, Turret=yes, Primary=20mmRapid). Same $1400 /
@@ -628,9 +628,9 @@ export var UNITS = {
 //
 // Turret models (the `;GEF` comment block in [FV]): 0 rocket, 1 gun,
 // 2 repair arm, 3 high-tech.
-export var IFV_TUR_ROCKET = 0, IFV_TUR_GUN = 1, IFV_TUR_ARM = 2, IFV_TUR_TECH = 3;
+var IFV_TUR_ROCKET = 0, IFV_TUR_GUN = 1, IFV_TUR_ARM = 2, IFV_TUR_TECH = 3;
 
-export var IFV_MODES = [
+var IFV_MODES = [
   // 0 — empty, a dog, or anything rules.ini leaves at the default.
   { n: 'Missile',      tur: IFV_TUR_ROCKET, rep: 'rocket',
     dmg: 50, rate: 200, rng: 6, minRng: 1, splash: 0.5, wh: 'HE', aa: true, aaRng: 6 },
@@ -682,7 +682,7 @@ export var IFV_MODES = [
 // [DOG]/[ADOG] 0. The Guardian GI is a Yuri's Revenge unit and has no row in
 // this rules.ini; rulesmd gives [GGI] IFVMode=0, the rocket pod — which is
 // also the one thing a missile trooper would obviously man.
-export var IFV_MODE = {
+var IFV_MODE = {
   rifle: 2, conscript: 2, spy: 2,
   engineer: 1,
   flak: 3, rocketeer: 3,          // [FV] Weapon4 comment: "Flak Troop ;Rocketeer"
@@ -695,14 +695,14 @@ export var IFV_MODE = {
   dog: 0, rocket: 0
 };
 
-export function ifvModeOf(u) {
+function ifvModeOf(u) {
   if (!u || !UNITS[u.type] || !UNITS[u.type].ifv) return 0;
   if (!u.pax || !u.pax.length) return 0;
   var m = IFV_MODE[u.pax[0].type];
   return m === undefined ? 0 : m;
 }
 
-export function ifvSpec(u) { return IFV_MODES[ifvModeOf(u)] || IFV_MODES[0]; }
+function ifvSpec(u) { return IFV_MODES[ifvModeOf(u)] || IFV_MODES[0]; }
 
 // Which of the four turret models the hull is wearing right now.
-export function ifvTurret(u) { return ifvSpec(u).tur; }
+function ifvTurret(u) { return ifvSpec(u).tur; }

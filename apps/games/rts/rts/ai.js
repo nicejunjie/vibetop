@@ -1,25 +1,25 @@
 // Iron Frontier — ai.js
 // One subsystem of the game. Loaded as a native ES module; see rts/README.md.
 
-import { BLDS } from './blds.js';
-import { bspecFor, bspecOf, harvKey, isHarv, isInfArmour } from './combat-tables.js';
-import { dist, swFire } from './combat.js';
-import { deployMcv, placeBld, powered, spawnUnit } from './entities.js';
-import { FACTIONS, facAllows, keyFac } from './factions.js';
-import { canHit, hullZone, isAir, moverOf, navReach } from './geom.js';
-import { entById } from './move.js';
-import { canOccupy, garrisonable, occCapOf, occCount } from './neutral.js';
-import { findOre, findRefinery } from './ore.js';
-import { blocked, requestPath } from './path.js';
-import { canBuild, canPlace, cancelLast, countBld, countUnit, enqueue, freeTileNear, hasBld, laneOfBld, queuedCount, readyLane, spreadSpot } from './production.js';
-import { rnd } from './rng.js';
-import { UNITS } from './roster.js';
-import { gapped } from './shroud.js';
-import { DIFF, idx, inMap } from './state.js';
-import { SW, reqMet, swKeysFor } from './supers.js';
-import { canBoard, paxCapOf, paxCount, unloadTransport } from './transport.js';
-import { orderUnitsTo } from './ui/input.js';
-import { MAP, T_WATER, aiOf, oreT } from './world.js';
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 // [General] AIBuildsWalls=no. RA2 ships with the AI's wall builder OFF, so
 // AIPickWallDefensePercent above is dead data in the shipped game and it is
@@ -63,7 +63,7 @@ var AI_SW_DEFAULT = 15, AI_SW_UNIT = 1;
 // prod   : production-only. The team exists to place an order; something
 //          else commands the units (aircraft have their own strike pass,
 //          Engineers are driven by aiNeutrals).
-export var AI_TEAMS = [
+var AI_TEAMS = [
   // ---- Directorate ----
   { key: 'dirInf',   name: 'Allied Infantry Attack', fac: 'dir', role: 'attack', tgt: 'any',
     force: [{ n: 4, t: 'rifle' }, { n: 2, t: 'lancer' }],
@@ -175,7 +175,7 @@ var AI_TEAM_BY_KEY = {};
 
 (function () { for (var i = 0; i < AI_TEAMS.length; i++) AI_TEAM_BY_KEY[AI_TEAMS[i].key] = AI_TEAMS[i]; })();
 
-export function newAI(diff) {
+function newAI(diff) {
   return {
     // The NAME as well as the knobs: save/load deep-copies the AI, so
     // `cfg === DIFF.hard` stops being true across a reload and every
@@ -238,7 +238,7 @@ function scoutEnemy(g, ai, me, foe) {
 }
 
 // [General] AIVirtualPurifiers=4,2,0 — the AI houses only, never the human.
-export function aiVirtualPurifiers(g, p) {
+function aiVirtualPurifiers(g, p) {
   var ai = aiOf(g, p);
   return ai ? (ai.cfg.purifiers || 0) : 0;
 }
@@ -285,7 +285,7 @@ function armyValue(g, p) {
 // "Can this house make one of these at all", ignoring the bank. canBuild()
 // folds the price in, which would make a team ineligible for the whole match
 // simply because the AI happened to be broke at the tick the trigger fired.
-export function aiCanMake(g, p, key) {
+function aiCanMake(g, p, key) {
   var spec = UNITS[key];
   if (!spec) return false;
   // The same one predicate canBuild uses, so a house that took an enemy
@@ -528,7 +528,7 @@ function aiRecruit(g, ai, me) {
   }
 }
 
-export function stepAI(g, ai, me, foe) {
+function stepAI(g, ai, me, foe) {
   var s = g.side[me], cfg = ai.cfg;
   ai.t++;
   // [General] MultiplayerAICM=400,0,0 (Genius, Smart, Easy) — the skirmish
@@ -641,7 +641,7 @@ function aiOreFields(g, me) {
 // explicit numbers were tuned for RA2's much richer maps; the formula is
 // what makes the plan grow with the base actually standing, so we run the
 // formula and clamp it with the explicit ceiling.
-export function aiDefencePlan(g, ai, me) {
+function aiDefencePlan(g, ai, me) {
   var cost = 0, coef = g.side[me].fac === 'col' ? 1.2 : 1.5;
   for (var i = 0; i < g.blds.length; i++) {
     var b = g.blds[i];
@@ -978,13 +978,13 @@ function aiSwWant(g, p) {
 // Yard only 10, and a harvester or an MCV 1 — the AI aims at PRODUCTION,
 // not at the biggest building. The blast is summed over its radius so a
 // tight cluster still beats a lone factory.
-export function aiSwValue(e) {
+function aiSwValue(e) {
   if (e.kind !== 'b') return AI_SW_UNIT;
   var v = AI_SW_VALUE[e.type];
   return v == null ? AI_SW_DEFAULT : v;
 }
 
-export function aiSwTarget(g, foe) {
+function aiSwTarget(g, foe) {
   var best = null, bs = -1, i, j;
   for (i = 0; i < g.blds.length; i++) {
     var b = g.blds[i];
@@ -1159,7 +1159,7 @@ function aiPlace(g, ai, me, foe) {
 // the AI will look for water to put a Shipyard on. It is also the test for
 // "is this a map where a navy is worth anything at all": no shore inside
 // that radius and the naval half of the build ladder never runs.
-export var AI_NAVAL_ADJ = 20;
+var AI_NAVAL_ADJ = 20;
 
 // The nearest cell of open water to (x,y), out to `r`. Used both for
 // "can we build a yard here" and for pointing a fleet at a shore target.
@@ -1167,7 +1167,7 @@ export var AI_NAVAL_ADJ = 20;
 // the asking hull is already floating in. `undefined` means any water, so
 // the placement caller ("is there a shore near the Construction Yard") is
 // unchanged.
-export function nearestWater(g, x, y, r, zone) {
+function nearestWater(g, x, y, r, zone) {
   for (var rr = 0; rr <= r; rr++) {
     for (var oy = -rr; oy <= rr; oy++) for (var ox = -rr; ox <= rr; ox++) {
       if (Math.max(Math.abs(ox), Math.abs(oy)) !== rr) continue;
@@ -1180,7 +1180,7 @@ export function nearestWater(g, x, y, r, zone) {
   return null;
 }
 
-export function hasShore(g, p) { return !!nearestWater(g, g.start[p].x, g.start[p].y, AI_NAVAL_ADJ); }
+function hasShore(g, p) { return !!nearestWater(g, g.start[p].x, g.start[p].y, AI_NAVAL_ADJ); }
 
 var AI_DEF_KEYS = { sentry: 1, sentrygun: 1, tesla: 1, prism: 1, patriot: 1, flakcannon: 1, grandcannon: 1 };
 
@@ -1188,7 +1188,7 @@ var AI_POWER_KEYS = { power: 1, reactor: 1 };
 
 var AI_PROD_KEYS = { factory: 1, barracks: 1, airforce: 1, radar: 1, lab: 1, base: 1 };
 
-export function aiPickTarget(g, ai, me, foe, cls, from) {
+function aiPickTarget(g, ai, me, foe, cls, from) {
   var i, best = null, bd = 1e9;
   cls = cls || 'any';
   var fx = from ? from.x : g.start[me].x, fy = from ? from.y : g.start[me].y;

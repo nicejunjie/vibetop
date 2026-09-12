@@ -1,19 +1,19 @@
 // Iron Frontier — ore.js
 // One subsystem of the game. Loaded as a native ES module; see rts/README.md.
 
-import { aiVirtualPurifiers } from './ai.js';
-import { aimTurret, faceOf, rotOf } from './bake/kit.js';
-import { isHarv, isInfArmour, reachOf, ucap, uspd } from './combat-tables.js';
-import { armourOf, dist, entX, entY, findTarget, fire } from './combat.js';
-import { advance } from './move.js';
-import { blocked, requestPath } from './path.js';
-import { freeTileNear, hasBld } from './production.js';
-import { UNITS } from './roster.js';
-import { headless, idx, inMap } from './state.js';
-import { sfx } from './ui/audio.js';
-import { creditPop } from './ui/hud.js';
-import { nextWaypoint } from './ui/input.js';
-import { GEM_MULT, MAP, ME, T_GEM, T_GROUND, isAiSide, oreT } from './world.js';
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 // --------------------------------------------------------------------- //
 //  Ore + harvesting
@@ -23,7 +23,7 @@ import { GEM_MULT, MAP, ME, T_GEM, T_GROUND, isAiSide, oreT } from './world.js';
 // its own map ends up idle with ore all around it.
 var NOGO_TTL = 60 * 25;
 
-export function findOre(g, fromX, fromY, maxR, skip, now) {
+function findOre(g, fromX, fromY, maxR, skip, now) {
   var best = null, bd = 1e9;
   var r = maxR || 30;
   for (var y = Math.max(0, (fromY - r) | 0); y < Math.min(MAP, fromY + r); y++) {
@@ -41,7 +41,7 @@ export function findOre(g, fromX, fromY, maxR, skip, now) {
   return best;
 }
 
-export function findRefinery(g, p, fromX, fromY) {
+function findRefinery(g, p, fromX, fromY) {
   var best = null, bd = 1e9;
   for (var i = 0; i < g.blds.length; i++) {
     var b = g.blds[i];
@@ -87,7 +87,7 @@ function dockApron(b) {
   return cells;
 }
 
-export function refDock(g, b) {
+function refDock(g, b) {
   var f = footBounds(b);
   var mx = Math.round((f.x0 + f.x1) / 2), my = Math.round((f.y0 + f.y1) / 2);
   // The drawn dock first (its centre, then either side of it), and only then
@@ -157,7 +157,7 @@ function atRefinery(u, b) {
 // all read one definition. Deliberately NOT folded into pickAt: the apron is
 // walkable ground that every other unit must still be able to be sent to,
 // and force-fire must not treat it as a structure.
-export function dockAt(g, p, gx, gy) {
+function dockAt(g, p, gx, gy) {
   for (var i = 0; i < g.blds.length; i++) {
     var b = g.blds[i];
     if (b.dead || b.p !== p || b.type !== 'refinery') continue;
@@ -171,7 +171,7 @@ export function dockAt(g, p, gx, gy) {
 // ChronoHarvTooFarDistance=50 — a Chrono Miner that would have to warp
 // further than that across the map drives home instead, so it stays on its
 // own side rather than blinking across two bases and walking all the way back.
-export var CHRONO_DELAY = 60 * 2, CHRONO_HARV_TOOFAR = 50;
+var CHRONO_DELAY = 60 * 2, CHRONO_HARV_TOOFAR = 50;
 
 // THE ONE WAY A HARVESTER IS SENT HOME. The automatic full-load return and
 // the player's forced dock order both come through here, so a forced return
@@ -189,7 +189,7 @@ export var CHRONO_DELAY = 60 * 2, CHRONO_HARV_TOOFAR = 50;
 //
 // `forced` marks the refinery as the PLAYER's choice, which the 'toref'
 // escape below must not quietly overrule.
-export function sendHome(g, u, ref, forced) {
+function sendHome(g, u, ref, forced) {
   if (!ref || ref.dead) { u.state = 'idle'; u.forcedDock = false; return false; }
   var hd = UNITS[u.type];
   u.homeRef = ref; u.forcedDock = !!forced;
@@ -214,7 +214,7 @@ export function sendHome(g, u, ref, forced) {
   return true;
 }
 
-export function stepHarvester(g, u) {
+function stepHarvester(g, u) {
   var d = UNITS[u.type];
   // [HARV] OpportunityFire=yes + Turret=yes: the War Miner keeps its 20mm
   // pointed at whatever wanders past, mining or not. The Chrono Miner has

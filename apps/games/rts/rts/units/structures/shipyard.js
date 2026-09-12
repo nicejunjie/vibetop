@@ -2,10 +2,10 @@
 // Called by bakeBuilding() with one context object carrying the canvas, the anchor,
 // the facing and the helpers it draws with — see rts/README.md.
 
-import { shade } from '../../bake/terrain.js';
-import { TH, TW } from '../../world.js';
 
-export function drawShipyard(C) {
+
+
+function drawShipyard(C) {
   var baseY = C.baseY, bph = C.bph, col = C.col, cx = C.cx, fh = C.fh, fw = C.fw, g = C.g,
       plot = C.plot, s = C.s, sov = C.sov;
 

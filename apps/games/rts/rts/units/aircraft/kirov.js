@@ -2,10 +2,10 @@
 // Called by bakeVehicle() with one context object carrying the canvas, the anchor,
 // the facing and the helpers it draws with — see rts/README.md.
 
-import { isoBox, outline } from '../../bake/kit.js';
-import { shade } from '../../bake/terrain.js';
 
-export function drawKirov(C) {
+
+
+function drawKirov(C) {
   var a = C.a, anim = C.anim, bodyPath = C.bodyPath, bodyR = C.bodyR, col = C.col,
       finQuad = C.finQuad, fy = C.fy, g = C.g, gradA = C.gradA, nx2 = C.nx2, ny2 = C.ny2,
       part = C.part, pt = C.pt, puck = C.puck, px = C.px, py = C.py, rad = C.rad, secK = C.secK;

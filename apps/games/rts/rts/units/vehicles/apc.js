@@ -2,10 +2,10 @@
 // Called by bakeVehicle() with one context object carrying the canvas, the anchor,
 // the facing and the helpers it draws with — see rts/README.md.
 
-import { isoBox } from '../../bake/kit.js';
-import { shade } from '../../bake/terrain.js';
 
-export function drawApc(C) {
+
+
+function drawApc(C) {
   var ER = C.ER, ERY = C.ERY, PEDGE = C.PEDGE, STEEL = C.STEEL, a = C.a, by = C.by, cx = C.cx,
       deck = C.deck, deckPlate = C.deckPlate, fx = C.fx, fy = C.fy, g = C.g, gEllipse = C.gEllipse,
       hull = C.hull, i2 = C.i2, len = C.len, panel = C.panel, polyPath = C.polyPath, puck = C.puck,

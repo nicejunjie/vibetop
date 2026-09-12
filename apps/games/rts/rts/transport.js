@@ -1,17 +1,17 @@
 // Iron Frontier — transport.js
 // One subsystem of the game. Loaded as a native ES module; see rts/README.md.
 
-import { uspd } from './combat-tables.js';
-import { dist, fire, infCorpse, isVeh, near } from './combat.js';
-import { spawnUnit } from './entities.js';
-import { canHit } from './geom.js';
-import { entById, flyToward, hoverIdle } from './move.js';
-import { standSpot } from './production.js';
-import { UNITS, ifvSpec } from './roster.js';
-import { dropFromSel, releaseMind } from './special.js';
-import { headless } from './state.js';
-import { sfx } from './ui/audio.js';
-import { neutral } from './world.js';
+
+
+
+
+
+
+
+
+
+
+
 
 // --------------------------------------------------------------------- //
 //  Carrier air group ([CARRIER] Spawns=HORNET / SpawnsNumber=3 /
@@ -28,13 +28,13 @@ function spawnStock(u) {
   return u.brood;
 }
 
-export function stepSpawner(g, u) {
+function stepSpawner(g, u) {
   var d = UNITS[u.type];
   if (u.brood == null) u.brood = d.spawnN;
   if (u.brood < d.spawnN && (g.tick % d.spawnReload) === 0) u.brood++;
 }
 
-export function launchSpawns(g, src, tgt) {
+function launchSpawns(g, src, tgt) {
   var d = UNITS[src.type], n = spawnStock(src);
   if (n <= 0) { src.cool = 60; return; }       // empty deck: try again shortly
   var sd = UNITS[d.spawns];
@@ -49,7 +49,7 @@ export function launchSpawns(g, src, tgt) {
   if (!headless) sfx('boom3', src.x, src.y);
 }
 
-export function stepSpawned(g, u) {
+function stepSpawned(g, u) {
   var d = UNITS[u.type];
   var mom = u.mother ? g.byId[u.mother] : null;
   if (mom && mom.dead) mom = null;
@@ -86,14 +86,14 @@ export function stepSpawned(g, u) {
 //  (rules.ini's only survivor mechanism is [General] CrewEscape, which
 //  spawns ONE crewman for a Crewed= vehicle, not the cargo), so the men
 //  inside go with it.
-export function paxCapOf(u) { return (u && UNITS[u.type] && UNITS[u.type].pax) || 0; }
+function paxCapOf(u) { return (u && UNITS[u.type] && UNITS[u.type].pax) || 0; }
 
-export function paxCount(u) { return u && u.pax ? u.pax.length : 0; }
+function paxCount(u) { return u && u.pax ? u.pax.length : 0; }
 
 // Can THIS unit ride in THAT transport? Only our own, only one with room,
 // and only the classes rules.ini lets aboard: everything but the
 // Amphibious Transport is infantry-only, and nothing carries a transport.
-export function canBoard(g, tr, u) {
+function canBoard(g, tr, u) {
   if (!tr || tr.dead || !u || u.dead || tr === u) return false;
   if (tr.kind !== 'u' || u.kind !== 'u' || tr.p !== u.p) return false;
   if (!paxCapOf(tr) || paxCount(tr) >= paxCapOf(tr)) return false;
@@ -105,7 +105,7 @@ export function canBoard(g, tr, u) {
   return !!td.paxVeh;
 }
 
-export function boardTransport(g, tr, u) {
+function boardTransport(g, tr, u) {
   if (!canBoard(g, tr, u)) return false;
   if (!tr.pax) tr.pax = [];
   tr.pax.push({ type: u.type, hp: u.hp, rank: u.rank || 0, kv: u.kv || 0 });
@@ -122,7 +122,7 @@ export function boardTransport(g, tr, u) {
 // The whole load steps out in ONE tick, so the neighbour index has not been
 // rebuilt between men: standSpot alone would put all twelve on the same
 // cell. The cells handed out are tracked here, exactly as spreadSpot does.
-export function unloadTransport(g, tr) {
+function unloadTransport(g, tr) {
   var out = [], used = {};
   if (!tr || !tr.pax || !tr.pax.length) return out;
   while (tr.pax.length) {
@@ -140,7 +140,7 @@ export function unloadTransport(g, tr) {
 }
 
 // The hull went up with the load aboard.
-export function killPassengers(g, tr) {
+function killPassengers(g, tr) {
   if (!tr || !tr.pax || !tr.pax.length) return 0;
   var n = tr.pax.length;
   for (var i = 0; i < n; i++) {
@@ -154,7 +154,7 @@ export function killPassengers(g, tr) {
 // [RepairBullet] Damage=-50, ROF=80, Range=1.8, Warhead=Mechanical (0%
 // against every infantry armour): an Engineer riding an IFV welds the
 // friendly VEHICLES around it and has no gun at all.
-export function stepRepairIFV(g, u) {
+function stepRepairIFV(g, u) {
   var m = ifvSpec(u);
   if (!m.repair) return false;
   if (u.cool > 0) return true;

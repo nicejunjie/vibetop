@@ -2,11 +2,11 @@
 // Called by bakeVehicle() with one context object carrying the canvas, the anchor,
 // the facing and the helpers it draws with — see rts/README.md.
 
-import { isoBox, outline } from '../../bake/kit.js';
-import { VACC } from '../../bake/ships.js';
-import { shade } from '../../bake/terrain.js';
 
-export function drawChronominer(C) {
+
+
+
+function drawChronominer(C) {
   var BIN = C.BIN, BIN_E = C.BIN_E, PEDGE = C.PEDGE, a = C.a, by = C.by, chassis = C.chassis,
       crate = C.crate, cx = C.cx, dark = C.dark, dig = C.dig, fx = C.fx, fy = C.fy, g = C.g,
       hull = C.hull, i2 = C.i2, lamp = C.lamp, len = C.len, nearS = C.nearS, panel = C.panel,

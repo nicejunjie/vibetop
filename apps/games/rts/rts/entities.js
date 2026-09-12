@@ -1,23 +1,23 @@
 // Iron Frontier — entities.js
 // One subsystem of the game. Loaded as a native ES module; see rts/README.md.
 
-import { MCV_T, lcg } from './bake/states.js';
-import { BLDS } from './blds.js';
-import { bspecFor, bspecOfB, harvKey } from './combat-tables.js';
-import { boom, damage, dist, near } from './combat.js';
-import { facOf, keyFac } from './factions.js';
-import { padSlot } from './geom.js';
-import { findPad } from './move.js';
-import { killOccupants } from './neutral.js';
-import { canPlace, standSpot, waterSpot } from './production.js';
-import { UNITS } from './roster.js';
-import { headless, idx, inMap } from './state.js';
-import { P_AI, P_HUMAN, neutral } from './world.js';
+
+
+
+
+
+
+
+
+
+
+
+
 
 // --------------------------------------------------------------------- //
 //  Entity factories. Every field read anywhere is declared here.
 // --------------------------------------------------------------------- //
-export function spawnUnit(g, type, p, gx, gy) {
+function spawnUnit(g, type, p, gx, gy) {
   if (type === 'harvester') type = harvKey(facOf(g, p));      // the role resolves to this side's miner
   var d = UNITS[type];
   var u = {
@@ -43,27 +43,27 @@ export function spawnUnit(g, type, p, gx, gy) {
   return u;
 }
 
-export var MAKE_T = 0;                               // no build-up animation: the user wants placed structures to appear complete (asked twice)
+var MAKE_T = 0;                               // no build-up animation: the user wants placed structures to appear complete (asked twice)
 
 // Production doors. RA2's [GAWEAP] DoorStages=10: the door opens, the
 // vehicle comes out of the mouth, the door shuts behind it. Only the War
 // Factory and the Barracks have one (the Airforce Command lowers a Harrier
 // onto its pad instead), and the whole thing is PRESENTATION -- a headless
 // sim never opens a door and gets its unit on the tick it finished.
-export var DOORED = { factory: 1, barracks: 1 };
+var DOORED = { factory: 1, barracks: 1 };
 
-export var DOOR_OPEN = 22, DOOR_HOLD = 26, DOOR_SHUT = 22;
+var DOOR_OPEN = 22, DOOR_HOLD = 26, DOOR_SHUT = 22;
 
-export var DOOR_T = DOOR_OPEN + DOOR_HOLD + DOOR_SHUT;
+var DOOR_T = DOOR_OPEN + DOOR_HOLD + DOOR_SHUT;
 
-export function doorPos(el) {
+function doorPos(el) {
   if (el <= 0) return 0;
   if (el < DOOR_OPEN) return el / DOOR_OPEN;
   if (el < DOOR_OPEN + DOOR_HOLD) return 1;
   return Math.max(0, 1 - (el - DOOR_OPEN - DOOR_HOLD) / DOOR_SHUT);
 }
 
-export function placeBld(g, key, p, gx, gy) {
+function placeBld(g, key, p, gx, gy) {
   // The faction-resolved spec, not the raw table: footprints differ by
   // faction (RA2 Foundation=), so a Soviet Battle Lab must occupy 3x3.
   // The faction is the STRUCTURE'S, stamped here once and never rewritten:
@@ -123,13 +123,13 @@ function mcvSpot(u) {
   return { x: Math.round(u.x) - Math.floor((yd.gw - 1) / 2), y: Math.round(u.y) - Math.floor((yd.gh - 1) / 2) };
 }
 
-export function canDeployMcv(g, u) {
+function canDeployMcv(g, u) {
   if (!u || u.dead || !UNITS[u.type].deploysInto) return false;
   var sp = mcvSpot(u);
   return canPlace(g, u.p, UNITS[u.type].deploysInto, sp.x, sp.y, { anywhere: true, ignore: u });
 }
 
-export function deployMcv(g, u) {
+function deployMcv(g, u) {
   if (!canDeployMcv(g, u)) return null;
   var sp = mcvSpot(u), frac = u.hp / u.maxhp;
   // The unit dies BEFORE the yard is placed so its tile is free the moment
@@ -151,7 +151,7 @@ export function deployMcv(g, u) {
 // simply vanished.
 var RUBBLE_LIFE = 60 * 60;                       // a minute at 60 ticks/s
 
-export function killBld(g, b, quiet) {
+function killBld(g, b, quiet) {
   b.dead = true;
   if (!neutral(b.p) && !BLDS[b.type].neut && !BLDS[b.type].wall && !BLDS[b.type].gate) {
     g.side[b.p].blost++;                                    // score screen: structures lost...
@@ -207,13 +207,13 @@ export function killBld(g, b, quiet) {
   }
 }
 
-export function stepRubble(g) {
+function stepRubble(g) {
   for (var i = g.rubble.length - 1; i >= 0; i--) {
     if (++g.rubble[i].t >= g.rubble[i].life) g.rubble.splice(i, 1);
   }
 }
 
-export function recalcPower(g, p) {
+function recalcPower(g, p) {
   if (neutral(p)) return;                       // the neutral house has no grid
   var made = 0, use = 0;
   for (var i = 0; i < g.blds.length; i++) {
@@ -227,7 +227,7 @@ export function recalcPower(g, p) {
   g.side[p].powerUse = use;
 }
 
-export function powered(g, p) {
+function powered(g, p) {
   var s = g.side[p];
   // A Spy in the Power Plant ([General] SpyPowerBlackout=1000) takes the
   // whole grid down for a minute — not one building, the GRID.

@@ -5,22 +5,22 @@
 //  Everything below is presentation — skipped entirely when headless.
 // ===================================================================== //
 
-export var cv = document.getElementById('cv');
+var cv = document.getElementById('cv');
 
-export var ctx = cv.getContext('2d');
+var ctx = cv.getContext('2d');
 
-export var mini = document.getElementById('mini');
+var mini = document.getElementById('mini');
 
-export var mctx = mini.getContext('2d');
+var mctx = mini.getContext('2d');
 
-export var stage = document.getElementById('stage');
+var stage = document.getElementById('stage');
 
-export var cvW = 800, cvH = 600;
+var cvW = 800, cvH = 600;
 
-export var IS_TOUCH = (function () { try { return window.matchMedia('(hover: none) and (pointer: coarse)').matches; } catch (e) { return false; } })();
+var IS_TOUCH = (function () { try { return window.matchMedia('(hover: none) and (pointer: coarse)').matches; } catch (e) { return false; } })();
 
 // --- generated ---
 // ESM import bindings are read-only, so a write from another module goes
 // through the owner. Reads stay verbatim everywhere: the binding is live.
-export function setCvH(v) { cvH = v; }
-export function setCvW(v) { cvW = v; }
+function setCvH(v) { cvH = v; }
+function setCvW(v) { cvW = v; }

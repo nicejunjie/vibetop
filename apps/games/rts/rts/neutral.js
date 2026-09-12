@@ -1,21 +1,21 @@
 // Iron Frontier — neutral.js
 // One subsystem of the game. Loaded as a native ES module; see rts/README.md.
 
-import { BLDS } from './blds.js';
-import { bspecFor, eliteOf, harvKey, isHarv, isWall, versesVs, vetFire, vetRofU } from './combat-tables.js';
-import { boom, damage, dist, entX, entY, findTarget, fire, infCorpse, isInf, near } from './combat.js';
-import { DOOR_OPEN, DOOR_T, powered, spawnUnit } from './entities.js';
-import { FACTIONS, facOf } from './factions.js';
-import { altOf, canHit, labelWater } from './geom.js';
-import { CHARGE_T, prismSupport, stepGate } from './move.js';
-import { emitUnit, freeTileNear } from './production.js';
-import { UNITS } from './roster.js';
-import { coilCharged, killDrone } from './special.js';
-import { headless, idx, inMap } from './state.js';
-import { eva, sfx } from './ui/audio.js';
-import { creditPop, say } from './ui/hud.js';
-import { finishSell } from './ui/input.js';
-import { MAP, ME, P_NEUT, T_BRIDGE, T_GROUND, T_ORE, T_WATER, buildableT, neutral } from './world.js';
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 // ===================================================================== //
 //  The neutral house: garrisoning, tech buildings, bridges, crates
@@ -35,23 +35,23 @@ var OCCUPIER = { rifle: 1, conscript: 1 };
 
 // [General] ThreatPerOccupant=10 — what a garrison adds to the building's
 // pull on enemy target selection, per man inside.
-export var THREAT_PER_OCCUPANT = 10;
+var THREAT_PER_OCCUPANT = 10;
 
-export function occCapOf(b) { return (BLDS[b.type] && BLDS[b.type].occCap) || 0; }
+function occCapOf(b) { return (BLDS[b.type] && BLDS[b.type].occCap) || 0; }
 
-export function occCount(b) { return b.occ ? b.occ.length : 0; }
+function occCount(b) { return b.occ ? b.occ.length : 0; }
 
-export function canOccupy(type) { return !!OCCUPIER[type]; }
+function canOccupy(type) { return !!OCCUPIER[type]; }
 
 // Can THIS man walk into THAT building? Only an Occupier, only a civilian
 // block, only one that is empty or already ours, and only if there is room.
-export function garrisonable(g, b, p) {
+function garrisonable(g, b, p) {
   if (!b || b.dead || !occCapOf(b) || b.make > 0) return false;
   if (!neutral(b.p) && b.p !== p) return false;
   return occCount(b) < occCapOf(b);
 }
 
-export function enterGarrison(g, b, u) {
+function enterGarrison(g, b, u) {
   if (!garrisonable(g, b, u.p) || !canOccupy(u.type)) return false;
   if (!b.occ) b.occ = [];
   var first = !b.occ.length;
@@ -68,7 +68,7 @@ export function enterGarrison(g, b, u) {
 
 // Everybody out. RA2 puts the men back on the ground around the building at
 // the health they went in with; the block reverts to the neutral house.
-export function ejectGarrison(g, b) {
+function ejectGarrison(g, b) {
   if (!b.occ || !b.occ.length) return 0;
   var n = 0, p = b.p;
   for (var i = 0; i < b.occ.length; i++) {
@@ -85,7 +85,7 @@ export function ejectGarrison(g, b) {
 }
 
 // The building came down with men inside. RA2 kills every occupant.
-export function killOccupants(g, b) {
+function killOccupants(g, b) {
   if (!b.occ || !b.occ.length) return;
   for (var i = 0; i < b.occ.length; i++) {
     if (!headless) infCorpse(g, { kind: 'u', type: b.occ[i].type, p: b.p, x: b.cx, y: b.cy }, 'HE');
@@ -164,7 +164,7 @@ function stepNeutral(g, b) {
 // A span is a column of deck cells (indexBridges). Force-fire, a nuke or a
 // storm bolt on the deck takes it down; the cells revert to open water, the
 // traffic on them goes into the river, and `g.bwrk` remembers the torn ends.
-export function damageBridge(g, x, y, amount) {
+function damageBridge(g, x, y, amount) {
   x = Math.round(x); y = Math.round(y);
   if (!inMap(x, y)) return false;
   var si = g.bspan[idx(x, y)];
@@ -176,7 +176,7 @@ export function damageBridge(g, x, y, amount) {
   return true;
 }
 
-export function collapseSpan(g, sp) {
+function collapseSpan(g, sp) {
   sp.down = true; sp.hp = 0;
   var i, c;
   for (i = 0; i < sp.cells.length; i++) {
@@ -205,7 +205,7 @@ export function collapseSpan(g, sp) {
 // [CABHUT] BridgeRepairHut=yes: an engineer walks in and the span comes
 // back. The hut serves whatever spans lie within a few cells of it, which
 // is how RA2's huts sit at both ends of one crossing.
-export function repairBridgeFrom(g, b) {
+function repairBridgeFrom(g, b) {
   var n = 0;
   for (var i = 0; i < g.bridges.length; i++) {
     var sp = g.bridges[i];
@@ -241,7 +241,7 @@ var CRATE_POOL = [
 // A hash, not a stateful RNG: crate placement and contents have to be
 // reproducible from (seed, tick) alone so a replay lands the same crate in
 // the same field with the same prize.
-export function hash3(a, b, c) {
+function hash3(a, b, c) {
   var h = ((a | 0) * 374761393 + (b | 0) * 668265263 + (c | 0) * 2246822519) >>> 0;
   h = (h ^ (h >>> 13)) >>> 0; h = (h * 1274126177) >>> 0;
   return ((h ^ (h >>> 16)) >>> 0) / 4294967296;
@@ -284,7 +284,7 @@ function spawnCrate(g, salt) {
   return cr;
 }
 
-export function stepCrates(g) {
+function stepCrates(g) {
   if (g.noCrates) return;
   // CrateMinimum=1 per player: the board starts at its floor, then one more
   // arrives every CrateRegen=3 minutes for as long as it is below it.
@@ -313,7 +313,7 @@ export function stepCrates(g) {
 
 // FreeMCV=yes: a player with money but no buildings gets an MCV out of the
 // next crate he touches, whatever was in it.
-export function openCrate(g, cr, u) {
+function openCrate(g, cr, u) {
   var p = u.p, s = g.side[p], k = cr.kind, i, msg = '', glyph = '?';
   var noBase = true;
   for (i = 0; i < g.blds.length; i++) if (!g.blds[i].dead && g.blds[i].p === p) { noBase = false; break; }
@@ -373,7 +373,7 @@ export function openCrate(g, cr, u) {
 // a half minutes. Every pass, six per cent of the ore cells throw a seam
 // into one empty neighbour. Gems do not spread at all — [Cruentus] has
 // SpreadPercentage=0 — so a gem field is finite, and that is the point of it.
-export var ORE_SPREAD_T = 2200 * 4;                    // 2200 RA2 frames at our 60Hz tick
+var ORE_SPREAD_T = 2200 * 4;                    // 2200 RA2 frames at our 60Hz tick
 
 // [Riparius] Growth=2200 — ore's OWN growth period, the sibling of the
 // Spread=2200 the line above already uses, at the same 15 fps. [General]
@@ -382,9 +382,9 @@ export var ORE_SPREAD_T = 2200 * 4;                    // 2200 RA2 frames at our
 // specific reading. Measured over 24 matches: the 5-minute reading left 3
 // undecided and the map dry from 18:00; this is the same mechanism at ore's
 // documented period.
-export var ORE_GROW_T = ORE_SPREAD_T;                  // [Riparius] Growth=2200 frames
+var ORE_GROW_T = ORE_SPREAD_T;                  // [Riparius] Growth=2200 frames
 
-export function stepOreSpread(g) {
+function stepOreSpread(g) {
   var pass = ++g.spread, ter = g.terrain, ore = g.ore, i, n;
   var DIRS = [-1, 1, -MAP, MAP];
   for (i = 0; i < ter.length; i++) {
@@ -403,7 +403,7 @@ export function stepOreSpread(g) {
 // [General] AllyParaDropInf=E1 AllyParaDropNum=6 / SovParaDropInf=E2
 // SovParaDropNum=9. The plane crosses the map, the sticks come down on
 // chutes, and they are yours where they land.
-export function paraDrop(g, p, gx, gy) {
+function paraDrop(g, p, gx, gy) {
   var fk = facOf(g, p);
   var n = fk === 'col' ? 9 : 6, type = FACTIONS[fk].inf;
   g.drops.push({ p: p, x: gx, y: gy, type: type, left: n, t: 0, next: 0, men: [] });
@@ -418,9 +418,9 @@ export function paraDrop(g, p, gx, gy) {
 // sticks still in the air, each one counted down in the SIM (so a headless
 // replay lands them on the same tick a rendered one does) and spawned only
 // when its canopy touches the ground.
-export var PARA_FALL = 96, PARA_H = 132;        // ticks under canopy, and its height in px
+var PARA_FALL = 96, PARA_H = 132;        // ticks under canopy, and its height in px
 
-export function stepDrops(g) {
+function stepDrops(g) {
   for (var i = g.drops.length - 1; i >= 0; i--) {
     var dr = g.drops[i];
     dr.t++;
@@ -446,7 +446,7 @@ export function stepDrops(g) {
   }
 }
 
-export function stepBld(g, b) {
+function stepBld(g, b) {
   var d = BLDS[b.type];
   // The neutral house runs its own short tick: no repair bay, no power, no
   // production, but garrison fire, oil money and hospital healing.

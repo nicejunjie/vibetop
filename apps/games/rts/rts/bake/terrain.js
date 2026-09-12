@@ -1,17 +1,17 @@
 // Iron Frontier — bake/terrain.js
 // One subsystem of the game. Loaded as a native ES module; see rts/README.md.
 
-import { bint, brnd, bsr } from '../rng.js';
-import { DPR, TH, TW } from '../world.js';
-import { lcg } from './states.js';
+
+
+
 
 // --------------------------------------------------------------------- //
 //  Sprite baking — drawn once into offscreen canvases, then the main loop
 //  only ever calls drawImage. Baked at DPR so they stay crisp.
 // --------------------------------------------------------------------- //
-export var SPR = {};
+var SPR = {};
 
-export function mkCanvas(w, h) {
+function mkCanvas(w, h) {
   var c = document.createElement('canvas');
   c.width = Math.max(1, Math.ceil(w * DPR));
   c.height = Math.max(1, Math.ceil(h * DPR));
@@ -26,7 +26,7 @@ export function mkCanvas(w, h) {
 // a restrained grain inside the face, a light-catching upper edge and a
 // darker lower edge. It runs on the scratch bake before the single outer
 // silhouette is stamped, so it never creates the old LEGO outlines.
-export function metalFinish(canvas, seed) {
+function metalFinish(canvas, seed) {
   var cg = canvas.getContext('2d'), W = canvas.width, H = canvas.height;
   var im = cg.getImageData(0, 0, W, H), d = im.data;
   // Read from an untouched copy. The finish is a material pass, so a mark
@@ -101,7 +101,7 @@ export function metalFinish(canvas, seed) {
 // ours read as dark bodies with dark guns, and the user could not tell the
 // tanks apart. The hull colours are fine; the FACE SHADING was pulling every
 // one of them down. Buildings (which the user called good) are untouched.
-export var VLIFT = 1;
+var VLIFT = 1;
 
 // NO_RIM: set with VLIFT while a SMOOTH vehicle bakes. Every isoBox/prism/
 // puck face normally carries its own 0.7 px outline and a lit top rim, so a
@@ -111,9 +111,9 @@ export var VLIFT = 1;
 // at the silhouette. With NO_RIM the parts draw as plain shaded faces onto
 // a scratch canvas and bakeVehicle.frame adds one dark outline round the
 // whole silhouette afterwards.
-export var NO_RIM = false;
+var NO_RIM = false;
 
-export function shade(c, f) {
+function shade(c, f) {
   var r, g, b;
   if (c.charAt(0) === '#') {
     var n = parseInt(c.slice(1), 16);
@@ -192,13 +192,13 @@ function rgbOf(c) {
 }
 
 // The colour that BECOMES `c` after valuePass(gm) has run over it.
-export function valuePre(c, gm) {
+function valuePre(c, gm) {
   var q = rgbOf(c), G = gam3(gm), o = [];
   for (var i = 0; i < 3; i++) o[i] = Math.round(255 * Math.pow(q[i] / 255, 1 / G[i]));
   return 'rgb(' + o[0] + ',' + o[1] + ',' + o[2] + ')';
 }
 
-export function valuePass(s, gm) {
+function valuePass(s, gm) {
   var G = gam3(gm);
   var id = s.g.getImageData(0, 0, s.c.width, s.c.height), d = id.data;
   var tr = valueLut(G[0]), tg = valueLut(G[1]), tb = valueLut(G[2]);
@@ -211,7 +211,7 @@ export function valuePass(s, gm) {
 
 // Blend two colours. RA2 keeps house colour as a TINT on grey machinery
 // rather than painting the machine; `mixc(col, STEEL, 0.5)` is that tint.
-export function mixc(a, b, t) {
+function mixc(a, b, t) {
   function rgb(c) {
     if (c.charAt(0) === '#') {
       var n = parseInt(c.slice(1), 16);
@@ -225,7 +225,7 @@ export function mixc(a, b, t) {
                   Math.round(x[2] + (y[2] - x[2]) * t) + ')';
 }
 
-export function diamond(g, cx, cy, w, h) {
+function diamond(g, cx, cy, w, h) {
   g.beginPath();
   g.moveTo(cx, cy - h / 2); g.lineTo(cx + w / 2, cy);
   g.lineTo(cx, cy + h / 2); g.lineTo(cx - w / 2, cy);
@@ -245,7 +245,7 @@ export function diamond(g, cx, cy, w, h) {
 // decal overlay on one tile in eight breaks even that.
 var TPAD = 6;                                  // tiles overlap 3px so no antialiased hairline can open a grid
 
-export var TCW = TW + TPAD, TCH = TH + TPAD;
+var TCW = TW + TPAD, TCH = TH + TPAD;
 
 var SHW = TW * 4, SHH = TH * 4;                // seamless sheet: 256 x 128
 
@@ -253,13 +253,13 @@ var SHW = TW * 4, SHH = TH * 4;                // seamless sheet: 256 x 128
 // and filling once. `diamond` resets the path on every call, so a loop that
 // called it N times and filled afterwards painted only the LAST cell — which
 // is exactly how the buildable-area grid disappeared.
-export function diamondAdd(g, cx, cy, w, h) {
+function diamondAdd(g, cx, cy, w, h) {
   g.moveTo(cx, cy - h / 2); g.lineTo(cx + w / 2, cy);
   g.lineTo(cx, cy + h / 2); g.lineTo(cx - w / 2, cy);
   g.closePath();
 }
 
-export function diamondT(g, cx, cy) { diamond(g, cx, cy, TCW, TCH); }
+function diamondT(g, cx, cy) { diamond(g, cx, cy, TCW, TCH); }
 
 // Run `fn(ox, oy)` for the 9 wrap offsets so anything drawn near a sheet
 // edge reappears on the far side and the sheet tiles seamlessly.
@@ -300,7 +300,7 @@ function sheetStreak(g, x, y, len, wid, wob) {
 // The temperate sheet: mid grass with big tonal drift, bare-earth patches,
 // worn tracks, clumps, grain and pebbles. The snow sheet swaps the palette
 // for blue-white with grey drifts and a few exposed dark-earth scars.
-export function bakeGroundSheet(kind, seed) {
+function bakeGroundSheet(kind, seed) {
   var srand = bsr, rnd = brnd, rint = bint;   // the ART generator: a baker must never move the simulation's stream (two-player desync, 2026-09-11)
   var s = mkCanvas(SHW, SHH), g = s.g;
   srand(seed);
@@ -427,7 +427,7 @@ export function bakeGroundSheet(kind, seed) {
 // playable border as terrain you can see but never enter. Same sheet,
 // darkened and cooled, so the apron reads as "out there" rather than as a
 // second, brighter field.
-export function bakeApronSheet(kind, seed) {
+function bakeApronSheet(kind, seed) {
   var src = bakeGroundSheet(kind, seed), s = mkCanvas(SHW, SHH), g = s.g;
   g.drawImage(src.c, 0, 0, SHW, SHH);
   g.globalCompositeOperation = 'saturation';                 // drain the colour out of it
@@ -439,11 +439,11 @@ export function bakeApronSheet(kind, seed) {
 
 // What the viewport is cleared to: the far end of the apron, so terrain
 // fades OUT of the world instead of stopping at a black wall.
-export var APRON_BG = { temperate: '#141812', snow: '#161b1f', urban: '#141618' };
+var APRON_BG = { temperate: '#141812', snow: '#161b1f', urban: '#141618' };
 
 // Ice floes: snow.ini ships an Ice Flow set, and a frozen lake with nothing
 // on it reads as flat blue paint.
-export function bakeFloe(v) {
+function bakeFloe(v) {
   var s = mkCanvas(TCW, TCH), g = s.g, cx = TCW / 2, cy = TCH / 2, i;
   bsr(7700 + v * 313);
   g.save(); diamondT(g, cx, cy); g.clip();
@@ -471,7 +471,7 @@ export function bakeFloe(v) {
 
 // Grey scree for T_ROCK: impassable broken ground, so boulders with real
 // volume sit in it rather than a flat recoloured floor.
-export function bakeRockSheet(kind, seed, flat) {
+function bakeRockSheet(kind, seed, flat) {
   var srand = bsr, rnd = brnd, rint = bint;   // the ART generator: a baker must never move the simulation's stream (two-player desync, 2026-09-11)
   var s = mkCanvas(SHW, SHH), g = s.g;
   srand(seed);
@@ -516,7 +516,7 @@ export function bakeRockSheet(kind, seed, flat) {
 
 // Cut a seamless sheet into the 64 tiles that reassemble it. Nine draws per
 // tile so a tile straddling the sheet edge still gets the wrapped content.
-export function sheetTiles(sheet) {
+function sheetTiles(sheet) {
   var out = [], u, v;
   for (u = 0; u < 8; u++) for (v = 0; v < 8; v++) {
     var s = mkCanvas(TCW, TCH), g = s.g, cx = TCW / 2, cy = TCH / 2;
@@ -532,7 +532,7 @@ export function sheetTiles(sheet) {
 
 // Ground decals, drawn over one tile in eight so the sheet's 8-tile period
 // is broken by an uncorrelated pattern: tufts, a scuff, a pebble scatter.
-export function bakeDecal(kind, v) {
+function bakeDecal(kind, v) {
   var srand = bsr, rnd = brnd, rint = bint;   // the ART generator: a baker must never move the simulation's stream (two-player desync, 2026-09-11)
   var s = mkCanvas(TCW, TCH), g = s.g, cx = TCW / 2, cy = TCH / 2;
   srand(910 + v * 131 + (kind === 'snow' ? 7 : 0));
@@ -567,7 +567,7 @@ export function bakeDecal(kind, v) {
 // caustics; snow is lake ice — pale, flat, cracked.
 var WSHW = TW * 2, WSHH = TH * 2;
 
-export function bakeWaterSheet(kind, phase) {
+function bakeWaterSheet(kind, phase) {
   var srand = bsr, rnd = brnd, rint = bint;   // the ART generator: a baker must never move the simulation's stream (two-player desync, 2026-09-11)
   var s = mkCanvas(WSHW, WSHH), g = s.g;
   srand(kind === 'snow' ? 611 : 601);
@@ -610,7 +610,7 @@ export function bakeWaterSheet(kind, phase) {
   return s;
 }
 
-export function waterTiles(sheet) {
+function waterTiles(sheet) {
   var out = [];
   for (var u = 0; u < 4; u++) for (var v = 0; v < 4; v++) {
     var s = mkCanvas(TCW, TCH), g = s.g, cx = TCW / 2, cy = TCH / 2;
@@ -653,7 +653,7 @@ function edgeBand(g, e, depth, wob, seed) {
 
 // Shore: a sand/gravel bank on the land tile. Wet, darker sand nearest the
 // water; dry paler sand and pebbles inland; the outline is ragged.
-export function bakeShore(kind, mask) {
+function bakeShore(kind, mask) {
   var srand = bsr, rnd = brnd, rint = bint;   // the ART generator: a baker must never move the simulation's stream (two-player desync, 2026-09-11)
   var s = mkCanvas(TCW, TCH), g = s.g, cx = TCW / 2, cy = TCH / 2;
   var snowy = kind === 'snow';
@@ -686,7 +686,7 @@ export function bakeShore(kind, mask) {
 // Shallow water / ice rim on the WATER side of the same boundary: RA2 pales
 // the water where it meets land, which is what makes a lake read as having
 // a bottom rather than being a hole cut in the map.
-export function bakeShallow(kind, mask) {
+function bakeShallow(kind, mask) {
   var s = mkCanvas(TCW, TCH), g = s.g, cx = TCW / 2, cy = TCH / 2;
   var snowy = kind === 'snow';
   g.save(); diamondT(g, cx, cy); g.clip();
@@ -709,7 +709,7 @@ export function bakeShallow(kind, mask) {
 // meeting on a hard tile diamond. 16 masks per theatre, keyed on which of
 // the four neighbours is the other material. bakeScree below is the same
 // idea for the rock fringe and stays as the special case it always was.
-export function bakeLat(altSheet, mask, seed) {
+function bakeLat(altSheet, mask, seed) {
   var s = mkCanvas(TCW, TCH), g = s.g, cx = TCW / 2, cy = TCH / 2, e, i;
   // The alt sheet is a seamless screen-space surface, so a fixed cut from
   // it is indistinguishable from the neighbour's own cut over a band this
@@ -745,7 +745,7 @@ export function bakeLat(altSheet, mask, seed) {
 // The rock fringe is the SAME idea as the LAT sets above -- broken ground
 // creeping over the edge of the grass beside it -- plus the loose stones
 // that a scree slope sheds, which the ground materials do not have.
-export function bakeScree(kind, mask, rockSheet) {
+function bakeScree(kind, mask, rockSheet) {
   var s = rockSheet ? bakeLat(rockSheet, mask, 9) : mkCanvas(TCW, TCH);
   var g = s.g, cx = TCW / 2, cy = TCH / 2;
   var snowy = kind === 'snow';
@@ -774,7 +774,7 @@ var CLIFF_H = 32, CLIFF_SH = 10;
 // An array whose slots bake on first read and then become plain values --
 // the same self-replacing-getter trick `faceSheet` uses for unit facings,
 // hoisted here because the cliff set wants it too.
-export function lazySheet(n, make) {
+function lazySheet(n, make) {
   var arr = new Array(n);
   for (var i = 0; i < n; i++) (function (k) {
     Object.defineProperty(arr, k, {
@@ -793,7 +793,7 @@ export function lazySheet(n, make) {
 // sprite per neighbour mask, so a sixteen-cell ridge was the same rock
 // sixteen times over at a one-cell period -- which is most of why cliffs
 // read as engineered regardless of what the face itself drew.
-export var CLIFF_VAR = 3;
+var CLIFF_VAR = 3;
 
 // Four bounded vertex profiles are enough to carry a broken crest without
 // turning the atlas into a per-map cache. A profile is selected from the
@@ -808,7 +808,7 @@ function cliffVertexId(x2, y2) {
   return (h >>> 0) % CLIFF_SEAM_VAR;
 }
 
-export function cliffEdgeId(ax, ay, bx, by) {
+function cliffEdgeId(ax, ay, bx, by) {
   // Canonical endpoint order: the two cells on an edge must get the same
   // interior profile even if they name its ends in opposite directions.
   if (ax > bx || (ax === bx && ay > by)) { var tx = ax, ty = ay; ax = bx; ay = by; bx = tx; by = ty; }
@@ -818,7 +818,7 @@ export function cliffEdgeId(ax, ay, bx, by) {
   return (h >>> 0) % CLIFF_SEAM_VAR;
 }
 
-export function cliffSeams(x, y, mask) {
+function cliffSeams(x, y, mask) {
   // Tile-centre (x,y) has visible diamond vertices at these half-cell grid
   // coordinates: east (+.5,-.5), front (+.5,+.5), west (-.5,+.5).
   // Ignore vertices a mask does not draw so they cannot multiply cache keys.
@@ -833,7 +833,7 @@ export function cliffSeams(x, y, mask) {
            key: e | (s << 2) | (w << 4) | (er << 6) | (wr << 8) };
 }
 
-export function cliffBank(mask, kind, variant) {
+function cliffBank(mask, kind, variant) {
   var cache = Object.create(null), count = 0;
   return {
     get: function (key, seam) {
@@ -1239,7 +1239,7 @@ function bakeCliff(mask, kind, variant, seam) {
 // carriageway is the union of one arm per connected side, which makes
 // straights, bends, T-junctions, crossroads and dead ends fall out for free
 // and tile exactly with the neighbour's arm.
-export function roadV() {
+function roadV() {
   var cx = TCW / 2, cy = TCH / 2;
   return [[cx, cy - TCH / 2], [cx + TCW / 2, cy], [cx, cy + TCH / 2], [cx - TCW / 2, cy]];
 }
@@ -1247,7 +1247,7 @@ export function roadV() {
 // Lay the union of arms into the current path. `w` is the half-width as a
 // fraction of a tile edge; `wob` jitters the shoulders so a dirt road does
 // not read as machined.
-export function roadPath(g, mask, w, wob, seed) {
+function roadPath(g, mask, w, wob, seed) {
   var V = roadV(), cx = TCW / 2, cy = TCH / 2, e;
   bsr(seed);
   g.beginPath();
@@ -1278,13 +1278,13 @@ export function roadPath(g, mask, w, wob, seed) {
 
 // The centre of the arm running to edge `e`, `t` of the way out from the
 // tile centre -- used for ruts and centre lines.
-export function armPt(e, t) {
+function armPt(e, t) {
   var V = roadV(), cx = TCW / 2, cy = TCH / 2;
   var mx = (V[e][0] + V[(e + 1) & 3][0]) / 2, my = (V[e][1] + V[(e + 1) & 3][1]) / 2;
   return [cx + (mx - cx) * t, cy + (my - cy) * t];
 }
 
-export function bakeRoad(kind, mask, vv) {
+function bakeRoad(kind, mask, vv) {
   var s = mkCanvas(TCW, TCH), g = s.g, cx = TCW / 2, cy = TCH / 2, i, e;
   var snowy = kind === 'snow';
   bsr(1900 + mask * 211 + (vv || 0) * 4099 + (snowy ? 3 : 0));
@@ -1350,7 +1350,7 @@ export function bakeRoad(kind, mask, vv) {
 // Tree: drawn in the entity pass (it occludes what stands behind it). RA2
 // trees are big — a canopy over a tile wide and taller than a tile — dark,
 // clumpy at the silhouette, with a long shadow to the lower right.
-export function bakeTree(v, snow) {
+function bakeTree(v, snow) {
   var srand = bsr, rnd = brnd, rint = bint;   // the ART generator: a baker must never move the simulation's stream (two-player desync, 2026-09-11)
   var s = mkCanvas(64, 88), g = s.g, cx = 32, by = 78;
   srand(80 + v * 97 + (snow ? 11 : 0));
@@ -1402,7 +1402,7 @@ export function bakeTree(v, snow) {
 // RA2 ships far more than trees as terrain objects -- art.ini's [TREE*] and
 // [TC*] sets, plus rocks, dead trunks and the theatre's own debris. These
 // ride the SAME T_TREE cell as a tree does, so they cost nothing but art.
-export function bakeDeadTree(v, snow) {
+function bakeDeadTree(v, snow) {
   var s = mkCanvas(64, 88), g = s.g, cx = 32, by = 78, i;
   bsr(4100 + v * 71 + (snow ? 9 : 0));
   g.fillStyle = 'rgba(8,12,6,.30)';
@@ -1438,7 +1438,7 @@ export function bakeDeadTree(v, snow) {
 
 // A boulder / rock outcrop: real volume, a cast shadow and a lit crown, so
 // it does not read as a flat decal lying on the grass.
-export function bakeBoulder(kind, v) {
+function bakeBoulder(kind, v) {
   var s = mkCanvas(64, 88), g = s.g, cx = 32, by = 78, i, k;
   bsr(4300 + v * 137 + (kind === 'snow' ? 5 : kind === 'urban' ? 11 : 0));
   var C = kind === 'snow' ? { b: '#8d979b', d: '#4d565c', l: '#c3ced2' }
@@ -1475,7 +1475,7 @@ export function bakeBoulder(kind, v) {
 
 // urban.ini ships a Ruins set: a bombed-out shell of a building, kept to a
 // single tile so it can stand in for a tree in the city.
-export function bakeRuin(v) {
+function bakeRuin(v) {
   var s = mkCanvas(64, 88), g = s.g, cx = 32, by = 78, i;
   bsr(4500 + v * 197);
   g.fillStyle = 'rgba(8,10,14,.34)';
@@ -1522,7 +1522,7 @@ export function bakeRuin(v) {
 // printed grid.
 // Erase a tile sprite's outer rim so what is painted on it (ore soil, gem
 // soil) fades out instead of stopping dead on the diamond.
-export function feather(g, cx, cy) {
+function feather(g, cx, cy) {
   var fg = g.createRadialGradient(cx, cy, TW * 0.20, cx, cy, TW * 0.52);
   fg.addColorStop(0, 'rgba(0,0,0,0)');
   fg.addColorStop(0.72, 'rgba(0,0,0,.55)');
@@ -1539,7 +1539,7 @@ export function feather(g, cx, cy) {
 // RA2's ore and gems glint: the overlay animates, and a field twinkles
 // because each cell is on its own phase. Three baked flashes, cycled off
 // `tick` plus the cell hash so no two neighbours fire together.
-export function bakeSparkle(k, col, hot) {
+function bakeSparkle(k, col, hot) {
   var d = 14, s = mkCanvas(d, d), g = s.g, c = d / 2;
   var r = [1.1, 1.9, 1.4][k], a = [0.34, 0.62, 0.42][k];
   var grd = g.createRadialGradient(c, c, 0, c, c, r * 2.1);
@@ -1567,7 +1567,7 @@ export function bakeSparkle(k, col, hot) {
 // down-right, 4 = (x, y+1) down-left, 8 = (x-1, y) up-left.
 var SHROUD_DIRS = [[0.25, -0.25], [0.25, 0.25], [-0.25, 0.25], [-0.25, -0.25]];
 
-export function bakeShroudEdge(mask) {
+function bakeShroudEdge(mask) {
   var s = mkCanvas(TCW + 2, TCH + 2), g = s.g, cx = s.w / 2, cy = s.h / 2;
   g.fillStyle = '#05070b';
   diamond(g, cx, cy, TCW, TCH); g.fill();
@@ -1602,11 +1602,11 @@ export function bakeShroudEdge(mask) {
 // sight of each other repeat AND no cell's crystals stop on its own tile
 // boundary. Four variants on a diagonal hash, each clipped flat to its
 // diamond, is what made a field read as a honeycomb lattice.
-export var ORE_VAR = 12, OPADX = 26, OPADY = 14;
+var ORE_VAR = 12, OPADX = 26, OPADY = 14;
 
-export var OCW = TCW + OPADX, OCH = TCH + OPADY;
+var OCW = TCW + OPADX, OCH = TCH + OPADY;
 
-export function bakeOre(level, variant) {
+function bakeOre(level, variant) {
   var srand = bsr, rnd = brnd, rint = bint;   // the ART generator: a baker must never move the simulation's stream (two-player desync, 2026-09-11)
   var s = mkCanvas(OCW, OCH), g = s.g;
   var cx = OCW / 2, cy = OCH / 2;
@@ -1656,5 +1656,5 @@ export function bakeOre(level, variant) {
 // --- generated ---
 // ESM import bindings are read-only, so a write from another module goes
 // through the owner. Reads stay verbatim everywhere: the binding is live.
-export function setNO_RIM(v) { NO_RIM = v; }
-export function setVLIFT(v) { VLIFT = v; }
+function setNO_RIM(v) { NO_RIM = v; }
+function setVLIFT(v) { VLIFT = v; }

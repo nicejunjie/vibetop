@@ -2,11 +2,11 @@
 // Called by bakeBuilding() with one context object carrying the canvas, the anchor,
 // the facing and the helpers it draws with — see rts/README.md.
 
-import { outline } from '../../bake/kit.js';
-import { shade } from '../../bake/terrain.js';
-import { faceL, facePatch, prism } from '../../bake/vehicles.js';
 
-export function drawRefinery(C) {
+
+
+
+function drawRefinery(C) {
   var AMB = C.AMB, AMBH = C.AMBH, HAZ = C.HAZ, PLAT_E = C.PLAT_E, baseY = C.baseY, bph = C.bph,
       col = C.col, cx = C.cx, fh = C.fh, fw = C.fw, g = C.g, plot = C.plot, rnd = C.rnd,
       sov = C.sov, srand = C.srand;

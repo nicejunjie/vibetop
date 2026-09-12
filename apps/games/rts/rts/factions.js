@@ -1,16 +1,16 @@
 // Iron Frontier — factions.js
 // One subsystem of the game. Loaded as a native ES module; see rts/README.md.
 
-import { BLDS } from './blds.js';
-import { harvKey } from './combat-tables.js';
-import { isBldLane, laneOfBld } from './production.js';
-import { UNITS } from './roster.js';
-import { swBld } from './supers.js';
-import { P_NEUT, neutral } from './world.js';
+
+
+
+
+
+
 
 // Faction identity. Colour still follows the PLAYER, not the faction, so a
 // red Directorate reads the same as a blue one.
-export var FACTIONS = {
+var FACTIONS = {
   dir: { key: 'dir', name: 'Directorate', em: '🜁',
          blurb: 'Speed and tech. Grizzlies, GIs dug in behind sandbags, Harriers, Mirage and Prism.',
          defence: 'sentry', tank: 'lancer', inf: 'rifle' },
@@ -19,9 +19,9 @@ export var FACTIONS = {
          defence: 'tesla', tank: 'rhino', inf: 'conscript' }
 };
 
-export function facOf(g, p) { return neutral(p) ? 'dir' : g.side[p].fac; }
+function facOf(g, p) { return neutral(p) ? 'dir' : g.side[p].fac; }
 
-export function ownedBy(spec, fac) { return !spec.fac || spec.fac === fac; }
+function ownedBy(spec, fac) { return !spec.fac || spec.fac === fac; }
 
 // ---- RA2's captured-production rule ---------------------------------- //
 //
@@ -46,18 +46,18 @@ export function ownedBy(spec, fac) { return !spec.fac || spec.fac === fac; }
 // always have (including after capture, when they are plainly the new
 // owner's) — and nothing can mistake one for a producer, because their
 // types are not producer types.
-export function bfacOf(g, b) { return (b && b.fac) || facOf(g, b ? b.p : P_NEUT); }
+function bfacOf(g, b) { return (b && b.fac) || facOf(g, b ? b.p : P_NEUT); }
 
 // The faction a NEW item of this key belongs to: its own if the key is one
 // faction's alone (a Tesla Coil is Soviet whoever puts it down), else the
 // builder's (a Barracks is your Barracks).
-export function keyFac(g, p, key, isBld) {
+function keyFac(g, p, key, isBld) {
   var sp = (isBld ? BLDS : UNITS)[key];
   return (sp && sp.fac) || facOf(g, p);
 }
 
 // Which structure makes this? rules.ini's `Factory=` line, by class.
-export function producerOf(spec, isBld) {
+function producerOf(spec, isBld) {
   if (isBld) return 'base';                                   // Factory=BuildingType
   return spec.cls === 'i' ? 'barracks'                        // Factory=InfantryType
        : spec.cls === 'a' ? 'airforce'                        // Factory=AircraftType
@@ -68,7 +68,7 @@ export function producerOf(spec, isBld) {
 // faction's will do, which is RA2's generic BARRACKS/TECH/RADAR alias
 // ([General] PrerequisiteBarracks=NAHAND,GAPILE) and is what every
 // both-sides item ([ENGINEER] Prerequisite=BARRACKS) is written against.
-export function hasFacBld(g, p, type, fac) {
+function hasFacBld(g, p, type, fac) {
   for (var i = 0; i < g.blds.length; i++) {
     var b = g.blds[i];
     if (b.dead || b.p !== p || b.type !== type) continue;
@@ -81,7 +81,7 @@ export function hasFacBld(g, p, type, fac) {
 // card and the AI all ask this one predicate — three that could disagree
 // is how "capture their yard and you still cannot build their units"
 // survived in the first place.
-export function facAllows(g, p, spec, isBld) {
+function facAllows(g, p, spec, isBld) {
   return hasFacBld(g, p, producerOf(spec, isBld), spec.fac);
 }
 
@@ -108,7 +108,7 @@ function defenceOrderFor(fac) {
                        : ['wall', 'gate', 'sentry', 'patriot', 'prism', 'gapgen', 'grandcannon', 'chrono', 'weather'];
 }
 
-export function unitOrderFor(fac, tab, side) {
+function unitOrderFor(fac, tab, side) {
   // Attack Dog is TechLevel 2, one rung above the rifleman and the Engineer.
   // Order is rules.ini TechLevel: TL1 rifleman/Engineer, TL2 dog/GGI, TL5
   // Flak Trooper/Shock Trooper/Ivan/Spy, TL8 Desolator, TL10 Yuri, Tanya
@@ -147,7 +147,7 @@ export function unitOrderFor(fac, tab, side) {
 // Your own list is always listed (greyed when it is not yet affordable or
 // unlocked, as it always has been); the other side's appears only when you
 // hold the shed that makes it.
-export function panelListFor(fac, tab, side) {
+function panelListFor(fac, tab, side) {
   var isBld = (tab === 'b' || tab === 'd');
   var ks = isBld ? (tab === 'b' ? buildOrderFor(fac) : defenceOrderFor(fac))
                  : unitOrderFor(fac, tab, side);
@@ -160,7 +160,7 @@ export function panelListFor(fac, tab, side) {
   return out;
 }
 
-export function panelKeys(g, p, tab) {
+function panelKeys(g, p, tab) {
   var fac = g.side[p].fac, oth = fac === 'col' ? 'dir' : 'col', i;
   var out = panelListFor(fac, tab, g.side[p]), seen = {};
   for (i = 0; i < out.length; i++) seen[out[i].k] = 1;
@@ -179,7 +179,7 @@ export function panelKeys(g, p, tab) {
 // Which producers of which faction we hold, as a string. Capture one and
 // the sidebar has to grow rows; lose it and they have to go. refreshPanel
 // runs every frame, so this is the cheapest thing that can notice.
-export function facSig(g, p) {
+function facSig(g, p) {
   var have = {}, i;                                  // ONE walk: this runs ten times a second
   for (i = 0; i < g.blds.length; i++) {
     var b = g.blds[i];

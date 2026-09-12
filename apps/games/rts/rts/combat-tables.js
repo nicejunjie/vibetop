@@ -1,12 +1,12 @@
 // Iron Frontier — combat-tables.js
 // One subsystem of the game. Loaded as a native ES module; see rts/README.md.
 
-import { BLDS } from './blds.js';
-import { armourOf, isDisguised } from './combat.js';
-import { bfacOf, keyFac } from './factions.js';
-import { isAir, isNaval, isSub } from './geom.js';
-import { UNITS, ifvSpec } from './roster.js';
-import { neutral } from './world.js';
+
+
+
+
+
+
 
 // --------------------------------------------------------------------- //
 //  Unit + structure tables.
@@ -32,10 +32,10 @@ import { neutral } from './world.js';
 //                other up when shot"
 // We field no spawn rockets, so special_2 exists only to keep the columns
 // aligned with RA2's; nothing is assigned it.
-export var ARMOURS = ['none', 'flak', 'plate', 'light', 'medium', 'heavy', 'wood', 'steel', 'concrete',
+var ARMOURS = ['none', 'flak', 'plate', 'light', 'medium', 'heavy', 'wood', 'steel', 'concrete',
                'special_1', 'special_2'];
 
-export var VERSES = {
+var VERSES = {
   SA: [100,  80,  70,  50,  25,  25,  75,  50,  25, 100, 100],
   SSA: [100, 100,  70,  60,  40,  40,  75,  50,  25, 100, 100],
   AP: [ 25,  25,  25,  75, 100, 100,  65,  45,  60,  60, 100],
@@ -116,19 +116,19 @@ export var VERSES = {
 // that RA2 DOES let every tank shell (AP/ApocAP) and the artillery family
 // through, and does NOT let small arms, flak, Tanya's C4 or a Prism Tank's
 // CometWH touch a wall.
-export var WH_WALL = { AP: 1, ApocAP: 1, HE: 1, IonWH: 1, Electric: 1, PrismWarhead: 1,
+var WH_WALL = { AP: 1, ApocAP: 1, HE: 1, IonWH: 1, Electric: 1, PrismWarhead: 1,
                 ORCAAP: 1, BlimpHE: 1, GrandCannonWH: 1, ARTYHE: 1, APSplash: 1, DredWH: 1 };
 
-export function isWall(e) { return e.kind === 'b' && !!BLDS[e.type].wall; }
+function isWall(e) { return e.kind === 'b' && !!BLDS[e.type].wall; }
 
 // verses() with RA2's wall rule folded in, so target PICKING and the damage
 // itself agree: a Sentry Gun never wastes its burst on concrete.
-export function versesVs(wh, tgt) {
+function versesVs(wh, tgt) {
   if (isWall(tgt) && !WH_WALL[wh]) return 0;
   return verses(wh, armourOf(tgt));
 }
 
-export function verses(wh, armour) { var v = VERSES[wh]; var i = ARMOURS.indexOf(armour); return v && i >= 0 ? v[i] / 100 : 1; }
+function verses(wh, armour) { var v = VERSES[wh]; var i = ARMOURS.indexOf(armour); return v && i >= 0 ? v[i] / 100 : 1; }
 
 // rules.ini:19102 `ProneDamage=` — what a man flat on his face actually
 // takes. Small arms lose most of their effect, an air-bursting shell keeps
@@ -144,12 +144,12 @@ var PRONE_DMG = {
   GrandCannonWH: 0.30
 };
 
-export function proneMul(wh) { var v = PRONE_DMG[wh]; return v === undefined ? 1.0 : v; }
+function proneMul(wh) { var v = PRONE_DMG[wh]; return v === undefined ? 1.0 : v; }
 
 // rules.ini:19096 `InfDeath=` — the KILLING warhead picks the animation:
 // 1 twirl, 2 explodes (no body), 3 flying death, 4 burn, 5 electro. 6 is
 // ours, for a man under a tank. RA2's 7 (nuke melt) folds into the burn.
-export var INF_DEATH = {
+var INF_DEATH = {
   SA: 1, SSA: 1, HollowPoint: 1, Parasite: 1, ParasiteDog: 1,
   HE: 2, BlimpHE: 2, Super: 2, IvanBomb: 2,
   AP: 3, ApocAP: 3, ORCAAP: 3, SAMWH: 3, GUARDWH: 3,
@@ -164,17 +164,17 @@ export var INF_DEATH = {
 // art.ini `Crawls=` (art.ini:27): [ROCK] and [FLAKT] are `no` — they run
 // instead, so they never hit the dirt. Everyone else (including [SHK] and
 // [TANY], which do have crawl frames) goes prone under fire.
-export function infCrawls(type) { return type !== 'rocketeer' && type !== 'flak' && type !== 'dog'; }
+function infCrawls(type) { return type !== 'rocketeer' && type !== 'flak' && type !== 'dog'; }
 
 function isVehArmour(a) { return a === 'light' || a === 'medium' || a === 'heavy'; }
 
 function isBldArmour(a) { return a === 'wood' || a === 'steel' || a === 'concrete'; }
 
-export function isInfArmour(a) { return a === 'none' || a === 'flak' || a === 'plate'; }
+function isInfArmour(a) { return a === 'none' || a === 'flak' || a === 'plate'; }
 
 // RA2 primary/secondary weapons: the secondary is picked by what it is for
 // (Guardian GI missile vs armour, Tanya C4 vs structures).
-export function weaponFor(spec, tgt, u) {
+function weaponFor(spec, tgt, u) {
   // [FV] Gunner=yes: the IFV's weapon is not a property of the vehicle, it
   // is a property of its passenger. Resolve that FIRST, then let the AA and
   // secondary rules below run against the weapon it actually has.
@@ -201,7 +201,7 @@ export function weaponFor(spec, tgt, u) {
   return eliteOf(spec, u);
 }
 
-export function reachOf(spec, u) {
+function reachOf(spec, u) {
   if (spec.ifv && u && u.pax && u.pax.length) spec = ifvSpec(u);
   // Twelve of the 34 elite weapons bump `Range`, two of them hugely, so the
   // reach a unit will OPEN FIRE at has to see the swap too — otherwise an
@@ -220,7 +220,7 @@ export function reachOf(spec, u) {
 // deployed weapon's range that the deployed weapon is actually for —
 // vehicles and aircraft, for the Guardian GI's [MissileLauncher]. Kept
 // separate from findTarget on purpose; see the caller.
-export function depFireTarget(g, u, rng) {
+function depFireTarget(g, u, rng) {
   var best = null, bd = rng * rng;
   for (var i = 0; i < g.units.length; i++) {
     var o = g.units[i];
@@ -276,7 +276,7 @@ export function depFireTarget(g, u, rng) {
 // under the old compounding rule an elite was 1.83x a veteran no matter
 // what weapon it held, which would have made the "elite is never weaker
 // than veteran" guard true by construction and worth nothing.
-export function vetFire(rank) { return (rank || 0) > 0 ? 1.1 : 1; }
+function vetFire(rank) { return (rank || 0) > 0 ? 1.1 : 1; }
 
 // ROF is the one ability that genuinely varies by unit: 29 of 49 grant it in
 // `VeteranAbilities`, 18 only in `EliteAbilities`, and `[XCOMET]` and
@@ -293,17 +293,17 @@ export function vetFire(rank) { return (rank || 0) > 0 ? 1.1 : 1; }
 // same unclosed row. Both are recorded gaps, not oversights.
 // Ticks per idle-animation frame. Six baked phases, so a full cycle is
 // IDLE_T * 6 ticks -> 5.0 s at 60 fps. See drawBld for why.
-export var IDLE_T = 50;
+var IDLE_T = 50;
 
-export function vetRofAt(u) { var r = u && UNITS[u.type] ? UNITS[u.type].rofAt : 1; return r == null ? 1 : r; }
+function vetRofAt(u) { var r = u && UNITS[u.type] ? UNITS[u.type].rofAt : 1; return r == null ? 1 : r; }
 
-export function vetRof(rank) { return (rank || 0) > 0 ? 0.6 : 1; }
+function vetRof(rank) { return (rank || 0) > 0 ? 0.6 : 1; }
 
 // The unit-aware form: every fire path should use this, because whether the
 // ROF bonus has arrived yet is a property of the SHOOTER, not of the rank.
-export function vetRofU(u) { var a = vetRofAt(u); return a > 0 && (u.rank || 0) >= a ? vetRof(1) : 1; }
+function vetRofU(u) { var a = vetRofAt(u); return a > 0 && (u.rank || 0) >= a ? vetRof(1) : 1; }
 
-export function vetSpeed(rank) { return (rank || 0) > 0 ? 1.2 : 1; }
+function vetSpeed(rank) { return (rank || 0) > 0 ? 1.2 : 1; }
 
 // A unit's ground speed after the [Powerups] Speed crate (x1.2). Every
 // mover reads it through here so one crate cannot be applied twice or
@@ -313,9 +313,9 @@ export function vetSpeed(rank) { return (rank || 0) > 0 ? 1.2 : 1; }
 // uspd so a multiplier cannot be applied twice or missed on one of the
 // fifteen advance() call sites. The elite-only form this replaces sat in
 // advance() and had exactly that shape of risk.
-export function uspd(u) { var m = UNITS[u.type].spd * vetSpeed(u.rank); return u.spMul ? m * u.spMul : m; }
+function uspd(u) { var m = UNITS[u.type].spd * vetSpeed(u.rank); return u.spMul ? m * u.spMul : m; }
 
-export function vetArmour(rank) { return (rank || 0) > 0 ? 1.5 : 1; }
+function vetArmour(rank) { return (rank || 0) > 0 ? 1.5 : 1; }
 
 // rules.ini `ElitePrimary=` (documented at :2963, "new primary weapon when
 // at elite veteran status") — at rank 2 a unit does not get a bigger
@@ -325,12 +325,12 @@ export function vetArmour(rank) { return (rank || 0) > 0 ? 1.5 : 1; }
 // .dmg/.rate/.rng/.wh/.burst off what weaponFor returns gets the swap for
 // free. Buildings are `Trainable=no` (:2982) and never carry a rank, so
 // this is safely false for the building spec weaponFor is handed.
-export function eliteOf(w, u) { return (w && w.elite && u && u.rank === 2) ? w.elite : w; }
+function eliteOf(w, u) { return (w && w.elite && u && u.rank === 2) ? w.elite : w; }
 
 // Structures that differ per faction (Allied Power Plant $800/+200 vs Tesla Reactor $600/+150).
 var _bspec = {};
 
-export function bspecFor(key, fac) {
+function bspecFor(key, fac) {
   var b = BLDS[key]; if (!b.byFac || !b.byFac[fac]) return b;
   var ck = key + '|' + fac; if (_bspec[ck]) return _bspec[ck];
   var o = {}; for (var k in b) o[k] = b[k]; for (k in b.byFac[fac]) o[k] = b.byFac[fac][k];
@@ -340,23 +340,23 @@ export function bspecFor(key, fac) {
 // The spec of an item ABOUT TO BE BUILT: its own faction where the key is
 // one side's alone, else the builder's. (facOf handles the neutral house
 // (-1): killing a derrick used to throw here.)
-export function bspecOf(g, key, p) { return bspecFor(key, keyFac(g, p, key, true)); }
+function bspecOf(g, key, p) { return bspecFor(key, keyFac(g, p, key, true)); }
 
 // The spec of a structure that EXISTS — read off ITS faction, not its
 // holder's, so a captured Soviet Barracks keeps the 2x2 [NAHAND] footprint
 // it was placed on and a captured Soviet slip keeps [NAYARD]'s power draw.
-export function bspecOfB(g, b) { return bspecFor(b.type, bfacOf(g, b)); }
+function bspecOfB(g, b) { return bspecFor(b.type, bfacOf(g, b)); }
 
-export function ucap(g, u) { var d = UNITS[u.type]; return g.side[u.p].fac === 'col' && d.capCol ? d.capCol : d.cap; }
+function ucap(g, u) { var d = UNITS[u.type]; return g.side[u.p].fac === 'col' && d.capCol ? d.capCol : d.cap; }
 
 // RA2 has no unit called "harvester" — it has a Chrono Miner and a War
 // Miner. The word survives here as the ROLE, resolved to the faction's
 // actual type at every boundary (spawn, build, count) so the AI, the tests
 // and orderUnitsTo can still say "harvester" and mean "our miner".
-export function harvKey(fac) { return fac === 'col' ? 'warminer' : 'chronominer'; }
+function harvKey(fac) { return fac === 'col' ? 'warminer' : 'chronominer'; }
 
-export function isHarv(u) { var d = u && u.type && UNITS[u.type]; return !!(d && d.harv); }
+function isHarv(u) { var d = u && u.type && UNITS[u.type]; return !!(d && d.harv); }
 
-export function psiImmune(u) { return u.kind !== 'u' || !!UNITS[u.type].psiImmune; }
+function psiImmune(u) { return u.kind !== 'u' || !!UNITS[u.type].psiImmune; }
 
-export function radImmune(u) { return !!UNITS[u.type].radImmune; }
+function radImmune(u) { return !!UNITS[u.type].radImmune; }

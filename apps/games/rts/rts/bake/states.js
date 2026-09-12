@@ -1,11 +1,11 @@
 // Iron Frontier — bake/states.js
 // One subsystem of the game. Loaded as a native ES module; see rts/README.md.
 
-import { TH, TW } from '../world.js';
-import { COL, bakeBuilding } from './buildings.js';
-import { FANG, NFACE, UPAD } from './kit.js';
-import { SPR, mkCanvas, shade } from './terrain.js';
-import { faceSheet } from './vehicles.js';
+
+
+
+
+
 
 // --------------------------------------------------------------------- //
 //  Structure STATE frames: damaged / unpowered / build-up / rubble.
@@ -25,12 +25,12 @@ import { faceSheet } from './vehicles.js';
 // A PRIVATE random stream. The shared `srand`/`rnd` pair also drives AI
 // decisions, so a lazy bake or a building death that reseeded it would let
 // the RENDERER steer the match. Everything below uses its own generator.
-export function lcg(seed) {
+function lcg(seed) {
   var st = (seed >>> 0) || 1;
   return function () { st = (st * 1664525 + 1013904223) >>> 0; return st / 4294967296; };
 }
 
-export function copyArt(src) {
+function copyArt(src) {
   var d = mkCanvas(src.w, src.h);
   d.g.drawImage(src.c, 0, 0, src.w, src.h);
   return d;
@@ -199,7 +199,7 @@ function bakeMake(src, bb, ay, col, n) {
 // (under units), passable, and faded out over a minute -- RA2's rubble.
 var SPR_RUBBLE = {};
 
-export function rubbleFor(gw, gh) {
+function rubbleFor(gw, gh) {
   var key = gw + 'x' + gh;
   if (SPR_RUBBLE[key]) return SPR_RUBBLE[key];
   var fw = (gw + gh) * TW / 4, fh = (gw + gh) * TH / 4;
@@ -258,14 +258,14 @@ export function rubbleFor(gw, gh) {
 }
 
 // --- lazy per-art state caches ----------------------------------------
-export function portsOf(art) {
+function portsOf(art) {
   if (!art.ports) art.ports = firePorts(art.frames ? art.frames[0] : art.s, art.ax, art.ay);
   return art.ports;
 }
 
 function hashKey(s) { var h = 2166136261; for (var i = 0; i < s.length; i++) h = (h ^ s.charCodeAt(i)) * 16777619; return h >>> 0; }
 
-export function dmgSetOf(art, key) {
+function dmgSetOf(art, key) {
   if (!art._dmg) {
     var ports = portsOf(art), base = art.frames || [art.s], out = [];
     for (var i = 0; i < base.length; i++) out.push(bakeDamaged(base[i], ports, art.ax, art.ay, hashKey(key) + i * 7919));
@@ -276,13 +276,13 @@ export function dmgSetOf(art, key) {
 
 // Unpowered is a modifier on whatever frame is showing, not a frame of its
 // own: a structure that is BOTH hurt and dark has to read as both.
-export function offOf(art, tag, frame) {
+function offOf(art, tag, frame) {
   if (!art._off) art._off = {};
   if (!art._off[tag]) art._off[tag] = bakeUnpowered(frame);
   return art._off[tag];
 }
 
-export function makeOf(art, col) {
+function makeOf(art, col) {
   if (!art._make) {
     var bb = art.s.bb || { x0: 0, y0: 0, x1: art.s.w, y1: art.s.h };
     art._make = bakeMake(art.frames ? art.frames[0] : art.s, bb, art.ay, col, 8);
@@ -295,7 +295,7 @@ export function makeOf(art, col) {
 // sprite and the Repair-mode cursor are now drawn from ONE path so they read
 // as the same tool: handle (-9,10) -> (3,-2) about the centre, open jaw of
 // radius 5.4 at (5.5,-5.5) -- the cursor's own geometry, kept exactly.
-export function wrenchPath(g, ox, oy, k, ang, which) {
+function wrenchPath(g, ox, oy, k, ang, which) {
   var c = Math.cos(ang), sn = Math.sin(ang), q, a, pp;
   var P = function (x, y) { return [ox + (x * c - y * sn) * k, oy + (x * sn + y * c) * k]; };
   if (which === 'jaw') {
@@ -313,7 +313,7 @@ export function wrenchPath(g, ox, oy, k, ang, which) {
 
 var SPR_WRENCH = null;
 
-export function wrenchSpr() {
+function wrenchSpr() {
   if (SPR_WRENCH) return SPR_WRENCH;
   var out = [], i;
   for (i = 0; i < 8; i++) {
@@ -342,7 +342,7 @@ export function wrenchSpr() {
 // facing it stopped on, so nothing is baked for a match with no MCV deploy.
 var SPR_UNPK = {};
 
-export function unpackOf(p, fk, face) {
+function unpackOf(p, fk, face) {
   var ky = p + fk + face;
   if (SPR_UNPK[ky]) return SPR_UNPK[ky];
   var S = SPR.unit[p][fk].mcv[face & (NFACE - 1)], col = COL[p], out = [], i;
@@ -390,7 +390,7 @@ export function unpackOf(p, fk, face) {
   return out;
 }
 
-export var MCV_T = 0;                                // no unpack delay either (see MAKE_T) — was ~0.8s of unpack before the MAKE
+var MCV_T = 0;                                // no unpack delay either (see MAKE_T) — was ~0.8s of unpack before the MAKE
 
 // RA2 plays a DOOR sequence when a unit comes out: [GAWEAP]'s UnderDoorAnim
 // + RoofDeployingAnim, [NAWEAP]'s maw leaf, the [GAPILE]/[NAHAND] barracks
@@ -398,7 +398,7 @@ export var MCV_T = 0;                                // no unpack delay either (
 // idle phase 0, indexed by door position, exactly like the aim frames.
 var DOOR_N = 7;
 
-export function doorOf(art, key, p, fk) {
+function doorOf(art, key, p, fk) {
   if (!art._door) {
     var out = [], i;
     for (i = 0; i < DOOR_N; i++) out.push(bakeBuilding(key, COL[p], fk, 0, null, i / (DOOR_N - 1)).s);
@@ -407,7 +407,7 @@ export function doorOf(art, key, p, fk) {
   return art._door;
 }
 
-export function doorDmgOf(art, key, p, fk) {
+function doorDmgOf(art, key, p, fk) {
   if (!art._doorD) {
     var dr = doorOf(art, key, p, fk), ports = portsOf(art), out = [], i;
     for (i = 0; i < dr.length; i++) out.push(bakeDamaged(dr[i], ports, art.ax, art.ay, hashKey(key) + 53));
@@ -422,14 +422,14 @@ export function doorDmgOf(art, key, p, fk) {
 // tank turret does. Lazy per bearing (`faceSheet`), so a defence that never
 // acquires anything bakes none of them and one that holds a firing lane
 // bakes the two or three it uses.
-export var AIMED = { sentry: 1, sentrygun: 1, patriot: 1, flakcannon: 1, grandcannon: 1 };
+var AIMED = { sentry: 1, sentrygun: 1, patriot: 1, flakcannon: 1, grandcannon: 1 };
 
-export function aimOf(art, key, p, fk) {
+function aimOf(art, key, p, fk) {
   if (!art._aim) art._aim = faceSheet(function (i) { return bakeBuilding(key, COL[p], fk, 0, i * FANG).s; });
   return art._aim;
 }
 
-export function aimDmgOf(art, key, p, fk) {
+function aimDmgOf(art, key, p, fk) {
   if (!art._aimD) {
     var aim = aimOf(art, key, p, fk), ports = portsOf(art);
     art._aimD = faceSheet(function (i) { return bakeDamaged(aim[i], ports, art.ax, art.ay, hashKey(key) + 31); });

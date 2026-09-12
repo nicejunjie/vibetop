@@ -2,13 +2,13 @@
 // Called by bakeGateSeg() with one context object carrying the canvas, the anchor,
 // the facing and the helpers it draws with — see rts/README.md.
 
-import { outline } from '../../bake/kit.js';
-import { lcg } from '../../bake/states.js';
-import { mkCanvas, shade } from '../../bake/terrain.js';
-import { gproj, gridSlab, octCol, padSlab } from '../../bake/walls.js';
-import { TH, TW } from '../../world.js';
 
-export function bakeGateSeg(col, fac, vert, openF) {
+
+
+
+
+
+function bakeGateSeg(col, fac, vert, openF) {
 
 var fw = TW / 2, fh = TH / 2, pad = 18, head = 44;
 var s = mkCanvas(fw * 2 + pad * 2, fh * 2 + head + pad * 2), g = s.g;

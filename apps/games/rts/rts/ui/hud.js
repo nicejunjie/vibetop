@@ -1,25 +1,25 @@
 // Iron Frontier — ui/hud.js
 // One subsystem of the game. Loaded as a native ES module; see rts/README.md.
 
-import { COL } from '../bake/buildings.js';
-import { mkCanvas } from '../bake/terrain.js';
-import { BLDS } from '../blds.js';
-import { isDisguised } from '../combat.js';
-import { powered } from '../entities.js';
-import { FACTIONS, facOf } from '../factions.js';
-import { cmd } from '../net.js';
-import { countUnit, hasBld } from '../production.js';
-import { UNITS, ifvSpec } from '../roster.js';
-import { G, inMap, state } from '../state.js';
-import { SW, SW_KEYS } from '../supers.js';
-import { paxCount } from '../transport.js';
-import { ME } from '../world.js';
-import { eva, setEvaAt, setEvaLog, sfx } from './audio.js';
-import { pickCursor } from './cursors.js';
-import { IS_TOUCH, cv, cvH, cvW } from './dom.js';
-import { setWallDrag } from './input.js';
-import { cameoFor } from './panel.js';
-import { placing, screenToGrid, setPlacing } from './screen.js';
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 // --------------------------------------------------------------------- //
 //  HUD
@@ -32,13 +32,13 @@ var stCred = document.getElementById('sbcred');
 
 var tipEl = document.getElementById('tip');
 
-export var sideEl = document.getElementById('side');
+var sideEl = document.getElementById('side');
 
 var pwrCv = document.getElementById('pwr'), pctx = pwrCv ? pwrCv.getContext('2d') : null;
 
 var shownCred = 0;
 
-export function creditPop(n) {
+function creditPop(n) {
   var el = document.createElement('span');
   el.className = 'plus'; el.textContent = '+' + n;
   stCred.appendChild(el);
@@ -108,7 +108,7 @@ var hovEl = document.getElementById('hov');
 
 var hovName = document.getElementById('hovName'), hovSub = document.getElementById('hovSub');
 
-export function updateHover(e, nx, ny) {
+function updateHover(e, nx, ny) {
   if (!e || state !== 'play' || placing || swMode) { hovEl.hidden = true; return; }
   var d = e.kind === 'b' ? BLDS[e.type] : UNITS[e.type];
   var mine = e.p === ME;
@@ -139,7 +139,7 @@ export function updateHover(e, nx, ny) {
   hovEl.style.left = x + 'px'; hovEl.style.top = y + 'px';
 }
 
-export function touchHint() {
+function touchHint() {
   if (IS_TOUCH) say('Touch: tap to select, two-finger tap = right-click, drag to pan, pinch to zoom', false, 600);
 }
 
@@ -149,7 +149,7 @@ export function touchHint() {
 // half-way through reading. Newest sits at the bottom of the stack.
 var evLines = [], EV_MAX = 3;
 
-export function say(msg, warn, hold) {
+function say(msg, warn, hold) {
   if (!tipEl) return;
   if (IS_TOUCH && typeof msg === 'string') msg = msg.replace(/Esc cancels/g, 'Two-finger tap cancels');
   var life = hold || 150;
@@ -168,7 +168,7 @@ export function say(msg, warn, hold) {
 
 // One tick of the message stack, driven by the same frame counter the rest
 // of the HUD uses so a paused game does not silently drain the log.
-export function stepEva() {
+function stepEva() {
   for (var i = evLines.length - 1; i >= 0; i--) {
     var e = evLines[i];
     if (--e.t <= 0) {
@@ -178,7 +178,7 @@ export function stepEva() {
   }
 }
 
-export function clearEva() {
+function clearEva() {
   setEvaAt({}); setEvaLog([]);
   for (var i = 0; i < evLines.length; i++) if (evLines[i].el.parentNode) evLines[i].el.parentNode.removeChild(evLines[i].el);
   evLines = [];
@@ -188,7 +188,7 @@ export function clearEva() {
 // RA2 shows one charging clock per superweapon you own in the corner of the
 // map; clicking a charged one puts the cursor into targeting mode. The AI's
 // clocks are never drawn — you learn about its nuke from EVA, as in RA2.
-export var swBar = document.getElementById('swbar'), swEls = {}, swMode = null;
+var swBar = document.getElementById('swbar'), swEls = {}, swMode = null;
 
 // A paratrooper under a canopy, drawn at the cameo's own size: full canopy
 // arc with gores and a lit crown, eight shroud lines converging on a
@@ -256,7 +256,7 @@ function mkSwIcon(k) {
   return el;
 }
 
-export function refreshSW() {
+function refreshSW() {
   if (!swBar) return;
   for (var i = 0; i < SW_KEYS.length; i++) {
     var k = SW_KEYS[i];
@@ -288,7 +288,7 @@ function swArm(key) {
   sfx('click'); refreshSW();
 }
 
-export function swCancel(quiet) {
+function swCancel(quiet) {
   if (!swMode) return false;
   swMode = null; pickCursor();
   if (!quiet) say('Targeting cancelled');
@@ -296,7 +296,7 @@ export function swCancel(quiet) {
   return true;
 }
 
-export function swClickMap(px, py) {
+function swClickMap(px, py) {
   var t = screenToGrid(px, py), gx = Math.round(t.x), gy = Math.round(t.y);
   var W = SW[swMode.key];
   if (!inMap(gx, gy)) { say('Off the map', true); return; }
@@ -316,7 +316,7 @@ export function swClickMap(px, py) {
 // but it is never a jump.
 var lastCash = 0;
 
-export function tickCredits() {
+function tickCredits() {
   if (!G) return;
   var real = G.side[ME].credits;
   if (shownCred !== real) {
@@ -329,7 +329,7 @@ export function tickCredits() {
   }
 }
 
-export function updateHUD() {
+function updateHUD() {
   if (!G) return;
   refreshSW();
   var s = G.side[ME];
@@ -344,5 +344,5 @@ export function updateHUD() {
 // --- generated ---
 // ESM import bindings are read-only, so a write from another module goes
 // through the owner. Reads stay verbatim everywhere: the binding is live.
-export function setShownCred(v) { shownCred = v; }
-export function setSwMode(v) { swMode = v; }
+function setShownCred(v) { shownCred = v; }
+function setSwMode(v) { swMode = v; }

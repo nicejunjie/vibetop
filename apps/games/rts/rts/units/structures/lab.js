@@ -2,11 +2,11 @@
 // Called by bakeBuilding() with one context object carrying the canvas, the anchor,
 // the facing and the helpers it draws with — see rts/README.md.
 
-import { outline } from '../../bake/kit.js';
-import { diamond, shade } from '../../bake/terrain.js';
-import { crates, cylinder, faceL, facePatch, faceR, prism } from '../../bake/vehicles.js';
 
-export function drawLab(C) {
+
+
+
+function drawLab(C) {
   var baseY = C.baseY, bph = C.bph, col = C.col, cx = C.cx, fh = C.fh, fw = C.fw, g = C.g,
       plot = C.plot, sov = C.sov;
 

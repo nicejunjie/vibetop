@@ -1,18 +1,18 @@
 // Iron Frontier — bake/bake.js
 // One subsystem of the game. Loaded as a native ES module; see rts/README.md.
 
-import { BLDS } from '../blds.js';
-import { FACTIONS } from '../factions.js';
-import { UNITS } from '../roster.js';
-import { COL, bakeBuilding } from './buildings.js';
-import { bakeAirport, bakeBridge, bakeBridgeWreck, bakeCiv, bakeCivLit, bakeCrate, bakeGem, bakeHospital, bakeHut, bakeOilDerrick, bakeRamp, bakeStreetTree, bakeUrbanDecal, bakeUrbanRoad, tintSet } from './civ.js';
-import { SHIP_KINDS, infArt } from './infantry.js';
-import { bakeSandbags, bakeShip, dogArt } from './ships.js';
-import { CLIFF_VAR, ORE_VAR, SPR, bakeApronSheet, bakeBoulder, bakeDeadTree, bakeDecal, bakeFloe, bakeGroundSheet, bakeLat, bakeOre, bakeRoad, bakeRockSheet, bakeRuin, bakeScree, bakeShallow, bakeShore, bakeShroudEdge, bakeSparkle, bakeTree, bakeWaterSheet, cliffBank, lazySheet, sheetTiles, waterTiles } from './terrain.js';
-import { bakeVehicle } from './vehicles.js';
-import { artBox, artTop, artTopSolid, bakeAirShadow, bakeCraterDecal, bakeExplosions, bakeMuzzleFlash, bakeRadDecal, bakeScorchDecal, set_gateSpr, set_wallSpr } from './walls.js';
 
-export function bakeAll() {
+
+
+
+
+
+
+
+
+
+
+function bakeAll() {
   // Terrain is cut from seamless screen-space sheets (see bakeGroundSheet):
   // 64 tiles per theatre that reassemble into one continuous surface, so
   // there is no tile edge anywhere on the ground. `SPR.groundT[th][gi]` is
@@ -156,7 +156,7 @@ export function bakeAll() {
 // docs/design-decisions.md. Every lazy per-frame cache (infantry facings,
 // damage states, aimed turrets, the build-up wipe) hangs off the art
 // objects this rebuilds, so it goes with them.
-export function bakeOwned() {
+function bakeOwned() {
   set_wallSpr({}); set_gateSpr({});
   // Units are keyed like structures: [player][faction][type]. Only the
   // harvester actually differs by faction (Chrono Miner vs War Miner), but

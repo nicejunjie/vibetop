@@ -2,11 +2,11 @@
 // Called by bakeDog() with one context object carrying the canvas, the anchor,
 // the facing and the helpers it draws with — see rts/README.md.
 
-import { DOG_SEQ } from '../../bake/infantry.js';
-import { INF_OCT, STATURE, UPAD, USC_I, outline, shadowBlob, unitCanvas } from '../../bake/kit.js';
-import { shade } from '../../bake/terrain.js';
 
-export function bakeDog(col, fac, phase, dir, state) {
+
+
+
+function bakeDog(col, fac, phase, dir, state) {
 
 var s = unitCanvas(), g = s.g, cx = s.w / 2, by = s.h - UPAD;
 g.translate(cx, by); g.scale(USC_I, USC_I); g.translate(-cx, -by);

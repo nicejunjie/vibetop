@@ -2,11 +2,11 @@
 // Called by bakeBuilding() with one context object carrying the canvas, the anchor,
 // the facing and the helpers it draws with — see rts/README.md.
 
-import { outline } from '../../bake/kit.js';
-import { shade } from '../../bake/terrain.js';
-import { gproj } from '../../bake/walls.js';
 
-export function drawGapgen(C) {
+
+
+
+function drawGapgen(C) {
   var baseY = C.baseY, bph = C.bph, col = C.col, cx = C.cx, g = C.g;
 
 // --- RA2 Gap Generator ([GAGAP]) ------------------------------------

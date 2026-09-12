@@ -1,22 +1,22 @@
 // Iron Frontier — ui/cursors.js
 // One subsystem of the game. Loaded as a native ES module; see rts/README.md.
 
-import { wrenchPath } from '../bake/states.js';
-import { BLDS } from '../blds.js';
-import { bspecFor, isHarv } from '../combat-tables.js';
-import { keyFac } from '../factions.js';
-import { canHit, moverOf } from '../geom.js';
-import { canOccupy, garrisonable, occCount } from '../neutral.js';
-import { dockAt } from '../ore.js';
-import { canPlace } from '../production.js';
-import { UNITS } from '../roster.js';
-import { G, headless, idx, inMap, state } from '../state.js';
-import { canBoard, paxCapOf } from '../transport.js';
-import { ME, neutral, terrPass } from '../world.js';
-import { cv } from './dom.js';
-import { swMode } from './hud.js';
-import { cmdMode, drag, mod, mouse, pan, pathMode, pickAt, placeOrigin } from './input.js';
-import { hoverTile, placing, sel } from './screen.js';
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 // --------------------------------------------------------------------- //
 //  Cursors — RA2 has no single pointer. It has an ANIMATED cursor per
@@ -184,9 +184,9 @@ var CUR_DRAW = {
                 inkFill(g, '#ff9a6a'); } }
 };
 
-export var CURSORS = null;
+var CURSORS = null;
 
-export function buildCursors() {
+function buildCursors() {
   if (CURSORS || headless) return;
   CURSORS = {};
   for (var k in CUR_DRAW) {
@@ -199,7 +199,7 @@ export function buildCursors() {
   }
 }
 
-export var curKind = 'select', curFrameN = 0, curApplied = '';
+var curKind = 'select', curFrameN = 0, curApplied = '';
 
 function applyCursor() {
   if (headless || !cv) return;
@@ -215,7 +215,7 @@ function applyCursor() {
 // What a click WOULD do, right now, given the hover, the modifiers and any
 // armed mode. Called from pointermove and from the animation timer, so a
 // cursor that changes only because Ctrl went down still updates.
-export function pickCursor() {
+function pickCursor() {
   if (headless || !cv) return;
   var k = 'select';
   if (pan) {                          // middle/right-drag: grabbing the map
@@ -317,4 +317,4 @@ if (typeof setInterval === 'function') setInterval(function () { curFrameN++; pi
 // --- generated ---
 // ESM import bindings are read-only, so a write from another module goes
 // through the owner. Reads stay verbatim everywhere: the binding is live.
-export function setCurApplied(v) { curApplied = v; }
+function setCurApplied(v) { curApplied = v; }

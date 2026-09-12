@@ -2,9 +2,9 @@
 // Called by bakeShip() with one context object carrying the canvas, the anchor,
 // the facing and the helpers it draws with — see rts/README.md.
 
-import { shade } from '../../bake/terrain.js';
 
-export function drawSquid(C) {
+
+function drawSquid(C) {
   var FR = C.FR, G = C.G, HULL = C.HULL, L = C.L, P = C.P, W = C.W, g = C.g, nearS = C.nearS;
 
 // [SQD]: a mantle and eight arms. No deck, no fittings — the only

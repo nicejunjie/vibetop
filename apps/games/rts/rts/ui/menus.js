@@ -1,38 +1,39 @@
 // Iron Frontier — ui/menus.js
 // One subsystem of the game. Loaded as a native ES module; see rts/README.md.
 
-import { newAI } from '../ai.js';
-import { COL, applyHouse } from '../bake/buildings.js';
-import { iconFaceOf } from '../bake/kit.js';
-import { SPR, mkCanvas } from '../bake/terrain.js';
-import { BLDS } from '../blds.js';
-import { FACTIONS, ownedBy } from '../factions.js';
-import { MAPS, mapId, setMapId } from '../mapgen.js';
-import { BcNet, MP_DELAY, NET, SP_DELAY, netBind, netLoad, netStash, setLOCKSTEP_DELAY } from '../net.js';
-import { HOUSE, OPT_DEF, aiHouse, normOpts } from '../opts.js';
-import { UNITS } from '../roster.js';
-import { G, difficulty, faction, headless, idx, newState, setDifficulty, setFaction, setG, setState, state } from '../state.js';
-import { openingForce, techCount } from '../watch.js';
-import { FOE, MAP, ME, PAUSE_SVG, PLAY_SVG, P_AI, P_HUMAN, SND_OFF_SVG, SND_ON_SVG } from '../world.js';
-import { MUS, applyVol, eva, musicOn, resumeAudio, setMusicOn, setSoundOn, sfx, soundOn, unitAck, vol } from './audio.js';
-import { pickCursor } from './cursors.js';
-import { cv } from './dom.js';
-import { clearEva, refreshSW, say, setShownCred, setSwMode, sideEl, touchHint } from './hud.js';
-import { __setCmdMode, refreshCmdbar, scrollRate, setScrollRate } from './input.js';
-import { setLastRadar } from './minimap.js';
-import { buildPanel, setLastPowerWarn, setLastReady, setToldRefinery } from './panel.js';
-import { setTRK_AT, terrCol } from './render.js';
-import { RESUME_KEY, loadGame, lsGet, lsSet, reloadKeepMatch, restoreSession, saveGame, saveSlots } from './save.js';
-import { cam, centerOn, setGroups, setPanel, setPlacing, setSel } from './screen.js';
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 // --------------------------------------------------------------------- //
 //  Cards / flow
 // --------------------------------------------------------------------- //
-export var ov = document.getElementById('ov'), ovIc = document.getElementById('ovIc');
+var ov = document.getElementById('ov'), ovIc = document.getElementById('ovIc');
 
-export var ovT = document.getElementById('ovT'), ovP = document.getElementById('ovP');
+var ovT = document.getElementById('ovT'), ovP = document.getElementById('ovP');
 
-export var ovA = document.getElementById('ovA'), ovB = document.getElementById('ovB');
+var ovA = document.getElementById('ovA'), ovB = document.getElementById('ovB');
 
 var ovCard = document.getElementById('ovCard');
 
@@ -273,7 +274,7 @@ var THUMB_SEED = 0x1f0e5a3b, THUMB_PX = 2, THUMB_W = MAP * THUMB_PX;
 // the house colours and have to follow the colour picker.
 var thumbPlate = {}, thumbDots = {}, thumbStart = {};
 
-export function mapPlate(k) {
+function mapPlate(k) {
   if (thumbPlate[k]) return thumbPlate[k];
   var o = mkCanvas(THUMB_W, THUMB_W), g = o.g;
   g.fillStyle = '#0b0e14'; g.fillRect(0, 0, THUMB_W, THUMB_W);
@@ -345,11 +346,11 @@ var scoresEl = document.getElementById('scores');
 
 var scoreCard = document.getElementById('scoreCard');
 
-export var hv = document.getElementById('hv'), lv = document.getElementById('lv');
+var hv = document.getElementById('hv'), lv = document.getElementById('lv');
 
 var sess = null;
 
-export var onA = null, onB = null;
+var onA = null, onB = null;
 
 function showCard(ic, title, msg, aLabel, bLabel, showDiff, showScores) {
   ovIc.textContent = ic; ovT.textContent = title; ovP.textContent = msg;
@@ -405,7 +406,7 @@ var musRow = document.getElementById('musRow');
 
 var VSL = [['sfx', 'vsfxSl', 'vsfxVal'], ['voice', 'vvoxSl', 'vvoxVal'], ['music', 'vmusSl', 'vmusVal']];
 
-export var optOpen = false;
+var optOpen = false;
 
 function optButtons(row, list, isOn, onPick) {
   row.innerHTML = '';
@@ -528,7 +529,7 @@ function buildSlotRows() {
 // Everything startMatch does that is NOT the match: a loaded G brings its
 // own units and its own tick, but the selection, the camera, the sidebar
 // and the announcement rail all belong to the session and have to be reset.
-export function enterLoaded(n) {
+function enterLoaded(n) {
   optOpen = false; optCard.style.display = 'none'; hideCard();
   G.debug = !!G.debug;
   setState('play');
@@ -584,7 +585,7 @@ function wireOptBtn() {
   if (ob) ob.addEventListener('click', function () { resumeAudio(); if (optOpen) closeOptions(); else showOptions(); });
 }
 
-export function showOptions() {
+function showOptions() {
   var mp = !!(G && G.mp);
   if (state === 'play' && !mp) togglePause(true);   // a two-player match keeps running: this card is one player's business
   optOpen = true; cardPush('opt');
@@ -595,7 +596,7 @@ export function showOptions() {
   buildOptRows();
 }
 
-export function closeOptions() {
+function closeOptions() {
   optOpen = false; cardPop('opt');
   optCard.style.display = 'none';
   hideCard();
@@ -643,9 +644,9 @@ function buildFacRow() {
 //  what the sim actually reads, so a running match cannot be re-tuned from
 //  under itself.
 // ------------------------------------------------------------------- //
-export var opts = normOpts(null);
+var opts = normOpts(null);
 
-export function loadOpts() {
+function loadOpts() {
   var raw = lsGet('vibetop:rts:opts');
   if (raw) { try { opts = normOpts(JSON.parse(raw)); } catch (e) { opts = normOpts(null); } }
   applyHouse(opts.colour, opts.aiColour);
@@ -786,7 +787,7 @@ var helpPaused = false;
 
 function openHelp() { hv.classList.add('show'); cardPush('help'); helpPaused = state === 'play' && !(G && G.mp); if (helpPaused) togglePause(true); }
 
-export function closeHelp() { hv.classList.remove('show'); cardPop('help'); if (helpPaused && state === 'paused') togglePause(); helpPaused = false; }
+function closeHelp() { hv.classList.remove('show'); cardPop('help'); if (helpPaused && state === 'paused') togglePause(); helpPaused = false; }
 
 document.getElementById('helpBtn').addEventListener('click', openHelp);
 
@@ -819,10 +820,10 @@ function openBoard() {
   lv.classList.add('show'); cardPush('lb');
 }
 
-export function closeBoard() { lv.classList.remove('show'); cardPop('lb'); }
+function closeBoard() { lv.classList.remove('show'); cardPop('lb'); }
 
 // Which cards are up, in the order they were opened — Esc closes the top.
-export var cardStack = [];
+var cardStack = [];
 
 function cardPush(k) { cardPop(k); cardStack.push(k); }
 
@@ -865,7 +866,7 @@ function evaHush(pause) {
 // pauses too, with the overlay naming the other player; either side may
 // resume. `remote` marks a pause that arrived over the wire, so it is not
 // echoed back.
-export function togglePause(force, remote) {
+function togglePause(force, remote) {
   var mp = !!(G && G.mp && MP.started);
   if (state === 'play' && (force === undefined || force === true)) {
     setState('paused'); pauseBtn.innerHTML = PLAY_SVG;
@@ -895,11 +896,11 @@ function pausedText(by) {
 // The lockstep barrier's banner: on while the sim has been unable to step
 // for half a second, off the moment it steps. A fading toast three seconds
 // late read as "the game is broken" (two-player audit, 2026-09-11).
-export var stallEl = document.getElementById('stall'), stallOn = false;
+var stallEl = document.getElementById('stall'), stallOn = false;
 
-export function stallShow() { if (!stallOn) { stallOn = true; stallEl.classList.add('show'); } }
+function stallShow() { if (!stallOn) { stallOn = true; stallEl.classList.add('show'); } }
 
-export function stallHide() { if (stallOn) { stallOn = false; stallEl.classList.remove('show'); } }
+function stallHide() { if (stallOn) { stallOn = false; stallEl.classList.remove('show'); } }
 
 pauseBtn.addEventListener('click', function () { resumeAudio(); togglePause(); });
 
@@ -924,7 +925,7 @@ document.addEventListener('visibilitychange', function () { if (document.hidden)
 // Paused is a state you should be able to leave without aiming at anything:
 // a click anywhere in the window resumes. The pause button is excluded so
 // its own toggle isn't run twice, and the cards keep their own buttons.
-export var eatResumeClick = false;           // the press that resumed must not also order
+var eatResumeClick = false;           // the press that resumed must not also order
 
 document.addEventListener('pointerdown', function (e) {
   if (state !== 'paused') return;
@@ -962,7 +963,7 @@ function showLoadCard() {
   buildOptRows();
 }
 
-export function menu() {
+function menu() {
   setState('menu');
   lsSet(RESUME_KEY, '0');                            // nothing to resume from the menu
   // Un-pause the voice BEFORE clearing it: a match left through the paused
@@ -1062,13 +1063,13 @@ var MP_CHAN = 'vibetop-rts-lockstep';
 
 var mpMode = 'one';                       // 'one' | 'host' | 'join'
 
-export var MP = { ch: null, role: null, rec: null, net: null, pre: [], hello: 0, started: false, gid: 0 };
+var MP = { ch: null, role: null, rec: null, net: null, pre: [], hello: 0, started: false, gid: 0 };
 
 function mpAvail() { return typeof BroadcastChannel === 'function'; }
 
 function mpPost(m) { if (MP.ch) try { MP.ch.postMessage(m); } catch (e) {} }
 
-export function mpClose() {
+function mpClose() {
   if (MP.hello) { clearInterval(MP.hello); MP.hello = 0; }
   // A BroadcastChannel has no disconnect event, so leaving quietly would
   // leave the other tab at a barrier it cannot tell from a slow peer.
@@ -1119,7 +1120,7 @@ function mpOpen(role) {
   MP.ch.onmessage = function (ev) { mpWire(ev.data); };
 }
 
-export function mpWire(m) {
+function mpWire(m) {
   if (!m) return;
   if (m.k === 'b') {
     // Rule (b): relay without dropping. A bundle can legitimately arrive
@@ -1204,7 +1205,7 @@ function mpWaitCard(msg) {
   showCard('\u{1f5a7}', 'Two-player match', msg, '', 'Cancel', false, false);
 }
 
-export function mpStart() {
+function mpStart() {
   if (!mpAvail()) { mpMode = 'one'; startMatch(); return; }
   if (mpMode === 'host') {
     mpOpen('host');
@@ -1299,7 +1300,7 @@ function buildMpRow() {
   mpWrap.style.display = 'flex';
 }
 
-export function mmss(v) { return Math.floor(v / 60) + ':' + ('0' + (v % 60)).slice(-2); }
+function mmss(v) { return Math.floor(v / 60) + ':' + ('0' + (v % 60)).slice(-2); }
 
 // ------------------------------------------------------------------- //
 //  RA2's score screen.
@@ -1321,7 +1322,7 @@ function techTotal(g, p) {
   return n || 1;
 }
 
-export function scoreOf(g, p) {
+function scoreOf(g, p) {
   var s = g.side[p], mins = Math.max(1, g.tick / 3600);
   var kills = s.killed + s.bkilled, losses = s.lost + s.blost;
   return {
@@ -1365,7 +1366,7 @@ function buildScoreCard(won) {
   scoreCard.hidden = false;
 }
 
-export function finish(won, why) {
+function finish(won, why) {
   setState('over');
   stallHide();
   lsSet(RESUME_KEY, '0');                            // a finished match is not resumed
@@ -1404,8 +1405,8 @@ export function finish(won, why) {
 // --- generated ---
 // ESM import bindings are read-only, so a write from another module goes
 // through the owner. Reads stay verbatim everywhere: the binding is live.
-export function setEatResumeClick(v) { eatResumeClick = v; }
-export function setLineupCache(v) { lineupCache = v; }
-export function setMpMode(v) { mpMode = v; }
-export function setOpts(v) { opts = v; }
-export function setThumbDots(v) { thumbDots = v; }
+function setEatResumeClick(v) { eatResumeClick = v; }
+function setLineupCache(v) { lineupCache = v; }
+function setMpMode(v) { mpMode = v; }
+function setOpts(v) { opts = v; }
+function setThumbDots(v) { thumbDots = v; }

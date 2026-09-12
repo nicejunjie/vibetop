@@ -1,25 +1,25 @@
 // Iron Frontier — production.js
 // One subsystem of the game. Loaded as a native ES module; see rts/README.md.
 
-import { BLDS } from './blds.js';
-import { bspecFor, bspecOf, harvKey, isHarv } from './combat-tables.js';
-import { near } from './combat.js';
-import { DOORED, DOOR_T, spawnUnit } from './entities.js';
-import { hasFacBld, keyFac, producerOf } from './factions.js';
-import { padCapacity, tilePassable } from './move.js';
-import { blocked, requestPath } from './path.js';
-import { UNITS } from './roster.js';
-import { cloneVatsOf } from './shroud.js';
-import { headless, idx, inMap } from './state.js';
-import { reqMet, reqName, swBld } from './supers.js';
-import { eva, sfx } from './ui/audio.js';
-import { say } from './ui/hud.js';
-import { MAP, ME, MV_NAVAL, P_HUMAN, T_BRIDGE, T_WATER, buildableT } from './world.js';
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 // --------------------------------------------------------------------- //
 //  Production queues
 // --------------------------------------------------------------------- //
-export function canBuild(g, p, key, isBld) {
+function canBuild(g, p, key, isBld) {
   var s = g.side[p];
   if (!isBld && key === 'harvester') key = harvKey(s.fac);
   var spec = isBld ? BLDS[key] : UNITS[key];
@@ -47,18 +47,18 @@ export function canBuild(g, p, key, isBld) {
   return true;
 }
 
-export function queuedCount(s, key) {
+function queuedCount(s, key) {
   var n = 0; for (var l in s.queues) s.queues[l].list.forEach(function (k) { if (k === key) n++; }); return n;
 }
 
-export function hasBld(g, p, type) {
+function hasBld(g, p, type) {
   for (var i = 0; i < g.blds.length; i++) {
     if (!g.blds[i].dead && g.blds[i].p === p && g.blds[i].type === type) return true;
   }
   return false;
 }
 
-export function countBld(g, p, type) {
+function countBld(g, p, type) {
   var n = 0;
   for (var i = 0; i < g.blds.length; i++) {
     if (!g.blds[i].dead && g.blds[i].p === p && g.blds[i].type === type) n++;
@@ -66,7 +66,7 @@ export function countBld(g, p, type) {
   return n;
 }
 
-export function countUnit(g, p, type, cls) {
+function countUnit(g, p, type, cls) {
   var n = 0, role = type === 'harvester';                     // "how many miners" spans both types
   for (var i = 0; i < g.units.length; i++) {
     var cu = g.units[i];
@@ -78,19 +78,19 @@ export function countUnit(g, p, type, cls) {
   return n;
 }
 
-export var QUEUE_MAX = 30;
+var QUEUE_MAX = 30;
 
 // Defence has its OWN construction lane. Sharing one structure queue meant
 // a Sentry Gun held up the Refinery behind it — you paid for a turret with
 // your economy. Both still need the Construction Yard, and each holds its
 // own finished building waiting to be placed.
-export function isBldLane(l) { return l === 'b' || l === 'd'; }
+function isBldLane(l) { return l === 'b' || l === 'd'; }
 
-export function laneOfBld(key) { return BLDS[key] && BLDS[key].cat === 'def' ? 'd' : 'b'; }
+function laneOfBld(key) { return BLDS[key] && BLDS[key].cat === 'def' ? 'd' : 'b'; }
 
-export function readyLane(s) { return s.queues.b.ready ? 'b' : (s.queues.d.ready ? 'd' : null); }
+function readyLane(s) { return s.queues.b.ready ? 'b' : (s.queues.d.ready ? 'd' : null); }
 
-export function enqueue(g, p, key, lane) {
+function enqueue(g, p, key, lane) {
   var s = g.side[p];
   if (!isBldLane(lane) && key === 'harvester') key = harvKey(s.fac);
   var q = s.queues[lane];
@@ -117,7 +117,7 @@ export function enqueue(g, p, key, lane) {
 // `q.paid`, and a finished structure waiting for a spot has cost all of it.
 // Returns the amount refunded (0 for an item that had cost nothing yet),
 // or false when there was nothing to cancel.
-export function cancelLast(g, p, lane, key) {
+function cancelLast(g, p, lane, key) {
   var q = g.side[p].queues[lane], back = 0;
   for (var i = q.list.length - 1; i >= 0; i--) {
     if (q.list[i] === key) {
@@ -139,7 +139,7 @@ export function cancelLast(g, p, lane, key) {
 // MaxLowPowerProductionSpeed=.8, LowPowerPenaltyModifier=1): a base barely
 // in the red still builds at 0.8x and one with no power at all at 0.5x —
 // a curve on the size of the deficit, not the flat 0.4x this used to be.
-export function prodSpeed(g, p) {
+function prodSpeed(g, p) {
   var s = g.side[p];
   if (s.powerUse === 0 || s.powerMade >= s.powerUse) return 1;
   return 0.8 - 0.3 * Math.min(1, (s.powerUse - s.powerMade) / s.powerUse);
@@ -148,7 +148,7 @@ export function prodSpeed(g, p) {
 // Everything that happens the moment a finished unit reaches the apron.
 // Split out of stepQueues so the door sequence can hold it inside the bay
 // for the opening ticks and then release it at the mouth.
-export function emitUnit(g, key, p, lane, src, sp) {
+function emitUnit(g, key, p, lane, src, sp) {
   var s = g.side[p];
   var nu = spawnUnit(g, key, p, sp.x, sp.y);   // an aircraft lands on its pad in spawnUnit
   // RA2: a Spy who got into their Barracks / War Factory makes
@@ -179,7 +179,7 @@ export function emitUnit(g, key, p, lane, src, sp) {
   return nu;
 }
 
-export function stepQueues(g, p) {
+function stepQueues(g, p) {
   var s = g.side[p];
   var slow = prodSpeed(g, p);                  // low power = slower production
   for (var lane in s.queues) {
@@ -276,7 +276,7 @@ function producerType(lane) {
 //   1  0.80  0.64  0.51  0.41  0.328  0.262  0.25
 var FACTORY_STEP = 0.8, FACTORY_FLOOR = 0.25;
 
-export function buildFactor(g, p, lane) {
+function buildFactor(g, p, lane) {
   var n = countBld(g, p, producerType(lane));
   return n <= 1 ? 1 : Math.max(FACTORY_FLOOR, Math.pow(FACTORY_STEP, n - 1));
 }
@@ -284,7 +284,7 @@ export function buildFactor(g, p, lane) {
 // Round-robin across the buildings that can make this, so a second factory
 // is also a second exit — units from one queue no longer all pile out of
 // the same door.
-export function producersOf(g, p, lane) {
+function producersOf(g, p, lane) {
   var want = producerType(lane), list = [];
   for (var i = 0; i < g.blds.length; i++) {
     var b = g.blds[i];
@@ -307,13 +307,13 @@ function producerFor(g, p, lane) {
   return list[0];
 }
 
-export function isPrimary(g, b) {
+function isPrimary(g, b) {
   var m = BLDS[b.type].makes;
   if (m !== 'i' && m !== 'v' && m !== 'a') return false;
   return producerFor(g, b.p, m) === b;
 }
 
-export function setPrimary(g, b) {
+function setPrimary(g, b) {
   var m = BLDS[b.type].makes;
   if (m !== 'i' && m !== 'v' && m !== 'a') return false;
   var s = g.side[b.p];
@@ -327,7 +327,7 @@ export function setPrimary(g, b) {
 // caller keeps across one group order.
 // `zone` (optional) keeps a fleet's spread inside ONE body of water: a spot
 // two cells away across a spit is not a spot a Destroyer can take up.
-export function spreadSpot(g, x, y, taken, mv, zone) {
+function spreadSpot(g, x, y, taken, mv, zone) {
   for (var k = 0; k < 400; k++) {
     var r = k === 0 ? 0 : 0.9 + Math.sqrt(k) * 0.8, a = k * 2.399;
     var cx = Math.max(0, Math.min(MAP - 1, Math.round(x + Math.cos(a) * r)));
@@ -343,7 +343,7 @@ export function spreadSpot(g, x, y, taken, mv, zone) {
 // A passable tile near (x,y) with no ground unit already standing on it.
 // `used` (optional) is a set of "x,y" keys already handed out this tick, for
 // callers that place several units before the neighbour index is rebuilt.
-export function standSpot(g, x, y, used) {
+function standSpot(g, x, y, used) {
   for (var r = 0; r < 7; r++) {
     for (var oy = -r; oy <= r; oy++) for (var ox = -r; ox <= r; ox++) {
       if (Math.max(Math.abs(ox), Math.abs(oy)) !== r) continue;
@@ -358,7 +358,7 @@ export function standSpot(g, x, y, used) {
   return null;
 }
 
-export function freeTileNear(g, x, y) {
+function freeTileNear(g, x, y) {
   for (var r = 0; r < 8; r++) {
     for (var oy = -r; oy <= r; oy++) for (var ox = -r; ox <= r; ox++) {
       if (Math.max(Math.abs(ox), Math.abs(oy)) !== r) continue;
@@ -372,7 +372,7 @@ export function freeTileNear(g, x, y) {
 // The same two searches for a hull: open water, and open water with no ship
 // already sitting on it. A ship built with nowhere to float waits in the
 // yard exactly as a tank waits behind a blocked factory door.
-export function freeWaterNear(g, x, y, r0) {
+function freeWaterNear(g, x, y, r0) {
   for (var r = (r0 || 0); r < 10; r++) {
     for (var oy = -r; oy <= r; oy++) for (var ox = -r; ox <= r; ox++) {
       if (Math.max(Math.abs(ox), Math.abs(oy)) !== r) continue;
@@ -383,7 +383,7 @@ export function freeWaterNear(g, x, y, r0) {
   return null;
 }
 
-export function waterSpot(g, x, y, used) {
+function waterSpot(g, x, y, used) {
   for (var r = 0; r < 9; r++) {
     for (var oy = -r; oy <= r; oy++) for (var ox = -r; ox <= r; ox++) {
       if (Math.max(Math.abs(ox), Math.abs(oy)) !== r) continue;
@@ -401,7 +401,7 @@ export function waterSpot(g, x, y, used) {
 // art.ini [GAYARD] `DockingOffset0=384,-128,0`: the slipway is off the
 // yard's near-left face. A new hull is launched from the first clear water
 // cell out from there, so it appears at the DOOR and not on the roof.
-export function dockSpot(g, b) {
+function dockSpot(g, b) {
   return waterSpot(g, Math.round(b.cx - b.gw / 2 - 0.5), Math.round(b.cy + b.gh / 2 + 0.5))
       || waterSpot(g, Math.round(b.cx), Math.round(b.cy));
 }
@@ -434,13 +434,13 @@ export function dockSpot(g, b) {
 // back at 11/12 with identical match lengths.
 var ADJ_DEFAULT = 6;                            // rules.ini Adjacent=2
 
-export function adjOf(key) { var d = BLDS[key]; return d && d.adj !== undefined ? d.adj : ADJ_DEFAULT; }
+function adjOf(key) { var d = BLDS[key]; return d && d.adj !== undefined ? d.adj : ADJ_DEFAULT; }
 
 // Cached buildable mask, rebuilt when the structure set changes. Keyed by
 // (player, adjacency) because the radius now depends on WHAT is being built.
 var maskCache = [{}, {}], maskKey = ['', ''];
 
-export function buildMask(g, p, key) {
+function buildMask(g, p, key) {
   var sig = '';
   for (var i = 0; i < g.blds.length; i++) {
     var b = g.blds[i];
@@ -470,7 +470,7 @@ export function buildMask(g, p, key) {
 // deploys wherever it stands, which is the whole point of owning one when
 // your base is gone. opts.ignore: a unit that does not block the footprint
 // (the deploying MCV itself is standing on the centre tile).
-export function canPlace(g, p, key, gx, gy, opts) {
+function canPlace(g, p, key, gx, gy, opts) {
   var d = bspecFor(key, keyFac(g, p, key, true));
   var mask = buildMask(g, p, key), inRange = !!(opts && opts.anywhere);
   // [GAYARD]/[NAYARD] `WaterBound=yes`: the whole footprint must be OPEN
@@ -500,7 +500,7 @@ export function canPlace(g, p, key, gx, gy, opts) {
 
 // The water half of canPlace: every footprint cell deep water, and a dry
 // cell somewhere in the ring around it.
-export function waterPlot(g, gx, gy, gw, gh) {
+function waterPlot(g, gx, gy, gw, gh) {
   var x, y, shore = false;
   for (y = gy; y < gy + gh; y++) for (x = gx; x < gx + gw; x++) {
     if (!inMap(x, y) || g.terrain[idx(x, y)] !== T_WATER) return false;

@@ -1,7 +1,7 @@
 // Iron Frontier — blds.js
 // One subsystem of the game. Loaded as a native ES module; see rts/README.md.
 
-export var BLDS = {
+var BLDS = {
   base: {
     fac: null, cat: 'str',
     name: 'Construction Yard', em: '🏛️', cost: 3000, build: 126,

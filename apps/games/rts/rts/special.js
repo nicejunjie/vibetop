@@ -1,21 +1,21 @@
 // Iron Frontier — special.js
 // One subsystem of the game. Loaded as a native ES module; see rts/README.md.
 
-import { BLDS } from './blds.js';
-import { bspecOfB, eliteOf, psiImmune, radImmune } from './combat-tables.js';
-import { boom, damage, dist, entX, entY, near } from './combat.js';
-import { recalcPower } from './entities.js';
-import { bfacOf } from './factions.js';
-import { isAir } from './geom.js';
-import { killOccupants } from './neutral.js';
-import { freeTileNear, freeWaterNear } from './production.js';
-import { UNITS } from './roster.js';
-import { G, headless, idx, inMap } from './state.js';
-import { eva, sfx } from './ui/audio.js';
-import { creditPop, say } from './ui/hud.js';
-import { refreshPanel } from './ui/panel.js';
-import { sel } from './ui/screen.js';
-import { MAP, ME, neutral, otherSide } from './world.js';
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 // ===================================================================== //
 //  Phase 4c — the special-unit mechanics. Every one of these is a weapon
@@ -35,11 +35,11 @@ import { MAP, ME, neutral, otherSide } from './world.js';
 // At 15 fps ROF 60 is 50 points every FOUR seconds — 240 ticks here. At 120
 // the drone chewed at twice RA2's rate (a 300-hp Grizzly died in 720 ticks
 // instead of 1440) and a pair of them could carry a whole match.
-export var PARASITE_DMG = 50, PARASITE_ROF = 240;
+var PARASITE_DMG = 50, PARASITE_ROF = 240;
 
 var SQUID_DMG = 100, SQUID_ROF = 60, SQUID_D0 = 15;   // SQUID_D0 = [SquidGrab] Damage=15, what SQUID_DMG was tuned at
 
-export function infest(g, dr, v) {
+function infest(g, dr, v) {
   if (v.drone || dr.limbo) return false;
   v.drone = dr;
   dr.limbo = true; dr.inside = v.id; dr.sel = false;
@@ -52,7 +52,7 @@ export function infest(g, dr, v) {
 
 // The host died (or was repaired out from under it): put the drone back on
 // the map beside the wreck, exactly as RA2 does.
-export function popDrone(g, v) {
+function popDrone(g, v) {
   var dr = v.drone;
   v.drone = null;
   if (!dr || dr.dead) return;
@@ -63,7 +63,7 @@ export function popDrone(g, v) {
   dr.guardX = dr.x; dr.guardY = dr.y; dr.path = null; dr.repathAt = -999;
 }
 
-export function killDrone(g, v) {
+function killDrone(g, v) {
   var dr = v.drone;
   v.drone = null;
   if (!dr || dr.dead) return;
@@ -72,7 +72,7 @@ export function killDrone(g, v) {
   boom(g, v.x, v.y, 9);
 }
 
-export function stepInfest(g) {
+function stepInfest(g) {
   for (var i = 0; i < g.units.length; i++) {
     var v = g.units[i];
     if (v.dead || !v.drone) continue;
@@ -98,11 +98,11 @@ export function stepInfest(g) {
 // At 15 fps the fuse is THIRTY seconds — 1800 ticks here, twice what it was.
 // The bomb is PLACED (the warhead does no damage at all); what goes off is
 // [IvanWH]: 400 damage, CellSpread 1.5, PercentAtMax=.25.
-export var IVAN_BOMB_T = 1800, IVAN_DMG = 400, IVAN_SPREAD = 1.5, IVAN_ATMAX = 0.25;
+var IVAN_BOMB_T = 1800, IVAN_DMG = 400, IVAN_SPREAD = 1.5, IVAN_ATMAX = 0.25;
 
 var DEFUSE_RNG = 1.5;                            // [DefuseKit] Range=1.5
 
-export function plantBomb(g, u, tgt, dmg) {
+function plantBomb(g, u, tgt, dmg) {
   if (tgt.bomb || tgt.dead) return false;
   // The yield is a property of the CHARGE, fixed when it is planted, not of
   // whoever is standing near it thirty seconds later: [IvanBomberE]
@@ -116,7 +116,7 @@ export function plantBomb(g, u, tgt, dmg) {
   return true;
 }
 
-export function defuseBomb(g, e) {
+function defuseBomb(g, e) {
   if (!e.bomb) return false;
   e.bomb = null;
   var i = g.bombs.indexOf(e);
@@ -124,7 +124,7 @@ export function defuseBomb(g, e) {
   return true;
 }
 
-export function stepBombs(g) {
+function stepBombs(g) {
   for (var i = g.bombs.length - 1; i >= 0; i--) {
     var e = g.bombs[i];
     if (!e.bomb || e.dead) { e.bomb = null; g.bombs.splice(i, 1); continue; }
@@ -158,7 +158,7 @@ export function stepBombs(g) {
 
 // An Engineer carries the [DefuseKit] and RA2 gives him `BombSight=4` to
 // spot one with. He does not spend himself doing it.
-export function engineerDefuse(g, u) {
+function engineerDefuse(g, u) {
   for (var i = g.bombs.length - 1; i >= 0; i--) {
     var e = g.bombs[i];
     if (!e.bomb || e.dead || e.bomb.p === u.p) continue;
@@ -175,11 +175,11 @@ export function engineerDefuse(g, u) {
 // RA2 lets up to three Shock Troopers hold a Tesla Coil. A charged coil
 // fires with no power at all and swaps its bolt for [OPCoilBolt] — 300
 // damage against the coil's own 200.
-export var COIL_CREW_MAX = 3, COIL_BOOST = 300 / 200;
+var COIL_CREW_MAX = 3, COIL_BOOST = 300 / 200;
 
-export function coilCharged(g, b) { return b.type === 'tesla' && b.crewTick >= g.tick - 2 && b.crewN > 0; }
+function coilCharged(g, b) { return b.type === 'tesla' && b.crewTick >= g.tick - 2 && b.crewN > 0; }
 
-export function coilCrew(g, b) {
+function coilCrew(g, b) {
   if (b.crewTick !== g.tick) { b.crewTick = g.tick; b.crewN = 0; }
   if (b.crewN >= COIL_CREW_MAX) return false;
   b.crewN++;
@@ -196,11 +196,11 @@ export function coilCrew(g, b) {
 // At 15 fps RadApplicationDelay=16 is one application about every SECOND —
 // 64 ticks here, not 32. The decay pair below is ours, not RA2's, and is
 // left alone: RadDurationMultiple is a per-level lifetime we do not model.
-export var RAD_MAX = 500, RAD_FACTOR = 0.2, RAD_APPLY = 64, RAD_DECAY_T = 10, RAD_DECAY = 5;
+var RAD_MAX = 500, RAD_FACTOR = 0.2, RAD_APPLY = 64, RAD_DECAY_T = 10, RAD_DECAY = 5;
 
-export var DESO_RAD_LEVEL = 90, DESO_RAD_R = 3, DESO_RAD_T = 30;
+var DESO_RAD_LEVEL = 90, DESO_RAD_R = 3, DESO_RAD_T = 30;
 
-export function addRad(g, cx, cy, level, radius) {
+function addRad(g, cx, cy, level, radius) {
   var x0 = Math.max(0, Math.floor(cx - radius)), x1 = Math.min(MAP - 1, Math.ceil(cx + radius));
   var y0 = Math.max(0, Math.floor(cy - radius)), y1 = Math.min(MAP - 1, Math.ceil(cy + radius));
   for (var y = y0; y <= y1; y++) for (var x = x0; x <= x1; x++) {
@@ -213,7 +213,7 @@ export function addRad(g, cx, cy, level, radius) {
   }
 }
 
-export function radAt(g, x, y) {
+function radAt(g, x, y) {
   var xi = Math.round(x), yi = Math.round(y);
   return inMap(xi, yi) ? g.rad[idx(xi, yi)] : 0;
 }
@@ -223,13 +223,13 @@ var RAD_SRC = { kind: 'u', type: 'desolator', p: 0, rank: 0 };
 // A unit can change hands (mind control) or leave the board (erasure) while
 // it is in the player's selection; `sel` is a presentation array, so the sim
 // pokes it through this one hook and never touches it directly.
-export function dropFromSel(u) {
+function dropFromSel(u) {
   if (headless || typeof sel === 'undefined' || !sel) return;
   var i = sel.indexOf(u);
   if (i >= 0) sel.splice(i, 1);
 }
 
-export function stepRad(g) {
+function stepRad(g) {
   if (!g.radAny) return;
   var r = g.rad, i;
   if ((g.tick % RAD_DECAY_T) === 0) {
@@ -253,7 +253,7 @@ export function stepRad(g) {
 // One victim at a time, permanently, until Yuri dies. `ImmuneToPsionics=yes`
 // is the whole gate: miners, Terror Drones and Yuri himself are exempt, and
 // a warhead with MindControl=yes has Verses 0% against every structure.
-export function mindControl(g, y, tgt) {
+function mindControl(g, y, tgt) {
   if (tgt.kind !== 'u' || tgt.dead || psiImmune(tgt) || tgt.p === y.p) return false;
   releaseMind(g, y);
   tgt.mcHome = tgt.mcBy ? tgt.mcHome : tgt.p;      // the ORIGINAL owner, through a re-capture
@@ -269,7 +269,7 @@ export function mindControl(g, y, tgt) {
   return true;
 }
 
-export function releaseMind(g, y) {
+function releaseMind(g, y) {
   var t = y.mcTarget && g.byId[y.mcTarget];
   y.mcTarget = 0;
   if (!t || t.dead || t.mcBy !== y.id) return false;
@@ -294,7 +294,7 @@ var ERASE_K = 0.96;                              // 125 hp erased in ~2 s, an 80
 
 var CLEG_MIN_DELAY = 32, CLEG_PER_CELL = 10;     // [General] ChronoMinimumDelay / 256/ChronoDistanceFactor
 
-export function startErase(g, u, tgt) {
+function startErase(g, u, tgt) {
   if (tgt.dead || (tgt.kind === 'b' && (BLDS[tgt.type].wall || BLDS[tgt.type].gate))) return false;
   if (tgt.erasedBy && tgt.erasedBy !== u.id) return false;
   tgt.erasedBy = u.id;
@@ -303,7 +303,7 @@ export function startErase(g, u, tgt) {
   return true;
 }
 
-export function stepErase(g) {
+function stepErase(g) {
   // RA2's Chrono Legionnaire erases STRUCTURES as well as units, and the
   // Strength scaling is what makes a Construction Yard a two-man job.
   stepEraseList(g, g.units);
@@ -349,9 +349,9 @@ function stepEraseList(g, list) {
 // The teleport locomotor: `ChronoTrigger=yes` means the delay VARIES with
 // distance — 256/ChronoDistanceFactor(48) frames per cell, floored at
 // ChronoMinimumDelay=16, doubled for our tick rate.
-export function chronoDelayFor(d) { return Math.max(CLEG_MIN_DELAY, Math.round(d * CLEG_PER_CELL)); }
+function chronoDelayFor(d) { return Math.max(CLEG_MIN_DELAY, Math.round(d * CLEG_PER_CELL)); }
 
-export function beginWarp(g, u, tx, ty) {
+function beginWarp(g, u, tx, ty) {
   var d = Math.sqrt((tx - u.x) * (tx - u.x) + (ty - u.y) * (ty - u.y));
   if (d < 0.6) return false;
   u.warp = { x: tx, y: ty, at: g.tick + chronoDelayFor(d), out: g.tick };
@@ -360,7 +360,7 @@ export function beginWarp(g, u, tx, ty) {
   return true;
 }
 
-export function stepWarp(g, u) {
+function stepWarp(g, u) {
   // Out of phase: untargetable, unmovable, and it re-materialises on time.
   if (g.tick < u.warp.at) { u.limbo = true; return; }
   if (u.warp.drown) {
@@ -386,9 +386,9 @@ export function stepWarp(g, u) {
 // [General] SpyPowerBlackout=1000 frames, SpyMoneyStealPercent=.5. The EVA
 // lines are eva.ini #88-95: the victim hears "Building infiltrated…", the
 // owner of the Spy hears the short form.
-export var SPY_BLACKOUT = 60 * 60, SPY_STEAL = 0.5;
+var SPY_BLACKOUT = 60 * 60, SPY_STEAL = 0.5;
 
-export function spyInfiltrate(g, u, b) {
+function spyInfiltrate(g, u, b) {
   var vic = g.side[b.p], mine = g.side[u.p], key = b.type, amt = 0;
   var yours = u.p === ME, theirs = b.p === ME;
   if (key === 'refinery' || key === 'purifier') {
@@ -427,7 +427,7 @@ export function spyInfiltrate(g, u, b) {
 
 // A short name for the EVA/status lines above, without the hp tail that
 // describe() adds (which the sim has no business computing headless).
-export function describeShort(e) {
+function describeShort(e) {
   return e.kind === 'b' ? bspecOfB(G || { side: [{ fac: 'dir' }, { fac: 'col' }] }, e).name
                         : UNITS[e.type].name;
 }

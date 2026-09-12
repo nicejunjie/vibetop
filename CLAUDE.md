@@ -20,7 +20,7 @@ re-derive it here, and put new detail in the area doc rather than growing this f
 | Files, Notes, Upload, Update, Config, Claude-usage, Token Stats, Services, Tunnel | `docs/apps.md` |
 | Multi-user / identity (`APP_USER` vs `OPERATOR` vs the request user) | `docs/multi-user.md` |
 | Files app internals (the native engine, the file agent, the security invariant) | `docs/files-native.md` |
-| **RTS game (`apps/games/rts/rts.html`): the standing "true RA2 experience" requirement + roadmap** | `apps/games/rts/docs/roadmap.md` (then `docs/ra2-art-plan.md`); the game is a native ES-module tree — `apps/games/rts/rts/**`, served at `/rts/**`, unit art at `rts/units/<class>/<kind>.js` — with **no build step**: `apps/games/rts/rts/README.md` |
+| **RTS game (`apps/games/rts/rts.html`): the standing "true RA2 experience" requirement + roadmap** | `apps/games/rts/docs/roadmap.md` (then `docs/ra2-art-plan.md`); the game is 117 plain scripts — `apps/games/rts/rts/**`, served at `/rts/**`, unit art at `rts/units/<class>/<kind>.js` — listed in load order in `rts.html`, **no build step**, playable by double-clicking `rts.html`: `apps/games/rts/rts/README.md` |
 | Non-obvious traps that bite on real hosts | `docs/gotchas.md` |
 | Planned-but-not-started work (verdict + ordered steps, one file per effort) | `docs/plans/` |
 | **Why** something odd is the way it is (Symptom→Cause→Fix→Rejected) | `docs/design-decisions.md` |
@@ -93,10 +93,11 @@ more centralized than that suggests. Four facts explain most of the layout:
   fragments in `*/nginx/*.conf`.
 - **No build step.** There is no bundler, no root `package.json`, no transpile;
   installers `cp` HTML/JS verbatim. The RTS game used to be the one exception —
-  it no longer is: `apps/games/rts/rts.html` is a tracked HTML+CSS page whose
-  only script is `<script type="module" src="rts/main.js">`, and the game itself
-  is a tree of native ES modules under `apps/games/rts/rts/**`, deployed to
-  `/rts/**`. Nothing assembles it; the browser's own loader does. Each frontend is one self-contained file
+  it no longer is: `apps/games/rts/rts.html` is a tracked HTML+CSS page that
+  lists the game's 117 plain `<script src="rts/….js">` files **in load order**,
+  under `apps/games/rts/rts/**` and deployed to `/rts/**`. Nothing assembles it;
+  they share one global scope and the browser just runs them top to bottom, so
+  **double-clicking `rts.html` from disk plays the game**. Each frontend is one self-contained file
   (`shell/desktop.html` ~4k lines is the entire shell, `APPS` map included;
   `apps/everyday/files/filesx.html` the Files app). Enhancements to third-party UIs are injected
   by nginx `sub_filter` (`xpra-patches.js`, `terminal-kbd.js`) — which is why

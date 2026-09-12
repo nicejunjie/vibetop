@@ -2,10 +2,10 @@
 // Called by bakeVehicle() with one context object carrying the canvas, the anchor,
 // the facing and the helpers it draws with — see rts/README.md.
 
-import { VACC } from '../../bake/ships.js';
-import { shade } from '../../bake/terrain.js';
 
-export function drawDrone(C) {
+
+
+function drawDrone(C) {
   var PEDGE = C.PEDGE, by = C.by, col = C.col, cx = C.cx, fx = C.fx, fy = C.fy, g = C.g,
       gEllipse = C.gEllipse, hull = C.hull, i2 = C.i2, panel = C.panel, pdark = C.pdark,
       plit = C.plit, puck = C.puck, px = C.px, py = C.py, sg = C.sg;

@@ -1,21 +1,21 @@
 // Iron Frontier — bake/infantry.js
 // One subsystem of the game. Loaded as a native ES module; see rts/README.md.
 
-import { drawCleg } from '../units/infantry/cleg.js';
-import { drawConscript } from '../units/infantry/conscript.js';
-import { drawDesolator } from '../units/infantry/desolator.js';
-import { drawEngineer } from '../units/infantry/engineer.js';
-import { drawFlakTrooper } from '../units/infantry/flak-trooper.js';
-import { drawGi } from '../units/infantry/gi.js';
-import { drawGuardianGi } from '../units/infantry/guardian-gi.js';
-import { drawIvan } from '../units/infantry/ivan.js';
-import { drawRocketeer } from '../units/infantry/rocketeer.js';
-import { drawSpy } from '../units/infantry/spy.js';
-import { drawTanya } from '../units/infantry/tanya.js';
-import { drawTeslatrooper } from '../units/infantry/teslatrooper.js';
-import { drawYuri } from '../units/infantry/yuri.js';
-import { INF_EDGE, INF_OCT, INF_SEQ, INF_VALUE, STATURE, TROOP, UPAD, USC_I, gait, octOf, outline, shadowBlob, unitCanvas } from './kit.js';
-import { shade, valuePass, valuePre } from './terrain.js';
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 function bakeInfantry(col, kind, fac, phase, dir, state) {
   var s = unitCanvas(), g = s.g, cx = s.w / 2, by = s.h - UPAD;
@@ -382,7 +382,7 @@ function bakeInfantry(col, kind, fac, phase, dir, state) {
 // frame, which is also what the build cameos and the menu line-up crop
 // from) and `fr()` bakes the rest on first use and memoises them, exactly
 // as the structure damaged / unpowered / make states do.
-export function infArt(col, kind, fac) {
+function infArt(col, kind, fac) {
   var base = bakeInfantry(col, kind, fac, -1, 1, 'stand');     // d1 = due S = front-on
   var cache = { 'stand1_0': base };
   base.inf = true;
@@ -417,7 +417,7 @@ export function infArt(col, kind, fac) {
 //  art under a mirror plus a foreshortening squeeze (the shepherd is not
 //  redrawn nine times); `state` is stand / walk (6) / leap (3).
 // --------------------------------------------------------------------- //
-export var DOG_SEQ = { stand: 1, walk: 6, leap: 3 };
+var DOG_SEQ = { stand: 1, walk: 6, leap: 3 };
 
 // ===================================================================== //
 //  THE NAVY — eight baked facings per hull, same anchor and the same iso
@@ -444,5 +444,5 @@ export var DOG_SEQ = { stand: 1, walk: 6, leap: 3 };
 //       the eye still finds it because the rest of the hull is grey.
 //    5. FITMENTS with a job: gun, radar, funnel, boat davit, deck lights.
 // ===================================================================== //
-export var SHIP_KINDS = { destroyer: 1, aegis: 1, carrier: 1, dolphin: 1, lcraft: 1,
+var SHIP_KINDS = { destroyer: 1, aegis: 1, carrier: 1, dolphin: 1, lcraft: 1,
                    sub: 1, seascorp: 1, dread: 1, squid: 1 };

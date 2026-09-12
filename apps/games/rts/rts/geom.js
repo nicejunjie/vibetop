@@ -1,20 +1,20 @@
 // Iron Frontier — geom.js
 // One subsystem of the game. Loaded as a native ES module; see rts/README.md.
 
-import { nearestWater } from './ai.js';
-import { BLDS } from './blds.js';
-import { dist, near } from './combat.js';
-import { LAND_T } from './move.js';
-import { UNITS, ifvSpec } from './roster.js';
-import { G, inMap } from './state.js';
-import { MAP, MV_AMPH, MV_LAND, MV_NAVAL, TH, TW, T_WATER, WZ_DX, WZ_DY, oreT } from './world.js';
+
+
+
+
+
+
+
 
 // Air layer: a unit with `air` flies over every kind of terrain and can only
 // be shot by a weapon flagged `aa`; a weapon flagged `ag:false` (the AA
 // sites) cannot fire at the ground. Buildings are never airborne.
-export function isAir(e) { return e.kind === 'u' && !!UNITS[e.type].air; }
+function isAir(e) { return e.kind === 'u' && !!UNITS[e.type].air; }
 
-export function canHit(spec, tgt, u) {
+function canHit(spec, tgt, u) {
   // An IFV asks on behalf of the man inside it: a Flak Trooper aboard can
   // shoot down a Rocketeer, an Engineer aboard cannot shoot anything.
   if (spec && spec.ifv && u && u.pax && u.pax.length) spec = ifvSpec(u);
@@ -38,11 +38,11 @@ export function canHit(spec, tgt, u) {
 // BREAKS the surface to fire and stays up for SUB_SURFACE ticks after, which
 // is the window an escort has to answer. `Sensors=yes` / `SensorsSight=4`
 // is the only thing that sees one otherwise — and its owner always can.
-export var SUB_SURFACE = 90, SENSOR_SIGHT = 4;
+var SUB_SURFACE = 90, SENSOR_SIGHT = 4;
 
-export function surfaced(g, u) { return !!(u.surfAt != null && g.tick - u.surfAt < SUB_SURFACE); }
+function surfaced(g, u) { return !!(u.surfAt != null && g.tick - u.surfAt < SUB_SURFACE); }
 
-export function subSeen(g, u, p) {
+function subSeen(g, u, p) {
   if (!isSub(u) || u.p === p || u.dead) return true;
   if (surfaced(g, u)) return true;
   var seen = false;
@@ -55,10 +55,10 @@ export function subSeen(g, u, p) {
 
 // Range against a given target: AA weapons reach further into the sky (RA2
 // gives most AA guns a longer air range than their ground range).
-export function rngVs(spec, tgt) { return isAir(tgt) && spec.aaRng ? spec.aaRng : spec.rng; }
+function rngVs(spec, tgt) { return isAir(tgt) && spec.aaRng ? spec.aaRng : spec.rng; }
 
 // MinimumRange= (V3 5, IFV 1): inside it the weapon simply cannot fire.
-export function tooClose(spec, d) { return !!(spec.minRng && d < spec.minRng); }
+function tooClose(spec, d) { return !!(spec.minRng && d < spec.minRng); }
 
 // RA2 measures weapon range to the target's NEAREST CELL. `dist()` is
 // centre-to-centre, so a structure's own footprint lies between the shooter
@@ -78,14 +78,14 @@ function footAllow(t) { return t && t.kind === 'b' ? Math.max(t.gw, t.gh) / 2 : 
 // Distance from `a` to the WALL of `b`. Range AND MinimumRange must both be
 // tested against this one number, or the two ends disagree about what range
 // means and a V3's dead zone lands in a different place from its reach.
-export function edgeDist(a, b) { return Math.max(0, dist(a, b) - footAllow(b)); }
+function edgeDist(a, b) { return Math.max(0, dist(a, b) - footAllow(b)); }
 
 // Screen-pixel altitude of a unit right now: 0 on the ground or on a pad,
 // else the type's cruise height plus a slow bob (a Kirov wallows, a
 // Rocketeer bounces on his jets).
 var CLIMB = 30;                       // ticks from the ground to cruise height
 
-export function altOf(u) {
+function altOf(u) {
   if (!u.air) return 0;
   var d = UNITS[u.type], now = (G ? G.tick : 0), t = now + u.id * 7;
   var k;
@@ -107,7 +107,7 @@ export function altOf(u) {
   return k * (d.alt + (d.bomb ? Math.sin(t * 0.035) * 4.5 : Math.sin(t * 0.09) * 1.6));
 }
 
-export function airborneYet(u) { return !u.air || u.landed || !(u.born > 0) || (G ? G.tick : 0) - u.born >= CLIMB; }
+function airborneYet(u) { return !u.air || u.landed || !(u.born > 0) || (G ? G.tick : 0) - u.born >= CLIMB; }
 
 // Where Harriers park: four pads on each Airforce Command, in grid offsets
 // from the structure's centre (the helipad is the near-right half of the art).
@@ -117,9 +117,9 @@ export function airborneYet(u) { return !u.air || u.landed || !(u.born > 0) || (
 // PAD_SLOTS is DERIVED from them, so the four aircraft always park on the
 // four painted quadrants. Hand-written slot offsets silently stopped
 // matching the moment the AFC moved to RA2's 3x2 `Foundation=`.
-export var AFC_PAD = { ox: 0.34, oy: 0.20, w: 0.62, h: 0.62, q: 0.363 };
+var AFC_PAD = { ox: 0.34, oy: 0.20, w: 0.62, h: 0.62, q: 0.363 };
 
-export var PAD_SLOTS = (function () {
+var PAD_SLOTS = (function () {
   var d = BLDS.airforce, pw = (d.gw + d.gh) * TW / 4, ph = (d.gw + d.gh) * TH / 4, out = [];
   for (var i = 0; i < 4; i++) {
     var hu = ((i & 1) ? 1 : -1) * AFC_PAD.q, hv = ((i & 2) ? 1 : -1) * AFC_PAD.q;
@@ -130,7 +130,7 @@ export var PAD_SLOTS = (function () {
   return out;                                  // the four quadrants of the pad's cross
 })();
 
-export function padSlot(b, i) { return { x: b.cx + PAD_SLOTS[i][0], y: b.cy + PAD_SLOTS[i][1] }; }
+function padSlot(b, i) { return { x: b.cx + PAD_SLOTS[i][0], y: b.cy + PAD_SLOTS[i][1] }; }
 
 // Which of the theatre's two grounds a cell wears (RA2's LAT pair: grass /
 // sand, snow / scoured earth, PAVEMENT / grit). `G.gm` is the decorative
@@ -145,22 +145,22 @@ export function padSlot(b, i) { return { x: b.cx + PAD_SLOTS[i][0], y: b.cy + PA
 // the same answer -- the dirt blends into the surrounding pavement instead
 // of ending on a tile edge -- and that ore which SPREADS into a new cell
 // mid-match brings its dirt with it, with no second rule to keep in step.
-export function dirtAt(i) { return G.gm[i] || (oreT(G.terrain[i]) ? 1 : 0); }
+function dirtAt(i) { return G.gm[i] || (oreT(G.terrain[i]) ? 1 : 0); }
 
-export function moverOf(e) {
+function moverOf(e) {
   if (!e || e.kind !== 'u') return MV_LAND;
   var d = UNITS[e.type];
   return d.amph ? MV_AMPH : (d.nav ? MV_NAVAL : MV_LAND);
 }
 
-export function isNaval(e) { return !!(e && e.kind === 'u' && UNITS[e.type].nav); }
+function isNaval(e) { return !!(e && e.kind === 'u' && UNITS[e.type].nav); }
 
 // Can this unit's mover ever reach (x,y)? Only a pure naval hull is fenced
 // in: it needs open water of ITS OWN body within `r` cells of the spot
 // (`r` because a shore order legitimately lands on the beach and `astar`
 // walks out to the nearest floatable cell). Land and amphibious movers are
 // unconstrained here — this is the water question, not the pathing one.
-export function navReach(g, u, x, y, r) {
+function navReach(g, u, x, y, r) {
   var d = u && u.kind === 'u' ? UNITS[u.type] : null;
   if (!d || !d.nav || d.amph) return true;
   var z = hullZone(g, u);
@@ -169,10 +169,10 @@ export function navReach(g, u, x, y, r) {
 }
 
 // `Underwater=yes` — a Typhoon, a Dolphin and a Giant Squid run submerged.
-export function isSub(e) { return !!(e && e.kind === 'u' && UNITS[e.type].sub); }
+function isSub(e) { return !!(e && e.kind === 'u' && UNITS[e.type].sub); }
 
 // `Sensors=yes` / `SensorsSight=4`: what can SEE a submerged hull.
-export function isSensor(e) {
+function isSensor(e) {
   if (!e || e.kind !== 'u') return false;
   var d = UNITS[e.type];
   return !!(d.sensors || d.asw);              // [DEST]'s Osprey hunts what the hull cannot see
@@ -183,7 +183,7 @@ function senseRng(e) {
   return d.asw ? d.asw.rng : 4;               // SensorsSight=4
 }
 
-export function labelWater(g) {
+function labelWater(g) {
   var z = g.wzone, n = MAP * MAP, i, lab = 0, stack = [];
   for (i = 0; i < n; i++) z[i] = 0;
   for (i = 0; i < n; i++) {
@@ -205,7 +205,7 @@ export function labelWater(g) {
   g.wzoneN = lab;
 }
 
-export function waterZoneAt(g, x, y) {
+function waterZoneAt(g, x, y) {
   x = Math.round(x); y = Math.round(y);
   return inMap(x, y) ? g.wzone[y * MAP + x] : 0;
 }
@@ -213,7 +213,7 @@ export function waterZoneAt(g, x, y) {
 // The body a hull is floating in. An amphibious hull may be standing on a
 // beach, so it falls back to the nearest water — and `navReach` lets it go
 // anywhere anyway, because it can drive round.
-export function hullZone(g, u) {
+function hullZone(g, u) {
   var z = waterZoneAt(g, u.x, u.y);
   if (z) return z;
   var w = nearestWater(g, Math.round(u.x), Math.round(u.y), 3);

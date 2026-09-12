@@ -1,30 +1,30 @@
 // Iron Frontier — state.js
 // One subsystem of the game. Loaded as a native ES module; see rts/README.md.
 
-import { resetHash } from './combat.js';
-import { labelWater } from './geom.js';
-import { MAPS, computeGroundMat, computeHeight, genMap, indexBridges, placeNeutrals } from './mapgen.js';
-import { netAttach } from './net.js';
-import { normOpts } from './opts.js';
-import { pathQ } from './path.js';
-import { srand } from './rng.js';
-import { swInit } from './supers.js';
-import { MAP, P_AI, P_HUMAN } from './world.js';
+
+
+
+
+
+
+
+
+
 
 // --------------------------------------------------------------------- //
 //  Game state
 // --------------------------------------------------------------------- //
-export var G = null;            // the whole mutable match state
+var G = null;            // the whole mutable match state
 
-export var state = 'menu';      // menu | play | paused | over
+var state = 'menu';      // menu | play | paused | over
 
-export var difficulty = 'normal';
+var difficulty = 'normal';
 
-export var faction = 'dir';
+var faction = 'dir';
 
-export var headless = false;    // true inside __rtsSim (skips all rendering)
+var headless = false;    // true inside __rtsSim (skips all rendering)
 
-export function newState(seed, diff, mapId, opt) {
+function newState(seed, diff, mapId, opt) {
   srand(seed);
   pathQ.length = 0;                             // a previous match's pending path requests must not leak in
   // The spatial index is module-level and DERIVED, so every match has to
@@ -107,9 +107,9 @@ function newSide(p) {
 
 function newQueue() { return { list: [], prog: 0, ready: null, paid: 0, hold: false, pause: false }; }
 
-export function idx(x, y) { return y * MAP + x; }
+function idx(x, y) { return y * MAP + x; }
 
-export function inMap(x, y) { return x >= 0 && y >= 0 && x < MAP && y < MAP; }
+function inMap(x, y) { return x >= 0 && y >= 0 && x < MAP && y < MAP; }
 
 // --------------------------------------------------------------------- //
 //  AI opponent
@@ -135,7 +135,7 @@ export function inMap(x, y) { return x >= 0 && y >= 0 && x < MAP && y < MAP; }
 // is converted properly (20 000 ticks, about five and a half minutes) — at
 // 5000 ticks a 15-strong siege force was binned before it could ever fill.
 // See docs/design-decisions.md.
-export var DIFF = {
+var DIFF = {
   // group = how many fighters it masses before committing. A LOW number is
   // a weakness, not a strength: it feeds units piecemeal into defences.
   // give = the fraction of a wave that must survive before it presses on.
@@ -187,8 +187,8 @@ export var DIFF = {
 // --- generated ---
 // ESM import bindings are read-only, so a write from another module goes
 // through the owner. Reads stay verbatim everywhere: the binding is live.
-export function setG(v) { G = v; }
-export function setDifficulty(v) { difficulty = v; }
-export function setFaction(v) { faction = v; }
-export function setHeadless(v) { headless = v; }
-export function setState(v) { state = v; }
+function setG(v) { G = v; }
+function setDifficulty(v) { difficulty = v; }
+function setFaction(v) { faction = v; }
+function setHeadless(v) { headless = v; }
+function setState(v) { state = v; }

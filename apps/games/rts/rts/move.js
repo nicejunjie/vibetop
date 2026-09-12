@@ -1,25 +1,25 @@
 // Iron Frontier — move.js
 // One subsystem of the game. Loaded as a native ES module; see rts/README.md.
 
-import { aimHull, aimTurret, faceOf, rotOf, slew, slews } from './bake/kit.js';
-import { BLDS } from './blds.js';
-import { bspecOfB, depFireTarget, isHarv, isInfArmour, reachOf, uspd, weaponFor } from './combat-tables.js';
-import { damage, dist, entX, entY, findTarget, fire, near } from './combat.js';
-import { recalcPower } from './entities.js';
-import { FACTIONS, bfacOf } from './factions.js';
-import { PAD_SLOTS, airborneYet, canHit, edgeDist, moverOf, padSlot, rngVs, tooClose } from './geom.js';
-import { enterGarrison, garrisonable, killOccupants, repairBridgeFrom } from './neutral.js';
-import { stepHarvester } from './ore.js';
-import { gateOpen, requestPath } from './path.js';
-import { countBld } from './production.js';
-import { UNITS, ifvSpec } from './roster.js';
-import { DESO_RAD_LEVEL, DESO_RAD_R, DESO_RAD_T, addRad, beginWarp, coilCrew, dropFromSel, engineerDefuse, spyInfiltrate, stepWarp } from './special.js';
-import { headless, idx, inMap } from './state.js';
-import { boardTransport, paxCapOf, paxCount, stepRepairIFV, stepSpawned, stepSpawner, unloadTransport } from './transport.js';
-import { eva, sfx } from './ui/audio.js';
-import { creditPop, say } from './ui/hud.js';
-import { fireGround, giveUpEnter, nextWaypoint } from './ui/input.js';
-import { GUARD_STRAY, MAP, ME, P_NEUT, isAiSide, neutral, terrPass } from './world.js';
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 // --------------------------------------------------------------------- //
 //  Movement
@@ -87,7 +87,7 @@ function moveAlong(g, u, spd) {
 
 // Aircraft: no path, no terrain, no occupancy — a straight line at altitude,
 // with a light separation from other aircraft so a flight does not stack.
-export function flyToward(g, u, tx, ty, spd) {
+function flyToward(g, u, tx, ty, spd) {
   var dx = tx - u.x, dy = ty - u.y, d = Math.sqrt(dx * dx + dy * dy);
   if (d < 0.12) return false;
   var sx = 0, sy = 0;
@@ -108,7 +108,7 @@ export function flyToward(g, u, tx, ty, spd) {
 // An idle flyer holds a slow hover circle over its post instead of hanging
 // motionless in the sky (RA2 Harriers and Rocketeers orbit). A Kirov is too
 // big and too slow to orbit — it just sits.
-export function hoverIdle(g, u) {
+function hoverIdle(g, u) {
   var d = UNITS[u.type];
   if (!u.air || u.landed || u.order || d.bomb) return;
   if (!airborneYet(u)) return;                     // still climbing off the ground
@@ -121,7 +121,7 @@ export function hoverIdle(g, u) {
   u.movedAt = g.tick;
 }
 
-export function advance(g, u, tx, ty, spd, refresh) {
+function advance(g, u, tx, ty, spd, refresh) {
   if (u.prone) {
     // A short shuffle is a crawl (art.ini `Crawl=86,6,6`, and it is slow);
     // anything that is actually going somewhere gets him back on his feet.
@@ -148,7 +148,7 @@ export function advance(g, u, tx, ty, spd, refresh) {
   return ok;
 }
 
-export function tilePassable(g, fx, fy, p, mv) {
+function tilePassable(g, fx, fy, p, mv) {
   var x = Math.round(fx), y = Math.round(fy);
   if (!inMap(x, y)) return false;
   var i = idx(x, y);
@@ -162,7 +162,7 @@ export function tilePassable(g, fx, fy, p, mv) {
 // --------------------------------------------------------------------- //
 //  Per-unit tick
 // --------------------------------------------------------------------- //
-export function stepUnit(g, u) {
+function stepUnit(g, u) {
   var d = UNITS[u.type];
   // A drone that has climbed inside a tank is not on the map at all; a
   // Chrono Legionnaire mid-warp is out of phase; a unit being erased is
@@ -610,7 +610,7 @@ function nearestFoe(g, u, r) {
   return best;
 }
 
-export function entById(g, id) {
+function entById(g, id) {
   var e = g.byId[id];
   return e && !e.dead ? e : null;
 }
@@ -620,7 +620,7 @@ export function entById(g, id) {
 // ordered target, returns to the pad, reloads, and goes again while the
 // target still stands. With no order it sits on the pad (or hovers where a
 // move order left it); it never auto-acquires — RA2 aircraft do not either.
-export function findPad(g, u) {
+function findPad(g, u) {
   var used = {};
   for (var i = 0; i < g.units.length; i++) {
     var o = g.units[i];
@@ -640,12 +640,12 @@ export function findPad(g, u) {
   return best;
 }
 
-export function padCapacity(g, p) { return PAD_SLOTS.length * countBld(g, p, 'airforce'); }
+function padCapacity(g, p) { return PAD_SLOTS.length * countBld(g, p, 'airforce'); }
 
 // RA2 Harriers descend onto the pad and climb off it; ours snapped between
 // cruise altitude and zero on the tick `landed` flipped. The transition is
 // caught here and `altOf` ramps the height over LAND_T either way.
-export var LAND_T = 34;
+var LAND_T = 34;
 
 function stepAircraft(g, u) {
   var wasLanded = !!u.landed;
@@ -714,7 +714,7 @@ function stepAircraft0(g, u) {
 // the raw 28 the wind-up was under half a second and the Tesla Coil's bolt
 // effectively arrived with no warning at all, which is the whole point of
 // DelayedFireDelay.
-export var CHARGE_T = 112;
+var CHARGE_T = 112;
 
 // rules.ini [General] PrismSupportModifier=150%, PrismSupportMax=8, and TWO
 // separate keys that were being conflated:
@@ -724,9 +724,9 @@ export var CHARGE_T = 112;
 // 30 ticks), so a supporter recovered and supported again 29 ticks later and
 // a cluster of towers never actually paid for the bonus. 60 frames at 15 fps
 // is four seconds — 240 ticks.
-export var PRISM_SUP_MAX = 8, PRISM_SUP_MOD = 1.5, PRISM_SUP_DUR = 15, PRISM_SUP_DELAY = 240;
+var PRISM_SUP_MAX = 8, PRISM_SUP_MOD = 1.5, PRISM_SUP_DUR = 15, PRISM_SUP_DELAY = 240;
 
-export function prismSupport(g, b) {
+function prismSupport(g, b) {
   var n = 0;
   for (var i = 0; i < g.blds.length && n < PRISM_SUP_MAX; i++) {
     var o = g.blds[i];
@@ -747,9 +747,9 @@ export function prismSupport(g, b) {
 // Both are scaled to something a player can walk a column through: 18 ticks
 // of swing, three quarters of a second of hold once the last friendly is
 // clear.
-export var GATE_T = 18, GATE_HOLD = 45;
+var GATE_T = 18, GATE_HOLD = 45;
 
-export function stepGate(g, b) {
+function stepGate(g, b) {
   var want = false;
   for (var i = 0; i < g.units.length; i++) {
     var u = g.units[i];

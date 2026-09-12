@@ -1,47 +1,47 @@
 // Iron Frontier — bake/buildings.js
 // One subsystem of the game. Loaded as a native ES module; see rts/README.md.
 
-import { bspecFor } from '../combat-tables.js';
-import { HOUSE, OPT_DEF } from '../opts.js';
-import { bint, brnd, bsr } from '../rng.js';
-import { setLineupCache, setThumbDots } from '../ui/menus.js';
-import { setCameoCache } from '../ui/panel.js';
-import { drawAirforce } from '../units/structures/airforce.js';
-import { drawBarracks } from '../units/structures/barracks.js';
-import { drawBase } from '../units/structures/base.js';
-import { drawChrono } from '../units/structures/chrono.js';
-import { drawCloningvats } from '../units/structures/cloningvats.js';
-import { drawCurtain } from '../units/structures/curtain.js';
-import { drawDepot } from '../units/structures/depot.js';
-import { drawFactory } from '../units/structures/factory.js';
-import { drawFlakcannon } from '../units/structures/flakcannon.js';
-import { drawGapgen } from '../units/structures/gapgen.js';
-import { bakeGateSeg } from '../units/structures/gate.js';
-import { drawGrandcannon } from '../units/structures/grandcannon.js';
-import { drawLab } from '../units/structures/lab.js';
-import { drawNuke } from '../units/structures/nuke.js';
-import { drawPatriot } from '../units/structures/patriot.js';
-import { drawStructurePower } from '../units/structures/power.js';
-import { drawPrism } from '../units/structures/prism.js';
-import { drawPsisensor } from '../units/structures/psisensor.js';
-import { drawPurifier } from '../units/structures/purifier.js';
-import { drawRadar } from '../units/structures/radar.js';
-import { drawReactor } from '../units/structures/reactor.js';
-import { drawRefinery } from '../units/structures/refinery.js';
-import { drawSentry } from '../units/structures/sentry.js';
-import { drawSentrygun } from '../units/structures/sentrygun.js';
-import { drawShipyard } from '../units/structures/shipyard.js';
-import { drawSpysat } from '../units/structures/spysat.js';
-import { drawTesla } from '../units/structures/tesla.js';
-import { bakeWallSeg } from '../units/structures/wall.js';
-import { drawWeather } from '../units/structures/weather.js';
-import { TH, TW } from '../world.js';
-import { bakeOwned } from './bake.js';
-import { outline } from './kit.js';
-import { SPR, diamond, mkCanvas, shade } from './terrain.js';
-import { FOOT0, PIXBLD, VPOW, bakePix, cylinder, prism } from './vehicles.js';
 
-export function bakeBuilding(key, col, fac, bph, bdir, dopen) {
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+function bakeBuilding(key, col, fac, bph, bdir, dopen) {
   var srand = bsr, rnd = brnd, rint = bint;   // the ART generator: a baker must never move the simulation's stream (two-player desync, 2026-09-11)
   var DOP = dopen == null ? 0 : dopen;
   if (PIXBLD[key]) return bakePix(PIXBLD[key], col);
@@ -363,13 +363,13 @@ export function bakeBuilding(key, col, fac, bph, bdir, dopen) {
   return { s: s, ax: cx, ay: baseY };
 }
 
-export var COL = ['#4aa3db', '#e5646c'];            // player 0 blue, player 1 red — HOUSE[2], HOUSE[1]
+var COL = ['#4aa3db', '#e5646c'];            // player 0 blue, player 1 red — HOUSE[2], HOUSE[1]
 
 // Picking a house colour re-bakes every owner-coloured sprite, because the
 // colour is painted INTO the art at bake time (a per-pixel remap at draw
 // time is what RA2's SHP palette does and what a canvas cannot do cheaply).
 // Only bakeOwned() is redone, and only when the pair actually changed.
-export function applyHouse(h, ah) {
+function applyHouse(h, ah) {
   var a = (HOUSE[h] || HOUSE[OPT_DEF.colour]).c, b = (HOUSE[ah] || HOUSE[OPT_DEF.aiColour]).c;
   if (COL[0] === a && COL[1] === b) return false;
   COL[0] = a; COL[1] = b;
