@@ -312,7 +312,7 @@ _290 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [A phone went white on a Cloudflare Access expiry: the failed navigation now has a page, and a trace (2026-09-11)](#a-phone-went-white-on-a-cloudflare-access-expiry-the-failed-navigation-now-has-a-page-and-a-trace-2026-09-11)
 - [Files: FileBrowser retired, native is the only engine (2026-09-11)](#files-filebrowser-retired-native-is-the-only-engine-2026-09-11)
 - [Re-login left the desktop reloading for ever until a click (2026-09-12)](#re-login-left-the-desktop-reloading-for-ever-until-a-click-2026-09-12)
-- [RTS unit art split into one file per unit — textually, not as modules (2026-09-12)](#rts-unit-art-split-into-one-file-per-unit-textually-not-as-modules-2026-09-12)
+- [RTS unit art split into one file per unit, and rts.html became a built file (2026-09-12)](#rts-unit-art-split-into-one-file-per-unit-and-rtshtml-became-a-built-file-2026-09-12)
 
 <!-- END TOC -->
 
@@ -12938,7 +12938,7 @@ resets the counter, so a real deploy is never blocked. Regression test in
 breaker already tracks "a reload that changed nothing," which is exactly the
 condition every reload trigger must respect, so it belongs at `doReload`.
 
-## RTS unit art split into one file per unit — textually, not as modules (2026-09-12)
+## RTS unit art split into one file per unit, and rts.html became a built file (2026-09-12)
 
 **Symptom.** (user) "can you make the art of each unit in a separate file,
 easier to work on individually." Every unit's drawing code was a branch of one
@@ -12956,28 +12956,41 @@ through by hand, for 69 units and 13.6k lines, with no JS parser in the repo
 to list the free identifiers — and the art gate has already shown that
 "headless numbers pass while the renderer throws."
 
-**Fix.** The split is textual and lossless. `apps/games/rts/art/units/
-<class>/<kind>.js` holds the branch body de-indented (69 files: 14 infantry,
-15 vehicles, 2 aircraft, 9 ships, 29 structures); `rts.html` carries the same
-lines between `// @@ART <unit>` / `// @@END <unit>` markers, so the page is
-still one self-contained file and nothing in the delivery path — the install
-walk, the vm loader in `rts.test.js`, the art tools' loopback servers, the e2e
-`VIBETOP_RTS_HTML` override — changed. `tools/art-split.js inject|extract|
-check` copies in either direction and `rts-split.test.js` fails the commit
-while the two copies differ (naming the unit and which side is newer);
-`inject` refuses a file that does not parse as a strict function body. The
-markers were placed structurally (chain walker + brace matching at indent),
-and the resulting diff of `rts.html` against the previous commit is exactly
-the 138 marker lines. `art/units/README.md` lists the locals each class of
-file may use and what deliberately stays in the page (the colour and size
-tables, the aircraft prelude, sheet assembly).
+**Fix.** The split is textual and lossless, and `rts.html` is now the one
+BUILT file in the repo. `apps/games/rts/art/units/<class>/<kind>.js` holds the
+branch body de-indented (69 files: 14 infantry, 15 vehicles, 2 aircraft, 9
+ships, 29 structures) and is the only copy; `rts.src.html` is the page with a
+single `// @@include art/units/<unit>.js` line where each body lands;
+`tools/rts-build.py` (python3, stdlib — the manager already needs python3, so
+the installer gains no dependency) splices them in and writes `rts.html`,
+gitignored and read-only, with a GENERATED banner on line 2. `run-tests.sh`
+and `shell/install.sh` run the build first, so a checkout that tests or
+deploys is always current, and nothing downstream changed — the install walk
+(which now skips `*.src.html`), the vm loader in `rts.test.js`, the art tools'
+loopback servers and the e2e `VIBETOP_RTS_HTML` override all still load
+`rts.html`. The build refuses to overwrite an output whose hash is not the one
+it last wrote (a `.rts-build.sha` stamp), because the failure mode of a
+generated file is someone fixing a bug in it and losing the fix at the next
+build; `--force` discards a hand edit on purpose. `rts-build.test.js` pins the
+contract: the output on disk is what a build produces, every unit file is
+included exactly once and every include resolves, an orphan or a bad path
+fails loudly, and every unit file parses as a strict function body. The
+first build reproduced the pre-split page byte for byte apart from the banner
+and a two-line header per unit (checked against 188c66e).
+
+The first cut (07577f1, same day) kept `rts.html` committed with `@@ART`/`@@END`
+markers and a two-way sync tool; the user's reaction — "so no duplication" —
+is what turned it into a build. The marker scheme was strictly worse: the art
+existed twice in git and the sync direction was a judgement call.
 
 **Rejected.** Real script files (`<script src="rts-art-rhino.js">`) registering
 draw functions on a global — the scope plumbing above, plus ~70 more files at
-the flat web root. Making the unit files the only source and generating
-`rts.html` — a one-way build step; the two-way sync with an equality test is
-the same guarantee and also survives a session that edits the page directly.
-ES modules — no precedent in the page and `defer` semantics the boot does not
-want. Moving the per-kind hull-colour and size tables into the unit files —
-they are one shared block each whose rows are compared against each other
-(the "one scale for the whole group" pass); splitting them would hide that.
+the flat web root. nginx SSI (`<!--# include -->`) — only the served path
+would be assembled; every loopback tool, the vm test loader and the e2e route
+override would each need their own resolver. Keeping the built page committed
+with a freshness test (the `gen-dd-toc.py` pattern) — that is the duplication
+the user objected to. ES modules — no precedent in the page and `defer`
+semantics the boot does not want. Moving the per-kind hull-colour and size
+tables into the unit files — they are one shared block each whose rows are
+compared against each other (the "one scale for the whole group" pass);
+splitting them would hide that.

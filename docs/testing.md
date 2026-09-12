@@ -226,6 +226,13 @@ git config core.hooksPath .githooks      # then commits run ./run-tests.sh
 Bypass a single commit with `git commit --no-verify` or `SKIP_TESTS=1 git commit`;
 each runner self-skips if its tool isn't installed.
 
+
+> **The RTS page is built first.** `run-tests.sh` starts by running
+> `python3 apps/games/rts/tools/rts-build.py`, which assembles the gitignored
+> `apps/games/rts/rts.html` from `rts.src.html` + `art/units/**`; every RTS
+> test and art tool loads that output. Running a single RTS test file by hand
+> needs the build to have happened (`rts-build.test.js` says so if not).
+
 ## Mobile key-bar / prompt-occlusion repro (`tests/kbd/keybar-occlusion.mjs`)
 
 Not part of `./run-tests.sh` — it needs a **live host** and a session cookie. It
