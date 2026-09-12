@@ -178,32 +178,88 @@ test("no deployed shell script carries an unstamped @TOKEN@", () => {
 
 // Execute the actual worker: classification alone cannot prove that reauth
 // avoids a cached shell on redirects, errors, or a stalled network.
+//
+// `Response` is a small stand-in that keeps what the worker built, so a test
+// can tell the unreachable page from a network response; the trace ring's
+// cache is the one cache a navigation may open.
+class FakeResponse {
+  constructor(body, init) { this.body = body; this.status = (init && init.status) || 200; this.headers = new Map(Object.entries((init && init.headers) || {})); this.type = 'basic'; }
+  static error() { return { type: 'error', status: 0 }; }
+}
+function worker({ fetch, shellCache, setTimeout: st }) {
+  const vm = require('node:vm');
+  const handlers = {}, traced = [];
+  const traceCache = { match: async () => undefined, put: async (k, r) => { traced.push(JSON.parse(r.body)); } };
+  vm.runInNewContext(SRC, {
+    URL, location: { origin: 'https://vibetop.test' }, Date, JSON, Object, Array, String, Promise, Error,
+    self: { addEventListener: (name, fn) => { handlers[name] = fn; } },
+    caches: { open(name) {
+      if (name === 'vt-trace') return Promise.resolve(traceCache);
+      if (!shellCache) assert.fail('reauth must never consult the shell cache');
+      return Promise.resolve(shellCache);
+    } },
+    setTimeout: st || ((fn, ms) => { assert.fail('reauth must never time out to a cached shell'); }),
+    Response: FakeResponse, fetch
+  });
+  return { handlers, traced };
+}
+function navigate(handlers, url) {
+  let result;
+  handlers.fetch({
+    request: { method: 'GET', mode: 'navigate', url },
+    respondWith(promise) { result = promise; },
+    waitUntil() {}
+  });
+  return result;
+}
+const isUnreachablePage = (r) => r instanceof FakeResponse && /Vibetop can.t be reached/.test(r.body) && /vtreauth=/.test(r.body);
+
 for (const outcome of ['redirect', 'error', 'pending']) {
   test(`vtreauth is network-only even when the network is ${outcome}`, async () => {
-    const vm = require('node:vm');
-    const handlers = {};
-    let networkCalls = 0, result;
+    let networkCalls = 0;
     const redirect = { type: 'opaqueredirect', status: 0 };
-    const networkError = { type: 'error', status: 0 };
-    vm.runInNewContext(SRC, {
-      URL, location: { origin: 'https://vibetop.test' },
-      self: { addEventListener: (name, fn) => { handlers[name] = fn; } },
-      caches: { open() { assert.fail('reauth must never consult the shell cache'); } },
-      setTimeout() { assert.fail('reauth must never time out to a cached shell'); },
-      Response: { error: () => networkError },
-      fetch() {
-        networkCalls++;
-        if (outcome === 'error') return Promise.reject(new Error('offline'));
-        if (outcome === 'pending') return new Promise(() => {});
-        return Promise.resolve(redirect);
-      }
-    });
-    handlers.fetch({
-      request: { method: 'GET', mode: 'navigate', url: 'https://vibetop.test/?vtreauth=123' },
-      respondWith(promise) { result = promise; }
-    });
+    const { handlers } = worker({ fetch() {
+      networkCalls++;
+      if (outcome === 'error') return Promise.reject(new Error('offline'));
+      if (outcome === 'pending') return new Promise(() => {});
+      return Promise.resolve(redirect);
+    } });
+    const result = navigate(handlers, 'https://vibetop.test/?vtreauth=123');
     assert.equal(networkCalls, 1);
     assert.ok(result);
-    if (outcome !== 'pending') assert.equal(await result, outcome === 'error' ? networkError : redirect);
+    if (outcome === 'redirect') assert.equal(await result, redirect, 'the Access redirect passes straight through');
+    // A sign-in navigation the network fails is a page with a Try again
+    // button, never the browser's blank error page (a white screen on an
+    // installed iOS web app).
+    if (outcome === 'error') assert.ok(isUnreachablePage(await result), 'an unreachable page, not Response.error()');
   });
 }
+
+test('a navigation nobody can answer gets the unreachable page, and the worker keeps a trace of it', async () => {
+  const empty = { match: async () => undefined, put: async () => {} };
+  const { handlers, traced } = worker({
+    fetch: () => Promise.reject(new Error('offline')), shellCache: empty,
+    setTimeout: (fn, ms) => { assert.equal(ms, 2500); }        // the race never wins: the fetch rejects first
+  });
+  // A shell page with an empty cache (an evicted PWA store) and a page outside
+  // the shell set: both were Response.error() before.
+  for (const url of ['https://vibetop.test/', 'https://vibetop.test/update.html']) {
+    const r = await navigate(handlers, url);
+    assert.ok(isUnreachablePage(r), url + ' must render the unreachable page');
+    assert.equal(r.headers.get('Cache-Control'), 'no-store');
+  }
+  await new Promise((r) => setImmediate(r));
+  assert.ok(traced.some((ring) => ring.some((e) => e.p === '/' && e.how === 'error')), 'the failed navigation is in the trace ring');
+});
+
+test('a served shell page is traced as a network answer, redirect flag included', async () => {
+  const empty = { match: async () => undefined, put: async () => {} };
+  const { handlers, traced } = worker({
+    fetch: () => Promise.resolve({ type: 'opaqueredirect', status: 0, redirected: false, ok: false }),
+    shellCache: empty, setTimeout: () => {}
+  });
+  const r = await navigate(handlers, 'https://vibetop.test/');
+  assert.equal(r.type, 'opaqueredirect', 'the Access redirect is passed through for the browser to follow');
+  await new Promise((r) => setImmediate(r));
+  assert.ok(traced.some((ring) => ring.some((e) => e.p === '/' && e.how === 'net' && e.ty === 'opaqueredirect')));
+});

@@ -17,8 +17,43 @@
  * caches. sw.js itself is served no-store (nginx `location /`), so the browser
  * re-checks it on navigation and picks up the new VERSION.
  */
-const VERSION = 'v604';
+const VERSION = 'v605';
 const CACHE = 'shell-' + VERSION;
+// A ring of the last navigations this worker answered (path, how it was
+// served, status, elapsed). It outlives VERSION so the shell can read it after
+// a recovery and post it to /api/clientlog: a white page on a phone after a
+// Cloudflare Access expiry is otherwise invisible to every log we keep, because
+// nothing the blocked device did reached the origin (2026-09-11).
+const TRACE_CACHE = 'vt-trace', TRACE_KEY = '/__vt/swtrace', TRACE_MAX = 40;
+async function trace(entry) {
+  try {
+    const c = await caches.open(TRACE_CACHE);
+    const old = await c.match(TRACE_KEY);
+    let ring = [];
+    if (old) { try { ring = await old.json(); } catch (_) { ring = []; } }
+    if (!Array.isArray(ring)) ring = [];
+    ring.push(Object.assign({ t: Date.now(), v: VERSION }, entry));
+    if (ring.length > TRACE_MAX) ring = ring.slice(-TRACE_MAX);
+    await c.put(TRACE_KEY, new Response(JSON.stringify(ring), { headers: { 'Content-Type': 'application/json' } }));
+  } catch (_) {}
+}
+// What a failed page load shows instead of the browser's blank error page — an
+// installed iOS web app has no error UI at all, so a navigation the worker
+// cannot answer was a white screen. The button is a top-level, network-only
+// navigation (vtreauth), which is also how an expired Access session is renewed.
+function unreachablePage(why) {
+  const safe = String(why || '').replace(/[<>&]/g, '');
+  return new Response(
+    '<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">' +
+    '<title>Vibetop</title><style>html{background:#0e1117;color:#e0e0e0;font:16px/1.5 system-ui,sans-serif}' +
+    'body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px env(safe-area-inset-right) 24px env(safe-area-inset-left)}' +
+    'main{max-width:360px}h1{font-size:20px;margin:0 0 8px}p{margin:0 0 20px;color:#aab4c5}' +
+    'a{display:block;padding:14px 18px;border-radius:10px;background:#2f81f7;color:#fff;text-decoration:none;text-align:center;font-weight:600;min-height:44px}' +
+    'small{display:block;margin-top:14px;color:#6e7a8a}</style>' +
+    '<main><h1>Vibetop can\u2019t be reached</h1><p>The page did not load. If your sign-in expired, the next try goes through the sign-in page.</p>' +
+    '<a href="/?vtreauth=' + Date.now() + '">Try again</a><small>' + safe + '</small></main>',
+    { status: 200, headers: { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' } });
+}
 
 const PRECACHE = [
   '/',
@@ -68,7 +103,7 @@ self.addEventListener('install', (e) => {
 self.addEventListener('activate', (e) => {
   e.waitUntil((async () => {
     const keys = await caches.keys();
-    await Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k)));
+    await Promise.all(keys.filter((k) => k !== CACHE && k !== TRACE_CACHE).map((k) => caches.delete(k)));
     await self.clients.claim();
   })());
 });
@@ -86,7 +121,14 @@ self.addEventListener('fetch', (e) => {
     // the login page comes through. Never the cached (un-authenticated) shell —
     // that's the black-screen-on-expired-Access bug. No timeout, no fallback.
     if (url.searchParams.has('vtreauth')) {
-      e.respondWith(fetch(req).catch(() => Response.error()));
+      const t0 = Date.now();
+      e.respondWith(fetch(req).then((res) => {
+        e.waitUntil(trace({ p: url.pathname, k: 'reauth', how: 'net', s: res.status, ty: res.type, rd: !!res.redirected, ms: Date.now() - t0 }));
+        return res;
+      }).catch((err) => {
+        e.waitUntil(trace({ p: url.pathname, k: 'reauth', how: 'error', err: String(err && err.message || err), ms: Date.now() - t0 }));
+        return unreachablePage('sign-in navigation failed');
+      }));
       return;
     }
     // Only known shell pages are cached; any other HTML stays network-only.
@@ -98,6 +140,8 @@ self.addEventListener('fetch', (e) => {
     // to the cached shell when the network STALLS (the iOS-Safari-on-flaky-
     // wifi case, where a request can hang 60-100s). Best of both.
     e.respondWith((async () => {
+      const t0 = Date.now(), k = cacheable ? 'shell' : 'page';
+      const note = (entry) => e.waitUntil(trace(Object.assign({ p: url.pathname, k, ms: Date.now() - t0 }, entry)));
       const cache = await caches.open(CACHE);
       // Start the network fetch and let it update the cache WHENEVER it
       // resolves — even after we've already served the cached copy on timeout.
@@ -108,21 +152,33 @@ self.addEventListener('fetch', (e) => {
         return res;
       });
       try {
-        return await Promise.race([
+        const res = await Promise.race([
           networkPromise,
           new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 2500))
         ]);
-      } catch (_) {
+        note({ how: 'net', s: res.status, ty: res.type, rd: !!res.redirected });
+        return res;
+      } catch (err) {
         // Timed out (or errored). For a known shell page, serve its cached copy
         // (or the desktop shell '/' as a last resort) so the app still opens
         // offline. For any OTHER same-origin page (office-editor.html,
         // update.html, loggedout.html…) do NOT substitute the desktop shell —
         // that would render the wrong page; wait for the real network response.
+        // A navigation nobody can answer gets the unreachable page, never the
+        // browser's blank error page.
+        const why = String(err && err.message || err);
+        const late = () => networkPromise.then((res) => {
+          note({ how: 'late', s: res.status, ty: res.type, rd: !!res.redirected, why });
+          return res;
+        }, (err2) => {
+          note({ how: 'error', why: why + ' / ' + String(err2 && err2.message || err2) });
+          return unreachablePage(why === 'timeout' ? 'the network did not answer' : 'the network failed');
+        });
         if (cacheable) {
-          return (await cache.match(req)) || (await cache.match('/')) ||
-                 networkPromise.catch(() => Response.error());
+          const hit = (await cache.match(req)) || (await cache.match('/'));
+          if (hit) { note({ how: 'cache', why }); return hit; }
         }
-        return networkPromise.catch(() => Response.error());
+        return late();
       }
     })());
     return;

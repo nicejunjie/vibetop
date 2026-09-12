@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_286 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_287 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
 - [Scheduled terminal messages ("resume when the token limit resets")](#scheduled-terminal-messages-resume-when-the-token-limit-resets)
@@ -309,6 +309,7 @@ _286 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [Files: the listing follows the disk while the app is in front (2026-09-11)](#files-the-listing-follows-the-disk-while-the-app-is-in-front-2026-09-11)
 - [RTS audio audit (2026-09-11): the voice that stayed paused, and fourteen quieter faults](#rts-audio-audit-2026-09-11-the-voice-that-stayed-paused-and-fourteen-quieter-faults)
 - [RTS two-player audit (2026-09-11): the bake that reseeded the simulation, and a lobby that could not end](#rts-two-player-audit-2026-09-11-the-bake-that-reseeded-the-simulation-and-a-lobby-that-could-not-end)
+- [A phone went white on a Cloudflare Access expiry: the failed navigation now has a page, and a trace (2026-09-11)](#a-phone-went-white-on-a-cloudflare-access-expiry-the-failed-navigation-now-has-a-page-and-a-trace-2026-09-11)
 
 <!-- END TOC -->
 
@@ -12767,3 +12768,47 @@ preferences, the auto slot, the resume flag) — Join mode no longer writes
 them, which is the case that mattered. The desktop shell opens one game
 window per app id; the host's card now says to use a second tab of the
 desktop or `/rts.html`.
+
+## A phone went white on a Cloudflare Access expiry: the failed navigation now has a page, and a trace (2026-09-11)
+
+**Symptom.** (user) "on my phone, cloudflare login expired, then it becomes
+white screen instead of asking me to login." The 2026-09-10 guard (the
+"Session expired → Sign in again" dialog) was verified in Chromium and
+Playwright's iPhone WebKit; the installed iOS web app with a real Access
+cookie jar was the one case left unverified, and it is the one that failed.
+
+**What could be seen.** Nothing. nginx only logs what Cloudflare let through:
+the phone's last healthy heartbeat, then silence, then a healthy desktop again
+after the user recovered by hand. Every request the blocked device made died
+at the edge. A white page in an installed iOS web app is what the browser
+shows for a navigation the service worker answered with `Response.error()`
+(no error UI in standalone); it is also what an in-app browser shows for a
+login page that did not render. The two cannot be told apart from here.
+
+**Fix, part one (never white).** Every navigation the worker cannot answer —
+the sign-in navigation (`vtreauth`) when the fetch throws, a shell page whose
+cache was evicted, any other page when the network fails — gets a synthetic
+"Vibetop can't be reached" page with a **Try again** button, a top-level
+network-only navigation to `/?vtreauth=…`, the same path that renews an
+expired Access session. `Response.error()` no longer leaves the worker for a
+navigation.
+
+**Fix, part two (a witness).** The worker keeps a ring of its last forty
+navigation outcomes (path, served from network / cache / late / error,
+status, `opaqueredirect`, elapsed) in a cache named `vt-trace` that survives
+VERSION bumps; the guard keeps its own ring in localStorage (boot: standalone
+or not, navigation type, controlled by a worker; probes that were not 200;
+the dialog shown; sign-in tapped). The first successful `/api/me` probe of a
+later load reads both and posts them to **`/api/clientlog`**, which writes one
+line to the manager log; a run that saw nothing abnormal posts nothing.
+Read it with `grep clientlog /var/log/vibetop/manager.log`. The next white
+screen on the phone leaves this behind the moment the desktop is back.
+
+**Verification.** The worker tests execute the real worker: the sign-in
+navigation still passes an Access redirect straight through, and a failed one
+renders the unreachable page; a navigation with an empty cache and a dead
+network renders it too and lands in the trace. The auth-expiry fixture
+(Chromium + iPhone WebKit) now asserts one client-log post per recovery and
+the unreachable page when the sign-in navigation itself fails. Still owed: the
+on-device answer — whether the white page was the worker's error page (now
+impossible) or Cloudflare's login page inside the web app's in-app browser.

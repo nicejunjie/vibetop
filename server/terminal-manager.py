@@ -4666,6 +4666,23 @@ class Handler(http.server.BaseHTTPRequestHandler):
             return self._handle_logout()
         if self.path == "/api/logout/all":
             return self._handle_logout_all()
+        if self.path == "/api/clientlog":
+            # The shell posts what its service worker and auth guard witnessed
+            # (navigation outcomes, expiry probes) after a recovery — the only
+            # record of a page that went blank while Cloudflare Access blocked
+            # every request from reaching us. One log line, capped body.
+            body = self._read_body(16384)
+            if body is None:
+                return self._json(400, {"error": "invalid or too-large body"})
+            try:
+                data = json.loads(body.decode("utf-8", "replace"))
+            except ValueError:
+                return self._json(400, {"error": "invalid json"})
+            ua = str(data.get("ua", ""))[:120] if isinstance(data, dict) else ""
+            log.info("clientlog user=%s ua=%r guard=%s sw=%s", _ctx_user(), ua,
+                     json.dumps(data.get("guard", []))[:6000] if isinstance(data, dict) else "?",
+                     json.dumps(data.get("sw", []))[:6000] if isinstance(data, dict) else "?")
+            return self._json(200, {"ok": True})
         if self.path == "/api/terminals/open-at":
             return self._handle_terminal_open_at()
         m = re.match(r"/api/terminals/(\d+)/(start|stop)$", self.path)

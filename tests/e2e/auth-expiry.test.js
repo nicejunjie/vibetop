@@ -35,6 +35,10 @@ async function fixture() {
       req.socket.destroy(); // navigation falls back to the cached shell
       return;
     }
+    if (state.mode === 'down' && pathname === '/') {
+      req.socket.destroy(); // the sign-in navigation itself fails
+      return;
+    }
     if (state.mode === 'expired' || state.mode === 'cached-expired') {
       // Different hostname = cross-origin redirect, as with cloudflareaccess.com.
       res.writeHead(302, { Location: state.origin.replace('127.0.0.1', 'localhost') + '/access-login' });
@@ -144,6 +148,10 @@ for (const [name, engine, options] of [
     assert.equal(page.url(), host.origin + '/');
     assert.ok(!host.requests.some(r => /^\/api\/(reset|logout)/.test(r.pathname)),
       'reauthentication must not reset the desktop or log out persistent sessions');
+    // Recovered: the guard posts what it and the worker witnessed (the expiry
+    // probe, the sign-in, the redirected navigation) to /api/clientlog, once.
+    const posted = () => host.requests.filter(r => r.method === 'POST' && r.pathname === '/api/clientlog').length;
+    await expect.poll(posted).toBe(1);
     // A second expiry on a cached cold load must also recover, including when
     // Access blocks the external scripts the cached page tries to refresh.
     host.mode = 'cached-expired';
@@ -151,6 +159,15 @@ for (const [name, engine, options] of [
     await expect(dialog).toBeVisible();
     await signIn.click();
     await expect(page.getByRole('heading', { name: 'Cloudflare sign-in stand-in' })).toBeVisible();
+    await page.getByRole('link', { name: 'Sign in', exact: true }).click();
+    await expect(page.locator('#start-btn')).toBeVisible();
+    await expect.poll(posted).toBe(2);                   // the second expiry's witness
+    // A sign-in navigation the network cannot answer is a page with a way
+    // forward, never the browser's blank error page.
+    host.mode = 'down';
+    await page.goto(host.origin + '/?vtreauth=9');
+    await expect(page.getByRole('heading', { name: /Vibetop can.t be reached/ })).toBeVisible();
+    await expect(page.getByRole('link', { name: 'Try again' })).toBeVisible();
     // WebKit reports expected cross-origin Access rejections from SW background
     // refreshes as pageerrors. Keep allowing ONLY that precise network failure.
     assert.deepEqual(errors.filter(message => !/^\/localhost:\d+\/access-login due to access control checks\.$/.test(message)), []);
