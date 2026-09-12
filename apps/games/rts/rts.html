@@ -801,8 +801,11 @@
   <p>Iron Frontier needs room for the sidebar, the map and your army at once.<br><br>Open it on a tablet or a computer.</p>
 </div></div>
 
-<script src="gamescore.js"></script>
-<script src="vibe-modal.js"></script>
+<!-- The two shared scripts, by their repo path so that opening this file
+     straight from disk finds them; shell/install.sh rewrites the prefix for
+     the flat web root, where they sit next to this page. -->
+<script src="../../../shared/gamescore.js"></script>
+<script src="../../../shared/vibe-modal.js"></script>
 <!-- The game, one file per subsystem and one per unit, in load order. Plain
      classic scripts on purpose: they work from file:// too, so rts.html can be
      opened by double-clicking it with no server and no build. See rts/README.md. -->

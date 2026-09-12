@@ -66,6 +66,7 @@ shell/diagnostics/rzdbg.html|rzdbg.html|version
 apps/utilities/services/index.html|landing.html|copy
 apps/everyday/files/filesx.html|filesx.html|fsxver
 apps/everyday/files/files.html|files.html|apphome
+apps/games/rts/rts.html|rts.html|shared
 "
 
 stamp_version() {   # $1=src $2=dst — release + service-worker build for the build tag
@@ -89,6 +90,18 @@ stamp_apphome() {   # $1=src $2=dst
   # opens each user's first tab at THEIR ~ (an unstamped @APP_HOME@ would ship
   # literally and the app would open at the filesystem root).
   sed -e "s|@APP_HOME@||g" "$1" > "$2"
+  chmod 644 "$2"
+}
+
+stamp_shared() {    # $1=src $2=dst — the RTS page's path to shared/
+  # The RTS is playable straight off the disk (double-click rts.html), so it
+  # refers to the two shared scripts by their REPO path. The web root is flat:
+  # there they sit beside the page, so drop the prefix on the way out. Both
+  # files must exist or the page would ship pointing at nothing.
+  for f in gamescore.js vibe-modal.js; do
+    [ -f "$REPO/shared/$f" ] || { echo "shell/install.sh: missing $REPO/shared/$f (rts.html needs it)" >&2; exit 1; }
+  done
+  sed -e 's|\.\./\.\./\.\./shared/||g' "$1" > "$2"
   chmod 644 "$2"
 }
 
@@ -150,6 +163,8 @@ printf '%s' "$PLAN" | while IFS='|' read -r src dst mode; do
              else stamp_fsxver "$REPO/$src" "$DST_DIR/$dst"; fi ;;
     apphome) if [ "$DRY_RUN" = 1 ]; then printf '+ render %s -> %s (@APP_HOME@ -> empty)\n' "$src" "$dst"
              else stamp_apphome "$REPO/$src" "$DST_DIR/$dst"; fi ;;
+    shared)  if [ "$DRY_RUN" = 1 ]; then printf '+ render %s -> %s (../../../shared/ -> flat)\n' "$src" "$dst"
+             else stamp_shared "$REPO/$src" "$DST_DIR/$dst"; fi ;;
     *)       run install -D -m 644 "$REPO/$src" "$DST_DIR/$dst" ;;
   esac
 done

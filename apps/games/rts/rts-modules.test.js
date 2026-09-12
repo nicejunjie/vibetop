@@ -50,8 +50,10 @@ test("the page is plain scripts — nothing to build, nothing to serve", () => {
     "no ES modules: a module page cannot be opened from file://, which is the " +
     "whole reason these are classic scripts");
   const first = [...html.matchAll(/<script src="([^"]+)"><\/script>/g)].map((m) => m[1]);
-  assert.deepStrictEqual(first.slice(0, 2), ["gamescore.js", "vibe-modal.js"],
-    "the two shared scripts load before the game");
+  assert.deepStrictEqual(first.slice(0, 2),
+    ["../../../shared/gamescore.js", "../../../shared/vibe-modal.js"],
+    "the two shared scripts load before the game, by their repo path so that " +
+    "double-clicking this file finds them; shell/install.sh flattens the prefix");
 });
 
 test("no file uses import/export — they would not run as classic scripts", () => {
