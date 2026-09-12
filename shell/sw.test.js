@@ -62,7 +62,6 @@ const MUST_BYPASS = [
   "/t1/",
   "/t42/",
   "/terminals/",
-  "/files/",            // live FileBrowser SPA
   "/fileview/x.docx",
   "/services.json",
   "/cdn-cgi/access/logout",
@@ -78,7 +77,8 @@ for (const p of MUST_BYPASS) {
 // -- the wrapper page /files.html must NOT be bypassed (it's a shell page) --
 
 test("/files.html is a cacheable shell page, not bypassed", () => {
-  // The BYPASS regex uses `files/` (with slash) precisely so /files.html escapes it.
+  // FileBrowser owned /files/ and had to be bypassed; the native Files app is
+  // just pages in the web root, so nothing under /files* is live any more.
   assert.equal(classify("/files.html", "navigate"), "shell");
 });
 

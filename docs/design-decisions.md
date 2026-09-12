@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_287 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_288 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
 - [Scheduled terminal messages ("resume when the token limit resets")](#scheduled-terminal-messages-resume-when-the-token-limit-resets)
@@ -310,6 +310,7 @@ _287 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [RTS audio audit (2026-09-11): the voice that stayed paused, and fourteen quieter faults](#rts-audio-audit-2026-09-11-the-voice-that-stayed-paused-and-fourteen-quieter-faults)
 - [RTS two-player audit (2026-09-11): the bake that reseeded the simulation, and a lobby that could not end](#rts-two-player-audit-2026-09-11-the-bake-that-reseeded-the-simulation-and-a-lobby-that-could-not-end)
 - [A phone went white on a Cloudflare Access expiry: the failed navigation now has a page, and a trace (2026-09-11)](#a-phone-went-white-on-a-cloudflare-access-expiry-the-failed-navigation-now-has-a-page-and-a-trace-2026-09-11)
+- [Files: FileBrowser retired, native is the only engine (2026-09-11)](#files-filebrowser-retired-native-is-the-only-engine-2026-09-11)
 
 <!-- END TOC -->
 
@@ -12829,3 +12830,73 @@ the unreachable page when the sign-in navigation itself fails. Still owed: the
 on-device answer: the next launch of the home-screen app after an expiry
 should land on Cloudflare's login page, and the launch's trace will say what
 the worker answered.
+
+## Files: FileBrowser retired, native is the only engine (2026-09-11)
+
+**Symptom.** Not a bug — a decision. (user) "time to retire the original file
+app, and only keep our natively built file app." The Files app had shipped a
+Native/Classic toggle for weeks precisely so the native engine could be lived on
+before anything was deleted (see the files-native entries); the user had been
+living on it, so phase 4b of `docs/files-native.md` came due.
+
+**Cause of the delay, and why it ends here.** Keeping both engines was never
+free: FileBrowser was a pinned Go binary (v2.63.3, ~40MB) run as ONE PROCESS PER
+LOGGED-IN USER under a transient `vibetop-ufiles-<user>.service`, with a per-user
+port, a per-user database provisioned on first start, a health/self-heal path for
+the stale-port 502 class, an authcheck branch that answered nginx with
+`X-App-Port`, and ~1,200 lines of `filebrowser-patches.js` injected over its DOM
+by `sub_filter` to add tabs, Share, the Office/video/image handoff, the address
+bar and the mobile layout. That patch layer was the single largest source of this
+document's Files entries.
+
+**Fix — what was removed.** `filebrowser-patches.js` and both its `sub_filter`
+injections; the `/files/` nginx locations (the fragment survives as
+`apps/everyday/files/nginx/fileview.conf`, carrying only `/fileview/`, which the
+native app still uses for "Open in Browser"); in the manager, `_fb_unit`,
+`_user_fb_port`, `_provision_user_filebrowser`, `_start_user_filebrowser`,
+`_ensure_user_filebrowser`, `FB_BIN`, `FB_PORT`, `USER_FB_OFFSET`, the authcheck
+`/files/` branch and the `files` entry in the `/api/health` probes; the binary
+download in `apps/everyday/files/install.sh`; the Native/Classic toggle in
+`files.html` and the "Open the classic Files app" row in `filesx.html`'s
+Settings; `files/` from `sw.js`'s BYPASS regex; the FileBrowser DB from
+`tools/backup.sh`; the FileBrowser checks in `tools/doctor.sh` and
+`tools/smoke-test.sh` (which now probes `/files.html`); and
+`tests/e2e/tests/files.spec.js`, which only ever asserted that the classic SPA
+mounted and the patch ran.
+
+**Fix — the stored tab set.** `/api/files/tabs` stored each tab as a FileBrowser
+browse URL (`/files/files/<percent-encoded path>`) and the server VALIDATED that
+prefix. It now stores absolute folder paths, and both the GET and the POST
+migrate legacy entries through `_fb_url_to_path` rather than dropping them —
+the file is written by CLIENTS, so a host upgrading mid-session has legacy
+entries on disk that no POST will rewrite until a wrapper saves again. A user
+with no stored set now gets a tab at their own home instead of `/`.
+
+**Fix — the deploy-time cleanup.** A host that ran FileBrowser has state no code
+change removes: per-user transient units, possibly the pre-multi-user shared
+unit, the binary this installer downloaded, and the `/files/` snippet this
+installer wrote. `apps/everyday/files/install.sh` now stops and `reset-failed`s
+every `vibetop-ufiles-*`, disables and deletes the legacy unit, removes
+`/usr/local/bin/filebrowser` and `vibetop-extras.d/filebrowser.conf` (reloading
+nginx only if something actually changed), and is a no-op on every later deploy
+and on a host that never had FileBrowser. `uninstall.sh` KEEPS its
+`vibetop-ufiles-*` / `vibetop-filebrowser` sweep for the same reason.
+
+**Rejected.**
+
+- **Reusing the freed per-user port offset** (`MAX_INSTANCE + 1`, FileBrowser's)
+  by pulling the two xpra offsets down one. Every running transient unit has its
+  port baked into its `ExecStart`, so renumbering strands live Browser and X11
+  displays on their old ports — the stale-port 502 class this repo has already
+  paid for twice. The offset is retired and left unused, with a comment and a
+  test (`test_the_xpra_port_offsets_did_not_shift`).
+- **Deleting each user's `~/.config/filebrowser/filebrowser.db`.** It is user
+  data in a user's home; an installer removing files there is a different kind of
+  act from removing the binary it installed itself. Left in place, unreferenced.
+- **Keeping the classic engine behind a hidden flag "just in case."** A second
+  engine is only insurance if it is exercised, and an unexercised FileBrowser
+  would rot against upstream drift exactly as `/api/raw` already did. A device
+  whose `localStorage['vibetop:filesx']` said classic simply gets the native app:
+  the flag is never read again.
+- **Dropping the legacy tab-URL shape.** Cheaper to code, and it would have
+  silently reset every user's open folders on deploy day.

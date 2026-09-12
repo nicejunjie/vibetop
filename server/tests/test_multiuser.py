@@ -181,16 +181,15 @@ def test_user_term_port_disjoint_ranges(mgr, monkeypatch, tmp_path):
 
 def test_all_per_user_ports_never_collide_across_many_users(mgr, monkeypatch, tmp_path):
     # Regression: the 11th user's terminals (slot 10 -> 18001..18050) used to
-    # collide with slots 1..50's FileBrowsers (18000+slot). Assert that EVERY
-    # per-user TCP port (terminals + FileBrowser + both xpra HTML5 ports) is
-    # globally unique across a realistic fleet.
+    # collide with slots 1..50's app ports (18000+slot). Assert that EVERY
+    # per-user TCP port (terminals + both xpra HTML5 ports) is globally unique
+    # across a realistic fleet.
     monkeypatch.setattr(mgr, "USERS_REGISTRY", str(tmp_path / "users.json"))
     seen = {}
     for i in range(40):                          # 40 users, well past the old break at 11
         u = f"user{i}"
         ports = ([mgr._user_term_port(u, n) for n in range(1, mgr.MAX_INSTANCE + 1)]
-                 + [mgr._user_fb_port(u),
-                    mgr._user_xpra_port(u, "browser"),
+                 + [mgr._user_xpra_port(u, "browser"),
                     mgr._user_xpra_port(u, "x11")])
         for p in ports:
             assert p not in seen, f"port {p} for {u} collides with {seen.get(p)}"
@@ -277,36 +276,6 @@ def test_stale_xpra_on_wrong_port_is_recreated(mgr, monkeypatch):
         "must recreate the xpra via systemd-run (on the correct port)"
 
 
-def test_stale_filebrowser_on_wrong_port_is_recreated(mgr, monkeypatch):
-    # Same class as the xpra bug: FileBrowser's port is baked into its unit, so an
-    # "active" unit on a stale port (post port-scheme change) must be recreated,
-    # not reused (else /files/ 502s). Skip if filebrowser isn't "installed".
-    import types
-    _real_exists = os.path.exists
-    monkeypatch.setattr(mgr.os.path, "exists",
-                        lambda p: True if p == mgr.FB_BIN else _real_exists(p))
-    calls = []
-
-    def fake_run(args, **kw):
-        calls.append(list(args))
-        out = "active\n" if args[:2] == ["systemctl", "is-active"] else ""
-        return types.SimpleNamespace(returncode=0, stdout=out, stderr="")
-
-    monkeypatch.setattr(mgr.subprocess, "run", fake_run)
-    monkeypatch.setattr(mgr, "_wait_tcp", lambda port, timeout=8.0: False)   # not on expected port
-    monkeypatch.setattr(mgr, "_provision_user_filebrowser", lambda u, h, p: None)
-    monkeypatch.setattr(mgr, "_user_home", lambda u: "/home/" + u)
-    monkeypatch.setattr(mgr.pwd, "getpwnam",
-                        lambda u: types.SimpleNamespace(pw_uid=4321, pw_gid=4321,
-                                                        pw_dir="/home/" + u, pw_name=u))
-    mgr._start_user_filebrowser("alice")
-    unit = mgr._fb_unit("alice")
-    assert any(c[:2] == ["systemctl", "stop"] and unit in c for c in calls), \
-        "a stale (wrong-port) but active FileBrowser must be stopped before recreate"
-    assert any(c and c[0] == "systemd-run" for c in calls), \
-        "must recreate FileBrowser via systemd-run (on the correct port)"
-
-
 def test_healthy_xpra_on_right_port_is_reused_not_recreated(mgr, monkeypatch):
     # The common path: active AND listening on the expected port -> reuse, no churn.
     import types
@@ -380,29 +349,37 @@ def test_non_admin_reset_is_per_user(client, mgr, users, monkeypatch):
     assert status == 200 and body.get("ok") is True
 
 
-# --- per-user Files (Phase 3b) ----------------------------------------------
+# --- per-user Files: the native app needs NO per-user upstream ---------------
 
-def test_files_port_and_unit_per_user(mgr, monkeypatch, tmp_path):
-    monkeypatch.setattr(mgr, "USERS_REGISTRY", str(tmp_path / "u.json"))
-    assert mgr._user_fb_port("alice") != mgr._user_fb_port("bob")
-    # FileBrowser sits inside the user's own terminal block, above the terminals.
-    assert mgr._user_fb_port("alice") == mgr._user_term_port("alice", mgr.USER_FB_OFFSET)
-    assert mgr._fb_unit("alice") == "vibetop-ufiles-alice.service"
-    assert mgr._fb_unit("a b;c") == "vibetop-ufiles-a_b_c.service"
-
-
-def test_authcheck_files_returns_per_user_app_port(client, mgr, users, monkeypatch):
-    # /files/ authcheck cold-starts the user's FileBrowser and returns its port.
-    monkeypatch.setattr(mgr, "_start_user_filebrowser",
-                        lambda u: (True, 18000 + (1 if u == "bob" else 0)))
+def test_authcheck_files_page_needs_no_app_port(client, mgr, users):
+    """The Files app is a static page talking to /api/fs/*, so authcheck must not
+    try to resolve a per-user upstream for it any more. FileBrowser's /files/
+    routing header (X-App-Port) is gone with it; a leftover would point nginx at
+    a port nothing listens on."""
     (_, a_ck) = users["alice"]
-    (_, b_ck) = users["bob"]
-    _s, ah, _ = client.get_full("/api/authcheck", cookie=a_ck,
-                                headers={"X-Original-URI": "/files/"})
-    _s, bh, _ = client.get_full("/api/authcheck", cookie=b_ck,
-                                headers={"X-Original-URI": "/files/"})
-    assert ah.get("X-App-Port") == "18000"
-    assert bh.get("X-App-Port") == "18001"      # different port per user
+    for uri in ("/files.html", "/filesx.html", "/files/"):
+        st, hdrs, _ = client.get_full("/api/authcheck", cookie=a_ck,
+                                      headers={"X-Original-URI": uri})
+        assert st == 200, uri
+        assert hdrs.get("X-App-Port") is None, uri
+        assert hdrs.get("X-Vibetop-User") == "alice", uri
+
+
+def test_the_retired_filebrowser_helpers_are_gone(mgr):
+    """Phase 4b: no per-user FileBrowser unit, port or provisioning survives in
+    the manager — a leftover would cold-start a binary the installer removes."""
+    for name in ("_fb_unit", "_user_fb_port", "_start_user_filebrowser",
+                 "_provision_user_filebrowser", "FB_BIN", "FB_PORT",
+                 "USER_FB_OFFSET"):
+        assert not hasattr(mgr, name), f"{name} is back"
+
+
+def test_the_xpra_port_offsets_did_not_shift(mgr):
+    """Removing the FileBrowser offset must NOT renumber the xpra ports: the port
+    is baked into each already-running transient unit, so a shift strands every
+    live Browser/X11 display on its old port (the stale-port 502 class)."""
+    assert mgr.USER_BROWSER_XPRA_OFFSET == mgr.MAX_INSTANCE + 2
+    assert mgr.USER_X11_XPRA_OFFSET == mgr.MAX_INSTANCE + 3
 
 
 # --- office (doc endpoint binds the owner into the HMAC) ---------------------

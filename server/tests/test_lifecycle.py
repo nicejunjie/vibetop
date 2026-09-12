@@ -108,9 +108,8 @@ def test_uninstaller_resolves_from_nginx_not_sudo_user():
 
 def test_uninstaller_stops_the_transient_per_user_units(mgr):
     """These are independent `systemd-run --collect` units with no PartOf=, so
-    stopping the manager leaves every user's ttyd/shell/FileBrowser/xpra/
-    Chromium/X11/D-Bus/file-agent running after the operator believes the
-    service is gone.
+    stopping the manager leaves every user's ttyd/shell/xpra/Chromium/X11/
+    D-Bus/file-agent running after the operator believes the service is gone.
 
     The unit names are taken from the MANAGER's own helpers rather than a
     hand-copied list, so renaming a unit there fails here instead of quietly
@@ -119,13 +118,17 @@ def test_uninstaller_stops_the_transient_per_user_units(mgr):
     sess, ttyd = mgr._term_units("alice", 1)
     units = [sess, ttyd,
              mgr._fileagent_unit("alice"),
-             mgr._fb_unit("alice"),
              mgr._xpra_unit("alice", "browser"),
              mgr._xpra_unit("alice", "x11"),
              mgr._x11dbus_unit("alice")]
     for u in units:
         prefix = u[:u.rindex("alice")]           # vibetop-uterm-, vibetop-ux11-, ...
         assert prefix in body, f"uninstall.sh leaves {prefix}* units running ({u})"
+    # The RETIRED per-user FileBrowser units are not derivable from the manager
+    # any more (its helpers are gone), but a host that ran it before the native
+    # Files app still has them — so the sweep must keep the name.
+    assert "vibetop-ufiles-" in body, \
+        "uninstall.sh no longer sweeps the retired per-user FileBrowser units"
 
 
 def test_uninstaller_removes_unit_files_by_glob():
@@ -231,8 +234,8 @@ def test_backup_manifest_is_versioned_and_names_its_scope(two_users):
 
 
 def test_backup_archive_is_owner_only(two_users):
-    """It carries session/JWT secrets, the FileBrowser DB and personal
-    documents. 0600 in a 0700 directory, or it is a new exposure."""
+    """It carries session/JWT secrets, notes and personal documents. 0600 in a
+    0700 directory, or it is a new exposure."""
     rc, out = _backup(two_users, "--user", "alice")
     assert rc == 0, out
     d = two_users["tmp"] / "backups"
@@ -280,7 +283,8 @@ def test_backup_timer_runs_as_root_not_one_human():
 
 def test_backup_restore_no_longer_points_at_a_removed_unit():
     """It advised restarting vibetop-filebrowser, a shared unit that no longer
-    exists — FileBrowser is a transient per-user service now."""
+    exists: it first became a per-user transient unit, and then FileBrowser was
+    retired altogether (the Files app is native now)."""
     body = (REPO_ROOT / "tools" / "backup.sh").read_text()
     assert "vibetop-filebrowser" not in body
 

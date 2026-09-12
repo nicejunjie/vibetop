@@ -707,7 +707,7 @@
     .toolbar { gap: 5px 6px; padding: 6px 6px; }
     /* Icon-only buttons are unreadable on a phone ("very hard to tell what the
        buttons are") — so each control is an icon OVER a short caption, the same
-       anatomy the classic app uses at this breakpoint (filebrowser-patches.js).
+       anatomy the retired classic app used at this breakpoint.
        An 8-column GRID, not flex: every cell is exactly 1/8 of the row, so a
        caption can never push a neighbour off the right edge, and the two
        conditional clipboard controls (Paste / Clear) fall onto a deliberate
@@ -826,7 +826,7 @@
       <button id="selectbtn" title="Select several items" aria-pressed="false" aria-label="Select"><span class="bi"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 8.6 6 12l7.5-8"/></svg></span><span class="bl"> Select</span></button>
       <button id="searchbtn" title="Search this folder (Ctrl+F)" aria-pressed="false" aria-label="Search"><span class="bi"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="7" cy="7" r="4.5"/><path d="m10.4 10.4 3.1 3.1"/></svg></span><span class="bl"> Search</span></button>
       <button id="refresh" title="Refresh" aria-label="Refresh"><span class="bi"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.7 8a5.3 5.3 0 1 0 1.5-3.7"/><path d="M4.2 1.3v3h3"/></svg></span><span class="bl"> Refresh</span></button>
-      <button id="manage" title="Settings — how this app behaves, share links, the classic app" aria-label="Settings"><span class="bi"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="8" cy="8" r="2.4"/><path d="M8 1.6v1.7M8 12.7v1.7M14.4 8h-1.7M3.3 8H1.6M12.5 3.5l-1.2 1.2M4.7 11.3l-1.2 1.2M12.5 12.5l-1.2-1.2M4.7 4.7 3.5 3.5"/></svg></span><span class="bl"> Settings</span></button>
+      <button id="manage" title="Settings — how this app behaves, trash and share links" aria-label="Settings"><span class="bi"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="8" cy="8" r="2.4"/><path d="M8 1.6v1.7M8 12.7v1.7M14.4 8h-1.7M3.3 8H1.6M12.5 3.5l-1.2 1.2M4.7 11.3l-1.2 1.2M12.5 12.5l-1.2-1.2M4.7 4.7 3.5 3.5"/></svg></span><span class="bl"> Settings</span></button>
     </div>
   </div>
   <div class="sbar" id="sbar">
@@ -952,10 +952,9 @@
   // Native Files view (Files-native phases 1-4a — docs/files-native.md).
   // Loaded by files.html's tab wrapper with #/abs/path; listing/stat/read and
   // all mutations go through the per-user file agent via the manager
-  // (/api/fs/*). Feature-complete vs classic FileBrowser: listing, mutations,
+  // (/api/fs/*). It is the ONLY file manager: listing, mutations,
   // clipboard, uploads (files + folders + OS drag-and-drop), new file/folder,
   // editor, search, share, info (kind/perms/dimensions/checksums), open-in-
-  // browser + office-edit handoffs. FileBrowser remains reachable via Manage.
   // Kept in step with OFFICE_RE in terminal/terminal-manager.py — a narrower
   // list here meant .csv/.rtf/.docm/.xlsm/… had no viewer and no Edit at all.
   var READ_MAX = 1048576;   // 1MB text-preview cap (server-enforced too)
@@ -1003,7 +1002,7 @@
   // History, and a shortcut the browser eats is worse than none.
   var showHidden = false, sortKey = 'name', sortAsc = true;
   // Settings (the classic app's Menu → Settings, which this app simply did not
-  // have). Deliberately NOT carried over from FileBrowser's list:
+  // have). Deliberately NOT carried over from the classic app's list:
   // "open with a single click" — it reinstates open-on-first-interaction, the
   // very thing a click must not do here (you click to select, to rename, to
   // read the info; opening a 2GB file by accident is the cost). It was also
@@ -1550,9 +1549,9 @@
     setNotice('');
     api('/api/fs/list?path=' + encodeURIComponent(p)).then(function(d) {
       if (seq !== my) return;                       // navigated away meanwhile
-      // A FILE path can arrive via the hash (a shared tab restored from a
-      // FileBrowser preview state, or the toggle flipping mid-preview): land
-      // in the parent folder and open the file once, instead of an error.
+      // A FILE path can arrive via the hash (a shared tab whose stored entry
+      // was a file rather than a folder): land in the parent folder and open the
+      // file once, instead of an error.
       if (d && !d.ok && d.code === 'enotdir' && p.lastIndexOf('/') > 0) {
         var parent = p.slice(0, p.lastIndexOf('/')) || '/';
         var fname = baseOf(p);
@@ -3833,17 +3832,11 @@
     }
   });
   document.getElementById('refresh').addEventListener('click', refresh);
-  function openManage() {
-    // Escape hatch to FileBrowser (the classic view) — swap THIS iframe to it
-    // at the current folder.
-    if (!path) return;
-    location.href = '/files/files' + (path === '/' ? '' : enc(path)) + '/';
-  }
   document.getElementById('manage').addEventListener('click', openSettings);
 
   // ---- Settings: what the classic app put under Menu → Settings, kept to the
-  //      preferences that actually change daily use, plus the two management
-  //      surfaces (share links, and the classic app as an escape hatch). ----
+  //      preferences that actually change daily use, plus the management
+  //      surfaces (trash and share links). ----
   function openSettings() {
     var m = rawCard('Settings');
     var box = el('div', 'sett');
@@ -3886,7 +3879,6 @@
     box.appendChild(el('div', 'sett-head', 'Manage'));
     action('Trash…', 'Files you deleted — put them back, or empty the bin.', openTrash);
     action('Share links…', 'See, copy and revoke the public links you created.', manageShares);
-    action('Open the classic Files app', 'The old FileBrowser-based view, at this same folder.', openManage);
 
     m.card.appendChild(box);
     var btns = el('div', 'mbtns');

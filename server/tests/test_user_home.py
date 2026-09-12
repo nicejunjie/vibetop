@@ -1,11 +1,9 @@
 """Per-user apps must land the user in their own HOME, not the filesystem root.
 
-Two regressions this pins (both surfaced live as "the app opens in /"):
-  * a `systemd-run --uid` transient unit defaults WorkingDirectory=/, so a login
-    shell started that way lands in / — fixed by _workdir_props pinning ~.
-  * the per-user FileBrowser was rooted at the user's home, which displayed home
-    AS "/" (indistinguishable from the terminal bug); it's now rooted at / (whole
-    filesystem, as the user) and the app OPENS at ~ via /api/me.
+The regression this pins (it surfaced live as "the app opens in /"): a
+`systemd-run --uid` transient unit defaults WorkingDirectory=/, so a login shell
+started that way lands in / — fixed by _workdir_props pinning ~. The Files app
+anchors on /api/me for the same reason.
 
 These assert on the constructed launch argv / endpoint output (no systemd needed).
 """
@@ -46,26 +44,6 @@ def test_user_terminal_lands_in_home(mgr, monkeypatch, tmp_path, stubs):
             and any("vibetop-session" in str(x) for x in a)]
     assert sess, "no session systemd-run recorded"
     assert f"WorkingDirectory={home}" in sess[0]
-
-
-# -- Files: FileBrowser rooted at / (whole FS as the user), scope / ---------
-
-def test_filebrowser_provisioned_at_root(mgr, monkeypatch, tmp_path, stubs):
-    home = tmp_path / "bob"
-    (home / ".config").mkdir(parents=True)
-    monkeypatch.setattr(mgr, "_chown_app", lambda *a, **k: None)
-
-    mgr._provision_user_filebrowser("bob", str(home), 18001)
-
-    cfg = [a for a in stubs["run"] if isinstance(a, list)
-           and "config" in a and "set" in a]
-    assert cfg, "no filebrowser `config set` recorded"
-    argv = cfg[0]
-    assert "--root" in argv and argv[argv.index("--root") + 1] == "/"
-    scope = [a for a in stubs["run"] if isinstance(a, list)
-             and "users" in a and "update" in a]
-    assert scope and "--scope" in scope[0] and \
-        scope[0][scope[0].index("--scope") + 1] == "/"
 
 
 # -- /api/me: the anchor front-ends use to open at the real home ------------

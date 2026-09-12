@@ -21,7 +21,8 @@ Revisit a larger split only when **both** of these hold (the "trigger"):
 1. `docs/files-native.md` Phase 4b (retiring FileBrowser) has shipped, i.e. the
    Native/Classic toggle, `filebrowser-patches.js` and the `/files/` nginx
    location are gone — so the app's *shape* is final and the wrapper contract
-   (`files.html` ↔ `filesx.html`) is no longer moving.
+   (`files.html` ↔ `filesx.html`) is no longer moving. **Satisfied 2026-09-11**,
+   when FileBrowser was retired and the native engine became the only one.
 2. `filesx.html` has gone one full release cycle (a `VERSION` bump cutting a
    user-visible release) with **no** feature commits touching it — only fixes.
 
@@ -31,9 +32,8 @@ Where the Files-native project stands (`docs/files-native.md`, read in full):
 
 | Fact | Source |
 |---|---|
-| Phases 0–4a **shipped**. Native is **opt-in**; Classic (FileBrowser) is still the default. | `docs/files-native.md` lines 3–7; `files.html` line 135 (`localStorage['vibetop:filesx'] === '1'`) |
-| Native was made default in v1.19.94 and **reverted in v1.19.96** — "the user judged the native view not yet as useful as FileBrowser; both stay offered until the polish gap closes". | `apps/everyday/files/files.html` lines 128–132 |
-| Phase 4b (**not started**) is gated on the user living on Native, then a soak. Its footprint is the wrapper toggle, the patch layer, nginx, installers, docs — and in `filesx.html` only the Settings row that links to the classic app (`openManage`, line 3627). | `docs/files-native.md` lines 126–132 |
+| *(When the plan was written)* phases 0–4a were shipped, Native was **opt-in** and Classic (FileBrowser) the default: native went default in v1.19.94 and was **reverted in v1.19.96** — "the user judged the native view not yet as useful as FileBrowser" — so both stayed offered. | `docs/files-native.md`; the `localStorage['vibetop:filesx']` toggle in `files.html` |
+| **Phase 4b shipped 2026-09-11**, which meets trigger 1: the toggle, the patch layer, the `/files/` location and the `filesx.html` Settings escape hatch (`openManage`) are all gone, and `filesx.html` is the only engine. | `docs/files-native.md` §"Phase 4b" |
 | "Feature blind spots surface only by living on it … Every audit so far has found things no test would have." — more polish commits to `filesx.html` are expected. | `docs/files-native.md` lines 141–143 |
 | The file's churn: **14 releases in three days** (2026-08-28 → 08-30, `v1.19.99`–`v1.19.119`), roughly +1,000 / −200 lines, then **zero content changes** since 08-30 — only the two tree-restructure renames on 09-03. | `git log --follow --numstat -- apps/everyday/files/filesx.html` |
 | The candidate pure helpers have barely moved: `normPath`, `fmtSize`, `iconFor`, `freeName`, `relParent` last changed 08-28; `fmtRel`, `kindOf` 08-29; `visibleRows` 08-30. | `git log -L '/function X/,+6:landing/filesx.html' fcc2f29` for each |
@@ -72,19 +72,22 @@ Pinning them costs one small file and touches ~20 lines of `filesx.html`.
    `/filesx.html`. Every new file needs a basename unique across `shell/`,
    `shared/`, `apps/**` (the walk in `shell/install.sh` fails on duplicates).
    The full deployed basename set today is:
-   `apph.js circuit.html coach.js config.html desktop.html filebrowser-patches.js files.html filesx.html game2048.html gamescore.js imageview.html index.html kbd-input.js keybar.js loggedout.html login.html manifest.json minesweeper.html monitor.html notes.html office-editor.html rts.html rzdbg.html services.example.json solitaire.html sw.js tab-sync.js terminal-kbd.js terminals.html token-stats.html update.html upload.html vibe-modal.js video.html winmgr.js x11launcher.html xpra-patches.js`
+   `apph.js circuit.html coach.js config.html desktop.html files.html filesx.html game2048.html gamescore.js imageview.html index.html kbd-input.js keybar.js loggedout.html login.html manifest.json minesweeper.html monitor.html notes.html office-editor.html rts.html rzdbg.html services.example.json solitaire.html sw.js tab-sync.js terminal-kbd.js terminals.html token-stats.html update.html upload.html vibe-modal.js video.html winmgr.js x11launcher.html xpra-patches.js`
+   (`filebrowser-patches.js` was in this set when the plan was written; it was
+   removed along with FileBrowser and no longer deploys anywhere.)
    — `filesx-core.js` does not collide. Re-run the check before creating any
    file: `find shell shared apps -type f \( -name '*.html' -o -name '*.js' -o -name '*.json' \) ! -name '*.test.js' ! -path '*/art/*' -printf '%f\n' | sort | uniq -d` must print nothing.
 4. **Who deploys what** (verified, both installers read):
-   - `shell/install.sh` deploys `filesx.html` **and** `files.html` **and**
-     `filebrowser-patches.js` (the latter two via its `RENDERED` table with the
-     `apphome` stamp; `filesx.html` via the plain walk, `install -m 644`). It is
-     the only installer that will ever deploy `filesx-core.js` — the walk picks
-     up `*.js` under `apps/` automatically.
-   - `apps/everyday/files/install.sh` deploys **no web files**. It installs the
-     FileBrowser binary/ffmpeg, renders `nginx/filebrowser.conf` (computing the
-     `filebrowser-patches.js` content-hash `?v=`), and stops running
-     `vibetop-fileagent-*` units. Nothing in this plan touches it.
+   - `shell/install.sh` deploys `filesx.html` **and** `files.html`
+     (via its `RENDERED` table with the `apphome` stamp; `filesx.html` via the
+     plain walk, `install -m 644`). It is the only installer that will ever
+     deploy `filesx-core.js` — the walk picks up `*.js` under `apps/`
+     automatically. (`filebrowser-patches.js`, deployed here when the plan was
+     written, was retired with FileBrowser and no longer exists.)
+   - `apps/everyday/files/install.sh` deploys **no web files**. It installs
+     ffmpeg, writes the `nginx/fileview.conf` snippet, runs a one-time
+     FileBrowser cleanup, and stops running `vibetop-fileagent-*` units.
+     Nothing in this plan touches it.
    - The in-app Update redeploys `shell/install.sh` on any change under
      `WEB_SOURCE_DIRS = ("shell/", "shared/", "apps/")`
      (`server/terminal-manager.py` ~line 6431) and additionally runs
@@ -93,11 +96,11 @@ Pinning them costs one small file and touches ~20 lines of `filesx.html`.
 5. **nginx.** `filesx.html` is served by the static `location /` in the
    generated site (`server/install.sh` ~line 365: `try_files`, `Cache-Control:
    no-cache, no-store`). It is **not** proxied and **not** `sub_filter`ed —
-   the `sub_filter` injection of `filebrowser-patches.js` in
-   `apps/everyday/files/nginx/filebrowser.conf` applies only to the proxied
-   `/files/` (FileBrowser) locations. Do not confuse the two: the patch file's
-   hash is computed by `files/install.sh` and never bumped by hand; the new
-   `filesx-core.js` will get its own hash, computed by `shell/install.sh`.
+   `apps/everyday/files/nginx/fileview.conf` (renamed from `filebrowser.conf`
+   when FileBrowser was retired) holds only the `/fileview/` raw-file
+   location now, and carries no `sub_filter` injection at all (the proxied
+   `/files/` locations it used to gate are gone). The new `filesx-core.js`
+   gets its own content-hash, computed by `shell/install.sh`.
 6. **Service worker.** `shell/sw.js` `VERSION` is `v533` today. `/filesx.html`
    is **not** in `PRECACHE` (only the wrapper `/files.html` is), so the native
    page is a non-shell navigation: network-only, never cached. Any `*.js` it
@@ -258,16 +261,14 @@ Files modified:
   1. `test_no_deployed_page_ships_a_literal_placeholder`: for every
      `*.html`/`*.js` returned by `_web_sources()`, every `_TOKEN_RE` match
      (`@[A-Z0-9_]+@`, line 148) must appear in the concatenated text of
-     `_installers()`. Skip `filebrowser-patches.js`'s `@APP_HOME@`? No — it IS
-     stamped by both installers, so it passes naturally. Expect it to be green
-     on `main` (verify `terminals.html`'s `@SYNC_VER@` resolves via
-     `server/install.sh`). **Prove it bites:** temporarily add `@NOPE@` to any
-     page, run, watch it fail, revert.
+     `_installers()`. Expect it to be green on `main` (verify `terminals.html`'s
+     `@SYNC_VER@` resolves via `server/install.sh`). **Prove it bites:**
+     temporarily add `@NOPE@` to any page, run, watch it fail, revert.
   2. `test_root_level_script_refs_resolve`: parse every deployable `*.html` with
      the same `html.parser` subclass used at line 331; for each `src`/`href`
      matching `^/[^/?#]+\.(js|json)(\?.*)?$` (a **single-segment** web-root
      asset — this excludes proxied prefixes like `/api/…`, `/onlyoffice/…`,
-     `/files/…`), assert the basename is in `_web_sources()`. Today this covers
+     `/fileview/…`), assert the basename is in `_web_sources()`. Today this covers
      `/vibe-modal.js /coach.js /winmgr.js /keybar.js /apph.js /tab-sync.js` and
      must be green. **Prove it bites** by pointing one at `/nope.js`.
 - `shell/sw.test.js` — one small addition to the classification tests:
@@ -398,7 +399,7 @@ answered by the **old** SW while the new one is still installing (the
 `activate` that deletes `shell-v533` runs after `install` finishes
 precaching), so that first reload still gets the stale helper. A new
 `?v=<hash>` is a new cache key → miss → network, under either SW. It is the
-same reason `tab-sync.js`, `kbd-input.js` and `filebrowser-patches.js` carry
+same reason `tab-sync.js`, `kbd-input.js` and `terminal-kbd.js` carry
 hashes. The `VERSION` bump is still required (it is the deploy signal that
 tells open tabs to reload at all).
 
@@ -524,8 +525,8 @@ is allowed at any time; it changes no delivery path.
 | `shell/sw.js` `BYPASS` (line 52) | `files\/` (with slash) | none; Step 0 pins `/filesx*` classification |
 | `shell/sw.js` `VERSION` | `v533` | `v534` in Step 1 |
 | `shell/install.sh` walk + `RENDERED` | `filesx.html` plain-copied by the walk | Step 1: `RENDERED` line + `fsxver` stamp; `filesx-core.js` arrives via the walk |
-| `apps/everyday/files/install.sh` | no web files; computes `@PATCH_VER@` for `filebrowser-patches.js` only | none |
-| `apps/everyday/files/nginx/filebrowser.conf` | `/files/`, `/fileview/` only; `sub_filter` on proxied HTML | none — `filesx*` is static under `location /` |
+| `apps/everyday/files/install.sh` | no web files; installs ffmpeg + the one-time FileBrowser cleanup | none |
+| `apps/everyday/files/nginx/fileview.conf` (renamed from `filebrowser.conf`) | `/fileview/` only; no `sub_filter` — FileBrowser retired | none — `filesx*` is static under `location /` |
 | `server/install.sh` site heredoc | `location /` static, `no-store` | none |
 | `server/terminal-manager.py` `WEB_SOURCE_DIRS` (~6431) / files trigger (6468) | `apps/` → `shell/install.sh`; `apps/everyday/files/` → files installer | none (already covers the new file) |
 | `shell/desktop.html` `APPS` (line 1222) | `files: { src: '/files.html' }` | none |
@@ -573,9 +574,10 @@ matters. Step 0 needs no rollback; its tests remain valid without Step 1.
   it is an error page. Changing the page's caching class is a separate
   decision with its own SW test changes.
 - **Do not** write `FSX_VER=$(… || echo 0)`. Missing file → exit 1.
-- **Do not** bump `@PATCH_VER@`/`filebrowser-patches.js` hashes by hand or
-  touch `apps/everyday/files/install.sh` / `nginx/filebrowser.conf` — that is
-  the FileBrowser (Classic) path and is unrelated to the native page.
+- **Do not** confuse `filesx-core.js`'s hash with `apps/everyday/files/install.sh`
+  / `nginx/fileview.conf` — those are unrelated to the native page. (FileBrowser
+  and `filebrowser-patches.js`, which this bullet used to warn about, were
+  retired 2026-09.)
 - **Do not** add a fallback copy of the helpers inside `filesx.html` "in case
   the module fails to load" — two implementations is the disease.
 - **Do not** "fix" behaviours while moving them (e.g. `numberedName('a.tar.gz')`

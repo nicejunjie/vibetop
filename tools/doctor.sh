@@ -45,9 +45,9 @@ SITE="${VT_SITE_FILE:-/etc/nginx/sites-available/vibetop}"      # overridable = 
 
 # Is this a MULTI-USER host? Decided from the deployed nginx config: the
 # multi-user build gates every surface with `auth_request /internal/authcheck`.
-# It matters because the shared vibetop-{browser-xpra,x11-xpra,x11-dbus,
-# filebrowser} units are the LEGACY single-user services — a multi-user host runs
-# one transient unit PER USER instead, so those being inactive is CORRECT there.
+# It matters because the shared vibetop-{browser-xpra,x11-xpra,x11-dbus} units
+# are the LEGACY single-user services — a multi-user host runs one transient unit
+# PER USER instead, so those being inactive is CORRECT there.
 # Reporting them as failures made doctor print 5 FAILs on a perfectly healthy
 # host, and a diagnostic that cries wolf is one people stop reading.
 # (tools/smoke-test.sh draws the same distinction from an unauthenticated GET /;
@@ -73,7 +73,6 @@ head_ "Required tools"
 for tool in ttyd nginx xpra wmctrl git setfacl; do
     if have "$tool"; then ok "$tool present"; else bad "$tool MISSING — core dependency (re-run the installer)"; fi
 done
-if have filebrowser || [ -x /usr/local/bin/filebrowser ]; then ok "filebrowser present"; else bad "filebrowser MISSING (apps/everyday/files/install.sh)"; fi
 if have chromium || [ -x /snap/bin/chromium ]; then ok "chromium present"; else adv "chromium not found — the Browser app needs snap chromium (apps/everyday/browser/install.sh)"; fi
 if have soffice || have libreoffice; then ok "libreoffice present (Office View)"; else adv "libreoffice not found — Office 'View' (PDF preview) disabled"; fi
 have docker && ok "docker present (Office Edit / OnlyOffice)" || adv "docker not found — OnlyOffice (Office Edit) disabled"
@@ -81,7 +80,7 @@ have cloudflared && ok "cloudflared present (tunnel)" || info "cloudflared not f
 
 # ---------------------------------------------------------------------------
 head_ "Services"
-[ "$MULTIUSER" = 1 ] && info "multi-user host — shared xpra/FileBrowser units are legacy; per-user transient units replace them"
+[ "$MULTIUSER" = 1 ] && info "multi-user host — shared xpra units are legacy; per-user transient units replace them"
 
 # The manager is the one service that must be up on every layout.
 if ! unit_exists vibetop-manager.service; then adv "vibetop-manager.service not installed"
@@ -123,7 +122,6 @@ shared_unit() {
 shared_unit vibetop-browser-xpra 'vibetop-ubrowser-*'  "Browser xpra"
 shared_unit vibetop-x11-xpra     'vibetop-ux11-*'      "X11 xpra"
 shared_unit vibetop-x11-dbus     'vibetop-ux11dbus-*'  "X11 D-Bus"
-shared_unit vibetop-filebrowser  'vibetop-ufiles-*'    "FileBrowser"
 if unit_exists vibetop-manager.service; then
     en="$(systemctl is-enabled vibetop-manager.service 2>/dev/null || true)"
     [ "$en" = enabled ] && ok "vibetop-manager enabled at boot" || adv "vibetop-manager not enabled — won't start on reboot ('systemctl enable vibetop-manager')"
@@ -276,7 +274,7 @@ head_ "Web root (nginx root vs where the installers deploy)"
 # $SITE is resolved once at the top (both distro layouts).
 # Paths nginx PROXIES rather than serving from disk — a ref into one of these is
 # not a missing file. Mirrors sw.js's BYPASS list.
-PROXIED_RE='^/(api|browser|x11-display|office|onlyoffice|t[0-9]|terminals|files|fileview|cdn-cgi|s)/'
+PROXIED_RE='^/(api|browser|x11-display|office|onlyoffice|t[0-9]|terminals|fileview|cdn-cgi|s)/'
 
 if [ ! -f "$SITE" ]; then
     adv "no vibetop nginx site found — is server/install.sh deployed?"

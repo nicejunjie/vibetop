@@ -78,7 +78,7 @@
   </div>
 <script>
 (function() {
-  // Native image viewer — replaces FileBrowser's previewer (its patched mobile
+  // Native image viewer — replaced FileBrowser's previewer (its patched mobile
   // toolbar rendered as an unthemed white block; see the design-decisions
   // entry). Opened by the desktop on Files' `image-view` postMessage with
   // ?path=<home-less rel path, e.g. home/you/Uploads/x.png>. Fully native:
@@ -93,7 +93,7 @@
   var img = null;
 
   // Fully native: bytes from /api/file/image, the prev/next folder listing
-  // from /api/fs/list (the per-user file agent) — zero FileBrowser API
+  // from /api/fs/list (the per-user file agent) — zero third-party API
   // involvement (v1.19.93; the FB resources call + its JWT dance are gone).
   function rawUrl(p) { return '/api/file/image?path=' + encodeURIComponent(p); }
   function dirOf(p) { var i = p.lastIndexOf('/'); return i > 0 ? p.slice(0, i) : ''; }

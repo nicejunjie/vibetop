@@ -5,16 +5,17 @@
 // the suite opens Browser/X11/Files AS a real user and asserts they render.
 //
 // Concretely it would have caught this session's three 502s: a per-user port-scheme
-// change left the xpra + FileBrowser transient units listening on their OLD baked-in
-// ports while nginx routed to the NEW ones, so /browser/, /x11-display/ and /files/
-// all 502'd for a logged-in user while the desktop shell + terminals still worked.
+// change left the xpra (and the then-existing FileBrowser) transient units listening
+// on their OLD baked-in ports while nginx routed to the NEW ones, so /browser/,
+// /x11-display/ and /files/ all 502'd for a logged-in user while the desktop shell
+// and terminals still worked.
 // (Watchlist: docs/qa-charter.md — "every per-user app serves".)
 const { test, expect } = require('@playwright/test');
 const { backendOnly } = require('../helpers');
 
 // Poll an endpoint until it reaches `want`. Per-user services COLD-START on the
-// first authenticated hit (FileBrowser/ttyd in a few seconds; the xpra displays in
-// ~20s), so a slow first response isn't a failure — but a genuinely down/misrouted
+// first authenticated hit (ttyd and the file agent in a few seconds; the xpra
+// displays in ~20s), so a slow first response isn't a failure — but a genuinely down/misrouted
 // service (the 502 class) never reaches 200 and fails.
 async function reaches(request, baseURL, path, want = 200, timeout = 30000) {
   await expect
@@ -32,7 +33,7 @@ test.describe('every per-user app serves (no silent 502/500)', () => {
   });
 
   // Core per-user surfaces — present in every deploy (incl. the lean --no-browser VM).
-  for (const path of ['/files/', '/terminals/', '/t1/']) {
+  for (const path of ['/files.html', '/filesx.html', '/terminals/', '/t1/']) {
     test(`${path} → 200 as the logged-in user`, async ({ page, baseURL }) => {
       await reaches(page.request, baseURL, path, 200);
       const body = await (await page.request.get(baseURL + path)).text();

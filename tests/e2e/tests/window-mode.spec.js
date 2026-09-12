@@ -171,7 +171,7 @@ test.describe('window mode', () => {
     // document alone never sees a click in the actual terminal or file list —
     // the two most-used apps were exactly the ones the first fix missed.
     test('clicking inside a NESTED-iframe app (Files) focuses its window', async ({ page }) => {
-      test.slow();   // FileBrowser cold-starts per user
+      test.slow();   // the file agent cold-starts per user
       await openApp(page, 'files');
       await expect(page.locator('#win-files')).toHaveClass(/floating/);
       await page.waitForTimeout(3000);                       // let the inner iframe load + get wired

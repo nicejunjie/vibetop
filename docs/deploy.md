@@ -50,7 +50,7 @@ Browser WebSockets; `nginx_write` returns the change as its pipe exit status):
 ```bash
 sudo ./server/install.sh   # 1. nginx site skeleton (extras include) + manager API + ttyd
 sudo ./apps/everyday/browser/install.sh    # 2. xpra + Chromium (snap) + LibreOffice (office View) — extras snippet
-sudo ./apps/everyday/files/install.sh      # 3. FileBrowser at /files/ (binary + noauth config + extras snippet)
+sudo ./apps/everyday/files/install.sh      # 3. Files app support: ffmpeg + /fileview/ extras snippet + per-user file agent
 sudo ./apps/everyday/office/install.sh     # 4. Docker + OnlyOffice Document Server at /onlyoffice/ (office Edit)
 ./shell/install.sh         # 5. desktop UI + static apps (no sudo — $HOME must resolve to the user's)
 sudo ./tunnel/install.sh     # 6. cloudflared (tunnel setup is interactive — see tunnel/README.md)
@@ -58,7 +58,7 @@ sudo ./tunnel/install.sh     # 6. cloudflared (tunnel setup is interactive — s
 
 Deps the installers handle automatically: `ttyd`/`nginx`/`acl` (apt), `xpra` (xpra.org
 apt repo, suite derived from the OS codename) + `chromium` (snap) + `libreoffice`
-(apt), the `filebrowser` release binary (pinned `FB_VERSION`, arch-aware), and
+(apt), `ffmpeg` (Files app video player), and
 **Docker** (`docker.io`) running `onlyoffice/documentserver` (~2 GB pull, loopback
 `:8087`, generated JWT secret at `~/.config/vibetop/onlyoffice.secret`). Scoped to
 **Supported distros** (every one proven green by the full-stack matrix,
@@ -76,7 +76,7 @@ One nginx site at `/etc/nginx/sites-available/vibetop` (`listen 80 default_serve
 
 ## Uninstall
 
-Top-level `uninstall.sh` tears down the WHOLE runtime in one shot — the **transient per-user services** (`vibetop-uterm-*`, `-uttyd-*`, `-fileagent-*`, `-ufiles-*`, `-ubrowser-*`, `-ux11-*`, `-ux11dbus-*`: independent `systemd-run --collect` units with no `PartOf=`, so stopping the manager does NOT stop them), the static services, nginx site + snippets, the OnlyOffice container, `/run/vibetop`, and the deployed web root — keeping the checkout, every user's data (`~/.local/share`, `~/Documents`, `~/Uploads`), `/opt/vibetop/{etc,var}`, and the ~2 GB image:
+Top-level `uninstall.sh` tears down the WHOLE runtime in one shot — the **transient per-user services** (`vibetop-uterm-*`, `-uttyd-*`, `-fileagent-*`, `-ubrowser-*`, `-ux11-*`, `-ux11dbus-*`: independent `systemd-run --collect` units with no `PartOf=`, so stopping the manager does NOT stop them; `-ufiles-*` is swept too, on purpose, as legacy cleanup of the retired per-user FileBrowser on any host that ran it before the native Files app), the static services, nginx site + snippets, the OnlyOffice container, `/run/vibetop`, and the deployed web root — keeping the checkout, every user's data (`~/.local/share`, `~/Documents`, `~/Uploads`), `/opt/vibetop/{etc,var}`, and the ~2 GB image:
 
 ```bash
 sudo ./uninstall.sh --dry-run         # print what would happen, touch nothing
