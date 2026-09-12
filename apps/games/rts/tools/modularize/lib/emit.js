@@ -223,8 +223,14 @@ function emit(outDir, api) {
       const st = model.setters.get(w.name);
       const cls = M.classifyWrite(w);
       if (!cls.ok) { console.error(`emit: ${u.rel}: cannot rewrite the write to ${w.name}: ${cls.why}`); return 1; }
+      // The write nodes were found in u.wrapped.text (the body wrapped in a
+      // dummy function so it parses), so their offsets are WRAPPED offsets and
+      // `delta` maps them back to body offsets. applyEdits() below runs against
+      // u.bodyText, so the right-hand side must be sliced out of u.bodyText too
+      // — slicing the wrapped text with body offsets produced `setVLIFT( )` in
+      // ifv.js and `setVLIFT(s)` in mcv.js, i.e. a silent NaN in the IFV's paint.
       edits.push(writeRewrite({ w, setter: st.setter, kind: w.kind, name: w.name, operator: w.operator },
-        u.wrapped.text, u.wrapped.delta));
+        u.bodyText, u.wrapped.delta));
     }
     const body = applyEdits(u.bodyText, edits);
     const { header, rest } = U.splitHeader(body);
