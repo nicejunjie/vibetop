@@ -27,6 +27,9 @@ test.beforeEach(async ({ context }, info) => {
   // the suite can judge a change BEFORE it is deployed.
   if (process.env.VIBETOP_RTS_HTML) {
     await context.route('**/rts.html*', (r) => r.fulfill({ path: process.env.VIBETOP_RTS_HTML, contentType: 'text/html' }));
+    // ...and its ES-module tree, or the page would import the DEPLOYED modules under a working-tree page.
+    const rtsDir = require('path').dirname(process.env.VIBETOP_RTS_HTML);
+    await context.route('**/rts/**', (r) => r.fulfill({ path: require('path').join(rtsDir, new URL(r.request().url()).pathname.replace(/^\//, '')), contentType: 'text/javascript' }));
   }
 });
 

@@ -281,7 +281,9 @@ def test_doctor_proxied_prefixes_cover_the_sw_bypass_list():
 
     # reauth.html is the sign-in hop: bypassed by sw.js so the browser follows
     # Cloudflare's redirect natively, but a real file in the web root.
-    served_from_disk = {"services.json", "reauth.html"}
+    # /rts/** is the RTS game's ES-module tree: bypassed by sw.js so a deploy can
+    # never serve a stale module under a fresh page, but real files in the web root.
+    served_from_disk = {"services.json", "reauth.html", "rts"}
     missing = sw_prefixes - doc_prefixes - served_from_disk
     assert not missing, (
         "tools/doctor.sh PROXIED_RE is missing proxied prefixes that sw.js "
@@ -307,6 +309,8 @@ def _web_sources():
         if os.path.splitext(f)[1] not in (".html", ".js", ".json", ".png", ".ico"):
             continue
         if f.endswith(".test.js") or "/art/" in f or "/node_modules/" in f:
+            continue
+        if "/apps/games/rts/rts/" in f:       # the module tree deploys under /rts/, not flat
             continue
         out.setdefault(os.path.basename(f), f)
     return out

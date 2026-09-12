@@ -115,12 +115,22 @@ while IFS= read -r src; do
   [ -z "$src" ] && continue
   rel="${src#"$REPO"/}"
   case "$PLAN" in *"$rel|"*) continue ;; esac      # already handled above
-  PLAN="$PLAN$rel|$(basename "$src")|copy
+  # The RTS game is a MODULE TREE: `import './bake/kit.js'` only resolves if the
+  # directory survives the deploy, so apps/games/rts/rts/** lands at /rts/**
+  # instead of being flattened to its basename. The page's URL (/rts.html) is
+  # unchanged, and the duplicate check below still applies — a destination is
+  # a path instead of a name there, and paths are unique by construction.
+  case "$rel" in
+    apps/games/rts/rts/*) dst="rts/${rel#apps/games/rts/rts/}" ;;
+    *)                    dst="$(basename "$src")" ;;
+  esac
+  PLAN="$PLAN$rel|$dst|copy
 "
 done <<EOF
 $(find "$DIR" "$REPO/shared" "$REPO/apps" \
         -type f \( -name '*.html' -o -name '*.js' -o -name '*.json' \) \
         ! -name '*.test.js' ! -path '*/art/*' ! -path '*/tools/*' ! -path '*/docs/*' \
+        ! -path '*/node_modules/*' ! -name 'package.json' \
         ! -name '*.src.html' ! -name 'services.example.json' | sort)
 EOF
 
@@ -147,7 +157,7 @@ printf '%s' "$PLAN" | while IFS='|' read -r src dst mode; do
              else stamp_fsxver "$REPO/$src" "$DST_DIR/$dst"; fi ;;
     apphome) if [ "$DRY_RUN" = 1 ]; then printf '+ render %s -> %s (@APP_HOME@ -> empty)\n' "$src" "$dst"
              else stamp_apphome "$REPO/$src" "$DST_DIR/$dst"; fi ;;
-    *)       run install -m 644 "$REPO/$src" "$DST_DIR/$dst" ;;
+    *)       run install -D -m 644 "$REPO/$src" "$DST_DIR/$dst" ;;
   esac
 done
 
