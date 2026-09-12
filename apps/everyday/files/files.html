@@ -40,16 +40,6 @@
     cursor: pointer; line-height: 1;
   }
   .add:hover { background: #221a30; color: #b79be8; }
-  /* Files-native phase-1 toggle (per device): swaps the tab iframes between
-     FileBrowser and the native listing (filesx.html). Quiet, right-aligned. */
-  .nativetog {
-    flex: 0 0 auto; margin-left: auto; align-self: center;
-    background: transparent; border: 1px solid #2a3040; border-radius: 6px;
-    color: #6b7488; font: 11px system-ui, sans-serif; padding: 4px 9px;
-    margin-right: 8px; cursor: pointer; white-space: nowrap;
-  }
-  .nativetog:hover { color: #aab4c5; background: #1b2330; }
-  .nativetog.on { color: #cbb0f2; border-color: #8a4adb; background: #221a30; }
   .frames { position: relative; flex: 1; min-height: 0; }
   .frames iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; display: none; }
   .frames iframe.active { display: block; }
@@ -88,8 +78,6 @@
   <div class="tabbar" id="tabbar">
     <div class="tabs" id="tabs"></div>
     <button class="add" id="add" title="New folder tab">+</button>
-    <button class="nativetog" id="nativetog"
-            title="Try the new native file view (in development). Click again to return to the classic view.">Native</button>
   </div>
   <div class="frames" id="frames"></div>
   <div class="viewer" id="viewer">
@@ -102,20 +90,21 @@
   </div>
 <script>
 (function() {
-  // Default folder = the user's home. FileBrowser's root is "/", so "/" stays
+  // Default folder = the user's home. The app browses from "/", so "/" stays
   // reachable by navigating up or typing it in the path bar — but the app OPENS
   // at home, not the filesystem root. The home path is stamped at deploy in the
   // single-user build (@APP_HOME@ -> /home/you); in the MULTI-USER build it's
   // stamped empty (the logged-in user is unknown at deploy) and resolved at
   // runtime from /api/me (see resolveHome below), so each user opens at THEIR ~.
+  // Tab paths are ABSOLUTE filesystem paths ('/home/you/Documents').
   var HOME_PATH = '@APP_HOME@';                 // '' in multi-user until resolved
-  var HOME = '/files/files' + HOME_PATH + '/';
+  var HOME = HOME_PATH || '/';
   // Resolve the real home once (multi-user) before the initial tab load, so the
   // first tab opens at ~ rather than the filesystem root.
   function resolveHome(done) {
     if (HOME_PATH) { done(); return; }          // single-user: known at deploy
     fetch('/api/me').then(function(r) { return r.json(); }).then(function(d) {
-      if (d && d.home) { HOME_PATH = d.home; HOME = '/files/files' + d.home + '/'; }
+      if (d && d.home) { HOME_PATH = d.home; HOME = d.home; }
     }).catch(function() {}).then(done);
   }
   var tabsEl = document.getElementById('tabs');
@@ -132,55 +121,40 @@
   var _lastSaved = null;
   var _suppress = false;       // true while reconciling to the server (don't echo back)
 
-  // Files-native toggle (per device, docs/files-native.md): tabs can load the
-  // native view (filesx.html#/abs/path) — OPT-IN for now (the default went
-  // native in v1.19.94 and was reverted in v1.19.96: the user judged the
-  // native view not yet as useful as FileBrowser; both stay offered until the
-  // polish gap closes). The
-  // SERVER-SIDE tab schema stays FileBrowser-shaped either way — curPath maps a
-  // native tab's hash back to '/files/files/<enc>' so cross-device sync keeps
-  // working between a device in native mode and one that isn't.
-  function nativeOn() { try { return localStorage.getItem('vibetop:filesx') === '1'; } catch (e) { return false; } }
-  function fbToAbs(p) {   // '/files/files/home%2Dx/…' -> decoded '/home-x/…'
-    var rest = (p || '').split('/files/files')[1] || '/';
-    return '/' + rest.split('/').filter(Boolean).map(function(s) {
-      try { return decodeURIComponent(s); } catch (e) { return s; }
-    }).join('/');
+  // The native listing (filesx.html#/abs/path) is the ONLY engine — FileBrowser
+  // and the Native/Classic toggle were retired (docs/files-native.md, phase 4b).
+  // A device that had chosen the classic engine has nothing to opt out of any
+  // more: the old localStorage flag ('vibetop:filesx') is never read.
+  // The hash is encoded PER SEGMENT, exactly as filesx.html's enc()/dec() do —
+  // a folder named "a#b" or "100%" must survive the round trip.
+  function encPath(p) { return p.split('/').map(encodeURIComponent).join('/'); }
+  function decPath(s) {
+    return s.split('/').map(function(x) { try { return decodeURIComponent(x); } catch (e) { return x; } }).join('/');
   }
-  function absToFb(abs) {
-    return '/files/files' + abs.split('/').filter(Boolean).map(encodeURIComponent)
-      .map(function(s) { return '/' + s; }).join('') + '/';
-  }
-  function tabUrl(fbPath) {   // what makeTab actually loads for a stored FB path
-    return nativeOn() ? '/filesx.html#' + fbToAbs(fbPath) : fbPath;
-  }
+  function tabUrl(path) { return '/filesx.html#' + encPath(path || '/'); }
 
-  // Current path of a tab's iframe in the STORED (FileBrowser-URL) shape —
-  // readable same-origin for both the FileBrowser SPA and the native listing.
+  // Current folder of a tab's iframe, read same-origin from its hash.
   function curPath(t) {
     try {
       var loc = t.frame.contentWindow.location;
       if (loc.pathname === '/filesx.html') {
-        var abs = decodeURIComponent((loc.hash || '#').slice(1)) || '/';
-        return absToFb(abs);
+        return decPath((loc.hash || '#').slice(1)) || '/';
       }
-      if (/\/files\/files(\/|$)/.test(loc.pathname)) return loc.pathname;
     } catch (e) {}
     return null;
   }
-  // Normalize a browse URL (drop query/hash + trailing slash) so the two devices
-  // produce identical strings regardless of FileBrowser's slash canonicalization
-  // — otherwise a slash mismatch would ping-pong reconciles between them.
-  function norm(p) { return (p || '').split('?')[0].split('#')[0].replace(/\/+$/, '') || '/files/files'; }
+  // Normalize a folder path (drop the trailing slash) so two devices produce
+  // identical strings regardless of how each got there — otherwise a slash
+  // mismatch would ping-pong reconciles between them. It does NOT strip '?' or
+  // '#' any more: these are real filesystem paths now, and a folder named "a#b"
+  // was truncated by the URL-shaped version of this function.
+  function norm(p) { return (p || '').replace(/\/+$/, '') || '/'; }
   function labelFor(path) {
-    var rest = (path || '').split('/files/files')[1] || '';
-    rest = rest.split('?')[0].split('#')[0].replace(/\/+$/, '');
-    if (!rest) return 'Home';                 // filesystem root "/"
+    var rest = norm(path);
+    if (rest === '/') return 'Home';          // filesystem root "/"
     // The user's home folder is labelled "Home", not its basename.
-    if (HOME_PATH && rest.replace(/\/+$/, '') === HOME_PATH.replace(/\/+$/, '')) return 'Home';
-    var seg = rest.split('/').pop();
-    try { seg = decodeURIComponent(seg); } catch (e) {}
-    return seg || 'Home';
+    if (HOME_PATH && rest === norm(HOME_PATH)) return 'Home';
+    return rest.split('/').pop() || 'Home';
   }
 
   function stateStr() {
@@ -217,49 +191,15 @@
 
   function makeTab(path) {
     var f = document.createElement('iframe');
-    f.name = 'fbtab';                          // tells filebrowser-patches.js to skip its location-memory
+    f.name = 'fstab';                          // one named frame per folder tab
     f.setAttribute('allow', 'clipboard-read; clipboard-write');
     f.src = tabUrl(path || HOME);
     framesEl.appendChild(f);
     return { id: ++seq, frame: f, path: path || HOME };
   }
 
-  // Self-heal the "NFS folder shows empty until you refresh" issue. It shows up
-  // after a folder tab has been inactive a while — switched to another desktop app,
-  // backgrounded, or just idle: on a slow NFS mount FileBrowser's listing ends up
-  // empty and never settles. A refresh fixes it, so one always-on watcher does that
-  // automatically. It acts ONLY on the visible tab of a VISIBLE Files app (our iframe
-  // has window.innerHeight===0 while hidden behind another app), and ONLY after the
-  // listing is empty — no items AND no empty-folder message — for ~6s straight (long
-  // enough not to interrupt a genuinely slow load). The heal count resets once the
-  // folder renders, so a later re-stick heals again, but it can't loop on a folder
-  // that just won't render (capped at 3 tries until it next renders). An actually-
-  // empty folder (its "lonely" .message) is left alone.
-  var _healStuck = 0, _healCount = {};
-  setInterval(function() {
-    var t = active;
-    if (!t || document.hidden || window.innerHeight === 0) { _healStuck = 0; return; }   // Files not visible
-    var f = t.frame, win, d, path;
-    if (!f.classList.contains('active')) { _healStuck = 0; return; }
-    try { win = f.contentWindow; d = win.document; path = win.location.pathname; } catch (e) { _healStuck = 0; return; }
-    if (path.indexOf('/files/files') !== 0) { _healStuck = 0; return; }   // login/settings, not a browse view
-    // A file PREVIEW (#previewer — images/PDF/media) or the text EDITOR shares the
-    // /files/files/... path but has neither #listing items nor a .message, so the
-    // "stuck listing" test below misread it as stuck and reloaded it every ~6s (the
-    // image-preview "flashes a few times" bug). Those views are rendered — bail.
-    if (d.getElementById('previewer') || d.getElementById('editor-container')) { _healStuck = 0; return; }
-    var listing = d.getElementById('listing');
-    if ((listing && listing.querySelector('.item')) || d.querySelector('.message')) {
-      _healStuck = 0; _healCount[t.id] = 0; return;                        // rendered (items) or empty-state
-    }
-    if (++_healStuck >= 3) {                                               // ~6s continuously empty → reload
-      _healStuck = 0;
-      if ((_healCount[t.id] || 0) < 3) { _healCount[t.id] = (_healCount[t.id] || 0) + 1; try { win.location.reload(); } catch (e) {} }
-    }
-  }, 2000);
-
   // Wake repaint nudge: after a long background/sleep, WebKit (iOS PWA) can bring
-  // the nested FileBrowser iframe back with a stale/blank compositing layer — the
+  // the nested listing iframe back with a stale/blank compositing layer — the
   // window shows the dark page background ("black") until a tap forces a repaint.
   // On visibility-restore (and after a detected sleep gap — monitor-off/system
   // sleep often ends with NO visibility event, but our interval stalls through
@@ -351,32 +291,18 @@
   });
   addBtn.addEventListener('click', function() { createTab(HOME, true); });
 
-  // Native toggle: flip the flag, reload every tab into the other engine at
-  // its CURRENT folder (curPath reads both shapes, tabUrl emits the right one).
-  var togBtn = document.getElementById('nativetog');
-  function paintTog() { togBtn.classList.toggle('on', nativeOn()); }
-  togBtn.addEventListener('click', function() {
-    try { localStorage.setItem('vibetop:filesx', nativeOn() ? '0' : '1'); } catch (e) {}
-    paintTog();
-    tabs.forEach(function(t) {
-      var p = curPath(t) || t.path;
-      t.path = p;
-      t.frame.src = tabUrl(p);
-    });
-  });
-  paintTog();
-
   // Deep-link from the desktop (Upload app's "Open in Files"): open a tab at a
   // path relative to ~. The desktop posts a few times to beat the first-load
   // race, so dedupe repeats of the same path within a short window.
   function openAt(rel) {
-    rel = (rel || '').replace(/^\/+/, '');
-    createTab(HOME + rel.split('/').map(encodeURIComponent).join('/'), true);
+    rel = (rel || '').replace(/^\/+/, '');      // plain (unencoded) relative path
+    var base = norm(HOME);                      // no trailing slash to double up
+    createTab(rel ? (base === '/' ? '/' + rel : base + '/' + rel) : HOME, true);
   }
   // ---- In-app viewer: images / videos / office docs open INSIDE Files ------
-  // The engines (filesx, filebrowser-patches) post the view types to THIS
-  // window (their parent); the viewer pages close by posting close-app to
-  // their parent (us). Nothing pops a separate desktop app any more.
+  // The listing (filesx.html) posts the view types to THIS window (its parent);
+  // the viewer pages close by posting close-app to their parent (us). Nothing
+  // pops a separate desktop app any more.
   var viewerEl = document.getElementById('viewer');
   var vFrame = document.getElementById('v-frame');
   var vName = document.getElementById('v-name');

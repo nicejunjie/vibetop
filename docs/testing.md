@@ -58,7 +58,7 @@ The tiers (each independently runnable, ~5s total):
 **Live-host smoke test** — `tools/smoke-test.sh` is the ONE tier needing the
 running stack; it turns the Health-check curls below into asserting checks with a
 pass/fail summary + non-zero exit (systemd units active, `/`/`/tN/`/`/browser/`/
-`/files/` 200, `/api/ping`, SSE `retry:`, OnlyOffice). Run it post-deploy; **not**
+`/files.html` 200, `/api/ping`, SSE `retry:`, OnlyOffice). Run it post-deploy; **not**
 in CI. `--no-office` / `--base URL` / `--cookie` / `--user`.
 
 > **Run it with `sudo`.** On a multi-user host every surface is behind
@@ -72,13 +72,13 @@ in CI. `--no-office` / `--base URL` / `--cookie` / `--user`.
 > token signed with the wrong key (see `docs/design-decisions.md`). With no valid
 > cookie the surface/API checks are **skipped** and the script exits **2 =
 > INCONCLUSIVE** — never 0, so a deploy gate can't read "couldn't test" as "fine".
-> The shared `vibetop-{browser-xpra,x11-xpra,filebrowser}` units are the **legacy
+> The shared `vibetop-{browser-xpra,x11-xpra}` units are the **legacy
 > single-user** services: on a gated host they're reported SKIP (per-user transient
 > units replace them, and with nobody signed in zero of those running is also
 > correct) — the authenticated HTTP probes are the real per-user health check,
 > since they cold-start the service and then assert it serves. **Side effect:**
 > because they cold-start, running the script starts the probe user's terminal /
-> Browser / X11 / FileBrowser if they're down — it is not read-only on a live host.
+> Browser / X11 if they're down — it is not read-only on a live host.
 
 **Python** — unit/smoke tests for the manager's security-critical and pure logic
 live in `server/tests/` (pytest). They run without root or any of the systemd/
@@ -118,7 +118,7 @@ stubbed at the `_authenticate` seam), the **per-user X11 D-Bus + terminal-bus wi
 (`test_api_browser_x.py` — `_is_snap_launch` detection, a GNOME `x/launch` uses the
 private activation-free bus while a snap keeps the real bus; `test_auth.py` — the
 terminal env points `DBUS_SESSION_BUS_ADDRESS` at the private bus, real-bus fallback),
-the **stale-port self-heal** (`test_multiuser.py` — an `active` xpra/FileBrowser on the
+the **stale-port self-heal** (`test_multiuser.py` — an `active` xpra unit on the
 wrong port is stopped + recreated, a healthy one on the right port is reused), and the
 **XML-config integrity** (`test_static.py` — every busconfig-style `.conf` is well-formed,
 and the private-bus template renders to valid dbus XML with `<listen>`/`<type>` and no

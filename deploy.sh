@@ -18,7 +18,7 @@
 #   --remote HOST    deploy to a remote host over SSH (rsync first)
 #   --admins a,b     Linux users granted the operator-only surfaces
 #   --no-browser     skip the xpra/Chromium Browser stack (heavy: xpra repo + snap)
-#   --no-files       skip FileBrowser (the Files app)
+#   --no-files       skip the Files app's host pieces (ffmpeg, /fileview/ nginx)
 #   --no-office      skip OnlyOffice Document Server (docker; heavy ~2GB image)
 #   --with-tunnel    also run the interactive Cloudflare tunnel installer
 #   --dry-run        print what each installer would do, change nothing
@@ -151,7 +151,7 @@ else
 fi
 
 if (( DO_FILES )); then
-    step "3/6  Files — FileBrowser"
+    step "3/6  Files — ffmpeg + the /fileview/ nginx snippet"
     env "${INST_ENV[@]}" "$REPO_DIR/apps/everyday/files/install.sh" "${DRYFLAG[@]}"
 else
     step "3/6  Files — skipped (--no-files)"

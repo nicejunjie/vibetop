@@ -159,22 +159,6 @@ def test_history_clear(client, mgr, monkeypatch, op_cookie):
         assert json.load(f) == []
 
 
-# REGRESSION (2026-09-03): the landing/ regroup moved filebrowser-patches.js from
-# landing/ to apps/everyday/files/ (and the tree moved again after), and this trigger was an EXACT path match. It
-# kept passing every test while silently no longer firing — files/install.sh would
-# not re-run, so the nginx ?v= cache-buster kept pointing at the old bundle and
-# browsers kept serving stale patch JS. Matched by basename now; pinned here so a
-# future move cannot reintroduce it.
-def test_filebrowser_patch_change_still_triggers_the_files_redeploy():
-    src = open(os.path.join(
-        os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-        "terminal-manager.py")).read()
-    assert 'c.endswith("/filebrowser-patches.js")' in src, (
-        "the FileBrowser patch redeploy trigger must match by BASENAME — an exact "
-        "path breaks silently whenever the file moves")
-    assert '"landing/filebrowser-patches.js" in changed' not in src
-
-
 def test_sw_build_date_lookup_survives_a_move():
     src = open(os.path.join(
         os.path.dirname(os.path.dirname(os.path.abspath(__file__))),

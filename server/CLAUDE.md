@@ -30,9 +30,9 @@ routes them. Putting it under `apps/` would recreate the exact naming lie that
 
 **Root proxies, per-user daemons act.** The manager never touches a user's files
 itself — it launches per-user `systemd-run` transient units and proxies bytes to
-them (`apps/everyday/files/fileagent.py`, `vibetop-session` + ttyd, xpra,
-FileBrowser). Unix permissions are the entire authorization fence, so anything
-that reads or writes user data belongs in the per-user daemon, never here.
+them (`apps/everyday/files/fileagent.py`, `vibetop-session` + ttyd, xpra). Unix
+permissions are the entire authorization fence, so anything that reads or writes
+user data belongs in the per-user daemon, never here.
 
 Full architecture: [`../docs/terminal.md`](../docs/terminal.md),
 [`../docs/multi-user.md`](../docs/multi-user.md). Index:

@@ -1,30 +1,31 @@
-# Files-native: replacing FileBrowser with a vibetop-owned Files app
+# The Files app: vibetop's own file manager
 
-> Status: **phases 0–4a shipped; Native is OPT-IN, Classic is still the
-> default** (`localStorage['vibetop:filesx'] === '1'`, toggled from the tab
-> bar). Phase 4b — physically removing the FileBrowser units, ports and patch
-> layer — has not started and is gated on the user judging the native app good
-> enough to make default, then a soak period.
+> Status: **done — every phase including 4b.** The native app is the ONLY file
+> manager; FileBrowser, the Native/Classic toggle, the per-user FileBrowser
+> units and ports, the `~1,200`-line patch layer and the `/files/` nginx
+> location are all gone (2026-09-11, on the user's call). What remains of that
+> world is one nginx fragment holding `/fileview/`, and a one-time cleanup in
+> `apps/everyday/files/install.sh`.
 >
-> Since v1.19.100 the app has moved well past the original parity checklist:
+> The app went well past the original parity checklist before the cutover:
 > thumbnails, three layouts, a desktop context menu, touch tap-to-select, a
-> Settings card, a Move picker, editor find/replace, the classic address bar,
-> and one unified toolbar. Two security defects in the backend were found and
-> fixed along the way (v1.19.106) — see design-decisions.
+> Settings card, a Move picker, editor find/replace, an address bar, and one
+> unified toolbar. Two security defects in the backend were found and fixed
+> along the way (v1.19.106) — see design-decisions.
 
 ## Why (the case, with receipts)
 
-FileBrowser (pinned v2.63.3, one Go process per logged-in user) provides only
-four things we still use: the listing UI, mutations, previews/editor, and
-search. Everything else in the Classic Files app is already ours, injected over
+FileBrowser (pinned v2.63.3, one Go process per logged-in user) provided only
+four things we still used: the listing UI, mutations, previews/editor, and
+search. Everything else in the Classic Files app was already ours, injected over
 its DOM by ~1,200 lines of `filebrowser-patches.js` + nginx `sub_filter`: tabs,
 Share, Office/video/image handoff, toolbar/address bar/breadcrumb, the mobile
 layout, the info dialog.
 
-That patch layer is where a disproportionate share of this project's bugs have
+That patch layer was where a disproportionate share of this project's bugs
 lived (design-decisions: the login flash, the NFS empty-listing heal, the
 preview-flash misfire, the invisible HD label, the white mobile previewer
-toolbar that triggered this project). Upstream drift bites silently — v2.63
+toolbar that triggered this project). Upstream drift bit silently — v2.63
 removed `/api/raw` and our dimensions fallback 404'd without anyone noticing.
 Operationally: ~40MB per user, the per-user port scheme (the stale-port 502
 class), version pinning.
@@ -38,8 +39,8 @@ the previewer's Delete is a no-op; sorting is unreachable in mosaic view.
 
 ## The security invariant (non-negotiable)
 
-FileBrowser runs AS the user; Unix permissions are the isolation boundary
-(a Files session ≡ a shell as that user). Native preserves exactly that:
+FileBrowser ran AS the user; Unix permissions are the isolation boundary
+(a Files session ≡ a shell as that user). The native app preserves exactly that:
 
 - **Reads through the manager** may use the `_resolve_user_file` pattern (root
   serves bytes only after an as-the-user read check — the video/office/image
@@ -67,8 +68,12 @@ after an audit reproduced them live (details in design-decisions):
 ## Architecture
 
 - `apps/everyday/files/filesx.html` — the whole app, one file, inline JS. Hosted inside the
-  tab wrapper `apps/everyday/files/files.html`, which owns the tab bar, the Native/Classic
-  toggle and the in-app viewer overlay.
+  tab wrapper `apps/everyday/files/files.html`, which owns the tab bar and the
+  in-app viewer overlay. Both are ordinary static pages in the flat web root
+  (`/files.html`, `/filesx.html`); each tab is one `filesx.html#<absolute path>`
+  iframe, and the shared tab set (`/api/files/tabs`) stores absolute folder
+  paths — entries written by the old wrapper (`/files/files/<enc>`) are migrated
+  on read and write, so nobody's tabs were lost at the cutover.
 - `apps/everyday/files/fileagent.py` — the per-user agent. Ops: `home`, `list`, `stat`,
   `usage`, `read`, `mkdir`, `rename`, `move`, `copy`, `delete`, `search`,
   `hash`, plus the streaming `upload` / `download` / `zip`. Idle-exits after
@@ -99,8 +104,7 @@ Move to… (destination picker), Copy / Cut / Paste (with progress), Download
 folder picker or OS drag-drop, with a conflict dialog. Search by name and by
 content. A text editor with a line-number gutter, find/replace, mtime-conflict
 handling and save-on-close. Audio plays in place. A Settings card
-(single-click-to-open, exact dates, thumbnails, hidden files, share links, and
-the classic app as an escape hatch).
+(exact dates, thumbnails, hidden files, trash and share links).
 
 Surfaces by input device: with a **mouse**, the verbs live in the right-click
 menu (on a row, or on empty space for the folder's own verbs) and the bottom
@@ -128,13 +132,35 @@ there is room.
 Every one of these was first run against the code that predates it and observed
 to FAIL; a test that is only ever green proves nothing.
 
-## Phase 4b — retiring FileBrowser (not started)
+## Phase 4b — what retiring FileBrowser removed (2026-09-11)
 
-Blocked on: the user making Native the default and living on it. When that
-holds, the removal covers the per-user FileBrowser units and port allocations,
-`filebrowser-patches.js` and its nginx `sub_filter`, the `/files/` location,
-the uninstall path, the Native/Classic toggle in the wrapper, the Settings row
-that links to the classic app, and a docs sweep (`docs/apps.md`, `CLAUDE.md`).
+Deleted: `filebrowser-patches.js`; the `/files/` nginx locations and both their
+`sub_filter` injections (the fragment survives, renamed
+`apps/everyday/files/nginx/fileview.conf`, carrying only `/fileview/`); the
+per-user FileBrowser unit (`vibetop-ufiles-<user>.service`) with its port,
+provisioning, health check and self-heal; the authcheck `/files/` → `X-App-Port`
+branch; the `files` entry in the `/api/health` probe list; the binary download
+in `apps/everyday/files/install.sh` (`FB_VERSION` v2.63.3, `FB_PORT` 8085); the
+Native/Classic toggle and the Settings escape hatch; `files/` from `sw.js`'s
+BYPASS list; the FileBrowser DB from `tools/backup.sh`; and the FileBrowser
+checks in `tools/doctor.sh` / `tools/smoke-test.sh` (which now probes
+`/files.html`).
+
+Two deliberate leftovers. The per-user port offset `MAX_INSTANCE + 1` is
+**retired, not reused**: renumbering the two xpra offsets would strand every
+already-running transient unit on its old baked-in port (the stale-port 502
+class). And `uninstall.sh` still sweeps `vibetop-ufiles-*` /
+`vibetop-filebrowser`, because a host that ran them before the cutover still
+has them.
+
+The cleanup of a live host happens in `apps/everyday/files/install.sh` on the
+next deploy: stop + `reset-failed` every `vibetop-ufiles-*`, disable and remove
+the legacy shared unit, delete `/usr/local/bin/filebrowser` and the stale
+`vibetop-extras.d/filebrowser.conf` (reloading nginx only if something changed).
+It is idempotent and a no-op on a host that never had FileBrowser. **User data
+is never touched** — each user's `~/.config/filebrowser/filebrowser.db` is left
+where it is; it is theirs, and deleting files out of a home directory is not an
+installer's business.
 
 ## Risks
 
@@ -143,5 +169,6 @@ that links to the classic app, and a docs sweep (`docs/apps.md`, `CLAUDE.md`).
   binding: the right user, the right socket, an authenticated caller. Both
   halves of that have already failed once; treat changes there as security
   changes.
-- Feature blind spots surface only by living on it — hence the toggle rather
-  than a cutover. Every audit so far has found things no test would have.
+- Feature blind spots surface only by living on it — which is why the toggle
+  stood for weeks before the cutover. Every audit found things no test would
+  have, so keep auditing by USE, not only by suite.

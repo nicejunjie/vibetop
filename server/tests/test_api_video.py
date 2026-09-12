@@ -98,8 +98,8 @@ def test_info_returns_tracks(client, mgr, home, monkeypatch):
     assert body["video"]["compatible"] is True
 
 
-def test_info_accepts_absolute_filebrowser_path(client, mgr, home, monkeypatch):
-    # FileBrowser is rooted at / — the Files app sends the ABSOLUTE path
+def test_info_accepts_absolute_path(client, mgr, home, monkeypatch):
+    # The Files app browses from / — it sends the ABSOLUTE path
     # (e.g. "home/junjie/movie.mkv"), which must resolve, fenced to home.
     _mkfile(home, "movie.mkv")
     _which_ok(monkeypatch, mgr)

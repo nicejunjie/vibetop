@@ -1,7 +1,7 @@
 # Disposable vibetop instance for e2e tests — the REAL stack via deploy.sh, in a
 # throwaway systemd container. Runs --no-browser --no-office so it's lean and
 # container-friendly (no xpra/Chromium snap/Docker-in-Docker): nginx + the manager
-# + ttyd + FileBrowser, which is everything the shell smoke suite drives. The
+# + ttyd, which is everything the shell smoke suite drives. The
 # heavy canvas apps are tested at the API seam, so they aren't needed here.
 FROM ubuntu:24.04
 

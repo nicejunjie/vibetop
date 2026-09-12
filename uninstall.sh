@@ -57,9 +57,11 @@ echo "   web root: ${WWW:-<none found>}${WWW:+  [$WWW_SRC]}"
 # 1. transient per-user services --------------------------------------------
 # These are independent `systemd-run --collect` units with no PartOf= relation
 # to the manager, so stopping the manager does NOT stop them. Left behind they
-# keep each user's ttyd, login shell, FileBrowser, xpra, Chromium, X11, D-Bus
-# and file-agent processes (and their ports and sockets) alive after the
-# operator believes the service is gone.
+# keep each user's ttyd, login shell, xpra, Chromium, X11, D-Bus and file-agent
+# processes (and their ports and sockets) alive after the operator believes the
+# service is gone. The vibetop-ufiles-* / vibetop-filebrowser names are the
+# RETIRED per-user FileBrowser: swept here so an uninstall on a host that ran it
+# before the native Files app still leaves nothing behind.
 echo "== stopping per-user (transient) services =="
 mapfile -t transient < <(systemctl list-units --all --no-legend --plain \
     'vibetop-uterm-*' 'vibetop-uttyd-*' 'vibetop-fileagent-*' 'vibetop-ufiles-*' \

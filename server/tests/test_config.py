@@ -108,8 +108,7 @@ def test_reaper_reaps_idle_user_nondestructive(mgr, home, users, stubs):
     assert note.read_text() == "keep me"                 # notes/office untouched too
     stops = [" ".join(c) for c in stubs["run"]
              if isinstance(c, list) and "stop" in c]
-    # RAM hogs stopped: FileBrowser + both xpra displays. Terminals NOT (flag off).
-    assert any("vibetop-ufiles-alice" in s for s in stops)
+    # RAM hogs stopped: both xpra displays. Terminals NOT (flag off).
     assert any("vibetop-ubrowser-alice" in s for s in stops)
     assert any("vibetop-ux11-alice" in s for s in stops)
     assert not any("uttyd-alice" in s or "uterm-alice" in s for s in stops)

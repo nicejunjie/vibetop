@@ -5,11 +5,9 @@
  * that rule is what makes this file testable, and it is the only rule here.
  *
  * Why only this much. The interaction layer in filesx.html (verbs, selection,
- * the context menu, the editor, the layout engine) is BOTH the part still
- * moving — Files-native Phase 4b, retiring FileBrowser, has not started and is
- * gated on adoption — and the part a unit test cannot reach. Extracting it now
- * would churn code that is about to change. These helpers are the settled part;
- * they were last touched at the end of August and 4b will not reshape them.
+ * the context menu, the editor, the layout engine) is both the part still
+ * moving and the part a unit test cannot reach; extracting it would churn code
+ * that is about to change. These helpers are the settled part.
  *
  * filesx.html keeps thin wrappers over these so its ~200 call sites read exactly
  * as they did. Load order: this tag comes before the page's own <script>.

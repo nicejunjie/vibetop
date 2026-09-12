@@ -105,11 +105,11 @@ check the real behaviour.
    app and asserts it lists in `/api/x/windows` within seconds, then that closing the whole
    launcher empties the list.
 
-6. **Every per-user app serves 200 (no silent 502).** As a logged-in user, `/`, `/files/`,
+6. **Every per-user app serves 200 (no silent 502).** As a logged-in user, `/`, `/files.html`,
    `/browser/`, `/x11-display/`, `/terminals/`, `/tN/` must render — not an nginx 502/500. The
-   recurring cause is a per-user transient unit (xpra / FileBrowser) left on a **stale
+   recurring cause is a per-user transient unit (xpra) left on a **stale
    baked-in port** after a port-scheme change while nginx routes to the new port. Guarded by
-   `tests/e2e/tests/surface-health.spec.js` and the `_start_user_{xpra,filebrowser}`
+   `tests/e2e/tests/surface-health.spec.js` and the `_start_user_xpra`
    self-heal (verify the expected port is listening before reusing an "active" unit).
 2. **Chinese / IME input in the mobile terminal.** Type pinyin (e.g. `shou ji`), watch
    the candidate bar, select 手机 — the shell must show **只有 手机**, never the raw

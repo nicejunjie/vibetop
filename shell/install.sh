@@ -66,7 +66,6 @@ shell/diagnostics/rzdbg.html|rzdbg.html|version
 apps/utilities/services/index.html|landing.html|copy
 apps/everyday/files/filesx.html|filesx.html|fsxver
 apps/everyday/files/files.html|files.html|apphome
-apps/everyday/files/filebrowser-patches.js|filebrowser-patches.js|apphome
 "
 
 stamp_version() {   # $1=src $2=dst — release + service-worker build for the build tag
@@ -76,7 +75,7 @@ stamp_version() {   # $1=src $2=dst — release + service-worker build for the b
 stamp_fsxver() {    # $1=src $2=dst — content hash of filesx-core.js as its cache key
   # A CONSTANT cache key is worse than none: every later edit to the module would
   # be served stale forever. Hash the file we are actually deploying, the same
-  # way files/install.sh busts filebrowser-patches.js.
+  # way server/install.sh busts the injected xpra/terminal patch JS.
   local core="$REPO/apps/everyday/files/filesx-core.js"
   [ -f "$core" ] || { echo "shell/install.sh: missing $core (filesx.html needs it)" >&2; exit 1; }
   local ver
@@ -85,10 +84,10 @@ stamp_fsxver() {    # $1=src $2=dst — content hash of filesx-core.js as its ca
   chmod 644 "$2"
 }
 stamp_apphome() {   # $1=src $2=dst
-  # Multi-user: each user's FileBrowser is rooted at THEIR home, so the app's
-  # "home" IS the FileBrowser root — stamp @APP_HOME@ empty (home = "/"). MUST
-  # stamp here too: deploy.sh runs shell/install.sh AFTER the Files installer, so a
-  # raw copy would clobber files/install.sh's stamped copy with a literal @APP_HOME@.
+  # Multi-user: the logged-in user is unknown at deploy, so stamp @APP_HOME@
+  # EMPTY — files.html then resolves the real home at runtime from /api/me and
+  # opens each user's first tab at THEIR ~ (an unstamped @APP_HOME@ would ship
+  # literally and the app would open at the filesystem root).
   sed -e "s|@APP_HOME@||g" "$1" > "$2"
   chmod 644 "$2"
 }
