@@ -498,8 +498,8 @@ var INF_EDGE = {
 // declared 9-column spike budget and his RA2 aspect cannot both be met.
 // The full measurement is recorded on the neutron rifle in his branch.
 var STATURE = {
-  flak:         [0.87, 0.98],   // i-XL by BARREL: a narrow man under a tall gun
-  rocket:       [1.12, 1.03],   // i-M 15x30 — the Guardian is the heavy one, and
+  flak:         [0.77, 1.10],   // i-XL by BARREL: a narrow man under a tall gun
+  rocket:       [0.78, 0.97],   // i-M 15x30 — the Guardian is the heavy one, and
                                 // deliberately NOT a tall one: §2.1/§2.2 put him at
                                 // 30 px against the Flak Trooper's 37 (a ratio of
                                 // 0.81), and once his missile tube was raised clear
@@ -511,12 +511,12 @@ var STATURE = {
                                 // at 0.605 and both failed peer-vs-self. He is 41
                                 // rows now against the Flak Trooper's 45.
   yuri:         [0.87, 1.02],   // i-L 12x29 — the tallest man carrying no weapon
-  desolator:    [1.32, 0.98],   // i-M — the bulk of a sealed hazard suit
-  teslatrooper: [1.30, 0.95],   // i-M 18x28 — THE widest, and NOT the tallest
-  rifle:        [0.92, 0.99],   // i-M 12x28 — narrow; the baseline soldier
-  conscript:    [1.00, 1.05],   // i-M 13x27 — the reference figure
-  cleg:         [1.00, 1.00],   // i-M 15x26 — RA2 0.577; the old [1.22,0.84] was tuned against a spike budget that misread its own citation   // i-M 15x26 — the widest Directorate shoulders
-  tanya:        [0.88, 0.94],   // i-M 13x26 — and the pistols do NOT keep her wide,
+  desolator:    [1.14, 1.18],   // i-M — the bulk of a sealed hazard suit
+  teslatrooper: [1.11, 0.87],   // i-M 18x28 — THE widest, and NOT the tallest
+  rifle:        [0.81, 1.10],   // i-M 12x28 — narrow; the baseline soldier
+  conscript:    [1.06, 1.12],   // i-M 13x27 — the reference figure
+  cleg:         [0.83, 1.00],   // i-M 15x26 — RA2 0.577; the old [1.22,0.84] was tuned against a spike budget that misread its own citation   // i-M 15x26 — the widest Directorate shoulders
+  tanya:        [0.78, 1.04],   // i-M 13x26 — and the pistols do NOT keep her wide,
                                 // which is what this entry used to say. Measured, her
                                 // 22 px of width was 14 px of body and three columns
                                 // of gun a side; RA2 gives her a Conscript's width.
@@ -524,8 +524,8 @@ var STATURE = {
                                 // is wedged between — the Spy (16x35) on same-faction
                                 // IoU and the Attack Dog on legibility, which she fell
                                 // under at 18x31.
-  ivan:         [0.80, 0.88],   // i-S 12x25 — the narrowest of the Collective
-  engineer:     [0.98, 0.94],   // i-S 13x25 — a workman, not a soldier: broader in
+  ivan:         [0.71, 0.88],   // i-S 12x25 — the narrowest of the Collective
+  engineer:     [0.75, 0.91],   // i-S 13x25 — a workman, not a soldier: broader in
                                 // the shoulder than a rifleman, and NOT the squat one
                                 // he was. This read [1.22,0.76] to break two
                                 // same-faction IoU pairs (his own, since he is shared
@@ -534,9 +534,9 @@ var STATURE = {
                                 // game where RA2 puts him level with Crazy Ivan, and
                                 // 65% wider than his own plate. Those pairs are held
                                 // by his §1.5 levers now, not by his proportions.
-  spy:          [0.76, 1.00],   // i-S 13x25 — the slightest figure on the field
-  rocketeer:    [1.12, 0.86],   // i-S 16x24 — the shortest, broadened by the pack
-  dog:          [1.00, 1.00],  // i-XS quadruped. RA2 draws [ADOG] 21 wide against
+  spy:          [0.84, 0.90],   // i-S 13x25 — the slightest figure on the field
+  rocketeer:    [0.97, 0.95],   // i-S 16x24 — the shortest, broadened by the pack
+  dog:          [0.75, 1.07],  // i-XS quadruped. RA2 draws [ADOG] 21 wide against
                                 // [E1]'s 12 — 1.75x the man. Ours was 39 against 17,
                                 // 2.29x, the widest thing in the infantry group by
                                 // 31%. This row existed all along and NOTHING read
