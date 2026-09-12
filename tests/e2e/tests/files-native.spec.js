@@ -59,6 +59,14 @@ async function seed(page) {
   }, { dir: DIR, b64: PNG_B64 });
 }
 
+// VIBETOP_FILESX_HTML=<file> serves a working-tree filesx.html at the live URL,
+// so a change is judged before it is deployed (the stamped core script's
+// query string is only a cache key).
+test.beforeEach(async ({ context }) => {
+  if (process.env.VIBETOP_FILESX_HTML) {
+    await context.route('**/filesx.html*', (r) => r.fulfill({ path: process.env.VIBETOP_FILESX_HTML, contentType: 'text/html' }));
+  }
+});
 async function openFiles(page) {
   await page.goto('/filesx.html');
   await page.waitForFunction(() => !!document.querySelector('.row, .state'), null, { timeout: 20_000 });
@@ -260,6 +268,29 @@ test.describe('native Files — layout and thumbnails', () => {
     await expect(page.locator('#ql.open')).toHaveCount(0);
     await expect(rowNamed(page, 'notes.txt')).toHaveClass(/\bsel\b/);
     expect(page.url()).toContain(encodeURIComponent(DIR));           // still in the same folder
+  });
+
+  test('Quick Look: the wheel zooms an image under the cursor, drag pans it, double-click resets', async ({ page }) => {
+    await openFiles(page);
+    await rowNamed(page, 'a-picture.png').click();
+    await page.keyboard.press('Space');
+    const img = page.locator('#ql-body img');
+    await expect(img).toBeVisible();
+    const box = await page.locator('#ql-body').boundingBox();
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+    await page.mouse.wheel(0, -100);
+    await expect(img).toHaveClass(/\bzoomed\b/);
+    const t1 = await img.evaluate((i) => i.style.transform);
+    expect(t1).toMatch(/scale\(1\.2\)/);
+    await page.mouse.down(); await page.mouse.move(box.x + box.width / 2 + 40, box.y + box.height / 2 + 30, { steps: 4 }); await page.mouse.up();
+    const t2 = await img.evaluate((i) => i.style.transform);
+    const m = t2.match(/translate\((-?[\d.]+)px, (-?[\d.]+)px\)/);         // dragged by the pointer delta (sub-pixel centring aside)
+    expect(m).not.toBeNull();
+    expect(Math.abs(+m[1] - 40)).toBeLessThan(1); expect(Math.abs(+m[2] - 30)).toBeLessThan(1);
+    await page.mouse.dblclick(box.x + box.width / 2, box.y + box.height / 2);
+    await expect(img).not.toHaveClass(/\bzoomed\b/);                 // double-click from zoomed = back to fit
+    await page.keyboard.press('Space');
+    await expect(page.locator('#ql.open')).toHaveCount(0);
   });
 
   test('Grid: Left/Right step one tile, Up/Down move a whole line', async ({ page }) => {

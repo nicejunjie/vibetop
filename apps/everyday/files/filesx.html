@@ -588,6 +588,12 @@
   }
   .ql-body { flex: 1; min-height: 0; display: flex; align-items: center; justify-content: center; background: #0e1117; overflow: auto; }
   .ql-body img, .ql-body video { max-width: 100%; max-height: 100%; object-fit: contain; }
+  /* Scroll zooms an image (1-6x, anchored under the cursor), drag pans it,
+     double-click toggles — the image viewer's gestures, in the panel. */
+  .ql-body.zoomed { overflow: hidden; }
+  .ql-body img { transform-origin: center; user-select: none; -webkit-user-select: none; -webkit-user-drag: none; }
+  .ql-body img.zoomed { cursor: grab; }
+  .ql-body img.dragging { cursor: grabbing; }
   .ql-body audio { width: min(480px, 90%); }
   .ql-body iframe { align-self: stretch; flex: 1; min-height: 0; width: 100%; border: 0; background: #161b22; }
   .ql-body pre {
@@ -2777,7 +2783,7 @@
   function qlStop() {
     var m = qlBodyEl.querySelector('video, audio');
     if (m) { try { m.pause(); m.removeAttribute('src'); m.load(); } catch (e) {} }
-    qlBodyEl.innerHTML = '';
+    qlBodyEl.innerHTML = ''; qlZoomReset();
   }
   function qlMsg(icon, text) {
     var box = el('div', 'ql-msg');
@@ -2848,6 +2854,49 @@
       if (d.truncated) qlInfoEl.textContent += ' · first ' + fmtSize(QL_TEXT_MAX);
     }).catch(function() { fallback('Couldn’t read this file.'); });
   }
+  // ---- Quick Look image zoom: wheel (anchored under the cursor), drag, double-click ----
+  var qlZ = 1, qlPX = 0, qlPY = 0, qlDrag = null;
+  function qlImg() { var im = qlBodyEl.querySelector('img'); return im && qlBodyEl.contains(im) ? im : null; }
+  function qlZoomReset() { qlZ = 1; qlPX = qlPY = 0; qlDrag = null; qlBodyEl.classList.remove('zoomed'); }
+  function qlZoomApply() {
+    var im = qlImg(); if (!im) return;
+    if (qlZ === 1) { qlPX = qlPY = 0; im.style.transform = ''; im.classList.remove('zoomed'); qlBodyEl.classList.remove('zoomed'); return; }
+    im.style.transform = 'translate(' + qlPX + 'px, ' + qlPY + 'px) scale(' + qlZ + ')';
+    im.classList.add('zoomed'); qlBodyEl.classList.add('zoomed');
+  }
+  // Zoom to `z` keeping the image point under (cx, cy) — client coords — where it is.
+  function qlZoomTo(z, cx, cy) {
+    var im = qlImg(); if (!im) return;
+    z = Math.max(1, Math.min(6, z));
+    var r = qlBodyEl.getBoundingClientRect(), ox = cx - (r.left + r.width / 2), oy = cy - (r.top + r.height / 2);
+    var ux = (ox - qlPX) / qlZ, uy = (oy - qlPY) / qlZ;   // the point, in unscaled image space
+    qlZ = z; qlPX = ox - z * ux; qlPY = oy - z * uy;
+    qlZoomApply();
+  }
+  qlBodyEl.addEventListener('wheel', function(e) {
+    if (!qlImg()) return;
+    e.preventDefault();
+    qlZoomTo(qlZ * (e.deltaY < 0 ? 1.2 : 1 / 1.2), e.clientX, e.clientY);
+  }, { passive: false });
+  qlBodyEl.addEventListener('dblclick', function(e) {
+    if (!qlImg()) return;
+    qlZoomTo(qlZ === 1 ? 2.5 : 1, e.clientX, e.clientY);
+  });
+  qlBodyEl.addEventListener('pointerdown', function(e) {
+    var im = qlImg(); if (!im || qlZ === 1 || e.button !== 0) return;
+    qlDrag = { x: e.clientX, y: e.clientY, px: qlPX, py: qlPY };
+    im.classList.add('dragging');
+    try { qlBodyEl.setPointerCapture(e.pointerId); } catch (err) {}
+    e.preventDefault();
+  });
+  qlBodyEl.addEventListener('pointermove', function(e) {
+    if (!qlDrag) return;
+    qlPX = qlDrag.px + (e.clientX - qlDrag.x); qlPY = qlDrag.py + (e.clientY - qlDrag.y);
+    qlZoomApply();
+  });
+  function qlDragEnd() { if (!qlDrag) return; qlDrag = null; var im = qlImg(); if (im) im.classList.remove('dragging'); }
+  qlBodyEl.addEventListener('pointerup', qlDragEnd);
+  qlBodyEl.addEventListener('pointercancel', qlDragEnd);
   function qlClose() {
     if (!qlIsOpen()) return;
     qlEl.classList.remove('open');
