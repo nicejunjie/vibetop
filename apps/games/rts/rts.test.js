@@ -55,7 +55,7 @@ function stubEl() {
   return el;
 }
 
-function load() {
+function load(extra) {
   const html = fs.readFileSync(SRC, "utf8");
   const blocks = [...html.matchAll(/<script>([\s\S]*?)<\/script>/g)].map((m) => m[1]);
   assert.equal(blocks.length, 1, "expected exactly one inline script block");
@@ -86,6 +86,7 @@ function load() {
     addEventListener: () => {},
     removeEventListener: () => {},
   };
+  Object.assign(win, extra || {});
   win.window = win;
   win.document = doc;
   win.globalThis = win;
@@ -6495,4 +6496,134 @@ test("control groups and camera views survive a save and a load", () => {
   H.restoreSession();                                   // what enterLoaded does after the reset
   assert.deepEqual(H.group("3").map((u) => u.id).sort(), [a.id, b.id].sort(), "the living members are back, by id");
   assert.deepEqual(H.view("2"), { x: 400, y: 900, z: 1.5 });
+});
+
+// Two-player audit (2026-09-11): two real tabs desynced ~2.5 minutes into any
+// match that PRODUCED a unit, and never in a match that only built structures.
+// The factory-door hand-over (stepQueue -> src.hold -> stepBld -> emitUnit)
+// was gated on !headless, so no hermetic run had ever executed it. It runs in
+// headless now; this is the lockstep run that could not exist before.
+test("producing infantry through the Barracks door keeps two lockstep clients identical", () => {
+  const N = W.__rtsNet;
+  const M = N.match(9201, { wire: "bc", lat: [0, 1], diff: "normal", facA: "dir", facB: "col" });
+  const st = M.game(0).start[0];
+  const at = { power: [st.x + 4, st.y], refinery: [st.x, st.y + 5], barracks: [st.x + 5, st.y + 5] };
+  const done = {};
+  let gis = 0;
+  M.run(12000, (c, tick, i) => {
+    if (i !== 0) return;
+    const b = c.g.side[0].queues.b;
+    if (tick === 5) M.as(0, "queue", { k: "power", lane: "b" });
+    if (b.ready && at[b.ready] && !done[b.ready]) {
+      done[b.ready] = true;
+      M.as(0, "place", { k: b.ready, x: at[b.ready][0], y: at[b.ready][1] });
+      const next = { power: "refinery", refinery: "barracks" }[b.ready];
+      if (next) M.as(0, "queue", { k: next, lane: "b" });
+    }
+    const hasBarracks = c.g.blds.some((x) => !x.dead && x.p === 0 && x.type === "barracks");
+    if (hasBarracks && gis < 5 && tick % 90 === 0) { gis++; M.as(0, "queue", { k: "rifle", lane: "i" }); }
+  });
+  const men = M.game(0).units.filter((u) => !u.dead && u.p === 0 && u.type === "rifle").length;
+  assert.ok(men >= 3, "the Barracks actually produced (" + men + ")");
+  assert.equal(M.desync(), null, "no desync");
+  assert.equal(M.hash(0), M.hash(1), "the two worlds agree after 12 000 ticks");
+});
+
+// Two-player audit (2026-09-11): the real desync. bakeBuilding is lazy — it
+// runs the first time a structure is DRAWN — and it reseeded the simulation's
+// RNG for its oil-stain scatter, so the tab that first drew a new Barracks
+// moved its match off the seed and the other never did. No baker may touch
+// the sim's stream.
+test("no baker moves the simulation's RNG", () => {
+  const H = W.__rtsTest;
+  H.startWith(9301, "normal", "frontier");
+  H.step(10);
+  const r = H.bakeProbe();
+  assert.equal(r.after, r.before, "the seed is untouched by baking");
+});
+
+// ------------------------------------------------- the two-tab lobby //
+//
+// Two sandboxes joined by a fake BroadcastChannel: every `postMessage` is
+// delivered synchronously to every OTHER channel of the same name, which is
+// what the real one does minus the task-queue hop. The lobby, the leave
+// notice and the shared pause all ride this channel (the bundles too, but the
+// lockstep tests above cover those on BcBus).
+function lobbyPair() {
+  const all = [];
+  class FakeBC {
+    constructor(name) { this.name = name; this.onmessage = null; all.push(this); }
+    postMessage(m) {
+      const copy = JSON.parse(JSON.stringify(m));
+      all.slice().forEach((o) => { if (o !== this && o.name === this.name && o.onmessage) o.onmessage({ data: copy }); });
+    }
+    close() { const i = all.indexOf(this); if (i >= 0) all.splice(i, 1); }
+  }
+  const extra = { BroadcastChannel: FakeBC, setInterval: () => 1, clearInterval: () => {} };
+  const A = load(extra), B = load(extra);
+  return { A, B };
+}
+function seatBoth(A, B) {
+  A.__rtsNet.start("host");                 // announces, waits
+  B.__rtsNet.start("join");                 // hello -> match (a card) -> the guest presses Join
+  assert.equal(B.__rtsNet.card().t, "Host found", "the guest sees the record before it joins");
+  assert.match(B.__rtsNet.card().p, /you play .* against/, "the card names the guest's seat");
+  B.__rtsNet.press("A");                    // ack -> go -> both start
+  assert.ok(A.__rtsNet.mp().started && B.__rtsNet.mp().started, "both tabs seated");
+  assert.equal(A.__rtsNet.seat().me, 0); assert.equal(B.__rtsNet.seat().me, 1);
+  assert.equal(A.__rtsNet.hash(A.__rtsTest.world()), B.__rtsNet.hash(B.__rtsTest.world()), "one world");
+}
+
+test("two-player: the guest joins on purpose, and only the peer's gid-stamped bye ends the match", () => {
+  const { A, B } = lobbyPair();
+  seatBoth(A, B);
+  assert.equal(A.__rtsNet.state(), "play");
+  // A bystander's gid-less bye (a third tab cancelling its lobby) is not ours.
+  A.__rtsNet.wire({ k: "bye" });
+  assert.equal(A.__rtsNet.state(), "play", "a foreign bye changes nothing");
+  A.__rtsNet.wire({ k: "bye", gid: 12345 });
+  assert.equal(A.__rtsNet.state(), "play", "a bye for another match changes nothing");
+  // The peer leaves (close / refresh / abort): the match RESOLVES for the survivor.
+  B.__rtsNet.leave();
+  assert.equal(A.__rtsNet.state(), "over", "the survivor's match is over, not frozen");
+  assert.equal(A.__rtsNet.card().t, "Victory");
+  assert.match(A.__rtsNet.card().p, /left the match/, "the card says why");
+});
+
+test("two-player: a pause is shared, names who paused, and either side resumes both", () => {
+  const { A, B } = lobbyPair();
+  seatBoth(A, B);
+  A.__rtsNet.pause(true);
+  assert.equal(A.__rtsNet.state(), "paused");
+  assert.equal(B.__rtsNet.state(), "paused", "the peer pauses with the pauser");
+  B.__rtsNet.pause();                       // the OTHER side resumes
+  assert.equal(B.__rtsNet.state(), "play");
+  assert.equal(A.__rtsNet.state(), "play", "and the pauser resumes with it");
+  // A pause that arrived over the wire is not echoed back into a loop.
+  let n = 0; const post = A.__rtsNet.mp().ch.postMessage.bind(A.__rtsNet.mp().ch);
+  A.__rtsNet.mp().ch.postMessage = (m) => { if (m.k === "pause") n++; post(m); };
+  B.__rtsNet.pause(true);
+  assert.equal(A.__rtsNet.state(), "paused");
+  assert.equal(n, 0, "the receiving tab does not re-post the pause");
+});
+
+test("two-player: a third tab that presses Host during a match is told the browser is busy", () => {
+  const { A, B } = lobbyPair();
+  seatBoth(A, B);
+  const C = load({ BroadcastChannel: A.BroadcastChannel, setInterval: () => 1, clearInterval: () => {} });
+  C.__rtsNet.start("host");
+  assert.match(C.__rtsNet.card().p, /already under way/, "the third host is told, not left waiting");
+  assert.equal(A.__rtsNet.state(), "play", "the running match is untouched");
+});
+
+test("two-player: two hosts are BOTH told, and the warning clears when one gives up", () => {
+  const extra = lobbyPair();                // two sandboxes on one channel
+  const { A, B } = extra;
+  A.__rtsNet.start("host");
+  B.__rtsNet.start("host");                 // the clash
+  assert.match(A.__rtsNet.card().p, /Another tab is hosting too/);
+  assert.match(B.__rtsNet.card().p, /Another tab is hosting too/, "the tab that just clashed is told too");
+  B.__rtsNet.leave();                       // B gives up (Cancel)
+  assert.match(A.__rtsNet.card().p, /Waiting for the second player/, "the warning stops when it stops being true");
+  assert.doesNotMatch(A.__rtsNet.card().p, /hosting too/);
 });

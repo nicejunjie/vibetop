@@ -21,8 +21,13 @@ const { test, expect } = require('@playwright/test');
 
 const DESKTOP = 'desktop-chromium';
 test.use({ serviceWorkers: 'block' });          // the PWA precache would hide a fresh deploy
-test.beforeEach(({}, info) => {
+test.beforeEach(async ({ context }, info) => {
   test.skip(info.project.name !== DESKTOP, `mouse contract — ${DESKTOP} only`);
+  // VIBETOP_RTS_HTML=<file> serves a working-tree rts.html at the live URL, so
+  // the suite can judge a change BEFORE it is deployed.
+  if (process.env.VIBETOP_RTS_HTML) {
+    await context.route('**/rts.html*', (r) => r.fulfill({ path: process.env.VIBETOP_RTS_HTML, contentType: 'text/html' }));
+  }
 });
 
 // ---- helpers: the hooks are read-only here except spawn/setCam, which stage a scene ----

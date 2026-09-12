@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_285 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_286 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
 - [Scheduled terminal messages ("resume when the token limit resets")](#scheduled-terminal-messages-resume-when-the-token-limit-resets)
@@ -308,6 +308,7 @@ _285 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [RTS touch audit (2026-09-11): a tap that was not a click, and a bar with no finger in mind](#rts-touch-audit-2026-09-11-a-tap-that-was-not-a-click-and-a-bar-with-no-finger-in-mind)
 - [Files: the listing follows the disk while the app is in front (2026-09-11)](#files-the-listing-follows-the-disk-while-the-app-is-in-front-2026-09-11)
 - [RTS audio audit (2026-09-11): the voice that stayed paused, and fourteen quieter faults](#rts-audio-audit-2026-09-11-the-voice-that-stayed-paused-and-fourteen-quieter-faults)
+- [RTS two-player audit (2026-09-11): the bake that reseeded the simulation, and a lobby that could not end](#rts-two-player-audit-2026-09-11-the-bake-that-reseeded-the-simulation-and-a-lobby-that-could-not-end)
 
 <!-- END TOC -->
 
@@ -12704,3 +12705,65 @@ the ack 4/8 %; `lastRadar` resets per match.
 semantics rest on the Web Speech spec. One listen on a desktop Chrome is
 still owed.
 
+
+## RTS two-player audit (2026-09-11): the bake that reseeded the simulation, and a lobby that could not end
+
+**Symptom.** Two real tabs desynced after about 2.5 minutes of ordinary
+play while every lockstep unit test (two clients in one page over an
+in-memory bus, five game minutes) stayed green. Around it: a closed or
+refreshed tab left the survivor at "Waiting for the other player…" for ever;
+a `bye` from a bystander that merely cancelled its lobby told a running
+match a player had left; "Restart match" turned one tab into a skirmish
+against the computer and froze the other; "Load" forked the match on to a
+LocalNet with the hash check off; a two-player match could be saved; a
+pause (also the Help card and the gear) stopped the other player's game
+behind a lag message; orders at a stalled barrier vanished in silence for
+three seconds; Join mode showed faction, battlefield and every setting and
+discarded them; two hosts warned the wrong tab and never cleared; a third
+Host during a match waited for ever; one tab's speed slider throttled both;
+the renderer stamped `u.trkAt` on units so the two serialised worlds
+differed; the score card named factions, not players.
+
+**Cause of the desync.** Every sprite baker (`bakeBuilding`,
+`bakeGroundSheet`, `bakeRockSheet`, `bakeDecal`, `bakeWaterSheet`,
+`edgeBand`, `bakeShore`, `bakeTree`, `bakeOre`, the sheet splotches) called
+`srand()`/`rnd()` — the SIMULATION's generator — and structures bake lazily
+on first draw, so the tab that first scrolled a Barracks into view reseeded
+its sim RNG mid-match. A per-tick ring of unit fields in two instrumented
+tabs showed the first divergent tick with identical units and credits and a
+different `_seed`. The unit tests never draw, so they never bake.
+
+**Fix.** The bakers shadow `srand/rnd/rint` with the art generator
+(`bsr/brnd/bint`, its own `_bseed`); a hook `bakeProbe` plus a test prove
+no baker moves `_seed`; the factory-door hand-over is no longer gated on
+`!headless` (a hidden sim/visible-sim difference in waiting). The lobby:
+every message is stamped with the match's `gid`, a closed or refreshed tab
+posts `bye` on `pagehide`, and a `bye` for THIS match finishes it — the
+survivor wins by default with the reason on the card. Pause is shared: the
+pauser's tab posts it, the peer pauses with "Paused by the other player",
+either side resumes both; Help and the Options card do not pause a network
+match. A persistent banner replaces the late toast while the barrier is
+blocked. In a two-player match the Options card hides Restart, replaces the
+save slots with a note, and locks the speed slider to the host's setting.
+Join mode hides the host's pickers, the button reads "Join match", and the
+guest is shown the record (battlefield, both sides) and joins on purpose; the
+host's card shows the same record. Two hosts are both told (`twohosts`) and a
+host that gives up clears it (`hostgone`); a host announcing during a match
+is answered `busy`. Tread-mark timing lives in a render-side map by id. The
+score card heads its columns "You — <faction>" / "Opponent — <faction>".
+The wait card goes up BEFORE the first post, so a synchronous reply cannot
+be overwritten by it (the hermetic fake channel delivers in-line).
+
+**Verification.** Hermetic: a fake BroadcastChannel joins two sandboxes for
+the lobby, the leave notice, the shared pause, the busy answer and the
+two-host warning. `tests/e2e/tests/rts-mp.spec.js` presses the real buttons
+in two tabs (lobby, Options/Help, pause and stall banner, peer closes,
+third host) and, with `RTS_MP_SOAK=1`, plays four minutes of orders from
+both seats and asserts no desync; `VIBETOP_RTS_HTML=<file>` serves a
+working-tree page at the live URL so this runs before a deploy.
+
+**Left as noted.** The two tabs share one origin's localStorage (menu
+preferences, the auto slot, the resume flag) — Join mode no longer writes
+them, which is the case that mattered. The desktop shell opens one game
+window per app id; the host's card now says to use a second tab of the
+desktop or `/rts.html`.

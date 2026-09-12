@@ -1235,6 +1235,13 @@ every sound is oscillators and one baked noise buffer, no files, no libraries.
 - ☑ 2026-09-03 32-facing vehicles.
 - ☑ 2026-09-03 (loopback transports; a socket transport is the one open piece) Lockstep multiplayer over the deterministic `__rtsSim` core (command
   queue, beacon).
+- ☑ 2026-09-11 v1.19.341 Two-player audit through two real tabs: the sprite bakers
+  no longer reseed the sim RNG (the 2.5-minute desync); gid-stamped `bye` on
+  pagehide ends the survivor's match (win by default); shared, named pause;
+  a persistent barrier banner; Options without Restart/Save/Load and with the
+  speed locked; Join mode hides the host's pickers and the guest joins from a
+  record card; two-host / third-host / busy answers; render-side tread clock;
+  score card heads by player. `tests/e2e/tests/rts-mp.spec.js` (+ RTS_MP_SOAK).
 
 - ☑ Lockstep command layer over the deterministic `simStep` core, local-first.
   RA2's netcode sends COMMANDS, not state: every client runs the same

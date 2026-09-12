@@ -342,16 +342,18 @@
   #hov b { display: block; font-size: 12px; color: #e6edf3; }
   #hov span { font-size: 11px; color: #8f9bae; }
   #hov.enemy { border-color: #5a2a30; } #hov.enemy b { color: #f0a0a8; }
-  #paused {
+  #paused, #stall {
     position: absolute; inset: 0; display: none; z-index: 4;
     flex-direction: column; align-items: center; justify-content: center;
     gap: 6px; pointer-events: none;                 /* clicks fall through */
     background: rgba(14,17,23,.34);
     text-shadow: 0 2px 10px rgba(0,0,0,.7);
   }
-  #paused.show { display: flex; }
-  #paused b { font-size: 30px; letter-spacing: .14em; color: #e6edf3; }
-  #paused span { font-size: 13px; color: #aab4c5; }
+  #paused.show, #stall.show { display: flex; }
+  #paused b, #stall b { font-size: 30px; letter-spacing: .14em; color: #e6edf3; }
+  #paused span, #stall span { font-size: 13px; color: #aab4c5; }
+  #stall b { font-size: 22px; letter-spacing: .08em; }
+  .mpnote { font-size: 12px; color: #aab4c5; font-style: italic; line-height: 1.4; }
 
   /* ---- cards (shared house style: 44px targets, short-window collapse) ---- */
   .overlay {
@@ -672,6 +674,7 @@
       <div id="tl"><div id="swbar"></div><div id="tip"></div></div>
       <div id="hov" hidden><b id="hovName"></b><span id="hovSub"></span></div>
       <div id="paused"><b>Paused</b><span>Click anywhere to resume</span></div>
+      <div id="stall"><b>Waiting for the other player…</b><span>Your orders are held until both games are in step</span></div>
     </div>
     <div id="cmdbar">
       <div class="cmdrow">
@@ -695,6 +698,7 @@
     <p id="ovP">Build a base, mine ore, crush the enemy.</p>
     <div class="facrow" id="facRow"></div>
     <div class="optrow" id="mpWrap"><span class="olbl">Players</span><div class="diffrow" id="mpRow"></div></div>
+    <div class="optrow" id="mpNote" style="display:none"><span class="olbl"></span><span class="mpnote">The host picks the sides, the battlefield and the game settings. Your colour is the host's second colour.</span></div>
     <div class="optrow" id="diffWrap"><span class="olbl">Opponent</span><div class="diffrow" id="diffRow"></div></div>
     <div class="mapwrap" id="mapWrap"><span class="olbl">Battlefield</span><div class="maprow" id="mapRow"></div></div>
     <div class="setwrap" id="setWrap">
@@ -3588,16 +3592,16 @@
   function sheetSplotch(g, x, y, r, lobes) {
     sheetBlob(g, x, y, r, r * 0.5);
     for (var i = 0; i < lobes; i++) {
-      var a = rnd() * 6.29, d = r * (0.5 + rnd() * 0.7);
-      sheetBlob(g, x + Math.cos(a) * d, y + Math.sin(a) * d * 0.5, r * (0.35 + rnd() * 0.4), r * (0.2 + rnd() * 0.2));
+      var a = brnd() * 6.29, d = r * (0.5 + brnd() * 0.7);
+      sheetBlob(g, x + Math.cos(a) * d, y + Math.sin(a) * d * 0.5, r * (0.35 + brnd() * 0.4), r * (0.2 + brnd() * 0.2));
     }
   }
   // A meandering worn track / crack, drawn wrapped.
   function sheetStreak(g, x, y, len, wid, wob) {
-    var pts = [], px2 = x, py2 = y, ang = rnd() * 6.29;
+    var pts = [], px2 = x, py2 = y, ang = brnd() * 6.29;
     for (var i = 0; i < len; i++) {
       pts.push([px2, py2]);
-      ang += (rnd() - 0.5) * wob;
+      ang += (brnd() - 0.5) * wob;
       px2 += Math.cos(ang) * 11; py2 += Math.sin(ang) * 5.5;
     }
     g.lineWidth = wid; g.lineCap = 'round'; g.lineJoin = 'round';
@@ -3612,6 +3616,7 @@
   // worn tracks, clumps, grain and pebbles. The snow sheet swaps the palette
   // for blue-white with grey drifts and a few exposed dark-earth scars.
   function bakeGroundSheet(kind, seed) {
+    var srand = bsr, rnd = brnd, rint = bint;   // the ART generator: a baker must never move the simulation's stream (two-player desync, 2026-09-11)
     var s = mkCanvas(SHW, SHH), g = s.g;
     srand(seed);
     var P = {
@@ -3781,6 +3786,7 @@
   // Grey scree for T_ROCK: impassable broken ground, so boulders with real
   // volume sit in it rather than a flat recoloured floor.
   function bakeRockSheet(kind, seed, flat) {
+    var srand = bsr, rnd = brnd, rint = bint;   // the ART generator: a baker must never move the simulation's stream (two-player desync, 2026-09-11)
     var s = mkCanvas(SHW, SHH), g = s.g;
     srand(seed);
     var snowy = kind === 'snow';
@@ -3841,6 +3847,7 @@
   // Ground decals, drawn over one tile in eight so the sheet's 8-tile period
   // is broken by an uncorrelated pattern: tufts, a scuff, a pebble scatter.
   function bakeDecal(kind, v) {
+    var srand = bsr, rnd = brnd, rint = bint;   // the ART generator: a baker must never move the simulation's stream (two-player desync, 2026-09-11)
     var s = mkCanvas(TCW, TCH), g = s.g, cx = TCW / 2, cy = TCH / 2;
     srand(910 + v * 131 + (kind === 'snow' ? 7 : 0));
     g.save(); diamondT(g, cx, cy); g.clip();
@@ -3874,6 +3881,7 @@
   // caustics; snow is lake ice — pale, flat, cracked.
   var WSHW = TW * 2, WSHH = TH * 2;
   function bakeWaterSheet(kind, phase) {
+    var srand = bsr, rnd = brnd, rint = bint;   // the ART generator: a baker must never move the simulation's stream (two-player desync, 2026-09-11)
     var s = mkCanvas(WSHW, WSHH), g = s.g;
     srand(kind === 'snow' ? 611 : 601);
     var ice = kind === 'snow';
@@ -3938,6 +3946,7 @@
   // A ragged band hugging one edge: the boundary wobbles, so a run of shore
   // tiles reads as a natural coastline instead of a ruled polygon.
   function edgeBand(g, e, depth, wob, seed) {
+    var srand = bsr, rnd = brnd, rint = bint;   // the ART generator: a baker must never move the simulation's stream (two-player desync, 2026-09-11)
     var E = tileEdge(e), x0 = E[0], y0 = E[1], x1 = E[2], y1 = E[3];
     var cx = TCW / 2, cy = TCH / 2;
     var mx = (x0 + x1) / 2, my = (y0 + y1) / 2;
@@ -3955,6 +3964,7 @@
   // Shore: a sand/gravel bank on the land tile. Wet, darker sand nearest the
   // water; dry paler sand and pebbles inland; the outline is ragged.
   function bakeShore(kind, mask) {
+    var srand = bsr, rnd = brnd, rint = bint;   // the ART generator: a baker must never move the simulation's stream (two-player desync, 2026-09-11)
     var s = mkCanvas(TCW, TCH), g = s.g, cx = TCW / 2, cy = TCH / 2;
     var snowy = kind === 'snow';
     g.save(); diamondT(g, cx, cy); g.clip();
@@ -4640,6 +4650,7 @@
   // trees are big — a canopy over a tile wide and taller than a tile — dark,
   // clumpy at the silhouette, with a long shadow to the lower right.
   function bakeTree(v, snow) {
+    var srand = bsr, rnd = brnd, rint = bint;   // the ART generator: a baker must never move the simulation's stream (two-player desync, 2026-09-11)
     var s = mkCanvas(64, 88), g = s.g, cx = 32, by = 78;
     srand(80 + v * 97 + (snow ? 11 : 0));
     g.fillStyle = 'rgba(8,12,6,.34)';
@@ -4888,6 +4899,7 @@
   var ORE_VAR = 12, OPADX = 26, OPADY = 14;
   var OCW = TCW + OPADX, OCH = TCH + OPADY;
   function bakeOre(level, variant) {
+    var srand = bsr, rnd = brnd, rint = bint;   // the ART generator: a baker must never move the simulation's stream (two-player desync, 2026-09-11)
     var s = mkCanvas(OCW, OCH), g = s.g;
     var cx = OCW / 2, cy = OCH / 2;
     srand(1234 + level * 97 + variant * 7919);
@@ -11941,11 +11953,15 @@
         var rgb = parseInt(col.slice(1), 16), cr = [(rgb >> 16) & 255, (rgb >> 8) & 255, rgb & 255];
         var cmin = Math.min.apply(null, cr), cspan = Math.max.apply(null, cr) - cmin || 1;
         var NAVY = 'rgb(' + cr.map(function (v) { return Math.round(16 + 116 * Math.pow((v - cmin) / cspan, 3)); }).join(',') + ')';
-        // The hull is a DESATURATED tint of the owner colour — RA2's Allied MCV
-        // wears a periwinkle/slate body, not a fixed grey. Blue reads lavender,
-        // red reads dusty rose, and so on: the house hue stays, the saturation
-        // drops, so the saturated owner panel (NAVY) still leads the eye.
-        var BODY = 'rgb(' + cr.map(function (v) { return Math.round(66 + 46 * Math.pow((v - cmin) / cspan, 2.1)); }).join(',') + ')';
+        // The hull is a desaturated tint of the owner colour — RA2's Allied MCV
+        // wears a periwinkle/slate body, not a fixed grey. Blue reads slate-blue,
+        // red reads dusty rose, green reads sage, and so on: the house hue stays,
+        // the saturation drops, so the saturated owner panel (NAVY) still leads
+        // the eye. The base (118) is a MEDIUM slate — the reference hull is a
+        // mid-value blue-slate, not a bright grey — and the span (50) keeps the
+        // house channel clearly dominant so the hull reads as a tinted metal,
+        // never a neutral grey.
+        var BODY = 'rgb(' + cr.map(function (v) { return Math.round(118 + 50 * Math.pow((v - cmin) / cspan, 2.1)); }).join(',') + ')';
         var PAINT = '#86849c', RAIL = '#71788b', STEEL = '#aab3b9', LIGHT = '#dfe5df';
         var DARK = '#333d49', RUBBER = '#232629', GLASS = '#111b22';
         function surface(pts, color, center, unlit) {
@@ -13119,6 +13135,7 @@
   // raw footprint ratio suggests when there is nothing to compare it to.
   var VPOW = { airforce: 1, depot: 1, lab: 0, 'factory:col': 1, reactor: 0 };
   function bakeBuilding(key, col, fac, bph, bdir, dopen) {
+    var srand = bsr, rnd = brnd, rint = bint;   // the ART generator: a baker must never move the simulation's stream (two-player desync, 2026-09-11)
     var DOP = dopen == null ? 0 : dopen;
     if (PIXBLD[key]) return bakePix(PIXBLD[key], col);
     // Walls and gates are drawn from their own neighbour-mask atlas
@@ -26951,10 +26968,13 @@
             if (!sp) { q.prog = 1; continue; }
             q.prog = 0; q.list.shift();
             // RA2 does not teleport the unit onto the apron: the factory door
-            // opens, the vehicle rolls out of the mouth, the door shuts. The
-            // hold is presentation only -- headless spawns on the same tick it
-            // always did, so every balance run is unchanged.
-            if (!headless && DOORED[src.type] && !src.hold && src.make <= 0 && !src.sell) {
+            // opens, the vehicle rolls out of the mouth, the door shuts. This
+            // is SIMULATION, not presentation: it decides the tick the unit
+            // exists on and the tile it steps to. It was gated on !headless,
+            // so no hermetic test ever ran the branch two real tabs run — and
+            // real tabs desynced ~2.5 min into any match that produced a unit
+            // (two-player audit, 2026-09-11). Headless runs it too now.
+            if (DOORED[src.type] && !src.hold && src.make <= 0 && !src.sell) {
               src.hold = { key: key, p: p, lane: lane, x: sp.x, y: sp.y };
               src.door = DOOR_T;
             } else emitUnit(g, key, p, lane, src, sp);
@@ -35283,6 +35303,10 @@
   // the game state: they are pure decoration, they are capped, and nothing
   // the deterministic sim replays may depend on them.
   var TRACKS = [], TRACK_MAX = 140, TRACK_LIFE = 360, DUST_LIFE = 42;
+  // When each unit last left a tread mark, by id. Render-side: a unit the
+  // local camera never drew has no entry, so this must not live on the unit
+  // (it went into every save and made two lockstep worlds serialise apart).
+  var TRK_AT = {};
   var SPARKS = [];                    // ore/gem glitter queued for one additive pass
   var ORES = [];                      // ore/gem cells queued for one pass over the finished ground
   function drawTracks() {
@@ -35475,8 +35499,8 @@
     var _wet = inMap(Math.round(u.x), Math.round(u.y)) &&
                G.terrain[idx(Math.round(u.x), Math.round(u.y))] === T_WATER;
     if (!art.fr && !d.air && moving &&
-        G.tick - (u.trkAt == null ? -99 : u.trkAt) >= (_wet ? 2 : 5)) {
-      u.trkAt = G.tick;
+        G.tick - (TRK_AT[u.id] == null ? -99 : TRK_AT[u.id]) >= (_wet ? 2 : 5)) {
+      TRK_AT[u.id] = G.tick;
       if (TRACKS.length >= TRACK_MAX) TRACKS.shift();
       var tgi = inMap(Math.round(u.x), Math.round(u.y)) ? G.terrain[idx(Math.round(u.x), Math.round(u.y))] : -1;
       if (tgi === T_WATER) TRACKS.push({ x: u.x, y: u.y, face: u.face || 0, t: G.tick, foam: true, sub: submerged });
@@ -36532,7 +36556,7 @@
     }
     Object.keys(mapBtns).forEach(function (k) { mapBtns[k].className = mapId === k ? 'on' : ''; });
   }
-  var mpWrap = document.getElementById('mpWrap'), mpRow = document.getElementById('mpRow');
+  var mpWrap = document.getElementById('mpWrap'), mpRow = document.getElementById('mpRow'), mpNote = document.getElementById('mpNote');
   var scoresEl = document.getElementById('scores');
   var scoreCard = document.getElementById('scoreCard');
   var hv = document.getElementById('hv'), lv = document.getElementById('lv');
@@ -36641,9 +36665,16 @@
     gspdSl.value = sp; gspdVal.textContent = SPD_NAME[sp];
     // The card doubles as the front menu's Load screen, where "Restart" and
     // a live speed slider mean nothing.
-    var inMatch = state === 'play' || state === 'paused';
+    var inMatch = state === 'play' || state === 'paused', mp = !!(G && G.mp && inMatch);
     gspdSl.parentNode.parentNode.style.display = inMatch ? 'flex' : 'none';
-    gameRow.parentNode.style.display = inMatch ? 'flex' : 'none';
+    // Two-player: the slowest tab sets the pace of both, so one player's
+    // slider would throttle the other's game unexplained. The host's record
+    // fixes the speed for the match.
+    gspdSl.disabled = mp;
+    if (mp) gspdVal.textContent = SPD_NAME[sp] + ' \u00b7 set by the host';
+    // "Restart" would drop this tab into a skirmish against the computer and
+    // freeze the other player's game for good. A network match has no restart.
+    gameRow.parentNode.style.display = inMatch && !mp ? 'flex' : 'none';
     buildSlotRows();
   }
   function ago(ms) {
@@ -36656,6 +36687,16 @@
   function buildSlotRows() {
     var metas = saveSlots();
     slotList.innerHTML = '';
+    // Half of a lockstep pair cannot be saved or resumed alone (the autosave
+    // already refuses); a Load here forked the match into a solo game that
+    // still claimed to be two-player, and froze the peer.
+    if (G && G.mp && (state === 'play' || state === 'paused')) {
+      var note = document.createElement('i');
+      note.className = 'mpnote';
+      note.textContent = 'Saving and loading are not available in a two-player match.';
+      slotList.appendChild(note);
+      return;
+    }
     metas.forEach(function (m, i) {
       var n = i + 1, row = document.createElement('div');
       row.className = 'gslot';
@@ -36739,11 +36780,12 @@
     if (ob) ob.addEventListener('click', function () { resumeAudio(); if (optOpen) closeOptions(); else showOptions(); });
   }
   function showOptions() {
-    if (state === 'play') togglePause(true);
+    var mp = !!(G && G.mp);
+    if (state === 'play' && !mp) togglePause(true);   // a two-player match keeps running: this card is one player's business
     optOpen = true; cardPush('opt');
     onA = function () { closeOptions(); };
     onB = function () { optOpen = false; hideCard(); menu(); eva('Battle control terminated', 3000); };   // spoken AFTER menu()'s hush, or it is cancelled unheard
-    showCard('\u2699\ufe0f', 'Options', 'The match is paused.', 'Resume', 'Abort to menu', false, false);
+    showCard('\u2699\ufe0f', 'Options', mp ? 'The match keeps running while this card is open.' : 'The match is paused.', mp ? 'Back to the match' : 'Resume', 'Abort to menu', false, false);
     optCard.style.display = 'block';
     buildOptRows();
   }
@@ -36751,7 +36793,7 @@
     optOpen = false; cardPop('opt');
     optCard.style.display = 'none';
     hideCard();
-    if (state === 'paused') togglePause();
+    if (state === 'paused' && !(G && G.mp)) togglePause();   // a two-player pause is shared; the card did not cause it
   }
 
   // Two picture panels, built once and then only re-lit: the emblem and the
@@ -36916,7 +36958,7 @@
   ovB.addEventListener('click', function () { if (onB) onB(); });
 
   var helpPaused = false;
-  function openHelp() { hv.classList.add('show'); cardPush('help'); helpPaused = state === 'play'; if (helpPaused) togglePause(true); }
+  function openHelp() { hv.classList.add('show'); cardPush('help'); helpPaused = state === 'play' && !(G && G.mp); if (helpPaused) togglePause(true); }
   function closeHelp() { hv.classList.remove('show'); cardPop('help'); if (helpPaused && state === 'paused') togglePause(); helpPaused = false; }
   document.getElementById('helpBtn').addEventListener('click', openHelp);
   wireOptBtn();
@@ -36972,19 +37014,43 @@
       else speechSynthesis.cancel();
     } catch (e) { /* no TTS, or the browser refuses mid-utterance: not fatal */ }
   }
-  function togglePause(force) {
+  // A two-player pause is for BOTH tabs (RA2 announces who paused a network
+  // game; it never lets one player stop the other's game behind a lag
+  // message). The pauser's tab posts it on the lobby channel and the peer
+  // pauses too, with the overlay naming the other player; either side may
+  // resume. `remote` marks a pause that arrived over the wire, so it is not
+  // echoed back.
+  function togglePause(force, remote) {
+    var mp = !!(G && G.mp && MP.started);
     if (state === 'play' && (force === undefined || force === true)) {
       state = 'paused'; pauseBtn.innerHTML = PLAY_SVG;
       pausedEl.classList.add('show');
+      pausedText(mp ? (remote ? 'peer' : 'me') : '');
+      stallHide();
       evaHush(true);                                   // the voice pauses with the match
+      if (mp && !remote) mpPost({ k: 'pause', gid: MP.gid, on: 1 });
+      if (mp && remote) say('The other player paused the game', true, 300);
     } else if (state === 'paused' && force !== true) {
       state = 'play'; pauseBtn.innerHTML = PAUSE_SVG;
       pausedEl.classList.remove('show');
       evaHush(false);
       if (musicPausedBg) { musicPausedBg = false; if (musicOn) MUS.start(); }
-      say('Resumed');
+      say(mp && remote ? 'The other player resumed the game' : 'Resumed');
+      if (mp && !remote) mpPost({ k: 'pause', gid: MP.gid, on: 0 });
     }
   }
+  function pausedText(by) {
+    var b = pausedEl.querySelector('b'), sp = pausedEl.querySelector('span');
+    if (by === 'peer') { b.textContent = 'Paused by the other player'; sp.textContent = 'Click anywhere to resume the match for both'; }
+    else if (by === 'me') { b.textContent = 'Paused'; sp.textContent = 'The other player is waiting \u2014 click anywhere to resume'; }
+    else { b.textContent = 'Paused'; sp.textContent = 'Click anywhere to resume'; }
+  }
+  // The lockstep barrier's banner: on while the sim has been unable to step
+  // for half a second, off the moment it steps. A fading toast three seconds
+  // late read as "the game is broken" (two-player audit, 2026-09-11).
+  var stallEl = document.getElementById('stall'), stallOn = false;
+  function stallShow() { if (!stallOn) { stallOn = true; stallEl.classList.add('show'); } }
+  function stallHide() { if (stallOn) { stallOn = false; stallEl.classList.remove('show'); } }
   pauseBtn.addEventListener('click', function () { resumeAudio(); togglePause(); });
   // RA2 pauses a single-player match when it loses the screen. The desktop
   // shell says which app is up (vibetop:active); the tab says when it is
@@ -37070,7 +37136,8 @@
     lastRadar = null; evaHush(false);     // a fresh match: no stale radar-off sting, and the voice un-paused
     MUS.set(G.theatre); MUS.start();      // theme.ini rotates a track per match; here the theatre picks the loop
     pauseBtn.innerHTML = PAUSE_SVG;
-    pausedEl.classList.remove('show');
+    pausedEl.classList.remove('show'); pausedText('');
+    stallHide(); TRK_AT = {};
     sel = []; groups = {}; placing = null; swMode = null;   // pathQ belongs to the net client now (netAttach)
     cmdMode = null; refreshCmdbar(); pickCursor();          // a sell mode must not survive New -> menu -> match
     cv.classList.remove('placing');
@@ -37147,9 +37214,40 @@
     if (MP.hello) { clearInterval(MP.hello); MP.hello = 0; }
     // A BroadcastChannel has no disconnect event, so leaving quietly would
     // leave the other tab at a barrier it cannot tell from a slow peer.
-    if (MP.ch && MP.role) mpPost({ k: 'bye' });
+    // Every message names the match it belongs to: a gid-less `bye` from a
+    // bystander that merely cancelled the lobby told a running match that a
+    // player had left (two-player audit, 2026-09-11).
+    if (MP.ch && MP.role) mpPost(MP.started ? { k: 'bye', gid: MP.gid } : { k: MP.role === 'host' ? 'hostgone' : 'guestgone', gid: MP.gid });
     if (MP.ch) { try { MP.ch.close(); } catch (e) {} }
     MP.ch = null; MP.role = null; MP.net = null; MP.pre = []; MP.started = false; MP.gid = 0;
+  }
+  // A closed or refreshed tab says goodbye on the way out — a BroadcastChannel
+  // has no disconnect event, so without this the survivor waits at the barrier
+  // for ever, unable to tell a gone peer from a slow one.
+  window.addEventListener('pagehide', function () {
+    if (!MP.ch || !MP.role) return;
+    if (MP.started) mpPost({ k: 'bye', gid: MP.gid });
+    else if (MP.role === 'host') mpPost({ k: 'hostgone', gid: MP.gid });
+  });
+  // The peer left a running match: the match resolves, as in RA2, instead of
+  // freezing behind a lag message. The player who stayed wins by default.
+  function mpOpponentLeft() {
+    if (state !== 'play' && state !== 'paused') return;
+    if (state === 'paused') { state = 'play'; pausedEl.classList.remove('show'); pauseBtn.innerHTML = PAUSE_SVG; evaHush(false); }
+    var at = mmss(Math.floor(G.tick / 60));
+    say('The other player has left the match.', true, 600);
+    finish(true, 'The other player left the match at ' + at + '. The win is yours by default.');
+  }
+  // What a player is told about the match record, from their seat.
+  function mpRecText(rec, seat) {
+    var mine = FACTIONS[rec.fac[seat]].name, theirs = FACTIONS[rec.fac[1 - seat]].name;
+    return (MAPS[rec.map] ? MAPS[rec.map].name : rec.map) + ' \u00b7 you play ' + mine + ' against ' + theirs + '.';
+  }
+  function mpHostCopy() {
+    var how = (window.top || window) !== window
+      ? 'Open the desktop in a second browser tab (or /rts.html directly), start Iron Frontier there and choose Join.'
+      : 'Open this page in another tab and choose Join.';
+    return 'Waiting for the second player. ' + (MP.rec ? mpRecText(MP.rec, 0) + ' ' : '') + how;
   }
   function mpOpen(role) {
     mpClose();
@@ -37168,18 +37266,32 @@
     // A channel is a BROADCAST, so every message has to say who it is for or a
     // third tab joins a match for two. The guest coins a `gid`; the host echoes
     // it back and seats exactly one of them.
+    var BUSY = 'A match is already under way on this browser. This one seats two.';
     if (m.k === 'hello' && MP.role === 'host') {
       // A third tab gets told so, instead of hunting for a host that is busy.
       mpPost(MP.started ? { k: 'busy', gid: m.gid } : { k: 'match', gid: m.gid, rec: MP.rec });
       return;
     }
     if (m.k === 'busy' && MP.role === 'guest' && !MP.started && m.gid === MP.gid) {
-      ovP.textContent = 'A match is already under way on this browser. This one seats two.';
+      ovP.textContent = BUSY;
       return;
     }
+    // A third tab that pressed Host during a match: its gid-less announcement
+    // is answered with a gid-less `busy`, which only a waiting host reads.
+    if (m.k === 'busy' && MP.role === 'host' && !MP.started && !m.gid) { ovP.textContent = BUSY; return; }
     if (m.k === 'match' && MP.role === 'guest' && !MP.started && m.gid === MP.gid) {
+      // The lobby, such as it is: the guest sees the record — battlefield and
+      // the two sides — and joins on purpose. The hello beacon stops here;
+      // a host that goes away meanwhile says `hostgone` and it restarts.
+      if (MP.rec) return;                             // the host repeats `match` for every hello
       MP.rec = m.rec;
-      mpPost({ k: 'ack', gid: MP.gid });
+      if (MP.hello) { clearInterval(MP.hello); MP.hello = 0; }
+      onA = function () {
+        mpPost({ k: 'ack', gid: MP.gid });
+        ovP.textContent = 'Joining\u2026';
+      };
+      onB = function () { mpCancel(); };
+      showCard('\u{1f5a7}', 'Host found', mpRecText(m.rec, 1) + ' Press Join when you are ready.', 'Join', 'Cancel', false, false);
       return;
     }
     if (m.k === 'ack' && MP.role === 'host' && !MP.started) {
@@ -37189,14 +37301,32 @@
       return;
     }
     if (m.k === 'go' && MP.role === 'guest' && !MP.started && m.gid === MP.gid) { mpGo(1); return; }
-    // Two tabs on Host is the one confusing case the message can pre-empt.
-    if (m.k === 'match' && MP.role === 'host' && !MP.started) {
+    if (m.k === 'match' && MP.role === 'host') {
+      // Another tab is hosting too. The tab that just clashed is the one that
+      // needs telling, so the warning is echoed back to it as `twohosts`;
+      // the match under way answers `busy` instead.
+      if (MP.started) { mpPost({ k: 'busy' }); return; }
+      ovP.textContent = 'Another tab is hosting too. One of you has to choose Join.';
+      mpPost({ k: 'twohosts' });
+      return;
+    }
+    if (m.k === 'twohosts' && MP.role === 'host' && !MP.started) {
       ovP.textContent = 'Another tab is hosting too. One of you has to choose Join.';
       return;
     }
-    if (m.k === 'bye') {
-      if (state === 'play' || state === 'paused') say('The other player has left the match.', true, 600);
+    if (m.k === 'hostgone') {
+      // The other host gave up: the warning stops being true.
+      if (MP.role === 'host' && !MP.started) { ovP.textContent = mpHostCopy(); return; }
+      // The host this guest was about to join went away: look again.
+      if (MP.role === 'guest' && !MP.started && MP.rec) {
+        MP.rec = null;
+        mpWaitCard('The host left. Looking for a host\u2026 The other tab has to choose Host and press Start Game.');
+        if (!MP.hello) MP.hello = setInterval(function () { mpPost({ k: 'hello', gid: MP.gid }); }, 600);
+      }
+      return;
     }
+    if (m.k === 'pause' && MP.started && m.gid === MP.gid) { togglePause(!!m.on, true); return; }
+    if (m.k === 'bye' && MP.started && m.gid === MP.gid) mpOpponentLeft();
   }
   function mpCancel() {
     mpClose();                              // which says `bye` on the way out
@@ -37222,14 +37352,16 @@
       // A gid-less announcement. No guest will act on it (they only read a
       // `match` stamped with their own gid); its one job is to let a SECOND
       // host discover that it is not the only one.
+      // The card goes up BEFORE the announcement: a reply (`twohosts`, `busy`)
+      // rewrites the card's copy, and must not be overwritten by it.
+      mpWaitCard(mpHostCopy());
       mpPost({ k: 'match', rec: MP.rec });
-      mpWaitCard('Waiting for the second player. Open this page in another tab and choose Join.');
     } else {
       mpOpen('guest');
       MP.gid = (Math.random() * 1e9) >>> 0;
-      mpPost({ k: 'hello', gid: MP.gid });
-      MP.hello = setInterval(function () { mpPost({ k: 'hello', gid: MP.gid }); }, 600);
       mpWaitCard('Looking for a host. The other tab has to choose Host and press Start Game.');
+      mpPost({ k: 'hello', gid: MP.gid });            // after the card, for the same reason as the host's
+      MP.hello = setInterval(function () { mpPost({ k: 'hello', gid: MP.gid }); }, 600);
     }
   }
   function mpGo(pid) {
@@ -37263,7 +37395,7 @@
     MP.pre = [];
 
     matchUIReset();
-    say('Two-player match — you are ' + FACTIONS[G.side[ME].fac].name +
+    say('Two-player match on ' + (MAPS[rec.map] ? MAPS[rec.map].name : rec.map) + ' \u2014 you are ' + FACTIONS[G.side[ME].fac].name +
         ' against ' + FACTIONS[G.side[FOE].fac].name + '. Both worlds run the same simulation; only orders cross.', false, 420);
   }
 
@@ -37286,6 +37418,15 @@
     }
     Object.keys(mpBtns).forEach(function (k) { mpBtns[k].className = mpMode === k ? 'on' : ''; });
     diffWrap.style.display = mpMode === 'one' ? 'flex' : 'none';   // no computer opponent to set
+    // Join: the host's record decides the sides, the battlefield and every
+    // setting, so showing those pickers here was a lie — the guest's choices
+    // were saved (over the host's, same localStorage) and then discarded.
+    var join = mpMode === 'join';
+    facRow.style.display = join ? 'none' : 'grid';
+    mapWrap.style.display = join ? 'none' : 'block';
+    setWrap.style.display = join ? 'none' : 'block';
+    mpNote.style.display = join ? 'flex' : 'none';
+    if (ovCard.classList.contains('menu')) ovA.textContent = join ? 'Join match' : 'Start Game';
     mpWrap.style.display = 'flex';
   }
 
@@ -37331,6 +37472,7 @@
   function buildScoreCard(won) {
     var a = scoreOf(G, ME), b = scoreOf(G, FOE), h = '';
     var nm = [FACTIONS[G.side[ME].fac].name, FACTIONS[G.side[FOE].fac].name];
+    if (G.mp) nm = ['You \u2014 ' + nm[0], 'Opponent \u2014 ' + nm[1]];   // RA2 heads the columns by player
     h += '<thead><tr><th class="rl">' + mmss(Math.floor(G.tick / 60)) + '</th>';
     h += '<th style="--h:' + COL[ME] + '"><span><i></i>' + nm[0] + '</span></th>';
     h += '<th style="--h:' + COL[FOE] + '"><span><i></i>' + nm[1] + '</span></th></tr></thead><tbody>';
@@ -37351,8 +37493,9 @@
     scoreCard.hidden = false;
   }
 
-  function finish(won) {
+  function finish(won, why) {
     state = 'over';
+    stallHide();
     lsSet(RESUME_KEY, '0');                            // a finished match is not resumed
     evaHush();                                         // the score card is not read over
     MUS.stop();                                        // nor is it scored
@@ -37379,7 +37522,7 @@
     onB = null;
     showCard(won ? '🏆' : '💥',
       won ? 'Victory' : 'Defeated',
-      won ? 'Enemy base levelled in ' + mm + '.' : 'Your base is gone at ' + mm + '.',
+      why || (won ? 'Enemy base levelled in ' + mm + '.' : 'Your base is gone at ' + mm + '.'),
       'Menu', null, false, true);
     buildScoreCard(won);
     eva(won ? 'You are victorious' : 'You have lost', 30000);       // eva.ini #22 / #23
@@ -37422,9 +37565,8 @@
       // Three seconds, not one: a peer that is still repainting its army for
       // the host's house colours is not a peer that has gone away. Repeats
       // every five seconds after that, because silence is the failure mode.
-      if (n) stallT = 0;
-      else if (G.tick && !G.over && !netMayStep(G) && (++stallT % 300) === 180)
-        say('Waiting for the other player\u2026', true, 240);
+      if (n) { stallT = 0; stallHide(); }
+      else if (G.tick && !G.over && !netMayStep(G) && ++stallT >= 30) stallShow();
       // RA2 lets the field play for a beat after the last structure falls —
       // the winning side's infantry cheer (art.ini `Cheer=56,15,0,W`) before
       // the score card comes up. Three seconds, then finish().
@@ -37476,6 +37618,15 @@
     },
     hash: function (g) { return stateHash(g); },
     seat: function () { return { me: ME, foe: FOE }; },
+    mp: function () { return MP; },
+    wire: function (m) { mpWire(m); },
+    press: function (b) { var f = b === 'B' ? onB : onA; if (f) f(); },
+    card: function () { return { t: ovT.textContent, p: ovP.textContent, a: ovA.textContent }; },
+    start: function (mode) { mpMode = mode; mpStart(); },
+    leave: function () { mpClose(); },
+    state: function () { return state; },
+    stalled: function () { return stallOn; },
+    pause: function (force, remote) { togglePause(force, remote); return state; },
     bcbus: function (lats) { return new BcBus(lats); },
     aiSide: function (g, p) { return isAiSide(g || G, p); },
     match: function (seed, cfg) {
@@ -37732,6 +37883,15 @@
     resumeFlag: function () { return lsGet(RESUME_KEY); },
     setResumeFlag: function (v) { lsSet(RESUME_KEY, v); },
     world: function () { return G; },
+    // Bakers must never touch the SIM's RNG (two tabs desynced the tick one of
+    // them first drew a Barracks). Runs the lazy bakers and reports the seed.
+    bakeProbe: function () {
+      var s0 = _seed;
+      bakeBuilding('barracks', COL[0], 'dir', 0, 0, 0);
+      bakeBuilding('refinery', COL[1], 'col', 0, 0, 0);
+      bakeGroundSheet('grass', 41); bakeTree(0, false); bakeOre(2, 0); bakeDecal('crater', 0);
+      return { before: s0, after: _seed };
+    },
     setGroup: function (k, units) { groups[k] = units.slice(); },
     group: function (k) { return (groups[k] || []).slice(); },
     setView: function (n, v) { views[n] = v; },
