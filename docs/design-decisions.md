@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_284 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_285 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
 - [Scheduled terminal messages ("resume when the token limit resets")](#scheduled-terminal-messages-resume-when-the-token-limit-resets)
@@ -307,6 +307,7 @@ _284 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [Browser: it flashed on every switch back — the wake repaint asked the server every time (2026-09-11)](#browser-it-flashed-on-every-switch-back-the-wake-repaint-asked-the-server-every-time-2026-09-11)
 - [RTS touch audit (2026-09-11): a tap that was not a click, and a bar with no finger in mind](#rts-touch-audit-2026-09-11-a-tap-that-was-not-a-click-and-a-bar-with-no-finger-in-mind)
 - [Files: the listing follows the disk while the app is in front (2026-09-11)](#files-the-listing-follows-the-disk-while-the-app-is-in-front-2026-09-11)
+- [RTS audio audit (2026-09-11): the voice that stayed paused, and fourteen quieter faults](#rts-audio-audit-2026-09-11-the-voice-that-stayed-paused-and-fourteen-quieter-faults)
 
 <!-- END TOC -->
 
@@ -12670,3 +12671,36 @@ visibility and the desktop's `vibetop:active`, which the wrapper files.html
 now relays to its engine tabs; coming back to the front polls at once. The
 e2e contract writes a file through the API in front, behind another app, and
 on return, and was seen failing on the build before this.
+
+## RTS audio audit (2026-09-11): the voice that stayed paused, and fourteen quieter faults
+
+**Symptom.** An audio audit through real play: leaving a match through the
+paused Options card left `speechSynthesis` paused for good — every EVA line
+of every later match queued silently until some later un-pause let the
+backlog flood out; "Battle control terminated" was spoken and cancelled in
+the same turn; "Low power" was suppressed for the first 45 s (`lastPowerWarn
+= 0` read as "warned at tick 0"); selling was silent (`MAKE_T = 0` returned
+before the sound); a resumed or loaded match was mute until a map click
+(resumeAudio hung off eleven specific buttons), and the front menu's theme
+was unreachable; "Music: On" with "Sound: Off" played nothing; muting did
+not stop the line in flight; the score card and a background pause kept
+the battle theme going; the credit ticker chirped once per frame; a
+structure clicked silently; the first EVA line of a session was the chime
+(voices not loaded); veterans spoke as rookies; `sfx`'s comment said pixels
+where the code wants cells; `lastRadar` leaked between matches.
+
+**Fix.** `menu()`, `matchUIReset` and `enterLoaded` un-pause the voice
+before anything else; the "terminated" line is spoken after `menu()`'s
+clear; `lastPowerWarn` starts at `-1e9`; the sell sound precedes the
+`MAKE_T` shortcut; one capture-phase pointerdown/keydown on the document
+starts audio, and an EVA line fired before audio exists does not spend its
+repeat gap; `resumeAudio` builds the graph for music alone and the Sound
+switch stops the voice mid-line; `finish()` and the background pause stop
+the score (the pause restarts it on resume); the ticker chirps at most every
+150 ms; a structure clicks; `voiceschanged` re-picks the voice; rank lowers
+the ack 4/8 %; `lastRadar` resets per match.
+
+**Not verified by ear.** The host has no TTS voices; the pause/resume
+semantics rest on the Web Speech spec. One listen on a desktop Chrome is
+still owed.
+

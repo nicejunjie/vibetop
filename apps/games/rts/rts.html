@@ -30506,8 +30506,15 @@
     music: lsNum('vibetop:rts:vol:music', 0.45)
   };
 
+  // The first gesture ANYWHERE starts audio. resumeAudio used to hang off
+  // eleven specific buttons, so a resumed or loaded match (and the front
+  // menu's own theme) stayed mute until the player happened to click the map.
+  try {
+    document.addEventListener('pointerdown', function () { resumeAudio(); }, true);
+    document.addEventListener('keydown', function () { resumeAudio(); }, true);
+  } catch (e) {}
   function resumeAudio() {
-    if (headless || !soundOn) return;
+    if (headless || (!soundOn && !musicOn)) return;   // music alone is enough of a reason
     try {
       if (!AC) {
         AC = new (window.AudioContext || window.webkitAudioContext)();
@@ -30967,8 +30974,8 @@
     return sp.r ? k : Math.max(MINVOL, k);
   }
 
-  // The one entry point. `x`/`y` are world pixels; omit them for an interface
-  // or global sound.
+  // The one entry point. `x`/`y` are GRID CELLS (distGain measures them
+  // against the camera in cells); omit them for an interface or global sound.
   function sfx(kind, x, y) {
     if (headless || !soundOn || !AC || !BUS) return false;
     var sp = SPEC[kind], fn = PLAY[kind];
@@ -31143,10 +31150,13 @@
     // same unit do not repeat the same line.
     var pat = VOXPAT[pats[(G.tick >> 5) % pats.length]];
     var sov = facOf(G, u.p) === 'col';
+    // RA2's veterans and elites answer in their own voice set; ours is one
+    // synth, so rank lowers and firms the line — a veteran 4% down, an elite 8%.
+    var rk = u.rank || 0, rkf = rk >= 2 ? 0.92 : rk === 1 ? 0.96 : 1;
     try {
       var g = AC.createGain(); g.gain.value = 0.95; g.connect(BUS.voice);
       voxLine(AC, g, AC.currentTime + 0.002,
-              vx.f * (sov ? 0.86 : 1), vx.b * (sov ? 0.94 : 1), Math.min(0.75, vx.r + (sov ? 0.12 : 0)),
+              vx.f * (sov ? 0.86 : 1) * rkf, vx.b * (sov ? 0.94 : 1), Math.min(0.75, vx.r + (sov ? 0.12 : 0)),
               pat, sov ? 1.12 : 1);
       aLog.push('vox:' + u.type + ':' + kind); if (aLog.length > 96) aLog.shift();
     } catch (e) { return false; }
@@ -31269,9 +31279,20 @@
   // RA2 throttles the advisor in game FRAMES, not wall clock — at a faster
   // game speed the same event still gets the same number of ticks of quiet.
   function evaNow() { return G ? G.tick * (1000 / 60) : performance.now(); }
+  // Chrome's voice list is empty until the engine has loaded; the first line
+  // of a session came out as the chime. Ask early, and re-pick when they land.
+  try {
+    if (typeof speechSynthesis !== 'undefined') {
+      speechSynthesis.getVoices();
+      speechSynthesis.addEventListener('voiceschanged', function () { evaVoice = null; });
+    }
+  } catch (e) {}
   function eva(line, gap) {
     var now = evaNow();
     if (evaAt[line] !== undefined && now - evaAt[line] < (gap || 6000) && now >= evaAt[line]) return false;
+    // No audio yet (nothing has been clicked since the load): log it, but do
+    // not spend the repeat gap on a line nobody could hear.
+    if (!headless && soundOn && !AC) { evaLog.push(line); if (evaLog.length > 64) evaLog.shift(); return false; }
     evaAt[line] = now;
     evaLog.push(line); if (evaLog.length > 64) evaLog.shift();
     if (headless || !soundOn) return true;
@@ -31573,6 +31594,7 @@
   // total one step per frame, clicking as it goes, so income reads as a flow.
   // The step scales with the gap so a $2000 sale is not a minute of counting,
   // but it is never a jump.
+  var lastCash = 0;
   function tickCredits() {
     if (!G) return;
     var real = G.side[ME].credits;
@@ -31580,7 +31602,8 @@
       var gap = real - shownCred;
       var step = Math.max(1, Math.ceil(Math.abs(gap) / 22));
       shownCred += gap > 0 ? Math.min(step, gap) : Math.max(-step, gap);
-      sfx('cash');
+      var cnow = performance.now();
+      if (cnow - lastCash > 150) { sfx('cash'); lastCash = cnow; }   // one chirp per 150 ms, not one per frame (19 in 2 s at a match start)
       vCred.textContent = Math.round(shownCred);
     }
   }
@@ -32193,7 +32216,7 @@
     cmd('queue', { k: it.k, lane: it.lane });
   }
 
-  var lastReady = null, toldRefinery = false, lastPowerWarn = 0;
+  var lastReady = null, toldRefinery = false, lastPowerWarn = -1e9;
   function refreshPanel() {
     if (!G) return;
     var s = G.side[ME];
@@ -33169,8 +33192,8 @@
     // path already written for the MAKE applies unchanged.
     b.sel = false; b.sell = true; b.door = 0; b.hold = null; b.repair = false;
     b.make = headless ? 0 : MAKE_T;
+    if (local !== false) { sfx('sell'); eva('Structure sold', 2000); }   // before the MAKE_T=0 shortcut, which used to skip it
     if (b.make <= 0) { finishSell(g, b); return; }
-    if (local !== false) { sfx('sell'); eva('Structure sold', 2000); }
   }
   function finishSell(g, b) {
     var refund = Math.round(bspecOfB(g, b).cost * 0.5);
@@ -33386,6 +33409,7 @@
     }
     say(describe(e));
     if (e.kind === 'u') unitAck([e], 'select');   // RA2 VoiceSelect — the line the game never had
+    else sfx('click');                            // a structure clicks
   }
 
   function describe(e) {
@@ -36590,7 +36614,7 @@
         musicOn = k === 'on';
         lsSet('vibetop:rts:music', musicOn ? '1' : '0');
         applyVol();
-        if (musicOn) { resumeAudio(); MUS.start(); } else MUS.stop();
+        if (musicOn) { resumeAudio(); MUS.start(); } else MUS.stop();   // resumeAudio builds the graph for music alone
         buildOptRows();
       });
     VSL.forEach(function (v) {
@@ -36666,13 +36690,14 @@
     optOpen = false; optCard.style.display = 'none'; hideCard();
     G.debug = !!G.debug;
     state = 'play';
+    lastRadar = null; evaHush(false);
     pauseBtn.innerHTML = PAUSE_SVG;
     pausedEl.classList.remove('show');
     sel = []; groups = {}; placing = null; swMode = null;
     restoreSession();                       // the teams and the camera bookmarks come back with the match
     cmdMode = null; refreshCmdbar(); pickCursor();
     cv.classList.remove('placing');
-    shownCred = 0; lastReady = null; toldRefinery = false; lastPowerWarn = 0;
+    shownCred = 0; lastReady = null; toldRefinery = false; lastPowerWarn = -1e9;
     sess = window.vibeScores ? window.vibeScores.session() : null;
     centerOn(G.start[ME].x, G.start[ME].y);
     panel = 'b';
@@ -36717,7 +36742,7 @@
     if (state === 'play') togglePause(true);
     optOpen = true; cardPush('opt');
     onA = function () { closeOptions(); };
-    onB = function () { optOpen = false; hideCard(); eva('Battle control terminated', 3000); menu(); };
+    onB = function () { optOpen = false; hideCard(); menu(); eva('Battle control terminated', 3000); };   // spoken AFTER menu()'s hush, or it is cancelled unheard
     showCard('\u2699\ufe0f', 'Options', 'The match is paused.', 'Resume', 'Abort to menu', false, false);
     optCard.style.display = 'block';
     buildOptRows();
@@ -36928,7 +36953,8 @@
     soundOn = !soundOn;
     lsSet('vibetop:rts:sound', soundOn ? '1' : '0');
     paintSnd();
-    if (soundOn) { resumeAudio(); if (musicOn) MUS.start(); } else MUS.stop();
+    if (soundOn) { resumeAudio(); if (musicOn) MUS.start(); }
+    else { evaHush(); if (!musicOn) MUS.stop(); }     // Sound off stops the voice mid-line; music has its own switch
   });
   paintSnd();
 
@@ -36955,6 +36981,7 @@
       state = 'play'; pauseBtn.innerHTML = PAUSE_SVG;
       pausedEl.classList.remove('show');
       evaHush(false);
+      if (musicPausedBg) { musicPausedBg = false; if (musicOn) MUS.start(); }
       say('Resumed');
     }
   }
@@ -36962,8 +36989,12 @@
   // RA2 pauses a single-player match when it loses the screen. The desktop
   // shell says which app is up (vibetop:active); the tab says when it is
   // hidden. A click brings it back, as it always did. Two-player never pauses.
+  var musicPausedBg = false;
   function pauseInBackground() {
-    if (state === 'play' && G && !G.mp && !headless) { togglePause(true); say('Paused — the game went to the background'); }
+    if (state === 'play' && G && !G.mp && !headless) {
+      togglePause(true); say('Paused — the game went to the background');
+      MUS.stop(); musicPausedBg = true;               // a match nobody is looking at does not play its score
+    }
   }
   window.addEventListener('message', function (e) {
     if (e.data && e.data.type === 'vibetop:active' && e.data.active && e.data.active !== 'rts') pauseInBackground();
@@ -36991,7 +37022,7 @@
       // straight into another match; one confirm so a stray click cannot
       // throw away a game.
       optOpen = false; cardPop('opt'); optCard.style.display = 'none';   // this card replaces the Options card
-      onA = function () { hideCard(); eva('Battle control terminated', 3000); menu(); };
+      onA = function () { hideCard(); menu(); eva('Battle control terminated', 3000); };
       onB = function () { hideCard(); if (state === 'paused') togglePause(); };
       showCard('🔄', 'Back to the menu?', 'This abandons the current match.', 'Back to menu', 'Keep playing', false, false);
       return;
@@ -37013,6 +37044,11 @@
   function menu() {
     state = 'menu';
     lsSet(RESUME_KEY, '0');                            // nothing to resume from the menu
+    // Un-pause the voice BEFORE clearing it: a match left through the paused
+    // Options card left speechSynthesis paused for good, and every EVA line
+    // of every later match queued silently until some later un-pause let the
+    // whole backlog out (audio audit, 2026-09-11).
+    evaHush(false);
     evaHush();                                         // nothing from the last match talks over the menu
     MUS.set('menu');
     mpClose();
@@ -37031,6 +37067,7 @@
   // not P_HUMAN.
   function matchUIReset() {
     state = 'play';
+    lastRadar = null; evaHush(false);     // a fresh match: no stale radar-off sting, and the voice un-paused
     MUS.set(G.theatre); MUS.start();      // theme.ini rotates a track per match; here the theatre picks the loop
     pauseBtn.innerHTML = PAUSE_SVG;
     pausedEl.classList.remove('show');
@@ -37038,7 +37075,7 @@
     cmdMode = null; refreshCmdbar(); pickCursor();          // a sell mode must not survive New -> menu -> match
     cv.classList.remove('placing');
     shownCred = 0;
-    lastReady = null; toldRefinery = false; lastPowerWarn = 0;
+    lastReady = null; toldRefinery = false; lastPowerWarn = -1e9;
     sess = window.vibeScores ? window.vibeScores.session() : null;
     centerOn(G.start[ME].x, G.start[ME].y);
     panel = 'b';
@@ -37318,6 +37355,7 @@
     state = 'over';
     lsSet(RESUME_KEY, '0');                            // a finished match is not resumed
     evaHush();                                         // the score card is not read over
+    MUS.stop();                                        // nor is it scored
     var secs = Math.floor(G.tick / 60);
     if (window.vibeScores && !G.debug && !G.mp) {       // a cheated game is not a record, nor is a two-player one
       window.vibeScores.finish('rts', difficulty, won, {});
