@@ -1,12 +1,6 @@
-// Iron Frontier unit art — infantry/gi
-// Spliced VERBATIM into apps/games/rts/rts.html between `// @@ART infantry/gi` and
-// `// @@END infantry/gi` (one pair per @@PART below). Edit HERE, then
-//     node apps/games/rts/tools/art-split.js inject
-// — or edit rts.html and `extract`; rts-split.test.js fails while they differ.
-// Every free identifier (the canvas `g`, the anchor, the helpers, `col`, `sov`…)
-// is a local of the enclosing bake function: see apps/games/rts/art/units/README.md.
+// ─── infantry/gi ─── Iron Frontier unit art. Included into rts.html by tools/rts-build.py;
+// every free identifier is a local of bakeInfantry() in rts.src.html — see art/units/README.md.
 
-// @@PART main — inside bakeInfantry() in rts.html
 // GI ([E1]). The RA2 layout, and it is the OPPOSITE of what this branch
 // used to draw: a GREY POT HELMET over a house-colour TORSO BLOCK over
 // OLIVE legs (unit-identity-reference.md §1.5). The old pass had the

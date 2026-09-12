@@ -1,12 +1,6 @@
-// Iron Frontier unit art — ships/aegis
-// Spliced VERBATIM into apps/games/rts/rts.html between `// @@ART ships/aegis` and
-// `// @@END ships/aegis` (one pair per @@PART below). Edit HERE, then
-//     node apps/games/rts/tools/art-split.js inject
-// — or edit rts.html and `extract`; rts-split.test.js fails while they differ.
-// Every free identifier (the canvas `g`, the anchor, the helpers, `col`, `sov`…)
-// is a local of the enclosing bake function: see apps/games/rts/art/units/README.md.
+// ─── ships/aegis ─── Iron Frontier unit art. Included into rts.html by tools/rts-build.py;
+// every free identifier is a local of bakeShip() in rts.src.html — see art/units/README.md.
 
-// @@PART main — inside bakeShip() in rts.html
 // [AEGIS]: the whole ship is a missile battery, and §2.3's read is
 // "explicitly no barrel". ONE slab deckhouse running two thirds of her
 // length, carrying the four phased-array PANELS (the house colour lives

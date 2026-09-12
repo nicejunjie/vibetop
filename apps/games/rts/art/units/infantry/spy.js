@@ -1,12 +1,6 @@
-// Iron Frontier unit art — infantry/spy
-// Spliced VERBATIM into apps/games/rts/rts.html between `// @@ART infantry/spy` and
-// `// @@END infantry/spy` (one pair per @@PART below). Edit HERE, then
-//     node apps/games/rts/tools/art-split.js inject
-// — or edit rts.html and `extract`; rts-split.test.js fails while they differ.
-// Every free identifier (the canvas `g`, the anchor, the helpers, `col`, `sov`…)
-// is a local of the enclosing bake function: see apps/games/rts/art/units/README.md.
+// ─── infantry/spy ─── Iron Frontier unit art. Included into rts.html by tools/rts-build.py;
+// every free identifier is a local of bakeInfantry() in rts.src.html — see art/units/README.md.
 
-// @@PART main — inside bakeInfantry() in rts.html
 // SPY ([SPY]), read off docs/ra2-ref/ra2-spy-RA2_Spy_Manual_Render: a
 // man in a long OVERCOAT — the only civilian silhouette in the army.
 // Bare dark head under a fedora, pale shirt strip and a dark tie down

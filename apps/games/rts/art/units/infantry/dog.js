@@ -1,12 +1,6 @@
-// Iron Frontier unit art — infantry/dog
-// Spliced VERBATIM into apps/games/rts/rts.html between `// @@ART infantry/dog` and
-// `// @@END infantry/dog` (one pair per @@PART below). Edit HERE, then
-//     node apps/games/rts/tools/art-split.js inject
-// — or edit rts.html and `extract`; rts-split.test.js fails while they differ.
-// Every free identifier (the canvas `g`, the anchor, the helpers, `col`, `sov`…)
-// is a local of the enclosing bake function: see apps/games/rts/art/units/README.md.
+// ─── infantry/dog ─── Iron Frontier unit art. Included into rts.html by tools/rts-build.py;
+// every free identifier is a local of bakeDog() in rts.src.html — see art/units/README.md.
 
-// @@PART main — inside bakeDog() in rts.html
 var s = unitCanvas(), g = s.g, cx = s.w / 2, by = s.h - UPAD;
 g.translate(cx, by); g.scale(USC_I, USC_I); g.translate(-cx, -by);
 // ...and the dog's own STATURE, about the same ground anchor, so coat,

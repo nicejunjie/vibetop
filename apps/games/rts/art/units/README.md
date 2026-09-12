@@ -1,26 +1,34 @@
 # Unit art, one file per unit
 
 Every unit's drawing code lives here, one file per unit, grouped the way the
-bake functions in `rts.html` group them. **Edit the file, then splice it in:**
+bake functions group them — and this is the **only** copy. `rts.html` is
+generated:
 
-    node apps/games/rts/tools/art-split.js inject     # art/units -> rts.html
-    node apps/games/rts/tools/art-split.js extract    # rts.html  -> art/units (if you edited the page instead)
-    node apps/games/rts/tools/art-split.js check      # what rts-split.test.js runs
+    python3 apps/games/rts/tools/rts-build.py     # rts.src.html + art/units/** -> rts.html
 
-`rts.html` is still the only thing that runs, deploys, and gets loaded by the
-tests and the art tools — nothing in the delivery path changed. These files
-are **not** modules: each holds the body of one branch of a bake function,
-de-indented, and `rts.html` carries the identical lines between
-`// @@ART <class>/<kind>` and `// @@END <class>/<kind>`. `inject` refuses a
-file that does not parse as a function body, and the test fails the commit
-while the two copies differ (it tells you which side is newer). Why textual
+`rts.src.html` is the page with everything that is not unit art; where a
+unit's body belongs it has one line, `// @@include art/units/<class>/<kind>.js`,
+at the indentation the body takes. The build splices each file in verbatim
+(re-indented) and writes `rts.html` — gitignored, read-only, with a GENERATED
+banner on line 2 — which is what runs, deploys, and gets loaded by every test
+and art tool. `run-tests.sh` and `shell/install.sh` run the build first, so
+you only need to run it yourself to see an edit in a browser or a tool.
+
+**Never edit `rts.html`.** The build refuses to overwrite an output that
+differs from the one it last wrote, so a hand edit is not lost silently: port
+it into the unit file or `rts.src.html`, or `--force` to discard it.
+`rts-build.test.js` fails the commit if the output on disk is stale, a unit
+file is not included, an include does not resolve, or a file no longer parses.
+
+These files are **not** modules: each is the body of one branch of a bake
+function, so every free identifier is a local of that function. Why textual
 rather than real modules: `docs/design-decisions.md`, "RTS unit art split".
 
 ## What a file can use
 
 The body runs **inside** its bake function, so every free identifier is a
-local of that function (or of the page's IIFE). The `@@PART` line in each file
-names the function; the shared prelude just above the branch in `rts.html` is
+local of that function (or of the page's IIFE). The header of each file
+names the function; the shared prelude just above the `@@include` in `rts.src.html` is
 where the helpers are defined. The ones every file leans on:
 
 | Class | Function in `rts.html` | The locals you draw with |
@@ -35,7 +43,7 @@ where the helpers are defined. The ones every file leans on:
 Anything declared with `var` inside a file is hoisted to the bake function, so
 two files in the same function must not reuse a name for different things.
 
-## What stays in `rts.html` on purpose
+## What stays in `rts.src.html` on purpose
 
 - The per-kind **hull colour table** at the top of `bakeVehicle` / `bakeShip`
   and the `len`/`wid`/`RING`/`VSC` size tables — one shared block each; a

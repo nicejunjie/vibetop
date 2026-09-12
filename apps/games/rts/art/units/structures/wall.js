@@ -1,12 +1,6 @@
-// Iron Frontier unit art — structures/wall
-// Spliced VERBATIM into apps/games/rts/rts.html between `// @@ART structures/wall` and
-// `// @@END structures/wall` (one pair per @@PART below). Edit HERE, then
-//     node apps/games/rts/tools/art-split.js inject
-// — or edit rts.html and `extract`; rts-split.test.js fails while they differ.
-// Every free identifier (the canvas `g`, the anchor, the helpers, `col`, `sov`…)
-// is a local of the enclosing bake function: see apps/games/rts/art/units/README.md.
+// ─── structures/wall ─── Iron Frontier unit art. Included into rts.html by tools/rts-build.py;
+// every free identifier is a local of bakeWallSeg() in rts.src.html — see art/units/README.md.
 
-// @@PART main — inside bakeWallSeg() in rts.html
 var fw = TW / 2, fh = TH / 2, pad = 18, head = 40;
 var s = mkCanvas(fw * 2 + pad * 2, fh * 2 + head + pad * 2), g = s.g;
 var cx = s.w / 2, by = s.h - pad - fh;

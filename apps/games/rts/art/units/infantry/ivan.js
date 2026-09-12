@@ -1,12 +1,6 @@
-// Iron Frontier unit art — infantry/ivan
-// Spliced VERBATIM into apps/games/rts/rts.html between `// @@ART infantry/ivan` and
-// `// @@END infantry/ivan` (one pair per @@PART below). Edit HERE, then
-//     node apps/games/rts/tools/art-split.js inject
-// — or edit rts.html and `extract`; rts-split.test.js fails while they differ.
-// Every free identifier (the canvas `g`, the anchor, the helpers, `col`, `sov`…)
-// is a local of the enclosing bake function: see apps/games/rts/art/units/README.md.
+// ─── infantry/ivan ─── Iron Frontier unit art. Included into rts.html by tools/rts-build.py;
+// every free identifier is a local of bakeInfantry() in rts.src.html — see art/units/README.md.
 
-// @@PART main — inside bakeInfantry() in rts.html
 // CRAZY IVAN, read off soviet-crazy-ivan-frames: a fur USHANKA in
 // house colour with the ear flaps hanging, a brown beard filling the
 // lower face, and a long dark coat worn OPEN — two house-colour lapel

@@ -1,6 +1,6 @@
 # rts art harness
 
-Playwright renders of `apps/games/rts/rts.html` sprites. Serve the page first:
+Playwright renders of `apps/games/rts/rts.html` sprites. Build (`python3 apps/games/rts/tools/rts-build.py`) and serve the page first:
 
     cd landing && python3 -m http.server 8099 --bind 127.0.0.1 &
 
@@ -17,7 +17,7 @@ Then, from anywhere (`RTS_PORT` / `RTS_URL` pick the server, `RTS_OUT` the outpu
 ## Editing the art itself
 
 Each unit's drawing code is its own file under `art/units/<class>/<kind>.js`
-(`infantry/`, `vehicles/`, `aircraft/`, `ships/`, `structures/`). Edit there,
-then `node apps/games/rts/tools/art-split.js inject` to splice it into
-`rts.html`, which is what everything above renders. `art/units/README.md`
-lists what a file may use; `rts-split.test.js` fails while the two differ.
+(`infantry/`, `vehicles/`, `aircraft/`, `ships/`, `structures/`). `rts.html`
+— what everything above renders — is BUILT from `rts.src.html` plus those
+files by `python3 apps/games/rts/tools/rts-build.py`; run it after an edit
+(`run-tests.sh` does too). `art/units/README.md` lists what a file may use.

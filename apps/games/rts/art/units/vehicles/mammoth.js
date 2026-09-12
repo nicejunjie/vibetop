@@ -1,12 +1,6 @@
-// Iron Frontier unit art — vehicles/mammoth
-// Spliced VERBATIM into apps/games/rts/rts.html between `// @@ART vehicles/mammoth` and
-// `// @@END vehicles/mammoth` (one pair per @@PART below). Edit HERE, then
-//     node apps/games/rts/tools/art-split.js inject
-// — or edit rts.html and `extract`; rts-split.test.js fails while they differ.
-// Every free identifier (the canvas `g`, the anchor, the helpers, `col`, `sov`…)
-// is a local of the enclosing bake function: see apps/games/rts/art/units/README.md.
+// ─── vehicles/mammoth ─── Iron Frontier unit art. Included into rts.html by tools/rts-build.py;
+// every free identifier is a local of bakeVehicle() in rts.src.html — see art/units/README.md.
 
-// @@PART main — inside bakeVehicle() in rts.html
 // APOCALYPSE — a long, low Soviet tank. The eight-bearing rip has a
 // narrow tracked hull, a compact faceted turret and twin guns that do
 // the visual work; the red remap is four small rear shoulder blocks.

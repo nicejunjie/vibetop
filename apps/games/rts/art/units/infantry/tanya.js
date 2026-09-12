@@ -1,12 +1,6 @@
-// Iron Frontier unit art — infantry/tanya
-// Spliced VERBATIM into apps/games/rts/rts.html between `// @@ART infantry/tanya` and
-// `// @@END infantry/tanya` (one pair per @@PART below). Edit HERE, then
-//     node apps/games/rts/tools/art-split.js inject
-// — or edit rts.html and `extract`; rts-split.test.js fails while they differ.
-// Every free identifier (the canvas `g`, the anchor, the helpers, `col`, `sov`…)
-// is a local of the enclosing bake function: see apps/games/rts/art/units/README.md.
+// ─── infantry/tanya ─── Iron Frontier unit art. Included into rts.html by tools/rts-build.py;
+// every free identifier is a local of bakeInfantry() in rts.src.html — see art/units/README.md.
 
-// @@PART main — inside bakeInfantry() in rts.html
 // TANYA, read off Tanya_animation.gif: shoulder-length BLACK hair on a
 // bare head — the only unhelmeted figure on the field — bare arms, a
 // house-colour top across the chest, olive combat trousers with pale

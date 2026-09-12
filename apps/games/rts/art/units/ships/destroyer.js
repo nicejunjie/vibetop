@@ -1,12 +1,6 @@
-// Iron Frontier unit art — ships/destroyer
-// Spliced VERBATIM into apps/games/rts/rts.html between `// @@ART ships/destroyer` and
-// `// @@END ships/destroyer` (one pair per @@PART below). Edit HERE, then
-//     node apps/games/rts/tools/art-split.js inject
-// — or edit rts.html and `extract`; rts-split.test.js fails while they differ.
-// Every free identifier (the canvas `g`, the anchor, the helpers, `col`, `sov`…)
-// is a local of the enclosing bake function: see apps/games/rts/art/units/README.md.
+// ─── ships/destroyer ─── Iron Frontier unit art. Included into rts.html by tools/rts-build.py;
+// every free identifier is a local of bakeShip() in rts.src.html — see art/units/README.md.
 
-// @@PART main — inside bakeShip() in rts.html
 // [DEST]: a raked stem, one turret forward, a stepped bridge tower
 // amidships and the Osprey's hangar and pad right aft — RA2's
 // Destroyer is THREE SEPARATED MASSES on a long narrow hull, which is

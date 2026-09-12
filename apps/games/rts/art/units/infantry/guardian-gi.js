@@ -1,12 +1,6 @@
-// Iron Frontier unit art — infantry/guardian-gi
-// Spliced VERBATIM into apps/games/rts/rts.html between `// @@ART infantry/guardian-gi` and
-// `// @@END infantry/guardian-gi` (one pair per @@PART below). Edit HERE, then
-//     node apps/games/rts/tools/art-split.js inject
-// — or edit rts.html and `extract`; rts-split.test.js fails while they differ.
-// Every free identifier (the canvas `g`, the anchor, the helpers, `col`, `sov`…)
-// is a local of the enclosing bake function: see apps/games/rts/art/units/README.md.
+// ─── infantry/guardian-gi ─── Iron Frontier unit art. Included into rts.html by tools/rts-build.py;
+// every free identifier is a local of bakeInfantry() in rts.src.html — see art/units/README.md.
 
-// @@PART main — inside bakeInfantry() in rts.html
 // GUARDIAN GI (Directorate). Heavier than the rifleman in every axis:
 // a slab vest that squares the shoulders, a deep helmet with a dark
 // visor band, and a stubby missile tube braced on the right shoulder

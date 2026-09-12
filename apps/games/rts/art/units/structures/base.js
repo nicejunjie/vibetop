@@ -1,12 +1,6 @@
-// Iron Frontier unit art — structures/base
-// Spliced VERBATIM into apps/games/rts/rts.html between `// @@ART structures/base` and
-// `// @@END structures/base` (one pair per @@PART below). Edit HERE, then
-//     node apps/games/rts/tools/art-split.js inject
-// — or edit rts.html and `extract`; rts-split.test.js fails while they differ.
-// Every free identifier (the canvas `g`, the anchor, the helpers, `col`, `sov`…)
-// is a local of the enclosing bake function: see apps/games/rts/art/units/README.md.
+// ─── structures/base ─── Iron Frontier unit art. Included into rts.html by tools/rts-build.py;
+// every free identifier is a local of bakeBuilding() in rts.src.html — see art/units/README.md.
 
-// @@PART main — inside bakeBuilding() in rts.html
 // Rebuilt against the CLEAN in-game SHP rips of both Construction
 // Yards, then polished a second time at 1:1 against them (art pass 8):
 // the Soviet yard is a dark machine block and a pale limestone PORTAL

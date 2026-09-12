@@ -1,12 +1,6 @@
-// Iron Frontier unit art — structures/prism
-// Spliced VERBATIM into apps/games/rts/rts.html between `// @@ART structures/prism` and
-// `// @@END structures/prism` (one pair per @@PART below). Edit HERE, then
-//     node apps/games/rts/tools/art-split.js inject
-// — or edit rts.html and `extract`; rts-split.test.js fails while they differ.
-// Every free identifier (the canvas `g`, the anchor, the helpers, `col`, `sov`…)
-// is a local of the enclosing bake function: see apps/games/rts/art/units/README.md.
+// ─── structures/prism ─── Iron Frontier unit art. Included into rts.html by tools/rts-build.py;
+// every free identifier is a local of bakeBuilding() in rts.src.html — see art/units/README.md.
 
-// @@PART main — inside bakeBuilding() in rts.html
 // --- RA2 Prism Tower --------------------------------------------------
 // Re-read at 1:1 against the SHP rip (allied-prism-tower-anim-last.png,
 // 53x101 with the magenta shadow masked, aspect 0.525). The body is

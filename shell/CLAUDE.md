@@ -49,6 +49,11 @@ a different destination name (`shell/desktop.html` → `index.html`,
 `apps/utilities/services/index.html` → `landing.html`) or a `@TOKEN@` to stamp
 (`@VERSION@`/`@SW_VERSION@`, `@APP_HOME@`).
 
+One page is built rather than copied: `apps/games/rts/rts.html` is generated
+from `rts.src.html` + `art/units/**` by `apps/games/rts/tools/rts-build.py`,
+which `install.sh` runs before the walk; the walk then copies the output and
+skips `*.src.html` by name.
+
 Because the web root is flat, two grouped sources **can** collide on one URL —
 something the old list made impossible by construction. `install.sh` checks for
 duplicate destination basenames and fails loudly rather than letting one page

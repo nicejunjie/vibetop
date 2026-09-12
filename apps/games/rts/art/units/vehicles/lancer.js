@@ -1,12 +1,6 @@
-// Iron Frontier unit art — vehicles/lancer
-// Spliced VERBATIM into apps/games/rts/rts.html between `// @@ART vehicles/lancer` and
-// `// @@END vehicles/lancer` (one pair per @@PART below). Edit HERE, then
-//     node apps/games/rts/tools/art-split.js inject
-// — or edit rts.html and `extract`; rts-split.test.js fails while they differ.
-// Every free identifier (the canvas `g`, the anchor, the helpers, `col`, `sov`…)
-// is a local of the enclosing bake function: see apps/games/rts/art/units/README.md.
+// ─── vehicles/lancer ─── Iron Frontier unit art. Included into rts.html by tools/rts-build.py;
+// every free identifier is a local of bakeVehicle() in rts.src.html — see art/units/README.md.
 
-// @@PART main — inside bakeVehicle() in rts.html
 // GRIZZLY BATTLE TANK — the real eight-bearing rip is a LOW, pale
 // grey-blue wedge with a compact hard-edged turret and one long thin gun.
 // Its blue remap is restrained: two countable patches on the flank

@@ -1,12 +1,6 @@
-// Iron Frontier unit art — infantry/desolator
-// Spliced VERBATIM into apps/games/rts/rts.html between `// @@ART infantry/desolator` and
-// `// @@END infantry/desolator` (one pair per @@PART below). Edit HERE, then
-//     node apps/games/rts/tools/art-split.js inject
-// — or edit rts.html and `extract`; rts-split.test.js fails while they differ.
-// Every free identifier (the canvas `g`, the anchor, the helpers, `col`, `sov`…)
-// is a local of the enclosing bake function: see apps/games/rts/art/units/README.md.
+// ─── infantry/desolator ─── Iron Frontier unit art. Included into rts.html by tools/rts-build.py;
+// every free identifier is a local of bakeInfantry() in rts.src.html — see art/units/README.md.
 
-// @@PART main — inside bakeInfantry() in rts.html
 // DESOLATOR ([DESO]), read off docs/ra2-ref/ra2-deso-RA2_Desolator_
 // {Render,Manual_Render}. What actually identifies him at 1:1 is the
 // SHOULDER: a fat cylindrical rad cannon carried on the leading

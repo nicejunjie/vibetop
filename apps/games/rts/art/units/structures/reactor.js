@@ -1,12 +1,6 @@
-// Iron Frontier unit art — structures/reactor
-// Spliced VERBATIM into apps/games/rts/rts.html between `// @@ART structures/reactor` and
-// `// @@END structures/reactor` (one pair per @@PART below). Edit HERE, then
-//     node apps/games/rts/tools/art-split.js inject
-// — or edit rts.html and `extract`; rts-split.test.js fails while they differ.
-// Every free identifier (the canvas `g`, the anchor, the helpers, `col`, `sov`…)
-// is a local of the enclosing bake function: see apps/games/rts/art/units/README.md.
+// ─── structures/reactor ─── Iron Frontier unit art. Included into rts.html by tools/rts-build.py;
+// every free identifier is a local of bakeBuilding() in rts.src.html — see art/units/README.md.
 
-// @@PART main — inside bakeBuilding() in rts.html
 // --- RA2 Nuclear Reactor ----------------------------------------------
 // Rebuilt at 1:1 against the in-game shot
 // (docs/ra2-ref/soviet-nuclear-reactor.png, 173x136, building 169x124,

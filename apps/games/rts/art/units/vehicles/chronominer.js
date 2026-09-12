@@ -1,12 +1,6 @@
-// Iron Frontier unit art — vehicles/chronominer
-// Spliced VERBATIM into apps/games/rts/rts.html between `// @@ART vehicles/chronominer` and
-// `// @@END vehicles/chronominer` (one pair per @@PART below). Edit HERE, then
-//     node apps/games/rts/tools/art-split.js inject
-// — or edit rts.html and `extract`; rts-split.test.js fails while they differ.
-// Every free identifier (the canvas `g`, the anchor, the helpers, `col`, `sov`…)
-// is a local of the enclosing bake function: see apps/games/rts/art/units/README.md.
+// ─── vehicles/chronominer ─── Iron Frontier unit art. Included into rts.html by tools/rts-build.py;
+// every free identifier is a local of bakeVehicle() in rts.src.html — see art/units/README.md.
 
-// @@PART main — inside bakeVehicle() in rts.html
 // CHRONO MINER — a LOW, DARK truck. In `allied-chrono-miner.png` the
 // body is near-black charcoal, the house colour is ONE bright band
 // across its middle, and the nose is a bulbous VIOLET ribbed cluster

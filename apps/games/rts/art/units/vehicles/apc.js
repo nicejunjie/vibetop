@@ -1,12 +1,6 @@
-// Iron Frontier unit art — vehicles/apc
-// Spliced VERBATIM into apps/games/rts/rts.html between `// @@ART vehicles/apc` and
-// `// @@END vehicles/apc` (one pair per @@PART below). Edit HERE, then
-//     node apps/games/rts/tools/art-split.js inject
-// — or edit rts.html and `extract`; rts-split.test.js fails while they differ.
-// Every free identifier (the canvas `g`, the anchor, the helpers, `col`, `sov`…)
-// is a local of the enclosing bake function: see apps/games/rts/art/units/README.md.
+// ─── vehicles/apc ─── Iron Frontier unit art. Included into rts.html by tools/rts-build.py;
+// every free identifier is a local of bakeVehicle() in rts.src.html — see art/units/README.md.
 
-// @@PART main — inside bakeVehicle() in rts.html
 if (wantH) {
   var skHW = wid * 0.48, skST = Math.max(0.5, len * 0.46 - skHW);
   var SK = stadium(cx, by - 0.8, skST, skHW), i4, q0, q1;

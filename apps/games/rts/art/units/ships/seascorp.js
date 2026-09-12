@@ -1,12 +1,6 @@
-// Iron Frontier unit art — ships/seascorp
-// Spliced VERBATIM into apps/games/rts/rts.html between `// @@ART ships/seascorp` and
-// `// @@END ships/seascorp` (one pair per @@PART below). Edit HERE, then
-//     node apps/games/rts/tools/art-split.js inject
-// — or edit rts.html and `extract`; rts-split.test.js fails while they differ.
-// Every free identifier (the canvas `g`, the anchor, the helpers, `col`, `sov`…)
-// is a local of the enclosing bake function: see apps/games/rts/art/units/README.md.
+// ─── ships/seascorp ─── Iron Frontier unit art. Included into rts.html by tools/rts-build.py;
+// every free identifier is a local of bakeShip() in rts.src.html — see art/units/README.md.
 
-// @@PART main — inside bakeShip() in rts.html
 // [HYD]: small, fast, and all gun — the shortest armed hull afloat.
 // A low planing hull, a stubby pilot house forward, and the FLAK MOUNT
 // standing on a tub over the stern with a house-coloured ammo cheek

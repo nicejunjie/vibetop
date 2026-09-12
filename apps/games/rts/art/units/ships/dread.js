@@ -1,12 +1,6 @@
-// Iron Frontier unit art — ships/dread
-// Spliced VERBATIM into apps/games/rts/rts.html between `// @@ART ships/dread` and
-// `// @@END ships/dread` (one pair per @@PART below). Edit HERE, then
-//     node apps/games/rts/tools/art-split.js inject
-// — or edit rts.html and `extract`; rts-split.test.js fails while they differ.
-// Every free identifier (the canvas `g`, the anchor, the helpers, `col`, `sov`…)
-// is a local of the enclosing bake function: see apps/games/rts/art/units/README.md.
+// ─── ships/dread ─── Iron Frontier unit art. Included into rts.html by tools/rts-build.py;
+// every free identifier is a local of bakeShip() in rts.src.html — see art/units/README.md.
 
-// @@PART main — inside bakeShip() in rts.html
 // [DRED]: the missile ship, and §2.4's read is "the V3's silhouette
 // logic at capital-ship scale". Two huge box launchers STANDING PROUD
 // of a low hull, angled up and aft.

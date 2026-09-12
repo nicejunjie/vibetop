@@ -1,12 +1,6 @@
-// Iron Frontier unit art — vehicles/nighthawk
-// Spliced VERBATIM into apps/games/rts/rts.html between `// @@ART vehicles/nighthawk` and
-// `// @@END vehicles/nighthawk` (one pair per @@PART below). Edit HERE, then
-//     node apps/games/rts/tools/art-split.js inject
-// — or edit rts.html and `extract`; rts-split.test.js fails while they differ.
-// Every free identifier (the canvas `g`, the anchor, the helpers, `col`, `sov`…)
-// is a local of the enclosing bake function: see apps/games/rts/art/units/README.md.
+// ─── vehicles/nighthawk ─── Iron Frontier unit art. Included into rts.html by tools/rts-build.py;
+// every free identifier is a local of bakeVehicle() in rts.src.html — see art/units/README.md.
 
-// @@PART main — inside bakeVehicle() in rts.html
 if (wantH) {
   var hy = by - 5.4;                                  // the belly line
   // THE BOOM IS THE LENGTH, and `len` is not. Sweeping `len` 34/42/50

@@ -1,12 +1,6 @@
-// Iron Frontier unit art — vehicles/flaktrack
-// Spliced VERBATIM into apps/games/rts/rts.html between `// @@ART vehicles/flaktrack` and
-// `// @@END vehicles/flaktrack` (one pair per @@PART below). Edit HERE, then
-//     node apps/games/rts/tools/art-split.js inject
-// — or edit rts.html and `extract`; rts-split.test.js fails while they differ.
-// Every free identifier (the canvas `g`, the anchor, the helpers, `col`, `sov`…)
-// is a local of the enclosing bake function: see apps/games/rts/art/units/README.md.
+// ─── vehicles/flaktrack ─── Iron Frontier unit art. Included into rts.html by tools/rts-build.py;
+// every free identifier is a local of bakeVehicle() in rts.src.html — see art/units/README.md.
 
-// @@PART main — inside bakeVehicle() in rts.html
 // FLAK TRACK — a HALF-TRACK, and the running gear is the whole point:
 // two rubber tyres under a cream bonnet at the nose, a short track run
 // under an olive armoured bed at the tail. Nothing else in the fleet
