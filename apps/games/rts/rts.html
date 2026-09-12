@@ -12124,11 +12124,14 @@
         // broad folded channels. The blue mass is the dominant feature — it
         // reads as a large deployable structure, not a thin cargo strip.
         bevel(-10.6,8.6,-6.1,6.1,10.2,11.6,0.5,STEEL);
-        box(-10.0,8.0,-5.8,5.8,11.4,17.2,NAVY);
+        // Two blue boxes side by side, with a dark gap between them.
+        for (var side=-1;side<=1;side+=2) {
+          box(-10.0,8.0,side*2.9-2.3,side*2.9+2.3,11.4,17.2,NAVY);
+          // A narrow machined lip along the top edge catches the light.
+          box(-9.8,7.8,side*2.9-2.1,side*2.9+2.1,17.2,17.45,shade(NAVY,1.45));
+        }
         // A dark separation seam splits the two folded channels.
-        box(-9.6,7.6,-0.55,0.55,11.6,17.0,'#152439');
-        // A narrow machined lip along the top edge catches the light.
-        box(-9.8,7.8,-5.6,5.6,17.2,17.45,shade(NAVY,1.45));
+        box(-9.6,7.6,-0.6,0.6,11.6,17.0,'#152439');
 
         // Rear crosshead: two broad steel cheeks and a transverse beam at the
         // very rear. Kept simple — the folded yard, not the machinery, is the read.
@@ -33822,6 +33825,12 @@
     try { v = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--gut')) || 26; } catch (e) {}
     return v;
   }
+  // Inside the desktop the window's resize grips cover the outer 8 px of the
+  // frame on three sides (their ring is a tested model that tiles the seam
+  // between tiled windows), so the strip is wider there — 26 px stay live and
+  // the live part reads as the whole strip (session audit, 2026-09-11).
+  // Standalone keeps the 26 px strip.
+  if (window.top !== window) { try { document.documentElement.style.setProperty('--gut', '34px'); } catch (e) {} }
   var GUT = gutterPx();
   // FLAT: one speed across the whole strip. A depth-scaled band (80 px/s at
   // the inner lip, 900 at the edge) made each side feel different by where

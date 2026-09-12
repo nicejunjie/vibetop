@@ -12587,7 +12587,8 @@ hidden tab, pauses a single-player match (RA2 pauses on focus loss). Shell:
 handling, `closeMenu` hands the keyboard back to the active app, the
 cross-device tip sits at the bottom. The grips were left alone: their ring
 is a coupled model (winrz-css.test.js — outside reaches tile the 5 px seam
-between tiled windows, inside reach has an 8 px mouse floor), so in a
-floating window the outer 8 px of the gutter on three sides stay the
-window's edge grip; 18 px of strip remain, accepted.
+between tiled windows, inside reach has an 8 px mouse floor), so instead
+the game widens its gutter to 34 px whenever it runs inside a frame: the
+grips take their 8 px and 26 px of live strip remain, the same as standalone
+(v1.19.336).
 
