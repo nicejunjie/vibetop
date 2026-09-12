@@ -313,14 +313,18 @@ test.describe('native Files — auto-refresh', () => {
     const put = (name) => page.evaluate(async ({ dir, name }) => {
       await fetch('/api/fs/upload?path=' + encodeURIComponent(dir + '/' + name), { method: 'POST', body: 'x\n' });
     }, { dir: DIR, name });
+    // The fixture folder outlives a run, so the names are unique per run — a
+    // file left by the previous run made "behind: not yet listed" fail for ever.
+    const tag = Date.now().toString(36);
+    const front = 'auto-front-' + tag + '.txt', behind = 'auto-behind-' + tag + '.txt';
     await page.evaluate(() => window.postMessage({ type: 'vibetop:active', active: 'files' }, '*'));
-    await put('auto-front.txt');
-    await expect(rowNamed(page, 'auto-front.txt')).toBeVisible({ timeout: 8000 });     // in front: within a poll
+    await put(front);
+    await expect(rowNamed(page, front)).toBeVisible({ timeout: 8000 });                 // in front: within a poll
     await page.evaluate(() => window.postMessage({ type: 'vibetop:active', active: 'notes' }, '*'));
-    await put('auto-behind.txt');
+    await put(behind);
     await page.waitForTimeout(6000);
-    await expect(rowNamed(page, 'auto-behind.txt')).toHaveCount(0);                     // behind another app: no refresh
+    await expect(rowNamed(page, behind)).toHaveCount(0);                                // behind another app: no refresh
     await page.evaluate(() => window.postMessage({ type: 'vibetop:active', active: 'files' }, '*'));
-    await expect(rowNamed(page, 'auto-behind.txt')).toBeVisible({ timeout: 3000 });     // back in front: caught up at once
+    await expect(rowNamed(page, behind)).toBeVisible({ timeout: 3000 });                // back in front: caught up at once
   });
 });
