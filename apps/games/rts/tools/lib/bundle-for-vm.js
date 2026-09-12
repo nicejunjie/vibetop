@@ -28,22 +28,51 @@ const path = require('node:path');
 const IMPORT_RE = /^import (?:\{[^}]*\} from )?'(\.\.?\/[\w./-]+\.js)';$/;
 const EXPORT_RE = /^export (?=(?:var|let|const|function|class)\b)/gm;
 
-/** Top-level declared names of a de-indented module body (column-0 `var`/`function`/`class`). */
+/**
+ * Top-level declared names of a module body.
+ *
+ * Column 0 is NOT the test: a unit-art module is `export function drawRhino(C)
+ * {` wrapping a body that is kept VERBATIM, i.e. still at column 0 inside the
+ * function. Reading those as module-level declarations reported 112 name
+ * collisions that do not exist (`f0` in harrier and dolphin, …). So track
+ * brace depth across the file and only count a declaration that really sits at
+ * depth 0, skipping strings, comments, regexes and template holes.
+ */
 function topLevelNames(body, file) {
   const names = [];
   const lines = body.split('\n');
+  let depth = 0;
   for (let i = 0; i < lines.length; i++) {
     const s = lines[i];
-    let m = /^(?:async )?function\*? +([A-Za-z_$][\w$]*)/.exec(s) || /^class +([A-Za-z_$][\w$]*)/.exec(s);
-    if (m) { names.push(m[1]); continue; }
-    m = /^(?:var|let|const) +/.exec(s);
-    if (!m) continue;
-    // Walk the declaration to its `;` at depth 0, collecting declarator names.
-    let text = s.slice(m[0].length), k = i;
-    while (!statementEnds(text) && k + 1 < lines.length) text += '\n' + lines[++k];
-    for (const n of declaratorNames(text)) names.push(n);
+    if (depth === 0) {
+      let m = /^(?:async )?function\*? +([A-Za-z_$][\w$]*)/.exec(s) || /^class +([A-Za-z_$][\w$]*)/.exec(s);
+      if (m) names.push(m[1]);
+      else if ((m = /^(?:var|let|const) +/.exec(s))) {
+        let text = s.slice(m[0].length), k = i;
+        while (!statementEnds(text) && k + 1 < lines.length) text += '\n' + lines[++k];
+        for (const n of declaratorNames(text)) names.push(n);
+      }
+    }
+    depth += braceDelta(s);
+    if (depth < 0) throw new Error(`bundle-for-vm: unbalanced braces above line ${i + 1}` + (file ? ' of ' + file : ''));
   }
   return names;
+}
+
+/** Net `{` minus `}` on a line, ignoring strings, comments and regex literals. */
+function braceDelta(line) {
+  let d = 0, i = 0, prev = '';
+  while (i < line.length) {
+    const c = line[i], two = line.slice(i, i + 2);
+    if (two === '//') break;
+    if (two === '/*') { const j = line.indexOf('*/', i + 2); if (j < 0) break; i = j + 2; continue; }
+    if (c === '"' || c === "'" || c === '`') { i = skipString(line, i); prev = 'x'; continue; }
+    if (c === '/' && /[=(,:[!&|?{};+\-*%<>~^]/.test(prev)) { i = skipRegex(line, i); prev = 'x'; continue; }
+    if (c === '{') d++; else if (c === '}') d--;
+    if (!/\s/.test(c)) prev = c;
+    i++;
+  }
+  return d;
 }
 /** True once `text` holds a complete statement (a `;` at bracket depth 0 outside strings/comments). */
 function statementEnds(text) { return scan(text).ended; }

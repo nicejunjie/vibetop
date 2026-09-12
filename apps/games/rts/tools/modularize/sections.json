@@ -42,7 +42,8 @@
     { "file": "shroud.js",           "anchors": ["  function revealFor(g, p) {"] },
     { "file": "net.js",              "anchors": ["  var SP_DELAY = 2, MP_DELAY = 4;"] },
     { "file": "watch.js",            "anchors": ["  function techCount(g, p) {"] },
-    { "file": "ui/screen.js",        "anchors": ["  var cv = document.getElementById('cv');"] },
+    { "file": "ui/dom.js",           "anchors": ["  var cv = document.getElementById('cv');"] },
+    { "file": "ui/screen.js",        "anchors": ["  var cam = { x: 0, y: 0 };"] },
     { "file": "ui/save.js",          "anchors": ["  var SAVE_SLOTS = 3, SAVE_VER = 1;"] },
     { "file": "ui/audio.js",         "anchors": ["  var AC = null, master = null, BUS = null;"] },
     { "file": "ui/hud.js",           "anchors": ["  var vCred = document.getElementById('vCred');"] },
@@ -56,8 +57,38 @@
     { "file": "hooks.js",            "anchors": ["  window.__rts = function () {"] },
     { "file": "main.js",             "anchors": ["  difficulty = lsGet('vibetop:rts:diff') || 'normal';"] }
   ],
+  "_moves_doc": [
+    "`moves` re-homes ONE declaration by name. Everything below the first entry is",
+    "there for one reason: a module's LOAD-TIME statements may only read values from",
+    "modules that are guaranteed to have evaluated first, and in ES modules that",
+    "guarantee only exists outside the importer's strongly-connected component. The",
+    "sim<->ui function cycle puts ~42 modules in one SCC, so the handful of values a",
+    "load-time statement reads across a module boundary are moved into modules that",
+    "sit OUTSIDE it (world.js and ui/dom.js are leaves — zero imports). Function",
+    "bindings are exempt: ESM instantiates them at link time, before any evaluation.",
+    "`analyze`/`check` prove this — they compute the real ESM evaluation order and",
+    "fail on any load-time read that would land before its owner module evaluated."
+  ],
   "moves": {
-    "DIFF": "state.js"
+    "DIFF": "state.js",
+
+    "dirtAt": "geom.js",
+    "moverOf": "geom.js",
+    "isNaval": "geom.js",
+    "navReach": "geom.js",
+    "isSub": "geom.js",
+    "isSensor": "geom.js",
+    "senseRng": "geom.js",
+    "labelWater": "geom.js",
+    "waterZoneAt": "geom.js",
+    "hullZone": "geom.js",
+
+    "GUARD_STRAY": "world.js",
+    "IS_TOUCH": "ui/dom.js",
+    "screenCapture": "ui/input.js",
+    "mapId": "mapgen.js",
+
+    "miniDirty": "ui/minimap.js"
   },
   "units": {
     "_doc": "Unit-art modules: art/units/<class>/<kind>.js -> rts/units/<class>/<kind>.js, each exporting one function. Whole-function files export the bake function itself.",

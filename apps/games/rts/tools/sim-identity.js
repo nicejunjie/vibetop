@@ -14,7 +14,7 @@
 // `--bundle` loads the module tree through tools/lib/bundle-for-vm.js (the
 // concatenated closure rts.test.js also runs). Options: --minutes N (default
 // 30), --seeds a,b,c (default the six playtest seeds), --diffs x,y (default
-// normal,hard), --quick (= 2 minutes, 2 seeds, for a smoke run).
+// normal,hard), --quick (= 2 minutes, 2 seeds, for a smoke run), --jobs N (default: all cores).
 'use strict';
 const fs = require('node:fs');
 const path = require('node:path');
@@ -30,7 +30,9 @@ const facs = [['dir', 'col'], ['col', 'dir']];
 
 let source, label;
 if (args.includes('--bundle')) {
-  source = require('./lib/bundle-for-vm.js').source; label = 'bundle';
+  const entry = opt('--entry', null);                 // default: apps/games/rts/rts/main.js
+  const B = require('./lib/bundle-for-vm.js');
+  source = entry ? B.bundle(entry).source : B.source; label = 'bundle' + (entry ? ':' + entry : '');
 } else {
   const html = opt('--html', path.join(__dirname, '..', 'rts.html'));
   source = inlineScript(fs.readFileSync(html, 'utf8')); label = html;
@@ -42,14 +44,42 @@ function sortKeys(v) {
   return v;
 }
 
-const W = load(source);
-if (!W.__rtsSim || !W.__rtsTest) throw new Error('the loaded game exposes no __rtsSim/__rtsTest hooks');
-const t0 = Date.now();
-let n = 0;
-for (const seed of seeds) for (const [fa, fb] of facs) for (const d of diffs) {
+const cells = [];
+for (const seed of seeds) for (const [fa, fb] of facs) for (const d of diffs) cells.push({ seed, facA: fa, facB: fb, diff: d });
+
+function runCell(W, c) {
   const hashes = [];
-  const rec = W.__rtsSim(seed, d, d, minutes * 60 * 60, fa, fb, (g) => hashes.push(g.tick + ':' + W.__rtsTest.hash(g)));
-  process.stdout.write(JSON.stringify({ seed, facA: fa, facB: fb, diff: d, minutes, hashes, result: sortKeys(rec) }) + '\n');
-  n++;
-  process.stderr.write(`sim-identity: ${n} cells done (${((Date.now() - t0) / 1000).toFixed(0)}s) [${label}]\n`);
+  const rec = W.__rtsSim(c.seed, c.diff, c.diff, minutes * 60 * 60, c.facA, c.facB, (g) => hashes.push(g.tick + ':' + W.__rtsTest.hash(g)));
+  return JSON.stringify({ seed: c.seed, facA: c.facA, facB: c.facB, diff: c.diff, minutes, hashes, result: sortKeys(rec) });
+}
+
+// One process per cell (--jobs N, default: every core) — a cell is a few
+// minutes of single-threaded simulation, and the matrix is embarrassingly
+// parallel. Output order is always matrix order, so two runs diff cleanly.
+const cellIdx = opt('--cell', null);
+if (cellIdx !== null) {
+  const W = load(source);
+  process.stdout.write(runCell(W, cells[+cellIdx]) + '\n');
+} else {
+  const jobs = Math.max(1, Math.min(cells.length, +opt('--jobs', require('node:os').availableParallelism())));
+  const { spawn } = require('node:child_process');
+  const t0 = Date.now();
+  const out = new Array(cells.length);
+  let next = 0, done = 0, running = 0;
+  const base = process.argv.slice(1).filter((a, i, all) => !(a === '--jobs' || all[i - 1] === '--jobs'));
+  function pump() {
+    while (running < jobs && next < cells.length) {
+      const i = next++; running++;
+      const ch = spawn(process.execPath, [...base, '--cell', String(i)], { stdio: ['ignore', 'pipe', 'inherit'] });
+      let buf = '';
+      ch.stdout.on('data', (d) => { buf += d; });
+      ch.on('close', (code) => {
+        if (code !== 0) { console.error(`sim-identity: cell ${i} failed (exit ${code})`); process.exit(1); }
+        out[i] = buf.trim(); running--; done++;
+        process.stderr.write(`sim-identity: ${done}/${cells.length} cells (${((Date.now() - t0) / 1000).toFixed(0)}s, ${jobs} jobs) [${label}]\n`);
+        if (done === cells.length) process.stdout.write(out.join('\n') + '\n'); else pump();
+      });
+    }
+  }
+  pump();
 }
