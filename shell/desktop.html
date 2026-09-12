@@ -48,7 +48,7 @@
   try {
     jot({ k: 'boot', sa: !!(navigator.standalone || (window.matchMedia && matchMedia('(display-mode: standalone)').matches)),
           hid: !!document.hidden, nav: (window.performance && performance.getEntriesByType && performance.getEntriesByType('navigation')[0] || {}).type || '',
-          sw: !!(navigator.serviceWorker && navigator.serviceWorker.controller) });
+          sw: !!(navigator.serviceWorker && navigator.serviceWorker.controller), at: location.pathname + location.search });
   } catch (err) {}
   function flush() {
     if (flushed) return;
@@ -58,8 +58,10 @@
     var swp = (window.caches && caches.open) ? caches.open('vt-trace').then(function (c) { return c.match('/__vt/swtrace'); })
       .then(function (r) { return r ? r.json() : []; }).catch(function () { return []; }) : Promise.resolve([]);
     swp.then(function (sw) {
-      // Only worth a line when something other than this load's boot happened.
-      var quiet = guard.every(function (e) { return e.k === 'boot'; }) &&
+      // Only worth a line when something other than this load's boot happened —
+      // except in an installed (standalone) app, whose every launch is logged
+      // while its white page on an Access expiry is being chased.
+      var quiet = guard.every(function (e) { return e.k === 'boot' && !e.sa; }) &&
                   sw.every(function (e) { return e.how === 'net' && e.s === 200 && !e.rd; });
       if (quiet) { try { localStorage.removeItem(TRACE); } catch (err) {} return; }
       return fetch('/api/clientlog', { method: 'POST', credentials: 'same-origin', cache: 'no-store',
@@ -80,10 +82,14 @@
     function show() {
       var dialog = document.getElementById('auth-expired');
       var link = document.getElementById('auth-sign-in');
-      link.href = '/?vtreauth=' + Date.now();
+      // /reauth.html is a path the service worker never answers, so the
+      // browser follows Cloudflare's login redirect natively (an installed iOS
+      // web app went white when the worker relayed it); it comes back as the
+      // network-only /?vtreauth navigation.
+      link.href = '/reauth.html?vt=' + Date.now();
       // No automatic reload or sessionStorage latch: a failed sign-in can always
       // be retried, and detecting expiry doesn't discard the loaded apps.
-      link.addEventListener('click', function() { link.href = '/?vtreauth=' + Date.now(); jot({ k: 'signin' }); });
+      link.addEventListener('click', function() { link.href = '/reauth.html?vt=' + Date.now(); jot({ k: 'signin' }); });
       dialog.addEventListener('cancel', function(e) { e.preventDefault(); });
       dialog.showModal();
       link.focus();
@@ -1146,7 +1152,7 @@
   <dialog id="auth-expired" aria-labelledby="auth-expired-title" aria-describedby="auth-expired-desc">
     <h2 id="auth-expired-title">Session expired</h2>
     <p id="auth-expired-desc">Sign in again to reconnect to Vibetop.</p>
-    <a id="auth-sign-in" href="/?vtreauth=1" target="_top">Sign in again</a>
+    <a id="auth-sign-in" href="/reauth.html" target="_top">Sign in again</a>
   </dialog>
   <!-- System-health warning banner (disk-full etc.) — driven by the heartbeat's
        `warnings` array (see renderWarnings). Hidden until there's something to say.

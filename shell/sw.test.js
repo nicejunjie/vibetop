@@ -212,7 +212,8 @@ function navigate(handlers, url) {
   });
   return result;
 }
-const isUnreachablePage = (r) => r instanceof FakeResponse && /Vibetop can.t be reached/.test(r.body) && /vtreauth=/.test(r.body);
+const isUnreachablePage = (r) => r instanceof FakeResponse && /Vibetop can.t be reached/.test(r.body) && /\/reauth\.html\?vt=/.test(r.body);
+const isHandoffPage = (r) => r instanceof FakeResponse && /location\.replace\("\/reauth\.html\?vt=/.test(r.body);
 
 for (const outcome of ['redirect', 'error', 'pending']) {
   test(`vtreauth is network-only even when the network is ${outcome}`, async () => {
@@ -252,14 +253,22 @@ test('a navigation nobody can answer gets the unreachable page, and the worker k
   assert.ok(traced.some((ring) => ring.some((e) => e.p === '/' && e.how === 'error')), 'the failed navigation is in the trace ring');
 });
 
-test('a served shell page is traced as a network answer, redirect flag included', async () => {
+test('a redirected shell navigation is handed to /reauth.html, a path the worker never answers', async () => {
   const empty = { match: async () => undefined, put: async () => {} };
   const { handlers, traced } = worker({
     fetch: () => Promise.resolve({ type: 'opaqueredirect', status: 0, redirected: false, ok: false }),
     shellCache: empty, setTimeout: () => {}
   });
   const r = await navigate(handlers, 'https://vibetop.test/');
-  assert.equal(r.type, 'opaqueredirect', 'the Access redirect is passed through for the browser to follow');
+  assert.ok(isHandoffPage(r), 'the browser gets a page that makes the next hop natively');
+  assert.equal(r.headers.get('Cache-Control'), 'no-store');
+  assert.equal(classify('/reauth.html', 'navigate'), 'bypass', '/reauth.html must never reach respondWith');
   await new Promise((r) => setImmediate(r));
-  assert.ok(traced.some((ring) => ring.some((e) => e.p === '/' && e.how === 'net' && e.ty === 'opaqueredirect')));
+  assert.ok(traced.some((ring) => ring.some((e) => e.p === '/' && e.how === 'handoff' && e.ty === 'opaqueredirect')));
+  // A served shell page is traced as a network answer.
+  const ok = worker({ fetch: () => Promise.resolve({ type: 'basic', status: 200, ok: true, redirected: false, clone() { return this; } }), shellCache: empty, setTimeout: () => {} });
+  const page = await navigate(ok.handlers, 'https://vibetop.test/');
+  assert.equal(page.status, 200);
+  await new Promise((r) => setImmediate(r));
+  assert.ok(ok.traced.some((ring) => ring.some((e) => e.p === '/' && e.how === 'net' && e.s === 200)));
 });

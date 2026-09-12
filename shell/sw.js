@@ -17,7 +17,7 @@
  * caches. sw.js itself is served no-store (nginx `location /`), so the browser
  * re-checks it on navigation and picks up the new VERSION.
  */
-const VERSION = 'v605';
+const VERSION = 'v606';
 const CACHE = 'shell-' + VERSION;
 // A ring of the last navigations this worker answered (path, how it was
 // served, status, elapsed). It outlives VERSION so the shell can read it after
@@ -41,6 +41,22 @@ async function trace(entry) {
 // installed iOS web app has no error UI at all, so a navigation the worker
 // cannot answer was a white screen. The button is a top-level, network-only
 // navigation (vtreauth), which is also how an expired Access session is renewed.
+// The network answered a page navigation with a redirect — Cloudflare Access
+// sending an expired session to its login page. Relaying that redirect from a
+// worker left an installed iOS web app on a white page; handing the browser a
+// page that navigates to /reauth.html (a path the worker never answers) makes
+// the next hop a native navigation, which the browser follows to the login
+// page like any other. One hop only: /reauth.html comes back as /?vtreauth,
+// and a redirect on THAT is passed through as before.
+function handoffPage() {
+  return new Response(
+    '<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">' +
+    '<title>Vibetop</title><meta http-equiv="refresh" content="1;url=/reauth.html?vt=' + Date.now() + '">' +
+    '<style>html{background:#0e1117;color:#aab4c5;font:15px system-ui,sans-serif}body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center}</style>' +
+    '<p>Signing in\u2026</p><script>location.replace("/reauth.html?vt=' + Date.now() + '");</script>',
+    { status: 200, headers: { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' } });
+}
+const isRedirect = (res) => !!res && (res.type === 'opaqueredirect' || (res.status >= 300 && res.status < 400));
 function unreachablePage(why) {
   const safe = String(why || '').replace(/[<>&]/g, '');
   return new Response(
@@ -51,7 +67,7 @@ function unreachablePage(why) {
     'a{display:block;padding:14px 18px;border-radius:10px;background:#2f81f7;color:#fff;text-decoration:none;text-align:center;font-weight:600;min-height:44px}' +
     'small{display:block;margin-top:14px;color:#6e7a8a}</style>' +
     '<main><h1>Vibetop can\u2019t be reached</h1><p>The page did not load. If your sign-in expired, the next try goes through the sign-in page.</p>' +
-    '<a href="/?vtreauth=' + Date.now() + '">Try again</a><small>' + safe + '</small></main>',
+    '<a href="/reauth.html?vt=' + Date.now() + '">Try again</a><small>' + safe + '</small></main>',
     { status: 200, headers: { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' } });
 }
 
@@ -84,7 +100,9 @@ const SHELL_PAGES = new Set(PRECACHE.filter((p) => p === '/' || p.endsWith('.htm
 // Paths that must always hit the network (live data, websockets, auth).
 // Note: `files/` (with slash) so the live FileBrowser SPA at /files/* is bypassed
 // but the tabbed wrapper page /files.html stays cacheable as a shell page.
-const BYPASS = /^\/(api|browser|x11-display|office|onlyoffice|t\d|terminals|files\/|fileview|services\.json|cdn-cgi)/;
+// `reauth.html` is the sign-in hop: a navigation the worker must never answer,
+// so the browser itself follows Cloudflare Access's redirect (see below).
+const BYPASS = /^\/(api|browser|x11-display|office|onlyoffice|t\d|terminals|files\/|fileview|services\.json|cdn-cgi|reauth\.html)/;
 
 self.addEventListener('install', (e) => {
   e.waitUntil((async () => {
@@ -156,6 +174,7 @@ self.addEventListener('fetch', (e) => {
           networkPromise,
           new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 2500))
         ]);
+        if (isRedirect(res)) { note({ how: 'handoff', s: res.status, ty: res.type }); return handoffPage(); }
         note({ how: 'net', s: res.status, ty: res.type, rd: !!res.redirected });
         return res;
       } catch (err) {
@@ -168,6 +187,7 @@ self.addEventListener('fetch', (e) => {
         // browser's blank error page.
         const why = String(err && err.message || err);
         const late = () => networkPromise.then((res) => {
+          if (isRedirect(res)) { note({ how: 'handoff', s: res.status, ty: res.type, why }); return handoffPage(); }
           note({ how: 'late', s: res.status, ty: res.type, rd: !!res.redirected, why });
           return res;
         }, (err2) => {

@@ -12804,11 +12804,28 @@ line to the manager log; a run that saw nothing abnormal posts nothing.
 Read it with `grep clientlog /var/log/vibetop/manager.log`. The next white
 screen on the phone leaves this behind the moment the desktop is back.
 
+**Fix, part three (v1.19.343: the hop the worker never touches).** The
+second report — home-screen app, edge-to-edge white, nothing else opened —
+fits a worker RELAYING Cloudflare's redirect: the PWA bug list's own verdict
+on iOS is "stop handling navigation requests in the service worker". So a
+navigation the network answers with a redirect (`opaqueredirect` or 3xx) now
+gets a tiny page that `location.replace`s to **`/reauth.html`**, a path in
+the worker's BYPASS set: the browser makes that navigation natively, follows
+Access's login redirect itself, and `reauth.html` (which only loads once the
+session is good) moves on to `/?vtreauth`, the network-only route. The
+"Sign in again" link and the unreachable page's Try again point at
+`/reauth.html` too. One hop only: a redirect on `/?vtreauth` is still passed
+through, which is how the vibetop login redirect keeps working. Every launch
+of an installed (standalone) app now posts its boot facts to `/api/clientlog`
+while this is being chased.
+
 **Verification.** The worker tests execute the real worker: the sign-in
-navigation still passes an Access redirect straight through, and a failed one
-renders the unreachable page; a navigation with an empty cache and a dead
+navigation still passes an Access redirect straight through, a redirected
+shell navigation becomes the handoff page and `/reauth.html` classifies as
+bypass, and a failed sign-in renders the unreachable page; a navigation with an empty cache and a dead
 network renders it too and lands in the trace. The auth-expiry fixture
 (Chromium + iPhone WebKit) now asserts one client-log post per recovery and
 the unreachable page when the sign-in navigation itself fails. Still owed: the
-on-device answer — whether the white page was the worker's error page (now
-impossible) or Cloudflare's login page inside the web app's in-app browser.
+on-device answer: the next launch of the home-screen app after an expiry
+should land on Cloudflare's login page, and the launch's trace will say what
+the worker answered.
