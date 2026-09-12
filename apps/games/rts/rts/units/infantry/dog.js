@@ -1,5 +1,6 @@
-// ─── infantry/dog ─── Iron Frontier unit art. Included into rts.html by tools/rts-build.py;
-// every free identifier is a local of bakeDog() in rts.src.html — see art/units/README.md.
+// Iron Frontier — infantry/dog: the art for one unit.
+// Called by bakeDog() with one context object carrying the canvas, the anchor,
+// the facing and the helpers it draws with — see rts/README.md.
 
 import { DOG_SEQ } from '../../bake/infantry.js';
 import { INF_OCT, STATURE, UPAD, USC_I, outline, shadowBlob, unitCanvas } from '../../bake/kit.js';

@@ -1,5 +1,6 @@
-// ─── ships/dread ─── Iron Frontier unit art. Included into rts.html by tools/rts-build.py;
-// every free identifier is a local of bakeShip() in rts.src.html — see art/units/README.md.
+// Iron Frontier — ships/dread: the art for one unit.
+// Called by bakeShip() with one context object carrying the canvas, the anchor,
+// the facing and the helpers it draws with — see rts/README.md.
 
 export function drawDread(C) {
   var DECK = C.DECK, FR = C.FR, HD = C.HD, HOUSE = C.HOUSE, L = C.L, P = C.P, W = C.W, box = C.box,

@@ -43,6 +43,12 @@ before anything scanned it.
   its own.
 
 
+> **Note (2026-09-12, after the fact).** `apps/games/rts/tools/modularize/` — the
+> acorn-based tool that performed the split — was **deleted once the split landed
+> and both gates passed**: it was the repo's only third-party dependency outside
+> the e2e suite, and the game it produced is now the source. It is recoverable
+> from git history (commit a228c88) if the mapping ever needs re-deriving.
+
 ## Context
 
 The user asked for per-unit art files, rejected the marker/sync scheme ("no duplication"),

@@ -13038,8 +13038,11 @@ Two mechanics carry the whole conversion:
   is what keeps that true.
 
 `apps/games/rts/tools/modularize/` — the acorn-based AST tool that performed the
-split — stays in the tree as dev-only documentation of how the mapping was
-derived, and can re-derive it; `sections.json` is the module map. Supporting
+split — was **deleted once the split landed and both gates passed**. It was the
+repo's only third-party dependency outside the e2e suite (acorn, via an npm
+`package.json`), it had done its one job, and the tree it produced is now the
+source rather than an output. It is in git history at a228c88 if the mapping
+ever needs re-deriving. What remains has no dependencies at all —
 `tools/lib/`: `bundle-for-vm.js` concatenates the tree into one classic script
 for node's `vm` (`rts.test.js` needs two independent game instances in one
 process, which `import()` cannot give), `vm-sandbox.js` is its stub DOM,

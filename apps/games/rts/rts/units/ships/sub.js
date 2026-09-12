@@ -1,5 +1,6 @@
-// ─── ships/sub ─── Iron Frontier unit art. Included into rts.html by tools/rts-build.py;
-// every free identifier is a local of bakeShip() in rts.src.html — see art/units/README.md.
+// Iron Frontier — ships/sub: the art for one unit.
+// Called by bakeShip() with one context object carrying the canvas, the anchor,
+// the facing and the helpers it draws with — see rts/README.md.
 
 export function drawSub(C) {
   var FR = C.FR, HOUSE = C.HOUSE, L = C.L, P = C.P, W = C.W, box = C.box, g = C.g, poly = C.poly;

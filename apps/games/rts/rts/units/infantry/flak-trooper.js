@@ -1,5 +1,6 @@
-// ─── infantry/flak-trooper ─── Iron Frontier unit art. Included into rts.html by tools/rts-build.py;
-// every free identifier is a local of bakeInfantry() in rts.src.html — see art/units/README.md.
+// Iron Frontier — infantry/flak-trooper: the art for one unit.
+// Called by bakeInfantry() with one context object carrying the canvas, the anchor,
+// the facing and the helpers it draws with — see rts/README.md.
 
 import { ACCENT, outline } from '../../bake/kit.js';
 import { shade } from '../../bake/terrain.js';

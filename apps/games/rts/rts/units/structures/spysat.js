@@ -1,5 +1,6 @@
-// ─── structures/spysat ─── Iron Frontier unit art. Included into rts.html by tools/rts-build.py;
-// every free identifier is a local of bakeBuilding() in rts.src.html — see art/units/README.md.
+// Iron Frontier — structures/spysat: the art for one unit.
+// Called by bakeBuilding() with one context object carrying the canvas, the anchor,
+// the facing and the helpers it draws with — see rts/README.md.
 
 import { shade } from '../../bake/terrain.js';
 import { cylinder, faceL, facePatch, faceR, prism } from '../../bake/vehicles.js';

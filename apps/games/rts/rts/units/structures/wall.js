@@ -1,5 +1,6 @@
-// ─── structures/wall ─── Iron Frontier unit art. Included into rts.html by tools/rts-build.py;
-// every free identifier is a local of bakeWallSeg() in rts.src.html — see art/units/README.md.
+// Iron Frontier — structures/wall: the art for one unit.
+// Called by bakeWallSeg() with one context object carrying the canvas, the anchor,
+// the facing and the helpers it draws with — see rts/README.md.
 
 import { outline } from '../../bake/kit.js';
 import { lcg } from '../../bake/states.js';

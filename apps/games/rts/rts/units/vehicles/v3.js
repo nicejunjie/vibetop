@@ -1,5 +1,6 @@
-// ─── vehicles/v3 ─── Iron Frontier unit art. Included into rts.html by tools/rts-build.py;
-// every free identifier is a local of bakeVehicle() in rts.src.html — see art/units/README.md.
+// Iron Frontier — vehicles/v3: the art for one unit.
+// Called by bakeVehicle() with one context object carrying the canvas, the anchor,
+// the facing and the helpers it draws with — see rts/README.md.
 
 import { isoBox, outline } from '../../bake/kit.js';
 import { VACC } from '../../bake/ships.js';

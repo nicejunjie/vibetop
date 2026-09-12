@@ -84,7 +84,6 @@ page needs an http origin. Any static server rooted at `apps/games/rts/` does.
 | `lib/bundle-for-vm.js` | concatenates the tree into one classic script for node's `vm`. `rts.test.js` needs **two independent game instances in one process**, which `import()` cannot give (one module registry per specifier). Also exports `stripComments`, the real comment stripper the source-scanning tests use. |
 | `lib/vm-sandbox.js` | the stub DOM that bundle runs against |
 | `sim-identity.js` | the 24-cell simulation-identity harness (`--jobs`, default all cores) |
-| `modularize/` | the acorn AST tool that performed the split. Dev-only; kept because it documents how the module mapping was derived and can re-derive it. `sections.json` is the map. |
 
 ## Proving a change did not alter behaviour
 
