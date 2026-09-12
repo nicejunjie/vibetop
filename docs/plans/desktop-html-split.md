@@ -102,14 +102,18 @@ be `undefined` there; (d) no precedent anywhere in `shell/ shared/ apps/`.
    WEB_SOURCE_DIRS = ("shell/", "shared/", "apps/")`, asserted against the
    installer's walk by `server/tests/test_api_update.py:191`. Nothing to change.
 6. **Basename uniqueness — current deployable set** (checked with `find`):
-   JS/JSON: `apph.js coach.js filebrowser-patches.js gamescore.js kbd-input.js keybar.js manifest.json services.example.json sw.js tab-sync.js terminal-kbd.js vibe-modal.js winmgr.js xpra-patches.js`.
+   JS/JSON: `apph.js coach.js gamescore.js kbd-input.js keybar.js manifest.json services.example.json sw.js tab-sync.js terminal-kbd.js vibe-modal.js winmgr.js xpra-patches.js`
+   (`filebrowser-patches.js` was in this set when the plan was written; it was
+   retired along with FileBrowser and no longer deploys).
    The three names proposed below (`appreg.js`, `usage-strips.js`, `deskstate.js`)
    collide with nothing. Re-run the check before each commit:
    `find shell shared apps -name '*.js' ! -name '*.test.js' ! -path '*/art/*' -exec basename {} \; | sort | uniq -d` (must print nothing).
 7. **nginx never names shell JS.** `server/install.sh:365` `location /` serves
-   the whole static root; the only `sub_filter`s are on `/tN/` (install.sh:530–531),
-   `/files/` (apps/everyday/files/nginx/filebrowser.conf:34–35, 67–68) and
-   `/browser/` `/x11-display/` (apps/everyday/browser/nginx/browser.conf:68–70, 122–123).
+   the whole static root; the only `sub_filter`s are on `/tN/` (install.sh:530–531)
+   and `/browser/` `/x11-display/` (apps/everyday/browser/nginx/browser.conf:68–70,
+   122–123). (FileBrowser's `/files/` `sub_filter`, in
+   `apps/everyday/files/nginx/filebrowser.conf` when the plan was written, is
+   gone — that file is now `fileview.conf` and carries no `sub_filter` at all.)
    None touch `index.html`. No nginx edit in any step.
 8. **Tests that grep `desktop.html` as text** (they break if the text they look
    for moves): `server/tests/test_static.py:398` (nesting guard, head script),

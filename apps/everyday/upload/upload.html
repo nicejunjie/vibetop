@@ -230,7 +230,7 @@
   var refreshBtn   = document.getElementById('refresh');
   var clearFolder  = document.getElementById('clear-folder');
   var openFiles    = document.getElementById('open-files');
-  var folderRel    = null;   // path relative to FileBrowser root; set on load
+  var folderRel    = null;   // path relative to the user's home; set on load
 
   var queue = [];   // [{file, el, state: 'pending'|'done'|'error'}]
 
@@ -382,8 +382,8 @@
       if (d.dir) dirEl.textContent = d.dir;
       folderRel = d.rel_to_home || null;
       // Only allow the Open-in-Files jump when the upload dir lives under the
-      // FileBrowser root (~). If UPLOAD_DIR is somewhere else, the server
-      // returns rel_to_home: null and we keep the button disabled.
+      // user's home. If UPLOAD_DIR is somewhere else, the server returns
+      // rel_to_home: null and we keep the button disabled.
       openFiles.disabled = !folderRel || (window.top === window);
       renderFolder(d.files || []);
     }).catch(function() {

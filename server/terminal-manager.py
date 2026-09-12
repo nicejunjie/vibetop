@@ -354,13 +354,49 @@ def _write_notes_index(data):
 
 
 # Files app tab set — shared across a user's devices (one set, loaded when the
-# Files app opens, saved on change). Each entry is a FileBrowser browse URL.
+# Files app opens, saved on change). Each entry is an ABSOLUTE folder path
+# (e.g. "/home/you/Documents"); entries written by the retired FileBrowser
+# wrapper ("/files/files/<enc>") are migrated on read/write.
 # Per the request user's home (multi-user).
 def _files_tabs_file():
     return os.path.join(_ctx_home(), ".local/share/desktop-files-tabs.json")
 
 
 _files_tabs_lock = threading.Lock()
+
+
+def _files_tabs_default():
+    """The folder a user with no stored tab set opens at: their own home."""
+    return _ctx_home() or "/"
+
+
+def _fb_url_to_path(p):
+    """Migrate a tab entry written by the retired FileBrowser wrapper
+    ("/files/files/home/you/x") to the absolute path it meant — its segments are
+    percent-encoded. Only ever called on an entry carrying that prefix."""
+    rest = p.split("/files/files", 1)[1]
+    rest = rest.split("?")[0].split("#")[0]
+    segs = []
+    for seg in rest.split("/"):
+        if seg:
+            segs.append(urllib.parse.unquote(seg))
+    return "/" + "/".join(segs)
+
+
+def _files_tab_paths(raw):
+    """Sanitize a stored/posted tab list to absolute folder paths (max 32)."""
+    if not isinstance(raw, list):
+        return []
+    out = []
+    for p in raw[:32]:
+        if not isinstance(p, str) or not p or len(p) > 2048:
+            continue
+        if p.startswith("/files/files"):
+            p = _fb_url_to_path(p)
+        if not p.startswith("/") or "\x00" in p:
+            continue
+        out.append(p)
+    return out
 
 
 # Terminal tab names, keyed by instance number. Server-side so a rename shows up
@@ -530,7 +566,7 @@ class _zip_slot:
 
 
 # Shareable files are fenced to this root (+ no dotfiles); default = the OWNER's
-# home, NOT FileBrowser's "/", so a public link can never publish /etc/* or a
+# home, NOT the Files app's "/", so a public link can never publish /etc/* or a
 # dot-secret. `user` = the share owner (create: the authenticated user; serve: the
 # owner recorded in the entry). SHARE_ROOT env pins one shared root for the host.
 def _share_root(user=None):
@@ -1066,7 +1102,6 @@ def _port_env(name, default):
         return default
 BASE_PORT = _port_env("BASE_PORT", 7680)   # /tN/ -> BASE_PORT+N
 XPRA_PORT = _port_env("XPRA_PORT", 14500)  # Browser (xpra HTML5)
-FB_PORT = _port_env("FB_PORT", 8085)       # FileBrowser
 # The X display for the X11 desktop — a SECOND xpra session, separate from the
 # Browser's Chromium display (:99), so the Browser stays its own app. The Apps
 # launcher runs GUI apps here, and terminal shells export it (so X11 apps started
@@ -1253,16 +1288,19 @@ def _term_helper(name):
 USERS_REGISTRY = "/var/lib/vibetop/users.json"     # {user:{slot:k}} — root-owned
 USER_TERM_BASE = _port_env("USER_TERM_BASE", 17000)
 PER_USER_TERMS = 100                               # port span per user block
-# EVERY per-user TCP port (the user's terminals AND their FileBrowser + both xpra
-# HTML5 ports) lives inside that one 100-port block: base + slot*100 + offset.
-# Terminals take offsets 1..MAX_INSTANCE; the three app ports sit just above the
+# EVERY per-user TCP port (the user's terminals AND both xpra HTML5 ports) lives
+# inside that one 100-port block: base + slot*100 + offset.
+# Terminals take offsets 1..MAX_INSTANCE; the app ports sit just above the
 # terminal range (so they never overlap a terminal) and still inside the block (so
 # they never reach into the NEXT user's block). This makes cross-user port
-# collisions impossible at any slot count. The old layout put FileBrowser at
-# 18000+slot and the xpra ports at 24500/24700+slot as SEPARATE bands, which the
-# terminal band (17000+slot*100+n) overran once slots reached ~10 — e.g. the 11th
-# user's (slot 10) terminals 18001..18050 collided with slots 1..50 FileBrowsers.
-USER_FB_OFFSET = MAX_INSTANCE + 1                  # FileBrowser, just past the terminals
+# collisions impossible at any slot count. The old layout put the app ports in
+# SEPARATE bands (18000+slot, 24500/24700+slot), which the terminal band
+# (17000+slot*100+n) overran once slots reached ~10 — e.g. the 11th user's (slot
+# 10) terminals 18001..18050 collided with slots 1..50's file managers.
+# Offset MAX_INSTANCE+1 is RETIRED (it was the per-user FileBrowser) and is
+# deliberately left unused: reusing it would shift both xpra ports, and a port
+# shift strands every already-running transient unit on its old baked-in port
+# (the stale-port 502 class).
 USER_BROWSER_XPRA_OFFSET = MAX_INSTANCE + 2        # Browser xpra HTML5 port
 USER_X11_XPRA_OFFSET = MAX_INSTANCE + 3            # X11 xpra HTML5 port
 if USER_X11_XPRA_OFFSET >= PER_USER_TERMS:         # guardrail: block must hold them all
@@ -1469,10 +1507,9 @@ def _bump_token_epoch(user):
 
 # ---- Idle reaper (opt-in; default OFF) ---------------------------------------
 # Per-user services start on demand but are otherwise only stopped by an explicit
-# Logout — so a user who just closes the tab leaves a full stack (ttyd +
-# FileBrowser + two xpra displays = Xorg+Chromium each) resident forever. The
-# reaper stops the RAM-hog services of a user idle (no web heartbeat) longer than
-# the admin-set threshold. Opt-in via the Config app; policy is host-wide.
+# Logout — so a user who just closes the tab leaves a full stack (ttyd + two xpra
+# displays = Xorg+Chromium each) resident forever. The reaper stops the RAM-hog
+# services of a user idle (no web heartbeat) longer than the admin-set threshold. Opt-in via the Config app; policy is host-wide.
 IDLE_POLICY_FILE = os.environ.get("IDLE_POLICY_FILE") or "/var/lib/vibetop/idle.json"
 _idle_lock = threading.Lock()
 IDLE_MIN_HOURS, IDLE_MAX_HOURS = 1, 168        # 1 hour .. 1 week
@@ -1574,9 +1611,9 @@ def _reap_user(user, reap_terminals=False):
     their state (desktop layout / notes / office / browser profile all survive, so
     their windows restore on next login). Mirrors the service-stopping subset of
     _handle_reset but takes an explicit `user`, so it's safe from a background
-    thread. Always stops the RAM hogs (Browser + X11 xpra + FileBrowser); stops
-    terminals only when reap_terminals (they're cheap and may hold a running job)."""
-    stopped = {"terminals": [], "filebrowser": False, "xpra": []}
+    thread. Always stops the RAM hogs (Browser + X11 xpra); stops terminals only
+    when reap_terminals (they're cheap and may hold a running job)."""
+    stopped = {"terminals": [], "xpra": []}
     if reap_terminals:
         try:
             running = _list_running_terminals(user)
@@ -1591,14 +1628,6 @@ def _reap_user(user, reap_terminals=False):
             stopped["terminals"] = running
         with _cache_lock:
             _cache.pop("running_terminals:" + user, None)
-    try:
-        subprocess.run(["systemctl", "stop", _fb_unit(user)],
-                       check=False, capture_output=True, text=True, timeout=20)
-        stopped["filebrowser"] = True
-    except (OSError, subprocess.SubprocessError):
-        pass
-    with _cache_lock:
-        _cache.pop("fb_port:" + user, None)
     for kind in ("browser", "x11"):
         try:
             _stop_user_xpra(user, kind)
@@ -1607,8 +1636,8 @@ def _reap_user(user, reap_terminals=False):
             pass
         with _cache_lock:
             _cache.pop(f"xpra_port:{kind}:" + user, None)
-    log.info("reaper: reaped idle user %s (terminals=%s fb=%s xpra=%s)",
-             user, stopped["terminals"], stopped["filebrowser"], stopped["xpra"])
+    log.info("reaper: reaped idle user %s (terminals=%s xpra=%s)",
+             user, stopped["terminals"], stopped["xpra"])
     return stopped
 
 
@@ -2309,116 +2338,6 @@ def _fs_read_header(s):
         return {"ok": False, "error": "bad agent header", "code": "agent"}, b""
 
 
-# ---- Per-user Files (FileBrowser as the user, Phase 3b) --------------------
-# One FileBrowser per user, run AS them via systemd-run, rooted at "/" (whole
-# filesystem — same as the single-user Files app and consistent with the user's
-# Terminal; Unix perms are the fence since it runs as them). The app OPENS at
-# their real home (files.html anchors on /api/me) but can navigate the tree.
-# Per-user port + DB. nginx routes /files/ to the user's port via authcheck.
-FB_BIN = os.environ.get("FB_BIN", "/usr/local/bin/filebrowser")
-
-
-def _user_fb_port(user):
-    return _user_block_port(user, USER_FB_OFFSET)
-
-
-def _fb_unit(user):
-    return f"vibetop-ufiles-{_sanitize_unit(user)}.service"
-
-
-def _fb_db(home):
-    return os.path.join(home, ".config", "filebrowser", "filebrowser.db")
-
-
-def _run_as(user, argv, timeout=30):
-    """Run argv as `user` (root -> setuid). Returns the CompletedProcess or None."""
-    try:
-        return subprocess.run(argv, user=user, capture_output=True, text=True,
-                              timeout=timeout)
-    except (OSError, subprocess.SubprocessError) as e:
-        log.warning("run-as %s failed: %s", user, e)
-        return None
-
-
-def _provision_user_filebrowser(user, home, port):
-    """First-run setup of the user's FileBrowser DB (as the user): init, an
-    internal admin (noauth serves as it), and config (root=/, scope=/, baseurl,
-    hidden dotfiles). Idempotent — safe to re-run."""
-    db = _fb_db(home)
-    try:
-        os.makedirs(os.path.dirname(db), exist_ok=True)
-        _chown_app(os.path.dirname(db), user)
-        _chown_app(os.path.dirname(os.path.dirname(db)), user)
-    except OSError:
-        pass
-    if not os.path.exists(db):
-        _run_as(user, [FB_BIN, "-d", db, "config", "init"])
-        _run_as(user, [FB_BIN, "-d", db, "users", "add", "admin",
-                       secrets.token_hex(12), "--perm.admin"])
-    # Root at "/" (whole filesystem) — the same model as the single-user Files app
-    # and consistent with this user's Terminal: they run AS themselves, so Unix
-    # permissions are the fence (SSH-equivalent trust). The app *opens* at their
-    # real home (files.html anchors on /api/me), but they can navigate anywhere
-    # their perms allow, and the address bar shows real paths (/home/you) instead
-    # of "/". (Rooting at home instead showed home AS "/", which read as the same
-    # "landed in /" bug as the terminal.)
-    # hideDotfiles is deliberately OFF: FileBrowser's flag conflates "hide from
-    # listings" with "403 on direct access", which broke access to a user's own
-    # dotfiles (e.g. ~/.ssh, /tnas/you/.av) even though their Terminal — running
-    # as the same user — can read them (SSH-equivalent trust). We instead keep
-    # listings clean CLIENT-side (filebrowser-patches.js hides dotfile rows), so
-    # dotfiles stay hidden in listings but remain reachable by typing the path in
-    # the address bar. See docs/design-decisions.md.
-    _run_as(user, [FB_BIN, "-d", db, "config", "set", "--address", "127.0.0.1",
-                   "--port", str(port), "--baseurl", "/files", "--root", "/",
-                   "--auth.method=noauth", "--hideDotfiles=false"])
-    _run_as(user, [FB_BIN, "-d", db, "users", "update", "admin",
-                   "--scope", "/", "--hideDotfiles=false"])
-
-
-def _start_user_filebrowser(user):
-    """Ensure the user's FileBrowser is running; return (ok, port_or_error)."""
-    try:
-        pw = pwd.getpwnam(user)
-    except KeyError:
-        return False, f"unknown user {user}"
-    home = _user_home(user)
-    port = _user_fb_port(user)
-    unit = _fb_unit(user)
-    # Already running AND actually listening on the EXPECTED port? Reuse it. But
-    # the port is baked into the transient unit's args at creation, so after a
-    # port-scheme change (or a wedged FileBrowser) the unit stays "active" on the
-    # OLD port while nginx routes to the new one → /files/ 502s. Verify the port
-    # answers; if not, tear it down and recreate on the correct port (self-heal,
-    # same as the xpra path).
-    try:
-        st = subprocess.run(["systemctl", "is-active", unit],
-                            capture_output=True, text=True, timeout=10)
-        if st.stdout.strip() == "active":
-            if _wait_tcp(port, 3):
-                return True, port
-            log.warning("filebrowser for %s is active but not listening on :%d "
-                        "(stale/wrong port) — recreating", user, port)
-            subprocess.run(["systemctl", "stop", unit], capture_output=True, text=True)
-            subprocess.run(["systemctl", "reset-failed", unit], capture_output=True, text=True)
-    except (OSError, subprocess.SubprocessError):
-        pass
-    if not os.path.exists(FB_BIN):
-        return False, "filebrowser not installed"
-    _provision_user_filebrowser(user, home, port)
-    db = _fb_db(home)
-    r = subprocess.run(
-        ["systemd-run", "--collect", f"--uid={user}", f"--gid={pw.pw_gid}"]
-        + _resource_props() + _workdir_props(pw) +
-        [f"--unit={unit}", "--setenv", f"HOME={home}",
-         FB_BIN, "-d", db, "-a", "127.0.0.1", "-p", str(port)],
-        capture_output=True, text=True, timeout=30)
-    if r.returncode != 0:
-        return False, (r.stderr or r.stdout or "filebrowser start failed").strip()
-    _wait_tcp(port)                     # so the first /files/ hit doesn't 502
-    return True, port
-
-
 # ---- Per-user Browser + X11 (xpra displays, Phase 3c) ----------------------
 # Each user gets their OWN Browser xpra (Chromium desktop) and X11 xpra (bare
 # desktop for GUI apps), run AS them via systemd-run, on per-user displays+ports
@@ -2439,7 +2358,7 @@ def _user_xpra_display(user, kind):
 
 def _user_xpra_port(user, kind):
     # The xpra HTML5 port lives in the user's own per-user block (like their
-    # terminals + FileBrowser), so it can never collide with another user's ports.
+    # terminals), so it can never collide with another user's ports.
     off = USER_BROWSER_XPRA_OFFSET if kind == "browser" else USER_X11_XPRA_OFFSET
     return _user_block_port(user, off)
 
@@ -2899,10 +2818,10 @@ def _user_can_read(path, user):
 
 def _resolve_user_file(rel, user=None):
     """Resolve a Files-app path to an absolute regular file the `user` is AUTHORIZED
-    to read, or None. FileBrowser is rooted at `/`, so the paths it sends are
+    to read, or None. The Files app browses from `/`, so the paths it sends are
     ABSOLUTE (e.g. `tnas/you/clip.mp4`); a home-relative interpretation is also
     accepted as a fallback (tests / `office/new` / direct callers). We do NOT fence
-    to home — the file browser (running AS the user) can reach anything the user's
+    to home — the file agent (running AS the user) can reach anything the user's
     Unix perms allow, so the root-served viewers must match that, no more no less.
     The fence is instead an as-the-user read check (`_user_can_read`) on the
     realpath (symlinks resolved first), which subsumes path-traversal / symlink /
@@ -4544,17 +4463,6 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 log.warning("authcheck: start terminal %s-%d failed: %s", user, n, res)
         return port
 
-    def _ensure_user_filebrowser(self, user):
-        """Return the user's FileBrowser port, starting it (as the user) on demand.
-        Memoized ~5s so the hot /files/ path doesn't re-check systemd every request."""
-        def _start():
-            ok, res = _start_user_filebrowser(user)
-            if not ok:
-                log.warning("authcheck: start filebrowser for %s failed: %s", user, res)
-                return None
-            return res
-        return _cached("fb_port:" + user, 5.0, _start)
-
     def _ensure_user_xpra(self, user, kind):
         """Return the user's `kind` (browser|x11) xpra port, starting it on demand.
         Memoized ~5s so the hot asset requests don't re-check systemd each time."""
@@ -4606,13 +4514,6 @@ class Handler(http.server.BaseHTTPRequestHandler):
                     self.send_header("X-Term-Port", str(self._ensure_user_terminal(user, n)))
                 except Exception as e:
                     log.warning("authcheck: term-port resolve failed: %s", e)
-        elif path.startswith("/files/"):
-            try:
-                port = self._ensure_user_filebrowser(user)
-                if port:
-                    self.send_header("X-App-Port", str(port))
-            except Exception as e:
-                log.warning("authcheck: files-port resolve failed: %s", e)
         elif path.startswith("/browser/") or path.startswith("/x11-display/"):
             kind = "browser" if path.startswith("/browser/") else "x11"
             try:
@@ -4838,7 +4739,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
         # _ctx_user() answers APP_USER. Same rule /api/fs/* adopted in v1.19.106.
         if not self._require_authed():
             return
-        # POST {paths:[<FileBrowser URL>], active} — the Files app's shared tab set.
+        # POST {paths:[<absolute folder path>], active} — the Files app's shared
+        # tab set.
         body = self._read_body(65536)
         if body is None:
             return self._json(400, {"error": "invalid or too-large body"})
@@ -4849,12 +4751,12 @@ class Handler(http.server.BaseHTTPRequestHandler):
         raw = data.get("paths")
         if not isinstance(raw, list):
             return self._json(400, {"error": "paths must be a list"})
-        # Only keep real FileBrowser browse URLs (these become iframe src in the
-        # wrapper, so reject anything that isn't a /files/files path).
-        paths = [p for p in raw[:32]
-                 if isinstance(p, str) and p.startswith("/files/files") and len(p) <= 2048]
+        # Only keep absolute folder paths (each becomes the wrapper's iframe hash,
+        # so reject anything that isn't one). Entries written by the retired
+        # FileBrowser wrapper are migrated, not dropped.
+        paths = _files_tab_paths(raw)
         if not paths:
-            paths = ["/files/files/"]
+            paths = [_files_tabs_default()]
         active = data.get("active")
         if not isinstance(active, int) or active < 0 or active >= len(paths):
             active = 0
@@ -5209,14 +5111,6 @@ class Handler(http.server.BaseHTTPRequestHandler):
             result["terminals_stopped"] = running
         with _cache_lock:                      # so status reflects it at once
             _cache.pop("running_terminals:" + user, None)
-        # Stop this user's FileBrowser too (fresh slate).
-        try:
-            subprocess.run(["systemctl", "stop", _fb_unit(user)],
-                           check=False, capture_output=True, text=True, timeout=20)
-        except (subprocess.TimeoutExpired, OSError):
-            pass
-        with _cache_lock:
-            _cache.pop("fb_port:" + user, None)
 
         # 2. Clear the desktop registry and bump reset_epoch — every other live
         #    instance sees the epoch advance on its next heartbeat and tears its
@@ -6126,11 +6020,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
     def _handle_image_media(self):
         """GET /api/file/image?path=<Files-app path>[&dl=1] — stream an image's
         bytes for the native image viewer (imageview.html). Same trust model as
-        the video/office viewers: `_resolve_user_file` accepts FileBrowser's
-        absolute paths and fences with an as-the-user read check, so this can
-        serve exactly what the user's Unix permissions allow, no more. Exists so
-        the viewer needs nothing from FileBrowser's (version-drifting) API for
-        the bytes — first plumbing of the Files-native direction."""
+        the video/office viewers: `_resolve_user_file` accepts the app's absolute
+        paths and fences with an as-the-user read check, so this can serve exactly
+        what the user's Unix permissions allow, no more."""
         # Loopback is NOT a trust boundary here: nginx's auth_request gates the
         # public path, but every local tenant can reach 127.0.0.1 directly, where
         # _ctx_user() answers APP_USER. Same rule /api/fs/* adopted in v1.19.106.
@@ -7093,16 +6985,10 @@ class Handler(http.server.BaseHTTPRequestHandler):
         if touched("apps/everyday/office/"):
             deploy("deploy office (nginx)", ["./apps/everyday/office/install.sh"],
                    {**base_env, "INSTALL_CONTAINER": "0"})
-        # files/ — or the FileBrowser patch JS. The patch JS lives under landing/
-        # but its nginx ?v= cache-buster is computed by files/install.sh, so a
-        # patch-only change MUST re-render the /files/ snippet too or the browser
-        # keeps serving the old cached JS (stale ?v=). INSTALL_DEPS/SYSTEMD=0 keeps
-        # it to config (idempotent) + nginx + a brief filebrowser restart.
-        # Matched by BASENAME, not by a literal path: the patch JS moved once
-        # already (landing/ -> apps/everyday/files/) and an exact-path check fails
-        # silently — files/install.sh would not re-run, so the ?v= cache-buster
-        # would keep pointing at the old bundle and browsers keep serving it.
-        if touched("apps/everyday/files/") or any(c.endswith("/filebrowser-patches.js") for c in changed):
+        # files/ — re-render the /fileview/ nginx snippet and restart any running
+        # per-user file agents so new fileagent.py code takes effect at once.
+        # INSTALL_DEPS/SYSTEMD=0 keeps it to config (idempotent) + nginx.
+        if touched("apps/everyday/files/"):
             deploy("deploy files & nginx", ["./apps/everyday/files/install.sh"], base_env)
         # claude-usage/ — the opt-in usage proxy runs in-place from the checkout,
         # so install.sh (INSTALL_SYSTEMD=0) just re-renders nothing and try-restarts
@@ -7478,7 +7364,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
             # The authenticated principal for this request + their real home and
             # display (GECOS) name. Front-ends that are static files (can't be
             # stamped per-user) use this: files.html anchors the Files app at ~
-            # (FileBrowser is rooted at /), and the desktop shell shows who's
+            # (the app browses from /), and the desktop shell shows who's
             # signed in (Start menu + logout menu).
             user = _ctx_user()
             name = ""
@@ -7597,9 +7483,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
                     data = json.load(f)
             except Exception:
                 data = {}
-            paths = data.get("paths") if isinstance(data, dict) else None
-            if not isinstance(paths, list) or not paths:
-                paths = ["/files/files/"]
+            paths = _files_tab_paths(data.get("paths") if isinstance(data, dict) else None)
+            if not paths:
+                paths = [_files_tabs_default()]
             active = data.get("active") if isinstance(data, dict) else 0
             if not isinstance(active, int) or active < 0 or active >= len(paths):
                 active = 0
@@ -7831,7 +7717,6 @@ class Handler(http.server.BaseHTTPRequestHandler):
         checks = {
             "terminals": f"http://127.0.0.1:{BASE_PORT + 1}/t1/",
             "browser": f"http://127.0.0.1:{XPRA_PORT}/",
-            "files": f"http://127.0.0.1:{FB_PORT}/files/",
         }
         # Merge host-local services (each with a "key" and a "health" URL).
         try:

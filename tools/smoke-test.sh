@@ -2,8 +2,8 @@
 #
 # smoke-test.sh — post-deploy live-host regression gate for vibetop.
 #
-# This is the ONE tier that needs the running stack (systemd + nginx + xpra +
-# FileBrowser + optionally the OnlyOffice container). It formalizes the "Health
+# This is the ONE tier that needs the running stack (systemd + nginx + ttyd +
+# xpra + optionally the OnlyOffice container). It formalizes the "Health
 # check" section of docs/operations.md into asserting checks with a pass/fail summary and
 # a non-zero exit on any failure — so a deploy can be gated on it.
 #
@@ -23,11 +23,10 @@
 # somebody other than the auto-detected admin. On a host with no auth gate (a
 # legacy single-user install) it probes unauthenticated, as before.
 #
-# SIDE EFFECT: per-user services start ON DEMAND, so probing /tN/, /browser/,
-# /x11-display/ and /files/ as the probe user will cold-start that user's
-# terminal / Browser / X11 / FileBrowser if they aren't already up. That IS the
-# surface being verified (it's what a real visit does), but it means the script
-# is not read-only on a live host.
+# SIDE EFFECT: per-user services start ON DEMAND, so probing /tN/, /browser/ and
+# /x11-display/ as the probe user will cold-start that user's terminal / Browser /
+# X11 if they aren't already up. That IS the surface being verified (it's what a
+# real visit does), but it means the script is not read-only on a live host.
 #
 # Exit status: 0 = all checks passed, 1 = one or more failed, 2 = inconclusive
 # (the auth gate is on but no cookie could be obtained, so the core surface/API
@@ -158,12 +157,11 @@ fi
 # http_is <name> <path> <expected-code>
 #
 # Retries, because these probes are not passive reads: per-user services start ON
-# DEMAND, so the first hit on /tN/, /files/, /browser/ or /x11-display/ has to
-# cold-start that user's terminal / FileBrowser / xpra display. A first-EVER
-# FileBrowser start also creates its database, which has been measured taking
-# longer than a single 8s budget on a loaded host — reporting 000 on a perfectly
-# healthy stack. (Steady-state cold starts measure ~0.16s, so this is about the
-# first-init outlier, not normal latency.)
+# DEMAND, so the first hit on /tN/, /browser/ or /x11-display/ has to cold-start
+# that user's terminal or xpra display, which has been measured taking longer
+# than a single 8s budget on a loaded host — reporting 000 on a perfectly healthy
+# stack. (Steady-state cold starts measure ~0.16s, so this is about the first-init
+# outlier, not normal latency.)
 http_is() {
     local name="$1" path="$2" want="$3" got="" tries=0
     while [ "$tries" -lt 6 ]; do
@@ -196,8 +194,8 @@ unit_active() {
 }
 
 # shared_unit <unit> <per-user-glob> <label>
-# The shared xpra/FileBrowser units are the LEGACY single-user services. A
-# multi-user host runs one transient unit PER USER instead (started on demand),
+# The shared xpra units are the LEGACY single-user services. A multi-user host
+# runs one transient unit PER USER instead (started on demand),
 # so an inactive shared unit there is correct, not a defect — and with nobody
 # signed in, zero per-user units is also correct. The real per-user health check
 # is the authenticated HTTP probe below, which cold-starts and then serves.
@@ -231,7 +229,6 @@ echo "── systemd units ─────────────────�
 unit_active vibetop-manager.service
 shared_unit vibetop-browser-xpra.service 'vibetop-ubrowser-*' "Browser displays"
 shared_unit vibetop-x11-xpra.service     'vibetop-ux11-*'     "X11 displays"
-shared_unit vibetop-filebrowser.service  'vibetop-ufiles-*'   "file managers"
 
 echo "── HTTP endpoints ────────────────────────────"
 if [ "$AUTH_GATE" = 1 ] && [ -z "$COOKIE" ]; then
@@ -248,7 +245,9 @@ else
         http_is "browser xpra"  "/browser/" 200
         http_is "x11 display"   "/x11-display/" 200
     fi
-    http_is "file manager"  "/files/" 200
+    # The Files app is a static page in the web root (no per-user upstream since
+    # FileBrowser was retired), so this is a plain page fetch.
+    http_is "files app"     "/files.html" 200
 fi
 
 echo "── manager API ───────────────────────────────"

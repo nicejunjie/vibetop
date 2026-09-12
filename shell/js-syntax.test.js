@@ -1,14 +1,14 @@
 /* JS syntax guard — the JavaScript analogue of test_static.py's py_compile /
  * bash -n. Every deployed or nginx-sub_filter-injected script is compiled with
  * vm.Script (parse only, never run). A syntax error in injected JS silently
- * breaks the terminal keyboard / xpra Browser / FileBrowser UI at runtime with
- * no build step to catch it — this turns that into a test failure.
+ * breaks the terminal keyboard / xpra Browser UI at runtime with no build step
+ * to catch it — this turns that into a test failure.
  *
  *   node --test landing/
  *
- * Also asserts the two try/catch-wrapped patch files keep their documented
- * graceful-degradation guard (an xpra/FileBrowser API change must not throw the
- * whole patch bundle).
+ * Also asserts the try/catch-wrapped patch bundle keeps its documented
+ * graceful-degradation guard (an xpra API change must not throw the whole
+ * bundle).
  */
 const test = require("node:test");
 const assert = require("node:assert/strict");
@@ -45,8 +45,8 @@ for (const rel of SCRIPTS) {
   });
 }
 
-test("patch bundles are wrapped for graceful degradation", () => {
-  for (const rel of ["apps/everyday/browser/xpra-patches.js", "apps/everyday/files/filebrowser-patches.js"]) {
+test("the xpra patch bundle is wrapped for graceful degradation", () => {
+  for (const rel of ["apps/everyday/browser/xpra-patches.js"]) {
     const src = fs.readFileSync(path.join(REPO, rel), "utf8");
     assert.ok(/try\s*\{/.test(src) && /catch\s*\(/.test(src),
       `${rel} should keep its try/catch degradation guard`);

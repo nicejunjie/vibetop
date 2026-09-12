@@ -8,7 +8,6 @@
  *   /office/*     xpra HTML5 client + WebSocket (Office app / LibreOffice)
  *   /tN/*         ttyd terminals + WebSocket
  *   /terminals/   tabbed terminal UI (tied to live /tN/ iframes)
- *   /files/*      FileBrowser SPA + API
  *   /fileview/*   raw file passthrough
  *   /services.json host-local, changes out of band
  *   /cdn-cgi/*    Cloudflare Access challenge/redirects — caching these breaks auth
@@ -17,7 +16,7 @@
  * caches. sw.js itself is served no-store (nginx `location /`), so the browser
  * re-checks it on navigation and picks up the new VERSION.
  */
-const VERSION = 'v605';
+const VERSION = 'v606';
 const CACHE = 'shell-' + VERSION;
 // A ring of the last navigations this worker answered (path, how it was
 // served, status, elapsed). It outlives VERSION so the shell can read it after
@@ -82,9 +81,9 @@ const PRECACHE = [
 const SHELL_PAGES = new Set(PRECACHE.filter((p) => p === '/' || p.endsWith('.html')));
 
 // Paths that must always hit the network (live data, websockets, auth).
-// Note: `files/` (with slash) so the live FileBrowser SPA at /files/* is bypassed
-// but the tabbed wrapper page /files.html stays cacheable as a shell page.
-const BYPASS = /^\/(api|browser|x11-display|office|onlyoffice|t\d|terminals|files\/|fileview|services\.json|cdn-cgi)/;
+// `/files/` is gone with FileBrowser — the Files app is /files.html plus
+// /filesx.html, both ordinary cacheable shell pages served from the web root.
+const BYPASS = /^\/(api|browser|x11-display|office|onlyoffice|t\d|terminals|fileview|services\.json|cdn-cgi)/;
 
 self.addEventListener('install', (e) => {
   e.waitUntil((async () => {

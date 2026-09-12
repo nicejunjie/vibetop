@@ -85,7 +85,7 @@ the tunnel. The asset location fixes both:
 - `location = /xpra-patches.js` adds the same `max-age=86400` —
   the file is served from the web root, outside `/browser/`. The
   `sub_filter` injects it as `/xpra-patches.js?vN`; bump `N` whenever
-  the file changes (same cache-buster pattern as filebrowser-patches).
+  the file changes (same cache-buster pattern as `terminal-kbd.js`).
 - Why this matters extra on phones: stock iOS Safari over power-saving
   WiFi can stall individual HTTP requests for 60–100 s. The client's
   init chain is serial (`<script>` tags, then `importScripts` in the

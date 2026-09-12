@@ -3421,7 +3421,7 @@
     //
     // It must recurse. Terminal and Files are WRAPPERS that host their own
     // iframes (desktop → terminals.html → /tN/, desktop → files.html →
-    // FileBrowser), so a listener on the wrapper's document never sees a click
+    // filesx.html), so a listener on the wrapper's document never sees a click
     // in the actual terminal or file list — the two most-used apps were exactly
     // the ones click-to-focus missed. Each document is tagged so re-wiring is
     // idempotent, and every frame is re-wired on `load` (navigation replaces the
@@ -4041,7 +4041,7 @@
   // resize to the active one so it re-measures (same nudge notifyActiveFrame
   // uses on app switch). App-internal repaints ride the same signals in-frame
   // (xpra-patches.js asks the server for a buffer refresh; files.html nudges
-  // its nested FileBrowser iframe).
+  // its nested listing iframe).
   function wakeNudgeFrames() {
     openApps.forEach(function(id) {
       var f = frameOf(id);

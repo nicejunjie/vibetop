@@ -6,7 +6,8 @@
 > Done + validated live: Linux-account login (PAM) + nginx `auth_request` gate + LAN
 > TLS (Phase 1); per-user state + office (Phase 2); **per-user terminals** (a shell as
 > the user, Phase 3), **per-user Files** (FileBrowser as the user, rooted at their home,
-> Phase 3b), and **per-user Browser + X11** (each user's own xpra display + snap
+> Phase 3b — since retired in favor of the native Files app + per-user file agent, see
+> `docs/files-native.md`), and **per-user Browser + X11** (each user's own xpra display + snap
 > Chromium, Phase 3c); brute-force lockout, per-unit resource caps, per-user telemetry
 > scoping, and two-scope logout (this device / all devices) (Phase 4). The only
 > subsystems still operator-only (they act on the whole host) are **Claude-usage** and
@@ -152,9 +153,9 @@ Vibetop runs each of the host's **real Linux users** as themselves (Option B, im
 
 **Per-user runtime — services run AS the logged-in user via `systemd-run` transient units** (`--collect --uid=<user> --gid=<gid>`, per-user resource caps, `WorkingDirectory=<home>`), on per-user port blocks (`_user_slot`/`_user_term_port`):
 - **Terminals** — `/tN/` authcheck resolves the user's per-user ttyd port, cold-starts the terminal as them if needed (`_ensure_user_terminal`), and returns it in **`X-Term-Port`**; nginx `auth_request_set $tport $upstream_http_x_term_port` routes there. So **terminal N is shared across *that user's own* devices, not across users**.
-- **Files** — one FileBrowser per user (`_ensure_user_filebrowser`, `--auth.method=noauth`, run as them, rooted at `/`), started on demand; port returned to nginx like terminals.
+- **Files** — no per-user port at all: file ops proxy over an authenticated per-user **unix socket** to a per-user file agent (`apps/everyday/files/fileagent.py`, `vibetop-fileagent-<user>.service`), started on demand and idle-exiting on its own; the manager's `/api/fs/*` endpoints speak to it directly. `files.html`/`filesx.html` themselves are plain static pages, so there's no routing branch for them in authcheck the way there is for terminals/Browser/X11. (Files used to run as one per-user FileBrowser instance routed like the others — retired, see `docs/files-native.md`.)
 - **Browser / X11** — each user gets their **own** xpra display + snap Chromium (`_ensure_user_xpra(user, kind)`), not the one shared `:99`/`:98`. `_provision_user` runs `loginctl enable-linger` so `/run/user/<uid>` exists for snap+xpra.
-- **Stale-port self-heal (xpra + FileBrowser).** Each per-user service's TCP port is **baked into its transient unit's `ExecStart` at creation**, so a port-scheme change (or a wedged service) leaves an `active` unit on the OLD port while nginx routes to the NEW one → `/browser/`, `/x11-display/`, `/files/` **502**. `systemctl restart` does NOT fix it (re-runs the baked args). So `_start_user_xpra`/`_start_user_filebrowser` reuse an `active` unit **only if `_wait_tcp(expected_port)` succeeds**; otherwise they stop + reset-failed + recreate it on the correct port. (`docs/design-decisions.md`; guarded by `test_stale_{xpra,filebrowser}_on_wrong_port_*` + the e2e `surface-health.spec.js`.)
+- **Stale-port self-heal (xpra).** Each per-user xpra service's TCP port is **baked into its transient unit's `ExecStart` at creation**, so a port-scheme change (or a wedged service) leaves an `active` unit on the OLD port while nginx routes to the NEW one → `/browser/`, `/x11-display/` **502**. `systemctl restart` does NOT fix it (re-runs the baked args). So `_start_user_xpra` reuses an `active` unit **only if `_wait_tcp(expected_port)` succeeds**; otherwise it stops + reset-failed + recreates it on the correct port. (`docs/design-decisions.md`; guarded by `test_stale_xpra_on_wrong_port_*` + the e2e `surface-health.spec.js`. FileBrowser hit the identical bug before it was retired — a `filebrowser` variant of this test existed alongside the xpra one.)
 - **The 203/EXEC trap:** per-user helper scripts must live *outside* the operator's `$HOME` (a home is `0750`, so the target user's `systemd-run` process can't exec a script under it → status 203/EXEC) — the minimum reason the `/opt/vibetop` move is mandatory for real per-user isolation.
 
 With `VIBETOP_ADMINS` unset (a home-owned single-operator install) all three identities collapse onto one user — the degenerate case the defaults preserve.

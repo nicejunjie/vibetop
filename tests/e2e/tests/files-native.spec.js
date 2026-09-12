@@ -1,6 +1,6 @@
 // @ts-check
-// Native Files app (landing/filesx.html) — the replacement for the FileBrowser
-// front end (docs/files-native.md).
+// The Files app (apps/everyday/files/filesx.html) — vibetop's own file manager,
+// and since phase 4b the only one (docs/files-native.md).
 //
 // This coverage exists because every one of these behaviors was reported by the
 // user rather than caught by a test: the listing looking like a toy on a phone
@@ -8,7 +8,7 @@
 // a tap opening a file so that Rename/Share/Info/Delete were reachable only via
 // an undiscoverable long-press, a bottom action pill on a mouse-driven desktop
 // where the right-click menu belongs, and the Layout (List/Grid/Gallery) and
-// Select verbs simply missing against the classic app.
+// Select verbs simply missing against the classic app it replaced.
 //
 // The page is driven DIRECTLY (not through the desktop shell + wrapper iframes):
 // these are its own interaction contracts, and the nesting only adds flake.

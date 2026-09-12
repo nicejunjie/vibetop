@@ -17,7 +17,7 @@ asks "is it up?", doctor asks "is it configured to *stay* up?".
 
 **It is multi-user aware, and that is load-bearing.** `MULTIUSER` is decided from
 the deployed site's `auth_request /internal/authcheck`, and the shared
-`vibetop-{browser-xpra,x11-xpra,x11-dbus,filebrowser}` units are then reported
+`vibetop-{browser-xpra,x11-xpra,x11-dbus}` units are then reported
 **SKIP** with their per-user counts instead of FAIL — they're the legacy
 single-user services, correctly inactive on a multi-user host (same distinction
 `smoke-test.sh` draws). Likewise the OnlyOffice secret path comes from
@@ -28,9 +28,9 @@ host** — and a diagnostic that cries wolf is one people stop reading, so keep 
 checks layout-aware. Then the manual probes:
 
 ```bash
-systemctl status vibetop-manager vibetop-browser-xpra vibetop-x11-xpra vibetop-x11-dbus vibetop-filebrowser
+systemctl status vibetop-manager vibetop-browser-xpra vibetop-x11-xpra vibetop-x11-dbus
 docker ps --filter name=vibetop-onlyoffice                      # OnlyOffice container (office Edit)
-curl -sI http://127.0.0.1/ http://127.0.0.1/t1/ http://127.0.0.1/browser/ http://127.0.0.1/x11-display/ http://127.0.0.1/files/
+curl -sI http://127.0.0.1/ http://127.0.0.1/t1/ http://127.0.0.1/browser/ http://127.0.0.1/x11-display/ http://127.0.0.1/files.html
 curl -s http://127.0.0.1/api/events --max-time 2 | head -1      # SSE auto-refresh stream (-> "retry: 5000")
 curl -s http://127.0.0.1/onlyoffice/healthcheck                 # -> true when the doc server is up
 curl -s http://127.0.0.1/api/system/status
@@ -51,7 +51,7 @@ would miss. `_sd_notify` is a dependency-free sd_notify (no-op without
 **Backups** — `tools/backup.sh` tars the irreplaceable host-local state to
 `~/vibetop-backups`, keeping the newest 14. **Run it with `sudo`**: vibetop is
 multi-user, so a complete archive needs every registered user's home
-(`~/.local/share/desktop-*`, notes, terminal tab names, FileBrowser DB,
+(`~/.local/share/desktop-*`, notes, terminal tab names,
 `~/Documents`) **plus** the host-global state no home holds —
 `/var/lib/vibetop/{users,resources,idle,hints,schedules}.json` (the user registry
 carries the session-revocation epochs) and `/opt/vibetop/etc/*.secret` — **plus**
@@ -87,8 +87,8 @@ sudo systemctl restart vibetop-manager             # restart manager API
 sudo systemctl restart vibetop-browser-xpra            # restart xpra + chromium
 xpra info :99                                         # session info
 
-# File manager
-sudo systemctl restart vibetop-filebrowser         # restart file manager
+# Files app
+sudo systemctl stop vibetop-fileagent-<user>       # kill one user's file agent; the next /api/fs/* call respawns it
 
 # System status
 curl http://127.0.0.1/api/system/status               # CPU, memory, uptime, GPU

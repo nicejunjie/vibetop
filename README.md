@@ -22,7 +22,7 @@ fully self-installing, Docker and all (AMD or NVIDIA).
 - **Terminal** — persistent bash sessions over ttyd; tabs survive disconnects via a custom `vibetop-session` daemon (2 MB replay ring buffer + 50k-line xterm.js scrollback). On touch, tapping the terminal raises the keyboard via an in-page overlay that makes **iOS dictation work** (no character pile-up); on Windows, Ctrl+V pastes cleanly. Queue a message to be typed into a terminal at a set time (⏱) — for the Claude Code session that stops at its token limit overnight
 - **Browser** — a real, persistent Chromium driven by xpra's HTML5 client; mobile gets tap-click, drag-scroll, two-finger pinch zoom, and a toggleable on-screen keyboard
 - **X11 Launcher** — run any GUI app (evince, eog, gnuplot, a snap Firefox) on its own X11 display, one tab per window. Apps started from a Terminal show up here automatically
-- **Files** — FileBrowser rooted at `/` (your reach is your Unix permissions), every toolbar action visible inline, with a purpose-built mobile layout. Open a Word/Excel/PPT file (double-click on desktop, double-tap on touch) to **View** it — the server renders a read-only PDF via headless LibreOffice in an in-app viewer with **Download** (the original file, not the PDF) and **Edit** buttons; videos open in a built-in player, and any file or folder can be turned into a **public share link**
+- **Files** — a native file manager rooted at `/` (your reach is your Unix permissions), every toolbar action visible inline, with a purpose-built mobile layout. Open a Word/Excel/PPT file (double-click on desktop, double-tap on touch) to **View** it — the server renders a read-only PDF via headless LibreOffice in an in-app viewer with **Download** (the original file, not the PDF) and **Edit** buttons; videos open in a built-in player, and any file or folder can be turned into a **public share link**
 - **Office** — full in-browser Word/Excel/PowerPoint editing via a self-hosted **OnlyOffice Document Server** (Docker), with autosave back to the file. Native browser rendering — fast, MS-compatible, no remote-desktop streaming. Open it empty to **create a new** Document / Spreadsheet / Presentation
 - **Notes** — tabbed Markdown scratchpad; auto-saves and syncs across your devices while you type
 - **Monitor** — live CPU/MEM/GPU charts, htop-style load average, top processes
@@ -53,7 +53,7 @@ VNC and remote desktops stream **pixels** — a compressed video of the whole sc
 | `terminal` | `/t1/`..`/t50/`, `/terminals/`, `/api/` | Dynamic persistent bash terminals (ttyd + vibetop-session) + manager API |
 | `browser`  | `/browser/`, `/x11-display/` | Persistent Chromium via xpra HTML5, plus a second display for the X11 Launcher's GUI apps |
 | `landing`  | `/` | Unified desktop UI with taskbar, iframe viewport, and status bar |
-| `files`    | `/files/` | FileBrowser file manager rooted at `/` (as the authenticated user) |
+| `files`    | `/files.html`, `/filesx.html` | Native file manager rooted at `/` (as the authenticated user) |
 | `office`   | `/onlyoffice/` | OnlyOffice Document Server (Docker) — in-browser Office editing, autosaved via the manager's `/api/office/*` endpoints |
 | `claude-usage` | `/api/claude/usage` | Opt-in proxy that captures real Claude Max-plan usage headers for the desktop's usage strip |
 | `tunnel`   | — | Cloudflare Tunnel + Access config for public HTTPS |
@@ -110,15 +110,15 @@ its config actually changed — so a re-run won't blip live terminals):
 ```bash
 sudo ./server/install.sh   # nginx skeleton + manager API + ttyd
 sudo ./apps/everyday/browser/install.sh    # xpra + Chromium (snap) + LibreOffice (office View)
-sudo ./apps/everyday/files/install.sh      # FileBrowser at /files/
+sudo ./apps/everyday/files/install.sh      # Files app support (ffmpeg, /fileview/ snippet, per-user fileagent)
 sudo ./apps/everyday/office/install.sh     # Docker + OnlyOffice Document Server at /onlyoffice/
 ./shell/install.sh         # desktop UI + static apps (no sudo)
 sudo ./tunnel/install.sh     # cloudflared (tunnel setup is interactive)
 ```
 
 The installers pull their own dependencies — `ttyd`/`nginx`/`acl` (apt), `xpra`
-(xpra.org repo) + `chromium` (snap) + `libreoffice` (apt), the `filebrowser`
-release binary, and **Docker** (`docker.io`) for the OnlyOffice container
+(xpra.org repo) + `chromium` (snap) + `libreoffice` (apt), `ffmpeg` (for the
+Files app's video player), and **Docker** (`docker.io`) for the OnlyOffice container
 (`onlyoffice/documentserver`, ~2 GB pull) — and set up the systemd units, nginx
 site, and the www-data home-dir ACL. Validated end-to-end on AMD+NVIDIA and
 AMD+AMD Ubuntu 24.04 hosts. Remotely-deployed hosts are full installs — they
@@ -134,7 +134,7 @@ change; the architecture, health checks, and operational commands live in
 
 | Desktop — Files | Desktop — Browser |
 |---|---|
-| ![Files app on the desktop: FileBrowser toolbar with every action (Browser, Share, Rename, Copy, Move, Delete, Download, View, Upload, Info, Select) inline. Taskbar at the bottom shows the Start button, open apps (Terminal, Files, Browser), and live CPU/MEM/GPU/VRAM stats.](docs/images/desktop-files.jpg) | ![Browser app on the desktop: an embedded Chromium served via the xpra HTML5 client, with floating zoom controls (−/⟲/+) at lower-left and an on-screen keyboard chip at lower-right for touch use.](docs/images/desktop-browser.jpg) |
+| ![Files app on the desktop: toolbar with every action (Browser, Share, Rename, Copy, Move, Delete, Download, View, Upload, Info, Select) inline. Taskbar at the bottom shows the Start button, open apps (Terminal, Files, Browser), and live CPU/MEM/GPU/VRAM stats.](docs/images/desktop-files.jpg) | ![Browser app on the desktop: an embedded Chromium served via the xpra HTML5 client, with floating zoom controls (−/⟲/+) at lower-left and an on-screen keyboard chip at lower-right for touch use.](docs/images/desktop-browser.jpg) |
 
 | Mobile — Start menu | Mobile — Terminal + keyboard |
 |---|---|
