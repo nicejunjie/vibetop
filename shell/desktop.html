@@ -4102,11 +4102,16 @@
   // A cache-busting reload uses this transient query parameter. Remove it from
   // the visible URL once the fresh document is running.
   try {
-    var cleanUrl = new URL(location.href);
-    if (cleanUrl.searchParams.has('vtbuild')) {
-      cleanUrl.searchParams.delete('vtbuild');
-      history.replaceState(null, '', cleanUrl.pathname + cleanUrl.search + cleanUrl.hash);
-    }
+    // vtbuild is the cache-buster; vtreauth is the sign-in hop's landing marker.
+    // BOTH have done their job by the time this document runs, and leaving
+    // vtreauth in the URL keeps every later reload network-only (the SW's
+    // vtreauth branch), so the freshly deployed shell is NEVER re-cached and a
+    // version mismatch reloads for ever after a re-login (2026-09-12).
+    var cleanUrl = new URL(location.href), _dirtyQ = false;
+    ['vtbuild', 'vtreauth'].forEach(function (k) {
+      if (cleanUrl.searchParams.has(k)) { cleanUrl.searchParams.delete(k); _dirtyQ = true; }
+    });
+    if (_dirtyQ) history.replaceState(null, '', cleanUrl.pathname + cleanUrl.search + cleanUrl.hash);
   } catch (_) {}
   // Circuit breaker for the build POLL below. triggerRefresh()'s own flag bars a
   // second reload within ONE document, but nothing stopped the sequence
@@ -4135,7 +4140,18 @@
   // Persistent state survives (terminals/Browser reconnect, notes autosave,
   // Files/Notes tabs are server-side).
   function doReload() {
-    if (swRefreshing) return; swRefreshing = true;
+    if (swRefreshing) return;
+    // The cross-document breaker (see pollRefreshBlocked): once this many
+    // reloads in a row have failed to change the served shell version, stop —
+    // whatever asked for the reload (poll, SSE hello, or a SW controllerchange).
+    // A stale shell that cannot be updated is a usable desktop; an endless
+    // flash is not.
+    if (pollRefreshBlocked) {
+      try { console.warn('vibetop: skipping reload — ' + REFRESH_MAX +
+                         ' reloads did not change the shell (' + loadedShellVer + ')'); } catch (_) {}
+      return;
+    }
+    swRefreshing = true;
     try {
       var t = document.createElement('div'); t.className = 'sw-updating';
       t.textContent = 'Updating vibetop to the latest version…';
