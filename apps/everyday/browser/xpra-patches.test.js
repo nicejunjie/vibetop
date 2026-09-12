@@ -28,7 +28,15 @@ function load() {
     clearTimeout: (id) => { const i = timers.findIndex((t) => t[0] === id); if (i >= 0) timers.splice(i, 1); },
     setInterval: () => 0,
     clearInterval: () => {},
+    requestAnimationFrame: (fn) => { const id = nextId++; timers.push([id, fn, 0]); return id; },
+    // Listeners registered on `window` (the sandbox itself): patches 8-12 use them.
+    listeners: {},
+    addEventListener(type, fn) { (this.listeners[type] = this.listeners[type] || []).push(fn); },
+    removeEventListener() {},
+    // A settable clock, so a test can make an absence short or long.
+    __now: 1e6,
   };
+  sandbox.Date = { now: () => sandbox.__now };
   sandbox.window = sandbox;
   sandbox.globalThis = sandbox;
   sandbox.document = {
@@ -188,4 +196,26 @@ test("a stuck release is never sent to a disconnected or read-only server", () =
   stuck.set(1);
   assert.strictEqual(stuck.release(client), 0);
   assert.deepStrictEqual(sent, []);
+});
+
+
+// Patch 12: a quick switch back to the Browser must not ask the server for a
+// full repaint (that is the flash); only a long absence does.
+test("a short absence nudges locally and never repaints; a long one asks the server once", () => {
+  const { sandbox, client, rest } = load();
+  let resumes = 0; client.resume = () => resumes++;
+  sandbox.client = client;
+  const W = sandbox.__xpraWake;
+  assert.ok(W, "patch 12 installed");
+  sandbox.__now = 1000; W.away(); sandbox.__now = 6000; W.back();          // 5 s away: an app switch
+  assert.strictEqual(resumes, 0, "no server repaint on a quick switch");
+  W.back();                                                                  // a bare focus, never away
+  assert.strictEqual(resumes, 0);
+  W.away(); sandbox.__now = 6000 + W.LONG_AWAY + 1; W.back();               // a long absence
+  assert.strictEqual(resumes, 1, "one repaint after a long absence");
+  // The shell's activation message: another app's id records the absence, ours brings us back.
+  const msg = (active) => sandbox.listeners.message.forEach((fn) => fn({ data: { type: "vibetop:active", active } }));
+  sandbox.__now += 5000; msg("terminal"); sandbox.__now += 4000; msg("browser");
+  rest();                                                                    // the deferred back()
+  assert.strictEqual(resumes, 1, "a 4 s trip to another app: no repaint");
 });

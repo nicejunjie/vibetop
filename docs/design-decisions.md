@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_281 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_282 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
 - [Scheduled terminal messages ("resume when the token limit resets")](#scheduled-terminal-messages-resume-when-the-token-limit-resets)
@@ -304,6 +304,7 @@ _281 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [RTS build audit (2026-09-11): the ghost and the click disagreed on where a building goes](#rts-build-audit-2026-09-11-the-ghost-and-the-click-disagreed-on-where-a-building-goes)
 - [RTS orders audit (2026-09-11): twelve ways the click and the cursor disagreed](#rts-orders-audit-2026-09-11-twelve-ways-the-click-and-the-cursor-disagreed)
 - [RTS session audit (2026-09-11): the modal that was not, the keyboard the shell dropped, and the state a save forgot](#rts-session-audit-2026-09-11-the-modal-that-was-not-the-keyboard-the-shell-dropped-and-the-state-a-save-forgot)
+- [Browser: it flashed on every switch back — the wake repaint asked the server every time (2026-09-11)](#browser-it-flashed-on-every-switch-back-the-wake-repaint-asked-the-server-every-time-2026-09-11)
 
 <!-- END TOC -->
 
@@ -12591,4 +12592,24 @@ between tiled windows, inside reach has an 8 px mouse floor), so instead
 the game widens its gutter to 34 px whenever it runs inside a frame: the
 grips take their 8 px and 26 px of live strip remain, the same as standalone
 (v1.19.336).
+
+## Browser: it flashed on every switch back — the wake repaint asked the server every time (2026-09-11)
+
+**Symptom.** (user) "every time I click another window and then click back
+to the Browser, the Browser flashes once, very annoying."
+
+**Cause.** Patch 12 of xpra-patches.js (the cure for "Browser stays black
+after a long idle") called `client.resume()` — every window resumed plus a
+full-quality `buffer-refresh` from the server — on EVERY wake-ish signal:
+window focus, visibility restore, and the shell's `vibetop:active`. A
+return after five seconds got the same full-screen re-encode as a return
+after an hour, and the re-encode is the flash.
+
+**Fix.** The patch records when the frame goes away (blur, hidden, another
+app's `vibetop:active`) and on the way back asks the server only after
+`LONG_AWAY` (30 s); a shorter absence gets a local recomposite — a transform
+nudge on the canvases, nothing on the wire, nothing on screen — which is what
+a stale compositing layer needs. `pageshow` and the 30 s sleep-gap watchdog
+still repaint. The test harness gained window listeners and a settable clock
+to prove a 5 s switch never repaints and a long one does, once.
 
