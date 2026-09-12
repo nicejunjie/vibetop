@@ -30,7 +30,8 @@
  *     seconds and every later frame is the victory dialog, so the fixture
  *     gives BOTH sides a building purely to keep the match alive.
  */
-const path = require('path'), fs = require('fs'), http = require('http');
+const path = require('path'), fs = require('fs');
+const { serve } = require('./lib/serve-rts.js');
 const ROOT = path.resolve(__dirname, '..', '..', '..', '..');
 const RTS = path.resolve(__dirname, '..');
 const OUT = path.join(RTS, 'art', 'out');
@@ -49,16 +50,8 @@ const BLUE = ['lancer', 'rhino', 'mammoth', 'rifle', 'rifle', 'teslatrooper'];
 const RED  = ['rhino', 'mirage', 'flaktrack', 'conscript', 'conscript', 'desolator'];
 
 (async () => {
-  const srv = http.createServer((rq, rp) => {
-    let f = rq.url.split('?')[0]; if (f === '/') f = '/rts.html';
-    const cands = [path.join(RTS, f), path.join(ROOT, f), path.join(ROOT, 'shared', f)];
-    const hit = cands.find((c) => fs.existsSync(c) && fs.statSync(c).isFile());
-    if (!hit) { rp.writeHead(404); return rp.end(); }
-    rp.writeHead(200, { 'Content-Type': f.endsWith('.js') ? 'text/javascript' : 'text/html' });
-    rp.end(fs.readFileSync(hit));
-  });
-  await new Promise((r) => srv.listen(0, '127.0.0.1', r));
-  const port = srv.address().port;
+  const srv = await serve({ extraRoots: [ROOT, path.join(ROOT, 'shared')] });
+  const port = srv.port;
   const { chromium } = playwright();
   const b = await chromium.launch();
   const pg = await b.newPage({ viewport: { width: 1400, height: 900 }, deviceScaleFactor: 2 });

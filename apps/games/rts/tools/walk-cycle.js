@@ -30,17 +30,18 @@
  * and -1 there. That is exactly what `cf` is for in the humanoid walk, and
  * what the dog's head nod is for now.
  */
-const path=require('path'),fs=require('fs'),http=require('http');
-const ROOT='/home/junjie/vibe-coding/vibetop',RTS=path.join(ROOT,'apps/games/rts');
+const path=require('path'),fs=require('fs');
+const { serve } = require('./lib/serve-rts.js');
+// Derived from THIS file, never hardcoded: a hardcoded absolute path serves the
+// main checkout's rts.html even when the tool is run from a worktree (see the
+// same comment in build-cycle.js, which is where that bug was found).
+const ROOT=path.resolve(__dirname,'..','..','..','..');
 function pw(){try{return require('playwright');}catch(e){return require(path.join(ROOT,'tests','e2e','node_modules','playwright'));}}
 (async()=>{
-  const srv=http.createServer((rq,rp)=>{let f=rq.url.split('?')[0];if(f==='/')f='/rts.html';
-    const c=[path.join(RTS,f),path.join(ROOT,f),path.join(ROOT,'shared',f)].find(p=>fs.existsSync(p)&&fs.statSync(p).isFile());
-    if(!c){rp.writeHead(404);return rp.end();}rp.writeHead(200,{'Content-Type':f.endsWith('.js')?'text/javascript':'text/html'});rp.end(fs.readFileSync(c));});
-  await new Promise(r=>srv.listen(0,'127.0.0.1',r));
+  const srv = await serve({ extraRoots: [ROOT, path.join(ROOT, 'shared')] });
   const {chromium}=pw();const b=await chromium.launch();
   const pg=await b.newPage({viewport:{width:900,height:600},deviceScaleFactor:1});
-  await pg.goto(`http://127.0.0.1:${srv.address().port}/rts.html#nomob`,{waitUntil:'load'});
+  await pg.goto(`${srv.url}/rts.html#nomob`,{waitUntil:'load'});
   await pg.waitForFunction(()=>window.__rtsTest&&window.__rtsTest.spr,null,{timeout:30000});
   const SEQ=process.argv[2]||'fire';
   await pg.evaluate((q)=>{window.__SEQ__=q;},SEQ);

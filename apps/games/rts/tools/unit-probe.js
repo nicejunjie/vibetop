@@ -25,7 +25,7 @@
 'use strict';
 const fs = require('fs');
 const path = require('path');
-const http = require('http');
+const { serve } = require('./lib/serve-rts.js');
 const ROOT = path.resolve(__dirname, '..', '..', '..', '..');
 const RTS = path.join(ROOT, 'apps', 'games', 'rts');
 const OUT = path.join(RTS, 'art', 'out');
@@ -33,23 +33,6 @@ function playwright() {
   try { return require('playwright'); }
   catch (e) { return require(path.join(ROOT, 'tests', 'e2e', 'node_modules', 'playwright')); }
 }
-const SERVE = {
-  '/rts.html': [path.join(RTS, 'rts.html'), 'text/html'],
-  '/gamescore.js': [path.join(ROOT, 'shared', 'gamescore.js'), 'text/javascript'],
-  '/vibe-modal.js': [path.join(ROOT, 'shared', 'vibe-modal.js'), 'text/javascript'],
-};
-function serve() {
-  return new Promise((res) => {
-    const s = http.createServer((req, rep) => {
-      const e = SERVE[req.url.split('?')[0]];
-      if (!e) { rep.writeHead(404); rep.end(); return; }
-      rep.writeHead(200, { 'content-type': e[1], 'cache-control': 'no-store' });
-      rep.end(fs.readFileSync(e[0]));
-    });
-    s.listen(0, '127.0.0.1', () => res(s));
-  });
-}
-
 function inPage(arg) {
   const keys = arg[0], oct = arg[1], mag = arg[2];
   const S = window.__rtsTest.spr(), U = window.__rtsTables.UNITS;
@@ -160,7 +143,7 @@ async function main() {
   const oct = Number(args.find((a) => /^\d+$/.test(a)) || 3);
   const mag = Number(process.env.MAG || 8);
   const srv = await serve();
-  const port = srv.address().port;
+  const port = srv.port;
   const { chromium } = playwright();
   const br = await chromium.launch();
   const pg = await br.newPage({ viewport: { width: 1200, height: 800 } });

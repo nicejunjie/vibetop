@@ -171,11 +171,15 @@ function barrelRun(f) {
  * Same pattern, and the same reason, as the three SOURCE-CONSTANT rows in
  * `infantry.js`.
  */
-const SRC = () => {
-  try { return fs.readFileSync(path.join(__dirname, '..', '..', 'rts.html'), 'utf8'); }
-  catch (e) { return ''; }
+const SRC = () => fs.readFileSync(path.join(__dirname, '..', '..', 'rts.html'), 'utf8');
+// A SOURCE-CONSTANT clause is only a measurement while the constant is still
+// there. A no-match used to read back as 0 and quietly turn the check into an
+// assertion about zero -- a moved constant has to be RED, so it throws.
+const num = (src, re, g) => {
+  const m = src.match(re);
+  if (!m) throw new Error('clause premise not found in source: ' + re);
+  return Number(m[g]);
 };
-const num = (src, re, g) => { const m = src.match(re); return m ? Number(m[g]) : 0; };
 
 const rowExtents = (f) => {
   const e = [];

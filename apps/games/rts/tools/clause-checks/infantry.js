@@ -184,12 +184,13 @@ function maxRect(f, pred) {
   return best;
 }
 
-/** A numeric literal out of rts.html, so a SOURCE-CONSTANT clause is real. */
+/** A numeric literal out of rts.html, so a SOURCE-CONSTANT clause is real.
+ *  A no-match THROWS: the clause's premise has moved, and a check that answers
+ *  "not found" from a swallowed miss is not measuring anything. */
 function srcNum(re) {
-  try {
-    const m = fs.readFileSync(SRC, 'utf8').match(re);
-    return m ? Number(m[1]) : null;
-  } catch (e) { return null; }
+  const m = fs.readFileSync(SRC, 'utf8').match(re);
+  if (!m) throw new Error('clause premise not found in source: ' + re);
+  return Number(m[1]);
 }
 
 exports.check = function (ctx) {
@@ -225,8 +226,8 @@ exports.check = function (ctx) {
   // IS the screen-pixel offset at cruise.
   {
     const alt = srcNum(/rocketeer:\s*\{[\s\S]{0,600}?\balt:\s*(\d+(?:\.\d+)?)/);
-    add('rocketeer', 'altitude offset >= 10 px', alt !== null && alt >= 10,
-        alt === null ? 'not found' : alt, '>= 10 px',
+    add('rocketeer', 'altitude offset >= 10 px', alt >= 10,
+        alt, '>= 10 px',
         'SOURCE CONSTANT UNITS.rocketeer.alt — the bake carries no altitude; the renderer '
       + 'draws air units at sy - altOf(u), and altOf returns k*d.alt with k -> 1 at cruise');
   }
@@ -241,8 +242,8 @@ exports.check = function (ctx) {
     const sh2 = srcNum(/rocketeer:\s*\{[\s\S]{0,900}?\bshadow:\s*\[\s*\d+(?:\.\d+)?\s*,\s*(\d+(?:\.\d+)?)/);
     const alt = srcNum(/rocketeer:\s*\{[\s\S]{0,600}?\balt:\s*(\d+(?:\.\d+)?)/);
     const noBaked = /if \(kind !== 'rocketeer'\)\s*\n\s*shadowBlob/.test(fs.readFileSync(SRC, 'utf8'));
-    const sep = alt === null ? 0 : alt * 1.06;
-    const ok = sh !== null && sh2 !== null && sh >= 9 && sh2 >= 4 && noBaked && sep >= 4;
+    const sep = alt * 1.06;
+    const ok = sh >= 9 && sh2 >= 4 && noBaked && sep >= 4;
     add('rocketeer', 'shadow blob >= 9x4 separated from the feet', ok,
         `${sh}x${sh2}, gap ${R(sep, 1)} px`, '>= 9x4, separated',
         'SOURCE CONSTANT UNITS.rocketeer.shadow, drawn on the ground by drawAirShadow at '
@@ -576,8 +577,8 @@ exports.check = function (ctx) {
   // dug-in Desolator, not anything in his atlas, so no bake can see it.
   {
     const r = srcNum(/DESO_RAD_R\s*=\s*(\d+(?:\.\d+)?)/);
-    add('desolator', 'deployed pool >= 1 tile', r !== null && r >= 1,
-        r === null ? 'not found' : `${r} tiles radius`, '>= 1 tile',
+    add('desolator', 'deployed pool >= 1 tile', r >= 1,
+        `${r} tiles radius`, '>= 1 tile',
         'SOURCE CONSTANT DESO_RAD_R — the radiation pool is drawn on the GROUND round a '
       + 'deployed Desolator and is in no sprite atlas, so ctx cannot see it');
   }

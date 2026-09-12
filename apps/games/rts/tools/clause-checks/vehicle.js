@@ -81,11 +81,15 @@ const fs = require('fs');
 const path = require('path');
 
 /** rts.html itself — a premise a check quotes must be READ, not assumed. */
-const SRC = () => {
-  try { return fs.readFileSync(path.join(__dirname, '..', '..', 'rts.html'), 'utf8'); }
-  catch (e) { return ''; }
+const SRC = () => fs.readFileSync(path.join(__dirname, '..', '..', 'rts.html'), 'utf8');
+// A SOURCE-CONSTANT clause is only a measurement while the constant is still
+// there. A no-match used to read back as 0 and quietly turn the check into an
+// assertion about zero -- a moved constant has to be RED, so it throws.
+const num = (src, re, g) => {
+  const m = src.match(re);
+  if (!m) throw new Error('clause premise not found in source: ' + re);
+  return Number(m[g]);
 };
-const num = (src, re, g) => { const m = src.match(re); return m ? Number(m[g]) : 0; };
 
 const hsv = (r, g, b) => {
   r /= 255; g /= 255; b /= 255;

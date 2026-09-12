@@ -11,7 +11,7 @@
 // framing remain directly comparable with temperate and across builds.
 
 const fs = require('fs');
-const http = require('http');
+const { serve } = require('./lib/serve-rts.js');
 const path = require('path');
 
 const ROOT = path.resolve(__dirname, '..', '..', '..', '..');
@@ -29,28 +29,10 @@ function playwright() {
   catch (_) { return require(path.join(ROOT, 'tests', 'e2e', 'node_modules', 'playwright')); }
 }
 
-const SERVE = {
-  '/rts.html': [path.join(RTS, 'rts.html'), 'text/html'],
-  '/gamescore.js': [path.join(ROOT, 'shared', 'gamescore.js'), 'text/javascript'],
-  '/vibe-modal.js': [path.join(ROOT, 'shared', 'vibe-modal.js'), 'text/javascript'],
-};
-
-function serve() {
-  return new Promise((resolve) => {
-    const server = http.createServer((req, res) => {
-      const item = SERVE[req.url.split('?')[0]];
-      if (!item) { res.writeHead(404); res.end(); return; }
-      res.writeHead(200, { 'content-type': item[1] });
-      res.end(fs.readFileSync(item[0]));
-    });
-    server.listen(0, '127.0.0.1', () => resolve(server));
-  });
-}
-
 async function main() {
   fs.mkdirSync(OUT, { recursive: true });
   const server = await serve();
-  const port = server.address().port;
+  const port = server.port;
   const browser = await playwright().chromium.launch();
   const page = await browser.newPage({
     viewport: { width: 1280, height: 720 },

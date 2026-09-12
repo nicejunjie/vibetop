@@ -15,7 +15,7 @@
 
 const fs = require('node:fs');
 const path = require('node:path');
-const http = require('node:http');
+const { serve } = require('./lib/serve-rts.js');
 
 const RTS = path.resolve(__dirname, '..');
 const ROOT = path.resolve(RTS, '../../..');
@@ -51,20 +51,6 @@ function mimeOf(buf) {
   return 'image/png';
 }
 
-function serve() {
-  const server = http.createServer((req, res) => {
-    const name = req.url.split('?')[0];
-    const file = name === '/rts.html' ? path.join(RTS, name) : path.join(ROOT, 'shared', name);
-    if (!fs.existsSync(file)) { res.writeHead(404); res.end(); return; }
-    res.writeHead(200, {
-      'content-type': name.endsWith('.js') ? 'text/javascript' : 'text/html',
-      'cache-control': 'no-store',
-    });
-    res.end(fs.readFileSync(file));
-  });
-  return new Promise(resolve => server.listen(0, '127.0.0.1', () => resolve(server)));
-}
-
 function payload(file) {
   const buf = fs.readFileSync(path.join(REF_DIR, file));
   return { file, mime: mimeOf(buf), data: buf.toString('base64') };
@@ -92,7 +78,7 @@ async function main() {
     const page = await browser.newPage({ viewport: { width: 1400, height: 900 }, deviceScaleFactor: 1 });
     const errors = [];
     page.on('pageerror', error => errors.push(String(error)));
-    await page.goto(`http://127.0.0.1:${server.address().port}/rts.html`);
+    await page.goto(`${server.url}/rts.html`);
     await page.waitForFunction(() => !!window.__rtsTest);
 
     const results = await page.evaluate(async ({ keys: wanted, refs: input, mag }) => {

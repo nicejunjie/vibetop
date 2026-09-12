@@ -47,7 +47,7 @@
 'use strict';
 const fs = require('fs');
 const path = require('path');
-const http = require('http');
+const { serve } = require('./lib/serve-rts.js');
 
 const ROOT = path.resolve(__dirname, '..', '..', '..', '..');
 const RTS = path.join(ROOT, 'apps', 'games', 'rts');
@@ -82,22 +82,6 @@ const CELL_FIT = Number(process.env.LEG_CELL_FIT || 96);
 function playwright() {
   try { return require('playwright'); }
   catch (e) { return require(path.join(ROOT, 'tests', 'e2e', 'node_modules', 'playwright')); }
-}
-const SERVE = {
-  '/rts.html':      [path.join(RTS, 'rts.html'), 'text/html'],
-  '/gamescore.js':  [path.join(ROOT, 'shared', 'gamescore.js'), 'text/javascript'],
-  '/vibe-modal.js': [path.join(ROOT, 'shared', 'vibe-modal.js'), 'text/javascript'],
-};
-function serve() {
-  return new Promise((res) => {
-    const s = http.createServer((req, rep) => {
-      const e = SERVE[req.url.split('?')[0]];
-      if (!e) { rep.writeHead(404); rep.end(); return; }
-      rep.writeHead(200, { 'content-type': e[1] });
-      rep.end(fs.readFileSync(e[0]));
-    });
-    s.listen(0, '127.0.0.1', () => res(s));
-  });
 }
 
 /* c8 ignore start */
@@ -333,7 +317,7 @@ async function measure(opts) {
   opts = opts || {};
   const pw = playwright();
   const srv = await serve();
-  const port = srv.address().port;
+  const port = srv.port;
   const browser = await pw.chromium.launch();
   const page = await browser.newPage({ viewport: { width: 900, height: 700 }, deviceScaleFactor: 1 });
   const pageErrors = [];

@@ -18,7 +18,7 @@
 'use strict';
 const fs = require('fs');
 const path = require('path');
-const http = require('http');
+const { serve } = require('./lib/serve-rts.js');
 
 const ROOT = path.resolve(__dirname, '..', '..', '..', '..');
 const RTS = path.join(ROOT, 'apps', 'games', 'rts');
@@ -36,22 +36,6 @@ function playwright() {
   try { return require('playwright'); }
   catch (e) { return require(path.join(ROOT, 'tests', 'e2e', 'node_modules', 'playwright')); }
 }
-const SERVE = {
-  '/rts.html':      [path.join(RTS, 'rts.html'), 'text/html'],
-  '/gamescore.js':  [path.join(ROOT, 'shared', 'gamescore.js'), 'text/javascript'],
-  '/vibe-modal.js': [path.join(ROOT, 'shared', 'vibe-modal.js'), 'text/javascript'],
-};
-function serve() {
-  return new Promise((res) => {
-    const s = http.createServer((req, rep) => {
-      const e = SERVE[req.url.split('?')[0]];
-      if (!e) { rep.writeHead(404); rep.end(); return; }
-      rep.writeHead(200, { 'content-type': e[1] });
-      rep.end(fs.readFileSync(e[0]));
-    });
-    s.listen(0, '127.0.0.1', () => res(s));
-  });
-}
 
 async function main() {
   const keys = process.argv.slice(2).filter((a) => !a.startsWith('-'));
@@ -62,7 +46,7 @@ async function main() {
   const browser = await playwright().chromium.launch();
   const page = await browser.newPage({ viewport: { width: 1100, height: 900 }, deviceScaleFactor: 1 });
   const errs = []; page.on('pageerror', (e) => errs.push(String(e)));
-  await page.goto(`http://127.0.0.1:${srv.address().port}/rts.html`);
+  await page.goto(`${srv.url}/rts.html`);
   await page.waitForFunction(() => !!window.__rtsTest, null, { timeout: 30000 });
 
   // A base with every prerequisite, so the panel can show anything. Rebuilt

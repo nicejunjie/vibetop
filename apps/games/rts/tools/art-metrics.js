@@ -28,7 +28,7 @@
 'use strict';
 const fs = require('fs');
 const path = require('path');
-const http = require('http');
+const { serve } = require('./lib/serve-rts.js');
 
 const ROOT = path.resolve(__dirname, '..', '..', '..', '..');   // repo root
 const RTS = path.join(ROOT, 'apps', 'games', 'rts');
@@ -538,24 +538,9 @@ const TARGETS = {
 };
 
 // ── the page under test, served from a throwaway loopback server ──────────
-const SERVE = {
-  // ART_HTML points the tool at a DIFFERENT build of the page, which is how a
-  // new metric is proved RED against the unfixed one before it is recorded.
-  '/rts.html':      [process.env.ART_HTML || path.join(RTS, 'rts.html'), 'text/html'],
-  '/gamescore.js':  [path.join(ROOT, 'shared', 'gamescore.js'), 'text/javascript'],
-  '/vibe-modal.js': [path.join(ROOT, 'shared', 'vibe-modal.js'), 'text/javascript'],
-};
-function serve() {
-  return new Promise((res) => {
-    const s = http.createServer((req, rep) => {
-      const hit = SERVE[req.url.split('?')[0]];
-      if (!hit || !fs.existsSync(hit[0])) { rep.writeHead(404); return rep.end('no'); }
-      rep.writeHead(200, { 'content-type': hit[1], 'cache-control': 'no-store' });
-      rep.end(fs.readFileSync(hit[0]));
-    });
-    s.listen(0, '127.0.0.1', () => res(s));
-  });
-}
+// One shared server for every art tool (tools/lib/serve-rts.js). It honours
+// ART_HTML, which points the tool at a DIFFERENT build of the page — how a new
+// metric is proved RED against the unfixed one before it is recorded.
 function playwright() {
   try { return require('playwright'); }
   catch (e) { return require(path.join(ROOT, 'tests', 'e2e', 'node_modules', 'playwright')); }
@@ -1823,7 +1808,7 @@ async function measure(opts) {
   opts = opts || {};
   const pw = playwright();
   const srv = await serve();
-  const port = srv.address().port;
+  const port = srv.port;
   const b = await pw.chromium.launch();
   try {
     const p = await b.newPage({ viewport: { width: 1500, height: 950 }, deviceScaleFactor: 1 });

@@ -4,22 +4,14 @@
 'use strict';
 const fs = require('node:fs');
 const path = require('node:path');
-const http = require('node:http');
+const { serve } = require('./lib/serve-rts.js');
 const assert = require('node:assert/strict');
 const RTS = path.resolve(__dirname, '..');
 const ROOT = path.resolve(RTS, '../../..');
 const { chromium } = require(path.join(ROOT, 'tests/e2e/node_modules/playwright'));
 
 (async () => {
-  const server = http.createServer((req, res) => {
-    const name = req.url.split('?')[0];
-    const file = name === '/rts.html' ? path.join(RTS, name)
-      : path.join(ROOT, 'shared', name);
-    if (!fs.existsSync(file)) { res.writeHead(404); res.end(); return; }
-    res.setHeader('Content-Type', name.endsWith('.js') ? 'text/javascript' : 'text/html');
-    res.end(fs.readFileSync(file));
-  });
-  await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+  const server = await serve();
   let browser;
   try {
     browser = await chromium.launch();
@@ -27,7 +19,7 @@ const { chromium } = require(path.join(ROOT, 'tests/e2e/node_modules/playwright'
       deviceScaleFactor: Number(process.env.IFV_DPR || 1) });
     const errors = [];
     page.on('pageerror', error => errors.push(String(error)));
-    await page.goto(`http://127.0.0.1:${server.address().port}/rts.html`);
+    await page.goto(`${server.url}/rts.html`);
     await page.waitForFunction(() => !!window.__rtsTest);
     const ref = fs.readFileSync(path.join(RTS, 'docs/ra2-ref/sprites/allied-ifv-voxel.png'));
     const result = await page.evaluate(async reference => {
