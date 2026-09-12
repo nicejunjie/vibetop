@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_282 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_283 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
 - [Scheduled terminal messages ("resume when the token limit resets")](#scheduled-terminal-messages-resume-when-the-token-limit-resets)
@@ -305,6 +305,7 @@ _282 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [RTS orders audit (2026-09-11): twelve ways the click and the cursor disagreed](#rts-orders-audit-2026-09-11-twelve-ways-the-click-and-the-cursor-disagreed)
 - [RTS session audit (2026-09-11): the modal that was not, the keyboard the shell dropped, and the state a save forgot](#rts-session-audit-2026-09-11-the-modal-that-was-not-the-keyboard-the-shell-dropped-and-the-state-a-save-forgot)
 - [Browser: it flashed on every switch back — the wake repaint asked the server every time (2026-09-11)](#browser-it-flashed-on-every-switch-back-the-wake-repaint-asked-the-server-every-time-2026-09-11)
+- [RTS touch audit (2026-09-11): a tap that was not a click, and a bar with no finger in mind](#rts-touch-audit-2026-09-11-a-tap-that-was-not-a-click-and-a-bar-with-no-finger-in-mind)
 
 <!-- END TOC -->
 
@@ -12613,3 +12614,38 @@ a stale compositing layer needs. `pageshow` and the 30 s sleep-gap watchdog
 still repaint. The test harness gained window listeners and a settable clock
 to prove a 5 s switch never repaints and a long one does, once.
 
+
+
+## RTS touch audit (2026-09-11): a tap that was not a click, and a bar with no finger in mind
+
+**Symptom.** A touch-driven audit on tablet viewports: `touchTap` re-implemented
+the pre-mouse-scheme precedence ("tap own = select"), so no own-target order
+existed on a tablet — no boarding, no docking, no garrison, no depot; a
+still finger past 400 ms did nothing; a queued build could never be held or
+cancelled (right-click only); holding a control to read its tooltip bought
+the item on the lift; control groups could be recalled but never assigned
+(Shift-click); the game in a floating window on a tablet fell into the PHONE
+gate because the frame was 478 px tall; a portrait tablet showed seven
+unlabelled icons; every mode message said "Esc cancels"; Stop and
+Attack-move had no button; the 26 px hover gutter was dead weight on glass;
+most targets were under 44 px; the two-finger tap could not leave a
+sell/repair/power mode.
+
+**Fix.** `touchTap` calls `leftClick` (one rule for mouse and finger). A
+still finger is a tap however long it rested. `wireHold` gives a 450 ms
+touch hold to cameos (a queued item gets the right-click's hold/cancel,
+anything else shows its details, and the lift buys nothing) and to the bar
+(hold Team 1/2 assigns; hold any other button shows its tip); touch never
+gets hover tips, and a held tip stays until the next touch elsewhere.
+`say()` rewrites "Esc cancels" to "Two-finger tap cancels" on touch, and
+`touchRight` leaves a command mode. The bar gains Stop and Attack-move
+(`cmdMode = 'amove'`, a one-shot mode the next click consumes). The phone
+gate, when framed, reads the TOP window (`html.no-gate`). Touch CSS keeps
+the bar's labels and wraps the row, removes the gutter, and gives the top
+bar, tabs, tools, slot buttons and sliders 44 px. The help card has a Touch
+row. Player-path contract: a tap on an own IFV boards a GI; a 700 ms still
+press selects.
+
+**Left as designed.** An accidental second finger deselects (the two-finger
+tap IS the right button); box-select stays mouse-only, as RA2 on glass
+would be.
