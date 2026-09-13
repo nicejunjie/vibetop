@@ -120,6 +120,7 @@
   var _loaded = false;
   var _lastSaved = null;
   var _suppress = false;       // true while reconciling to the server (don't echo back)
+  var _pushStreak = 0;         // consecutive ticks that pushed instead of reading
 
   // The native listing (filesx.html#/abs/path) is the ONLY engine — FileBrowser
   // and the Native/Classic toggle were retired (docs/files-native.md, phase 4b).
@@ -134,11 +135,20 @@
   function tabUrl(path) { return '/filesx.html#' + encPath(path || '/'); }
 
   // Current folder of a tab's iframe, read same-origin from its hash.
+  // null means "cannot read it right now", and the caller falls back to the
+  // tab's last known path. An EMPTY hash is exactly that case — the frame is
+  // between documents — and it must not be reported as "/": that one `|| '/'`
+  // was the whole "Files keeps jumping back to /" bug. It poisoned t.path to
+  // root, and because the next read returned the real folder again, stateStr()
+  // oscillated every tick; tick() treats "local changed" as a reason to PUSH
+  // and skip the read, so the device pushed every 2s and never once read the
+  // server, dragging every other device of the same user back to / for ever.
+  // A tab genuinely at root has hash "#/", which still reads as "/".
   function curPath(t) {
     try {
       var loc = t.frame.contentWindow.location;
-      if (loc.pathname === '/filesx.html') {
-        return decPath((loc.hash || '#').slice(1)) || '/';
+      if (loc.pathname === '/filesx.html' && loc.hash && loc.hash.length > 1) {
+        return decPath(loc.hash.slice(1));
       }
     } catch (e) {}
     return null;
@@ -389,7 +399,13 @@
     renderTabs();                     // refresh labels from live folder paths
     if (!_loaded) return;
     var local = stateStr();
-    if (local !== _lastSaved) { persist(); return; }   // we changed something → push
+    // Push our change and skip the read this round — but never for ever. A
+    // client whose local state will not settle used to push on every single
+    // tick and never read, which is how one device held the whole account
+    // hostage; after 5 pushes in a row we read regardless, so a disagreement
+    // always converges instead of ping-ponging.
+    if (local !== _lastSaved && _pushStreak < 5) { _pushStreak++; persist(); return; }
+    _pushStreak = 0;
     fetch('/api/files/tabs').then(function(r) { return r.json(); }).then(function(s) {
       if (!s || !Array.isArray(s.paths)) return;
       var serverStr = JSON.stringify({ paths: s.paths.map(norm), active: (typeof s.active === 'number' ? s.active : 0) });
