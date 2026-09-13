@@ -245,12 +245,36 @@
     _wakeTick = now;
   }, 5000);
 
+  // Hand the keyboard down to the tab you are actually looking at. The desktop
+  // focuses THIS wrapper's iframe, which lands on our own <body> — one frame
+  // short of the listing — so after switching to Files the selection was still
+  // highlighted but Space/arrows/Delete/F2 were all dead until a click inside
+  // the tab moved focus down. That stolen click is what made previewing an
+  // image need TWO clicks (one to wake the keyboard, one to pick the file).
+  // Deferred: the shell's own iframe focus() runs on a 0ms timer *after* it
+  // posts vibetop:active, so focusing synchronously here would be undone a tick
+  // later.
+  function focusActive() {
+    var t = active;
+    if (!t || !t.frame) return;
+    setTimeout(function() {
+      if (active !== t) return;
+      if (viewerEl && viewerEl.classList.contains('on')) return;   // the overlay owns the keys
+      // Already inside this tab? Leave it alone: re-focusing the iframe blurs
+      // whatever is focused within it (a rename box mid-edit, say), and the
+      // ~2s tab sync calls show() on its own.
+      if (document.activeElement === t.frame) return;
+      try { t.frame.focus(); } catch (e) {}
+    }, 0);
+  }
+
   function show(t) {
     if (!t) return;
     tabs.forEach(function(o) { o.frame.classList.toggle('active', o === t); });
     active = t;
     renderTabs();
     persist();
+    focusActive();
   }
 
   function createTab(path, activate) {
@@ -395,6 +419,7 @@
     document.querySelectorAll('iframe').forEach(function(f) {
       if (f !== vFrame && f.contentWindow) { try { f.contentWindow.postMessage(e.data, location.origin); } catch (err) {} }
     });
+    if (e.data.active === 'files') focusActive();   // we are the app on screen: give the listing the keyboard
   });
 
   var _lastOpen = { path: null, t: 0 };

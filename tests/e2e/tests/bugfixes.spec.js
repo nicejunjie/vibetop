@@ -60,4 +60,30 @@ test.describe('review bug-fixes (behavior)', () => {
     const me = await (await page.request.get(baseURL + '/api/me')).json();
     expect(me.can_sudo).toBe(true);
   });
+
+  // Files is a DOUBLY-nested app: the desktop's iframe holds the wrapper
+  // (files.html, the tab strip), whose own iframe holds the listing
+  // (filesx.html). The shell focuses the frame it knows about — the wrapper —
+  // which lands on the wrapper's <body>, one frame short of the listing. The
+  // whole keyboard (Space/Quick Look, arrows, Home/End, F2, Delete, type-ahead)
+  // was therefore dead after switching to Files until a click inside the listing
+  // handed focus down: the user-reported "I have to click twice before Space
+  // previews an image". Driven through the shell on purpose — the nesting IS the
+  // bug, so a direct filesx.html test cannot see it.
+  test('Files: the keyboard reaches the listing without a click (Space previews)', async ({ page }) => {
+    await page.goto('/');
+    const frame = await openAppFrame(page, 'files');
+    const wrapper = frame.contentFrame();
+    const listing = wrapper.frameLocator('iframe.active');
+    await expect(listing.locator('.row[data-i]').first()).toBeVisible({ timeout: 20_000 });
+
+    // No click anywhere in the app: the keyboard alone must select a row...
+    await page.keyboard.press('Home');
+    await expect(listing.locator('.row.sel')).toHaveCount(1, { timeout: 8_000 });
+    // ...and Space must open Quick Look, Finder-style.
+    await page.keyboard.press(' ');
+    await expect(listing.locator('.ql.open')).toBeVisible({ timeout: 8_000 });
+    await page.keyboard.press('Escape');
+    await expect(listing.locator('.ql.open')).toHaveCount(0, { timeout: 8_000 });
+  });
 });
