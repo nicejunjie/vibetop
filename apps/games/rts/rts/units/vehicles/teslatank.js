@@ -88,10 +88,16 @@ var drawPod5 = function () {
   for (i2 = 0; i2 < cols5.length; i2++) {
     var kx5 = cols5[i2][0], ky5 = cols5[i2][1];
     puck(kx5, ky5, 2.1, 2.0, pdark, panel, PEDGE);                // colour foot
-    for (var w5 = 0; w5 < 5; w5++)                                // five windings, DARK RED IRON as the sheets: the sheet's coils are short stubby chrome drums
+    // COPPER windings, and the hue matters more than the metal does. These
+    // were '#5e2a24'/'#7a3a30', which on RA2's cube are #663333 and #993333
+    // — the RED PLAYER'S OWN COLOUR, ten columns of it, 6.4% of a SOVIET
+    // tank that the blue player owns half the time. A coil winding is copper
+    // in any case; #663300/#996633 is RA2's own copper and sits 30 degrees
+    // off red, clear of the 18-degree impostor window.
+    for (var w5 = 0; w5 < 5; w5++)                                // five windings of copper strap
       puck(kx5, ky5 - 1.1 - w5 * 1.30, 1.75 - w5 * 0.05, 1.16,
-           shade('#5e2a24', 0.82), shade('#7a3a30', 1.10), '#241412');
-    puck(kx5, ky5 - 7.8, 0.7, 1.3, '#43302c', '#8a4a3c', '#1e1210'); // head stem
+           shade('#6b4318', 0.82), shade('#8a5a20', 1.10), '#3a2810');
+    puck(kx5, ky5 - 7.8, 0.7, 1.3, '#4a3418', '#9c6a28', '#2a1c08'); // head stem
     g.fillStyle = '#c8d8ff';                                       // small tip glow
     gEllipse(kx5, ky5 - 9.2, 0.85); g.fill();
   }

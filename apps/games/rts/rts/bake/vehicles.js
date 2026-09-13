@@ -44,23 +44,52 @@ function bakeVehicle(col, kind, fac, anim) {
   var BIN = sov ? VACC.warminer : '#9d8a52';
   var BIN_E = sov ? '#4a3c1e' : '#3f3517';
 
+  // ── ON THE PALETTE, OR THE SHADE LADDER CHANGES HUE ───────────────────
+  // Every one of these used to be a colour picked by eye off a render, and
+  // every one of them was OFF RA2's 6-level cube. That is not a rounding
+  // nicety: `pixelate` snaps each channel to a multiple of 0x33, so a base
+  // whose three channels sit at DIFFERENT distances from their own grid
+  // lines gets a different hue at every brightness isoBox draws it with.
+  // Measured, face by face, over the ten shade() factors a body actually
+  // uses (scratch predictor, same arithmetic as pixelate):
+  //   * teslatank  #4e4c3a -> #663333. A SOVIET tank baking RED-BROWN,
+  //     because R rounds up to 102 while G and B round down to 51 — the
+  //     enemy player's own hue on 8.2% of the sprite (3rd worst impostor
+  //     in the whole roster, `hue.maxImpostor` detail).
+  //   * mcv        #5e5876 -> #663366. Magenta. The comment said
+  //     "lavender-grey" and the bake said carnival.
+  //   * spectre    #464e5d -> #336666 teal; mirage #3f4552 -> #333366 NAVY;
+  //     lancer #626a7b -> a ladder running #669999 teal / #333366 navy /
+  //     #666666. An Allied tank owned by the RED player was showing navy
+  //     plates, which is the exact friend-or-foe failure kit.js's
+  //     "player colour is the only saturated blue or red" rule exists to
+  //     stop; it was leaking back in through the QUANTISER.
+  //   * flaktrack's cream deck #c2bfae put #663333 at the dark end.
+  //   * rhino #787a68 and mammoth #555a51 -> flat #666666: the olive the
+  //     comments claim was quantised away entirely.
+  // The rule that fixes all of them is one line: a NEUTRAL must have its
+  // three channels equal (pure grey survives every shade factor as grey),
+  // and an OLIVE must have R == G with B a full step lower (#RRRRxx ->
+  // #666633 / #999966 / #cccc99, which are RA2's own olives). Values are
+  // held where they were, so nothing moves in the legibility matrix.
   var hull, deck;
-  if (kind === 'lancer')       { hull = '#626a7b'; deck = '#3e4450'; }   // slate-navy with a pale top, as allied-grizzly-tank.png (VLIFT lifts it)
-  else if (kind === 'spectre') { hull = '#464e5d'; deck = '#30353f'; }   // dark navy-slate, as allied-prism-tank.png
-  else if (kind === 'mammoth') { hull = '#555a51'; deck = '#373b35'; }   // cold olive-grey; low value and hard plane separation keep the Apocalypse severe
-  else if (kind === 'ifv')     { hull = '#8588a2'; deck = '#7e8394'; }   // lavender-grey body, as the [FV] voxel render (VLIFT lifts it)
-  else if (kind === 'mirage')  { hull = '#3f4552'; deck = '#262a33'; }   // dark slate-navy, as mirage.png
-  else if (kind === 'rhino')     { hull = '#787a68'; deck = '#505342'; } // restrained olive gunmetal, as rhino.png; avoid the washed-out toy dome
-  else if (kind === 'flaktrack') { hull = '#d2cfc0'; deck = '#c2bfae'; } // cream body AND bed, as soviet-flak-track.png
-  else if (kind === 'v3')        { hull = '#9c9873'; deck = '#6a6748'; } // tan-khaki truck, as RA2 V3 Rocket Launcher.png
-  else if (kind === 'drone')     { hull = '#9aa1ac'; deck = '#5a606b'; } // bare metal carapace
+  if (kind === 'lancer')       { hull = '#6b6b6b'; deck = '#454545'; }   // pale steel with a dark top, as allied-grizzly-tank.png (VLIFT lifts it)
+  else if (kind === 'spectre') { hull = '#4f4f4f'; deck = '#333333'; }   // dark gunmetal, as allied-prism-tank.png
+  else if (kind === 'mammoth') { hull = '#5a5a4b'; deck = '#35352c'; }   // cold olive; low value and hard plane separation keep the Apocalypse severe
+  else if (kind === 'ifv')     { hull = '#9b9b9b'; deck = '#8d8d8d'; }   // pale silver body, as the [FV] voxel render (VLIFT lifts it)
+  else if (kind === 'mirage')  { hull = '#474747'; deck = '#2b2b2b'; }   // dark slate, as mirage.png
+  else if (kind === 'rhino')     { hull = '#8a8a70'; deck = '#5a5a3c'; } // restrained olive gunmetal, as rhino.png; avoid the washed-out toy dome
+  else if (kind === 'flaktrack') { hull = '#c6c6b4'; deck = '#b4b49c'; } // cream body AND bed, as soviet-flak-track.png
+  else if (kind === 'v3')        { hull = '#9e9e78'; deck = '#666644'; } // tan-khaki truck, as RA2 V3 Rocket Launcher.png
+  else if (kind === 'drone')     { hull = '#a3a3a3'; deck = '#636363'; } // bare metal carapace
   // Measured off soviet-tesla-tank-sheet.png with its pale studio background
   // masked: the hull's own colours are #5a5542 at 7.6% and #6b694a at 5.5%,
   // median value 0.40 — a DARK olive iron. Ours was #909372 at 0.58, half
   // again too light, and a tank that light reads as painted tin rather than
-  // as armour. The deck follows it down.
-  else if (kind === 'teslatank') { hull = '#4e4c3a'; deck = '#2c2c24'; } // dark olive iron, as the sheet measures
-  else if (kind === 'mcv')     { hull = '#5e5876'; deck = '#41464f'; }   // lavender-grey truck, as allied-mcv.png
+  // as armour. The deck follows it down. #5a5a3c is that same value ON the
+  // cube, where #4e4c3a was one rounding step off it and came back red.
+  else if (kind === 'teslatank') { hull = '#5a5a3c'; deck = '#33331e'; } // dark olive iron, as the sheet measures
+  else if (kind === 'mcv')     { hull = '#6e6e6e'; deck = '#484848'; }   // steel truck, as allied-mcv.png
   // NIGHTHAWK. This was '#31353d' matte charcoal, which put it at the SAME
   // value as the Harrier's airframe -- the one pair that failed
   // `tools/legibility.js` under all three windows. `docs/ra2-ref/cameos/
@@ -69,8 +98,15 @@ function bakeVehicle(col, kind, fac, anim) {
   // silhouette. Value, not hue, is what separates two grey aircraft at 20 px,
   // so the chopper carries the light end of the pair and the jet the dark.
   else if (kind === 'nighthawk') { hull = '#6d747e'; deck = '#363b43'; } // gunship grey, LIGHTER than the jet
-  else if (kind === 'apc')       { hull = '#8a8d76'; deck = '#4d5042'; } // olive-grey hovercraft
-  else                         { hull = sov ? '#4c515a' : '#40454e'; deck = '#2a2e35'; }
+  // The APC was the WORST impostor on the field (11.0% of its pixels within
+  // 18 degrees of the enemy's red), for the same reason as the Tesla Tank:
+  // #8a8d76's red channel is nearer its grid line than its green, so the
+  // dark faces of an OLIVE hovercraft snapped warm. R == G fixes it.
+  else if (kind === 'apc')       { hull = '#82826a'; deck = '#4e4e3e'; } // olive-grey hovercraft
+  // The two MINERS fall through to here, and the fallback was the same bug a
+  // third time: #4c515a -> #336666 teal for the War Miner and #40454e ->
+  // #333366 NAVY for the Chrono Miner — a Soviet harvester in Allied blue.
+  else                         { hull = sov ? '#565644' : '#5a5a5a'; deck = sov ? '#33331e' : '#333333'; }
   // The Apocalypse carries a neutral charcoal shadow instead of a warm
   // olive one. It keeps the recesses and gun housings visually cold while
   // the mid-tone hull remains a restrained Soviet olive.

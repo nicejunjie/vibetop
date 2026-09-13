@@ -156,9 +156,11 @@ var ACCENT = {
   rifle:     '#999999',   // GREY POT HELMET over the GI's house-colour torso block
   conscript: '#999999',   // his DARK flat-crowned cap; the Conscript's remap is his TUNIC
   rocket:    '#ffbe45',   // amber warhead (Guardian) / amber shell drum (Flak)
-  tank:      '#39415a',   // gunmetal barrel
-  lancer:    '#3a3f4c',   // neutral grey deck insets on a pale hull
-  mammoth:   '#17181c',   // gun-black twin barrels
+  tank:      '#454545',   // gunmetal barrel. #39415a snapped to #333366 — RA2's
+                          // own Allied NAVY — on every gun in the roster.
+  lancer:    '#3c3c3c',   // neutral grey deck insets on a pale hull. Was #3a3f4c,
+                          // whose shade ladder ran #336666 teal -> #333366 navy.
+  mammoth:   '#1a1a1a',   // gun-black twin barrels (#17181c snapped to #000033)
   spectre:   '#dfe9f5',   // small mirror face on a grey head (Prism Tank art)
   mcv:       '#e0a33c',   // amber folded-crane boom on a grey crawler
   harv:      '#b0955a',   // tan slatted ore bin
@@ -176,11 +178,13 @@ var ACCENT = {
   tanya:     '#241f26',   // dark hair — the rip's head rows, not its arms
   ifv:       '#e6eaf0',   // white lower body under the blue flank stripe
   mirage:    '#e9edf2',   // the ribbed white emitter stack on the deck
-  rhino:     '#2b2f36',   // NEUTRAL gunmetal barrel. The Lancer's navy put an
+  rhino:     '#2e2e2e',   // NEUTRAL gunmetal barrel. The Lancer's navy put an
                           // OPPOSING hue on a Soviet tank (4.4% of the sprite).
-  flaktrack: '#d9dee5',   // pale flak shield over the tracked bed
+  flaktrack: '#dcdcdc',   // pale flak shield over the tracked bed. #d9dee5's ladder
+                          // carried #ccccff / #9999cc / #669999 — a lavender shield.
   v3:        '#e6e7e9',   // the white rocket that IS the silhouette
-  drone:     '#a9b0bb',   // bare metal carapace
+  drone:     '#adadad',   // bare metal carapace. #a9b0bb snapped to #9999cc — a
+                          // LAVENDER-BLUE carapace on a Soviet unit.
   teslatank: '#dfe6ee',   // pale coil windings
   teslatrooper: '#cccccc',// steel helmet bowl and gauntlet
   ivan:      '#6f4c2c',   // his beard — the only bare face under a fur hat
