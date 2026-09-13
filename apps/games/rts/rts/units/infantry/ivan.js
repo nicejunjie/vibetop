@@ -8,6 +8,9 @@
 function drawIvan(C) {
   var ACC = C.ACC, FA = C.FA, HEADX = C.HEADX, JACKET = C.JACKET, T = C.T, TURN = C.TURN, arms = C.arms,
       by = C.by, col = C.col, cx = C.cx, face = C.face, g = C.g, gt = C.gt, legs = C.legs, sd = C.sd;
+  // The fur hat is FUR, not house paint. It was the whole crown, and on a
+  // 14-px man that put a quarter of him in the player's colour.
+  var FUR = '#4a3a2a';
 
 // CRAZY IVAN, read off soviet-crazy-ivan-frames: a fur USHANKA in
 // house colour with the ear flaps hanging, a brown beard filling the
@@ -69,8 +72,8 @@ g.fillRect(cx - 0.9, by - 14.2, 1.8, 1.1);
 for (var iv = -1; iv <= 1; iv += 2) {
   g.fillStyle = col;
   g.beginPath();
-  g.moveTo(cx + iv * 0.75, by - 20.1); g.lineTo(cx + iv * 4.6, by - 20.1);
-  g.lineTo(cx + iv * 4.3, by - 14.9); g.lineTo(cx + iv * 1.10, by - 14.9);
+  g.moveTo(cx + iv * 0.70, by - 19.8); g.lineTo(cx + iv * 3.9, by - 19.8);
+  g.lineTo(cx + iv * 3.7, by - 15.8); g.lineTo(cx + iv * 1.05, by - 15.8);
   g.closePath(); g.fill(); outline(g, shade(col, 0.40));
   g.fillStyle = shade(col, iv < 0 ? 1.22 : 0.88);
   g.fillRect(cx + (iv < 0 ? -5.3 : 2.6), by - 20.4, 2.7, 9.9);
@@ -177,7 +180,7 @@ g.fillRect(ihx + 0.6, by - 21.5, 0.95, 0.8);
 // Two SHORT straps at ear level. Drawn long they closed round the
 // cheeks and the hat read as a red balaclava with a beard in it.
 for (var uf = -1; uf <= 1; uf += 2) {
-  g.fillStyle = shade(col, uf < 0 ? 1.08 : 0.78);
+  g.fillStyle = shade(FUR, uf < 0 ? 1.10 : 0.82);
   g.beginPath();                                              // flap: >=2 px clear of the crown (§2.2)
   g.roundRect(cx + uf * 3.80 - 1.25, by - 23.7, 2.5, 3.4, 0.7); g.fill();
   outline(g, shade(col, 0.36));
@@ -191,14 +194,14 @@ for (var uf = -1; uf <= 1; uf += 2) {
 // a 12.2 friend-vs-foe floor (CELL 96, zoom 1) — the tightest pair in the
 // Collective infantry. Yuri's head is BALD. Blue on the ushanka buys the
 // same budget in the one band where the two figures do not compete.
-g.fillStyle = col;                                            // shallow fur crown
+g.fillStyle = FUR;                                            // shallow fur crown
 g.beginPath(); g.ellipse(cx, by - 24.1, 2.95, 2.15, 0, Math.PI, 0); g.fill();
 g.fillRect(cx - 2.95, by - 24.1, 5.9, 1.7);
 outline(g, shade(col, 0.38));
-g.fillStyle = shade(col, 1.22);                               // lit fur crown
+g.fillStyle = shade(FUR, 1.18);                               // lit fur crown
 g.beginPath();
 g.ellipse(cx - 1.05, by - 24.9, 1.7, 0.85, -0.35, 0, 6.29); g.fill();
-g.fillStyle = shade(col, 0.72);                               // shadowed brow band
+g.fillStyle = shade(FUR, 0.70);                               // shadowed brow band
 g.fillRect(cx - 2.8, by - 22.9, 5.6, 0.75);
 g.restore();
 }

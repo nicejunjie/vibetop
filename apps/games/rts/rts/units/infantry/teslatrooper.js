@@ -20,7 +20,7 @@ function drawTeslatrooper(C) {
 // Bulk is drawn into the SILHOUETTE, not into the height: he is the
 // same 20-odd px tall as the Conscript beside him but nearly half
 // again as wide, which is what stops "armoured" reading as "giant".
-legs(3.1, by - 11.9, 4.6, T.coat, 5.4, col);
+legs(3.1, by - 11.9, 4.6, T.coat, 5.4, shade(T.coat, 1.20));
 
 g.save(); g.translate(gt.lean, gt.bob);
 // HOUSE-COLOURED HIP ARMOUR, and above it §2.2's CARAPACE, which for a

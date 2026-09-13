@@ -55,12 +55,12 @@ function drawSpy(C) {
 // else, and it is what a hat is.
 var SPY_FELT = '#37302a';
 var shem = gt.swf * 0.6;                                       // the coat sways; no stride
-g.fillStyle = shade(col, 0.88);
-g.beginPath();
-g.moveTo(cx - 4.0, by - 13.0); g.lineTo(cx + 4.0, by - 13.0);
+g.fillStyle = shade(T.coat, 0.96);                             // coat cloth, NOT house paint:
+g.beginPath();                                                 // this skirt is 11.6 rows tall and
+g.moveTo(cx - 4.0, by - 13.0);                                 // was the largest house area on him g.lineTo(cx + 4.0, by - 13.0);
 g.lineTo(cx + 3.0 + shem, by - 1.4); g.lineTo(cx - 3.0 + shem, by - 1.4);
 g.closePath(); g.fill(); outline(g, shade(col, 0.40));
-g.fillStyle = shade(col, 1.16);                                // lit front of the hem
+g.fillStyle = shade(T.coat, 1.12);                             // lit front of the hem
 g.beginPath();
 g.moveTo(cx - 3.7, by - 12.8); g.lineTo(cx - 1.1, by - 12.8);
 g.lineTo(cx - 1.3 + shem, by - 1.6); g.lineTo(cx - 2.8 + shem, by - 1.6);

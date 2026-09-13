@@ -49,8 +49,8 @@ arms(5.7, by - 18.0, 3.0, 6.6, T.coat, function (i, x, y) {
 
 g.fillStyle = col;                                            // house-colour chest vest
 g.beginPath();                                                // collar to BELOW the belt, as
-g.moveTo(cx - 5.9, by - 20.5); g.lineTo(cx + 5.5, by - 20.5);  // the Conscript's tunic is
-g.lineTo(cx + 4.8, by - 10.2); g.lineTo(cx - 5.5, by - 10.2);
+g.moveTo(cx - 4.3, by - 20.0); g.lineTo(cx + 4.1, by - 20.0);  // the Conscript's tunic is
+g.lineTo(cx + 3.7, by - 15.4); g.lineTo(cx - 3.9, by - 15.4);
 g.closePath(); g.fill(); outline(g, shade(col, 0.40));
 g.fillStyle = shade(col, 1.22);                               // lit left panel
 g.fillRect(cx - 5.4, by - 19.9, 3.5, 8.8);

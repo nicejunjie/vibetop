@@ -128,13 +128,13 @@ arms(5.5, by - 18.4, 2.9, 5.6, shade(T.coat, 0.92), function (i, x, y) {
   // back from: making the isotope visible added opaque non-remap pixels
   // and diluted his share from 30.6% to 29.6% (measured), and §1.4 wants
   // that block ON a named part rather than sprayed over the suit.
-  g.fillStyle = shade(col, 0.92);
+  g.fillStyle = shade(T.coat, 1.10);
   g.beginPath(); g.ellipse(x - i * 0.4, y + 0.5, 2.1, 1.7, 0, Math.PI, 0); g.fill();
   g.fillRect(x - i * 0.4 - 2.1, y + 0.5, 4.2, 1.2);
   outline(g, shade(col, 0.40));
-  g.fillStyle = shade(col, 1.20);
+  g.fillStyle = shade(T.coat, 1.32);
   g.beginPath(); g.ellipse(x - i * 0.4 - 0.6, y - 0.3, 1.1, 0.6, -0.3, 0, 6.29); g.fill();
-  g.fillStyle = shade(col, 0.94);                              // armoured gauntlet
+  g.fillStyle = shade(T.coat, 1.18);                           // armoured gauntlet
   g.beginPath(); g.roundRect(x - 1.6, y + 4.7, 3.2, 2.7, 0.9); g.fill();
   outline(g, shade(col, 0.42));
 });

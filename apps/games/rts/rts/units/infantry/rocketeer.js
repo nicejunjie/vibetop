@@ -40,7 +40,7 @@ for (ar = -1; ar <= 1; ar += 2) {
   var lx = cx + ar * 1.7;
   g.fillStyle = shade(T.coat, ar < 0 ? 1.08 : 0.86);
   g.beginPath(); g.roundRect(lx - 1.6, by - 11.4, 3.2, 8.2, 1.0); g.fill(); outline(g, shade(T.coat, 0.46));
-  g.fillStyle = col;                                          // house shin guard
+  g.fillStyle = shade(RS, 0.86);                              // shin guard, suit cloth
   g.beginPath(); g.roundRect(lx - 1.4, by - 8.0, 2.8, 3.0, 0.6); g.fill();
   g.fillStyle = T.boot;
   g.beginPath(); g.roundRect(lx - 1.7, by - 3.6, 3.4, 3.6, 1.0); g.fill();

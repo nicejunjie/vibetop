@@ -32,7 +32,7 @@ g.fillRect(cx - 5.0, by - 12.6, 10.0, 1.7);
 // trooper, the Flak Trooper's cannon problem exactly. Armour plates are
 // where RA2 puts the budget back (rule 6: on the named part, in discrete
 // blocks), and they leave the olive leg zone reading as legs.
-g.fillStyle = shade(col, 0.15);                                // thigh armour plates
+g.fillStyle = shade(T.coat, 0.72);                             // thigh armour plates
 g.beginPath(); g.roundRect(cx - 4.3, by - 10.8, 3.0, 3.0, 0.9); g.fill();
 outline(g, shade(col, 0.08));
 g.beginPath(); g.roundRect(cx + 1.3, by - 10.8, 3.0, 3.0, 0.9); g.fill();
@@ -44,8 +44,8 @@ outline(g, shade(col, 0.08));
 // two (unit-identity-reference.md §2.1).
 g.fillStyle = col;
 g.beginPath();
-g.moveTo(cx - 4.4, by - 19.6); g.lineTo(cx + 4.4, by - 19.6);
-g.lineTo(cx + 4.0, by - 14.6); g.lineTo(cx - 4.0, by - 14.6);
+g.moveTo(cx - 3.6, by - 19.4); g.lineTo(cx + 3.6, by - 19.4);
+g.lineTo(cx + 3.2, by - 16.0); g.lineTo(cx - 3.2, by - 16.0);
 g.closePath(); g.fill(); outline(g, shade(col, 0.38));
 g.fillStyle = shade(col, 1.22);                               // lit shoulder line
 g.fillRect(cx - 4.2, by - 19.3, 8.4, 1.2);
@@ -56,12 +56,12 @@ g.beginPath(); g.roundRect(cx - 1.6, by - 15.4, 3.2, 2.0, 0.6); g.fill();
 outline(g, '#7f6a1c');
 
 arms(6.0, by - 18.0, 3.2, 6.4, T.coat, function (i, x, y) {   // house upper sleeves
-  g.fillStyle = col;                                          // slab pauldron
+  g.fillStyle = shade(T.coat, 0.80);                          // slab pauldron
   g.beginPath(); g.roundRect(x - 1.8, y - 1.3, 3.6, 2.9, 0.9); g.fill();
   outline(g, shade(col, 0.4));
   g.fillStyle = shade(col, 1.22);
   g.fillRect(x - 1.5, y - 1.1, 3.0, 1.0);
-  g.fillStyle = shade(col, 0.86);                             // armoured gauntlet — pauldron,
+  g.fillStyle = shade(T.coat, 1.14);                          // armoured gauntlet — pauldron,
   g.beginPath(); g.roundRect(x - 1.6, y + 5.0, 3.2, 2.6, 0.9); g.fill();   // vest, thigh, cuff:
   outline(g, shade(col, 0.42));                               // four discrete blocks (rule 6)
 });
@@ -131,7 +131,7 @@ g.moveTo(cx - 4.9, by - 13.8 + ry); g.lineTo(cx + 8.4, by - 26.0 - ry); g.stroke
 g.strokeStyle = '#828c99'; g.lineWidth = 1.1;                 // tube glint
 g.beginPath();
 g.moveTo(cx - 3.9, by - 14.9 + ry); g.lineTo(cx + 7.5, by - 25.5 - ry); g.stroke();
-g.strokeStyle = col; g.lineWidth = 3.6; g.lineCap = 'butt';   // house-colour trim band
+g.strokeStyle = shade(T.coat, 1.20); g.lineWidth = 3.6; g.lineCap = 'butt';   // trim band
 g.beginPath();
 g.moveTo(cx + 1.9, by - 19.7); g.lineTo(cx + 3.3, by - 21.0); g.stroke();
 g.lineCap = 'round';
