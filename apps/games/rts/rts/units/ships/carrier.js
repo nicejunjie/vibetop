@@ -79,10 +79,16 @@ g.beginPath(); g.moveTo(iq[0] - 3.2, iq[1] + 0.8); g.lineTo(iq[0] + 3.2, iq[1] +
 // Three parked Hornets — the air group, visible on the deck.
 for (var hi = 0; hi < 3; hi++) {
   var pq2 = P(-L * (0.26 + hi * 0.26), -W * 0.66, FR + 3.0);
-  g.fillStyle = '#c8cdd4';
-  g.beginPath(); g.ellipse(pq2[0], pq2[1], 3.4, 1.6, 0, 0, 6.29); g.fill();
-  g.strokeStyle = '#8f959d'; g.lineWidth = 1.6;
-  g.beginPath(); g.moveTo(pq2[0] - 3.2, pq2[1] + 0.6); g.lineTo(pq2[0] + 3.2, pq2[1] - 0.6); g.stroke();
+  // Sized to clear the airframe detector at EVERY bake, not just this one.
+  // At 3.4 x 1.6 the three blobs came out 27/26/23 px against the check's 20 px
+  // floor, and taking the deck darker was enough to drop two of them under it:
+  // the clause read 3 airframes one run and 1 the next with the aircraft
+  // untouched. A feature that is the unit's stated identity should not be one
+  // anti-aliased pixel away from not existing.
+  g.fillStyle = '#dde2e8';
+  g.beginPath(); g.ellipse(pq2[0], pq2[1], 4.1, 2.0, 0, 0, 6.29); g.fill();
+  g.strokeStyle = '#9aa0a8'; g.lineWidth = 1.7;
+  g.beginPath(); g.moveTo(pq2[0] - 3.8, pq2[1] + 0.7); g.lineTo(pq2[0] + 3.8, pq2[1] - 0.7); g.stroke();
   g.fillStyle = HOUSE;
   g.beginPath(); g.ellipse(pq2[0] + 1.7, pq2[1] - 0.4, 0.9, 0.7, 0, 0, 6.29); g.fill();
 }

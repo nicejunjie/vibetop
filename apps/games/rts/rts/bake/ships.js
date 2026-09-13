@@ -47,10 +47,10 @@ function bakeShip(col, kind, fac) {
   // where the blue-green speckle scattered over every deck was coming from.
   // Equal channels stay equal at every rung. Values are each original's luma,
   // so nothing got lighter or darker; only the false hue is gone.
-  var HULL = sov ? '#707070' : '#959595';
-  var DECK = sov ? '#3f3f3f' : '#4b4b4b';
+  var HULL = sov ? '#4d4d4d' : '#5e5e5e';
+  var DECK = sov ? '#2b2b2b' : '#343434';
   if (kind === 'sub')      { HULL = '#333333'; DECK = '#212121'; }
-  if (kind === 'dolphin')  { HULL = '#838383'; DECK = '#575757'; }
+  if (kind === 'dolphin')  { HULL = '#6a6a6a'; DECK = '#454545'; }
   // The squid's plum was a HALF-STEP off the palette grid and the shade ladder
   // kept falling off it on the red side: #6c4a60 lit by 1.2 snaps to #996666
   // and its own midtone to #663333, both pure hue 0, so 75% of the animal read
@@ -73,9 +73,10 @@ function bakeShip(col, kind, fac) {
   // olive-green, which is none of the three, and the pale deck is the thing
   // that makes the house-colour side panels read at all. BOOT, which is
   // shade(HULL, 0.34), draws the skirt for free once the deck is pale.
-  if (kind === 'lcraft')   { HULL = '#bababa'; DECK = '#717171'; }
-  if (kind === 'carrier')  { HULL = '#929292'; DECK = '#3e3e3e'; }
-  var BOOT = shade(HULL, 0.16);                       // boot-topping at the waterline
+  if (kind === 'lcraft')   { HULL = '#8f8f8f'; DECK = '#5a5a5a'; }
+  if (kind === 'carrier')  { HULL = '#5e5e5e'; DECK = '#2e2e2e'; }
+  var BOOT = shade(HULL, 0.16);
+  var SHEER = sov ? '#c2c7cd' : '#d2d7de';           // the sky on the sheer strake                       // boot-topping at the waterline
 
   // Plan geometry per hull, in pre-scale pixels. L is overall length, W
   // beam, FREE the freeboard the deck stands on.
@@ -174,11 +175,6 @@ function bakeShip(col, kind, fac) {
       var e = edges[i2];
       var q0 = P(e.a[0], e.a[1], 0), q1 = P(e.b[0], e.b[1], 0);
       var lit = ((q0[1] + q1[1]) / 2 - cy0) > 0 ? 1 : 0.62;
-      g.beginPath();
-      g.moveTo(q0[0], q0[1]); g.lineTo(q1[0], q1[1]);
-      g.lineTo(q1[0], q1[1] - FR); g.lineTo(q0[0], q0[1] - FR);
-      g.closePath();
-      var top = Math.min(q0[1], q1[1]) - FR, bot = Math.max(q0[1], q1[1]);
       // THE FLANK IS A HALF-STOP OF VALUE, TOP TO BOTTOM, and it used to be a
       // quarter. This is what separates RA2's ships — heavy, metal, sitting IN
       // the water — from a plastic model floating on it, and it is not texture,
@@ -193,20 +189,68 @@ function bakeShip(col, kind, fac) {
       // of the ship — the Destroyer read 0.36 at midships and 0.61 at 80%, the
       // gradient inverted. A pale rim under a grey slab is exactly how a toy
       // reads.
-      var grd = g.createLinearGradient(0, top, 0, bot + 0.5);
-      grd.addColorStop(0, shade(HULL, 1.34 * lit));
-      grd.addColorStop(0.34, shade(HULL, 1.02 * lit));
-      grd.addColorStop(0.74, shade(HULL, 0.62 * lit));
-      grd.addColorStop(1, shade(HULL, 0.30 * lit));
-      g.fillStyle = grd; g.fill();
-      // ...and a hard BOOT-TOPPING at the waterline. The rips do not fade into
-      // the sea, they stop against a near-black band: it is what makes the hull
-      // look like it displaces something.
-      g.fillStyle = shade(HULL, 0.16);
-      g.beginPath();
-      g.moveTo(q0[0], q0[1]); g.lineTo(q1[0], q1[1]);
-      g.lineTo(q1[0], q1[1] - FR * 0.22); g.lineTo(q0[0], q0[1] - FR * 0.22);
-      g.closePath(); g.fill();
+      //
+      // AND THE GRADIENT RAN IN SCREEN Y, WHICH IS THE "WATER RIPPLE ACROSS THE
+      // HULL". Each of the ten plan edges filled its own quad with its own
+      // `createLinearGradient(0, top, 0, bot)`, where top/bot came from that
+      // edge's own screen extent. An iso hull edge is SLANTED, so its extent is
+      // far taller than the freeboard: the ramp got stretched over a span the
+      // quad only partly covers, and every edge showed a different slice of it.
+      // Where two edges met, the value jumped; the near-black boot-topping,
+      // pinned to each edge's own waterline, stepped with them. The result was
+      // a dark line and a pale line walking diagonally across the flank,
+      // crossing the ship from the bow round to the stern — which is exactly
+      // what a bow wave looks like, and why deleting the actual bow wave left
+      // it untouched.
+      //
+      // The fix is to stop grading in screen space at all. The freeboard is a
+      // wall of height FR standing on the waterline, so its value depends on
+      // HEIGHT ABOVE THE WATERLINE and nothing else. Each band is a
+      // parallelogram offset from the edge itself, so every edge carries the
+      // identical ladder, and the bands join across the chines by construction.
+      //
+      // Flat bands rather than a ramp is also what makes it read as STEEL. RA2
+      // has six levels per channel and spends them on three or four crisp
+      // bands with hard boundaries; a smooth ramp is what plastic and rubber
+      // look like. The band at 0.72-0.84 is the sea throwing light back up onto
+      // the plating just above the boot-topping — it is the bright band at
+      // 75-85% of her height that I measured on the Destroyer rip and could not
+      // explain, and a hull with a dark strake between two light ones reads as
+      // metal in a way a single ramp never does.
+      var BANDS = [[0.00, 0.13, 1.42], [0.13, 0.48, 1.04], [0.48, 0.76, 0.60],
+                   [0.76, 0.88, 0.86], [0.88, 1.00, 0.18]];
+      for (var bi2 = 0; bi2 < BANDS.length; bi2++) {
+        var h0 = FR * (1 - BANDS[bi2][0]), h1 = FR * (1 - BANDS[bi2][1]);
+        g.beginPath();
+        g.moveTo(q0[0], q0[1] - h0); g.lineTo(q1[0], q1[1] - h0);
+        g.lineTo(q1[0], q1[1] - h1); g.lineTo(q0[0], q0[1] - h1);
+        g.closePath();
+        // The sheer strake is a FIXED specular, not a multiple of the hull.
+        // On a dark hull `shade(HULL, 1.42)` is still dark — #5e5e5e lit 1.42
+        // is value 0.53 — so the whole ship came out with NO pixel above 0.75
+        // and `colour.navalDarkest` went to zero. That gate is measuring the
+        // right thing: metal is a dark mass with a few near-white hits where an
+        // edge catches the sky, and a proportional lift can never produce one.
+        // Paint gets lighter in the light; steel gets a highlight.
+        g.fillStyle = bi2 === 0 && lit === 1 && !organic ? SHEER
+          : shade(HULL, BANDS[bi2][2] * lit);
+        g.fill();
+      }
+      // Plating. A welded hull is frames and strakes, and at this scale the
+      // only trace of them is a seam every few pixels — one value down, one
+      // pixel wide, stopping short of the sheer and the boot-topping. It costs
+      // no new colours (it reuses the shade ladder) and it is the difference
+      // between a steel side and a painted block.
+      if (lit === 1 && !organic) {
+        var ex = q1[0] - q0[0], ey = q1[1] - q0[1];
+        var elen = Math.sqrt(ex * ex + ey * ey);
+        g.strokeStyle = shade(HULL, 0.70); g.lineWidth = 0.6;
+        for (var sp = 9; sp < elen - 4; sp += 9) {
+          var t2 = sp / elen, sx2 = q0[0] + ex * t2, sy2 = q0[1] + ey * t2;
+          g.beginPath();
+          g.moveTo(sx2, sy2 - FR * 0.84); g.lineTo(sx2, sy2 - FR * 0.26); g.stroke();
+        }
+      }
       // NO HOUSE STRIPE ON THE HULL. There was a 1.5 px house-coloured line run
       // along every lit flank, and at the scale a ship is drawn it was a racing
       // stripe wrapping the whole vessel — the loudest thing on the fleet and
