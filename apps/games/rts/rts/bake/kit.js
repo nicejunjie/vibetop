@@ -245,11 +245,11 @@ var TROOP = {
   // — a contrast read that a light khaki body cancels out.
   tanya:     { coat: '#333333', boot: '#15171c', skin: '#e6b98f' },  // dark combat trousers, L=49
   teslatrooper: { coat: '#000033', boot: '#868d97', skin: '#d8a878' },// navy armour, steel greaves
-  ivan:      { coat: '#330000', boot: '#4a4e57', skin: '#dfae82' },   // WARM BROWN trousers, L=50, grey boots
+  ivan:      { coat: '#4a2020', boot: '#4a4e57', skin: '#dfae82' },   // WARM BROWN trousers, L=50, grey boots
   rocketeer: { coat: '#333333', boot: '#2a2e35', skin: '#d8a878' },   // grey pressure suit
   // Read off ra2-deso-RA2_Desolator_{Render,Manual_Render}: a charcoal
   // hazard suit with the house colour on the plates, heavy black boots.
-  desolator: { coat: '#1c1c1c', boot: '#191b20', skin: '#d8a878' },
+  desolator: { coat: '#4a4a4a', boot: '#3a3a40', skin: '#d8a878' },  // the rip's legs run #0c0c0c..#200000 — three near-blacks, not one. Ours must enter the darkening pass light enough that its own shading still separates after it
   // Read off ra2-cleg-CC_Legion_Chrono_Legionnaire + the sprite animation:
   // a PALE suit — bone-white plate over pale blue-grey underlayer.
   // ...and the suit is a NEUTRAL steel, not a blue-grey. #8f97a6 is 12
@@ -331,11 +331,11 @@ var TROOP = {
 // Flak Trooper, the Tesla Trooper, Yuri and the dog (whose 0.57 saturation
 // already separates him from every man in the game).
 var INF_VALUE = {
-  ivan:      [1.85, 1.70, 1.52],   // darkest man on the field; the uneven
+  ivan:      [1.52, 1.39, 1.25],   // darkest man on the field; the uneven
                                    //  channels DESATURATE as they darken -- a
                                    //  flat gamma turns his brown coat into a dark
                                    //  RED one, which is the enemy's hue
-  desolator: 1.47,                 //  a charcoal hazard suit
+  desolator: 1.32,                 //  a charcoal hazard suit
   conscript: [0.97, 1.00, 1.04],   //  dark, and TAN against the GI's olive
   rifle:     [0.96, 0.92, 0.97],   //  unmoved in value, pushed onto olive
   yuri:      0.95,                 //  a step up from Ivan in value alone: his coat
@@ -515,7 +515,7 @@ var STATURE = {
                                 // at 0.605 and both failed peer-vs-self. He is 41
                                 // rows now against the Flak Trooper's 45.
   yuri:         [0.87, 1.02],   // i-L 12x29 — the tallest man carrying no weapon
-  desolator:    [1.14, 1.59],   // i-M — the bulk of a sealed hazard suit
+  desolator:    [1.14, 1.05],   // i-M — the bulk of a sealed hazard suit
   teslatrooper: [1.11, 1.04],   // i-M 18x28 — THE widest, and NOT the tallest
   rifle:        [0.81, 1.00],   // i-M 12x28 — narrow; the baseline soldier
   conscript:    [1.06, 1.01],   // i-M 13x27 — the reference figure
@@ -528,7 +528,7 @@ var STATURE = {
                                 // is wedged between — the Spy (16x35) on same-faction
                                 // IoU and the Attack Dog on legibility, which she fell
                                 // under at 18x31.
-  ivan:         [0.71, 1.35],   // i-S 12x25 — the narrowest of the Collective
+  ivan:         [0.71, 0.82],   // i-S 12x25 — the narrowest of the Collective
   engineer:     [0.75, 1.06],   // i-S 13x25 — a workman, not a soldier: broader in
                                 // the shoulder than a rifleman, and NOT the squat one
                                 // he was. This read [1.22,0.76] to break two

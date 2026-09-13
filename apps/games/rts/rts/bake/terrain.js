@@ -239,6 +239,12 @@ function pixelate(s, levels, alphaCut) {
     var stepv = 255 / (levels - 1);
     var q = Math.round(Math.round(mx / stepv) * stepv);
     if (q < 1) q = 1;
+    // The dark end needs finer steps than the light end. With eight even bands
+    // the first one is 0..18, so every value under 18 collapses to pure black —
+    // and a figure the reference draws in three different near-blacks came out
+    // as one flat 17-row rectangle (the Desolator's legs). Below the first band
+    // boundary, quantise on a quarter step so the darks keep their separation.
+    if (mx < stepv) q = Math.max(3, Math.round(mx / (stepv / 4)) * (stepv / 4));
     var k = q / mx;
     d[i] = Math.min(255, Math.round(d[i] * k));
     d[i + 1] = Math.min(255, Math.round(d[i + 1] * k));
