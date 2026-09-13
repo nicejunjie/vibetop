@@ -148,6 +148,57 @@ test.describe('native Files — touch', () => {
     await expect(page.locator('#selcnt')).toHaveText('2 selected');
   });
 
+  // ---- Grid / Gallery tile layout on a phone ----
+  // The tile views laid out FIXED-width tiles packed from the left, which on a
+  // 440px phone measured 2 gallery columns with 88px of dead right margin and 3
+  // grid columns with 94px — a fifth of the screen thrown away ("what a waste of
+  // space to show only two col of files"). The columns are fluid now, so they
+  // divide whatever width the device has with nothing left over.
+  for (const view of ['grid', 'gallery']) {
+    test(`${view} tiles fill the phone's width and stay whole`, async ({ page }) => {
+      await page.addInitScript((v) => {
+        try { localStorage.setItem('fsx.view', v); } catch (e) {}
+      }, view);
+      await openFiles(page);
+      await expect(page.locator('.main.gv .row').first()).toBeVisible();
+
+      const m = await page.evaluate(() => {
+        const main = document.querySelector('.main.gv');
+        const cs = getComputedStyle(main);
+        const rows = [...main.querySelectorAll('.row')];
+        const b = rows.map((r) => r.getBoundingClientRect());
+        const top0 = Math.round(Math.min(...b.map((r) => r.top)));
+        const first = b.filter((r) => Math.round(r.top) === top0);
+        const mb = main.getBoundingClientRect();
+        // a tile whose label hangs below its own box means the grid compressed
+        // the row below its content (auto rows get divided across a
+        // definite-height scroller unless they are sized max-content)
+        const clipped = rows.filter((r) => {
+          const mid = r.querySelector('.mid');
+          return mid && mid.getBoundingClientRect().bottom > r.getBoundingClientRect().bottom + 1;
+        }).length;
+        return {
+          cols: first.length,
+          tileW: first[0].width,
+          gap: parseFloat(cs.columnGap) || 0,
+          // space left over after the last tile in the row, padding excluded
+          dead: mb.right - parseFloat(cs.paddingRight) - Math.max(...first.map((r) => r.right)),
+          overflowX: main.scrollWidth - main.clientWidth,
+          clipped,
+        };
+      });
+
+      // More than the two columns that prompted this, at every phone width.
+      expect(m.cols).toBeGreaterThanOrEqual(3);
+      // The row is fully used: what is left over is at most the inter-tile gap.
+      expect(m.dead).toBeLessThanOrEqual(m.gap + 1);
+      // ...and it is used without spilling sideways.
+      expect(m.overflowX).toBeLessThanOrEqual(1);
+      // Every tile is tall enough for its own name.
+      expect(m.clipped).toBe(0);
+    });
+  }
+
   test('rows are two-line: the full name is not truncated by size/date columns', async ({ page }) => {
     await openFiles(page);
     const row = rowNamed(page, 'a name with spaces.txt');

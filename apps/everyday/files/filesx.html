@@ -785,6 +785,35 @@
     }
     .row .meta { display: block; font-size: 11.5px; color: #7d879b; }
     .row .sz, .row .mt { display: none; }
+    /* ---- Grid / Gallery on a phone: fluid columns, not fixed-width tiles.
+       The desktop tiles are a fixed 108px (grid) / 168px (gallery) packed from
+       the left, which on a 440px phone measured: gallery 2 columns with 88px
+       of dead right margin, grid 3 columns with 94px — a fifth of the screen
+       thrown away — while a 120px-tall gallery icon box held a 46px folder
+       glyph, 74px of it empty. Six gallery tiles fit a whole phone screen.
+       auto-fill + 1fr divides the width evenly with NOTHING left over, so the
+       column count follows the device instead of a desktop constant, and the
+       icon box is sized for the glyph it actually holds (gallery keeps the
+       taller one — big thumbnails are its whole point, and /api/file/image
+       serves it at 320px). Measured after: 440px → grid 4 cols, gallery 3. */
+    .main.gv {
+      display: grid; align-content: start;
+      grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
+      /* max-content, NOT the default auto: .main is a scrolling flex item with a
+         definite height, and WebKit divides auto rows across it even under
+         align-content:start — measured 8 gallery rows at 67.7px each (total
+         exactly the 583.5px container) for tiles whose content is 141px, so
+         every icon overlapped the label of the tile below it. */
+      grid-auto-rows: max-content;
+      gap: 6px; padding: 8px;
+    }
+    .main.gv.gallery { grid-template-columns: repeat(auto-fill, minmax(112px, 1fr)); }
+    /* both selectors: .main.gv.gallery .row pins 168px at a HIGHER specificity
+       than .main.gv .row, so overriding only the latter left gallery tiles
+       168px wide inside a ~120px track — they overflowed the container. */
+    .main.gv .row, .main.gv.gallery .row { width: auto; }
+    .main.gv .row .ic { height: 52px; font-size: 30px; }
+    .main.gv.gallery .row .ic { height: 88px; font-size: 40px; }
     .pv-head button { min-height: 38px; }
     /* search bar stacks: query row, then mode + scope + close */
     .sbar { flex-wrap: wrap; gap: 7px; }
