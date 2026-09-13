@@ -60,10 +60,10 @@ var TT_DK = '#bac3cf';                                        // v 0.81 s 0.10 â
 var TT_EDGE = '#98a0ae';
 var TT_YOKE = by - 15.2;                                      // silver above, house below
 g.fillStyle = shade(col, 0.88);                               // house hip armour
-g.beginPath(); g.roundRect(cx - 6.4, by - 13.9, 12.8, 4.3, 1.0); g.fill();
+g.beginPath(); g.roundRect(cx - 4.2, by - 13.9, 8.4, 3.4, 1.0); g.fill();
 outline(g, shade(col, 0.40));
 g.fillStyle = shade(col, 1.22);
-g.fillRect(cx - 6.0, by - 13.7, 12.0, 1.0);
+g.fillRect(cx - 3.9, by - 13.7, 7.8, 0.9);
 
 // The barrel chest. Two clipped corners top and bottom turn the slab
 // into a rounded carapace â€” squared off it read as a sandwich board.

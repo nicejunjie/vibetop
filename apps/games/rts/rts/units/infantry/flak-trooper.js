@@ -37,10 +37,10 @@ outline(g, '#6d5027');
 
 arms(5.7, by - 18.0, 3.0, 6.6, T.coat, function (i, x, y) {
   g.fillStyle = col;                                          // house-colour shoulder pad
-  g.beginPath(); g.roundRect(x - 2.3, y - 1.6, 4.6, 4.2, 1.1); g.fill();
+  g.beginPath(); g.roundRect(x - 1.9, y - 1.4, 3.8, 3.2, 1.0); g.fill();
   outline(g, shade(col, 0.42));
   g.fillStyle = shade(col, 1.22);
-  g.fillRect(x - 2.0, y - 1.4, 4.0, 1.2);
+  g.fillRect(x - 1.7, y - 1.2, 3.4, 1.0);
   g.fillStyle = '#2b2d33';                                    // dark glove
   g.beginPath(); g.roundRect(x - 1.5, y + 5.4, 3.0, 2.0, 0.9); g.fill();
   g.fillStyle = shade(col, 0.88);                             // house cuff above it

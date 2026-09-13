@@ -46,7 +46,7 @@ for (var dpk = -1; dpk <= 1; dpk += 2) {
   g.fillStyle = shade(T.coat, dpk < 0 ? 1.74 : 1.32);          // lit stave
   g.fillRect(pkx - 1.6, by - 21.0, 1.2, 7.8);
   g.fillStyle = shade(col, 0.90);                              // house band round the tank —
-  g.fillRect(pkx - 2.1, by - 19.6, 4.2, 2.2);                  // the budget goes ON the named
+  g.fillRect(pkx - 1.7, by - 19.4, 3.4, 1.8);                  // the budget goes ON the named
   outline(g, shade(col, 0.42));                                // part (rule 6), as the Flak
   g.fillStyle = '#2a2e34';                                     // Trooper's breech band does
   g.beginPath(); g.ellipse(pkx, by - 21.6, 2.1, 1.0, 0, 0, 6.29); g.fill();
@@ -75,7 +75,7 @@ g.beginPath();                                                 // yoke across th
 g.moveTo(cx - 4.0, by - 20.9); g.lineTo(cx + 4.0, by - 20.9); g.stroke();
 for (var dtp = -1; dtp <= 1; dtp += 2) {                       // house-colour thigh plates
   g.fillStyle = shade(col, 0.86);
-  g.beginPath(); g.roundRect(cx + dtp * 3.0 - 2.1, by - 13.0, 4.2, 3.4, 1.0); g.fill();
+  g.beginPath(); g.roundRect(cx + dtp * 3.0 - 1.6, by - 12.8, 3.2, 2.6, 0.9); g.fill();
   outline(g, shade(col, 0.42));
   g.fillStyle = shade(col, 1.18);
   g.fillRect(cx + dtp * 3.0 - 1.7, by - 12.8, 3.4, 0.9);
@@ -92,11 +92,11 @@ g.lineTo(cx + 5.6, by - 15.0); g.lineTo(cx - 5.6, by - 15.0);
 g.closePath(); g.fill(); outline(g, shade(T.coat, 0.44));
 g.fillStyle = col;                                             // house-colour chest plate
 g.beginPath();
-g.moveTo(cx - 5.0, by - 20.3); g.lineTo(cx + 5.0, by - 20.3);
-g.lineTo(cx + 3.6, by - 15.0); g.lineTo(cx - 3.6, by - 15.0);
+g.moveTo(cx - 3.6, by - 20.0); g.lineTo(cx + 3.6, by - 20.0);
+g.lineTo(cx + 2.8, by - 16.4); g.lineTo(cx - 2.8, by - 16.4);
 g.closePath(); g.fill(); outline(g, shade(col, 0.40));
 g.fillStyle = shade(col, 1.24);
-g.fillRect(cx - 4.8, by - 20.2, 9.6, 1.2);
+g.fillRect(cx - 3.4, by - 19.9, 6.8, 1.0);
 // rivets down the plate — the render's studded seam
 g.fillStyle = 'rgba(20,22,26,.55)';
 for (var drv = 0; drv < 3; drv++) g.fillRect(cx - 0.5, by - 19.0 - drv * 1.5, 1.0, 0.8);

@@ -65,9 +65,9 @@ g.save(); g.translate(gt.lean * 0.4, 0);
 for (ar = -1; ar <= 1; ar += 2) {
   var tx = cx + ar * 5.3;
   g.fillStyle = shade(col, 0.82);
-  g.beginPath(); g.roundRect(tx - 2.3, by - 19.9, 4.6, 9.2, 1.8); g.fill(); outline(g, shade(col, 0.38));
+  g.beginPath(); g.roundRect(tx - 2.0, by - 19.4, 4.0, 6.0, 1.6); g.fill(); outline(g, shade(col, 0.38));
   g.fillStyle = shade(col, 1.26);                             // lit barrel
-  g.fillRect(tx - 1.8, by - 19.3, 1.5, 8.0);
+  g.fillRect(tx - 1.6, by - 18.9, 1.3, 5.2);
   g.fillStyle = shade(col, 0.60);                             // strap bands round it
   g.fillRect(tx - 2.2, by - 17.4, 4.4, 0.9);
   g.fillRect(tx - 2.2, by - 13.6, 4.4, 0.9);

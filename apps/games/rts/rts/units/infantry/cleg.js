@@ -22,7 +22,7 @@ function drawCleg(C) {
 // floor is measured — and is barely in the plate at all. That is the
 // whole trade this pass makes for him: the budget the shoulder shell
 // gives up lands here and on the greaves, not on another chest slab.
-legs(2.7, by - 12.0, 3.8, shade(T.coat, 0.94), 4.4, col);
+legs(2.7, by - 12.0, 3.8, shade(T.coat, 0.94), 4.4, shade(T.coat, 1.12));
 
 g.save(); g.translate(gt.lean, gt.bob);
 g.fillStyle = shade(T.coat, 0.80);                             // belt rig
@@ -66,10 +66,10 @@ g.fillRect(cx - 5.5, by - 17.2, 11.0, 0.7);                    // wrap reads as 
 // the natural home for the house note on a sealed suit: a band round
 // the neck line, drawn under the dome so the dome seats INTO it.
 g.fillStyle = col;
-g.beginPath(); g.roundRect(cx - 4.5, by - 21.3, 9.0, 2.3, 1.0); g.fill();
+g.beginPath(); g.roundRect(cx - 3.5, by - 21.3, 7.0, 1.9, 0.9); g.fill();
 outline(g, shade(col, 0.40));
 g.fillStyle = shade(col, 1.24);
-g.fillRect(cx - 4.1, by - 21.1, 8.2, 0.8);
+g.fillRect(cx - 3.2, by - 21.1, 6.4, 0.7);
 // ...and one trim band round each greave. He was the last uniformed
 // trooper under §1.4's 20% floor at 19.4%, and "red trim" (§1.5) is
 // exactly what a knee band is — it does not touch the bone-white plate

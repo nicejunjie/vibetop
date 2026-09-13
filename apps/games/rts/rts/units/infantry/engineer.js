@@ -52,14 +52,19 @@ g.closePath(); g.fill(); outline(g, edge(SHIRT, 0.52));
 // pixels AND value >= 0.75 at the same time, so the vest pays into the
 // hue budget and the value read at once. Sky blue against coral red at
 // the two houses, which is further apart than the mid tones were.
-var VEST = shade(col, 1.16), VLIT = shade(col, 1.38);
+// The vest is WORK CLOTH, not the player's colour. Both halves used to be
+// shade(col,…) and they cover the whole torso, so 45% of the man was house
+// paint where RA2 spends 15-25% — and at 8 px wide a fully-painted torso is
+// the shape you read first. The player's colour keeps the hi-vis strap and
+// the toolbox; the coverall keeps its own.
+var VEST = shade(T.coat, 1.04), VLIT = shade(T.coat, 1.24);
 for (var ev = -1; ev <= 1; ev += 2) {
   g.fillStyle = VEST;
   g.beginPath();
   g.moveTo(cx + ev * 0.75, by - 19.9); g.lineTo(cx + ev * 5.3, by - 19.9);
   g.lineTo(cx + ev * 4.8, by - 11.4); g.lineTo(cx + ev * 1.0, by - 11.4);
-  g.closePath(); g.fill(); outline(g, shade(col, 0.88));
-  g.fillStyle = ev < 0 ? VLIT : shade(col, 0.96);             // lit / shaded panel
+  g.closePath(); g.fill(); outline(g, shade(T.coat, 0.62));
+  g.fillStyle = ev < 0 ? VLIT : shade(T.coat, 0.88);          // lit / shaded panel
   g.fillRect(cx + (ev < 0 ? -5.0 : 2.4), by - 19.6, 2.6, 7.6);
 }
 // The tool belt is drawn OVER the waistcoat, not under it: buried, the
@@ -101,7 +106,7 @@ arms(5.7, by - 18.4, 2.8, 6.4, SHIRT, function (i, x, y) {
     g.strokeStyle = '#2a2d33'; g.lineWidth = 1.0; g.lineCap = 'round';
     g.beginPath(); g.arc(tbx, tby + 0.8, 2.2, Math.PI, 0.05); g.stroke();
     g.fillStyle = col;
-    g.beginPath(); g.roundRect(tbx - 3.2, tby, 6.5, 4.7, 0.8); g.fill();
+    g.beginPath(); g.roundRect(tbx - 2.6, tby, 5.2, 3.6, 0.8); g.fill();
     outline(g, shade(col, 0.82));
     g.fillStyle = shade(col, 1.22);                           // lit lid
     g.fillRect(tbx - 3.0, tby + 0.3, 6.0, 1.1);
