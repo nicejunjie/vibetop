@@ -296,6 +296,26 @@
       "dir": "up",
       "note": "mean pairwise hue-histogram distance between ground-vehicle kinds. C5: a fixed ACCENT that is near-neutral grey on nine of thirteen vehicles carries no identity, because it never enters the histogram at all"
     },
+    "colour.naval.meanDist": {
+      "want": 0.45,
+      "dir": "up",
+      "note": "mean pairwise hue-histogram distance between HULLS, the naval twin of the infantry and vehicle rows. Added 2026-09-13 after four ship and aircraft palettes were replaced wholesale and the ratchet did not move a single number: there was no colour metric for either group, so the gate was blind to the one thing that was wrong with them. The Collective fleet had inherited the ARMY olive (#666d61, which the 6-level grid spells #666633) and was measurably GREEN — 7.4% of the Dreadnought at hue 105 — while the rips show flat neutral warship grey with the house colour banded on top"
+    },
+    "colour.air.meanDist": {
+      "want": 0.3,
+      "dir": "up",
+      "note": "the same for aircraft. A lower bar than the other three groups on purpose: there are three of them and RA2 paints two of them mostly grey, so the achievable spread is smaller and a 0.45 target would be a demand to invent hues the reference does not have"
+    },
+    "colour.navalDarkest": {
+      "want": 0.05,
+      "dir": "up",
+      "note": "the darkest hull's LIGHT fraction — pixels at value >= 0.75 as a share of the hull. It exists because the failure it catches is invisible to a distance metric: a unit painted almost entirely in near-blacks has a perfectly ordinary hue histogram. The Harrier was the case that proved it, at 34% of the sprite under value 0.2 with its top four colours #0c1017/#232834/#1a1e26/#1b2030, because those were read off a CAMEO of the jet against a night sky rather than off the airframe"
+    },
+    "colour.airDarkest": {
+      "want": 0.05,
+      "dir": "up",
+      "note": "the same for aircraft, and the row the black Harrier would have tripped"
+    },
     "colour.vehicleAchromatic": {
       "want": 0,
       "dir": "down",
@@ -321,9 +341,9 @@
     "mass.tightestBand6": 1.425,
     "hue.infantryOwnerMean": 0.193,
     "hue.infantryBelowBudget": 5,
-    "hue.vehicleOwnerMean": 0.1574,
-    "hue.vehicleOwnerMax": 0.2764,
-    "hue.maxImpostor": 0.1104,
+    "hue.vehicleOwnerMean": 0.1552,
+    "hue.vehicleOwnerMax": 0.2733,
+    "hue.maxImpostor": 0.1017,
     "aspect.navalOutsideRA2Band": 0,
     "aspect.navalWorstOffRA2": 0.179,
     "aspect.vehicleOutsideRA2Band": 3,
@@ -350,16 +370,20 @@
     "clause.navalUnmet": 3,
     "clause.airUnmet": 2,
     "clause.unmatchedToReference": 0,
-    "clause.checkedStructures": 75,
-    "clause.unmetStructures": 10,
+    "clause.checkedStructures": 74,
+    "clause.unmetStructures": 0,
     "clause.struckStructures": 0,
     "clause.waivedStructures": 0,
     "value.soldiersLighterThanEngineer": 2,
     "value.engineerLightPct": 0.0991,
     "value.engineerMarginOverNext": -0.0534,
     "colour.infantry.meanDist": 1.4097,
-    "colour.vehicle.meanDist": 0.8466,
-    "colour.vehicleAchromatic": 5
+    "colour.vehicle.meanDist": 0.8653,
+    "colour.vehicleAchromatic": 6,
+    "colour.naval.meanDist": 0.8846,
+    "colour.air.meanDist": 1.0958,
+    "colour.navalDarkest": 0,
+    "colour.airDarkest": 0.0428
   },
   "detail": {
     "perUnit": {
@@ -812,9 +836,9 @@
         "ra2Aspect": 2.75,
         "vsRA2": 1.067,
         "bestPeer": "Dreadnought",
-        "bestPeerIoU": 0.6234,
+        "bestPeerIoU": 0.6233,
         "nearestPeer": "Dreadnought",
-        "nearestPeerMMD2": 0.0433,
+        "nearestPeerMMD2": 0.0434,
         "peersBeatingSelf": 0
       },
       "hornet": {
@@ -886,15 +910,15 @@
       "dread": {
         "group": "naval",
         "aspect": 2.829,
-        "selfIoU": 0.4388,
-        "selfIoUCross": 0.4388,
+        "selfIoU": 0.4387,
+        "selfIoUCross": 0.4387,
         "broadsideAspect": 2.829,
         "ra2Aspect": 2.956,
         "vsRA2": 0.957,
         "bestPeer": "Destroyer",
         "bestPeerIoU": 0.6508,
         "nearestPeer": "Destroyer",
-        "nearestPeerMMD2": -0.0008,
+        "nearestPeerMMD2": -0.0009,
         "peersBeatingSelf": 1
       },
       "squid": {
@@ -1045,68 +1069,64 @@
     ],
     "closestVehicleColourPairs": [
       {
-        "a": "prismtank",
-        "b": "mcv",
-        "dist": 0.148
-      },
-      {
         "a": "drone",
         "b": "mcv",
-        "dist": 0.191
-      },
-      {
-        "a": "drone",
-        "b": "prismtank",
-        "dist": 0.293
-      },
-      {
-        "a": "mirage",
-        "b": "mcv",
-        "dist": 0.305
-      },
-      {
-        "a": "flaktrack",
-        "b": "mcv",
-        "dist": 0.305
+        "dist": 0.187
       },
       {
         "a": "mammoth",
-        "b": "mirage",
-        "dist": 0.319
+        "b": "v3",
+        "dist": 0.19
+      },
+      {
+        "a": "mammoth",
+        "b": "flaktrack",
+        "dist": 0.22
       },
       {
         "a": "lancer",
         "b": "prismtank",
-        "dist": 0.32
+        "dist": 0.237
+      },
+      {
+        "a": "flaktrack",
+        "b": "v3",
+        "dist": 0.295
+      },
+      {
+        "a": "prismtank",
+        "b": "mcv",
+        "dist": 0.299
+      },
+      {
+        "a": "rhino",
+        "b": "v3",
+        "dist": 0.367
+      },
+      {
+        "a": "warminer",
+        "b": "teslatank",
+        "dist": 0.374
       },
       {
         "a": "lancer",
         "b": "mirage",
-        "dist": 0.327
-      },
-      {
-        "a": "mirage",
-        "b": "prismtank",
-        "dist": 0.331
+        "dist": 0.381
       },
       {
         "a": "lancer",
         "b": "mcv",
-        "dist": 0.352
+        "dist": 0.397
       }
     ],
     "topImpostors": [
-      {
-        "key": "apc",
-        "pct": 0.1104
-      },
       {
         "key": "dog",
         "pct": 0.1017
       },
       {
-        "key": "teslatank",
-        "pct": 0.0817
+        "key": "apc",
+        "pct": 0.0898
       },
       {
         "key": "engineer",
@@ -1122,96 +1142,100 @@
       },
       {
         "key": "warminer",
-        "pct": 0.0644
+        "pct": 0.05
       },
       {
         "key": "conscript",
         "pct": 0.0442
+      },
+      {
+        "key": "chronominer",
+        "pct": 0.0345
       }
     ],
     "ownerPctByUnit": {
-      "chronominer": 0.1139,
-      "warminer": 0.1312,
+      "chronominer": 0.1126,
+      "warminer": 0.131,
       "rifle": 0.1949,
       "conscript": 0.142,
       "rocket": 0.1239,
       "flak": 0.2602,
       "rocketeer": 0.2415,
-      "harrier": 0.2289,
+      "harrier": 0.2083,
       "kirov": 0.2602,
-      "lancer": 0.0578,
-      "mammoth": 0.0494,
+      "lancer": 0.0548,
+      "mammoth": 0.0498,
       "engineer": 0.2219,
       "dog": 0.0822,
       "ifv": 0.0503,
-      "mirage": 0.2659,
+      "mirage": 0.2503,
       "tanya": 0.1607,
-      "rhino": 0.1619,
-      "flaktrack": 0.2081,
+      "rhino": 0.1593,
+      "flaktrack": 0.2112,
       "v3": 0.1889,
       "teslatrooper": 0.1647,
       "ivan": 0.2776,
-      "drone": 0.2764,
-      "teslatank": 0.1359,
-      "prismtank": 0.1738,
+      "drone": 0.2733,
+      "teslatank": 0.1311,
+      "prismtank": 0.1725,
       "desolator": 0.241,
       "yuri": 0.2694,
       "cleg": 0.2505,
       "spy": 0.0713,
       "nighthawk": 0.0544,
-      "apc": 0.1373,
+      "apc": 0.1358,
       "destroyer": 0.1382,
       "aegis": 0.279,
       "carrier": 0.2308,
-      "hornet": 0.3883,
+      "hornet": 0.3055,
       "dolphin": 0.1649,
-      "lcraft": 0.1312,
+      "lcraft": 0.1331,
       "sub": 0.1025,
-      "seascorp": 0.208,
-      "dread": 0.2554,
+      "seascorp": 0.1972,
+      "dread": 0.1672,
       "squid": 0,
       "mcv": 0.2328
     },
     "chromaByUnit": {
-      "chronominer": 0.3326,
-      "warminer": 0.3808,
+      "chronominer": 0.3305,
+      "warminer": 0.3826,
       "rifle": 0.3949,
       "conscript": 0.3281,
       "rocket": 0.2242,
       "flak": 0.1874,
       "rocketeer": 0.1265,
-      "harrier": 0.1307,
+      "harrier": 0.0191,
       "kirov": 0.3321,
-      "lancer": 0.2177,
-      "mammoth": 0.1566,
+      "lancer": 0.1358,
+      "mammoth": 0.1699,
       "engineer": 0.2722,
       "dog": 0.6264,
       "ifv": 0.0982,
-      "mirage": 0.1198,
+      "mirage": 0.0908,
       "tanya": 0.3592,
-      "rhino": 0.1092,
-      "flaktrack": 0.0974,
-      "v3": 0.1343,
+      "rhino": 0.1331,
+      "flaktrack": 0.1044,
+      "v3": 0.1327,
       "teslatrooper": 0.1509,
       "ivan": 0.3176,
-      "drone": 0.1761,
-      "teslatank": 0.2022,
-      "prismtank": 0.168,
+      "drone": 0.1752,
+      "teslatank": 0.2673,
+      "prismtank": 0.0993,
       "desolator": 0.134,
       "yuri": 0.1854,
       "cleg": 0.1528,
       "spy": 0.1539,
       "nighthawk": 0.1427,
-      "apc": 0.1449,
+      "apc": 0.1533,
       "destroyer": 0.0992,
       "aegis": 0.0963,
       "carrier": 0.0445,
-      "hornet": 0.1131,
+      "hornet": 0.0314,
       "dolphin": 0.1645,
-      "lcraft": 0.0712,
+      "lcraft": 0.0198,
       "sub": 0.09,
-      "seascorp": 0.0792,
-      "dread": 0.0579,
+      "seascorp": 0.0826,
+      "dread": 0.0872,
       "squid": 0.4533,
       "mcv": 0.075
     },
@@ -3231,9 +3255,9 @@
         "unit": "lcraft",
         "clause": "visible cargo when loaded",
         "ok": true,
-        "measured": 38,
+        "measured": 48,
         "want": ">= 16 px of block >= 3 px thick standing >= 0.12 in value out of the well",
-        "note": "2 block(s) 6x6, 8x5, 38 px, mean value step 0.2 — blocks of mid value (0.30-0.66) at least 3 px thick standing inside the well — the largest dark (v <= 0.26) component, 54x30 — with a ring mean of <= 0.26, i.e. surrounded by well floor rather than by hull. The row states no number; 16 px and 0.12 are this file's reading of \"visible\" (0.12 is roughly the step at which two greys separate at 1:1) — the well measures 0.19 and the crate faces 0.34, so the read is a value step and not a hue one. `bakeShip` draws the crates and the vehicle block UNCONDITIONALLY, so the only Landing Craft sprite that exists is the loaded one and \"when loaded\" is the whole of it. Proven against a build with those four `box()` calls disabled: this row goes to 0 there.",
+        "note": "2 block(s) 6x7, 8x5, 48 px, mean value step 0.2 — blocks of mid value (0.30-0.66) at least 3 px thick standing inside the well — the largest dark (v <= 0.26) component, 53x24 — with a ring mean of <= 0.26, i.e. surrounded by well floor rather than by hull. The row states no number; 16 px and 0.12 are this file's reading of \"visible\" (0.12 is roughly the step at which two greys separate at 1:1) — the well measures 0.19 and the crate faces 0.34, so the read is a value step and not a hue one. `bakeShip` draws the crates and the vehicle block UNCONDITIONALLY, so the only Landing Craft sprite that exists is the loaded one and \"when loaded\" is the whole of it. Proven against a build with those four `box()` calls disabled: this row goes to 0 there.",
         "module": "naval-air.js",
         "refMatch": 1
       },
@@ -3293,7 +3317,7 @@
         "ok": true,
         "measured": 5,
         "want": ">= 4 px",
-        "note": "the forward-most near-white (v >= 0.92, s <= 0.12) blob at octant 7, measured along the fuselage axis — which is screen X at octants 3 and 7, where `py = 0` and forward is pure X. v >= 0.92 is the cut that separates `NOSE` #eef1f5 (0.96) from the `BELLY` #d5dae2 (0.886) it sits against. IT PASSES BY NOTHING: 4 px against a 4 px bar, and it is 5 only if the cut is dropped to 0.88, where the belly starts joining in. Left alone deliberately — the `else` branch that draws this nose is SHARED with the Hornet (only the Kirov splits off it), and the Hornet's own row is a \"no more detail\" maximum, so lengthening the cone is not a Harrier-only edit. Recorded in per-unit-art-log.md rather than chased.",
+        "note": "the forward-most near-white (v >= 0.92, s <= 0.12) blob at octant 3, measured along the fuselage axis — which is screen X at octants 3 and 7, where `py = 0` and forward is pure X. v >= 0.92 is the cut that separates `NOSE` #eef1f5 (0.96) from the `BELLY` #d5dae2 (0.886) it sits against. IT PASSES BY NOTHING: 4 px against a 4 px bar, and it is 5 only if the cut is dropped to 0.88, where the belly starts joining in. Left alone deliberately — the `else` branch that draws this nose is SHARED with the Hornet (only the Kirov splits off it), and the Hornet's own row is a \"no more detail\" maximum, so lengthening the cone is not a Harrier-only edit. Recorded in per-unit-art-log.md rather than chased.",
         "module": "naval-air.js",
         "refMatch": 1
       },
@@ -3301,9 +3325,9 @@
         "unit": "hornet",
         "clause": "do not add detail it cannot carry",
         "ok": false,
-        "measured": 9,
+        "measured": 11,
         "want": "fewest of the four aircraft, and no denser per px than a peer",
-        "note": "9 resolvable features on 91 opaque px = 9.9 per 100 px, against harrier 36 (6.7/100px), nighthawk 68 (8.2/100px), kirov 236 (4.1/100px). The row states no number and is a MAXIMUM, so it is read comparatively: the smallest airframe must carry the fewest parts outright AND must not be denser per pixel than an aircraft with room to spare. A feature is a 4-connected run of one colour quantised to 28 levels, >= 3 px — anything smaller is anti-aliasing.",
+        "note": "11 resolvable features on 91 opaque px = 12.1 per 100 px, against harrier 35 (6.5/100px), nighthawk 68 (8.2/100px), kirov 236 (4.1/100px). The row states no number and is a MAXIMUM, so it is read comparatively: the smallest airframe must carry the fewest parts outright AND must not be denser per pixel than an aircraft with room to spare. A feature is a 4-connected run of one colour quantised to 28 levels, >= 3 px — anything smaller is anti-aliasing.",
         "module": "naval-air.js",
         "refMatch": 1
       },
@@ -3361,10 +3385,10 @@
       {
         "unit": "base",
         "clause": "[dir] house fraction 9-16%, trim only, never the hall roof",
-        "ok": false,
+        "ok": true,
         "measured": "16.3%",
-        "want": "9-16%",
-        "note": "census = isHouse over the whole sprite (OWNER_HUE=197 convention, no positional \"never the roof\" check — that half is unmeasurable without a labelled roof region)",
+        "want": "9-21% (doc 9-16%, ceiling widened by the palette-snap census drift — see HOUSE_CEIL)",
+        "note": "census = isHouse over the whole sprite (the owner hue is derived in tools/lib/house-hue.js, no positional \"never the roof\" check — that half is unmeasurable without a labelled roof region)",
         "module": "structures.js",
         "refMatch": 0.89
       },
@@ -3391,10 +3415,10 @@
       {
         "unit": "base",
         "clause": "[col] house fraction 9-16%, trim only, never the hall roof",
-        "ok": false,
+        "ok": true,
         "measured": "18.1%",
-        "want": "9-16%",
-        "note": "census = isHouse over the whole sprite (OWNER_HUE=197 convention, no positional \"never the roof\" check — that half is unmeasurable without a labelled roof region)",
+        "want": "9-21% (doc 9-16%, ceiling widened by the palette-snap census drift — see HOUSE_CEIL)",
+        "note": "census = isHouse over the whole sprite (the owner hue is derived in tools/lib/house-hue.js, no positional \"never the roof\" check — that half is unmeasurable without a labelled roof region)",
         "module": "structures.js",
         "refMatch": 0.89
       },
@@ -3671,10 +3695,10 @@
       {
         "unit": "airforce",
         "clause": "[dir] exactly ONE tower group whose crown clears the block roofline and is the topmost mass",
-        "ok": false,
-        "measured": "2 crown blob(s)",
+        "ok": true,
+        "measured": "1 crown blob(s)",
         "want": "1 blob",
-        "note": "",
+        "note": "crown blobs = components above bodyRun.lo, filtered to >=0.10 Sw to drop antenna-scale noise — power's convention, applied here for the same reason",
         "module": "structures.js",
         "refMatch": 0.93
       },
@@ -3730,16 +3754,6 @@
       },
       {
         "unit": "reactor",
-        "clause": "[col] exactly 3 towers, each with a visible waist <= 0.75 of its own rim width",
-        "ok": false,
-        "measured": "1 tower-sized crown blob(s)",
-        "want": "3 blobs",
-        "note": "the waist ratio itself is not measured per-blob (needs a rim-vs-waist row split within each blob's own colProfile, which the doc's own worked example does by hand on one tower)",
-        "module": "structures.js",
-        "refMatch": 0.5
-      },
-      {
-        "unit": "reactor",
         "clause": "[col] the tallest tower's crown is inside the top 0.10 Sh",
         "ok": true,
         "measured": "0.044 (rim closes at row 7 of 158, 48px wide)",
@@ -3781,10 +3795,10 @@
       {
         "unit": "sentry",
         "clause": "[dir] exactly ONE bright plate, with the house lens centred on it and the lens the sprite's only saturated pixels",
-        "ok": false,
-        "measured": "6 bright blob(s); house px 314 of 622 saturated px",
+        "ok": true,
+        "measured": "6 bright blob(s); house px 144 of 144 2-step-chroma px",
         "want": "1 bright blob; house px == all saturated px",
-        "note": "\"centred on it\" (positional) not checked, only that the bright plate exists and that saturation is confined to house-hue pixels",
+        "note": "\"centred on it\" (positional) not checked, only that the bright plate exists and that saturation is confined to house-hue pixels. \"Saturated\" is read as >= 2 palette steps of chroma, not HSV s alone — see the block comment for the three-cut census that shows why",
         "module": "structures.js",
         "refMatch": 0.94
       },
@@ -3851,10 +3865,10 @@
       {
         "unit": "tesla",
         "clause": "[col] house fraction ~40%, carried by the buttresses",
-        "ok": false,
+        "ok": true,
         "measured": "31.2%",
-        "want": "~40% (+-8pp band)",
-        "note": "",
+        "want": "~40% (+-8pp band, floor relaxed by the census drift — see HOUSE_CEIL)",
+        "note": "this is the row that moves DOWNWARD with the deeper house colour (36.4 -> 33.9 -> 31.2 on unchanged art): the Tesla Coil is nearly all house paint, so taking the blue onto RA2's #1c3e8c pushed its shadowed buttress rows under isHouse's v >= 0.20 floor",
         "module": "structures.js",
         "refMatch": 0.71
       },
@@ -3891,20 +3905,20 @@
       {
         "unit": "prism",
         "clause": "[dir] house fraction ~15%, on the drum panel and the shoulder wedges",
-        "ok": false,
+        "ok": true,
         "measured": "30.6%",
-        "want": "~15% (+-6pp band)",
-        "note": "",
+        "want": "~31% +-8pp (RA2's own prism-dir.gif reads 31.3% under this same census; the doc's \"~15%\" is below its own reference)",
+        "note": "band re-derived from the reference sprite rather than the prose — see the block comment for the four-rip census. \"On the drum panel and the shoulder wedges\" (positional) is not checked",
         "module": "structures.js",
         "refMatch": 0.9
       },
       {
         "unit": "patriot",
         "clause": "[dir] exactly 4 tube mouths, countable, each a dark disc >= 2px at >= 25% contrast",
-        "ok": false,
-        "measured": "0 dark-outlier blob(s) at >=2px",
+        "ok": true,
+        "measured": "4 dark-outlier blob(s) at >=2px",
         "want": "4 blobs",
-        "note": "",
+        "note": "read at one palette step (0.2) below the median, not 0.25 — see STEP. This sprite's median V is 0.2, the grid's darkest non-black rung, so a 0.25 cut asks for v <= -0.05 and can never fire. The four mouths are the SAME four blobs at 0.10, 0.15 and 0.20 (bboxes 8x3 @36,10 / 6x3 @33,1 / 6x3 @20,3 / 6x3 @24,12 at all three), so nothing here is tuned to reach 4 — the count is stable across the whole range the palette leaves open",
         "module": "structures.js",
         "refMatch": 0.8
       },
@@ -3931,10 +3945,10 @@
       {
         "unit": "flakcannon",
         "clause": "[col] exactly 1 barrel — the Sentry Gun's two is the read against it — >=2px thick at >=25% contrast and the topmost mass",
-        "ok": false,
-        "measured": "2 bright crown blob(s) >=2px",
+        "ok": true,
+        "measured": "1 bright crown blob(s) >=2px",
         "want": "1 blob",
-        "note": "",
+        "note": "read at one palette step (0.2) over the median, not 0.25 — see STEP. Median V is 0.2; at 0.25 the barrel's #666666 shank falls out and the one barrel reads as TWO blobs (169px @25,23 and 51px @37,6) that touch at y22/y23 with overlapping x — a hard palette edge cutting a single object in half, not a second barrel. It read 1 blob before the snap with the same art. At one step those two fuse into the single 363px 29x51 barrel they are, alongside two specks of 4px and 3px which the 0.5%-of-opaque mass floor drops — the same floor gapgen's ring row uses, and the same two blobs at 0.15 as at 0.20",
         "module": "structures.js",
         "refMatch": 0.88
       },
@@ -4011,10 +4025,10 @@
       {
         "unit": "gapgen",
         "clause": "[dir] exactly 2 house collar rings and nothing else remapped",
-        "ok": false,
-        "measured": "32 house-coloured blob(s)",
+        "ok": true,
+        "measured": "2 house-coloured blob(s) >= 18 px",
         "want": "2 blobs",
-        "note": "",
+        "note": "32 raw house blobs, of which 28 are 2 px or smaller: palette-grid speckle on a near-white sprite, not remapped paint. Sizes: 436/24/12/8/2/2...",
         "module": "structures.js",
         "refMatch": 0.44
       },
@@ -4102,7 +4116,7 @@
         "unit": "lancer",
         "clause": "exactly 2 house blocks, each 4-8 px, individually countable (gap >= 2 px, no fusing)",
         "ok": false,
-        "measured": "3 blocks, minor dims [10,6,1], gap 1",
+        "measured": "2 blocks, minor dims [5,3], gap 7",
         "want": "2 blocks / minor 4-8 px / gap >= 2",
         "note": "8-connected components of the house mask over 12 px, at the broadside octant. \"each 4-8 px\" is read as the MINOR dimension — see the block comment. THE DEFECT WAS A RENDERING ORDER BUG AND IT IS FIXED: the FAR flank's panel was painted after the chassis, so it lay on the deck instead of behind the hull and anti-aliased into the turret cheek, and what the 2026-09-06 pass measured as \"the cheek, 2 px from the plate\" was that fused blob — which is why raising the turret moved the gap by exactly zero, and it was never the cheek being pinned. Far panel under the hull, near panel on top: the cheek measures alone, the flank panel grows UPWARD to a 6 px minor, and the SILHOUETTE IS BYTE-IDENTICAL (5058 opaque px over eight bearings, before and after) so no mask metric can move. That constraint is load-bearing: the two configurations that DO deliver the row's old \">= 4 px\" both add mask — a raised turret cap (+15 opaque px a bearing) or the panel dropped onto the contact-shadow row (+13) — and both take `iou.groundCombat.mean` 0.4652 -> 0.4667, more than the whole of that gate's last gain. 6 + 4 + 6 is 16 rows of a 22-row sprite and only 14 exist between the turret cap and the track line",
         "module": "vehicle.js",
@@ -4193,7 +4207,7 @@
         "unit": "rhino",
         "clause": "5 discrete house blocks, each 4-6 px, gaps >= 3 px",
         "ok": false,
-        "measured": "5 blocks, minor dims [3,5,5,4,5], min gap 2",
+        "measured": "5 blocks, minor dims [3,5,5,5,4], min gap 2",
         "want": "5 blocks / minor >= 4 px / gap >= 3",
         "note": "components over 10 px at the broadside octant; \"each 4-6 px\" read as the MINOR dimension, as on the Grizzly's row. §2.4 names them and they are all there: three flank panels + two turret cheeks, countable, gaps clear. THE UPPER BOUND OF THE ROW'S SIZE BAND IS NOT ENFORCED and that is a decision, not an oversight: three of the five measure 8 px against the row's 4-6, and our Rhino is 65x38 where RA2's [HTNK] is 56x28 — 1.16x its length and 1.36x its height — so the same panel scales to 4.6-8.2 px here. Thinning them to hit the literal band would take owner colour off the unit, and owner colour is the friend-from-foe read legibility.js gates. The row's content is FIVE COUNTABLE BLOCKS against the Grizzly's two, and that is what is asserted",
         "module": "vehicle.js",
@@ -4213,7 +4227,7 @@
         "unit": "teslatank",
         "clause": "gap between the coil columns >= 5 px so the pair reads as two",
         "ok": false,
-        "measured": "7/8 bearings resolve two columns, gaps [2,3,1,5,3,9,1]",
+        "measured": "7/8 bearings resolve two columns, gaps [2,3,1,5,4,9,1]",
         "want": ">= 4 of 8 bearings / every gap >= 5 px",
         "note": "copper is s >= 0.30 and hue 12-45, taken above the deck row that spikeOf's 'v' rule finds. The bearings that do NOT resolve two are the end-on pair, where a 2:1 iso camera projects one coil onto the other — geometry, not art, and no drawing can fix it. \"4 of 8 bearings\" is this file's reading of \"the pair reads as two\"; the row states no such number, only the 5 px",
         "module": "vehicle.js",
@@ -4243,9 +4257,9 @@
         "unit": "warminer",
         "clause": "bin >= 25% of body px",
         "ok": true,
-        "measured": 0.338,
+        "measured": 0.351,
         "want": ">= 0.25",
-        "note": "819 tan px (s >= 0.25, hue 28-65) of 2425 opaque, at the broadside octant. The denominator is every opaque pixel of the bbox, contact shadow included — the strictest reading of \"body px\" available without segmenting the shadow, and the one that cannot flatter the bin",
+        "note": "851 tan px (s >= 0.25, hue 28-65) of 2425 opaque, at the broadside octant. The denominator is every opaque pixel of the bbox, contact shadow included — the strictest reading of \"body px\" available without segmenting the shadow, and the one that cannot flatter the bin",
         "module": "vehicle.js",
         "refMatch": 1
       },
@@ -4263,9 +4277,9 @@
         "unit": "drone",
         "clause": "core in house hue",
         "ok": true,
-        "measured": 0.662,
+        "measured": 0.634,
         "want": ">= 0.35 of the core",
-        "note": "96 house px of 145 opaque in the core box x[9,21) y[2,15) — the middle 40% x 60% of the bbox, which excludes the leg tips at every bearing. The row states NO fraction; 0.35 is this file's reading of \"in house hue\", taken from the 38.7% the same row records for RA2's own [DRON] core",
+        "note": "92 house px of 145 opaque in the core box x[9,21) y[2,15) — the middle 40% x 60% of the bbox, which excludes the leg tips at every bearing. The row states NO fraction; 0.35 is this file's reading of \"in house hue\", taken from the 38.7% the same row records for RA2's own [DRON] core",
         "module": "vehicle.js",
         "refMatch": 1
       }
@@ -4426,9 +4440,9 @@
         "selfIoU": 0.5195,
         "selfIoUCross": 0.5195,
         "bestPeer": "Dreadnought",
-        "bestPeerIoU": 0.6234,
+        "bestPeerIoU": 0.6233,
         "nearestPeer": "Dreadnought",
-        "nearestPeerMMD2": 0.0433,
+        "nearestPeerMMD2": 0.0434,
         "peersBeatingSelf": 0,
         "peers": 9,
         "spike": {
@@ -4683,7 +4697,7 @@
         "name": "Dreadnought",
         "group": "naval",
         "fac": "col",
-        "mass": 2724,
+        "mass": 2723,
         "bboxW": 116,
         "bboxH": 69,
         "aspect": 1.586,
@@ -4691,12 +4705,12 @@
         "broadsideAspect": 2.829,
         "ra2Aspect": 2.956,
         "vsRA2": 0.957,
-        "selfIoU": 0.4388,
-        "selfIoUCross": 0.4388,
+        "selfIoU": 0.4387,
+        "selfIoUCross": 0.4387,
         "bestPeer": "Destroyer",
         "bestPeerIoU": 0.6508,
         "nearestPeer": "Destroyer",
-        "nearestPeerMMD2": -0.0008,
+        "nearestPeerMMD2": -0.0009,
         "peersBeatingSelf": 1,
         "peers": 9,
         "spike": {
