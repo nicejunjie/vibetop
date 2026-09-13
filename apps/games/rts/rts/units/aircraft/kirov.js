@@ -131,20 +131,49 @@ function hoop(ht, wdt, colr, open) {
   // CLIPPED TO THE ENVELOPE. Drawn free they stood proud of the hull like three
   // masts; the reference's members lie ON the fabric and stop at its edge.
   g.save(); bodyPath(); g.clip();
-  var BANDS = [[0.46, 0.74, '#8a8a8a'], [0.10, 0.72, '#7a7a7a'], [-0.30, 0.66, '#6e6e6e']];
+  // THE BANDS FOLLOW THE HULL. They were straight quads from the top edge of
+  // the silhouette to the bottom — constant width, dead vertical, no curvature
+  // and no foreshortening. A strap wrapped round a body of revolution is an
+  // ARC: it bulges toward the viewer at the hull's centre line, and its ends
+  // run out along the silhouette where the surface turns away. Drawn as a bar
+  // it reads as a ring with no perspective, which is what it was.
+  //
+  // The near half of the cross-section is walked at angle a: the point sits
+  // `r*cos(a)` along the ground-perpendicular P and `r*sin(a)` up, and the far
+  // half (cos(a) sharing the sign of `far`) is behind the envelope and skipped.
+  // The band is that arc given thickness along the hull's own axis, so it
+  // narrows on its own at the top and bottom where the arc turns edge-on.
+  var BANDS = [[0.46, '#8a8a8a'], [0.10, '#7a7a7a'], [-0.30, '#6e6e6e']];
+  var axU = [pt(0.02)[0] - pt(-0.02)[0], pt(0.02)[1] - pt(-0.02)[1]];
+  var axL = Math.sqrt(axU[0] * axU[0] + axU[1] * axU[1]) || 1;
+  axU = [axU[0] / axL, axU[1] / axL];
   for (var bI = 0; bI < BANDS.length; bI++) {
-    var bt = BANDS[bI][0], bh = BANDS[bI][1], bc = BANDS[bI][2];
-    var bp = pt(bt), be = rad(bt) * secK;
+    var bt = BANDS[bI][0], bc = BANDS[bI][1];
+    var bp = pt(bt), br = rad(bt), HW = 1.15;
+    var near = [], farSide = [];
+    for (var bk = 0; bk <= 48; bk++) {
+      var ba = bk / 48 * 6.2832, bca = Math.cos(ba);
+      if (bca * far > 0) continue;                 // behind the envelope
+      var bx = bp[0] + br * bca * px, by2 = bp[1] + br * (bca * py - Math.sin(ba));
+      near.push([bx + axU[0] * HW, by2 + axU[1] * HW]);
+      farSide.push([bx - axU[0] * HW, by2 - axU[1] * HW]);
+    }
+    if (near.length < 2) continue;
     g.fillStyle = bc;
     g.beginPath();
-    g.moveTo(bp[0] - nx2 * be * bh - 1.1, bp[1] - ny2 * be * bh);
-    g.lineTo(bp[0] - nx2 * be * bh + 1.1, bp[1] - ny2 * be * bh);
-    g.lineTo(bp[0] + nx2 * be * bh + 1.1, bp[1] + ny2 * be * bh);
-    g.lineTo(bp[0] + nx2 * be * bh - 1.1, bp[1] + ny2 * be * bh);
+    g.moveTo(near[0][0], near[0][1]);
+    for (var bj = 1; bj < near.length; bj++) g.lineTo(near[bj][0], near[bj][1]);
+    for (var bm = farSide.length - 1; bm >= 0; bm--) g.lineTo(farSide[bm][0], farSide[bm][1]);
     g.closePath(); g.fill();
-    g.fillStyle = '#4a4a4a';                       // the foot at each end
-    g.fillRect(bp[0] - nx2 * be * bh - 1.8, bp[1] - ny2 * be * bh - 0.9, 3.6, 1.8);
-    g.fillRect(bp[0] + nx2 * be * bh - 1.8, bp[1] + ny2 * be * bh - 0.9, 3.6, 1.8);
+    g.fillStyle = shade(bc, 1.22);                 // the lit edge of the strap
+    g.beginPath();
+    g.moveTo(near[0][0], near[0][1]);
+    for (var bn = 1; bn < near.length; bn++) g.lineTo(near[bn][0], near[bn][1]);
+    g.strokeStyle = shade(bc, 1.28); g.lineWidth = 0.7; g.stroke();
+    var e0 = near[0], e1 = near[near.length - 1];  // a foot where it meets the edge
+    g.fillStyle = '#4a4a4a';
+    g.fillRect(e0[0] - 1.7, e0[1] - 0.8, 3.4, 1.6);
+    g.fillRect(e1[0] - 1.7, e1[1] - 0.8, 3.4, 1.6);
   }
   // LONGITUDINAL FABRIC, which the reference has and a flat fill cannot fake:
   // its envelope is streaked along its length in alternating light and mid

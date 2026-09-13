@@ -71,7 +71,24 @@ var aeArray = function (pf) {
   g.beginPath(); g.moveTo(m0[0], m0[1]); g.lineTo(m1[0], m1[1]); g.stroke();
 };
 aeArray(-nearS);
+// THE LAUNCHERS ARE WHITE, ANGULAR AND TALL, and they are 15% of the sprite.
+// Measured off `library/aegis.png` (100x38), the white resolves into three
+// boxes amidships — 15x8 at x 32-46%, 17x7 at x 38-54%, and a 10x13 standing
+// from y 13% right down to 45%, i.e. a third of the frame's height. That
+// cluster IS the ship: she is a missile battery and §2.3's "explicitly no
+// barrel" means the launchers do the talking. Ours had a pale deckhouse and
+// two 2.8-unit VLS pads, nothing that stood up, and read as a grey slab with
+// blue rectangles painted on it.
 box(-L * 0.06, 0, L * 0.34, W * 1.06, 10.4, shade(DECK, 1.62));
+box(-L * 0.02, 0, 13, W * 1.12, 14.5, '#d8dce2');                 // the tall launcher
+box(-L * 0.02, 0, 9, W * 0.80, 19.5, '#eef1f4');
+box(L * 0.20, 0, 11, W * 1.00, 11.0, '#c9ced6');                  // the forward pair
+box(-L * 0.26, 0, 11, W * 1.00, 11.5, '#c9ced6');
+g.strokeStyle = '#4a5058'; g.lineWidth = 0.8;                     // the cell lids
+for (var vc = -1; vc <= 1; vc++) {
+  var vq = P(L * (0.20 + vc * 0.0), W * 0.42 * vc, FR + 11.0);
+  g.beginPath(); g.moveTo(vq[0] - 3.4, vq[1]); g.lineTo(vq[0] + 3.4, vq[1] - 0.6); g.stroke();
+}
 aeArray(nearS);
 box(L * 0.62, 0, 8, W * 1.24, 2.8, '#3a4048');                    // forward VLS
 box(-L * 0.74, 0, 8, W * 1.24, 2.8, '#3a4048');                   // aft VLS
@@ -81,5 +98,12 @@ for (var vu = -1; vu <= 1; vu += 2)
     var vq = P(L * (vu > 0 ? 0.62 : -0.74) + (vi - 1.5) * 2.0, vu * 1.9, FR + 2.8);
     g.beginPath(); g.ellipse(vq[0], vq[1], 1.1, 0.7, 0, 0, 6.29); g.fill();
   }
-mast(-L * 0.36, 0, 4.4, '#2f343c');
+// AND A REAL MAST. The reference's top edge peaks at 38 px on a 38-px frame
+// — the mast reaches the very top — against our 4.4-unit stub.
+mast(-L * 0.36, 0, 15.0, '#2b2b2b');
+var rdq = P(-L * 0.36, 0, FR + 15.0);                             // the radar at its head
+g.fillStyle = '#b9bec6';
+g.beginPath(); g.ellipse(rdq[0], rdq[1] - 1.2, 3.2, 1.5, 0, 0, 6.29); g.fill();
+g.fillStyle = '#6e737a';
+g.beginPath(); g.ellipse(rdq[0], rdq[1] - 0.2, 3.2, 1.2, 0, 0, 6.29); g.fill();
 }
