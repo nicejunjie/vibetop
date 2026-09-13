@@ -138,14 +138,21 @@ function refs() {
       c.width = img.naturalWidth; c.height = img.naturalHeight;
       const g = c.getContext('2d'); g.drawImage(img, 0, 0);
       const d = g.getImageData(0, 0, c.width, c.height).data;
-      // Is this reference a SPRITE at all? Every channel of every pixel in a
-      // real RA2 rip is a multiple of 0x33, and a unit sprite is small.
-      let onGrid = Math.max(c.width, c.height) <= 260;
-      if (onGrid) {
-        for (let i = 0; i < d.length; i += 4) {
-          if (d[i + 3] < 200) continue;
-          if (d[i] % 51 || d[i + 1] % 51 || d[i + 2] % 51) { onGrid = false; break; }
-        }
+      // Is this reference at SPRITE SCALE? Two different questions hide here and
+      // conflating them threw away good references:
+      //   * PALETTE EXACT — every channel a multiple of 0x33, RA2's own palette.
+      //     That certifies it for COLOUR work. A jpg contact sheet fails it on
+      //     compression artefacts alone.
+      //   * SPRITE SCALE — one FRAME of it is the size a unit is drawn. Many
+      //     vehicle references are eight-bearing in-game contact sheets: 250x194
+      //     overall, but each tank in them is 41-46 px, which is exactly the
+      //     scale we need. Judging those by the whole image called them posters.
+      // So palette-exactness is reported, and the SIZE verdict below keys off
+      // the median BLOB measured further down, not off the sheet.
+      let onGrid = true;
+      for (let i = 0; i < d.length; i += 4) {
+        if (d[i + 3] < 200) continue;
+        if (d[i] % 51 || d[i + 1] % 51 || d[i + 2] % 51) { onGrid = false; break; }
       }
       // A rip may be a sheet or a single frame; measure the largest connected
       // opaque blob's bbox, which is the figure itself, not the sheet.
@@ -249,21 +256,25 @@ function refs() {
   for (const key of keys) {
     const o = ours[key], t = theirs[key];
     if (o.error || t.error) { console.log(`${key.padEnd(15)} ${o.error || t.error}`); continue; }
-    const single = t.frames >= 1 && t.onGrid;                 // the median blob is one frame
+    // A frame is at sprite scale if the median blob is unit-sized. A 490x273
+    // press render segments into one giant blob and fails this; a 250x194
+    // contact sheet segments into eight 45-px tanks and passes.
+    const spriteScale = t.w <= 140 && t.h <= 140;
+    const single = t.frames >= 1 && spriteScale;              // the median blob is one frame
     const tw = t.w * TILE, th = t.h * TILE;
     const ratio = o.h / th;
-    const flag = !t.onGrid ? 'no sprite-scale reference'
+    const flag = !spriteScale ? 'no sprite-scale reference'
       : Math.abs(ratio - 1) <= 0.08 ? 'ok'
       : ratio > 1 ? `TOO TALL by ${((ratio - 1) * 100).toFixed(0)}%` : `TOO SHORT by ${((1 - ratio) * 100).toFixed(0)}%`;
     console.log(`${key.padEnd(15)} ${String(o.w + 'x' + o.h).padEnd(12)}  ${String(t.w + 'x' + t.h).padEnd(11)}  ${(tw.toFixed(0) + 'x' + th.toFixed(0)).padEnd(11)}  ${ratio.toFixed(2).padStart(6)}   ${String(flag).padEnd(22)} ${String(t.frames).padStart(2)} blobs h${t.spread[0]}-${t.spread[1]} bg ${t.bg}`);
     if (single) rows.push({ key, ratio });
   }
   const off = rows.filter((r) => Math.abs(r.ratio - 1) > 0.08);
-  const noref = keys.filter((k) => theirs[k] && theirs[k].onGrid === false);
+  const noref = keys.filter((k) => theirs[k] && !(theirs[k].w <= 140 && theirs[k].h <= 140));
   console.log(`\n${rows.length} units measurable against a real sprite rip, ${off.length} outside +-8% on height.`);
   if (noref.length) {
-    console.log(`${noref.length} have NO sprite-scale reference and are NOT judged here — RA2 draws them as`);
-    console.log('voxels, so the library holds renders and voxel-viewer shots, not rips:');
+    console.log(`${noref.length} have NO sprite-scale reference and are NOT judged here — their reference`);
+    console.log('is a press render or voxel-viewer shot whose single frame is not unit-sized:');
     console.log('  ' + noref.join(' '));
   }
 })();
