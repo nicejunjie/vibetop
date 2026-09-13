@@ -121,6 +121,7 @@
   var _lastSaved = null;
   var _suppress = false;       // true while reconciling to the server (don't echo back)
   var _pushStreak = 0;         // consecutive ticks that pushed instead of reading
+  var _rev = null;             // revision of the stored tab set we are editing
 
   // The native listing (filesx.html#/abs/path) is the ONLY engine — FileBrowser
   // and the Native/Classic toggle were retired (docs/files-native.md, phase 4b).
@@ -176,11 +177,26 @@
   // Push the local tab set to the server now (deduped; suppressed while we're
   // reconciling TO the server so we don't echo a change back).
   function persist() {
-    if (_suppress || !_loaded) return;
+    if (_suppress || !_loaded || _rev === null) return;
     var s = stateStr();
     if (s === _lastSaved) return;
     _lastSaved = s;
-    fetch('/api/files/tabs', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: s }).catch(function() {});
+    var body = JSON.parse(s);
+    body.rev = _rev;                       // compare-and-swap: the rev we edited
+    fetch('/api/files/tabs', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body)
+    }).then(function(r) {
+      return r.json().then(function(d) { return { status: r.status, d: d }; });
+    }).then(function(res) {
+      if (res.status === 409 && res.d && Array.isArray(res.d.paths)) {
+        // Someone else moved the state on. Adopt theirs rather than retrying
+        // ours — this is the brake that stops two devices fighting.
+        _rev = res.d.rev;
+        reconcile(res.d);
+      } else if (res.d && typeof res.d.rev === 'number') {
+        _rev = res.d.rev;
+      }
+    }).catch(function() {});
   }
 
   function renderTabs() {
@@ -408,6 +424,7 @@
     _pushStreak = 0;
     fetch('/api/files/tabs').then(function(r) { return r.json(); }).then(function(s) {
       if (!s || !Array.isArray(s.paths)) return;
+      if (typeof s.rev === 'number') _rev = s.rev;
       var serverStr = JSON.stringify({ paths: s.paths.map(norm), active: (typeof s.active === 'number' ? s.active : 0) });
       if (serverStr !== stateStr()) reconcile(s);       // another device changed it
     }).catch(function() {});
@@ -419,6 +436,7 @@
   // fallback "open a Home tab" path can fire.
   resolveHome(function() {
     fetch('/api/files/tabs').then(function(r) { return r.json(); }).then(function(s) {
+      if (s && typeof s.rev === 'number') _rev = s.rev;
       if (s && Array.isArray(s.paths) && s.paths.length) {
         s.paths.forEach(function(p) { createTab(p, false); });
         show(tabs[Math.min(Math.max(0, s.active | 0), tabs.length - 1)]);
