@@ -372,6 +372,7 @@ function bakeInfantry(col, kind, fac, phase, dir, state) {
     drawGi(C);
   }
   if (VG !== 1) valuePass(s, VG);       // the kind's rung on the value ladder
+  pixelate(s, 8, 96);                   // hard edges and flat bands, as RA2 draws them
   return s;
 }
 

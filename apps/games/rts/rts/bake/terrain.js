@@ -198,6 +198,49 @@ function valuePre(c, gm) {
   return 'rgb(' + o[0] + ',' + o[1] + ',' + o[2] + ')';
 }
 
+// Turn a smooth vector bake into pixel art.
+//
+// Every path we fill is antialiased, so a sprite that is 14 px wide spends most
+// of its edge budget on half-transparent in-between pixels. RA2's sprites have
+// none: an edge is one pixel, one colour, fully opaque, and that hard boundary
+// is what lets a 13 px man read as a helmet, a torso and two legs. Measured,
+// the real [E1] is 74% dark pixels with a median value of 0.22; ours came in at
+// 32% because the darks were being averaged away against their neighbours.
+//
+// Two operations, both on the already-baked canvas so no drawing code changes:
+//   * alpha snaps to 0 or 255 at a threshold, which removes the feathering and
+//     gives the silhouette a hard border;
+//   * colour quantises to `levels` steps per channel, which collapses a smooth
+//     ramp into the handful of flat bands a hand-drawn sprite uses.
+// Both are one pass over the pixels and run at BAKE time, once, never in a
+// frame — the game still draws a finished bitmap.
+function pixelate(s, levels, alphaCut) {
+  levels = levels || 6;
+  alphaCut = alphaCut == null ? 140 : alphaCut;
+  var id = s.g.getImageData(0, 0, s.c.width, s.c.height), d = id.data;
+  var i;
+  for (i = 0; i < d.length; i += 4) {
+    if (d[i + 3] < alphaCut) { d[i + 3] = 0; continue; }
+    d[i + 3] = 255;
+    if (levels < 2) continue;
+    // Quantise VALUE, never the channels. Per-channel rounding at six levels
+    // turned the GI's dark olive trousers (47,66,30) into flat grey (51,51,51):
+    // below one step every channel collapses to the same number and the hue is
+    // gone. Scaling the whole pixel toward its own quantised brightness keeps
+    // the hue exactly and still lands the sprite on a few flat bands.
+    var mx = d[i] > d[i + 1] ? (d[i] > d[i + 2] ? d[i] : d[i + 2]) : (d[i + 1] > d[i + 2] ? d[i + 1] : d[i + 2]);
+    if (!mx) continue;
+    var stepv = 255 / (levels - 1);
+    var q = Math.round(Math.round(mx / stepv) * stepv);
+    if (q < 1) q = 1;
+    var k = q / mx;
+    d[i] = Math.min(255, Math.round(d[i] * k));
+    d[i + 1] = Math.min(255, Math.round(d[i + 1] * k));
+    d[i + 2] = Math.min(255, Math.round(d[i + 2] * k));
+  }
+  s.g.putImageData(id, 0, 0);
+}
+
 function valuePass(s, gm) {
   var G = gam3(gm);
   var id = s.g.getImageData(0, 0, s.c.width, s.c.height), d = id.data;
