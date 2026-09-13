@@ -31,7 +31,7 @@ for (sg = -1; sg <= 1; sg += 2)
   for (i2 = -1; i2 <= 1; i2 += 2)
     isoBox(g, cx + px * wid * 0.375 * sg + fx * (i2 * 5.6 - 1.4),
            by - 3.2 + py * wid * 0.375 * sg + fy * (i2 * 5.6 - 1.4),
-           len * 0.24, 1.7, 3.4, a, i2 > 0 ? plit : panel, PEDGE);
+           len * 0.24, 1.7, 3.4, a, i2 > 0 ? panel : shade(hull, 1.10), PEDGE);
 fenders(len * 0.42, 3.4);
 bumper(len * 0.41, wid * 0.24, by - 1.5);
 var drawTail5 = function () {
@@ -60,7 +60,7 @@ var drawPod5 = function () {
   isoBox(g, sx5 - fx * 1.2, sy5 - 3.1 - fy * 1.2, len * 0.17, wid * 0.26, 2.8,
          a, shade(hull, 0.92), dark);
   isoBox(g, sx5 - fx * 1.2, sy5 - 5.9 - fy * 1.2, len * 0.16, wid * 0.24, 1.6,
-         a, panel, PEDGE);
+         a, shade(hull, 1.06), PEDGE);
   isoBox(g, sx5 - fx * 1.2, sy5 - 7.5 - fy * 1.2, len * 0.15, wid * 0.22, 0.9,
          a, plit, PEDGE);
   // The pair is STAGGERED along the hull, not set abreast across it,
@@ -88,11 +88,11 @@ var drawPod5 = function () {
   for (i2 = 0; i2 < cols5.length; i2++) {
     var kx5 = cols5[i2][0], ky5 = cols5[i2][1];
     puck(kx5, ky5, 2.1, 2.0, pdark, panel, PEDGE);                // colour foot
-    for (var w5 = 0; w5 < 5; w5++)                                // FIVE fat SILVER windings: the sheet's coils are short stubby chrome drums
-      puck(kx5, ky5 - 1.1 - w5 * 1.30, 2.15 - w5 * 0.06, 1.24,
-           shade('#c6cdd6', 0.80), shade('#c6cdd6', 1.12), '#4a505a');
-    puck(kx5, ky5 - 7.8, 0.8, 1.4, '#767d87', '#cfd6de', '#3d434b'); // head stem
-    g.fillStyle = '#dcecff';                                       // small tip glow
+    for (var w5 = 0; w5 < 5; w5++)                                // five windings, DARK RED IRON as the sheets: the sheet's coils are short stubby chrome drums
+      puck(kx5, ky5 - 1.1 - w5 * 1.30, 1.75 - w5 * 0.05, 1.16,
+           shade('#5e2a24', 0.82), shade('#7a3a30', 1.10), '#241412');
+    puck(kx5, ky5 - 7.8, 0.7, 1.3, '#43302c', '#8a4a3c', '#1e1210'); // head stem
+    g.fillStyle = '#c8d8ff';                                       // small tip glow
     gEllipse(kx5, ky5 - 9.2, 0.85); g.fill();
   }
   g.strokeStyle = 'rgba(224,240,255,.72)'; g.lineWidth = 0.8;      // arc across the pair

@@ -54,7 +54,12 @@ function bakeVehicle(col, kind, fac, anim) {
   else if (kind === 'flaktrack') { hull = '#d2cfc0'; deck = '#c2bfae'; } // cream body AND bed, as soviet-flak-track.png
   else if (kind === 'v3')        { hull = '#9c9873'; deck = '#6a6748'; } // tan-khaki truck, as RA2 V3 Rocket Launcher.png
   else if (kind === 'drone')     { hull = '#9aa1ac'; deck = '#5a606b'; } // bare metal carapace
-  else if (kind === 'teslatank') { hull = '#909372'; deck = '#565846'; } // olive, like the Rhino's kin, lifted
+  // Measured off soviet-tesla-tank-sheet.png with its pale studio background
+  // masked: the hull's own colours are #5a5542 at 7.6% and #6b694a at 5.5%,
+  // median value 0.40 — a DARK olive iron. Ours was #909372 at 0.58, half
+  // again too light, and a tank that light reads as painted tin rather than
+  // as armour. The deck follows it down.
+  else if (kind === 'teslatank') { hull = '#4e4c3a'; deck = '#2c2c24'; } // dark olive iron, as the sheet measures
   else if (kind === 'mcv')     { hull = '#5e5876'; deck = '#41464f'; }   // lavender-grey truck, as allied-mcv.png
   // NIGHTHAWK. This was '#31353d' matte charcoal, which put it at the SAME
   // value as the Harrier's airframe -- the one pair that failed
