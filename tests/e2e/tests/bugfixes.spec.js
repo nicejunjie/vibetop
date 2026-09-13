@@ -7,6 +7,27 @@ const { openAppFrame, backendOnly } = require('../helpers');
 test.describe('review bug-fixes (behavior)', () => {
   backendOnly(test);
 
+  // A folder of our own so these do not depend on whatever folder the user's
+  // shared Files tabs happen to hold (one pointed at a directory another
+  // session later emptied, and the listing came up with no rows at all).
+  const FOCUS_DIR = '/tmp/vibetop-e2e-focus';
+  const ONE_PX_PNG =
+    'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
+  async function seedAndEnter(page, listing) {
+    await page.evaluate(async ({ dir, b64 }) => {
+      await fetch('/api/fs/op', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ op: 'mkdir', path: dir })
+      });
+      const bin = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
+      await fetch('/api/fs/upload?path=' + encodeURIComponent(dir + '/a-picture.png'),
+                  { method: 'POST', body: bin });
+    }, { dir: FOCUS_DIR, b64: ONE_PX_PNG });
+    // Drive the tab there the way its own address bar does — via the hash.
+    await listing.locator('body').evaluate((_b, dir) => { location.hash = '#' + dir; }, FOCUS_DIR);
+    await expect(listing.locator('.row[data-i]').first()).toBeVisible({ timeout: 20_000 });
+  }
+
   test('#19 notes link chip keeps a balanced trailing ")"', async ({ page }) => {
     await page.goto('/');
     const frame = await openAppFrame(page, 'notes');
@@ -75,7 +96,7 @@ test.describe('review bug-fixes (behavior)', () => {
     const frame = await openAppFrame(page, 'files');
     const wrapper = frame.contentFrame();
     const listing = wrapper.frameLocator('iframe.active');
-    await expect(listing.locator('.row[data-i]').first()).toBeVisible({ timeout: 20_000 });
+    await seedAndEnter(page, listing);
 
     // No click anywhere in the app: the keyboard alone must select a row...
     await page.keyboard.press('Home');
@@ -99,7 +120,7 @@ test.describe('review bug-fixes (behavior)', () => {
     await page.goto('/');
     const frame = await openAppFrame(page, 'files');
     const listing = frame.contentFrame().frameLocator('iframe.active');
-    await expect(listing.locator('.row[data-i]').first()).toBeVisible({ timeout: 20_000 });
+    await seedAndEnter(page, listing);
 
     // Send Files to the background, then reach into its window with ONE click.
     await openAppFrame(page, 'notes');
