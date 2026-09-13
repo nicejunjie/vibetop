@@ -303,16 +303,50 @@
     else { renderTabs(); persist(); }
   }
 
+  // Send an EXISTING tab to another folder without replacing its document: the
+  // listing navigates on hashchange, so the iframe, and with it the keyboard
+  // focus, the selection and the scroll position, all survive. Falls back to a
+  // real load only when the frame cannot be steered (not same-origin yet).
+  function navigateTab(t, path) {
+    t.path = path;
+    try {
+      var w = t.frame.contentWindow;
+      if (w && w.location.pathname === '/filesx.html') { w.location.hash = encPath(path); return; }
+    } catch (e) {}
+    t.frame.src = tabUrl(path);
+  }
+
   // Reconcile local tabs to the server's shared set (another device changed it).
   // Reuse iframes whose folder already matches so only genuinely new/changed tabs
   // reload; then mirror order + active. Suppressed so it doesn't echo back.
+  //
+  // A tab whose FOLDER changed is steered, not rebuilt. Rebuilding threw away
+  // the loaded listing — and its focus, selection and scroll — every time the
+  // shared set moved, which is what a user on one device feels when another
+  // device (or a test run) changes a tab: "it works for a minute, then I have
+  // to click twice again", once a minute, for as long as the other end keeps
+  // moving. A new iframe is now created only for a tab that genuinely has no
+  // local counterpart to reuse.
   function reconcile(server) {
     var pool = {};
     tabs.forEach(function(t) { var p = norm(curPath(t) || t.path); (pool[p] = pool[p] || []).push(t); });
-    var next = [];
-    (server.paths || []).forEach(function(p) {
+    var paths = server.paths || [];
+    // Pass 1: claim the tabs already sitting at the right folder — untouched.
+    var claimed = {};
+    var slot = paths.map(function(p) {
       var arr = pool[norm(p)];
-      next.push(arr && arr.length ? arr.shift() : makeTab(p));
+      var t = arr && arr.length ? arr.shift() : null;
+      if (t) claimed[t.id] = true;
+      return t;
+    });
+    // Whatever is left over is a tab whose folder moved: steer it rather than
+    // build a replacement, in the order the server lists them.
+    var spare = tabs.filter(function(t) { return !claimed[t.id]; });
+    var next = paths.map(function(p, i) {
+      if (slot[i]) return slot[i];
+      var t = spare.shift();
+      if (t) { navigateTab(t, p); return t; }
+      return makeTab(p);
     });
     if (!next.length) next.push(makeTab(HOME));
     var keep = {}; next.forEach(function(t) { keep[t.id] = true; });

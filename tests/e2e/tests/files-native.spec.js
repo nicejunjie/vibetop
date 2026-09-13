@@ -107,7 +107,12 @@ test.describe('native Files — shared tabs', () => {
       document.querySelector('#frames iframe.active').contentWindow.location.hash = '#/tmp';
     });
     await page.waitForTimeout(3000);
-    const saved = JSON.parse(await page.evaluate(() => fetch('/api/files/tabs').then((r) => r.text())));
+    // ?v=2 is not decoration: since v1.19.356 the server withholds `paths`
+    // from a reader that has not opted into the rev protocol (that is how a
+    // client too old to take part is made inert instead of left thrashing), so
+    // a bare GET here reads back `undefined` and the assertion below fails for
+    // a reason that has nothing to do with what it is testing.
+    const saved = JSON.parse(await page.evaluate(() => fetch('/api/files/tabs?v=2').then((r) => r.text())));
     expect(saved.paths).toContain('/tmp');
 
     // now strip the hash WITHOUT navigating — the exact state a frame is in
@@ -118,7 +123,7 @@ test.describe('native Files — shared tabs', () => {
     });
     await page.waitForTimeout(5000);        // two full sync rounds
 
-    const after = JSON.parse(await page.evaluate(() => fetch('/api/files/tabs').then((r) => r.text())));
+    const after = JSON.parse(await page.evaluate(() => fetch('/api/files/tabs?v=2').then((r) => r.text())));
     // the tab must NOT have been rewritten to root
     expect(after.paths).toContain('/tmp');
     expect(after.paths.filter((p) => p === '/').length).toBeLessThan(after.paths.length);
@@ -463,5 +468,69 @@ test.describe('native Files — auto-refresh', () => {
     await expect(rowNamed(page, behind)).toHaveCount(0);                                // behind another app: no refresh
     await page.evaluate(() => window.postMessage({ type: 'vibetop:active', active: 'files' }, '*'));
     await expect(rowNamed(page, behind)).toBeVisible({ timeout: 3000 });                // back in front: caught up at once
+  });
+});
+
+// A tab whose folder is changed from ANOTHER device must be steered, not
+// rebuilt. Rebuilding the iframe threw away the loaded listing along with the
+// keyboard focus, the selection and the scroll position — so a user on one
+// device lost their place (and had to click twice before Space worked again)
+// every time the shared set moved. Reported as "it works for a minute, then
+// breaks", once a minute, for as long as the other end kept changing tabs.
+test.describe('native Files — a remote tab change does not rebuild the listing', () => {
+  test.beforeEach(({}, info) => {
+    test.skip(info.project.name !== DESKTOP, `one browser is enough — ${DESKTOP}`);
+  });
+
+  test('the iframe survives a folder change made elsewhere', async ({ page }) => {
+    const A = '/tmp/vibetop-e2e-remote-a';
+    const B = '/tmp/vibetop-e2e-remote-b';
+    await page.goto('/files.html');
+    await page.evaluate(async (dirs) => {
+      for (const d of dirs) {
+        await fetch('/api/fs/op', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ op: 'mkdir', path: d })
+        });
+      }
+    }, [A, B]);
+
+    // One tab, sitting in folder A.
+    await page.waitForFunction(() => document.querySelectorAll('#frames iframe').length > 0, null, { timeout: 20_000 });
+    await page.evaluate((a) => {
+      document.querySelector('#frames iframe.active').contentWindow.location.hash = '#' + a;
+    }, A);
+    await page.waitForTimeout(3500);          // let it settle and persist
+
+    // Stamp the live document so a rebuild is detectable: a hash navigation
+    // keeps the same document (and the stamp), a new iframe does not.
+    await page.evaluate(() => {
+      document.querySelector('#frames iframe.active').contentWindow.__vtStamp = 'alive';
+    });
+
+    // Another device moves that tab to folder B (a plain write, with the rev
+    // the server currently holds — exactly what the other device would send).
+    await page.evaluate(async (b) => {
+      const cur = await fetch('/api/files/tabs?v=2').then((r) => r.json());
+      await fetch('/api/files/tabs', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ paths: [b], active: 0, rev: cur.rev })
+      });
+    }, B);
+
+    // The 2s poll reconciles.
+    await expect
+      .poll(async () => page.evaluate(() => {
+        const f = document.querySelector('#frames iframe.active');
+        try { return f.contentWindow.location.hash; } catch (e) { return ''; }
+      }), { timeout: 15_000 })
+      .toContain('vibetop-e2e-remote-b');
+
+    // ...and it did so WITHOUT replacing the document.
+    const stamp = await page.evaluate(() => {
+      const f = document.querySelector('#frames iframe.active');
+      try { return f.contentWindow.__vtStamp || 'GONE'; } catch (e) { return 'GONE'; }
+    });
+    expect(stamp).toBe('alive');
   });
 });
