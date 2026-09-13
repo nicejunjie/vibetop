@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_295 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_296 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
 - [Scheduled terminal messages ("resume when the token limit resets")](#scheduled-terminal-messages-resume-when-the-token-limit-resets)
@@ -318,6 +318,7 @@ _295 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [Files kept jumping back to "/": an unreadable iframe hash was reported as root (2026-09-12)](#files-kept-jumping-back-to-an-unreadable-iframe-hash-was-reported-as-root-2026-09-12)
 - [Files ignored the keyboard until you clicked it: the shell focused the wrapper, one iframe short of the listing (2026-09-12)](#files-ignored-the-keyboard-until-you-clicked-it-the-shell-focused-the-wrapper-one-iframe-short-of-the-listing-2026-09-12)
 - [The real cause of "Files needs two clicks": Safari gives keyboard focus only to form controls (2026-09-12)](#the-real-cause-of-files-needs-two-clicks-safari-gives-keyboard-focus-only-to-form-controls-2026-09-12)
+- [The Browser stole the keyboard from whatever app you were using, because "active" meant two things (2026-09-13)](#the-browser-stole-the-keyboard-from-whatever-app-you-were-using-because-active-meant-two-things-2026-09-13)
 
 <!-- END TOC -->
 
@@ -13348,3 +13349,60 @@ Three rounds of measurement went into a space that one answer closed. See
 control gets that for free on Safari. Also rejected: having the shell walk down
 and focus the deepest frame — it would need every app's internals, and the frame
 that was clicked already knows.
+
+## The Browser stole the keyboard from whatever app you were using, because "active" meant two things (2026-09-13)
+
+**Symptom.** "Switch to Files, press Space, nothing; click again, then Space
+works." Same for the Terminal. It survived THREE fixes (v1.19.357/358/360) and
+could not be reproduced on any engine here.
+
+**Cause.** The user's own `#focusdbg` panel caught it in three lines:
+
+```
++126.7s pointerdown @filesx   on=nm  focus=filesx      <- the click lands
++126.9s click       @filesx   on=nm  focus=browser/    <- 200ms later, gone
++128.3s keydown     @browser/ key=SPACE focus=browser/ <- Space went THERE
+```
+
+`vibetop:active` carries two unrelated meanings. In window mode
+`renderWindows()` pumps **every VISIBLE window with its own id** — that means
+"you are on screen, do not pause rendering". `xpra-patches.js` patch 8 read it
+as "you are the focused app" and answered with `window.focus()` from inside its
+iframe (deferred 150ms), dragging top-level focus to the Browser. So a merely
+*visible* Browser window took the keyboard ~150ms after every app switch. The
+second click worked because the app was already active: no `setActive`, no
+`renderWindows`, no pump, no theft.
+
+**Fix.** `pumpActive(f, tellId, focused)` says which meaning it is
+(`focused: id === active`), and patch 8 grabs the keyboard only when
+`focused !== false`. Absent means focused, so a page from a stale cache behaves
+as before.
+
+**Why every test passed.** Two structural blind spots, both worth fixing before
+the next one:
+
+1. **No test ever had two apps open.** Every spec drives ONE app, and focus is a
+   global single-owner resource — the app under test behaves perfectly while
+   another reaches over and takes the keyboard. `cross-app-focus.spec.js` now
+   asserts the invariant no single app owns.
+2. **The VM does not install the culprit.** `tests/e2e/run-vm.sh` provisions
+   `deploy.sh --no-browser --no-office` by default, so the Browser — the app
+   doing the stealing — does not exist there. `VIBETOP_E2E_FULL=1` installs it.
+   Same trap as the install matrix's `VIBETOP_MATRIX_FULL=1`: the lean default
+   silently removes the thing under test.
+
+The durable guard is neither of those, though — it is the **hermetic** contract
+test in `xpra-patches.test.js`, which feeds the patch file a `focused:false`
+message and asserts it keeps its hands off. It needs no VM and no xpra, because
+it tests the CONSUMER of the signal. Verified failing against the unfixed file.
+
+**Watch out.** Three fixes were shipped on a theory before this one, each
+plausible, each verified green here, each followed by "还是不行". The thing that
+actually ended it was instrumenting the user's own machine (`#focusdbg`,
+v1.19.359) and reading what it printed. When a report survives one fix,
+stop theorising and go measure on the machine where it happens.
+
+**Rejected.** Having the shell stop pumping visible-but-unfocused windows at
+all. They need that signal — it is what keeps a background xpra canvas from
+pausing and coming back blank; the repaint patch keys off the same message.
+Splitting the meaning is the fix, not removing the message.
