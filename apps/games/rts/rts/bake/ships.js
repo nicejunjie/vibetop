@@ -381,13 +381,22 @@ function bakeSandbags(col) {
 // unit-identity-reference.md 2.3/2.4 names for it.
 //
 // Two rules bind the choices. (1) Only the OWNER's colour may be saturated
-// as a SIDE, so a fixed accent has to be a hue no owner uses: our houses sit
-// at 203 degrees (blue) and 356 (red), and every entry below is at least 30
-// degrees off both — the Conscript's trousers, 11 degrees off red and
-// reading 39% "red" to the census, are the recorded cost of getting this
-// wrong (docs/design-decisions.md). (2) The accents are spread round the two
-// usable arcs (31-168 and 238-321) rather than clustered, so no two
-// vehicles in the confusable cluster share a colour family.
+// as a SIDE, so a fixed accent has to be a hue no owner uses. The houses MOVED
+// on 2026-09-13, when the player palette went onto RA2's own deep values: blue
+// left the sky at 203 degrees for the rips' navy at 222, and red left a pink
+// 356 for a pure 0. Re-checked against the new pair, every entry below still
+// clears 30 degrees of both — the closest are the MCV's amber at 38 off red
+// and the Chrono Miner's violet at 42 off navy. The Conscript's trousers, 11
+// degrees off red and reading 39% "red" to the census, are the recorded cost
+// of getting this wrong (docs/design-decisions.md). (2) The accents are spread
+// round the two usable arcs rather than clustered, so no two vehicles in the
+// confusable cluster share a colour family.
+//
+// The arcs are narrower than they look, because the BAKE quantises to RA2's
+// 6-level channel grid and a hue only survives if the grid can spell it. Check
+// a new accent across its whole shade ladder, not just at full value: a colour
+// half a step off the grid changes hue from rung to rung, which is how the
+// Tesla Tank ended up baking the red player's #663333 onto a Soviet hull.
 //
 // This table is VEHICLE-ONLY and deliberately separate from ACCENT, which
 // infantry share: the two rosters have different hue budgets (2.1/2.2 vs
