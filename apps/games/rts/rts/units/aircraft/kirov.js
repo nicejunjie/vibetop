@@ -162,7 +162,15 @@ hoop(0.50, 0.9, shade(col, 0.62));
 // SHARK MOUTH — the single thing that names a Kirov, and it was
 // missing entirely. A dark maw along the belly of the nose with a
 // row of white teeth on its upper edge, plus one eye above it.
-var m0t = 0.78, m1t = 0.99, mst = 8, mi2;   // the rip's marking is SHORT — the right fifth of the hull, not a third
+// THE SHARK MOUTH IS BIG, and shrinking it was my own overcorrection. Zoomed on
+// the reference's nose it is unmistakable: a black maw running most of the blunt
+// nose dome with ORANGE-GOLD teeth along its upper edge, and a dark eye patch
+// above and behind it. That is painted nose art on a bomber, which is what this
+// airship is, and it is the loudest thing on the front half. What was wrong
+// before was never that it existed — it was that our teeth were near-WHITE, the
+// brightest value on the airship, and the eye a cartoon white sclera with a
+// black pupil. Both are dark-on-dark in the rip.
+var m0t = 0.60, m1t = 1.00, mst = 10, mi2;
 function belly(tv, up) {
   var bp = pt(tv), be = rad(tv) * secK;
   return [bp[0] - nx2 * be * up, bp[1] - ny2 * be * up];
@@ -170,23 +178,28 @@ function belly(tv, up) {
 g.beginPath();
 for (mi2 = 0; mi2 <= mst; mi2++) { var mp = belly(m0t + (m1t - m0t) * mi2 / mst, 1.0); if (mi2 === 0) g.moveTo(mp[0], mp[1]); else g.lineTo(mp[0], mp[1]); }
 for (mi2 = mst; mi2 >= 0; mi2--) { var mq = belly(m0t + (m1t - m0t) * mi2 / mst, 0.46); g.lineTo(mq[0], mq[1]); }
-g.closePath(); g.fillStyle = '#241b0c'; g.fill();
+g.closePath(); g.fillStyle = '#1a1208'; g.fill();
 // GOLD TEETH, not white, and that is the rip's own answer. A census of the
 // reference's nose is 10% near-black (#080c08, #101410 — the maw) over
 // #f8e088 / #b8a468 / #988450: the teeth are the ENVELOPE's gold, lit, which
 // is why the marking reads as painted-on nose art at 40 px instead of as a
 // face. Ours were #f2ecd8, the brightest thing on the airship.
 g.fillStyle = '#e0b25a';                                  // teeth
-for (mi2 = 0; mi2 < 5; mi2++) {
-  var tt0 = m0t + (m1t - m0t) * (mi2 + 0.12) / 6, tt1 = m0t + (m1t - m0t) * (mi2 + 0.88) / 6;
-  var pA = belly(tt0, 0.48), pB = belly(tt1, 0.48), pC = belly((tt0 + tt1) / 2, 0.70);
+for (mi2 = 0; mi2 < 7; mi2++) {
+  var tt0 = m0t + (m1t - m0t) * (mi2 + 0.10) / 7, tt1 = m0t + (m1t - m0t) * (mi2 + 0.90) / 7;
+  var pA = belly(tt0, 0.40), pB = belly(tt1, 0.40), pC = belly((tt0 + tt1) / 2, 0.74);
   g.beginPath(); g.moveTo(pA[0], pA[1]); g.lineTo(pB[0], pB[1]); g.lineTo(pC[0], pC[1]); g.closePath(); g.fill();
 }
-// NO EYE. There was a 3.6 x 2.7 white sclera with a black pupil painted above
-// the mouth, and between it and the nine rings the airship read as a fish —
-// which is the opposite of what a Kirov is for. The reference has nothing of
-// the kind: its nose census carries no near-white cluster at all, only the
-// maw's blacks and the envelope's gold. A gun blister is what sits there.
+// THE EYE PATCH, dark. The reference does carry one — a black blotch above and
+// behind the mouth with a small amber glint in it — and the earlier reading
+// that there was "no eye at all" came from a census that only asked whether any
+// NEAR-WHITE cluster was present. There is not: what is wrong with a cartoon
+// eye is the white sclera, not the eye.
+var eyP = belly(0.80, -0.30);
+g.fillStyle = '#1a1208';
+g.beginPath(); g.ellipse(eyP[0], eyP[1], 2.6, 1.9, 0, 0, 6.29); g.fill();
+g.fillStyle = '#cc6600';
+g.beginPath(); g.ellipse(eyP[0] + nx2 * 0.4, eyP[1] + ny2 * 0.4, 1.0, 0.8, 0, 0, 6.29); g.fill();
 // top seam and a lit ridge
 g.strokeStyle = 'rgba(255,245,200,.55)'; g.lineWidth = 1.1; g.beginPath();
 for (rt = -0.92; rt <= 0.92; rt += 0.08) { rp = pt(rt); if (rt < -0.9) g.moveTo(rp[0], rp[1] - rad(rt)); else g.lineTo(rp[0], rp[1] - rad(rt) * 0.96); }

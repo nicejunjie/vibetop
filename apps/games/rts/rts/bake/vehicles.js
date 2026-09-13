@@ -815,7 +815,20 @@ function bakeVehicle(col, kind, fac, anim) {
       // 4/17/27/48/37/25/15 px, i.e. r/rmax of .08/.35/.56/1/.77/.52/.31, and
       // the old curve gave .13/.49/.82/1/.89/.67/.36 — a sausage rounded at
       // both ends where the reference is a cigar that comes to a point.
-      var KIROV_R = [0.06, 0.20, 0.35, 0.48, 0.56, 0.78, 1.00, 0.86, 0.77, 0.63, 0.52, 0.40, 0.24];
+      // ...and the first table taken off that frame made it a WEDGE, because it
+      // measured the wrong thing: the GOLD pixels, which at both ends are
+      // hidden behind the tail fins, the engine pylons and the nose art. The
+      // gold runs out before the hull does, so the fit read 0.06 at the tail —
+      // a needle — and 0.24 at the nose, and the airship came out a triangle.
+      //
+      // What it IS settles it where a pixel count could not. A rigid airship is
+      // a streamlined body of revolution: a BLUNT ROUNDED NOSE to push through
+      // the air, greatest girth about a third back from it, and a long fine
+      // taper aft to the tail cone that carries the cruciform fins and the
+      // propeller. It is not symmetric and it is pointed at neither end. The
+      // reference's nose is a broad dome with the shark mouth painted across
+      // it; only the tail comes near a point, and even there it is a cone.
+      var KIROV_R = [0.16, 0.34, 0.50, 0.64, 0.78, 0.92, 1.00, 0.99, 0.96, 0.91, 0.84, 0.72, 0.52];
       function rad(t) {
         var q = Math.max(0, 1 - t * t);
         if (kind !== 'kirov') return bodyR * Math.pow(q, t >= 0 ? 0.55 : 0.5);
