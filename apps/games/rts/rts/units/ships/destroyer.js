@@ -6,7 +6,7 @@
 
 function drawDestroyer(C) {
   var DECK = C.DECK, FR = C.FR, GLASS = C.GLASS, HOUSE = C.HOUSE, L = C.L, P = C.P, STEEL = C.STEEL,
-      W = C.W, barrel = C.barrel, box = C.box, disc = C.disc, g = C.g;
+      W = C.W, barrel = C.barrel, box = C.box, disc = C.disc, g = C.g, mast = C.mast;
 
 // [DEST]: a raked stem, one turret forward, a stepped bridge tower
 // amidships and the Osprey's hangar and pad right aft — RA2's
@@ -42,22 +42,39 @@ g.fillStyle = '#c3c9d2';                                          // muzzle cap
 g.beginPath(); g.ellipse(mzq[0], mzq[1], 1.9, 1.5, 0, 0, 6.29); g.fill();
 g.fillStyle = '#15181c';
 g.beginPath(); g.ellipse(mzq[0], mzq[1] - 0.2, 0.9, 0.7, 0, 0, 6.29); g.fill();
-box(L * 0.14, 0, L * 0.32, W * 1.62, 6.2, DECK);                  // bridge block
-box(L * 0.11, 0, L * 0.20, W * 1.30, 11.6, shade(DECK, 1.18));    // wheelhouse
+// THE BRIDGE IS WHITE, and it is a MASS. Measured off `library/destroyer.png`
+// (103x48) the superstructure is a single 18x14 px white block at x 37-53% of
+// her length — 17% of the hull long and 29% of the frame TALL, and the only
+// white on the ship. Ours was DECK grey at 6.2 and 11.6 units, the same value
+// as the deck it stood on, so she read as a flat plate with bumps.
+box(L * 0.14, 0, L * 0.32, W * 1.62, 7.0, '#b9bec6');             // bridge block
+box(L * 0.11, 0, L * 0.20, W * 1.30, 13.5, '#d4d8de');            // wheelhouse
+box(L * 0.11, 0, L * 0.12, W * 0.86, 18.0, '#e6e9ec');            // the director on top
 var wq0 = P(L * 0.11, 0, FR + 10.6);
 g.fillStyle = GLASS; g.fillRect(wq0[0] - 4.2, wq0[1] - 1.9, 8.4, 2.1);
 // A MACK — mast and stack in one solid trunk — rather than the 13-unit
 // wire mast this hull carried. Same height on the skyline, but it is
 // 11 screen px wide instead of 2, so it lifts the crown's measured
 // thickness instead of halving it.
-box(-L * 0.26, 0, 7.0, W * 1.06, 12.6, '#33373d');                // funnel / mack
+// HOUSE COLOUR IN TWO TALL BLOCKS, which is how the rip spends it: 16.1% of
+// the frame is house blue and it sits in a 10x15 px block at x 53-62% and a
+// 10x14 at x 75-83%, both standing a third of the frame's height. The funnel
+// IS one of them, not a dark grey stub with a stripe painted round it.
+box(-L * 0.26, 0, 7.0, W * 1.06, 14.5, HOUSE);                    // funnel / mack
+box(-L * 0.26, 0, 4.4, W * 0.72, 18.5, shade(HOUSE, 0.74));       // its cap
 g.strokeStyle = HOUSE; g.lineWidth = 1.8;
 var fq = P(-L * 0.26, 0, FR + 10.2); g.beginPath();
 g.moveTo(fq[0] - 4.4, fq[1]); g.lineTo(fq[0] + 4.4, fq[1]); g.stroke();
 g.strokeStyle = STEEL; g.lineWidth = 1.6;                          // air-search bar on top
 var rq = P(-L * 0.26, 0, FR + 13.0);
 g.beginPath(); g.moveTo(rq[0] - 3.6, rq[1]); g.lineTo(rq[0] + 3.6, rq[1] - 0.6); g.stroke();
-box(-L * 0.52, 0, L * 0.22, W * 1.42, 4.6, shade(DECK, 1.04));    // Osprey hangar
+box(-L * 0.52, 0, L * 0.22, W * 1.42, 9.5, HOUSE);                // Osprey hangar, the second house block
+box(-L * 0.52, 0, L * 0.16, W * 1.10, 12.5, shade(HOUSE, 0.78));
+// TWO MASTS. The reference's top edge spikes to 44 px at 20% of her length and
+// 46 px at 60%, against 25-36 px everywhere else, on a 48-px frame: nearly the
+// whole of her height is mast. Ours had none at all and stood 39 to her 48.
+mast(L * 0.11, 0, 15.0, '#2b2b2b');
+mast(-L * 0.30, 0, 17.0, '#2b2b2b');
 // The helicopter pad, and the Osprey folded on it.
 disc(-L * 0.80, 0, 0.4, 6.0, 3.2, '#22262b');
 g.strokeStyle = HOUSE; g.lineWidth = 0.9;
