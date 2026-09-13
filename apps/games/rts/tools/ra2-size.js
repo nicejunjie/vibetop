@@ -161,9 +161,43 @@ function refs() {
             if (on[np] && !seen[np]) { seen[np] = 1; stack[sp++] = np; }
           }
         }
-        blobs.push({ w: bx1 - bx0 + 1, h: by1 - by0 + 1, n });
+        blobs.push({ w: bx1 - bx0 + 1, h: by1 - by0 + 1, n, x0: bx0, x1: bx1, y0: by0, y1: by1 });
       }
       if (!blobs.length) return { error: 'no opaque pixels' };
+      // The rip's GROUND SHADOW is inside the frame and is not the unit: the
+      // GI's rip is 13x29 and the man is 13x23, the last six rows a flat navy
+      // ellipse. Ours is excluded row by row above, so leaving theirs in
+      // compares a figure against a figure-plus-shadow and sizes every unit
+      // ~25% too tall. Trim the trailing rows of each blob's own box that are
+      // almost entirely one flat dark colour.
+      for (const bl of blobs) {
+        if (bl.y0 == null) continue;
+        // A darkness test does not separate the two: the Spy is nearly all dark
+        // and lost his legs to it. What actually distinguishes them is that the
+        // shadow is ONE FLAT COLOUR and a drawn figure is not — the GI's
+        // shadow rows hold a single (0,0,51), his leg rows hold four or five
+        // values. So: a trailing row whose dominant colour covers 95% of it and
+        // is dark is shadow.
+        let e = bl.y1;
+        while (e > bl.y0) {
+          const hist = new Map();
+          let n = 0;
+          for (let x = bl.x0; x <= bl.x1; x++) {
+            const i = (e * W + x) * 4;
+            if (d[i + 3] < 24) continue;
+            n++;
+            const k = (d[i] << 16) | (d[i + 1] << 8) | d[i + 2];
+            hist.set(k, (hist.get(k) || 0) + 1);
+          }
+          if (!n) { e--; continue; }
+          let best = 0, bk = 0;
+          for (const [k, c] of hist) if (c > best) { best = c; bk = k; }
+          const dark = Math.max((bk >> 16) & 255, (bk >> 8) & 255, bk & 255) <= 72;
+          if (!(dark && best / n >= 0.95)) break;
+          e--;
+        }
+        bl.h = e - bl.y0 + 1;
+      }
       const big = blobs.filter((b) => b.n >= 40).sort((a, b) => a.h - b.h);   // drop specks
       const use = big.length ? big : blobs.sort((a, b) => a.h - b.h);
       const med = use[use.length >> 1];
