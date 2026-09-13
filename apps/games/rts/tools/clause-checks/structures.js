@@ -1080,33 +1080,42 @@ exports.check = function (ctx) {
   if (F.reactor && F.reactor.col) {
     const f = F.reactor.col;
     const body = bodyRun(rowProfile(f));
-    // THREE TOWERS THAT SHARE A ROOT ARE ONE COMPONENT — COUNT THEM ACROSS A
-    // CUT, like the Gap Generator's talons and the Sentry Gun's barrels.
+    // THE THREE TOWERS ARE DRAWN. NO PRIMITIVE IN THIS TOOL CAN COUNT THEM.
     //
-    // `components(y < body.lo)` read 3 before the palette snap and 1 after, on
-    // byte-identical art, because the roofline moved: the predicate is the MASK
-    // alone, so the only thing the snap can change is where `bodyRun`'s
-    // 55%-of-max row falls, and it fell from inside the towers to below their
-    // shared plinth. The evidence is this sprite's own row profile —
+    // This row read 3 before the palette snap and 1 after, on byte-identical
+    // art — the predicate `y < body.lo` is the MASK alone, so all the snap can
+    // move is where `bodyRun`'s 55%-of-max row falls, and it fell from inside
+    // the towers to below the plinth they stand on. The old 3 was a lucky
+    // window, not a measurement, and it is worth being exact about why no
+    // honest window exists. LOOK at the bake (three cooling towers, staggered
+    // in depth, pipework arching between them, exactly RA2's [NANRCT]) and
+    // then at its own per-row run census at >= 3 px:
     //
-    //   rows 0-28   12,24,32,37,42,44,46,48,48,48,48,48,46,...,42,42   <- three
-    //               towers side by side, ~16 px of opaque each
-    //   rows 29-36  44,46,48,53,54,56,57,58                            <- flaring
-    //   rows 37-45  82,99,110,115,116,117,121,124,125                  <- the
-    //               vessel arriving underneath them
-    //   lo = 46     one 125x46 blob: all three towers plus what joins them
+    //   y0-y36    ONE run, [107,118] widening to [90,137]   <- the REAR tower
+    //                                                          alone; the two
+    //                                                          front towers
+    //                                                          have not begun
+    //   y37-y39   two or three runs, for THREE ROWS only    <- the right tower's
+    //                                                          rim appearing
+    //   y40-y45   ONE run, [93,207]                         <- the pipework that
+    //                                                          arches between
+    //                                                          the towers joins
+    //                                                          them 8-connected
+    //   y46-y47   two runs, [58,74] + [85,210]              <- the left tower's
+    //                                                          rim appearing
+    //   y48+      ONE run                                    <- plinth
     //
-    // — so at lo=46 the count CANNOT be 3 for any drawing of three towers on a
-    // common base. Counted instead as the largest number of >=3 px runs that
-    // holds over >= 3 consecutive rows above the roofline, which is where they
-    // are separate: exactly `resolveBand`'s job, and the same argument its own
-    // block comment makes for the barrel row ("a `components` count cannot
-    // reach 4 for any drawing of them").
-    const band = resolveBand(f, 0, body.lo, (p) => !!p, 3, 3);
-    add('reactor', '[col] exactly 3 towers, each with a visible waist <= 0.75 of its own rim width',
-      band.count === 3, `${band.count} tower run(s) holding over ${band.rows} rows (y${band.y0}..${band.y1})`, '3 runs',
-      'towers counted by `resolveBand` across a cut, not by `components` below bodyRun.lo: three towers on a shared plinth are ONE connected component under any roofline that sits below the plinth, which is where the 55%-of-max row lands on this silhouette (see the row-profile census in the block comment). '
-      + 'The waist ratio itself is not measured per-blob (needs a rim-vs-waist row split within each blob\'s own colProfile, which the doc\'s own worked example does by hand on one tower)');
+    // An isometric three-tower group is staggered in DEPTH, so no row band
+    // holds all three; and where two do coincide, §2.7's own ducts connect
+    // them. Both halves of that are properties of the drawing being right, not
+    // wrong. `components`, `resolveBand` and `rowRuns` are this module's whole
+    // vocabulary and none of them can return 3 for any correct drawing of this
+    // building — so the row is logged UNMEASURABLE with its census, the same
+    // treatment the ducts row below it already gets, rather than gated on a
+    // threshold tuned until it says 3.
+    un('reactor', '[col] exactly 3 towers, each with a visible waist <= 0.75 of its own rim width',
+      'the three cooling towers are staggered in depth and joined by the duct pipework, so no row band above any roofline contains all three as separate runs — per-row run census at >=3px: y0-36 one run (rear tower alone), y37-39 two-three runs for three rows, y40-45 one run (the ducts bridge them), y46-47 two runs, y48+ one run. '
+      + 'A blob/run vocabulary cannot reach 3 on a correct drawing of this building; the waist ratio needs a rim-vs-waist split within each tower that this tool has no way to address');
     const crown = components(f, (p, x, y) => !!p && y < body.lo).filter((c) => c.w >= 0.08 * f.w);
     // THE CROWN IS THE TALLEST TOWER'S RIM, AND IT IS FOUND WHERE THE RIM
     // CLOSES -- see `rimRow`. This row used to read `body.lo / f.h`, this
