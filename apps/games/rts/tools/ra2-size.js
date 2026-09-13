@@ -72,23 +72,31 @@ function refs() {
       const rows = [];
       let x0 = 1e9, x1 = -1;
       for (let y = 0; y < a.h; y++) {
-        let n = 0, lum = 0, rx0 = 1e9, rx1 = -1;
+        let n = 0, op = 0, lum = 0, rx0 = 1e9, rx1 = -1;
         for (let x = 0; x < a.w; x++) {
           const i = (y * a.w + x) * 4;
           if (d[i + 3] < 24) continue;
           n++; lum += (d[i] * 0.299 + d[i + 1] * 0.587 + d[i + 2] * 0.114) / 255;
+          if (d[i + 3] >= 250) op++;                 // solid art, never the shadow
           if (x < rx0) rx0 = x; if (x > rx1) rx1 = x;
         }
-        if (n) { rows.push({ y, n, lum: lum / n, x0: rx0, x1: rx1 }); if (rx0 < x0) x0 = rx0; if (rx1 > x1) x1 = rx1; }
+        if (n) { rows.push({ y, n, lum: lum / n, x0: rx0, x1: rx1, opaque: op }); if (rx0 < x0) x0 = rx0; if (rx1 > x1) x1 = rx1; }
       }
       if (!rows.length) { out[key] = { error: 'empty sprite' }; continue; }
-      // The ground shadow is the trailing run of rows that are much darker than
-      // the figure's median row. Drop it; the RA2 rip has no shadow baked in.
-      const med = rows.map((r) => r.lum).sort((p, q) => p - q)[rows.length >> 1];
+      // Our ground shadow is drawn as rgba(0,0,0,.38) and solid art is always
+      // fully opaque, so ALPHA separates them exactly. Judging it by darkness
+      // instead — "a trailing row darker than the median is shadow" — ate the
+      // legs of every unit whose trousers are dark, which is most of them once
+      // they were put on RA2's palette: the Desolator's seventeen near-black
+      // leg rows read as shadow, the tool called him the right height, and I
+      // stretched him 51% chasing the lie. Three units were wrong on screen
+      // while this function reported them all inside 8%.
       let end = rows.length - 1;
-      while (end > 0 && rows[end].lum < med * 0.55) end--;
+      while (end > 0 && rows[end].opaque === 0) end--;
       const body = rows.slice(0, end + 1);
-      const bx0 = Math.min(...body.map((r) => r.x0)), bx1 = Math.max(...body.map((r) => r.x1));
+      const solid = body.filter((r) => r.opaque > 0);
+      const use = solid.length ? solid : body;
+      const bx0 = Math.min(...use.map((r) => r.x0)), bx1 = Math.max(...use.map((r) => r.x1));
       out[key] = {
         w: bx1 - bx0 + 1, h: body.length,
         withShadow: { w: x1 - x0 + 1, h: rows.length },

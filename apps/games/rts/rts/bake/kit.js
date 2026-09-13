@@ -503,7 +503,7 @@ var INF_EDGE = {
 // The full measurement is recorded on the neutron rifle in his branch.
 var STATURE = {
   flak:         [0.77, 0.94],   // i-XL by BARREL: a narrow man under a tall gun
-  rocket:       [0.78, 0.99],   // i-M 15x30 — the Guardian is the heavy one, and
+  rocket:       [0.78, 0.65],   // i-M 15x30 — the Guardian is the heavy one, and
                                 // deliberately NOT a tall one: §2.1/§2.2 put him at
                                 // 30 px against the Flak Trooper's 37 (a ratio of
                                 // 0.81), and once his missile tube was raised clear
@@ -516,11 +516,11 @@ var STATURE = {
                                 // rows now against the Flak Trooper's 45.
   yuri:         [0.87, 1.02],   // i-L 12x29 — the tallest man carrying no weapon
   desolator:    [1.14, 1.05],   // i-M — the bulk of a sealed hazard suit
-  teslatrooper: [1.11, 1.04],   // i-M 18x28 — THE widest, and NOT the tallest
+  teslatrooper: [1.11, 0.84],   // i-M 18x28 — THE widest, and NOT the tallest
   rifle:        [0.81, 1.00],   // i-M 12x28 — narrow; the baseline soldier
   conscript:    [1.06, 0.91],   // i-M 13x27 — the reference figure
   cleg:         [0.83, 0.89],   // i-M 15x26 — RA2 0.577; the old [1.22,0.84] was tuned against a spike budget that misread its own citation   // i-M 15x26 — the widest Directorate shoulders
-  tanya:        [0.78, 1.30],   // i-M 13x26 — and the pistols do NOT keep her wide,
+  tanya:        [0.78, 0.89],   // i-M 13x26 — and the pistols do NOT keep her wide,
                                 // which is what this entry used to say. Measured, her
                                 // 22 px of width was 14 px of body and three columns
                                 // of gun a side; RA2 gives her a Conscript's width.
@@ -529,7 +529,7 @@ var STATURE = {
                                 // IoU and the Attack Dog on legibility, which she fell
                                 // under at 18x31.
   ivan:         [0.71, 0.82],   // i-S 12x25 — the narrowest of the Collective
-  engineer:     [0.75, 1.06],   // i-S 13x25 — a workman, not a soldier: broader in
+  engineer:     [0.75, 0.84],   // i-S 13x25 — a workman, not a soldier: broader in
                                 // the shoulder than a rifleman, and NOT the squat one
                                 // he was. This read [1.22,0.76] to break two
                                 // same-faction IoU pairs (his own, since he is shared
@@ -539,7 +539,7 @@ var STATURE = {
                                 // 65% wider than his own plate. Those pairs are held
                                 // by his §1.5 levers now, not by his proportions.
   spy:          [0.84, 0.78],   // i-S 13x25 — the slightest figure on the field
-  rocketeer:    [0.97, 0.84],   // i-S 16x24 — the shortest, broadened by the pack
+  rocketeer:    [0.97, 0.77],   // i-S 16x24 — the shortest, broadened by the pack
   dog:          [0.75, 0.96],  // i-XS quadruped. RA2 draws [ADOG] 21 wide against
                                 // [E1]'s 12 — 1.75x the man. Ours was 39 against 17,
                                 // 2.29x, the widest thing in the infantry group by
