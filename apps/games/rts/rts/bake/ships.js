@@ -75,7 +75,7 @@ function bakeShip(col, kind, fac) {
   // shade(HULL, 0.34), draws the skirt for free once the deck is pale.
   if (kind === 'lcraft')   { HULL = '#bababa'; DECK = '#717171'; }
   if (kind === 'carrier')  { HULL = '#929292'; DECK = '#3e3e3e'; }
-  var BOOT = shade(HULL, 0.34);                       // boot-topping at the waterline
+  var BOOT = shade(HULL, 0.16);                       // boot-topping at the waterline
 
   // Plan geometry per hull, in pre-scale pixels. L is overall length, W
   // beam, FREE the freeboard the deck stands on.
@@ -179,11 +179,34 @@ function bakeShip(col, kind, fac) {
       g.lineTo(q1[0], q1[1] - FR); g.lineTo(q0[0], q0[1] - FR);
       g.closePath();
       var top = Math.min(q0[1], q1[1]) - FR, bot = Math.max(q0[1], q1[1]);
+      // THE FLANK IS A HALF-STOP OF VALUE, TOP TO BOTTOM, and it used to be a
+      // quarter. This is what separates RA2's ships — heavy, metal, sitting IN
+      // the water — from a plastic model floating on it, and it is not texture,
+      // it is range and DIRECTION. Sampling the rips row by row down the bottom
+      // half of the sprite: the Destroyer's flank runs 0.68 at the sheer to
+      // 0.14 at the keel, a span of 0.54; the carrier 0.40 to 0.12; the
+      // Dreadnought 0.54 to 0.14. Every one of them plunges to near-black below
+      // 88% of the sprite's height.
+      //
+      // Ours ran 1.10 -> 0.92 -> 0.66, a span of 0.25 that never got dark, and
+      // measured on the bake the BOTTOM of the hull came out the BRIGHTEST part
+      // of the ship — the Destroyer read 0.36 at midships and 0.61 at 80%, the
+      // gradient inverted. A pale rim under a grey slab is exactly how a toy
+      // reads.
       var grd = g.createLinearGradient(0, top, 0, bot + 0.5);
-      grd.addColorStop(0, shade(HULL, 1.10 * lit));
-      grd.addColorStop(0.62, shade(HULL, 0.92 * lit));
-      grd.addColorStop(1, shade(HULL, 0.66 * lit));
+      grd.addColorStop(0, shade(HULL, 1.34 * lit));
+      grd.addColorStop(0.34, shade(HULL, 1.02 * lit));
+      grd.addColorStop(0.74, shade(HULL, 0.62 * lit));
+      grd.addColorStop(1, shade(HULL, 0.30 * lit));
       g.fillStyle = grd; g.fill();
+      // ...and a hard BOOT-TOPPING at the waterline. The rips do not fade into
+      // the sea, they stop against a near-black band: it is what makes the hull
+      // look like it displaces something.
+      g.fillStyle = shade(HULL, 0.16);
+      g.beginPath();
+      g.moveTo(q0[0], q0[1]); g.lineTo(q1[0], q1[1]);
+      g.lineTo(q1[0], q1[1] - FR * 0.22); g.lineTo(q0[0], q0[1] - FR * 0.22);
+      g.closePath(); g.fill();
       // NO HOUSE STRIPE ON THE HULL. There was a 1.5 px house-coloured line run
       // along every lit flank, and at the scale a ship is drawn it was a racing
       // stripe wrapping the whole vessel — the loudest thing on the fleet and
@@ -256,36 +279,16 @@ function bakeShip(col, kind, fac) {
     } else if (kind === 'squid') {
       drawSquid(C);
     }
-    // A bow wave on every surface hull: two pale chevrons off the stem, on
-    // the water, so a ship reads as sitting IN something.
-    if (kind !== 'sub' && kind !== 'dolphin' && kind !== 'squid') {
-      // Both arms START AT THE STEM and sweep aft and outboard, which is
-      // what a bow wave is. The first draft drew each chevron as ONE curve
-      // between two points abeam of the stem, so its ends floated free of
-      // the plan — and at the two facings where the hull is nearly beam-on
-      // to the camera the hull's projected width collapses while the wave's
-      // does not, which pulled the whole chevron off the ship. Anchoring
-      // the arms on the stem makes that impossible at any bearing.
-      //
-      // How far outboard the wave throws is set by the ship's LENGTH, not by
-      // her beam alone. A flat `W * 1.96` gave the Landing Craft — the
-      // beamiest hull afloat and the slowest — a wake half again her own
-      // width, and end-on that 1-px stroke became the longest horizontal
-      // protrusion on the sprite, so the gate scored her bow WAVE as her
-      // identity feature at 3 px instead of her ramp. Same class of bug as
-      // the Desolator's backpack: the thin decorative thing wins.
-      var WV = Math.min(W, L * 0.30);
-      g.strokeStyle = 'rgba(232,244,252,.34)'; g.lineWidth = 1.0;
-      var stemQ = P(L * 0.97, 0, 0);
-      for (var wi = 0; wi < 2; wi++) {
-        for (var sgn = -1; sgn <= 1; sgn += 2) {
-          var bwT = P(L * (0.30 - wi * 0.34), sgn * (W + WV * (0.34 + wi * 0.62)), 0);
-          var bwC = P(L * (0.86 - wi * 0.10), sgn * (W + WV * (0.00 + wi * 0.40)), 0);
-          g.beginPath(); g.moveTo(stemQ[0], stemQ[1]);
-          g.quadraticCurveTo(bwC[0], bwC[1], bwT[0], bwT[1]); g.stroke();
-        }
-      }
-    }
+    // NO BOW WAVE. Two pale chevrons used to be stroked off the stem "so a ship
+    // reads as sitting IN something", and they were drawn HERE — after the
+    // hull, after the deck, after the unit's own superstructure. Nothing
+    // occluded them, so the wave did not pass around the hull, it lay ON it: a
+    // white line across the ship's side. Drawing order alone would not save it
+    // either, because RA2's sprites carry no wake at all. Checked: across the
+    // carrier, destroyer and Dreadnought rips the only pale blue-white pixels
+    // are ON the superstructure, 47 to 227 of them, and the full contact sheet
+    // has no detached arc beside any hull. RA2's wake is an engine effect over
+    // the water, not part of the unit's art.
     pixelate(s, 6, 96);   // RA2's own 6-level channel grid: flat bands, not a gradient
     return s;
   }

@@ -129,13 +129,18 @@ function artFileFor(key) {
     }, { key, fac: cfg.fac, owner: cfg.owner, bearing });
   }
 
-  const panels = [];
-  var r0 = await bake();
-  if (r0 && r0.err) console.error('OURS: ' + r0.err);
-  panels.push({ name: 'OURS', png: r0 && r0.png, note: r0 && r0.err });
-
+  // CAPTURE THE ORIGINAL FIRST, AND GUARD EVERYTHING. This used to bake OURS
+  // before reading the file it was about to overwrite, so a throw from that
+  // first bake escaped the try/finally entirely — and if a previous run had
+  // died with a candidate still swapped in, the first bake threw on THAT
+  // candidate and the repo kept it. The tool left broken model output sitting
+  // in the game's own art directory, which is the one thing it must never do.
   const original = art ? fs.readFileSync(art) : null;
+  const panels = [];
   try {
+    var r0 = await bake();
+    if (r0 && r0.err) console.error('OURS: ' + r0.err);
+    panels.push({ name: 'OURS', png: r0 && r0.png, note: r0 && r0.err });
     for (const alt of alts) {
       if (!fs.existsSync(alt.file)) { panels.push({ name: alt.name, png: null, note: 'file missing' }); continue; }
       fs.copyFileSync(alt.file, art);
@@ -144,6 +149,8 @@ function artFileFor(key) {
       catch (e) { note = 'threw: ' + String(e.message || e).slice(0, 60); }
       panels.push({ name: alt.name, png, note });
     }
+  } catch (e) {
+    panels.push({ name: 'OURS', png: null, note: 'bake threw: ' + String(e.message || e).slice(0, 70) });
   } finally {
     if (original) fs.writeFileSync(art, original);          // always put ours back
   }
