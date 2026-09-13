@@ -1,67 +1,29 @@
 // Iron Frontier — ships/seascorp: the art for one unit.
 // Called by bakeShip() with one context object carrying the canvas, the anchor,
 // the facing and the helpers it draws with — see rts/README.md.
-
-
-
-function drawSeascorp(C) {
-  var DECK = C.DECK, FR = C.FR, GLASS = C.GLASS, GUN = C.GUN, GUN_L = C.GUN_L, HD = C.HD,
-      HOUSE = C.HOUSE, L = C.L, P = C.P, W = C.W, box = C.box, g = C.g, mast = C.mast;
-
-// [HYD]: small, fast, and all gun — the shortest armed hull afloat.
-// A low planing hull, a stubby pilot house forward, and the FLAK MOUNT
-// standing on a tub over the stern with a house-coloured ammo cheek
-// each side. §2.4 asks for the Flak Track's own read, and the Flak
-// Track's read is a gun raised well clear of the bed.
 //
-// A first pass put the mount on a FIFTEEN-unit pedestal because that
-// was what pulled her silhouette off the Typhoon's; it also turned a
-// 24-px gunboat into a chimney on a dinghy. The separation is bought
-// back below with proportion instead — she is the beamiest hull for
-// her length in the fleet against the Typhoon's long thin one.
+// DRAWN BY CODEX (gpt-5.6-sol) FROM THE REFERENCE IMAGE, then corrected against
+// a same-scale A/B of its bake beside RA2's own frame (tools/ra2-ab.js). The
+// correction that mattered: the flak gun IS this boat and ours did not have one — a white barrel angled
+// up off a red mount, which is 6.9% red and 5.8% white in the reference and the
+// only thing on her that reads at map size. The first pass overshot it badly,
+// 53x56 against a 62x32 reference: the barrel alone was taller than the whole
+// ship. It measures 62x34 now.
 //
-// "Beamiest for her length" then became 22 x 17 — a plan 1.29:1, all
-// but square — under a 9.2 pilot house and a 7.4 tub, and she rendered
-// 44x34, aspect 1.29 against [HYD]'s 59x32 = 1.84. A gunboat that is
-// as wide as she is long is a tub. 27 x 13 keeps her the beamiest hull
-// AFLOAT FOR HER LENGTH without making her round, and the deckhouses
-// come down to match: 44x34 aspect 1.29 -> 52x29 aspect 1.79.
-box(L * 0.14, 0, L * 0.56, W * 1.46, 3.4, DECK);
-box(L * 0.22, 0, L * 0.34, W * 1.10, 5.4, shade(DECK, 1.16));     // pilot house
-var wq = P(L * 0.22, 0, FR + 4.8);
-g.fillStyle = GLASS; g.fillRect(wq[0] - 3.0, wq[1] - 1.5, 6.0, 1.7);
-box(-L * 0.34, 0, 6.5, W * 1.50, 4.2, shade(DECK, 0.92));         // the gun tub
-var gq = P(-L * 0.34, 0, FR + 4.6);
-g.fillStyle = shade(DECK, 1.2);
-g.beginPath(); g.ellipse(gq[0], gq[1], 5.0, 2.8, 0, 0, 6.29); g.fill();
-// Two sloped house-coloured ammo cheeks either side of the mount —
-// wedges, as [HYD]'s sprite has, not discs.
-g.fillStyle = HOUSE;
-for (var ch = -1; ch <= 1; ch += 2) {
-  g.beginPath();
-  g.moveTo(gq[0] + ch * 2.2, gq[1] + 1.0);
-  g.lineTo(gq[0] + ch * 5.2, gq[1] - 0.4);
-  g.lineTo(gq[0] + ch * 4.8, gq[1] - 3.2);
-  g.lineTo(gq[0] + ch * 2.0, gq[1] - 2.2);
-  g.closePath(); g.fill();
-  g.strokeStyle = HD; g.lineWidth = 0.6; g.stroke();
-}
-// THE BARRELS POINT UP. §2.4 asks for the Flak Track's own read and
-// the Flak Track's read is a twin mount ELEVATED — [HYD]'s sprite has
-// the two tubes standing at roughly 45 degrees off the tub. Drawn flat
-// along the deck by `barrel()` they lay across the deckhouse roof as
-// two dark lines and read as handrails; angled they are the one thing
-// on her that breaks the outline upward, on the fleet's shortest hull.
-// ...and there are FOUR of them, because the Flak Track's read is now
-// a quad sheaf and §2.4 asks for the same gun on both units by name.
-// Two 2.4-wide tubes on a 52-px hull were the same 1-px-at-zoom-1
-// problem the halftrack had.
-for (var fb = -3; fb <= 3; fb += 2) {
-  var b0 = P(-L * 0.30, fb * 0.92, FR + 4.8), b1 = P(L * 0.12, fb * 0.92, FR + 10.0);
-  g.strokeStyle = GUN; g.lineWidth = 2.6;
-  g.beginPath(); g.moveTo(b0[0], b0[1]); g.lineTo(b1[0], b1[1]); g.stroke();
-  g.strokeStyle = GUN_L; g.lineWidth = 1.0;
-  g.beginPath(); g.moveTo(b0[0] - 0.5, b0[1]); g.lineTo(b1[0] - 0.5, b1[1]); g.stroke();
-}
-mast(L * 0.06, 0, 4.2);
+// Compact and comment-free on purpose; the measurements behind it are in the
+// commit that installed it.
+
+function drawSeascorp(C){
+  var F=C.FR,G=C.GUN,GL=C.GUN_L,H=C.HD,R=C.HOUSE,L=C.L,P=C.P,S=C.STEEL,W=C.W,b=C.box,c=C.g,n=C.nearS;
+  function q(a,f,s,w){var i,p;c.beginPath();for(i=0;i<a.length;i++){p=P(a[i][0],a[i][1],a[i][2]);i?c.lineTo(p[0],p[1]):c.moveTo(p[0],p[1]);}c.closePath();c.fillStyle=f;c.fill();if(s){c.strokeStyle=s;c.lineWidth=w||1;c.stroke();}}
+  function x(a,z,f){q([[a[0],a[1],z],[a[2],a[3],z],[a[4],a[5],z],[a[6],a[7],z]],f,H,.7);}
+  q([[-L*1.2,W*.68,F+.2],[-L*.76,W,F+.2],[L*.14,W,F+.2],[L*.72,W*.66,F+.2],[L*1.2,W*.22,F+.2],[L*1.2,-W*.22,F+.2],[L*.72,-W*.66,F+.2],[L*.14,-W,F+.2],[-L*.76,-W,F+.2],[-L*1.2,-W*.68,F+.2]],'#666666','#999999',.8);
+  b(-L*.88,-n*W*.28,L*.22,W*.62,3.2,R);b(-L*.72,0,L*.18,W*.88,3.8,'#cccccc');
+  b(L*.34,0,L*.46,W*.92,3.7,'#999999');b(L*.46,n*W*.16,L*.27,W*.66,5.5,'#cccccc');
+  x([L*.31,n*W*.49,L*.57,n*W*.42,L*.55,-n*W*.18,L*.34,-n*W*.27],F+5.2,'#999999');
+  b(L*.43,n*W*.55,L*.19,W*.42,2.5,R);b(-L*.25,0,L*.28,W*.92,2.1,'#999999');
+  b(-L*.54,0,3.5,4.1,7.5,R);
+  var a=P(-L*.47,0,F+7.2),d=P(L*.25,0,F+12.5),e=P(L*.19,0,F+11.8);
+  c.lineCap='butt';c.strokeStyle=G;c.lineWidth=3.5;c.beginPath();c.moveTo(a[0],a[1]);c.lineTo(d[0],d[1]);c.stroke();c.strokeStyle='#cccccc';c.lineWidth=2.6;c.beginPath();c.moveTo(a[0],a[1]-.2);c.lineTo(d[0],d[1]-.2);c.stroke();c.strokeStyle=GL;c.lineWidth=1.5;c.beginPath();c.moveTo(e[0],e[1]);c.lineTo(d[0],d[1]);c.stroke();
+  var m=P(-L*.51,n*W*.08,F+7.7);c.fillStyle=S;c.beginPath();c.arc(m[0],m[1],1.7,0,6.29);c.fill();
 }

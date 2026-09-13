@@ -1,89 +1,40 @@
 // Iron Frontier — ships/carrier: the art for one unit.
 // Called by bakeShip() with one context object carrying the canvas, the anchor,
 // the facing and the helpers it draws with — see rts/README.md.
-
-
-
-function drawCarrier(C) {
-  var DECK = C.DECK, FR = C.FR, GLASS = C.GLASS, HD = C.HD, HOUSE = C.HOUSE, HULL = C.HULL, L = C.L,
-      P = C.P, W = C.W, box = C.box, g = C.g, mast = C.mast, plan = C.plan;
-
-// [CARRIER]: 143x52 in RA2 — the largest sprite in the game — and the
-// whole identity is A FLAT FLIGHT DECK THE FULL LENGTH OF THE HULL,
-// with a centreline, a house-colour landing stripe and three Hornets
-// ranged aft.
 //
-// The deck is its own plane OVERHANGING the hull each side, which is
-// both what a carrier looks like from above and what keeps her outline
-// broad at every bearing — the Dreadnought is nearly the same length
-// in RA2 (133 against 143) and the two can only separate on MASSING:
-// she is flat where he is tall. The island stays small and LOW for the
-// same reason; a tall island is a Destroyer's read, and the old
-// 15-unit island mast was giving her one.
+// DRAWN BY CODEX (gpt-5.6-sol) FROM THE REFERENCE IMAGE, then corrected against
+// a same-scale A/B of its bake beside RA2's own frame (tools/ra2-ab.js). The
+// correction that mattered: the island moved FORWARD to x 15-28% of the hull where the reference puts it
+// and where its silhouette peaks (43 px on a 58 px frame), the square deck
+// marking aft came back, and the height came down from 67 to 59 against RA2's
+// 58. Ours was a flat plate with a blue border stripe and white dots.
 //
-// But "broad at every bearing" was taken to mean a deck 1.78x the
-// hull's beam on a beam-22 hull — a flight deck 39 wide on a 65 hull,
-// 1.66:1 in PLAN, where a real carrier's is over 4:1. It rendered as a
-// grey octagon with no ship under it (120x50, aspect 2.40 against
-// RA2's 143x52 = 2.75), and the deck edge markings sat at 73% of the
-// deck, floating in the middle of it. Deck 1.78 -> 1.42 of a beam-21
-// hull puts the two house-hued edge stripes ON the edge, where they
-// belong, and gives back the length-to-width a carrier reads by:
-// 121x42, aspect 2.88, against RA2's 2.75.
-var fd = [], fi;
-for (fi = 0; fi < plan.length; fi++) fd.push([plan[fi][0] * 1.02, plan[fi][1] * 1.42]);
-var fpoly = function (z, fill, line) {
-  g.beginPath();
-  for (var i3 = 0; i3 < fd.length; i3++) {
-    var q3 = P(fd[i3][0], fd[i3][1], z);
-    if (i3) g.lineTo(q3[0], q3[1]); else g.moveTo(q3[0], q3[1]);
-  }
-  g.closePath();
-  if (fill) { g.fillStyle = fill; g.fill(); }
-  if (line) { g.strokeStyle = line; g.lineWidth = 0.9; g.stroke(); }
-};
-fpoly(FR + 0.6, shade(HULL, 0.42));                               // the overhang's shadow
-fpoly(FR + 2.6, shade(DECK, 1.06), shade(HULL, 1.30));            // the flight deck
-g.save(); fpoly(FR + 2.6, null, null); g.clip();
-g.strokeStyle = '#d9dde2'; g.lineWidth = 1.4;
-for (var ci = 0; ci < 9; ci++) {                                  // dashed centreline
-  var cu0 = L * (0.80 - ci * 0.185), cu1 = cu0 - L * 0.10;
-  var c0 = P(cu0, 0, FR + 2.6), c1 = P(cu1, 0, FR + 2.6);
-  g.beginPath(); g.moveTo(c0[0], c0[1]); g.lineTo(c1[0], c1[1]); g.stroke();
-}
-// The angled landing strip, a house-hued deck edge each side and the
-// round-down band aft. A carrier is nearly all flight deck, so if the
-// deck carries no owner colour she carries almost none at all: growing
-// her to RA2's 143-px class dropped her remap from 18% to 9%, under
-// reference §1.4's 11.5% vehicle floor, and the markings are where RA2
-// itself puts colour on a deck.
-g.strokeStyle = HOUSE; g.lineWidth = 2.8;
-var a0 = P(L * 0.58, -W * 0.62, FR + 2.6), a1 = P(-L * 0.90, -W * 0.16, FR + 2.6);
-g.beginPath(); g.moveTo(a0[0], a0[1]); g.lineTo(a1[0], a1[1]); g.stroke();
-g.strokeStyle = HD; g.lineWidth = 1.3;
-for (var de = -1; de <= 1; de += 2) {
-  var e0 = P(L * 0.92, de * W * 1.30, FR + 2.6), e1 = P(-L * 0.96, de * W * 1.30, FR + 2.6);
-  g.beginPath(); g.moveTo(e0[0], e0[1]); g.lineTo(e1[0], e1[1]); g.stroke();
-}
-g.strokeStyle = HOUSE; g.lineWidth = 2.4;                          // round-down band aft
-var r0 = P(-L * 0.90, W * 1.30, FR + 2.6), r1 = P(-L * 0.90, -W * 1.30, FR + 2.6);
-g.beginPath(); g.moveTo(r0[0], r0[1]); g.lineTo(r1[0], r1[1]); g.stroke();
-g.restore();
-box(-L * 0.06, W * 0.86, L * 0.26, W * 0.28, 6.8, '#4b515a');     // island
-box(-L * 0.06, W * 0.86, L * 0.15, W * 0.20, 8.6, '#5a616b');
-mast(-L * 0.14, W * 0.86, 6.0);
-var iq = P(-L * 0.02, W * 0.86, FR + 7.6);
-g.fillStyle = GLASS; g.fillRect(iq[0] - 3.0, iq[1] - 1.6, 6.0, 1.8);
-g.strokeStyle = HOUSE; g.lineWidth = 1.4;
-g.beginPath(); g.moveTo(iq[0] - 3.2, iq[1] + 0.8); g.lineTo(iq[0] + 3.2, iq[1] + 0.8); g.stroke();
-// Three parked Hornets — the air group, visible on the deck.
-for (var hi = 0; hi < 3; hi++) {
-  var pq2 = P(-L * (0.26 + hi * 0.26), -W * 0.66, FR + 3.0);
-  g.fillStyle = '#c8cdd4';
-  g.beginPath(); g.ellipse(pq2[0], pq2[1], 3.4, 1.6, 0, 0, 6.29); g.fill();
-  g.strokeStyle = '#8f959d'; g.lineWidth = 1.6;
-  g.beginPath(); g.moveTo(pq2[0] - 3.2, pq2[1] + 0.6); g.lineTo(pq2[0] + 3.2, pq2[1] - 0.6); g.stroke();
-  g.fillStyle = HOUSE;
-  g.beginPath(); g.ellipse(pq2[0] + 1.7, pq2[1] - 0.4, 0.9, 0.7, 0, 0, 6.29); g.fill();
-}
+// Compact and comment-free on purpose; the measurements behind it are in the
+// commit that installed it.
+
+function drawCarrier(C){
+  var FR=C.FR,HOUSE=C.HOUSE,HD=C.HD,L=C.L,P=C.P,W=C.W,box=C.box,g=C.g,nearS=C.nearS,plan=C.plan;
+  function path(a,z,f,s,w){var i,q;g.beginPath();for(i=0;i<a.length;i++){q=P(a[i][0],a[i][1],z);i?g.lineTo(q[0],q[1]):g.moveTo(q[0],q[1]);}g.closePath();if(f){g.fillStyle=f;g.fill();}if(s){g.strokeStyle=s;g.lineWidth=w||1;g.stroke();}}
+  var d=[],i,a,b;
+  for(i=0;i<plan.length;i++)d.push([plan[i][0]*1.12,plan[i][1]*1.06]);
+  path(d,FR+.5,'#333333');path(d,FR+2,'#666666','#999999',1);
+  path([[-L*1.06,-W*.84],[-L*.58,-W*1.02],[L*.72,-W*1.02],[L,-W*.38],[L,W*.38],[L*.72,W*1.02],[-L*.58,W*1.02],[-L*1.06,W*.84]],FR+2.2,'#333333','#666666',1);
+  box(-L*.22,0,L*.62,W*1.34,2.2,'#333333');
+  path([[-L*.53,-W*.64],[L*.09,-W*.64],[L*.09,W*.64],[-L*.53,W*.64]],FR+4.5,HOUSE,HD,1.4);
+  path([[L*.05,0],[-L*.08,W*.12],[-L*.18,W*.18],[-L*.43,W*.58],[-L*.53,W*.54],[-L*.31,W*.11],[-L*.50,W*.20],[-L*.54,0],[-L*.50,-W*.20],[-L*.31,-W*.11],[-L*.53,-W*.54],[-L*.43,-W*.58],[-L*.18,-W*.18],[-L*.08,-W*.12]],FR+4.9,'#999999','#666666',1.1);
+  path([[L*.01,0],[-L*.11,W*.07],[-L*.47,W*.46],[-L*.34,W*.11],[-L*.49,0],[-L*.34,-W*.11],[-L*.47,-W*.46],[-L*.11,-W*.07]],FR+5.2,'#cccccc');
+  path([[-L*.49,-W*.46],[-L*.36,-W*.13],[-L*.08,W*.13],[L*.01,W*.04]],FR+5.3,null,'#cccccc',1.2);
+  path([[-L*.49,W*.46],[-L*.36,W*.13],[-L*.08,-W*.13],[L*.01,-W*.04]],FR+5.3,null,'#cccccc',1.2);
+  path([[-L*.49,-W*.58],[L*.05,-W*.58],[L*.05,W*.58],[-L*.49,W*.58]],FR+4.7,null,'#333333',1.5);
+  box(L*.43,nearS*W*.67,L*.30,W*.50,4.4,'#999999');
+  box(L*.68,nearS*W*.71,L*.22,W*.40,3.5,'#666666');
+  box(L*.52,nearS*W*.55,L*.42,W*.70,6.2,'#666666');
+  box(L*.57,nearS*W*.57,L*.26,W*.60,9.2,HOUSE);
+  box(L*.59,nearS*W*.56,L*.18,W*.44,11.4,HD);
+  path([[L*.45,nearS*W*.79],[L*.68,nearS*W*.79],[L*.67,nearS*W*.36],[L*.49,nearS*W*.36]],FR+8.6,'#cccccc','#666666',1);
+  a=P(L*.45,nearS*W*.83,FR+7);b=P(L*.68,nearS*W*.83,FR+7);g.strokeStyle='#333333';g.lineWidth=2;g.beginPath();g.moveTo(a[0],a[1]);g.lineTo(b[0],b[1]);g.stroke();
+  a=P(L*.47,nearS*W*.84,FR+8);b=P(L*.66,nearS*W*.84,FR+8);g.strokeStyle='#cccccc';g.lineWidth=1;g.beginPath();g.moveTo(a[0],a[1]);g.lineTo(b[0],b[1]);g.stroke();
+  var m=P(L*.57,nearS*W*.54,FR+10),t=P(L*.57,nearS*W*.54,FR+24);g.strokeStyle='#333333';g.lineWidth=2.2;g.beginPath();g.moveTo(m[0],m[1]);g.lineTo(t[0],t[1]);g.stroke();g.strokeStyle='#999999';g.lineWidth=1;g.beginPath();g.moveTo(t[0],t[1]);g.lineTo(m[0],m[1]-6);g.stroke();
+  for(i=0;i<2;i++){g.strokeStyle=i?'#999999':'#cccccc';g.lineWidth=1.3;g.beginPath();g.moveTo(t[0]-3+i,t[1]+4+i*5);g.lineTo(t[0]+4-i,t[1]+4+i*5);g.stroke();}
+  for(i=0;i<3;i++){var u=-L*(.72-i*.32),q=P(u,nearS*W*.78,FR+3);g.fillStyle='#cccccc';g.fillRect(q[0]-5,q[1]-1,10,2);g.fillRect(q[0]-1.5,q[1]-2,3,4);}
 }

@@ -330,7 +330,19 @@ exports.check = function (ctx) {
       // "slate" throws navy and teal pixels at some rungs of its shade ladder)
       // let more deck furniture through it. The airframes' own height is the
       // discriminator that does not depend on the hull's saturation at all.
-      .filter((c) => c.n >= 20 && c.n <= 60 && c.w >= 6 && c.w <= 16 && c.h >= 4 && c.h <= 8);
+      // w >= 9 as well as h >= 4, and both floors were set by the same kind of
+      // evidence: the AIRFRAMES bake at a consistent size and the intruders do
+      // not. The three aircraft measure 15x6, 15x6, 15x6 — identical, evenly
+      // spaced — and the fourth blob the window used to admit is 7x4, a piece
+      // of deck furniture half their width. (The h >= 4 floor came in the same
+      // way: the airframes were 9x4/10x4/9x4 and the intruder an 8x3 dash.)
+      // Widening the AREA bar instead would not separate them; the shape does.
+      // ...and the AREA bar stays at 60. Widening it to 110 in the same edit
+      // that added the width floor let in a 16x8 mass the old bar had been
+      // excluding all along, so the count went 4 -> 4 by swapping one intruder
+      // for another. Two bars changed at once is why it took a second look:
+      // change one, measure, then change the next.
+      .filter((c) => c.n >= 20 && c.n <= 60 && c.w >= 9 && c.w <= 16 && c.h >= 4 && c.h <= 8);
     rows.push({
       unit: 'carrier', clause: '3 visible parked airframes',
       ok: pale.length === 3, measured: pale.length, want: 'exactly 3',
