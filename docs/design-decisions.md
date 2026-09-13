@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_294 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_295 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
 - [Scheduled terminal messages ("resume when the token limit resets")](#scheduled-terminal-messages-resume-when-the-token-limit-resets)
@@ -317,6 +317,7 @@ _294 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [Files on a phone: fixed-width tiles wasted a fifth of the screen, and auto grid rows collapsed on top of each other (2026-09-12)](#files-on-a-phone-fixed-width-tiles-wasted-a-fifth-of-the-screen-and-auto-grid-rows-collapsed-on-top-of-each-other-2026-09-12)
 - [Files kept jumping back to "/": an unreadable iframe hash was reported as root (2026-09-12)](#files-kept-jumping-back-to-an-unreadable-iframe-hash-was-reported-as-root-2026-09-12)
 - [Files ignored the keyboard until you clicked it: the shell focused the wrapper, one iframe short of the listing (2026-09-12)](#files-ignored-the-keyboard-until-you-clicked-it-the-shell-focused-the-wrapper-one-iframe-short-of-the-listing-2026-09-12)
+- [The real cause of "Files needs two clicks": Safari gives keyboard focus only to form controls (2026-09-12)](#the-real-cause-of-files-needs-two-clicks-safari-gives-keyboard-focus-only-to-form-controls-2026-09-12)
 
 <!-- END TOC -->
 
@@ -13299,3 +13300,51 @@ focused-looking chain either way.
 focusable. It would need to know each app's internal structure, and it fights
 apps that place focus deliberately; the wrapper is the only thing that knows
 which tab is in front.
+
+## The real cause of "Files needs two clicks": Safari gives keyboard focus only to form controls (2026-09-12)
+
+**Symptom.** Reported three times in one session, surviving two fixes: click a
+file in Files, press Space, nothing. Click the same file again, Space previews.
+Same for the Terminal, and for "the next operation" once an image preview was
+open. The decisive detail, which took far too long to ask for: **the row DOES
+highlight on the first click.** The click works. Only the keys go elsewhere.
+
+**Cause.** Safari on macOS moves keyboard focus on a click **only to form
+controls and links** — never to an ordinary `<div>`, `tabindex` or not.
+(Chromium, and Playwright's Linux WebKit, focus it implicitly.) The Files
+listing is `<div id="main" tabindex="0">` and **nothing ever called
+`.focus()` on it**: the app relied entirely on the browser doing it. So on
+Safari the keys stayed in the parent frame, `document.hasFocus()` was false
+inside `filesx.html`, and the `keydown` listener there never ran. The second
+click "worked" only because by then something else had dragged focus in.
+
+Two earlier fixes the same day (v1.19.357/358) were real bugs — the wrapper
+never passed focus down, and the shell yanked it back up after a click inside
+an app — but neither was THIS, which is why the report kept coming back.
+
+**Fix.** Every frame whose keyboard target is not a form control claims the keys
+itself, on a pointerdown inside it, and only when they are not already its own
+(an unconditional `focus()` blurs a rename box or the editor mid-edit):
+`filesx.html` (the listing, or the Quick Look panel / editor when one is on
+top), `files.html` (Esc closes the viewer), `imageview.html`, `video.html`.
+Terminal and Notes were never affected — xterm's helper textarea and the note
+editor are real `<textarea>`s, which Safari focuses.
+
+**Watch out — the engine you test is part of the test.** Every automated run
+passed: Chromium headless, Chromium headed under Xvfb, and WebKit, across
+tiled/floating × taskbar/Start-menu/click-the-window, before AND after the
+preview opens. All green, all irrelevant: Playwright's Linux WebKit is not
+Safari 26.2 on macOS. What finally identified the client was the **nginx access
+log** — `Macintosh; Intel Mac OS X ... Version/26.2 Safari` against
+`z20.local`. Read it before concluding "works for me".
+
+**Watch out — ask what the user can see.** "Does the row highlight on the first
+click?" splits click-delivery from focus in one bit, and it costs one question.
+Three rounds of measurement went into a space that one answer closed. See
+[[ask-for-the-client-side-tell]] in memory.
+
+**Rejected.** `tabindex` on the listing as sufficient. It makes an element
+*focusable*, which is not the same as *focused-on-click*; only a real form
+control gets that for free on Safari. Also rejected: having the shell walk down
+and focus the deepest frame — it would need every app's internals, and the frame
+that was clicked already knows.
