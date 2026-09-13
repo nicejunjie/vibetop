@@ -422,7 +422,7 @@
     // always converges instead of ping-ponging.
     if (local !== _lastSaved && _pushStreak < 5) { _pushStreak++; persist(); return; }
     _pushStreak = 0;
-    fetch('/api/files/tabs').then(function(r) { return r.json(); }).then(function(s) {
+    fetch('/api/files/tabs?v=2').then(function(r) { return r.json(); }).then(function(s) {
       if (!s || !Array.isArray(s.paths)) return;
       if (typeof s.rev === 'number') _rev = s.rev;
       var serverStr = JSON.stringify({ paths: s.paths.map(norm), active: (typeof s.active === 'number' ? s.active : 0) });
@@ -435,7 +435,7 @@
   // resolveHome so HOME points at the logged-in user's real home before the
   // fallback "open a Home tab" path can fire.
   resolveHome(function() {
-    fetch('/api/files/tabs').then(function(r) { return r.json(); }).then(function(s) {
+    fetch('/api/files/tabs?v=2').then(function(r) { return r.json(); }).then(function(s) {
       if (s && typeof s.rev === 'number') _rev = s.rev;
       if (s && Array.isArray(s.paths) && s.paths.length) {
         s.paths.forEach(function(p) { createTab(p, false); });
