@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_293 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_294 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
 - [Scheduled terminal messages ("resume when the token limit resets")](#scheduled-terminal-messages-resume-when-the-token-limit-resets)
@@ -316,6 +316,7 @@ _293 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [The RTS became 117 plain scripts you can open by double-clicking, and the repo's last build step went away (2026-09-12)](#the-rts-became-117-plain-scripts-you-can-open-by-double-clicking-and-the-repos-last-build-step-went-away-2026-09-12)
 - [Files on a phone: fixed-width tiles wasted a fifth of the screen, and auto grid rows collapsed on top of each other (2026-09-12)](#files-on-a-phone-fixed-width-tiles-wasted-a-fifth-of-the-screen-and-auto-grid-rows-collapsed-on-top-of-each-other-2026-09-12)
 - [Files kept jumping back to "/": an unreadable iframe hash was reported as root (2026-09-12)](#files-kept-jumping-back-to-an-unreadable-iframe-hash-was-reported-as-root-2026-09-12)
+- [Files ignored the keyboard until you clicked it: the shell focused the wrapper, one iframe short of the listing (2026-09-12)](#files-ignored-the-keyboard-until-you-clicked-it-the-shell-focused-the-wrapper-one-iframe-short-of-the-listing-2026-09-12)
 
 <!-- END TOC -->
 
@@ -13222,3 +13223,54 @@ you are fixing is not evidence.
 *stale* writer lose, but the writer here was not stale — it genuinely believed
 the folder was `/` on every tick, so CAS would have accepted every stomp. Fix
 the value, not the ordering.
+
+## Files ignored the keyboard until you clicked it: the shell focused the wrapper, one iframe short of the listing (2026-09-12)
+
+**Symptom.** Switch to Files, then press Space to Quick Look the selected image
+— nothing. Click the file, press Space — nothing. Click *again*, press Space —
+it previews. Reported as "I have to click twice in order to use space to open
+preview image".
+
+**Cause.** Files is **doubly nested**: the desktop's `#frame-files` iframe holds
+the *wrapper* (`files.html` — the tab strip), whose own iframe holds the
+*listing* (`filesx.html` — which owns every key binding). `notifyActiveFrame()`
+in `shell/desktop.html` focuses the frame the shell knows about:
+
+```js
+setTimeout(function () { ... f.focus(); }, 0);   // f = the WRAPPER's iframe
+```
+
+so `document.activeElement` walked to `IFRAME#frame-files > BODY` and stopped
+there. The wrapper relayed `vibetop:active` down to its tabs but never passed
+**focus** on, so keydown was delivered to the wrapper's document — which handles
+only Escape. The listing's selection was still highlighted, so the app *looked*
+ready while the whole keyboard was dead: Space, arrows, Home/End, F2, Delete,
+type-ahead, Ctrl+C/X/V. The first click was not selecting anything the user
+needed — it was paying the focus toll, which is why the fix felt like "two
+clicks".
+
+Single-frame apps (Notes, Upload) never showed this, and Terminal was immune for
+an unrelated reason: the shell posts it an explicit `focus-terminal` message that
+xterm.js acts on.
+
+**Fix.** `focusActive()` in `files.html` focuses the active tab's iframe — on
+`vibetop:active` when the desktop says Files is the app on screen, and in
+`show()` so switching tabs lands the keyboard too. Three guards: the viewer
+overlay keeps the keys while open; focus already inside the tab is left alone
+(re-focusing an iframe blurs what is focused *within* it, and the ~2s tab sync
+calls `show()` on its own — that would kill a rename box mid-edit); and the
+move is deferred one tick, because the shell's `f.focus()` runs on a **0 ms
+timer scheduled before** it posts `vibetop:active`, so a synchronous focus here
+is undone a tick later.
+
+**Watch out.** The regression test has to drive the real shell — the nesting
+*is* the bug, and `files-native.spec.js` drives `filesx.html` directly, where
+the keyboard has always worked. Verified failing on the unfixed build first. And
+"click once, press Space" reproduces fine when Files is opened **fresh**; the
+break needs the wrapper to already be loaded, so the reproduction is: open
+Files, switch away, switch back.
+
+**Rejected.** Making the shell walk into nested frames to find something
+focusable. It would need to know each app's internal structure, and it fights
+apps that place focus deliberately; the wrapper is the only thing that knows
+which tab is in front.
