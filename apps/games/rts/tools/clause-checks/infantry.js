@@ -62,7 +62,16 @@ const fs = require('fs');
 const path = require('path');
 
 const OWNER_HUE = 203;                 // owner 0, measured from the ensemble (see header)
-const SRC = path.join(__dirname, '..', '..', 'rts.html');
+// The 117-script refactor scattered the source constants out of rts.html into the
+// game's scripts; the clause premises now live in these files (the UNITS table,
+// the bake, and the special-weapon constants). A no-match still THROWS: a premise
+// that is in none of them has genuinely moved, and a check that answers "not
+// found" from a swallowed miss is not measuring anything.
+const SRC = [
+  path.join(__dirname, '..', '..', 'rts', 'roster.js'),
+  path.join(__dirname, '..', '..', 'rts', 'bake', 'infantry.js'),
+  path.join(__dirname, '..', '..', 'rts', 'special.js'),
+];
 
 const hsv = (r, g, b) => {
   r /= 255; g /= 255; b /= 255;
@@ -188,9 +197,11 @@ function maxRect(f, pred) {
  *  A no-match THROWS: the clause's premise has moved, and a check that answers
  *  "not found" from a swallowed miss is not measuring anything. */
 function srcNum(re) {
-  const m = fs.readFileSync(SRC, 'utf8').match(re);
-  if (!m) throw new Error('clause premise not found in source: ' + re);
-  return Number(m[1]);
+  for (const f of SRC) {
+    const m = fs.readFileSync(f, 'utf8').match(re);
+    if (m) return Number(m[1]);
+  }
+  throw new Error('clause premise not found in source: ' + re);
 }
 
 exports.check = function (ctx) {
@@ -241,7 +252,7 @@ exports.check = function (ctx) {
     const sh = srcNum(/rocketeer:\s*\{[\s\S]{0,900}?\bshadow:\s*\[\s*(\d+(?:\.\d+)?)/);
     const sh2 = srcNum(/rocketeer:\s*\{[\s\S]{0,900}?\bshadow:\s*\[\s*\d+(?:\.\d+)?\s*,\s*(\d+(?:\.\d+)?)/);
     const alt = srcNum(/rocketeer:\s*\{[\s\S]{0,600}?\balt:\s*(\d+(?:\.\d+)?)/);
-    const noBaked = /if \(kind !== 'rocketeer'\)\s*\n\s*shadowBlob/.test(fs.readFileSync(SRC, 'utf8'));
+    const noBaked = SRC.some(f => /if \(kind !== 'rocketeer'\)\s*\n\s*shadowBlob/.test(fs.readFileSync(f, 'utf8')));
     const sep = alt * 1.06;
     const ok = sh >= 9 && sh2 >= 4 && noBaked && sep >= 4;
     add('rocketeer', 'shadow blob >= 9x4 separated from the feet', ok,

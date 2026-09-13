@@ -87,7 +87,13 @@ function serve(opts) {
     let file = null;
     if (!deny) {
       if (url === '/rts.html' && artHtml) file = artHtml;
-      else for (const r of roots) { file = fileUnder(r, url); if (file) break; }
+      else {
+        // rts.html reaches the two shared scripts by their REPO path so the page
+        // also works opened straight off the disk; the browser normalises that to
+        // a leading `/shared/`, which no root under apps/games/rts can satisfy.
+        const u = url.startsWith('/shared/') ? url.slice('/shared'.length) : url;
+        for (const r of roots) { file = fileUnder(r, u) || fileUnder(r, url); if (file) break; }
+      }
     }
     if (!file || !fs.existsSync(file)) {
       rep.writeHead(404, { 'content-type': 'text/plain; charset=utf-8', 'cache-control': 'no-store' });
