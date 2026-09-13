@@ -73,6 +73,58 @@ _QUERY_REQUEST_RE = re.compile(
 )
 
 
+# --- shifted-punctuation arrival probe (dormant; ~/.vibetop-keyprobe) -------
+# A user reports that inside a Claude Code session, shifted punctuation needs to
+# be typed TWICE before it appears — while plain bash in the SAME terminal is
+# fine, and letters are fine. Every layer measurable from here is clean: ttyd's
+# xterm.js emits the plain ASCII byte on both engines (it answers neither the
+# kitty probe nor modifyOtherKeys), and the CLI driven through a raw PTY accepts
+# that byte in every typing pattern tried. What is left cannot be told apart
+# from outside the user's machine: the byte never arrived, or it arrived and the
+# screen did not repaint. This records ARRIVAL, which splits exactly that.
+#
+# Deliberately narrow, because this sits on the path every keystroke takes:
+# it records only WHICH of a fixed punctuation set arrived and when — never
+# letters, digits, or anything else the user typed. Armed by the presence of
+# ~/.vibetop-keyprobe (checked at most once a second), so it can be switched on
+# and off without restarting anyone's session; dormant it costs one stat().
+KEYPROBE_CHARS = frozenset(b'!@#$%^&*()_+{}|:"<>?~')
+
+
+def keyprobe_hits(data):
+    """The punctuation characters in `data`, in order, as a string. Everything
+    else — letters, digits, control bytes, UTF-8 — is dropped on the floor and
+    can never reach the log. Pure; unit-tested."""
+    return ''.join(chr(b) for b in bytes(data) if b in KEYPROBE_CHARS)
+
+
+_keyprobe_state = {'checked': 0.0, 'on': False, 'path': None}
+
+
+def keyprobe_record(data, now=None):
+    """Append one line per chunk that carried punctuation, when armed."""
+    t = time.time() if now is None else now
+    st = _keyprobe_state
+    if t - st['checked'] > 1.0:
+        st['checked'] = t
+        try:
+            home = os.path.expanduser('~')
+            st['on'] = os.path.exists(os.path.join(home, '.vibetop-keyprobe'))
+            st['path'] = os.path.join(home, '.vibetop-keyprobe.log')
+        except Exception:
+            st['on'] = False
+    if not st['on']:
+        return
+    hits = keyprobe_hits(data)
+    if not hits:
+        return
+    try:
+        with open(st['path'], 'a') as f:
+            f.write('%.3f chunk=%dB punct=%s\n' % (t, len(data), hits))
+    except Exception:
+        pass
+
+
 def strip_terminal_queries(data):
     """Remove terminal query-REQUEST sequences (DA/DSR/CPR/DECRQM/OSC-color '?')
     from `data`. Used only on the ring-buffer replay sent to a new client, so a
@@ -664,6 +716,7 @@ def cmd_serve(instance):
                         remove_client(fd)
                         continue
                     if pty_fd >= 0:
+                        keyprobe_record(data)   # dormant unless ~/.vibetop-keyprobe exists
                         # Write ALL the bytes: the master is non-blocking, so a
                         # large paste can short-write or raise EAGAIN — the old
                         # single os.write silently dropped the remainder. Loop on
