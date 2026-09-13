@@ -22,11 +22,22 @@ function bakeShip(col, kind, fac) {
   var HOUSE = col, HD = shade(col, 0.74), HL = shade(col, 1.24);
   var GUN = '#191b20', GUN_L = '#5b616b', STEEL = '#9aa0a8', DKSTEEL = '#4a505a';
   var GLASS = '#7fb6d8', WHITE = '#e6eaf0';
-  // Hull colours. Directorate hulls are haze grey; Collective hulls are the
-  // dark olive-slate the Soviet fleet wears. Neither is chromatic, so the
-  // owner colour keeps the field to itself.
-  var HULL = sov ? '#666d61' : '#8d97a3';
-  var DECK = sov ? '#3d4239' : '#454c57';
+  // Hull colours. BOTH fleets wear GREY — that is what the rips show, and it
+  // was not ours to invent. `library/dread.png` and `library/seascorp.png` are
+  // the Soviet navy in its own remap, and both hulls are a flat neutral
+  // warship grey with the house colour banded on top; `library/sub.png` is the
+  // same grey pushed to near-black. The Collective fleet was wearing the
+  // ARMY's olive (#666d61), which on RA2's 6-level grid snaps to #666633 —
+  // measured 7.4% of the Dreadnought at hue 105 and 3.7% of the Sea Scorpion
+  // at hue 98. A GREEN battleship is not a thing RA2 ever drew. The olive was
+  // also the only colour separation `aegis | seascorp` had; that pair is a
+  // SHAPE pair (aspect 2.10 against 1.79) and has to be carried as one.
+  //
+  // Directorate hulls keep the blue-tinted haze grey the Destroyer and Aegis
+  // rips wear, the Collective's is a plainer and darker neutral, so the two
+  // fleets still part on VALUE without either of them taking a hue.
+  var HULL = sov ? '#6e7075' : '#8d97a3';
+  var DECK = sov ? '#3d3f44' : '#454c57';
   if (kind === 'sub')      { HULL = '#2f333a'; DECK = '#1e2126'; }
   if (kind === 'dolphin')  { HULL = '#728798'; DECK = '#4b5a68'; }
   // The squid's plum was a HALF-STEP off the palette grid and the shade ladder
@@ -35,7 +46,13 @@ function bakeShip(col, kind, fac) {
   // as the RED player's unit whoever owned it (hue.maxImpostor 0.752). Pushing
   // the blue channel one level clear holds hue 300 at every rung of the ladder.
   if (kind === 'squid')    { HULL = '#74487f'; DECK = '#4a2c50'; }
-  if (kind === 'lcraft')   { HULL = '#7e8778'; DECK = '#41473c'; }
+  // [LCRAFT] is a HOVERCRAFT, and `library/lcraft-voxel.jpg` reads in exactly
+  // three bands: a BLACK rubber skirt all round the bottom, a near-WHITE deck
+  // body standing on it, and two dark slate ducted fans aft. It was drawn
+  // olive-green, which is none of the three, and the pale deck is the thing
+  // that makes the house-colour side panels read at all. BOOT, which is
+  // shade(HULL, 0.34), draws the skirt for free once the deck is pale.
+  if (kind === 'lcraft')   { HULL = '#b9bcb6'; DECK = '#70736a'; }
   if (kind === 'carrier')  { HULL = '#8a949f'; DECK = '#3a3f47'; }
   var BOOT = shade(HULL, 0.34);                       // boot-topping at the waterline
 
