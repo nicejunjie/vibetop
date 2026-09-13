@@ -45,10 +45,20 @@ var tailCone = function () {
     g.stroke();
   }
 };
-var lowerFin = function () { finQuad(-0.70, -0.92, 0, 1, bodyR * 0.85, bodyR + 4.5, shade(col, 0.66), shade(col, 0.36)); };
+// FOUR FINS IN TWO PAIRS, which is what the frame measures and what ours did
+// not have: every fin sat in one cruciform at t -0.70..-0.92 and read as a
+// single crumpled red mass on one end. On RA2's 155x61 frame the red resolves
+// into a tail pair at x 12-23% (t -0.76..-0.54) and a SECOND pair a third of
+// the way along at x 35-44% (t -0.30..-0.12), each blade 10-16 px.
+var lowerFin = function () { finQuad(-0.54, -0.76, 0, 1, bodyR * 0.85, bodyR + 4.5, shade(col, 0.66), shade(col, 0.36)); };
+var midFins = function () {
+  finQuad(-0.12, -0.30, 0, 1, bodyR * 0.80, bodyR + 3.0, shade(col, 0.60), shade(col, 0.34));
+  finQuad(-0.12, -0.30, 0, -1, bodyR * 0.80, bodyR + 3.4, shade(col, 0.94), shade(col, 0.34));
+};
 if (tailAway) { tailCone(); lowerFin(); }
 // far side fin (behind the envelope)
-finQuad(-0.70, -0.92, px * far, py * far, bodyR * 0.85, bodyR + 5.1, shade(col, 0.72), shade(col, 0.36));
+finQuad(-0.54, -0.76, px * far, py * far, bodyR * 0.85, bodyR + 5.1, shade(col, 0.72), shade(col, 0.36));
+finQuad(-0.12, -0.30, px * far, py * far, bodyR * 0.80, bodyR + 3.2, shade(col, 0.66), shade(col, 0.34));
 // engine pod, far side
 var epF = pt(-0.5);
 puck(epF[0] + px * far * bodyR * 0.85, epF[1] + py * far * bodyR * 0.85 + 2.5, 2.4, 4.2, shade(col, 0.7), shade(col, 0.95), shade(col, 0.36));
@@ -98,9 +108,50 @@ function hoop(ht, wdt, colr) {
 // not a belt; and a circumferential ellipse seen nose-on piles many stroke
 // samples onto the same pixels, so even a 28%-alpha hoop compounded past the
 // point where it read. The rip's straps are one dark pixel wide against gold.
-hoop(-0.46, 1.0, 'rgba(42,38,30,.92)');
-hoop(0.02, 1.0, 'rgba(42,38,30,.92)');
-hoop(0.42, 1.0, 'rgba(42,38,30,.92)');
+// THE STRAPS ARE GREY STRUCTURAL MEMBERS, measured, not dark hoops. Segmenting
+// the reference by colour family puts 21.2% of it in mid-grey, and two of those
+// blobs are uprights on the envelope: 15x27 px at x 73-82% and 12x16 at
+// x 56-63% — each spanning 27-43% of the hull's height, with feet. Ours were
+// 1-px dark rings following the ellipse, which read as barrel bands.
+(function () {
+  // CLIPPED TO THE ENVELOPE. Drawn free they stood proud of the hull like three
+  // masts; the reference's members lie ON the fabric and stop at its edge.
+  g.save(); bodyPath(); g.clip();
+  var BANDS = [[0.46, 0.74, '#8a8a8a'], [0.10, 0.72, '#7a7a7a'], [-0.30, 0.66, '#6e6e6e']];
+  for (var bI = 0; bI < BANDS.length; bI++) {
+    var bt = BANDS[bI][0], bh = BANDS[bI][1], bc = BANDS[bI][2];
+    var bp = pt(bt), be = rad(bt) * secK;
+    g.fillStyle = bc;
+    g.beginPath();
+    g.moveTo(bp[0] - nx2 * be * bh - 1.1, bp[1] - ny2 * be * bh);
+    g.lineTo(bp[0] - nx2 * be * bh + 1.1, bp[1] - ny2 * be * bh);
+    g.lineTo(bp[0] + nx2 * be * bh + 1.1, bp[1] + ny2 * be * bh);
+    g.lineTo(bp[0] + nx2 * be * bh - 1.1, bp[1] + ny2 * be * bh);
+    g.closePath(); g.fill();
+    g.fillStyle = '#4a4a4a';                       // the foot at each end
+    g.fillRect(bp[0] - nx2 * be * bh - 1.8, bp[1] - ny2 * be * bh - 0.9, 3.6, 1.8);
+    g.fillRect(bp[0] + nx2 * be * bh - 1.8, bp[1] + ny2 * be * bh - 0.9, 3.6, 1.8);
+  }
+  // LONGITUDINAL FABRIC, which the reference has and a flat fill cannot fake:
+  // its envelope is streaked along its length in alternating light and mid
+  // gold, the gores of a doped-fabric hull. Ours was one flat tan area with a
+  // single hard cream wedge, and that wedge read as a separate object lying on
+  // the balloon rather than as the lit top of it.
+  var GORE = ['rgba(255,204,153,.55)', 'rgba(153,102,51,.34)'];
+  for (var gI = -3; gI <= 3; gI++) {
+    if (!gI) continue;
+    g.strokeStyle = GORE[Math.abs(gI) % 2];
+    g.lineWidth = 1.0;
+    g.beginPath();
+    for (var gT = -0.95; gT <= 0.95; gT += 0.06) {
+      var gp2 = pt(gT), ge = rad(gT) * secK * (gI / 3.6);
+      var gx = gp2[0] - nx2 * ge, gy = gp2[1] - ny2 * ge;
+      if (gT < -0.94) g.moveTo(gx, gy); else g.lineTo(gx, gy);
+    }
+    g.stroke();
+  }
+  g.restore();
+})();
 // NO HOUSE RING ROUND THE ENVELOPE. A 2.2 px band of the player's colour
 // wrapped the hull at the shoulder and, once the fabric stopped being a
 // patchwork, it was the loudest thing on the airship — a red hoop round a gold
@@ -158,8 +209,13 @@ if (kGond && !kAir) {                               // its own sheet: the cables
   }
 }
 isoBox(g, gp[0], gpy + 3.4, 12, 5.5, 5.5, a, '#5a5f68', '#23262c');
-g.fillStyle = '#c9dce8'; g.fillRect(gp[0] - 4.2, gpy - 0.8, 8.4, 1.4);
-g.strokeStyle = '#d6dbe2'; g.lineWidth = 0.9;            // catwalk rails, as the sprite
+// a WINDOW ROW, not a white bar: the reference's gondola is grey with a few
+// tiny lights, and a near-white 8.4 x 1.4 band under the hull was pulling the
+// eye off the airship entirely.
+g.fillStyle = '#999999'; g.fillRect(gp[0] - 4.2, gpy - 0.8, 8.4, 1.2);
+g.fillStyle = '#cccccc';
+for (var gw = -2; gw <= 2; gw++) g.fillRect(gp[0] + gw * 1.9 - 0.5, gpy - 0.6, 1.0, 0.8);
+g.strokeStyle = '#6e6e6e'; g.lineWidth = 0.9;            // catwalk rails, as the sprite
 g.beginPath(); g.moveTo(gp[0] - 5.6, gpy + 1.2); g.lineTo(gp[0] + 5.6, gpy + 1.2); g.stroke();
 g.beginPath(); g.moveTo(gp[0] - 5.2, gpy + 3.2); g.lineTo(gp[0] + 5.2, gpy + 3.2); g.stroke();
 for (var gr2 = -2; gr2 <= 2; gr2++) {
@@ -198,9 +254,11 @@ g.globalAlpha = kAir ? 1 : 0;
 var epN = pt(-0.5);
 puck(epN[0] - px * far * bodyR * 0.85, epN[1] - py * far * bodyR * 0.85 + 2.5, 2.2, 4.0, shade(col, 0.74), col, shade(col, 0.36));
 // fins: near side, top; bottom and the tail cone if the tail is toward us
-finQuad(-0.70, -0.92, -px * far, -py * far, bodyR * 0.85, bodyR + 5.1, col, shade(col, 0.36));
+finQuad(-0.54, -0.76, -px * far, -py * far, bodyR * 0.85, bodyR + 5.1, col, shade(col, 0.36));
+finQuad(-0.12, -0.30, -px * far, -py * far, bodyR * 0.80, bodyR + 3.2, col, shade(col, 0.34));
 if (!tailAway) { lowerFin(); tailCone(); }
-finQuad(-0.70, -0.92, 0, -1, bodyR * 0.85, bodyR + 8, shade(col, 1.1), shade(col, 0.36));
+finQuad(-0.54, -0.76, 0, -1, bodyR * 0.85, bodyR + 8, shade(col, 1.1), shade(col, 0.36));
+midFins();
 // In the sheet the tail is a busy RED CLUSTER — fins, struts and two
 // more outrigger pods — not three flat paper vanes. These sit on top
 // of the fins and give the crown its bulk.

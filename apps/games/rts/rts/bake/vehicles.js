@@ -805,10 +805,24 @@ function bakeVehicle(col, kind, fac, anim) {
       var bodyL = kind === 'kirov' ? 58 : 23, bodyR = kind === 'kirov' ? 9.4 : 2.35;
       var C0y = by - (kind === 'kirov' ? 28 : 3);   // a parked Harrier sits on its gear at the anchor; altitude is added by the renderer
       function pt(t) { return [cx + fx * t * bodyL / 2, C0y + fy * t * bodyL / 2]; }
-      // r(t): blunt nose (t=+1), tapering tail (t=-1)
+      // r(t): blunt nose (t=+1), tapering tail (t=-1).
+      //
+      // The Kirov's profile is MEASURED off RA2's own 155x61 frame rather than
+      // guessed at with an exponent, because no single (1-t^2)^p fits it: the
+      // reference is full amidships and falls away almost linearly, and a curve
+      // tuned to match at quarter-length is 40% too fat at eighth-length. The
+      // silhouette's gold thickness at 2/10/25/50/75/90/98% of the hull reads
+      // 4/17/27/48/37/25/15 px, i.e. r/rmax of .08/.35/.56/1/.77/.52/.31, and
+      // the old curve gave .13/.49/.82/1/.89/.67/.36 — a sausage rounded at
+      // both ends where the reference is a cigar that comes to a point.
+      var KIROV_R = [0.06, 0.20, 0.35, 0.48, 0.56, 0.78, 1.00, 0.86, 0.77, 0.63, 0.52, 0.40, 0.24];
       function rad(t) {
         var q = Math.max(0, 1 - t * t);
-        return bodyR * (t >= 0 ? Math.pow(q, kind === 'kirov' ? 0.40 : 0.55) : Math.pow(q, kind === 'kirov' ? 0.70 : 0.5));
+        if (kind !== 'kirov') return bodyR * Math.pow(q, t >= 0 ? 0.55 : 0.5);
+        var u = (t + 1) / 2 * (KIROV_R.length - 1);
+        var i0 = Math.floor(u), i1 = Math.min(KIROV_R.length - 1, i0 + 1), f = u - i0;
+        if (i0 < 0) { i0 = 0; i1 = 0; f = 0; }
+        return bodyR * (KIROV_R[i0] + (KIROV_R[i1] - KIROV_R[i0]) * f);
       }
       function bodyPath() {
         var i3, t3, p3, e3;
