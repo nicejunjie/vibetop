@@ -6,7 +6,7 @@
 
 
 function drawTanya(C) {
-  var T = C.T, arms = C.arms, by = C.by, col = C.col, cx = C.cx, face = C.face, g = C.g, gt = C.gt,
+  var ACC = C.ACC, T = C.T, arms = C.arms, by = C.by, col = C.col, cx = C.cx, face = C.face, g = C.g, gt = C.gt,
       legs = C.legs;
 
 // TANYA, read off Tanya_animation.gif: shoulder-length BLACK hair on a
@@ -93,7 +93,7 @@ face(by - 22.0);
 // Ivan's own head is a broad soft cap and a fuller head of hair walks
 // her INTO it rather than out. Her narrower head is already carrying
 // 0.04 of that separation. Reverted; do not reach for it again.
-g.fillStyle = ACCENT.tanya;                                   // black hair, shoulder length
+g.fillStyle = ACC;                                   // black hair, shoulder length
 g.beginPath(); g.arc(cx, by - 23.1, 3.0, Math.PI, 0); g.fill();
 g.fillRect(cx - 3.0, by - 23.3, 6.0, 1.2);
 for (var hl = -1; hl <= 1; hl += 2) {                         // side locks to the collar
@@ -103,7 +103,7 @@ for (var hl = -1; hl <= 1; hl += 2) {                         // side locks to t
   g.closePath(); g.fill();
 }
 outline(g, '#140d09');
-g.fillStyle = shade(ACCENT.tanya, 1.95);                      // crown highlight
+g.fillStyle = shade(ACC, 1.95);                      // crown highlight
 g.beginPath();
 g.ellipse(cx - 1.05, by - 24.0, 1.45, 0.75, -0.35, 0, 6.29); g.fill();
 g.restore();

@@ -6,7 +6,7 @@
 
 
 function drawFlakTrooper(C) {
-  var T = C.T, arms = C.arms, by = C.by, col = C.col, cx = C.cx, face = C.face, g = C.g, gt = C.gt,
+  var ACC = C.ACC, T = C.T, arms = C.arms, by = C.by, col = C.col, cx = C.cx, face = C.face, g = C.g, gt = C.gt,
       helmet = C.helmet, legs = C.legs, wpn = C.wpn;
 
 // FLAK TROOPER (Collective), read off soviet-flak-trooper-frames: a
@@ -118,10 +118,10 @@ g.lineTo(cx + 5.5, by - 15.0 + fy); g.lineTo(cx + 1.9, by - 14.3 + fy);
 g.closePath(); g.fill(); outline(g, shade(col, 0.40));
 g.fillStyle = shade(col, 1.22);
 g.fillRect(cx + 1.5, by - 17.4 + fy, 3.2, 1.0);
-g.fillStyle = ACCENT.rocket;                                  // amber shell drum
+g.fillStyle = ACC;                                  // amber shell drum
 g.beginPath(); g.ellipse(cx + 0.2, by - 14.0 + fy, 1.2, 1.45, 0.2, 0, 6.29); g.fill();
 outline(g, '#6a4a10');
-g.fillStyle = shade(ACCENT.rocket, 1.26);
+g.fillStyle = shade(ACC, 1.26);
 g.fillRect(cx - 0.4, by - 14.6 + fy, 1.1, 0.75);
 }, true);                                                     // UPRIGHT — see wpn()
 

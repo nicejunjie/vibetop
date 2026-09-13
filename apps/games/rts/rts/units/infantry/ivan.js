@@ -6,7 +6,7 @@
 
 
 function drawIvan(C) {
-  var FA = C.FA, HEADX = C.HEADX, JACKET = C.JACKET, T = C.T, TURN = C.TURN, arms = C.arms,
+  var ACC = C.ACC, FA = C.FA, HEADX = C.HEADX, JACKET = C.JACKET, T = C.T, TURN = C.TURN, arms = C.arms,
       by = C.by, col = C.col, cx = C.cx, face = C.face, g = C.g, gt = C.gt, legs = C.legs, sd = C.sd;
 
 // CRAZY IVAN, read off soviet-crazy-ivan-frames: a fur USHANKA in
@@ -155,13 +155,13 @@ arms(5.5, by - 19.0, 2.7, 6.4, JACKET, function (i, x, y) {
 face(by - 21.0);
 if (!FA.back) {
 var ihx = cx + sd * 1.9 / TURN + HEADX;
-g.fillStyle = ACCENT.ivan;                                    // beard, chin only
+g.fillStyle = ACC;                                    // beard, chin only
 g.beginPath();
 g.moveTo(ihx - 2.0, by - 20.4); g.lineTo(ihx + 2.0, by - 20.4);
 g.lineTo(ihx + 1.7, by - 19.3); g.lineTo(ihx, by - 18.5);
 g.lineTo(ihx - 1.7, by - 19.3); g.closePath(); g.fill();
 outline(g, '#3d2a16');
-g.fillStyle = shade(ACCENT.ivan, 1.24);
+g.fillStyle = shade(ACC, 1.24);
 g.fillRect(ihx - 1.7, by - 20.25, 1.5, 0.7);
 g.fillStyle = '#3a2b1c';                                      // two eyes under the brim
 g.fillRect(ihx - 1.55, by - 21.5, 0.95 * (1 - 0.5 * sd), 0.8);

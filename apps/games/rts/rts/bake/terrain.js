@@ -221,6 +221,12 @@ function pixelate(s, levels, alphaCut) {
   var i;
   for (i = 0; i < d.length; i += 4) {
     if (d[i + 3] < alphaCut) { d[i + 3] = 0; continue; }
+    // The GROUND SHADOW is the one thing that must stay soft. It is drawn as
+    // rgba(0,0,0,.38) — alpha 97, a hair over the 96 cut — so snapping alpha
+    // turned a translucent ellipse into a SOLID BLACK SLAB under every figure,
+    // 22 rows tall on the Desolator. A pixel that is both near-black and
+    // translucent is shadow, never art: leave it exactly as it was drawn.
+    if (d[i + 3] < 200 && d[i] < 40 && d[i + 1] < 40 && d[i + 2] < 40) continue;
     d[i + 3] = 255;
     if (levels < 2) continue;
     // Quantise VALUE, never the channels. Per-channel rounding at six levels

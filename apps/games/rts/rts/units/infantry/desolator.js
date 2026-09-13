@@ -6,7 +6,7 @@
 
 
 function drawDesolator(C) {
-  var FA = C.FA, T = C.T, TURN = C.TURN, arms = C.arms, by = C.by, col = C.col, cx = C.cx, g = C.g,
+  var ACC = C.ACC, FA = C.FA, T = C.T, TURN = C.TURN, arms = C.arms, by = C.by, col = C.col, cx = C.cx, g = C.g,
       gt = C.gt, legs = C.legs, sd = C.sd, wpn = C.wpn;
 
 // DESOLATOR ([DESO]), read off docs/ra2-ref/ra2-deso-RA2_Desolator_
@@ -64,7 +64,7 @@ for (var dpk = -1; dpk <= 1; dpk += 2) {
   // first thing the eye finds on the plate and reads at 1:1 as well.
   g.fillStyle = 'rgba(77,224,74,.34)';                         // bloom off the cap
   g.beginPath(); g.ellipse(pkx, by - 21.9, 2.3, 1.5, 0, 0, 6.29); g.fill();
-  g.fillStyle = ACCENT.desolator;                              // the isotope itself
+  g.fillStyle = ACC;                              // the isotope itself
   g.beginPath(); g.ellipse(pkx, by - 21.9, 1.45, 0.80, 0, 0, 6.29); g.fill();
   g.fillStyle = '#dcff7a';                                     // hot centre — RA2's glow is
   g.beginPath();                                               // YELLOW-green at its brightest
@@ -160,7 +160,7 @@ wpn(function () {
   g.beginPath(); g.ellipse(cx + 6.0, gy0 + 1.7, 3.3, 3.3, 0, 0, 6.29); g.fill();
   g.fillStyle = 'rgba(77,224,74,.40)';
   g.beginPath(); g.ellipse(cx + 6.0, gy0 + 1.7, 2.5, 2.5, 0, 0, 6.29); g.fill();
-  g.fillStyle = ACCENT.desolator;
+  g.fillStyle = ACC;
   g.beginPath(); g.ellipse(cx + 6.0, gy0 + 1.7, 1.95, 2.05, 0, 0, 6.29); g.fill();
   outline(g, '#1f5c1e');
   g.fillStyle = '#dcff7a';                                     // a HOT core, not a highlight:

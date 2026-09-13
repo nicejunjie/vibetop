@@ -6,7 +6,7 @@
 
 
 function drawConscript(C) {
-  var HEADX = C.HEADX, JACKET = C.JACKET, POUCH = C.POUCH, SLEEVE = C.SLEEVE, T = C.T,
+  var ACC = C.ACC, HEADX = C.HEADX, JACKET = C.JACKET, POUCH = C.POUCH, SLEEVE = C.SLEEVE, T = C.T,
       TURN = C.TURN, arms = C.arms, by = C.by, carbine = C.carbine, col = C.col, cx = C.cx,
       face = C.face, g = C.g, gt = C.gt, legs = C.legs, sd = C.sd;
 
@@ -77,7 +77,7 @@ face(by - 20.1);
 // pot dome and the Conscript gets a low FLAT crown with a forward peak,
 // in near-black: different shape AND different value, at the one place
 // on a 20px figure a player actually looks.
-var CCAP = ACCENT.conscript, chy2 = by - 22.4;
+var CCAP = ACC, chy2 = by - 22.4;
 var ccx = cx + sd * 1.1 / TURN + HEADX, ccw = 2.25 * (1 - 0.16 * sd);
 g.fillStyle = CCAP;
 g.beginPath(); g.roundRect(ccx - ccw, chy2 - 2.6, ccw * 2, 3.9, 1.9); g.fill();

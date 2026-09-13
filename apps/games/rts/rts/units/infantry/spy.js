@@ -6,7 +6,7 @@
 
 
 function drawSpy(C) {
-  var FA = C.FA, HEADX = C.HEADX, T = C.T, TURN = C.TURN, arms = C.arms, by = C.by, col = C.col,
+  var ACC = C.ACC, FA = C.FA, HEADX = C.HEADX, T = C.T, TURN = C.TURN, arms = C.arms, by = C.by, col = C.col,
       cx = C.cx, face = C.face, g = C.g, gt = C.gt, sd = C.sd;
 
 // SPY ([SPY]), read off docs/ra2-ref/ra2-spy-RA2_Spy_Manual_Render: a
@@ -139,7 +139,7 @@ g.lineTo(cx + 5.1, by - 14.0); g.lineTo(cx + 0.5, by - 15.6);
 g.closePath(); g.fill(); outline(g, shade(T.coat, 0.46));
 g.fillStyle = shade(T.coat, 1.14);                             // its lit top edge
 g.fillRect(cx + 0.8, by - 20.5, 4.6, 0.9);
-g.fillStyle = ACCENT.spy;                                      // shirt front in the V
+g.fillStyle = ACC;                                      // shirt front in the V
 g.beginPath();
 g.moveTo(cx - 1.4, by - 20.7); g.lineTo(cx + 1.4, by - 20.7);
 g.lineTo(cx + 0.9, by - 13.4); g.lineTo(cx - 0.9, by - 13.4);

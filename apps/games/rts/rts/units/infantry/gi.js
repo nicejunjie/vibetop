@@ -6,7 +6,7 @@
 
 
 function drawGi(C) {
-  var T = C.T, arms = C.arms, by = C.by, carbine = C.carbine, col = C.col, cx = C.cx,
+  var ACC = C.ACC, T = C.T, arms = C.arms, by = C.by, carbine = C.carbine, col = C.col, cx = C.cx,
       g = C.g, gt = C.gt, helmet = C.helmet, legs = C.legs;
 
 // GI ([E1]). The RA2 layout, and it is the OPPOSITE of what this branch
@@ -63,6 +63,6 @@ carbine(cx - 3.4, by - 13.8 + gt.sw * 0.4, cx + 5.0, by - 17.2 - gt.sw * 0.4, 1.
 // rows 7+ red torso — no skin tone anywhere). The old tan face/neck between
 // them was invented; it is gone, and the helmet drops 1.75 so its brim lands
 // on the collar instead of floating above it.
-helmet(by - 21.75, 3.15, ACCENT.rifle, 0.95, 0.72);              // grey pot, NOT house colour
+helmet(by - 21.75, 3.15, ACC, 0.95, 0.72);              // grey pot, NOT house colour
 g.restore();
 }

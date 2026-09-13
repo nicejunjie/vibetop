@@ -6,7 +6,7 @@
 
 
 function drawCleg(C) {
-  var FA = C.FA, HEADX = C.HEADX, T = C.T, TURN = C.TURN, arms = C.arms, by = C.by, col = C.col,
+  var ACC = C.ACC, FA = C.FA, HEADX = C.HEADX, T = C.T, TURN = C.TURN, arms = C.arms, by = C.by, col = C.col,
       cx = C.cx, g = C.g, gt = C.gt, legs = C.legs, sd = C.sd;
 
 // CHRONO LEGIONNAIRE ([CLEG]), read off docs/ra2-ref/ra2-cleg-CC_Legion
@@ -81,7 +81,7 @@ for (var clk = -1; clk <= 1; clk += 2) {
 }
 g.fillStyle = '#5f6a7a';                                       // chest vent slot
 g.fillRect(cx - 1.6, by - 17.4, 3.2, 1.9);
-g.fillStyle = ACCENT.cleg;
+g.fillStyle = ACC;
 g.fillRect(cx - 1.3, by - 17.2, 1.1, 1.4);
 
 // THE WIDEST ALLIED FOOT SILHOUETTE. §2.1 asks for a shoulder line

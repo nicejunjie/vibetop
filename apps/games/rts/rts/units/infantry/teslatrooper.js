@@ -6,7 +6,7 @@
 
 
 function drawTeslatrooper(C) {
-  var FA = C.FA, T = C.T, TURN = C.TURN, arms = C.arms, by = C.by, col = C.col, cx = C.cx, g = C.g,
+  var ACC = C.ACC, FA = C.FA, T = C.T, TURN = C.TURN, arms = C.arms, by = C.by, col = C.col, cx = C.cx, g = C.g,
       gt = C.gt, legs = C.legs, sd = C.sd;
 
 // TESLA TROOPER, read off soviet-tesla-trooper-frames: not a man in a
@@ -150,7 +150,7 @@ arms(6.5, by - 19.6, 3.4, 6.8, '#5b6478', function (i, x, y) {
   // The cap is an ELLIPSE that hugs the shoulder, not a slab beside
   // it: as a rounded rectangle it stood clear of the torso on both
   // sides and the trooper walked around carrying two suitcases.
-  g.fillStyle = ACCENT.teslatrooper;
+  g.fillStyle = ACC;
   g.beginPath();
   g.ellipse(x - i * 0.5, y + 0.3, 2.0, 1.8, 0, Math.PI, 0); g.fill();
   g.fillRect(x - i * 0.5 - 2.0, y + 0.3, 4.0, 1.3);
@@ -223,7 +223,7 @@ arms(6.5, by - 19.6, 3.4, 6.8, '#5b6478', function (i, x, y) {
 // opening. helmet() would put a house-colour cap here, which is what
 // the chest is already doing — the head has to be the STEEL note.
 var hby = by - 24.9;
-g.fillStyle = ACCENT.teslatrooper;
+g.fillStyle = ACC;
 g.beginPath(); g.arc(cx, hby, 3.6, Math.PI, 0); g.fill();
 g.fillRect(cx - 3.6, hby, 7.2, 2.0);
 outline(g, '#454b55');

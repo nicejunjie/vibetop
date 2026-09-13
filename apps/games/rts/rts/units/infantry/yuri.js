@@ -6,7 +6,7 @@
 
 
 function drawYuri(C) {
-  var FA = C.FA, HEADX = C.HEADX, T = C.T, TURN = C.TURN, arms = C.arms, by = C.by, col = C.col,
+  var ACC = C.ACC, FA = C.FA, HEADX = C.HEADX, T = C.T, TURN = C.TURN, arms = C.arms, by = C.by, col = C.col,
       cx = C.cx, face = C.face, g = C.g, gt = C.gt, sd = C.sd;
 
 // YURI ([YURI]). No sprite rip exists on the wiki (ns:File searches for
@@ -143,7 +143,7 @@ g.globalCompositeOperation = 'lighter';
 for (var ypi = -1; ypi <= 1; ypi += 2) {
   g.fillStyle = 'rgba(168,111,240,.26)';
   g.beginPath(); g.ellipse(yhx + ypi * 4.7, by - 24.8, 0.95, 0.95, 0, 0, 6.29); g.fill();
-  g.fillStyle = ACCENT.yuri;
+  g.fillStyle = ACC;
   g.beginPath(); g.ellipse(yhx + ypi * 4.7, by - 24.8, 0.55, 0.55, 0, 0, 6.29); g.fill();
 }
 g.restore();

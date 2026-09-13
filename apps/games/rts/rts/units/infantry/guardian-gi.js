@@ -6,7 +6,7 @@
 
 
 function drawGuardianGi(C) {
-  var FA = C.FA, HEADX = C.HEADX, T = C.T, TURN = C.TURN, arms = C.arms, by = C.by, col = C.col,
+  var ACC = C.ACC, FA = C.FA, HEADX = C.HEADX, T = C.T, TURN = C.TURN, arms = C.arms, by = C.by, col = C.col,
       cx = C.cx, face = C.face, g = C.g, gt = C.gt, helmet = C.helmet, legs = C.legs, sd = C.sd,
       wpn = C.wpn;
 
@@ -148,10 +148,10 @@ g.lineCap = 'round';
 g.strokeStyle = '#4a3308'; g.lineWidth = 5.0;                 // rim, at the warhead's OWN
 g.beginPath();                                                // width — see the tube note
 g.moveTo(cx + 7.5, by - 25.2 - ry); g.lineTo(cx + 9.2, by - 27.2 - ry); g.stroke();
-g.strokeStyle = ACCENT.rocket; g.lineWidth = 3.9;             // amber warhead: BLUNT, and
+g.strokeStyle = ACC; g.lineWidth = 3.9;             // amber warhead: BLUNT, and
 g.beginPath();                                                // standing above the crown
 g.moveTo(cx + 7.5, by - 25.2 - ry); g.lineTo(cx + 9.2, by - 27.2 - ry); g.stroke();
-g.strokeStyle = shade(ACCENT.rocket, 1.28); g.lineWidth = 1.6;
+g.strokeStyle = shade(ACC, 1.28); g.lineWidth = 1.6;
 g.beginPath();
 g.moveTo(cx + 7.9, by - 26.3 - ry); g.lineTo(cx + 9.1, by - 27.7 - ry); g.stroke();
 });
