@@ -81,13 +81,27 @@ g.strokeStyle = ENVE; g.lineWidth = 0.9; g.stroke();
 // ribs: cross-section ellipses, clipped to the envelope
 g.save(); bodyPath(); g.clip();
 var rt, rp, rr2, ph2;
-function hoop(ht, wdt, colr) {
-  var hp = pt(ht), hr = rad(ht), k4;
+// ONLY THE NEAR HALF OF THE RING IS VISIBLE. This stroked the FULL ellipse,
+// 0 to 2pi, so every band round the hull was drawn as a closed loop — and the
+// half of it that runs round the BACK of the envelope came out on top of the
+// gold instead of being hidden behind it. A ring on an opaque body of
+// revolution shows one arc, not two; seeing both is the classic tell that a
+// solid is being drawn as a wireframe.
+//
+// Which arc is behind follows from the geometry already here: a point at angle
+// `a` sits `hr*cos(a)` along the ground-perpendicular P, and `far` is the sign
+// of P that points AWAY from the camera. So the far arc is where cos(a) has
+// the same sign as `far`, and only the other one is drawn. `open` keeps the
+// old full-circle behaviour available for anything that is genuinely a ring
+// standing clear of the hull.
+function hoop(ht, wdt, colr, open) {
+  var hp = pt(ht), hr = rad(ht), k4, started = false;
   g.strokeStyle = colr; g.lineWidth = wdt; g.beginPath();
-  for (k4 = 0; k4 <= 20; k4++) {
-    var a5 = k4 / 20 * 6.2832;
-    var hx2 = hp[0] + hr * Math.cos(a5) * px, hy2 = hp[1] + hr * (Math.cos(a5) * py - Math.sin(a5));
-    if (k4 === 0) g.moveTo(hx2, hy2); else g.lineTo(hx2, hy2);
+  for (k4 = 0; k4 <= 40; k4++) {
+    var a5 = k4 / 40 * 6.2832, ca = Math.cos(a5);
+    if (!open && ca * far > 0) { started = false; continue; }
+    var hx2 = hp[0] + hr * ca * px, hy2 = hp[1] + hr * (ca * py - Math.sin(a5));
+    if (!started) { g.moveTo(hx2, hy2); started = true; } else g.lineTo(hx2, hy2);
   }
   g.stroke();
 }
