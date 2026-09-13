@@ -153,7 +153,7 @@ var ACCENT = {
   // entirely and the Directorate sidebar's worst pair, `GI | Spy`, went
   // 53.6 -> 55.4. Paired with helmet()'s `hef` shell edge floor, since a
   // brighter FILL alone tops out at a 0.115 gap even at near-white.
-  rifle:     '#c9d0d8',   // GREY POT HELMET over the GI's house-colour torso block
+  rifle:     '#999999',   // GREY POT HELMET over the GI's house-colour torso block
   conscript: '#999999',   // his DARK flat-crowned cap; the Conscript's remap is his TUNIC
   rocket:    '#ffbe45',   // amber warhead (Guardian) / amber shell drum (Flak)
   tank:      '#39415a',   // gunmetal barrel
@@ -228,7 +228,7 @@ function outline(g, col) { g.strokeStyle = col; g.lineWidth = 1; g.stroke(); }
 // Nobody moved more than one band, and no two of the five now sit within 18 L
 // of each other.
 var TROOP = {
-  rifle:     { coat: '#4f6136', boot: '#22242a', skin: '#d8a878' },  // olive fatigues
+  rifle:     { coat: '#333300', boot: '#22242a', skin: '#d8a878' },  // olive fatigues
   conscript: { coat: '#663333', boot: '#1e2026', skin: '#d8a878' },  // TAN trousers (>=20 hue-deg off the GI's olive: ref §2.2)
   rocket:    { coat: '#49512f', boot: '#22242a', skin: '#d8a878' },  // Guardian GI: heavy olive
   rocketS:   { coat: '#575049', boot: '#22242a', skin: '#d8a878' },  // Flak Trooper: grey-brown
@@ -337,7 +337,7 @@ var INF_VALUE = {
                                    //  RED one, which is the enemy's hue
   desolator: 1.14,                 //  a charcoal hazard suit
   conscript: [0.92, 0.94, 0.98],   //  dark, and TAN against the GI's olive
-  rifle:     [1.04, 0.98, 1.07],   //  unmoved in value, pushed onto olive
+  rifle:     [0.90, 0.86, 0.92],   //  unmoved in value, pushed onto olive
   yuri:      0.95,                 //  a step up from Ivan in value alone: his coat
                                    //  is already violet, and tilting it further
                                    //  lands on one owner's hue or the other's
@@ -513,7 +513,7 @@ var STATURE = {
   yuri:         [0.87, 1.02],   // i-L 12x29 — the tallest man carrying no weapon
   desolator:    [1.14, 1.18],   // i-M — the bulk of a sealed hazard suit
   teslatrooper: [1.11, 0.87],   // i-M 18x28 — THE widest, and NOT the tallest
-  rifle:        [0.81, 1.10],   // i-M 12x28 — narrow; the baseline soldier
+  rifle:        [0.81, 1.00],   // i-M 12x28 — narrow; the baseline soldier
   conscript:    [1.06, 1.01],   // i-M 13x27 — the reference figure
   cleg:         [0.83, 0.89],   // i-M 15x26 — RA2 0.577; the old [1.22,0.84] was tuned against a spike budget that misread its own citation   // i-M 15x26 — the widest Directorate shoulders
   tanya:        [0.78, 1.04],   // i-M 13x26 — and the pistols do NOT keep her wide,

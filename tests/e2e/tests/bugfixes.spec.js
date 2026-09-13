@@ -86,4 +86,29 @@ test.describe('review bug-fixes (behavior)', () => {
     await page.keyboard.press('Escape');
     await expect(listing.locator('.ql.open')).toHaveCount(0, { timeout: 8_000 });
   });
+
+  // The same keyboard, in FLOATING-WINDOW mode — a different focus path and the
+  // one the user actually hit. Clicking a file in a background Files window
+  // activates the app from a pointerdown INSIDE its iframe; the shell used to
+  // answer that by focusing the wrapper frame on a 0ms timer, dragging focus
+  // back UP out of the listing the click had just reached. The click selected
+  // the file, so the app looked right, but Space went to the wrapper — hence
+  // "click twice". One click must both select and leave the keys in the listing.
+  test('Files: clicking a file in a background floating window leaves the keyboard in the listing', async ({ page }) => {
+    await page.addInitScript(() => { try { localStorage.setItem('vibetop:wm', '1'); } catch (e) {} });
+    await page.goto('/');
+    const frame = await openAppFrame(page, 'files');
+    const listing = frame.contentFrame().frameLocator('iframe.active');
+    await expect(listing.locator('.row[data-i]').first()).toBeVisible({ timeout: 20_000 });
+
+    // Send Files to the background, then reach into its window with ONE click.
+    await openAppFrame(page, 'notes');
+    await listing.locator('.row[data-i]').first().click({ force: true });
+    await expect(listing.locator('.row.sel')).toHaveCount(1, { timeout: 8_000 });
+
+    await page.keyboard.press(' ');
+    await expect(listing.locator('.ql.open')).toBeVisible({ timeout: 8_000 });
+    await page.keyboard.press('Escape');
+    await expect(listing.locator('.ql.open')).toHaveCount(0, { timeout: 8_000 });
+  });
 });
