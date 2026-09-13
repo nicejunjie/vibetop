@@ -11,6 +11,20 @@
 // app, with EVERY other app also open, the keys must still arrive there. Run it
 // with VIBETOP_E2E_FULL=1 (VM) to include the Browser/xpra — the lean VM does
 // not install it, which is exactly why the bug survived a VM run.
+//
+// HONEST LIMIT — read before trusting this green. It does NOT reproduce the
+// v1.19.362 steal: measured in the FULL VM against the UNFIXED xpra-patches.js
+// (with a real, connected xpra client and the legacy pump posted straight at
+// the Browser frame), headless Chromium simply refuses a background iframe's
+// window.focus(), so top-level focus never moved and this spec passed either
+// way. A test that cannot fail on the broken build guards nothing.
+// THE guard for that bug is hermetic: "a merely VISIBLE browser window does not
+// grab the keyboard" in apps/everyday/browser/xpra-patches.test.js, which
+// drives the patch file directly and was verified failing on the unfixed file.
+// What this spec is still worth: it is the only place several apps are open at
+// once, so it catches cross-app regressions that headless CAN express. To make
+// it bite on focus theft it would need a headed browser (Xvfb) with real
+// top-level focus semantics.
 const { test, expect } = require('@playwright/test');
 const { openApp, openAppFrame, backendOnly } = require('../helpers');
 
@@ -56,9 +70,12 @@ test.describe('cross-app focus — no app may take the keyboard from the one you
       await page.waitForTimeout(1500);
     }
 
-    // Back to Files with ONE click on a file — the user's actual gesture.
-    await openApp(page, 'files');
-    await page.waitForTimeout(800);
+    // Back to Files with ONE click on a file IN THE BACKGROUND WINDOW — that
+    // click is what activates the app, and activation is what pumps every
+    // visible window. Activating Files some other way first (the Start menu,
+    // the taskbar) and only then clicking makes this the harmless "second
+    // click" case, which never triggered the pump at all: the first version of
+    // this spec did exactly that and passed against the unfixed build.
     await listing.locator('.row[data-i]').first().click({ force: true });
     await expect(listing.locator('.row.sel')).toHaveCount(1, { timeout: 8_000 });
 
