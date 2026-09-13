@@ -162,7 +162,7 @@ var ACCENT = {
   spectre:   '#dfe9f5',   // small mirror face on a grey head (Prism Tank art)
   mcv:       '#e0a33c',   // amber folded-crane boom on a grey crawler
   harv:      '#b0955a',   // tan slatted ore bin
-  engineer:  '#e8c33c',   // amber hard hat — the engineer's one loud surface
+  engineer:  '#ffcc33',   // amber hard hat — the engineer's one loud surface
   // BLONDE, which is what §2.3's row for her actually says: "bare pale
   // limbs + a bright blonde 2x2 head — the HIGHEST-VALUE head on the field
   // over the lowest house-colour fraction in RA2 (14.3%)". We drew it
@@ -170,7 +170,7 @@ var ACCENT = {
   // palette — which is why `dog | tanya` has been pinned at the
   // friend-vs-foe floor in the fit window. A bright head is a note the dog
   // cannot carry, and it is the reference's.
-  tanya:     '#e8d489',   // bright blonde — the highest-value head on the field
+  tanya:     '#cc9999',   // bright blonde — the highest-value head on the field
   ifv:       '#e6eaf0',   // white lower body under the blue flank stripe
   mirage:    '#e9edf2',   // the ribbed white emitter stack on the deck
   rhino:     '#2b2f36',   // NEUTRAL gunmetal barrel. The Lancer's navy put an
@@ -179,13 +179,13 @@ var ACCENT = {
   v3:        '#e6e7e9',   // the white rocket that IS the silhouette
   drone:     '#a9b0bb',   // bare metal carapace
   teslatank: '#dfe6ee',   // pale coil windings
-  teslatrooper: '#c3cbd6',// steel helmet bowl and gauntlet
+  teslatrooper: '#cccccc',// steel helmet bowl and gauntlet
   ivan:      '#6f4c2c',   // his beard — the only bare face under a fur hat
   flak:      '#ffbe45',   // amber shell drum, as the Flak Trooper art under `rocket`
-  rocketeer: '#9aa3ae',   // steel flight suit; the jets are the loud part
+  rocketeer: '#666699',   // steel flight suit; the jets are the loud part
   desolator: '#4de04a',   // the rad cannon's green muzzle glow — his one loud surface
-  cleg:      '#cfe4f5',   // the bone-white helmet dome and the rifle's cold coil
-  spy:       '#d8d2c4',   // the pale shirt strip down the house-colour overcoat
+  cleg:      '#8c94a8',   // the bone-white helmet dome and the rifle's cold coil
+  spy:       '#999999',   // the pale shirt strip down the house-colour overcoat
   yuri:      '#a86ff0'    // psychic violet at the temples
 };
 
@@ -230,9 +230,9 @@ function outline(g, col) { g.strokeStyle = col; g.lineWidth = 1; g.stroke(); }
 var TROOP = {
   rifle:     { coat: '#333300', boot: '#22242a', skin: '#d8a878' },  // olive fatigues
   conscript: { coat: '#663333', boot: '#1e2026', skin: '#d8a878' },  // TAN trousers (>=20 hue-deg off the GI's olive: ref §2.2)
-  rocket:    { coat: '#49512f', boot: '#22242a', skin: '#d8a878' },  // Guardian GI: heavy olive
+  rocket:    { coat: '#333300', boot: '#22242a', skin: '#d8a878' },  // Guardian GI: heavy olive
   rocketS:   { coat: '#575049', boot: '#22242a', skin: '#d8a878' },  // Flak Trooper: grey-brown
-  engineer:  { coat: '#e9e5d6', boot: '#6d6653', skin: '#d8a878' },  // NEAR-WHITE hazmat coverall — the only light-value body on the field (ref §2.1). The boot stays DARK on purpose: it is worth 0.005 of the value gate, and a near-white figure needs one dark note at the ground or he floats
+  engineer:  { coat: '#8c8c99', boot: '#6d6653', skin: '#d8a878' },  // NEAR-WHITE hazmat coverall — the only light-value body on the field (ref §2.1). The boot stays DARK on purpose: it is worth 0.005 of the value gate, and a near-white figure needs one dark note at the ground or he floats
   // DARK combat trousers, not light khaki. At L=133 khaki she was the same
   // value and nearly the same hue as the attack dog's tan coat, and
   // `dog | tanya` has sat at 12.5 in the fit window — exactly ON the
@@ -243,13 +243,13 @@ var TROOP = {
   // holding the anchor down, and §2.3's row for her is "BARE PALE LIMBS +
   // a bright head" over "the LOWEST house-colour fraction in RA2 (14.3%)"
   // — a contrast read that a light khaki body cancels out.
-  tanya:     { coat: '#2f3138', boot: '#15171c', skin: '#e6b98f' },  // dark combat trousers, L=49
-  teslatrooper: { coat: '#1e2338', boot: '#868d97', skin: '#d8a878' },// navy armour, steel greaves
-  ivan:      { coat: '#3b2f26', boot: '#4a4e57', skin: '#dfae82' },   // WARM BROWN trousers, L=50, grey boots
-  rocketeer: { coat: '#6f7782', boot: '#2a2e35', skin: '#d8a878' },   // grey pressure suit
+  tanya:     { coat: '#333333', boot: '#15171c', skin: '#e6b98f' },  // dark combat trousers, L=49
+  teslatrooper: { coat: '#000033', boot: '#868d97', skin: '#d8a878' },// navy armour, steel greaves
+  ivan:      { coat: '#330000', boot: '#4a4e57', skin: '#dfae82' },   // WARM BROWN trousers, L=50, grey boots
+  rocketeer: { coat: '#333333', boot: '#2a2e35', skin: '#d8a878' },   // grey pressure suit
   // Read off ra2-deso-RA2_Desolator_{Render,Manual_Render}: a charcoal
   // hazard suit with the house colour on the plates, heavy black boots.
-  desolator: { coat: '#3a3d45', boot: '#191b20', skin: '#d8a878' },
+  desolator: { coat: '#1c1c1c', boot: '#191b20', skin: '#d8a878' },
   // Read off ra2-cleg-CC_Legion_Chrono_Legionnaire + the sprite animation:
   // a PALE suit — bone-white plate over pale blue-grey underlayer.
   // ...and the suit is a NEUTRAL steel, not a blue-grey. #8f97a6 is 12
@@ -258,7 +258,7 @@ var TROOP = {
   // and an owner-blue one has nowhere to land and the two fuse. #a8aab0
   // carries the same value read (he is still the pale figure) with the blue
   // cast taken out, which is what makes the shell separate from the ring.
-  cleg:      { coat: '#a8aab0', boot: '#40454f', skin: '#dcae84' },
+  cleg:      { coat: '#333333', boot: '#40454f', skin: '#dcae84' },
   // Read off ra2-spy-RA2_Spy_Manual_Render. `coat` is his DRAB zone — the
   // hat, the lapel facings, the hem below the coat and his shoes; the coat
   // body itself is the house block (§1.5 heads his middle column "mid zone
@@ -293,7 +293,7 @@ var TROOP = {
   // One point of a cameo pair is not worth spending the map's own hard
   // gate, so the LOW-chroma rung is the one that ships. Recorded so nobody
   // re-runs the sweep hoping the trade is free.
-  spy:       { coat: '#d6c6a6', boot: '#191b21', skin: '#e2b78e' },   // CAMEL overcoat cloth, L=196
+  spy:       { coat: '#333333', boot: '#191b21', skin: '#e2b78e' },   // CAMEL overcoat cloth, L=196
   // No RA2 sprite rip could be found for Yuri on the wiki (searched
   // ns:File "Yuri RA2"/"Yuri Render"/"Yuri Cameo" — nothing); built from
   // the unit's description instead: bald, pale, long high-collared coat.
@@ -331,17 +331,17 @@ var TROOP = {
 // Flak Trooper, the Tesla Trooper, Yuri and the dog (whose 0.57 saturation
 // already separates him from every man in the game).
 var INF_VALUE = {
-  ivan:      [1.73, 1.60, 1.43],   // darkest man on the field; the uneven
+  ivan:      [1.85, 1.70, 1.52],   // darkest man on the field; the uneven
                                    //  channels DESATURATE as they darken -- a
                                    //  flat gamma turns his brown coat into a dark
                                    //  RED one, which is the enemy's hue
-  desolator: 1.14,                 //  a charcoal hazard suit
-  conscript: [0.92, 0.94, 0.98],   //  dark, and TAN against the GI's olive
-  rifle:     [0.90, 0.86, 0.92],   //  unmoved in value, pushed onto olive
+  desolator: 1.47,                 //  a charcoal hazard suit
+  conscript: [0.97, 1.00, 1.04],   //  dark, and TAN against the GI's olive
+  rifle:     [0.96, 0.92, 0.97],   //  unmoved in value, pushed onto olive
   yuri:      0.95,                 //  a step up from Ivan in value alone: his coat
                                    //  is already violet, and tilting it further
                                    //  lands on one owner's hue or the other's
-  spy:       [0.72, 0.69, 0.62],   //  light, and COOL: a pale trench coat
+  spy:       [1.79, 1.73, 1.55],   //  light, and COOL: a pale trench coat
   // NOT MOVED, and the reason is worth writing down, because the obvious
   // read of this rung is that it is wrong. It IS wrong as fidelity: measured
   // off the baked sprite, [0.50,0.70,1.05] is a 0.55 channel spread, and a
@@ -405,10 +405,14 @@ var INF_VALUE = {
   // area, more white plate — which is R1-R6 silhouette-and-zone work on one
   // unit, with the owner-signal floor (hue.infantryOwnerMean >= 0.29) as the
   // binding constraint. Do not reach for the ladder again.
-  rocketeer: [0.74, 0.74, 0.76],   //  a light CREAM pressure suit
-  cleg:      [0.74, 0.71, 0.64],   //  bone-white plate over blue-grey
-  tanya:     [0.45, 0.58, 0.70],   //  warm khaki, bare arms, blonde
-  engineer:  [0.62, 0.64, 0.60],   //  brightest in either army, and neutral
+  rocketeer: [1.31, 1.31, 1.36],   //  a light CREAM pressure suit
+  cleg:      [1.85, 1.78, 1.60],   //  bone-white plate over blue-grey
+  tanya:     [1.06, 1.36, 1.64],   //  warm khaki, bare arms, blonde
+  engineer:  [2.74, 2.82, 2.64],   //  brightest in either army, and neutral
+  rocket:    1.57,   // measured onto the rip's median brightness
+  dog:       1.67,   // measured onto the rip's median brightness
+  flak:      1.92,   // measured onto the rip's median brightness
+  teslatrooper:3.00,   // measured onto the rip's median brightness
 };
 
 // THE EDGE FLOOR — the second half of the value ladder, and the half that
@@ -499,7 +503,7 @@ var INF_EDGE = {
 // The full measurement is recorded on the neutron rifle in his branch.
 var STATURE = {
   flak:         [0.77, 0.94],   // i-XL by BARREL: a narrow man under a tall gun
-  rocket:       [0.78, 0.71],   // i-M 15x30 — the Guardian is the heavy one, and
+  rocket:       [0.78, 0.99],   // i-M 15x30 — the Guardian is the heavy one, and
                                 // deliberately NOT a tall one: §2.1/§2.2 put him at
                                 // 30 px against the Flak Trooper's 37 (a ratio of
                                 // 0.81), and once his missile tube was raised clear
@@ -511,12 +515,12 @@ var STATURE = {
                                 // at 0.605 and both failed peer-vs-self. He is 41
                                 // rows now against the Flak Trooper's 45.
   yuri:         [0.87, 1.02],   // i-L 12x29 — the tallest man carrying no weapon
-  desolator:    [1.14, 1.18],   // i-M — the bulk of a sealed hazard suit
-  teslatrooper: [1.11, 0.87],   // i-M 18x28 — THE widest, and NOT the tallest
+  desolator:    [1.14, 1.59],   // i-M — the bulk of a sealed hazard suit
+  teslatrooper: [1.11, 1.04],   // i-M 18x28 — THE widest, and NOT the tallest
   rifle:        [0.81, 1.00],   // i-M 12x28 — narrow; the baseline soldier
   conscript:    [1.06, 1.01],   // i-M 13x27 — the reference figure
   cleg:         [0.83, 0.89],   // i-M 15x26 — RA2 0.577; the old [1.22,0.84] was tuned against a spike budget that misread its own citation   // i-M 15x26 — the widest Directorate shoulders
-  tanya:        [0.78, 1.04],   // i-M 13x26 — and the pistols do NOT keep her wide,
+  tanya:        [0.78, 1.30],   // i-M 13x26 — and the pistols do NOT keep her wide,
                                 // which is what this entry used to say. Measured, her
                                 // 22 px of width was 14 px of body and three columns
                                 // of gun a side; RA2 gives her a Conscript's width.
@@ -524,8 +528,8 @@ var STATURE = {
                                 // is wedged between — the Spy (16x35) on same-faction
                                 // IoU and the Attack Dog on legibility, which she fell
                                 // under at 18x31.
-  ivan:         [0.71, 0.81],   // i-S 12x25 — the narrowest of the Collective
-  engineer:     [0.75, 0.84],   // i-S 13x25 — a workman, not a soldier: broader in
+  ivan:         [0.71, 1.35],   // i-S 12x25 — the narrowest of the Collective
+  engineer:     [0.75, 1.06],   // i-S 13x25 — a workman, not a soldier: broader in
                                 // the shoulder than a rifleman, and NOT the squat one
                                 // he was. This read [1.22,0.76] to break two
                                 // same-faction IoU pairs (his own, since he is shared
@@ -535,7 +539,7 @@ var STATURE = {
                                 // 65% wider than his own plate. Those pairs are held
                                 // by his §1.5 levers now, not by his proportions.
   spy:          [0.84, 0.78],   // i-S 13x25 — the slightest figure on the field
-  rocketeer:    [0.97, 0.76],   // i-S 16x24 — the shortest, broadened by the pack
+  rocketeer:    [0.97, 0.84],   // i-S 16x24 — the shortest, broadened by the pack
   dog:          [0.75, 0.96],  // i-XS quadruped. RA2 draws [ADOG] 21 wide against
                                 // [E1]'s 12 — 1.75x the man. Ours was 39 against 17,
                                 // 2.29x, the widest thing in the infantry group by
