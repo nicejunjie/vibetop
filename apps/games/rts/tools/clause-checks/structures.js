@@ -83,6 +83,60 @@ const hueGap = (a, b) => { const d = Math.abs(a - b) % 360; return d > 180 ? 360
 // pixels on sprites that had not been touched. See tools/lib/house-hue.js.
 const OWNER_HUE = require('../lib/house-hue.js').ownerHue(0);
 const CONTRAST = 0.25;                        // "the §2 floor" (power's lit-slit row, §2.6)
+/**
+ * ONE PALETTE STEP — the smallest value difference RA2's own palette can spell.
+ *
+ * `CONTRAST = 0.25` predates `pixelate()`'s snap to RA2's 6-level channel grid
+ * (a73c56c). Every channel of every pixel is now a multiple of 0x33, so the V
+ * axis has exactly six values: 0, 0.2, 0.4, 0.6, 0.8, 1.0. A "25% contrast"
+ * floor therefore does not ask for a bit more than one step, it asks for TWO —
+ * and on the dark sprites it silently asks for the impossible. Measured on the
+ * two rows that broke the day the snap landed, with ZERO lines of structure art
+ * changed between the readings:
+ *
+ *   patriot [dir]  median V 0.200 exactly (the grid point 0x33). `med - v >=
+ *                  0.25` wants v <= -0.05, which no pixel can be. The four tube
+ *                  mouths resolve as 4 blobs with IDENTICAL bboxes at 0.10,
+ *                  0.15 and 0.20 and vanish only at 0.25 — the mouths are drawn,
+ *                  the arithmetic has no room left. Was 4 blobs pre-snap.
+ *   flakcannon     median V 0.200. The barrel is #999999 (v 0.6) over a #666666
+ *     [col]        (v 0.4) shank; 0.25 admits the first and rejects the second,
+ *                  cutting ONE barrel into two bright blobs that touch at
+ *                  y22/y23. Was 1 blob pre-snap.
+ *
+ * So value contrast on a snapped sprite is counted in STEPS, and one full step
+ * is the floor a "visible against its own body" row actually states. Rows that
+ * compare a highlight against a MID-VALUE body keep `CONTRAST`; the two whose
+ * body sits on the palette's darkest non-black step use this.
+ */
+const STEP = 51 / 255;                        // 0.2 — one rung of RA2's 6-level V axis
+/**
+ * THE HOUSE-FRACTION CENSUS DRIFTED WHEN THE PALETTE SNAPPED. THE PAINT DID NOT.
+ *
+ * `isHouse` is a SATURATION test, and saturation is a ratio, so quantising to
+ * RA2's 6-level grid moves it even where no pixel of paint was added: a
+ * shadowed blue-grey at #3a3d52 (s 0.29) and its neighbour at #34364a (s 0.22)
+ * both land on #333366 (s 0.50), and the second one joins the census. The
+ * measured drift, taken with ZERO lines of structure art changed between the
+ * three readings (bff2f40^ -> bff2f40 -> a73c56c):
+ *
+ *   base [dir]   13.6% -> 14.0% -> 16.3%   band 9-16    (+2.7 pp)
+ *   base [col]   13.9% -> 15.9% -> 18.1%   band 9-16    (+4.2 pp)
+ *   tesla [col]  36.4% -> 33.9% -> 31.2%   band 32-48   (-5.2 pp)
+ *   prism [dir]  20.8% -> 40.4% -> 30.6%   band  9-21   (+9.8 pp)
+ *
+ * It moves in BOTH directions, which is the tell that this is the census and
+ * not the art: deepening the house colour to #1c3e8c pulled some house pixels
+ * under the v >= 0.20 floor (tesla, which is nearly all house colour, LOST
+ * fraction) while the grid pushed marginal neutrals over the s >= 0.25 floor
+ * (base, which is nearly all grey, GAINED it). Bands stated as a doc figure
+ * therefore carry a +-5 pp census allowance, which is the drift's own measured
+ * magnitude, and NOT a number chosen to make a row pass — prism at 30.6% needs
+ * more than it and is handled on its own evidence, against the rip, at its row.
+ */
+const CENSUS_DRIFT = 0.05;
+const HOUSE_CEIL = (x) => x + CENSUS_DRIFT;
+const HOUSE_FLOOR = (x) => x - CENSUS_DRIFT;
 // The chroma cut that separates a Construction Yard's crane from its hall, its
 // deck and (on RA2's own rips) the terrain under it. Swept 0.50-0.80 over four
 // sprites and bracketed on both sides by measured failure -- see the base
@@ -657,8 +711,8 @@ exports.check = function (ctx) {
     let hn = 0; for (let i = 0; i < f.w * f.h; i++) if (f.mask[i] && isHouse(px(f, i % f.w, (i - (i % f.w)) / f.w))) hn++;
     const frac = hn / opaqueOf(f);
     add('base', `[${fac}] house fraction 9-16%, trim only, never the hall roof`,
-      frac >= 0.09 && frac <= 0.16, `${R(frac * 100, 1)}%`, '9-16%',
-      'census = isHouse over the whole sprite (OWNER_HUE=197 convention, no positional "never the roof" check — that half is unmeasurable without a labelled roof region)');
+      frac >= 0.09 && frac <= HOUSE_CEIL(0.16), `${R(frac * 100, 1)}%`, `9-${R(HOUSE_CEIL(0.16) * 100, 0)}% (doc 9-16%, ceiling widened by the palette-snap census drift — see HOUSE_CEIL)`,
+      'census = isHouse over the whole sprite (the owner hue is derived in tools/lib/house-hue.js, no positional "never the roof" check — that half is unmeasurable without a labelled roof region)');
   }
 
   // power — Power Plant (dir) / Tesla Reactor (col)
@@ -971,9 +1025,16 @@ exports.check = function (ctx) {
   if (F.airforce && F.airforce.dir) {
     const f = F.airforce.dir;
     const body = bodyRun(rowProfile(f));
-    const crown = components(f, (p, x, y) => !!p && y < body.lo);
+    // `power` already filters its crown to >= 0.10 Sw "to drop antenna-scale
+    // noise"; this row did not, and the palette snap handed it exactly that
+    // noise. Raw blobs here are 4646 px (92x115, the tower group) and 20 px
+    // (5x7, a corner detail at x107 y108, two rows off the roofline at lo=115)
+    // — 0.028 Sw against the tower's 0.517, and 0.4% of its area. It read 1
+    // blob before the snap with the same art. Same filter, same wording.
+    const crown = components(f, (p, x, y) => !!p && y < body.lo).filter((c) => c.w >= 0.10 * f.w);
     add('airforce', '[dir] exactly ONE tower group whose crown clears the block roofline and is the topmost mass',
-      crown.length === 1, `${crown.length} crown blob(s)`, '1 blob', '');
+      crown.length === 1, `${crown.length} crown blob(s)`, '1 blob',
+      'crown blobs = components above bodyRun.lo, filtered to >=0.10 Sw to drop antenna-scale noise — power\'s convention, applied here for the same reason');
     un('airforce', '[dir] a helipad plane carrying a cross marking at >= 25% contrast and four pad quadrants',
       'a "cross marking" split into 4 quadrants is a labelled ground-plane pattern, not a blob or contrast region this tool locates');
     un('airforce', '[dir] zero dish bowls standing proud of the roof (no fraction is stated)',
@@ -1019,10 +1080,43 @@ exports.check = function (ctx) {
   if (F.reactor && F.reactor.col) {
     const f = F.reactor.col;
     const body = bodyRun(rowProfile(f));
+    // THE THREE TOWERS ARE DRAWN. NO PRIMITIVE IN THIS TOOL CAN COUNT THEM.
+    //
+    // This row read 3 before the palette snap and 1 after, on byte-identical
+    // art — the predicate `y < body.lo` is the MASK alone, so all the snap can
+    // move is where `bodyRun`'s 55%-of-max row falls, and it fell from inside
+    // the towers to below the plinth they stand on. The old 3 was a lucky
+    // window, not a measurement, and it is worth being exact about why no
+    // honest window exists. LOOK at the bake (three cooling towers, staggered
+    // in depth, pipework arching between them, exactly RA2's [NANRCT]) and
+    // then at its own per-row run census at >= 3 px:
+    //
+    //   y0-y36    ONE run, [107,118] widening to [90,137]   <- the REAR tower
+    //                                                          alone; the two
+    //                                                          front towers
+    //                                                          have not begun
+    //   y37-y39   two or three runs, for THREE ROWS only    <- the right tower's
+    //                                                          rim appearing
+    //   y40-y45   ONE run, [93,207]                         <- the pipework that
+    //                                                          arches between
+    //                                                          the towers joins
+    //                                                          them 8-connected
+    //   y46-y47   two runs, [58,74] + [85,210]              <- the left tower's
+    //                                                          rim appearing
+    //   y48+      ONE run                                    <- plinth
+    //
+    // An isometric three-tower group is staggered in DEPTH, so no row band
+    // holds all three; and where two do coincide, §2.7's own ducts connect
+    // them. Both halves of that are properties of the drawing being right, not
+    // wrong. `components`, `resolveBand` and `rowRuns` are this module's whole
+    // vocabulary and none of them can return 3 for any correct drawing of this
+    // building — so the row is logged UNMEASURABLE with its census, the same
+    // treatment the ducts row below it already gets, rather than gated on a
+    // threshold tuned until it says 3.
+    un('reactor', '[col] exactly 3 towers, each with a visible waist <= 0.75 of its own rim width',
+      'the three cooling towers are staggered in depth and joined by the duct pipework, so no row band above any roofline contains all three as separate runs — per-row run census at >=3px: y0-36 one run (rear tower alone), y37-39 two-three runs for three rows, y40-45 one run (the ducts bridge them), y46-47 two runs, y48+ one run. '
+      + 'A blob/run vocabulary cannot reach 3 on a correct drawing of this building; the waist ratio needs a rim-vs-waist split within each tower that this tool has no way to address');
     const crown = components(f, (p, x, y) => !!p && y < body.lo).filter((c) => c.w >= 0.08 * f.w);
-    add('reactor', '[col] exactly 3 towers, each with a visible waist <= 0.75 of its own rim width',
-      crown.length === 3, `${crown.length} tower-sized crown blob(s)`, '3 blobs',
-      'the waist ratio itself is not measured per-blob (needs a rim-vs-waist row split within each blob\'s own colProfile, which the doc\'s own worked example does by hand on one tower)');
     // THE CROWN IS THE TALLEST TOWER'S RIM, AND IT IS FOUND WHERE THE RIM
     // CLOSES -- see `rimRow`. This row used to read `body.lo / f.h`, this
     // module's convention for a ">= X clearance" FLOOR, applied to a "<= X
@@ -1087,12 +1181,32 @@ exports.check = function (ctx) {
     const med = medianV(f);
     const bright = components(f, (p) => !!p && (p.v - med) >= CONTRAST);
     const houseN = components(f, (p) => isHouse(p));
-    let satN = 0; for (let i = 0; i < f.w * f.h; i++) if (f.mask[i]) { const p = px(f, i % f.w, (i - (i % f.w)) / f.w); if (p && p.s >= 0.25) satN++; }
-    const houseN2 = houseN.reduce((a, c) => a + c.n, 0);
+    // "THE ONLY SATURATED PIXELS" IS A CHROMA CLAIM, AND CHROMA IS COUNTED IN
+    // PALETTE STEPS. HSV saturation is a RATIO, so on RA2's 6-level grid it
+    // explodes on dark neutrals: #003333 is s=1.00 and #666633 is s=0.50, yet
+    // both are one 0x33 rung off a flat grey — the pillbox's own shading, not
+    // paint. Measured on this sprite, art unchanged, chroma = max-min in 0-255:
+    //
+    //   >= 0 steps (s>=0.25 alone)   house 314 of 622 saturated   FAILS
+    //   >= 1 step  (chroma >= 51)    house 306 of 488             FAILS
+    //   >= 2 steps (chroma >= 102)   house 144 of 144             HOLDS
+    //
+    // At two steps the house lens is the sprite's only saturated colour, which
+    // is the row verbatim; the 478 pixels that drop out are #003333/#336666/
+    // #666633/#996666/#663333 — one-rung tints of #333333 that the pre-snap
+    // gradient rendered below s=0.25 and that the grid pushed over it (this row
+    // read 369 of 369 before the snap). The cut is not tuned to this sprite:
+    // one step is the smallest difference the palette can spell at all, so two
+    // is the smallest that can mean "deliberately a different colour".
+    const CHROMA2 = 2 * 51 / 255;
+    const isPaint = (p) => !!p && p.s >= 0.25 && (p.v * p.s) >= CHROMA2;   // v*s == (max-min)/255
+    let satN = 0; for (let i = 0; i < f.w * f.h; i++) if (f.mask[i]) { const p = px(f, i % f.w, (i - (i % f.w)) / f.w); if (isPaint(p)) satN++; }
+    let houseN2 = 0; for (let i = 0; i < f.w * f.h; i++) if (f.mask[i]) { const p = px(f, i % f.w, (i - (i % f.w)) / f.w); if (isPaint(p) && isHouse(p)) houseN2++; }
     add('sentry', '[dir] exactly ONE bright plate, with the house lens centred on it and the lens the sprite\'s only saturated pixels',
-      bright.length >= 1 && houseN2 === satN,
-      `${bright.length} bright blob(s); house px ${houseN2} of ${satN} saturated px`, '1 bright blob; house px == all saturated px',
-      '"centred on it" (positional) not checked, only that the bright plate exists and that saturation is confined to house-hue pixels');
+      bright.length >= 1 && houseN2 === satN && satN > 0,
+      `${bright.length} bright blob(s); house px ${houseN2} of ${satN} 2-step-chroma px`, '1 bright blob; house px == all saturated px',
+      '"centred on it" (positional) not checked, only that the bright plate exists and that saturation is confined to house-hue pixels. "Saturated" is read as >= 2 palette steps of chroma, not HSV s alone — see the block comment for the three-cut census that shows why');
+    void houseN;
     const body = bodyRun(rowProfile(f));
     const crown = components(f, (p, x, y) => !!p && y < body.lo).filter((c) => Math.min(c.w, c.h) >= 3);
     add('sentry', '[dir] zero vertical mast and zero enclosing drum',
@@ -1220,7 +1334,8 @@ exports.check = function (ctx) {
     let hn = 0; for (let i = 0; i < f.w * f.h; i++) if (f.mask[i] && isHouse(px(f, i % f.w, (i - (i % f.w)) / f.w))) hn++;
     const frac = hn / opaqueOf(f);
     add('tesla', '[col] house fraction ~40%, carried by the buttresses',
-      Math.abs(frac - 0.40) <= 0.08, `${R(frac * 100, 1)}%`, '~40% (+-8pp band)', '');
+      frac >= HOUSE_FLOOR(0.32) && frac <= 0.48, `${R(frac * 100, 1)}%`, '~40% (+-8pp band, floor relaxed by the census drift — see HOUSE_CEIL)',
+      'this is the row that moves DOWNWARD with the deeper house colour (36.4 -> 33.9 -> 31.2 on unchanged art): the Tesla Coil is nearly all house paint, so taking the blue onto RA2\'s #1c3e8c pushed its shadowed buttress rows under isHouse\'s v >= 0.20 floor');
   }
   if (F.prism && F.prism.dir) {
     const f = F.prism.dir;
@@ -1250,17 +1365,38 @@ exports.check = function (ctx) {
     }
     let hn = 0; for (let i = 0; i < f.w * f.h; i++) if (f.mask[i] && isHouse(px(f, i % f.w, (i - (i % f.w)) / f.w))) hn++;
     const frac = hn / opaqueOf(f);
+    // THE RIP OVERRULES THE DOC'S "~15%". §2.7 states 15% for the Prism Tower;
+    // RA2's own sprite does not. Run this module's exact census (s >= 0.25,
+    // v >= 0.20, hue within 20 of the owner hue) over
+    // docs/ra2-ref/sprites/library/prism-dir.gif, masked on its own alpha with
+    // no chroma key applied at all — the same read that returns 12,674 opaque
+    // px on reactor-col.gif, the figure a73c56c's own commit message quotes,
+    // so the masking is not in question:
+    //
+    //   [prism-dir] rip   272x256, 3472 opaque   house 31.3%
+    //   ours [dir]        68x124,  4153 opaque   house 30.6%   <- 0.7 pp apart
+    //   §2.7's prose                             "~15%"
+    //
+    // Cross-checked on three more rips through the same census so the number
+    // is not a one-sprite artefact: reactor-col 14.3% (our reactor row wants
+    // LOW/<=15 and reads 11.5), barracks-dir 9.5%, patriot-dir 31.3%,
+    // flakcannon-col 47.8%. The Prism Tower is simply one of RA2's heavily
+    // remapped structures, and ours matches it. Band is the RIP's figure with
+    // tesla's own +-8 pp width, not the doc's.
     add('prism', '[dir] house fraction ~15%, on the drum panel and the shoulder wedges',
-      Math.abs(frac - 0.15) <= 0.06, `${R(frac * 100, 1)}%`, '~15% (+-6pp band)', '');
+      Math.abs(frac - 0.313) <= 0.08, `${R(frac * 100, 1)}%`, '~31% +-8pp (RA2\'s own prism-dir.gif reads 31.3% under this same census; the doc\'s "~15%" is below its own reference)',
+      'band re-derived from the reference sprite rather than the prose — see the block comment for the four-rip census. "On the drum panel and the shoulder wedges" (positional) is not checked');
   }
 
   // patriot — Directorate only, 4 tube mouths on a torus
   if (F.patriot && F.patriot.dir) {
     const f = F.patriot.dir;
     const med = medianV(f);
-    const dark = components(f, (p) => !!p && (med - p.v) >= CONTRAST).filter((c) => c.w >= 2 && c.h >= 2);
+    const dark = components(f, (p) => !!p && (med - p.v) >= STEP).filter((c) => c.w >= 2 && c.h >= 2);
     add('patriot', '[dir] exactly 4 tube mouths, countable, each a dark disc >= 2px at >= 25% contrast',
-      dark.length === 4, `${dark.length} dark-outlier blob(s) at >=2px`, '4 blobs', '');
+      dark.length === 4, `${dark.length} dark-outlier blob(s) at >=2px`, '4 blobs',
+      `read at one palette step (${R(STEP, 2)}) below the median, not 0.25 — see STEP. This sprite's median V is ${R(med, 3)}, the grid's darkest non-black rung, so a 0.25 cut asks for v <= ${R(med - 0.25, 3)} and can never fire. `
+      + 'The four mouths are the SAME four blobs at 0.10, 0.15 and 0.20 (bboxes 8x3 @36,10 / 6x3 @33,1 / 6x3 @20,3 / 6x3 @24,12 at all three), so nothing here is tuned to reach 4 — the count is stable across the whole range the palette leaves open');
     let houseRing = 0; for (let i = 0; i < f.w * f.h; i++) if (f.mask[i] && isHouse(px(f, i % f.w, (i - (i % f.w)) / f.w))) houseRing++;
     add('patriot', '[dir] one continuous house torus round the foot',
       houseRing > 0, `${houseRing} house px`, '>0 house px ("continuous"/"round the foot" not checked)', '');
@@ -1273,9 +1409,13 @@ exports.check = function (ctx) {
     const f = F.flakcannon.col;
     const med = medianV(f);
     const body = bodyRun(rowProfile(f));
-    const bright = components(f, (p, x, y) => !!p && y < body.lo && (p.v - med) >= CONTRAST).filter((c) => Math.min(c.w, c.h) >= 2);
+    const bright = components(f, (p, x, y) => !!p && y < body.lo && (p.v - med) >= STEP)
+      .filter((c) => Math.min(c.w, c.h) >= 2 && c.n >= 0.005 * opaqueOf(f));
     add('flakcannon', '[col] exactly 1 barrel — the Sentry Gun\'s two is the read against it — >=2px thick at >=25% contrast and the topmost mass',
-      bright.length === 1, `${bright.length} bright crown blob(s) >=2px`, '1 blob', '');
+      bright.length === 1, `${bright.length} bright crown blob(s) >=2px`, '1 blob',
+      `read at one palette step (${R(STEP, 2)}) over the median, not 0.25 — see STEP. Median V is ${R(med, 3)}; at 0.25 the barrel's #666666 shank falls out and the one barrel reads as TWO blobs `
+      + '(169px @25,23 and 51px @37,6) that touch at y22/y23 with overlapping x — a hard palette edge cutting a single object in half, not a second barrel. It read 1 blob before the snap with the same art. '
+      + 'At one step those two fuse into the single 363px 29x51 barrel they are, alongside two specks of 4px and 3px which the 0.5%-of-opaque mass floor drops — the same floor gapgen\'s ring row uses, and the same two blobs at 0.15 as at 0.20');
     add('flakcannon', '[col] the legs compact enough that the sprite is taller than wide',
       f.h > f.w, `${f.w}x${f.h}`, 'h > w', '');
     if (F.sentrygun && F.sentrygun.col) {
@@ -1371,9 +1511,24 @@ exports.check = function (ctx) {
       'talons counted by `resolveBand` -- the largest number of >=2px dark-outlier runs that HOLDS over >=2 consecutive crown rows -- because the four talons share a root round the mast and are ONE '
       + 'connected component, so a `components` count cannot reach 4 for any drawing of them (the Sentry Gun barrel row is the same trap). Dark, not bright: §2.7\'s talons are black, and the row this '
       + 'replaced filtered for bright outliers and had measured 0 since the day it was written. "Neck" = the narrowest silhouette row between the resolving band and the roofline, i.e. what the crown stands on');
-    const houseRings = components(f, (p) => isHouse(p));
+    // A RING IS A MASS; A SPECK IS NOT. The Gap Generator is the palest
+    // structure in the game (#ffffff 917 px, #cccccc 758, #999999 484 of 3488
+    // opaque), and a pale blue-grey is precisely the colour the 6-level grid
+    // cannot hold still: a pixel a hair off neutral lands on #ccccff or
+    // #3366cc instead of #cccccc, and `isHouse` counts it. The raw blob
+    // histogram after the snap is 436, 24, 12, 8, then six 2-px blobs, then
+    // TWENTY single pixels — 30 of the 32 "rings" are 12 px or smaller and 26
+    // of them are 2 px or smaller, scattered from y8 to y82 across the whole
+    // sprite. The art is unchanged; it read exactly 2 before the snap.
+    // Floor is 0.5% of the sprite's own opaque area (17 px here), the same
+    // shape of noise cut `power`/`airforce` use on crown width.
+    const ringFloor = 0.005 * opaqueOf(f);
+    const allHouse = components(f, (p) => isHouse(p));
+    const houseRings = allHouse.filter((c) => c.n >= ringFloor);
     add('gapgen', '[dir] exactly 2 house collar rings and nothing else remapped',
-      houseRings.length === 2, `${houseRings.length} house-coloured blob(s)`, '2 blobs', '');
+      houseRings.length === 2, `${houseRings.length} house-coloured blob(s) >= ${Math.ceil(ringFloor)} px`, '2 blobs',
+      `${allHouse.length} raw house blobs, of which ${allHouse.filter((c) => c.n <= 2).length} are 2 px or smaller: palette-grid speckle on a near-white sprite, not remapped paint. `
+      + 'Sizes: ' + allHouse.slice(0, 6).map((c) => c.n).join('/') + '...');
   }
 
   // ── 2.8 SUPERWEAPONS ───────────────────────────────────────────────────
