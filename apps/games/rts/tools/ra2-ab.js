@@ -68,7 +68,11 @@ function artFileFor(key) {
   if (!key) { console.error('name a unit key'); process.exit(1); }
   const table = refs();
   const cfg = table[key] || { fac: 'dir', owner: 0 };
-  const bearing = +((argv[argv.indexOf('--bearing') + 1]) || 13);
+  // `indexOf` returns -1 when the flag is absent, and argv[-1 + 1] is argv[0],
+  // which is the UNIT NAME — so the default bearing came out +'kirov' = NaN and
+  // every panel reported "drew nothing" for a unit that bakes perfectly well.
+  const bi = argv.indexOf('--bearing');
+  const bearing = bi >= 0 ? +argv[bi + 1] : 13;
   const refArg = argv.indexOf('--ref') >= 0 ? argv[argv.indexOf('--ref') + 1]
     : (cfg.file ? path.join(RTS, 'docs/ra2-ref/sprites', cfg.file) : null);
   const alts = [];
@@ -101,10 +105,11 @@ function artFileFor(key) {
         var u = H.spr().unit[tries[ti][0]];
         if (u && u[tries[ti][1]]) set = u[tries[ti][1]][key] || null;
       }
-      if (!set) return null;
+      if (!set) return { err: 'no set for ' + key + ' owner ' + owner + ' fac ' + fac };
       let a = Array.isArray(set) ? set[bearing] : set;
       if (a && a.fr) a = a.fr('stand', bearing, 0);
-      if (!a || !a.c) return null;
+      if (!a) return { err: 'bearing ' + bearing + ' of ' + (Array.isArray(set) ? set.length : 'non-array') + ' is empty' };
+      if (!a.c) return { err: 'frame has no canvas; keys ' + Object.keys(a).join(',') };
       const t = document.createElement('canvas');
       t.width = a.w; t.height = a.h;
       const g = t.getContext('2d');
@@ -120,12 +125,14 @@ function artFileFor(key) {
       const o = document.createElement('canvas');
       o.width = x1 - x0 + 1; o.height = y1 - y0 + 1;
       o.getContext('2d').drawImage(a.c, x0, y0, o.width, o.height, 0, 0, o.width, o.height);
-      return o.toDataURL('image/png').slice(22);
+      return { png: o.toDataURL('image/png').slice(22) };
     }, { key, fac: cfg.fac, owner: cfg.owner, bearing });
   }
 
   const panels = [];
-  panels.push({ name: 'OURS', png: await bake() });
+  var r0 = await bake();
+  if (r0 && r0.err) console.error('OURS: ' + r0.err);
+  panels.push({ name: 'OURS', png: r0 && r0.png, note: r0 && r0.err });
 
   const original = art ? fs.readFileSync(art) : null;
   try {
@@ -133,7 +140,7 @@ function artFileFor(key) {
       if (!fs.existsSync(alt.file)) { panels.push({ name: alt.name, png: null, note: 'file missing' }); continue; }
       fs.copyFileSync(alt.file, art);
       let png = null, note = null;
-      try { png = await bake(); if (!png) note = 'drew nothing'; }
+      try { var r = await bake(); png = r && r.png; note = (r && r.err) || (png ? null : 'drew nothing'); }
       catch (e) { note = 'threw: ' + String(e.message || e).slice(0, 60); }
       panels.push({ name: alt.name, png, note });
     }
