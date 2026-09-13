@@ -1417,9 +1417,21 @@
     var g = winGeom(id); g.z = ++zTop;
     var w = winOf(id); if (w) w.style.zIndex = g.z;
   }
-  function pumpActive(f, tellId) {
+  // `active` here has always meant two different things, and an app that acted
+  // on the wrong one stole the keyboard. In window mode EVERY visible window is
+  // pumped with its OWN id — that is a "you are on screen, do not pause" signal,
+  // not "you are the focused app". The Browser (xpra) read it as the latter and
+  // answered with window.focus() from inside its iframe, dragging the keyboard
+  // out of whatever app the user was actually in, 150ms after every switch:
+  // click a file, and Space went to the Browser. Hence "I have to click twice".
+  // So say which one it is. `focused` absent means true, so an older page (or
+  // one served from a stale cache) behaves exactly as before.
+  function pumpActive(f, tellId, focused) {
     if (f && f.src && f.contentWindow) {
-      try { f.contentWindow.postMessage({ type: 'vibetop:active', active: tellId }, '*'); } catch (e) {}
+      try {
+        f.contentWindow.postMessage(
+          { type: 'vibetop:active', active: tellId, focused: focused !== false }, '*');
+      } catch (e) {}
     }
   }
   function nudgeResize(id) {
@@ -1973,7 +1985,7 @@
           // apply here: this window is shown with real dimensions right now.
           loadIfNeeded(f);
         }
-        pumpActive(f, vis ? id : active);            // visible → own id (never pause); minimized → paused
+        pumpActive(f, vis ? id : active, vis ? (id === active) : true);   // visible → own id (never pause); minimized → paused
       } else {
         w.classList.remove('floating', 'focused', 'maximized');
         w.style.left = w.style.top = w.style.width = w.style.height = w.style.zIndex = '';
@@ -4460,6 +4472,12 @@
     while (lines.length > 18) lines.shift();
     box.textContent = lines.join('\n');
     box.scrollTop = box.scrollHeight;
+    // Also send each line where it can be read WITHOUT the user transcribing a
+    // screenshot: a request for a path that does not exist. nginx logs the full
+    // request line, query string included, so the 404 IS the transport — no
+    // endpoint, no manager change, nothing stored anywhere but this host's own
+    // access log, and only while #focusdbg is armed.
+    try { new Image().src = '/__focusdbg.gif?m=' + encodeURIComponent(s).slice(0, 380); } catch (e) {}
   }
   function wire(d) {
     if (!d || d.__fdbg) return;

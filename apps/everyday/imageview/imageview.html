@@ -211,10 +211,13 @@
   // click. Only when the keys are not already ours, so nothing is stolen from an
   // input. See docs/design-decisions.md (the Files two-click saga).
   document.addEventListener('pointerdown', function (ev) {
-    if (document.hasFocus()) return;
     var t = ev.target;
     if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' ||
               t.tagName === 'BUTTON' || t.tagName === 'A' || t.isContentEditable)) return;
+    // Not gated on document.hasFocus() — Safari reports it true for a child
+    // frame whenever the window is focused, so it bailed on every click.
+    var ae = document.activeElement;
+    if (ae && (ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA' || ae.isContentEditable)) return;
     try { window.focus(); } catch (e) {}
     try { document.body.tabIndex = -1; document.body.focus({ preventScroll: true }); } catch (e) {}
   }, true);
