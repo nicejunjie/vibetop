@@ -228,7 +228,22 @@ function pixelate(s, levels, alphaCut) {
     // 22 rows tall on the Desolator. A pixel that is both near-black and
     // translucent is shadow, never art: leave it exactly as it was drawn.
     if (d[i + 3] < 200 && d[i] < 40 && d[i + 1] < 40 && d[i + 2] < 40) continue;
-    d[i + 3] = 255;
+    // ...and NOTHING ELSE TRANSLUCENT GETS SNAPPED UP EITHER. Forcing every
+    // surviving pixel to 255 does not make a soft thing crisp, it makes it
+    // LOUD: the ships' bow wave is four 34%-alpha strokes that compound to 81%
+    // where the arms meet at the stem, and snapping that to opaque painted a
+    // hard white staircase off every bow — the single worst artefact on the
+    // fleet. The Kirov's lit ridge and its nine rib rings went the same way,
+    // nine hard bands across a gold envelope that turned the airship into a
+    // fish. The silhouette still gets its hard edge, because an antialiased
+    // border spends almost all of itself below the cut (killed) or above 200
+    // (snapped); what lives in between is deliberate translucency, and it is
+    // left exactly as it was drawn. NOTE it only skips the ALPHA — the colour
+    // still quantises. Skipping the whole pixel let every soft-edged sprite
+    // keep its smooth original colours, and the attack dog's fur went straight
+    // back onto the red player's hue: hue.maxImpostor 0.102 -> 0.216 on a
+    // change that was supposed to touch nothing but transparency.
+    if (d[i + 3] >= 200) d[i + 3] = 255;
     if (levels < 2) continue;
     var r = d[i], g = d[i + 1], b = d[i + 2];
     var mx = r > g ? (r > b ? r : b) : (g > b ? g : b);

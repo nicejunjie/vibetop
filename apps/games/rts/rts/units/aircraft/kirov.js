@@ -23,7 +23,12 @@ function drawKirov(C) {
 // at alpha 0, which leaves the airframe code itself untouched.
 var kGond = part !== 'h', kAir = part !== 'g' && part !== 'go';
 g.globalAlpha = kAir ? 1 : 0;
-var ENV = '#c9a95a', ENVL = '#eddc9a', ENVD = '#6e5320', ENVE = '#3a2c12';
+// ENVD WAS BAKING OLIVE. #6e5320 is a brown on the palette but not on the
+// GRID: (110,83,32) snaps channel-wise to (102,102,51) = #666633, which is the
+// army's olive, so the airship's whole shaded underside came out green and the
+// gold body above it read as camouflage. #66400f lands on #663300 — RA2's own
+// dark brown, and the colour its envelope actually shades to.
+var ENV = '#c9a95a', ENVL = '#eddc9a', ENVD = '#66400f', ENVE = '#3a2c12';
 var far = py < 0 ? 1 : -1;                              // which P side is behind the body
 var tailAway = fy > 0;                                  // nose toward the viewer: the tail is behind
 var tailCone = function () {
@@ -50,8 +55,17 @@ puck(epF[0] + px * far * bodyR * 0.85, epF[1] + py * far * bodyR * 0.85 + 2.5, 2
 // envelope
 bodyPath();
 var q0 = pt(0);
+// FLAT BANDS, NOT A SWEEP. A smooth three-stop gradient across the envelope
+// is exactly the input the palette snap cannot keep tidy: the sweep crosses
+// each grid line at a different place on every cross-section, so the bands
+// broke up into a patchwork of olive and tan blotches that read as camouflage
+// or as scales. The reference's envelope is three flat zones — a cream top
+// highlight, the gold body, a shaded underside — so they are drawn as three
+// zones with hard stops and the quantiser has nothing left to smear.
 gradA = g.createLinearGradient(q0[0] + nx2 * bodyR * secK, q0[1] + ny2 * bodyR * secK, q0[0] - nx2 * bodyR * secK, q0[1] - ny2 * bodyR * secK);
-gradA.addColorStop(0, ENVL); gradA.addColorStop(0.42, ENV); gradA.addColorStop(1, ENVD);
+gradA.addColorStop(0, ENVL); gradA.addColorStop(0.30, ENVL);
+gradA.addColorStop(0.3001, ENV); gradA.addColorStop(0.70, ENV);
+gradA.addColorStop(0.7001, ENVD); gradA.addColorStop(1, ENVD);
 g.fillStyle = gradA; g.fill();
 g.strokeStyle = ENVE; g.lineWidth = 0.9; g.stroke();
 // ribs: cross-section ellipses, clipped to the envelope
@@ -67,19 +81,37 @@ function hoop(ht, wdt, colr) {
   }
   g.stroke();
 }
-for (rt = -0.78; rt <= 0.79; rt += 0.195) hoop(rt, 0.9, 'rgba(58,44,18,.55)');
+// NINE THIN RINGS WERE THE SCALES. They were drawn at alpha .55 — which is
+// 140, over `pixelate`'s alpha cut of 96 — so the quantiser did not fade them,
+// it SNAPPED EVERY ONE TO FULLY OPAQUE. Nine hard dark bands across a mottled
+// gold envelope stopped reading as fabric over a frame and started reading as
+// the flank of a fish. The rip has no such thing: a census of its mid-body is
+// 7% near-white top highlight, 6% pale gold, and the only darks are the three
+// or four heavy structural straps below. Two faint ones survive, wide apart.
+// (none — see the straps below; anything fainter than those became a band)
 // The reference's envelope is belted by three HEAVY dark structural
 // hoops. Without them the balloon reads as a smooth party blimp.
-hoop(-0.46, 2.4, 'rgba(72,70,62,.85)');
-hoop(0.02, 2.4, 'rgba(72,70,62,.85)');
-hoop(0.42, 2.1, 'rgba(72,70,62,.85)');
-// house-colour band, back at the shoulder so the nose stays clear
-// for the shark mouth
-hoop(0.50, 2.2, col);
+// THIN AND DARK, and only three. Bisected by disabling the hoop function and
+// re-rendering: with no hoops the envelope is clean flat gold with one cream
+// ridge, so the hoops WERE the stripes. Two things made them stripes rather
+// than straps. They were 2.1-2.4 px wide, which at this scale is a band and
+// not a belt; and a circumferential ellipse seen nose-on piles many stroke
+// samples onto the same pixels, so even a 28%-alpha hoop compounded past the
+// point where it read. The rip's straps are one dark pixel wide against gold.
+hoop(-0.46, 1.0, 'rgba(42,38,30,.92)');
+hoop(0.02, 1.0, 'rgba(42,38,30,.92)');
+hoop(0.42, 1.0, 'rgba(42,38,30,.92)');
+// NO HOUSE RING ROUND THE ENVELOPE. A 2.2 px band of the player's colour
+// wrapped the hull at the shoulder and, once the fabric stopped being a
+// patchwork, it was the loudest thing on the airship — a red hoop round a gold
+// balloon. The rip puts the house colour on the TAIL FINS and the ENGINE PODS,
+// both of which this file already paints with `col`, and leaves the envelope
+// gold from nose to tail. A thin seam is enough to say the frame is there.
+hoop(0.50, 0.9, shade(col, 0.62));
 // SHARK MOUTH — the single thing that names a Kirov, and it was
 // missing entirely. A dark maw along the belly of the nose with a
 // row of white teeth on its upper edge, plus one eye above it.
-var m0t = 0.66, m1t = 0.98, mst = 8, mi2;
+var m0t = 0.78, m1t = 0.99, mst = 8, mi2;   // the rip's marking is SHORT — the right fifth of the hull, not a third
 function belly(tv, up) {
   var bp = pt(tv), be = rad(tv) * secK;
   return [bp[0] - nx2 * be * up, bp[1] - ny2 * be * up];
@@ -88,17 +120,22 @@ g.beginPath();
 for (mi2 = 0; mi2 <= mst; mi2++) { var mp = belly(m0t + (m1t - m0t) * mi2 / mst, 1.0); if (mi2 === 0) g.moveTo(mp[0], mp[1]); else g.lineTo(mp[0], mp[1]); }
 for (mi2 = mst; mi2 >= 0; mi2--) { var mq = belly(m0t + (m1t - m0t) * mi2 / mst, 0.46); g.lineTo(mq[0], mq[1]); }
 g.closePath(); g.fillStyle = '#241b0c'; g.fill();
-g.fillStyle = '#f2ecd8';                                  // teeth
-for (mi2 = 0; mi2 < 6; mi2++) {
+// GOLD TEETH, not white, and that is the rip's own answer. A census of the
+// reference's nose is 10% near-black (#080c08, #101410 — the maw) over
+// #f8e088 / #b8a468 / #988450: the teeth are the ENVELOPE's gold, lit, which
+// is why the marking reads as painted-on nose art at 40 px instead of as a
+// face. Ours were #f2ecd8, the brightest thing on the airship.
+g.fillStyle = '#e0b25a';                                  // teeth
+for (mi2 = 0; mi2 < 5; mi2++) {
   var tt0 = m0t + (m1t - m0t) * (mi2 + 0.12) / 6, tt1 = m0t + (m1t - m0t) * (mi2 + 0.88) / 6;
   var pA = belly(tt0, 0.48), pB = belly(tt1, 0.48), pC = belly((tt0 + tt1) / 2, 0.70);
   g.beginPath(); g.moveTo(pA[0], pA[1]); g.lineTo(pB[0], pB[1]); g.lineTo(pC[0], pC[1]); g.closePath(); g.fill();
 }
-var eyeP = belly(0.74, -0.16);
-g.fillStyle = '#f4efe0';
-g.beginPath(); g.ellipse(eyeP[0], eyeP[1], 1.8, 1.35, 0, 0, 6.29); g.fill();
-g.fillStyle = '#17130a';
-g.beginPath(); g.ellipse(eyeP[0] + nx2 * 0.3, eyeP[1] + ny2 * 0.3, 0.9, 0.75, 0, 0, 6.29); g.fill();
+// NO EYE. There was a 3.6 x 2.7 white sclera with a black pupil painted above
+// the mouth, and between it and the nine rings the airship read as a fish —
+// which is the opposite of what a Kirov is for. The reference has nothing of
+// the kind: its nose census carries no near-white cluster at all, only the
+// maw's blacks and the envelope's gold. A gun blister is what sits there.
 // top seam and a lit ridge
 g.strokeStyle = 'rgba(255,245,200,.55)'; g.lineWidth = 1.1; g.beginPath();
 for (rt = -0.92; rt <= 0.92; rt += 0.08) { rp = pt(rt); if (rt < -0.9) g.moveTo(rp[0], rp[1] - rad(rt)); else g.lineTo(rp[0], rp[1] - rad(rt) * 0.96); }

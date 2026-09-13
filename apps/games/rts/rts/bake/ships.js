@@ -163,14 +163,19 @@ function bakeShip(col, kind, fac) {
       grd.addColorStop(0.62, shade(HULL, 0.92 * lit));
       grd.addColorStop(1, shade(HULL, 0.66 * lit));
       g.fillStyle = grd; g.fill();
-      // A single house stripe high on the flank, only on the lit side.
-      if (lit === 1 && kind !== 'sub' && kind !== 'dolphin' && kind !== 'squid') {
-        g.strokeStyle = HOUSE; g.lineWidth = 1.5;
+      // NO HOUSE STRIPE ON THE HULL. There was a 1.5 px house-coloured line run
+      // along every lit flank, and at the scale a ship is drawn it was a racing
+      // stripe wrapping the whole vessel — the loudest thing on the fleet and
+      // the first thing the eye landed on. RA2 does not do it. Its Destroyer is
+      // a uniform grey-blue hull with the house colour in two or three BLOCKS
+      // up top: a panel on the white superstructure and the rounded stern
+      // hangar. So the flank stays hull-coloured and the house colour is spent
+      // where the reference spends it, on the deckhouses each ship draws for
+      // itself. A thin lit sheer line is all the flank gets.
+      if (lit === 1 && !organic) {
+        g.strokeStyle = shade(HULL, 1.28); g.lineWidth = 0.8;
         g.beginPath();
-        g.moveTo(q0[0], q0[1] - FR + 1.2); g.lineTo(q1[0], q1[1] - FR + 1.2); g.stroke();
-        g.strokeStyle = HD; g.lineWidth = 0.6;
-        g.beginPath();
-        g.moveTo(q0[0], q0[1] - FR + 2.2); g.lineTo(q1[0], q1[1] - FR + 2.2); g.stroke();
+        g.moveTo(q0[0], q0[1] - FR + 0.6); g.lineTo(q1[0], q1[1] - FR + 0.6); g.stroke();
       }
     }
     // 3. The deck.
