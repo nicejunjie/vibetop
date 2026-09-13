@@ -78,16 +78,16 @@ face(by - 20.1);
 // in near-black: different shape AND different value, at the one place
 // on a 20px figure a player actually looks.
 var CCAP = ACCENT.conscript, chy2 = by - 22.4;
-var ccx = cx + sd * 1.1 / TURN + HEADX, ccw = 3.35 * (1 - 0.16 * sd);
+var ccx = cx + sd * 1.1 / TURN + HEADX, ccw = 2.25 * (1 - 0.16 * sd);
 g.fillStyle = CCAP;
-g.beginPath(); g.roundRect(ccx - ccw, chy2 - 1.5, ccw * 2, 2.6, 0.7); g.fill();
+g.beginPath(); g.roundRect(ccx - ccw, chy2 - 2.6, ccw * 2, 3.9, 1.9); g.fill();
 outline(g, shade(CCAP, 0.44));
 g.fillStyle = shade(CCAP, 0.52);                              // forward peak
 g.beginPath();
-g.moveTo(ccx - ccw - 0.4, chy2 + 0.9); g.lineTo(ccx + ccw + 0.4, chy2 + 0.9);
-g.lineTo(ccx + ccw * 0.8, chy2 + 1.9); g.lineTo(ccx - ccw * 0.8, chy2 + 1.9);
+g.moveTo(ccx - ccw, chy2 + 1.0); g.lineTo(ccx + ccw, chy2 + 1.0);
+g.lineTo(ccx + ccw * 0.8, chy2 + 1.5); g.lineTo(ccx - ccw * 0.8, chy2 + 1.5);
 g.closePath(); g.fill(); outline(g, shade(CCAP, 0.32));
 g.fillStyle = shade(CCAP, 1.55);                              // lit flat crown
-g.fillRect(ccx - ccw + 0.4, chy2 - 1.3, ccw * 1.1, 0.8);
+g.fillRect(ccx - ccw + 0.4, chy2 - 2.2, ccw * 0.9, 1.1);
 g.restore();
 }
