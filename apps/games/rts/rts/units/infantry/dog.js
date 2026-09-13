@@ -237,6 +237,6 @@ if (!BACK) {
 // brightness against the rip's 0.20 and stayed smooth while the rest of the
 // roster went to hard pixels. Run them here.
 valuePass(s, 1.28);                        // onto the rip's own darkness
-pixelate(s, 8, 96);                        // hard edges and flat bands
+pixelate(s, 6, 96);                        // RA2's own 6-level channel grid
 return s;
 }

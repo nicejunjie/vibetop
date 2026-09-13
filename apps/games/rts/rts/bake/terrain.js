@@ -66,21 +66,21 @@ function metalFinish(canvas, seed) {
     // Directional brushed grain: short vertical strokes and occasional
     // neutral weld pin highlights. Saturated owner paint is left clean so
     // the faction colour remains a readable marking rather than noise.
-    var mx = base[at], mn = Math.min(mx, base[at + 1], base[at + 2]);
-    var sat = mx ? (Math.max(mx, base[at + 1], base[at + 2]) - mn) / Math.max(mx, base[at + 1], base[at + 2]) : 0;
-    var h = (x * 17 + y * 31 + seed * 13) % 37;
-    if (sat < 0.48) {
-      // Keep the neutral planes on a compact voxel-like value ramp. A
-      // continuous vector gradient is what makes the same hull look like a
-      // soft toy at map scale; an eight-step luminance ramp preserves the
-      // lighting while restoring the hard pixel bands of the source art.
-      var qv = Math.round(here / 8) * 8;
-      shift += Math.max(-4, Math.min(4, qv - here));
-      if ((x + seed * 3) % 19 === 0 && (y + seed) % 3 !== 0) shift -= 5;
-      if (h === 0) shift -= 7;
-      else if (h === 1 || h === 2) shift += 5;
-      if ((x * 31 + y * 17 + seed * 7) % 113 === 0) shift += 10;
-    }
+    // THE GRAIN IS GONE, and `seed` with it. This pass used to add a
+    // position-hashed jitter of +-5 to +-10 per pixel — brushed strokes, weld
+    // pins, an eight-step value ramp — to stop a vector hull reading as a soft
+    // plastic toy. It worked only while the sprite kept thousands of shades.
+    // Against RA2's actual palette (every rip's every channel is a multiple of
+    // 0x33 — measured, 44 of 44 files) a +-10 jitter lands neighbouring pixels
+    // on DIFFERENT corners of the colour cube, and the Rhino came out of the
+    // bake as teal-and-pink confetti: 765 distinct colours on 1008 px where
+    // RA2 spends 16 on a sprite that size.
+    //
+    // The cure for "soft plastic" was never noise. RA2 draws flat plates with a
+    // hard value step at each plane break, which is exactly what the two rules
+    // ABOVE this comment do — rim light where the silhouette ends, and a
+    // sharpened step where two planes already disagree. Those stay. The
+    // randomness goes, and `pixelate` supplies the flat bands it was imitating.
     if (!shift) continue;
     d[at] = clamp(d[at] + shift);
     d[at + 1] = clamp(d[at + 1] + shift);
@@ -217,6 +217,7 @@ function valuePre(c, gm) {
 function pixelate(s, levels, alphaCut) {
   levels = levels || 6;
   alphaCut = alphaCut == null ? 140 : alphaCut;
+  var step = 255 / (levels - 1);
   var id = s.g.getImageData(0, 0, s.c.width, s.c.height), d = id.data;
   var i;
   for (i = 0; i < d.length; i += 4) {
@@ -229,28 +230,131 @@ function pixelate(s, levels, alphaCut) {
     if (d[i + 3] < 200 && d[i] < 40 && d[i + 1] < 40 && d[i + 2] < 40) continue;
     d[i + 3] = 255;
     if (levels < 2) continue;
-    // Quantise VALUE, never the channels. Per-channel rounding at six levels
-    // turned the GI's dark olive trousers (47,66,30) into flat grey (51,51,51):
-    // below one step every channel collapses to the same number and the hue is
-    // gone. Scaling the whole pixel toward its own quantised brightness keeps
-    // the hue exactly and still lands the sprite on a few flat bands.
-    var mx = d[i] > d[i + 1] ? (d[i] > d[i + 2] ? d[i] : d[i + 2]) : (d[i + 1] > d[i + 2] ? d[i + 1] : d[i + 2]);
+    var r = d[i], g = d[i + 1], b = d[i + 2];
+    var mx = r > g ? (r > b ? r : b) : (g > b ? g : b);
     if (!mx) continue;
-    var stepv = 255 / (levels - 1);
-    var q = Math.round(Math.round(mx / stepv) * stepv);
-    if (q < 1) q = 1;
-    // The dark end needs finer steps than the light end. With eight even bands
-    // the first one is 0..18, so every value under 18 collapses to pure black —
-    // and a figure the reference draws in three different near-blacks came out
-    // as one flat 17-row rectangle (the Desolator's legs). Below the first band
-    // boundary, quantise on a quarter step so the darks keep their separation.
-    if (mx < stepv) q = Math.max(3, Math.round(mx / (stepv / 4)) * (stepv / 4));
-    var k = q / mx;
-    d[i] = Math.min(255, Math.round(d[i] * k));
-    d[i + 1] = Math.min(255, Math.round(d[i + 1] * k));
-    d[i + 2] = Math.min(255, Math.round(d[i + 2] * k));
+    var mn = r < g ? (r < b ? r : b) : (g < b ? g : b);
+    var qr = qstep(r, step), qg = qstep(g, step), qb = qstep(b, step);
+    // A DARK COLOURED pixel snapped channel-by-channel can land on the grey
+    // diagonal, because below one step every channel rounds to the same number
+    // — the G.I.'s dark olive (47,66,30) goes to a flat (51,51,51). RA2 never
+    // does that: its own trouser colour is #333300, the blue pushed DOWN to
+    // gain the saturation the rounding would have cost. So when the plain snap
+    // greys out a pixel that was visibly coloured, scale the whole pixel toward
+    // its quantised MAX first and snap that — which lands (47,66,30) on exactly
+    // #333300, and the house navy on RA2's own #333399.
+    if (qr === qg && qg === qb && (mx - mn) / mx > 0.18) {
+      var q = Math.round(Math.round(mx / step) * step) || 1, k = q / mx;
+      qr = qstep(r * k, step); qg = qstep(g * k, step); qb = qstep(b * k, step);
+    }
+    // BROWN HAS TO KEEP ITS BLUE AT ZERO or it is not brown, it is red. On this
+    // grid a warm colour whose middle and low channels land on the same level
+    // has hue 0 by construction — #663333 — and the only tan the palette can
+    // spell is #663300, with the low channel pushed off the grid's first step
+    // to nothing. RA2 does exactly that: 77.6% of the chromatic pixels across
+    // 44 rips (saturation >= 0.35) have a channel at exactly 0. Ours rounded
+    // 36 up to 51 instead, and the Conscript's tan trousers came out 7 degrees
+    // off pure red — a Soviet conscript reading as the RED player's man
+    // whoever owned him. Warm hues only: a navy with its middle and low
+    // channels both at 51 is #333399, which is one of RA2's own Allied blues.
+    if (r > g && g >= b && qr > qg && qg === qb && qg > 0 && (mx - mn) / mx >= 0.35) {
+      var hw = ((g - b) / (mx - mn)) * 60;         // 0..60, the warm wedge
+      if (hw >= 12 && hw <= 52) qb = 0;
+    }
+    d[i] = qr; d[i + 1] = qg; d[i + 2] = qb;
+  }
+  // ...and then SPEND A SPRITE'S PALETTE LIKE RA2 DOES. The cube snap alone
+  // leaves 55-71 colours on a vehicle where RA2's own rips spend 16-32 on
+  // sprites of the same size, and the excess is all tail: the top 24 colours
+  // already cover 92-96% of the body, and behind them sit twenty-odd entries
+  // holding one or two pixels each. Those are the stray teal and pink dots on
+  // an olive hull — a smooth vector gradient clipping the corner of a cube cell
+  // for a single pixel. RA2 cannot produce them: its sprites are INDEXED, so a
+  // colour either earns a palette slot or becomes its nearest neighbour.
+  //
+  // Note what is NOT the problem, measured before changing anything: isolated
+  // pixels. RA2's own rips run 20.5% pixels with no like-coloured neighbour
+  // (the Engineer 33.6%, the reactor 24.8%) against our Tesla Tank's 20.8%.
+  // Despeckling would have smoothed away the very texture the reference has.
+  // The defect is the SIZE OF THE PALETTE, not the scatter within it.
+  var hist = new Map(), k2;
+  for (i = 0; i < d.length; i += 4) {
+    if (!d[i + 3]) continue;
+    k2 = (d[i] << 16) | (d[i + 1] << 8) | d[i + 2];
+    hist.set(k2, (hist.get(k2) || 0) + 1);
+  }
+  var keep = [], drop = [];
+  hist.forEach(function (n, c) { (n >= PAL_MIN ? keep : drop).push(c); });
+  if (keep.length && drop.length) {
+    var map = new Map();
+    drop.forEach(function (c) {
+      var r = (c >> 16) & 255, g = (c >> 8) & 255, b = c & 255, best = keep[0], bd = Infinity;
+      for (var j = 0; j < keep.length; j++) {
+        var q = keep[j], dr = ((q >> 16) & 255) - r, dg = ((q >> 8) & 255) - g, db = (q & 255) - b;
+        // Weighted so a merge keeps the pixel's VALUE before its hue: a stray
+        // dot moving one step in brightness shows, moving one step in hue does
+        // not, at the size these are drawn.
+        var dist = dr * dr * 2 + dg * dg * 3 + db * db;
+        if (dist < bd) { bd = dist; best = q; }
+      }
+      map.set(c, best);
+    });
+    for (i = 0; i < d.length; i += 4) {
+      if (!d[i + 3]) continue;
+      var m2 = map.get((d[i] << 16) | (d[i + 1] << 8) | d[i + 2]);
+      if (m2 === undefined) continue;
+      d[i] = (m2 >> 16) & 255; d[i + 1] = (m2 >> 8) & 255; d[i + 2] = m2 & 255;
+    }
+  }
+  // LAST, the HUE-JUMP DOTS — and only those. A 6-level grid turns a channel
+  // spread of ~40 on a "grey" surface into a saturated palette entry, so a
+  // lightly tinted vector highlight can land one pixel on #99cccc inside a
+  // field of #cccccc. That reads as coloured dirt on white machinery at the
+  // size the game draws it.
+  //
+  // It is NOT despeckling, which the reference forbids: RA2's own rips run
+  // 20.5% pixels with no like-coloured neighbour (measured over 44 files —
+  // the Engineer 33.6%, the reactor 24.8%), so isolated pixels ARE the
+  // texture. What RA2 never does is change HUE without changing VALUE. So the
+  // rule is narrow: an isolated pixel whose luma matches the dominant
+  // neighbour to within half a grid step, but whose hue does not, takes the
+  // neighbour's colour. A rim light, a weld, a dark seam — anything carrying a
+  // real value step — is untouched.
+  var W = s.c.width, Hh = s.c.height, src = new Uint8ClampedArray(d);
+  function lum4(j) { return src[j] * 0.299 + src[j + 1] * 0.587 + src[j + 2] * 0.114; }
+  var half = step / 2, nb = [0, 0, 0, 0], nl = 0, x, y, j, q2, same, dom, domn, t;
+  for (y = 1; y < Hh - 1; y++) for (x = 1; x < W - 1; x++) {
+    j = (y * W + x) * 4;
+    if (src[j + 3] < 200) continue;
+    nl = 0; same = 0;
+    nb[0] = j - 4; nb[1] = j + 4; nb[2] = j - W * 4; nb[3] = j + W * 4;
+    dom = -1; domn = 0;
+    for (t = 0; t < 4; t++) {
+      q2 = nb[t];
+      if (src[q2 + 3] < 200) continue;
+      nl++;
+      if (src[q2] === src[j] && src[q2 + 1] === src[j + 1] && src[q2 + 2] === src[j + 2]) { same++; continue; }
+      var c2 = 0;
+      for (var u = 0; u < 4; u++) {
+        var r2 = nb[u];
+        if (src[r2 + 3] >= 200 && src[r2] === src[q2] && src[r2 + 1] === src[q2 + 1] && src[r2 + 2] === src[q2 + 2]) c2++;
+      }
+      if (c2 > domn) { domn = c2; dom = q2; }
+    }
+    if (nl < 3 || same > 0 || domn < 2) continue;
+    if (Math.abs(lum4(j) - lum4(dom)) > half) continue;    // a real value step: keep it
+    d[j] = src[dom]; d[j + 1] = src[dom + 1]; d[j + 2] = src[dom + 2];
   }
   s.g.putImageData(id, 0, 0);
+}
+
+// A colour has to hold at least this many pixels to keep its own palette slot.
+var PAL_MIN = 3;
+
+/** One channel, snapped to the sprite palette's grid. */
+function qstep(v, step) {
+  var q = Math.round(Math.round(v / step) * step);
+  return q < 0 ? 0 : q > 255 ? 255 : q;
 }
 
 function valuePass(s, gm) {

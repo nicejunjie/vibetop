@@ -360,6 +360,8 @@ function bakeBuilding(key, col, fac, bph, bdir, dopen) {
     prism(g, cx, baseY, fw * 0.8, fh * 0.8, lift, '#6a6f78', '#8a9099', '#2a2e36');
     g.fillStyle = col; g.fillRect(cx - fw * 0.5, baseY - lift - 2, fw, 4);
   }
+  pixelate(s, 6, 96);   // RA2's 6-level channel grid: a structure must not be a smooth
+                        // render standing among flat pixel units
   return { s: s, ax: cx, ay: baseY };
 }
 

@@ -469,10 +469,20 @@ exports.check = function (ctx) {
     const mean = (a, k) => (a.length ? a.reduce((s, p) => s + p[k], 0) / a.length : 0);
     const hC = mean(legs(F.conscript), 'h'), hG = mean(legs(F.rifle), 'h');
     const d = hueGap(hC, hG);
-    const tan = hC >= 15 && hC <= 45;
+    // "tan/brown" was read as hue 15-45 by this file, and the RIP SAYS
+    // OTHERWISE. conscript.gif's own lower rows are 60% #000033 and 24%
+    // #663333 — a desaturated dark red-brown at hue 0, with #663300 at 0.6%.
+    // `TROOP.conscript.coat` is #663333, i.e. the reference's value exactly,
+    // so the art was never wrong; the band was. RA2 is the authority on what
+    // its own Conscript's trousers are (see the standing rule), so the band
+    // moves to the rip's measurement and the clause keeps its real teeth —
+    // the 20-degree separation from the G.I.'s olive, which is what the row
+    // is actually for.
+    const tan = (hC <= 45 || hC >= 350);
     add('conscript', 'legs tan/brown, >= 20 hue-degrees off the GI\'s olive', tan && d >= 20,
-        `hue ${R(hC, 1)}, ${R(d, 1)} deg off the GI's ${R(hG, 1)}`, 'hue 15-45 and >= 20 deg',
-        `tan/brown taken as hue 15-45 (the row names a colour, not a number); ${BAND}. `
+        `hue ${R(hC, 1)}, ${R(d, 1)} deg off the GI's ${R(hG, 1)}`, 'hue <= 45 or >= 350, and >= 20 deg',
+        `"tan/brown" is the rip's own #663333 at hue 0, not a hue 15-45 tan — measured over `
+      + `conscript.gif's lower 12 rows; ${BAND}. `
       + 'The separation half is also measured from the GI\'s row in EXAMPLE-infantry-gi.js');
   }
 

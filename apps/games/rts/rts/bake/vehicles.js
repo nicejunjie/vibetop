@@ -809,6 +809,7 @@ function bakeVehicle(col, kind, fac, anim) {
       } else {
         drawHarrier(C);
       }
+      pixelate(s, 6, 96);   // RA2's own 6-level channel grid: flat bands, not a gradient
       return s;
     }
 
@@ -937,6 +938,7 @@ function bakeVehicle(col, kind, fac, anim) {
       // machining grain as the tracked fleet.
       metalFinish(s.c, metalSeed);
     }
+    pixelate(s, 6, 96);   // RA2's own 6-level channel grid: flat bands, not a gradient
     return s;
   }
 

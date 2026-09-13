@@ -29,7 +29,12 @@ function bakeShip(col, kind, fac) {
   var DECK = sov ? '#3d4239' : '#454c57';
   if (kind === 'sub')      { HULL = '#2f333a'; DECK = '#1e2126'; }
   if (kind === 'dolphin')  { HULL = '#728798'; DECK = '#4b5a68'; }
-  if (kind === 'squid')    { HULL = sov ? '#6c4a60' : '#6c4a60'; DECK = '#432c3d'; }
+  // The squid's plum was a HALF-STEP off the palette grid and the shade ladder
+  // kept falling off it on the red side: #6c4a60 lit by 1.2 snaps to #996666
+  // and its own midtone to #663333, both pure hue 0, so 75% of the animal read
+  // as the RED player's unit whoever owned it (hue.maxImpostor 0.752). Pushing
+  // the blue channel one level clear holds hue 300 at every rung of the ladder.
+  if (kind === 'squid')    { HULL = '#74487f'; DECK = '#4a2c50'; }
   if (kind === 'lcraft')   { HULL = '#7e8778'; DECK = '#41473c'; }
   if (kind === 'carrier')  { HULL = '#8a949f'; DECK = '#3a3f47'; }
   var BOOT = shade(HULL, 0.34);                       // boot-topping at the waterline
@@ -238,6 +243,7 @@ function bakeShip(col, kind, fac) {
         }
       }
     }
+    pixelate(s, 6, 96);   // RA2's own 6-level channel grid: flat bands, not a gradient
     return s;
   }
   // 32 bearings, baked LAZILY, exactly as bakeVehicle's sheet is. Hulls

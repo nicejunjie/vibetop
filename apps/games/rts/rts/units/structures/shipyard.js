@@ -433,5 +433,6 @@ if (!sov) {
   launchBay(P(0, 1.32, PH2 - 4), 13, 13, shade(PONT, 1.25), col);
   floods([P(-1.12, 1.12, PH2), P(1.12, -1.12, PH2)]);
 }
+pixelate(s, 6, 96);   // as bakeBuilding's own return does
 return { s: s, ax: cx, ay: baseY };
 }
