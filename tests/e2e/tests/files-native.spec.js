@@ -66,6 +66,9 @@ test.beforeEach(async ({ context }) => {
   if (process.env.VIBETOP_FILESX_HTML) {
     await context.route('**/filesx.html*', (r) => r.fulfill({ path: process.env.VIBETOP_FILESX_HTML, contentType: 'text/html' }));
   }
+  if (process.env.VIBETOP_FILES_HTML) {
+    await context.route('**/files.html*', (r) => r.fulfill({ path: process.env.VIBETOP_FILES_HTML, contentType: 'text/html' }));
+  }
 });
 async function openFiles(page) {
   await page.goto('/filesx.html');
@@ -77,6 +80,50 @@ async function openFiles(page) {
 }
 
 const rowNamed = (page, name) => page.locator('.row').filter({ hasText: name }).first();
+
+// ---- the Files WRAPPER (files.html): the shared tab set ----
+// Reported as "whenever i return to file app, it flashes then back to /".
+// curPath() reported an unreadable (empty) iframe hash as "/" rather than
+// "unknown", so a device's stateStr() oscillated between its real folder and
+// root every tick. tick() treats "local changed" as a reason to PUSH and skip
+// the read, so that device POSTed every 2s and never read the server — and
+// dragged every other device of the same user back to / for ever.
+test.describe('native Files — shared tabs', () => {
+  test.beforeEach(({}, info) => {
+    test.skip(info.project.name !== DESKTOP, `wrapper contract — ${DESKTOP} only`);
+  });
+
+  // The poison, exactly: a frame that is BETWEEN documents has pathname
+  // /filesx.html but an empty hash. Reporting that as "/" (rather than "I
+  // cannot read it") overwrote the tab's real folder with root and pushed it to
+  // every other device of the same user.
+  test('a tab whose hash is momentarily unreadable is not persisted as /', async ({ page }) => {
+    await page.goto('/files.html');
+    await page.waitForFunction(() => document.querySelectorAll('#frames iframe').length > 0, null, { timeout: 20_000 });
+    await page.waitForTimeout(2500);
+
+    // put the active tab in a real folder and let it persist
+    await page.evaluate(() => {
+      document.querySelector('#frames iframe.active').contentWindow.location.hash = '#/tmp';
+    });
+    await page.waitForTimeout(3000);
+    const saved = JSON.parse(await page.evaluate(() => fetch('/api/files/tabs').then((r) => r.text())));
+    expect(saved.paths).toContain('/tmp');
+
+    // now strip the hash WITHOUT navigating — the exact state a frame is in
+    // mid-load: pathname is still /filesx.html, hash is ''
+    await page.evaluate(() => {
+      const f = document.querySelector('#frames iframe.active');
+      f.contentWindow.history.replaceState(null, '', '/filesx.html');
+    });
+    await page.waitForTimeout(5000);        // two full sync rounds
+
+    const after = JSON.parse(await page.evaluate(() => fetch('/api/files/tabs').then((r) => r.text())));
+    // the tab must NOT have been rewritten to root
+    expect(after.paths).toContain('/tmp');
+    expect(after.paths.filter((p) => p === '/').length).toBeLessThan(after.paths.length);
+  });
+});
 
 test.describe('native Files — touch', () => {
   onPhones(test);

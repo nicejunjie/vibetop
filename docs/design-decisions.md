@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_292 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_293 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
 - [Scheduled terminal messages ("resume when the token limit resets")](#scheduled-terminal-messages-resume-when-the-token-limit-resets)
@@ -315,6 +315,7 @@ _292 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [RTS unit art split into one file per unit, and rts.html became a built file (2026-09-12)](#rts-unit-art-split-into-one-file-per-unit-and-rtshtml-became-a-built-file-2026-09-12)
 - [The RTS became 117 plain scripts you can open by double-clicking, and the repo's last build step went away (2026-09-12)](#the-rts-became-117-plain-scripts-you-can-open-by-double-clicking-and-the-repos-last-build-step-went-away-2026-09-12)
 - [Files on a phone: fixed-width tiles wasted a fifth of the screen, and auto grid rows collapsed on top of each other (2026-09-12)](#files-on-a-phone-fixed-width-tiles-wasted-a-fifth-of-the-screen-and-auto-grid-rows-collapsed-on-top-of-each-other-2026-09-12)
+- [Files kept jumping back to "/": an unreadable iframe hash was reported as root (2026-09-12)](#files-kept-jumping-back-to-an-unreadable-iframe-hash-was-reported-as-root-2026-09-12)
 
 <!-- END TOC -->
 
@@ -13176,3 +13177,48 @@ verified unchanged), and the complaint was specifically the phone.
 **Watch out.** `gridCols()` counts tiles per line from `offsetTop`, so it keeps
 working under grid with no change — but anything that assumes `.main.gv` is a
 flex container will now be wrong on a phone and right on a desktop.
+
+## Files kept jumping back to "/": an unreadable iframe hash was reported as root (2026-09-12)
+
+**Symptom.** "Whenever i return to file app, it flashes then back to /." The
+Files app would not stay in a folder on the phone.
+
+**Cause.** `files.html` syncs its tab set across a user's devices through
+`/api/files/tabs` (poll every 2s). It reads each tab's current folder out of its
+iframe's hash:
+
+```js
+if (loc.pathname === '/filesx.html') return decPath((loc.hash || '#').slice(1)) || '/';
+```
+
+A frame that is *between documents* has `pathname === '/filesx.html'` with an
+**empty hash**. That `|| '/'` turned "I cannot read it right now" into "the user
+is at root", and `renderTabs()` writes the result straight back into `t.path` —
+so a tab sitting in `/home/you/Documents` was silently rewritten to `/` and
+pushed to the server, and from there to every other device.
+
+It also made `stateStr()` oscillate (real folder → `/` → real folder). `tick()`
+treats "local differs from what we last saved" as a reason to **push and skip
+the read**, with no bound, so a device in that state POSTed every 2s and never
+once read the server — one device then held the whole account at `/`. The
+nginx log showed it plainly: every POST from any client was followed 2–3s later
+by a POST from one specific device, over and over.
+
+**Fix.** `curPath()` returns `null` (= unknown, caller falls back to the tab's
+last known path) unless the hash is actually readable — `hash.length > 1`, so a
+tab genuinely at root (`#/`) still reads as `/`. Plus a bound in `tick()`: after
+5 consecutive pushes a client reads regardless, so a disagreement always
+converges instead of ping-ponging for ever.
+
+**Watch out.** The test that matters simulates the exact poison state
+(`history.replaceState(null, '', '/filesx.html')` strips the hash *without*
+navigating); against the previous build it fails with `Received array: ["/"]`.
+A two-client "does one device stomp the other" test was written first and
+**passed on the broken build** — two healthy clients never reach the bad state,
+so it proved nothing and was replaced. A test that does not fail on the build
+you are fixing is not evidence.
+
+**Rejected.** A server-side `rev`/compare-and-swap on the tab state: it makes a
+*stale* writer lose, but the writer here was not stale — it genuinely believed
+the folder was `/` on every tick, so CAS would have accepted every stomp. Fix
+the value, not the ordering.
