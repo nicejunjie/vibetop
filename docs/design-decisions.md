@@ -13384,7 +13384,15 @@ the next one:
 1. **No test ever had two apps open.** Every spec drives ONE app, and focus is a
    global single-owner resource — the app under test behaves perfectly while
    another reaches over and takes the keyboard. `cross-app-focus.spec.js` now
-   asserts the invariant no single app owns.
+   opens several at once. Measured caveat, because a green that cannot go red is
+   worth nothing: that spec does **not** reproduce this steal. Run in the FULL
+   VM against the UNFIXED patch file, with a real connected xpra client and the
+   legacy pump posted straight at the Browser frame, top-level focus never
+   moved — headless Chromium refuses a background iframe's `window.focus()`, so
+   the spec passed either way. (Its first version was worse still: it activated
+   Files from the Start menu and only then clicked, which is the harmless
+   "second click" case that never pumps.) Making it bite needs a headed browser
+   with real focus semantics.
 2. **The VM does not install the culprit.** `tests/e2e/run-vm.sh` provisions
    `deploy.sh --no-browser --no-office` by default, so the Browser — the app
    doing the stealing — does not exist there. `VIBETOP_E2E_FULL=1` installs it.
