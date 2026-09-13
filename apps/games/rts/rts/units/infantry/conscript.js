@@ -28,11 +28,11 @@ g.fillRect(cx - 4.3, by - 12.8, 3.8, 0.9);
 
 g.fillStyle = JACKET;                                         // dark jacket
 g.beginPath();
-g.moveTo(cx - 5.2, by - 19.4); g.lineTo(cx + 5.2, by - 19.4);
+g.moveTo(cx - 5.2, by - 18.4); g.lineTo(cx + 5.2, by - 18.4);
 g.lineTo(cx + 4.7, by - 11.6); g.lineTo(cx - 4.7, by - 11.6);
 g.closePath(); g.fill(); outline(g, shade(JACKET, 0.52));
 g.fillStyle = shade(JACKET, 1.34);                            // lit left edge
-g.fillRect(cx - 5.0, by - 19.2, 1.3, 7.4);
+g.fillRect(cx - 5.0, by - 18.2, 1.3, 6.4);
 g.fillStyle = shade(JACKET, 0.66);                            // belt
 g.fillRect(cx - 4.9, by - 13.2, 9.8, 1.5);
 
@@ -70,7 +70,7 @@ g.fillRect(cx + 1.7, by - 19.7, 2.8, 7.8);
 g.fillStyle = shade(col, 0.64);                               // chin shadow
 g.fillRect(cx - 4.8, by - 20.1, 9.6, 0.8);
 carbine(cx - 2.6, by - 13.4 + gt.sw * 0.5, cx - 8.0, by - 24.8 + gt.sw * 0.5, 1.8);
-face(by - 21.3);
+face(by - 20.1);
 // THE CAP, not a helmet. §2.2: "cap silhouette flat, not domed" — a
 // Conscript and a GI are the same 13x27 blob and RA2 separates them on
 // exactly two things, the leg hue and the headgear. So the GI keeps the

@@ -154,7 +154,7 @@ var ACCENT = {
   // 53.6 -> 55.4. Paired with helmet()'s `hef` shell edge floor, since a
   // brighter FILL alone tops out at a 0.115 gap even at near-white.
   rifle:     '#c9d0d8',   // GREY POT HELMET over the GI's house-colour torso block
-  conscript: '#2f3540',   // his DARK flat-crowned cap; the Conscript's remap is his TUNIC
+  conscript: '#b4bcc6',   // his DARK flat-crowned cap; the Conscript's remap is his TUNIC
   rocket:    '#ffbe45',   // amber warhead (Guardian) / amber shell drum (Flak)
   tank:      '#39415a',   // gunmetal barrel
   lancer:    '#3a3f4c',   // neutral grey deck insets on a pale hull
