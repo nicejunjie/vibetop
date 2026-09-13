@@ -6,7 +6,7 @@
 
 
 function drawEngineer(C) {
-  var T = C.T, arms = C.arms, by = C.by, col = C.col, cx = C.cx, edge = C.edge, face = C.face,
+  var ACC = C.ACC, T = C.T, arms = C.arms, by = C.by, col = C.col, cx = C.cx, edge = C.edge, face = C.face,
       g = C.g, gt = C.gt, helmet = C.helmet, legs = C.legs, sov = C.sov;
 
 // ENGINEER, read off the RA2 walk frames (engineer-frames.png): a hi-vis
@@ -135,10 +135,11 @@ if (sov) {
   g.fillStyle = '#b8912e';
   g.beginPath(); g.ellipse(cx, by - 23.6, 0.85, 0.75, 0, 0, 6.29); g.fill();
 } else {
-  helmet(by - 23.3, 2.95, ACCENT.engineer, 1.05);              // amber hard hat
-  g.fillStyle = edge(ACCENT.engineer, 0.72);                  // moulded crest ridge
+  helmet(by - 23.3, 2.95, ACC, 1.05, 0.98);        // amber hard hat — hef keeps it HIGH-VIS: a
+                                                   // hard hat is the brightest thing a worker wears
+  g.fillStyle = edge(ACC, 0.72);                  // moulded crest ridge
   g.fillRect(cx - 0.7, by - 26.2, 1.4, 2.9);
-  g.fillStyle = edge(ACCENT.engineer, 0.56);                  // brim shadow line
+  g.fillStyle = edge(ACC, 0.56);                  // brim shadow line
   g.fillRect(cx - 3.4, by - 22.6, 6.8, 0.65);
 }
 g.restore();

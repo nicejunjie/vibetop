@@ -117,6 +117,11 @@ function bakeInfantry(col, kind, fac, phase, dir, state) {
   // untouched however far the man himself moves.
   var VG = INF_VALUE[tkey] || 1;
   if (VG !== 1) col = valuePre(col, VG);
+  // The kind's ACCENT gets the same pre-compensation, and for the same reason:
+  // it is the one surface that must survive the darkening pass at the value it
+  // was chosen at. A hard hat that comes out of the bake brown is not a hard hat.
+  var ACC = ACCENT[tkey] || '#ffffff';
+  if (VG !== 1) ACC = valuePre(ACC, VG);
   // ...and the kind's EDGE FLOOR (see INF_EDGE). `edge()` is `shade()` with a
   // minimum, so the shared legs/arms/helmet keep one call site each.
   var EDGE = INF_EDGE[tkey] || 0;
@@ -329,7 +334,7 @@ function bakeInfantry(col, kind, fac, phase, dir, state) {
     g.beginPath(); g.roundRect(mxp - 0.9, myp + 0.3, 2.0, 2.9, 0.6); g.fill();
   }
 
-  var C = { FA: FA, HEADX: HEADX, JACKET: JACKET, POUCH: POUCH, SLEEVE: SLEEVE, T: T, TURN: TURN,
+  var C = { ACC: ACC, FA: FA, HEADX: HEADX, JACKET: JACKET, POUCH: POUCH, SLEEVE: SLEEVE, T: T, TURN: TURN,
             ar: ar, arms: arms, by: by, carbine: carbine, col: col, cx: cx, edge: edge,
             face: face, g: g, gt: gt, helmet: helmet, legs: legs, sd: sd, sov: sov, wpn: wpn };
   if (kind === 'conscript') {
