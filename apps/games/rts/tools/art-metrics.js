@@ -534,6 +534,10 @@ const TARGETS = {
   // a pairwise distance of 0.03-0.24 from each other. C5's claim is a COUNT,
   // so this counts it directly, off the un-normalised saturation of a unit's
   // own fixed colours.
+  'colour.naval.meanDist':       { want: 0.45, dir: 'up',   note: 'mean pairwise hue-histogram distance between HULLS, the naval twin of the infantry and vehicle rows. Added 2026-09-13 after four ship and aircraft palettes were replaced wholesale and the ratchet did not move a single number: there was no colour metric for either group, so the gate was blind to the one thing that was wrong with them. The Collective fleet had inherited the ARMY olive (#666d61, which the 6-level grid spells #666633) and was measurably GREEN — 7.4% of the Dreadnought at hue 105 — while the rips show flat neutral warship grey with the house colour banded on top' },
+  'colour.air.meanDist':         { want: 0.30, dir: 'up',   note: 'the same for aircraft. A lower bar than the other three groups on purpose: there are three of them and RA2 paints two of them mostly grey, so the achievable spread is smaller and a 0.45 target would be a demand to invent hues the reference does not have' },
+  'colour.navalDarkest':         { want: 0.05, dir: 'up',   note: "the darkest hull's LIGHT fraction — pixels at value >= 0.75 as a share of the hull. It exists because the failure it catches is invisible to a distance metric: a unit painted almost entirely in near-blacks has a perfectly ordinary hue histogram. The Harrier was the case that proved it, at 34% of the sprite under value 0.2 with its top four colours #0c1017/#232834/#1a1e26/#1b2030, because those were read off a CAMEO of the jet against a night sky rather than off the airframe" },
+  'colour.airDarkest':           { want: 0.05, dir: 'up',   note: 'the same for aircraft, and the row the black Harrier would have tripped' },
   'colour.vehicleAchromatic':    { want: 0,    dir: 'down', note: "plan C5, made falsifiable: ground vehicles whose FIXED colours carry no hue — mean saturation of their non-remap pixels below " + ACHROMATIC + ". Seven of thirteen on 2026-09-04 (Grizzly .084, Flak Track .106, Mirage .115, IFV .121, V3 .127, Terror Drone .134, Apocalypse .135) against the three the plan named as chromatic (War Miner .280, Chrono Miner .252, MCV .183). EXEMPT: units the reference explicitly paints a neutral — see ACHROMATIC_EXEMPT. NOTE the target is 0 only for the unexempted set; do not force paint onto a unit RA2 keeps grey, cite the reference and exempt it instead" },
 };
 
@@ -1251,7 +1255,19 @@ function compute(recs, extra) {
     pairs.sort((x, y) => x.dist - y.dist);
     return { d, pairs };
   };
+  // NAVAL AND AIR HAD NO COLOUR METRIC AT ALL, and that is exactly how a green
+  // Soviet navy and a black Harrier survived a year of gates. Every `colour.*`
+  // row covered infantry and vehicles; the naval and air rows were geometric
+  // (clause.navalUnmet, clause.airUnmet), so on 2026-09-13 four hulls had their
+  // entire palettes replaced — the Collective fleet was baking the ARMY's olive
+  // #666633, 7.4% of the Dreadnought at hue 105, and the Harrier's own top four
+  // colours were near-black because they had been read off a CAMEO of a jet in
+  // shadow — and the recorded baseline still matched byte for byte. A gate that
+  // cannot see a change that large is not gating that group.
+  const nav = keys.filter((k) => grp[k] === 'naval' && colByUnit[k]);
+  const air = keys.filter((k) => grp[k] === 'air' && colByUnit[k]);
   const infD = histDist(inf), vehD = histDist(veh);
+  const navD = histDist(nav), airD = histDist(air);
   const cd = infD.d, worstColourPairs = infD.pairs;
   const impostorAll = keys.filter((k) => colByUnit[k])
     .map((k) => ({ key: k, pct: colByUnit[k].impostorPct }))
@@ -1727,6 +1743,10 @@ function compute(recs, extra) {
       'colour.infantry.meanDist': round(mean(cd), 4),
       'colour.vehicle.meanDist': round(mean(vehD.d), 4),
       'colour.vehicleAchromatic': veh.filter((k) => !ACHROMATIC_EXEMPT.has(k) && colByUnit[k].chroma < ACHROMATIC).length,
+      'colour.naval.meanDist': round(mean(navD.d), 4),
+      'colour.air.meanDist': round(mean(airD.d), 4),
+      'colour.navalDarkest': round(Math.min(...nav.map((k) => colByUnit[k].lightPct)), 4),
+      'colour.airDarkest': round(Math.min(...air.map((k) => colByUnit[k].lightPct)), 4),
     },
     detail: {
       // Per-unit numbers, exported so the METRICS themselves can be audited.
