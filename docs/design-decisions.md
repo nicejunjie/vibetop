@@ -13270,6 +13270,31 @@ the keyboard has always worked. Verified failing on the unfixed build first. And
 break needs the wrapper to already be loaded, so the reproduction is: open
 Files, switch away, switch back.
 
+**The second half (same day, v1.19.358).** The fix above cured switching by
+taskbar/Start menu, and the report came straight back: *"switch到file app还是要
+点两次"*. Floating-window mode is a different path. Clicking a file in a
+**background** Files window activates the app from a pointerdown **inside its
+own iframe** (`wireDoc`'s click-to-focus), and `notifyActiveFrame()` answered
+that by focusing the app frame on its 0 ms timer — dragging focus back UP to the
+wrapper, out of the listing the click had just reached. The click still
+selected the file, so the app looked ready while Space went to the wrapper.
+
+`notifyActiveFrame()` now skips its `focus()` for that one activation path: a
+click inside an app's iframe has already put focus where it belongs, often
+deeper than the frame the shell knows about. Every other path (taskbar, Start
+menu, window chrome, first load) focuses as before.
+
+**activeElement is not hasFocus.** The v1.19.357 guard — "the tab iframe is
+already our `activeElement`, so the tab has focus, leave it alone" — was simply
+false, and it is what let this survive the first fix. After the shell pulled
+focus up, the tab iframe was *still* the wrapper's `activeElement` while the
+keys were being delivered to the wrapper. `activeElement` answers "which of my
+children WOULD get the keys"; `hasFocus()` answers "do the keys arrive here at
+all". Ask the frame's own document. Per-frame measurement is the only way to
+see this — `inner.hasFocus=false` with `wrap.activeEl=IFRAME.active` is the
+signature, and walking `activeElement` from the top document reports the
+focused-looking chain either way.
+
 **Rejected.** Making the shell walk into nested frames to find something
 focusable. It would need to know each app's internal structure, and it fights
 apps that place focus deliberately; the wrapper is the only thing that knows
