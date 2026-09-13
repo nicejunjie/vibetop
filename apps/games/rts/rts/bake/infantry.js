@@ -122,9 +122,9 @@ function bakeInfantry(col, kind, fac, phase, dir, state) {
   var EDGE = INF_EDGE[tkey] || 0;
   function edge(c, f) { return shade(c, f < EDGE ? EDGE : f); }
   var GUN = '#22242a';
-  var JACKET = '#252a38';        // Conscript's near-black tunic
-  var SLEEVE = '#3b4256';        // ...his sleeves, one step lighter so they read
-  var POUCH = '#b58a52';         // his tan ammo pouch
+  var JACKET = '#000033';        // Conscript's near-black tunic
+  var SLEEVE = '#333333';        // ...his sleeves, one step lighter so they read
+  var POUCH = '#996633';         // his tan ammo pouch
   var ar;
 
   // Two legs that SCISSOR — the one thing that separates a walk from a

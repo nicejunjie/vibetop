@@ -154,7 +154,7 @@ var ACCENT = {
   // 53.6 -> 55.4. Paired with helmet()'s `hef` shell edge floor, since a
   // brighter FILL alone tops out at a 0.115 gap even at near-white.
   rifle:     '#c9d0d8',   // GREY POT HELMET over the GI's house-colour torso block
-  conscript: '#b4bcc6',   // his DARK flat-crowned cap; the Conscript's remap is his TUNIC
+  conscript: '#999999',   // his DARK flat-crowned cap; the Conscript's remap is his TUNIC
   rocket:    '#ffbe45',   // amber warhead (Guardian) / amber shell drum (Flak)
   tank:      '#39415a',   // gunmetal barrel
   lancer:    '#3a3f4c',   // neutral grey deck insets on a pale hull
@@ -229,7 +229,7 @@ function outline(g, col) { g.strokeStyle = col; g.lineWidth = 1; g.stroke(); }
 // of each other.
 var TROOP = {
   rifle:     { coat: '#4f6136', boot: '#22242a', skin: '#d8a878' },  // olive fatigues
-  conscript: { coat: '#a8865c', boot: '#1e2026', skin: '#d8a878' },  // TAN trousers (>=20 hue-deg off the GI's olive: ref §2.2)
+  conscript: { coat: '#663333', boot: '#1e2026', skin: '#d8a878' },  // TAN trousers (>=20 hue-deg off the GI's olive: ref §2.2)
   rocket:    { coat: '#49512f', boot: '#22242a', skin: '#d8a878' },  // Guardian GI: heavy olive
   rocketS:   { coat: '#575049', boot: '#22242a', skin: '#d8a878' },  // Flak Trooper: grey-brown
   engineer:  { coat: '#e9e5d6', boot: '#6d6653', skin: '#d8a878' },  // NEAR-WHITE hazmat coverall — the only light-value body on the field (ref §2.1). The boot stays DARK on purpose: it is worth 0.005 of the value gate, and a near-white figure needs one dark note at the ground or he floats
@@ -336,7 +336,7 @@ var INF_VALUE = {
                                    //  flat gamma turns his brown coat into a dark
                                    //  RED one, which is the enemy's hue
   desolator: 1.14,                 //  a charcoal hazard suit
-  conscript: [1.16, 1.20, 1.28],   //  dark, and TAN against the GI's olive
+  conscript: [0.92, 0.94, 0.98],   //  dark, and TAN against the GI's olive
   rifle:     [1.04, 0.98, 1.07],   //  unmoved in value, pushed onto olive
   yuri:      0.95,                 //  a step up from Ivan in value alone: his coat
                                    //  is already violet, and tilting it further

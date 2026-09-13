@@ -56,17 +56,17 @@ arms(5.5, by - 18.4, 2.9, 6.6, col, function (i, x, y) {
 // precisely so it does not lie across that mass.
 g.fillStyle = col;
 g.beginPath();
-g.moveTo(cx - 5.2, by - 20.3); g.lineTo(cx + 5.2, by - 20.3);
-g.lineTo(cx + 4.7, by - 11.5); g.lineTo(cx - 4.7, by - 11.5);
+g.moveTo(cx - 4.0, by - 19.6); g.lineTo(cx + 4.0, by - 19.6);
+g.lineTo(cx + 3.6, by - 15.4); g.lineTo(cx - 3.6, by - 15.4);
 g.closePath(); g.fill(); outline(g, shade(col, 0.40));
 // Shading a house-colour panel is a trap: the blue #4aa3db clips its
 // blue channel above about f=1.3 and goes white-cyan, so a "lit" fold
 // at 1.4 stops reading as the owner's colour at all. Folds stay inside
 // 0.70..1.24 on every figure.
 g.fillStyle = shade(col, 1.22);                               // lit fold on the tunic
-g.fillRect(cx - 5.0, by - 20.1, 3.5, 8.2);
+g.fillRect(cx - 3.8, by - 19.4, 2.4, 3.8);
 g.fillStyle = shade(col, 0.76);                               // shaded right fold
-g.fillRect(cx + 1.7, by - 19.7, 2.8, 7.8);
+g.fillRect(cx + 1.4, by - 19.1, 1.9, 3.2);
 g.fillStyle = shade(col, 0.64);                               // chin shadow
 g.fillRect(cx - 4.8, by - 20.1, 9.6, 0.8);
 carbine(cx - 2.6, by - 13.4 + gt.sw * 0.5, cx - 8.0, by - 24.8 + gt.sw * 0.5, 1.8);
