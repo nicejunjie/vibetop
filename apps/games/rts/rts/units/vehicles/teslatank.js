@@ -51,8 +51,8 @@ var drawPod5 = function () {
   // Coil structure, one size down. Two fat pale cylinders (the first
   // attempt) read as fuel drums; it is the RIB COUNT that says coil.
   var sx5 = cx - fx * 3.6, sy5 = by - 5.8 - fy * 3.6;   // 2026-09-10: at the REAR, as RA2 Tesla Tank.png
-  isoBox(g, sx5, sy5, len * 0.32, wid * 0.56, 2.0, a, pdark, '#171a1f');   // the red housing
-  isoBox(g, sx5, sy5 - 2.0, len * 0.28, wid * 0.50, 1.1, a, panel, PEDGE);
+  isoBox(g, sx5, sy5, len * 0.32, wid * 0.56, 2.0, a, shade(hull, 0.72), '#171a1f');   // the housing
+  isoBox(g, sx5, sy5 - 2.0, len * 0.28, wid * 0.50, 1.1, a, shade(hull, 0.92), PEDGE);
   // the core block stands PROUD of the coils so it still reads from
   // above when the two columns overlap it side-on. Its house-colour
   // is now a CAP, not the whole column: a full-height coloured block
