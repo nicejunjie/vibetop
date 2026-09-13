@@ -39,7 +39,12 @@ const REFS = {
   rhino:       { file: 'rhino.png', fac: 'col', owner: 1, name: 'Rhino Tank' },
   flaktrack:   { file: 'soviet-flak-track.png', fac: 'col', name: 'Flak Track' },
   v3:          { file: 'soviet-v3.png', fac: 'col', name: 'V3 Launcher' },
-  drone:       { file: 'terror-drone.png', fac: 'col', name: 'Terror Drone' },
+  // The ONLY genuine sprite rip we hold for anything that is not infantry.
+  // `terror-drone.png` is a 258x222 promotional render — fine for reading what
+  // parts the thing has, useless as a size reference, and it was the size
+  // reference. `drone-animation.gif` is the real SHP: 26x20, 16 colours, and
+  // 100% of its pixels on RA2's 0x33 palette grid (the render manages 1.6%).
+  drone:       { file: 'library/drone-animation.gif', extra: 'terror-drone.png', fac: 'col', name: 'Terror Drone' },
   teslatank:   { file: 'soviet-tesla-tank-sheet.png', fac: 'col', name: 'Tesla Tank' },
   prismtank:   { file: 'allied-prism-tank.png', fac: 'dir', name: 'Prism Tank' },
   mcv:         { file: 'allied-mcv.png', extra: 'allied-mcv-voxel.webp', fac: 'dir', name: 'MCV' },

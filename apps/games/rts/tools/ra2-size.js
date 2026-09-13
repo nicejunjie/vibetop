@@ -28,6 +28,24 @@ const REF_DIR = path.join(RTS, 'docs/ra2-ref/sprites');
 const { chromium } = require(path.join(ROOT, 'tests/e2e/node_modules/playwright'));
 const TILE = 64 / 60;                       // ours / RA2's — the 1.067 scale
 
+// IS THIS REFERENCE A SPRITE AT ALL? It decides whether a verdict below is
+// information or noise, and for 27 of 41 units the answer is no.
+//
+// RA2's infantry are SHP sprites and we hold real rips of them. Its vehicles,
+// ships and aircraft are VOXELS — there is no sprite to rip — so what the
+// reference library holds for those is promotional renders and voxel-viewer
+// shots at 300x200 and up. Measuring a 24-px tank against a 304x200 press
+// render and printing "TOO SHORT by 84%" is not a finding; it is the tool
+// comparing our sprite to a poster. Twenty-seven of those drowned the handful
+// of real ones for weeks.
+//
+// A genuine RA2 rip is recognisable without any metadata: the game's palette
+// puts EVERY channel of EVERY pixel on a multiple of 0x33 (measured, 43 of the
+// 44 rips in the library; the one exception is an anti-aliased scan), and a
+// unit sprite is small. A render is neither.
+// (the test itself runs in the page, where the decoded pixels are — grep
+// `onGrid` in the reference measurement below)
+
 function refs() {
   const src = fs.readFileSync(path.join(__dirname, 'ra2-compare.js'), 'utf8');
   const body = src.slice(src.indexOf('const REFS = {')).split('\n};')[0];
@@ -120,6 +138,15 @@ function refs() {
       c.width = img.naturalWidth; c.height = img.naturalHeight;
       const g = c.getContext('2d'); g.drawImage(img, 0, 0);
       const d = g.getImageData(0, 0, c.width, c.height).data;
+      // Is this reference a SPRITE at all? Every channel of every pixel in a
+      // real RA2 rip is a multiple of 0x33, and a unit sprite is small.
+      let onGrid = Math.max(c.width, c.height) <= 260;
+      if (onGrid) {
+        for (let i = 0; i < d.length; i += 4) {
+          if (d[i + 3] < 200) continue;
+          if (d[i] % 51 || d[i + 1] % 51 || d[i + 2] % 51) { onGrid = false; break; }
+        }
+      }
       // A rip may be a sheet or a single frame; measure the largest connected
       // opaque blob's bbox, which is the figure itself, not the sheet.
       // Most rips are CONTACT SHEETS: eight bearings side by side. Measuring
@@ -209,7 +236,7 @@ function refs() {
       const big = blobs.filter((b) => b.n >= 40).sort((a, b) => a.h - b.h);   // drop specks
       const use = big.length ? big : blobs.sort((a, b) => a.h - b.h);
       const med = use[use.length >> 1];
-      return { w: med.w, h: med.h, sheet: [W, Hh], frames: use.length,
+      return { onGrid: onGrid, w: med.w, h: med.h, sheet: [W, Hh], frames: use.length,
                spread: [use[0].h, use[use.length - 1].h],
                bg: dominant > 0.06 ? `#${bg.map((v) => v.toString(16).padStart(2, '0')).join('')}` : 'none' };
     }, { b64: buf, mime });
@@ -222,14 +249,21 @@ function refs() {
   for (const key of keys) {
     const o = ours[key], t = theirs[key];
     if (o.error || t.error) { console.log(`${key.padEnd(15)} ${o.error || t.error}`); continue; }
-    const single = t.frames >= 1;                             // the median blob is one frame
+    const single = t.frames >= 1 && t.onGrid;                 // the median blob is one frame
     const tw = t.w * TILE, th = t.h * TILE;
     const ratio = o.h / th;
-    const flag = Math.abs(ratio - 1) <= 0.08 ? 'ok'
+    const flag = !t.onGrid ? 'no sprite-scale reference'
+      : Math.abs(ratio - 1) <= 0.08 ? 'ok'
       : ratio > 1 ? `TOO TALL by ${((ratio - 1) * 100).toFixed(0)}%` : `TOO SHORT by ${((1 - ratio) * 100).toFixed(0)}%`;
     console.log(`${key.padEnd(15)} ${String(o.w + 'x' + o.h).padEnd(12)}  ${String(t.w + 'x' + t.h).padEnd(11)}  ${(tw.toFixed(0) + 'x' + th.toFixed(0)).padEnd(11)}  ${ratio.toFixed(2).padStart(6)}   ${String(flag).padEnd(22)} ${String(t.frames).padStart(2)} blobs h${t.spread[0]}-${t.spread[1]} bg ${t.bg}`);
     if (single) rows.push({ key, ratio });
   }
   const off = rows.filter((r) => Math.abs(r.ratio - 1) > 0.08);
-  console.log(`\n${rows.length} units measurable against a single-frame rip, ${off.length} outside +-8% on height.`);
+  const noref = keys.filter((k) => theirs[k] && theirs[k].onGrid === false);
+  console.log(`\n${rows.length} units measurable against a real sprite rip, ${off.length} outside +-8% on height.`);
+  if (noref.length) {
+    console.log(`${noref.length} have NO sprite-scale reference and are NOT judged here — RA2 draws them as`);
+    console.log('voxels, so the library holds renders and voxel-viewer shots, not rips:');
+    console.log('  ' + noref.join(' '));
+  }
 })();
