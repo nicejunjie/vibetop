@@ -12,6 +12,42 @@
 > correctness findings is incomplete. Automated tests + a real-app walkthrough
 > (desktop **and** mobile WebKit, via the host-safe VM — `tests/e2e/`) both apply.
 
+## The rule: every feature gets a unit test
+
+**Standing instruction (user, 2026-09-13): 针对所有功能都要设计单元测试 — every
+feature is to have unit tests.** Not "the risky ones", not "when convenient".
+
+This is not bureaucracy, it is the lesson of the three-day two-click bug
+(`docs/design-decisions.md`, 2026-09-13). Three fixes shipped on plausible
+theories, each verified green by e2e runs here, each followed by "还是不行". What
+finally held was a **hermetic unit test**: feed `xpra-patches.js` a
+`focused:false` message and assert it keeps its hands off the keyboard. No VM,
+no xpra, no browser. Meanwhile the e2e spec written for the same bug passed
+against the *unfixed* build — a green that could not go red.
+
+So, in order of preference:
+
+1. **A unit test on the real source.** Two harnesses already exist, use them:
+   - *Extracted module* (`shell/appreg.js`, `apps/everyday/files/filesx-core.js`,
+     `shell/coach.js`, …) — `require()` it and assert the contract. When a page's
+     logic is worth testing, **extract it into a `.js` beside the page** rather
+     than leaving it inline; the page then loads it with a `<script src>`.
+   - *vm sandbox on the shipped file* (`apps/everyday/browser/xpra-patches.test.js`,
+     `apps/games/rts/*.test.js`) — load the REAL file into a `vm` sandbox with
+     the few DOM/host APIs it touches stubbed, and drive the handlers it installs.
+     Prefer this to re-implementing the logic in the test, which keeps passing
+     after the shipped code drifts.
+2. **Then** an e2e spec, for what only a real browser can show.
+
+**A test that cannot fail on the broken build guards nothing.** Before adding
+one, run it against the unfixed code and watch it go red; if it does not, the
+test is wrong (see the cross-app-focus spec's own header for a worked example).
+
+Coverage today is uneven — `apps/everyday/{imageview,notes,upload,video,x11launcher}`,
+`apps/games/{circuit,game2048,minesweeper,solitaire}` and
+`apps/{system,utilities}/*` frontends have no JS unit test yet. New work in any
+of them ships with one; existing gaps are closed as each is touched.
+
 **One command — `./run-tests.sh`** runs the whole hermetic regression suite (no
 root/systemd/nginx/Docker; external processes are stubbed): the two Python roots
 (`server/tests/` + `apps/utilities/claude-usage/tests/`) and every JS unit (`node --test`).
