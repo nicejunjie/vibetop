@@ -582,7 +582,13 @@
       } catch (e) {}
     };
     window.addEventListener('message', function(e) {
-      if (e.data && e.data.type === 'vibetop:active' && e.data.active === 'browser') {
+      // focused === false means "you are on screen" (window mode pumps every
+      // VISIBLE window with its own id), not "you are the focused app". Taking
+      // the keyboard on that is how a merely-visible Browser window stole it
+      // from the app the user was clicking in. Absent means focused: an older
+      // shell sends no flag and must keep working.
+      if (e.data && e.data.type === 'vibetop:active' && e.data.active === 'browser' &&
+          e.data.focused !== false) {
         setTimeout(refocusKbd, 0);
         setTimeout(refocusKbd, 150);   // again after layout/visibility settle
       }

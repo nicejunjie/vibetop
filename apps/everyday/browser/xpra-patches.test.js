@@ -219,3 +219,36 @@ test("a short absence nudges locally and never repaints; a long one asks the ser
   rest();                                                                    // the deferred back()
   assert.strictEqual(resumes, 1, "a 4 s trip to another app: no repaint");
 });
+
+// Patch 8 (the keyboard grab) vs patch 12 (the repaint): the shell pumps EVERY
+// visible window with its own id in window mode, which means "you are on
+// screen", not "you are the focused app". Acting on that took the keyboard out
+// of the app the user was actually clicking in — a click in Files selected the
+// file and Space went to the Browser, 150ms later. Caught on the user's own
+// screen by the #focusdbg panel:
+//   pointerdown @filesx focus=filesx / click @filesx focus=browser/
+test("a merely VISIBLE browser window does not grab the keyboard", () => {
+  const { sandbox, rest } = load();
+  const el = { focused: 0, focus() { this.focused++; } };
+  sandbox.document.getElementById = (id) => (id === "pasteboard" ? el : null);
+  let winFocus = 0;
+  sandbox.window.focus = () => winFocus++;
+  const send = (data) => sandbox.listeners.message.forEach((fn) => fn({ data }));
+
+  // On screen but NOT focused: hands off the keyboard entirely.
+  send({ type: "vibetop:active", active: "browser", focused: false });
+  rest();
+  assert.strictEqual(el.focused, 0, "no #pasteboard focus for a background window");
+  assert.strictEqual(winFocus, 0, "and no window.focus() stealing top-level focus");
+
+  // Genuinely switched to: it must still take the keyboard back.
+  send({ type: "vibetop:active", active: "browser", focused: true });
+  rest();
+  assert.ok(el.focused > 0, "the focused Browser still grabs the keyboard");
+
+  // An older shell sends no flag at all — unchanged behaviour.
+  el.focused = 0;
+  send({ type: "vibetop:active", active: "browser" });
+  rest();
+  assert.ok(el.focused > 0, "absent flag still means focused");
+});

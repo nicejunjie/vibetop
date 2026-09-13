@@ -2636,10 +2636,17 @@
   // Only when the keys are not already ours: an unconditional focus() here would
   // blur a rename box or the editor mid-edit on every stray click.
   document.addEventListener('pointerdown', function(ev) {
-    if (document.hasFocus()) return;              // the keys already arrive here
     var t = ev.target;
     if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' ||
               t.tagName === 'BUTTON' || t.tagName === 'A' || t.isContentEditable)) return;  // focuses itself
+    // NOT gated on document.hasFocus(): in Safari a child frame's document can
+    // report true whenever the WINDOW is focused, whichever frame the keys
+    // actually reach — so that test bailed on every click and this never ran
+    // (v1.19.360 shipped with it and the report came straight back). Claiming
+    // unconditionally is safe: focusing an element that already has focus is a
+    // no-op. The one thing worth protecting is an edit in progress.
+    var ae = document.activeElement;
+    if (ae && (ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA' || ae.isContentEditable)) return;
     // Whichever surface is on top owns the keys — each has its own key handler.
     var target = qlIsOpen() ? qlPanel
                : (edEl && edEl.classList.contains('open')) ? edTa
