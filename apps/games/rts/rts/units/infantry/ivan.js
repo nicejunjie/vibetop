@@ -69,8 +69,8 @@ g.fillRect(cx - 0.9, by - 14.2, 1.8, 1.1);
 for (var iv = -1; iv <= 1; iv += 2) {
   g.fillStyle = col;
   g.beginPath();
-  g.moveTo(cx + iv * 0.75, by - 20.6); g.lineTo(cx + iv * 5.6, by - 20.6);
-  g.lineTo(cx + iv * 5.2, by - 10.2); g.lineTo(cx + iv * 1.15, by - 10.2);
+  g.moveTo(cx + iv * 0.75, by - 20.1); g.lineTo(cx + iv * 4.6, by - 20.1);
+  g.lineTo(cx + iv * 4.3, by - 14.9); g.lineTo(cx + iv * 1.10, by - 14.9);
   g.closePath(); g.fill(); outline(g, shade(col, 0.40));
   g.fillStyle = shade(col, iv < 0 ? 1.22 : 0.88);
   g.fillRect(cx + (iv < 0 ? -5.3 : 2.6), by - 20.4, 2.7, 9.9);

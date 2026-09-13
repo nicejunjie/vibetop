@@ -82,8 +82,8 @@ g.save(); g.translate(gt.lean, gt.bob);
 // cut so low that a 7 px hat crown counted as body instead of spike.
 g.fillStyle = col;                                             // the coat, skirted past the hip
 g.beginPath();
-g.moveTo(cx - 6.1, by - 20.4); g.lineTo(cx + 6.1, by - 20.4);
-g.lineTo(cx + 4.0, by - 9.8); g.lineTo(cx - 4.0, by - 9.8);
+g.moveTo(cx - 4.4, by - 19.9); g.lineTo(cx + 4.4, by - 19.9);
+g.lineTo(cx + 3.8, by - 14.5); g.lineTo(cx - 3.8, by - 14.5);
 g.closePath(); g.fill(); outline(g, shade(col, 0.40));
 g.fillStyle = shade(col, 1.22);                                // lit shoulder fall (folds stay
 g.beginPath();                                                 // inside 0.70..1.24: above ~1.3
@@ -164,7 +164,7 @@ g.fillRect(cx - 4.4, by - 12.3, 8.8, 0.5);
 g.fillStyle = '#8c7a4c';
 g.fillRect(cx - 0.9, by - 12.6, 1.8, 1.9);
 
-arms(6.2, by - 19.4, 2.6, 6.0, shade(col, 0.86), function (i, x, y) {
+arms(6.2, by - 19.4, 2.6, 6.0, shade(T.coat, 1.06), function (i, x, y) {
   g.fillStyle = T.skin;                                        // bare hand, held out
   g.beginPath(); g.ellipse(x + i * 0.4, y + 6.4, 1.15, 1.3, 0, 0, 6.29); g.fill();
   outline(g, '#a5806a');

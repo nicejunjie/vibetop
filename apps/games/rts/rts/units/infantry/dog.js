@@ -54,7 +54,7 @@ var LEAP = ST === 'leap' ? sph : -1;
 var air = LEAP === 1 ? 7.0 : (LEAP === 2 ? 2.2 : 0);
 var stretch = LEAP === 1 ? 1.22 : (LEAP === 0 ? 0.86 : 1.0);
 
-var TAN = '#a8763a', TANL = '#d09f5a', TAND = '#66421a';   // 2026-09-10: darker, browner; dog|tanya sat 0.0 over the friend-vs-foe floor
+var TAN = '#996633', TANL = '#b98a4a', TAND = '#4a2f12';   // 2026-09-10: darker, browner; dog|tanya sat 0.0 over the friend-vs-foe floor
 var BLK = '#22201c', BLKL = '#3d3830';
 // The saddle is the animal's own black; the HOUSE colour is worn, never coat.
 var SAD = '#26231e', SADD = '#141210', SADL = '#4a453c';
@@ -232,5 +232,11 @@ if (!BACK) {
   g.fillStyle = '#120e0a';                   // eye
   g.beginPath(); g.ellipse(cx + hxo + 0.6 * (0.4 + sd), hyo - 0.5, 0.65, 0.7, 0, 0, 6.29); g.fill();
 }
+// The dog is its own function, so the two passes every other infantry sprite
+// gets at the end of bakeInfantry never reached it: it kept a 0.66 median
+// brightness against the rip's 0.20 and stayed smooth while the rest of the
+// roster went to hard pixels. Run them here.
+valuePass(s, 1.28);                        // onto the rip's own darkness
+pixelate(s, 8, 96);                        // hard edges and flat bands
 return s;
 }
