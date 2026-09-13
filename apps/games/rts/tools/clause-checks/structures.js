@@ -76,7 +76,12 @@ const hsv = (r, g, b) => {
   return { h, s: mx ? d / mx : 0, v: mx };
 };
 const hueGap = (a, b) => { const d = Math.abs(a - b) % 360; return d > 180 ? 360 - d : d; };
-const OWNER_HUE = 197;                        // vehicle.js's derived convention, reused (see header)
+// The owner-0 hue is DERIVED, not written down. It used to be a literal here,
+// which made every house-colour clause below silently depend on the player
+// palette never changing; when the palette moved onto RA2's own values the
+// Allied blue went H203 -> H222 and this family of checks reported zero house
+// pixels on sprites that had not been touched. See tools/lib/house-hue.js.
+const OWNER_HUE = require('../lib/house-hue.js').ownerHue(0);
 const CONTRAST = 0.25;                        // "the §2 floor" (power's lit-slit row, §2.6)
 // The chroma cut that separates a Construction Yard's crane from its hall, its
 // deck and (on RA2's own rips) the terrain under it. Swept 0.50-0.80 over four

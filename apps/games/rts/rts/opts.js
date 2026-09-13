@@ -38,15 +38,23 @@ var OPT_CREDITS = [5000, 10000, 20000];
 
 // RA2's eight multiplayer house colours. Index 2 (blue) and 1 (red) are the
 // pair the game shipped with, so the default COL below is byte-identical.
+// House colours sit where RA2's own do, not where a UI swatch would. Measured
+// over the rips, both houses land on the same weighted lightness: the Allied
+// blue runs #333366 / #333399 / #666699 and the Soviet red #663333 / #660000 /
+// #990000, and each averages L 0.33. Ours were interface colours at L 0.50-0.69
+// and read as painted plastic however carefully the cloth under them was toned.
+// Saturation is CLAMPED, never lifted — RA2's blue is only S 0.35 — and the two
+// defaults also take RA2's hue: its Allied colour is a navy (H240), not the sky
+// blue we had, and its Soviet one a pure red, not a pink one.
 var HOUSE = [
-  { k: 'gold',   name: 'Gold',   c: '#e0bf49' },
-  { k: 'red',    name: 'Red',    c: '#e5646c' },
-  { k: 'blue',   name: 'Blue',   c: '#4aa3db' },
-  { k: 'green',  name: 'Green',  c: '#5ec468' },
-  { k: 'orange', name: 'Orange', c: '#e0873a' },
-  { k: 'teal',   name: 'Teal',   c: '#3ec3bf' },
-  { k: 'purple', name: 'Purple', c: '#a56ada' },
-  { k: 'pink',   name: 'Pink',   c: '#e879b5' }
+  { k: 'gold',   name: 'Gold',   c: '#8f7619' },
+  { k: 'red',    name: 'Red',    c: '#8f1919' },
+  { k: 'blue',   name: 'Blue',   c: '#1c3e8c' },
+  { k: 'green',  name: 'Green',  c: '#2d7b35' },
+  { k: 'orange', name: 'Orange', c: '#8f5019' },
+  { k: 'teal',   name: 'Teal',   c: '#28807d' },
+  { k: 'purple', name: 'Purple', c: '#652187' },
+  { k: 'pink',   name: 'Pink',   c: '#8f1958' }
 ];
 
 // The AI never wears the player's colour. Blue and red stay each other's

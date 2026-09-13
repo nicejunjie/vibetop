@@ -163,14 +163,17 @@ var ACCENT = {
   mcv:       '#e0a33c',   // amber folded-crane boom on a grey crawler
   harv:      '#b0955a',   // tan slatted ore bin
   engineer:  '#ffcc33',   // amber hard hat — the engineer's one loud surface
-  // BLONDE, which is what §2.3's row for her actually says: "bare pale
-  // limbs + a bright blonde 2x2 head — the HIGHEST-VALUE head on the field
-  // over the lowest house-colour fraction in RA2 (14.3%)". We drew it
-  // near-black, and near-black hair over tan skin is the attack dog's own
-  // palette — which is why `dog | tanya` has been pinned at the
-  // friend-vs-foe floor in the fit window. A bright head is a note the dog
-  // cannot carry, and it is the reference's.
-  tanya:     '#cc9999',   // bright blonde — the highest-value head on the field
+  // NOT blonde. §2.3 reads "bare pale limbs + a bright head" and we put the
+  // bright colour on the HAIR; the rip says it belongs to the LIMBS. Reading
+  // tanya.gif row by row, the head — y0 to y4 — is #000033 / #330000 /
+  // #663333 / #333300, uniformly dark, and #cc9999 first appears at y5 on
+  // the OUTER columns either side of the torso and runs down: those are her
+  // bare arms. Painted as hair it sat at the same value as her #e6b98f skin
+  // and the whole head baked as one pink blob, with shade(ACC, 1.95) blowing
+  // the crown highlight to white on top of it. The pale note that keeps her
+  // off the attack dog is still there — it just lives on the arms, where the
+  // reference puts it, and TROOP.tanya.skin now carries the rip's own value.
+  tanya:     '#241f26',   // dark hair — the rip's head rows, not its arms
   ifv:       '#e6eaf0',   // white lower body under the blue flank stripe
   mirage:    '#e9edf2',   // the ribbed white emitter stack on the deck
   rhino:     '#2b2f36',   // NEUTRAL gunmetal barrel. The Lancer's navy put an
@@ -243,7 +246,7 @@ var TROOP = {
   // holding the anchor down, and §2.3's row for her is "BARE PALE LIMBS +
   // a bright head" over "the LOWEST house-colour fraction in RA2 (14.3%)"
   // — a contrast read that a light khaki body cancels out.
-  tanya:     { coat: '#333333', boot: '#15171c', skin: '#e6b98f' },  // dark combat trousers, L=49
+  tanya:     { coat: '#333333', boot: '#15171c', skin: '#cc9999' },  // dark trousers; skin IS the rip's #cc9999 bare-limb value
   teslatrooper: { coat: '#000033', boot: '#868d97', skin: '#d8a878' },// navy armour, steel greaves
   ivan:      { coat: '#4a2020', boot: '#4a4e57', skin: '#dfae82' },   // WARM BROWN trousers, L=50, grey boots
   rocketeer: { coat: '#333333', boot: '#2a2e35', skin: '#d8a878' },   // grey pressure suit
@@ -407,7 +410,13 @@ var INF_VALUE = {
   // binding constraint. Do not reach for the ladder again.
   rocketeer: [1.31, 1.31, 1.36],   //  a light CREAM pressure suit
   cleg:      [1.85, 1.78, 1.60],   //  bone-white plate over blue-grey
-  tanya:     [1.06, 1.36, 1.64],   //  warm khaki, bare arms, blonde
+  // Re-solved against tanya.gif after her hair and skin were corrected. Baked
+  // at gamma 1 she medians (102, 80, 80); the rip medians (102, 51, 51), so the
+  // ladder is 1.00 / 1.39 / 1.39 — flat across green and blue. The shipped
+  // 1.64 on blue was a quarter of a stop too deep and it was landing on the one
+  // surface that is her identity: bare #cc9999 limbs came out of the bake a
+  // salmon brown, which is the attack dog's own range.
+  tanya:     [1.00, 1.39, 1.39],   //  warm khaki trousers, bare pale arms, dark hair
   engineer:  [2.74, 2.82, 2.64],   //  brightest in either army, and neutral
   rocket:    1.57,   // measured onto the rip's median brightness
   dog:       1.67,   // measured onto the rip's median brightness

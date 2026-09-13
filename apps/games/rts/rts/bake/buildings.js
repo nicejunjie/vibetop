@@ -363,7 +363,7 @@ function bakeBuilding(key, col, fac, bph, bdir, dopen) {
   return { s: s, ax: cx, ay: baseY };
 }
 
-var COL = ['#4aa3db', '#e5646c'];            // player 0 blue, player 1 red — HOUSE[2], HOUSE[1]
+var COL = ['#1c3e8c', '#8f1919'];            // player 0 blue, player 1 red — HOUSE[2], HOUSE[1]
 
 // Picking a house colour re-bakes every owner-coloured sprite, because the
 // colour is painted INTO the art at bake time (a per-pixel remap at draw

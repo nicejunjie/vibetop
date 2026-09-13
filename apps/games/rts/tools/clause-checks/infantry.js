@@ -61,7 +61,12 @@
 const fs = require('fs');
 const path = require('path');
 
-const OWNER_HUE = 203;                 // owner 0, measured from the ensemble (see header)
+// The owner-0 hue is DERIVED, not written down. It used to be a literal here,
+// which made every house-colour clause below silently depend on the player
+// palette never changing; when the palette moved onto RA2's own values the
+// Allied blue went H203 -> H222 and this family of checks reported zero house
+// pixels on sprites that had not been touched. See tools/lib/house-hue.js.
+const OWNER_HUE = require('../lib/house-hue.js').ownerHue(0);
 // The 117-script refactor scattered the source constants out of rts.html into the
 // game's scripts; the clause premises now live in these files (the UNITS table,
 // the bake, and the special-weapon constants). A no-match still THROWS: a premise

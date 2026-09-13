@@ -171,7 +171,15 @@ function barrelRun(f) {
  * Same pattern, and the same reason, as the three SOURCE-CONSTANT rows in
  * `infantry.js`.
  */
-const SRC = () => fs.readFileSync(path.join(__dirname, '..', '..', 'rts.html'), 'utf8');
+// The game's SOURCE, not its page. These checks read drawing constants straight
+// out of the code (`var TW = 64, TH = 32;`), and until the split that text lived
+// inline in rts.html. It does not any more: the page is a list of <script> tags
+// and the code is 117 files under rts/. Reading the page found no premise, so
+// `num()` threw and the WHOLE module was dropped — 18 vehicle and 16 naval/air
+// clauses silently stopped being checked while `clause.checked` fell 57 -> 25.
+// bundle-for-vm concatenates the same files in the page's own load order, which
+// is the text these regexes were always written against.
+const SRC = () => require('../lib/bundle-for-vm.js').source;
 // A SOURCE-CONSTANT clause is only a measurement while the constant is still
 // there. A no-match used to read back as 0 and quietly turn the check into an
 // assertion about zero -- a moved constant has to be RED, so it throws.

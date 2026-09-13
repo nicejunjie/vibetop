@@ -81,7 +81,15 @@ const fs = require('fs');
 const path = require('path');
 
 /** rts.html itself — a premise a check quotes must be READ, not assumed. */
-const SRC = () => fs.readFileSync(path.join(__dirname, '..', '..', 'rts.html'), 'utf8');
+// The game's SOURCE, not its page. These checks read drawing constants straight
+// out of the code (`var TW = 64, TH = 32;`), and until the split that text lived
+// inline in rts.html. It does not any more: the page is a list of <script> tags
+// and the code is 117 files under rts/. Reading the page found no premise, so
+// `num()` threw and the WHOLE module was dropped — 18 vehicle and 16 naval/air
+// clauses silently stopped being checked while `clause.checked` fell 57 -> 25.
+// bundle-for-vm concatenates the same files in the page's own load order, which
+// is the text these regexes were always written against.
+const SRC = () => require('../lib/bundle-for-vm.js').source;
 // A SOURCE-CONSTANT clause is only a measurement while the constant is still
 // there. A no-match used to read back as 0 and quietly turn the check into an
 // assertion about zero -- a moved constant has to be RED, so it throws.
@@ -104,7 +112,12 @@ const hsv = (r, g, b) => {
   return { h, s: mx ? d / mx : 0, v: mx };
 };
 const hueGap = (a, b) => { const d = Math.abs(a - b) % 360; return d > 180 ? 360 - d : d; };
-const OWNER_HUE = 197;                       // see convention 3
+// The owner-0 hue is DERIVED, not written down. It used to be a literal here,
+// which made every house-colour clause below silently depend on the player
+// palette never changing; when the palette moved onto RA2's own values the
+// Allied blue went H203 -> H222 and this family of checks reported zero house
+// pixels on sprites that had not been touched. See tools/lib/house-hue.js.
+const OWNER_HUE = require('../lib/house-hue.js').ownerHue(0);
 
 /** hsv of one bbox pixel, or null where the mask is clear. */
 function px(f, x, y) {

@@ -93,18 +93,22 @@ face(by - 22.0);
 // Ivan's own head is a broad soft cap and a fuller head of hair walks
 // her INTO it rather than out. Her narrower head is already carrying
 // 0.04 of that separation. Reverted; do not reach for it again.
+// The cap does have to COVER, though. The rip's head is dark for its whole
+// depth (y0-y4) and ours left the lower half of the face bare under a thin
+// crescent, so a 5px pink oval sat where RA2 draws a dark head. The dome is
+// dropped onto the face instead of perched above it.
 g.fillStyle = ACC;                                   // black hair, shoulder length
-g.beginPath(); g.arc(cx, by - 23.1, 3.0, Math.PI, 0); g.fill();
-g.fillRect(cx - 3.0, by - 23.3, 6.0, 1.2);
+g.beginPath(); g.arc(cx, by - 22.4, 3.0, Math.PI, 0); g.fill();
+g.fillRect(cx - 3.0, by - 22.6, 6.0, 1.2);
 for (var hl = -1; hl <= 1; hl += 2) {                         // side locks to the collar
   g.beginPath();
-  g.moveTo(cx + hl * 2.9, by - 23.4); g.lineTo(cx + hl * 3.2, by - 19.8);
-  g.lineTo(cx + hl * 2.0, by - 20.1); g.lineTo(cx + hl * 2.15, by - 23.1);
+  g.moveTo(cx + hl * 2.9, by - 22.7); g.lineTo(cx + hl * 3.2, by - 19.4);
+  g.lineTo(cx + hl * 2.0, by - 19.7); g.lineTo(cx + hl * 2.15, by - 22.4);
   g.closePath(); g.fill();
 }
 outline(g, '#140d09');
 g.fillStyle = shade(ACC, 1.95);                      // crown highlight
 g.beginPath();
-g.ellipse(cx - 1.05, by - 24.0, 1.45, 0.75, -0.35, 0, 6.29); g.fill();
+g.ellipse(cx - 1.05, by - 23.3, 1.45, 0.75, -0.35, 0, 6.29); g.fill();
 g.restore();
 }
