@@ -166,13 +166,17 @@ function hoop(ht, wdt, colr, open) {
   }
   g.restore();
 })();
-// NO HOUSE RING ROUND THE ENVELOPE. A 2.2 px band of the player's colour
-// wrapped the hull at the shoulder and, once the fabric stopped being a
-// patchwork, it was the loudest thing on the airship — a red hoop round a gold
-// balloon. The rip puts the house colour on the TAIL FINS and the ENGINE PODS,
-// both of which this file already paints with `col`, and leaves the envelope
-// gold from nose to tail. A thin seam is enough to say the frame is there.
-hoop(0.50, 0.9, shade(col, 0.62));
+// NO RING ROUND THE ENVELOPE AT ALL. I had kept a thin house-coloured seam on
+// the argument that it says the frame is there. The reference does not have
+// one: every band round RA2's envelope is GREY structure, and the player's
+// colour lives on the tail fins and the engine cars, both of which this file
+// already paints with `col`.
+//
+// Hiding the ring's far arc was the right fix for the wrong thing. At most
+// bearings this ring is seen nearly EDGE-ON, so its two arcs very nearly
+// coincide — probing them in separate colours puts them one pixel apart — and
+// occluding one half still leaves a hard red stripe across the gold. A band
+// that reads as a stripe rather than as a ring is not a band worth drawing.
 // SHARK MOUTH — the single thing that names a Kirov, and it was
 // missing entirely. A dark maw along the belly of the nose with a
 // row of white teeth on its upper edge, plus one eye above it.
