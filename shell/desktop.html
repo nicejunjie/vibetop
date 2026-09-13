@@ -2791,17 +2791,32 @@
     }
   }
 
+  // Set to the app id while a click INSIDE that app's iframe is what activated
+  // it (window-mode click-to-focus), so notifyActiveFrame can leave the focus
+  // the click already placed alone. Cleared immediately afterwards.
+  var activateFromClick = null;
+
   // Tell a frame it's now the active app: focus it, broadcast active-state, nudge
   // a resize so it re-measures the viewport, and (Terminal, desktop only)
   // auto-focus the prompt. Guarded so a frame that finished loading AFTER the
   // user already switched away doesn't steal focus.
   function notifyActiveFrame(f, id) {
     if (!f || f.dataset.id !== active) return;
+    // A click INSIDE the app's own iframe already put focus exactly where it
+    // belongs — often DEEPER than this frame (Files and Terminal nest a second
+    // iframe inside a wrapper). Focusing here would drag it back UP to the
+    // wrapper and strand the keyboard one frame short of the thing the user
+    // clicked: in floating-window mode, clicking a file in a background Files
+    // window selected it but Space/arrows went to the wrapper, so previewing
+    // needed a second click. Captured synchronously — the flag is cleared by
+    // the time the timer runs.
+    var fromClick = (activateFromClick === id);
     // Deferred: a synchronous focus() inside a click handler is undone by the
     // browser's own default focus handling for that click (it lands on body
     // afterwards), which left the active app without a keyboard after any
     // touch of the desktop chrome (session audit, 2026-09-11).
-    setTimeout(function () { if (f.dataset.id === active) { try { f.focus(); } catch (e) {} } }, 0);
+    if (!fromClick)
+      setTimeout(function () { if (f.dataset.id === active) { try { f.focus(); } catch (e) {} } }, 0);
     if (f.contentWindow) {
       try { f.contentWindow.postMessage({ type: 'vibetop:active', active: id }, '*'); } catch (e) {}
       // iOS Safari quirk: an iframe laid out while display:none can keep stale
@@ -3445,7 +3460,12 @@
       if (!d.__vtWinFocus) {           // attach the listener exactly once per document
         d.__vtWinFocus = true;
         d.addEventListener('pointerdown', function() {
-          if (windowModeOn() && id !== active) setActive(id);
+          // Flagged: this activation comes from a click already inside the app,
+          // so notifyActiveFrame must not pull focus back up to the frame.
+          if (windowModeOn() && id !== active) {
+            activateFromClick = id;
+            try { setActive(id); } finally { activateFromClick = null; }
+          }
           // A click INSIDE a window's iframe is "outside" the layout palette, but
           // those events never bubble to the top document, so the top-level
           // outside-click handler never sees them. Close the palette here too —

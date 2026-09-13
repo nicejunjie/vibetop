@@ -260,10 +260,18 @@
     setTimeout(function() {
       if (active !== t) return;
       if (viewerEl && viewerEl.classList.contains('on')) return;   // the overlay owns the keys
-      // Already inside this tab? Leave it alone: re-focusing the iframe blurs
-      // whatever is focused within it (a rename box mid-edit, say), and the
-      // ~2s tab sync calls show() on its own.
-      if (document.activeElement === t.frame) return;
+      // Is the tab REALLY focused? Ask the tab's own document, never our
+      // activeElement: after a click inside the listing the iframe stays our
+      // activeElement even once the desktop's focus() has pulled the browser's
+      // real focus back up to THIS document — activeElement says "which of my
+      // children would get the keys", hasFocus() says "do the keys come here at
+      // all". Trusting activeElement left floating-window mode still needing two
+      // clicks, with Space landing in the wrapper. Only a genuinely focused tab
+      // is left alone (re-focusing would blur a rename box mid-edit, and the
+      // ~2s tab sync calls show() on its own).
+      var d = null;
+      try { d = t.frame.contentDocument; } catch (e) {}
+      if (d && d.hasFocus()) return;
       try { t.frame.focus(); } catch (e) {}
     }, 0);
   }
