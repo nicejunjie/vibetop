@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_291 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_292 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
 - [Scheduled terminal messages ("resume when the token limit resets")](#scheduled-terminal-messages-resume-when-the-token-limit-resets)
@@ -314,6 +314,7 @@ _291 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [Re-login left the desktop reloading for ever until a click (2026-09-12)](#re-login-left-the-desktop-reloading-for-ever-until-a-click-2026-09-12)
 - [RTS unit art split into one file per unit, and rts.html became a built file (2026-09-12)](#rts-unit-art-split-into-one-file-per-unit-and-rtshtml-became-a-built-file-2026-09-12)
 - [The RTS became 117 plain scripts you can open by double-clicking, and the repo's last build step went away (2026-09-12)](#the-rts-became-117-plain-scripts-you-can-open-by-double-clicking-and-the-repos-last-build-step-went-away-2026-09-12)
+- [Files on a phone: fixed-width tiles wasted a fifth of the screen, and auto grid rows collapsed on top of each other (2026-09-12)](#files-on-a-phone-fixed-width-tiles-wasted-a-fifth-of-the-screen-and-auto-grid-rows-collapsed-on-top-of-each-other-2026-09-12)
 
 <!-- END TOC -->
 
@@ -13130,3 +13131,48 @@ runtime scripts
 under a directory named `art/` or `tools/` — both the installer walk and the
 JS syntax test skip those by name, so the game would have parsed nowhere and
 deployed as nothing.
+
+## Files on a phone: fixed-width tiles wasted a fifth of the screen, and auto grid rows collapsed on top of each other (2026-09-12)
+
+**Symptom.** Reported with a screenshot: the Files app in a tile view showed
+"only two col of files" on an iPhone 17 Pro Max — "what a waste of space".
+
+**Cause.** `.main.gv` laid out **fixed-width** tiles (`width: 108px` grid,
+`168px` gallery) in a wrapping flex row. A tile width picked for a desktop
+window does not divide a phone's, so whatever did not fit became dead margin on
+the right. Measured in WebKit at 440px: gallery **2 columns + 88px dead**, grid
+**3 columns + 94px dead** — a fifth of the viewport — and the gallery's 120px
+icon box held a 46px folder glyph, 74px of it empty. Six gallery tiles fit a
+whole phone screen.
+
+**Fix.** At ≤736px only, `.main.gv` becomes `display: grid` with
+`repeat(auto-fill, minmax(96px, 1fr))` (gallery `112px`), so the columns divide
+whatever width the device has with nothing left over, and the icon box shrinks
+to the glyph it holds (52px; gallery keeps 88px — big thumbnails are its point).
+Measured after at 440px: grid **4 columns**, gallery **3**, dead margin = the
+container's own 8px padding, tiles on screen **12 → 20** and **6 → 12**.
+
+Two traps inside the fix, both found only by measuring the rendered layout:
+
+1. **`grid-auto-rows: max-content` is required, not optional.** `.main` is
+   `flex: 1; min-height: 0; overflow-y: auto` — a flex item with a *definite*
+   height. WebKit divides `auto` grid rows across that height **even under
+   `align-content: start`**: 8 gallery rows came out at 67.7px each, totalling
+   exactly the 583.5px container, for tiles whose content is 141px. Every icon
+   then overlapped the label of the tile below it. `align-content: start` alone
+   does **not** prevent this; sizing the rows `max-content` does.
+2. **`.main.gv.gallery .row` outranks `.main.gv .row`.** Resetting the tile
+   width on the latter only left gallery tiles 168px wide inside a ~120px
+   track, overflowing the container. Both selectors must be reset.
+
+**Rejected.** Shrinking the gallery icon box only for tiles with no thumbnail
+(`.ic:not(:has(img.th))`) — grid rows size to the tallest item, so a row mixing
+an image with folders would keep the tall track while the folders' labels rode
+up, giving a ragged label baseline across the row; the uniform box is tidier
+than the pixels it saves. Changing the desktop/tablet layout — the fixed tiles
+are fine where the window is wide (iPad 834px: 7 grid / 4 gallery columns,
+verified unchanged), and the complaint was specifically the phone.
+
+**Watch out.** `gridCols()` counts tiles per line from `offsetTop`, so it keeps
+working under grid with no change — but anything that assumes `.main.gv` is a
+flex container will now be wrong on a phone and right on a desktop.
