@@ -13,15 +13,32 @@ function drawHarrier(C) {
 // white belly and nose, swept wings, a tall house-colour fin and
 // house wingtips, a bubble canopy. Two Maverick missiles ride under
 // the wings until fired (`empty` set).
-// In `docs/ra2-ref/cameos/harrier.png` the jet is nearly a BLACK
-// silhouette against sky -- far darker than the Nighthawk plate. The
-// airframe was '#343b47', a hair off the chopper's own charcoal, and
-// the two read as one grey aircraft at map size. The jet takes the
-// dark end of the pair; the pale belly and nose stay, because that
-// top-to-bottom value break is the Harrier's own read.
-var JET = '#222732', JETL = '#4d5462', JETD = '#0e1116', BELLY = '#d5dae2', NOSE = '#eef1f5';
+// THE JET IS GREY, and it had gone almost black. The dark came from the
+// CAMEO — a jet in shadow against a bright sky, which is a lighting
+// accident, not the unit's paint — and the two things that actually show
+// the airframe disagree flatly: `library/harrier.png` (the in-game rip,
+// four jets over grass) and `library/harrier-voxel.jpg` (the model in a
+// viewer) are both a MID-GREY fuselage under LIGHTER GREY wings, with a
+// white belly and a navy fin. Measured on our own bake, the top four
+// colours were #0c1017 / #232834 / #1a1e26 / #1b2030 at v 0.09-0.20,
+// 34% of the sprite below value 0.2: a black aeroplane.
+//
+// It was darkened to part the Harrier from the Nighthawk, and that
+// separation is not needed and not paid for here — one is a swept jet and
+// the other a rotorcraft, iou.air.mean is 0.156 against a 0.45 target and
+// peerVsSelf.air is 0. Fidelity wins the tie (RA2 2026-09-12).
+//
+// Every value below is chosen to land where it means to once `pixelate`
+// snaps it to RA2's 6-level grid: #6b6f75 -> #666666, #9ba0a6 -> #999999,
+// #303338 -> #333333, #d5dae2 -> #cccccc, #eef1f5 -> #ffffff. All five are
+// on the grey diagonal, so no rung of the ladder can fall onto a hue — in
+// particular not the 240 that #6e7480 would have snapped to, which is the
+// navy player's own colour on a jet either player can own.
+var JET = '#6b6f75', JETL = '#9ba0a6', JETD = '#303338', BELLY = '#d5dae2', NOSE = '#eef1f5';
 var farH = py < 0 ? 1 : -1;
-var wingTop = shade(JET, 1.08), wingEdge = JETD;
+// The wing is the LIGHTER of the two greys, as both references have it —
+// not a shade() of the fuselage, which put it a half-step off the grid.
+var wingTop = '#9ba0a6', wingEdge = JETD;
 // A swept wing: root from t0 to t1, tip from tt0 to tt1 at `span`
 // out along the ground perpendicular; s0 picks an inner start so the
 // same shape can be overdrawn as a house-colour tip.
@@ -71,7 +88,7 @@ g.fillRect(n0[0] - 5, n0[1] - 5, 0.9, 10);
 g.restore();
 // canopy: a dark bubble with a pale glint, t 0.3..0.62
 var cpa = pt(0.46), cpr = rad(0.46);
-g.fillStyle = '#1c2230';
+g.fillStyle = '#2b2f38';
 g.beginPath(); g.ellipse(cpa[0], cpa[1] - cpr * 0.55, Math.max(2.4, 4.6 * AL / 1.264), 1.9, Math.atan2(uy2, ux2), 0, 6.29); g.fill();
 g.fillStyle = 'rgba(235,240,245,.6)';                     // neutral glint: no blue on a red player's jet
 g.beginPath(); g.ellipse(cpa[0] - 0.6, cpa[1] - cpr * 0.55 - 0.8, 1.6, 0.7, Math.atan2(uy2, ux2), 0, 6.29); g.fill();
@@ -98,6 +115,6 @@ g.closePath(); g.fillStyle = col; g.fill(); g.strokeStyle = shade(col, 0.36); g.
 g.fillStyle = shade(col, 1.3); g.fillRect(fB[0] - 0.4, fB[1] - bodyR - 4.4, 1.0, 3.2);
 // exhaust nozzles at the tail, under the fin
 var ex2 = pt(-0.98);
-g.fillStyle = '#15181d';
+g.fillStyle = '#303338';
 g.beginPath(); g.ellipse(ex2[0], ex2[1] + 0.6, 2.2 * Math.max(0.5, 1 - AL / 1.4), 1.6, 0, 0, 6.29); g.fill();
 }
