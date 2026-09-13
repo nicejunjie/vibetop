@@ -7504,10 +7504,23 @@ class Handler(http.server.BaseHTTPRequestHandler):
             return
         if self.path == "/api/share/list":
             return self._handle_share_list()
-        if self.path == "/api/files/tabs":
+        if self.path == "/api/files/tabs" or self.path.startswith("/api/files/tabs?"):
             # Per-user state under _ctx_home() — a cookieless caller must not
             # read (or, via the POST twin, write) the service account's tabs.
             if not self._require_authed():
+                return
+            # A reader must identify itself as speaking the rev protocol (?v=2).
+            # A bare GET is a client running pre-v1.19.355 code, and answering it
+            # HONESTLY is what made it thrash: it compares our state to its own,
+            # finds a difference it can no longer write away (its blind POSTs are
+            # refused), and rebuilds its iframes every single poll — the user
+            # watched a Mac that would not reload flash once a second. Its own
+            # guard is `if (!s || !Array.isArray(s.paths)) return;`, so handing it
+            # a body with NO paths key makes it do nothing at all: it stops
+            # reconciling, stops flashing, and stays inert until it reloads into
+            # code that can take part. See docs/design-decisions.md.
+            if "v=2" not in urllib.parse.urlparse(self.path).query.split("&"):
+                self._json(200, {"ok": False, "stale_client": True})
                 return
             try:
                 with open(_files_tabs_file()) as f:
