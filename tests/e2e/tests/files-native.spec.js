@@ -123,9 +123,17 @@ test.describe('native Files — touch', () => {
     await expect(page.locator('#main.selmode')).toHaveCount(0);
   });
 
-  test('a folder still enters on the first tap', async ({ page }) => {
+  // One rule for every row: tap selects, a second tap opens. A folder used to
+  // be the exception (it entered on the first tap), which made the touch rule
+  // unpredictable and hid a folder's own verbs behind the long-press.
+  test('a folder SELECTS on the first tap and enters on the second', async ({ page }) => {
     await openFiles(page);
-    await rowNamed(page, 'subfolder').tap();
+    const row = rowNamed(page, 'subfolder');
+    await row.tap();
+    await expect(row).toHaveClass(/\bsel\b/);
+    await expect(page.locator('.actbar.on')).toBeVisible();
+    await expect(page.locator('.crumb.cur')).not.toHaveText(/subfolder/);
+    await row.tap();
     await expect(page.locator('.crumb.cur')).toHaveText(/subfolder/, { timeout: 10_000 });
   });
 
