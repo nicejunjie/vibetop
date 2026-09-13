@@ -2624,6 +2624,30 @@
   }
 
   // ---- keyboard ----
+  // Claim the keys for THIS frame on any press inside it. Safari on macOS moves
+  // keyboard focus on a click only to form controls and links — never to an
+  // ordinary <div>, `tabindex` or not — so clicking a file highlighted the row
+  // (the click works) while the keys stayed in the parent frame and Space did
+  // nothing until a second click. Chromium and Linux WebKit DO focus #main
+  // implicitly, which is why every engine available to test on passed while the
+  // report kept coming back from a Mac. Relying on implicit click-focus was the
+  // bug; a frame that is clicked now takes the keyboard itself, on every engine.
+  //
+  // Only when the keys are not already ours: an unconditional focus() here would
+  // blur a rename box or the editor mid-edit on every stray click.
+  document.addEventListener('pointerdown', function(ev) {
+    if (document.hasFocus()) return;              // the keys already arrive here
+    var t = ev.target;
+    if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' ||
+              t.tagName === 'BUTTON' || t.tagName === 'A' || t.isContentEditable)) return;  // focuses itself
+    // Whichever surface is on top owns the keys — each has its own key handler.
+    var target = qlIsOpen() ? qlPanel
+               : (edEl && edEl.classList.contains('open')) ? edTa
+               : mainEl;
+    if (!target) return;
+    try { target.focus({ preventScroll: true }); } catch (e) { try { target.focus(); } catch (e2) {} }
+  }, true);
+
   document.addEventListener('keydown', function(ev) {
     if (modalOpen) return;                          // the choice card handles keys
     var mod = ev.ctrlKey || ev.metaKey;

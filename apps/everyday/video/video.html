@@ -307,6 +307,21 @@
     showBar();
   }
   function nudgeVol(delta) { applyVol((v.muted ? 0 : v.volume) + delta, true); showBar(); }
+
+  // Claim the keyboard for this frame when it is clicked. Safari on macOS moves
+  // focus on a click only to form controls and links, so clicking the media left
+  // the keys in the parent frame and Esc / the arrows did nothing until a second
+  // click. Only when the keys are not already ours, so nothing is stolen from an
+  // input. See docs/design-decisions.md (the Files two-click saga).
+  document.addEventListener('pointerdown', function (ev) {
+    if (document.hasFocus()) return;
+    var t = ev.target;
+    if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' ||
+              t.tagName === 'BUTTON' || t.tagName === 'A' || t.isContentEditable)) return;
+    try { window.focus(); } catch (e) {}
+    try { document.body.tabIndex = -1; document.body.focus({ preventScroll: true }); } catch (e) {}
+  }, true);
+
   document.addEventListener("keydown", function (e) {
     if (e.metaKey || e.ctrlKey || e.altKey) return;
     var tag = ((e.target && e.target.tagName) || "").toLowerCase();
