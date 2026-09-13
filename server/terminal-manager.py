@@ -4760,9 +4760,40 @@ class Handler(http.server.BaseHTTPRequestHandler):
         active = data.get("active")
         if not isinstance(active, int) or active < 0 or active >= len(paths):
             active = 0
+        # Compare-and-swap on a monotonic rev. A client must say which revision
+        # it is editing; if the stored state has moved on, the write is REFUSED
+        # and the caller is handed the current state to adopt.
+        #
+        # This exists because a single device stuck in a push loop (see
+        # docs/design-decisions.md, "Files kept jumping back to /") POSTed blind
+        # every 2s and never read, holding every other device of the same user
+        # at "/" indefinitely. Such a client cannot present a fresh rev, so it
+        # now loses the write instead of dictating state to everyone. A POST
+        # with NO rev at all is an un-upgraded client: refuse it the same way
+        # rather than let it stomp — it self-heals on its next reload.
         with _files_tabs_lock:
-            _atomic_write(_files_tabs_file(), json.dumps({"paths": paths, "active": active}))
-        self._json(200, {"ok": True})
+            try:
+                with open(_files_tabs_file()) as f:
+                    cur = json.load(f)
+            except Exception:
+                cur = {}
+            cur_rev = cur.get("rev") if isinstance(cur, dict) else 0
+            if not isinstance(cur_rev, int) or cur_rev < 0:
+                cur_rev = 0
+            sent = data.get("rev")
+            if not isinstance(sent, int) or sent != cur_rev:
+                cur_paths = _files_tab_paths(cur.get("paths") if isinstance(cur, dict) else None)
+                if not cur_paths:
+                    cur_paths = [_files_tabs_default()]
+                cur_active = cur.get("active") if isinstance(cur, dict) else 0
+                if not isinstance(cur_active, int) or cur_active < 0 or cur_active >= len(cur_paths):
+                    cur_active = 0
+                return self._json(409, {"ok": False, "conflict": True,
+                                        "paths": cur_paths, "active": cur_active, "rev": cur_rev})
+            new_rev = cur_rev + 1
+            _atomic_write(_files_tabs_file(),
+                          json.dumps({"paths": paths, "active": active, "rev": new_rev}))
+        self._json(200, {"ok": True, "rev": new_rev})
 
     def _handle_notes_tabs(self):
         # POST {tabs:[{id,name}], active} — the client owns the tab list; we store
@@ -7489,7 +7520,10 @@ class Handler(http.server.BaseHTTPRequestHandler):
             active = data.get("active") if isinstance(data, dict) else 0
             if not isinstance(active, int) or active < 0 or active >= len(paths):
                 active = 0
-            self._json(200, {"paths": paths, "active": active})
+            rev = data.get("rev") if isinstance(data, dict) else 0
+            if not isinstance(rev, int) or rev < 0:
+                rev = 0
+            self._json(200, {"paths": paths, "active": active, "rev": rev})
             return
         if self.path == "/api/notes" or self.path.startswith("/api/notes?"):
             # No id -> the tab index {tabs, active}; ?id=N -> {content} of note N.
