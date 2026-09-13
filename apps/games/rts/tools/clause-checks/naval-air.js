@@ -321,7 +321,16 @@ exports.check = function (ctx) {
   {
     const f = bs('carrier');
     const pale = comps(f, (c) => c.v >= 0.60 && c.s <= 0.22, true)
-      .filter((c) => c.n >= 20 && c.n <= 60 && c.w >= 6 && c.w <= 16 && c.h >= 3 && c.h <= 8);
+      // h >= 4, not 3, and the reason is measured. The three Hornets bake at
+      // 9x4, 10x4 and 9x4 — the height is the stable one. The intruder that
+      // appeared on 2026-09-13 is 8x3: a centreline dash that grew past the
+      // 20-px area bar once the carrier's hull stopped being faintly blue.
+      // The old window leaned on `s <= 0.22` to keep the hull out, so making
+      // every hull a true neutral grey (a palette-grid fix — an unequal-channel
+      // "slate" throws navy and teal pixels at some rungs of its shade ladder)
+      // let more deck furniture through it. The airframes' own height is the
+      // discriminator that does not depend on the hull's saturation at all.
+      .filter((c) => c.n >= 20 && c.n <= 60 && c.w >= 6 && c.w <= 16 && c.h >= 4 && c.h <= 8);
     rows.push({
       unit: 'carrier', clause: '3 visible parked airframes',
       ok: pale.length === 3, measured: pale.length, want: 'exactly 3',

@@ -36,11 +36,23 @@ g.strokeStyle = '#4a5058'; g.lineWidth = 0.8;
 var d0 = P(L * 0.8, 0, FR), d1 = P(-L * 0.9, 0, FR);
 g.beginPath(); g.moveTo(d0[0], d0[1]); g.lineTo(d1[0], d1[1]); g.stroke();
 g.restore();
-box(L * 0.04, 0, L * 0.70, W * 1.55, 1.6, '#3b4048');             // the casing step
-box(L * 0.04, 0, L * 0.46, W * 1.10, 4.0, '#454b54');             // the sail
+// THE SAIL HAS TO READ AS A MASS, and it did not. §2.4 makes it her identity —
+// "the only vertical mass on her" — but it was #454b54 standing on a #3b4048
+// casing over a hull of much the same value, so on the palette grid all three
+// landed on #333333 and the boat baked as one flat grey lozenge. A sail is the
+// one part of this silhouette that does not rotate with the bearing, so if it
+// does not separate in VALUE there is nothing to see at any facing. Casing
+// dark, sail two steps lighter, which is the contrast the rip carries.
+box(L * 0.04, 0, L * 0.70, W * 1.55, 1.6, '#2b3036');             // the casing step
+box(L * 0.04, 0, L * 0.46, W * 1.10, 4.0, '#6b727c');             // the sail
 var sq2 = P(L * 0.04, 0, FR + 2.8);
-g.strokeStyle = HOUSE; g.lineWidth = 2.0;
-g.beginPath(); g.moveTo(sq2[0] - 3.6, sq2[1]); g.lineTo(sq2[0] + 3.6, sq2[1] + 0.4); g.stroke();
+// A DECK LINE, not a bar. The house band was a 2.0-wide stroke across 7.2
+// units — 12% of a 65 x 17 sprite in saturated paint, a red brick sitting on a
+// grey boat. The rip has a thin, dark red line along the casing and nothing
+// else: a submarine is the one hull in the fleet that is meant to be hard to
+// see, and 12% of her in the player's colour is the opposite of that.
+g.strokeStyle = shade(HOUSE, 0.72); g.lineWidth = 1.0;
+g.beginPath(); g.moveTo(sq2[0] - 3.2, sq2[1] + 0.2); g.lineTo(sq2[0] + 3.2, sq2[1] + 0.5); g.stroke();
 g.strokeStyle = '#20242a'; g.lineWidth = 1.3;
 g.beginPath(); g.moveTo(sq2[0] - 0.9, sq2[1] - 1.4); g.lineTo(sq2[0] - 1.5, sq2[1] - 4.2); g.stroke();
 g.beginPath(); g.moveTo(sq2[0] + 0.9, sq2[1] - 1.4); g.lineTo(sq2[0] + 1.3, sq2[1] - 3.4); g.stroke();

@@ -75,12 +75,15 @@ g.restore();
 // tips — a jellyfish, and §2.4 asks for ">= 4 tentacles resolvable at
 // 3 px each". Six arms at 3.0 units, leaving the crown already spread
 // and reaching 1.95 beams, keep daylight the whole way out.
-g.strokeStyle = shade(HULL, 0.72); g.lineWidth = 1.2 + 0.62 * ss; g.lineCap = 'round';
+// THINNER AND LONGER. The rip's arms are hair-fine pale streaks running well
+// past the mantle's own length; ours were half as long and twice as thick, and
+// six short fat prongs read as a splayed hand, not as tentacles.
+g.strokeStyle = shade(HULL, 0.72); g.lineWidth = 0.8 + 0.34 * ss; g.lineCap = 'round';
 for (var ti = 0; ti < 6; ti++) {
   var t = (ti / 5) * 2 - 1;                      // -1..1 across the fan
-  var reach = 1.28 - 0.26 * t * t;               // the outer arms fall short
+  var reach = 1.86 - 0.30 * t * t;               // the outer arms fall short
   var oq = P(L * 0.42, W * 0.62 * t, FR + 6.4);
-  var aq = P(L * reach, W * 1.95 * t, FR + 5.2);
+  var aq = P(L * reach, W * 1.55 * t, FR + 5.2);
   var cq = P(L * 0.80, W * 1.30 * t, FR + 5.2);
   g.beginPath();
   g.moveTo(oq[0], oq[1]);
@@ -88,10 +91,32 @@ for (var ti = 0; ti < 6; ti++) {
   g.stroke();
 }
 g.lineCap = 'butt';
-var eyq = P(L * 0.24, W * 0.52 * (nearS > 0 ? 1 : -1), FR + 8.6);
-var eyx = eyq[0], eyy = eyq[1];
-g.fillStyle = '#f2e27a';                                           // the eye
-g.beginPath(); g.ellipse(eyx, eyy, 1.5 * ss * 0.7, 1.2 * ss * 0.7, 0, 0, 6.29); g.fill();
-g.fillStyle = '#141018';
-g.beginPath(); g.ellipse(eyx, eyy, 0.7 * ss * 0.7, 0.9 * ss * 0.7, 0, 0, 6.29); g.fill();
+// A DARK MAROON COLLAR, not a cartoon eye. There was a 3-px bright yellow
+// disc with a black pupil painted on the mantle, and at the size this is
+// drawn it was the single loudest thing on the animal — the reason it read
+// as a googly-eyed octopus rather than as something rising under a
+// destroyer. The rip has no eye highlight at all: what sits at the mantle
+// base is a band of near-black maroon where the head meets the crown, and
+// that is the only non-grey mass on the creature.
+var colq = function (u, vv, lift) { return P(L * u, W * vv, FR + lift); };
+g.beginPath();
+(function () {
+  var cb = [[0.18, 0.58], [0.34, 0.46], [0.38, 0.18], [0.38, -0.18], [0.34, -0.46], [0.18, -0.58],
+            [0.12, -0.34], [0.10, 0.00], [0.12, 0.34]];
+  for (var ci2 = 0; ci2 < cb.length; ci2++) {
+    var qc = colq(cb[ci2][0], cb[ci2][1], 7.4);
+    if (ci2) g.lineTo(qc[0], qc[1]); else g.moveTo(qc[0], qc[1]);
+  }
+})();
+g.closePath(); g.fillStyle = '#3b1418'; g.fill();
+g.fillStyle = '#5e1c22';
+g.beginPath();
+(function () {
+  var cb2 = [[0.21, 0.42], [0.32, 0.34], [0.35, 0.06], [0.21, 0.10]];
+  for (var ci3 = 0; ci3 < cb2.length; ci3++) {
+    var qd = colq(cb2[ci3][0], cb2[ci3][1] * (nearS > 0 ? 1 : -1), 8.2);
+    if (ci3) g.lineTo(qd[0], qd[1]); else g.moveTo(qd[0], qd[1]);
+  }
+})();
+g.closePath(); g.fill();
 }

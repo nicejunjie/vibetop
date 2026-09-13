@@ -36,24 +36,45 @@ function bakeShip(col, kind, fac) {
   // Directorate hulls keep the blue-tinted haze grey the Destroyer and Aegis
   // rips wear, the Collective's is a plainer and darker neutral, so the two
   // fleets still part on VALUE without either of them taking a hue.
-  var HULL = sov ? '#6e7075' : '#8d97a3';
-  var DECK = sov ? '#3d3f44' : '#454c57';
-  if (kind === 'sub')      { HULL = '#2f333a'; DECK = '#1e2126'; }
-  if (kind === 'dolphin')  { HULL = '#728798'; DECK = '#4b5a68'; }
+  // EVERY HULL IS A NEUTRAL GREY, and that is a palette-grid requirement, not a
+  // style choice. A "slate" with its blue channel a few points over its red
+  // looks right in the source and comes apart in the bake: the channels sit at
+  // different distances from their grid lines, so the gap widens to a whole
+  // step at some rungs of the shade ladder and the hull throws NAVY and TEAL
+  // pixels. Checked across the eight shade factors `poly` actually uses:
+  // #6e7075 gave 2 navy rungs of 8, #8d97a3 2, #8a949f 3, and the Dolphin's
+  // #728798 was non-grey at ALL EIGHT, alternating navy and teal — which is
+  // where the blue-green speckle scattered over every deck was coming from.
+  // Equal channels stay equal at every rung. Values are each original's luma,
+  // so nothing got lighter or darker; only the false hue is gone.
+  var HULL = sov ? '#707070' : '#959595';
+  var DECK = sov ? '#3f3f3f' : '#4b4b4b';
+  if (kind === 'sub')      { HULL = '#333333'; DECK = '#212121'; }
+  if (kind === 'dolphin')  { HULL = '#838383'; DECK = '#575757'; }
   // The squid's plum was a HALF-STEP off the palette grid and the shade ladder
   // kept falling off it on the red side: #6c4a60 lit by 1.2 snaps to #996666
   // and its own midtone to #663333, both pure hue 0, so 75% of the animal read
   // as the RED player's unit whoever owned it (hue.maxImpostor 0.752). Pushing
   // the blue channel one level clear holds hue 300 at every rung of the ladder.
-  if (kind === 'squid')    { HULL = '#74487f'; DECK = '#4a2c50'; }
+  // NOT PURPLE. The animal was a flat lilac cartoon octopus; a census of the
+  // rip's own body reads #485458 / #788898 / #606c70 / #303840 — a slate
+  // grey-green creature with no purple in it anywhere. The earlier plum was
+  // chosen only to keep its shade ladder off the red player's hue, and a
+  // neutral grey-green solves that outright: every rung stays neutral.
+  // ...and the grey has to be a NEUTRAL one. #68767a reads slate to the eye but
+  // its blue channel sits 18 above its red, and on the palette grid that splits:
+  // the lit mantle came out #669999 and the arms #336666, a bright teal animal.
+  // Equal channels stay equal at every rung, which is what "slate" actually
+  // needs, and it is what the rip's own #606c70 / #485458 are reaching for.
+  if (kind === 'squid')    { HULL = '#70746e'; DECK = '#3e423c'; }
   // [LCRAFT] is a HOVERCRAFT, and `library/lcraft-voxel.jpg` reads in exactly
   // three bands: a BLACK rubber skirt all round the bottom, a near-WHITE deck
   // body standing on it, and two dark slate ducted fans aft. It was drawn
   // olive-green, which is none of the three, and the pale deck is the thing
   // that makes the house-colour side panels read at all. BOOT, which is
   // shade(HULL, 0.34), draws the skirt for free once the deck is pale.
-  if (kind === 'lcraft')   { HULL = '#b9bcb6'; DECK = '#70736a'; }
-  if (kind === 'carrier')  { HULL = '#8a949f'; DECK = '#3a3f47'; }
+  if (kind === 'lcraft')   { HULL = '#bababa'; DECK = '#717171'; }
+  if (kind === 'carrier')  { HULL = '#929292'; DECK = '#3e3e3e'; }
   var BOOT = shade(HULL, 0.34);                       // boot-topping at the waterline
 
   // Plan geometry per hull, in pre-scale pixels. L is overall length, W
@@ -424,6 +445,13 @@ function bakeSandbags(col) {
 // infantry share: the two rosters have different hue budgets (2.1/2.2 vs
 // 2.3/2.4) and one table made every vehicle inherit a soldier's palette.
 var VACC = {
+  // -- Fleet. Naval had NO accent rows at all until 2026-09-13, which is a
+  // large part of why four hulls could quietly settle on the same grey.
+  destroyer:   '#cc9900',  //  45 amber — the OSPREY on the stern pad, the
+                           //   brightest thing on RA2's own destroyer and the
+                           //   feature that names the ship at a glance
+  seascorp:    '#e6e9ec',  //     the white flak mount the rip makes the loudest
+                           //   surface on the boat (no hue: it is a value note)
   // -- Directorate
   lancer:      '#33bda6',  // 170 jade   — the vision block beside the Grizzly's mantlet.
                            //   Its BODY stays pale silver: 1.4 names it, and the

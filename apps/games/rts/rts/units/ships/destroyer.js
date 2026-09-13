@@ -63,7 +63,38 @@ disc(-L * 0.80, 0, 0.4, 6.0, 3.2, '#22262b');
 g.strokeStyle = HOUSE; g.lineWidth = 0.9;
 var hq = P(-L * 0.80, 0, FR + 0.6);
 g.beginPath(); g.ellipse(hq[0], hq[1], 4.4, 2.3, 0, 0, 6.29); g.stroke();
-disc(-L * 0.80, 0, 1.6, 3.0, 1.5, '#5d6a58');
-g.strokeStyle = '#2a2f33'; g.lineWidth = 0.9;
-g.beginPath(); g.moveTo(hq[0] - 4, hq[1] - 2.4); g.lineTo(hq[0] + 4, hq[1] - 2.0); g.stroke();
+// THE OSPREY IS YELLOW, and it was not drawn at all. The hangar and the pad
+// were both here; what sat on the pad was a drab olive lozenge the same value
+// as the deck under it. In `library/destroyer.png` the aircraft is the
+// brightest thing on the ship by a wide margin — an amber airframe on a grey
+// hull — and it is the one feature that names this ship at a glance, the way
+// the Dreadnought is named by its white missile tubes. Ours had no bright
+// surface anywhere and no ACCENT row either.
+var osp = P(-L * 0.80, 0, FR + 1.4);
+g.fillStyle = '#cc9900';                                          // fuselage
+g.beginPath();
+g.moveTo(osp[0] - 5.0, osp[1] - 0.2);
+g.lineTo(osp[0] + 1.2, osp[1] - 1.9);
+g.lineTo(osp[0] + 5.0, osp[1] - 1.2);
+g.lineTo(osp[0] + 4.4, osp[1] + 0.6);
+g.lineTo(osp[0] - 4.4, osp[1] + 1.5);
+g.closePath(); g.fill();
+g.fillStyle = '#ffcc33';                                          // lit spine
+g.beginPath();
+g.moveTo(osp[0] - 4.2, osp[1] - 0.6);
+g.lineTo(osp[0] + 1.0, osp[1] - 2.0);
+g.lineTo(osp[0] + 4.2, osp[1] - 1.3);
+g.lineTo(osp[0] + 0.6, osp[1] - 0.5);
+g.closePath(); g.fill();
+g.fillStyle = '#33383e';                                          // the two nacelles
+for (var oe = -1; oe <= 1; oe += 2) {
+  g.beginPath();
+  g.ellipse(osp[0] + oe * 3.4, osp[1] - 1.4 + oe * 0.5, 1.5, 1.0, 0, 0, 6.29);
+  g.fill();
+}
+g.strokeStyle = '#22262b'; g.lineWidth = 0.9;                     // folded blades
+g.beginPath();
+g.moveTo(osp[0] - 4.6, osp[1] - 2.6); g.lineTo(osp[0] + 4.6, osp[1] - 2.0); g.stroke();
+g.fillStyle = '#1b1e23';                                          // cockpit glass
+g.beginPath(); g.ellipse(osp[0] + 3.6, osp[1] - 0.9, 1.1, 0.8, 0, 0, 6.29); g.fill();
 }
