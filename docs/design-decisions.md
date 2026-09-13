@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_296 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_297 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
 - [Scheduled terminal messages ("resume when the token limit resets")](#scheduled-terminal-messages-resume-when-the-token-limit-resets)
@@ -319,6 +319,7 @@ _296 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [Files ignored the keyboard until you clicked it: the shell focused the wrapper, one iframe short of the listing (2026-09-12)](#files-ignored-the-keyboard-until-you-clicked-it-the-shell-focused-the-wrapper-one-iframe-short-of-the-listing-2026-09-12)
 - [The real cause of "Files needs two clicks": Safari gives keyboard focus only to form controls (2026-09-12)](#the-real-cause-of-files-needs-two-clicks-safari-gives-keyboard-focus-only-to-form-controls-2026-09-12)
 - [The Browser stole the keyboard from whatever app you were using, because "active" meant two things (2026-09-13)](#the-browser-stole-the-keyboard-from-whatever-app-you-were-using-because-active-meant-two-things-2026-09-13)
+- [Shifted punctuation needs two presses inside Claude Code — what it is NOT (2026-09-13, open)](#shifted-punctuation-needs-two-presses-inside-claude-code-what-it-is-not-2026-09-13-open)
 
 <!-- END TOC -->
 
@@ -13414,3 +13415,56 @@ stop theorising and go measure on the machine where it happens.
 all. They need that signal — it is what keeps a background xpra canvas from
 pausing and coming back blank; the repaint patch keys off the same message.
 Splitting the meaning is the fix, not removing the message.
+
+## Shifted punctuation needs two presses inside Claude Code — what it is NOT (2026-09-13, open)
+
+**Symptom (unresolved).** In a vibetop terminal, inside a **Claude Code**
+session, shifted punctuation (`?` `!` `@` …) must be typed twice before it
+appears. Plain **bash in the same terminal is fine**, letters including capitals
+are fine, and every other vibetop surface is fine. The user is on Safari 26.2 /
+macOS. Recorded here while OPEN, because each hypothesis below cost a VM run and
+would otherwise be re-argued from scratch.
+
+**Ruled out, by measurement:**
+
+- **Our terminal code.** Nothing in `terminal-kbd.js` touches these keys on the
+  desktop path — it handles PageUp/Down/Home/End only, without preventDefault —
+  and the overlay/IME input machine is touch-only (`pointer: coarse`), so a Mac
+  never reaches it. The shell's global handler takes `Escape` and nothing else.
+- **`strip_terminal_queries`.** Applied to the reconnect REPLAY only, never to
+  the live stream.
+- **The kitty keyboard protocol / modifyOtherKeys.** The convincing theory, and
+  wrong. Claude Code 2.1.270 does push `ESC[<u` + `ESC[>5u` + `ESC[>4;2m` once a
+  terminal answers its `ESC[?u` probe (confirmed by emulating an answering
+  terminal in a raw PTY). But **ttyd's xterm.js never answers that probe — zero
+  reply bytes — and ignores the enable sequences entirely**: every key still
+  emits its plain ASCII byte, byte-identical on Chromium and WebKit, with the
+  modes on or off. Measured in the VM with `cat -v`.
+- **Claude Code choking on the plain byte.** Driven through a raw PTY it accepts
+  `?` in every pattern tried: mid-sentence, at the end of a long line, a whole
+  line written at once, three in a row, after a space, after a letter.
+
+**Useful by-product — the CLI's CSI u parser, mapped by feeding it encodings:**
+it ACCEPTS `ESC[47:63;2u`, `ESC[63;2u`, `ESC[27;2;63~` and the plain byte, and
+**silently drops** `ESC[47;2u`, `ESC[47:63;2:1u`, `ESC[47:63;2;63u`,
+`ESC[63;2:1u` and `ESC[27;2;63u`. So a terminal that DOES speak the protocol can
+lose shifted punctuation here (cf. anthropics/claude-code#92021) — just not this
+one, which never speaks it.
+
+**Also not the bug, though it looks like one:** `?` and `!` at an EMPTY Claude
+Code prompt are its own shortcuts (shortcuts help / bash mode) and insert
+nothing. That is by design, mid-line both type normally on the first press, and
+the user confirmed it is not what they are hitting.
+
+**What is left, and how it will be answered.** Either the byte never arrives, or
+it arrives and the screen does not repaint — indistinguishable from outside the
+user's machine, with opposite fixes. `vibetop-session` now carries a dormant
+arrival probe (armed by `~/.vibetop-keyprobe`) that records WHICH punctuation
+arrived and when, never letters or digits, so the answer comes from a log rather
+than from asking the user to reproduce on demand. It applies to newly started
+session units — an already-running one keeps the old code, and restarting it
+would kill whatever the user has running in it.
+
+**Watch out.** The VM's WebKit is WebKit-on-**Linux**; a clean run there does not
+exonerate Safari-on-macOS. That exact gap hid the cross-app focus bug earlier the
+same day for three rounds.
