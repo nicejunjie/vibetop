@@ -89,7 +89,10 @@
   .tools button:focus-visible, .tools select:focus-visible, .actbar button:focus-visible { outline: 2px solid #8a4adb; outline-offset: 1px; }
   .tools button[aria-pressed="true"] { background: #241a38; border-color: #8a4adb; color: #fff; }
   .tools button:disabled { opacity: .45; cursor: default; }
-  #manage { color: #b79be8; }
+  /* Settings is an ordinary toolbar button — it used to be tinted purple, which
+     read as "active" next to its neighbours. Only #pastebtn stays tinted: it
+     appears only while there IS a clipboard, so the colour marks a transient
+     state rather than singling out one permanent control. */
   #pastebtn { display: none; color: #b79be8; }
   #pastebtn.on { display: inline-block; }
   /* the clipboard's dismiss, present only while there is one to dismiss */
@@ -1656,7 +1659,8 @@
   }
 
   // ---- row interaction: select on click (mouse), open on double-click;
-  // touch keeps tap-to-open and long-press (~450ms) enters select mode ----
+  // touch mirrors that — tap selects, a second tap on the selected row opens —
+  // and long-press (~450ms) enters multi-select mode ----
   var lastPtrType = 'mouse';
   var suppressUntil = 0;         // eat the click that follows a long-press / drag
   var lpTimer = null, lpStart = null, lpFired = false;
@@ -1758,12 +1762,13 @@
     if (lastPtrType === 'touch') {
       // A tap SELECTS (it used to open): the action bar is the only surface a
       // finger has for Rename/Share/Info/Delete, and opening on the first tap
-      // left every one of them behind an undiscoverable 450ms long-press.
-      // Folders still enter on the first tap — browsing is their whole point —
-      // and a second tap on an already-selected row opens it, the touch
-      // equivalent of the desktop double-click.
+      // left every one of them behind an undiscoverable 450ms long-press. A
+      // second tap on the already-selected row opens it — the touch equivalent
+      // of the desktop double-click. FOLDERS BEHAVE THE SAME (they briefly did
+      // not, entering on the first tap): one rule for every row is what a
+      // finger can predict, and a folder's own verbs (Rename/Move/Delete) were
+      // otherwise unreachable without the long-press.
       if (selected[rows[i].name] && selCount === 1) { openEntry(rows[i]); return; }
-      if (rows[i].isDir) { openEntry(rows[i]); return; }
       setOnly(i);
       return;
     }
