@@ -44,18 +44,18 @@ outline(g, shade(col, 0.08));
 // two (unit-identity-reference.md §2.1).
 g.fillStyle = col;
 g.beginPath();
-g.moveTo(cx - 6.1, by - 20.1); g.lineTo(cx + 6.1, by - 20.1);
-g.lineTo(cx + 5.5, by - 11.4); g.lineTo(cx - 5.5, by - 11.4);
+g.moveTo(cx - 4.4, by - 19.6); g.lineTo(cx + 4.4, by - 19.6);
+g.lineTo(cx + 4.0, by - 14.6); g.lineTo(cx - 4.0, by - 14.6);
 g.closePath(); g.fill(); outline(g, shade(col, 0.38));
 g.fillStyle = shade(col, 1.22);                               // lit shoulder line
-g.fillRect(cx - 5.6, by - 19.6, 11.2, 1.6);
+g.fillRect(cx - 4.2, by - 19.3, 8.4, 1.2);
 g.fillStyle = shade(col, 0.72);                               // vest seam
-g.fillRect(cx - 0.7, by - 18.0, 1.4, 5.2);
+g.fillRect(cx - 0.6, by - 18.4, 1.2, 3.4);
 g.fillStyle = '#c7ac3e';                                      // brass clasp
 g.beginPath(); g.roundRect(cx - 1.6, by - 15.4, 3.2, 2.0, 0.6); g.fill();
 outline(g, '#7f6a1c');
 
-arms(6.0, by - 18.0, 3.2, 6.4, col, function (i, x, y) {      // house upper sleeves
+arms(6.0, by - 18.0, 3.2, 6.4, T.coat, function (i, x, y) {   // house upper sleeves
   g.fillStyle = col;                                          // slab pauldron
   g.beginPath(); g.roundRect(x - 1.8, y - 1.3, 3.6, 2.9, 0.9); g.fill();
   outline(g, shade(col, 0.4));

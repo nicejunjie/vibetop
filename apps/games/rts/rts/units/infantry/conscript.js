@@ -42,7 +42,7 @@ g.fillRect(cx - 4.9, by - 13.2, 9.8, 1.5);
 // The tunic's sleeves are the tunic: RA2 remaps the Conscript down to
 // the cuff (44.6% of the body), and drawing them in the jacket's grey
 // left the house block looking like a bib pinned to a dark coat.
-arms(5.5, by - 18.4, 2.9, 6.6, col, function (i, x, y) {
+arms(5.5, by - 18.4, 2.9, 6.6, SLEEVE, function (i, x, y) {
   g.fillStyle = shade(SLEEVE, 0.62);                          // dark cuff, the sleeve's end
   g.beginPath(); g.roundRect(x - 1.5, y + 5.0, 3.0, 2.0, 0.8); g.fill();
 });

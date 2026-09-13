@@ -518,7 +518,7 @@ var STATURE = {
   desolator:    [1.14, 1.05],   // i-M — the bulk of a sealed hazard suit
   teslatrooper: [1.11, 1.04],   // i-M 18x28 — THE widest, and NOT the tallest
   rifle:        [0.81, 1.00],   // i-M 12x28 — narrow; the baseline soldier
-  conscript:    [1.06, 1.01],   // i-M 13x27 — the reference figure
+  conscript:    [1.06, 0.91],   // i-M 13x27 — the reference figure
   cleg:         [0.83, 0.89],   // i-M 15x26 — RA2 0.577; the old [1.22,0.84] was tuned against a spike budget that misread its own citation   // i-M 15x26 — the widest Directorate shoulders
   tanya:        [0.78, 1.30],   // i-M 13x26 — and the pistols do NOT keep her wide,
                                 // which is what this entry used to say. Measured, her

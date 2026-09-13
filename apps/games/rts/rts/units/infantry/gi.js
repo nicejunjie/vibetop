@@ -52,7 +52,7 @@ g.fillRect(cx - 4.9, by - 14.6, 9.8, 1.15);
 // upper sleeve is remapped and the forearm is not, which is what takes
 // a GI from a 19% figure to RA2's 30-45% band without painting a man
 // who then reads as a plastic figure. The elbow line is the edge.
-arms(5.5, by - 18.4, 2.9, 4.4, col);                          // house sleeves to the cuff
+arms(5.5, by - 18.4, 2.9, 4.4, T.coat);                       // house sleeves to the cuff
 g.fillStyle = shade(T.coat, 1.02);                            // olive forearms crossing in
 g.beginPath(); g.roundRect(cx - 4.5, by - 14.4, 3.4, 2.1, 1.0); g.fill();
 g.beginPath(); g.roundRect(cx + 1.4, by - 15.4, 3.0, 2.0, 1.0); g.fill();
