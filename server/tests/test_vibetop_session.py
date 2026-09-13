@@ -133,3 +133,55 @@ def test_truncate_never_reorders(csession):
     pending = bytes(range(256)) * 8
     out = csession.truncate_replay(pending, 100)
     assert out == CLEAR + pending[-100:]
+
+
+# -- the shifted-punctuation arrival probe ----------------------------------
+# It sits on the path EVERY keystroke takes, so the invariant that matters is
+# not "does it record" but "can it ever record anything else". A probe added to
+# diagnose one report must not become a keylogger.
+
+def test_keyprobe_records_only_the_punctuation_set(csession):
+    assert csession.keyprobe_hits(b'?') == '?'
+    assert csession.keyprobe_hits(b'why not?!') == '?!'
+    assert csession.keyprobe_hits(b'{a}|b') == '{}|'
+
+
+def test_keyprobe_never_records_what_the_user_typed(csession):
+    secret = b'export AWS_SECRET_ACCESS_KEY=hunter2 && ssh user@host'
+    hits = csession.keyprobe_hits(secret)
+    # The punctuation of the line survives (underscores and ampersands are in the
+    # set) but NOT one letter, digit or space of it — so the log can show that a
+    # '?' arrived without ever showing what was being typed around it.
+    assert hits == '___&&@'
+    allowed = {chr(b) for b in csession.KEYPROBE_CHARS}
+    assert set(hits) <= allowed
+    assert not any(c.isalnum() or c.isspace() for c in hits)
+    assert 'hunter2' not in hits and 'ssh' not in hits
+
+
+def test_keyprobe_passes_through_control_bytes_and_utf8(csession):
+    assert csession.keyprobe_hits(b'\x1b[A\x03\x7f\r\n') == ''
+    assert csession.keyprobe_hits('你好'.encode()) == ''
+    assert csession.keyprobe_hits(b'') == ''
+
+
+def test_keyprobe_is_dormant_and_writes_nothing_until_armed(csession, tmp_path, monkeypatch):
+    monkeypatch.setenv('HOME', str(tmp_path))
+    csession._keyprobe_state.update({'checked': 0.0, 'on': False, 'path': None})
+    csession.keyprobe_record(b'???', now=1000.0)
+    assert not (tmp_path / '.vibetop-keyprobe.log').exists()
+
+    (tmp_path / '.vibetop-keyprobe').write_text('')      # arm it
+    csession._keyprobe_state['checked'] = 0.0            # force the re-check
+    csession.keyprobe_record(b'a?b!', now=2000.0)
+    line = (tmp_path / '.vibetop-keyprobe.log').read_text()
+    assert 'punct=?!' in line and 'chunk=4B' in line
+    assert 'a' not in line.split('punct=')[1]            # the payload never leaks
+
+
+def test_keyprobe_writes_nothing_for_a_chunk_without_punctuation(csession, tmp_path, monkeypatch):
+    monkeypatch.setenv('HOME', str(tmp_path))
+    (tmp_path / '.vibetop-keyprobe').write_text('')
+    csession._keyprobe_state.update({'checked': 0.0, 'on': False, 'path': None})
+    csession.keyprobe_record(b'ls -la\r', now=3000.0)
+    assert not (tmp_path / '.vibetop-keyprobe.log').exists()
