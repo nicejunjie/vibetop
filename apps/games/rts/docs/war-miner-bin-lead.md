@@ -135,3 +135,33 @@ too. If antialiasing bridges the floor to either, the whole thing is ONE
 component that touches the edge, and the `x0 > 0 ... x1 < f.w - 1` test throws
 it out. That is checkable by dumping the component list rather than by guessing
 again — `comps(f, OWN, true)` is right there.
+
+### Resolved to one line: the floor is 1 PIXEL TALL
+
+Dumping `comps(f, OWN, true)` (what the clause actually sees) ends the guessing:
+
+    APC sprite 60x37 — 11 owner-hued components:
+       14x1 n=14 at (21,16)-(34,16) v=0.60 ringV=0.30 touchesEdge=false
+        9x1 n=9  at (9,13)-(17,13)  v=0.40 ringV=0.17 touchesEdge=false
+        5x1 n=5  at (46,24)-(50,24) v=0.40 ringV=0.19 touchesEdge=false
+        ... every remaining component is 1x1 or 1x2
+
+EVERY owner-hued component on this sprite is one pixel tall. The first one is
+the well floor, and at n=14 it ALREADY meets the clause's `>= 12 px`. It fails
+on one term only: **`c.h >= 2`**. Nothing is covering it and nothing is fused —
+the earlier "connected to the strakes" hypothesis is wrong too; `touchesEdge` is
+false on all eleven.
+
+**Also ruled out (single-variable tests, after the dump):** widening the well
+across the hull, `wid*0.205 -> 0.30 -> 0.38` with the coaming widened to match.
+Still 0. So screen ROWS are not gained by making the footprint wider, which
+means the 1-px bands are a property of how the owner-hue test samples isoBox's
+GRADED faces, not of the floor's size: isoBox grades its top at 1.24 -> 1.02 and
+its sides at 0.58-0.80, and only a narrow value band of that gradient is
+landing inside the detector.
+
+**The fix to try next:** draw the well floor as a FLAT filled quad in `panel`
+(one value, no gradient) instead of an isoBox, so a contiguous 2+ row block of
+genuinely owner-hued pixels exists. That is a small, contained change to
+`drawWell` in apc.js, and the dump above is the way to verify it — re-run with
+`APC_DUMP=1` after patching naval-air.js as shown in this session's history.
