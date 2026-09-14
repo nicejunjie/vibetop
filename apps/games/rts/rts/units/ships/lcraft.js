@@ -5,8 +5,8 @@
 
 
 function drawLcraft(C) {
-  var DECK = C.DECK, FR = C.FR, HL = C.HL, HOUSE = C.HOUSE, HULL = C.HULL, L = C.L, P = C.P,
-      W = C.W, box = C.box, g = C.g, poly = C.poly;
+  var DECK = C.DECK, FR = C.FR, HD = C.HD, HL = C.HL, HOUSE = C.HOUSE, HULL = C.HULL, L = C.L,
+      P = C.P, W = C.W, box = C.box, g = C.g, poly = C.poly;
 
 // [LCRF]: an open well deck between two side walls, and the bow RAMP
 // — the one feature that says "this thing beaches".
@@ -51,9 +51,9 @@ function drawLcraft(C) {
 box(-L * 0.10, W * 0.80, L * 0.90, W * 0.24, 3.8, shade(HULL, 0.94));
 box(-L * 0.10, -W * 0.80, L * 0.90, W * 0.24, 3.8, shade(HULL, 0.94));
 g.save(); poly(FR, null, null); g.clip();
-g.fillStyle = '#2c2e31';
-poly(FR, '#2c2e31', null);                     // the open well, in shadow
-g.strokeStyle = '#54575c'; g.lineWidth = 0.8;
+g.fillStyle = '#2b2b2b';
+poly(FR, '#2b2b2b', null);                     // the open well, in shadow
+g.strokeStyle = '#555555'; g.lineWidth = 0.8;
 for (var ri = -2; ri <= 2; ri++) {
   var r0 = P(L * 0.5, ri * 3.0, FR), r1 = P(-L * 0.8, ri * 3.0, FR);
   g.beginPath(); g.moveTo(r0[0], r0[1]); g.lineTo(r1[0], r1[1]); g.stroke();
@@ -61,10 +61,26 @@ for (var ri = -2; ri <= 2; ri++) {
 g.restore();
 // Visible cargo in the well: two crates and a vehicle block, so she
 // reads as CARRYING something rather than as an empty barge.
-box(-L * 0.36, -W * 0.36, 7.0, W * 0.62, 4.2, '#75787d');
-box(-L * 0.36, W * 0.40, 5.4, W * 0.52, 3.4, '#878a90');
-box(L * 0.04, 0, 9.0, W * 0.96, 6.0, '#5f6267');                  // a loaded vehicle
-box(L * 0.04, 0, 5.4, W * 0.62, 7.6, '#70737a');
+// THE CARGO HAS TO READ AS CARGO. This unit's whole function is carrying
+// things, and the well held four boxes all within one grid step of the deck
+// they stood on — invisible. They separate in VALUE now, and the loaded
+// vehicle gets a house-coloured band and dark tracks so it is recognisably a
+// machine being carried rather than another crate.
+box(-L * 0.36, -W * 0.36, 7.0, W * 0.62, 4.2, '#999999');         // crate
+box(-L * 0.36, W * 0.40, 5.4, W * 0.52, 3.4, '#cccccc');          // crate, lighter
+box(-L * 0.62, W * 0.02, 4.6, W * 0.44, 3.0, '#777777');          // a third, low
+box(L * 0.04, 0, 9.0, W * 0.96, 5.4, '#666666');                  // a loaded vehicle
+box(L * 0.04, 0, 5.4, W * 0.62, 7.4, '#999999');                  // its cab
+(function () {
+  var bq0 = P(L * 0.04, W * 0.50, FR + 4.6), bq1 = P(L * 0.04, -W * 0.50, FR + 4.6);
+  g.strokeStyle = HOUSE; g.lineWidth = 1.4;                       // its owner band
+  g.beginPath(); g.moveTo(bq0[0], bq0[1]); g.lineTo(bq1[0], bq1[1]); g.stroke();
+  g.strokeStyle = '#242424'; g.lineWidth = 1.6;                   // its tracks
+  for (var tk = -1; tk <= 1; tk += 2) {
+    var t0 = P(L * 0.20, W * 0.46 * tk, FR + 0.4), t1 = P(-L * 0.12, W * 0.46 * tk, FR + 0.4);
+    g.beginPath(); g.moveTo(t0[0], t0[1]); g.lineTo(t1[0], t1[1]); g.stroke();
+  }
+})();
 // Ramp: a pale wedge hinged at the stem and lying DOWN on the water,
 // with two side rails so it reads as a ramp and not a shadow.
 var m0 = P(L * 0.80, W * 0.60, FR + 1.2), m1 = P(L * 0.80, -W * 0.60, FR + 1.2);
@@ -72,7 +88,7 @@ var m2 = P(L * 1.22, -W * 0.50, 0.6), m3 = P(L * 1.22, W * 0.50, 0.6);
 g.beginPath(); g.moveTo(m0[0], m0[1]); g.lineTo(m1[0], m1[1]);
 g.lineTo(m2[0], m2[1]); g.lineTo(m3[0], m3[1]); g.closePath();
 g.fillStyle = shade(HULL, 1.16); g.fill();
-g.strokeStyle = '#232528'; g.lineWidth = 1.0; g.stroke();
+g.strokeStyle = '#242424'; g.lineWidth = 1.0; g.stroke();
 g.strokeStyle = shade(HULL, 1.42); g.lineWidth = 1.4;             // ramp rails
 g.beginPath(); g.moveTo(m0[0], m0[1] - 1.6); g.lineTo(m3[0], m3[1] - 1.6); g.stroke();
 g.beginPath(); g.moveTo(m1[0], m1[1] - 1.6); g.lineTo(m2[0], m2[1] - 1.6); g.stroke();
@@ -98,22 +114,35 @@ box(-L * 0.78, 0, 6, W * 0.50, 5.2, shade(DECK, 1.1));            // little whee
     // the trap that has caught three units in this directory.
     g.strokeStyle = '#333333'; g.lineWidth = 9.4; g.lineCap = 'butt';
     g.beginPath(); g.moveTo(c0[0], c0[1]); g.lineTo(c1[0], c1[1]); g.stroke();
-    g.strokeStyle = HOUSE; g.lineWidth = 7.0;
-    g.beginPath(); g.moveTo(c0[0] - 0.6, c0[1]); g.lineTo(c1[0] - 0.6, c1[1]); g.stroke();
-    g.strokeStyle = HL; g.lineWidth = 2.4;                        // the lit side of the drum
-    g.beginPath(); g.moveTo(c0[0] - 2.6, c0[1]); g.lineTo(c1[0] - 2.6, c1[1]); g.stroke();
+    // BANDED ACROSS, so the duct reads ROUND. One flat fill of HOUSE over the
+    // whole drum baked as a blue rectangle — a box, not a cylinder. Four
+    // strokes at decreasing width, offset across the drum, curve it.
+    var DR = [[1.2, HD, 6.4], [-0.4, HOUSE, 4.4], [-2.0, HL, 2.6], [-3.2, '#cccccc', 1.0]];
+    for (var di = 0; di < DR.length; di++) {
+      g.strokeStyle = DR[di][1]; g.lineWidth = DR[di][2];
+      g.beginPath();
+      g.moveTo(c0[0] + DR[di][0], c0[1]); g.lineTo(c1[0] + DR[di][0], c1[1]); g.stroke();
+    }
     // the ring at its mouth, and the blades inside it
     var mq = P(fu, fv, fz + 9.4);
     g.fillStyle = '#999999';
     g.beginPath(); g.ellipse(mq[0], mq[1], 5.0, 2.6, 0, 0, 6.29); g.fill();
     g.fillStyle = '#333333';
     g.beginPath(); g.ellipse(mq[0], mq[1], 3.7, 1.9, 0, 0, 6.29); g.fill();
-    g.strokeStyle = '#666666'; g.lineWidth = 0.8;
-    for (var bl = 0; bl < 3; bl++) {
-      var a = bl * 2.09;
+    // A FAN IS A DISC OF BLADES, NOT THREE SPOKES. Three lines radiating from
+    // the hub baked as a peace sign inside the ring. Six short chords set
+    // round the mouth read as blades turning, and at this size that is all the
+    // information the ring can hold.
+    // SIX CHORDS WERE A SCRIBBLE at this size. Four clean blades off a hub is
+    // the most a 10 x 5 px mouth can carry and still read as a fan.
+    g.strokeStyle = '#999999'; g.lineWidth = 0.8;
+    for (var bl = 0; bl < 4; bl++) {
+      var a = bl * 0.785 + 0.39;
       g.beginPath(); g.moveTo(mq[0], mq[1]);
-      g.lineTo(mq[0] + Math.cos(a) * 3.0, mq[1] + Math.sin(a) * 1.5); g.stroke();
+      g.lineTo(mq[0] + Math.cos(a) * 2.8, mq[1] + Math.sin(a) * 1.4); g.stroke();
     }
+    g.fillStyle = '#cccccc';                                       // the hub
+    g.beginPath(); g.ellipse(mq[0], mq[1], 0.9, 0.6, 0, 0, 6.29); g.fill();
   }
 })();
 

@@ -151,7 +151,10 @@ mast(-L * 0.30, 0, 13.0, '#333333');
 // point, so the aircraft lies in the deck plane and skews with the hull.
 (function () {
   var AU = -L * 0.62, AZ = FR + 1.2;                    // where it sits, and its deck
-  var GOLD = '#cc9900', GOLD_L = '#ffcc33', GOLD_D = '#996600';
+  // LEMON, NOT DARK GOLD. At 22x the rip's aircraft is a bright yellow — the
+  // single lightest saturated thing in the whole fleet — and ours was #cc9900
+  // amber, which at map size sinks into the grey deck it sits on.
+  var GOLD = '#ffcc33', GOLD_L = '#ffff66', GOLD_D = '#cc9933';
   function pt(du, dv, dz) { return P(AU + du, dv, AZ + (dz || 0)); }
   // the pad it stands on
   disc(AU, 0, 0.4, 7.0, 3.6, '#333333');
@@ -163,22 +166,22 @@ mast(-L * 0.30, 0, 13.0, '#333333');
   // aircraft lost most of its span. There is no z-buffer here: the only thing
   // that puts a part behind another is the order it is drawn in.
   function nacelle(ne) {
-    var n0 = pt(0, ne * W * 1.30, 2.2), n1 = pt(0, ne * W * 1.30, 10.6);
-    g.strokeStyle = HOUSE; g.lineWidth = 2.2;
+    var n0 = pt(0, ne * W * 1.62, 2.2), n1 = pt(0, ne * W * 1.62, 9.4);
+    g.strokeStyle = HOUSE; g.lineWidth = 1.7;
     g.beginPath(); g.moveTo(n0[0], n0[1]); g.lineTo(n1[0], n1[1]); g.stroke();
-    g.strokeStyle = HL; g.lineWidth = 1.1;
-    g.beginPath(); g.moveTo(n0[0] - 0.9, n0[1]); g.lineTo(n1[0] - 0.9, n1[1]); g.stroke();
+    g.strokeStyle = HL; g.lineWidth = 0.8;
+    g.beginPath(); g.moveTo(n0[0] - 0.7, n0[1]); g.lineTo(n1[0] - 0.7, n1[1]); g.stroke();
     g.strokeStyle = '#333333'; g.lineWidth = 1.0;                  // the folded blades on top
     g.beginPath();
     g.moveTo(n1[0] - 3.4, n1[1] - 0.8); g.lineTo(n1[0] + 3.4, n1[1] + 0.4); g.stroke();
   }
   nacelle(-nearS);
   // the WING, across the hull — the widest thing on the after deck
-  var wA = pt(0, W * 1.30, 2.2), wB = pt(0, -W * 1.30, 2.2);
-  g.strokeStyle = GOLD; g.lineWidth = 3.2; g.lineCap = 'butt';
+  var wA = pt(0, W * 1.72, 2.2), wB = pt(0, -W * 1.72, 2.2);
+  g.strokeStyle = GOLD; g.lineWidth = 4.0; g.lineCap = 'butt';
   g.beginPath(); g.moveTo(wA[0], wA[1]); g.lineTo(wB[0], wB[1]); g.stroke();
-  g.strokeStyle = GOLD_L; g.lineWidth = 1.2;                       // its lit leading edge
-  g.beginPath(); g.moveTo(wA[0], wA[1] - 1.1); g.lineTo(wB[0], wB[1] - 1.1); g.stroke();
+  g.strokeStyle = GOLD_L; g.lineWidth = 1.6;                       // its lit leading edge
+  g.beginPath(); g.moveTo(wA[0], wA[1] - 1.4); g.lineTo(wB[0], wB[1] - 1.4); g.stroke();
   // the fuselage, ALONG the hull
   var fA = pt(-L * 0.15, 0, 2.6), fB = pt(L * 0.17, 0, 2.6);
   g.strokeStyle = GOLD; g.lineWidth = 3.6;
@@ -190,6 +193,18 @@ mast(-L * 0.30, 0, 13.0, '#333333');
   var ck = pt(L * 0.16, 0, 3.2);                                   // cockpit glass
   g.fillStyle = '#333333';
   g.beginPath(); g.ellipse(ck[0], ck[1], 1.5, 1.0, 0, 0, 6.29); g.fill();
+  // THE CENTRE PYLON. The rip's aircraft has a tall blue mast standing on the
+  // fuselage between the wings — it is the tallest thing aft and most of what
+  // makes the stern read busy. We had only the two wingtip nacelles.
+  (function () {
+    var c0 = pt(L * 0.02, 0, 3.4), c1 = pt(L * 0.02, 0, 12.6);
+    g.strokeStyle = HOUSE; g.lineWidth = 2.0;
+    g.beginPath(); g.moveTo(c0[0], c0[1]); g.lineTo(c1[0], c1[1]); g.stroke();
+    g.strokeStyle = HL; g.lineWidth = 0.9;
+    g.beginPath(); g.moveTo(c0[0] - 0.8, c0[1]); g.lineTo(c1[0] - 0.8, c1[1]); g.stroke();
+    g.strokeStyle = '#333333'; g.lineWidth = 1.0;                  // the rotor across its head
+    g.beginPath(); g.moveTo(c1[0] - 4.0, c1[1] - 0.6); g.lineTo(c1[0] + 4.0, c1[1] + 0.5); g.stroke();
+  })();
   nacelle(nearS);                                   // and the near one, in front
   // the tail fin, aft on the fuselage
   var tf = pt(-L * 0.14, 0, 2.6);
