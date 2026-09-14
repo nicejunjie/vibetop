@@ -165,7 +165,15 @@ function bakeVehicle(col, kind, fac, anim) {
   // olive; 94/94/56 keeps this unit's value where it was (90 -> 94, the comment
   // below still holds) and stays on the khaki side of the fence from 0.8 to
   // 1.4, so the panels read as one material.
-  else if (kind === 'mammoth') { hull = '#5e5e38'; deck = '#353514'; }   // cold olive; low value and hard plane separation keep the Apocalypse severe
+  // THE DARK FACE WAS THE GREY. isoBox grades each face at f, f*0.80 and f*1.18,
+  // and #5e5e38 (94/94/56) puts those at #333333, #666633 and #666633 — the
+  // SHADOWED face collapses to flat grey while the other two stay olive, which
+  // is why this tank has kept reading half-dusty however its shadow colour was
+  // tuned. The lever is the base colour's VALUE, not the shadow's saturation:
+  // deepening the weak channel cannot rescue a face whose high channels have
+  // already rounded down together. 112/112/62 puts all three faces on olive —
+  // #666633, #666633, #999933 — and keeps the value range the file wants.
+  else if (kind === 'mammoth') { hull = '#70703e'; deck = '#353514'; }   // cold olive; low value and hard plane separation keep the Apocalypse severe
   else if (kind === 'ifv')     { hull = '#9b9b9b'; deck = '#8d8d8d'; }   // pale silver body, as the [FV] voxel render (VLIFT lifts it)
   // NOT DARK SLATE. `mirage-voxel.jpg` is a PALE LAVENDER-GREY hull — light
   // enough that the dark blue deck patch and the khaki turret both read against
@@ -183,7 +191,10 @@ function bakeVehicle(col, kind, fac, anim) {
   // 138/138/80 stays chromatic from 0.86 through 1.40.
   else if (kind === 'rhino')     { hull = '#74743e'; deck = '#5a5a3c'; } // restrained olive gunmetal, as rhino.png; avoid the washed-out toy dome
   else if (kind === 'flaktrack') { hull = '#c4c4c4'; deck = '#b4b49c'; } // cream body AND bed, as soviet-flak-track.png
-  else if (kind === 'v3')        { hull = '#9e9e78'; deck = '#666644'; } // tan-khaki truck, as RA2 V3 Rocket Launcher.png
+  // Same fault as the Apocalypse: isoBox's SHADOWED face (f*0.80) collapsed to
+  // flat grey while the lit two stayed coloured, so the unit read half-dusty.
+  // Solved against the three grades rather than tuned by eye.
+  else if (kind === 'v3')        { hull = '#a4a470'; deck = '#666640'; } // tan-khaki truck, as RA2 V3 Rocket Launcher.png
   else if (kind === 'drone')     { hull = '#a3a3a3'; deck = '#636363'; } // bare metal carapace
   // Measured off soviet-tesla-tank-sheet.png with its pale studio background
   // masked: the hull's own colours are #5a5542 at 7.6% and #6b694a at 5.5%,
@@ -191,7 +202,10 @@ function bakeVehicle(col, kind, fac, anim) {
   // again too light, and a tank that light reads as painted tin rather than
   // as armour. The deck follows it down. #5a5a3c is that same value ON the
   // cube, where #4e4c3a was one rounding step off it and came back red.
-  else if (kind === 'teslatank') { hull = '#5a5a3c'; deck = '#33331e'; } // dark olive iron, as the sheet measures
+  // Same fault as the Apocalypse: isoBox's SHADOWED face (f*0.80) collapsed to
+  // flat grey while the lit two stayed coloured, so the unit read half-dusty.
+  // Solved against the three grades rather than tuned by eye.
+  else if (kind === 'teslatank') { hull = '#70703e'; deck = '#33331e'; } // dark olive iron, as the sheet measures
   else if (kind === 'mcv')     { hull = '#6e6e6e'; deck = '#484848'; }   // steel truck, as allied-mcv.png
   // NIGHTHAWK. This was '#31353d' matte charcoal, which put it at the SAME
   // value as the Harrier's airframe -- the one pair that failed
@@ -210,7 +224,10 @@ function bakeVehicle(col, kind, fac, anim) {
   // 18 degrees of the enemy's red), for the same reason as the Tesla Tank:
   // #8a8d76's red channel is nearer its grid line than its green, so the
   // dark faces of an OLIVE hovercraft snapped warm. R == G fixes it.
-  else if (kind === 'apc')       { hull = '#82826a'; deck = '#4e4e3e'; } // olive-grey hovercraft
+  // Same fault as the Apocalypse: isoBox's SHADOWED face (f*0.80) collapsed to
+  // flat grey while the lit two stayed coloured, so the unit read half-dusty.
+  // Solved against the three grades rather than tuned by eye.
+  else if (kind === 'apc')       { hull = '#8a8a5e'; deck = '#4e4e36'; } // olive-grey hovercraft
   // The two MINERS fall through to here, and the fallback was the same bug a
   // third time: #4c515a -> #336666 teal for the War Miner and #40454e ->
   // #333366 NAVY for the Chrono Miner — a Soviet harvester in Allied blue.

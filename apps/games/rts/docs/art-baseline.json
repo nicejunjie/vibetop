@@ -341,7 +341,7 @@
     "mass.tightestBand6": 1.557,
     "hue.infantryOwnerMean": 0.1927,
     "hue.infantryBelowBudget": 5,
-    "hue.vehicleOwnerMean": 0.1557,
+    "hue.vehicleOwnerMean": 0.1552,
     "hue.vehicleOwnerMax": 0.2662,
     "hue.maxImpostor": 0.1017,
     "aspect.navalOutsideRA2Band": 0,
@@ -378,9 +378,9 @@
     "value.engineerLightPct": 0.0984,
     "value.engineerMarginOverNext": -0.0339,
     "colour.infantry.meanDist": 1.4103,
-    "colour.vehicle.meanDist": 1.097,
+    "colour.vehicle.meanDist": 1.0966,
     "colour.vehicleAchromatic": 5,
-    "colour.naval.meanDist": 1.3667,
+    "colour.naval.meanDist": 1.3664,
     "colour.air.meanDist": 1.2244,
     "colour.navalDarkest": 0,
     "colour.airDarkest": 0.0449
@@ -1071,7 +1071,7 @@
       {
         "a": "rhino",
         "b": "teslatank",
-        "dist": 0.093
+        "dist": 0.086
       },
       {
         "a": "lancer",
@@ -1081,12 +1081,17 @@
       {
         "a": "mammoth",
         "b": "teslatank",
-        "dist": 0.132
+        "dist": 0.136
       },
       {
         "a": "mammoth",
         "b": "rhino",
-        "dist": 0.171
+        "dist": 0.16
+      },
+      {
+        "a": "mirage",
+        "b": "v3",
+        "dist": 0.317
       },
       {
         "a": "chronominer",
@@ -1107,11 +1112,6 @@
         "a": "prismtank",
         "b": "mcv",
         "dist": 0.378
-      },
-      {
-        "a": "ifv",
-        "b": "prismtank",
-        "dist": 0.382
       }
     ],
     "topImpostors": [
@@ -1125,7 +1125,7 @@
       },
       {
         "key": "mammoth",
-        "pct": 0.0777
+        "pct": 0.0844
       },
       {
         "key": "engineer",
@@ -1159,7 +1159,7 @@
       "harrier": 0.21,
       "kirov": 0.2074,
       "lancer": 0.0959,
-      "mammoth": 0.0655,
+      "mammoth": 0.0625,
       "engineer": 0.2237,
       "dog": 0.0839,
       "ifv": 0.0628,
@@ -1167,18 +1167,18 @@
       "tanya": 0.154,
       "rhino": 0.1297,
       "flaktrack": 0.1895,
-      "v3": 0.1405,
+      "v3": 0.1404,
       "teslatrooper": 0.1624,
       "ivan": 0.2782,
       "drone": 0.2402,
-      "teslatank": 0.1224,
+      "teslatank": 0.1183,
       "prismtank": 0.2318,
       "desolator": 0.2333,
       "yuri": 0.2688,
       "cleg": 0.25,
       "spy": 0.08,
       "nighthawk": 0.0343,
-      "apc": 0.1298,
+      "apc": 0.1304,
       "destroyer": 0.1605,
       "aegis": 0.1055,
       "carrier": 0.1654,
@@ -1202,7 +1202,7 @@
       "harrier": 0.0058,
       "kirov": 0.3147,
       "lancer": 0.1338,
-      "mammoth": 0.1913,
+      "mammoth": 0.2032,
       "engineer": 0.2274,
       "dog": 0.6238,
       "ifv": 0.2887,
@@ -1210,18 +1210,18 @@
       "tanya": 0.3966,
       "rhino": 0.1628,
       "flaktrack": 0.07,
-      "v3": 0.1106,
+      "v3": 0.1218,
       "teslatrooper": 0.0992,
       "ivan": 0.3129,
       "drone": 0.1313,
-      "teslatank": 0.1449,
+      "teslatank": 0.1523,
       "prismtank": 0.1311,
       "desolator": 0.1319,
       "yuri": 0.1862,
       "cleg": 0.1528,
       "spy": 0.1546,
       "nighthawk": 0.0211,
-      "apc": 0.1313,
+      "apc": 0.1746,
       "destroyer": 0.0505,
       "aegis": 0.0053,
       "carrier": 0.0002,
