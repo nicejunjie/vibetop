@@ -341,7 +341,7 @@
     "mass.tightestBand6": 1.557,
     "hue.infantryOwnerMean": 0.1927,
     "hue.infantryBelowBudget": 5,
-    "hue.vehicleOwnerMean": 0.152,
+    "hue.vehicleOwnerMean": 0.1517,
     "hue.vehicleOwnerMax": 0.2547,
     "hue.maxImpostor": 0.1017,
     "aspect.navalOutsideRA2Band": 0,
@@ -378,8 +378,8 @@
     "value.engineerLightPct": 0.0984,
     "value.engineerMarginOverNext": -0.0339,
     "colour.infantry.meanDist": 1.4103,
-    "colour.vehicle.meanDist": 1.0052,
-    "colour.vehicleAchromatic": 7,
+    "colour.vehicle.meanDist": 1.0287,
+    "colour.vehicleAchromatic": 6,
     "colour.naval.meanDist": 1.3666,
     "colour.air.meanDist": 1.1669,
     "colour.navalDarkest": 0,
@@ -1064,9 +1064,9 @@
     ],
     "closestVehicleColourPairs": [
       {
-        "a": "mammoth",
-        "b": "rhino",
-        "dist": 0.12
+        "a": "rhino",
+        "b": "teslatank",
+        "dist": 0.076
       },
       {
         "a": "mammoth",
@@ -1074,14 +1074,9 @@
         "dist": 0.132
       },
       {
-        "a": "rhino",
-        "b": "teslatank",
-        "dist": 0.211
-      },
-      {
-        "a": "mirage",
+        "a": "mammoth",
         "b": "rhino",
-        "dist": 0.292
+        "dist": 0.172
       },
       {
         "a": "flaktrack",
@@ -1112,6 +1107,11 @@
         "a": "warminer",
         "b": "mammoth",
         "dist": 0.449
+      },
+      {
+        "a": "warminer",
+        "b": "rhino",
+        "dist": 0.45
       }
     ],
     "topImpostors": [
@@ -1165,7 +1165,7 @@
       "ifv": 0.0634,
       "mirage": 0.2401,
       "tanya": 0.154,
-      "rhino": 0.1342,
+      "rhino": 0.1294,
       "flaktrack": 0.1918,
       "v3": 0.1407,
       "teslatrooper": 0.1624,
@@ -1208,7 +1208,7 @@
       "ifv": 0.0459,
       "mirage": 0.0406,
       "tanya": 0.3966,
-      "rhino": 0.0934,
+      "rhino": 0.1654,
       "flaktrack": 0.0706,
       "v3": 0.1126,
       "teslatrooper": 0.0992,
@@ -4202,7 +4202,7 @@
         "unit": "rhino",
         "clause": "5 discrete house blocks, each 4-6 px, gaps >= 3 px",
         "ok": false,
-        "measured": "5 blocks, minor dims [3,4,4,4,4], min gap 1",
+        "measured": "5 blocks, minor dims [3,4,4,4,3], min gap 1",
         "want": "5 blocks / minor >= 4 px / gap >= 3",
         "note": "components over 10 px at the broadside octant; \"each 4-6 px\" read as the MINOR dimension, as on the Grizzly's row. §2.4 names them and they are all there: three flank panels + two turret cheeks, countable, gaps clear. THE UPPER BOUND OF THE ROW'S SIZE BAND IS NOT ENFORCED and that is a decision, not an oversight: three of the five measure 8 px against the row's 4-6, and our Rhino is 65x38 where RA2's [HTNK] is 56x28 — 1.16x its length and 1.36x its height — so the same panel scales to 4.6-8.2 px here. Thinning them to hit the literal band would take owner colour off the unit, and owner colour is the friend-from-foe read legibility.js gates. The row's content is FIVE COUNTABLE BLOCKS against the Grizzly's two, and that is what is asserted",
         "module": "vehicle.js",

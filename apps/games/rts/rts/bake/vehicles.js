@@ -131,7 +131,15 @@ function bakeVehicle(col, kind, fac, anim) {
   // those notes. The comment cited mirage.png, which is a cameo on a dark
   // background, not the unit.
   else if (kind === 'mirage')  { hull = '#8a8a8a'; deck = '#5e5e5e'; }
-  else if (kind === 'rhino')     { hull = '#8a8a70'; deck = '#5a5a3c'; } // restrained olive gunmetal, as rhino.png; avoid the washed-out toy dome
+  // SAME FENCE AS THE APOCALYPSE. #8a8a70 is 138/138/112, and 112 crosses the
+  // 102/153 midpoint at about f=1.14 — so the Rhino's own olive snapped
+  // chromatic on some faces and flat grey on others, and the tank read cream.
+  // Sampling rhino.png gives #84866b, which is almost exactly our source: the
+  // colour was never wrong, the GRID was eating it. RA2 can hold 132/134/107
+  // because it hand-picks a palette entry per face; we pass one colour through
+  // a shade ladder, so ours has to be chosen to survive the whole ladder.
+  // 138/138/80 stays chromatic from 0.86 through 1.40.
+  else if (kind === 'rhino')     { hull = '#74743e'; deck = '#5a5a3c'; } // restrained olive gunmetal, as rhino.png; avoid the washed-out toy dome
   else if (kind === 'flaktrack') { hull = '#c4c4c4'; deck = '#b4b49c'; } // cream body AND bed, as soviet-flak-track.png
   else if (kind === 'v3')        { hull = '#9e9e78'; deck = '#666644'; } // tan-khaki truck, as RA2 V3 Rocket Launcher.png
   else if (kind === 'drone')     { hull = '#a3a3a3'; deck = '#636363'; } // bare metal carapace
