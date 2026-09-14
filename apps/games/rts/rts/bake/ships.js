@@ -68,7 +68,12 @@ function bakeShip(col, kind, fac) {
   // at its current value and it is not re-opened by this.
   var HULL = sov ? '#6e6e6e' : '#949494';
   var DECK = sov ? '#454545' : '#5e5e5e';
-  if (kind === 'sub')      { HULL = '#333333'; DECK = '#212121'; }
+  // #333333 IS A SHADOW, NOT A BOAT. The casing filled at near-black had no
+  // highlight and no volume anywhere on it, so the whole submarine read as a
+  // dark smear with a red stripe. The rip's casing is a MID grey that catches
+  // light along its crown. The cylindrical banding that makes it read as metal
+  // is in sub.js; this is the value it is built on.
+  if (kind === 'sub')      { HULL = '#666666'; DECK = '#3f3f3f'; }
   if (kind === 'dolphin')  { HULL = '#6a6a6a'; DECK = '#454545'; }
   // The squid's plum was a HALF-STEP off the palette grid and the shade ladder
   // kept falling off it on the red side: #6c4a60 lit by 1.2 snaps to #996666

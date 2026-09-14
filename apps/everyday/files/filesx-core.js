@@ -188,10 +188,39 @@
     return n;
   }
 
+  // ---- an open preview follows the file, the way Quick Look does ----
+  //
+  // Decide whether the preview showing `w` ({path, mtime, size}) should reload,
+  // given a /api/fs/stat reply `d` that was asked for `path`. Returns the NEW
+  // watch record when the file changed underneath, else null.
+  //
+  // The path check is the important one: the poll is in flight while the user
+  // can arrow to the next file, and a late answer about the PREVIOUS file must
+  // not reload the one now on screen. A failed or missing stat says nothing —
+  // a file being rewritten can briefly stat as an error, and blanking the
+  // preview for that would be worse than showing it a second longer.
+  function previewReload(w, path, d) {
+    if (!w || !d || !d.ok || !d.stat) return null;
+    if (path !== w.path) return null;
+    var m = d.stat.mtime, s = d.stat.size;
+    if (m === w.mtime && s === w.size) return null;
+    return { path: w.path, mtime: m, size: s };
+  }
+
+  // A content-addressed cache key for a preview URL. The same bytes keep the
+  // same URL — so the browser cache still works when the file is reopened —
+  // and new bytes get a new one, which is the whole point: without this an
+  // <img> or a PDF iframe re-pointed at the same URL is served from cache and
+  // the "refresh" shows the old picture.
+  function bustUrl(url, mtime) {
+    return url + (url.indexOf('?') === -1 ? '?' : '&') + 'v=' + (mtime || 0);
+  }
+
   var api = { OFF_RE: OFF_RE, IMG_RE: IMG_RE, VID_RE: VID_RE, AUD_RE: AUD_RE, ARC_RE: ARC_RE,
               KIND_MAP: KIND_MAP, normPath: normPath, relParent: relParent, fmtSize: fmtSize,
               fmtRel: fmtRel, iconFor: iconFor, kindOf: kindOf, fmtMode: fmtMode,
-              nextName: nextName, gridStep: gridStep, retickRows: retickRows };
+              nextName: nextName, gridStep: gridStep, retickRows: retickRows,
+              previewReload: previewReload, bustUrl: bustUrl };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.FilesxCore = api;
 })(typeof self !== 'undefined' ? self : this);

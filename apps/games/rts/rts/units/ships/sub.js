@@ -1,7 +1,7 @@
 // Iron Frontier — ships/sub: the art for one unit.
 
 function drawSub(C) {
-  var FR = C.FR, HD = C.HD, HL = C.HL, HOUSE = C.HOUSE, L = C.L, P = C.P,
+  var FR = C.FR, HD = C.HD, HL = C.HL, HOUSE = C.HOUSE, HULL = C.HULL, L = C.L, P = C.P,
       W = C.W, g = C.g, nearS = C.nearS;
 
 // [SUB] — the Typhoon, surfaced. Two things were wrong and the user named both.
@@ -40,19 +40,53 @@ function drawSub(C) {
          [-L * 1.16, -nearS * W * 1.30, FR * 1.70],
          [-L * 1.18, -nearS * W * 0.90, FR * 0.95]], HD);
 
-  // ---- the casing: one uninterrupted whaleback --------------------------- //
-  // A SUBMARINE IS A CYLINDER. The casing held full beam only between +0.48L
-  // and -0.62L and tapered away over the whole of each end — it came to W*0.18
-  // at the bow — so the boat read as a spindle with pointed ends. A Typhoon's
-  // pressure hull is ONE DIAMETER for almost its entire length and rounds off
-  // in a short cap at each end; that constant girth is most of what makes a
-  // submarine look like a submarine rather than like a fish.
-  shape([[ L * 1.00,  W * 0.72, FR * 1.14], [ L * 0.90,  W * 1.26, FR * 1.26],
-         [ L * 0.78,  W * 1.36, FR * 1.30], [-L * 0.86,  W * 1.36, FR * 1.30],
-         [-L * 0.98,  W * 1.20, FR * 1.24], [-L * 1.04,  W * 0.66, FR * 1.16],
-         [-L * 1.04, -W * 0.66, FR * 1.16], [-L * 0.98, -W * 1.20, FR * 1.24],
-         [-L * 0.86, -W * 1.36, FR * 1.30], [ L * 0.78, -W * 1.36, FR * 1.30],
-         [ L * 0.90, -W * 1.26, FR * 1.26], [ L * 1.00, -W * 0.72, FR * 1.14]], '#333333');
+  // ---- the casing: a CYLINDER, banded so it reads as metal ------------- //
+  // Filled flat it was a shadow. A pressure hull seen from above and to the
+  // side is a cylinder: its crown catches the sky, its flanks fall away, and
+  // the near edge curves into shadow. Four longitudinal bands across the beam
+  // give that, and a fixed pale strake along the crown gives the highlight —
+  // which on a dark hull a MULTIPLIER cannot, the same lesson the surface
+  // fleet's sheer strake taught.
+  (function () {
+    var PLAN = [[ 1.00, 0.72], [ 0.90, 1.26], [ 0.78, 1.36], [-0.86, 1.36],
+                [-0.98, 1.20], [-1.04, 0.66]];
+    var BAND = [[-1.00, -0.34, 0.70], [-0.34, 0.30, 1.16],
+                [0.30, 0.84, 0.84], [0.84, 1.00, 0.46]];
+    for (var bi = 0; bi < BAND.length; bi++) {
+      var v0 = BAND[bi][0], v1 = BAND[bi][1], f = BAND[bi][2];
+      g.fillStyle = shade(HULL, f);
+      g.beginPath();
+      for (var pi = 0; pi < PLAN.length; pi++) {
+        var q = P(L * PLAN[pi][0], W * PLAN[pi][1] * v1, FR * 1.30);
+        if (pi) g.lineTo(q[0], q[1]); else g.moveTo(q[0], q[1]);
+      }
+      for (var pj = PLAN.length - 1; pj >= 0; pj--) {
+        var q2 = P(L * PLAN[pj][0], W * PLAN[pj][1] * v0, FR * 1.30);
+        g.lineTo(q2[0], q2[1]);
+      }
+      g.closePath(); g.fill();
+    }
+    // the far half, mirrored, so the boat is closed on both sides
+    g.fillStyle = shade(HULL, 0.62);
+    g.beginPath();
+    for (var mi = 0; mi < PLAN.length; mi++) {
+      var m0 = P(L * PLAN[mi][0], -W * PLAN[mi][1], FR * 1.30);
+      if (mi) g.lineTo(m0[0], m0[1]); else g.moveTo(m0[0], m0[1]);
+    }
+    for (var mj = PLAN.length - 1; mj >= 0; mj--) {
+      var m1 = P(L * PLAN[mj][0], -W * PLAN[mj][1] * 0.34, FR * 1.30);
+      g.lineTo(m1[0], m1[1]);
+    }
+    g.closePath(); g.fill();
+    // THE CROWN STRAKE — a fixed pale value, not a multiple of the hull.
+    line([L * 0.92, -W * 0.10, FR * 1.32], [-L * 0.98, -W * 0.10, FR * 1.32], '#999999', 1.0);
+    line([L * 0.92,  W * 0.24, FR * 1.32], [-L * 0.98,  W * 0.24, FR * 1.32], '#666666', 0.7);
+    // plating seams across the casing, one value down
+    for (var si2 = 0; si2 < 9; si2++) {
+      var su2 = L * (0.84 - si2 * 0.22);
+      line([su2, -W * 1.10, FR * 1.31], [su2, W * 1.24, FR * 1.31], shade(HULL, 0.56), 0.6);
+    }
+  })();
 
   // ---- THE RED BELLY: a lens under the casing, pointed at both ends ------ //
   // Eight points rather than a stroke, because the shape IS the point: it has
