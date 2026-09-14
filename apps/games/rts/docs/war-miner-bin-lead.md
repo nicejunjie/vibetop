@@ -73,3 +73,34 @@ Fixing (1) alone breaks (2)'s clause. The right order is to find which building
 depends on the accident — render each one and look, rather than trusting the
 count — give it real owner colour, and only then neutralise. That needs a
 session with room to render 25 buildings.
+
+## The blocker is the FLAK CANNON — named, and narrowed to four colours
+
+Finding it did NOT need 25 building renders. Re-apply the sweep, re-record, and
+diff `detail.clauses` for rows whose `unit` is a structure:
+
+    before:  gapgen     | [dir] exactly 2 house collar rings and nothing else remapped
+                          measured 3 house-coloured blob(s) >= 18 px   (already failing)
+    after:   gapgen     | (same, still failing)
+           + flakcannon | [col] exactly 1 barrel — the Sentry Gun's two is the read
+                          against it — >=2px thick at >=25% contrast and the topmost mass
+                          measured 2 bright crown blob(s) >=2px
+
+The sweep lifts a SECOND mass at the Flak Cannon's crown over that 25% contrast
+floor, so it counts as a second barrel.
+
+That file has been bitten by this exact trap twice already and says so in its
+own comments: `FK_GUNL` carries a note that it was chosen so the collar ring
+reads "without crossing the clause's brightness floor", and the ammo drum was
+moved from `baseY-8` to `baseY-4` because "its bright lid highlight poked 2px
+into the crown band, a spurious extra barrel".
+
+**Eliminated:** FK_GUNL. Dropped it to `#5c5c5c` and then `#4e4e4e` with the
+sweep applied; the clause still failed both times. So it is one of the other
+four literals the sweep changes in `flakcannon.js` — `FK_GUN` `#343a44`,
+`FK_BARD` `#2a2e35`, the pale foot plate `#6d7482`, or the fifth.
+
+**Remaining work is now one unit and five colours:** bisect those replacements
+one at a time against `clause.unmetStructures`, find the one that lifts a crown
+mass over the floor, and give that mass a DARKER neutral rather than its
+luma-matched one. Then the 167-literal sweep lands clean.
