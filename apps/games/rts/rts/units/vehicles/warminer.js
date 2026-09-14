@@ -52,11 +52,22 @@ var drawBin2 = function () {
   crate(bcx, bcy, 17.0 * W, 16.4, 10.4, BIN, BIN_E);   // 2026-09-10: the sheet's crate is TALL over the rear half
 };
 var drawFront2 = function () {
+  // FIVE BLUE-GREYS, AND ONE OF THEM WAS A GRIN. #4d525b is 77/82/91 — the side
+  // face of the white fore-chassis — and on the shade ladder it throws #666699
+  // and #669999. Under the chassis's #bebebe top and above the pale road
+  // wheels, that baked as a LILAC BAND WITH WHITE TEETH across the front of the
+  // vehicle: the War Miner had a grinning mouth. #4a4f58, #3a3e45, #2e333a and
+  // #22262c are the same shape of colour and throw the same navy and teal.
+  // All five sit at 0.15-0.23 saturation, just ABOVE the palette guard's 0.13
+  // bar, which is why the test never saw them; each is now equal-channel at its
+  // own luma. (The guard's bar is defended by measurement and stays where it
+  // is — see rts-palette.test.js — so literals above it get fixed by hand, as
+  // PEDGE and GUN_L were.)
   // white fore-chassis under the boom
   isoBox(g, cx + fx * W * 5.6, by - 2.8 + fy * W * 5.6, 8.0 * W, wid * 0.60, 4.4, a,
-         '#bebebe', '#4d525b');
+         '#bebebe', '#515151');
   isoBox(g, cx + fx * W * 4.8, by - 7.2 + fy * W * 4.8, 4.8 * W, wid * 0.46, 2.6, a,
-         STEEL, '#4a4f58');                              // boom root housing
+         STEEL, '#4e4e4e');                              // boom root housing
   // the house-colour mass at the crate's front shoulder, and the drum
   // standing on it
   isoBox(g, cx + fx * W * 1.4, by - 4.6 + fy * W * 1.4, 4.6 * W, wid * 0.56, 4.6, a, panel, PEDGE);   // a SMALL red cab, as the sheet
@@ -79,7 +90,7 @@ var drawFront2 = function () {
   // a gun coming out of it.
   var wgx = dx0 + fx * 2.6, wgy = dy0 - 6.6 + fy * 2.6;
   isoBox(g, wgx, wgy, 3.0, 4.6, 2.8, a, panel, PEDGE);              // mantlet block
-  barrel(wgx + fx * 1.6, wgy - 1.0 + fy * 1.6, 9.4, 1.35, 0.92, '#22262c');
+  barrel(wgx + fx * 1.6, wgy - 1.0 + fy * 1.6, 9.4, 1.35, 0.92, '#252525');
   // boom: two silver rails from under the drum forward and DOWN to the
   // bucket. Digging swings the whole assembly to the dirt.
   var tipU = (dig ? 12.4 : 11.0) * W, tipY = dig ? by - 0.6 : by - 5.4;
@@ -87,7 +98,7 @@ var drawFront2 = function () {
   for (var rr = -1; rr <= 1; rr += 2) {
     var r0x = cx + fx * rootU + px * 2.1 * rr, r0y = rootY + fy * rootU + py * 2.1 * rr;
     var r1x = cx + fx * tipU + px * 3.0 * rr, r1y = tipY + fy * tipU + py * 3.0 * rr;
-    g.strokeStyle = '#2e333a'; g.lineWidth = 3.6; g.lineCap = 'round';
+    g.strokeStyle = '#323232'; g.lineWidth = 3.6; g.lineCap = 'round';
     g.beginPath(); g.moveTo(r0x, r0y); g.lineTo(r1x, r1y); g.stroke();
     g.strokeStyle = '#f1f1f1'; g.lineWidth = 2.1;
     g.beginPath(); g.moveTo(r0x, r0y - 0.6); g.lineTo(r1x, r1y - 0.6); g.stroke();
@@ -107,7 +118,7 @@ var drawFront2 = function () {
   // toothed bucket at the boom tip
   var bkx = cx + fx * tipU, bky = tipY + fy * tipU;
   prism(bkx, bky, [[2.7, -4.8], [2.7, 4.8], [-2.7, 3.8], [-2.7, -3.8]],
-        3.8, '#949494', '#3a3e45');
+        3.8, '#949494', '#3e3e3e');
   g.fillStyle = 'rgba(255,255,255,.28)';
   g.beginPath();
   g.moveTo(bkx + fx * 2.7 + px * 4.8, bky + fy * 2.7 + py * 4.8 - 3.8);
@@ -121,7 +132,7 @@ var drawFront2 = function () {
     g.beginPath();
     g.moveTo(exx - 1.3, eyy - 1.5); g.lineTo(exx + 1.3, eyy - 1.5);
     g.lineTo(exx, eyy + 1.9); g.closePath(); g.fill();
-    g.strokeStyle = '#3a3e45'; g.lineWidth = 0.6; g.stroke();
+    g.strokeStyle = '#3e3e3e'; g.lineWidth = 0.6; g.stroke();
   }
   if (dig) {                                               // spoil under the bucket
     for (i2 = -1; i2 <= 1; i2++) {
@@ -132,8 +143,22 @@ var drawFront2 = function () {
       g.fill();
     }
   }
-  for (var l2 = -1; l2 <= 1; l2 += 2)                      // headlamps
-    lamp(cx + fx * W * 9.0 + px * 3.9 * l2, by - 5.2 + fy * W * 9.0 + py * 3.9 * l2);
+  // THE WAR MINER HAD A SKULL. Two round #f4e6b4 lamps at +/-3.9, directly above
+  // the bucket's five white teeth, with the boom's two silver rails arching over
+  // them: at the head-on bearings that is two eyes, a nose ridge and a row of
+  // teeth, and the miner was a grinning skull. The TEETH are right — a digging
+  // bucket has them and the rip draws them — so what has to go is the pair of
+  // pale discs above them. Third unit this session to grow a face out of a
+  // symmetric pair of bright round lamps (Chrono Miner, Flak Track, this), and
+  // the answer is the same one: a work-light BAR on the frame, which is also
+  // where a mining rig actually carries one — above the cut, not beside it.
+  var wlbx = cx + fx * W * 9.0, wlby = by - 5.6 + fy * W * 9.0;
+  isoBox(g, wlbx, wlby, 1.6, 8.0, 1.4, a, '#464646', '#1b1b1b');
+  g.strokeStyle = '#f4e6b4'; g.lineWidth = 1.2; g.lineCap = 'butt';
+  g.beginPath();
+  g.moveTo(wlbx + fx * 0.8 - px * 3.1, wlby - 0.8 + fy * 0.8 - py * 3.1);
+  g.lineTo(wlbx + fx * 0.8 + px * 3.1, wlby - 0.8 + fy * 0.8 + py * 3.1);
+  g.stroke();
 };
 if (fy > 0) { drawBin2(); drawFront2(); } else { drawFront2(); drawBin2(); }
 }
