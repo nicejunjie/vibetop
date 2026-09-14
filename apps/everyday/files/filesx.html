@@ -591,6 +591,10 @@
   }
   .ql-body { flex: 1; min-height: 0; display: flex; align-items: center; justify-content: center; background: #0e1117; overflow: auto; }
   .ql-body img, .ql-body video { max-width: 100%; max-height: 100%; object-fit: contain; }
+  /* Claim the gesture: without this the browser pans/zooms the PAGE and our
+     pointer stream is cancelled mid-pinch. Only the image — a text preview
+     still has to scroll normally. */
+  .ql-body img { touch-action: none; }
   /* Scroll zooms an image (1-6x, anchored under the cursor), drag pans it,
      double-click toggles — the image viewer's gestures, in the panel. */
   .ql-body.zoomed { overflow: hidden; }
@@ -974,6 +978,8 @@
 
 <!-- The pure half (paths, formatting, type tables): see filesx-core.js. -->
 <script src="/filesx-core.js?v=@FSX_VER@"></script>
+<!-- Two-finger pinch maths, shared with the Image viewer: shared/pinch.js. -->
+<script src="/pinch.js"></script>
 <script>
   // Path/format/type helpers live in filesx-core.js (pure, tested). Bound to the
   // same local names so the call sites below read exactly as they always did.
@@ -2980,21 +2986,67 @@
     if (!qlImg()) return;
     qlZoomTo(qlZ === 1 ? 2.5 : 1, e.clientX, e.clientY);
   });
+  // Two fingers pinch. A phone has no wheel and no double-click, so without
+  // this the panel's zoom was unreachable on the device most likely to need it.
+  // Pointers are tracked BY ID: the old code kept one `drag` object, so a
+  // second finger simply overwrote the first and nothing could ever see two.
+  var qlPts = Object.create(null), qlPinch = null;
+  function qlPtIds() { return Object.keys(qlPts); }
+  function qlCentreRel(cx, cy) {                  // client -> box-centre coords
+    var r = qlBodyEl.getBoundingClientRect();
+    return { x: cx - (r.left + r.width / 2), y: cy - (r.top + r.height / 2) };
+  }
+  function qlPinchStart() {
+    var ids = qlPtIds(); if (ids.length < 2) { qlPinch = null; return; }
+    var a = qlPts[ids[0]], b = qlPts[ids[1]];
+    var ca = qlCentreRel(a.x, a.y), cb = qlCentreRel(b.x, b.y);
+    var m = VibePinch.pinchMetrics(ca.x, ca.y, cb.x, cb.y);
+    qlPinch = { dist: m.dist, cx: m.cx, cy: m.cy, z: qlZ, px: qlPX, py: qlPY, ids: [ids[0], ids[1]] };
+    qlDrag = null;                                 // a pinch is not a drag
+  }
   qlBodyEl.addEventListener('pointerdown', function(e) {
-    var im = qlImg(); if (!im || qlZ === 1 || e.button !== 0) return;
+    var im = qlImg(); if (!im) return;
+    qlPts[e.pointerId] = { x: e.clientX, y: e.clientY };
+    try { qlBodyEl.setPointerCapture(e.pointerId); } catch (err) {}
+    if (qlPtIds().length >= 2) { qlPinchStart(); e.preventDefault(); return; }
+    if (qlZ === 1 || e.button !== 0) return;       // unzoomed: nothing to drag
     qlDrag = { x: e.clientX, y: e.clientY, px: qlPX, py: qlPY };
     im.classList.add('dragging');
-    try { qlBodyEl.setPointerCapture(e.pointerId); } catch (err) {}
     e.preventDefault();
   });
   qlBodyEl.addEventListener('pointermove', function(e) {
+    if (qlPts[e.pointerId]) { qlPts[e.pointerId].x = e.clientX; qlPts[e.pointerId].y = e.clientY; }
+    if (qlPinch) {
+      var a = qlPts[qlPinch.ids[0]], b = qlPts[qlPinch.ids[1]];
+      if (!a || !b) return;
+      var ca = qlCentreRel(a.x, a.y), cb = qlCentreRel(b.x, b.y);
+      var st = VibePinch.pinchStep(qlPinch, VibePinch.pinchMetrics(ca.x, ca.y, cb.x, cb.y), 1, 6);
+      qlZ = st.z; qlPX = st.px; qlPY = st.py;
+      qlZoomApply();
+      e.preventDefault();
+      return;
+    }
     if (!qlDrag) return;
     qlPX = qlDrag.px + (e.clientX - qlDrag.x); qlPY = qlDrag.py + (e.clientY - qlDrag.y);
     qlZoomApply();
   });
   function qlDragEnd() { if (!qlDrag) return; qlDrag = null; var im = qlImg(); if (im) im.classList.remove('dragging'); }
-  qlBodyEl.addEventListener('pointerup', qlDragEnd);
-  qlBodyEl.addEventListener('pointercancel', qlDragEnd);
+  function qlPtEnd(e) {
+    delete qlPts[e.pointerId];
+    // Lifting one of two fingers must not leave a half-pinch running against a
+    // pointer that is gone; the finger still down becomes a plain drag.
+    if (qlPinch && qlPinch.ids.indexOf(String(e.pointerId)) !== -1) {
+      qlPinch = null;
+      var ids = qlPtIds();
+      if (ids.length === 1 && qlZ > 1) {
+        var p = qlPts[ids[0]];
+        qlDrag = { x: p.x, y: p.y, px: qlPX, py: qlPY };
+      }
+    }
+    if (!qlPtIds().length) qlDragEnd();
+  }
+  qlBodyEl.addEventListener('pointerup', qlPtEnd);
+  qlBodyEl.addEventListener('pointercancel', qlPtEnd);
   function qlClose() {
     if (!qlIsOpen()) return;
     pvwDisarm();

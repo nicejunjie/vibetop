@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_301 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_302 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
 - [Scheduled terminal messages ("resume when the token limit resets")](#scheduled-terminal-messages-resume-when-the-token-limit-resets)
@@ -324,6 +324,7 @@ _301 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [The usage strip's ✕ moved to the left, because on the right it looked like a window's (2026-09-13)](#the-usage-strips-moved-to-the-left-because-on-the-right-it-looked-like-a-windows-2026-09-13)
 - [Shifted punctuation needs two presses — it is the CHINESE input method, and that is a different code path entirely (2026-09-14, narrowed)](#shifted-punctuation-needs-two-presses-it-is-the-chinese-input-method-and-that-is-a-different-code-path-entirely-2026-09-14-narrowed)
 - [An open preview froze at the bytes it opened with (2026-09-14)](#an-open-preview-froze-at-the-bytes-it-opened-with-2026-09-14)
+- [Two fingers did nothing to a previewed picture (2026-09-14)](#two-fingers-did-nothing-to-a-previewed-picture-2026-09-14)
 
 <!-- END TOC -->
 
@@ -13685,3 +13686,55 @@ inside one filesystem-timestamp tick moves only the size), the stale-path
 refusal, the failed-stat silence, the cache key, the three scroll-restore cases,
 and one assertion on the shipped `filesx.html` that every followable surface
 arms the watch, every close disarms it, and the media branch does not.
+
+## Two fingers did nothing to a previewed picture (2026-09-14)
+
+**Symptom.** On a phone, pinching an image in Files' Quick Look panel — or in
+the Image viewer — did not zoom it. The zoom existed and worked; it was simply
+unreachable, because everything that reached it was a desktop input.
+
+**Cause.** Both surfaces had a complete anchored-zoom implementation
+(`qlZoomTo` / `zoomAt`) driven only by **wheel, double-click and a one-finger
+drag**. A phone has no wheel, and the double-tap toggle only ever gives 1x or
+2.5x. Underneath that, neither page *could* have seen a pinch: each kept a
+single `drag`/`qlDrag` object keyed by nothing, so a second `pointerdown`
+overwrote the first and two pointers were never simultaneously visible.
+
+**Fix.** `shared/pinch.js` — the maths only, shared by both pages, deployed
+flat as `/pinch.js` by the existing walk (no install.sh change; `*.test.js` is
+already excluded). Each page tracks pointers **by `pointerId`** and, on the
+second one, captures a gesture origin and drives `pinchStep()`.
+
+**The invariant worth naming.** Whatever image point sat under the STARTING
+midpoint must still sit under the CURRENT midpoint. Scaling about the box
+centre and panning by the midpoint separately is the obvious implementation,
+passes "spread the fingers, it zooms", and still feels wrong: the picture
+drifts out from under the hand doing the pinching. Anchoring against the
+*start* rather than the previous frame also stops the slow drift that
+accumulates when every move event re-derives the pivot. A consequence worth
+having: two fingers that keep their separation are a pure pan, so dragging
+while pinching keeps working instead of fighting the zoom.
+
+**`touch-action: none` is load-bearing.** Without it the browser claims the
+gesture, pans or zooms the page, and cancels our pointer stream mid-pinch. It is
+set on `.ql-body img` only — a text preview in the same panel still has to
+scroll normally.
+
+**Watch out — lifting one of two fingers.** The finger still down must become a
+plain drag, and in the Image viewer it must NOT be read as the horizontal swipe
+that steps to the next picture. Both pages clear the gesture on the first
+release and hand the survivor to the pan path; the viewer also clears its
+double-tap timer when a pinch starts, or the fingers going down would register
+as a tap.
+
+**Rejected: let the browser zoom the page instead.** The Image viewer ships
+`user-scalable=no`, and page zoom would scale the chrome and the nav arrows
+along with the photo — and inside an iframe in the desktop shell it zooms the
+wrong document entirely.
+
+**Test.** `shared/pinch.test.js` — eight cases: the ratio, the anchor invariant
+under a gesture that moves *and* spreads, pure translation, clamping that still
+anchors (or the picture jumps when you hit the limit), a zero-distance
+degenerate that must not divide by zero, and one assertion that **both** pages
+load the module, call it, and track `pointerId` — proven red against the
+unwired pages, because what was reported was a wiring bug, not an algebra one.

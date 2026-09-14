@@ -76,6 +76,8 @@
     <button class="nav prev" id="prev" aria-label="Previous image">‹</button>
     <button class="nav next" id="next" aria-label="Next image">›</button>
   </div>
+<!-- Two-finger pinch maths, shared with Files' Quick Look: shared/pinch.js. -->
+<script src="/pinch.js"></script>
 <script>
 (function() {
   // Native image viewer — replaced FileBrowser's previewer (its patched mobile
@@ -134,8 +136,31 @@
 
   var lastTapT = 0, lastTapX = 0, lastTapY = 0;
   var drag = null;
+  // Two fingers pinch. There is no wheel on a phone, and the double-tap toggle
+  // only ever gives 1x or 2.5x — pinching is how anyone actually reads a photo.
+  // Pointers are tracked BY ID because `drag` is a single object: a second
+  // finger used to overwrite the first, so two were never visible at once.
+  var pts = Object.create(null), pinch = null;
+  function ptIds() { return Object.keys(pts); }
+  function centreRel(cx, cy) {
+    var r = stage.getBoundingClientRect();
+    return { x: cx - (r.left + r.width / 2), y: cy - (r.top + r.height / 2) };
+  }
+  function pinchStart() {
+    var ids = ptIds(); if (ids.length < 2) { pinch = null; return; }
+    var a = pts[ids[0]], b = pts[ids[1]];
+    var ca = centreRel(a.x, a.y), cb = centreRel(b.x, b.y);
+    var m = VibePinch.pinchMetrics(ca.x, ca.y, cb.x, cb.y);
+    pinch = { dist: m.dist, cx: m.cx, cy: m.cy, z: zoom, px: panX, py: panY, ids: [ids[0], ids[1]] };
+    // A pinch is not a drag and not a swipe: cancel both, or lifting the
+    // fingers would also step to the next picture.
+    drag = null; lastTapT = 0;
+    if (img) img.classList.remove('dragging');
+  }
   stage.addEventListener('pointerdown', function(e) {
     if (e.target.closest('.nav')) return;
+    pts[e.pointerId] = { x: e.clientX, y: e.clientY };
+    if (ptIds().length >= 2) { pinchStart(); e.preventDefault(); return; }
     var now = e.timeStamp;
     if (now - lastTapT < 350 && Math.abs(e.clientX - lastTapX) < 24 && Math.abs(e.clientY - lastTapY) < 24) {
       setZoom(zoom === 1 ? 2.5 : 1);           // double-tap / double-click toggles
@@ -147,6 +172,17 @@
     if (img) img.classList.add('dragging');
   });
   window.addEventListener('pointermove', function(e) {
+    if (pts[e.pointerId]) { pts[e.pointerId].x = e.clientX; pts[e.pointerId].y = e.clientY; }
+    if (pinch) {
+      var pa = pts[pinch.ids[0]], pb = pts[pinch.ids[1]];
+      if (!pa || !pb) return;
+      var ca = centreRel(pa.x, pa.y), cb = centreRel(pb.x, pb.y);
+      var st = VibePinch.pinchStep(pinch, VibePinch.pinchMetrics(ca.x, ca.y, cb.x, cb.y), 1, 6);
+      zoom = st.z; panX = st.px; panY = st.py;
+      applyZoom();
+      e.preventDefault();
+      return;
+    }
     if (!drag) return;
     var dx = e.clientX - drag.x, dy = e.clientY - drag.y;
     if (Math.abs(dx) + Math.abs(dy) > 8) drag.moved = true;
@@ -160,9 +196,24 @@
     drag = null;
     if (img) img.classList.remove('dragging');
   }
-  window.addEventListener('pointercancel', abortPan);
-  window.addEventListener('blur', abortPan);
+  window.addEventListener('pointercancel', function(e) { forgetPt(e); abortPan(); });
+  window.addEventListener('blur', function() { pts = Object.create(null); pinch = null; abortPan(); });
+  // Lifting one of two fingers ends the pinch; the finger still down becomes a
+  // plain pan rather than a stray swipe to the next picture.
+  function forgetPt(e) {
+    delete pts[e.pointerId];
+    if (!pinch || pinch.ids.indexOf(String(e.pointerId)) === -1) return false;
+    pinch = null;
+    var ids = ptIds();
+    if (ids.length === 1 && zoom > 1) {
+      var p = pts[ids[0]];
+      drag = { x: p.x, y: p.y, px: panX, py: panY, moved: true };
+    }
+    return true;
+  }
   window.addEventListener('pointerup', function(e) {
+    if (forgetPt(e)) return;                  // was a pinch: not a tap, not a swipe
+    delete pts[e.pointerId];
     if (!drag) return;
     var d = drag; drag = null;
     if (img) img.classList.remove('dragging');
