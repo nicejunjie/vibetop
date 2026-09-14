@@ -1,82 +1,81 @@
 // Iron Frontier — ships/dolphin: the art for one unit.
-// Called by bakeShip() with one context object carrying the canvas, the anchor,
-// the facing and the helpers it draws with — see rts/README.md.
-
-
+// Called by bakeShip() with one context object carrying the projection helpers.
 
 function drawDolphin(C) {
-  var FR = C.FR, HOUSE = C.HOUSE, HULL = C.HULL, L = C.L, P = C.P, W = C.W, g = C.g, nearS = C.nearS;
+  var FR = C.FR, HD = C.HD, HL = C.HL, HOUSE = C.HOUSE, L = C.L, P = C.P,
+      W = C.W, g = C.g, nearS = C.nearS;
+  var q;
+  function m(u, v, z) { q = P(L * u, W * v, FR + z); g.moveTo(q[0], q[1]); }
+  function b(u1, v1, z1, u2, v2, z2, u3, v3, z3) {
+    var a = P(L * u1, W * v1, FR + z1), c = P(L * u2, W * v2, FR + z2),
+        d = P(L * u3, W * v3, FR + z3);
+    g.bezierCurveTo(a[0], a[1], c[0], c[1], d[0], d[1]);
+  }
+  function fill(col) { g.closePath(); g.fillStyle = col; g.fill(); }
 
-// [DLPH]: an animal, not a boat. A fusiform body, a beak, a dorsal fin
-// and a fluke.
-//
-// Like the Squid, she was three `g.ellipse` calls at FIXED SCREEN
-// RADII — identical at all 32 bearings, so the body never turned — and
-// over it a HOUSE-coloured "harness" drawn as an 8-unit triangle
-// standing straight up off her back. At 4x that triangle was the
-// biggest thing on the animal and read as a shark fin in the wrong
-// colour, with the beak's 2.4-wide round-capped stroke crossing it
-// like a wing: a paper dart, not a dolphin. Body and fin are now
-// PLAN-SPACE, so both foreshorten with her, and the owner colour is a
-// STRAP across the shoulders where a harness actually sits.
-var DOL = [[-0.86, 0.10], [-0.55, 0.62], [-0.16, 0.92], [0.22, 0.88],
-           [0.56, 0.60], [0.80, 0.30], [1.00, 0.12]];
-var dpoly = function (lift, squash, fill) {
-  g.beginPath();
-  var i6, q6;
-  for (i6 = 0; i6 < DOL.length; i6++) {
-    q6 = P(L * DOL[i6][0], W * squash * DOL[i6][1], FR + lift);
-    if (i6) g.lineTo(q6[0], q6[1]); else g.moveTo(q6[0], q6[1]);
-  }
-  for (i6 = DOL.length - 1; i6 >= 0; i6--) {
-    q6 = P(L * DOL[i6][0], -W * squash * DOL[i6][1], FR + lift);
-    g.lineTo(q6[0], q6[1]);
-  }
-  g.closePath(); g.fillStyle = fill; g.fill();
-};
-dpoly(0.0, 1.30, '#cfd8de');                                      // pale belly, awash
-dpoly(1.6, 1.10, HULL);                                           // the flank
-dpoly(2.9, 0.70, shade(HULL, 1.26));                              // the lit back
-var bq = P(0, 0, FR);
-var kq = P(-L * 0.92, 0, FR + 1.2);                               // fluke, two lobes
-g.fillStyle = shade(HULL, 0.86);
-g.beginPath();
-g.moveTo(kq[0] + 2.4, kq[1] - 0.6); g.lineTo(kq[0] - 3.6, kq[1] - 2.6);
-g.lineTo(kq[0] - 2.2, kq[1] - 0.2); g.lineTo(kq[0] - 3.8, kq[1] + 1.8);
-g.closePath(); g.fill();
-// The dorsal fin: a raked triangle standing on the back, in her own
-// grey. It is the only thing above her line and §2.4 asks for >= 3 px
-// of it, so it gets width as well as height — a 1-px blade dies first
-// at ZMIN and takes the whole read with it.
-var f0 = P(-L * 0.06, 0, FR + 3.2), f1 = P(-L * 0.40, 0, FR + 3.2);
-g.fillStyle = shade(HULL, 0.74);
-g.beginPath();
-g.moveTo(f0[0], f0[1]); g.lineTo(f0[0] - 1.2, f0[1] - 5.2);
-g.lineTo(f1[0] - 0.6, f1[1] - 1.0); g.lineTo(f1[0], f1[1]);
-g.closePath(); g.fill();
-// The harness — a strap over the shoulders, her only paint.
-var h0 = P(L * 0.30, W * 1.10, FR + 1.4), h1 = P(L * 0.30, -W * 1.10, FR + 1.4);
-g.strokeStyle = HOUSE; g.lineWidth = 2.2;
-g.beginPath(); g.moveTo(h0[0], h0[1] - 1.0); g.lineTo(h1[0], h1[1] - 1.0); g.stroke();
-// THE EYE WAS THE ONE PART LEFT IN SCREEN SPACE, and it is the same
-// bug the paragraph above this block was written about: the body and
-// fin were moved to PLAN space so they foreshorten with her, and this
-// was missed. `P(L * 0.98, 0, ...)` is her BEAK, and the eye was then
-// shoved four SCREEN pixels to the left of it whichever way she was
-// pointing — so at every bearing where the snout runs leftward the
-// offset walks straight off the animal. Measured on the baked sheet:
-// at octants 3, 4 and 5 the eye bakes as a DETACHED 2x3 black blob
-// sitting 4-12 px clear of her in open water, and at the broadside
-// octant the gate reads it as part of her, stretching the bbox from
-// 38 px to 44 (16%). §2.3 asks the Dolphin for "no orthogonal edges
-// anywhere"; a floating black rectangle is the only one she had.
-//
-// Placed in plan space it turns with her. `L * 0.70` is just abaft
-// the melon, and `W * 0.30` on the NEAR flank keeps it inside the
-// 0.475 half-beam the DOL profile has there, so it never touches an
-// edge; `nearS` picks the flank the camera can see, which is what a
-// side-on animal actually shows.
-var eyq = P(L * 0.70, nearS * W * 0.30, FR + 2.4);
-g.fillStyle = '#101418';                                          // the eye
-g.beginPath(); g.ellipse(eyq[0], eyq[1], 0.7, 0.6, 0, 0, 6.29); g.fill();
+  // Horizontal crescent fluke, followed by the far swept pectoral fin.
+  g.beginPath(); m(-0.78, 0, 1.8);
+  b(-0.91, -0.24, 1.8, -1.00, -1.30, 1.5, -1.14, -1.48, 1.2);
+  b(-1.18, -0.90, 1.2, -1.12, -0.28, 1.5, -1.20, 0, 1.4);
+  b(-1.12, 0.28, 1.5, -1.18, 0.90, 1.2, -1.14, 1.48, 1.2);
+  b(-1.00, 1.30, 1.5, -0.91, 0.24, 1.8, -0.78, 0, 1.8); fill('#666666');
+
+  var far = -nearS;
+  g.beginPath(); m(0.28, far * 0.34, 1.7);
+  b(0.04, far * 0.56, 1.4, -0.36, far * 1.28, 0.9, -0.52, far * 1.40, 0.7);
+  b(-0.44, far * 1.03, 0.9, -0.22, far * 0.40, 1.6, 0.12, far * 0.20, 2.0);
+  b(0.18, far * 0.22, 1.9, 0.24, far * 0.28, 1.8, 0.28, far * 0.34, 1.7); fill('#666666');
+
+  // One continuous bottlenose silhouette: pointed beak, melon, belly and peduncle.
+  g.beginPath(); m(1.18, 0, 2.1);
+  b(1.08, -0.10, 2.9, 0.92, -0.18, 3.2, 0.82, -0.28, 4.4);
+  b(0.61, -0.57, 5.5, 0.13, -0.72, 5.5, -0.19, -0.62, 5.0);
+  b(-0.50, -0.52, 4.4, -0.75, -0.24, 3.2, -0.94, 0, 2.0);
+  b(-0.72, 0.26, 0.8, -0.30, 0.64, -0.3, 0.16, 0.60, -0.1);
+  b(0.53, 0.55, 0.3, 0.76, 0.28, 0.9, 0.87, 0.13, 1.4);
+  b(0.96, 0.08, 1.6, 1.09, 0.04, 1.9, 1.18, 0, 2.1); fill('#999999');
+
+  // Dark back and pale underside stay contained inside the animal.
+  g.beginPath(); m(0.80, -0.18, 4.1);
+  b(0.53, -0.48, 5.1, 0.16, -0.56, 5.1, -0.18, -0.50, 4.6);
+  b(-0.38, -0.42, 4.2, -0.54, -0.25, 3.5, -0.65, -0.10, 2.9);
+  b(-0.34, -0.18, 3.6, 0.31, -0.22, 4.2, 0.80, -0.18, 4.1); fill('#666666');
+  g.beginPath(); m(0.88, 0.10, 1.4);
+  b(0.58, 0.42, 0.4, 0.14, 0.43, 0.1, -0.20, 0.40, 0.2);
+  b(-0.43, 0.34, 0.6, -0.60, 0.16, 1.3, -0.72, 0.04, 1.8);
+  b(-0.40, 0.18, 1.3, 0.35, 0.16, 1.1, 0.88, 0.10, 1.4); fill('#cccccc');
+
+  // Curved dorsal and the near pectoral fin complete the dolphin silhouette.
+  g.beginPath(); m(0.04, -0.20, 5.1);
+  b(-0.04, -0.17, 6.0, -0.13, -0.12, 7.0, -0.23, -0.09, 7.2);
+  b(-0.24, -0.11, 6.4, -0.28, -0.16, 5.5, -0.35, -0.22, 4.8);
+  b(-0.20, -0.28, 5.0, -0.06, -0.26, 5.2, 0.04, -0.20, 5.1); fill('#666666');
+
+  var near = nearS;
+  g.beginPath(); m(0.27, near * 0.35, 1.7);
+  b(0.03, near * 0.60, 1.3, -0.37, near * 1.34, 0.4, -0.55, near * 1.48, 0.2);
+  b(-0.46, near * 1.08, 0.5, -0.22, near * 0.43, 1.4, 0.10, near * 0.24, 1.8);
+  b(0.17, near * 0.25, 1.8, 0.23, near * 0.30, 1.8, 0.27, near * 0.35, 1.7); fill('#999999');
+
+  // Rounded blue saddle and strap are the only saturated surfaces.
+  g.beginPath(); m(0.34, -0.42, 4.8);
+  b(0.26, -0.54, 5.3, -0.12, -0.55, 5.4, -0.22, -0.40, 4.9);
+  b(-0.18, -0.13, 4.5, -0.12, 0.34, 3.1, -0.02, 0.48, 2.7);
+  b(0.10, 0.51, 2.9, 0.40, 0.08, 4.0, 0.34, -0.42, 4.8); fill(HOUSE);
+  g.beginPath(); m(0.31, -0.34, 5.1);
+  b(0.19, -0.45, 5.5, -0.05, -0.43, 5.5, -0.13, -0.34, 5.2);
+  b(-0.02, -0.25, 5.2, 0.20, -0.23, 5.1, 0.31, -0.34, 5.1); fill(HL);
+  g.beginPath(); m(-0.02, 0.43, 2.3);
+  b(-0.08, 0.39, 2.4, -0.17, 0.25, 2.8, -0.19, 0.05, 3.3);
+  b(-0.11, 0.15, 2.9, 0.02, 0.31, 2.5, 0.08, 0.40, 2.4);
+  b(0.05, 0.43, 2.3, 0.01, 0.44, 2.3, -0.02, 0.43, 2.3); fill(HD);
+
+  q = P(L * 0.03, -nearS * W * 0.25, FR + 5.8);
+  g.fillStyle = '#333333'; g.beginPath(); g.ellipse(q[0], q[1], 1.2, 0.8, 0, 0, 6.29); g.fill();
+  q = P(L * 0.78, nearS * W * 0.25, FR + 3.0);
+  g.fillStyle = '#333333'; g.beginPath(); g.ellipse(q[0], q[1], 0.65, 0.55, 0, 0, 6.29); g.fill();
+  var e = P(L * 1.10, nearS * W * 0.08, FR + 1.9), r = P(L * 0.72, nearS * W * 0.30, FR + 1.4),
+      t = P(L * 0.57, nearS * W * 0.38, FR + 1.3);
+  g.strokeStyle = '#666666'; g.lineWidth = 0.65; g.lineCap = 'round'; g.beginPath();
+  g.moveTo(e[0], e[1]); g.bezierCurveTo(r[0], r[1], r[0], r[1], t[0], t[1]); g.stroke();
 }

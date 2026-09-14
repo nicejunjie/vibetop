@@ -5,8 +5,8 @@
 
 
 function drawDestroyer(C) {
-  var DECK = C.DECK, FR = C.FR, GLASS = C.GLASS, HL = C.HL, HOUSE = C.HOUSE, L = C.L, P = C.P,
-      STEEL = C.STEEL, W = C.W, barrel = C.barrel, box = C.box, disc = C.disc, g = C.g, mast = C.mast,
+  var DECK = C.DECK, FR = C.FR, GLASS = C.GLASS, HD = C.HD, HL = C.HL, HOUSE = C.HOUSE, L = C.L, P = C.P,
+      STEEL = C.STEEL, W = C.W, box = C.box, disc = C.disc, g = C.g, mast = C.mast,
       nearS = C.nearS;
 
 // [DEST]: a raked stem, one turret forward, a stepped bridge tower
@@ -52,22 +52,36 @@ box(L * 0.52, 0, L * 0.26, W * 1.46, 3.2, shade(DECK, 1.08));     // barbette
   g.strokeStyle = shade(HOUSE, 0.52); g.lineWidth = 0.8;          // its shaded skirt
   g.beginPath(); g.ellipse(dq[0], dq[1] - 0.6, 6.4, 3.4, 0, 0, 6.29); g.stroke();
 })();
-barrel(L * 0.68, 0, 8.0, 9.5, 4.6);
-var mzq = P(L * 0.68 + 9.5, 0, FR + 8.0);
-g.fillStyle = '#c3c9d2';                                          // muzzle cap
-g.beginPath(); g.ellipse(mzq[0], mzq[1], 1.9, 1.5, 0, 0, 6.29); g.fill();
-g.fillStyle = '#15181c';
-g.beginPath(); g.ellipse(mzq[0], mzq[1] - 0.2, 0.9, 0.7, 0, 0, 6.29); g.fill();
+// Four projected corners keep the steel tube rigid and one gauge end to end.
+// u1 WAS 1.20: the muzzle reached so far past the stem that the sprite grew to
+// 95 px in a 104 px sheet cell and TOUCHED THE EDGE at two of the eight
+// octants — `clip.unitsTouchingSheetEdge` went 1 -> 2, which means the art was
+// being cut off by the canvas and every measurement taken on it was of a
+// truncated ship. The reference's barrel is shorter than the overhang we had
+// anyway.
+(function () {
+  var u0 = L * 0.62, u1 = L * 1.06, z0 = FR + 6.7, z1 = FR + 9.1;
+  var a = P(u0, 0, z0), b = P(u1, 0, z0), c = P(u1, 0, z1), d = P(u0, 0, z1);
+  g.fillStyle = '#333333'; g.beginPath();
+  g.moveTo(a[0], a[1]); g.lineTo(b[0], b[1]); g.lineTo(c[0], c[1]); g.lineTo(d[0], d[1]);
+  g.closePath(); g.fill();
+  var e = P(u0, 0, z1), f = P(u1, 0, z1), h = P(u1, 0, z1 - 0.8), i = P(u0, 0, z1 - 0.8);
+  g.fillStyle = '#999999'; g.beginPath();
+  g.moveTo(e[0], e[1]); g.lineTo(f[0], f[1]); g.lineTo(h[0], h[1]); g.lineTo(i[0], i[1]);
+  g.closePath(); g.fill();
+  var mq = P(u1, 0, (z0 + z1) * 0.5);
+  g.fillStyle = '#999999'; g.beginPath(); g.ellipse(mq[0], mq[1], 1.25, 1.65, 0, 0, 6.29); g.fill();
+  g.fillStyle = '#333333'; g.beginPath(); g.ellipse(mq[0], mq[1], 0.55, 0.85, 0, 0, 6.29); g.fill();
+})();
 // THE BRIDGE IS WHITE, and it is a MASS. Measured off `library/destroyer.png`
 // (103x48) the superstructure is a single 18x14 px white block at x 37-53% of
 // her length — 17% of the hull long and 29% of the frame TALL, and the only
 // white on the ship. Ours was DECK grey at 6.2 and 11.6 units, the same value
 // as the deck it stood on, so she read as a flat plate with bumps.
-box(L * 0.12, 0, L * 0.40, W * 1.62, 7.4, '#cccccc');             // bridge block
-box(L * 0.10, 0, L * 0.26, W * 1.34, 13.5, '#e6e6e6');            // wheelhouse
-box(L * 0.11, 0, L * 0.12, W * 0.86, 18.0, '#e6e9ec');            // the director on top
-var wq0 = P(L * 0.11, 0, FR + 10.6);
-g.fillStyle = GLASS; g.fillRect(wq0[0] - 4.2, wq0[1] - 1.9, 8.4, 2.1);
+box(L * 0.12, 0, L * 0.40, W * 1.62, 5.8, '#cccccc');             // bridge block
+box(L * 0.10, 0, L * 0.26, W * 1.34, 9.4, '#cccccc');             // wheelhouse
+box(L * 0.11, 0, L * 0.12, W * 0.86, 11.5, '#cccccc');            // low director
+box(L * 0.10, 0, L * 0.27, W * 1.36, 1.2, GLASS);                 // bridge glazing
 // A MACK — mast and stack in one solid trunk — rather than the 13-unit
 // wire mast this hull carried. Same height on the skyline, but it is
 // 11 screen px wide instead of 2, so it lifts the crown's measured
@@ -81,20 +95,32 @@ g.fillStyle = GLASS; g.fillRect(wq0[0] - 4.2, wq0[1] - 1.9, 8.4, 2.1);
 // nacelles aft. Painting the two TALLEST masses in the owner's colour made
 // her read as a blue ship with grey bits, which inverts the reference — RA2's
 // Destroyer is a pale ship with blue on two small round things.
-box(-L * 0.26, 0, 5.0, W * 0.70, 10.0, '#4d4d4d');                // funnel / mack
-box(-L * 0.26, 0, 3.2, W * 0.50, 12.2, '#333333');                // its cap
+box(-L * 0.26, 0, 5.0, W * 0.70, 7.4, '#666666');                 // funnel / mack
+box(-L * 0.26, 0, 3.2, W * 0.50, 9.0, '#333333');                 // its cap
 g.strokeStyle = HOUSE; g.lineWidth = 1.6;                         // one house band on it
-var fq = P(-L * 0.26, 0, FR + 9.4); g.beginPath();
+var fq = P(-L * 0.26, 0, FR + 7.0); g.beginPath();
 g.moveTo(fq[0] - 4.4, fq[1]); g.lineTo(fq[0] + 4.4, fq[1]); g.stroke();
 g.strokeStyle = STEEL; g.lineWidth = 1.6;                          // air-search bar on top
-var rq = P(-L * 0.26, 0, FR + 13.0);
+var rq = P(-L * 0.26, 0, FR + 9.8);
 g.beginPath(); g.moveTo(rq[0] - 3.6, rq[1]); g.lineTo(rq[0] + 3.6, rq[1] - 0.6); g.stroke();
-box(-L * 0.50, 0, L * 0.16, W * 1.00, 5.0, '#8a8a8a');            // a low hangar, not a tower
+box(-L * 0.50, 0, L * 0.16, W * 1.00, 4.2, '#999999');            // a low hangar, not a tower
 // TWO MASTS. The reference's top edge spikes to 44 px at 20% of her length and
 // 46 px at 60%, against 25-36 px everywhere else, on a 48-px frame: nearly the
 // whole of her height is mast. Ours had none at all and stood 39 to her 48.
-mast(L * 0.11, 0, 15.0, '#2b2b2b');
-mast(-L * 0.30, 0, 17.0, '#2b2b2b');
+mast(L * 0.11, 0, 16.0, '#333333');
+mast(-L * 0.30, 0, 13.0, '#333333');
+// AIRCRAFT REVERTED to the simple read, after two rounds of making it more
+// detailed made it less legible. codex drew a full tilt-rotor — filled
+// fuselage, tapered tail, canopy, rotor blades — and at the ~20 px this
+// aircraft occupies, the wing and the fuselage are both gold and sit within
+// 0.4 of the same z, so they merge into one mass: it baked first as a yellow
+// U-bracket and then as a gold wedge with a blue cap. A viewer could name
+// neither.
+//
+// The reference does not carry that much either. At map size RA2's aircraft
+// IS a gold streak across the deck crossed by a blue upright, and that is all
+// the information the sprite can hold. More parts is not more legible.
+//
 // THE TILT-ROTOR, AT THE SIZE IT HAS IN THE RIP. It is the one feature that
 // names this ship — the Dreadnought is named by her missiles the same way —
 // and ours was a 10 px lozenge lying in a dish, the same value as the deck.
