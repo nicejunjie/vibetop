@@ -60,10 +60,18 @@ if (wantH) {
   // outline at z ~ +1, so not one silhouette pixel moves.
   var wlx = cx + fx * 1.0 - px * wid * 0.16, wly = by - 9.0 + fy * 1.0 - py * wid * 0.16;
   isoBox(g, wlx, wly, len * 0.50, wid * 0.24, 1.0, a, '#1d201a', PEDGE);
-  isoBox(g, wlx, wly - 0.9, len * 0.44, wid * 0.15, 0.5, a, panel, PEDGE);
+  // THE WELL FLOOR HAS TO FILL THE WELL. It was wid*0.15 inside a coaming of
+  // wid*0.24, so the dark rim took a third of the opening on each side and the
+  // owner's colour came out as a narrow strip — which is why this craft still
+  // read as an olive hull with trim stripes even after the floor was given the
+  // house colour. In the library plate the red inner deck is the loudest thing
+  // on the hovercraft and it fills the opening. Widened to just inside the
+  // coaming, lengthened to match, and the two thwarts narrowed so they read as
+  // seats ACROSS it instead of eating half of it.
+  isoBox(g, wlx, wly - 0.9, len * 0.475, wid * 0.205, 0.6, a, panel, PEDGE);
   for (i2 = -1; i2 <= 1; i2 += 2)                              // two seat thwarts
-    isoBox(g, wlx + fx * len * 0.13 * i2, wly - 1.2 + fy * len * 0.13 * i2,
-           1.1, wid * 0.15, 1.1, a, shade(deck, 0.72), PEDGE);
+    isoBox(g, wlx + fx * len * 0.14 * i2, wly - 1.3 + fy * len * 0.14 * i2,
+           0.85, wid * 0.19, 1.0, a, shade(deck, 0.72), PEDGE);
   // the bridge block, running fore-and-aft along the port side
   var brx = cx - fx * 2.4 + px * wid * 0.20, bry = by - 8.6 - fy * 2.4 + py * wid * 0.20;
   isoBox(g, brx, bry, len * 0.46, wid * 0.26, 4.2, a, shade(hull, 0.88), PEDGE);
