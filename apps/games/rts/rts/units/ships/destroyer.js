@@ -46,11 +46,11 @@ box(L * 0.52, 0, L * 0.26, W * 1.46, 3.2, shade(DECK, 1.08));     // barbette
     var f = dr / 3;
     g.fillStyle = shade(HOUSE, 0.86 + dr * 0.26);
     g.beginPath();
-    g.ellipse(dq[0], dq[1] - 1.0 - f * 4.2, 6.4 - f * 3.0, 3.4 - f * 1.7, 0, 0, 6.29);
+    g.ellipse(dq[0], dq[1] - 0.6 - f * 2.8, 4.8 - f * 2.2, 2.6 - f * 1.2, 0, 0, 6.29);
     g.fill();
   }
   g.strokeStyle = shade(HOUSE, 0.52); g.lineWidth = 0.8;          // its shaded skirt
-  g.beginPath(); g.ellipse(dq[0], dq[1] - 0.6, 6.4, 3.4, 0, 0, 6.29); g.stroke();
+  g.beginPath(); g.ellipse(dq[0], dq[1] - 0.4, 4.8, 2.6, 0, 0, 6.29); g.stroke();
 })();
 // Four projected corners keep the steel tube rigid and one gauge end to end.
 // u1 WAS 1.20: the muzzle reached so far past the stem that the sprite grew to
@@ -78,10 +78,26 @@ box(L * 0.52, 0, L * 0.26, W * 1.46, 3.2, shade(DECK, 1.08));     // barbette
 // her length — 17% of the hull long and 29% of the frame TALL, and the only
 // white on the ship. Ours was DECK grey at 6.2 and 11.6 units, the same value
 // as the deck it stood on, so she read as a flat plate with bumps.
-box(L * 0.12, 0, L * 0.40, W * 1.62, 5.8, '#cccccc');             // bridge block
-box(L * 0.10, 0, L * 0.26, W * 1.34, 9.4, '#cccccc');             // wheelhouse
+// WHITE, AND THE WINDOW IS A STRIP. The deckhouse baked mid-grey with a GLASS
+// box 1.2 units tall across its whole width, which rendered as a big glowing
+// cyan screen — the loudest thing amidships and nothing like the reference,
+// where the deckhouse is the BRIGHTEST mass on the ship, clean white, with one
+// hairline of dark glazing and a single house-coloured panel on its face.
+box(L * 0.12, 0, L * 0.40, W * 1.62, 5.8, '#ffffff');             // bridge block
+box(L * 0.10, 0, L * 0.26, W * 1.34, 9.4, '#ffffff');             // wheelhouse
 box(L * 0.11, 0, L * 0.12, W * 0.86, 11.5, '#cccccc');            // low director
-box(L * 0.10, 0, L * 0.27, W * 1.36, 1.2, GLASS);                 // bridge glazing
+(function () {
+  var a = P(L * 0.23, W * 0.68, FR + 8.4), b = P(L * -0.03, W * 0.68, FR + 8.4);
+  g.strokeStyle = '#333333'; g.lineWidth = 1.2;                   // the glazing, a strip
+  g.beginPath(); g.moveTo(a[0], a[1]); g.lineTo(b[0], b[1]); g.stroke();
+  // the house-coloured panel the rip puts on the deckhouse face
+  var p0 = P(L * 0.10, W * 0.70, FR + 2.0), p1 = P(L * -0.02, W * 0.70, FR + 2.0),
+      p2 = P(L * -0.02, W * 0.70, FR + 7.6), p3 = P(L * 0.10, W * 0.70, FR + 7.6);
+  g.fillStyle = HOUSE;
+  g.beginPath();
+  g.moveTo(p0[0], p0[1]); g.lineTo(p1[0], p1[1]);
+  g.lineTo(p2[0], p2[1]); g.lineTo(p3[0], p3[1]); g.closePath(); g.fill();
+})();
 // A MACK — mast and stack in one solid trunk — rather than the 13-unit
 // wire mast this hull carried. Same height on the skyline, but it is
 // 11 screen px wide instead of 2, so it lifts the crown's measured

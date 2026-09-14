@@ -73,11 +73,57 @@ function drawDread(C) {
 // that without any of them being a crate.
 var TAN = '#999966', TAN_D = '#666633', TAN_L = '#cccc99';
 box(-L * 0.30, 0, L * 0.62, W * 1.24, 4.6, TAN_D);          // the long base
-box(-L * 0.16, 0, L * 0.26, W * 1.06, 6.6, TAN_D);
-box(-L * 0.18, 0, L * 0.15, W * 0.78, 8.8, TAN);
-box(-L * 0.56, 0, L * 0.20, W * 0.96, 6.2, TAN_D);
-box(-L * 0.58, 0, L * 0.11, W * 0.66, 8.4, TAN);
+// SLOPED, NOT STACKED. Two upright boxes with a pale top bake as cardboard
+// cartons; the reference's superstructure is a STEPPED WEDGE whose faces lean,
+// with the light running diagonally across them. Drawn as trapezoids in the
+// ship's own plane so the lean survives every bearing.
+(function () {
+  var W1 = [[-0.02, 1.06, 4.6], [-0.30, 0.86, 10.4]];
+  for (var wi = 0; wi < W1.length; wi++) {
+    var u0 = W1[wi][0], bw = W1[wi][1], ht = W1[wi][2];
+    for (var sd = -1; sd <= 1; sd += 2) {
+      var a = P(L * (u0 + 0.15), W * bw * sd, FR + 4.0),
+          b = P(L * (u0 - 0.15), W * bw * sd, FR + 4.0),
+          c = P(L * (u0 - 0.10), W * bw * 0.68 * sd, FR + ht),
+          e = P(L * (u0 + 0.10), W * bw * 0.68 * sd, FR + ht);
+      g.fillStyle = sd > 0 ? TAN_D : '#4d4d33';
+      g.beginPath();
+      g.moveTo(a[0], a[1]); g.lineTo(b[0], b[1]);
+      g.lineTo(c[0], c[1]); g.lineTo(e[0], e[1]); g.closePath(); g.fill();
+    }
+    var t0 = P(L * (u0 + 0.10), W * bw * 0.68, FR + ht),
+        t1 = P(L * (u0 - 0.10), W * bw * 0.68, FR + ht),
+        t2 = P(L * (u0 - 0.10), -W * bw * 0.68, FR + ht),
+        t3 = P(L * (u0 + 0.10), -W * bw * 0.68, FR + ht);
+    g.fillStyle = TAN;
+    g.beginPath();
+    g.moveTo(t0[0], t0[1]); g.lineTo(t1[0], t1[1]);
+    g.lineTo(t2[0], t2[1]); g.lineTo(t3[0], t3[1]); g.closePath(); g.fill();
+  }
+})();
+box(-L * 0.56, 0, L * 0.20, W * 0.96, 5.4, TAN_D);
+box(-L * 0.58, 0, L * 0.11, W * 0.66, 7.6, TAN);
 box(-L * 0.38, 0, L * 0.09, W * 0.52, 8.4, '#666666');      // the dark turret between them
+// THE LAVENDER SLABS. The rip carries several tilted violet panels over the
+// superstructure and they are its only non-khaki, non-red note — we had the
+// colour on the antennas alone, so the whole after end read khaki-and-grey.
+(function () {
+  var LV = '#9999cc', LVD = '#666699';
+  // SHORT AND TALL. At 0.20L long by 2.4 px high these baked as flat WINGS
+  // sticking out over the ship. A tilted panel is taller than it is long.
+  var SL = [[-0.08, 0.92, 5.4, 10.6, 0.05], [-0.24, -0.82, 5.2, 9.6, -0.05],
+            [-0.46, 0.76, 5.0, 9.0, 0.04]];
+  for (var li = 0; li < SL.length; li++) {
+    var u = SL[li][0], v = SL[li][1], z0 = SL[li][2], z1 = SL[li][3], ln = SL[li][4];
+    var a = P(L * (u + 0.055), W * v, FR + z0), b = P(L * (u - 0.055), W * v, FR + z0),
+        c = P(L * (u - 0.055 + ln), W * v, FR + z1), e = P(L * (u + 0.055 + ln), W * v, FR + z1);
+    g.fillStyle = LV;
+    g.beginPath();
+    g.moveTo(a[0], a[1]); g.lineTo(b[0], b[1]);
+    g.lineTo(c[0], c[1]); g.lineTo(e[0], e[1]); g.closePath(); g.fill();
+    g.strokeStyle = LVD; g.lineWidth = 0.7; g.stroke();
+  }
+})();
 // The slit windows, PROJECTED. Drawing these as a screen-space fillRect put a
 // teal block out over the missile tails at this bearing — the same mistake the
 // carrier's landing X made, in the same file's neighbour.
@@ -101,10 +147,12 @@ box(-L * 0.38, 0, L * 0.09, W * 0.52, 8.4, '#666666');      // the dark turret b
     var a0 = P(at[i][0], at[i][1], FR + 7.0);
     g.strokeStyle = LAV; g.lineWidth = 1.0;
     g.beginPath(); g.moveTo(a0[0], a0[1]); g.lineTo(a0[0], a0[1] - at[i][2]); g.stroke();
-    g.strokeStyle = shade(LAV, 0.72); g.lineWidth = 0.8;       // a short yard near the head
+    // NO CROSS-YARD. A 2.4 px bar across each mast baked as three prominent
+    // "+" signs standing over the ship; the rip's masts are plain rods with a
+    // DARK TIP and nothing else, and the crosses were the loudest thing aft.
+    g.fillStyle = '#333333';
     g.beginPath();
-    g.moveTo(a0[0] - 1.2, a0[1] - at[i][2] * 0.80);
-    g.lineTo(a0[0] + 1.2, a0[1] - at[i][2] * 0.80); g.stroke();
+    g.ellipse(a0[0], a0[1] - at[i][2], 0.8, 1.1, 0, 0, 6.29); g.fill();
   }
   var rm = P(-L * 0.78, 0, FR + 8.0);                          // the red mast aft
   g.strokeStyle = HOUSE; g.lineWidth = 1.2;

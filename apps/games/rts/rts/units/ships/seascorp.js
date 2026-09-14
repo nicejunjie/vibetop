@@ -46,8 +46,8 @@ function houseBlock(u, hl, hw, z0, z1) {
   g.moveTo(t[0][0], t[0][1]); g.lineTo(t[1][0], t[1][1]);
   g.lineTo(t[2][0], t[2][1]); g.lineTo(t[3][0], t[3][1]); g.closePath(); g.fill();
 }
-houseBlock(L * 0.66, L * 0.13, W * 0.54, FR + 3.0, FR + 5.6);
-houseBlock(-L * 0.70, L * 0.10, W * 0.46, FR + 3.0, FR + 5.0);    // and the red box aft
+houseBlock(L * 0.68, L * 0.11, W * 0.44, FR + 3.0, FR + 5.0);
+houseBlock(-L * 0.72, L * 0.09, W * 0.38, FR + 3.0, FR + 4.6);    // and the red box aft
 
 // ---- the tall red gantry abaft the bow block ----------------------------- //
 (function () {
@@ -66,6 +66,9 @@ houseBlock(-L * 0.70, L * 0.10, W * 0.46, FR + 3.0, FR + 5.0);    // and the red
 box(-L * 0.10, W * 0.62, L * 0.22, W * 0.52, 4.6, '#999966');
 box(-L * 0.30, -W * 0.58, L * 0.18, W * 0.48, 4.0, '#666633');
 box(-L * 0.06, -W * 0.66, L * 0.14, W * 0.40, 3.6, '#999966');
+box(-L * 0.44, W * 0.30, L * 0.12, W * 0.44, 3.2, '#999966');
+box(L * 0.16, -W * 0.50, L * 0.10, W * 0.36, 3.0, '#666633');
+box(-L * 0.24, W * 0.10, L * 0.10, W * 0.30, 2.6, '#999966');
 
 // ---- THE GUN: one thick white barrel with red bands, elevated ------------- //
 (function () {
@@ -105,7 +108,10 @@ box(L * 0.34, -W * 0.30, L * 0.22, W * 0.70, 6.0, shade(DECK, 1.30));
 (function () {
   var a = P(L * 0.42, -W * 0.30 + W * 0.34, FR + 5.0);
   var b = P(L * 0.26, -W * 0.30 + W * 0.34, FR + 5.0);
-  g.strokeStyle = GLASS; g.lineWidth = 1.8;
+  // A DARK SLIT, not a cyan bar. GLASS at 1.8 px baked as a bright cyan block
+  // floating over the deck — the only saturated cool note on the boat and the
+  // first thing the eye found. The rip's pilot house has a dark window.
+  g.strokeStyle = '#333333'; g.lineWidth = 1.2;
   g.beginPath(); g.moveTo(a[0], a[1]); g.lineTo(b[0], b[1]); g.stroke();
 })();
 }

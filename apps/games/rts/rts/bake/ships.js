@@ -96,6 +96,11 @@ function bakeShip(col, kind, fac) {
   // that makes the house-colour side panels read at all. BOOT, which is
   // shade(HULL, 0.34), draws the skirt for free once the deck is pale.
   if (kind === 'lcraft')   { HULL = '#8f8f8f'; DECK = '#5a5a5a'; }
+  // The Sea Scorpion is a PALE boat. She was inheriting the Collective's dark
+  // #6e6e6e/#454545 and her deck baked near-black, while the rip shows a light
+  // grey hull with the dark confined to shadow under the machinery — she is
+  // the lightest hull in the Collective fleet, not the darkest.
+  if (kind === 'seascorp')  { HULL = '#8f8f8f'; DECK = '#6e6e6e'; }
   if (kind === 'carrier')  { HULL = '#5e5e5e'; DECK = '#5c5c5c'; }
   var BOOT = shade(HULL, 0.16);
   var SHEER = sov ? '#c2c7cd' : '#d2d7de';           // the sky on the sheer strake                       // boot-topping at the waterline
