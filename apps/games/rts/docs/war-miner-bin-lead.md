@@ -104,3 +104,34 @@ four literals the sweep changes in `flakcannon.js` — `FK_GUN` `#343a44`,
 one at a time against `clause.unmetStructures`, find the one that lifts a crown
 mass over the floor, and give that mass a DARKER neutral rather than its
 luma-matched one. Then the 167-literal sweep lands clean.
+
+## The APC's deck cavity: the floor is NOT hidden
+
+§2.4 "deck cavity visible as a house-hued interior" measures 0 against a want of
+>= 12 px. The obvious reading is that something covers the floor. It does not:
+tinting the well floor magenta and counting gives **83 visible sprite pixels**.
+The art is on screen; the clause is not finding it.
+
+`tools/clause-checks/naval-air.js:436` looks for connected components of
+owner-hued pixels that satisfy ALL of:
+
+    c.h >= 2  &&  c.n >= 6  &&  c.ringV <= c.v - 0.35
+    && c.x0 > 0 && c.y0 > 0 && c.x1 < f.w - 1 && c.y1 < f.h - 1
+
+then discards the topmost (the bridge roof, trim) and wants the largest of the
+rest at >= 12 px. Measuring 0 means no SECOND qualifying component exists.
+
+**Ruled out by test:**
+- the floor being covered — 83 px are visible
+- the seat thwarts hiding it — narrowed from wid*0.19 x 1.0 to wid*0.115 x 0.5,
+  measurement unchanged at 0
+- the floor being too thin — raised its height 0.6 -> 1.2 -> 1.8 and widened it
+  to wid*0.235, still 0
+
+**Most likely remaining cause:** the floor is CONNECTED to the other
+house-coloured masses. The two rubbing strakes are `panel` at wid*0.32 and run
+the full flank, so they touch the sprite outline; the bridge roof is `panel`
+too. If antialiasing bridges the floor to either, the whole thing is ONE
+component that touches the edge, and the `x0 > 0 ... x1 < f.w - 1` test throws
+it out. That is checkable by dumping the component list rather than by guessing
+again — `comps(f, OWN, true)` is right there.
