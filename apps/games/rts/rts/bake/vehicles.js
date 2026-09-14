@@ -942,7 +942,15 @@ function bakeVehicle(col, kind, fac, anim) {
         for (var k = 1; k < n; k++) {
           var t = k / n;
           var xx = p0[0] + (p1[0] - p0[0]) * t, yy = p0[1] + (p1[1] - p0[1]) * t;
-          g.strokeStyle = 'rgba(44,32,10,.62)';
+          // THE CRATE'S OWN TEXTURE WAS EATING IT. These planks and the rails
+          // below are near-black browns at 62% alpha, and over the bin's gold
+          // one of them lands on #666633 while two OVERLAPPING land on
+          // #333300 — the darkest olive the palette can spell. On the War
+          // Miner, whose bin is half the unit, that turned the one mass the
+          // sprite is built around into a dark slab: probed, the rails alone
+          // cover 6.1% of the sprite and #333300 about 8%. A plank line is a
+          // seam in a wooden bin, not a shadow across it.
+          g.strokeStyle = 'rgba(74,56,20,.44)';
           g.beginPath(); g.moveTo(xx, yy); g.lineTo(xx, yy - h + 0.8); g.stroke();
           g.strokeStyle = 'rgba(255,240,196,.20)';
           g.beginPath(); g.moveTo(xx + 1.0, yy); g.lineTo(xx + 1.0, yy - h + 0.8); g.stroke();
@@ -952,7 +960,7 @@ function bakeVehicle(col, kind, fac, anim) {
         g.moveTo(p0[0] + 0.6, p0[1] - 1.0); g.lineTo(p1[0] - 0.6, p1[1] - h + 1.4); g.stroke();
         g.beginPath();
         g.moveTo(p0[0] + 0.6, p0[1] - h + 1.4); g.lineTo(p1[0] - 0.6, p1[1] - 1.0); g.stroke();
-        g.strokeStyle = 'rgba(38,26,6,.62)'; g.lineWidth = 1.7;          // top and mid rails
+        g.strokeStyle = 'rgba(66,48,16,.42)'; g.lineWidth = 1.7;         // top and mid rails
         g.beginPath();
         g.moveTo(p0[0], p0[1] - h * 0.50); g.lineTo(p1[0], p1[1] - h * 0.50); g.stroke();
         g.beginPath();
@@ -968,7 +976,18 @@ function bakeVehicle(col, kind, fac, anim) {
       g.beginPath();
       g.moveTo(lip[0][0], lip[0][1]); g.lineTo(lip[1][0], lip[1][1]);
       g.lineTo(lip[2][0], lip[2][1]); g.lineTo(lip[3][0], lip[3][1]); g.closePath();
-      g.fillStyle = '#3a3014'; g.fill();
+      // AND THE BED CANNOT BE A VOID. #3a3014 is 58/48/20, and 20 rounds to
+      // ZERO — so the open bed baked #333300, the darkest olive the palette
+      // can spell, across the entire top of a bin that is half the War Miner.
+      // The unit's dominant mass read as a black hole with a gold rim. The
+      // comment above is right that the bin is open and its bed is sunken, but
+      // sunken ore in daylight is dark GOLD, not an absence: 100/95/45 lands on
+      // #666633, still clearly recessed against the #cccc66 walls, and the
+      // nuggets still read on top of it.
+      // (Found by tinting BIN and LOOKING at where the tint landed — it covers
+      // the walls and rim, and the top face stayed dark, which is what finally
+      // separated the bed from the crate after four wrong hypotheses.)
+      g.fillStyle = '#645f2d'; g.fill();
       g.strokeStyle = 'rgba(0,0,0,.45)'; g.lineWidth = 0.9; g.stroke();
       for (var oi = -1; oi <= 1; oi++) {                      // a little ore in the bed
         g.fillStyle = oi ? '#8b6f2c' : '#a8873a';

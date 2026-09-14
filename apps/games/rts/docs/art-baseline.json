@@ -329,7 +329,7 @@
     "peerVsSelf.naval": 2,
     "peerVsSelf.air": 0,
     "iou.groundCombat.mean": 0.6037,
-    "iou.vehicle.mean": 0.5387,
+    "iou.vehicle.mean": 0.5388,
     "iou.infantry.mean": 0.5112,
     "iou.naval.mean": 0.363,
     "iou.air.mean": 0.1557,
@@ -341,7 +341,7 @@
     "mass.tightestBand6": 1.542,
     "hue.infantryOwnerMean": 0.1889,
     "hue.infantryBelowBudget": 5,
-    "hue.vehicleOwnerMean": 0.1546,
+    "hue.vehicleOwnerMean": 0.1547,
     "hue.vehicleOwnerMax": 0.2601,
     "hue.maxImpostor": 0.3621,
     "aspect.navalOutsideRA2Band": 0,
@@ -378,7 +378,7 @@
     "value.engineerLightPct": 0.0984,
     "value.engineerMarginOverNext": -0.0319,
     "colour.infantry.meanDist": 1.4293,
-    "colour.vehicle.meanDist": 1.0737,
+    "colour.vehicle.meanDist": 1.0724,
     "colour.vehicleAchromatic": 6,
     "colour.naval.meanDist": 1.3664,
     "colour.air.meanDist": 1,
@@ -404,15 +404,15 @@
       "warminer": {
         "group": "vehicle",
         "aspect": 1.255,
-        "selfIoU": 0.6973,
-        "selfIoUCross": 0.6973,
+        "selfIoU": 0.6974,
+        "selfIoUCross": 0.6974,
         "broadsideAspect": 1.255,
         "ra2Aspect": 1.784,
         "vsRA2": 0.704,
         "bestPeer": "MCV",
-        "bestPeerIoU": 0.7754,
+        "bestPeerIoU": 0.7753,
         "nearestPeer": "MCV",
-        "nearestPeerMMD2": 0.0142,
+        "nearestPeerMMD2": 0.0145,
         "peersBeatingSelf": 0
       },
       "rifle": {
@@ -944,9 +944,9 @@
         "ra2Aspect": 2.111,
         "vsRA2": 0.861,
         "bestPeer": "War Miner",
-        "bestPeerIoU": 0.7754,
+        "bestPeerIoU": 0.7753,
         "nearestPeer": "War Miner",
-        "nearestPeerMMD2": 0.0142,
+        "nearestPeerMMD2": 0.0145,
         "peersBeatingSelf": 0
       }
     },
@@ -962,7 +962,7 @@
     },
     "iouGroups": {
       "vehicle": {
-        "mean": 0.5387,
+        "mean": 0.5388,
         "pairs": 78,
         "max": 0.8461,
         "over75": 5
@@ -997,7 +997,7 @@
       {
         "a": "MCV",
         "b": "War Miner",
-        "iou": 0.7754
+        "iou": 0.7753
       },
       {
         "a": "Apocalypse",
@@ -1086,7 +1086,7 @@
       {
         "a": "chronominer",
         "b": "warminer",
-        "dist": 0.245
+        "dist": 0.275
       },
       {
         "a": "lancer",
@@ -1149,8 +1149,8 @@
       }
     ],
     "ownerPctByUnit": {
-      "chronominer": 0.1107,
-      "warminer": 0.1292,
+      "chronominer": 0.111,
+      "warminer": 0.1299,
       "rifle": 0.1931,
       "conscript": 0.1421,
       "rocket": 0.1095,
@@ -1192,8 +1192,8 @@
       "mcv": 0.2601
     },
     "chromaByUnit": {
-      "chronominer": 0.2093,
-      "warminer": 0.3374,
+      "chronominer": 0.1679,
+      "warminer": 0.2506,
       "rifle": 0.4026,
       "conscript": 0.3284,
       "rocket": 0.21,
@@ -4252,9 +4252,9 @@
         "unit": "warminer",
         "clause": "bin >= 25% of body px",
         "ok": true,
-        "measured": 0.354,
+        "measured": 0.357,
         "want": ">= 0.25",
-        "note": "859 tan px (s >= 0.25, hue 28-65) of 2425 opaque, at the broadside octant. The denominator is every opaque pixel of the bbox, contact shadow included — the strictest reading of \"body px\" available without segmenting the shadow, and the one that cannot flatter the bin",
+        "note": "866 tan px (s >= 0.25, hue 28-65) of 2423 opaque, at the broadside octant. The denominator is every opaque pixel of the bbox, contact shadow included — the strictest reading of \"body px\" available without segmenting the shadow, and the one that cannot flatter the bin",
         "module": "vehicle.js",
         "refMatch": 1
       },
@@ -5158,9 +5158,9 @@
         "selfIoU": 0.5952,
         "selfIoUCross": 0.5952,
         "bestPeer": "War Miner",
-        "bestPeerIoU": 0.7754,
+        "bestPeerIoU": 0.7753,
         "nearestPeer": "War Miner",
-        "nearestPeerMMD2": 0.0142,
+        "nearestPeerMMD2": 0.0145,
         "peersBeatingSelf": 0,
         "peers": 12,
         "spike": {
@@ -5695,12 +5695,12 @@
         "broadsideAspect": 1.255,
         "ra2Aspect": 1.784,
         "vsRA2": 0.704,
-        "selfIoU": 0.6973,
-        "selfIoUCross": 0.6973,
+        "selfIoU": 0.6974,
+        "selfIoUCross": 0.6974,
         "bestPeer": "MCV",
-        "bestPeerIoU": 0.7754,
+        "bestPeerIoU": 0.7753,
         "nearestPeer": "MCV",
-        "nearestPeerMMD2": 0.0142,
+        "nearestPeerMMD2": 0.0145,
         "peersBeatingSelf": 0,
         "peers": 12,
         "spike": {
