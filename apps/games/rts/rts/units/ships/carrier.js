@@ -22,7 +22,7 @@
 //     qwen inherited unchanged.
 
 function drawCarrier(C) {
-  var DECK = C.DECK, FR = C.FR, GLASS = C.GLASS, HD = C.HD, HOUSE = C.HOUSE, HULL = C.HULL, L = C.L,
+  var DECK = C.DECK, FR = C.FR, GLASS = C.GLASS, HD = C.HD, HL = C.HL, HOUSE = C.HOUSE, HULL = C.HULL, L = C.L,
       P = C.P, W = C.W, box = C.box, g = C.g, mast = C.mast, plan = C.plan;
   var fd = [], fi;
   for (fi = 0; fi < plan.length; fi++) fd.push([plan[fi][0] * 1.02, plan[fi][1] * 1.42]);
@@ -87,12 +87,38 @@ function drawCarrier(C) {
   // Same stack, same four colours, scaled to clear the band.
   box(-L * 0.60, W * 0.78, L * 0.20, W * 0.36, 4.0, '#8a8a8a');   // base deck 1 (widest)
   box(-L * 0.60, W * 0.78, L * 0.16, W * 0.30, 5.9, '#a8a8a8');   // base deck 2
-  box(-L * 0.60, W * 0.78, L * 0.13, W * 0.25, 7.8, HOUSE);       // base deck 3
+  box(-L * 0.60, W * 0.78, L * 0.13, W * 0.25, 7.8, HL);          // base deck 3 (HL: box() on HOUSE throws teal on its dark face)
   box(-L * 0.60, W * 0.78, L * 0.10, W * 0.20, 9.8, '#e6e6e6');   // bridge block
   mast(-L * 0.58, W * 0.78, 13.0);                                // mast (tallest point)
-  var iq = P(-L * 0.60, W * 0.78, FR + 6.0);
-  g.fillStyle = GLASS; g.fillRect(iq[0] - 2.4, iq[1] - 1.2, 4.8, 1.5);
-  box(-L * 0.40, W * 0.30, L * 0.07, W * 0.20, 6.6, HOUSE);
+  // THE BRIDGE WINDOWS, PROJECTED. A screen-space fillRect again — the third
+  // time in this directory — so the glass sat at a fixed angle while the island
+  // under it leaned.
+  (function () {
+    var a = P(-L * 0.54, W * 0.78, FR + 6.2), b = P(-L * 0.66, W * 0.78, FR + 6.2);
+    g.strokeStyle = GLASS; g.lineWidth = 1.6;
+    g.beginPath(); g.moveTo(a[0], a[1]); g.lineTo(b[0], b[1]); g.stroke();
+  })();
+  // THE LONE BLUE BARREL IS GONE. `box(-L*0.40, W*0.30, ..., HOUSE)` stood a
+  // house-coloured box on the deck ten units from the island, belonging to
+  // nothing — and because it went through box(), isoBox graded its dark face to
+  // about 0.44 of the owner colour, which falls off the palette grid into
+  // #003333, so it baked as a DARK TEAL DRUM. Two faults in one call. The
+  // island is one mass; this is now a low blue deckhouse at its foot, drawn
+  // from projected quads so every face stays navy.
+  (function () {
+    var bu = -L * 0.60, bv = W * 0.78, bl = L * 0.17, bw = W * 0.30;
+    var c = [[bl, bw], [bl, -bw], [-bl, -bw], [-bl, bw]];
+    function q(i, z) { return P(bu + c[i][0], bv + c[i][1], z); }
+    var faces = [[0, 1, HL], [1, 2, HOUSE], [3, 0, HD]];
+    for (var fi = 0; fi < faces.length; fi++) {
+      var a2 = q(faces[fi][0], FR + 2.6), b2 = q(faces[fi][1], FR + 2.6);
+      var a3 = q(faces[fi][0], FR + 4.2), b3 = q(faces[fi][1], FR + 4.2);
+      g.fillStyle = faces[fi][2];
+      g.beginPath();
+      g.moveTo(a2[0], a2[1]); g.lineTo(b2[0], b2[1]);
+      g.lineTo(b3[0], b3[1]); g.lineTo(a3[0], a3[1]); g.closePath(); g.fill();
+    }
+  })();
   // Landing pad: raised platform block at the stern quarter, opposite end from the island.
   // Draw the supporting block first (stands off the deck), then paint the X on its top face.
   // THE X HUNG IN THE AIR because it was drawn in SCREEN space: four offsets of
@@ -124,26 +150,53 @@ function drawCarrier(C) {
   g.beginPath();
   g.moveTo(f0[0], f0[1]); g.lineTo(f1[0], f1[1]);
   g.lineTo(f2[0], f2[1]); g.lineTo(f3[0], f3[1]); g.closePath();
-  g.fillStyle = shade(DECK, 0.55); g.fill();
+  g.fillStyle = shade(DECK, 0.42); g.fill();
   g.strokeStyle = '#d3d3d3'; g.lineWidth = 0.8; g.stroke();
   // 2.4 px was too thick for a pad this size: the two strokes met in the middle
   // and the whole face baked as one solid house-coloured slab, which reads as a
   // blue box on the deck, not as a marking.
-  g.strokeStyle = HOUSE; g.lineWidth = 1.5;
+  g.strokeStyle = HOUSE; g.lineWidth = 2.1;
   var xa = padPt(-PL * 0.76, -PW * 0.76), xb = padPt(PL * 0.76, PW * 0.76);
   var xc = padPt(PL * 0.76, -PW * 0.76), xd = padPt(-PL * 0.76, PW * 0.76);
   g.beginPath();
   g.moveTo(xa[0], xa[1]); g.lineTo(xb[0], xb[1]);
   g.moveTo(xc[0], xc[1]); g.lineTo(xd[0], xd[1]);
   g.stroke();
+  // THE HORNETS HAVE TO LOOK LIKE AIRCRAFT. They were an ellipse with a
+  // diagonal stroke and a blue dot, and at 9x that is a MANHOLE COVER — three
+  // grey discs let into the deck. On a carrier the parked aircraft are the one
+  // thing that says "carrier", so a viewer has to be able to name them, and a
+  // disc is nameable as a hatch and nothing else.
+  //
+  // Seen from above an aircraft is a cross: a fuselage running one way, a wing
+  // across it, a dark canopy at the nose. Every point is projected so the
+  // aircraft lie in the deck plane and turn with the ship.
   for (var hi = 0; hi < 3; hi++) {
-    var pq2 = P(-L * (0.24 + hi * 0.24), -W * 0.55, FR + 3.0);
-    g.fillStyle = '#e2e2e2';
-    g.beginPath(); g.ellipse(pq2[0], pq2[1], 4.1, 2.0, 0, 0, 6.29); g.fill();
-    g.strokeStyle = '#9e9e9e'; g.lineWidth = 1.7;
-    g.beginPath(); g.moveTo(pq2[0] - 3.8, pq2[1] + 0.7); g.lineTo(pq2[0] + 3.8, pq2[1] - 0.7); g.stroke();
-    g.fillStyle = HOUSE;
-    g.beginPath(); g.ellipse(pq2[0] + 1.6, pq2[1] - 0.4, 0.9, 0.7, 0, 0, 6.29); g.fill();
+    var au = -L * (0.22 + hi * 0.25), av = -W * 0.55;
+    function ap(du, dv) { return P(au + du, av + dv, FR + 3.0); }
+    var nose = ap(L * 0.085, 0), tail = ap(-L * 0.075, 0);
+    // the fuselage
+    g.strokeStyle = '#e2e2e2'; g.lineWidth = 2.3; g.lineCap = 'butt';
+    g.beginPath(); g.moveTo(nose[0], nose[1]); g.lineTo(tail[0], tail[1]); g.stroke();
+    // the wing, swept back from a point forward of centre
+    var wl = ap(-L * 0.01, -W * 0.30), wr = ap(-L * 0.01, W * 0.30);
+    var wt = ap(L * 0.035, 0);
+    g.fillStyle = '#cccccc';
+    g.beginPath();
+    g.moveTo(wt[0], wt[1]); g.lineTo(wl[0], wl[1]);
+    g.lineTo(tail[0], tail[1]); g.lineTo(wr[0], wr[1]); g.closePath(); g.fill();
+    // the tailplane, a short bar right aft
+    var tl = ap(-L * 0.065, -W * 0.13), tr = ap(-L * 0.065, W * 0.13);
+    g.strokeStyle = '#9e9e9e'; g.lineWidth = 1.2;
+    g.beginPath(); g.moveTo(tl[0], tl[1]); g.lineTo(tr[0], tr[1]); g.stroke();
+    // the canopy
+    var cp = ap(L * 0.045, 0);
+    g.fillStyle = '#333333';
+    g.beginPath(); g.ellipse(cp[0], cp[1], 1.1, 0.8, 0, 0, 6.29); g.fill();
+    // one house-coloured tail flash, which is where the rip spends colour on
+    // small deck objects
+    g.strokeStyle = HOUSE; g.lineWidth = 1.4;
+    g.beginPath(); g.moveTo(tail[0], tail[1] - 0.4); g.lineTo(tail[0] + 1.6, tail[1] - 1.6); g.stroke();
   }
 }
 
