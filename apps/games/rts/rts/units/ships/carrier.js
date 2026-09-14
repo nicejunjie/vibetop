@@ -108,10 +108,18 @@ function drawCarrier(C) {
   // invisible and the X really was floating over bare deck. Its top face is now
   // drawn a step DOWN from the deck with a bright coaming, which is both what
   // makes it read as a raised platform and what gives the X a ground.
-  var PU = L * 0.52, PV = W * 0.70, PZ = FR + 5.0;    // pad centre, top face
-  var PL = L * 0.17, PW = W * 0.36;                   // pad half-extents
+  // ...AND IT HUNG OVER THE SIDE. The deck is the hull plan scaled to W * 1.42,
+  // but that is its WIDEST station: the plan tapers from L * 0.12 forward, so
+  // by L * 0.52 the deck's own half-beam is down to about W * 1.0 — and a pad
+  // centred on W * 0.70 with a half-width of W * 0.36 reaches W * 1.06, which
+  // is over the edge and out above the sea. A deck fitting has to be placed
+  // against the plan at ITS OWN station, not against the beam amidships.
+  // -L * 0.10 is inside the full-beam run (L * 0.12 back to -L * 0.76), and
+  // 0.74 +- 0.34 reaches W * 1.08 against W * 1.42 there.
+  var PU = -L * 0.10, PV = W * 0.74, PZ = FR + 5.0;   // pad centre, top face
+  var PL = L * 0.17, PW = W * 0.34;                   // pad half-extents
   function padPt(du, dv) { return P(PU + du, PV + dv, PZ); }
-  box(PU, PV, L * 0.16, W * 0.34, 5.0, '#5f5f5f');    // the plinth it stands on
+  box(PU, PV, L * 0.16, W * 0.32, 5.0, '#5f5f5f');    // the plinth it stands on
   var f0 = padPt(-PL, -PW), f1 = padPt(PL, -PW), f2 = padPt(PL, PW), f3 = padPt(-PL, PW);
   g.beginPath();
   g.moveTo(f0[0], f0[1]); g.lineTo(f1[0], f1[1]);
