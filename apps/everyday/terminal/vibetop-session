@@ -88,14 +88,34 @@ _QUERY_REQUEST_RE = re.compile(
 # letters, digits, or anything else the user typed. Armed by the presence of
 # ~/.vibetop-keyprobe (checked at most once a second), so it can be switched on
 # and off without restarting anyone's session; dormant it costs one stat().
-KEYPROBE_CHARS = frozenset(b'!@#$%^&*()_+{}|:"<>?~')
+# 2026-09-14, the report narrowed: it happens under a CHINESE input method and
+# not under English. That makes the original byte-wise ASCII filter blind to the
+# very key being reported — an IME commits FULLWIDTH punctuation, and ？ is
+# U+FF1F, three UTF-8 bytes (EF BC 9F), never the ASCII 0x3F this used to match.
+# It also explains the split by itself: with an English IME xterm.js sends the
+# key from its own keydown handler and preventDefault()s, so the hidden textarea
+# stays empty; under an IME the browser reports keyCode 229, that handler bails,
+# and the text is delivered instead by one of two racing setTimeout(0) paths.
+# Different mechanism, so match characters, not bytes.
+KEYPROBE_ASCII = frozenset('!@#$%^&*()_+{}|:"<>?~')
+KEYPROBE_WIDE = frozenset(
+    '？！＠＃￥％＆＊（）＿＋｛｝｜：；，。、～'
+    '“”‘’《》〈〉「」『』【】〔〕…—·'
+)
+KEYPROBE_CHARS = KEYPROBE_ASCII | KEYPROBE_WIDE
 
 
 def keyprobe_hits(data):
     """The punctuation characters in `data`, in order, as a string. Everything
-    else — letters, digits, control bytes, UTF-8 — is dropped on the floor and
-    can never reach the log. Pure; unit-tested."""
-    return ''.join(chr(b) for b in bytes(data) if b in KEYPROBE_CHARS)
+    else — letters, digits, control bytes, and every CJK ideograph the user
+    actually typed — is dropped on the floor and can never reach the log. The
+    filter is a membership test against a fixed set, so the set IS the privacy
+    guarantee: nothing outside it can be written. Pure; unit-tested."""
+    try:
+        text = bytes(data).decode('utf-8', 'replace')
+    except Exception:
+        return ''
+    return ''.join(c for c in text if c in KEYPROBE_CHARS)
 
 
 _keyprobe_state = {'checked': 0.0, 'on': False, 'path': None}

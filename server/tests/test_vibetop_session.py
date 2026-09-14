@@ -153,7 +153,7 @@ def test_keyprobe_never_records_what_the_user_typed(csession):
     # set) but NOT one letter, digit or space of it — so the log can show that a
     # '?' arrived without ever showing what was being typed around it.
     assert hits == '___&&@'
-    allowed = {chr(b) for b in csession.KEYPROBE_CHARS}
+    allowed = set(csession.KEYPROBE_CHARS)   # characters since 2026-09-14, not bytes
     assert set(hits) <= allowed
     assert not any(c.isalnum() or c.isspace() for c in hits)
     assert 'hunter2' not in hits and 'ssh' not in hits
@@ -185,3 +185,50 @@ def test_keyprobe_writes_nothing_for_a_chunk_without_punctuation(csession, tmp_p
     csession._keyprobe_state.update({'checked': 0.0, 'on': False, 'path': None})
     csession.keyprobe_record(b'ls -la\r', now=3000.0)
     assert not (tmp_path / '.vibetop-keyprobe.log').exists()
+
+def test_keyprobe_sees_the_fullwidth_punctuation_an_IME_actually_commits(csession):
+    # The whole point of the 2026-09-14 widening. A Chinese input method does
+    # not send ASCII '?' — it commits U+FF1F, three bytes, which the original
+    # byte-wise filter could not match at all. The probe was blind to the one
+    # key being reported.
+    assert csession.keyprobe_hits('\uff1f'.encode()) == '\uff1f'
+    assert csession.keyprobe_hits('\u4f60\u597d\uff1f'.encode()) == '\uff1f'
+    assert csession.keyprobe_hits('\u4f60\u597d\uff0c\u4e16\u754c\uff01'.encode()) == '\uff0c\uff01'
+    # two presses in one chunk must read as two, so "pressed twice, arrived
+    # once" is distinguishable from "arrived twice" in the log
+    assert csession.keyprobe_hits('\uff1f\uff1f'.encode()) == '\uff1f\uff1f'
+
+
+def test_keyprobe_still_drops_every_ideograph_the_user_typed(csession):
+    # The privacy invariant survives the widening: the filter is a membership
+    # test against a fixed set, so CJK TEXT can never reach the log even though
+    # CJK punctuation now can.
+    sentence = '\u6211\u7684\u5bc6\u7801\u662fhunter2\u548c\u94f6\u884c\u5361\u53f7\u7801'
+    assert csession.keyprobe_hits(sentence.encode()) == ''
+    # a mixed line keeps only the marks
+    mixed = '\u8f6c\u8d26\u7ed9\u5f20\u4e09\uff1a5000\u5143\uff0c\u5bc6\u7801abc\uff01'
+    assert csession.keyprobe_hits(mixed.encode()) == '\uff1a\uff0c\uff01'
+
+
+def test_keyprobe_survives_a_utf8_sequence_split_across_chunks(csession):
+    # The relay writes whatever the socket handed it; a 3-byte character can
+    # land in two chunks. Neither half may crash the probe or invent a hit.
+    fw = '\uff1f'.encode()
+    assert csession.keyprobe_hits(fw[:1]) == ''
+    assert csession.keyprobe_hits(fw[1:]) == ''
+    assert csession.keyprobe_hits(fw[:2]) == ''
+    assert csession.keyprobe_hits(fw[2:]) == ''
+    assert csession.keyprobe_hits(b'\xff\xfe') == ''
+
+
+def test_keyprobe_logs_a_fullwidth_hit_with_its_byte_count(csession, tmp_path, monkeypatch):
+    # The byte count is what separates "one keypress, one arrival" from
+    # "one keypress, two arrivals" when reading the log after the fact.
+    monkeypatch.setenv('HOME', str(tmp_path))
+    (tmp_path / '.vibetop-keyprobe').write_text('')
+    csession._keyprobe_state.update({'checked': 0.0, 'on': False, 'path': None})
+    csession.keyprobe_record('\u4f60\u597d\uff1f'.encode(), now=4000.0)
+    line = (tmp_path / '.vibetop-keyprobe.log').read_text()
+    assert 'punct=\uff1f' in line
+    assert 'chunk=9B' in line          # 3 characters x 3 bytes
+    assert '\u4f60' not in line and '\u597d' not in line

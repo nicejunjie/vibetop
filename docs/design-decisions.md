@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_299 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_300 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
 - [Scheduled terminal messages ("resume when the token limit resets")](#scheduled-terminal-messages-resume-when-the-token-limit-resets)
@@ -322,6 +322,7 @@ _299 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [Shifted punctuation needs two presses inside Claude Code — what it is NOT (2026-09-13, open)](#shifted-punctuation-needs-two-presses-inside-claude-code-what-it-is-not-2026-09-13-open)
 - [The Files listing showed "just now" an hour later: the clock only ticked when the disk did (2026-09-13)](#the-files-listing-showed-just-now-an-hour-later-the-clock-only-ticked-when-the-disk-did-2026-09-13)
 - [The usage strip's ✕ moved to the left, because on the right it looked like a window's (2026-09-13)](#the-usage-strips-moved-to-the-left-because-on-the-right-it-looked-like-a-windows-2026-09-13)
+- [Shifted punctuation needs two presses — it is the CHINESE input method, and that is a different code path entirely (2026-09-14, narrowed)](#shifted-punctuation-needs-two-presses-it-is-the-chinese-input-method-and-that-is-a-different-code-path-entirely-2026-09-14-narrowed)
 
 <!-- END TOC -->
 
@@ -13553,3 +13554,70 @@ mix-up for a dead end.
 pre-change `desktop.html`: the `.cu-x` rule sets `left` and not `right`, the
 window titlebar still closes last-in-flex (i.e. rightmost), the reserved gutter
 is on the ✕'s own side, and the 340px media query does not claw it back.
+
+## Shifted punctuation needs two presses — it is the CHINESE input method, and that is a different code path entirely (2026-09-14, narrowed)
+
+Extends the "what it is NOT" entry above. The user narrowed the report: **it
+happens under a Chinese input method and not under English.** That one fact
+reframes the whole thing, and it retired most of the earlier investigation.
+
+**What the key even is.** An IME does not commit ASCII `?`. It commits the
+FULLWIDTH `？`, U+FF1F — three UTF-8 bytes, `EF BC 9F`. Every measurement made
+before this (raw-PTY typing patterns, the kitty/modifyOtherKeys probe work, the
+CSI u encoding map) was made with ASCII `0x3F` and therefore measured a key the
+user was never pressing. **The arrival probe had the same blindness**:
+`KEYPROBE_CHARS` was a set of BYTES, so it could not have matched `？` even
+once. It is now a set of CHARACTERS, ASCII plus the fullwidth/CJK marks, and the
+chunk decodes as UTF-8 first.
+
+**Why English works and Chinese does not — the mechanism, read out of the
+shipped xterm.js** (extracted from the gzipped asset inside `/usr/bin/ttyd`):
+
+- **English.** The keydown is a normal key. `Terminal._keyDown()` evaluates it,
+  calls `triggerDataEvent(key)` and `cancel(e, true)` — `preventDefault`. The
+  byte goes out from the keydown handler and the hidden helper textarea **never
+  receives the character at all**.
+- **Under an IME.** The browser reports **keyCode 229** for any key the IME
+  consumes. `CompositionHelper.keydown()` returns `false` for 229, so `_keyDown`
+  bails and sends nothing — correct, the IME owns the key. The text is delivered
+  instead by one of **two racing `setTimeout(0)` paths**:
+  `_handleAnyTextareaChanges()` (scheduled from the keydown) and
+  `_finalizeComposition(true)` (scheduled from `compositionend`). They
+  de-duplicate through `_dataAlreadySent` and through offsets
+  (`_compositionPosition.start/end`) into the helper textarea — which, on this
+  path, is **never cleared and accumulates every character typed through the
+  IME**. Which path wins, and whether `_dataAlreadySent` is current when it
+  does, depends entirely on the order the engine fires `compositionend`, `input`
+  and the timeouts in.
+
+So "letters fine, punctuation broken" was a red herring; the real split is
+**IME vs no IME**, and the two go through unrelated code.
+
+**Ruled out, measured, not argued.**
+- *Claude Code.* Driven through a raw PTY it accepts `？` on the first arrival
+  in every arrangement: whole 3 bytes, split 1+1+1, 1+2, 2+1, after ASCII text,
+  after CJK text, and after a long CJK sentence. It also repaints each time.
+- *This xterm.js under a real IME.* A hermetic harness serves the **extracted
+  ttyd page** with `WebSocket` stubbed to record frames, and drives it with
+  Chromium's own IME via CDP `Input.imeSetComposition` + `Input.insertText` —
+  the engine's real composition events, not a hand-written event sequence.
+  Typing `你好吗？？？` one commit at a time put exactly `你好吗？？？` on the
+  wire, one character per commit, and `？` alone repeated five times was also
+  exact. **Blink's ordering is correct.**
+
+**What is left.** WebKit's ordering of `compositionend` / `input` / timeouts,
+which is genuinely different from Blink's and which Playwright cannot drive —
+there is no `imeSetComposition` for WebKit. So the remaining suspect cannot be
+reproduced from here, only instrumented, which is what the widened probe is for.
+
+**Not fixed, and deliberately not guessed at.** Patching our injected
+`terminal-kbd.js` to "help" the composition path without a reproduction is the
+same move that shipped three wrong fixes for the Files focus bug in three days
+(see the two entries on that). The probe answers it from a log instead.
+
+**Watch out — the helper textarea grows without bound on the IME path.** Every
+character ever committed through an IME stays in it for the life of the
+terminal, and each keystroke does a `replace()` and a `substring()` over the
+whole thing. That is a real defect on its own, but the offsets the two delivery
+paths use are indices INTO that string, so clearing it is not the free fix it
+looks like. Left alone on purpose.
