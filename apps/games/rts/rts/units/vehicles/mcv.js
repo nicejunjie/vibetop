@@ -22,7 +22,10 @@ var halfLight = normalized(light.map(function (x, i) { return x + eye[i]; }));
 var P3 = function (p) { return [cx + fx * p[0] + px * p[1], by + fy * p[0] + py * p[1] - p[2]]; };
 var rgb = parseInt(col.slice(1), 16), cr = [(rgb >> 16) & 255, (rgb >> 8) & 255, rgb & 255];
 var cmin = Math.min.apply(null, cr), cspan = Math.max.apply(null, cr) - cmin || 1;
-var NAVY = 'rgb(' + cr.map(function (v) { return Math.round(16 + 116 * Math.pow((v - cmin) / cspan, 3)); }).join(',') + ')';
+// 16 + 116*p^3 peaks at 132 — the owner mass baked near-black, so the one
+// saturated element on the truck read as a dark hole. The rip's gantry is a
+// clear medium blue with lit highlights. Same correction the IFV's ramp needed.
+var NAVY = 'rgb(' + cr.map(function (v) { return Math.round(20 + 128 * Math.pow((v - cmin) / cspan, 2.1)); }).join(',') + ')';
 // The hull is a desaturated tint of the owner colour — RA2's Allied MCV
 // wears a periwinkle/slate body, not a fixed grey. The reference hull is
 // a NEUTRAL periwinkle (R≈G<B, hue 240°), not a desaturated copy of the
@@ -54,8 +57,16 @@ var BODY = (function (h, s, l) {
   else { r = c; g = 0; b = x; }
   return 'rgb(' + Math.round((r + m) * 255) + ',' + Math.round((g + m) * 255) + ',' + Math.round((b + m) * 255) + ')';
 })(hullHue, 13, 53);
-var PAINT = '#86849c', RAIL = '#71788b', STEEL = '#b1b1b1', LIGHT = '#e3e3e3';
-var DARK = '#333d49', RUBBER = '#232629', GLASS = '#111b22';
+// NINE BLUE-GREYS, ALL OF THEM SPLITTING. Every structural colour on this
+// truck carried a cool cast — DARK #333d49, RUBBER #232629, GLASS #111b22,
+// RAIL #71788b, and five panel literals besides — and each one walked onto the
+// teal diagonal of the palette grid somewhere on its shade ladder: #003333 and
+// #336666 from all of them, #669999 and #99cccc from the lighter ones. The MCV
+// was laying 171 px of teal, 3.7% of the sprite, in STREAKS across its body
+// panels rather than as edge speckle. Each is now equal-channel at its own
+// luma, which is the fix PEDGE and GUN_L got for the same fault.
+var PAINT = '#86849c', RAIL = '#787878', STEEL = '#b1b1b1', LIGHT = '#e3e3e3';
+var DARK = '#3b3b3b', RUBBER = '#252525', GLASS = '#191919';
 function surface(pts, color, center, unlit) {
   var p = pts[0], e = pts[1].map(function (v, i) { return v - p[i]; });
   var f = pts[2].map(function (v, i) { return v - p[i]; });
@@ -144,7 +155,7 @@ function tyre(u, v) {
     for (var q = 0; q < n; q++) { var t = q * Math.PI * 2 / n; hub.push([u + radius / KF * 0.64 * Math.cos(t), v + side * 1.44, z + radius * 0.64 * Math.sin(t)]); }
     surface(hub, LIGHT, [u, v, z]);
     var inset = hub.map(function (p) { return [u + (p[0] - u) * 0.79, p[1] + side * 0.03, z + (p[2] - z) * 0.79]; });
-    surface(inset, '#576073', [u, v, z]);
+    surface(inset, '#5f5f5f', [u, v, z]);
     var boss = inset.map(function (p) { return [u + (p[0] - u) * 0.53, p[1] + side * 0.04, z + (p[2] - z) * 0.53]; });
     surface(boss, STEEL, [u, v, z]);
     for (var q = 0; q < 6; q++) {
@@ -167,7 +178,7 @@ function drum(u0, u1, v, z, radius, color) {
     surface([loops[0][q], loops[0][(q + 1) % n], loops[1][(q + 1) % n], loops[1][q]], color, [(u0+u1)/2, v, z]);
   surface(loops[0], '#5f5f5f', [(u0+u1)/2, v, z]);
   surface(loops[1], STEEL, [(u0+u1)/2, v, z]);
-  box(u0 + 0.28, u0 + 0.42, v - radius * 0.82, v + radius * 0.82, z - 0.12, z + 0.12, '#343a3e');
+  box(u0 + 0.28, u0 + 0.42, v - radius * 0.82, v + radius * 0.82, z - 0.12, z + 0.12, '#393939');
 }
 // A vertical drum (axis along z) with vertical ribs — the folded
 // actuator housing at the very rear of the MCV.
@@ -251,7 +262,7 @@ profile([[10.8,6.0],[14.2,6.0],[15.1,3.9],[18.9,3.9],[19.5,5.9],[18.9,8.5],
 bevel(10.65,14.5,-6.55,6.55,12.1,13.7,0.5,BODY);
 surface([[17.39,-5.6,9.35],[17.39,5.6,9.35],[17.39,5.6,10.83],[17.39,-5.6,10.83]],GLASS,[14,0,7],true);
 box(17.41,17.5,-0.13,0.13,9.3,10.85,STEEL);
-box(17.43,17.5,-5.5,5.5,9.3,9.52,'#5e7884');
+box(17.43,17.5,-5.5,5.5,9.3,9.52,'#727272');
 bevel(17.9,19.45,-6.8,6.8,2.5,4.5,0.45,STEEL);
 bevel(18.91,19.18,-4.8,4.8,4.75,7.5,0.1,STEEL);
 box(19.19,19.24,-3.65,3.65,5.0,7.1,GLASS);
@@ -274,17 +285,28 @@ for (var side=-1;side<=1;side+=2) {
 bevel(-10.6,8.6,-6.1,6.1,10.2,11.6,0.5,STEEL);
 // The navy folded channel: two broad channels with a dark seam, the
 // saturated owner mass that leads the eye.
-for (var side=-1;side<=1;side+=2) {
-  box(1.2,8.0,side*2.9-2.3,side*2.9+2.3,11.4,16.6,NAVY);
-  box(1.4,7.8,side*2.9-2.1,side*2.9+2.1,16.6,16.85,shade(NAVY,1.45));
-}
-box(1.6,7.6,-0.6,0.6,11.6,16.4,'#152439');
+// LONG AND LOW, NOT TWO CUBES. The channel ran u 1.2-8.0 and stood 5.2 tall on
+// a bed 19 long, so it baked as a pair of tall dark blocks sitting proud on a
+// flatbed — two toy bricks, and at four bearings the only blue on the truck.
+// allied-mcv.png carries ONE long low blue mass along most of the deck: the
+// folded gantry is the dominant element of the load, not a parcel among four.
+// It now runs back over what the tarp band used to occupy and stands 4.2 rather
+// than 5.2, and the tarp drops under it as a strap rather than a rival block.
+// ONE MASS, ONE GROOVE. Lengthening the channel was not enough: it was still
+// TWO boxes at side*2.9 with a 1.2-wide dark seam between them, and each box
+// contributes its own shaded side faces to that gap, so the gap baked several
+// pixels wide and the gantry still read as a pair of bricks. The rip's blue is
+// one continuous mass with a hairline fold down its crown. One box, and the
+// seam survives only as a groove on the top face.
+box(-4.2,8.0,-5.2,5.2,11.4,15.6,NAVY);
+box(-4.0,7.8,-5.0,5.0,15.6,15.85,shade(NAVY,1.45));
+box(-3.8,7.6,-0.32,0.32,15.6,16.0,'#222222');
 // A slate tarp band folds across the middle of the load — a desaturated
 // blue-grey that sits between the saturated navy channel and the light box.
 // Neutral periwinkle (R=G) to match the reference hull; a green-cast
 // (G>R) here read as a separate paint and broke the periwinkle read.
-box(-4.2,1.2,-5.4,5.4,11.4,15.2,'#69697d');
-box(-4.0,1.0,-5.2,5.2,15.2,15.45,shade('#69697d',1.35));
+box(-3.6,-0.4,-5.4,5.4,15.6,16.3,'#69697d');
+box(-3.4,-0.6,-5.2,5.2,16.3,16.5,shade('#69697d',1.35));
 // A light container box sits toward the rear of the channel.
 box(-8.6,-4.4,-4.6,4.6,11.4,16.2,LIGHT);
 box(-8.4,-4.6,-4.4,4.4,16.2,16.45,shade(LIGHT,1.1));
@@ -301,7 +323,7 @@ for (var side=-1;side<=1;side+=2) {
   box(-15.0,-12.8,v-1.28,v+1.28,10.85,11.25,LIGHT);
 }
 bevel(-14.75,-12.05,-5.8,5.8,15.6,16.9,0.38,STEEL);
-box(-14.35,-12.8,-4.85,4.85,16.91,17.03,'#414a52');
+box(-14.35,-12.8,-4.85,4.85,16.91,17.03,'#484848');
 // A retracted actuator collar at the very rear — one clean band, not
 // a cluster of exposed drums.
 bevel(-18.8,-17.45,-7.1,7.1,6.4,9.9,0.5,RAIL);
@@ -375,7 +397,7 @@ footprint.forEach(function(p){while(lower.length>1&&turn(lower[lower.length-2],l
 for(var q=footprint.length-1;q>=0;q--){var p=footprint[q];while(upper.length>1&&turn(upper[upper.length-2],upper[upper.length-1],p)<=0)upper.pop();upper.push(p);}
 var outline=lower.slice(0,-1).concat(upper.slice(0,-1));
 s.g.beginPath();outline.forEach(function(p,i){if(i)s.g.lineTo(p[0],p[1]);else s.g.moveTo(p[0],p[1]);});
-s.g.closePath();s.g.fillStyle='rgba(13,19,21,0.30)';s.g.fill();
+s.g.closePath();s.g.fillStyle='rgba(17,17,17,0.30)';s.g.fill();
 
 var depths=new Float32Array(rw*rh);depths.fill(-Infinity);
 var rasterScale=DPR*samples,vehicleScale=USC_V*VSC;

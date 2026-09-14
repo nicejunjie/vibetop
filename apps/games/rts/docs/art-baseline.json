@@ -329,7 +329,7 @@
     "peerVsSelf.naval": 2,
     "peerVsSelf.air": 0,
     "iou.groundCombat.mean": 0.6037,
-    "iou.vehicle.mean": 0.5385,
+    "iou.vehicle.mean": 0.5387,
     "iou.infantry.mean": 0.5112,
     "iou.naval.mean": 0.3609,
     "iou.air.mean": 0.1544,
@@ -341,8 +341,8 @@
     "mass.tightestBand6": 1.557,
     "hue.infantryOwnerMean": 0.1927,
     "hue.infantryBelowBudget": 5,
-    "hue.vehicleOwnerMean": 0.1551,
-    "hue.vehicleOwnerMax": 0.2545,
+    "hue.vehicleOwnerMean": 0.157,
+    "hue.vehicleOwnerMax": 0.2547,
     "hue.maxImpostor": 0.1017,
     "aspect.navalOutsideRA2Band": 0,
     "aspect.navalWorstOffRA2": 0.19,
@@ -378,7 +378,7 @@
     "value.engineerLightPct": 0.0984,
     "value.engineerMarginOverNext": -0.0339,
     "colour.infantry.meanDist": 1.4103,
-    "colour.vehicle.meanDist": 0.9648,
+    "colour.vehicle.meanDist": 0.992,
     "colour.vehicleAchromatic": 8,
     "colour.naval.meanDist": 1.3666,
     "colour.air.meanDist": 1.1669,
@@ -410,9 +410,9 @@
         "ra2Aspect": 1.784,
         "vsRA2": 0.704,
         "bestPeer": "MCV",
-        "bestPeerIoU": 0.7712,
+        "bestPeerIoU": 0.7754,
         "nearestPeer": "MCV",
-        "nearestPeerMMD2": 0.0165,
+        "nearestPeerMMD2": 0.0152,
         "peersBeatingSelf": 0
       },
       "rifle": {
@@ -938,15 +938,15 @@
       "mcv": {
         "group": "vehicle",
         "aspect": 1.818,
-        "selfIoU": 0.5955,
-        "selfIoUCross": 0.5955,
+        "selfIoU": 0.5952,
+        "selfIoUCross": 0.5952,
         "broadsideAspect": 1.818,
         "ra2Aspect": 2.111,
         "vsRA2": 0.861,
         "bestPeer": "War Miner",
-        "bestPeerIoU": 0.7712,
+        "bestPeerIoU": 0.7754,
         "nearestPeer": "War Miner",
-        "nearestPeerMMD2": 0.0165,
+        "nearestPeerMMD2": 0.0152,
         "peersBeatingSelf": 0
       }
     },
@@ -962,7 +962,7 @@
     },
     "iouGroups": {
       "vehicle": {
-        "mean": 0.5385,
+        "mean": 0.5387,
         "pairs": 78,
         "max": 0.8415,
         "over75": 5
@@ -997,7 +997,7 @@
       {
         "a": "MCV",
         "b": "War Miner",
-        "iou": 0.7712
+        "iou": 0.7754
       },
       {
         "a": "Apocalypse",
@@ -1074,11 +1074,6 @@
         "dist": 0.236
       },
       {
-        "a": "drone",
-        "b": "mcv",
-        "dist": 0.272
-      },
-      {
         "a": "mirage",
         "b": "rhino",
         "dist": 0.283
@@ -1112,6 +1107,11 @@
         "a": "flaktrack",
         "b": "v3",
         "dist": 0.449
+      },
+      {
+        "a": "warminer",
+        "b": "teslatank",
+        "dist": 0.451
       }
     ],
     "topImpostors": [
@@ -1189,7 +1189,7 @@
       "seascorp": 0.1217,
       "dread": 0.1694,
       "squid": 0,
-      "mcv": 0.2295
+      "mcv": 0.2547
     },
     "chromaByUnit": {
       "chronominer": 0.2275,
@@ -1232,7 +1232,7 @@
       "seascorp": 0.029,
       "dread": 0.076,
       "squid": 0.0495,
-      "mcv": 0.0656
+      "mcv": 0.0178
     },
     "hue": {
       "infantryOwnerMedian": 0.2102,
@@ -5147,7 +5147,7 @@
         "name": "MCV",
         "group": "vehicle",
         "fac": null,
-        "mass": 2563,
+        "mass": 2555,
         "bboxW": 80,
         "bboxH": 61,
         "aspect": 1.303,
@@ -5155,12 +5155,12 @@
         "broadsideAspect": 1.818,
         "ra2Aspect": 2.111,
         "vsRA2": 0.861,
-        "selfIoU": 0.5955,
-        "selfIoUCross": 0.5955,
+        "selfIoU": 0.5952,
+        "selfIoUCross": 0.5952,
         "bestPeer": "War Miner",
-        "bestPeerIoU": 0.7712,
+        "bestPeerIoU": 0.7754,
         "nearestPeer": "War Miner",
-        "nearestPeerMMD2": 0.0165,
+        "nearestPeerMMD2": 0.0152,
         "peersBeatingSelf": 0,
         "peers": 12,
         "spike": {
@@ -5698,9 +5698,9 @@
         "selfIoU": 0.6968,
         "selfIoUCross": 0.6968,
         "bestPeer": "MCV",
-        "bestPeerIoU": 0.7712,
+        "bestPeerIoU": 0.7754,
         "nearestPeer": "MCV",
-        "nearestPeerMMD2": 0.0165,
+        "nearestPeerMMD2": 0.0152,
         "peersBeatingSelf": 0,
         "peers": 12,
         "spike": {
