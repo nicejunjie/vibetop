@@ -23,7 +23,11 @@ function drawRhino(C) {
 // the Rhino reads as the owner's tank from further away than any
 // other unit on the field.
 if (wantH) {
-  tracks(len * 1.02, 3.45, wid * 0.24, '#b6b6b6');
+  // #b6b6b6 on a #1c1f24 sprocket is a near-white ring on near-black, and the
+  // two of them baked as CHECKERBOARD BLOCKS at each end of the track run —
+  // the highest-contrast thing on the tank, at the one place a viewer has no
+  // reason to look. RA2's running gear is a shade within the track band.
+  tracks(len * 1.02, 3.45, wid * 0.24, '#565656');
   // "hull height >= 1.25x the Grizzly's" (unit-identity-reference.md
   // 2.4) was the one line of the Rhino's spec never drawn: at 5.0
   // against the Grizzly's 3.8 it was 1.32x on paper but the Grizzly is
@@ -54,11 +58,18 @@ if (wantH) {
   // size pass grew this hull 65 -> 70 px, which split the middle
   // plate against the fender and left the check reading SIX blocks
   // with a 2 px sliver and a 1 px gap where it wants five with 3.
+  // THEY BELONG ON THE FENDERS, NOT THE FLANK. Held at by - 3.55 they were
+  // three tall panels bolted to the hull SIDE, and `rhino-voxel.jpg` puts the
+  // owner colour somewhere else entirely: on the upper hull, as stowage bins
+  // lying ALONG the fender either side of the turret — the top view counts
+  // three a side, and from any bearing they read as a broken red line at the
+  // hull's shoulder, never as plates on its cheek. Raised to deck height and
+  // laid flat: longer, wider, and a third the height.
   for (sg = -1; sg <= 1; sg += 2)
     for (i2 = -1; i2 <= 1; i2++)
-      isoBox(g, cx + px * wid * 0.425 * sg + fx * (i2 * len * 0.268 - 0.6),
-             by - 3.55 + py * wid * 0.36 * sg + fy * (i2 * len * 0.268 - 0.6),
-             len * 0.128, 1.15, 3.25, a, i2 > 0 ? plit : panel, PEDGE);
+      isoBox(g, cx + px * wid * 0.40 * sg + fx * (i2 * len * 0.252 - 0.4),
+             by - 7.35 + py * wid * 0.34 * sg + fy * (i2 * len * 0.252 - 0.4),
+             len * 0.175, 1.9, 1.45, a, i2 > 0 ? plit : panel, PEDGE);
   fenders(len * 0.44, 3.25, 0.35, 0.18);
   bumper(len * 0.42, wid * 0.18, by - 1.35);
   lamp(cx + fx * len * 0.40 + px * wid * 0.20, by - 4.65 + fy * len * 0.40 + py * wid * 0.20);
@@ -115,6 +126,17 @@ if (wantT) {
   // past the glacis -- the longest tube on any RA2 tank bar the
   // Grizzly's -- and dark. "Thicker, SHORTER than the Grizzly's" was
   // what the cameo suggested, never what the sprite shows.
-  barrel(rz[0], rz[1], 16.0, 2.4, 1.5, VACC.rhinoGun);
+  // LONG AND THIN, which is what the rip shows and what the comment above
+  // already argued for before the number was put back to 16.0/2.4. In
+  // `rhino-voxel.jpg` the tube reaches nearly half the hull's length past the
+  // glacis and is markedly SLENDER against a broad hull — that contrast is
+  // most of what says "gun tank". At 2.4 wide it read as a mortar.
+  //
+  // LENGTH IS SET BY THE REFERENCE ASPECT, not by eye. At 20.5 the sprite came
+  // out 63x25 = 2.52 against RA2's own 2.00 — 26% too long for its height, and
+  // `aspect.vehicleOutsideRA2Band` went 3 -> 4. Measured at three lengths:
+  // 20.5 -> ratio 1.26, 18.5 -> 1.20, 17.0 -> 1.14. 17.0 keeps the tube slender
+  // and clear of the glacis while putting her back inside the band with room.
+  barrel(rz[0], rz[1], 17.0, 1.7, 1.15, VACC.rhinoGun);
 }
 }

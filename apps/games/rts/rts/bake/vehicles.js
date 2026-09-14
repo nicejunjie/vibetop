@@ -27,8 +27,20 @@
 function bakeVehicle(col, kind, fac, anim) {
   var sov = fac === 'col';
   var dig = anim === 'mine';
-  var TRK_TOP = '#4e535c', TRK_SIDE = '#2d3138', TRK_D = '#101316';
-  var WHEEL_D = '#131519', WHEEL_L = '#808080';
+  // Neutral, because #4e535c / #2d3138 / #101316 all have blue over red and
+  // split on the palette grid — the blue speckle down every tank's tracks.
+  // AND NOT A BLACK BAND. At #535353/#313131 the running gear was the darkest
+  // thing on every tank, a hard bar under a pale hull. RA2's tracks sit in the
+  // hull's own value family — on rhino-voxel the track run is barely darker
+  // than the sand above it, and what separates them is the wheels and the
+  // shadow, not a change of key.
+  var TRK_TOP = '#6e6e6e', TRK_SIDE = '#494949', TRK_D = '#242424';
+  // A ROAD WHEEL IS TEXTURE, NOT A POLKA DOT. #131519 under #808080 is a 3 px
+  // near-black disc with a mid-grey centre, and at the size a wheel actually
+  // occupies that quantises to a BLACK BLOB WITH A WHITE PIP — five of them a
+  // side, reading as a dashed line under the hull rather than as running gear.
+  // RA2's wheels are a shade within the track band, not a contrast against it.
+  var WHEEL_D = '#1a1a1a', WHEEL_L = '#3d3d3d';
   var BAND = '#d5d5d5', STEEL = '#9f9f9f', CHROME = '#e3e3e3';
   var GUN = '#191b20', GUN_L = '#5b616b';
   // House colour lives in a narrow shade window: shade() clips the blue
@@ -526,7 +538,7 @@ function bakeVehicle(col, kind, fac, anim) {
         for (i = -1; i <= 1; i += 2) {
           var spx = ux + fx * st * i + px * hw * 0.92 * nearS;
           var spy = uy + fy * st * i + py * hw * 0.92 * nearS - th * 0.46;
-          g.fillStyle = '#1c1f24';
+          g.fillStyle = '#202020';
           g.beginPath(); g.ellipse(spx, spy, 2.1, 1.85, 0, 0, 6.29); g.fill();
           g.strokeStyle = wheelCol || WHEEL_L; g.lineWidth = 0.7;
           g.beginPath(); g.ellipse(spx, spy, 1.15, 1.0, 0, 0, 6.29); g.stroke();
@@ -727,8 +739,15 @@ function bakeVehicle(col, kind, fac, anim) {
       g.moveTo(x0 + vx * 0.16 + nx * w0 * 0.55 * lit, y0 + vy * 0.16 + ny * w0 * 0.55 * lit);
       g.lineTo(x0 + vx * 0.84 + nx * w1 * 0.60 * lit, y0 + vy * 0.84 + ny * w1 * 0.60 * lit);
       g.stroke();
-      g.fillStyle = '#c8c8c8';                                     // pale tip highlight
-      g.beginPath(); g.ellipse(tx, ty, w1 * 0.85, w1 * 0.85, 0, 0, 6.29); g.fill();
+      // NO PALE TIP. This put a #c8c8c8 disc on the muzzle of EVERY gun in the
+      // game, and at tank scale it reads as a chrome cap — the brightest thing
+      // on the vehicle sitting at the end of the barrel, pulling the eye to
+      // the one place nothing is happening. Checked against rhino-voxel,
+      // mammoth-voxel, lancer-voxel and prismtank-voxel: RA2's tubes are
+      // uniformly dark right to the mouth, and what terminates them is a
+      // slightly DARKER bore, not a highlight.
+      g.fillStyle = shade(bc, 0.34);
+      g.beginPath(); g.ellipse(tx, ty, w1 * 0.75, w1 * 0.75, 0, 0, 6.29); g.fill();
     }
     // A slatted ore crate: vertical planks, top and mid rails, and an X
     // brace on each visible flank — the brace is the single detail that
