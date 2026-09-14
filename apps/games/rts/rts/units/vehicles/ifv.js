@@ -52,7 +52,19 @@ function surface(pts, color, center, unlit) {
     n = n.map(function (v) { return -v; });
   if (n[0] * Lu + n[1] * Lv + n[2] * Lz <= 0) return;
   var length = Math.hypot(n[0], n[1], n[2]) || 1;
-  var illumination = 0.62 + 0.38 * Math.max(0, (n[0] * light[0] + n[1] * light[1] + n[2] * light[2]) / (length * 1.87));
+  // A 0.62-1.00 RANGE PUTS EVERY FACE ON THE SAME RUNG. On a six-level palette
+  // a base of #6e6e6e graded between 0.62 and 1.00 spans 68..110 — which snaps
+  // to 51 or 102 and nothing else, so bonnet, flank, fender and roof all came
+  // out the same two mid-greys and the whole vehicle read as one drab lump.
+  // 68% of its pixels were neutral mid-grey, the worst on the roster. The rip
+  // is built on RANGE: #282c48 in shadow (luma 42) against #f8fcf8 highlights
+  // (250).
+  // ONLY THE DARK END, THOUGH. Taking the top to 1.14 as well pushed the NAVY
+  // remap past its clip point and the launch cells came back with PINK pixels
+  // in them — the same #cc99cc lavender the Prism Tank's note warns about, from
+  // the same cause. The owner's ramp cannot be brightened; the shadows can be
+  // deepened. 0.46-1.00 buys the extra rung at the bottom and clips nothing.
+  var illumination = 0.46 + 0.54 * Math.max(0, (n[0] * light[0] + n[1] * light[1] + n[2] * light[2]) / (length * 1.87));
   var depth = 0;
   for (var q = 0; q < pts.length; q++) depth += pts[q][0] * Lu + pts[q][1] * Lv + pts[q][2] * Lz;
   faces.push({ p: pts, col: unlit ? color : shade(color, illumination), depth: depth / pts.length });
