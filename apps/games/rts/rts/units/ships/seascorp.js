@@ -2,66 +2,110 @@
 // Called by bakeShip() with one context object carrying the canvas, the anchor,
 // the facing and the helpers it draws with — see rts/README.md.
 
-
-
 function drawSeascorp(C) {
-  var DECK = C.DECK, FR = C.FR, GLASS = C.GLASS, GUN = C.GUN, GUN_L = C.GUN_L, HD = C.HD,
-      HOUSE = C.HOUSE, L = C.L, P = C.P, W = C.W, box = C.box, g = C.g, mast = C.mast;
+  var DECK = C.DECK, FR = C.FR, GLASS = C.GLASS, HD = C.HD, HL = C.HL, HOUSE = C.HOUSE,
+      L = C.L, P = C.P, W = C.W, box = C.box, g = C.g, nearS = C.nearS;
 
-// [HYD]: small, fast, and all gun — the shortest armed hull afloat.
-// A low planing hull, a stubby pilot house forward, and the FLAK MOUNT
-// standing on a tub over the stern with a house-coloured ammo cheek
-// each side. §2.4 asks for the Flak Track's own read, and the Flak
-// Track's read is a gun raised well clear of the bed.
+// [HYD] REDRAWN FROM THE RIP. She is a FLAK BOAT and her whole read is ONE
+// THICK WHITE GUN BARREL WITH RED BANDS, elevated about 45 degrees off a white
+// housing amidships. `library/seascorp.png` shows, forward to aft: a pale grey
+// hull with a broad flat deck; a RED deckhouse block at the bow; a tall RED
+// GANTRY standing just abaft it; the white-and-red gun rising over the middle,
+// the brightest and largest thing aboard; khaki machinery packed round its
+// base; and a red box aft.
 //
-// A first pass put the mount on a FIFTEEN-unit pedestal because that
-// was what pulled her silhouette off the Typhoon's; it also turned a
-// 24-px gunboat into a chimney on a dinghy. The separation is bought
-// back below with proportion instead — she is the beamiest hull for
-// her length in the fleet against the Typhoon's long thin one.
-//
-// "Beamiest for her length" then became 22 x 17 — a plan 1.29:1, all
-// but square — under a 9.2 pilot house and a 7.4 tub, and she rendered
-// 44x34, aspect 1.29 against [HYD]'s 59x32 = 1.84. A gunboat that is
-// as wide as she is long is a tub. 27 x 13 keeps her the beamiest hull
-// AFLOAT FOR HER LENGTH without making her round, and the deckhouses
-// come down to match: 44x34 aspect 1.29 -> 52x29 aspect 1.79.
-box(L * 0.14, 0, L * 0.56, W * 1.46, 3.4, DECK);
-box(L * 0.22, 0, L * 0.34, W * 1.10, 5.4, shade(DECK, 1.16));     // pilot house
-var wq = P(L * 0.22, 0, FR + 4.8);
-g.fillStyle = GLASS; g.fillRect(wq[0] - 3.0, wq[1] - 1.5, 6.0, 1.7);
-box(-L * 0.34, 0, 6.5, W * 1.50, 4.2, shade(DECK, 0.92));         // the gun tub
-var gq = P(-L * 0.34, 0, FR + 4.6);
-g.fillStyle = shade(DECK, 1.2);
-g.beginPath(); g.ellipse(gq[0], gq[1], 5.0, 2.8, 0, 0, 6.29); g.fill();
-// Two sloped house-coloured ammo cheeks either side of the mount —
-// wedges, as [HYD]'s sprite has, not discs.
-g.fillStyle = HOUSE;
-for (var ch = -1; ch <= 1; ch += 2) {
+// Ours had FOUR thin dark tubes fanned up off a tub. At this hull's size they
+// baked as a crosshatch — the user read the whole assembly as an
+// unidentifiable teal mesh screen, and they were right: four 2.6 px dark lines
+// crossing a mast IS a lattice, not a gun. One tube at four times the weight,
+// in white against a grey deck, is what the reference has and what reads.
+
+// ---- hull deck ----------------------------------------------------------- //
+box(L * 0.10, 0, L * 0.62, W * 1.50, 3.0, DECK);
+
+// ---- the red deckhouse at the bow ---------------------------------------- //
+// Explicit quads, not box(): isoBox grades its darkest face to about 0.44 of
+// the colour it is handed, and shade(HOUSE, 0.44) on a saturated house colour
+// falls off the palette grid into teal. See the Aegis's stern for the full
+// argument — it is systemic to box() plus owner colour.
+function houseBlock(u, hl, hw, z0, z1) {
+  var c = [[hl, hw], [hl, -hw], [-hl, -hw], [-hl, hw]];
+  function q(i, z) { return P(u + c[i][0], c[i][1], z); }
+  var faces = [[0, 1, HL], [1, 2, HOUSE], [3, 0, HD]];
+  for (var fi = 0; fi < faces.length; fi++) {
+    var a = q(faces[fi][0], z0), b = q(faces[fi][1], z0);
+    var a2 = q(faces[fi][0], z1), b2 = q(faces[fi][1], z1);
+    g.fillStyle = faces[fi][2];
+    g.beginPath();
+    g.moveTo(a[0], a[1]); g.lineTo(b[0], b[1]);
+    g.lineTo(b2[0], b2[1]); g.lineTo(a2[0], a2[1]); g.closePath(); g.fill();
+  }
+  var t = [q(0, z1), q(1, z1), q(2, z1), q(3, z1)];
+  g.fillStyle = HL;
   g.beginPath();
-  g.moveTo(gq[0] + ch * 2.2, gq[1] + 1.0);
-  g.lineTo(gq[0] + ch * 5.2, gq[1] - 0.4);
-  g.lineTo(gq[0] + ch * 4.8, gq[1] - 3.2);
-  g.lineTo(gq[0] + ch * 2.0, gq[1] - 2.2);
-  g.closePath(); g.fill();
-  g.strokeStyle = HD; g.lineWidth = 0.6; g.stroke();
+  g.moveTo(t[0][0], t[0][1]); g.lineTo(t[1][0], t[1][1]);
+  g.lineTo(t[2][0], t[2][1]); g.lineTo(t[3][0], t[3][1]); g.closePath(); g.fill();
 }
-// THE BARRELS POINT UP. §2.4 asks for the Flak Track's own read and
-// the Flak Track's read is a twin mount ELEVATED — [HYD]'s sprite has
-// the two tubes standing at roughly 45 degrees off the tub. Drawn flat
-// along the deck by `barrel()` they lay across the deckhouse roof as
-// two dark lines and read as handrails; angled they are the one thing
-// on her that breaks the outline upward, on the fleet's shortest hull.
-// ...and there are FOUR of them, because the Flak Track's read is now
-// a quad sheaf and §2.4 asks for the same gun on both units by name.
-// Two 2.4-wide tubes on a 52-px hull were the same 1-px-at-zoom-1
-// problem the halftrack had.
-for (var fb = -3; fb <= 3; fb += 2) {
-  var b0 = P(-L * 0.30, fb * 0.92, FR + 4.8), b1 = P(L * 0.12, fb * 0.92, FR + 10.0);
-  g.strokeStyle = GUN; g.lineWidth = 2.6;
+houseBlock(L * 0.66, L * 0.13, W * 0.54, FR + 3.0, FR + 5.6);
+houseBlock(-L * 0.70, L * 0.10, W * 0.46, FR + 3.0, FR + 5.0);    // and the red box aft
+
+// ---- the tall red gantry abaft the bow block ----------------------------- //
+(function () {
+  var gu = L * 0.34;
+  for (var sg = -1; sg <= 1; sg += 2) {
+    var p0 = P(gu, W * 0.56 * sg, FR + 3.0), p1 = P(gu, W * 0.56 * sg, FR + 8.6);
+    g.strokeStyle = HOUSE; g.lineWidth = 1.1;
+    g.beginPath(); g.moveTo(p0[0], p0[1]); g.lineTo(p1[0], p1[1]); g.stroke();
+  }
+  var x0 = P(gu, W * 0.56, FR + 8.2), x1 = P(gu, -W * 0.56, FR + 8.2);
+  g.strokeStyle = HL; g.lineWidth = 1.0;
+  g.beginPath(); g.moveTo(x0[0], x0[1]); g.lineTo(x1[0], x1[1]); g.stroke();
+})();
+
+// ---- khaki machinery packed round the mount ------------------------------ //
+box(-L * 0.10, W * 0.62, L * 0.22, W * 0.52, 4.6, '#999966');
+box(-L * 0.30, -W * 0.58, L * 0.18, W * 0.48, 4.0, '#666633');
+box(-L * 0.06, -W * 0.66, L * 0.14, W * 0.40, 3.6, '#999966');
+
+// ---- THE GUN: one thick white barrel with red bands, elevated ------------- //
+(function () {
+  var MU = -L * 0.16, MZ = FR + 3.0;
+  // the white housing it turns on
+  var hq = P(MU, 0, MZ);
+  g.fillStyle = '#cccccc';
+  g.beginPath(); g.ellipse(hq[0], hq[1], 4.2, 2.3, 0, 0, 6.29); g.fill();
+  g.fillStyle = '#ffffff';
+  g.beginPath(); g.ellipse(hq[0], hq[1] - 1.2, 3.4, 1.8, 0, 0, 6.29); g.fill();
+  g.fillStyle = '#999999';
+  g.beginPath(); g.ellipse(hq[0], hq[1] + 0.5, 4.2, 2.1, 0, 0, 6.29); g.fill();
+  // the barrel, up and forward at about 45 degrees, projected so it leans
+  // with the hull instead of standing at a fixed screen angle
+  var b0 = P(MU, 0, MZ + 2.4), b1 = P(L * 0.52, 0, MZ + 9.0);
+  g.strokeStyle = '#cccccc'; g.lineWidth = 4.2; g.lineCap = 'butt';
   g.beginPath(); g.moveTo(b0[0], b0[1]); g.lineTo(b1[0], b1[1]); g.stroke();
-  g.strokeStyle = GUN_L; g.lineWidth = 1.0;
-  g.beginPath(); g.moveTo(b0[0] - 0.5, b0[1]); g.lineTo(b1[0] - 0.5, b1[1]); g.stroke();
-}
-mast(L * 0.06, 0, 4.2);
+  g.strokeStyle = '#ffffff'; g.lineWidth = 1.8;                    // its lit upper side
+  g.beginPath(); g.moveTo(b0[0] - 1.3, b0[1]); g.lineTo(b1[0] - 1.3, b1[1]); g.stroke();
+  g.strokeStyle = '#666666'; g.lineWidth = 1.2;                    // and the shaded under
+  g.beginPath(); g.moveTo(b0[0] + 1.6, b0[1]); g.lineTo(b1[0] + 1.6, b1[1]); g.stroke();
+  // TWO RED BANDS, which is what names her against every other grey gun afloat
+  for (var bd = 0; bd < 2; bd++) {
+    var t0 = 0.30 + bd * 0.40, t1 = t0 + 0.14;
+    g.strokeStyle = HOUSE; g.lineWidth = 4.2;
+    g.beginPath();
+    g.moveTo(b0[0] + (b1[0] - b0[0]) * t0, b0[1] + (b1[1] - b0[1]) * t0);
+    g.lineTo(b0[0] + (b1[0] - b0[0]) * t1, b0[1] + (b1[1] - b0[1]) * t1);
+    g.stroke();
+  }
+  g.fillStyle = '#333333';                                         // the muzzle
+  g.beginPath(); g.ellipse(b1[0], b1[1], 1.6, 1.3, 0, 0, 6.29); g.fill();
+})();
+
+// ---- the pilot house, with PROJECTED glass ------------------------------- //
+box(L * 0.34, -W * 0.30, L * 0.22, W * 0.70, 6.0, shade(DECK, 1.30));
+(function () {
+  var a = P(L * 0.42, -W * 0.30 + W * 0.34, FR + 5.0);
+  var b = P(L * 0.26, -W * 0.30 + W * 0.34, FR + 5.0);
+  g.strokeStyle = GLASS; g.lineWidth = 1.8;
+  g.beginPath(); g.moveTo(a[0], a[1]); g.lineTo(b[0], b[1]); g.stroke();
+})();
 }
