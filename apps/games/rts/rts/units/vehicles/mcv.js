@@ -57,6 +57,15 @@ var BODY = (function (h, s, l) {
   else { r = c; g = 0; b = x; }
   return 'rgb(' + Math.round((r + m) * 255) + ',' + Math.round((g + m) * 255) + ',' + Math.round((b + m) * 255) + ')';
 })(hullHue, 13, 53);
+// AND FAR ENOUGH COOL TO ACTUALLY RENDER COOL. The first attempt at this used
+// values like #38384a — 56/56/74 — and 74 SNAPS TO 51, the same grid level as
+// 56, so it baked as pure #333333: the cast was invisible and the truck stayed
+// grey. On a six-level palette a tint only exists if its channel crosses a
+// BOUNDARY, and the boundaries sit at 25.5, 76.5, 127.5, 178.5. Checked each
+// literal across ten rungs of the ladder: the old values came out pure grey at
+// six to nine of them. The rip shows the ratio needed — its body #282c48 is
+// 40/44/72, blue at 1.8x red — and at that ratio these bake grey at 0-1 rungs.
+//
 // ...AND THEN COOL AGAIN, SAFELY. Neutralising these stopped the teal and left
 // the truck a flat grey lump — 572 px of #333333 and 460 of #666666 over its
 // whole lower body — when this file's own note says RA2's MCV "wears a
@@ -73,8 +82,13 @@ var BODY = (function (h, s, l) {
 // was laying 171 px of teal, 3.7% of the sprite, in STREAKS across its body
 // panels rather than as edge speckle. Each is now equal-channel at its own
 // luma, which is the fix PEDGE and GUN_L got for the same fault.
-var PAINT = '#86849c', RAIL = '#74748c', STEEL = '#b1b1b1', LIGHT = '#e3e3e3';
-var DARK = '#38384a', RUBBER = '#24242c', GLASS = '#181820';
+// The three bright tones had to follow, or the body went periwinkle and the
+// roof stayed grey. PAINT #86849c is 134/132/156 — ratio 1.16, which snaps to a
+// flat grey at most rungs — and STEEL and LIGHT were pure neutrals. The rip's
+// own bright body tones are #b8bcd8 and #9090b0, i.e. still cool at the top of
+// the range, so these carry the cast all the way up.
+var PAINT = '#8686c0', RAIL = '#7474a8', STEEL = '#b1b1f0', LIGHT = '#dcdcff';
+var DARK = '#383870', RUBBER = '#24244d', GLASS = '#181835';
 function surface(pts, color, center, unlit) {
   var p = pts[0], e = pts[1].map(function (v, i) { return v - p[i]; });
   var f = pts[2].map(function (v, i) { return v - p[i]; });
@@ -163,7 +177,7 @@ function tyre(u, v) {
     for (var q = 0; q < n; q++) { var t = q * Math.PI * 2 / n; hub.push([u + radius / KF * 0.64 * Math.cos(t), v + side * 1.44, z + radius * 0.64 * Math.sin(t)]); }
     surface(hub, LIGHT, [u, v, z]);
     var inset = hub.map(function (p) { return [u + (p[0] - u) * 0.79, p[1] + side * 0.03, z + (p[2] - z) * 0.79]; });
-    surface(inset, '#5c5c72', [u, v, z]);
+    surface(inset, '#5c5ca8', [u, v, z]);
     var boss = inset.map(function (p) { return [u + (p[0] - u) * 0.53, p[1] + side * 0.04, z + (p[2] - z) * 0.53]; });
     surface(boss, STEEL, [u, v, z]);
     for (var q = 0; q < 6; q++) {
@@ -184,9 +198,9 @@ function drum(u0, u1, v, z, radius, color) {
   });
   for (var q = 0; q < n; q++)
     surface([loops[0][q], loops[0][(q + 1) % n], loops[1][(q + 1) % n], loops[1][q]], color, [(u0+u1)/2, v, z]);
-  surface(loops[0], '#5c5c72', [(u0+u1)/2, v, z]);
+  surface(loops[0], '#5c5ca8', [(u0+u1)/2, v, z]);
   surface(loops[1], STEEL, [(u0+u1)/2, v, z]);
-  box(u0 + 0.28, u0 + 0.42, v - radius * 0.82, v + radius * 0.82, z - 0.12, z + 0.12, '#363644');
+  box(u0 + 0.28, u0 + 0.42, v - radius * 0.82, v + radius * 0.82, z - 0.12, z + 0.12, '#36366f');
 }
 // A vertical drum (axis along z) with vertical ribs — the folded
 // actuator housing at the very rear of the MCV.
@@ -270,7 +284,7 @@ profile([[10.8,6.0],[14.2,6.0],[15.1,3.9],[18.9,3.9],[19.5,5.9],[18.9,8.5],
 bevel(10.65,14.5,-6.55,6.55,12.1,13.7,0.5,BODY);
 surface([[17.39,-5.6,9.35],[17.39,5.6,9.35],[17.39,5.6,10.83],[17.39,-5.6,10.83]],GLASS,[14,0,7],true);
 box(17.41,17.5,-0.13,0.13,9.3,10.85,STEEL);
-box(17.43,17.5,-5.5,5.5,9.3,9.52,'#6e6e88');
+box(17.43,17.5,-5.5,5.5,9.3,9.52,'#6e6eb4');
 bevel(17.9,19.45,-6.8,6.8,2.5,4.5,0.45,STEEL);
 bevel(18.91,19.18,-4.8,4.8,4.75,7.5,0.1,STEEL);
 box(19.19,19.24,-3.65,3.65,5.0,7.1,GLASS);
@@ -308,7 +322,7 @@ bevel(-10.6,8.6,-6.1,6.1,10.2,11.6,0.5,STEEL);
 // seam survives only as a groove on the top face.
 box(-4.2,8.0,-5.2,5.2,11.4,15.6,NAVY);
 box(-4.0,7.8,-5.0,5.0,15.6,15.85,shade(NAVY,1.45));
-box(-3.8,7.6,-0.32,0.32,15.6,16.0,'#202028');
+box(-3.8,7.6,-0.32,0.32,15.6,16.0,'#202046');
 // A slate tarp band folds across the middle of the load — a desaturated
 // blue-grey that sits between the saturated navy channel and the light box.
 // Neutral periwinkle (R=G) to match the reference hull; a green-cast
@@ -331,7 +345,7 @@ for (var side=-1;side<=1;side+=2) {
   box(-15.0,-12.8,v-1.28,v+1.28,10.85,11.25,LIGHT);
 }
 bevel(-14.75,-12.05,-5.8,5.8,15.6,16.9,0.38,STEEL);
-box(-14.35,-12.8,-4.85,4.85,16.91,17.03,'#45455a');
+box(-14.35,-12.8,-4.85,4.85,16.91,17.03,'#45458d');
 // A retracted actuator collar at the very rear — one clean band, not
 // a cluster of exposed drums.
 bevel(-18.8,-17.45,-7.1,7.1,6.4,9.9,0.5,RAIL);

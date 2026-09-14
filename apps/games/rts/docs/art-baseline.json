@@ -341,8 +341,8 @@
     "mass.tightestBand6": 1.557,
     "hue.infantryOwnerMean": 0.1927,
     "hue.infantryBelowBudget": 5,
-    "hue.vehicleOwnerMean": 0.1549,
-    "hue.vehicleOwnerMax": 0.2563,
+    "hue.vehicleOwnerMean": 0.1561,
+    "hue.vehicleOwnerMax": 0.2712,
     "hue.maxImpostor": 0.1017,
     "aspect.navalOutsideRA2Band": 0,
     "aspect.navalWorstOffRA2": 0.19,
@@ -378,8 +378,8 @@
     "value.engineerLightPct": 0.0984,
     "value.engineerMarginOverNext": -0.0339,
     "colour.infantry.meanDist": 1.4103,
-    "colour.vehicle.meanDist": 1.0582,
-    "colour.vehicleAchromatic": 6,
+    "colour.vehicle.meanDist": 1.1007,
+    "colour.vehicleAchromatic": 5,
     "colour.naval.meanDist": 1.3667,
     "colour.air.meanDist": 1.2244,
     "colour.navalDarkest": 0,
@@ -1064,9 +1064,19 @@
     ],
     "closestVehicleColourPairs": [
       {
+        "a": "ifv",
+        "b": "mcv",
+        "dist": 0.029
+      },
+      {
         "a": "rhino",
         "b": "teslatank",
         "dist": 0.093
+      },
+      {
+        "a": "lancer",
+        "b": "prismtank",
+        "dist": 0.124
       },
       {
         "a": "mammoth",
@@ -1079,39 +1089,29 @@
         "dist": 0.171
       },
       {
-        "a": "ifv",
-        "b": "mcv",
-        "dist": 0.193
-      },
-      {
-        "a": "lancer",
-        "b": "prismtank",
-        "dist": 0.255
-      },
-      {
-        "a": "lancer",
-        "b": "drone",
-        "dist": 0.258
-      },
-      {
-        "a": "lancer",
-        "b": "mcv",
-        "dist": 0.332
-      },
-      {
         "a": "chronominer",
         "b": "warminer",
         "dist": 0.371
       },
       {
-        "a": "prismtank",
-        "b": "mcv",
-        "dist": 0.375
+        "a": "lancer",
+        "b": "ifv",
+        "dist": 0.376
+      },
+      {
+        "a": "ifv",
+        "b": "prismtank",
+        "dist": 0.382
       },
       {
         "a": "mirage",
         "b": "v3",
         "dist": 0.391
+      },
+      {
+        "a": "lancer",
+        "b": "mcv",
+        "dist": 0.402
       }
     ],
     "topImpostors": [
@@ -1158,11 +1158,11 @@
       "rocketeer": 0.2412,
       "harrier": 0.21,
       "kirov": 0.2074,
-      "lancer": 0.0984,
+      "lancer": 0.0959,
       "mammoth": 0.0655,
       "engineer": 0.2237,
       "dog": 0.0839,
-      "ifv": 0.0641,
+      "ifv": 0.0628,
       "mirage": 0.2402,
       "tanya": 0.154,
       "rhino": 0.1297,
@@ -1170,9 +1170,9 @@
       "v3": 0.1405,
       "teslatrooper": 0.1624,
       "ivan": 0.2782,
-      "drone": 0.2335,
+      "drone": 0.2402,
       "teslatank": 0.1224,
-      "prismtank": 0.2331,
+      "prismtank": 0.2318,
       "desolator": 0.2333,
       "yuri": 0.2688,
       "cleg": 0.25,
@@ -1189,7 +1189,7 @@
       "seascorp": 0.1217,
       "dread": 0.1694,
       "squid": 0,
-      "mcv": 0.2563
+      "mcv": 0.2712
     },
     "chromaByUnit": {
       "chronominer": 0.2265,
@@ -1201,11 +1201,11 @@
       "rocketeer": 0.14,
       "harrier": 0.0058,
       "kirov": 0.3147,
-      "lancer": 0.0863,
+      "lancer": 0.1338,
       "mammoth": 0.1913,
       "engineer": 0.2274,
       "dog": 0.6238,
-      "ifv": 0.1578,
+      "ifv": 0.2887,
       "mirage": 0.0404,
       "tanya": 0.3966,
       "rhino": 0.1628,
@@ -1213,9 +1213,9 @@
       "v3": 0.1106,
       "teslatrooper": 0.0992,
       "ivan": 0.3129,
-      "drone": 0.1217,
+      "drone": 0.1313,
       "teslatank": 0.1449,
-      "prismtank": 0.0973,
+      "prismtank": 0.1311,
       "desolator": 0.1319,
       "yuri": 0.1862,
       "cleg": 0.1528,
@@ -1232,7 +1232,7 @@
       "seascorp": 0.029,
       "dread": 0.076,
       "squid": 0.0495,
-      "mcv": 0.0575
+      "mcv": 0.2076
     },
     "hue": {
       "infantryOwnerMedian": 0.2102,
@@ -4111,7 +4111,7 @@
         "unit": "lancer",
         "clause": "exactly 2 house blocks, each 4-8 px, individually countable (gap >= 2 px, no fusing)",
         "ok": false,
-        "measured": "3 blocks, minor dims [15,4,4], gap 1",
+        "measured": "2 blocks, minor dims [15,5], gap 2",
         "want": "2 blocks / minor 4-8 px / gap >= 2",
         "note": "8-connected components of the house mask over 12 px, at the broadside octant. \"each 4-8 px\" is read as the MINOR dimension — see the block comment. THE DEFECT WAS A RENDERING ORDER BUG AND IT IS FIXED: the FAR flank's panel was painted after the chassis, so it lay on the deck instead of behind the hull and anti-aliased into the turret cheek, and what the 2026-09-06 pass measured as \"the cheek, 2 px from the plate\" was that fused blob — which is why raising the turret moved the gap by exactly zero, and it was never the cheek being pinned. Far panel under the hull, near panel on top: the cheek measures alone, the flank panel grows UPWARD to a 6 px minor, and the SILHOUETTE IS BYTE-IDENTICAL (5058 opaque px over eight bearings, before and after) so no mask metric can move. That constraint is load-bearing: the two configurations that DO deliver the row's old \">= 4 px\" both add mask — a raised turret cap (+15 opaque px a bearing) or the panel dropped onto the contact-shadow row (+13) — and both take `iou.groundCombat.mean` 0.4652 -> 0.4667, more than the whole of that gate's last gain. 6 + 4 + 6 is 16 rows of a 22-row sprite and only 14 exist between the turret cap and the track line",
         "module": "vehicle.js",
@@ -4272,9 +4272,9 @@
         "unit": "drone",
         "clause": "core in house hue",
         "ok": true,
-        "measured": 0.434,
+        "measured": 0.455,
         "want": ">= 0.35 of the core",
-        "note": "63 house px of 145 opaque in the core box x[9,21) y[2,15) — the middle 40% x 60% of the bbox, which excludes the leg tips at every bearing. The row states NO fraction; 0.35 is this file's reading of \"in house hue\", taken from the 38.7% the same row records for RA2's own [DRON] core",
+        "note": "66 house px of 145 opaque in the core box x[9,21) y[2,15) — the middle 40% x 60% of the bbox, which excludes the leg tips at every bearing. The row states NO fraction; 0.35 is this file's reading of \"in house hue\", taken from the 38.7% the same row records for RA2's own [DRON] core",
         "module": "vehicle.js",
         "refMatch": 1
       }

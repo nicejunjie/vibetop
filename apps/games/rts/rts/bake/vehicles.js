@@ -129,7 +129,14 @@ function bakeVehicle(col, kind, fac, anim) {
   // #707490 / #8084a0 / #9090b0 — slate-BLUE, not neutral — and ours was dead
   // grey, which is most of its 47.6% drab share. r and g identical, b raised:
   // cannot bake teal (see the Prism Tank's note), lands on grey and slate.
-  if (kind === 'lancer')       { hull = '#78788c'; deck = '#525266'; }   // pale steel with a dark top, as allied-grizzly-tank.png (VLIFT lifts it)
+  if (kind === 'lancer')       { hull = '#7878b8'; deck = '#525290'; }   // pale steel with a dark top, as allied-grizzly-tank.png (VLIFT lifts it)
+  // CROSSING A BOUNDARY, NOT JUST LEANING. The first cool values here were too
+  // timid — #4a4a5e is 74/74/94, and 94 SNAPS TO 102 only above f=0.82; below
+  // that it lands on 51 exactly as 74 does, so the colour baked pure #333333
+  // at six of ten rungs and the cast was invisible. On a six-level palette a
+  // tint exists only if its channel crosses a BOUNDARY (25.5, 76.5, 127.5,
+  // 178.5). The rip's own body is #282c48 — blue at 1.8x red — and at that
+  // ratio these bake grey at 0-1 rungs instead of six.
   // A COOL GREY THAT CANNOT GO TEAL: KEEP r == g EXACTLY. The Prism Tank's hull
   // was #4f4f4f, dead neutral, and marked on the sprite its deck and both
   // flanks are one flat grey — 527 px of #333333 and 395 of #666666, the whole
@@ -138,9 +145,9 @@ function bakeVehicle(col, kind, fac, anim) {
   // teal, and the reason is precise: teal needs snap(g) == snap(b) > snap(r),
   // which is IMPOSSIBLE when r and g are equal, because then snap(r) == snap(g)
   // too. So a cool grey built as r == g with only b raised can only ever land
-  // on grey or on navy/slate. Swept the whole ladder for #4a4a5e: #333333,
+  // on grey or on navy/slate. Swept the whole ladder for #4a4a8d: #333333,
   // #666666, #999999, #333366, #666699, #000033 — and no teal at any rung.
-  else if (kind === 'spectre') { hull = '#4a4a5e'; deck = '#30303f'; }   // dark gunmetal, as allied-prism-tank.png
+  else if (kind === 'spectre') { hull = '#4a4a74'; deck = '#303050'; }   // dark gunmetal, as allied-prism-tank.png
   // THE DECK WAS BAKING PURE GREY. #35352c is 53/53/44, and on this grid 44
   // rounds to the SAME cell as 53 — so the Apocalypse's largest visible surface
   // came out #333333 and the tank measured 76% grey against 9% olive, which is

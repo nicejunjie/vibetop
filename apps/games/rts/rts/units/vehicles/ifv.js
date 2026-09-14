@@ -48,7 +48,7 @@ var NAVY = 'rgb(' + cr.map(function (v) { return Math.round(18 + 150 * Math.pow(
 // mid). r and g identical with only b raised cannot produce teal at any rung,
 // so the cast comes back for free. STEEL_IV #9191ac is 145/145/172 and already
 // obeys the rule by accident; RUBBER goes cool the same way.
-var BODY = '#6a6a7e', STEEL_IV = '#9191ac', RUBBER = '#313140';
+var BODY = '#6a6ab0', STEEL_IV = '#9191ac', RUBBER = '#313160';
 function surface(pts, color, center, unlit) {
   var p = pts[0], e = pts[1].map(function (v, i) { return v - p[i]; });
   var f = pts[2].map(function (v, i) { return v - p[i]; });
@@ -142,7 +142,7 @@ function inclined(u, v, z, angle, length, width, height, color, decor) {
 }
 if (wantH) {
   [-9.0, -2.0, 6.7].forEach(function (u) { tyre(u, -5.7); tyre(u, 5.7); });
-  box(-11.8, 11.5, -4.2, 4.2, 3.0, 4.7, '#3a3a4a');
+  box(-11.8, 11.5, -4.2, 4.2, 3.0, 4.7, '#3a3a6e');
   profile([[-12, 4.4], [12, 4.4], [12, 5.7], [9.5, 7.0], [2.5, 7.0], [1.3, 8.2], [-11.2, 8.2], [-12, 7.3]], -4.75, 4.75, BODY);
   // Fender strips dip between the three arches, exposing the tyres.
   var skirt = [[-12.1, 4.3], [-11.8, 6.5], [-10.9, 7.1], [1.8, 7.1], [3.1, 6.4], [10.2, 6.4], [12.1, 5.6], [12.1, 3.8], [9.1, 3.8]];
