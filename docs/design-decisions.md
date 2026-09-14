@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_297 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_298 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
 - [Scheduled terminal messages ("resume when the token limit resets")](#scheduled-terminal-messages-resume-when-the-token-limit-resets)
@@ -320,6 +320,7 @@ _297 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [The real cause of "Files needs two clicks": Safari gives keyboard focus only to form controls (2026-09-12)](#the-real-cause-of-files-needs-two-clicks-safari-gives-keyboard-focus-only-to-form-controls-2026-09-12)
 - [The Browser stole the keyboard from whatever app you were using, because "active" meant two things (2026-09-13)](#the-browser-stole-the-keyboard-from-whatever-app-you-were-using-because-active-meant-two-things-2026-09-13)
 - [Shifted punctuation needs two presses inside Claude Code — what it is NOT (2026-09-13, open)](#shifted-punctuation-needs-two-presses-inside-claude-code-what-it-is-not-2026-09-13-open)
+- [The Files listing showed "just now" an hour later: the clock only ticked when the disk did (2026-09-13)](#the-files-listing-showed-just-now-an-hour-later-the-clock-only-ticked-when-the-disk-did-2026-09-13)
 
 <!-- END TOC -->
 
@@ -13468,3 +13469,51 @@ would kill whatever the user has running in it.
 **Watch out.** The VM's WebKit is WebKit-on-**Linux**; a clean run there does not
 exonerate Safari-on-macOS. That exact gap hid the cross-app focus bug earlier the
 same day for three rounds.
+
+## The Files listing showed "just now" an hour later: the clock only ticked when the disk did (2026-09-13)
+
+**Symptom.** A folder that nothing is writing to keeps whatever times it
+rendered with. Open Files on a fresh download and the row says "just now";
+come back after lunch and it still says "just now". Every row is wrong by
+however long the folder has been on screen, and the newest file — the one the
+relative time exists to point at — is the most wrong.
+
+**Cause.** Two mechanisms that each looked complete. The rows show
+`fmtRel(e.mtime)` ("just now", "10m ago"), computed **once, at render time**.
+The 4s auto-refresh (v1.19.34x) re-lists the folder but calls `load()` only
+when `sigOf(entries)` differs — names, sizes, mtimes, isDir. So the listing
+follows the *disk* faithfully and the *clock* not at all: with no file change
+there is no re-render, and with no re-render the labels never recompute. The
+signature was doing exactly its job — it exists to keep scroll, selection and
+keyboard focus through a poll — and that is why nobody noticed it also gated
+the one thing on screen that changes without the disk.
+
+**Fix.** Separate "the folder changed" from "time passed". `FilesxCore.retickRows()`
+rewrites the two time labels (`.mt`, and the mobile `.meta` subtitle) of rows
+that are **already rendered**, in place, every 30s (under the 45s "just now"
+boundary), and on return-to-front. It writes only labels whose text actually
+differs, resolves each element through `dataset.i` rather than its position
+(the filter and the grid both leave the DOM out of step with `rows`), and
+returns nothing to the caller but a count — it cannot renumber, re-sort or
+re-fetch anything. With `exactDates` on it returns immediately: an absolute
+date does not go stale.
+
+**Rejected: put `mtime`-freshness into the poll signature / poll faster.** Both
+reach the label by re-rendering, and `renderList()` costs scroll position,
+selection and keyboard focus — the exact three things the two-click focus bug
+had just spent three days restoring (see the two entries above). Paying that
+every 30s, in every open Files tab, to fix a text string, would have traded a
+visible bug for an invisible one.
+
+**Rejected: a `<time>` element with a browser-native relative formatter.**
+`Intl.RelativeTimeFormat` formats, it does not schedule; something still has to
+re-run it. There is no auto-updating primitive, so this is the same tick with
+more moving parts.
+
+**Test.** `apps/everyday/files/filesx-core.test.js` — seven cases, all proven
+red against the pre-fix sources: a row rendered as "just now" reads "10m ago"
+from the same node ten minutes later; an unchanged label is not rewritten
+(the tick runs forever — churning the DOM would fight text selection and
+screen readers); `exact` skips everything; rows resolve by `dataset.i`; a
+folder gets no size half; and one assertion on the shipped `filesx.html` that
+the page actually runs the tick, because the formatting was never the bug.
