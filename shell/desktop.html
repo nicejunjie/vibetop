@@ -180,7 +180,9 @@
   .cu-strip {
     flex: 0 0 auto; min-height: 26px; display: flex; align-items: center;
     flex-wrap: wrap; gap: 6px 8px; box-sizing: border-box; position: relative;
-    padding: 4px 30px 4px 10px; font-size: 12px; line-height: 1.3; white-space: normal;
+    /* The ✕ lives on the LEFT, so the reserved gutter is on the left too (the
+       total is unchanged, so nothing about the metric columns moves). */
+    padding: 4px 10px 4px 30px; font-size: 12px; line-height: 1.3; white-space: normal;
     background: #10161f; border-bottom: 1px solid #222c3a; color: #9fb0c0;
     font-family: system-ui, sans-serif; user-select: none;
   }
@@ -224,9 +226,12 @@
      A width breakpoint cannot decide this: "resets 5m (2:00 PM)" and "resets
      2d 20h (Thu 10:00 AM)" differ by 60px on the same screen. */
   .cu-strip .cu-at[hidden], .cu-strip .cu-dim[hidden] { display: none; }
-  /* ✕ pinned to the top-right corner (out of flow) so it never orphans onto its
-     own wrapped line. */
-  .cu-strip .cu-x { position: absolute; top: 3px; right: 5px; cursor: pointer; color: #6a7a8a; padding: 1px 7px; border-radius: 4px; line-height: 1.3; }
+  /* ✕ pinned to the top-LEFT corner (out of flow) so it never orphans onto its
+     own wrapped line. Left, not right, because every floating window closes at
+     its top-right: a ✕ there on a full-width strip directly above them reads as
+     one of theirs, and the one it actually belongs to turns the feature off on
+     every device (user, 2026-09-13). Opposite corner, opposite meaning. */
+  .cu-strip .cu-x { position: absolute; top: 3px; left: 5px; cursor: pointer; color: #6a7a8a; padding: 1px 7px; border-radius: 4px; line-height: 1.3; }
   .cu-strip .cu-x:hover { background: rgba(255,255,255,0.08); color: #c0d0e0; }
   /* Narrow screens: stack the metrics as full-width rows with the brand on its
      own line, so the two chip BOXES share a left edge (and their internal
@@ -261,7 +266,9 @@
   @media (max-width: 340px) {
     .cu-strip .cu-seg { grid-template-columns: 3.2em 50px 2.3em 1fr; gap: 5px; }
     .cu-strip .cu-bar { width: 50px; }
-    .cu-strip { padding-left: 6px; }
+    /* The left gutter is the ✕'s seat now and cannot shrink; take the same few
+       px off the free side instead, so the reset time keeps its room. */
+    .cu-strip { padding-right: 6px; }
   }
   /* toggle row's On state gets a green dot, like a running app */
   .sm-item[data-id="claudeusage"].cu-on .sm-name::after,
