@@ -119,7 +119,7 @@ var drawFront = function () {
   // the cluster the rip shows sitting just above the scoop teeth
   for (i2 = -1; i2 <= 1; i2++)
     isoBox(g, nx + fx * 3.4 + px * i2 * 3.0, ny - 1.9 + fy * 3.4 + py * i2 * 3.0,
-           1.5, 2.4, 2.9, a, i2 ? shade(VACC.chronominer, 1.16) : VACC.chronominer, '#2a1f47');
+           1.5, 2.4, 2.9, a, i2 ? shade(VACC.chronominer, 1.16) : VACC.chronominer, '#2b2b2b');
   // THE FEED PIPES WERE READING AS EYES. Three small pucks with a #d9d9d9 cap
   // on a violet drum: at the bearings where two of them face the camera they
   // are a pair of pale circles on a coloured mass, and the miner acquired a
@@ -172,7 +172,12 @@ var drawFront = function () {
   }
   g.fillStyle = shade(VACC.chronominer, dig ? 0.82 : 0.70);   // disc
   g.beginPath(); g.ellipse(gxx, gyy, 2.4, 1.5, 0, 0, 6.29); g.fill();
-  outline(g, '#2a1f47');
+  // AN OUTLINE SHOULD RECEDE, NOT ADD A HUE. #2a1f47 is 42/31/71 and its ladder
+  // includes #330033 — a saturated magenta — so the gear wore a dark magenta
+  // ring and the core blocks were edged in it, which at map size is the busiest
+  // thing on the nose. Neutral dark: it reads as a shadowed edge and lets the
+  // lavender inside it be the only violet up there.
+  outline(g, '#2b2b2b');
   // A FILLED BRIGHT ELLIPSE ON A ROUND FACE IS AN EYE. The "lit rim" was
   // 2.3 x 1.3 of #9966cc laid over a 3.3 x 2.0 disc — i.e. the rim covered
   // most of the disc, so the gear baked as one solid magenta circle, the

@@ -378,7 +378,7 @@
     "value.engineerLightPct": 0.0984,
     "value.engineerMarginOverNext": -0.0339,
     "colour.infantry.meanDist": 1.4103,
-    "colour.vehicle.meanDist": 1.0966,
+    "colour.vehicle.meanDist": 1.0918,
     "colour.vehicleAchromatic": 5,
     "colour.naval.meanDist": 1.3664,
     "colour.air.meanDist": 1.2244,
@@ -1089,14 +1089,14 @@
         "dist": 0.16
       },
       {
+        "a": "chronominer",
+        "b": "warminer",
+        "dist": 0.245
+      },
+      {
         "a": "mirage",
         "b": "v3",
         "dist": 0.317
-      },
-      {
-        "a": "chronominer",
-        "b": "warminer",
-        "dist": 0.371
       },
       {
         "a": "lancer",
@@ -1149,7 +1149,7 @@
       }
     ],
     "ownerPctByUnit": {
-      "chronominer": 0.1108,
+      "chronominer": 0.1107,
       "warminer": 0.1292,
       "rifle": 0.1968,
       "conscript": 0.142,
@@ -1192,7 +1192,7 @@
       "mcv": 0.2662
     },
     "chromaByUnit": {
-      "chronominer": 0.2265,
+      "chronominer": 0.2093,
       "warminer": 0.3374,
       "rifle": 0.3947,
       "conscript": 0.3281,
