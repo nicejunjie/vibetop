@@ -34,11 +34,11 @@ function drawHarrier(C) {
 // on the grey diagonal, so no rung of the ladder can fall onto a hue — in
 // particular not the 240 that #6e7480 would have snapped to, which is the
 // navy player's own colour on a jet either player can own.
-var JET = '#6b6f75', JETL = '#9ba0a6', JETD = '#303338', BELLY = '#d5dae2', NOSE = '#eef1f5';
+var JET = '#6e6e6e', JETL = '#9f9f9f', JETD = '#303338', BELLY = '#d9d9d9', NOSE = '#f1f1f1';
 var farH = py < 0 ? 1 : -1;
 // The wing is the LIGHTER of the two greys, as both references have it —
 // not a shade() of the fuselage, which put it a half-step off the grid.
-var wingTop = '#9ba0a6', wingEdge = JETD;
+var wingTop = '#9f9f9f', wingEdge = JETD;
 // A swept wing: root from t0 to t1, tip from tt0 to tt1 at `span`
 // out along the ground perpendicular; s0 picks an inner start so the
 // same shape can be overdrawn as a house-colour tip.
@@ -56,7 +56,7 @@ function wing(side, t0, t1, tt0, tt1, span, fill, s0, edge) {
 function missile(side) {
   var m0 = pt(-0.08), m1 = pt(-0.44);
   var ox2 = px * side * 4.4, oy2 = py * side * 4.4 + 1.3;
-  g.strokeStyle = '#e8ecf2'; g.lineWidth = 1.5; g.lineCap = 'round';
+  g.strokeStyle = '#ebebeb'; g.lineWidth = 1.5; g.lineCap = 'round';
   g.beginPath(); g.moveTo(m0[0] + ox2, m0[1] + oy2); g.lineTo(m1[0] + ox2, m1[1] + oy2); g.stroke();
   g.strokeStyle = col; g.lineWidth = 1.6;
   g.beginPath(); g.moveTo(m0[0] + ox2, m0[1] + oy2); g.lineTo(m0[0] + ox2 + (m1[0] - m0[0]) * 0.26, m0[1] + oy2 + (m1[1] - m0[1]) * 0.26); g.stroke();

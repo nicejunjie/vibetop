@@ -58,7 +58,7 @@ var drawRig3 = function () {
     var r1x = cx + fx * 6.8 + px * 2.6 * sg, r1y = by - 13.2 + fy * 6.8 + py * 2.6 * sg;
     g.strokeStyle = '#2b2f36'; g.lineWidth = 2.6; g.lineCap = 'round';
     g.beginPath(); g.moveTo(r0x, r0y); g.lineTo(r1x, r1y); g.stroke();
-    g.strokeStyle = '#7d848f'; g.lineWidth = 1.0;
+    g.strokeStyle = '#838383'; g.lineWidth = 1.0;
     g.beginPath(); g.moveTo(r0x, r0y - 0.9); g.lineTo(r1x, r1y - 0.9); g.stroke();
   }
   isoBox(g, cx + fx * 5.4, by - 10.4 + fy * 5.4, 1.8, wid * 0.44, 5.4,

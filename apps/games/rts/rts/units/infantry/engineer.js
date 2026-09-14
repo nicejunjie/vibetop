@@ -16,7 +16,7 @@ function drawEngineer(C) {
 // one Engineer sprite between the armies, so only the headgear splits:
 // the Directorate's amber hard hat (with the moulded crest ridge that
 // names it at 1:1), the Collective's soft grey field cap.
-var SHIRT = '#efece1';
+var SHIRT = '#ececec';
 // A PLANTED STANCE, wider than any soldier's. The Engineer, the Spy and
 // Tanya are three same-size two-legged figures — RA2 cannot separate
 // them as black shapes either (§1.2) — and the two levers §1.5 leaves
@@ -73,7 +73,7 @@ g.fillStyle = '#6d5230';                                      // brown tool belt
 g.fillRect(cx - 3.4, by - 12.8, 6.8, 1.7);                    // ...but only across the middle,
 g.fillStyle = '#c9a94a';                                      // so the waistcoat keeps its
 g.fillRect(cx - 0.9, by - 12.6, 1.9, 1.3);                    // corners and its house colour
-g.fillStyle = '#8d9099';                                      // spanner on the belt
+g.fillStyle = '#909090';                                      // spanner on the belt
 g.fillRect(cx + 1.6, by - 12.6, 1.6, 1.3);
 g.fillStyle = SHIRT;                                          // shirt at the left collar
 g.beginPath();
@@ -112,7 +112,7 @@ arms(5.7, by - 18.4, 2.8, 6.4, SHIRT, function (i, x, y) {
     g.fillRect(tbx - 3.0, tby + 0.3, 6.0, 1.1);
     g.fillStyle = shade(col, 0.86);                           // latch band
     g.fillRect(tbx - 3.1, tby + 2.6, 6.2, 1.0);
-    g.fillStyle = '#8d9099';                                  // steel catch
+    g.fillStyle = '#909090';                                  // steel catch
     g.fillRect(tbx - 0.7, tby + 2.3, 1.4, 1.5);
   }
 });
@@ -128,7 +128,7 @@ if (sov) {
   // so the head goes to the top of the value range and the shape goes
   // back to a hard hat, matching the Directorate Engineer it shares a
   // sprite with. Rule 10's one bright anchor, at the head.
-  var CAP = '#eceadf';
+  var CAP = '#e9e9e9';
   helmet(by - 23.3, 2.95, CAP, 1.05);
   g.fillStyle = edge(CAP, 0.78);                              // moulded crest ridge
   g.fillRect(cx - 0.7, by - 26.2, 1.4, 2.9);

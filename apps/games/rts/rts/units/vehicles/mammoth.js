@@ -24,7 +24,7 @@ if (wantH) {
   // Slim envelope pass: the Apocalypse carries its weight along a
   // long track run. Narrow track spacing, a low skirt and a thin
   // glacis leave the twin barrels to establish the heavy silhouette.
-  tracks(mmLen * 1.10, 4.2, wid * 0.22, '#969d93', mmOff);
+  tracks(mmLen * 1.10, 4.2, wid * 0.22, '#9a9a9a', mmOff);
   chassis(cx, by - 1.05, mmLen * 0.95, wid * 0.58, 4.35, hull, dark, 4.35, 0.9);
   deckPlate(-0.35, mmLen * 0.70, wid * 0.37, 6.6, shade(hull, 1.06));
   // A low engine deck at the rear and a short front glacis step give
@@ -67,9 +67,9 @@ if (wantH) {
       var mmY = by - 0.7 + fy * mmU + py * (wid * mmOff + mmHw * 0.94) * nearS - 3.8 * 0.46;
       g.fillStyle = '#171a1d';
       g.beginPath(); g.ellipse(mmX, mmY, 1.58, 1.34, 0, 0, 6.29); g.fill();
-      g.fillStyle = '#969b90';
+      g.fillStyle = '#989898';
       g.beginPath(); g.ellipse(mmX, mmY - 0.20, 0.84, 0.66, 0, 0, 6.29); g.fill();
-      g.fillStyle = '#303631';
+      g.fillStyle = '#343434';
       g.beginPath(); g.ellipse(mmX, mmY - 0.25, 0.32, 0.26, 0, 0, 6.29); g.fill();
     }
     for (var mmE = -1; mmE <= 1; mmE += 2) {
@@ -77,7 +77,7 @@ if (wantH) {
       var mmEY = by - 0.7 + fy * mmSt * mmE + py * (wid * mmOff + mmHw * 0.94) * nearS - 3.8 * 0.46;
       g.fillStyle = '#101216';
       g.beginPath(); g.ellipse(mmEX, mmEY, 1.98, 1.72, 0, 0, 6.29); g.fill();
-      g.strokeStyle = '#969b90'; g.lineWidth = 0.65;
+      g.strokeStyle = '#989898'; g.lineWidth = 0.65;
       g.beginPath(); g.ellipse(mmEX, mmEY - 0.20, 1.02, 0.84, 0, 0, 6.29); g.stroke();
     }
   }

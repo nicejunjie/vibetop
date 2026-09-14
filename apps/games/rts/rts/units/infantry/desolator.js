@@ -146,7 +146,7 @@ wpn(function () {
   g.fillStyle = '#5b6169';                                     // barrel body
   g.beginPath(); g.roundRect(cx - 0.4, gy0, 5.8, 3.4, 1.2); g.fill();
   outline(g, '#232629');
-  g.fillStyle = '#7f868f';                                     // lit top of the tube
+  g.fillStyle = '#858585';                                     // lit top of the tube
   g.fillRect(cx - 0.1, gy0 + 0.3, 5.2, 1.0);
   g.fillStyle = '#3d4249';                                     // cooling bands
   for (var db = 0; db < 3; db++) g.fillRect(cx + 1.0 + db * 1.4, gy0 + 0.3, 0.7, 2.8);

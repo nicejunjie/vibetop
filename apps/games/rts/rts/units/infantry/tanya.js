@@ -78,7 +78,7 @@ arms(5.1, by - 18.8, 2.2, 6.2, T.skin, function (i, x, y) {
   g.moveTo(gxp - i * 1.3, gyp - 0.4); g.lineTo(gxp + i * 0.5, gyp - 0.4);
   g.lineTo(gxp + i * 0.9, gyp + 1.6); g.lineTo(gxp - i * 0.7, gyp + 1.6);
   g.closePath(); g.fill();
-  g.fillStyle = '#a7afba';                                    // slide glint
+  g.fillStyle = '#aeaeae';                                    // slide glint
   g.fillRect(gxp + i * 1.0 - 0.5, gyp + 1.0, 1.0, 2.6);
 });
 

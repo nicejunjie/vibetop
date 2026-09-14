@@ -109,10 +109,10 @@ var depBox = function (ox, oy, qw, qh, pal) {
 
 if (sov) {
   // ---- Collective Service Depot -------------------------------------
-  var SDP_CON = '#a0a496', SDP_COND = '#4b4f44', SDP_CONL = '#bcbfad';
+  var SDP_CON = '#a1a1a1', SDP_COND = '#4b4f44', SDP_CONL = '#bcbcbc';
   var SDP_BRK = '#8d7159', SDP_BRKL = '#a98a6c', SDP_BRKD = '#3c2d21';
   var SDP_IRN = '#20242b', SDP_IRND = '#0b0d11', SDP_IRNL = '#5a626d';
-  var SDP_SIL = '#9aa0a8', SDP_SILL = '#d6dbe1';
+  var SDP_SIL = '#9f9f9f', SDP_SILL = '#dadada';
   var SDP_TNK = '#c2b34a', SDP_HAZ = '#e8bc22';
 
   // ---- the octagonal repair pad --------------------------------------
@@ -163,9 +163,9 @@ if (sov) {
 
   // ---- the works, off the back-left corner ---------------------------
   var swx = cx - fw * 0.64, swy = baseY - fh * 0.22;
-  g.fillStyle = '#7c8073';                                    // works slab
+  g.fillStyle = '#7d7d7d';                                    // works slab
   plot(g, swx + fw * 0.04, swy + fh * 0.20, fw * 0.62, fh * 0.62); g.fill();
-  outline(g, '#3c4038');
+  outline(g, '#3e3e3e');
   g.fillStyle = 'rgba(0,0,0,.22)';
   plot(g, swx + fw * 0.04, swy + fh * 0.20, fw * 0.44, fh * 0.44); g.fill();
 
@@ -363,9 +363,9 @@ if (sov) {
   // ---- Directorate Service Depot -------------------------------------
   var DEP_YEL = '#eda01a', DEP_YELL = '#ffdc6a', DEP_YELD = '#8a5804';
   var DEP_NAV = '#3b4354', DEP_NAVL = '#5d657a', DEP_NAVD = '#151a26';
-  var DEP_SIL = '#b6bac6', DEP_SILL = '#eef1f6', DEP_SILD = '#5f646f';
+  var DEP_SIL = '#bababa', DEP_SILL = '#f1f1f1', DEP_SILD = '#5f646f';
   var DEP_RIM = '#dd8a12', DEP_RIML = '#ffc84e', DEP_RIMD = '#6a3f04';
-  var DEP_CON = '#9b9787', DEP_COND = '#4a4739', DEP_CONL = '#b8b4a1';
+  var DEP_CON = '#969696', DEP_COND = '#4a4739', DEP_CONL = '#b3b3b3';
 
   // The Directorate yard is the same building as the Collective one:
   // RA2 gives both a big flat APRON that a vehicle drives onto, and a

@@ -203,7 +203,7 @@ arms(6.3, by - 18.6, 2.9, 5.4, shade(T.coat, 1.24), function (i, x, y) {
   g.beginPath(); g.ellipse(cx + 6.8, ry + 1.0, 2.0, 1.9, 0, 0, 6.29); g.fill();
   g.fillStyle = '#4fdcff';                                     // the coil ring itself
   g.fillRect(cx + 6.2, ry - 0.6, 1.4, 3.4);
-  g.fillStyle = '#e6fbff';                                     // its hot centre
+  g.fillStyle = '#f5f5f5';                                     // its hot centre
   g.fillRect(cx + 6.45, ry + 0.1, 0.9, 1.9);
   g.restore();
   g.strokeStyle = '#9fb2c6'; g.lineWidth = 1.3;                // emitter fork

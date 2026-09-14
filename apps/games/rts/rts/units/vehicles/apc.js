@@ -71,7 +71,7 @@ if (wantH) {
   isoBox(g, brx + fx * 6.0, bry - 2.2 + fy * 6.0, 1.0, wid * 0.20, 2.4, a, '#232a33', '#0e1115');
   g.fillStyle = 'rgba(190,210,228,.36)';
   g.beginPath(); g.ellipse(brx + fx * 6.4, bry - 3.6 + fy * 6.4, 1.8, 0.8, 0, 0, 6.29); g.fill();
-  g.strokeStyle = '#8d94a0'; g.lineWidth = 0.9;                 // a short mast with a lamp
+  g.strokeStyle = '#939393'; g.lineWidth = 0.9;                 // a short mast with a lamp
   g.beginPath();
   g.moveTo(brx - fx * 5.0, bry - 5.4 - fy * 5.0);
   g.lineTo(brx - fx * 5.0, bry - 8.0 - fy * 5.0); g.stroke();

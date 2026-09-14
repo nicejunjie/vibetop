@@ -54,7 +54,7 @@ var BODY = (function (h, s, l) {
   else { r = c; g = 0; b = x; }
   return 'rgb(' + Math.round((r + m) * 255) + ',' + Math.round((g + m) * 255) + ',' + Math.round((b + m) * 255) + ')';
 })(hullHue, 13, 53);
-var PAINT = '#86849c', RAIL = '#71788b', STEEL = '#aab3b9', LIGHT = '#dfe5df';
+var PAINT = '#86849c', RAIL = '#71788b', STEEL = '#b1b1b1', LIGHT = '#e3e3e3';
 var DARK = '#333d49', RUBBER = '#232629', GLASS = '#111b22';
 function surface(pts, color, center, unlit) {
   var p = pts[0], e = pts[1].map(function (v, i) { return v - p[i]; });
@@ -137,7 +137,7 @@ function tyre(u, v) {
     loops.push(loop);
   });
   for (var row = 0; row < 3; row++) for (var q = 0; q < n; q++)
-    surface([loops[row][q], loops[row][(q + 1) % n], loops[row + 1][(q + 1) % n], loops[row + 1][q]], row === 1 && q % 2 ? '#353637' : RUBBER, [u, v, z]);
+    surface([loops[row][q], loops[row][(q + 1) % n], loops[row + 1][(q + 1) % n], loops[row + 1][q]], row === 1 && q % 2 ? '#363636' : RUBBER, [u, v, z]);
   for (var side = -1; side <= 1; side += 2) {
     surface(loops[side < 0 ? 0 : 3], RUBBER, [u, v, z]);
     var hub = [];
@@ -165,7 +165,7 @@ function drum(u0, u1, v, z, radius, color) {
   });
   for (var q = 0; q < n; q++)
     surface([loops[0][q], loops[0][(q + 1) % n], loops[1][(q + 1) % n], loops[1][q]], color, [(u0+u1)/2, v, z]);
-  surface(loops[0], '#596066', [(u0+u1)/2, v, z]);
+  surface(loops[0], '#5f5f5f', [(u0+u1)/2, v, z]);
   surface(loops[1], STEEL, [(u0+u1)/2, v, z]);
   box(u0 + 0.28, u0 + 0.42, v - radius * 0.82, v + radius * 0.82, z - 0.12, z + 0.12, '#343a3e');
 }

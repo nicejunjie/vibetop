@@ -90,13 +90,13 @@ var bx0 = cx + 3.4, by0 = by - 12.8 + fy;                     // grip, at the ri
 var bx1 = cx + 7.4, by1 = by - 35.4 - fy;                     // muzzle, a head above the helmet
 g.strokeStyle = '#23262c'; g.lineWidth = 4.6; g.lineCap = 'butt';
 g.beginPath(); g.moveTo(bx0, by0); g.lineTo(bx1, by1); g.stroke();
-g.strokeStyle = '#a9b2bd'; g.lineWidth = 2.6;                 // pale steel barrel
+g.strokeStyle = '#b1b1b1'; g.lineWidth = 2.6;                 // pale steel barrel
 g.beginPath(); g.moveTo(bx0, by0); g.lineTo(bx1, by1); g.stroke();
-g.strokeStyle = '#d3dae2'; g.lineWidth = 1.0;                 // one edge highlight, no more:
+g.strokeStyle = '#d9d9d9'; g.lineWidth = 1.0;                 // one edge highlight, no more:
 g.beginPath();                                                // rungs of cooling rings up a
 g.moveTo(bx0 - 0.7, by0 - 0.4);                               // pale bore turned the cannon
 g.lineTo(bx1 - 0.7, by1 + 0.6); g.stroke();                   // into a LADDER
-g.fillStyle = '#dde3ea';                                      // muzzle brake
+g.fillStyle = '#e2e2e2';                                      // muzzle brake
 g.beginPath(); g.roundRect(bx1 - 2.4, by1 - 1.0, 4.8, 2.6, 0.8); g.fill();
 outline(g, '#4a5058');
 g.fillStyle = '#3b414a';                                      // a single collar at the breech
@@ -126,7 +126,7 @@ g.fillRect(cx - 0.4, by - 14.6 + fy, 1.1, 0.75);
 }, true);                                                     // UPRIGHT — see wpn()
 
 face(by - 21.2);
-helmet(by - 23.1, 3.15, '#8b929b', 1.0);                      // plain steel helmet
+helmet(by - 23.1, 3.15, '#919191', 1.0);                      // plain steel helmet
 g.fillStyle = '#2a2d33';                                      // chin strap
 g.fillRect(cx - 2.7, by - 19.4, 5.4, 0.8);
 g.restore();

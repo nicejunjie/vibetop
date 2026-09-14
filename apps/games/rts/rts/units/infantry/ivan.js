@@ -145,7 +145,7 @@ arms(5.5, by - 19.0, 2.7, 6.4, JACKET, function (i, x, y) {
     g.beginPath();                                            // fuse, rimmed so it survives
     g.moveTo(dbx + 0.2, dby + 0.2); g.lineTo(dbx + 1.3, dby - 1.5);
     g.lineTo(dbx + 2.5, dby - 2.0); g.stroke();
-    g.strokeStyle = '#b6bdc7'; g.lineWidth = 0.9;
+    g.strokeStyle = '#bcbcbc'; g.lineWidth = 0.9;
     g.beginPath();
     g.moveTo(dbx + 0.2, dby + 0.2); g.lineTo(dbx + 1.3, dby - 1.5);
     g.lineTo(dbx + 2.5, dby - 2.0); g.stroke();

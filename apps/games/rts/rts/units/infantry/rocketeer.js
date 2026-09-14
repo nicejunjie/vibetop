@@ -25,14 +25,14 @@ function drawRocketeer(C) {
 // not: a multiplier on `coat` moves almost nothing, because what you
 // see of him is mostly owner colour and this suit const, neither of
 // which the ladder touches. The lever is here.
-var RS = '#ccd3db', RSD = shade(RS, 0.64), RSL = shade(RS, 1.22);
+var RS = '#d2d2d2', RSD = shade(RS, 0.64), RSL = shade(RS, 1.22);
 var fl = [5.2, 7.4, 6.2, 8.0, 5.6, 6.9][gt.ph], fw2 = [2.0, 2.5, 2.2, 2.6, 2.1, 2.4][gt.ph];
 // jet flames first, behind the legs: white-blue core in an orange sheath
 for (ar = -1; ar <= 1; ar += 2) {
   var jx = cx + ar * 4.6, jy = by - 8.4;
   g.fillStyle = 'rgba(255,140,40,.75)';
   g.beginPath(); g.moveTo(jx - fw2, jy); g.lineTo(jx + fw2, jy); g.lineTo(jx, jy + fl + 1.5); g.closePath(); g.fill();
-  g.fillStyle = '#dff2ff';
+  g.fillStyle = '#eeeeee';
   g.beginPath(); g.moveTo(jx - fw2 * 0.5, jy); g.lineTo(jx + fw2 * 0.5, jy); g.lineTo(jx, jy + fl * 0.72); g.closePath(); g.fill();
 }
 // legs hang together: two narrow trouser columns, boots toe-down
@@ -73,7 +73,7 @@ for (ar = -1; ar <= 1; ar += 2) {
   g.fillRect(tx - 2.2, by - 13.6, 4.4, 0.9);
   g.fillStyle = '#3a3f47';                                    // steel cap
   g.beginPath(); g.ellipse(tx, by - 19.9, 2.3, 1.0, 0, 0, 6.29); g.fill();
-  g.fillStyle = '#8b939d';
+  g.fillStyle = '#929292';
   g.beginPath(); g.ellipse(tx - 0.4, by - 20.1, 1.2, 0.5, 0, 0, 6.29); g.fill();
 }
 g.fillStyle = RS;                                             // suit torso
@@ -129,7 +129,7 @@ g.beginPath(); g.roundRect(cx + 5.2, by - 11.6, 2.6, 2.2, 0.8); g.fill();
 // posture for a man who is standing on something.
 carbine(cx + 1.4, by - 10.6, cx + 7.6, by - 8.4, 1.7);          // carried low, off the hip
 face(by - 21.9);
-helmet(by - 23.7, 3.3, '#aeb5bf', 0.95);                       // steel dome, not house colour
+helmet(by - 23.7, 3.3, '#b4b4b4', 0.95);                       // steel dome, not house colour
 // A SEALED FLIGHT HELMET — there is no face in it. §2.1's read for him
 // is "AIR, not ground", and the thing that says a man is not walking is
 // that he has a flight helmet on: RA2's plate gives him a full mirrored
@@ -154,7 +154,7 @@ if (!FA.back) {
   g.closePath(); g.fill();
   g.fillStyle = 'rgba(210,235,255,.75)';
   g.fillRect(vhx - 2.4 * vw, by - 23.4, 1.1 * vw, 0.7);
-  g.fillStyle = '#7d848f';                                     // the visor's steel surround
+  g.fillStyle = '#838383';                                     // the visor's steel surround
   g.fillRect(vhx - 3.2 * vw, by - 20.8, 6.4 * vw, 0.7);
 }
 g.restore();

@@ -20,8 +20,8 @@
 function bakeShip(col, kind, fac) {
   var sov = fac === 'col';
   var HOUSE = col, HD = shade(col, 0.74), HL = shade(col, 1.24);
-  var GUN = '#191b20', GUN_L = '#5b616b', STEEL = '#9aa0a8', DKSTEEL = '#4a505a';
-  var GLASS = '#7fb6d8', WHITE = '#e6eaf0';
+  var GUN = '#1b1b1b', GUN_L = '#626262', STEEL = '#9e9e9e', DKSTEEL = '#515151';
+  var GLASS = '#7fb6d8', WHITE = '#eaeaea';
   // Hull colours. BOTH fleets wear GREY — that is what the rips show, and it
   // was not ours to invent. `library/dread.png` and `library/seascorp.png` are
   // the Soviet navy in its own remap, and both hulls are a flat neutral
@@ -100,7 +100,12 @@ function bakeShip(col, kind, fac) {
   // olive-green, which is none of the three, and the pale deck is the thing
   // that makes the house-colour side panels read at all. BOOT, which is
   // shade(HULL, 0.34), draws the skirt for free once the deck is pale.
-  if (kind === 'lcraft')   { HULL = '#8f8f8f'; DECK = '#5a5a5a'; }
+  // AND THE DECK HAS TO BE PALE. This file's own note above says the reference
+  // is "a near-WHITE deck body standing on" a black skirt, and then set DECK to
+  // #5a5a5a — so the craft baked as one dark grey mass with a darker band round
+  // it, which is a shadow, not a hovercraft. The whole read is CONTRAST: black
+  // rubber under a light hull.
+  if (kind === 'lcraft')   { HULL = '#c4c4c4'; DECK = '#9c9c9c'; }
   // The Sea Scorpion is a PALE boat. She was inheriting the Collective's dark
   // #6e6e6e/#454545 and her deck baked near-black, while the rip shows a light
   // grey hull with the dark confined to shadow under the machinery — she is
@@ -108,7 +113,7 @@ function bakeShip(col, kind, fac) {
   if (kind === 'seascorp')  { HULL = '#8f8f8f'; DECK = '#6e6e6e'; }
   if (kind === 'carrier')  { HULL = '#5e5e5e'; DECK = '#5c5c5c'; }
   var BOOT = shade(HULL, 0.16);
-  var SHEER = sov ? '#c2c7cd' : '#d2d7de';           // the sky on the sheer strake                       // boot-topping at the waterline
+  var SHEER = sov ? '#c7c7c7' : '#d6d6d6';           // the sky on the sheer strake                       // boot-topping at the waterline
 
   // Plan geometry per hull, in pre-scale pixels. L is overall length, W
   // beam, FREE the freeboard the deck stands on.
@@ -529,7 +534,7 @@ var VACC = {
   destroyer:   '#cc9900',  //  45 amber — the OSPREY on the stern pad, the
                            //   brightest thing on RA2's own destroyer and the
                            //   feature that names the ship at a glance
-  seascorp:    '#e6e9ec',  //     the white flak mount the rip makes the loudest
+  seascorp:    '#e9e9e9',  //     the white flak mount the rip makes the loudest
                            //   surface on the boat (no hue: it is a value note)
   // -- Directorate
   lancer:      '#33bda6',  // 170 jade   — the vision block beside the Grizzly's mantlet.
@@ -539,7 +544,7 @@ var VACC = {
                            //   launcher box that 2.3 makes the IFV's whole read
   mirage:      '#2fbe6b',  // 145 holo-green — the projector mouth of the emitter
                            //   housing. The Mirage disguises itself as a TREE.
-  mirageStack: '#e9edf2',  //     the ribbed WHITE emitter plates 2.3 asks for
+  mirageStack: '#ececec',  //     the ribbed WHITE emitter plates 2.3 asks for
   spectre:     '#d45ad0',  // 302 magenta — the refraction flare across the prism
                            //   crystal's bright face (the crystal CORE stays owner-hue)
   chronominer: '#8f6ac8',  // 264 violet — the ribbed chrono drum that IS the unit,
@@ -551,9 +556,9 @@ var VACC = {
                            //   started as: that shared a hue bin with the V3's olive
                            //   truck and the pair measured 0.093 apart, the closest
                            //   colour pair on the field.
-  rhinoGun:    '#2b2f36',  //     NEUTRAL gunmetal barrel. The Lancer's navy put an
+  rhinoGun:    '#303030',  //     NEUTRAL gunmetal barrel. The Lancer's navy put an
                            //     OPPOSING hue on a Soviet tank (4.4% of the sprite).
-  mammothGun:  '#15161a',  //     gun-black twin barrels. 1.4: "hull, tracks and the
+  mammothGun:  '#161616',  //     gun-black twin barrels. 1.4: "hull, tracks and the
                            //     twin barrels are olive-grey" — so the Apocalypse's
                            //     own colour is its OLIVE, deepened in `hull` below,
                            //     and the house colour is the four canister drums.
@@ -562,7 +567,7 @@ var VACC = {
                            //   the ninth grey on a field of greys.
   flaktrack:   '#3fae43',  // 122 ordnance green — the gun shield, the one bright
                            //   vertical face on an otherwise cream halftrack
-  v3:          '#e6e7e9',  //     the missile midbody is PURE WHITE and 2.4 says so in
+  v3:          '#e7e7e7',  //     the missile midbody is PURE WHITE and 2.4 says so in
                            //     as many words; the V3's colour is its OLIVE TRUCK,
                            //     which the same bullet calls olive and we drew grey.
   drone:       '#6a63e0',  // 243 electric indigo — the eye cluster and leg joints

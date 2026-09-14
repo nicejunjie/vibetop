@@ -28,8 +28,8 @@ function bakeVehicle(col, kind, fac, anim) {
   var sov = fac === 'col';
   var dig = anim === 'mine';
   var TRK_TOP = '#4e535c', TRK_SIDE = '#2d3138', TRK_D = '#101316';
-  var WHEEL_D = '#131519', WHEEL_L = '#7a808c';
-  var BAND = '#cfd6de', STEEL = '#9aa0a8', CHROME = '#dfe3ea';
+  var WHEEL_D = '#131519', WHEEL_L = '#808080';
+  var BAND = '#d5d5d5', STEEL = '#9f9f9f', CHROME = '#e3e3e3';
   var GUN = '#191b20', GUN_L = '#5b616b';
   // House colour lives in a narrow shade window: shade() clips the blue
   // owner to white-cyan past ~1.3, and anything under ~0.7 goes to mud that
@@ -79,7 +79,7 @@ function bakeVehicle(col, kind, fac, anim) {
   else if (kind === 'ifv')     { hull = '#9b9b9b'; deck = '#8d8d8d'; }   // pale silver body, as the [FV] voxel render (VLIFT lifts it)
   else if (kind === 'mirage')  { hull = '#474747'; deck = '#2b2b2b'; }   // dark slate, as mirage.png
   else if (kind === 'rhino')     { hull = '#8a8a70'; deck = '#5a5a3c'; } // restrained olive gunmetal, as rhino.png; avoid the washed-out toy dome
-  else if (kind === 'flaktrack') { hull = '#c6c6b4'; deck = '#b4b49c'; } // cream body AND bed, as soviet-flak-track.png
+  else if (kind === 'flaktrack') { hull = '#c4c4c4'; deck = '#b4b49c'; } // cream body AND bed, as soviet-flak-track.png
   else if (kind === 'v3')        { hull = '#9e9e78'; deck = '#666644'; } // tan-khaki truck, as RA2 V3 Rocket Launcher.png
   else if (kind === 'drone')     { hull = '#a3a3a3'; deck = '#636363'; } // bare metal carapace
   // Measured off soviet-tesla-tank-sheet.png with its pale studio background
@@ -110,7 +110,7 @@ function bakeVehicle(col, kind, fac, anim) {
   // The Apocalypse carries a neutral charcoal shadow instead of a warm
   // olive one. It keeps the recesses and gun housings visually cold while
   // the mid-tone hull remains a restrained Soviet olive.
-  var dark = kind === 'mammoth' ? '#1d2020' : shade(hull, 0.40);
+  var dark = kind === 'mammoth' ? '#1f1f1f' : shade(hull, 0.40);
   var turreted = kind === 'lancer' || kind === 'spectre' || kind === 'mammoth' ||
                  kind === 'ifv' || kind === 'rhino' || kind === 'flaktrack';
   // Deck height the turret ring stands on — per kind, facing-independent.
@@ -596,7 +596,7 @@ function bakeVehicle(col, kind, fac, anim) {
         }
       ws.sort(function (m, n2) { return m[1] - n2[1]; });
       for (i3 = 0; i3 < ws.length; i3++)
-        wheelDisc(ws[i3][0], ws[i3][1], r, 0.62, tyre || '#14161a', rim || '#8b929d');
+        wheelDisc(ws[i3][0], ws[i3][1], r, 0.62, tyre || '#14161a', rim || '#919191');
     }
     // Hull: dark underbody, body box, raked glacis, lit contour.
     function chassis(hx, hy, hl2, hw2, h, body, edge, rake, underH) {
@@ -655,7 +655,7 @@ function bakeVehicle(col, kind, fac, anim) {
     // Pale bumper strip along the lower front — on every RA2 chassis.
     function bumper(bl, bw2, byb) {
       var fxp = cx + fx * bl, fyp = byb + fy * bl;
-      g.strokeStyle = kind === 'mammoth' ? '#858980' : BAND; g.lineWidth = 2.2; g.lineCap = 'butt';
+      g.strokeStyle = kind === 'mammoth' ? '#878787' : BAND; g.lineWidth = 2.2; g.lineCap = 'butt';
       g.beginPath();
       g.moveTo(fxp + px * bw2, fyp + py * bw2); g.lineTo(fxp - px * bw2, fyp - py * bw2);
       g.stroke();
@@ -682,7 +682,7 @@ function bakeVehicle(col, kind, fac, anim) {
       for (var q = -1; q <= 1; q += 2)
         isoBox(g, cx + fx * fu + px * fo * q, by - fh + fy * fu + py * fo * q,
                fl, fw, kind === 'mammoth' ? 1.3 : 1.7, a,
-               kind === 'mammoth' ? '#59605a' : STEEL, '#282c33');
+               kind === 'mammoth' ? '#5d5d5d' : STEEL, '#282c33');
     }
     // The three fitments every vehicle carries, so the fleet reads as one
     // design language: a hatch ring on the deck, a headlamp at the nose, a
@@ -727,7 +727,7 @@ function bakeVehicle(col, kind, fac, anim) {
       g.moveTo(x0 + vx * 0.16 + nx * w0 * 0.55 * lit, y0 + vy * 0.16 + ny * w0 * 0.55 * lit);
       g.lineTo(x0 + vx * 0.84 + nx * w1 * 0.60 * lit, y0 + vy * 0.84 + ny * w1 * 0.60 * lit);
       g.stroke();
-      g.fillStyle = '#c3c9d2';                                     // pale tip highlight
+      g.fillStyle = '#c8c8c8';                                     // pale tip highlight
       g.beginPath(); g.ellipse(tx, ty, w1 * 0.85, w1 * 0.85, 0, 0, 6.29); g.fill();
     }
     // A slatted ore crate: vertical planks, top and mid rails, and an X
@@ -1400,7 +1400,7 @@ var PIXPAL = {
   '1': '#4a4438', '2': '#665d4d', '3': '#847a64',
   '4': '#a1957b', '5': '#bdb094', '6': '#d6caae',
   'p': '#252a1c', 'q': '#333a28', 'r': '#4a5240', 't': '#606850', 'u': '#767e63',
-  'a': '#3a3f3c', 's': '#5c625d', 'd': '#828881', 'f': '#a8aea6',
+  'a': '#3d3d3d', 's': '#606060', 'd': '#858585', 'f': '#ababab',
   'v': '#7fb8d8', 'y': '#e0a726', 'o': '#8a5a2a',
   '.': 'rgba(0,0,0,.34)'
 };

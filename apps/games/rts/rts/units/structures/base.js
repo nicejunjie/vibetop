@@ -41,11 +41,11 @@ if (sov) {
   // half painted gold, a hazard-dashed hatch square at the front.
   var SLIM = '#d9bfa0', SLIM_L = '#efdcc4', SLIM_D = '#8a6e56'; // pink-cream limestone
   var SSTL = '#2a2d33', SSTL_D = '#0d0f12';        // near-black machinery
-  var SGUN = '#575e68', SGUN_L = '#949ba6';        // gunmetal
+  var SGUN = '#575e68', SGUN_L = '#9a9a9a';        // gunmetal
   var SNAV = '#3b4658', SNAV_D = '#252c38';        // navy body
   var SPLT = '#5b6678', SPLT_L = '#aab4c6';        // blue-grey chute plate
   var SGLD = '#a8823c', SGLD_L = '#e0c27a', SGLD_D = '#4d3a10'; // brass
-  var SCON = '#b4b2a6', SCON_D = '#6b6a5e';        // concrete pad
+  var SCON = '#b1b1b1', SCON_D = '#696969';        // concrete pad
   var SPNT = '#d4c06a', SPNT_D = '#9c8a2c';        // gold deck paint
   var SHAZ = '#e0b028';                            // hazard yellow
 
@@ -113,7 +113,7 @@ if (sov) {
     g.beginPath(); g.moveTo(bp1[0], bp1[1]); g.lineTo(bp2[0], bp2[1]); g.stroke();
   }
   var spx = dxS, spb = dr0 + 1;                      // bell base centre
-  g.fillStyle = '#2b2a2c';                          // bell foot ring
+  g.fillStyle = '#2b2b2b';                          // bell foot ring
   g.beginPath(); g.ellipse(spx, spb, 16, 6.2, 0, 0, 6.29); g.fill(); outline(g, SSTL_D);
   g.fillStyle = '#5c5750';                          // the bell: dark steel, flared foot
   g.beginPath();
@@ -150,7 +150,7 @@ if (sov) {
   g.bezierCurveTo(spx - 7, spb - 31, spx - 3, spb - 34, spx - 0.5, spb - 36);
   g.bezierCurveTo(spx - 2, spb - 33, spx - 2, spb - 29, spx - 1.5, spb - 26);
   g.closePath(); g.fill();
-  g.strokeStyle = '#2b2a2c'; g.lineWidth = 1.4;     // two antenna spikes
+  g.strokeStyle = '#2b2b2b'; g.lineWidth = 1.4;     // two antenna spikes
   g.beginPath(); g.moveTo(spx, spb - 37); g.lineTo(spx, spb - 49); g.stroke();
   g.lineWidth = 1.1;
   g.beginPath(); g.moveTo(spx + 2, spb - 35); g.lineTo(spx + 7, spb - 45); g.stroke();
@@ -238,7 +238,7 @@ if (sov) {
   var sbPin = function (p, r) {
     g.fillStyle = '#22262c';
     g.beginPath(); g.arc(p[0], p[1], r, 0, 6.29); g.fill(); outline(g, SSTL_D);
-    g.fillStyle = '#787f89';
+    g.fillStyle = '#7e7e7e';
     g.beginPath(); g.arc(p[0] - 0.7, p[1] - 0.7, r * 0.40, 0, 6.29); g.fill();
   };
   var sbClaw = function (wx, wy, sc) {              // two-tine grab, in `col`
@@ -278,7 +278,7 @@ if (sov) {
   sbSeg(aP2, aP3, 4.6, 3.8, false);
   var aTip = [aP1[0] + 12, aP1[1] - 9];              // stub past the elbow
   sbSeg(aP1, aTip, 5.0, 3.0, false);
-  g.strokeStyle = '#8f96a2'; g.lineWidth = 1;        // hoist cable, elbow stub to wrist
+  g.strokeStyle = '#959595'; g.lineWidth = 1;        // hoist cable, elbow stub to wrist
   g.beginPath(); g.moveTo(aTip[0], aTip[1]); g.lineTo(aP3[0] + 2, aP3[1]); g.stroke();
   sbPin(aP1, 5.0); sbPin(aP2, 4.0); sbPin(aTip, 2.8);
   sbClaw(aP3[0], aP3[1], 1.0);
@@ -443,7 +443,7 @@ if (sov) {
   g.bezierCurveTo(cx + fw * 0.60, baseY + fh * 0.10,
                   cx + fw * 0.52, baseY + fh * 0.42, cx + fw * 0.70, baseY + fh * 0.42);
   g.stroke();
-  g.strokeStyle = '#9aa1a9'; g.lineWidth = 3.6;
+  g.strokeStyle = '#a0a0a0'; g.lineWidth = 3.6;
   g.beginPath();
   g.moveTo(cx + fw * 0.40, baseY - fh * 0.02);
   g.bezierCurveTo(cx + fw * 0.60, baseY + fh * 0.10,
@@ -486,13 +486,13 @@ if (sov) {
   // - `col` base drum, amber ring, glass waist, amber body, silver ring,
   // `col` cap, glass dome - throwing an amber box jib out to a claw on
   // a cable. Both the jib slew and the hoist are animated.
-  var DKB = '#4b4c45', DKB_D = '#23241f';   // warm dark deck
+  var DKB = '#4b4b4b', DKB_D = '#23241f';   // warm dark deck
   var HULL = '#3f444c', HULL_D = '#23262c'; // hall walls
-  var SIL = '#c9cdd4', SIL_D = '#5d6068';   // silver skin
-  var SILH = '#f0f2f6';                     // rib highlight
+  var SIL = '#cdcdcd', SIL_D = '#606060';   // silver skin
+  var SILH = '#f2f2f2';                     // rib highlight
   var GUN = '#5b616a', GUN_D = '#2b2f35';   // machinery grey
   var AYEL = '#d8a23c', AYEL_L = '#f4cf80', AYEL_D = '#6a4a12'; // amber
-  var AWHT = '#eef0f4', ARAIL = '#d08236';  // shutter white, orange rail
+  var AWHT = '#f0f0f0', ARAIL = '#d08236';  // shutter white, orange rail
 
   // ---- deck: mottled dark platform ------------------------------------
   plot(g, cx, baseY - 3, fw * 1.96, fh * 1.96);
@@ -539,9 +539,9 @@ if (sov) {
   g.fillStyle = 'rgba(0,0,0,.40)';                  // oil in the bay
   g.beginPath(); g.ellipse(cx - 12, baseY + 17, 11, 4.4, 0, 0, 6.29); g.fill();
   for (var bbA = 0; bbA < 4; bbA++) {               // ball bollards
-    g.fillStyle = '#2a2d29';
+    g.fillStyle = '#2c2c2c';
     g.beginPath(); g.ellipse(rq[bbA][0], rq[bbA][1] + 1, 2.6, 1.4, 0, 0, 6.29); g.fill();
-    g.fillStyle = '#c6cbc8';
+    g.fillStyle = '#c9c9c9';
     g.beginPath(); g.arc(rq[bbA][0], rq[bbA][1] - 1.4, 2.2, 0, 6.29); g.fill();
     g.fillStyle = '#ffffff';
     g.beginPath(); g.arc(rq[bbA][0] - 0.7, rq[bbA][1] - 2.1, 0.8, 0, 6.29); g.fill();
@@ -580,7 +580,7 @@ if (sov) {
       g.beginPath(); g.moveTo(ga[0], ga[1]); g.lineTo(gb[0], gb[1]); g.stroke();
     }
   }
-  pipeRun(g, faceL, abx, aby, ahw, ahh, 22, 0.94, 0.04, 0.80, 3.2, '#7d848e');
+  pipeRun(g, faceL, abx, aby, ahw, ahh, 22, 0.94, 0.04, 0.80, 3.2, '#838383');
   for (var hpB = 0; hpB < 2; hpB++) {               // two `col` panels beside the arch foot
     facePatch(g, faceR, abx, aby, ahw, ahh, 22, 0.70 + hpB * 0.13, 0.79 + hpB * 0.13, 0.22, 0.86, HC, HCD);
     facePatch(g, faceR, abx, aby, ahw, ahh, 22, 0.70 + hpB * 0.13, 0.79 + hpB * 0.13, 0.80, 0.86, HCL, null);
@@ -699,18 +699,18 @@ if (sov) {
     var tfx = tfP[0], tfy = tfP[1];
     g.fillStyle = '#2b3038';                        // recessed housing
     g.beginPath(); g.ellipse(tfx, tfy + 1, 11.4, 6.1, 0, 0, 6.29); g.fill();
-    g.fillStyle = '#868d9a';
+    g.fillStyle = '#8c8c8c';
     g.beginPath(); g.ellipse(tfx, tfy, 10.6, 5.7, 0, 0, 6.29); g.fill();
     outline(g, DKB_D);
     g.fillStyle = '#14181f';
     g.beginPath(); g.ellipse(tfx, tfy - 0.7, 8.4, 4.4, 0, 0, 6.29); g.fill();
-    g.strokeStyle = '#b6bdc9'; g.lineWidth = 1.5;   // seven blades
+    g.strokeStyle = '#bcbcbc'; g.lineWidth = 1.5;   // seven blades
     for (var blA = 0; blA < 7; blA++) {
       var anA = blA * 6.283 / 7 + 0.32 + anP * 0.5;   // fans turn with the phase
       g.beginPath(); g.moveTo(tfx, tfy - 0.7);
       g.lineTo(tfx + Math.cos(anA) * 7.9, tfy - 0.7 + Math.sin(anA) * 4.1); g.stroke();
     }
-    g.fillStyle = '#d4d9e2';
+    g.fillStyle = '#d9d9d9';
     g.beginPath(); g.ellipse(tfx, tfy - 1, 2.7, 1.6, 0, 0, 6.29); g.fill();
     outline(g, DKB_D);
   }
@@ -761,7 +761,7 @@ if (sov) {
   g.beginPath();
   g.moveTo(cvL[0], cvL[1]); g.lineTo(cvR[0], cvR[1]); g.lineTo(cvT[0], cvT[1]);
   g.closePath(); g.fill(); outline(g, HCD);
-  g.strokeStyle = '#e8ecf4'; g.lineWidth = 1;       // white wing ticks either side
+  g.strokeStyle = '#ececec'; g.lineWidth = 1;       // white wing ticks either side
   g.beginPath(); g.moveTo(cvL[0] - 1.5, cvL[1] - 1); g.lineTo(cvL[0] + 1.5, cvL[1] - 3.5); g.stroke();
   g.beginPath(); g.moveTo(cvR[0] + 1.5, cvR[1] - 1); g.lineTo(cvR[0] - 1.5, cvR[1] - 3.5); g.stroke();
 
@@ -789,7 +789,7 @@ if (sov) {
   g.strokeStyle = '#3f444a'; g.lineWidth = 4.2; g.lineCap = 'round';   // pipe loop off the end
   g.beginPath();
   g.moveTo(rgx + 2, rgy + 4); g.quadraticCurveTo(rgx + 16, rgy + 14, rgx + 24, rgy + 4); g.stroke();
-  g.strokeStyle = '#8b929c'; g.lineWidth = 2.2;
+  g.strokeStyle = '#919191'; g.lineWidth = 2.2;
   g.beginPath();
   g.moveTo(rgx + 2, rgy + 4); g.quadraticCurveTo(rgx + 16, rgy + 14, rgx + 24, rgy + 4); g.stroke();
   g.lineCap = 'butt';
@@ -803,10 +803,10 @@ if (sov) {
   for (var boA = 0; boA < 8; boA++) {               // arc of black deck drums round the front
     var boAn = 0.20 + boA * 2.74 / 7;
     var box2 = tx3 + Math.cos(boAn) * 18, boy2 = ty3 + Math.sin(boAn) * 9;
-    g.fillStyle = '#26292a';
+    g.fillStyle = '#282828';
     g.beginPath(); g.roundRect(box2 - 2.8, boy2 - 7, 5.6, 8, 1.5); g.fill();
-    outline(g, '#121414');
-    g.fillStyle = '#8f9694';
+    outline(g, '#131313');
+    g.fillStyle = '#949494';
     g.beginPath(); g.ellipse(box2, boy2 - 7, 3.0, 1.6, 0, 0, 6.29); g.fill();
   }
   g.fillStyle = shade(GUN, 0.66);                   // plinth
@@ -825,18 +825,18 @@ if (sov) {
   g.fillStyle = HCL; g.fillRect(tx3 - 14, ty3 - 14.6, 28, 1.6);
   g.fillStyle = HCD; g.fillRect(tx3 - 14, ty3 - 9.5, 28, 1.2);
   cylinder(g, tx3, ty3 - 14, 9.5, 3, AYEL, AYEL_L, AYEL_D);   // amber ring
-  cylinder(g, tx3, ty3 - 17, 8, 10, '#8e99ad', '#c3ccdd', '#3a4252');  // glass waist
+  cylinder(g, tx3, ty3 - 17, 8, 10, '#8e99ad', '#cbcbcb', '#3a4252');  // glass waist
   g.strokeStyle = 'rgba(255,255,255,.55)'; g.lineWidth = 1.8;
   g.beginPath(); g.moveTo(tx3 - 4.4, ty3 - 18); g.lineTo(tx3 - 4.4, ty3 - 26); g.stroke();
   cylinder(g, tx3, ty3 - 27, 9.5, 10, AYEL, AYEL_L, AYEL_D);  // amber body
   g.fillStyle = AYEL_D; g.fillRect(tx3 - 9.5, ty3 - 33, 19, 2.2);      // its dark band
   g.fillStyle = 'rgba(255,255,255,.40)'; g.fillRect(tx3 - 8.5, ty3 - 36.5, 2.6, 8);
-  cylinder(g, tx3, ty3 - 37, 10, 3, '#c9ced8', '#eef1f6', DKB_D);      // silver ring
+  cylinder(g, tx3, ty3 - 37, 10, 3, '#cecece', '#f1f1f1', DKB_D);      // silver ring
   cylinder(g, tx3, ty3 - 40, 11.5, 10, HC, HCL, HCD);                  // PLAYER cap drum
   g.fillStyle = HCD; g.fillRect(tx3 - 11.5, ty3 - 44, 23, 1.2);
-  g.fillStyle = '#c9ced8';                          // silver lip, glass dome
+  g.fillStyle = '#cecece';                          // silver lip, glass dome
   g.beginPath(); g.ellipse(tx3, ty3 - 50, 8.4, 3.6, 0, 0, 6.29); g.fill(); outline(g, DKB_D);
-  g.fillStyle = '#e4e9f2';
+  g.fillStyle = '#e9e9e9';
   g.beginPath(); g.ellipse(tx3, ty3 - 51, 5.6, 4.2, 0, 0, 6.29); g.fill(); outline(g, '#6a7280');
   g.fillStyle = '#ffffff';
   g.beginPath(); g.ellipse(tx3 - 1.8, ty3 - 52.6, 2.0, 1.4, 0, 0, 6.29); g.fill();
@@ -857,7 +857,7 @@ if (sov) {
   g.strokeStyle = AYEL_D; g.lineWidth = 1.4;        // tie-back to the mast head
   g.beginPath(); g.moveTo(tx3 + 3, ty3 - 46); g.lineTo(jC[0], jC[1] - 4); g.stroke();
   var ropeL = 12 + 4 * anC;
-  g.strokeStyle = '#8f96a2'; g.lineWidth = 1;       // hoist cable
+  g.strokeStyle = '#959595'; g.lineWidth = 1;       // hoist cable
   g.beginPath(); g.moveTo(jC[0], jC[1] + 4); g.lineTo(jC[0] + 1, jC[1] + ropeL); g.stroke();
   var clx = jC[0] + 1, cly = jC[1] + ropeL;         // open two-prong grab
   g.fillStyle = 'rgba(0,0,0,.26)';

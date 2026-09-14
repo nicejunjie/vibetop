@@ -19,13 +19,13 @@ function drawNuke(C) {
 // lights and pulse the seam between the doors.
 var anP = (bph || 0) * 6.283, anS = Math.sin(anP);
 var ph6 = Math.round((bph || 0) * 6) % 6;
-var NS_W = '#33302e', NS_WL = '#494340', NS_R = '#3c3936', NS_ED = '#141312';
+var NS_W = '#313131', NS_WL = '#444444', NS_R = '#3a3a3a', NS_ED = '#131313';
 
 // ---- apron + railings ----------------------------------------------
 plot(g, cx, baseY + 3, fw * 2.02, fh * 2.02);
-g.fillStyle = '#a7a89c'; g.fill(); outline(g, '#5a5b52');
+g.fillStyle = '#a6a6a6'; g.fill(); outline(g, '#5a5a5a');
 plot(g, cx, baseY, fw * 1.88, fh * 1.88);
-g.fillStyle = '#bcbdb0'; g.fill(); outline(g, '#63645a');
+g.fillStyle = '#bbbbbb'; g.fill(); outline(g, '#636363');
 g.save(); plot(g, cx, baseY, fw * 1.88, fh * 1.88); g.clip();
 g.strokeStyle = 'rgba(80,82,74,.32)'; g.lineWidth = 1;
 for (var nsS = -3; nsS <= 3; nsS++) {
@@ -93,7 +93,7 @@ for (var nsL = 0; nsL < 4; nsL++) {
   g.strokeStyle = '#15130f'; g.lineWidth = 0.8; g.stroke();
 }
 // vent mast
-g.fillStyle = '#3b3835';
+g.fillStyle = '#393939';
 g.fillRect(cx + nsHw * 0.42, nsRy - 20, 5.4, 20); outline(g, NS_ED);
 g.fillStyle = '#191715';
 g.beginPath(); g.ellipse(cx + nsHw * 0.42 + 2.7, nsRy - 20, 3.4, 1.5, 0, 0, 6.29); g.fill();

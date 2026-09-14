@@ -21,10 +21,10 @@ function drawGrandcannon(C) {
 // bright boss, and the gun poking out of its shoulder is SHORT and
 // thick with a fat multi-baffle muzzle brake. `bdir` is the bearing it
 // is laid on (aimOf bakes the 32 RA2 voxel bearings).
-var GC_ST = '#8d93a0', GC_STL = '#c2c8d2', GC_STD = '#3a4050';   // turntable steel
+var GC_ST = '#939393', GC_STL = '#c7c7c7', GC_STD = '#3a4050';   // turntable steel
 var GC_DM = '#3b4152', GC_DML = '#666d80', GC_DMD = '#1d2130';   // dome armour
 var GC_SPC = '#9aa2b8';                                          // the big specular sweep
-var GC_GUN = '#7d838f', GC_GUND = '#23262e';
+var GC_GUN = '#838383', GC_GUND = '#23262e';
 // The idle bearing is the one the cameo and the placement ghost show,
 // so it is the grid direction that projects to a flat horizontal gun
 // (north-east): pointed any other way the tube foreshortens into the
@@ -52,7 +52,7 @@ for (var gk = 0; gk < 4; gk++) {
   g.beginPath(); g.ellipse(apx - 1.5, apy - 2.2, 6.0, 2.6, 0, 0, 6.29); g.fill();
   g.fillStyle = GC_STL;
   g.beginPath(); g.ellipse(apx, apy - 3.2, 3.8, 2.3, 0, 0, 6.29); g.fill(); outline(g, GC_STD);
-  g.fillStyle = '#f0f3f8';
+  g.fillStyle = '#f3f3f3';
   g.beginPath(); g.ellipse(apx - 0.6, apy - 4.0, 2.2, 1.3, 0, 0, 6.29); g.fill();
 }
 // hub plinth the dome turns on, with a house rim round the race
@@ -113,7 +113,7 @@ g.beginPath(); g.ellipse(cx + 1.5, domY - domH * 0.66, 9.0, 5.0, -0.18, 0, 6.29)
 g.restore();
 domePath(); outline(g, GC_DMD);
 // two service pipes off the far shoulder
-g.strokeStyle = '#a8aeb8'; g.lineWidth = 2.4; g.lineCap = 'round';
+g.strokeStyle = '#adadad'; g.lineWidth = 2.4; g.lineCap = 'round';
 g.beginPath(); g.moveTo(cx - 7, domY - domH * 0.88); g.lineTo(cx - 10, domY - domH - 7); g.stroke();
 g.beginPath(); g.moveTo(cx - 2, domY - domH * 0.94); g.lineTo(cx - 3.6, domY - domH - 4); g.stroke();
 g.strokeStyle = '#5d636d'; g.lineWidth = 1;

@@ -51,9 +51,9 @@ function drawLcraft(C) {
 box(-L * 0.10, W * 0.80, L * 0.90, W * 0.24, 3.8, shade(HULL, 0.94));
 box(-L * 0.10, -W * 0.80, L * 0.90, W * 0.24, 3.8, shade(HULL, 0.94));
 g.save(); poly(FR, null, null); g.clip();
-g.fillStyle = '#2b2b2b';
-poly(FR, '#2b2b2b', null);                     // the open well, in shadow
-g.strokeStyle = '#555555'; g.lineWidth = 0.8;
+g.fillStyle = '#4d4d4d';
+poly(FR, '#4d4d4d', null);                     // the open well, in shadow
+g.strokeStyle = '#767676'; g.lineWidth = 0.8;
 for (var ri = -2; ri <= 2; ri++) {
   var r0 = P(L * 0.5, ri * 3.0, FR), r1 = P(-L * 0.8, ri * 3.0, FR);
   g.beginPath(); g.moveTo(r0[0], r0[1]); g.lineTo(r1[0], r1[1]); g.stroke();

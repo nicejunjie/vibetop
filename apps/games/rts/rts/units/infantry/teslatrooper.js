@@ -54,10 +54,10 @@ g.save(); g.translate(gt.lean, gt.bob);
 // which is the trap in drawing this: a shaded facet picked by eye
 // (#8d95a1, v 0.63) looks like silver and measures as "not silver", so
 // the whole flank would have been spent for nothing.
-var TT_SHELL = '#d0d8e2';                                     // v 0.89 s 0.08
-var TT_LIT = '#e5ebf3';                                       // v 0.95 s 0.06
-var TT_DK = '#bac3cf';                                        // v 0.81 s 0.10 — still silver
-var TT_EDGE = '#98a0ae';
+var TT_SHELL = '#d7d7d7';                                     // v 0.89 s 0.08
+var TT_LIT = '#eaeaea';                                       // v 0.95 s 0.06
+var TT_DK = '#c2c2c2';                                        // v 0.81 s 0.10 — still silver
+var TT_EDGE = '#9f9f9f';
 var TT_YOKE = by - 15.2;                                      // silver above, house below
 g.fillStyle = shade(col, 0.88);                               // house hip armour
 g.beginPath(); g.roundRect(cx - 4.2, by - 13.9, 8.4, 3.4, 1.0); g.fill();
@@ -109,12 +109,12 @@ g.fillStyle = TT_LIT;                                         // lit left pector
 g.fillRect(cx - 4.8, by - 21.2, 3.2, 5.0);
 g.fillStyle = TT_DK;                                          // shaded right pectoral
 g.fillRect(cx + 2.0, by - 20.9, 2.8, 4.6);
-g.strokeStyle = '#9aa3b0'; g.lineWidth = 0.6; g.lineCap = 'butt';
+g.strokeStyle = '#a2a2a2'; g.lineWidth = 0.6; g.lineCap = 'butt';
 g.beginPath();                                                // pectoral panel seam
 g.moveTo(cx - 4.4, by - 18.6); g.lineTo(cx + 4.4, by - 18.6); g.stroke();
-g.fillStyle = '#aeb7c3';                                      // neck shadow under the bowl
+g.fillStyle = '#b6b6b6';                                      // neck shadow under the bowl
 g.fillRect(cx - 3.6, by - 21.3, 7.2, 0.8);
-g.strokeStyle = '#eef2f8'; g.lineWidth = 1.0;                 // rim light round the shell
+g.strokeStyle = '#f1f1f1'; g.lineWidth = 1.0;                 // rim light round the shell
 g.beginPath();
 g.moveTo(cx - 4.6, by - 21.1); g.lineTo(cx - 6.6, by - 19.2);
 g.lineTo(cx - 6.4, TT_YOKE); g.stroke();
@@ -154,17 +154,17 @@ arms(6.5, by - 19.6, 3.4, 6.8, '#5b6478', function (i, x, y) {
   g.beginPath();
   g.ellipse(x - i * 0.5, y + 0.3, 2.0, 1.8, 0, Math.PI, 0); g.fill();
   g.fillRect(x - i * 0.5 - 2.0, y + 0.3, 4.0, 1.3);
-  outline(g, '#98a0ae');
+  outline(g, '#9f9f9f');
   // The cap's SKIRT is steel too. It carried a house band for a while,
   // to pay back what the tesla arc cost the chest; with the carapace
   // itself silver that band became a fifth horizontal stripe on a
   // figure that already had four, and §2.2's row is explicit —
   // "armoured pauldrons ... over a silver carapace". The owner colour
   // it was carrying moved down to the thigh plates.
-  g.fillStyle = '#bcc4d0';
+  g.fillStyle = '#c3c3c3';
   g.fillRect(x - i * 0.5 - 2.0, y + 1.5, 4.0, 1.4);
   outline(g, '#8992a0');
-  g.fillStyle = '#eef2f7';
+  g.fillStyle = '#f1f1f1';
   g.beginPath();
   g.ellipse(x - i * 0.5 - 0.6, y - 0.6, 1.15, 0.7, -0.3, 0, 6.29); g.fill();
   // A STEEL VAMBRACE down the forearm, which the block has claimed since
@@ -175,10 +175,10 @@ arms(6.5, by - 19.6, 3.4, 6.8, '#5b6478', function (i, x, y) {
   // silver exists. Drawn here at full value instead, it is both the
   // right thing for a powered suit and where §2.2's carapace budget
   // finds the rows the tesla arc takes off the chest.
-  g.fillStyle = '#ccd4de';
+  g.fillStyle = '#d3d3d3';
   g.beginPath(); g.roundRect(x - 2.0, y + 2.8, 4.0, 3.5, 1.1); g.fill();
-  outline(g, '#98a0ae');
-  g.fillStyle = '#dbe2eb';
+  outline(g, '#9f9f9f');
+  g.fillStyle = '#e1e1e1';
   g.fillRect(x - 1.6, y + 3.1, 1.4, 2.4);
   // A COIL TERMINAL on the cap — a ceramic insulator and a steel stud.
   // It sits BELOW the helmet crown on purpose: this man is the widest
@@ -186,7 +186,7 @@ arms(6.5, by - 19.6, 3.4, 6.8, '#5b6478', function (i, x, y) {
   // electricity is not allowed to buy height.
   g.fillStyle = '#6d7580';
   g.beginPath(); g.roundRect(x - i * 0.5 - 1.25, y - 1.4, 2.5, 1.4, 0.6); g.fill();
-  g.fillStyle = '#c9d2dd';
+  g.fillStyle = '#d1d1d1';
   g.beginPath(); g.ellipse(x - i * 0.5, y - 1.6, 1.05, 0.72, 0, 0, 6.29); g.fill();
   TT_STUD.push([x - i * 0.5, y - 1.9]);
   if (i > 0) {
@@ -195,14 +195,14 @@ arms(6.5, by - 19.6, 3.4, 6.8, '#5b6478', function (i, x, y) {
     // glow big enough to see across the field washed out the chest
     // and made every trooper look like he was already firing.
     var gux = x + 0.5, guy = y + 5.4;
-    g.fillStyle = '#aeb7c2';                                  // the fist itself
+    g.fillStyle = '#b6b6b6';                                  // the fist itself
     g.beginPath(); g.roundRect(gux - 2.1, guy, 4.2, 3.4, 1.2); g.fill();
     outline(g, '#3c414a');
     g.fillStyle = col;                                        // house cuff on the gauntlet
     g.fillRect(gux - 1.9, guy + 0.1, 3.8, 1.4);
     g.fillStyle = '#5b626c';                                  // knuckle ridge
     g.fillRect(gux - 1.7, guy + 2.0, 3.4, 0.8);
-    g.strokeStyle = '#c8d0da'; g.lineWidth = 1.0; g.lineCap = 'round';
+    g.strokeStyle = '#cfcfcf'; g.lineWidth = 1.0; g.lineCap = 'round';
     for (var pr = -1; pr <= 1; pr += 2) {                     // two prongs
       g.beginPath();
       g.moveTo(gux + pr * 1.2, guy + 0.1);
@@ -211,7 +211,7 @@ arms(6.5, by - 19.6, 3.4, 6.8, '#5b6478', function (i, x, y) {
     bolt([[gux - 1.7, guy - 2.3], [gux - 0.5, guy - 1.3],
           [gux + 0.5, guy - 2.7], [gux + 1.7, guy - 2.2]], 0.85);
   } else {
-    g.fillStyle = '#a3acb8';                                  // plain steel fist
+    g.fillStyle = '#ababab';                                  // plain steel fist
     g.beginPath(); g.roundRect(x - 1.7, y + 5.5, 3.4, 2.8, 1.0); g.fill();
     outline(g, '#3c414a');
     g.fillStyle = col;                                        // ...with the same house cuff
@@ -227,7 +227,7 @@ g.fillStyle = ACC;
 g.beginPath(); g.arc(cx, hby, 3.6, Math.PI, 0); g.fill();
 g.fillRect(cx - 3.6, hby, 7.2, 2.0);
 outline(g, '#454b55');
-g.fillStyle = '#f2f6fb';                                      // bright crown
+g.fillStyle = '#f5f5f5';                                      // bright crown
 g.beginPath();
 g.ellipse(cx - 1.1, hby - 1.4, 1.7, 0.9, -0.35, 0, 6.29); g.fill();
 if (!FA.back) {                                               // visor slot

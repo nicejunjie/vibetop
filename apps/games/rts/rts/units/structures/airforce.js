@@ -32,8 +32,8 @@ function drawAirforce(C) {
 // the cab windows light in turn and the pad corner lamps blink.
 var anP = (bph || 0) * 6.283, ph6 = Math.round((bph || 0) * 6) % 6;
 var AFC_DK = '#2c313e', AFC_DKD = '#0c0f16', AFC_DKL = '#4c5261';
-var AFC_SIL = '#a9afb9', AFC_SILL = '#e7ebf1', AFC_SILD = '#646a75';
-var AFC_CON = '#a4a392', AFC_COND = '#5b5a4e', AFC_CONL = '#c4c3b1';
+var AFC_SIL = '#aeaeae', AFC_SILL = '#eaeaea', AFC_SILD = '#646a75';
+var AFC_CON = '#a1a1a1', AFC_COND = '#5b5a4e', AFC_CONL = '#c1c1c1';
 var AFC_YEL = '#f6d63f', AFC_YELL = '#fef6b6', AFC_YELD = '#8d7211';
 var AFC_OLV = '#9d9e66', AFC_OLVD = '#6b4526', AFC_TAN = '#d0ae7e';
 var AFC_GLS_OFF = '#9095b4';
@@ -178,7 +178,7 @@ for (var ldR = 0; ldR < 5; ldR++) {
   var lra = ldR / 5 * 6.283 + 0.5;
   var lrx = ldx + Math.cos(lra) * 10.4, lry = ldy - 28 + Math.sin(lra) * 4.2;
   g.beginPath(); g.moveTo(lrx, lry); g.lineTo(lrx + 0.6, lry - 7 - (ldR % 2) * 2); g.stroke();
-  g.fillStyle = ldR % 2 ? '#c8d0aa' : '#9aa2ae';
+  g.fillStyle = ldR % 2 ? '#c8d0aa' : '#a1a1a1';
   g.beginPath(); g.arc(lrx + 0.6, lry - 7 - (ldR % 2) * 2, 1.2, 0, 6.29); g.fill();
 }
 
@@ -204,7 +204,7 @@ var afWhip = function (wx, wy, wh2) {
   g.beginPath(); g.moveTo(wx, wy); g.lineTo(wx + wh2 * 0.03, wy - wh2); g.stroke();
   g.strokeStyle = '#5a626e'; g.lineWidth = 1;
   g.beginPath(); g.moveTo(wx - 0.7, wy); g.lineTo(wx + wh2 * 0.03 - 0.7, wy - wh2); g.stroke();
-  g.fillStyle = '#dfe3ea';
+  g.fillStyle = '#e3e3e3';
   g.beginPath(); g.ellipse(wx + wh2 * 0.03, wy - wh2 - 1.2, 1.4, 2, 0, 0, 6.29); g.fill();
 };
 afWhip(swx - 5, swRy, 42);
@@ -220,14 +220,14 @@ g.fillStyle = AFC_SIL;
 g.beginPath(); g.ellipse(afFx, afFy - 2.4, 18.5, 8.4, 0, 3.25, 6.18); g.fill();
 g.fillStyle = '#6f7681';
 g.beginPath(); g.ellipse(afFx, afFy - 1.4, 14.4, 6.4, 0, 0, 6.29); g.fill();
-g.fillStyle = '#9aa1ab';
+g.fillStyle = '#a0a0a0';
 g.beginPath(); g.ellipse(afFx, afFy - 2.4, 9.6, 4.2, 0, 0, 6.29); g.fill();
 g.strokeStyle = 'rgba(30,34,42,.42)'; g.lineWidth = 1;
 g.beginPath(); g.ellipse(afFx, afFy - 2, 12.2, 5.4, 0, 0, 6.29); g.stroke();
 g.strokeStyle = 'rgba(230,238,250,.60)'; g.lineWidth = 1.6;   // the sweep, turning
 g.beginPath(); g.moveTo(afFx, afFy - 2.2);
 g.lineTo(afFx + Math.cos(anP) * 16.6, afFy - 2.2 + Math.sin(anP) * 7.4); g.stroke();
-g.fillStyle = '#d6dbe3';
+g.fillStyle = '#dadada';
 g.beginPath(); g.ellipse(afFx, afFy - 3.2, 3, 1.8, 0, 0, 6.29); g.fill();
 
 // ---- roof kit: vents, a rail along the near eave, two crated boxes --
@@ -268,7 +268,7 @@ g.beginPath(); g.ellipse(ctx2, cty - ctH + 15, ctR + 1, (ctR + 1) * 0.40, 0, 0, 
 g.fillStyle = '#3c414c';                             // the glass cab
 g.fillRect(ctx2 - ctR, cty - ctH + 3.6, ctR * 2, 11.6);
 for (var cbI = 0; cbI < 5; cbI++) {                  // panes, lighting in turn
-  g.fillStyle = (cbI + ph6) % 5 < 2 ? '#dcdeee' : AFC_GLS_OFF;
+  g.fillStyle = (cbI + ph6) % 5 < 2 ? '#dfdfdf' : AFC_GLS_OFF;
   g.fillRect(ctx2 - ctR + 1.4 + cbI * 4.9, cty - ctH + 5, 3.6, 9);
 }
 g.fillStyle = 'rgba(255,255,255,.20)'; g.fillRect(ctx2 - ctR + 1.4, cty - ctH + 5, 23, 2.4);

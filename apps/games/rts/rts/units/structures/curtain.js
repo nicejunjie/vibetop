@@ -18,7 +18,7 @@ function drawCurtain(C) {
 // Six idle phases crackle the coils and roll the charge round the drum.
 var anP = (bph || 0) * 6.283, anS = Math.sin(anP);
 var ph6 = Math.round((bph || 0) * 6) % 6;
-var IC_ST = '#767c86', IC_STD = '#2a2e36', IC_DRK = '#22262d';
+var IC_ST = '#7b7b7b', IC_STD = '#2a2e36', IC_DRK = '#22262d';
 
 // ---- the drum ------------------------------------------------------
 var icCy = baseY + fh * 0.16, icR = fw * 0.74;

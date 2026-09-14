@@ -28,7 +28,7 @@ var P3 = function (p) { return [cx + fx * p[0] + px * p[1], by + fy * p[0] + py 
 var rgb = parseInt(col.slice(1), 16), cr = [(rgb >> 16) & 255, (rgb >> 8) & 255, rgb & 255];
 var cmin = Math.min.apply(null, cr), cspan = Math.max.apply(null, cr) - cmin || 1;
 var NAVY = 'rgb(' + cr.map(function (v) { return Math.round(8 + 94 * Math.pow((v - cmin) / cspan, 4)); }).join(',') + ')';
-var BODY = '#b6b5cd', STEEL_IV = '#9191ac', RUBBER = '#303132';
+var BODY = '#b8b8b8', STEEL_IV = '#9191ac', RUBBER = '#313131';
 function surface(pts, color, center, unlit) {
   var p = pts[0], e = pts[1].map(function (v, i) { return v - p[i]; });
   var f = pts[2].map(function (v, i) { return v - p[i]; });
@@ -89,9 +89,9 @@ function tyre(u, v) {
     surface(loops[side < 0 ? 0 : 3], RUBBER, [u, v, z]);
     var hub = [];
     for (var q = 0; q < n; q++) { var t = q * Math.PI * 2 / n; hub.push([u + radius / KF * 0.58 * Math.cos(t), v + side * 0.88, z + radius * 0.58 * Math.sin(t)]); }
-    surface(hub, '#cecec5', [u, v, z]);
+    surface(hub, '#cdcdcd', [u, v, z]);
     hub = hub.map(function (p) { return [u + (p[0] - u) * 0.70, p[1] + side * 0.03, z + (p[2] - z) * 0.70]; });
-    surface(hub, '#e4e2d5', [u, v, z]);
+    surface(hub, '#e1e1e1', [u, v, z]);
   }
 }
 // Oriented prism: its local x is along the boom / launch tube, y is
@@ -106,7 +106,7 @@ function inclined(u, v, z, angle, length, width, height, color, decor) {
 }
 if (wantH) {
   [-9.0, -2.0, 6.7].forEach(function (u) { tyre(u, -5.7); tyre(u, 5.7); });
-  box(-11.8, 11.5, -4.2, 4.2, 3.0, 4.7, '#707080');
+  box(-11.8, 11.5, -4.2, 4.2, 3.0, 4.7, '#727272');
   profile([[-12, 4.4], [12, 4.4], [12, 5.7], [9.5, 7.0], [2.5, 7.0], [1.3, 8.2], [-11.2, 8.2], [-12, 7.3]], -4.75, 4.75, BODY);
   // Fender strips dip between the three arches, exposing the tyres.
   var skirt = [[-12.1, 4.3], [-11.8, 6.5], [-10.9, 7.1], [1.8, 7.1], [3.1, 6.4], [10.2, 6.4], [12.1, 5.6], [12.1, 3.8], [9.1, 3.8]];
@@ -118,15 +118,15 @@ if (wantH) {
     box(-10.4, 0.8, sg < 0 ? -5.25 : 5.18, sg < 0 ? -5.18 : 5.25, 6.55, 7.75, NAVY);
     // Front corner blocks, square lamps, and the small black tow eyes.
     box(10.0, 12.45, sg * 4.55 - 1.15, sg * 4.55 + 1.15, 3.8, 5.5, STEEL_IV);
-    box(12.46, 12.62, sg * 3.8 - 0.55, sg * 3.8 + 0.55, 4.4, 5.45, '#414149');
-    box(12.63, 12.7, sg * 3.8 - 0.36, sg * 3.8 + 0.36, 4.65, 5.22, '#dfdcca');
-    box(12.1, 12.55, sg * 2.7 - 0.42, sg * 2.7 + 0.42, 3.15, 3.95, '#303037');
-    box(12.56, 12.6, sg * 2.7 - 0.23, sg * 2.7 + 0.23, 3.34, 3.76, '#b5b5c1');
+    box(12.46, 12.62, sg * 3.8 - 0.55, sg * 3.8 + 0.55, 4.4, 5.45, '#424242');
+    box(12.63, 12.7, sg * 3.8 - 0.36, sg * 3.8 + 0.36, 4.65, 5.22, '#dbdbdb');
+    box(12.1, 12.55, sg * 2.7 - 0.42, sg * 2.7 + 0.42, 3.15, 3.95, '#313131');
+    box(12.56, 12.6, sg * 2.7 - 0.23, sg * 2.7 + 0.23, 3.34, 3.76, '#b6b6b6');
   }
   // The long transverse black slot is at the back of the low bonnet.
-  box(5.0, 6.15, -4.1, 4.1, 7.04, 7.9, '#333536');
-  box(4.55, 4.98, -4.1, 4.1, 7.03, 7.5, '#cdcad4');
-  box(-10.4, -7.6, 3.6, 4.65, 8.22, 8.42, '#4a4b50');
+  box(5.0, 6.15, -4.1, 4.1, 7.04, 7.9, '#353535');
+  box(4.55, 4.98, -4.1, 4.1, 7.03, 7.5, '#cccccc');
+  box(-10.4, -7.6, 3.6, 4.65, 8.22, 8.42, '#4b4b4b');
 }
 if (wantT) {
   var ivT = tv || 0, Z = 8.2;
@@ -159,15 +159,15 @@ if (wantT) {
     lathe(0, 0, Z + 2.5, tech ? [[5.3, 0], [5.1, 1.25], [3.95, 2.8], [2.65, 3.8]]
         : [[5.3, 0], [5.0, 1.65], [3.8, 3.2], [2.2, 4.0]], STEEL_IV, 16,
       function (row, q, n) {
-        if (tech) return q <= 1 || q >= n - 2 || (q >= 6 && q <= 9) ? '#d4d0c0' : (q % 4 === 1 ? '#a7a6bd' : STEEL_IV);
-        return row === 1 && (q === 0 || q === 5 || q === 7) ? '#c7c5d5' : STEEL_IV;
+        if (tech) return q <= 1 || q >= n - 2 || (q >= 6 && q <= 9) ? '#cfcfcf' : (q % 4 === 1 ? '#a9a9a9' : STEEL_IV);
+        return row === 1 && (q === 0 || q === 5 || q === 7) ? '#c7c7c7' : STEEL_IV;
       });
     if (tech) {
-      box(-1.0, 1.0, -1.4, 1.4, Z + 6.22, Z + 6.38, '#ccc8b9');
+      box(-1.0, 1.0, -1.4, 1.4, Z + 6.22, Z + 6.38, '#c7c7c7');
     } else {
       // Short black gun mounted off the left cheek at collar height.
       box(3.6, 6.7, 1.3, 3.8, Z + 1.9, Z + 3.8, '#35353d');
-      box(6.6, 8.15, 1.45, 3.65, Z + 1.8, Z + 3.65, '#202124');
+      box(6.6, 8.15, 1.45, 3.65, Z + 1.8, Z + 3.65, '#212121');
       box(8.16, 8.24, 1.7, 3.4, Z + 2.03, Z + 3.38, '#101214');
     }
   } else if (ivT === IFV_TUR_ARM) {
@@ -186,7 +186,7 @@ if (wantT) {
         [wrist[0] + 2.65, wrist[2] + jaw * 4.5], [wrist[0] + 4.5, wrist[2] + jaw * 4.0], [wrist[0] + 5.2, wrist[2] + jaw * 2.5]];
       for (var q = 0; q < joints.length - 1; q++) {
         var p0 = joints[q], p1 = joints[q + 1], du = (p1[0] - p0[0]) * KF, dz = p1[1] - p0[1];
-        inclined(p0[0], 0, p0[1], Math.atan2(dz, du), Math.hypot(du, dz), 1.9, 1.25, '#bdbbd0');
+        inclined(p0[0], 0, p0[1], Math.atan2(dz, du), Math.hypot(du, dz), 1.9, 1.25, '#bebebe');
       }
     }
   }

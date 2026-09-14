@@ -22,7 +22,7 @@ function drawFlakcannon(C) {
 var anP = (bph || 0) * 6.283, anS = Math.sin(anP);
 var ph6 = Math.round((bph || 0) * 6) % 6;
 var FK_GUN = '#343a44', FK_GUNL = '#5f6672', FK_GUND = '#12151a';
-var FK_BAR = '#b9bcc2', FK_BARL = '#eceef2', FK_BARD = '#2a2e35';
+var FK_BAR = '#bcbcbc', FK_BARL = '#eeeeee', FK_BARD = '#2a2e35';
 plot(g, cx, baseY, fw * 2, fh * 2);
 g.fillStyle = 'rgba(30,34,26,.62)'; g.fill();
 g.fillStyle = 'rgba(0,0,0,.30)';

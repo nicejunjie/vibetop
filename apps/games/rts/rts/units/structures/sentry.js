@@ -84,12 +84,12 @@ course(baseY - 6.4, fw * 0.62, 9, 0.13, 1.4, 131, 4, '#3b3f45');
 // value contrast of the sprite - everything else is mud, which is what
 // makes the pillbox findable on grass at 1:1 without going pale.
 var cY = baseY - 11.0, pR = fw * 0.60;
-g.fillStyle = '#36383d';
+g.fillStyle = '#383838';
 g.beginPath(); g.ellipse(cx, cY + 2.6, pR + 2.4, (pR + 2.4) * 0.36, 0, 0, 6.29); g.fill();
 outline(g, '#0d0e0f');
-g.fillStyle = '#3d3f45';
+g.fillStyle = '#3f3f3f';
 g.beginPath(); g.ellipse(cx, cY + 0.8, pR + 1.2, (pR + 1.2) * 0.35, 0, 0, 6.29); g.fill();
-g.fillStyle = '#e4e9f1';
+g.fillStyle = '#e8e8e8';
 g.beginPath(); g.ellipse(cx, cY, pR, pR * 0.34, 0, 0, 6.29); g.fill();
 outline(g, '#5b626d');
 g.save();
@@ -131,7 +131,7 @@ g.beginPath(); g.ellipse(cx - lR * 0.44, cY - 1.7, lR * 0.22, lR * 0.09, 0, 0, 6
 var slDX = 0.707, slDY = 0.354;                         // head-on, the pose it is drawn in
 if (bdir != null) { var slAim = gunAim(bdir, 0); slDX = slAim.sx; slDY = slAim.sy; }
 var slX = cx + slDX * fw * 0.56, slY = baseY - 5.0 + slDY * 5.0;  // clear of the lens's own AA edge below it
-g.fillStyle = '#0e0e10';
+g.fillStyle = '#0e0e0e';
 g.beginPath(); g.ellipse(slX, slY, 5.0, 2.0, 0.22, 0, 6.29); g.fill();
 g.fillStyle = 'rgba(206,214,228,.30)';
 g.beginPath(); g.ellipse(slX, slY - 1.5, 5.0, 0.8, 0.22, 0, 6.29); g.fill();

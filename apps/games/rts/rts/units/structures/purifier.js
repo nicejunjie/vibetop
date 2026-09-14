@@ -33,10 +33,10 @@ function drawPurifier(C) {
 // the pad lamps blink.
 var anP = (bph || 0) * 6.283, ph6 = Math.round((bph || 0) * 6) % 6;
 var PU_MND = '#75704a', PU_MNDD = '#2f2c19', PU_MNDL = '#928c5c';
-var PU_SIL = '#90938a', PU_SILL = '#c8cbc2', PU_SILD = '#52554e';
+var PU_SIL = '#919191', PU_SILL = '#c9c9c9', PU_SILD = '#535353';
 var PU_CRU = '#7c7855', PU_CRUD = '#4c4a32';
 var PU_GUN = '#1f232b', PU_GUNL = '#525a66';
-var PU_DUC = '#232939', PU_DUCL = '#9aa3b0';
+var PU_DUC = '#232939', PU_DUCL = '#a2a2a2';
 var PU_HOT = '#ffa424', PU_HOTL = '#ffe8ad', PU_HOTD = '#6f3005';
 var PU_EDG = '#1a1815';
 var puGlow = 0.82 + 0.18 * Math.sin(anP);              // the smelt breathing
@@ -163,7 +163,7 @@ for (var puKI = 0; puKI < 40; puKI++) {                  // ore crust, low on th
   g.beginPath(); g.ellipse(puKX, puKY, 1.5 + rnd() * 2.2, 0.9 + rnd() * 1.3, 0, 0, 6.29); g.fill();
 }
 g.restore();
-puConePath(); outline(g, '#43463f');
+puConePath(); outline(g, '#444444');
 g.fillStyle = PU_SILD;                                   // scalloped hem tabs
 for (var puTI = -4; puTI <= 4; puTI++) {
   g.beginPath(); g.ellipse(cx + puTI * 4.7, puKB - 0.4, 2.0, 1.6, 0, 0, 6.29); g.fill();
@@ -255,7 +255,7 @@ puClamp(0, 24, PU_EDG);
 puClamp(-7.6, 7.2, shade(col, 0.86)); puClamp(7.6, 7.2, shade(col, 0.86));
 puClamp(-9.8, 2.2, col); puClamp(5.8, 2.2, col);
 puClamp(-5.8, 1.8, shade(col, 0.74)); puClamp(9.8, 1.8, shade(col, 0.74));
-puClamp(0, 6.6, '#bcbfb7'); puClamp(-1.4, 2.0, '#e6e8e2');
+puClamp(0, 6.6, '#bdbdbd'); puClamp(-1.4, 2.0, '#e7e7e7');
 
 // ---- ore spilled at the foot, and two marker lamps --------------------
 srand(97);

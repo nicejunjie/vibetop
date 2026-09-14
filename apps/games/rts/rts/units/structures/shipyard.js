@@ -117,10 +117,10 @@ function launchBay(q, w2, h2, gate, lip) {
 function floods(pts) {
   for (var fl = 0; fl < pts.length; fl++) {
     var fq = pts[fl];
-    g.strokeStyle = '#43484d'; g.lineWidth = 1.5;
+    g.strokeStyle = '#474747'; g.lineWidth = 1.5;
     g.beginPath(); g.moveTo(fq[0], fq[1]); g.lineTo(fq[0], fq[1] - 24); g.stroke();
     var lit2 = (Math.floor(ph * 6) % 2) === fl % 2;
-    g.fillStyle = lit2 ? '#ffe9ab' : '#686d71';
+    g.fillStyle = lit2 ? '#ffe9ab' : '#6c6c6c';
     g.beginPath(); g.ellipse(fq[0], fq[1] - 25, 2.8, 1.9, 0, 0, 6.29); g.fill();
     if (lit2) {
       g.fillStyle = 'rgba(255,232,170,.18)';
@@ -149,7 +149,7 @@ g.restore();
 
 if (!sov) {
   // =============== [GAYARD] — the Allied rig ====================== //
-  var CAIS = '#8e959b', CAIS_D = '#3d4348', COLLAR = '#c9cfd3';
+  var CAIS = '#949494', CAIS_D = '#3d4348', COLLAR = '#cecece';
   var TOWER = '#adad93', TOWER_D = '#63644f';
   var ARCH = '#5e656d', ARCH_D = '#282d33';
   var JIBC = '#e6c94f', JIBD = '#8d7622';
@@ -277,7 +277,7 @@ if (!sov) {
   floods([P(-1.18, 1.18, 2), P(1.18, -1.18, CH * 0.5)]);
 } else {
   // =============== [NAYARD] — the Soviet pontoon =================== //
-  var PONT = '#5c6058', PONT_D = '#26291f';
+  var PONT = '#5e5e5e', PONT_D = '#26291f';
   var BRICK = '#8d7f5e', BRICK_D = '#4a422f', CAP = '#d8cf94', CAP_D = '#7c7443';
   var TOWR = '#2f3140', TOWR_D = '#13141c', MACH = '#3b4436';
   var JIBC2 = '#d9cf8a', JIBD2 = '#7d7440';
@@ -416,7 +416,7 @@ if (!sov) {
   g.beginPath(); g.moveTo(MQ[0], MQ[1]); g.lineTo(MQ[0], MQ[1] - 34); g.stroke();
   pylon2(PYL[2][0], PYL[2][1]); pylon2(PYL[3][0], PYL[3][1]);
   // Pipework along the near rail, then the launch gate in the rim.
-  g.strokeStyle = '#7b7f74'; g.lineWidth = 3.0;
+  g.strokeStyle = '#7d7d7d'; g.lineWidth = 3.0;
   var g0 = P(-1.1, 1.05, PH2 + 3), g1 = P(1.05, 1.1, PH2 + 3);
   g.beginPath(); g.moveTo(g0[0], g0[1]); g.lineTo(g1[0], g1[1]); g.stroke();
   var wh = P(0.25, 0.90, PH2);                          // a winch house on the deck

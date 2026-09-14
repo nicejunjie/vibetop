@@ -12,12 +12,12 @@ function drawCloningvats(C) {
 // green fluid along its face, pipe runs into a control shed, and a
 // house-colour band under the eaves.
 var cvLift = 22, cvHw = fw * 0.86, cvHh = fh * 0.86;
-prism(g, cx, baseY, cvHw, cvHh, cvLift, '#67685f', '#7d7e74', '#2b2c28', 4);
+prism(g, cx, baseY, cvHw, cvHh, cvLift, '#676767', '#7d7d7d', '#2b2b2b', 4);
 facePatch(g, faceL, cx, baseY, cvHw, cvHh, cvLift, 0.03, 0.97, 0.80, 0.90, shade(col, 0.82), null);
 facePatch(g, faceR, cx, baseY, cvHw, cvHh, cvLift, 0.03, 0.97, 0.80, 0.90, shade(col, 0.60), null);
 var cvRy = baseY - cvLift;
 // control shed on the roof
-prism(g, cx + fw * 0.28, cvRy + fh * 0.16, fw * 0.26, fh * 0.26, 13, '#5d5e56', '#74756c', '#262723', 0);
+prism(g, cx + fw * 0.28, cvRy + fh * 0.16, fw * 0.26, fh * 0.26, 13, '#5d5d5d', '#747474', '#262626', 0);
 g.fillStyle = 'rgba(150,210,170,.55)';
 g.fillRect(cx + fw * 0.14, cvRy + fh * 0.10 - 9, 11, 4);
 // four vats along the near face, back to front
@@ -37,9 +37,9 @@ for (var cvI = 0; cvI < 4; cvI++) {
   g.beginPath(); g.ellipse(vx, vy - 14, 1.9, 3.6, 0, 0, 6.29); g.fill();
   g.fillRect(vx - 0.7, vy - 10, 1.4, 5);
   // cap and pipe up into the wall
-  g.fillStyle = '#8a8c84';
+  g.fillStyle = '#8a8a8a';
   g.beginPath(); g.ellipse(vx, vy - 24, 6.6, 2.9, 0, 0, 6.29); g.fill();
-  g.strokeStyle = '#6a6c64'; g.lineWidth = 2.2;
+  g.strokeStyle = '#6a6a6a'; g.lineWidth = 2.2;
   g.beginPath(); g.moveTo(vx, vy - 26); g.lineTo(vx + 4, vy - 34); g.stroke();
 }
 }

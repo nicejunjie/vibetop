@@ -44,7 +44,7 @@ if (wantH) {
            by - 2.6 + py * wid * 0.345 * s2 - fy * 1.2,
            len * 0.19, 1.25, 0.75, a, shade(hull, 0.92), PEDGE);          // neutral lit cap; owner colour remains one countable flank slab
   }
-  tracks(len * 1.04, 3.05, wid * 0.23, '#b0b7c2');
+  tracks(len * 1.04, 3.05, wid * 0.23, '#b6b6b6');
   for (sg = -1; sg <= 1; sg += 2) if (py * sg < 0) flankPlate(sg);
   chassis(cx, by - 1.2, len * 0.84, wid * 0.60, 3.85, hull, dark, 3.6);
   deckPlate(-0.5, len * 0.60, wid * 0.36, 6.5, shade(hull, 1.08));

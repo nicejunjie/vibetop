@@ -161,7 +161,7 @@ var ACCENT = {
   lancer:    '#3c3c3c',   // neutral grey deck insets on a pale hull. Was #3a3f4c,
                           // whose shade ladder ran #336666 teal -> #333366 navy.
   mammoth:   '#1a1a1a',   // gun-black twin barrels (#17181c snapped to #000033)
-  spectre:   '#dfe9f5',   // small mirror face on a grey head (Prism Tank art)
+  spectre:   '#e7e7e7',   // small mirror face on a grey head (Prism Tank art)
   mcv:       '#e0a33c',   // amber folded-crane boom on a grey crawler
   harv:      '#b0955a',   // tan slatted ore bin
   engineer:  '#ffcc33',   // amber hard hat — the engineer's one loud surface
@@ -176,16 +176,16 @@ var ACCENT = {
   // off the attack dog is still there — it just lives on the arms, where the
   // reference puts it, and TROOP.tanya.skin now carries the rip's own value.
   tanya:     '#241f26',   // dark hair — the rip's head rows, not its arms
-  ifv:       '#e6eaf0',   // white lower body under the blue flank stripe
-  mirage:    '#e9edf2',   // the ribbed white emitter stack on the deck
+  ifv:       '#e9e9e9',   // white lower body under the blue flank stripe
+  mirage:    '#ececec',   // the ribbed white emitter stack on the deck
   rhino:     '#2e2e2e',   // NEUTRAL gunmetal barrel. The Lancer's navy put an
                           // OPPOSING hue on a Soviet tank (4.4% of the sprite).
   flaktrack: '#dcdcdc',   // pale flak shield over the tracked bed. #d9dee5's ladder
                           // carried #ccccff / #9999cc / #669999 — a lavender shield.
-  v3:        '#e6e7e9',   // the white rocket that IS the silhouette
+  v3:        '#e7e7e7',   // the white rocket that IS the silhouette
   drone:     '#adadad',   // bare metal carapace. #a9b0bb snapped to #9999cc — a
                           // LAVENDER-BLUE carapace on a Soviet unit.
-  teslatank: '#dfe6ee',   // pale coil windings
+  teslatank: '#e5e5e5',   // pale coil windings
   teslatrooper: '#cccccc',// steel helmet bowl and gauntlet
   ivan:      '#6f4c2c',   // his beard — the only bare face under a fur hat
   flak:      '#ffbe45',   // amber shell drum, as the Flak Trooper art under `rocket`
@@ -239,7 +239,7 @@ var TROOP = {
   conscript: { coat: '#663333', boot: '#1e2026', skin: '#d8a878' },  // TAN trousers (>=20 hue-deg off the GI's olive: ref §2.2)
   rocket:    { coat: '#333300', boot: '#22242a', skin: '#d8a878' },  // Guardian GI: heavy olive
   rocketS:   { coat: '#575049', boot: '#22242a', skin: '#d8a878' },  // Flak Trooper: grey-brown
-  engineer:  { coat: '#8c8c99', boot: '#6d6653', skin: '#d8a878' },  // NEAR-WHITE hazmat coverall — the only light-value body on the field (ref §2.1). The boot stays DARK on purpose: it is worth 0.005 of the value gate, and a near-white figure needs one dark note at the ground or he floats
+  engineer:  { coat: '#8d8d8d', boot: '#6d6653', skin: '#d8a878' },  // NEAR-WHITE hazmat coverall — the only light-value body on the field (ref §2.1). The boot stays DARK on purpose: it is worth 0.005 of the value gate, and a near-white figure needs one dark note at the ground or he floats
   // DARK combat trousers, not light khaki. At L=133 khaki she was the same
   // value and nearly the same hue as the attack dog's tan coat, and
   // `dog | tanya` has sat at 12.5 in the fit window — exactly ON the
@@ -251,12 +251,12 @@ var TROOP = {
   // a bright head" over "the LOWEST house-colour fraction in RA2 (14.3%)"
   // — a contrast read that a light khaki body cancels out.
   tanya:     { coat: '#333333', boot: '#15171c', skin: '#cc9999' },  // dark trousers; skin IS the rip's #cc9999 bare-limb value
-  teslatrooper: { coat: '#000033', boot: '#868d97', skin: '#d8a878' },// navy armour, steel greaves
+  teslatrooper: { coat: '#000033', boot: '#8c8c8c', skin: '#d8a878' },// navy armour, steel greaves
   ivan:      { coat: '#4a2020', boot: '#4a4e57', skin: '#dfae82' },   // WARM BROWN trousers, L=50, grey boots
   rocketeer: { coat: '#333333', boot: '#2a2e35', skin: '#d8a878' },   // grey pressure suit
   // Read off ra2-deso-RA2_Desolator_{Render,Manual_Render}: a charcoal
   // hazard suit with the house colour on the plates, heavy black boots.
-  desolator: { coat: '#4a4a4a', boot: '#3a3a40', skin: '#d8a878' },  // the rip's legs run #0c0c0c..#200000 — three near-blacks, not one. Ours must enter the darkening pass light enough that its own shading still separates after it
+  desolator: { coat: '#4a4a4a', boot: '#3b3b3b', skin: '#d8a878' },  // the rip's legs run #0c0c0c..#200000 — three near-blacks, not one. Ours must enter the darkening pass light enough that its own shading still separates after it
   // Read off ra2-cleg-CC_Legion_Chrono_Legionnaire + the sprite animation:
   // a PALE suit — bone-white plate over pale blue-grey underlayer.
   // ...and the suit is a NEUTRAL steel, not a blue-grey. #8f97a6 is 12

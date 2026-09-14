@@ -143,7 +143,7 @@ if (bdir != null) { var sgAim = gunAim(bdir, 1.082); sgA = sgAim.a; sgK = sgAim.
   g.lineWidth = 1;
 } else {
   // Directorate never builds this (Soviet-only in RA2): plain block.
-  prism(g, cx, baseY, fw * 0.8, fh * 0.8, 16, '#6a6f78', '#8a9099', '#2a2e36');
+  prism(g, cx, baseY, fw * 0.8, fh * 0.8, 16, '#6f6f6f', '#8f8f8f', '#2a2e36');
   g.fillStyle = col; g.fillRect(cx - fw * 0.5, baseY - 18, fw, 4);
 }
 }

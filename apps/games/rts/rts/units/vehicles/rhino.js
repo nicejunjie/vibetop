@@ -23,7 +23,7 @@ function drawRhino(C) {
 // the Rhino reads as the owner's tank from further away than any
 // other unit on the field.
 if (wantH) {
-  tracks(len * 1.02, 3.45, wid * 0.24, '#b0b7c2');
+  tracks(len * 1.02, 3.45, wid * 0.24, '#b6b6b6');
   // "hull height >= 1.25x the Grizzly's" (unit-identity-reference.md
   // 2.4) was the one line of the Rhino's spec never drawn: at 5.0
   // against the Grizzly's 3.8 it was 1.32x on paper but the Grizzly is

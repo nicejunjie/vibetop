@@ -26,9 +26,9 @@ var anP = (bph || 0) * 6.283, anS = Math.sin(anP);
 var ph6 = Math.round((bph || 0) * 6) % 6;
 var IRON = '#2b2d34', IRON_D = '#111318', IRON_L = '#4a4e59';
 var COIL_D = '#0e0f12';                              // near-black coil core
-var WIND = '#c6c8d8', WIND_M = '#8d90a6', WIND_D = '#54576b';   // silver winding
-var SHELL = '#b0b0c4', SHELL_L = '#f2f2ff', SHELL_D = '#71718a';  // electrode
-var CONCT = '#5a5850', MACH = '#b9bec6';
+var WIND = '#c9c9c9', WIND_M = '#8d90a6', WIND_D = '#54576b';   // silver winding
+var SHELL = '#b2b2b2', SHELL_L = '#f3f3f3', SHELL_D = '#71718a';  // electrode
+var CONCT = '#585858', MACH = '#bdbdbd';
 // Bare hardstanding: the space around the pylons is part of the read,
 // so no bevelled parade platform on top of the skirt already drawn.
 plot(g, cx, baseY, fw * 2, fh * 2);
@@ -215,11 +215,11 @@ var pylon = function (dx, dyB, pH, far) {
   // red, which would put this one structure past the 18% owner-hue
   // ceiling on its own; keeping the lit faces saturated and the turned
   // faces grey keeps the read and the budget.
-  g.fillStyle = mixc(col, '#2a2926', 0.78);          // shaded right cheek
+  g.fillStyle = mixc(col, '#292929', 0.78);          // shaded right cheek
   g.fillRect(bx + pW * 0.02, ty + 1.4, pW * 0.98, pH - 2.4);
   g.fillStyle = mixc(col, '#25272d', 0.80);          // dark foot
   g.fillRect(bx - pW, by - 3.4, pW * 2, 3.4);
-  g.fillStyle = mixc(col, '#c9ccd4', 0.68);          // FLAT top - a cut slab
+  g.fillStyle = mixc(col, '#cccccc', 0.68);          // FLAT top - a cut slab
   g.fillRect(bx - pW, ty, pW * 2, 2.2);
   g.fillStyle = 'rgba(255,255,255,.26)';
   g.fillRect(bx - pW, ty, pW * 2, 0.9);

@@ -12,11 +12,11 @@ function drawPsisensor(C) {
 // dish antennae round its shoulder and a violet lens on a gantry that
 // pulses. `ConcentricRadialIndicator=true` is the ring motif.
 var psH = 26, psR = fw * 0.62;
-cylinder(g, cx, baseY - 2, psR, psH, '#6e6f68', '#8b8c83', '#2d2e2a');
+cylinder(g, cx, baseY - 2, psR, psH, '#6e6e6e', '#8b8b8b', '#2d2d2d');
 // hazard band + house-colour ring
 g.fillStyle = shade(col, 0.85);
 g.beginPath(); g.ellipse(cx, baseY - 2 - psH + 1, psR, psR * 0.5, 0, 0, 6.29); g.fill();
-g.fillStyle = '#8b8c83';
+g.fillStyle = '#8b8b8b';
 g.beginPath(); g.ellipse(cx, baseY - 2 - psH - 2, psR * 0.92, psR * 0.46, 0, 0, 6.29); g.fill();
 g.strokeStyle = 'rgba(20,20,18,.5)'; g.lineWidth = 1;
 g.beginPath(); g.ellipse(cx, baseY - 2 - psH - 2, psR * 0.92, psR * 0.46, 0, 0, 6.29); g.stroke();
@@ -24,16 +24,16 @@ g.beginPath(); g.ellipse(cx, baseY - 2 - psH - 2, psR * 0.92, psR * 0.46, 0, 0, 
 for (var psI = 0; psI < 6; psI++) {
   var pa = psI * 1.047 + 0.3;
   var pax = cx + Math.cos(pa) * psR * 0.86, pay = baseY - 2 - psH + Math.sin(pa) * psR * 0.43;
-  g.strokeStyle = '#4c4d47'; g.lineWidth = 1.8;
+  g.strokeStyle = '#4c4c4c'; g.lineWidth = 1.8;
   g.beginPath(); g.moveTo(pax, pay); g.lineTo(pax, pay - 11); g.stroke();
-  g.fillStyle = '#b9bcb4';
+  g.fillStyle = '#bababa';
   g.beginPath(); g.ellipse(pax, pay - 13, 4.2, 2.4, 0, 0, 6.29); g.fill();
-  g.strokeStyle = '#787a72'; g.lineWidth = 0.9;
+  g.strokeStyle = '#787878'; g.lineWidth = 0.9;
   g.beginPath(); g.ellipse(pax, pay - 13, 4.2, 2.4, 0, 0, 6.29); g.stroke();
 }
 // the gantry and the lens
 var psTop = baseY - 2 - psH - 4;
-g.strokeStyle = '#575850'; g.lineWidth = 3.4;
+g.strokeStyle = '#575757'; g.lineWidth = 3.4;
 g.beginPath(); g.moveTo(cx - 7, psTop); g.lineTo(cx, psTop - 22); g.stroke();
 g.beginPath(); g.moveTo(cx + 7, psTop); g.lineTo(cx, psTop - 22); g.stroke();
 // double-frequency sin(2t) sampled at 6 equally-spaced phases repeats

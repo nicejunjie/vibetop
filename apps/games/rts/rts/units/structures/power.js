@@ -30,7 +30,7 @@ if (sov) {
   var STN = '#8f7a6b', STN_H = '#b7a18d', STN_D = '#57453a';   // lit rubble
   var OLV = '#3a3b26', OLV_H = '#50512f', OLV_D = '#1b1c0c';   // shaded rubble
   var SEAM = '#2a2118';
-  var PIPE = '#767b84', PIPE_D = '#1c1f26';
+  var PIPE = '#7b7b7b', PIPE_D = '#1c1f26';
   var DECK = '#191b26', DECK_D = '#0a0b11', KERB = '#b3a48c';
 
   srand(311);
@@ -175,12 +175,12 @@ if (sov) {
   // ---- back-left tower: tall and narrow (~20x48 in the sprite).
   var lx = cx - fw * 0.37, ly = dTop - 2;
   var LT = block(lx, ly, 13.4, 7.6, 49, 13);
-  g.fillStyle = '#6d727c';                                 // grey vent cap, left of the slab
+  g.fillStyle = '#727272';                                 // grey vent cap, left of the slab
   g.beginPath();
   g.moveTo(LT.x - LT.hw, LT.y - 1); g.lineTo(LT.x - LT.hw * 0.20, LT.y - LT.hh * 0.72);
   g.lineTo(LT.x - LT.hw * 0.20, LT.y - LT.hh * 0.72 - 5);
   g.lineTo(LT.x - LT.hw, LT.y - 6); g.closePath(); g.fill(); outline(g, '#2a2e34');
-  g.fillStyle = '#9ba1ab';
+  g.fillStyle = '#a0a0a0';
   g.fillRect(LT.x - LT.hw + 1, LT.y - 7.5, 4, 2);
   slab(LT, 0.06, 1.02, 0.02, 0.72, 3);
 
@@ -199,7 +199,7 @@ if (sov) {
   g.fillRect(lx - 25, ly - 21, 16, 7.4); outline(g, '#0f1116');
   g.fillStyle = PIPE; g.fillRect(lx - 25, ly - 21, 16, 3.0);
   g.fillStyle = shade(PIPE, 1.24); g.fillRect(lx - 25, ly - 20.4, 16, 1.2);
-  g.fillStyle = '#9aa0a9';
+  g.fillStyle = '#9f9f9f';
   g.beginPath(); g.ellipse(lx - 25, ly - 17.3, 2.6, 3.9, 0, 0, 6.29); g.fill();
   outline(g, '#0f1116');
   g.fillStyle = '#41464e';
@@ -237,7 +237,7 @@ if (sov) {
   g.lineTo(ox + orad * 0.78, dTop + 2);
   g.lineTo(ox - orad * 0.86, dTop + 2);
   g.closePath(); g.fill(); outline(g, '#080a10');
-  g.strokeStyle = '#7f858f'; g.lineWidth = 1.7;
+  g.strokeStyle = '#848484'; g.lineWidth = 1.7;
   for (var st3 = -1; st3 <= 1; st3++) {
     g.beginPath();
     g.moveTo(ox + st3 * orad * 0.46, oy + orad * 0.66);
@@ -246,9 +246,9 @@ if (sov) {
 
   var og = g.createRadialGradient(ox - orad * 0.34, oy - orad * 0.42, orad * 0.06,
                                   ox, oy, orad * 1.02);
-  og.addColorStop(0, '#fdfdff');
-  og.addColorStop(0.18, '#dfe0ea');
-  og.addColorStop(0.44, '#b0b2c3');
+  og.addColorStop(0, '#fdfdfd');
+  og.addColorStop(0.18, '#e1e1e1');
+  og.addColorStop(0.44, '#b3b3b3');
   og.addColorStop(0.70, '#7c8095');
   og.addColorStop(0.90, '#52566c');
   og.addColorStop(1, '#33364a');
@@ -418,9 +418,9 @@ if (sov) {
   // columns are cool slate-indigo with a narrow specular and a thin
   // gold plasma slit, so a red-owner plant carries no blue and a
   // blue-owner plant carries no red.
-  var STL_D = '#22252b', STL = '#585f6b', STL_L = '#949ca8';
+  var STL_D = '#22252b', STL = '#585f6b', STL_L = '#9b9b9b';
   var GLS_D = '#31344e', GLS = '#5f6684', GLS_L = '#9aa2be';
-  var PLATE = '#33363f', BRASS = '#a8823c', SILV = '#8e949e';
+  var PLATE = '#33363f', BRASS = '#a8823c', SILV = '#939393';
 
   // Octagonal base plate (a cut-cornered iso diamond).
   var octa = function (oX, oY, ow, oh, fill, edge, lw) {
@@ -441,7 +441,7 @@ if (sov) {
   };
   srand(211);
   octa(cx + 3, baseY + 5, fw * 1.00, fh * 1.00, 'rgba(0,0,0,.42)', null);
-  octa(cx, baseY, fw * 1.00, fh * 1.00, '#2c2f30', '#0d0f12');       // pad riser
+  octa(cx, baseY, fw * 1.00, fh * 1.00, '#2e2e2e', '#0d0f12');       // pad riser
   octa(cx, baseY - 4, fw * 0.99, fh * 0.99, '#5e6255', '#141613');   // pad top (grey-olive)
   octa(cx, baseY - 5, fw * 0.99, fh * 0.99, null, col, 2);           // HOUSE rim line
   octa(cx, baseY - 6, fw * 0.90, fh * 0.90, '#565a4d', '#22251f');
@@ -696,7 +696,7 @@ if (sov) {
   // far inner wall in shadow, hot pool at the near side. Nothing else in
   // the game aims a dish at the sky, so it has to read as concave.
   var bowlY = baseY - 41, bw = PW_BW, tlt = 0.22, bry = bw * 0.55;
-  cylinder(g, cx, bowlY + 11, 4.4, 7, '#4a4f58', '#6c727c', '#1d1f25');  // neck
+  cylinder(g, cx, bowlY + 11, 4.4, 7, '#4a4f58', '#717171', '#1d1f25');  // neck
   g.fillStyle = '#5a360f';                                           // bowl underside
   g.beginPath();
   g.moveTo(cx - bw * Math.cos(tlt), bowlY - bw * Math.sin(tlt));
@@ -744,7 +744,7 @@ if (sov) {
   g.moveTo(lcx + 18, baseY + fh * 0.44);
   g.quadraticCurveTo(cx, baseY + fh * 0.64, rcx - 18, baseY + fh * 0.44);
   g.stroke();
-  g.strokeStyle = '#6e737d'; g.lineWidth = 1.3;
+  g.strokeStyle = '#737373'; g.lineWidth = 1.3;
   g.beginPath();
   g.moveTo(lcx + 18, baseY + fh * 0.42);
   g.quadraticCurveTo(cx, baseY + fh * 0.62, rcx - 18, baseY + fh * 0.42);

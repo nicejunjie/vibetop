@@ -49,7 +49,7 @@ var qbox = function (a0, a1, b0, b1, z0, z1, cA, cB, cT, ed) {
 };
 var anP = (bph || 0) * 6.283, anS = Math.sin(anP), anC = Math.cos(anP);
 var ph6 = Math.round((bph || 0) * 6) % 6;
-var SIL = '#c3c6d0', SILH = '#f0f2f8', SILD = '#767a86';
+var SIL = '#c6c6c6', SILH = '#f2f2f2', SILD = '#7a7a7a';
 
 if (!sov) {
   // ---- Directorate = RA2 Allied War Factory ------------------------
@@ -62,7 +62,7 @@ if (!sov) {
   // owner-colour flukes. A low navy wing with a silver girder runs
   // down the far side; the near flank is a khaki apron of kit.
   var NAVY = '#252a3c', NAVY_D = '#161a26', NAVY_L = '#383e58', EDGE = '#0d0f18';
-  var GLST = '#f1f1fa', GLS = '#c6c5ea', GLSB = '#9d9fdc';
+  var GLST = '#f2f2f2', GLS = '#c6c5ea', GLSB = '#9d9fdc';
   var KHK = '#77754f', KHKD = '#55533a';
   var ii, jj, kk;
 
@@ -163,7 +163,7 @@ if (!sov) {
   }
   // glass: six bays, each ONE pane in four strips, white -> lavender -> blue
   var NBAY = 6, bayL = (vb1 - vb0) / NBAY, ribW = bayL * 0.17;
-  var STR = [[2.50, 1.98, GLST], [1.98, 1.46, '#ececf8'], [1.46, 0.94, '#d4d4f0'], [0.94, 0.42, GLSB]];
+  var STR = [[2.50, 1.98, GLST], [1.98, 1.46, '#ededed'], [1.46, 0.94, '#d7d7d7'], [0.94, 0.42, GLSB]];
   for (kk = 0; kk < NBAY; kk++) {
     var gb0 = vb0 + bayL * kk + ribW, gb1 = vb0 + bayL * (kk + 1) - ribW;
     for (jj = 0; jj < 4; jj++) {
@@ -198,7 +198,7 @@ if (!sov) {
   g.beginPath(); g.moveTo(mth[0][0], mth[0][1]);
   for (ii = 1; ii < mth.length; ii++) g.lineTo(mth[ii][0], mth[ii][1]);
   g.closePath(); g.clip();
-  var LIT = ['#a89a70', '#8e8462', '#6e6a52', '#4c4c48'];   // lit bay, floor up to the dark crown
+  var LIT = ['#a89a70', '#8e8462', '#6e6a52', '#4c4c4c'];   // lit bay, floor up to the dark crown
   for (ii = 0; ii < 4; ii++)
     qpoly([IP(ac - ha, vb1 + 0.02, ii * 6), IP(ac + ha, vb1 + 0.02, ii * 6),
            IP(ac + ha, vb1 + 0.02, ii * 6 + 6), IP(ac - ha, vb1 + 0.02, ii * 6 + 6)], LIT[ii], null);
@@ -216,7 +216,7 @@ if (!sov) {
   g.globalAlpha = 1;
   var hz = zb + rise * 0.74, hkz = hz - 7 - anS * 5;           // hoist beam and hook
   qline([IP(ac - ha * 0.80, vb1 - 0.30, hz), IP(ac + ha * 0.80, vb1 - 0.30, hz)], '#3a3f52', 2.4);
-  qline([IP(ac + 0.02, vb1 - 0.30, hz), IP(ac + 0.02, vb1 - 0.30, hkz)], '#8a8e9a', 1);
+  qline([IP(ac + 0.02, vb1 - 0.30, hz), IP(ac + 0.02, vb1 - 0.30, hkz)], '#8e8e8e', 1);
   var hk = IP(ac + 0.02, vb1 - 0.30, hkz);
   g.fillStyle = '#5c6172'; g.fillRect(hk[0] - 3, hk[1] - 1, 6, 4);
   g.restore();
@@ -235,7 +235,7 @@ if (!sov) {
       var sz0 = dLo + ii * 3, sz1 = Math.min(dH, sz0 + 3);
       qpoly([IP(ac - ha, vb1 + 0.005, sz0), IP(ac + ha, vb1 + 0.005, sz0),
              IP(ac + ha, vb1 + 0.005, sz1), IP(ac - ha, vb1 + 0.005, sz1)],
-            ii & 1 ? '#8b91a0' : '#9ba1b0', null);
+            ii & 1 ? '#8b91a0' : '#a1a1a1', null);
       qline([IP(ac - ha, vb1 + 0.006, sz1), IP(ac + ha, vb1 + 0.006, sz1)], 'rgba(22,26,38,.55)', 1);
     }
     qpoly([IP(ac - ha, vb1 + 0.007, dLo), IP(ac + ha, vb1 + 0.007, dLo),          // PLAYER: leading rail
@@ -339,9 +339,9 @@ if (!sov) {
   // framed in pink limestone with its leaf swung out, hammer-and-sickle
   // on the leaf, over a pale ramp edged red and brass.
   var NVY = '#262b3c', NVY_D = '#151824', NVY_L = '#3a4058', EDGE2 = '#0b0d14';
-  var PADC = '#c8c4b2', PADE = '#8a8674', RIDGE = '#ebe8dc';
+  var PADC = '#c3c3c3', PADE = '#8a8674', RIDGE = '#e8e8e8';
   var PINK = '#c49a8c', PINK_D = '#8f6a60', PINK_L = '#e0bcae';
-  var GOLD = '#c8973a', IRON = '#20222a', BOIL = '#aaaa9c', BRASS = '#b8933f';
+  var GOLD = '#c8973a', IRON = '#20222a', BOIL = '#a8a8a8', BRASS = '#b8933f';
   var si, sj;
   plot(g, cx, baseY, fw * 2, fh * 2);           // pale concrete pad
   g.fillStyle = shade(PADC, 0.70); g.fill(); outline(g, shade(PADC, 0.50));
@@ -357,7 +357,7 @@ if (!sov) {
 
   // pale ramp past the +gy face: owner kerb one side, brass rail the other
   var rb0 = 1.40, rb1 = 2.45;
-  qpoly([IP(-0.52, rb0, 0), IP(0.42, rb0, 0), IP(0.50, rb1, 0), IP(-0.60, rb1, 0)], '#d4d0bf', PADE);
+  qpoly([IP(-0.52, rb0, 0), IP(0.42, rb0, 0), IP(0.50, rb1, 0), IP(-0.60, rb1, 0)], '#cfcfcf', PADE);
   for (si = 1; si < 5; si++)
     qline([IP(-0.52 - 0.08 * si / 5, rb0 + si / 5, 0), IP(0.42 + 0.08 * si / 5, rb0 + si / 5, 0)], 'rgba(60,60,52,.32)', 1);
   qpoly([IP(-0.52, rb0, 0), IP(-0.62, rb0, 0), IP(-0.70, rb1, 0), IP(-0.60, rb1, 0)], col, shade(col, 0.70));
@@ -519,7 +519,7 @@ if (!sov) {
     g.strokeStyle = '#565a63'; g.lineWidth = wdt;
     g.beginPath(); g.moveTo(ex, ey); g.lineTo(ex, ey - lift);
     g.quadraticCurveTo(ex - 2, ey - lift - 9, ex - len, ey - lift - 11); g.stroke();
-    g.strokeStyle = '#7d828c'; g.lineWidth = Math.max(1, wdt * 0.28);
+    g.strokeStyle = '#828282'; g.lineWidth = Math.max(1, wdt * 0.28);
     g.beginPath(); g.moveTo(ex - wdt * 0.28, ey - 2); g.lineTo(ex - wdt * 0.28, ey - lift);
     g.quadraticCurveTo(ex - 3, ey - lift - 7.4, ex - len * 0.9, ey - lift - 9.2); g.stroke();
     g.lineCap = 'butt'; g.lineJoin = 'miter';
@@ -545,16 +545,16 @@ if (!sov) {
   var BB = [0.72, 0.08, -0.56];
   for (si = 0; si < 3; si++) {
     var bp = IP(0.84, BB[si], 0);
-    cylinder(g, bp[0], bp[1], 7, 15, shade(BOIL, 0.84), BOIL, '#3a3a34');
+    cylinder(g, bp[0], bp[1], 7, 15, shade(BOIL, 0.84), BOIL, '#393939');
     g.fillStyle = shade(BOIL, 1.06);
-    g.beginPath(); g.ellipse(bp[0], bp[1] - 15, 7, 5.4, 0, Math.PI, 0); g.fill(); outline(g, '#3a3a34');
+    g.beginPath(); g.ellipse(bp[0], bp[1] - 15, 7, 5.4, 0, Math.PI, 0); g.fill(); outline(g, '#393939');
     g.fillStyle = 'rgba(255,255,255,.35)';
     g.beginPath(); g.ellipse(bp[0] - 2.6, bp[1] - 18, 2.2, 1.4, -0.5, 0, 6.29); g.fill();
-    g.fillStyle = '#4a4a42'; g.fillRect(bp[0] - 7, bp[1] - 5, 14, 1.6);
+    g.fillStyle = '#494949'; g.fillRect(bp[0] - 7, bp[1] - 5, 14, 1.6);
     var fire = (ph6 + si) % 3 === 0;                // firebox, glowing in turn
     g.fillStyle = fire ? AMB : '#2a1a10'; g.fillRect(bp[0] - 2.4, bp[1] - 3.6, 4.8, 2.4);
     if (fire) { g.globalAlpha = 0.35; g.fillStyle = AMBH; g.fillRect(bp[0] - 3.4, bp[1] - 4.4, 6.8, 3.6); g.globalAlpha = 1; }
-    cylinder(g, bp[0] + 3, bp[1] - 19, 1.6, 6, '#33353c', '#4d5058', '#14151a');
+    cylinder(g, bp[0] + 3, bp[1] - 19, 1.6, 6, '#33353c', '#505050', '#14151a');
   }
   var RB = [1.00, 0.36, -0.28];
   for (si = 0; si < 3; si++) {                     // PLAYER: red machine boxes
@@ -578,7 +578,7 @@ if (!sov) {
   var hkz2 = 11 - anS * 4, dm = (dA0 + dA1) / 2;  // crane hook riding in the bay
   qline([IP(dm, hb1, dz - 1), IP(dm, hb1, hkz2)], '#6f7482', 1);
   var hk2 = IP(dm, hb1, hkz2);
-  g.fillStyle = '#8a8e9a'; g.fillRect(hk2[0] - 2.5, hk2[1] - 1, 5, 3.5);
+  g.fillStyle = '#8e8e8e'; g.fillRect(hk2[0] - 2.5, hk2[1] - 1, 5, 3.5);
   if (ph6 === 1 || ph6 === 4) {                    // welding flash
     var wf = IP(dm + (ph6 === 1 ? -0.12 : 0.10), hb1, 6);
     g.globalAlpha = 0.55; g.fillStyle = '#ffd77a';

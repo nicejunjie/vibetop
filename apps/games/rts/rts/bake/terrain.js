@@ -481,12 +481,12 @@ function bakeGroundSheet(kind, seed) {
   var P = {
     grass: { base: '#5f7038', dark: '#4a5a2a', light: '#78873f', dirt: '#7b6b46', dirt2: '#6a5b3b',
              worn: '#8d8452', peb: '#9a9578', pebD: '#3d4423', grain: 0.30 },
-    snow:  { base: '#dbe8e8', dark: '#c2d3d9', light: '#f6fbfb', dirt: '#aab3ad', dirt2: '#95a09b',
-             worn: '#f2f8f8', peb: '#ffffff', pebD: '#9aa5a9', grain: 0.26 },
+    snow:  { base: '#e4e4e4', dark: '#cfcfcf', light: '#fafafa', dirt: '#b0b0b0', dirt2: '#9c9c9c',
+             worn: '#f6f6f6', peb: '#ffffff', pebD: '#a2a2a2', grain: 0.26 },
     // urban: poured concrete slabs. Cool mid grey, low-contrast drift, and
     // the dirt tones are oil and soot rather than earth.
-    pave:  { base: '#7b7d7e', dark: '#666a6c', light: '#93989a', dirt: '#575652', dirt2: '#4a4a48',
-             worn: '#a6abac', peb: '#bcc0c1', pebD: '#4b4e50', grain: 0.24 },
+    pave:  { base: '#7d7d7d', dark: '#696969', light: '#979797', dirt: '#565656', dirt2: '#4a4a4a',
+             worn: '#aaaaaa', peb: '#bfbfbf', pebD: '#4d4d4d', grain: 0.24 },
     // The three ALT surfaces: RA2 gives every theatre a second ground the
     // first one blends into through the LAT sets -- Sand and Grass Rough on
     // temperate, scoured earth on snow, a dirt lot on urban.
@@ -575,22 +575,22 @@ function bakeGroundSheet(kind, seed) {
       var sl = jf ? -0.5 : 0.5;
       for (var jc = 0; jc < SHH; jc += 16) {
         for (var jk = -1; jk <= 1; jk++) {
-          g.globalAlpha = 0.46; g.strokeStyle = '#494c4e'; g.lineWidth = 1.3;
+          g.globalAlpha = 0.46; g.strokeStyle = '#4b4b4b'; g.lineWidth = 1.3;
           g.beginPath(); g.moveTo(0, jc + jk * SHH); g.lineTo(SHW, jc + jk * SHH + sl * SHW); g.stroke();
-          g.globalAlpha = 0.26; g.strokeStyle = '#b1b6b8'; g.lineWidth = 1;   // the lit lip of the next slab
+          g.globalAlpha = 0.26; g.strokeStyle = '#b5b5b5'; g.lineWidth = 1;   // the lit lip of the next slab
           g.beginPath(); g.moveTo(0, jc + jk * SHH + 1); g.lineTo(SHW, jc + jk * SHH + 1 + sl * SHW); g.stroke();
         }
       }
     }
-    g.globalAlpha = 0.20; g.fillStyle = '#26262a';                   // oil stains
+    g.globalAlpha = 0.20; g.fillStyle = '#262626';                   // oil stains
     for (i = 0; i < 7; i++) sheetSplotch(g, rnd() * SHW, rnd() * SHH, 3 + rnd() * 5, 4);
     g.globalAlpha = 0.5;                                             // rubble and broken kerb chips
     for (i = 0; i < 120; i++) {
       var rx2 = rnd() * SHW, ry2 = rnd() * SHH, rr = 0.9 + rnd() * 1.8;
       g.fillStyle = 'rgba(24,24,26,.5)'; sheetBlob(g, rx2 + 0.7, ry2 + 0.5, rr * 1.1, rr * 0.5);
-      g.fillStyle = rnd() < 0.5 ? '#9ea3a5' : '#7f7a72'; sheetBlob(g, rx2, ry2 - 0.3, rr * 0.9, rr * 0.45);
+      g.fillStyle = rnd() < 0.5 ? '#a2a2a2' : '#7b7b7b'; sheetBlob(g, rx2, ry2 - 0.3, rr * 0.9, rr * 0.45);
     }
-    g.globalAlpha = 0.22; g.strokeStyle = '#3f4244'; g.lineWidth = 0.9;   // hairline cracks
+    g.globalAlpha = 0.22; g.strokeStyle = '#414141'; g.lineWidth = 0.9;   // hairline cracks
     for (i = 0; i < 14; i++) sheetStreak(g, rnd() * SHW, rnd() * SHH, 4 + rint(4), 3 + rnd() * 4, 0.7);
   }
   g.globalAlpha = 1;
@@ -631,8 +631,8 @@ function bakeFloe(v) {
     }
     function poly(dx, dy) { g.beginPath(); g.moveTo(pts[0][0] + dx, pts[0][1] + dy); for (var q = 1; q < pts.length; q++) g.lineTo(pts[q][0] + dx, pts[q][1] + dy); g.closePath(); }
     g.fillStyle = 'rgba(18,44,58,.30)'; poly(1.2, 1.6); g.fill();      // the floe's own shadow in the water
-    g.fillStyle = '#dceaee'; poly(0, 0); g.fill();
-    g.fillStyle = '#f6fcfd'; poly(-1, -1.4); g.globalAlpha = 0.75; g.fill(); g.globalAlpha = 1;
+    g.fillStyle = '#e6e6e6'; poly(0, 0); g.fill();
+    g.fillStyle = '#fafafa'; poly(-1, -1.4); g.globalAlpha = 0.75; g.fill(); g.globalAlpha = 1;
     g.strokeStyle = 'rgba(120,160,178,.55)'; g.lineWidth = 0.8;         // cracks
     for (i = 0; i < 2; i++) {
       g.beginPath(); g.moveTo(fx - rw * 0.6, fy + (brnd() - 0.5) * rh);
@@ -650,10 +650,10 @@ function bakeRockSheet(kind, seed, flat) {
   var s = mkCanvas(SHW, SHH), g = s.g;
   srand(seed);
   var snowy = kind === 'snow';
-  var RB = snowy ? '#8a9294' : '#5e5847', R1 = snowy ? '#6b7478' : '#494434', R2 = snowy ? '#aeb8ba' : '#78705c';
-  var RG1 = snowy ? '#5a6468' : '#403b2d', RG2 = snowy ? '#ccd5d6' : '#8b8471', RBOULD = snowy ? '#8e979a' : '#7c745f';
+  var RB = snowy ? '#909090' : '#5e5847', R1 = snowy ? '#727272' : '#494434', R2 = snowy ? '#b5b5b5' : '#78705c';
+  var RG1 = snowy ? '#5a6468' : '#403b2d', RG2 = snowy ? '#d2d2d2' : '#8b8471', RBOULD = snowy ? '#959595' : '#7c745f';
   if (kind === 'urban') {   // demolished lot: broken concrete, not bare rock
-    RB = '#6e6f6d'; R1 = '#535451'; R2 = '#8b8d8b'; RG1 = '#494a48'; RG2 = '#a6a8a6'; RBOULD = '#83837f';
+    RB = '#6e6e6e'; R1 = '#535353'; R2 = '#8c8c8c'; RG1 = '#494949'; RG2 = '#a7a7a7'; RBOULD = '#838383';
   }
   g.fillStyle = RB; g.fillRect(0, 0, SHW, SHH);
   g.globalAlpha = flat ? 0.09 : 0.22;
@@ -662,7 +662,7 @@ function bakeRockSheet(kind, seed, flat) {
   for (i = 0; i < 1600; i++) { g.fillStyle = rnd() < 0.5 ? RG1 : RG2; var q = 0.6 + rnd() * 1.2; g.beginPath(); g.ellipse(rnd() * SHW, rnd() * SHH, q, q * 0.6, 0, 0, 6.29); g.fill(); }
   g.globalAlpha = 1;
   if (snowy) {                                   // snow lying in the hollows
-    g.globalAlpha = 0.30; g.fillStyle = '#eef6f7';
+    g.globalAlpha = 0.30; g.fillStyle = '#f4f4f4';
     for (i = 0; i < 42; i++) sheetSplotch(g, rnd() * SHW, rnd() * SHH, 3 + rnd() * 6, 3);
     g.globalAlpha = 1;
   }
@@ -713,7 +713,7 @@ function bakeDecal(kind, v) {
   g.save(); diamondT(g, cx, cy); g.clip();
   var snowy = kind === 'snow';
   if ((v & 3) === 0) {                                   // bare scuff
-    g.globalAlpha = 0.34; g.fillStyle = snowy ? '#a8b1a8' : '#7b6b46';
+    g.globalAlpha = 0.34; g.fillStyle = snowy ? '#adadad' : '#7b6b46';
     for (var i = 0; i < 4; i++) { var a = rnd() * 6.29, d = rnd() * 13; g.beginPath(); g.ellipse(cx + Math.cos(a) * d, cy + Math.sin(a) * d * 0.5, 4 + rnd() * 7, 2 + rnd() * 3, 0, 0, 6.29); g.fill(); }
   } else if ((v & 3) === 1) {                            // grass tufts / snow crust
     g.globalAlpha = 0.8;
@@ -726,10 +726,10 @@ function bakeDecal(kind, v) {
     for (i = 0; i < 7; i++) {
       var px2 = cx + (rnd() - 0.5) * (TW - 14), py2 = cy + (rnd() - 0.5) * (TH - 8), pr = 0.9 + rnd() * 1.4;
       g.fillStyle = 'rgba(28,26,18,.32)'; g.beginPath(); g.ellipse(px2 + 0.7, py2 + 0.5, pr * 1.1, pr * 0.55, 0, 0, 6.29); g.fill();
-      g.fillStyle = snowy ? '#eef5f5' : '#9a9578'; g.beginPath(); g.ellipse(px2, py2 - 0.2, pr * 0.9, pr * 0.45, 0, 0, 6.29); g.fill();
+      g.fillStyle = snowy ? '#f3f3f3' : '#9a9578'; g.beginPath(); g.ellipse(px2, py2 - 0.2, pr * 0.9, pr * 0.45, 0, 0, 6.29); g.fill();
     }
   } else {                                               // dark damp blotch
-    g.globalAlpha = 0.20; g.fillStyle = snowy ? '#9fb0b6' : '#3f4c22';
+    g.globalAlpha = 0.20; g.fillStyle = snowy ? '#acacac' : '#3f4c22';
     g.beginPath(); g.ellipse(cx + (rnd() - 0.5) * 12, cy + (rnd() - 0.5) * 7, 10 + rnd() * 9, 5 + rnd() * 4, 0, 0, 6.29); g.fill();
   }
   g.globalAlpha = 1; g.restore();
@@ -749,7 +749,7 @@ function bakeWaterSheet(kind, phase) {
   g.fillStyle = ice ? '#adc7d2' : '#1b4552'; g.fillRect(0, 0, WSHW, WSHH);
   function wb(x, y, rx, ry) { for (var dx = -1; dx <= 1; dx++) for (var dy = -1; dy <= 1; dy++) { g.beginPath(); g.ellipse(x + dx * WSHW, y + dy * WSHH, rx, ry, 0, 0, 6.29); g.fill(); } }
   g.globalAlpha = ice ? 0.13 : 0.15;
-  for (var i = 0; i < 18; i++) { g.fillStyle = rnd() < 0.5 ? (ice ? '#a6bfc9' : '#17414e') : (ice ? '#d8e8ec' : '#276070'); wb(rnd() * WSHW, rnd() * WSHH, 12 + rnd() * 26, 6 + rnd() * 13); }
+  for (var i = 0; i < 18; i++) { g.fillStyle = rnd() < 0.5 ? (ice ? '#a6bfc9' : '#17414e') : (ice ? '#e4e4e4' : '#276070'); wb(rnd() * WSHW, rnd() * WSHH, 12 + rnd() * 26, 6 + rnd() * 13); }
   g.globalAlpha = 1;
   // caustics / cracks: phase-shifted per frame so the surface lives
   srand((ice ? 700 : 640) + phase * 17);
@@ -834,11 +834,11 @@ function bakeShore(kind, mask) {
   g.save(); diamondT(g, cx, cy); g.clip();
   for (var e = 0; e < 4; e++) {
     if (!(mask & (1 << e))) continue;
-    g.globalAlpha = 0.55; g.fillStyle = snowy ? '#dfeaea' : '#8f8a5e';   // dry bank, feathered
+    g.globalAlpha = 0.55; g.fillStyle = snowy ? '#e7e7e7' : '#8f8a5e';   // dry bank, feathered
     edgeBand(g, e, 15, 11, 200 + mask * 13 + e); g.fill();
-    g.globalAlpha = 1; g.fillStyle = snowy ? '#e8f0f0' : '#a99b6e';       // sand
+    g.globalAlpha = 1; g.fillStyle = snowy ? '#eeeeee' : '#a99b6e';       // sand
     edgeBand(g, e, 9.5, 8, 300 + mask * 13 + e); g.fill();
-    g.fillStyle = snowy ? '#d3e0e4' : '#8a7d55';                          // wet sand
+    g.fillStyle = snowy ? '#dddddd' : '#8a7d55';                          // wet sand
     edgeBand(g, e, 5, 5, 500 + mask * 13 + e); g.fill();
     g.fillStyle = snowy ? 'rgba(150,178,190,.55)' : 'rgba(90,88,62,.5)';  // silt at the waterline
     edgeBand(g, e, 2.2, 2.6, 700 + mask * 13 + e); g.fill();
@@ -935,7 +935,7 @@ function bakeScree(kind, mask, rockSheet) {
       var r = 1 + brnd() * 2.6 * (1 - d / 18);
       if (r < 0.5) continue;
       g.fillStyle = 'rgba(24,22,14,.32)'; g.beginPath(); g.ellipse(px2 + 0.6, py2 + 0.5, r * 1.25, r * 0.55, 0, 0, 6.29); g.fill();
-      g.fillStyle = shade(snowy ? '#a8b1b3' : kind === 'urban' ? '#8b8d8b' : '#7c745f', 0.8 + brnd() * 0.5);
+      g.fillStyle = shade(snowy ? '#afafaf' : kind === 'urban' ? '#8c8c8c' : '#7c745f', 0.8 + brnd() * 0.5);
       g.beginPath(); g.ellipse(px2, py2 - 0.2, r, r * 0.62, 0, 0, 6.29); g.fill();
     }
   }
@@ -1037,11 +1037,11 @@ function bakeCliff(mask, kind, variant, seam) {
   // and puts the WHITE in the snow lying on it, so that is what the palette
   // says now: neutral stone for the face, white only where snow settles.
   var P = kind === 'snow'
-    ? { top: '#dbe8e8', top2: '#c3d2d7', crown: '#eef5f6',
-        rock: '#847f76', rockD: '#3a352e', rockL: '#b0a89b', wet: '#5c574f' }
+    ? { top: '#e4e4e4', top2: '#cecece', crown: '#f3f3f3',
+        rock: '#7f7f7f', rockD: '#3a352e', rockL: '#a9a9a9', wet: '#5c574f' }
     : kind === 'urban'
-      ? { top: '#7b7d7e', top2: '#666a6c', crown: '#93989a',
-          rock: '#8b8c88', rockD: '#43443f', rockL: '#c2c3bd', wet: '#6a6b66' }
+      ? { top: '#7d7d7d', top2: '#696969', crown: '#979797',
+          rock: '#8b8b8b', rockD: '#434343', rockL: '#c2c2c2', wet: '#6a6a6a' }
       : { top: '#5f7038', top2: '#4a5a2a', crown: '#78873f',
           rock: '#6b5f4a', rockD: '#2f2820', rockL: '#a39273', wet: '#4a4034' };
   bsr(2200 + mask * 37 + (variant | 0) * 1013 + (kind === 'snow' ? 5 : kind === 'urban' ? 11 : 0));
@@ -1348,7 +1348,7 @@ function bakeCliff(mask, kind, variant, seam) {
     g.fillStyle = 'rgba(255,255,255,.30)';
     for (i = 0; i < 14; i++) { g.beginPath(); g.ellipse(cx + (brnd() - 0.5) * 46, ty + (brnd() - 0.5) * 22, 2 + brnd() * 4, 1 + brnd() * 2, 0, 0, 6.29); g.fill(); }
   } else {                                        // urban: a slab joint across the deck
-    g.globalAlpha = 0.34; g.strokeStyle = '#494c4e'; g.lineWidth = 1.2;
+    g.globalAlpha = 0.34; g.strokeStyle = '#4b4b4b'; g.lineWidth = 1.2;
     g.beginPath(); g.moveTo(cx - TW / 2, ty + TH / 4); g.lineTo(cx + TW / 2, ty - TH / 4); g.stroke();
     g.globalAlpha = 1;
   }
@@ -1465,14 +1465,14 @@ function bakeRoad(kind, mask, vv) {
   g.save(); diamondT(g, cx, cy); g.clip();
   var W = 0.28;
   // 1. the beaten shoulder: dust and gravel pushed off the track
-  g.globalAlpha = 0.40; g.fillStyle = snowy ? '#93a0a6' : '#514832';
+  g.globalAlpha = 0.40; g.fillStyle = snowy ? '#9d9d9d' : '#514832';
   roadPath(g, mask, W + 0.075, 2.6, 1700 + mask * 13); g.fill();
   g.globalAlpha = 1;
   // 2. the carriageway
-  g.fillStyle = snowy ? '#aab4b8' : '#6a5f42';
+  g.fillStyle = snowy ? '#b1b1b1' : '#6a5f42';
   roadPath(g, mask, W, 2.0, 1800 + mask * 13); g.fill();
   g.save(); roadPath(g, mask, W, 2.0, 1800 + mask * 13); g.clip();
-  g.fillStyle = snowy ? '#c6cfd2' : '#87794f'; g.globalAlpha = 0.5;   // worn pale centre
+  g.fillStyle = snowy ? '#cdcdcd' : '#87794f'; g.globalAlpha = 0.5;   // worn pale centre
   for (i = 0; i < 5; i++) { g.beginPath(); g.ellipse(cx + (brnd() - 0.5) * 22, cy + (brnd() - 0.5) * 10, 10 + brnd() * 12, 5 + brnd() * 5, 0, 0, 6.29); g.fill(); }
   g.globalAlpha = 1;
   // 3. wheel ruts down each arm -- two parallel scuffs, which is what makes
@@ -1491,13 +1491,13 @@ function bakeRoad(kind, mask, vv) {
       g.beginPath(); g.moveTo(P0[0] + nx * (o + 2.4), P0[1] + ny * (o + 2.4)); g.lineTo(P1[0] + nx * (o + 2.4), P1[1] + ny * (o + 2.4)); g.stroke();
     }
   }
-  g.globalAlpha = 0.24; g.fillStyle = snowy ? '#a3adb1' : '#5f5439';   // dusty edges
+  g.globalAlpha = 0.24; g.fillStyle = snowy ? '#aaaaaa' : '#5f5439';   // dusty edges
   for (i = 0; i < 9; i++) { var a2 = brnd() * 6.29, d = 0.7 + brnd() * 0.34; g.beginPath(); g.ellipse(cx + Math.cos(a2) * TW / 2 * d, cy + Math.sin(a2) * TH / 2 * d, 5 + brnd() * 7, 2.5 + brnd() * 3, 0, 0, 6.29); g.fill(); }
   g.globalAlpha = 1;
   for (i = 0; i < 10; i++) {                                           // grit
     var gx4 = cx + (brnd() - 0.5) * (TW - 10), gy4 = cy + (brnd() - 0.5) * (TH - 6), gr = 0.8 + brnd() * 1.2;
     g.fillStyle = 'rgba(30,26,18,.3)'; g.beginPath(); g.ellipse(gx4 + 0.6, gy4 + 0.4, gr * 1.1, gr * 0.55, 0, 0, 6.29); g.fill();
-    g.fillStyle = snowy ? '#eef3f4' : '#b6a97e'; g.beginPath(); g.ellipse(gx4, gy4 - 0.2, gr * 0.9, gr * 0.45, 0, 0, 6.29); g.fill();
+    g.fillStyle = snowy ? '#f2f2f2' : '#b6a97e'; g.beginPath(); g.ellipse(gx4, gy4 - 0.2, gr * 0.9, gr * 0.45, 0, 0, 6.29); g.fill();
   }
   g.restore();
   // 4. bite the shoulders out so the track meets whatever ground it crosses
@@ -1540,7 +1540,7 @@ function bakeTree(v, snow) {
       g.beginPath(); g.moveTo(cx - ww, yy); g.lineTo(cx, yy - th2 * 1.5); g.lineTo(cx + ww, yy); g.closePath(); g.fill();
       g.fillStyle = '#2f4a2b';
       g.beginPath(); g.moveTo(cx - ww * 0.55, yy - 1); g.lineTo(cx - ww * 0.1, yy - th2 * 1.35); g.lineTo(cx + ww * 0.2, yy - 1); g.closePath(); g.fill();
-      g.fillStyle = '#eef6f8';                              // snow load on each tier
+      g.fillStyle = '#f4f4f4';                              // snow load on each tier
       g.beginPath(); g.moveTo(cx - ww * 0.72, yy - 1.5); g.lineTo(cx - ww * 0.2, yy - th2 * 0.95);
       g.lineTo(cx + ww * 0.05, yy - th2 * 0.6); g.lineTo(cx + ww * 0.42, yy - 2); g.closePath(); g.fill();
       g.fillStyle = 'rgba(196,216,224,.85)';
@@ -1615,8 +1615,8 @@ function bakeDeadTree(v, snow) {
 function bakeBoulder(kind, v) {
   var s = mkCanvas(64, 88), g = s.g, cx = 32, by = 78, i, k;
   bsr(4300 + v * 137 + (kind === 'snow' ? 5 : kind === 'urban' ? 11 : 0));
-  var C = kind === 'snow' ? { b: '#8d979b', d: '#4d565c', l: '#c3ced2' }
-        : kind === 'urban' ? { b: '#84837e', d: '#46453f', l: '#bcbbb4' }
+  var C = kind === 'snow' ? { b: '#949494', d: '#4d565c', l: '#cbcbcb' }
+        : kind === 'urban' ? { b: '#838383', d: '#454545', l: '#bbbbbb' }
         : { b: '#7a6f57', d: '#3a3226', l: '#b0a184' };
   var lumps = 1 + (v & 1) + (v === 2 ? 1 : 0);
   g.fillStyle = 'rgba(10,12,8,.34)';
@@ -1658,14 +1658,14 @@ function bakeRuin(v) {
   for (i = 0; i < 16; i++) {
     var rx = cx + (brnd() - 0.5) * 36, ry = by - 4 - brnd() * 7, rr = 1.6 + brnd() * 3.4;
     g.fillStyle = 'rgba(24,24,26,.4)'; g.beginPath(); g.ellipse(rx + 0.8, ry + 0.8, rr * 1.2, rr * 0.5, 0, 0, 6.29); g.fill();
-    g.fillStyle = shade(brnd() < 0.5 ? '#8b8781' : '#6e6a63', 0.85 + brnd() * 0.4);
+    g.fillStyle = shade(brnd() < 0.5 ? '#888888' : '#6a6a6a', 0.85 + brnd() * 0.4);
     g.beginPath(); g.ellipse(rx, ry, rr, rr * 0.6, 0, 0, 6.29); g.fill();
   }
   // one or two standing wall stubs with a broken top and empty windows
   var walls = v === 2 ? 1 : 2;
   for (var w = 0; w < walls; w++) {
     var sgn = w ? 1 : -1, wx = cx + sgn * 9, wh = 26 + brnd() * 12, ww = 15 + brnd() * 5;
-    g.fillStyle = w ? '#7e7a72' : '#5f5c56';
+    g.fillStyle = w ? '#7a7a7a' : '#5c5c5c';
     g.beginPath();
     g.moveTo(wx, by - 6); g.lineTo(wx + sgn * ww, by - 6 - ww * 0.5);
     g.lineTo(wx + sgn * ww, by - 6 - ww * 0.5 - wh * 0.72);

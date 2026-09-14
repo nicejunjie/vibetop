@@ -37,7 +37,7 @@ function drawCarrier(C) {
     if (line) { g.strokeStyle = line; g.lineWidth = 0.9; g.stroke(); }
   };
   fpoly(FR + 0.6, shade(HULL, 0.42));
-  fpoly(FR + 2.6, shade(DECK, 1.06), '#cdd3db');      // deck edge coaming catching the sky
+  fpoly(FR + 2.6, shade(DECK, 1.06), '#d3d3d3');      // deck edge coaming catching the sky
   g.save(); fpoly(FR + 2.6, null, null); g.clip();
   // DECK PLATING. The flight deck is one enormous polygon and filling it with
   // one tone put 59.7% of the whole ship in a single colour — half the sprite
@@ -88,7 +88,7 @@ function drawCarrier(C) {
   box(-L * 0.60, W * 0.78, L * 0.20, W * 0.36, 4.0, '#8a8a8a');   // base deck 1 (widest)
   box(-L * 0.60, W * 0.78, L * 0.16, W * 0.30, 5.9, '#a8a8a8');   // base deck 2
   box(-L * 0.60, W * 0.78, L * 0.13, W * 0.25, 7.8, HOUSE);       // base deck 3
-  box(-L * 0.60, W * 0.78, L * 0.10, W * 0.20, 9.8, '#dfe6ee');   // bridge block
+  box(-L * 0.60, W * 0.78, L * 0.10, W * 0.20, 9.8, '#e6e6e6');   // bridge block
   mast(-L * 0.58, W * 0.78, 13.0);                                // mast (tallest point)
   var iq = P(-L * 0.60, W * 0.78, FR + 6.0);
   g.fillStyle = GLASS; g.fillRect(iq[0] - 2.4, iq[1] - 1.2, 4.8, 1.5);
@@ -125,7 +125,7 @@ function drawCarrier(C) {
   g.moveTo(f0[0], f0[1]); g.lineTo(f1[0], f1[1]);
   g.lineTo(f2[0], f2[1]); g.lineTo(f3[0], f3[1]); g.closePath();
   g.fillStyle = shade(DECK, 0.55); g.fill();
-  g.strokeStyle = '#cdd3db'; g.lineWidth = 0.8; g.stroke();
+  g.strokeStyle = '#d3d3d3'; g.lineWidth = 0.8; g.stroke();
   // 2.4 px was too thick for a pad this size: the two strokes met in the middle
   // and the whole face baked as one solid house-coloured slab, which reads as a
   // blue box on the deck, not as a marking.
@@ -138,9 +138,9 @@ function drawCarrier(C) {
   g.stroke();
   for (var hi = 0; hi < 3; hi++) {
     var pq2 = P(-L * (0.24 + hi * 0.24), -W * 0.55, FR + 3.0);
-    g.fillStyle = '#dde2e8';
+    g.fillStyle = '#e2e2e2';
     g.beginPath(); g.ellipse(pq2[0], pq2[1], 4.1, 2.0, 0, 0, 6.29); g.fill();
-    g.strokeStyle = '#9aa0a8'; g.lineWidth = 1.7;
+    g.strokeStyle = '#9e9e9e'; g.lineWidth = 1.7;
     g.beginPath(); g.moveTo(pq2[0] - 3.8, pq2[1] + 0.7); g.lineTo(pq2[0] + 3.8, pq2[1] - 0.7); g.stroke();
     g.fillStyle = HOUSE;
     g.beginPath(); g.ellipse(pq2[0] + 1.6, pq2[1] - 0.4, 0.9, 0.7, 0, 0, 6.29); g.fill();

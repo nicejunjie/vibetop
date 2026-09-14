@@ -23,8 +23,8 @@ function drawGapgen(C) {
 // loose pods on a slab, ten thin spines and a bowl, and read a tenth
 // too narrow for its height. art.ini [GAGAP] Foundation=1x1, Height=6:
 // the base genuinely overhangs its single cell.
-var GP_W = '#e9eaec', GP_WL = '#ffffff', GP_WD = '#8d9096', GP_WM = '#b9bcc2';
-var GP_G = '#9298a0', GP_GD = '#4a4f57', GP_BLK = '#141518';
+var GP_W = '#e9eaec', GP_WL = '#ffffff', GP_WD = '#909090', GP_WM = '#bcbcbc';
+var GP_G = '#979797', GP_GD = '#4a4f57', GP_BLK = '#141518';
 var GP_GOLD = '#c9a94e', GP_GOLDD = '#7d6528';
 var gpPh = (bph || 0) * 6.2832;
 
@@ -101,11 +101,11 @@ g.fillRect(cx + 4.0, colTop + 4, 1.0, 14);
 // ---- upper house collar + the disc platform --------------------------
 collar(colTop, 12.2, 5.4, 2.6);
 var dY = colTop - 7;
-g.fillStyle = '#a5a9b0';
-g.beginPath(); g.ellipse(cx, dY + 2.0, 13.2, 6.0, 0, 0, 6.29); g.fill(); outline(g, '#6b6f76');
-g.fillStyle = '#dfe2e6';
-g.beginPath(); g.ellipse(cx, dY, 13.2, 6.0, 0, 0, 6.29); g.fill(); outline(g, '#787c83');
-g.fillStyle = '#f4f6f8';
+g.fillStyle = '#a9a9a9';
+g.beginPath(); g.ellipse(cx, dY + 2.0, 13.2, 6.0, 0, 0, 6.29); g.fill(); outline(g, '#6f6f6f');
+g.fillStyle = '#e2e2e2';
+g.beginPath(); g.ellipse(cx, dY, 13.2, 6.0, 0, 0, 6.29); g.fill(); outline(g, '#7c7c7c');
+g.fillStyle = '#f6f6f6';
 g.beginPath(); g.ellipse(cx - 1.8, dY - 1.4, 9.4, 3.8, 0, 0, 6.29); g.fill();
 // four navy instrument pods stood round the rim
 for (gi2 = 0; gi2 < 4; gi2++) {

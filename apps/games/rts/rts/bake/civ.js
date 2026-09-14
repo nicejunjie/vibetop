@@ -56,9 +56,9 @@ function bakeRamp(kind, dir, flat, walls) {
   // slope, so it gets no skirt and no gradient.
   RAMP_SKIRT_ON = SK;
   var P = kind === 'snow'
-    ? { base: '#9fabb0', hi: '#e8f2f4', lo: '#5d686f', rock: '#6d777e', rockD: '#333b41', rockL: '#a8b4bc' }
+    ? { base: '#a8a8a8', hi: '#efefef', lo: '#5d686f', rock: '#6d777e', rockD: '#333b41', rockL: '#b1b1b1' }
     : kind === 'pave'
-      ? { base: '#7d7f81', hi: '#a9abac', lo: '#494b4d', rock: '#8b8c88', rockD: '#43443f', rockL: '#c2c3bd' }
+      ? { base: '#7f7f7f', hi: '#ababab', lo: '#4b4b4b', rock: '#8b8b8b', rockD: '#434343', rockL: '#c2c2c2' }
       : { base: '#7b7159', hi: '#a89a76', lo: '#463f2e', rock: '#6b5f4a', rockD: '#2f2820', rockL: '#a39273' };
   var V = [[cx, cy - TCH / 2], [cx + TCW / 2, cy], [cx, cy + TCH / 2], [cx - TCW / 2, cy]];
   function mid(d) { var a = V[d & 3], b = V[(d + 1) & 3]; return [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2]; }
@@ -166,8 +166,8 @@ function bakeBridge(dir) {
   g.beginPath(); g.ellipse(cx + 3, cy + 5, TW / 2 - 2, TH / 2 - 1, 0, 0, 6.29); g.fill();
   g.globalAlpha = 1;
   diamond(g, cx, cy, TCW, TCH); g.clip();
-  g.fillStyle = '#8d8b83'; g.fillRect(0, 0, TCW, HH);                // the deck
-  g.fillStyle = '#9c9a92'; g.globalAlpha = 0.55;
+  g.fillStyle = '#8b8b8b'; g.fillRect(0, 0, TCW, HH);                // the deck
+  g.fillStyle = '#9a9a9a'; g.globalAlpha = 0.55;
   for (i = 0; i < 5; i++) { g.beginPath(); g.ellipse(cx + (rnd() - 0.5) * 26, cy + (rnd() - 0.5) * 12, 10 + rnd() * 10, 5 + rnd() * 4, 0, 0, 6.29); g.fill(); }
   g.globalAlpha = 1;
   // expansion joints across the travel axis
@@ -179,27 +179,27 @@ function bakeBridge(dir) {
     else     { g.moveTo(cx - TW / 2, cy + off - TH / 4); g.lineTo(cx + TW / 2, cy + off + TH / 4); }
     g.stroke();
   }
-  g.globalAlpha = 0.35; g.fillStyle = '#5f5d57';                     // tyre wear down the middle
+  g.globalAlpha = 0.35; g.fillStyle = '#5d5d5d';                     // tyre wear down the middle
   g.beginPath(); g.ellipse(cx, cy, TW / 2 - 6, TH / 2 - 5, 0, 0, 6.29); g.fill();
   g.globalAlpha = 1;
   g.restore();
   // kerbs + guard rails on the two non-travel edges
   for (var r = 0; r < 2; r++) {
     var d2 = rails[r], a2 = V[d2], b2 = V[(d2 + 1) & 3];
-    g.strokeStyle = '#b6b3a8'; g.lineWidth = 3.4; g.lineCap = 'round';
+    g.strokeStyle = '#b3b3b3'; g.lineWidth = 3.4; g.lineCap = 'round';
     g.beginPath(); g.moveTo(a2[0], a2[1]); g.lineTo(b2[0], b2[1]); g.stroke();
     g.strokeStyle = 'rgba(40,38,34,.5)'; g.lineWidth = 1.1;
     g.beginPath(); g.moveTo(a2[0], a2[1] + 1.8); g.lineTo(b2[0], b2[1] + 1.8); g.stroke();
     var up = (a2[1] + b2[1]) / 2 < cy;                               // rail only on the far kerb
     if (!up) continue;
-    g.strokeStyle = '#5a5f65'; g.lineWidth = 1.8;
+    g.strokeStyle = '#5e5e5e'; g.lineWidth = 1.8;
     for (i = 0; i <= 5; i++) {
       var pt = i / 5, px2 = a2[0] + (b2[0] - a2[0]) * pt, py2 = a2[1] + (b2[1] - a2[1]) * pt;
       g.beginPath(); g.moveTo(px2, py2); g.lineTo(px2, py2 - 10); g.stroke();
     }
-    g.strokeStyle = '#adb3b8'; g.lineWidth = 2.2;                    // top rail, lit
+    g.strokeStyle = '#b2b2b2'; g.lineWidth = 2.2;                    // top rail, lit
     g.beginPath(); g.moveTo(a2[0], a2[1] - 10); g.lineTo(b2[0], b2[1] - 10); g.stroke();
-    g.strokeStyle = '#787e84'; g.lineWidth = 1.4;
+    g.strokeStyle = '#7d7d7d'; g.lineWidth = 1.4;
     g.beginPath(); g.moveTo(a2[0], a2[1] - 5); g.lineTo(b2[0], b2[1] - 5); g.stroke();
   }
   return s;
@@ -218,12 +218,12 @@ function bakeBridgeWreck() {
     g.save(); g.translate(bx, by); g.rotate(rot);
     g.fillStyle = 'rgba(10,22,28,.45)';
     g.fillRect(-bw / 2 + 1.5, -bh / 2 + 1.5, bw, bh);
-    g.fillStyle = '#6d6b63'; g.fillRect(-bw / 2, -bh / 2, bw, bh);
-    g.fillStyle = '#8b8880'; g.fillRect(-bw / 2, -bh / 2, bw, 1.2);
+    g.fillStyle = '#6b6b6b'; g.fillRect(-bw / 2, -bh / 2, bw, bh);
+    g.fillStyle = '#888888'; g.fillRect(-bw / 2, -bh / 2, bw, 1.2);
     g.restore();
   }
   // reinforcing bar
-  g.strokeStyle = '#4b4a44'; g.lineWidth = 1;
+  g.strokeStyle = '#4a4a4a'; g.lineWidth = 1;
   for (i = 0; i < 5; i++) {
     var rx = cx + (rnd() - 0.5) * 26, ry = cy + (rnd() - 0.5) * 10;
     g.beginPath(); g.moveTo(rx, ry); g.lineTo(rx + (rnd() - 0.5) * 8, ry - 3 - rnd() * 4); g.stroke();
@@ -350,22 +350,22 @@ function bakeCiv(v) {
     block(cx, by, 22, 11, 48, '#7b736a', '#5f584f', '#4c463f');
     windows(cx, by, 22, 11, 48, 4, 3, 0, '#e2cf93', '#343941');
     windows(cx, by, 22, 11, 48, 4, 3, 1, '#cfbc85', '#2c3037');
-    g.fillStyle = '#8d857b';                                          // roof plant and a stair head
+    g.fillStyle = '#868686';                                          // roof plant and a stair head
     g.fillRect(cx - 6, by - 11 - 48 - 6, 12, 7);
     g.fillStyle = '#6a6259'; g.fillRect(cx - 6, by - 11 - 48 - 6, 12, 2);
   } else if (v === 2) {                                               // warehouse
     block(cx, by, 27, 13, 20, '#8a8478', '#6b655a', '#57524a');
-    g.fillStyle = '#4a4d52';                                          // roller door
+    g.fillStyle = '#4d4d4d';                                          // roller door
     g.beginPath(); g.moveTo(cx - 15, by - 8); g.lineTo(cx - 3, by - 2); g.lineTo(cx - 3, by - 15); g.lineTo(cx - 15, by - 21); g.closePath(); g.fill();
     g.strokeStyle = 'rgba(255,255,255,.14)'; g.lineWidth = 1;
     for (i = 1; i < 5; i++) { g.beginPath(); g.moveTo(cx - 15, by - 8 - i * 2.6); g.lineTo(cx - 3, by - 2 - i * 2.6); g.stroke(); }
-    g.fillStyle = '#9b9488';                                          // saw-tooth roof lights
+    g.fillStyle = '#959595';                                          // saw-tooth roof lights
     for (i = 0; i < 3; i++) {
       var rx3 = cx - 14 + i * 13;
       g.beginPath(); g.moveTo(rx3, by - 13 - 20 - i * 0.4); g.lineTo(rx3 + 9, by - 18 - 20); g.lineTo(rx3 + 9, by - 23 - 20); g.lineTo(rx3, by - 18 - 20); g.closePath(); g.fill();
     }
   } else if (v === 4) {                                               // office tower, glass curtain wall
-    block(cx, by, 21, 10, 58, '#8a8d90', '#5b6166', '#474c50');
+    block(cx, by, 21, 10, 58, '#8c8c8c', '#606060', '#4b4b4b');
     g.fillStyle = '#2f3a44';                                          // the glazed faces
     for (var oq = 0; oq < 2; oq++) {
       var sg = oq ? 1 : -1;
@@ -375,12 +375,12 @@ function bakeCiv(v) {
     }
     windows(cx, by, 21, 10, 58, 6, 4, 0, '#e8dfa8', '#3d4a56');
     windows(cx, by, 21, 10, 58, 6, 4, 1, '#cfc48d', '#333e48');
-    g.fillStyle = '#9ba0a3';                                          // capping band + roof plant
+    g.fillStyle = '#9f9f9f';                                          // capping band + roof plant
     g.beginPath(); g.moveTo(cx, by - 20 - 58); g.lineTo(cx + 21, by - 10 - 58); g.lineTo(cx, by - 58); g.lineTo(cx - 21, by - 10 - 58); g.closePath(); g.fill();
-    g.fillStyle = '#767b7e'; g.fillRect(cx - 7, by - 10 - 58 - 8, 14, 8);
+    g.fillStyle = '#7a7a7a'; g.fillRect(cx - 7, by - 10 - 58 - 8, 14, 8);
     g.fillStyle = '#c0392b'; g.fillRect(cx - 1, by - 10 - 58 - 15, 2, 8);
   } else if (v === 5) {                                               // a terrace of three shops
-    var roofs = ['#8e7f6e', '#7c8a7a', '#8a7570'];
+    var roofs = ['#8e7f6e', '#848484', '#8a7570'];
     for (i = 0; i < 3; i++) {
       var tx = cx - 15 + i * 15, tyy = by - 3 + i * 4;
       block(tx, tyy, 9, 5, 20 + (i & 1) * 5, roofs[i], shade(roofs[i], 0.74), shade(roofs[i], 0.6));
@@ -394,7 +394,7 @@ function bakeCiv(v) {
     g.beginPath(); g.moveTo(cx, by); g.lineTo(cx + 24, by - 12); g.lineTo(cx, by - 24); g.lineTo(cx - 24, by - 12); g.closePath(); g.fill();
     for (i = 0; i < 2; i++) {
       var sg2 = i ? 1 : -1, wh2 = 30 + brnd() * 10;
-      g.fillStyle = i ? '#7e7a72' : '#5f5c56';
+      g.fillStyle = i ? '#7a7a7a' : '#5c5c5c';
       g.beginPath();
       g.moveTo(cx, by - (i ? 0 : 0)); g.lineTo(cx + sg2 * 24, by - 12);
       g.lineTo(cx + sg2 * 24, by - 12 - wh2 * 0.7);
@@ -409,21 +409,21 @@ function bakeCiv(v) {
     for (i = 0; i < 14; i++) {                                        // rubble spill
       var rx4 = cx + (brnd() - 0.5) * 46, ry4 = by - 3 - brnd() * 9, rr4 = 1.4 + brnd() * 3;
       g.fillStyle = 'rgba(22,22,24,.4)'; g.beginPath(); g.ellipse(rx4 + 0.8, ry4 + 0.7, rr4 * 1.2, rr4 * 0.5, 0, 0, 6.29); g.fill();
-      g.fillStyle = shade(brnd() < 0.5 ? '#8b8781' : '#6e6a63', 0.85 + brnd() * 0.4);
+      g.fillStyle = shade(brnd() < 0.5 ? '#888888' : '#6a6a6a', 0.85 + brnd() * 0.4);
       g.beginPath(); g.ellipse(rx4, ry4, rr4, rr4 * 0.6, 0, 0, 6.29); g.fill();
     }
   } else if (v === 7) {                                               // grain depot: shed plus two silos
     block(cx - 4, by, 20, 10, 18, '#8a8478', '#6b655a', '#57524a');
     for (i = 0; i < 2; i++) {
       var sx7 = cx + 12 + i * 11, sy7 = by - 8 - i * 5;
-      g.fillStyle = '#9aa0a2'; g.fillRect(sx7 - 6, sy7 - 34, 12, 34);
-      g.fillStyle = '#7c8285'; g.fillRect(sx7 + 1, sy7 - 34, 5, 34);
-      g.fillStyle = '#b6bbbd'; g.beginPath(); g.ellipse(sx7, sy7 - 34, 6, 2.6, 0, 0, 6.29); g.fill();
-      g.fillStyle = '#5d6265'; g.beginPath(); g.ellipse(sx7, sy7 - 38, 6, 2.6, 0, 0, 6.29); g.fill();
+      g.fillStyle = '#9e9e9e'; g.fillRect(sx7 - 6, sy7 - 34, 12, 34);
+      g.fillStyle = '#818181'; g.fillRect(sx7 + 1, sy7 - 34, 5, 34);
+      g.fillStyle = '#bababa'; g.beginPath(); g.ellipse(sx7, sy7 - 34, 6, 2.6, 0, 0, 6.29); g.fill();
+      g.fillStyle = '#616161'; g.beginPath(); g.ellipse(sx7, sy7 - 38, 6, 2.6, 0, 0, 6.29); g.fill();
       g.strokeStyle = 'rgba(60,64,66,.5)'; g.lineWidth = 0.8;
       for (j = 1; j < 5; j++) { g.beginPath(); g.moveTo(sx7 - 6, sy7 - j * 7); g.lineTo(sx7 + 6, sy7 - j * 7); g.stroke(); }
     }
-    g.fillStyle = '#4a4d52';                                          // shed door
+    g.fillStyle = '#4d4d4d';                                          // shed door
     g.beginPath(); g.moveTo(cx - 14, by - 9); g.lineTo(cx - 4, by - 4); g.lineTo(cx - 4, by - 15); g.lineTo(cx - 14, by - 20); g.closePath(); g.fill();
   } else if (v === 8 || v === 9) {                                    // farmhouse / barn
     var barn = v === 9;
@@ -444,11 +444,11 @@ function bakeCiv(v) {
     g.strokeStyle = 'rgba(30,26,22,.45)'; g.lineWidth = 1.2;
     g.beginPath(); g.moveTo(P1[0], P1[1]); g.lineTo(P2[0], P2[1]); g.stroke();
     if (barn) {
-      g.fillStyle = '#e6e0d2';                                        // white trim + big doors
+      g.fillStyle = '#e0e0e0';                                        // white trim + big doors
       g.beginPath(); g.moveTo(cx - 11, by - 6); g.lineTo(cx, by - 1); g.lineTo(cx, by - 16); g.lineTo(cx - 11, by - 21); g.closePath(); g.fill();
       g.fillStyle = '#4a4038';
       g.beginPath(); g.moveTo(cx - 9.5, by - 7); g.lineTo(cx - 0.6, by - 2.6); g.lineTo(cx - 0.6, by - 15.4); g.lineTo(cx - 9.5, by - 19.6); g.closePath(); g.fill();
-      g.strokeStyle = '#e6e0d2'; g.lineWidth = 1.2;
+      g.strokeStyle = '#e0e0e0'; g.lineWidth = 1.2;
       g.beginPath(); g.moveTo(cx - 9.5, by - 19.6); g.lineTo(cx - 0.6, by - 2.6); g.stroke();
     } else {
       g.fillStyle = '#8d8578'; g.fillRect(cx + 6, by - hh - ht - rise - 6, 5, 12);   // chimney
@@ -459,16 +459,16 @@ function bakeCiv(v) {
       g.beginPath(); g.moveTo(cx - 5, by - 5); g.lineTo(cx - 0.6, by - 2.8); g.lineTo(cx - 0.6, by - 13); g.lineTo(cx - 5, by - 15.2); g.closePath(); g.fill();
     }
   } else {                                                            // filling station
-    block(cx + 6, by, 15, 8, 15, '#8f8b80', '#6d6a60', '#585449');
+    block(cx + 6, by, 15, 8, 15, '#8b8b8b', '#6a6a6a', '#585449');
     g.fillStyle = '#7e8f9a';                                          // window band
     g.beginPath(); g.moveTo(cx - 8, by - 12); g.lineTo(cx + 6, by - 5); g.lineTo(cx + 6, by - 11); g.lineTo(cx - 8, by - 18); g.closePath(); g.fill();
-    g.fillStyle = '#5a5f66';                                          // canopy posts
+    g.fillStyle = '#5e5e5e';                                          // canopy posts
     g.fillRect(cx - 26, by - 20, 2.4, 20); g.fillRect(cx - 4, by - 9, 2.4, 9);
-    block(cx - 15, by - 22, 20, 10, 4, '#c2c4c2', '#8f9190', '#7a7c7b');   // canopy
+    block(cx - 15, by - 22, 20, 10, 4, '#c3c3c3', '#909090', '#7b7b7b');   // canopy
     g.fillStyle = '#c0392b'; g.fillRect(cx - 34, by - 26, 38, 2.6);
     g.fillStyle = '#3e434a';                                          // two pumps
     g.fillRect(cx - 20, by - 12, 4, 9); g.fillRect(cx - 12, by - 8, 4, 9);
-    g.fillStyle = '#9aa0a6'; g.fillRect(cx - 20, by - 12, 4, 3); g.fillRect(cx - 12, by - 8, 4, 3);
+    g.fillStyle = '#9f9f9f'; g.fillRect(cx - 20, by - 12, 4, 3); g.fillRect(cx - 12, by - 8, 4, 3);
   }
   s.ax = cx * K; s.ay = by * K;
   return s;
@@ -530,11 +530,11 @@ function bakeCivLit(src, ax, ay) {
 // nodding pump beside it and two crude tanks, with hazard-striped skirting.
 function bakeOilDerrick() {
   var N = neutCanvas(2, 2, 118), g = N.g, cx = N.cx, by = N.baseY, fw = N.fw, i;
-  neutPad(g, cx, by, fw, N.fh, '#9c968a');
+  neutPad(g, cx, by, fw, N.fh, '#969696');
   // the derrick: four legs converging, cross-braced
   var tH = 76, tw0 = fw * 0.46, tw1 = fw * 0.12, lx = cx - 6;
   function leg(sgn, back) {
-    g.strokeStyle = back ? '#5d6166' : '#7b8087'; g.lineWidth = back ? 2.2 : 3;
+    g.strokeStyle = back ? '#606060' : '#7f7f7f'; g.lineWidth = back ? 2.2 : 3;
     g.beginPath(); g.moveTo(lx + sgn * tw0, by - (back ? 6 : 0)); g.lineTo(lx + sgn * tw1, by - tH); g.stroke();
   }
   leg(-1, true); leg(1, true); leg(-1, false); leg(1, false);
@@ -546,18 +546,18 @@ function bakeOilDerrick() {
     g.beginPath(); g.moveTo(lx - w0, y0); g.lineTo(lx + w1, y1); g.stroke();
     g.beginPath(); g.moveTo(lx + w0, y0); g.lineTo(lx - w1, y1); g.stroke();
   }
-  g.fillStyle = '#4a4f54';                                  // crown block
+  g.fillStyle = '#4e4e4e';                                  // crown block
   g.fillRect(lx - tw1 - 3, by - tH - 6, tw1 * 2 + 6, 6);
   g.fillStyle = '#c8563f';                                  // aircraft warning paint
   g.fillRect(lx - tw1 - 3, by - tH - 6, tw1 * 2 + 6, 2);
   // nodding donkey
   var px2 = cx + fw * 0.62, py2 = by + 5;
-  g.fillStyle = '#5a5f64'; g.fillRect(px2 - 12, py2 - 8, 24, 8);
-  g.strokeStyle = '#6f757b'; g.lineWidth = 3;
+  g.fillStyle = '#5e5e5e'; g.fillRect(px2 - 12, py2 - 8, 24, 8);
+  g.strokeStyle = '#747474'; g.lineWidth = 3;
   g.beginPath(); g.moveTo(px2, py2 - 8); g.lineTo(px2, py2 - 24); g.stroke();
-  g.strokeStyle = '#8a9096'; g.lineWidth = 5; g.lineCap = 'round';
+  g.strokeStyle = '#8f8f8f'; g.lineWidth = 5; g.lineCap = 'round';
   g.beginPath(); g.moveTo(px2 - 16, py2 - 20); g.lineTo(px2 + 14, py2 - 28); g.stroke();
-  g.fillStyle = '#3f4348';
+  g.fillStyle = '#424242';
   g.beginPath(); g.ellipse(px2 - 17, py2 - 19, 5, 6, 0, 0, 6.29); g.fill();
   // two crude tanks
   for (i = 0; i < 2; i++) {
@@ -569,7 +569,7 @@ function bakeOilDerrick() {
   // hazard skirting on the pad edge
   g.save(); diamond(g, cx, by, fw * 2, N.fh * 2); g.clip();
   for (i = 0; i < 14; i++) {
-    g.fillStyle = i & 1 ? '#d8b23a' : '#2b2b28';
+    g.fillStyle = i & 1 ? '#d8b23a' : '#2b2b2b';
     g.fillRect(cx - fw + i * (fw * 2 / 14), by + N.fh - 5, fw * 2 / 14, 4);
   }
   g.restore();
@@ -580,9 +580,9 @@ function bakeOilDerrick() {
 // a red cross on the roof and over the ambulance canopy.
 function bakeHospital() {
   var N = neutCanvas(2, 2, 96), g = N.g, cx = N.cx, by = N.baseY, fw = N.fw, fh = N.fh, i;
-  neutPad(g, cx, by, fw, fh, '#a8a79c');
+  neutPad(g, cx, by, fw, fh, '#a6a6a6');
   var lift = 40, hw = fw * 0.84, hh = fh * 0.84;
-  prism(g, cx, by, hw, hh, lift, '#d3d2c8', '#e6e5db', '#5d5c54', 2);
+  prism(g, cx, by, hw, hh, lift, '#d1d1d1', '#e4e4e4', '#5b5b5b', 2);
   // two window bands on both faces
   for (i = 0; i < 2; i++) {
     var v0 = 0.26 + i * 0.30;
@@ -590,9 +590,9 @@ function bakeHospital() {
     facePatch(g, faceR, cx, by, hw, hh, lift, 0.10, 0.90, v0, v0 + 0.15, '#4e606e', '#374450');
   }
   // ambulance canopy + doors
-  facePatch(g, faceR, cx, by, hw, hh, lift, 0.34, 0.62, 0.02, 0.22, '#8e9aa2', '#3d454b');
+  facePatch(g, faceR, cx, by, hw, hh, lift, 0.34, 0.62, 0.02, 0.22, '#979797', '#3d454b');
   var ca = faceR(cx, by, hw, hh, lift, 0.30, 0.26), cb2 = faceR(cx, by, hw, hh, lift, 0.66, 0.26);
-  g.strokeStyle = '#c9ccc6'; g.lineWidth = 4; g.lineCap = 'butt';
+  g.strokeStyle = '#cacaca'; g.lineWidth = 4; g.lineCap = 'butt';
   g.beginPath(); g.moveTo(ca[0], ca[1]); g.lineTo(cb2[0], cb2[1]); g.stroke();
   // the red cross, on the roof and over the door
   var ry = by - lift;
@@ -604,8 +604,8 @@ function bakeHospital() {
   g.fillStyle = '#c8362f';
   g.fillRect(dm[0] - 5, dm[1] - 1.8, 10, 3.6); g.fillRect(dm[0] - 1.8, dm[1] - 5, 3.6, 10);
   // roof plant + a helipad ring
-  g.fillStyle = '#b6b5ac'; g.fillRect(cx + fw * 0.26, ry - 12, 16, 10);
-  g.fillStyle = '#8f8e86'; g.fillRect(cx + fw * 0.26, ry - 12, 16, 3);
+  g.fillStyle = '#b4b4b4'; g.fillRect(cx + fw * 0.26, ry - 12, 16, 10);
+  g.fillStyle = '#8d8d8d'; g.fillRect(cx + fw * 0.26, ry - 12, 16, 3);
   g.strokeStyle = 'rgba(240,240,235,.5)'; g.lineWidth = 1.6;
   diamond(g, cx + fw * 0.20, ry + 6, 22, 11); g.stroke();
   return { s: N.s, ax: cx, ay: by };
@@ -615,7 +615,7 @@ function bakeHospital() {
 // a glazed control tower — the building the paratroopers come off.
 function bakeAirport() {
   var N = neutCanvas(3, 2, 116), g = N.g, cx = N.cx, by = N.baseY, fw = N.fw, fh = N.fh, i;
-  neutPad(g, cx, by, fw, fh, '#8f9490');
+  neutPad(g, cx, by, fw, fh, '#929292');
   // apron markings
   g.save(); diamond(g, cx, by, fw * 2, fh * 2); g.clip();
   g.strokeStyle = 'rgba(240,236,210,.55)'; g.lineWidth = 2.4;
@@ -628,28 +628,28 @@ function bakeAirport() {
   g.restore();
   // terminal block on the far half
   var lift = 26, hw = fw * 0.52, hh = fh * 0.52;
-  prism(g, cx - fw * 0.34, by - fh * 0.28, hw, hh, lift, '#b7bab4', '#cbcec7', '#4d5049', 2);
+  prism(g, cx - fw * 0.34, by - fh * 0.28, hw, hh, lift, '#b8b8b8', '#cccccc', '#4e4e4e', 2);
   facePatch(g, faceL, cx - fw * 0.34, by - fh * 0.28, hw, hh, lift, 0.08, 0.92, 0.28, 0.62, '#5d7280', '#3c4a54');
   // control tower
   var tx = cx + fw * 0.42, ty = by - fh * 0.20;
-  cylinder(g, tx, ty, 9, 46, '#b2b5af', '#c9ccc5', '#43463f');
+  cylinder(g, tx, ty, 9, 46, '#b3b3b3', '#cacaca', '#444444');
   g.fillStyle = '#3f5460';                                 // glazed cab
   g.beginPath(); g.moveTo(tx - 14, ty - 46); g.lineTo(tx + 14, ty - 46); g.lineTo(tx + 11, ty - 58); g.lineTo(tx - 11, ty - 58); g.closePath(); g.fill();
   g.fillStyle = 'rgba(160,204,224,.55)';
   g.beginPath(); g.moveTo(tx - 12, ty - 48); g.lineTo(tx + 12, ty - 48); g.lineTo(tx + 9.6, ty - 56); g.lineTo(tx - 9.6, ty - 56); g.closePath(); g.fill();
-  g.fillStyle = '#9a9d97';
+  g.fillStyle = '#9b9b9b';
   g.beginPath(); g.ellipse(tx, ty - 59, 15, 5, 0, 0, 6.29); g.fill();
-  g.strokeStyle = '#6d706a'; g.lineWidth = 1.6;
+  g.strokeStyle = '#6e6e6e'; g.lineWidth = 1.6;
   g.beginPath(); g.moveTo(tx, ty - 62); g.lineTo(tx, ty - 74); g.stroke();
   g.fillStyle = '#d8493e';
   g.beginPath(); g.arc(tx, ty - 75, 2.4, 0, 6.29); g.fill();
   // windsock
   var wx = cx - fw * 0.80, wy = by + 10;
-  g.strokeStyle = '#7d817b'; g.lineWidth = 1.6;
+  g.strokeStyle = '#7f7f7f'; g.lineWidth = 1.6;
   g.beginPath(); g.moveTo(wx, wy); g.lineTo(wx, wy - 20); g.stroke();
   g.fillStyle = '#e08a30';
   g.beginPath(); g.moveTo(wx, wy - 20); g.lineTo(wx + 13, wy - 17); g.lineTo(wx + 13, wy - 13); g.lineTo(wx, wy - 14); g.closePath(); g.fill();
-  g.fillStyle = '#f2f0e6';
+  g.fillStyle = '#efefef';
   g.beginPath(); g.moveTo(wx + 5, wy - 19); g.lineTo(wx + 8, wy - 18.4); g.lineTo(wx + 8, wy - 13.6); g.lineTo(wx + 5, wy - 14.2); g.closePath(); g.fill();
   return { s: N.s, ax: cx, ay: by };
 }
@@ -658,12 +658,12 @@ function bakeAirport() {
 // stack and a work light, standing at the head of the crossing.
 function bakeHut() {
   var N = neutCanvas(1, 1, 60), g = N.g, cx = N.cx, by = N.baseY, fw = N.fw, i;
-  neutPad(g, cx, by, fw, N.fh, '#8e8a80');
+  neutPad(g, cx, by, fw, N.fh, '#8a8a8a');
   prism(g, cx, by, fw * 0.72, N.fh * 0.72, 15, '#8a7f6d', '#a2977f', '#3a352c', 0);
   // corrugated roof
   var ry = by - 15;
   diamond(g, cx, ry - 3, fw * 1.5, N.fh * 1.5);
-  g.fillStyle = '#6f7a72'; g.fill(); outline(g, '#2c332e');
+  g.fillStyle = '#767676'; g.fill(); outline(g, '#2c332e');
   g.strokeStyle = 'rgba(255,255,255,.14)'; g.lineWidth = 1;
   for (i = -3; i <= 3; i++) {
     g.beginPath(); g.moveTo(cx - fw * 0.7, ry - 3 + i * 3 + N.fh * 0.34); g.lineTo(cx + fw * 0.7, ry - 3 + i * 3 - N.fh * 0.34); g.stroke();
@@ -677,7 +677,7 @@ function bakeHut() {
     g.fillRect(cx - fw * 0.86, by + 6 - i * 3, 18, 1);
   }
   // work light on a pole
-  g.strokeStyle = '#63665f'; g.lineWidth = 1.6;
+  g.strokeStyle = '#646464'; g.lineWidth = 1.6;
   g.beginPath(); g.moveTo(cx + fw * 0.7, by + 2); g.lineTo(cx + fw * 0.7, by - 22); g.stroke();
   g.fillStyle = '#ffd06a';
   g.beginPath(); g.arc(cx + fw * 0.7, by - 24, 3, 0, 6.29); g.fill();
@@ -704,7 +704,7 @@ function bakeCrate() {
   g.strokeStyle = 'rgba(48,34,18,.55)'; g.lineWidth = 0.9;
   g.beginPath(); g.moveTo(cx - hw, by - hh - lift * 0.5); g.lineTo(cx, by - lift * 0.5); g.stroke();
   g.beginPath(); g.moveTo(cx + hw, by - hh - lift * 0.5); g.lineTo(cx, by - lift * 0.5); g.stroke();
-  g.strokeStyle = '#4d5257'; g.lineWidth = 1.6;
+  g.strokeStyle = '#515151'; g.lineWidth = 1.6;
   g.beginPath(); g.moveTo(cx - hw, by - hh - lift * 0.66); g.lineTo(cx, by - lift * 0.66); g.lineTo(cx + hw, by - hh - lift * 0.66); g.stroke();
   g.strokeStyle = 'rgba(20,14,8,.5)'; g.lineWidth = 1;
   g.beginPath(); g.moveTo(cx, by - 2 * hh - lift); g.lineTo(cx + hw, by - hh - lift); g.lineTo(cx, by - lift); g.lineTo(cx - hw, by - hh - lift); g.closePath(); g.stroke();
@@ -725,16 +725,16 @@ function bakeUrbanRoad(mask, vv) {
   var W = 0.37;
   g.save(); diamondT(g, cx, cy); g.clip();
   // kerb + sidewalk lip around the whole junction
-  g.fillStyle = '#b8bab8'; roadPath(g, mask, W + 0.085, 0, 0); g.fill();
+  g.fillStyle = '#b9b9b9'; roadPath(g, mask, W + 0.085, 0, 0); g.fill();
   g.strokeStyle = 'rgba(70,72,74,.45)'; g.lineWidth = 1.1;
   roadPath(g, mask, W + 0.085, 0, 0); g.stroke();
   g.fillStyle = 'rgba(255,255,255,.12)'; roadPath(g, mask, W + 0.055, 0, 0); g.fill();
   // carriageway
-  g.fillStyle = '#43464a'; roadPath(g, mask, W, 0, 0); g.fill();
+  g.fillStyle = '#464646'; roadPath(g, mask, W, 0, 0); g.fill();
   g.save(); roadPath(g, mask, W, 0, 0); g.clip();
-  g.globalAlpha = 0.4; g.fillStyle = '#565a5e';                       // patched asphalt
+  g.globalAlpha = 0.4; g.fillStyle = '#595959';                       // patched asphalt
   for (i = 0; i < 6; i++) { g.beginPath(); g.ellipse(cx + (brnd() - 0.5) * 24, cy + (brnd() - 0.5) * 11, 5 + brnd() * 8, 2.5 + brnd() * 3.5, 0, 0, 6.29); g.fill(); }
-  g.globalAlpha = 0.16; g.fillStyle = '#1d1f21';                      // oil down the middle
+  g.globalAlpha = 0.16; g.fillStyle = '#1f1f1f';                      // oil down the middle
   g.beginPath(); g.ellipse(cx + (brnd() - 0.5) * 10, cy + (brnd() - 0.5) * 5, 8 + brnd() * 7, 3 + brnd() * 3, 0, 0, 6.29); g.fill();
   g.globalAlpha = 1;
   // Centre line: RA2 paints it down a straight and stops it at a junction,
@@ -760,7 +760,7 @@ function bakeUrbanRoad(mask, vv) {
   g.globalAlpha = 0.7;                                                // grit on the sidewalk
   for (i = 0; i < 8; i++) {
     var gx6 = cx + (brnd() - 0.5) * (TW - 6), gy6 = cy + (brnd() - 0.5) * (TH - 3);
-    g.fillStyle = brnd() < 0.5 ? '#9ea1a0' : '#6e7170';
+    g.fillStyle = brnd() < 0.5 ? '#a0a0a0' : '#707070';
     g.beginPath(); g.ellipse(gx6, gy6, 0.9 + brnd(), 0.5 + brnd() * 0.5, 0, 0, 6.29); g.fill();
   }
   g.globalAlpha = 1; g.restore();
@@ -773,20 +773,20 @@ function bakeUrbanDecal(v) {
   srand(6400 + v * 233);
   g.save(); diamondT(g, cx, cy); g.clip();
   if ((v & 3) === 0) {                                                // oil stain
-    g.globalAlpha = 0.30; g.fillStyle = '#1b1c1f';
+    g.globalAlpha = 0.30; g.fillStyle = '#1c1c1c';
     for (i = 0; i < 4; i++) { var a = rnd() * 6.29, d = rnd() * 11; g.beginPath(); g.ellipse(cx + Math.cos(a) * d, cy + Math.sin(a) * d * 0.5, 4 + rnd() * 6, 2 + rnd() * 3, 0, 0, 6.29); g.fill(); }
   } else if ((v & 3) === 1) {                                         // a manhole cover
-    g.fillStyle = '#4c4e4f'; g.beginPath(); g.ellipse(cx, cy, 6.5, 3.3, 0, 0, 6.29); g.fill();
-    g.strokeStyle = '#6d7071'; g.lineWidth = 1; g.beginPath(); g.ellipse(cx, cy, 5.2, 2.6, 0, 0, 6.29); g.stroke();
+    g.fillStyle = '#4e4e4e'; g.beginPath(); g.ellipse(cx, cy, 6.5, 3.3, 0, 0, 6.29); g.fill();
+    g.strokeStyle = '#6f6f6f'; g.lineWidth = 1; g.beginPath(); g.ellipse(cx, cy, 5.2, 2.6, 0, 0, 6.29); g.stroke();
     g.fillStyle = 'rgba(255,255,255,.14)'; g.beginPath(); g.ellipse(cx - 1, cy - 1, 3.2, 1.4, 0, 0, 6.29); g.fill();
   } else if ((v & 3) === 2) {                                         // rubble chips
     for (i = 0; i < 9; i++) {
       var rx4 = cx + (rnd() - 0.5) * 30, ry4 = cy + (rnd() - 0.5) * 14, rr2 = 1 + rnd() * 1.8;
       g.fillStyle = 'rgba(20,20,22,.42)'; g.beginPath(); g.ellipse(rx4 + 0.6, ry4 + 0.4, rr2 * 1.1, rr2 * 0.5, 0, 0, 6.29); g.fill();
-      g.fillStyle = rnd() < 0.5 ? '#a8abad' : '#82786c'; g.beginPath(); g.ellipse(rx4, ry4 - 0.2, rr2 * 0.9, rr2 * 0.45, 0, 0, 6.29); g.fill();
+      g.fillStyle = rnd() < 0.5 ? '#aaaaaa' : '#82786c'; g.beginPath(); g.ellipse(rx4, ry4 - 0.2, rr2 * 0.9, rr2 * 0.45, 0, 0, 6.29); g.fill();
     }
   } else {                                                            // a cracked slab
-    g.globalAlpha = 0.35; g.strokeStyle = '#3d4042'; g.lineWidth = 1;
+    g.globalAlpha = 0.35; g.strokeStyle = '#3f3f3f'; g.lineWidth = 1;
     for (i = 0; i < 3; i++) {
       g.beginPath(); g.moveTo(cx - 14 + rnd() * 6, cy - 5 + rnd() * 10);
       g.lineTo(cx + rnd() * 6 - 3, cy + (rnd() - 0.5) * 6); g.lineTo(cx + 12 + rnd() * 4, cy - 4 + rnd() * 8); g.stroke();
@@ -799,8 +799,8 @@ function bakeUrbanDecal(v) {
 // Street trees: the temperate tree standing in a paved tree pit.
 function bakeStreetTree(t) {
   var s = mkCanvas(t.w, t.h), g = s.g;
-  g.fillStyle = '#9fa3a3'; g.beginPath(); g.ellipse(t.ax, t.ay - 2, 13, 5.4, 0, 0, 6.29); g.fill();
-  g.fillStyle = '#83878a'; g.beginPath(); g.ellipse(t.ax, t.ay - 2.6, 11.4, 4.6, 0, 0, 6.29); g.fill();
+  g.fillStyle = '#a2a2a2'; g.beginPath(); g.ellipse(t.ax, t.ay - 2, 13, 5.4, 0, 0, 6.29); g.fill();
+  g.fillStyle = '#868686'; g.beginPath(); g.ellipse(t.ax, t.ay - 2.6, 11.4, 4.6, 0, 0, 6.29); g.fill();
   g.fillStyle = '#4a4335'; g.beginPath(); g.ellipse(t.ax, t.ay - 2.4, 8.6, 3.4, 0, 0, 6.29); g.fill();
   g.drawImage(t.c, 0, 0, t.w, t.h);
   s.ax = t.ax; s.ay = t.ay;

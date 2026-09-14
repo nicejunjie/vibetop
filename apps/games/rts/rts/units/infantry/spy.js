@@ -143,8 +143,8 @@ g.fillStyle = ACC;                                      // shirt front in the V
 g.beginPath();
 g.moveTo(cx - 1.4, by - 20.7); g.lineTo(cx + 1.4, by - 20.7);
 g.lineTo(cx + 0.9, by - 13.4); g.lineTo(cx - 0.9, by - 13.4);
-g.closePath(); g.fill(); outline(g, '#8d8a7e');
-g.fillStyle = '#f4f1e8';                                       // lit collar wings
+g.closePath(); g.fill(); outline(g, '#8a8a8a');
+g.fillStyle = '#f1f1f1';                                       // lit collar wings
 g.fillRect(cx - 2.4, by - 20.9, 4.8, 1.0);
 g.fillStyle = '#22252c';                                       // dark tie
 g.beginPath();
@@ -170,7 +170,7 @@ arms(6.2, by - 19.4, 2.6, 6.0, shade(T.coat, 1.06), function (i, x, y) {
   outline(g, '#a5806a');
   g.fillStyle = shade(col, 0.80);                              // coat cuff, then a shirt
   g.fillRect(x - 1.4, y + 4.4, 2.8, 1.4);                      // cuff showing under it
-  g.fillStyle = '#dfe3ea';
+  g.fillStyle = '#e3e3e3';
   g.fillRect(x - 1.0, y + 5.5, 2.0, 0.7);
   if (i > 0) {
     // THE BRIEFCASE (§1.5's prop for him). A flat tan case hanging off

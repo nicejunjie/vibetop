@@ -40,9 +40,9 @@ if (sov) {
   g.fillStyle = 'rgba(0,0,0,.30)';                     // pale stone slab
   plot(g, cx + 2, baseY + 5, fw * 2.36, fh * 2.36); g.fill();
   plot(g, cx, baseY + 2, fw * 2.36, fh * 2.36);
-  g.fillStyle = '#8f9284'; g.fill(); outline(g, '#4c4f44');
+  g.fillStyle = '#909090'; g.fill(); outline(g, '#4c4f44');
   plot(g, cx, baseY - 1, fw * 2.20, fh * 2.20);
-  g.fillStyle = '#adb0a1'; g.fill(); outline(g, '#585b4e');
+  g.fillStyle = '#adadad'; g.fill(); outline(g, '#585b4e');
   g.save(); plot(g, cx, baseY - 1, fw * 2.20, fh * 2.20); g.clip();
   g.strokeStyle = 'rgba(80,84,72,.34)'; g.lineWidth = 1;
   for (var slPI = -2; slPI <= 2; slPI++) {
@@ -282,7 +282,7 @@ if (sov) {
   }
 } else {
   // ---- Directorate Battle Lab ---------------------------------------
-  var LAB_PLT = '#a5abbc', LAB_PLL = '#dee2ec', LAB_PLD = '#636978';
+  var LAB_PLT = '#ababab', LAB_PLL = '#e2e2e2', LAB_PLD = '#636978';
   var LAB_SPN = '#272c3a', LAB_SPD = '#11141d', LAB_SPL = '#434a5c';
   var LAB_DOM = '#2e2c46', LAB_DML = '#5b5880', LAB_DMD = '#16152a';
   var LAB_GUN = '#5a616c', LAB_GUD = '#282d35';
@@ -298,9 +298,9 @@ if (sov) {
   outline(g, '#14181e');
   // the pale skid with its house-rimmed circular hatch
   var lhx = cx + fw * 0.18, lhy = baseY + fh * 0.30;
-  g.fillStyle = '#8e94a0';
+  g.fillStyle = '#949494';
   g.beginPath(); g.ellipse(lhx, lhy, 23, 11.5, 0, 0, 6.29); g.fill(); outline(g, '#4a4f58');
-  g.fillStyle = '#b9bfc9';
+  g.fillStyle = '#bebebe';
   g.beginPath(); g.ellipse(lhx, lhy - 1.4, 20, 9.6, 0, 0, 6.29); g.fill();
   g.strokeStyle = shade(col, 0.62); g.lineWidth = 3.2;
   g.beginPath(); g.ellipse(lhx, lhy - 1, 15.4, 7.4, 0, 0, 6.29); g.stroke();
@@ -344,7 +344,7 @@ if (sov) {
   }
   g.fillStyle = LAB_GUN;                                   // junction box
   g.fillRect(cx - 14, baseY - 147, 26, 10); outline(g, LAB_GUD);
-  g.fillStyle = '#828994'; g.fillRect(cx - 14, baseY - 147, 26, 2.6);
+  g.fillStyle = '#888888'; g.fillRect(cx - 14, baseY - 147, 26, 2.6);
   };
 
   // ---- a panelled barrel with a shallow dark cap ---------------------
@@ -398,7 +398,7 @@ if (sov) {
     g.strokeStyle = LAB_PLD; g.lineWidth = 1.6;
     g.beginPath(); g.ellipse(dx, lcy, domeR, domeR * 0.28, 0, 0, 6.29); g.stroke();
     for (var lpI = -2; lpI <= 2; lpI++) {                  // rail posts on the collar
-      g.fillStyle = '#949aa6';
+      g.fillStyle = '#9a9a9a';
       g.fillRect(dx + lpI * rx * 0.44 - 0.7, dy - h - 6, 1.4, 4.4);
     }
     return lcy - domeR * 0.66;
@@ -408,7 +408,7 @@ if (sov) {
   // the right barrel's ribbed pedestal, then the barrel over it
   g.fillStyle = LAB_GUN; g.fillRect(cx + fw * 0.50 - 12, baseY - 34, 24, 36);
   outline(g, LAB_GUD);
-  g.fillStyle = '#7f8691'; g.fillRect(cx + fw * 0.50 - 12, baseY - 34, 6.4, 36);
+  g.fillStyle = '#858585'; g.fillRect(cx + fw * 0.50 - 12, baseY - 34, 6.4, 36);
   g.fillStyle = 'rgba(0,0,0,.30)'; g.fillRect(cx + fw * 0.50 + 5, baseY - 34, 7, 36);
   g.strokeStyle = 'rgba(24,28,34,.44)'; g.lineWidth = 1;
   for (var lpdI = 1; lpdI < 5; lpdI++) {
@@ -422,7 +422,7 @@ if (sov) {
   var ldA = [cx - 4, baseY - 128], ldB = [cx - 44, baseY - 74], ldC = [cx - 18, baseY - 4];
   g.strokeStyle = '#262b33'; g.lineWidth = 11; g.lineCap = 'butt';
   g.beginPath(); g.moveTo(ldA[0], ldA[1]); g.quadraticCurveTo(ldB[0], ldB[1], ldC[0], ldC[1]); g.stroke();
-  g.strokeStyle = '#7b818b'; g.lineWidth = 7.4;
+  g.strokeStyle = '#808080'; g.lineWidth = 7.4;
   g.beginPath(); g.moveTo(ldA[0], ldA[1]); g.quadraticCurveTo(ldB[0], ldB[1], ldC[0], ldC[1]); g.stroke();
   g.strokeStyle = 'rgba(230,236,244,.36)'; g.lineWidth = 2;
   g.beginPath();
@@ -442,8 +442,8 @@ if (sov) {
   g.moveTo(lbx - 15, lby - 24); g.lineTo(lbx + 13, lby - 19);
   g.lineTo(lbx + 11, lby - 5); g.lineTo(lbx - 3, lby + 5);
   g.lineTo(lbx - 15, lby - 8); g.closePath(); g.fill();
-  g.strokeStyle = '#e6eaf2'; g.lineWidth = 1.6; g.stroke();
-  g.fillStyle = '#dfe4ec';
+  g.strokeStyle = '#eaeaea'; g.lineWidth = 1.6; g.stroke();
+  g.fillStyle = '#e3e3e3';
   g.beginPath();
   g.moveTo(lbx - 9, lby - 18); g.lineTo(lbx + 7, lby - 14.6);
   g.lineTo(lbx - 1, lby - 6); g.closePath(); g.fill();
@@ -472,7 +472,7 @@ if (sov) {
     g.beginPath(); g.moveTo(wx, wyBot); g.lineTo(wx, wyTop); g.stroke();
     g.strokeStyle = 'rgba(184,192,206,.32)'; g.lineWidth = 0.9;
     g.beginPath(); g.moveTo(wx - 0.8, wyBot); g.lineTo(wx - 0.8, wyTop); g.stroke();
-    g.fillStyle = lit ? '#ffffff' : '#c3c9d4';
+    g.fillStyle = lit ? '#ffffff' : '#c8c8c8';
     g.beginPath(); g.arc(wx, wyTop - 2, 2.4, 0, 6.29); g.fill();
     outline(g, '#6e7480');
     if (coilY !== null) {

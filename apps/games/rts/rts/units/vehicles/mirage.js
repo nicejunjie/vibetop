@@ -21,7 +21,7 @@ function drawMirage(C) {
 // between them, flanked by two dark swept wings and closed at the
 // rear by a black vented cowl. No turret, and almost no gun: just a
 // stubby muzzle under the stack's chin.
-tracks(len * 1.00, 3.6, wid * 0.30, '#b0b7c2');
+tracks(len * 1.00, 3.6, wid * 0.30, '#b6b6b6');
 chassis(cx, by - 1.3, len * 0.84, wid * 0.74, 3.8, hull, dark, 3.4);
 deckPlate(-0.8, len * 0.56, wid * 0.46, 5.9, shade(hull, 1.12));
 // TWO plates a flank, and the glacis wrap is gone with the band that
@@ -49,8 +49,8 @@ bumper(len * 0.41, wid * 0.24, by - 1.6);
 // and the gun, drawn back-to-front by bearing.
 var drawPanel = function () {
   var ppx = cx - fx * 7.6, ppy = by - 6.2 - fy * 7.6;
-  isoBox(g, ppx, ppy, 5.2, wid * 0.72, 7.8, a, '#cfd5dd', '#2c323b');   // the projector: a thick pale BLOCK (rip), not a slab
-  isoBox(g, ppx, ppy - 7.8, 5.6, wid * 0.76, 0.9, a, '#e9edf2', '#2c323b'); // lit top
+  isoBox(g, ppx, ppy, 5.2, wid * 0.72, 7.8, a, '#d4d4d4', '#2c323b');   // the projector: a thick pale BLOCK (rip), not a slab
+  isoBox(g, ppx, ppy - 7.8, 5.6, wid * 0.76, 0.9, a, '#ececec', '#2c323b'); // lit top
   // one owner-colour band low across the slab, one VACC.mirage
   // (hologram green) strip up its forward face: the panel is the
   // Mirage's tell, so the two colours that name it sit there.

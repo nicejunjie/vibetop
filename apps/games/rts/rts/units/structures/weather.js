@@ -17,8 +17,8 @@ function drawWeather(C) {
 // and the big one and swing the mast's beacon.
 var anP = (bph || 0) * 6.283, anS = Math.sin(anP);
 var ph6 = Math.round((bph || 0) * 6) % 6;
-var WD_ORB = '#3f4348', WD_ORBL = '#9fa4ab', WD_ORBD = '#1d1f22', WD_ED = '#24262a';
-var WD_DK = '#b9bec6';
+var WD_ORB = '#424242', WD_ORBL = '#a3a3a3', WD_ORBD = '#1d1f22', WD_ED = '#24262a';
+var WD_DK = '#bdbdbd';
 
 // ---- octagonal deck -----------------------------------------------
 g.fillStyle = WD_DK;
@@ -28,7 +28,7 @@ for (var wdO = 0; wdO < 8; wdO++) {
   var wx2 = cx + Math.cos(wa) * fw * 0.94, wy2 = baseY + Math.sin(wa) * fh * 0.94;
   if (wdO) g.lineTo(wx2, wy2); else g.moveTo(wx2, wy2);
 }
-g.closePath(); g.fill(); outline(g, '#5c6068');
+g.closePath(); g.fill(); outline(g, '#606060');
 g.strokeStyle = shade(col, 0.86); g.lineWidth = 3;          // painted deck rim, the rip's house ring
 g.stroke();
 g.save(); g.clip();
@@ -51,7 +51,7 @@ g.restore();
 // ---- four corner orbs ---------------------------------------------
 var wdSmall = [];
 var wdOrb = function (ox2, oy2, r2) {
-  cylinder(g, ox2, oy2, r2 * 0.56, r2 * 0.9, '#767d88', '#8b929d', WD_ED);   // stubby leg
+  cylinder(g, ox2, oy2, r2 * 0.56, r2 * 0.9, '#767d88', '#919191', WD_ED);   // stubby leg
   g.fillStyle = shade(col, 0.9);
   g.fillRect(ox2 - r2 * 0.60, oy2 - r2 * 0.9 - 2, r2 * 1.2, 2.6);            // house collar
   var oc = oy2 - r2 * 0.9 - r2 * 0.86;
@@ -63,7 +63,7 @@ var wdOrb = function (ox2, oy2, r2) {
   g.beginPath(); g.ellipse(ox2 + r2 * 0.40, oc + r2 * 0.28, r2 * 0.44, r2 * 0.40, 0, 0, 6.29); g.fill();
   g.strokeStyle = WD_ORBD; g.lineWidth = 1.2;                                 // banding
   g.beginPath(); g.ellipse(ox2, oc, r2, r2 * 0.34, 0, 0, 6.29); g.stroke();
-  g.fillStyle = '#cfd8e4';                                                    // emitter stud
+  g.fillStyle = '#d7d7d7';                                                    // emitter stud
   g.beginPath(); g.arc(ox2, oc - r2 * 0.92, 1.9, 0, 6.29); g.fill();
   wdSmall.push([ox2, oc - r2 * 0.92]);
 };
@@ -74,7 +74,7 @@ wdOrb(cx + fw * 0.16, baseY + fh * 0.52, 11.5);
 
 // ---- the column and the great orb ---------------------------------
 var wdCy = baseY + fh * 0.04;
-cylinder(g, cx, wdCy, fw * 0.19, 40, '#6f7681', '#868d99', WD_ED);
+cylinder(g, cx, wdCy, fw * 0.19, 40, '#6f7681', '#8c8c8c', WD_ED);
 g.strokeStyle = 'rgba(24,28,36,.42)'; g.lineWidth = 1;
 for (var wdR = 1; wdR <= 3; wdR++) {
   g.beginPath(); g.moveTo(cx - fw * 0.19, wdCy - wdR * 11); g.lineTo(cx + fw * 0.19, wdCy - wdR * 11); g.stroke();
@@ -104,11 +104,11 @@ g.fillStyle = shade(col, 0.94);                              // house ring where
 g.beginPath(); g.ellipse(cx, wdOy - wdR2 * 0.82, wdR2 * 0.40, wdR2 * 0.15, 0, 0, 6.29); g.fill();
 
 // white cross mast
-g.strokeStyle = '#e9edf3'; g.lineWidth = 3.4; g.lineCap = 'round';
+g.strokeStyle = '#ececec'; g.lineWidth = 3.4; g.lineCap = 'round';
 g.beginPath(); g.moveTo(cx, wdOy - wdR2 * 0.86); g.lineTo(cx, wdOy - wdR2 - 16); g.stroke();
 g.lineWidth = 2.6;
 g.beginPath(); g.moveTo(cx - 12, wdOy - wdR2 - 9); g.lineTo(cx + 12, wdOy - wdR2 - 9); g.stroke();
-g.fillStyle = ph6 % 3 === 0 ? '#dff0ff' : '#93a3b8';
+g.fillStyle = ph6 % 3 === 0 ? '#ededed' : '#93a3b8';
 g.beginPath(); g.arc(cx, wdOy - wdR2 - 17.5, 2.6, 0, 6.29); g.fill();
 
 // ---- idle: lightning crawling from the small orbs to the great one --

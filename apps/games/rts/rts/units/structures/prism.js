@@ -25,7 +25,7 @@ function drawPrism(C) {
 var anP = (bph || 0) * 6.283, anS = Math.sin(anP);
 var ph6 = Math.round((bph || 0) * 6) % 6;
 var PZ_NAV = '#2d3446', PZ_NAVL = '#434c68', PZ_NAVD = '#191d26';
-var PZ_SIL = '#c2c7d2', PZ_SILL = '#f2f4fa', PZ_SILD = '#767c8a';
+var PZ_SIL = '#c7c7c7', PZ_SILL = '#f4f4f4', PZ_SILD = '#767c8a';
 var PZ_STR = '#5d6a90', PZ_BLT = '#e08a1c';
 
 // ---- olive-khaki ground disc -----------------------------------------
@@ -177,12 +177,12 @@ var pzAng = [];
 for (var pzI = 0; pzI < pzN; pzI++) pzAng.push(pzI / pzN * 6.2832 + pzRot);
 pzAng.sort(function (a2, b2) { return Math.sin(a2) - Math.sin(b2); });
 for (var pzJ = 0; pzJ < pzAng.length; pzJ++) pzBlade(pzAng[pzJ]);
-g.strokeStyle = '#eef2fa'; g.lineWidth = 2.2; g.lineCap = 'round';
+g.strokeStyle = '#f2f2f2'; g.lineWidth = 2.2; g.lineCap = 'round';
 g.beginPath();                                          // the white X at the hub
 g.moveTo(cx - 13, pzHub - 8.4); g.lineTo(cx + 13, pzHub - 1.4);
 g.moveTo(cx + 13, pzHub - 8.4); g.lineTo(cx - 13, pzHub - 1.4);
 g.stroke(); g.lineWidth = 1;
-g.fillStyle = '#9aa2b0';
+g.fillStyle = '#a1a1a1';
 g.beginPath(); g.ellipse(cx, pzHub - 4.6, 5.8, 3.0, 0, 0, 6.29); g.fill();
 outline(g, PZ_NAVD);
 g.fillStyle = 'rgba(226,244,255,' + (0.06 + 0.07 * (0.5 + 0.5 * anS)) + ')';

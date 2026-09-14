@@ -49,7 +49,7 @@ function droneLeg(lu, lv, near) {
   g.lineTo(kneex - wnx * bw, kneey - wny * bw);
   g.lineTo(hipx - wnx * bw * 0.8, hipy - wny * bw * 0.8);
   g.closePath();
-  g.fillStyle = near ? '#8b929d' : '#4c535c'; g.fill();
+  g.fillStyle = near ? '#919191' : '#4c535c'; g.fill();
   g.strokeStyle = '#1c2026'; g.lineWidth = 0.6; g.stroke();
   g.strokeStyle = near ? shade(VACC.drone, 1.34) : shade(VACC.drone, 0.72); g.lineWidth = 0.9;
   g.beginPath();

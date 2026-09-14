@@ -24,7 +24,7 @@ function drawPatriot(C) {
 var anP = (bph || 0) * 6.283, anS = Math.sin(anP);
 var ph6 = Math.round((bph || 0) * 6) % 6;
 var PT_BOX = '#2c3342', PT_BOXL = '#4c5668', PT_BOXD = '#12161f';
-var PT_SIL = '#dfe3ea', PT_SILL = '#fbfcff', PT_SILD = '#828894';
+var PT_SIL = '#e3e3e3', PT_SILL = '#fcfcfc', PT_SILD = '#888888';
 plot(g, cx, baseY, fw * 2, fh * 2);
 g.fillStyle = 'rgba(30,34,26,.62)'; g.fill();
 g.fillStyle = 'rgba(0,0,0,.34)';
@@ -112,7 +112,7 @@ g.lineTo(cx + 15.4 + trv + ptLean * 0.35, baseY - 38.0); g.lineTo(cx - 11.2 + tr
 g.closePath(); g.fill();
 
 // ---- radar cap and its blinking lamp on the dome's left shoulder ------
-g.fillStyle = '#9aa1ae';
+g.fillStyle = '#a0a0a0';
 g.beginPath(); g.ellipse(cx - 13.6, baseY - 12.4, 3.6, 2.0, 0, 0, 6.29); g.fill();
 outline(g, PT_BOXD);
 g.fillStyle = (ph6 === 0 || ph6 === 3) ? '#ffe9a8' : '#6d7484';

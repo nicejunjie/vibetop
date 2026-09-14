@@ -171,7 +171,7 @@ function bakeBuilding(key, col, fac, bph, bdir, dopen) {
 
   // RA2 structures are poured concrete and painted steel; the HOUSE colour
   // is trim — a door, a ridge, a flag, a chevron — never the whole shell.
-  var CONC = '#b6ab92', STEEL = '#8f9490', ROOF = '#565c48';
+  var CONC = '#b6ab92', STEEL = '#929292', ROOF = '#565c48';
   var dark = '#3a3a32', TAR = '#4c5240';
   var hi = shade(col, 1.15), lo = shade(col, 0.72);
   var u = fw / 3;                                        // one scale unit
@@ -221,10 +221,10 @@ function bakeBuilding(key, col, fac, bph, bdir, dopen) {
   // aprons, all sitting on a dark olive platform. No amount of detail on a
   // concrete shed was ever going to converge on that.
   var PLAT = '#4e5348', PLAT_E = '#2f332c';
-  var BODY = '#7f8478', BODY_D = '#565b52';
-  var RIBL = '#dfe2ea', RIB = '#b7bccc', RIBP = '#8b92b0';
+  var BODY = '#818181', BODY_D = '#585858';
+  var RIBL = '#e2e2e2', RIB = '#bcbcbc', RIBP = '#8b92b0';
   var BLU = '#2f5aa0', BLUL = '#4f86d6';
-  var STK = '#6d726d', STK_T = '#23262a';
+  var STK = '#707070', STK_T = '#23262a';
   var AMB = '#ffb347', AMBH = '#ffe7a8', HAZ = '#e0b028';
 
   // Dark bevelled platform every structure stands on. A SECOND universal
@@ -273,7 +273,7 @@ function bakeBuilding(key, col, fac, bph, bdir, dopen) {
   // Hazard-striped apron: where vehicles come and go.
   function apron(axp, ayp, aw, ah) {
     diamond(g, axp, ayp, aw * 2, ah * 2);
-    g.fillStyle = '#8d9288'; g.fill(); outline(g, PLAT_E);
+    g.fillStyle = '#8f8f8f'; g.fill(); outline(g, PLAT_E);
     g.save(); diamond(g, axp, ayp, aw * 2, ah * 2); g.clip();
     for (var i = -5; i <= 5; i++) {
       g.fillStyle = i % 2 ? HAZ : '#2f332c';
@@ -357,7 +357,7 @@ function bakeBuilding(key, col, fac, bph, bdir, dopen) {
     // the size of the footprint with a house-colour band, never shipped as
     // final art (see docs/rts-roadmap.md, roster expansion).
     var lift = Math.min(40, 14 + (fw + fh) * 0.25);
-    prism(g, cx, baseY, fw * 0.8, fh * 0.8, lift, '#6a6f78', '#8a9099', '#2a2e36');
+    prism(g, cx, baseY, fw * 0.8, fh * 0.8, lift, '#6f6f6f', '#8f8f8f', '#2a2e36');
     g.fillStyle = col; g.fillRect(cx - fw * 0.5, baseY - lift - 2, fw, 4);
   }
   pixelate(s, 6, 96);   // RA2's 6-level channel grid: a structure must not be a smooth

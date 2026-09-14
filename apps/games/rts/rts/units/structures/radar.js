@@ -32,7 +32,7 @@ function drawRadar(C) {
 var anP = (bph || 0) * 6.283, ph6 = Math.round((bph || 0) * 6) % 6;
 var RDR_CAM = '#5e5c3e', RDR_CAMD = '#23241a', RDR_CAML = '#8e8a60';
 var RDR_IRN = '#2a303c', RDR_IRND = '#0d1016', RDR_IRNL = '#4e5563';
-var RDR_DSH = '#c9ccd2', RDR_DSHL = '#f0f2f6', RDR_DSHD = '#7d838d';
+var RDR_DSH = '#cccccc', RDR_DSHL = '#f2f2f2', RDR_DSHD = '#828282';
 if (sov) {
   // ---- ground: only a thin hardstanding, the sprite has no raft ------
   g.fillStyle = 'rgba(0,0,0,.22)';                     // just a scuffed dirt patch
@@ -163,13 +163,13 @@ if (sov) {
   g.beginPath(); g.ellipse(cx + 1, rdCy + 6, rdCr + 2, (rdCr + 2) * 0.46, 0, 0, 6.29); g.fill();
   for (var rdBI = 0; rdBI < 8; rdBI++) {               // segments, dark-edged
     var a0 = rdBI / 8 * 6.283, a1 = (rdBI + 1) / 8 * 6.283;
-    g.strokeStyle = rdBI % 2 ? '#2a2a26' : shade(col, 0.40);
+    g.strokeStyle = rdBI % 2 ? '#2a2a2a' : shade(col, 0.40);
     g.lineWidth = 15.2;
     g.beginPath(); g.ellipse(cx, rdCy + 1.6, rdCr, rdCr * 0.46, 0, a0, a1); g.stroke();
-    g.strokeStyle = rdBI % 2 ? '#d8dace' : col;
+    g.strokeStyle = rdBI % 2 ? '#d8d8d8' : col;
     g.lineWidth = 12.6;
     g.beginPath(); g.ellipse(cx, rdCy, rdCr, rdCr * 0.46, 0, a0, a1); g.stroke();
-    g.strokeStyle = rdBI % 2 ? '#f2f3ea' : shade(col, 1.22);
+    g.strokeStyle = rdBI % 2 ? '#f2f2f2' : shade(col, 1.22);
     g.lineWidth = 3.2;
     g.beginPath(); g.ellipse(cx, rdCy - 3.6, rdCr, rdCr * 0.46, 0, a0 + 0.06, a1 - 0.06); g.stroke();
   }
@@ -308,7 +308,7 @@ if (sov) {
             rdR * 0.30, rdRv * 0.20, -0.5, 0, 6.29);
   g.fill();
   g.restore();
-  g.strokeStyle = '#8f959e'; g.lineWidth = 1.8;        // the rim
+  g.strokeStyle = '#949494'; g.lineWidth = 1.8;        // the rim
   g.beginPath(); g.ellipse(rdDx, rdDy, rdR, rdRv, 0, 0, 6.29); g.stroke();
   g.strokeStyle = '#222731'; g.lineWidth = 2;
   g.beginPath(); g.ellipse(rdDx, rdDy, rdR, rdRv, 0, 3.30, 6.12); g.stroke();
@@ -324,10 +324,10 @@ if (sov) {
   // the domed hub, with the house crescent on its left flank
   g.fillStyle = '#3c424c';
   g.beginPath(); g.ellipse(rdDx + 1, rdDy - rdRv * 0.30, 10.4, 9.8, 0, 0, 6.29); g.fill();
-  g.fillStyle = '#828992';
+  g.fillStyle = '#888888';
   g.beginPath(); g.ellipse(rdDx, rdDy - rdRv * 0.32, 9.2, 8.6, 0, 0, 6.29); g.fill();
   outline(g, '#161b24');
-  g.fillStyle = '#a9b0b8';
+  g.fillStyle = '#afafaf';
   g.beginPath(); g.ellipse(rdDx - 2, rdDy - rdRv * 0.32 - 2.4, 5.4, 4.6, 0, 0, 6.29); g.fill();
   g.fillStyle = 'rgba(255,255,255,.34)';
   g.beginPath(); g.ellipse(rdDx - 3.4, rdDy - rdRv * 0.32 - 3.6, 2.4, 1.8, 0, 0, 6.29); g.fill();
@@ -344,7 +344,7 @@ if (sov) {
   }
 } else {
   // Directorate never builds this (Soviet-only in RA2): plain block.
-  prism(g, cx, baseY, fw * 0.8, fh * 0.8, 30, '#6a6f78', '#8a9099', '#2a2e36');
+  prism(g, cx, baseY, fw * 0.8, fh * 0.8, 30, '#6f6f6f', '#8f8f8f', '#2a2e36');
   g.fillStyle = col; g.fillRect(cx - fw * 0.5, baseY - 32, fw, 4);
 }
 }

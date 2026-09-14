@@ -24,7 +24,7 @@ function drawWarminer(C) {
 // height — and that one fact is the whole read between the two
 // harvesters (unit-identity-reference.md 2.3/2.4).
 var W = len / 30;
-tracks(len * 0.94, 4.6, wid * 0.32, '#9aa1ac');
+tracks(len * 0.94, 4.6, wid * 0.32, '#a0a0a0');
 chassis(cx, by - 1.4, len * 0.88, wid * 0.74, 4.6, hull, dark, 0);
 for (sg = -1; sg <= 1; sg += 2)                        // house-colour chassis skirt
   for (i2 = -1; i2 <= 1; i2++)
@@ -54,7 +54,7 @@ var drawBin2 = function () {
 var drawFront2 = function () {
   // white fore-chassis under the boom
   isoBox(g, cx + fx * W * 5.6, by - 2.8 + fy * W * 5.6, 8.0 * W, wid * 0.60, 4.4, a,
-         '#b9bec7', '#4d525b');
+         '#bebebe', '#4d525b');
   isoBox(g, cx + fx * W * 4.8, by - 7.2 + fy * W * 4.8, 4.8 * W, wid * 0.46, 2.6, a,
          STEEL, '#4a4f58');                              // boom root housing
   // the house-colour mass at the crate's front shoulder, and the drum
@@ -89,12 +89,12 @@ var drawFront2 = function () {
     var r1x = cx + fx * tipU + px * 3.0 * rr, r1y = tipY + fy * tipU + py * 3.0 * rr;
     g.strokeStyle = '#2e333a'; g.lineWidth = 3.6; g.lineCap = 'round';
     g.beginPath(); g.moveTo(r0x, r0y); g.lineTo(r1x, r1y); g.stroke();
-    g.strokeStyle = '#eef1f6'; g.lineWidth = 2.1;
+    g.strokeStyle = '#f1f1f1'; g.lineWidth = 2.1;
     g.beginPath(); g.moveTo(r0x, r0y - 0.6); g.lineTo(r1x, r1y - 0.6); g.stroke();
-    g.strokeStyle = '#7c838d'; g.lineWidth = 0.9;
+    g.strokeStyle = '#828282'; g.lineWidth = 0.9;
     g.beginPath(); g.moveTo(r0x + 0.9, r0y + 0.8); g.lineTo(r1x + 0.9, r1y + 0.8); g.stroke();
   }
-  g.strokeStyle = '#9aa1ac'; g.lineWidth = 1.0;             // lattice bracing
+  g.strokeStyle = '#a0a0a0'; g.lineWidth = 1.0;             // lattice bracing
   for (i2 = 0; i2 < 3; i2++) {
     var t0 = i2 / 3, t1 = (i2 + 1) / 3;
     var au = rootU + (tipU - rootU) * t0, ay = rootY + (tipY - rootY) * t0;
@@ -107,7 +107,7 @@ var drawFront2 = function () {
   // toothed bucket at the boom tip
   var bkx = cx + fx * tipU, bky = tipY + fy * tipU;
   prism(bkx, bky, [[2.7, -4.8], [2.7, 4.8], [-2.7, 3.8], [-2.7, -3.8]],
-        3.8, '#8f959f', '#3a3e45');
+        3.8, '#949494', '#3a3e45');
   g.fillStyle = 'rgba(255,255,255,.28)';
   g.beginPath();
   g.moveTo(bkx + fx * 2.7 + px * 4.8, bky + fy * 2.7 + py * 4.8 - 3.8);
@@ -117,7 +117,7 @@ var drawFront2 = function () {
   g.closePath(); g.fill();
   for (var tt = -2; tt <= 2; tt++) {                        // teeth
     var exx = bkx + fx * 2.9 + px * tt * 2.15, eyy = bky + fy * 2.9 + py * tt * 2.15;
-    g.fillStyle = '#e2e6ec';
+    g.fillStyle = '#e5e5e5';
     g.beginPath();
     g.moveTo(exx - 1.3, eyy - 1.5); g.lineTo(exx + 1.3, eyy - 1.5);
     g.lineTo(exx, eyy + 1.9); g.closePath(); g.fill();

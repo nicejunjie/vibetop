@@ -87,10 +87,10 @@ if (sov) {
   // the back cone, a pipe stub out of the near cone's far side.
   // COLOUR POLICY: `col` is the block, the bridge, both grilles and the
   // ramp lamps. Iron, pipes, pads and the pit are neutral.
-  var S_IRON = '#3b3730', S_IRON_L = '#8a7a58', S_IRON_D = '#131315';
-  var S_STK = '#17181c', S_STK_L = '#6a6c72', S_COLR = '#bcb9ad';
-  var S_PIPE = '#b4b0a4', S_PIPE_D = '#4a4740';
-  var S_PALE = '#b5b19e', S_PALE_D = '#6a6656', S_RAMP = '#d8d4c6', S_RAMP_E = '#6a6656';
+  var S_IRON = '#3b3730', S_IRON_L = '#8a7a58', S_IRON_D = '#131313';
+  var S_STK = '#17181c', S_STK_L = '#6c6c6c', S_COLR = '#b9b9b9';
+  var S_PIPE = '#b0b0b0', S_PIPE_D = '#4a4740';
+  var S_PALE = '#b0b0b0', S_PALE_D = '#6a6656', S_RAMP = '#d4d4d4', S_RAMP_E = '#6a6656';
   var S_PIT = '#8c8266', S_PIT_D = '#4a4436', S_LAD = '#caa54c', S_LAD_D = '#5a4418';
   var S_PAD = '#7d7862', S_PAD_D = '#3a3628';
   var nfx = cx + 36, nfy = baseY + 4;                                // near furnace foot
@@ -337,12 +337,12 @@ if (sov) {
   // skirt at the right corner, a pipe loop out of the skirt's side.
   // COLOUR POLICY: the only saturated hue is `col` - hoop, spine, head
   // block, collars, tanks. Lavender is a desaturated violet, not blue.
-  var A_SIL = '#a4a8b1', A_SIL_D = '#3e434c';
-  var A_IVO = '#dadbe5', A_LAV = '#a6a4c6', A_LAV_D = '#70709a';
+  var A_SIL = '#a8a8a8', A_SIL_D = '#3e434c';
+  var A_IVO = '#dcdcdc', A_LAV = '#a6a4c6', A_LAV_D = '#70709a';
   var A_NAV = '#1a1e2c', A_NAV_L = '#3a4258';
   var A_OLV = '#5e5e47', A_OLV_L = '#85866c', A_OLV_D = '#2c2d22';
   var A_PLT = '#4c4834', A_PLT_L = '#6c6743', A_PLT_D = '#2a281c';
-  var A_CHR = '#24272e', A_GRY = '#767a82';
+  var A_CHR = '#24272e', A_GRY = '#7a7a7a';
   var A_TAN = '#b09a6a', A_TAN_D = '#5c4d30';
   var tsx = cx - 3, ssx = cx + 47;                               // stack centres — far enough apart that the crown reads as two, not one
 
@@ -536,7 +536,7 @@ if (sov) {
     var pxp = spA[0] + (spB[0] - spA[0]) * pt4, pyp = spA[1] + (spB[1] - spA[1]) * pt4;
     g.fillStyle = HCD;
     g.beginPath(); g.ellipse(pxp, pyp, 5.6, 4.4, 0, 0, 6.29); g.fill();
-    g.fillStyle = ((5 - ph6) % 3) === poI ? '#e8ecf6' : A_NAV_L;
+    g.fillStyle = ((5 - ph6) % 3) === poI ? '#ececec' : A_NAV_L;
     g.beginPath(); g.ellipse(pxp, pyp - 0.3, 3.2, 2.5, 0, 0, 6.29); g.fill();
     g.strokeStyle = 'rgba(255,255,255,.5)'; g.lineWidth = 1;
     g.beginPath(); g.ellipse(pxp, pyp, 5.6, 4.4, 0, Math.PI * 1.1, Math.PI * 1.8); g.stroke();
@@ -549,11 +549,11 @@ if (sov) {
   g.fillStyle = HCD; g.fillRect(cx - 45, baseY - 22, 10, 1.6); g.fillRect(cx - 45, baseY - 12, 10, 1.6);
 
   // ---- the dock: white rails, ties, chevrons, tanks ------------------
-  poly([Q(0.0, -0.95), Q(1.0, -0.95), Q(1.0, 0.95), Q(0.0, 0.95)], '#585c64', null);
+  poly([Q(0.0, -0.95), Q(1.0, -0.95), Q(1.0, 0.95), Q(0.0, 0.95)], '#5c5c5c', null);
   for (var raI = 0; raI < 2; raI++) {
     var rw = raI ? 0.68 : -0.68, r0p = Q(0.0, rw), r1p = Q(1.0, rw);
     line(r0p[0], r0p[1] + 1.2, r1p[0], r1p[1] + 1.2, 4, '#0f1116');
-    line(r0p[0], r0p[1] - 0.6, r1p[0], r1p[1] - 0.6, 3, '#eef0f4');
+    line(r0p[0], r0p[1] - 0.6, r1p[0], r1p[1] - 0.6, 3, '#f0f0f0');
   }
   for (var tiI = 0; tiI < 8; tiI++) {
     var tis = 0.07 + tiI * 0.125, t0p = Q(tis, -0.85), t1p = Q(tis, 0.85);
@@ -573,7 +573,7 @@ if (sov) {
     line(ta[0], ta[1], tb[0], tb[1], 12, HCD, 'round');
     line(ta[0], ta[1] - 1, tb[0], tb[1] - 1, 9, HC, 'round');
     var tmx = (ta[0] + tb[0]) / 2, tmy = (ta[1] + tb[1]) / 2 - 1;
-    line(tmx - 2.6, tmy - 6.5, tmx + 2.6, tmy + 5.5, 5, '#e9ebf0');
+    line(tmx - 2.6, tmy - 6.5, tmx + 2.6, tmy + 5.5, 5, '#ebebeb');
     line(ta[0] + 2, ta[1] - 4.5, tb[0] - 2, tb[1] - 4.5, 1.2, 'rgba(255,255,255,.45)', 'round');
     line(ta[0] + 3, ta[1] + 3.6, tb[0] - 3, tb[1] + 3.6, 1.2, 'rgba(0,0,0,.35)', 'round');
   };

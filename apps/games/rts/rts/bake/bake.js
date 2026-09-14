@@ -79,8 +79,8 @@ function bakeAll() {
     SPR.scree.snow[sm] = bakeScree('snow', sm, rkF.snow);
     SPR.scree.urban[sm] = bakeScree('urban', sm, rkF.urban);
   }
-  SPR.shore.urban = tintSet(SPR.shore.temperate, '#767a7e', 0.36);
-  SPR.shallow.urban = tintSet(SPR.shallow.temperate, '#767a7e', 0.28);
+  SPR.shore.urban = tintSet(SPR.shore.temperate, '#797979', 0.36);
+  SPR.shallow.urban = tintSet(SPR.shallow.temperate, '#797979', 0.28);
   // Eight terrain objects per theatre, not four: RA2 temperate alone ships
   // dozens, and a field of one repeated conifer is the tell. Five trees,
   // a dead trunk and two rock outcrops on the wild theatres; five street

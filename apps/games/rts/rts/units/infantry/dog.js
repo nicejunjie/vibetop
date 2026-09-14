@@ -226,7 +226,7 @@ if (!BACK) {
   if (LEAP === 1) {
     g.fillStyle = '#7a2020';
     g.beginPath(); g.moveTo(mxo - 1.4, myo + 0.3); g.lineTo(mxo + 1.6, myo + 0.2); g.lineTo(mxo - 0.4, myo + 2.6); g.closePath(); g.fill();
-    g.fillStyle = '#f2f0e6';
+    g.fillStyle = '#efefef';
     g.beginPath(); g.moveTo(mxo - 0.2, myo + 0.6); g.lineTo(mxo + 1.3, myo + 0.5); g.lineTo(mxo + 0.5, myo + 1.7); g.closePath(); g.fill();
   }
   g.fillStyle = '#120e0a';                   // eye

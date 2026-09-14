@@ -168,7 +168,7 @@ function makeScaffold(g, x0, x1, y, col, ph) {
   var hx = mx - 9 - (ph % 3) * 5;
   g.strokeStyle = '#1a1e24'; g.lineWidth = 1;
   g.beginPath(); g.moveTo(hx, y - 42); g.lineTo(hx, y - 26); g.stroke();
-  g.fillStyle = '#828a95'; g.fillRect(hx - 3, y - 26, 6, 4);                // hook block
+  g.fillStyle = '#898989'; g.fillRect(hx - 3, y - 26, 6, 4);                // hook block
   g.restore();
 }
 
@@ -380,7 +380,7 @@ function unpackOf(p, fk, face) {
       g.strokeStyle = '#7f8894'; g.lineWidth = 2.4;
       g.beginPath(); g.moveTo(ax - 6, ay - 18); g.lineTo(ax - 6, ay - 18 - gh2); g.stroke();
       g.beginPath(); g.moveTo(ax + 6, ay - 18); g.lineTo(ax + 6, ay - 18 - gh2); g.stroke();
-      g.strokeStyle = '#c9d0da'; g.lineWidth = 1.6;
+      g.strokeStyle = '#cfcfcf'; g.lineWidth = 1.6;
       g.beginPath(); g.moveTo(ax - 7, ay - 18 - gh2); g.lineTo(ax + 7, ay - 18 - gh2); g.stroke();
       g.fillStyle = col; g.fillRect(ax - 3, ay - 21 - gh2, 6, 3);
     }

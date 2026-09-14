@@ -48,7 +48,7 @@ if (wantH) {
              len * 0.30, 1.8, 3.6, a, i2 > 0 ? plit : panel, PEDGE);
     isoBox(g, cx + px * wid * 0.40 * sg - fx * 0.6,
            by - 6.4 + py * wid * 0.40 * sg - fy * 0.6,
-           len * 0.70, 1.5, 1.1, a, '#d3d9e1', '#4b5058');
+           len * 0.70, 1.5, 1.1, a, '#d8d8d8', '#4b5058');
   }
   fenders(len * 0.42, 3.6);
   bumper(len * 0.41, wid * 0.26, by - 1.8);
@@ -114,7 +114,7 @@ if (wantT) {
   var hx = pcx + fx * 0.9, hy = pcy - 2.8 + fy * 0.9;
   prism(hx, hy, [[PW + 0.5, -PW - 0.7], [PW + 0.5, PW + 0.7],
                  [-PW - 0.5, PW + 0.3], [-PW - 0.5, -PW - 0.3]],
-        PH, '#b6c0cc', '#12151b');   // PALE: the rip's head is the brightest thing on the tank
+        PH, '#bebebe', '#12151b');   // PALE: the rip's head is the brightest thing on the tank
   for (sg = -1; sg <= 1; sg += 2)                             // house-colour cowl trim
     prism(hx, hy - 0.8, [[PW, 2.1 * sg], [-PW, 1.8 * sg], [-PW, 2.9 * sg], [PW, 3.2 * sg]],
           2.6, panel, PEDGE);
@@ -128,7 +128,7 @@ if (wantT) {
   g.beginPath();
   g.moveTo(q1[0], q1[1]); g.lineTo(q2[0], q2[1]);
   g.lineTo(q3[0], q3[1]); g.lineTo(q4[0], q4[1]); g.closePath();
-  g.fillStyle = '#c9d4de'; g.fill(); outline(g, '#171b23');
+  g.fillStyle = '#d2d2d2'; g.fill(); outline(g, '#171b23');
   g.fillStyle = shade(col, 1.18);                             // the owner-hue core
   g.beginPath();
   g.moveTo(q1[0] * 0.78 + q2[0] * 0.22, q1[1] * 0.78 + q2[1] * 0.22);
@@ -148,7 +148,7 @@ if (wantT) {
   g.beginPath();                                             // the ONE bright face
   g.moveTo(e1[0], e1[1]); g.lineTo(e2[0], e2[1]);
   g.lineTo(e3[0], e3[1]); g.lineTo(e4[0], e4[1]); g.closePath();
-  g.fillStyle = '#dfe5ea'; g.fill(); outline(g, '#171b23');
+  g.fillStyle = '#e4e4e4'; g.fill(); outline(g, '#171b23');
   // the crystal core takes the OWNER's hue, not a fixed cyan: a cyan
   // core is an opposing hue on a red player's tank.
   g.fillStyle = shade(col, 1.24);
@@ -165,7 +165,7 @@ if (wantT) {
   g.lineTo(e2[0] * 0.56 + e3[0] * 0.44, e2[1] * 0.56 + e3[1] * 0.44);
   g.lineTo(e1[0] * 0.56 + e4[0] * 0.44, e1[1] * 0.56 + e4[1] * 0.44);
   g.closePath(); g.fill();
-  g.fillStyle = '#f2f6f9';                                   // cap glint
+  g.fillStyle = '#f5f5f5';                                   // cap glint
   gEllipse(hx, hy - PH - 0.2, 1.3); g.fill();
 }
 }

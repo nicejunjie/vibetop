@@ -35,8 +35,8 @@ function drawReactor(C) {
 // glow pulses between the towers and the rim beacons blink.
 var anP = (bph || 0) * 6.283, ph6 = Math.round((bph || 0) * 6) % 6;
 var NU_BRK = '#b09489', NU_BRKL = '#cdb3a7', NU_BRKD = '#3e302b';
-var NU_PAD = '#9c9d92', NU_PADL = '#b8b9ad', NU_PADD = '#4a4b43';
-var NU_DUC = '#464c53', NU_DUCD = '#111417', NU_DUCL = '#8b939b';
+var NU_PAD = '#9b9b9b', NU_PADL = '#b7b7b7', NU_PADD = '#4a4a4a';
+var NU_DUC = '#464c53', NU_DUCD = '#111417', NU_DUCL = '#929292';
 var NU_VES = '#6c6046', NU_VESL = '#8d7f5f', NU_VESD = '#241d13';
 var NU_GRN = '#7ec828';
 var nuPulse = 0.68 + 0.32 * Math.sin(anP);              // the core breathing
@@ -80,7 +80,7 @@ if (sov) {
     g.beginPath(); g.ellipse(tx + 3, ty + 3, rb * 0.98, rb * 0.40, 0, 0, 6.29); g.fill();
     g.fillStyle = NU_PADD;
     g.beginPath(); g.ellipse(tx, ty + 1.4, rb * 1.00, rb * 0.41, 0, 0, 6.29); g.fill();
-    g.fillStyle = '#7e7f74';
+    g.fillStyle = '#7d7d7d';
     g.beginPath(); g.ellipse(tx, ty - 1, rb * 0.94, rb * 0.38, 0, 0, 6.29); g.fill();
     outline(g, NU_PADD);
     g.strokeStyle = shade(col, 0.72); g.lineWidth = 2.4;    // painted kerb, front only
@@ -272,22 +272,22 @@ if (sov) {
   var nuCX = cx + 6, nuCY = baseY + 26;
   g.fillStyle = 'rgba(0,0,0,.30)';
   g.beginPath(); g.ellipse(nuCX + 3, nuCY + 2, 18, 6, 0, 0, 6.29); g.fill();
-  g.fillStyle = '#2b2f30';                               // two dark legs
+  g.fillStyle = '#2e2e2e';                               // two dark legs
   g.fillRect(nuCX - 12, nuCY - 9, 5, 9); g.fillRect(nuCX + 7, nuCY - 9, 5, 9);
-  prism(g, nuCX, nuCY - 8, 16, 6.4, 10, '#9aa09a', '#c4cac2', '#2c302c');
+  prism(g, nuCX, nuCY - 8, 16, 6.4, 10, '#9e9e9e', '#c7c7c7', '#2e2e2e');
   g.fillStyle = shade(col, 0.74); g.fillRect(nuCX - 15, nuCY - 19.8, 30, 4.4);
   g.fillStyle = col; g.fillRect(nuCX - 15, nuCY - 19.8, 30, 1.6);
-  g.fillStyle = '#1e2122';                               // instrument ports
+  g.fillStyle = '#202020';                               // instrument ports
   for (var nuOI = -1; nuOI <= 1; nuOI++) {
     g.beginPath(); g.ellipse(nuCX + nuOI * 6, nuCY - 12, 2.2, 2.2, 0, 0, 6.29); g.fill();
     g.fillStyle = 'rgba(206,214,206,.70)';
     g.beginPath(); g.ellipse(nuCX + nuOI * 6 - 0.6, nuCY - 12.7, 0.9, 0.9, 0, 0, 6.29); g.fill();
-    g.fillStyle = '#1e2122';
+    g.fillStyle = '#202020';
   }
   drums(g, cx - 60, baseY - 12, 2, '#4e5240');
 } else {
   // Directorate never builds this (Soviet-only in RA2): plain block.
-  prism(g, cx, baseY, fw * 0.8, fh * 0.8, 30, '#6a6f78', '#8a9099', '#2a2e36');
+  prism(g, cx, baseY, fw * 0.8, fh * 0.8, 30, '#6f6f6f', '#8f8f8f', '#2a2e36');
   g.fillStyle = col; g.fillRect(cx - fw * 0.5, baseY - 32, fw, 4);
 }
 }

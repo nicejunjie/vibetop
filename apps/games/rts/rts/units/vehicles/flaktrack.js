@@ -28,7 +28,7 @@ if (wantH) {
     fw.push([cx + fx * 9.8 + px * tOff * sg, by - 2.6 + fy * 9.8 + py * tOff * sg]);
   fw.sort(function (m, n) { return m[1] - n[1]; });
   for (i2 = 0; i2 < fw.length; i2++)
-    wheelDisc(fw[i2][0], fw[i2][1], 3.1, 0.68, '#14161a', '#9aa1ac');
+    wheelDisc(fw[i2][0], fw[i2][1], 3.1, 0.68, '#14161a', '#a0a0a0');
 
   chassis(cx, by - 1.0, len * 0.88, wid * 0.66, 4.0, hull, dark, 2.6);
   isoBox(g, cx - fx * 5.2, by - 5.0 - fy * 5.2, len * 0.44, wid * 0.64, 4.8,
@@ -106,12 +106,12 @@ if (wantT) {
     var qx = quad[i2][0], qy = quad[i2][1];
     g.strokeStyle = '#15181c'; g.lineWidth = 3.0; g.lineCap = 'butt';
     g.beginPath(); g.moveTo(gAlong + qx, gAlongY + qy); g.lineTo(gTipX + qx, gTipY + qy); g.stroke();
-    g.strokeStyle = '#c3cad3'; g.lineWidth = 1.7;           // SILVER tube, as the sheet
+    g.strokeStyle = '#c9c9c9'; g.lineWidth = 1.7;           // SILVER tube, as the sheet
     g.beginPath(); g.moveTo(gAlong + qx, gAlongY + qy); g.lineTo(gTipX + qx, gTipY + qy); g.stroke();
-    g.strokeStyle = '#aab2bd'; g.lineWidth = 0.8;           // upper glint
+    g.strokeStyle = '#b1b1b1'; g.lineWidth = 0.8;           // upper glint
     g.beginPath();
     g.moveTo(gAlong + qx - 0.7, gAlongY + qy - 0.5); g.lineTo(gTipX + qx - 0.7, gTipY + qy - 0.5); g.stroke();
-    g.fillStyle = '#cdd4dc';                                // muzzle brake
+    g.fillStyle = '#d3d3d3';                                // muzzle brake
     g.beginPath(); g.ellipse(gTipX + qx, gTipY + qy, 1.35, 1.15, 0, 0, 6.29); g.fill();
     outline(g, '#3a4048');
     g.fillStyle = '#15181c';

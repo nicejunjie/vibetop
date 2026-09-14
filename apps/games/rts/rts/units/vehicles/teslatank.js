@@ -18,7 +18,7 @@ function drawTeslatank(C) {
 // tail. The blue-white at the coil tips is kept to a couple of pixels
 // a side: at any size that reads across the field it swamps the owner
 // colour and both players' tanks glow the same.
-tracks(len * 1.00, 4.2, wid * 0.30, '#b0b7c2');
+tracks(len * 1.00, 4.2, wid * 0.30, '#b6b6b6');
 chassis(cx, by - 1.3, len * 0.86, wid * 0.76, 4.2, hull, dark, 3.2);
 deckPlate(-0.8, len * 0.58, wid * 0.48, 6.8, shade(hull, 1.08));
 // TWO plates a flank with a gap, not a bar: the Tesla Tank's own
@@ -42,7 +42,7 @@ var drawTail5 = function () {
          a, '#525965', '#191d22');
   for (i2 = -1; i2 <= 1; i2++)
     isoBox(g, cx - fx * (9.8 + i2 * 1.9), by - 9.0 - fy * (9.8 + i2 * 1.9),
-           0.8, wid * 0.36, 0.8, a, '#8b939f', '#15181c');
+           0.8, wid * 0.36, 0.8, a, '#929292', '#15181c');
   exhaust(cx - fx * len * 0.42 + px * wid * 0.22, by - 6.9 - fy * len * 0.42 + py * wid * 0.22);
 };
 var drawPod5 = function () {

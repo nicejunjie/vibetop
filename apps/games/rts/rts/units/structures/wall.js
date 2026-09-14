@@ -24,7 +24,7 @@ g.beginPath(); g.ellipse(cx + 2, by + 3, sov ? 17 : 20, sov ? 8 : 9, 0, 0, 6.29)
 if (!sov) {
   // ---- Directorate: sandbag plinth, silver post, glass dome ----------
   var SAND = '#918872', SAND_L = '#a89f88', SAND_D = '#5f5949';
-  var STONE = '#c3c0b4', STONE_L = '#d8d5c9', STONE_D = '#84817a', EDG = '#3a372f';
+  var STONE = '#c0c0c0', STONE_L = '#d5d5d5', STONE_D = '#818181', EDG = '#3a372f';
   // plinth strips first, so the centre pad closes over the joints
   var TURF = '#5f5c48', TURF_L = '#767260', TURF_D = '#403e30';
   for (oi = 0; oi < 4; oi++) {
@@ -101,7 +101,7 @@ if (!sov) {
 } else {
   // ---- Collective: a rampart of heaped rubble under an iron cap ------
   var RUB = '#918079', RUB_L = '#ab9a90', RUB_D = '#584b47';
-  var IRON = '#2a2c34', STL = '#8b8f98', STL_L = '#b6bac2', EDGS = '#191a20';
+  var IRON = '#2a2c34', STL = '#8f8f8f', STL_L = '#bababa', EDGS = '#191a20';
   for (oi = 0; oi < 4; oi++) {
     d = WALL_DIRS[order[oi]];
     if (!(mask & d[0])) continue;

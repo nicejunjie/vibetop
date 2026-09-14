@@ -17,8 +17,8 @@ var sov = fac === 'col';
 var rnd = lcg(sov ? 6613 : 3307), i;
 var SAND = '#918872', SAND_L = '#a89f88', SAND_D = '#5f5949';
 var RUB = '#918079', RUB_L = '#ab9a90', RUB_D = '#584b47';
-var STONE = sov ? '#8b8f98' : '#c3c0b4', STONE_L = sov ? '#b6bac2' : '#d8d5c9';
-var STONE_D = sov ? '#5c6068' : '#84817a', EDG = sov ? '#191a20' : '#3a372f';
+var STONE = sov ? '#8f8f8f' : '#c0c0c0', STONE_L = sov ? '#bababa' : '#d5d5d5';
+var STONE_D = sov ? '#606060' : '#818181', EDG = sov ? '#191a20' : '#3a372f';
 var BASE = sov ? RUB : SAND, BASE_L = sov ? RUB_L : SAND_L, BASE_D = sov ? RUB_D : SAND_D;
 
 g.fillStyle = 'rgba(0,0,0,.30)';

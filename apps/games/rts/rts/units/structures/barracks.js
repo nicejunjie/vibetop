@@ -44,7 +44,7 @@ if (!sov) {
   // dome and a small dark flag. Player colour = the canvas straps, the
   // drum bands and the section joints; nothing else is saturated (the
   // flag is navy with a cyan device in the sprite, not a house flag).
-  var CANV = '#f2f4f7', CANVD = '#bcc2cd';
+  var CANV = '#f4f4f4', CANVD = '#c1c1c1';
   var HULL = '#2a2f3b', HULLL = '#4a4d58';          // navy body / its lit side
   var BRASS = '#a9823f', BRASSL = '#dcbb78';        // the fat end ring
   var RIBD = shade(col, 0.34), RIBH = shade(col, 1.20);
@@ -175,7 +175,7 @@ if (!sov) {
         var bz0 = bzL + bsi * 2.4, bz1 = Math.min(bzT, bz0 + 2.4);
         bpoly([bpt(hx, hy, 1.035, -0.82, bz0), bpt(hx, hy, 1.035, 0.82, bz0),
                bpt(hx, hy, 1.035, 0.82, bz1), bpt(hx, hy, 1.035, -0.82, bz1)],
-              bsi & 1 ? '#7f8593' : '#8f95a3', 'rgba(20,24,34,.45)', 0.8);
+              bsi & 1 ? '#7f8593' : '#959595', 'rgba(20,24,34,.45)', 0.8);
       }
       bpoly([bpt(hx, hy, 1.04, -0.82, bzL), bpt(hx, hy, 1.04, 0.82, bzL),
              bpt(hx, hy, 1.04, 0.82, bzL + 1.7), bpt(hx, hy, 1.04, -0.82, bzL + 1.7)],
@@ -184,7 +184,7 @@ if (!sov) {
     g.restore();
     var lp = bpt(hx, hy, 1.05, 0, -vLift * 0.5);     // step out onto the pad
     diamond(g, lp[0], lp[1] + 1.5, 15, 7.5);
-    g.fillStyle = '#5d636a'; g.fill(); outline(g, '#20242c');
+    g.fillStyle = '#626262'; g.fill(); outline(g, '#20242c');
   };
 
   // hazard plates: one at the west corner, one on the front face, both
@@ -221,12 +221,12 @@ if (!sov) {
   g.fillStyle = '#8fe2d6'; g.fillRect(twx - 6.4, twy - 38.8, 5.4, 3.4);   // teal glass: the
   //   only other lit pane on the sprite, kept off the blue/red axis so a
   //   red-owner Barracks carries no blue pixel at all (and vice versa).
-  g.fillStyle = '#b9bfca';                                // silver dome cap
+  g.fillStyle = '#bebebe';                                // silver dome cap
   g.beginPath(); g.ellipse(twx, twy - 40.5, 7.2, 6.0, 0, Math.PI, 0); g.fill();
   outline(g, PLAT_E);
   g.fillStyle = 'rgba(255,255,255,.60)';
   g.beginPath(); g.ellipse(twx - 2.4, twy - 42.0, 2.4, 2.0, 0, Math.PI, 0); g.fill();
-  g.strokeStyle = '#9aa0a8'; g.lineWidth = 1.4;           // short mast
+  g.strokeStyle = '#9f9f9f'; g.lineWidth = 1.4;           // short mast
   g.beginPath(); g.moveTo(twx + 0.5, twy - 45); g.lineTo(twx + 2.2, twy - 64); g.stroke();
   // flag: dark navy field with a cyan device, rippling over the phases
   var fx = twx + 2.2, fy = twy - 64, rip = anS * 2.2 + Math.sin(anP * 2) * 1.3;
@@ -244,7 +244,7 @@ if (!sov) {
   g.moveTo(fx + 11, fy + 4.2 - rip * 0.5); g.lineTo(fx + 16.5, fy + 5.4 - rip * 0.6);
   g.lineTo(fx + 13, fy + 8.8 - rip * 0.3); g.closePath(); g.fill();
 
-  crates(g, cx + fw * 0.30, baseY - fh * 0.66, 2, '#8d9288');
+  crates(g, cx + fw * 0.30, baseY - fh * 0.66, 2, '#8f8f8f');
   bHut(cx - 15.5, baseY - 17.0, true);                    // far hut  (-gx)
   bHut(cx + 5.3, baseY + 11.5, false);                    // near hut (+gx, staggered +gy)
   // ---- roof seam: sever the watch drum from the far hut's canvas dome
@@ -273,7 +273,7 @@ if (!sov) {
   var SVS = '#c3bda4', SVSD = '#5b5748';           // apron stone / its edge
   var BEAM = '#8d7449', BEAML = '#c0a271';         // tan lattice corner beams
   var PILL = '#a98d78', PILLL = '#cbae97';         // salmon pilasters
-  var SLAB = '#75756e', SLABD = '#33332e';         // steel cap / plaques
+  var SLAB = '#747474', SLABD = '#323232';         // steel cap / plaques
   var STONE = '#bdb69d', STONE_D = '#8a836d';      // limestone plinth faces
   var anP = (bph || 0) * 6.283, anS = Math.sin(anP), anC = Math.cos(anP);
   var ph6 = Math.round((bph || 0) * 6) % 6;
@@ -374,10 +374,10 @@ if (!sov) {
       // [NAHAND] the door itself: two steel leaves that part sideways
       // onto the face. Shut at rest, open while a conscript walks out.
       var dSl = 0.105 * DOP;
-      mQuad(F, 0.400 - dSl, 0.505 - dSl, 0.005, 0.113, '#6c7076', '#26292e');
-      mQuad(F, 0.495 + dSl, 0.600 + dSl, 0.005, 0.113, '#5e6268', '#26292e');
-      mQuad(F, 0.400 - dSl, 0.505 - dSl, 0.096, 0.108, '#8b9098', null);
-      mQuad(F, 0.495 + dSl, 0.600 + dSl, 0.096, 0.108, '#7c8189', null);
+      mQuad(F, 0.400 - dSl, 0.505 - dSl, 0.005, 0.113, '#6f6f6f', '#26292e');
+      mQuad(F, 0.495 + dSl, 0.600 + dSl, 0.005, 0.113, '#616161', '#26292e');
+      mQuad(F, 0.400 - dSl, 0.505 - dSl, 0.096, 0.108, '#8f8f8f', null);
+      mQuad(F, 0.495 + dSl, 0.600 + dSl, 0.096, 0.108, '#808080', null);
       mQuad(F, 0.492 + dSl, 0.508 + dSl, 0.005, 0.113, '#2b2e33', null);
     }
     // lintel course under the cap and a sill at the ground
@@ -417,7 +417,7 @@ if (!sov) {
   // with three corner slabs, with grey kit and a floodlight inside it -
   // not four loose coloured crates. The rim is the whole friend/foe read.
   var CWc = pw1 * 1.22, CHc = ph1 * 1.22, capH = 13;
-  var capT = prism(g, cx, pyT + 1, CWc, CHc, capH, SLAB, shade(SLAB, 1.10), '#2b2b27');
+  var capT = prism(g, cx, pyT + 1, CWc, CHc, capH, SLAB, shade(SLAB, 1.10), '#2b2b2b');
   // deck floor inside the rim
   diamond(g, cx, capT + 0.5, CWc * 1.58, CHc * 1.58);
   g.fillStyle = shade(SLAB, 0.82); g.fill(); outline(g, '#26261f');
@@ -441,9 +441,9 @@ if (!sov) {
   isoBox(g, cx - CWc * 0.34, capT + CHc * 0.34, 9, 7, 6, 0, shade(SLAB, 1.02), SLABD);
   isoBox(g, cx + CWc * 0.42, capT + CHc * 0.20, 8, 6, 5, 0, shade(SLAB, 0.86), SLABD);
   var flx = cx + CWc * 0.58, fly = capT - CHc * 0.20;
-  g.strokeStyle = '#4a4a44'; g.lineWidth = 1.6;
+  g.strokeStyle = '#494949'; g.lineWidth = 1.6;
   g.beginPath(); g.moveTo(flx, fly); g.lineTo(flx, fly - 9); g.stroke();
-  g.fillStyle = '#5a5a52';
+  g.fillStyle = '#595959';
   g.beginPath(); g.ellipse(flx, fly - 11, 4.2, 3.4, 0, 0, 6.29); g.fill();
   outline(g, SLABD);
   var beam = 0.30 + 0.55 * (0.5 - 0.5 * anC);          // the lamp breathes
@@ -455,7 +455,7 @@ if (!sov) {
   g.moveTo(flx - 3.4, fly - 11.6); g.lineTo(flx - 22, fly - 17 + swing);
   g.lineTo(flx - 20, fly - 5 + swing); g.closePath(); g.fill();
   // statue footing block
-  var pedT = prism(g, cx - 2, capT - 1.5, 14.0, 6.9, 9, '#59564e', '#77746a', '#26241f');
+  var pedT = prism(g, cx - 2, capT - 1.5, 14.0, 6.9, 9, '#565656', '#747474', '#26241f');
 
   // --- the conscript ------------------------------------------------
   // Cast steel, lit from the upper left, banded with casting seams. He
@@ -467,8 +467,8 @@ if (!sov) {
   //   lath. Every x below is a body coordinate scaled by SW, so the mass
   //   grows without moving the silhouette's height or the plinth.
   var SX = function (v) { return sx3 + v * SW; };
-  var SL2 = '#dadde0', SM2 = '#98a0a6', SS2 = '#565d64',
-      SD2 = '#464b50', SO2 = '#20242a';
+  var SL2 = '#dcdcdc', SM2 = '#9e9e9e', SS2 = '#565d64',
+      SD2 = '#4a4a4a', SO2 = '#20242a';
   var spoly = function (pts, fill, edge, lw) {
     g.beginPath(); g.moveTo(SX(pts[0][0]), FY + pts[0][1]);
     for (var pq = 1; pq < pts.length; pq++) g.lineTo(SX(pts[pq][0]), FY + pts[pq][1]);
@@ -547,7 +547,7 @@ if (!sov) {
   g.beginPath(); g.ellipse(SX(-0.4), FY - 115.6, 9.4 * SW, 2.2, 0, 0, 6.29); g.fill();
   g.strokeStyle = SO2; g.lineWidth = 1; g.stroke();
   // rifle: wooden fore-stock, sling, barrel, bayonet - held close in
-  slimb(13.2, -30, 16.6, -96, 5.2, '#4d5257');
+  slimb(13.2, -30, 16.6, -96, 5.2, '#515151');
   slimb(16.6, -96, 18.6, -132, 3.2, '#3a3f45');
   g.strokeStyle = 'rgba(26,24,20,.72)'; g.lineWidth = 1.6;   // sling
   g.beginPath();
@@ -557,7 +557,7 @@ if (!sov) {
   g.fillRect(SX(14.8), FY - 82, 4.2 * SW, 3.0);
   g.strokeStyle = SO2; g.lineWidth = 0.9; g.strokeRect(SX(14.8), FY - 82, 4.2 * SW, 3.0);
   g.fillStyle = SD2; g.fillRect(SX(16.6), FY - 114, 3.4 * SW, 2.4);
-  g.strokeStyle = '#a8a99f'; g.lineWidth = 1.6; g.lineCap = 'round';  // bayonet
+  g.strokeStyle = '#a8a8a8'; g.lineWidth = 1.6; g.lineCap = 'round';  // bayonet
   g.beginPath();
   g.moveTo(SX(18.6), FY - 132); g.lineTo(SX(19.8), FY - 146); g.stroke();
   g.fillStyle = SM2;                                    // right hand on the stock

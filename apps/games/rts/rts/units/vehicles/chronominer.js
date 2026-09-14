@@ -26,7 +26,7 @@ function drawChronominer(C) {
 // whole point, so every vertical number below came DOWN while every
 // along-axis one went out.
 var Q = len / 30;
-tracks(len * 0.96, 3.4, wid * 0.30, '#8b929d');
+tracks(len * 0.96, 3.4, wid * 0.30, '#919191');
 chassis(cx, by - 1.1, len * 0.94, wid * 0.78, 3.0, hull, dark, 0);
 // The skirt run sits FORWARD of centre, not on it. The bin below now
 // rests on the bed instead of floating over it, and where it used to
@@ -61,9 +61,9 @@ var drawBin = function () {
   // deepest thing on the truck; it is no longer the tallest.
   crate(bcx, bcy, 11.6 * Q, 11.6, 7.0, BIN, BIN_E);   // 2026-09-10: the sheet's crate is as tall as the cab
   for (var br = -1; br <= 1; br += 2)                                 // steel bin rails
-    isoBox(g, bcx + px * 5.5 * br, bcy - 6.4 + py * 5.5 * br, 11.8 * Q, 1.4, 0.9, a, '#6f757e', '#31363d');
+    isoBox(g, bcx + px * 5.5 * br, bcy - 6.4 + py * 5.5 * br, 11.8 * Q, 1.4, 0.9, a, '#747474', '#31363d');
   isoBox(g, bcx + fx * Q * 5.4, bcy - 6.4 + fy * Q * 5.4, 1.6, 2.8, 1.4, a, '#272b32', '#101216'); // chute
-  isoBox(g, bcx + fx * Q * 5.4, bcy - 7.8 + fy * Q * 5.4, 2.0, 3.2, 0.7, a, '#6f757e', '#101216');
+  isoBox(g, bcx + fx * Q * 5.4, bcy - 7.8 + fy * Q * 5.4, 2.0, 3.2, 0.7, a, '#747474', '#101216');
 };
 var drawFront = function () {
   // The cab is a DARK charcoal block; the house colour is the single
@@ -77,7 +77,7 @@ var drawFront = function () {
   g.beginPath();
   g.ellipse(wcx + fx * 0.4, wcy - 1.7 + fy * 0.4, 2.5, 1.1, 0, 0, 6.29); g.fill();
   // dark standpipe between cab and nose
-  puck(cx + fx * Q * 5.6, by - 2.6 + fy * Q * 5.6, 1.2, 4.2, '#4b5159', '#8d949f', '#1d2126');
+  puck(cx + fx * Q * 5.6, by - 2.6 + fy * Q * 5.6, 1.2, 4.2, '#4b5159', '#939393', '#1d2126');
   // the nose: a rounded chrome DRUM lying across the truck, ribbed.
   // Digging drops the whole cluster onto the ground — the dip plus the
   // dropped fingers is what sells the two-frame loop.
@@ -105,14 +105,14 @@ var drawFront = function () {
   }
   for (i2 = -1; i2 <= 1; i2++)                              // three feed pipes over the drum
     puck(nx - fx * 1.0 + px * 2.6 * i2, ny - 5.0 - fy * 1.0 + py * 2.6 * i2,
-         0.85, 2.0, '#6b7280', '#d5dae2', '#3a3f47');
+         0.85, 2.0, '#6b7280', '#d9d9d9', '#3a3f47');
   // the SCOOP FINGERS under the chin. Parked they are tucked up under
   // the drum; digging they drop to the dirt — that plus the turned
   // gear is the whole mining animation.
   var fl = dig ? 6.0 : 1.8, ftop = dig ? 0.8 : -2.6;
   for (i2 = -2; i2 <= 2; i2++) {
     var fvx = cx + fx * Q * 12.8 + px * i2 * 1.6, fvy = by + ftop + fy * Q * 12.8 + py * i2 * 1.6;
-    g.strokeStyle = '#e9edf3'; g.lineWidth = 1.9; g.lineCap = 'round';
+    g.strokeStyle = '#ececec'; g.lineWidth = 1.9; g.lineCap = 'round';
     g.beginPath(); g.moveTo(fvx, fvy - fl); g.lineTo(fvx, fvy); g.stroke();
     g.strokeStyle = '#6b727c'; g.lineWidth = 0.7;
     g.beginPath(); g.moveTo(fvx + 0.9, fvy - fl + 0.4); g.lineTo(fvx + 0.9, fvy - 0.4); g.stroke();
@@ -148,7 +148,7 @@ var drawFront = function () {
   g.fillStyle = shade(VACC.chronominer, dig ? 1.44 : 1.30);   // lit rim, swung with the gear
   g.beginPath();
   g.ellipse(gxx + (dig ? 0.7 : -0.7), gyy - 0.6, 2.3, 1.3, 0, 0, 6.29); g.fill();
-  g.fillStyle = '#e6dcfa';                                 // hub
+  g.fillStyle = '#e2e2e2';                                 // hub
   g.beginPath(); g.ellipse(gxx, gyy, 0.9, 0.6, 0, 0, 6.29); g.fill();
   for (var lI = -1; lI <= 1; lI += 2)                      // headlamps
     lamp(cx + fx * Q * 11.6 + px * 3.6 * lI, by - 4.2 + nz + fy * Q * 11.6 + py * 3.6 * lI);
