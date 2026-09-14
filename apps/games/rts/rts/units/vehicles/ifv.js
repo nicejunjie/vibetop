@@ -27,8 +27,23 @@ var P3 = function (p) { return [cx + fx * p[0] + px * p[1], by + fy * p[0] + py 
 // hue while taking its pale UI colour down to that ramp.
 var rgb = parseInt(col.slice(1), 16), cr = [(rgb >> 16) & 255, (rgb >> 8) & 255, rgb & 255];
 var cmin = Math.min.apply(null, cr), cspan = Math.max.apply(null, cr) - cmin || 1;
-var NAVY = 'rgb(' + cr.map(function (v) { return Math.round(8 + 94 * Math.pow((v - cmin) / cspan, 4)); }).join(',') + ')';
-var BODY = '#b8b8b8', STEEL_IV = '#9191ac', RUBBER = '#313131';
+// THE OWNER'S COLOUR HAS TO BE VISIBLE. 8 + 94*p^4 crushed the remap to a flat
+// near-black — peak channel 102 — so the stripe baked as a hairline of dark
+// confetti along the flank and the pod's band disappeared into the shadow
+// beside it. Measured off allied-ifv.png the remap is a RAMP, from #082448 in
+// shadow through #205098 to #5898f0 and #b0b0f8 on the lit faces: a quarter of
+// its pixels are brighter than mid-grey. This ramp reaches #5898f0 at full
+// light and still bottoms out dark, which is what the surface shader wants.
+var NAVY = 'rgb(' + cr.map(function (v) { return Math.round(18 + 150 * Math.pow((v - cmin) / cspan, 2.1)); }).join(',') + ')';
+// VALUE, NOT JUST HUE. #b8b8b8 over the whole shell made the IFV one pale
+// blob: at 16 of the 32 bearings the only thing separating bonnet, flank,
+// fender and roof was a shade factor of a single bright grey. allied-ifv.png
+// is built on CONTRAST — a dark blue-grey shell, a bright silver band running
+// the length of the flank, and pale arches over dark tyres. The hull comes
+// down two grid cells so the band and the arches have something to be bright
+// against. (#9b9b9b in the hull table was read off the VOXEL render, which is
+// lit from above with no ambient; the in-game sprite is the authority.)
+var BODY = '#6e6e6e', STEEL_IV = '#9191ac', RUBBER = '#313131';
 function surface(pts, color, center, unlit) {
   var p = pts[0], e = pts[1].map(function (v, i) { return v - p[i]; });
   var f = pts[2].map(function (v, i) { return v - p[i]; });
@@ -110,7 +125,7 @@ function inclined(u, v, z, angle, length, width, height, color, decor) {
 }
 if (wantH) {
   [-9.0, -2.0, 6.7].forEach(function (u) { tyre(u, -5.7); tyre(u, 5.7); });
-  box(-11.8, 11.5, -4.2, 4.2, 3.0, 4.7, '#727272');
+  box(-11.8, 11.5, -4.2, 4.2, 3.0, 4.7, '#3d3d3d');
   profile([[-12, 4.4], [12, 4.4], [12, 5.7], [9.5, 7.0], [2.5, 7.0], [1.3, 8.2], [-11.2, 8.2], [-12, 7.3]], -4.75, 4.75, BODY);
   // Fender strips dip between the three arches, exposing the tyres.
   var skirt = [[-12.1, 4.3], [-11.8, 6.5], [-10.9, 7.1], [1.8, 7.1], [3.1, 6.4], [10.2, 6.4], [12.1, 5.6], [12.1, 3.8], [9.1, 3.8]];
@@ -119,7 +134,23 @@ if (wantH) {
   });
   profile(skirt, -6.05, -5.15, STEEL_IV); profile(skirt, 5.15, 6.05, STEEL_IV);
   for (sg = -1; sg <= 1; sg += 2) {
-    box(-10.4, 0.8, sg < 0 ? -5.25 : 5.18, sg < 0 ? -5.18 : 5.25, 6.55, 7.75, NAVY);
+    // TWO STRIPES IN ONE PLANE. The owner's band and the silver band below it
+    // started at different v — 5.18 and 4.80 — so at every three-quarter
+    // bearing the depth sort alternated between them pixel by pixel and the
+    // flank baked as a dotted diagonal of blue and white confetti. Two markings
+    // on the SAME flank are coplanar on a real vehicle; giving them the same v
+    // extent and separating them in z makes them two stacked bands, which is
+    // what allied-ifv.png shows: a long silver strip with the remap above it.
+    // AND THEY HAVE TO BE OUTBOARD OF THE FENDERS. The owner's stripe lived at
+    // v 5.18-5.25 — INSIDE the skirt profile, which runs v 5.15-6.05 over the
+    // same z — so the fender covered it and only the dips between the three
+    // wheel arches let any of it through. That is why the remap read as dotted
+    // confetti along the flank at every bearing and never as a band: it was
+    // buried by the vehicle's own bodywork, the same defect as the Dreadnought's
+    // missiles and the Flak Track's front tyres. Both bands now sit proud of
+    // the skirt's outer face.
+    box(-11.3, 11.0, sg < 0 ? -6.32 : 6.06, sg < 0 ? -6.06 : 6.32, 5.05, 6.35, '#d8d8d8');
+    box(-10.4, 0.8, sg < 0 ? -6.32 : 6.06, sg < 0 ? -6.06 : 6.32, 6.45, 7.60, NAVY);
     // Front corner blocks, square lamps, and the small black tow eyes.
     box(10.0, 12.45, sg * 4.55 - 1.15, sg * 4.55 + 1.15, 3.8, 5.5, STEEL_IV);
     box(12.46, 12.62, sg * 3.8 - 0.55, sg * 3.8 + 0.55, 4.4, 5.45, '#424242');
@@ -137,24 +168,33 @@ if (wantT) {
   lathe(0, 0, Z, [[4.15, 0], [4.15, 0.8], [3.6, 1.45]], STEEL_IV, 16);
   if (ivT === IFV_TUR_ROCKET) {
     box(-2.4, 0.4, -1.8, 1.8, Z + 1.2, Z + 3.0, '#59596a');
-    var angle = 0.63, L = 9.8, PW = 10.7, PH = 6.6;
-    inclined(-3.65, 0, Z + 3.1, angle, L, PW, PH, STEEL_IV, function (pt) {
+    // A MISSILE POD, NOT A BILLBOARD. This was 10.7 wide on a hull that is 9.5
+    // wide, 6.6 thick, and raked 36 degrees from a base 3.1 above a roof that is
+    // itself only 8.2 up — so its crown reached z~20 and the launcher was
+    // TALLER THAN THE ENTIRE VEHICLE and overhung both flanks. At the sixteen
+    // bearings where it faced away it showed its blank back: a plain slab with
+    // one stripe, no tubes, nothing that said missiles. allied-ifv.png has a
+    // squat pod about a third of the hull long, barely half the hull's height,
+    // sitting INSIDE the beam with its tube mouths visible. Everything below is
+    // the same construction at the reference's proportions.
+    var angle = 0.66, L = 9.2, PW = 7.6, PH = 5.6;
+    inclined(-3.2, 0, Z + 2.9, angle, L, PW, PH, STEEL_IV, function (pt) {
       // Broad waist band on both cheeks and the crown, following the
       // launch axis. Its dark blue also appears around the rear edge.
       for (var side = -1; side <= 1; side += 2) {
         var v = side * (PW / 2 + 0.025);
-        surface([pt(4.2, v, -PH / 2), pt(5.8, v, -PH / 2), pt(5.8, v, PH / 2), pt(4.2, v, PH / 2)], NAVY, pt(L / 2, 0, 0));
+        surface([pt(3.1, v, -PH / 2), pt(4.4, v, -PH / 2), pt(4.4, v, PH / 2), pt(3.1, v, PH / 2)], NAVY, pt(L / 2, 0, 0));
       }
-      surface([pt(4.2, -PW / 2, PH / 2 + 0.025), pt(5.8, -PW / 2, PH / 2 + 0.025), pt(5.8, PW / 2, PH / 2 + 0.025), pt(4.2, PW / 2, PH / 2 + 0.025)], NAVY, pt(L / 2, 0, 0));
+      surface([pt(3.1, -PW / 2, PH / 2 + 0.025), pt(4.4, -PW / 2, PH / 2 + 0.025), pt(4.4, PW / 2, PH / 2 + 0.025), pt(3.1, PW / 2, PH / 2 + 0.025)], NAVY, pt(L / 2, 0, 0));
       // Six individual raised launch-cell collars, two columns by
       // three rows. Real extrusions keep the stepped edge in profile.
       for (var row = 0; row < 3; row++) for (var column = 0; column < 2; column++) {
-        var vv = (column - 0.5) * 5.15, zz = (row - 1) * 2.15, cell = [];
-        [[L, 2.3, 0.94], [L + 1.0, 2.05, 0.76]].forEach(function (r) {
+        var vv = (column - 0.5) * 3.55, zz = (row - 1) * 1.58, cell = [];
+        [[L, 1.58, 0.70], [L + 0.9, 1.40, 0.56]].forEach(function (r) {
           cell.push(pt(r[0], vv - r[1], zz - r[2]), pt(r[0], vv + r[1], zz - r[2]), pt(r[0], vv + r[1], zz + r[2]), pt(r[0], vv - r[1], zz + r[2]));
         });
         solid(cell, boxFaces, '#9e9db7');
-        surface([pt(L + 1.02, vv - 1.32, zz - 0.48), pt(L + 1.02, vv + 1.32, zz - 0.48), pt(L + 1.02, vv + 1.32, zz + 0.48), pt(L + 1.02, vv - 1.32, zz + 0.48)], '#686980', pt(L / 2, 0, 0));
+        surface([pt(L + 0.92, vv - 0.92, zz - 0.36), pt(L + 0.92, vv + 0.92, zz - 0.36), pt(L + 0.92, vv + 0.92, zz + 0.36), pt(L + 0.92, vv - 0.92, zz + 0.36)], '#686980', pt(L / 2, 0, 0));
       }
     });
   } else if (ivT === IFV_TUR_GUN || ivT === IFV_TUR_TECH) {
