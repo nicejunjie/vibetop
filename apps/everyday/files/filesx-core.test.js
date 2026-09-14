@@ -279,3 +279,86 @@ test('the Files page actually runs the tick on a timer', () => {
   // and catches up the moment Files comes back to the front
   assert.match(html, /if \(on && !was\) \{ pollOnce\(\); retick\(\); \}/);
 });
+
+// -- an open preview follows the file, the way Quick Look does --------------
+
+test('a preview reloads only when the bytes underneath it changed', () => {
+  const w = { path: '/p/a.png', mtime: 100, size: 10 };
+  assert.equal(C.previewReload(w, '/p/a.png', { ok: true, stat: { mtime: 100, size: 10 } }), null);
+  assert.deepEqual(C.previewReload(w, '/p/a.png', { ok: true, stat: { mtime: 101, size: 10 } }),
+    { path: '/p/a.png', mtime: 101, size: 10 });
+  // size alone is enough: a rewrite inside one filesystem-timestamp tick is
+  // exactly the case a "did the mtime move" check misses.
+  assert.deepEqual(C.previewReload(w, '/p/a.png', { ok: true, stat: { mtime: 100, size: 11 } }),
+    { path: '/p/a.png', mtime: 100, size: 11 });
+});
+
+test('a late answer about the PREVIOUS file never reloads the one on screen', () => {
+  // The stat is in flight while the arrow keys walk the folder. Without the
+  // path check, arrowing off a file just as its poll returns would repaint the
+  // new preview with the old file's timestamp.
+  const w = { path: '/p/b.png', mtime: 100, size: 10 };
+  assert.equal(C.previewReload(w, '/p/a.png', { ok: true, stat: { mtime: 999, size: 99 } }), null);
+});
+
+test('a failed or missing stat says nothing at all', () => {
+  // A file being rewritten can briefly stat as an error; blanking the preview
+  // for that would be worse than showing it one second longer.
+  const w = { path: '/p/a.png', mtime: 100, size: 10 };
+  assert.equal(C.previewReload(w, '/p/a.png', { ok: false, code: 'enoent' }), null);
+  assert.equal(C.previewReload(w, '/p/a.png', { ok: true }), null);
+  assert.equal(C.previewReload(w, '/p/a.png', null), null);
+  assert.equal(C.previewReload(null, '/p/a.png', { ok: true, stat: { mtime: 1, size: 1 } }), null);
+});
+
+test('the cache key is the content, so a reload is fetched and a reopen is not', () => {
+  // Without this the <img> is re-pointed at a URL the browser already has and
+  // the "refresh" shows the old picture.
+  assert.equal(C.bustUrl('/api/file/image?path=%2Fa.png', 1700), '/api/file/image?path=%2Fa.png&v=1700');
+  assert.equal(C.bustUrl('/x', 5), '/x?v=5');
+  assert.equal(C.bustUrl('/x?a=1#toolbar=0', 5), '/x?a=1#toolbar=0&v=5');
+  assert.equal(C.bustUrl('/x', undefined), '/x?v=0');
+  // same bytes -> same URL -> the cache still works
+  assert.equal(C.bustUrl('/x', 7), C.bustUrl('/x', 7));
+});
+
+test('a reader at the end of a growing file stays at the end', () => {
+  // The reason to hold a text preview open at all is to watch something being
+  // written, so this is the tail -f case.
+  assert.equal(C.scrollAfterReload({ top: 900, clientH: 100, scrollH: 1000 },
+                                   { top: 900, clientH: 100, scrollH: 1400 }), 1300);
+  // "at the end" tolerates a few px of sub-pixel layout slack
+  assert.equal(C.scrollAfterReload({ top: 897, clientH: 100, scrollH: 1000 },
+                                   { top: 897, clientH: 100, scrollH: 1400 }), 1300);
+});
+
+test('a reader who scrolled up keeps their line', () => {
+  assert.equal(C.scrollAfterReload({ top: 200, clientH: 100, scrollH: 1000 },
+                                   { top: 200, clientH: 100, scrollH: 1400 }), 200);
+  // ...but never past the end of a file that SHRANK under them
+  assert.equal(C.scrollAfterReload({ top: 900, clientH: 100, scrollH: 2000 },
+                                   { top: 900, clientH: 100, scrollH: 300 }), 200);
+});
+
+test('a preview shorter than its box asks for scrollTop 0, not a negative', () => {
+  assert.equal(C.scrollAfterReload({ top: 0, clientH: 500, scrollH: 120 },
+                                   { top: 0, clientH: 500, scrollH: 80 }), 0);
+});
+
+test('the Files page arms the watch for what it can follow, and not for media', () => {
+  const html = fs.readFileSync(path.join(__dirname, 'filesx.html'), 'utf8');
+  assert.match(html, /setInterval\(pvwTick, PVW_MS\)/);
+  // every surface that can follow a file arms it...
+  // call sites only (the declaration is `function pvwArm(`)
+  assert.equal((html.match(/(?<!function )pvwArm\(/g) || []).length, 5,
+    'each followable preview surface must arm the watch: QL image/pdf/text, the text overlay, the PDF overlay');
+  // ...and every close disarms it, so a background timer cannot outlive the panel
+  assert.match(html, /function qlStop\(\) \{\s*\n\s*pvwDisarm\(\);/);
+  assert.match(html, /function closePreview\(\) \{\s*\n\s*pvwDisarm\(\);/);
+  assert.match(html, /function closePdf\(\) \{\s*\n\s*pvwDisarm\(\);/);
+  // Reloading a <video> mid-playback is an interruption, not a refresh: the
+  // media branch must return before any arm.
+  const media = html.match(/var isVid = QL_VID_RE\.test\(name\);[\s\S]*?\n    \}/);
+  assert.ok(media, 'the Quick Look media branch must be present');
+  assert.doesNotMatch(media[0], /pvwArm/, 'video and audio must not be auto-reloaded');
+});
