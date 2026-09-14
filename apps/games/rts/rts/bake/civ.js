@@ -122,7 +122,7 @@ function bakeRamp(kind, dir, flat, walls) {
     g.fillStyle = shade(P.rockL, 0.8 + brnd() * 0.5); g.beginPath(); g.ellipse(gx5, gy5 - 0.2, gr * 0.9, gr * 0.45, 0, 0, 6.29); g.fill();
   }
   if (kind === 'snow') {
-    g.fillStyle = 'rgba(246,252,252,.5)';
+    g.fillStyle = 'rgba(250,250,250,.5)';
     for (i = 0; i < 9; i++) { g.beginPath(); g.ellipse(cx + (brnd() - 0.5) * 44, cy + (brnd() - 0.5) * 20, 3 + brnd() * 6, 1.4 + brnd() * 2.4, 0, 0, 6.29); g.fill(); }
   }
   g.restore();
@@ -229,7 +229,7 @@ function bakeBridgeWreck() {
     g.beginPath(); g.moveTo(rx, ry); g.lineTo(rx + (rnd() - 0.5) * 8, ry - 3 - rnd() * 4); g.stroke();
   }
   // foam where the water still churns round the debris
-  g.fillStyle = 'rgba(220,236,240,.22)';
+  g.fillStyle = 'rgba(232,232,232,.22)';
   for (i = 0; i < 5; i++) {
     g.beginPath(); g.ellipse(cx + (rnd() - 0.5) * 30, cy + (rnd() - 0.5) * 13, 4 + rnd() * 5, 1.6 + rnd() * 1.6, 0, 0, 6.29); g.fill();
   }
@@ -278,7 +278,7 @@ function bakeGem(level, variant) {
     g.lineTo(c.x - c.w * 0.7, c.y + 0.6); g.lineTo(c.x - c.w * 0.85, c.y - c.h * 0.4); g.closePath(); g.fill();
     g.strokeStyle = 'rgba(226,214,255,.72)'; g.lineWidth = 0.8;       // crystal edge
     g.beginPath(); g.moveTo(c.x, c.y - c.h); g.lineTo(c.x, c.y + 1); g.stroke();
-    g.fillStyle = 'rgba(240,236,255,.75)';
+    g.fillStyle = 'rgba(239,239,239,.75)';
     g.beginPath(); g.ellipse(c.x - c.w * 0.3, c.y - c.h * 0.68, c.w * 0.24, c.h * 0.14, 0, 0, 6.29); g.fill();
   }
   return s;
@@ -408,7 +408,7 @@ function bakeCiv(v) {
     }
     for (i = 0; i < 14; i++) {                                        // rubble spill
       var rx4 = cx + (brnd() - 0.5) * 46, ry4 = by - 3 - brnd() * 9, rr4 = 1.4 + brnd() * 3;
-      g.fillStyle = 'rgba(22,22,24,.4)'; g.beginPath(); g.ellipse(rx4 + 0.8, ry4 + 0.7, rr4 * 1.2, rr4 * 0.5, 0, 0, 6.29); g.fill();
+      g.fillStyle = 'rgba(22,22,22,.4)'; g.beginPath(); g.ellipse(rx4 + 0.8, ry4 + 0.7, rr4 * 1.2, rr4 * 0.5, 0, 0, 6.29); g.fill();
       g.fillStyle = shade(brnd() < 0.5 ? '#888888' : '#6a6a6a', 0.85 + brnd() * 0.4);
       g.beginPath(); g.ellipse(rx4, ry4, rr4, rr4 * 0.6, 0, 0, 6.29); g.fill();
     }
@@ -420,7 +420,7 @@ function bakeCiv(v) {
       g.fillStyle = '#818181'; g.fillRect(sx7 + 1, sy7 - 34, 5, 34);
       g.fillStyle = '#bababa'; g.beginPath(); g.ellipse(sx7, sy7 - 34, 6, 2.6, 0, 0, 6.29); g.fill();
       g.fillStyle = '#616161'; g.beginPath(); g.ellipse(sx7, sy7 - 38, 6, 2.6, 0, 0, 6.29); g.fill();
-      g.strokeStyle = 'rgba(60,64,66,.5)'; g.lineWidth = 0.8;
+      g.strokeStyle = 'rgba(63,63,63,.5)'; g.lineWidth = 0.8;
       for (j = 1; j < 5; j++) { g.beginPath(); g.moveTo(sx7 - 6, sy7 - j * 7); g.lineTo(sx7 + 6, sy7 - j * 7); g.stroke(); }
     }
     g.fillStyle = '#4d4d4d';                                          // shed door
@@ -538,7 +538,7 @@ function bakeOilDerrick() {
     g.beginPath(); g.moveTo(lx + sgn * tw0, by - (back ? 6 : 0)); g.lineTo(lx + sgn * tw1, by - tH); g.stroke();
   }
   leg(-1, true); leg(1, true); leg(-1, false); leg(1, false);
-  g.strokeStyle = 'rgba(120,128,136,.85)'; g.lineWidth = 1.5;
+  g.strokeStyle = 'rgba(127,127,127,.85)'; g.lineWidth = 1.5;
   for (i = 1; i < 7; i++) {
     var q = i / 7, y0 = by - tH * q, w0 = tw0 + (tw1 - tw0) * q;
     g.beginPath(); g.moveTo(lx - w0, y0); g.lineTo(lx + w0, y0); g.stroke();
@@ -606,7 +606,7 @@ function bakeHospital() {
   // roof plant + a helipad ring
   g.fillStyle = '#b4b4b4'; g.fillRect(cx + fw * 0.26, ry - 12, 16, 10);
   g.fillStyle = '#8d8d8d'; g.fillRect(cx + fw * 0.26, ry - 12, 16, 3);
-  g.strokeStyle = 'rgba(240,240,235,.5)'; g.lineWidth = 1.6;
+  g.strokeStyle = 'rgba(239,239,239,.5)'; g.lineWidth = 1.6;
   diamond(g, cx + fw * 0.20, ry + 6, 22, 11); g.stroke();
   return { s: N.s, ax: cx, ay: by };
 }
@@ -618,7 +618,7 @@ function bakeAirport() {
   neutPad(g, cx, by, fw, fh, '#929292');
   // apron markings
   g.save(); diamond(g, cx, by, fw * 2, fh * 2); g.clip();
-  g.strokeStyle = 'rgba(240,236,210,.55)'; g.lineWidth = 2.4;
+  g.strokeStyle = 'rgba(234,234,234,.55)'; g.lineWidth = 2.4;
   for (i = -3; i <= 3; i++) {
     g.beginPath();
     g.moveTo(cx - fw * 0.9, by + i * 7 + fh * 0.45);
@@ -726,7 +726,7 @@ function bakeUrbanRoad(mask, vv) {
   g.save(); diamondT(g, cx, cy); g.clip();
   // kerb + sidewalk lip around the whole junction
   g.fillStyle = '#b9b9b9'; roadPath(g, mask, W + 0.085, 0, 0); g.fill();
-  g.strokeStyle = 'rgba(70,72,74,.45)'; g.lineWidth = 1.1;
+  g.strokeStyle = 'rgba(72,72,72,.45)'; g.lineWidth = 1.1;
   roadPath(g, mask, W + 0.085, 0, 0); g.stroke();
   g.fillStyle = 'rgba(255,255,255,.12)'; roadPath(g, mask, W + 0.055, 0, 0); g.fill();
   // carriageway
@@ -748,7 +748,7 @@ function bakeUrbanRoad(mask, vv) {
       g.beginPath(); g.moveTo(A[0], A[1]); g.lineTo(B[0], B[1]); g.stroke();
     }
   } else if (n === 3) {                                                // one stop bar, on the stem
-    g.strokeStyle = 'rgba(226,226,220,.42)'; g.lineWidth = 2.2;
+    g.strokeStyle = 'rgba(225,225,225,.42)'; g.lineWidth = 2.2;
     for (e = 0; e < 4; e++) {
       if (mask & (1 << e)) continue;                                   // the side with no road
       var st = (e + 2) & 3, M = armPt(st, 0.74), V = roadV();
@@ -782,7 +782,7 @@ function bakeUrbanDecal(v) {
   } else if ((v & 3) === 2) {                                         // rubble chips
     for (i = 0; i < 9; i++) {
       var rx4 = cx + (rnd() - 0.5) * 30, ry4 = cy + (rnd() - 0.5) * 14, rr2 = 1 + rnd() * 1.8;
-      g.fillStyle = 'rgba(20,20,22,.42)'; g.beginPath(); g.ellipse(rx4 + 0.6, ry4 + 0.4, rr2 * 1.1, rr2 * 0.5, 0, 0, 6.29); g.fill();
+      g.fillStyle = 'rgba(20,20,20,.42)'; g.beginPath(); g.ellipse(rx4 + 0.6, ry4 + 0.4, rr2 * 1.1, rr2 * 0.5, 0, 0, 6.29); g.fill();
       g.fillStyle = rnd() < 0.5 ? '#aaaaaa' : '#82786c'; g.beginPath(); g.ellipse(rx4, ry4 - 0.2, rr2 * 0.9, rr2 * 0.45, 0, 0, 6.29); g.fill();
     }
   } else {                                                            // a cracked slab

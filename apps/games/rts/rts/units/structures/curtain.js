@@ -81,7 +81,7 @@ g.beginPath(); g.ellipse(cx - icOr * 0.34, icOy - icOr * 0.36, icOr * 0.46, icOr
 g.strokeStyle = 'rgba(120,132,150,.34)'; g.lineWidth = 1.2;
 g.beginPath(); g.ellipse(cx, icOy, icOr, icOr * 0.34, 0, 0, 6.29); g.stroke();
 g.beginPath(); g.ellipse(cx, icOy, icOr * 0.32, icOr, 0, 0, 6.29); g.stroke();
-g.fillStyle = 'rgba(226,232,240,' + (0.10 + 0.30 * (0.5 + 0.5 * anS)).toFixed(3) + ')';
+g.fillStyle = 'rgba(231,231,231,' + (0.10 + 0.30 * (0.5 + 0.5 * anS)).toFixed(3) + ')';
 g.beginPath(); g.ellipse(cx, icOy + icOr * 0.18, icOr * 0.62, icOr * 0.26, 0, 0, 6.29); g.fill();
 g.restore();
 g.fillStyle = shade(col, 0.88);                            // collar where the struts meet it
@@ -100,7 +100,7 @@ for (var icB = 0; icB < 2; icB++) {
   var bx0 = cx + (icB ? 1 : -1) * icR * 0.72, by0 = icCy - 12;
   var bx1 = cx + (icB ? 1 : -1) * icOr * 0.50, by1 = icOy + icOr * 0.30;
   for (var icQ = 0; icQ < 2; icQ++) {
-    g.strokeStyle = icQ ? 'rgba(252,240,240,.85)' : 'rgba(250,214,214,.32)';
+    g.strokeStyle = icQ ? 'rgba(244,244,244,.85)' : 'rgba(250,214,214,.32)';
     g.lineWidth = icQ ? 1.1 : 3.2; g.lineJoin = 'round';
     g.beginPath(); g.moveTo(bx0, by0);
     for (var icK = 1; icK < 6; icK++) {

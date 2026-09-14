@@ -112,7 +112,7 @@ var nkT = baseY - 58, nkB = baseY - 54;
 cylinder(g, cx, baseY + 1, fw * 0.28, 28, shade(MACH, 0.62), shade(MACH, 0.92), dark);
 g.fillStyle = 'rgba(0,0,0,.34)';                     // shaded right flank
 g.fillRect(cx + fw * 0.06, mTop, fw * 0.22, 26);
-g.fillStyle = 'rgba(248,250,255,.42)';               // two lit ribs, left
+g.fillStyle = 'rgba(250,250,250,.42)';               // two lit ribs, left
 g.fillRect(cx - fw * 0.24, mTop + 2, 2.4, 24);
 g.fillRect(cx - fw * 0.13, mTop + 6, 1.4, 20);
 g.fillStyle = lo;                                    // house band on the raft
@@ -134,7 +134,7 @@ g.save();
 g.beginPath(); g.ellipse(cx, cB - 1, 8.0, 7.4, 0, 0, 6.29); g.clip();
 g.fillStyle = '#14161b';
 g.beginPath(); g.ellipse(cx + 3.2, cB + 2.4, 7.2, 6.6, 0, 0, 6.29); g.fill();
-g.fillStyle = 'rgba(214,218,232,.34)';
+g.fillStyle = 'rgba(218,218,218,.34)';
 g.beginPath(); g.ellipse(cx - 2.6, cB - 4.2, 3.6, 2.4, 0, 0, 6.29); g.fill();
 g.restore();
 
@@ -187,7 +187,7 @@ g.fillStyle = 'rgba(184,184,238,.24)';               // faint lavender cast
 g.beginPath(); g.ellipse(cx - eR * 0.10, eY - eR * 0.12, eR * 0.85, eR * 0.62, 0, 0, 6.29); g.fill();
 g.fillStyle = 'rgba(52,54,74,.62)';                  // equatorial groove
 g.fillRect(cx - eR, eY + eR * 0.26, eR * 2, 2.4);
-g.fillStyle = 'rgba(246,246,255,.55)';               // machined lip above it
+g.fillStyle = 'rgba(247,247,247,.55)';               // machined lip above it
 g.fillRect(cx - eR, eY + eR * 0.26 - 1.4, eR * 2, 1.4);
 g.fillStyle = 'rgba(38,40,56,.34)';                  // second, upper seam
 g.fillRect(cx - eR, eY - eR * 0.46, eR * 2, 1.2);
@@ -235,7 +235,7 @@ for (var yI = 0; yI < 4; yI++) pylon(pyl[yI][0], pyl[yI][1], pyl[yI][2], yI < 2)
 var arcY = function (t) { return cB - 6 - t * (cB - cT - 12); };
 g.fillStyle = 'rgba(196,206,240,.10)';
 g.beginPath(); g.ellipse(cx, arcY(0.5), 11, 11, 0, 0, 6.29); g.fill();
-g.fillStyle = 'rgba(226,232,255,' + (0.10 + 0.08 * (0.5 + 0.5 * anS)) + ')';
+g.fillStyle = 'rgba(233,233,233,' + (0.10 + 0.08 * (0.5 + 0.5 * anS)) + ')';
 g.beginPath(); g.ellipse(cx, eY - 0.8, eR * 1.20, eR * 0.96, 0, 0, 6.29); g.fill();
 var bolts = [
   [[1, 2], [7, 0], [4, -3], [11, -6]],

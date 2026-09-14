@@ -63,7 +63,7 @@ if (sov) {
   plot(g, cx + 3, baseY + 14, fw * 0.98, fh * 0.98); g.fill();
   plot(g, cx + 3, baseY + 12, fw * 0.94, fh * 0.94);
   g.fillStyle = NU_PAD; g.fill(); outline(g, NU_PADD);
-  g.fillStyle = 'rgba(226,228,216,.22)';
+  g.fillStyle = 'rgba(226,226,226,.22)';
   plot(g, cx + 3, baseY + 11, fw * 0.74, fh * 0.74); g.fill();
 
   // ---- a cooling tower --------------------------------------------------
@@ -100,7 +100,7 @@ if (sov) {
     };
     nuSil(); g.fillStyle = NU_BRK; g.fill();
     g.save(); nuSil(); g.clip();
-    g.fillStyle = 'rgba(255,244,236,.20)'; g.fillRect(tx - rb, ty - h, rb * 0.52, h);
+    g.fillStyle = 'rgba(246,246,246,.20)'; g.fillRect(tx - rb, ty - h, rb * 0.52, h);
     g.fillStyle = 'rgba(28,20,16,.26)'; g.fillRect(tx + rb * 0.30, ty - h, rb, h);
     srand(seed);
     for (var nuMI = 0; nuMI < 44; nuMI++) {             // weathered brick mottle
@@ -133,7 +133,7 @@ if (sov) {
       g.lineTo(tx + nuFB * nuVB[0], ty + nuVB[1] + 3);
       g.closePath(); g.fill();
     }
-    g.strokeStyle = 'rgba(196,182,172,.60)'; g.lineWidth = 1.2;   // pale vent ribs
+    g.strokeStyle = 'rgba(185,185,185,.60)'; g.lineWidth = 1.2;   // pale vent ribs
     for (var nuRI = -6; nuRI <= 7; nuRI++) {
       var nuRF = (nuRI - 0.5) / 6.6;
       g.beginPath();
@@ -173,7 +173,7 @@ if (sov) {
     g.beginPath(); g.ellipse(tx, ty - h + 2.0, rt * 0.46, rt * 0.15, 0, 0, 6.29); g.fill();
     g.fillStyle = 'rgba(206,246,150,' + (0.09 + 0.14 * nuPulse).toFixed(3) + ')';
     g.beginPath(); g.ellipse(tx, ty - h + 2.0, rt * 0.24, rt * 0.08, 0, 0, 6.29); g.fill();
-    g.strokeStyle = 'rgba(236,228,220,.50)'; g.lineWidth = 1.2;   // rim highlight
+    g.strokeStyle = 'rgba(229,229,229,.50)'; g.lineWidth = 1.2;   // rim highlight
     g.beginPath(); g.ellipse(tx, ty - h - 0.6, rt * 1.04, rt * 0.38, 0, 3.34, 6.10); g.stroke();
     for (var nuBI = -1; nuBI <= 1; nuBI += 2) {          // rim beacons
       g.fillStyle = ((ph6 + (nuBI > 0 ? 3 : 0)) % 6) < 3 ? col : shade(col, 0.72);
@@ -182,7 +182,7 @@ if (sov) {
     }
     for (var nuSI = 0; nuSI < steamN; nuSI++) {          // steam rolling off
       var nuST = ((bph || 0) + nuSI / steamN) % 1;
-      g.fillStyle = 'rgba(226,234,228,' + (0.17 * (1 - nuST)).toFixed(3) + ')';
+      g.fillStyle = 'rgba(231,231,231,' + (0.17 * (1 - nuST)).toFixed(3) + ')';
       g.beginPath();
       g.ellipse(tx + (nuSI % 2 ? 3 : -4) * nuST * 2.2, ty - h - 3 - nuST * 15,
                 rt * (0.40 + nuST * 0.50), rt * (0.20 + nuST * 0.26), 0, 0, 6.29);
@@ -280,7 +280,7 @@ if (sov) {
   g.fillStyle = '#202020';                               // instrument ports
   for (var nuOI = -1; nuOI <= 1; nuOI++) {
     g.beginPath(); g.ellipse(nuCX + nuOI * 6, nuCY - 12, 2.2, 2.2, 0, 0, 6.29); g.fill();
-    g.fillStyle = 'rgba(206,214,206,.70)';
+    g.fillStyle = 'rgba(211,211,211,.70)';
     g.beginPath(); g.ellipse(nuCX + nuOI * 6 - 0.6, nuCY - 12.7, 0.9, 0.9, 0, 0, 6.29); g.fill();
     g.fillStyle = '#202020';
   }

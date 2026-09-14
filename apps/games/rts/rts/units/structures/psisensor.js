@@ -18,7 +18,7 @@ g.fillStyle = shade(col, 0.85);
 g.beginPath(); g.ellipse(cx, baseY - 2 - psH + 1, psR, psR * 0.5, 0, 0, 6.29); g.fill();
 g.fillStyle = '#8b8b8b';
 g.beginPath(); g.ellipse(cx, baseY - 2 - psH - 2, psR * 0.92, psR * 0.46, 0, 0, 6.29); g.fill();
-g.strokeStyle = 'rgba(20,20,18,.5)'; g.lineWidth = 1;
+g.strokeStyle = 'rgba(20,20,20,.5)'; g.lineWidth = 1;
 g.beginPath(); g.ellipse(cx, baseY - 2 - psH - 2, psR * 0.92, psR * 0.46, 0, 0, 6.29); g.stroke();
 // six antennae on the shoulder
 for (var psI = 0; psI < 6; psI++) {
@@ -45,7 +45,7 @@ g.beginPath(); g.moveTo(cx + 7, psTop); g.lineTo(cx, psTop - 22); g.stroke();
 // pull those doubled-up phases apart without changing the pulse rate.
 var psPh = 0.5 + 0.5 * (0.85 * Math.sin((bph || 0) * 6.283 * 2) + 0.15 * Math.cos((bph || 0) * 6.283));
 var lg = g.createRadialGradient(cx, psTop - 27, 1, cx, psTop - 27, 13);
-lg.addColorStop(0, 'rgba(240,225,255,' + (0.85 + 0.15 * psPh).toFixed(2) + ')');
+lg.addColorStop(0, 'rgba(233,233,233,' + (0.85 + 0.15 * psPh).toFixed(2) + ')');
 lg.addColorStop(0.45, 'rgba(176,120,240,' + (0.70 + 0.25 * psPh).toFixed(2) + ')');
 lg.addColorStop(1, 'rgba(96,50,170,0)');
 g.fillStyle = lg;

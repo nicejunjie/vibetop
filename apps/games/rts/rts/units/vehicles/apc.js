@@ -92,7 +92,7 @@ if (wantH) {
     puck(fnx, fny, 3.1, 2.6, shade(deck, 0.82), shade(deck, 1.08), PEDGE);
     g.fillStyle = '#15171b';
     gEllipse(fnx, fny - 2.6, 2.3); g.fill();
-    g.strokeStyle = 'rgba(186,194,204,.66)'; g.lineWidth = 1.0;
+    g.strokeStyle = 'rgba(193,193,193,.66)'; g.lineWidth = 1.0;
     for (i2 = 0; i2 < 4; i2++) {
       var fna = i2 * 1.5708;
       g.beginPath(); g.moveTo(fnx, fny - 2.6);

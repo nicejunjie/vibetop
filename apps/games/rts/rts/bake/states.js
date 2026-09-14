@@ -238,7 +238,7 @@ function rubbleFor(gw, gh) {
     g.moveTo(qx - sw2 / 2, qy); g.lineTo(qx - sw2 / 2 + tl, qy - sh2);
     g.lineTo(qx + sw2 / 2 + tl, qy - sh2 + 1); g.lineTo(qx + sw2 / 2, qy + 1);
     g.closePath(); g.fill();
-    g.fillStyle = 'rgba(178,186,168,.22)';
+    g.fillStyle = 'rgba(182,182,182,.22)';
     g.fillRect(qx - sw2 / 2 + tl, qy - sh2, sw2, 0.9);
     g.strokeStyle = 'rgba(24,26,22,.55)'; g.lineWidth = 0.8; g.stroke();
   }

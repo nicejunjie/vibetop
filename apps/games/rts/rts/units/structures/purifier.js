@@ -86,7 +86,7 @@ var puBelt = function (a0, a1, w) {
 var puSpec = function (a0, a1) {                         // the belt's white run
   g.strokeStyle = PU_DUCL; g.lineWidth = 2.4;
   g.beginPath(); g.ellipse(cx - 2, baseY + 1.4, 61, 27, 0, a0, a1); g.stroke();
-  g.strokeStyle = 'rgba(238,242,248,.72)'; g.lineWidth = 1.1;
+  g.strokeStyle = 'rgba(241,241,241,.72)'; g.lineWidth = 1.1;
   g.beginPath(); g.ellipse(cx - 2, baseY + 0.8, 61, 27, 0, a0, a1); g.stroke();
 };
 puBelt(3.24, 6.18, 13);
@@ -178,10 +178,10 @@ g.beginPath(); g.ellipse(cx + 1.6, puKT + 0.6, 12, 3.4, 0, 0, 6.29); g.fill();
 g.fillStyle = shade(col, 0.74); g.fillRect(cx - 12, baseY - 50, 24, 6.2);
 g.fillStyle = col; g.fillRect(cx - 12, baseY - 49.4, 24, 4.2);
 g.fillStyle = shade(col, 1.22); g.fillRect(cx - 12, baseY - 49.4, 24, 1.4);
-g.fillStyle = 'rgba(240,242,236,.62)'; g.fillRect(cx - 12, baseY - 50.8, 24, 1.2);
+g.fillStyle = 'rgba(241,241,241,.62)'; g.fillRect(cx - 12, baseY - 50.8, 24, 1.2);
 g.fillStyle = PU_EDG; g.fillRect(cx - 12, baseY - 44, 24, 1);
 cylinder(g, cx, baseY - 45, 7.5, 19, PU_GUN, PU_GUNL, '#0b0d11');
-g.fillStyle = 'rgba(150,160,172,.22)'; g.fillRect(cx - 7.5, baseY - 64, 2.6, 19);
+g.fillStyle = 'rgba(158,158,158,.22)'; g.fillRect(cx - 7.5, baseY - 64, 2.6, 19);
 g.fillStyle = '#0a0c10';                                 // the black star on the neck
 for (var puRI = 0; puRI < 8; puRI++) {
   var puRA = puRI * 0.7854, puRR = puRI % 2 ? 1.8 : 4.4;
@@ -217,7 +217,7 @@ var puElbow = function (sgn, x0, y0, x1, y1, x2, y2) {
   g.strokeStyle = col; g.lineWidth = 2.4;
   g.beginPath();
   g.moveTo(x0, y0 - 3.0); g.quadraticCurveTo(x1, y1 - 3.0, x2, y2 - 3.0); g.stroke();
-  g.strokeStyle = 'rgba(238,240,234,.48)'; g.lineWidth = 1.3;    // white weld streak
+  g.strokeStyle = 'rgba(239,239,239,.48)'; g.lineWidth = 1.3;    // white weld streak
   g.beginPath();
   g.moveTo(x0 + sgn * 1.4, y0 - 4.4);
   g.quadraticCurveTo(x1 + sgn * 1.4, y1 - 4.4, x2 - sgn * 0.6, y2 - 4.6); g.stroke();

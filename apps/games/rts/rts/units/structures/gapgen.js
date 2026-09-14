@@ -210,7 +210,7 @@ for (var tk = 0; tk < 4; tk++) {
     // white, the far-talon fill, and the field ring itself stays
     // clear of the house band with margin (checked by sweeping the
     // full 0-100% blend range, not just the two pure endpoints).
-    g.strokeStyle = 'rgba(208,216,224,.45)'; g.lineWidth = 1.0;
+    g.strokeStyle = 'rgba(215,215,215,.45)'; g.lineWidth = 1.0;
     g.beginPath();
     g.moveTo(cx + rx0 * 0.84, dY - hgt * 0.52 + ry0);
     g.lineTo(cx + tipX, dY - hgt + ry0 * 0.5);
@@ -223,7 +223,7 @@ var gRing = (bph || 0);
 // 12 deg inside the house-hue band): a field ring needs to read as
 // near-white energy, not owner colour. Paled a second notch (diff 20
 // vs 38) alongside the glint, for the same sub-pixel-blend margin.
-g.strokeStyle = 'rgba(204,214,224,' + (0.34 * (1 - gRing)).toFixed(3) + ')';
+g.strokeStyle = 'rgba(212,212,212,' + (0.34 * (1 - gRing)).toFixed(3) + ')';
 g.lineWidth = 1.6;
 g.beginPath(); g.ellipse(cx, dY - 18 - gRing * 12, 9 + gRing * 18, (9 + gRing * 18) * 0.42, 0, 0, 6.29); g.stroke();
 g.lineWidth = 1;

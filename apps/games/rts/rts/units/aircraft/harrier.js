@@ -90,7 +90,7 @@ g.restore();
 var cpa = pt(0.46), cpr = rad(0.46);
 g.fillStyle = '#2b2f38';
 g.beginPath(); g.ellipse(cpa[0], cpa[1] - cpr * 0.55, Math.max(2.4, 4.6 * AL / 1.264), 1.9, Math.atan2(uy2, ux2), 0, 6.29); g.fill();
-g.fillStyle = 'rgba(235,240,245,.6)';                     // neutral glint: no blue on a red player's jet
+g.fillStyle = 'rgba(239,239,239,.6)';                     // neutral glint: no blue on a red player's jet
 g.beginPath(); g.ellipse(cpa[0] - 0.6, cpa[1] - cpr * 0.55 - 0.8, 1.6, 0.7, Math.atan2(uy2, ux2), 0, 6.29); g.fill();
 // intakes either side of the canopy
 for (i2 = -1; i2 <= 1; i2 += 2) {

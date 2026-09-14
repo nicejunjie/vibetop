@@ -91,7 +91,7 @@ var ptTube = function (dx, yb, hgt, lit) {
   g.fillStyle = '#060708';                                  // the mouth (near-black: the >=25%-contrast dark disc the clause counts)
   g.beginPath(); g.ellipse(xt, y1 - 1.1, 5.0, 2.2, 0, 0, 6.29); g.fill();
   g.strokeStyle = '#98a0b2'; g.lineWidth = 1.1; g.stroke();
-  g.fillStyle = 'rgba(228,234,244,.55)';
+  g.fillStyle = 'rgba(233,233,233,.55)';
   g.beginPath(); g.ellipse(xt - 1.6, y1 - 1.9, 2.2, 0.9, 0, 0, 6.29); g.fill();
 };
 ptTube(-8.5, baseY - 20, 31, false);                        // back-left

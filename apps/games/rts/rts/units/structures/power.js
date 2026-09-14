@@ -394,7 +394,7 @@ if (sov) {
     }
     g.lineCap = 'butt';
   };
-  var arcA = 'rgba(120,136,255,.34)', arcB = 'rgba(226,236,255,.92)';
+  var arcA = 'rgba(120,136,255,.34)', arcB = 'rgba(235,235,235,.92)';
   if (ph6 % 3 !== 2)
     bolt(LT.x + LT.hw * 0.4, LT.y - 3, ox - orad * 0.62, oy - orad * 0.60,
          700 + ph6 * 13, 0.85, arcA, arcB);
@@ -403,9 +403,9 @@ if (sov) {
          760 + ph6 * 17, 0.85, arcA, arcB);
   if (ph6 === 1 || ph6 === 4)
     bolt(LT.x + LT.hw * 0.55, LT.y - 5, R3.x - R3.hw * 0.35, R3.y - 5,
-         820 + ph6 * 11, 0.75, 'rgba(150,170,255,.18)', 'rgba(226,236,255,.58)');
+         820 + ph6 * 11, 0.75, 'rgba(150,170,255,.18)', 'rgba(235,235,235,.58)');
   bolt(ox - orad * 0.30, oy - orad * 0.86, ox + orad * 0.42, oy - orad * 0.20,
-       880 + ph6 * 23, 0.6, 'rgba(140,156,255,.20)', 'rgba(236,242,255,.72)');
+       880 + ph6 * 23, 0.6, 'rgba(140,156,255,.20)', 'rgba(242,242,242,.72)');
   g.fillStyle = 'rgba(206,216,255,' + (0.06 + 0.05 * (1 + anS)).toFixed(3) + ')';
   g.beginPath(); g.ellipse(ox, oy, orad * 2.0, orad * 1.5, 0, 0, 6.29); g.fill();
 } else {
@@ -585,7 +585,7 @@ if (sov) {
     cylinder(g, px, cy0, r, hCol, GLS, GLS_L, '#1f2130');
     g.fillStyle = 'rgba(16,17,26,.55)';                              // dark left edge
     g.fillRect(px - r, ty0, r * 0.22, hCol);
-    g.fillStyle = 'rgba(226,230,252,.42)';                           // narrow specular
+    g.fillStyle = 'rgba(231,231,231,.42)';                           // narrow specular
     g.fillRect(px - r * 0.66, ty0 + 1, r * 0.20, hCol - 2);
     g.fillStyle = 'rgba(26,25,38,.62)';                              // plasma slot
     g.fillRect(px - r * 0.30, ty0 + 1, r * 0.42, hCol - 2);
@@ -609,7 +609,7 @@ if (sov) {
     g.fillStyle = GLS_D;                                             // access panel
     g.fillRect(px - r * 0.40, cy0 - 7, r * 0.80, 5);
     outline(g, '#181a2c');
-    g.fillStyle = 'rgba(226,228,250,.40)';
+    g.fillStyle = 'rgba(230,230,230,.40)';
     g.fillRect(px - r * 0.40, cy0 - 7, r * 0.80, 1);
 
     var cr = r * PW_CK;                                              // cap radius
@@ -629,7 +629,7 @@ if (sov) {
     outline(g, STL_D);
     g.fillStyle = '#20242e';                                         // dark bore
     g.beginPath(); g.ellipse(px, ty0 - 6, cr * 0.60, cr * 0.23, 0, 0, 6.29); g.fill();
-    g.fillStyle = 'rgba(168,176,190,.60)';
+    g.fillStyle = 'rgba(175,175,175,.60)';
     g.beginPath(); g.ellipse(px - cr * 0.135, ty0 - 6.8, cr * 0.29, cr * 0.106, 0, 0, 6.29); g.fill();
     // idle: transformer lamp on the cap rim blinks in turn
     g.fillStyle = lamp ? '#ffe6a0' : '#5b4c2a';

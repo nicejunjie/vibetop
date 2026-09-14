@@ -26,7 +26,7 @@ var drawCab3 = function () {
          a, panel, PEDGE);                                  // colour cab roof
   var vwx = cx + fx * 10.2, vwy = by - 5.0 + fy * 10.2;
   isoBox(g, vwx, vwy, 1.2, wid * 0.54, 3.4, a, '#242a32', '#0f1216');
-  g.fillStyle = 'rgba(214,220,228,.32)';
+  g.fillStyle = 'rgba(219,219,219,.32)';
   g.beginPath();
   g.ellipse(vwx + fx * 0.4, vwy - 2.3 + fy * 0.4, 2.6, 1.1, 0, 0, 6.29); g.fill();
   bumper(len * 0.41, wid * 0.22, by - 1.4);

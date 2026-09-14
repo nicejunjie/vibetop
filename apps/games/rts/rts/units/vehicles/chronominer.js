@@ -73,7 +73,7 @@ var drawFront = function () {
   isoBox(g, cx + fx * Q * 3.2, by - 6.4 + fy * Q * 3.2, 5.2 * Q, 7.2, 1.0, a, plit, PEDGE);
   var wcx = cx + fx * Q * 5.6, wcy = by - 4.6 + fy * Q * 5.6;
   isoBox(g, wcx, wcy, 1.3, 6.6, 2.2, a, '#20262e', '#0e1114');       // windscreen frame
-  g.fillStyle = 'rgba(214,222,230,.42)';                             // neutral glass: no blue on a red owner
+  g.fillStyle = 'rgba(221,221,221,.42)';                             // neutral glass: no blue on a red owner
   g.beginPath();
   g.ellipse(wcx + fx * 0.4, wcy - 1.7 + fy * 0.4, 2.5, 1.1, 0, 0, 6.29); g.fill();
   // dark standpipe between cab and nose

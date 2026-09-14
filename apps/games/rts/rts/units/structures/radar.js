@@ -54,7 +54,7 @@ if (sov) {
     g.lineTo(cx - fw * 0.40 + fw * 0.38 * rpt, baseY + fh * 1.12 - fh * 0.40 * rpt);
     g.stroke();
   }
-  g.fillStyle = 'rgba(246,234,226,.40)';
+  g.fillStyle = 'rgba(237,237,237,.40)';
   g.beginPath();
   g.moveTo(cx - fw * 0.56, baseY + fh * 0.86); g.lineTo(cx - fw * 0.18, baseY + fh * 0.46);
   g.lineTo(cx - fw * 0.14, baseY + fh * 0.52); g.lineTo(cx - fw * 0.52, baseY + fh * 0.92);
@@ -173,7 +173,7 @@ if (sov) {
     g.lineWidth = 3.2;
     g.beginPath(); g.ellipse(cx, rdCy - 3.6, rdCr, rdCr * 0.46, 0, a0 + 0.06, a1 - 0.06); g.stroke();
   }
-  g.strokeStyle = 'rgba(20,22,20,.46)'; g.lineWidth = 1.4;
+  g.strokeStyle = 'rgba(21,21,21,.46)'; g.lineWidth = 1.4;
   g.beginPath(); g.ellipse(cx, rdCy + 6.4, rdCr, rdCr * 0.46, 0, 0, 3.15); g.stroke();
   g.fillStyle = 'rgba(46,50,32,.42)';                  // grime where it meets the mound
   g.beginPath(); g.ellipse(cx, rdCy + 7.5, rdCr * 0.96, rdCr * 0.30, 0, 0, 3.15); g.fill();
@@ -276,7 +276,7 @@ if (sov) {
   srand(913);
   for (var rdPI = 0; rdPI < 130; rdPI++) {             // panel grain, so it is not glass
     var pk = rnd();
-    g.fillStyle = pk < 0.46 ? 'rgba(108,114,124,.20)' : pk < 0.86 ? 'rgba(246,248,252,.18)'
+    g.fillStyle = pk < 0.46 ? 'rgba(113,113,113,.20)' : pk < 0.86 ? 'rgba(248,248,248,.18)'
                : 'rgba(40,46,56,.16)';
     g.beginPath();
     g.ellipse(rdDx + (rnd() - 0.5) * rdR * 1.95, rdDy + (rnd() - 0.5) * rdRv * 1.95,
@@ -295,7 +295,7 @@ if (sov) {
     g.beginPath(); g.moveTo(rdDx, rdDy);
     g.lineTo(rdDx + Math.cos(rsa) * rdR * 1.05, rdDy + Math.sin(rsa) * rdRv * 1.05); g.stroke();
   }
-  g.strokeStyle = 'rgba(158,164,174,.42)'; g.lineWidth = 1.1;
+  g.strokeStyle = 'rgba(163,163,163,.42)'; g.lineWidth = 1.1;
   for (rdSI = 0; rdSI < 5; rdSI++) {
     var rsb = rdA(rdSI);
     g.beginPath();
@@ -312,7 +312,7 @@ if (sov) {
   g.beginPath(); g.ellipse(rdDx, rdDy, rdR, rdRv, 0, 0, 6.29); g.stroke();
   g.strokeStyle = '#222731'; g.lineWidth = 2;
   g.beginPath(); g.ellipse(rdDx, rdDy, rdR, rdRv, 0, 3.30, 6.12); g.stroke();
-  g.strokeStyle = 'rgba(238,240,244,.72)'; g.lineWidth = 1;
+  g.strokeStyle = 'rgba(240,240,240,.72)'; g.lineWidth = 1;
   g.beginPath(); g.ellipse(rdDx, rdDy, rdR - 2.6, rdRv - 2.6, 0, 0.50, 2.70); g.stroke();
   // the feed mast: one thin bar through the hub and out past the rim
   g.strokeStyle = '#181c24'; g.lineWidth = 2.6;

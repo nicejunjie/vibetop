@@ -81,7 +81,7 @@ if (sov) {
     facePatch(g, F, cx, slBy, slHw, slHh, slLift, am - (t1 - t0) * 0.30, am + (t1 - t0) * 0.30,
               v1, v1 + 0.035, '#191410', null);
     facePatch(g, F, cx, slBy, slHw, slHh, slLift, t0 + 0.012, t1 - 0.012, v0 + 0.02, v0 + 0.075,
-              'rgba(206,214,226,.20)', null);
+              'rgba(213,213,213,.20)', null);
   };
   for (var slWI = 0; slWI < 4; slWI++) {
     var slT0 = 0.10 + slWI * 0.205;
@@ -151,7 +151,7 @@ if (sov) {
     g.bezierCurveTo(tx - 6.6, ty - 7.4, tx - 3.2, ty - 7.9, tx, ty - 8.6);
     g.bezierCurveTo(tx + 3.2, ty - 7.9, tx + 6.6, ty - 7.4, tx + 5.6, ty - 5.9);
     g.closePath(); g.fill(); outline(g, '#0f0d0a');
-    g.fillStyle = 'rgba(200,206,216,.20)';
+    g.fillStyle = 'rgba(205,205,205,.20)';
     g.beginPath();
     g.moveTo(tx - 3.8, ty - 6.1);
     g.bezierCurveTo(tx - 4.4, ty - 7.4, tx - 2, ty - 7.7, tx - 0.7, ty - 8.4);
@@ -274,7 +274,7 @@ if (sov) {
   crates(g, cx - fw * 1.02, baseY + fh * 0.60, 2, '#9a8d70');
   for (var slSm = 0; slSm < 3; slSm++) {                   // vent steam
     var slSt = ((bph || 0) + slSm / 3) % 1;
-    g.fillStyle = 'rgba(206,206,196,' + (0.24 * (1 - slSt)).toFixed(3) + ')';
+    g.fillStyle = 'rgba(205,205,205,' + (0.24 * (1 - slSt)).toFixed(3) + ')';
     g.beginPath();
     g.ellipse(cx + fw * 0.70 - slSt * 5, baseY + fh * 0.30 - slSt * 16,
               3 + slSt * 6, 2 + slSt * 4, 0, 0, 6.29);
@@ -390,7 +390,7 @@ if (sov) {
     g.fillStyle = lgd;
     g.beginPath(); g.ellipse(dx, lcy, domeR, domeR * 0.66, 0, Math.PI, 6.29);
     g.closePath(); g.fill(); outline(g, LAB_DMD);
-    g.fillStyle = 'rgba(232,238,255,' + (0.28 + 0.52 * (0.5 + 0.5 * anS)).toFixed(3) + ')';
+    g.fillStyle = 'rgba(238,238,238,' + (0.28 + 0.52 * (0.5 + 0.5 * anS)).toFixed(3) + ')';
     g.beginPath();
     g.ellipse(dx - domeR * (0.40 - 0.34 * anS), lcy - domeR * 0.36,
               domeR * 0.34, domeR * 0.14, -0.42, 0, 6.29);
@@ -424,7 +424,7 @@ if (sov) {
   g.beginPath(); g.moveTo(ldA[0], ldA[1]); g.quadraticCurveTo(ldB[0], ldB[1], ldC[0], ldC[1]); g.stroke();
   g.strokeStyle = '#808080'; g.lineWidth = 7.4;
   g.beginPath(); g.moveTo(ldA[0], ldA[1]); g.quadraticCurveTo(ldB[0], ldB[1], ldC[0], ldC[1]); g.stroke();
-  g.strokeStyle = 'rgba(230,236,244,.36)'; g.lineWidth = 2;
+  g.strokeStyle = 'rgba(235,235,235,.36)'; g.lineWidth = 2;
   g.beginPath();
   g.moveTo(ldA[0] - 2, ldA[1]); g.quadraticCurveTo(ldB[0] - 2, ldB[1], ldC[0] - 2, ldC[1]); g.stroke();
   g.strokeStyle = 'rgba(20,24,30,.46)'; g.lineWidth = 1.2;
@@ -470,7 +470,7 @@ if (sov) {
   var labWhip = function (wx, wyBot, wyTop, coilY, lit) {
     g.strokeStyle = '#0f1218'; g.lineWidth = 2.4;
     g.beginPath(); g.moveTo(wx, wyBot); g.lineTo(wx, wyTop); g.stroke();
-    g.strokeStyle = 'rgba(184,192,206,.32)'; g.lineWidth = 0.9;
+    g.strokeStyle = 'rgba(191,191,191,.32)'; g.lineWidth = 0.9;
     g.beginPath(); g.moveTo(wx - 0.8, wyBot); g.lineTo(wx - 0.8, wyTop); g.stroke();
     g.fillStyle = lit ? '#ffffff' : '#c8c8c8';
     g.beginPath(); g.arc(wx, wyTop - 2, 2.4, 0, 6.29); g.fill();
@@ -484,7 +484,7 @@ if (sov) {
         g.fillRect(wx - 8.6, coilY + 1 + lwI * 4.1, 17.2, 2.3);
       }
       g.fillStyle = 'rgba(255,255,255,.22)'; g.fillRect(wx - 8.6, coilY, 3.2, 34);
-      g.fillStyle = 'rgba(240,250,255,' + (0.34 + 0.30 * Math.abs(anS)).toFixed(3) + ')';
+      g.fillStyle = 'rgba(248,248,248,' + (0.34 + 0.30 * Math.abs(anS)).toFixed(3) + ')';
       g.fillRect(wx - 9.4, coilY + 2 + ((7 - ph6) % 6) * 5.2, 18.8, 1.8);
       g.fillStyle = LAB_GUN;
       g.beginPath(); g.ellipse(wx, coilY, 8.6, 3.6, 0, 0, 6.29); g.fill();

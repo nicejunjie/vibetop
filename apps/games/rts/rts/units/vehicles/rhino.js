@@ -98,7 +98,7 @@ if (wantT) {
   prism(rtx - fx * 0.8, rty - 4.8 - fy * 0.8,               // chamfered cap
         [[4.2, -1.65], [4.2, 1.65], [0.8, 3.25], [-4.0, 2.55], [-4.0, -2.55], [0.8, -3.25]],
         0.68, shade(hull, 1.08), dark);
-  g.strokeStyle = 'rgba(236,242,250,.50)'; g.lineWidth = 1.6;  // light-catch streak
+  g.strokeStyle = 'rgba(241,241,241,.50)'; g.lineWidth = 1.6;  // light-catch streak
   g.lineCap = 'round';
   g.beginPath();
   g.moveTo(rtx + fx * 3.8 + px * 1.4, rty - 6.2 + fy * 3.8 + py * 1.4);

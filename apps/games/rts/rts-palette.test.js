@@ -44,11 +44,11 @@ const FACTORS = [0.16, 0.18, 0.20, 0.30, 0.34, 0.42, 0.46, 0.52, 0.55, 0.56, 0.6
                  1.04, 1.06, 1.10, 1.14, 1.16, 1.18, 1.22, 1.24, 1.28, 1.30, 1.34,
                  1.35, 1.40, 1.42, 1.46, 1.62, 1.66];
 
-/** The rungs at which a colour stops being neutral once snapped. */
-function splits(hex) {
-  const r = parseInt(hex.slice(1, 3), 16);
-  const g = parseInt(hex.slice(3, 5), 16);
-  const b = parseInt(hex.slice(5, 7), 16);
+/** The rungs at which a colour stops being neutral once snapped.
+ *  Takes CHANNELS, not a hex string: it used to re-parse the hex, which turned
+ *  every rgba() literal into parseInt('gb', 16) = NaN and reported nonsense
+ *  splits for colours that are perfectly fine. */
+function splits(r, g, b) {
   const out = [];
   for (const f of FACTORS) {
     const R = snap(Math.min(255, Math.round(r * f)));
@@ -68,11 +68,19 @@ test('a colour meant as grey stays grey at every rung of the shade ladder', () =
     // Only the code, not the prose: comments are full of hexes being discussed
     // as examples of this very bug.
     const code = src.replace(/\/\/[^\n]*/g, '').replace(/\/\*[\s\S]*?\*\//g, '');
+    // BOTH NOTATIONS. The first version read only '#rrggbb', and the vehicle
+    // bake's panel-break strokes are written as rgba(24,29,35,.13) — blue over
+    // red, invisible to the test, and seeding #003333 along every edge they
+    // touched.
+    const lits = [];
     for (const m of code.matchAll(/'(#[0-9a-fA-F]{6})'/g)) {
-      const hex = m[1].toLowerCase();
-      const r = parseInt(hex.slice(1, 3), 16);
-      const g = parseInt(hex.slice(3, 5), 16);
-      const b = parseInt(hex.slice(5, 7), 16);
+      const h = m[1].toLowerCase();
+      lits.push([h, parseInt(h.slice(1, 3), 16), parseInt(h.slice(3, 5), 16), parseInt(h.slice(5, 7), 16)]);
+    }
+    for (const m of code.matchAll(/rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)/g)) {
+      lits.push([`rgba(${m[1]},${m[2]},${m[3]})`, +m[1], +m[2], +m[3]]);
+    }
+    for (const [hex, r, g, b] of lits) {
       const mx = Math.max(r, g, b), mn = Math.min(r, g, b);
       if (mx === 0) continue;
       const sat = (mx - mn) / mx;
@@ -92,8 +100,16 @@ test('a colour meant as grey stays grey at every rung of the shade ladder', () =
       // smaller price than a unit reading as the enemy's. The bar stays where
       // the measurements put it.
       if (r === g && g === b) continue;
+      // NO NEAR-BLACK RULE. Widening the bar to "max <= 40 and spread <= 12"
+      // caught 428 more literals — and neutralising them took hue.maxImpostor
+      // from 0.102 to 0.164, because the cool cast on a dark pixel is part of
+      // how a unit reads as its owner's. That is the same failure as the
+      // earlier "spread <= 14" attempt, at a tighter threshold, and it fails
+      // the same way. The few near-blacks that matter get fixed by hand with
+      // a measurement beside them — PEDGE did, and it was worth 6.6% of the
+      // Rhino — but the BAR stays at saturation, where it can be defended.
       if (sat >= 0.13) continue;
-      const s = splits(hex);
+      const s = splits(r, g, b);
       if (s.length) {
         bad.push(`  ${path.relative(RTS, file)}  ${hex}  (${r}/${g}/${b})\n`
           + `      splits at ${s.length} rung${s.length > 1 ? 's' : ''}: ${s.slice(0, 3).join(', ')}`);

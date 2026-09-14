@@ -38,7 +38,7 @@ g.fillStyle = 'rgba(120,132,142,.45)';
 g.beginPath(); g.ellipse(drx * 0.18, dry * 0.16, drx * 0.72, dry * 0.66, 0, 0, 6.29); g.fill();
 g.strokeStyle = '#959595'; g.lineWidth = 2;
 g.beginPath(); g.ellipse(0, 0, drx, dry, 0, 0, 6.29); g.stroke();
-g.strokeStyle = 'rgba(150,160,168,.55)'; g.lineWidth = 1;
+g.strokeStyle = 'rgba(158,158,158,.55)'; g.lineWidth = 1;
 for (var ssR = 0; ssR < 6; ssR++) {
   var sa = ssR * Math.PI / 6;
   g.beginPath(); g.moveTo(0, 0); g.lineTo(Math.cos(sa) * drx, Math.sin(sa) * dry); g.stroke();

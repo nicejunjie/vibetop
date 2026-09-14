@@ -167,19 +167,19 @@ if (sov) {
   var chimney = function (sx3, sy3, r, h) {
     ring(sx3, sy3 + 1, r + 3.4, 3.4, S_COLR, null);
     tube(sx3, sy3, r, h, S_STK, S_IRON_D, shade(S_STK, 1.5));
-    line(sx3 - r + 1.2, sy3 - 2, sx3 - r + 1.2, sy3 - h + 3, 1.4, 'rgba(210,214,220,.42)');
+    line(sx3 - r + 1.2, sy3 - 2, sx3 - r + 1.2, sy3 - h + 3, 1.4, 'rgba(213,213,213,.42)');
     ring(sx3, sy3 - h + 5, r + 0.6, 3.4, S_COLR, null);
     tube(sx3, sy3 - h + 1, r + 1.6, 4.5, shade(S_STK, 1.15), S_IRON_D, shade(S_STK, 1.6));
     g.fillStyle = '#08090c';
     g.beginPath(); g.ellipse(sx3, sy3 - h - 3.5, r * 0.82, r * 0.34, 0, 0, 6.29); g.fill();
-    g.strokeStyle = 'rgba(200,204,210,.5)'; g.lineWidth = 1;
+    g.strokeStyle = 'rgba(203,203,203,.5)'; g.lineWidth = 1;
     g.beginPath(); g.ellipse(sx3, sy3 - h - 3.5, r + 1.6, (r + 1.6) * 0.42, 0, 0, 6.29); g.stroke();
     // furnace glow in the bore and dark smoke, both on the phase
     g.fillStyle = 'rgba(255,150,50,' + (0.10 + 0.18 * (0.5 + 0.5 * anC)).toFixed(2) + ')';
     g.beginPath(); g.ellipse(sx3, sy3 - h - 3.5, r * 0.6, r * 0.24, 0, 0, 6.29); g.fill();
     for (var pfI = 0; pfI < 3; pfI++) {
       var pft = ((bph || 0) + pfI / 3) % 1;                         // 0 fresh -> 1 dispersed
-      g.fillStyle = 'rgba(70,68,72,' + (0.42 * (1 - pft)).toFixed(2) + ')';
+      g.fillStyle = 'rgba(69,69,69,' + (0.42 * (1 - pft)).toFixed(2) + ')';
       g.beginPath();
       g.ellipse(sx3 + 2 + pft * 9, sy3 - h - 6 - pft * 14, r * (0.5 + pft * 0.8), r * (0.28 + pft * 0.4), 0, 0, 6.29);
       g.fill();
@@ -420,7 +420,7 @@ if (sov) {
   ring(ssx, dmy - dmh - 43, 13.4, 2.8, shade(A_SIL, 0.62), null);
   g.fillStyle = A_NAV;
   g.beginPath(); g.ellipse(ssx, dmy - dmh - 53, 9.2, 3.9, 0, 0, 6.29); g.fill();
-  g.strokeStyle = 'rgba(230,234,242,.5)'; g.lineWidth = 1;
+  g.strokeStyle = 'rgba(234,234,234,.5)'; g.lineWidth = 1;
   g.beginPath(); g.ellipse(ssx, dmy - dmh - 53, 12, 5, 0, 0, 6.29); g.stroke();
 
   // ---- the drum: nested C hoops round a navy cavity ------------------
@@ -519,7 +519,7 @@ if (sov) {
   ring(tsx, baseY - 76, 13.4, 2.8, shade(A_SIL, 0.62), null);
   g.fillStyle = A_NAV;
   g.beginPath(); g.ellipse(tsx, baseY - 87, 9.2, 3.9, 0, 0, 6.29); g.fill();
-  g.strokeStyle = 'rgba(230,234,242,.5)'; g.lineWidth = 1;
+  g.strokeStyle = 'rgba(234,234,234,.5)'; g.lineWidth = 1;
   g.beginPath(); g.ellipse(tsx, baseY - 87, 12, 5, 0, 0, 6.29); g.stroke();
 
   // ---- the ported spine: collar down-left to the head block ---------

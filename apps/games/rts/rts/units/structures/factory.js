@@ -534,7 +534,7 @@ if (!sov) {
     var nz = si ? nz2 : nz1;
     for (sj = 0; sj < 3; sj++) {                   // three puffs per stack, 0 fresh -> 1 gone
       var pt = ((bph || 0) + sj / 3 + si * 0.17) % 1;
-      g.fillStyle = 'rgba(150,152,160,' + (0.46 * (1 - pt)).toFixed(2) + ')';
+      g.fillStyle = 'rgba(152,152,152,' + (0.46 * (1 - pt)).toFixed(2) + ')';
       g.beginPath();
       g.ellipse(nz[0] - 3 - pt * 8 - si * 2, nz[1] - 3 - pt * 24, 2.4 + pt * 4.5, 1.8 + pt * 3.2, 0, 0, 6.29);
       g.fill();

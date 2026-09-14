@@ -27,7 +27,7 @@ g.fillStyle = '#a6a6a6'; g.fill(); outline(g, '#5a5a5a');
 plot(g, cx, baseY, fw * 1.88, fh * 1.88);
 g.fillStyle = '#bbbbbb'; g.fill(); outline(g, '#636363');
 g.save(); plot(g, cx, baseY, fw * 1.88, fh * 1.88); g.clip();
-g.strokeStyle = 'rgba(80,82,74,.32)'; g.lineWidth = 1;
+g.strokeStyle = 'rgba(80,80,80,.32)'; g.lineWidth = 1;
 for (var nsS = -3; nsS <= 3; nsS++) {
   g.beginPath(); g.moveTo(cx + nsS * 26 - fw, baseY + nsS * 13 + fh); g.lineTo(cx + nsS * 26 + fw, baseY + nsS * 13 - fh); g.stroke();
   g.beginPath(); g.moveTo(cx - nsS * 26 - fw, baseY - nsS * 13 + fh); g.lineTo(cx - nsS * 26 + fw, baseY - nsS * 13 - fh); g.stroke();
@@ -35,8 +35,8 @@ for (var nsS = -3; nsS <= 3; nsS++) {
 g.restore();
 g.strokeStyle = shade(col, 0.72); g.lineWidth = 2.2;           // painted apron kerb
 plot(g, cx, baseY, fw * 1.88, fh * 1.88); g.stroke();
-railing(g, cx - fw * 0.94, baseY, cx, baseY + fh * 0.94, 9, 'rgba(96,98,90,.9)');
-railing(g, cx, baseY + fh * 0.94, cx + fw * 0.94, baseY, 9, 'rgba(96,98,90,.9)');
+railing(g, cx - fw * 0.94, baseY, cx, baseY + fh * 0.94, 9, 'rgba(96,96,96,.9)');
+railing(g, cx, baseY + fh * 0.94, cx + fw * 0.94, baseY, 9, 'rgba(96,96,96,.9)');
 
 // ---- the tower -----------------------------------------------------
 var nsBy = baseY - fh * 0.06, nsHw = fw * 0.50, nsHh = fh * 0.50, nsLift = 84;

@@ -106,7 +106,7 @@ var drawPod5 = function () {
     g.fillStyle = '#c8d8ff';                                       // small tip glow
     gEllipse(kx5, ky5 - 9.2, 0.85); g.fill();
   }
-  g.strokeStyle = 'rgba(224,240,255,.72)'; g.lineWidth = 0.8;      // arc across the pair
+  g.strokeStyle = 'rgba(237,237,237,.72)'; g.lineWidth = 0.8;      // arc across the pair
   g.lineCap = 'round'; g.lineJoin = 'round';
   g.beginPath();
   for (var ka = 0; ka <= 4; ka++) {

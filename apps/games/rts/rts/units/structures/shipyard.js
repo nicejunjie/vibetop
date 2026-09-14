@@ -92,7 +92,7 @@ function foam(q, rx) {
     var rr = rx * (1.15 + r2 * 0.40 + Math.sin(ph * 6.283 + r2) * 0.06);
     g.beginPath(); g.ellipse(q[0], q[1] + 1, rr, rr * 0.5, 0, 0, 6.29); g.stroke();
   }
-  g.strokeStyle = 'rgba(232,244,252,.52)'; g.lineWidth = 1.4;
+  g.strokeStyle = 'rgba(241,241,241,.52)'; g.lineWidth = 1.4;
   g.beginPath(); g.ellipse(q[0], q[1], rx * 1.02, rx * 0.51, 0, 0, 6.29); g.stroke();
 }
 // The launch bay both yards need: a lit trough with a gate that parts,

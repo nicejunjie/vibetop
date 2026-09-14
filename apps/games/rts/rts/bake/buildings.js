@@ -282,7 +282,7 @@ function bakeBuilding(key, col, fac, bph, bdir, dopen) {
       g.lineTo(axp + i * 9 + 13.5, ayp + ah); g.lineTo(axp + i * 9 + 9, ayp + ah);
       g.closePath(); g.fill();
     }
-    g.fillStyle = 'rgba(140,148,140,.55)';
+    g.fillStyle = 'rgba(145,145,145,.55)';
     diamond(g, axp, ayp, aw * 1.4, ah * 1.4); g.fill();
     g.restore();
   }

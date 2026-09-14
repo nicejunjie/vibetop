@@ -587,7 +587,7 @@ function bakeGroundSheet(kind, seed) {
     g.globalAlpha = 0.5;                                             // rubble and broken kerb chips
     for (i = 0; i < 120; i++) {
       var rx2 = rnd() * SHW, ry2 = rnd() * SHH, rr = 0.9 + rnd() * 1.8;
-      g.fillStyle = 'rgba(24,24,26,.5)'; sheetBlob(g, rx2 + 0.7, ry2 + 0.5, rr * 1.1, rr * 0.5);
+      g.fillStyle = 'rgba(24,24,24,.5)'; sheetBlob(g, rx2 + 0.7, ry2 + 0.5, rr * 1.1, rr * 0.5);
       g.fillStyle = rnd() < 0.5 ? '#a2a2a2' : '#7b7b7b'; sheetBlob(g, rx2, ry2 - 0.3, rr * 0.9, rr * 0.45);
     }
     g.globalAlpha = 0.22; g.strokeStyle = '#414141'; g.lineWidth = 0.9;   // hairline cracks
@@ -683,7 +683,7 @@ function bakeRockSheet(kind, seed, flat) {
       g.closePath(); g.fill();
     });
     g.fillStyle = shade(body, 1.16); sheetBlob(g, bx2 - r * 0.22, by2 - r * 0.42, r * 0.5, r * 0.24);
-    g.fillStyle = snowy ? 'rgba(240,250,252,.55)' : 'rgba(74,92,44,.32)'; sheetBlob(g, bx2 - r * 0.1, by2 + r * 0.3, r * 0.8, r * 0.26);
+    g.fillStyle = snowy ? 'rgba(247,247,247,.55)' : 'rgba(74,92,44,.32)'; sheetBlob(g, bx2 - r * 0.1, by2 + r * 0.3, r * 0.8, r * 0.26);
   }
   return s;
 }
@@ -866,11 +866,11 @@ function bakeShallow(kind, mask) {
   g.save(); diamondT(g, cx, cy); g.clip();
   for (var e = 0; e < 4; e++) {
     if (!(mask & (1 << e))) continue;
-    g.fillStyle = snowy ? 'rgba(214,230,234,.35)' : 'rgba(74,132,134,.30)';   // shelf
+    g.fillStyle = snowy ? 'rgba(226,226,226,.35)' : 'rgba(74,132,134,.30)';   // shelf
     edgeBand(g, e, 15, 11, 1300 + mask * 13 + e); g.fill();
-    g.fillStyle = snowy ? 'rgba(230,242,244,.45)' : 'rgba(104,164,158,.34)';  // shallows
+    g.fillStyle = snowy ? 'rgba(239,239,239,.45)' : 'rgba(104,164,158,.34)';  // shallows
     edgeBand(g, e, 8.5, 7, 1500 + mask * 13 + e); g.fill();
-    g.fillStyle = snowy ? 'rgba(226,236,238,.6)' : 'rgba(126,124,92,.42)';    // silt, matching the bank
+    g.fillStyle = snowy ? 'rgba(233,233,233,.6)' : 'rgba(126,124,92,.42)';    // silt, matching the bank
     edgeBand(g, e, 3.4, 3.4, 1700 + mask * 13 + e); g.fill();
   }
   g.restore();
@@ -1262,7 +1262,7 @@ function bakeCliff(mask, kind, variant, seam) {
         var load = brnd();
         if (load > 0.22) {
           var deep = 1.1 + load * 4.4;
-          g.fillStyle = 'rgba(246,252,252,.92)';
+          g.fillStyle = 'rgba(250,250,250,.92)';
           g.beginPath();
           for (q = 0; q < crestPts.length; q++)
             g[q ? 'lineTo' : 'moveTo'](crestPts[q][0], crestPts[q][1] - 0.9 - brnd() * 1.8);
@@ -1272,14 +1272,14 @@ function bakeCliff(mask, kind, variant, seam) {
         }
         // ...and it catches on the LEDGES the bedding planes cut into the
         // face, which is what tells a snowed cliff from a grey one.
-        g.fillStyle = 'rgba(238,247,250,.55)';
+        g.fillStyle = 'rgba(245,245,245,.55)';
         for (k = 0; k < 3; k++) {
           var lp = pt(cl, cl.t0 + brnd() * (cl.t1 - cl.t0), 5 + brnd() * (CLIFF_H - 9));
           g.beginPath(); g.ellipse(lp[0], lp[1], 1.8 + brnd() * 4.4, 0.5 + brnd() * 1.3, 0, 0, 6.29); g.fill();
         }
       }
       if (conc) {                                   // tie-rod holes down the form work
-        g.fillStyle = 'rgba(40,42,40,.45)';
+        g.fillStyle = 'rgba(41,41,41,.45)';
         for (k = 1; k < 5; k++) {
           var hp = pt(cl, (cl.t0 + cl.t1) / 2, k * (CLIFF_H / 5));
           g.beginPath(); g.ellipse(hp[0], hp[1], 1.1, 0.8, 0, 0, 6.29); g.fill();
@@ -1297,7 +1297,7 @@ function bakeCliff(mask, kind, variant, seam) {
         var rr = (k % 3 === 0 ? 2.2 + brnd() * 3.0 : 0.9 + brnd() * 2.2);
         g.fillStyle = 'rgba(16,14,9,.34)'; g.beginPath(); g.ellipse(rp[0] + 0.7, rp[1] + 0.8, rr * 1.3, rr * 0.5, 0, 0, 6.29); g.fill();
         g.fillStyle = shade(P.rock, lit * (0.95 + brnd() * 0.55)); g.beginPath(); g.ellipse(rp[0], rp[1], rr, rr * 0.62, 0, 0, 6.29); g.fill();
-        if (kind === 'snow') { g.fillStyle = 'rgba(240,250,252,.5)'; g.beginPath(); g.ellipse(rp[0] - rr * 0.2, rp[1] - rr * 0.35, rr * 0.7, rr * 0.28, 0, 0, 6.29); g.fill(); }
+        if (kind === 'snow') { g.fillStyle = 'rgba(247,247,247,.5)'; g.beginPath(); g.ellipse(rp[0] - rr * 0.2, rp[1] - rr * 0.35, rr * 0.7, rr * 0.28, 0, 0, 6.29); g.fill(); }
       }
     }
   }
@@ -1388,7 +1388,7 @@ function bakeCliff(mask, kind, variant, seam) {
         g.beginPath(); g.moveTo(lx - lr * 0.55, ly - lr * 0.5); g.lineTo(lx + lr * 0.2, ly - lr * 0.3); g.stroke();
         g.globalAlpha = 1;
         if (kind === 'snow' && brnd() < 0.7) {     // snow caps the lump too
-          g.fillStyle = 'rgba(244,251,252,.8)';
+          g.fillStyle = 'rgba(249,249,249,.8)';
           g.beginPath(); g.ellipse(lx - lr * 0.15, ly - lr * 0.42, lr * 0.6, lr * 0.24, 0, 0, 6.29); g.fill();
         }
       }
@@ -1487,7 +1487,7 @@ function bakeRoad(kind, mask, vv) {
       var o = r * TW * 0.085;
       g.strokeStyle = snowy ? 'rgba(122,138,148,.5)' : 'rgba(58,50,32,.45)'; g.lineWidth = 4.2;
       g.beginPath(); g.moveTo(P0[0] + nx * o, P0[1] + ny * o); g.lineTo(P1[0] + nx * o, P1[1] + ny * o); g.stroke();
-      g.strokeStyle = snowy ? 'rgba(232,240,244,.34)' : 'rgba(160,146,104,.34)'; g.lineWidth = 1.4;
+      g.strokeStyle = snowy ? 'rgba(238,238,238,.34)' : 'rgba(160,146,104,.34)'; g.lineWidth = 1.4;
       g.beginPath(); g.moveTo(P0[0] + nx * (o + 2.4), P0[1] + ny * (o + 2.4)); g.lineTo(P1[0] + nx * (o + 2.4), P1[1] + ny * (o + 2.4)); g.stroke();
     }
   }
@@ -1543,7 +1543,7 @@ function bakeTree(v, snow) {
       g.fillStyle = '#f4f4f4';                              // snow load on each tier
       g.beginPath(); g.moveTo(cx - ww * 0.72, yy - 1.5); g.lineTo(cx - ww * 0.2, yy - th2 * 0.95);
       g.lineTo(cx + ww * 0.05, yy - th2 * 0.6); g.lineTo(cx + ww * 0.42, yy - 2); g.closePath(); g.fill();
-      g.fillStyle = 'rgba(196,216,224,.85)';
+      g.fillStyle = 'rgba(211,211,211,.85)';
       g.beginPath(); g.moveTo(cx + ww * 0.42, yy - 2); g.lineTo(cx + ww * 0.05, yy - th2 * 0.6); g.lineTo(cx + ww * 0.75, yy - 1.5); g.closePath(); g.fill();
     }
   } else {
@@ -1599,7 +1599,7 @@ function bakeDeadTree(v, snow) {
     g.lineTo(cx + L[2] * 1.3, y0 + L[3] - 5 - brnd() * 4); g.stroke();
   }
   if (snow) {                                        // snow caught on the upper side of each limb
-    g.strokeStyle = 'rgba(244,252,253,.9)'; g.lineWidth = 2;
+    g.strokeStyle = 'rgba(250,250,250,.9)'; g.lineWidth = 2;
     for (i = 0; i < limbs.length; i++) {
       var L2 = limbs[i], yy = by - hgt * L2[1] - 1.6;
       g.beginPath(); g.moveTo(cx, yy); g.quadraticCurveTo(cx + L2[2] * 0.6, yy + L2[3] * 0.3, cx + L2[2], yy + L2[3]); g.stroke();
@@ -1640,7 +1640,7 @@ function bakeBoulder(kind, v) {
     g.globalAlpha = 0.34; g.fillStyle = C.d;               // shaded underside
     g.beginPath(); g.ellipse(cx + ox + rw * 0.2, by - 5 + oy + rh * 0.3, rw * 0.55, rh * 0.26, 0, 0, 6.29); g.fill();
     g.globalAlpha = 1;
-    if (kind === 'snow') { g.fillStyle = 'rgba(244,252,253,.75)'; g.beginPath(); g.ellipse(cx + ox - rw * 0.2, by - 13 + oy - rh * 0.25, rw * 0.62, rh * 0.3, 0, 0, 6.29); g.fill(); }
+    if (kind === 'snow') { g.fillStyle = 'rgba(250,250,250,.75)'; g.beginPath(); g.ellipse(cx + ox - rw * 0.2, by - 13 + oy - rh * 0.25, rw * 0.62, rh * 0.3, 0, 0, 6.29); g.fill(); }
     else if (kind !== 'urban') { g.fillStyle = 'rgba(74,92,44,.34)'; g.beginPath(); g.ellipse(cx + ox - rw * 0.1, by - 4 + oy + rh * 0.4, rw * 0.7, rh * 0.24, 0, 0, 6.29); g.fill(); }
   }
   s.ax = cx; s.ay = by;
@@ -1657,7 +1657,7 @@ function bakeRuin(v) {
   // rubble mound
   for (i = 0; i < 16; i++) {
     var rx = cx + (brnd() - 0.5) * 36, ry = by - 4 - brnd() * 7, rr = 1.6 + brnd() * 3.4;
-    g.fillStyle = 'rgba(24,24,26,.4)'; g.beginPath(); g.ellipse(rx + 0.8, ry + 0.8, rr * 1.2, rr * 0.5, 0, 0, 6.29); g.fill();
+    g.fillStyle = 'rgba(24,24,24,.4)'; g.beginPath(); g.ellipse(rx + 0.8, ry + 0.8, rr * 1.2, rr * 0.5, 0, 0, 6.29); g.fill();
     g.fillStyle = shade(brnd() < 0.5 ? '#888888' : '#6a6a6a', 0.85 + brnd() * 0.4);
     g.beginPath(); g.ellipse(rx, ry, rr, rr * 0.6, 0, 0, 6.29); g.fill();
   }
@@ -1728,7 +1728,7 @@ function bakeSparkle(k, col, hot) {
   g.moveTo(c - r * 1.7, c); g.lineTo(c + r * 1.7, c);
   g.moveTo(c, c - r * 1.2); g.lineTo(c, c + r * 1.2);
   g.stroke();
-  if (hot) { g.fillStyle = 'rgba(255,252,236,' + (0.9 * a).toFixed(2) + ')'; g.beginPath(); g.arc(c, c, r * 0.42, 0, 6.29); g.fill(); }
+  if (hot) { g.fillStyle = 'rgba(251,251,251,' + (0.9 * a).toFixed(2) + ')'; g.beginPath(); g.arc(c, c, r * 0.42, 0, 6.29); g.fill(); }
   return s;
 }
 

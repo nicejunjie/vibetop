@@ -132,7 +132,7 @@ if (sov) {
   depOct(sdX, sdY, sdR, sdB); g.fillStyle = SDP_COND; g.fill();
   depOct(sdX, sdY - 2, sdR, sdB); g.fillStyle = SDP_CON; g.fill(); outline(g, SDP_COND);
   g.save(); depOct(sdX, sdY - 2, sdR, sdB); g.clip();
-  g.strokeStyle = 'rgba(74,78,68,.34)'; g.lineWidth = 1;      // slab joints
+  g.strokeStyle = 'rgba(76,76,76,.34)'; g.lineWidth = 1;      // slab joints
   for (var sdJI = -3; sdJI <= 3; sdJI++) {
     g.beginPath();
     g.moveTo(sdX + sdJI * 22 - sdR, sdY + sdJI * 11 + sdB);
@@ -144,7 +144,7 @@ if (sov) {
   srand(311);
   for (var sdSt = 0; sdSt < 16; sdSt++) {                     // weathering
     var sda = rnd() * 6.283, sdrr = Math.sqrt(rnd());
-    g.fillStyle = rnd() < 0.5 ? 'rgba(60,62,52,.24)' : 'rgba(196,198,180,.22)';
+    g.fillStyle = rnd() < 0.5 ? 'rgba(60,62,52,.24)' : 'rgba(195,195,195,.22)';
     g.beginPath();
     g.ellipse(sdX + Math.cos(sda) * sdrr * sdR * 0.9, sdY + Math.sin(sda) * sdrr * sdB * 0.9,
               4 + rnd() * 7, 2 + rnd() * 3, 0, 0, 6.29);
@@ -347,12 +347,12 @@ if (sov) {
     g.moveTo(stx - 8.5, sty - 54 * sdRI / 8); g.lineTo(stx + 8.5, sty - 54 * sdRI / 8);
     g.stroke();
   }
-  g.fillStyle = 'rgba(216,224,232,.16)'; g.fillRect(stx - 8, sty - 54, 2.6, 54);
+  g.fillStyle = 'rgba(223,223,223,.16)'; g.fillRect(stx - 8, sty - 54, 2.6, 54);
   g.fillStyle = '#111318';
   g.beginPath(); g.ellipse(stx, sty - 54, 6.2, 2.6, 0, 0, 6.29); g.fill();
   for (var sdPf = 0; sdPf < 3; sdPf++) {                      // smoke puffs
     var spt = ((bph || 0) + sdPf / 3) % 1;
-    g.fillStyle = 'rgba(184,186,178,' + (0.30 * (1 - spt)).toFixed(3) + ')';
+    g.fillStyle = 'rgba(184,184,184,' + (0.30 * (1 - spt)).toFixed(3) + ')';
     g.beginPath();
     g.ellipse(stx - 2 - spt * 7, sty - 58 - spt * 22, 4 + spt * 7, 2.6 + spt * 5, 0, 0, 6.29);
     g.fill();
@@ -679,7 +679,7 @@ if (sov) {
   g.beginPath();
   g.ellipse(dpPx + 1, dpDeck - 2, 5.4 + ph6 % 2 * 2.2, 2.8, 0, 0, 6.29); g.fill();
   if (ph6 % 2) {                                              // weld flash
-    g.strokeStyle = 'rgba(226,242,255,.60)'; g.lineWidth = 1.3;
+    g.strokeStyle = 'rgba(239,239,239,.60)'; g.lineWidth = 1.3;
     g.beginPath();
     g.moveTo(dpPx + 1, dpDeck - 4); g.lineTo(dpPx + 6, dpDeck + 3);
     g.lineTo(dpPx + 2, dpDeck + 6); g.stroke();

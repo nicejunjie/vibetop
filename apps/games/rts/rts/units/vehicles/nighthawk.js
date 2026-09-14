@@ -96,7 +96,7 @@ if (wantH) {
     isoBox(g, b1x, b1y + 0.4, 4.2, 0.9, 4.2, a, shade(hull, 0.94), PEDGE);
     isoBox(g, b1x - fx * 0.4, b1y - 3.4 - fy * 0.4, 2.8, 1.0, 1.4, a, panel, PEDGE);
     var trR = 3.6, trPh = anim === 'prop' ? 0.5236 : 0;
-    g.strokeStyle = 'rgba(206,214,224,.40)'; g.lineWidth = 1.0; g.lineCap = 'round';
+    g.strokeStyle = 'rgba(213,213,213,.40)'; g.lineWidth = 1.0; g.lineCap = 'round';
     for (i2 = 0; i2 < 3; i2++) {
       var tra = trPh + i2 * 2.094;
       g.beginPath(); g.moveTo(b1x + px * 1.2, b1y - 2.6 + py * 1.2);
@@ -168,10 +168,10 @@ if (wantH) {
   g.save();
   g.translate(mrx, mry); g.scale(1, ry / rx);       // circle space, then squash to the iso ellipse
   var mrg = g.createRadialGradient(0, 0, 0, 0, 0, rx);
-  mrg.addColorStop(0.00, 'rgba(206,214,226,.05)');  // nearly clear at the hub
-  mrg.addColorStop(0.55, 'rgba(206,214,226,.22)');
-  mrg.addColorStop(0.90, 'rgba(224,231,242,.42)');  // densest just inside the tip
-  mrg.addColorStop(1.00, 'rgba(224,231,242,.09)');  // and feathered off it -- but not
+  mrg.addColorStop(0.00, 'rgba(213,213,213,.05)');  // nearly clear at the hub
+  mrg.addColorStop(0.55, 'rgba(213,213,213,.22)');
+  mrg.addColorStop(0.90, 'rgba(230,230,230,.42)');  // densest just inside the tip
+  mrg.addColorStop(1.00, 'rgba(230,230,230,.09)');  // and feathered off it -- but not
   // to nothing: a rim that reaches zero alpha loses the outer 2 px of
   // span off the bounding box, and this airframe's whole RA2 spec is
   // rotor span. 5% is under the eye and over the measurement's floor.
@@ -183,7 +183,7 @@ if (wantH) {
   // on the sprite's own axes.
   for (i2 = 0; i2 < 4; i2++) {
     var mra = mrPh + 0.42 + i2 * 1.5708;
-    g.strokeStyle = i2 % 2 ? 'rgba(226,233,242,.22)' : 'rgba(232,239,248,.40)';
+    g.strokeStyle = i2 % 2 ? 'rgba(232,232,232,.22)' : 'rgba(238,238,238,.40)';
     g.lineWidth = i2 % 2 ? 1.0 : 1.3;
     g.beginPath();
     g.moveTo(mrx + Math.cos(mra) * rx * 0.22, mry + Math.sin(mra) * ry * 0.22);

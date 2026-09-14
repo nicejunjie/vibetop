@@ -177,7 +177,7 @@ function bakeExplosionFamily(ref, lobes, seed, sooty, hotEnd, riseK) {
       bg.globalAlpha = fade * (t2 < 0.62 ? 0.95 : 0.46 * (1 - (t2 - 0.62) / 0.38 * 0.45));
       bg.beginPath(); bg.ellipse(L.x, L.y, L.r, L.r * (0.92 + 0.14 * (tall - 1)), 0, 0, 6.29); bg.fill();
       // Lit crown on the billow's upper left, the same light the sprites use.
-      bg.fillStyle = t2 < 0.45 ? 'rgba(255,238,182,.60)' : 'rgba(176,170,160,.26)';
+      bg.fillStyle = t2 < 0.45 ? 'rgba(255,238,182,.60)' : 'rgba(171,171,171,.26)';
       bg.globalAlpha = fade * (t2 < 0.62 ? 0.82 : 0.40);
       bg.beginPath(); bg.ellipse(L.x - L.r * 0.26, L.y - L.r * 0.32, L.r * 0.52, L.r * 0.38, -0.5, 0, 6.29); bg.fill();
     }
@@ -199,7 +199,7 @@ function bakeExplosionFamily(ref, lobes, seed, sooty, hotEnd, riseK) {
       var cr = R * (0.30 + 0.34 * Math.max(0, 1 - q / hotEnd));
       var grd = cg.createRadialGradient(cx, cy - lift, 0, cx, cy - lift, Math.max(1, cr));
       var ca = (1 - q / hotEnd);
-      grd.addColorStop(0, 'rgba(255,255,244,' + (0.95 * ca).toFixed(3) + ')');
+      grd.addColorStop(0, 'rgba(254,254,254,' + (0.95 * ca).toFixed(3) + ')');
       grd.addColorStop(0.35, 'rgba(255,214,120,' + (0.72 * ca).toFixed(3) + ')');
       grd.addColorStop(0.72, 'rgba(238,124,36,' + (0.34 * ca).toFixed(3) + ')');
       grd.addColorStop(1, 'rgba(160,50,10,0)');
@@ -321,7 +321,7 @@ function bakeMuzzleFlash() {
   var s = mkCanvas(d, d), g = s.g;
   g.translate(r, r);
   var grd = g.createRadialGradient(0, 0, 0, 0, 0, r * 0.9);
-  grd.addColorStop(0, 'rgba(255,255,235,.95)');
+  grd.addColorStop(0, 'rgba(253,253,253,.95)');
   grd.addColorStop(0.35, 'rgba(255,214,120,.75)');
   grd.addColorStop(1, 'rgba(255,140,40,0)');
   g.fillStyle = grd;

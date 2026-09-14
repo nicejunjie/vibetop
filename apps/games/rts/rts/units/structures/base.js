@@ -109,7 +109,7 @@ if (sov) {
   for (var bfA = 1; bfA < 4; bfA++) {               // machinery ribs on the block
     var bp1 = faceL(dxS, dyS, dhwS, dhhS, 24, 0.06, bfA * 0.24),
         bp2 = faceL(dxS, dyS, dhwS, dhhS, 24, 0.94, bfA * 0.24);
-    g.strokeStyle = 'rgba(150,158,170,.34)'; g.lineWidth = 1;
+    g.strokeStyle = 'rgba(157,157,157,.34)'; g.lineWidth = 1;
     g.beginPath(); g.moveTo(bp1[0], bp1[1]); g.lineTo(bp2[0], bp2[1]); g.stroke();
   }
   var spx = dxS, spb = dr0 + 1;                      // bell base centre
@@ -123,7 +123,7 @@ if (sov) {
   g.bezierCurveTo(spx + 7, spb - 12, spx + 13, spb - 9, spx + 15, spb);
   g.closePath(); g.fill(); outline(g, SSTL_D);
   for (var rbA = -2; rbA <= 2; rbA++) {             // vertical ribs, lit left
-    g.strokeStyle = rbA < 0 ? 'rgba(190,196,206,.62)' : 'rgba(0,0,0,.34)';
+    g.strokeStyle = rbA < 0 ? 'rgba(195,195,195,.62)' : 'rgba(0,0,0,.34)';
     g.lineWidth = rbA ? 1.2 : 1.6;
     g.beginPath();
     g.moveTo(spx + rbA * 6.5, spb - 1);
@@ -186,7 +186,7 @@ if (sov) {
   for (var gsA = 1; gsA < 4; gsA++) {               // grille slats on the right face
     var gsP = faceR(bxS, byS, bhwS, bhhS, 36, 0.20, 0.22 + gsA * 0.10),
         gsQ = faceR(bxS, byS, bhwS, bhhS, 36, 0.80, 0.22 + gsA * 0.10);
-    g.strokeStyle = 'rgba(150,158,170,.40)'; g.lineWidth = 1.2;
+    g.strokeStyle = 'rgba(157,157,157,.40)'; g.lineWidth = 1.2;
     g.beginPath(); g.moveTo(gsP[0], gsP[1]); g.lineTo(gsQ[0], gsQ[1]); g.stroke();
   }
   streak(g, faceL, bxS, byS, bhwS, bhhS, 36, 0.50, 0.70, 14, 4);
@@ -626,7 +626,7 @@ if (sov) {
     var hpS = hpA ? -0.52 : 0.60;
     vQuad(hpS - 0.05, hpS + 0.05, 0, 1, 1, 'rgba(30,34,44,.62)');
     vQuad(hpS - 0.05, hpS + 0.05, 0, 1, -1, 'rgba(30,34,44,.62)');
-    vQuad(hpS - 0.05, hpS - 0.03, 0, 1, 1, 'rgba(240,244,250,.35)');
+    vQuad(hpS - 0.05, hpS - 0.03, 0, 1, 1, 'rgba(243,243,243,.35)');
   }
   g.strokeStyle = 'rgba(255,255,255,.55)'; g.lineWidth = 2.2;   // crown gloss
   var cgA = vPt(-1, 0.10, vri), cgB = vPt(1, 0.10, vri);
@@ -743,7 +743,7 @@ if (sov) {
     g.strokeStyle = 'rgba(28,32,40,.85)'; g.lineWidth = 1.1;
     g.beginPath(); g.moveTo(la[0], la[1]); g.lineTo(lb[0], lb[1]); g.stroke();
   }
-  g.strokeStyle = 'rgba(150,158,172,.55)'; g.lineWidth = 1;   // shutter frame
+  g.strokeStyle = 'rgba(157,157,157,.55)'; g.lineWidth = 1;   // shutter frame
   g.beginPath();
   g.moveTo(d0[0], d0[1]); g.lineTo(d1[0], d1[1]);
   g.lineTo(d2[0], d2[1]); g.lineTo(d3[0], d3[1]);

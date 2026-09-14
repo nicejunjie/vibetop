@@ -133,7 +133,7 @@ if (bdir != null) { var slAim = gunAim(bdir, 0); slDX = slAim.sx; slDY = slAim.s
 var slX = cx + slDX * fw * 0.56, slY = baseY - 5.0 + slDY * 5.0;  // clear of the lens's own AA edge below it
 g.fillStyle = '#0e0e0e';
 g.beginPath(); g.ellipse(slX, slY, 5.0, 2.0, 0.22, 0, 6.29); g.fill();
-g.fillStyle = 'rgba(206,214,228,.30)';
+g.fillStyle = 'rgba(213,213,213,.30)';
 g.beginPath(); g.ellipse(slX, slY - 1.5, 5.0, 0.8, 0.22, 0, 6.29); g.fill();
 if (ph6 === 2 || ph6 === 5) {                            // never phase 0: the
   g.fillStyle = 'rgba(255,196,96,.55)';                  // static bake used by

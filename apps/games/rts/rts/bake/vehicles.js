@@ -49,7 +49,14 @@ function bakeVehicle(col, kind, fac, anim) {
   // (an outline, a shadowed lip) uses the neutral PEDGE instead of a
   // near-black tint of the player's hue.
   var panel = col, pdark = shade(col, 0.76), plit = shade(col, 1.22);
-  var PEDGE = '#191b20';
+  // NEUTRAL. #191b20 is 25/27/32 — blue over red — and it is the edge colour on
+  // every house-coloured box on every vehicle in the game, so its antialiased
+  // boundary was seeding #003333 right around the roster: the Rhino carried
+  // 6.6% blue-teal pixels, most of them on its own outline. Its saturation is
+  // 0.22, above rts-palette.test.js's 0.13 bar, so the test never saw it — at a
+  // max of 32 a seven-point spread reads as a fifth saturated even though the
+  // colour is obviously meant as a near-black. Rhino teal 6.6% -> 0.0%.
+  var PEDGE = '#1b1b1b';
 
   // Bins: tan (Allied) and golden (Soviet). Neither is chromatic, so the
   // player colour keeps the field to itself.
@@ -467,11 +474,11 @@ function bakeVehicle(col, kind, fac, anim) {
         g.fillStyle = gr; g.fill();
         if (NO_RIM) {
           if (h > 1.0) {
-            g.strokeStyle = 'rgba(224,231,235,.27)'; g.lineWidth = 0.50;
+            g.strokeStyle = 'rgba(231,231,231,.27)'; g.lineWidth = 0.50;
             g.beginPath(); g.moveTo(p0[0], p0[1] - h); g.lineTo(p1[0], p1[1] - h); g.stroke();
           }
           if (h > 2.4 && Math.hypot(p1[0] - p0[0], p1[1] - p0[1]) > 3.5) {
-            g.strokeStyle = 'rgba(24,29,35,.13)'; g.lineWidth = 0.40;
+            g.strokeStyle = 'rgba(29,29,29,.13)'; g.lineWidth = 0.40;
             g.beginPath(); g.moveTo(p0[0], p0[1]); g.lineTo(p0[0], p0[1] - h); g.stroke();
           }
         } else if (edge) { g.strokeStyle = edge; g.lineWidth = 0.7; g.stroke(); }
@@ -489,7 +496,7 @@ function bakeVehicle(col, kind, fac, anim) {
       g.fillStyle = tg; g.fill();
       if (NO_RIM) {
         if (h > 1.0) {
-          g.strokeStyle = 'rgba(224,231,235,.26)'; g.lineWidth = 0.50;
+          g.strokeStyle = 'rgba(231,231,231,.26)'; g.lineWidth = 0.50;
           g.beginPath();
           for (i = 0; i < P.length; i++) {
             if (i === 0) g.moveTo(P[i][0], P[i][1] - h); else g.lineTo(P[i][0], P[i][1] - h);
@@ -661,9 +668,9 @@ function bakeVehicle(col, kind, fac, anim) {
                   csy + fy * u - z];
         }
         var cp0 = cpoint(-hl2 * 0.41, 1.3 + h * 0.20), cp1 = cpoint(hl2 * 0.41, 1.3 + h * 0.20);
-        g.strokeStyle = 'rgba(20,24,29,.34)'; g.lineWidth = 0.55;
+        g.strokeStyle = 'rgba(24,24,24,.34)'; g.lineWidth = 0.55;
         g.beginPath(); g.moveTo(cp0[0], cp0[1]); g.lineTo(cp1[0], cp1[1]); g.stroke();
-        g.strokeStyle = 'rgba(215,220,224,.24)'; g.lineWidth = 0.42;
+        g.strokeStyle = 'rgba(220,220,220,.24)'; g.lineWidth = 0.42;
         cp0 = cpoint(-hl2 * 0.40, 1.3 + h * 0.78); cp1 = cpoint(hl2 * 0.40, 1.3 + h * 0.78);
         g.beginPath(); g.moveTo(cp0[0], cp0[1]); g.lineTo(cp1[0], cp1[1]); g.stroke();
         for (var cj = -1; cj <= 1; cj += 2) {
@@ -673,7 +680,7 @@ function bakeVehicle(col, kind, fac, anim) {
         }
         for (var cr = -1; cr <= 1; cr += 2) {
           var rv = cpoint(hl2 * 0.36 * cr, 1.3 + h * 0.55);
-          g.fillStyle = 'rgba(210,216,220,.62)';
+          g.fillStyle = 'rgba(215,215,215,.62)';
           g.beginPath(); g.ellipse(rv[0], rv[1] - 0.22, 0.34, 0.28, 0, 0, 6.29); g.fill();
           g.fillStyle = 'rgba(30,34,39,.48)';
           g.beginPath(); g.ellipse(rv[0] + 0.10, rv[1] + 0.08, 0.16, 0.13, 0, 0, 6.29); g.fill();
@@ -1382,7 +1389,7 @@ function coolTower(g, cx, cy, rb, rt, h, col, edge) {
 
 function steam(g, cx, cy, r, n) {
   for (var i = 0; i < n; i++) {
-    g.fillStyle = 'rgba(226,236,244,' + (0.30 - i * 0.055) + ')';
+    g.fillStyle = 'rgba(234,234,234,' + (0.30 - i * 0.055) + ')';
     g.beginPath();
     g.ellipse(cx + (i % 2 ? 1 : -1) * r * 0.32 * i, cy - r * 0.85 * i,
               r * (1 - i * 0.13), r * (0.5 - i * 0.06), 0, 0, 6.29);

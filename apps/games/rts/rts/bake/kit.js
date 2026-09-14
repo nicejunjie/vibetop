@@ -50,7 +50,7 @@ function isoBox(g, cx, cy, len, wid, hgt, dir, col, outline) {
       // upper break restores the thin specular edge visible on RA2 voxel
       // panels without turning every primitive into a LEGO outline.
       if (hgt > 1.0) {
-        g.strokeStyle = 'rgba(224,231,235,.30)'; g.lineWidth = 0.55;
+        g.strokeStyle = 'rgba(229,229,229,.30)'; g.lineWidth = 0.55;
         g.beginPath(); g.moveTo(p[0], p[1] - hgt); g.lineTo(q[0], q[1] - hgt); g.stroke();
       }
       if (hgt > 2.4 && Math.hypot(q[0] - p[0], q[1] - p[1]) > 3.5) {

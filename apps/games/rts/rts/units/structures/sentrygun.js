@@ -63,7 +63,7 @@ if (sov) {
   g.fillStyle = 'rgba(0,0,0,.32)'; g.fillRect(cx + 1.8, baseY - 18, 5.4, 12);
   g.fillStyle = SGN_ARML; g.fillRect(cx - 7.2, baseY - 18.6, 14.4, 1.8);
   for (var sgRI = -1; sgRI <= 1; sgRI++) {                // bolt heads
-    g.fillStyle = 'rgba(196,206,218,.36)';
+    g.fillStyle = 'rgba(204,204,204,.36)';
     g.beginPath(); g.arc(cx + sgRI * 4.2, baseY - 12.4, 0.9, 0, 6.29); g.fill();
   }
   // ---- brass ammo drum on the right shoulder -------------------------

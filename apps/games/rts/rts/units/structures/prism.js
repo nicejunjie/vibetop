@@ -102,7 +102,7 @@ g.beginPath(); g.ellipse(cx, dT - 1, 12.4, 4.6, 0, 0, 6.29); g.fill();
 // ---- slim navy column, four thin struts on amber bolts ----------------
 var colT = baseY - 62;
 cylinder(g, cx, dT + 1, 4.8, dT + 1 - colT, PZ_NAV, PZ_NAVL, PZ_NAVD);
-g.fillStyle = 'rgba(228,234,250,.22)'; g.fillRect(cx - 4.8, colT, 1.8, dT + 1 - colT);
+g.fillStyle = 'rgba(234,234,234,.22)'; g.fillRect(cx - 4.8, colT, 1.8, dT + 1 - colT);
 for (var pzS = 0; pzS < 4; pzS++) {
   var sxo = (pzS < 2 ? -1 : 1) * (pzS % 2 ? 8.2 : 13.4);
   // 2.2 -> 1.9 on the DARK BACKING only (the lit PZ_STR stroke below
@@ -185,6 +185,6 @@ g.stroke(); g.lineWidth = 1;
 g.fillStyle = '#a1a1a1';
 g.beginPath(); g.ellipse(cx, pzHub - 4.6, 5.8, 3.0, 0, 0, 6.29); g.fill();
 outline(g, PZ_NAVD);
-g.fillStyle = 'rgba(226,244,255,' + (0.06 + 0.07 * (0.5 + 0.5 * anS)) + ')';
+g.fillStyle = 'rgba(240,240,240,' + (0.06 + 0.07 * (0.5 + 0.5 * anS)) + ')';
 g.beginPath(); g.ellipse(cx, pzHub - 9, 16, 11, 0, 0, 6.29); g.fill();
 }

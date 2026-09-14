@@ -57,7 +57,7 @@ var wdOrb = function (ox2, oy2, r2) {
   var oc = oy2 - r2 * 0.9 - r2 * 0.86;
   g.fillStyle = WD_ORB;
   g.beginPath(); g.arc(ox2, oc, r2, 0, 6.29); g.fill(); outline(g, WD_ED);
-  g.fillStyle = 'rgba(220,230,244,.30)';
+  g.fillStyle = 'rgba(229,229,229,.30)';
   g.beginPath(); g.ellipse(ox2 - r2 * 0.32, oc - r2 * 0.34, r2 * 0.44, r2 * 0.32, -0.6, 0, 6.29); g.fill();
   g.fillStyle = 'rgba(0,0,0,.26)';
   g.beginPath(); g.ellipse(ox2 + r2 * 0.40, oc + r2 * 0.28, r2 * 0.44, r2 * 0.40, 0, 0, 6.29); g.fill();
@@ -87,14 +87,14 @@ var wdR2 = fw * 0.42, wdOy = wdCy - 40 - wdR2 * 0.80;
 g.fillStyle = WD_ORB;
 g.beginPath(); g.arc(cx, wdOy, wdR2, 0, 6.29); g.fill(); outline(g, WD_ED);
 g.save(); g.beginPath(); g.arc(cx, wdOy, wdR2, 0, 6.29); g.clip();
-g.fillStyle = 'rgba(216,228,244,.34)';
+g.fillStyle = 'rgba(226,226,226,.34)';
 g.beginPath(); g.ellipse(cx - wdR2 * 0.34, wdOy - wdR2 * 0.36, wdR2 * 0.46, wdR2 * 0.32, -0.6, 0, 6.29); g.fill();
 g.fillStyle = 'rgba(0,0,0,.30)';
 g.beginPath(); g.ellipse(cx + wdR2 * 0.44, wdOy + wdR2 * 0.30, wdR2 * 0.50, wdR2 * 0.46, 0, 0, 6.29); g.fill();
 g.strokeStyle = 'rgba(18,22,28,.50)'; g.lineWidth = 1.4;    // meridian + equator seams
 g.beginPath(); g.ellipse(cx, wdOy, wdR2, wdR2 * 0.32, 0, 0, 6.29); g.stroke();
 g.beginPath(); g.ellipse(cx, wdOy, wdR2 * 0.30, wdR2, 0, 0, 6.29); g.stroke();
-g.fillStyle = 'rgba(216,228,242,' + (0.16 + 0.34 * (0.5 + 0.5 * anS)).toFixed(3) + ')';
+g.fillStyle = 'rgba(226,226,226,' + (0.16 + 0.34 * (0.5 + 0.5 * anS)).toFixed(3) + ')';
 g.beginPath(); g.ellipse(cx, wdOy + wdR2 * 0.10, wdR2 * 0.70, wdR2 * 0.24, 0, 0, 6.29); g.fill();
 g.fillStyle = shade(col, 0.92);                             // house band across the equator
 g.fillRect(cx - wdR2, wdOy - 3, wdR2 * 2, 6);
@@ -117,7 +117,7 @@ for (var wdL = 0; wdL < wdSmall.length; wdL++) {
   var sxp = wdSmall[wdL][0], syp = wdSmall[wdL][1];
   var exp2 = cx + (sxp < cx ? -1 : 1) * wdR2 * 0.44, eyp = wdOy + wdR2 * 0.44;
   for (var wdP = 0; wdP < 2; wdP++) {
-    g.strokeStyle = wdP ? 'rgba(240,246,254,.92)' : 'rgba(208,222,250,.45)';
+    g.strokeStyle = wdP ? 'rgba(245,245,245,.92)' : 'rgba(208,222,250,.45)';
     g.lineWidth = wdP ? 1.2 : 3.6; g.lineJoin = 'round';
     g.beginPath(); g.moveTo(sxp, syp);
     for (var wdK = 1; wdK < 6; wdK++) {

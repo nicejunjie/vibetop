@@ -137,7 +137,7 @@ if (!sov) {
     // NEAR collar: dark ribbed steel
     bTube(hx, hy, SEC_N, 0.98, 1.0, '#40434d', '#8d95a8');
     for (ci = 1; ci < 5; ci++)
-      bHoop(hx, hy, SEC_N + (0.98 - SEC_N) * ci / 5, 1.005, 'rgba(232,240,252,.26)', 1.4);
+      bHoop(hx, hy, SEC_N + (0.98 - SEC_N) * ci / 5, 1.005, 'rgba(239,239,239,.26)', 1.4);
     // BROAD player straps: one at each section joint, two on the canvas.
     // This is the RA2 remap band on this building and the whole
     // friend/foe read at 1:1, so they are straps, not wires.
@@ -158,7 +158,7 @@ if (!sov) {
       var rth = ri / 8 * Math.PI;
       var pa = bpt(hx, hy, 1.02, Math.cos(rth) * 0.78, vRise * Math.sin(rth) * 0.78);
       var pb = bpt(hx, hy, 1.02, Math.cos(rth) * 0.78, 0);
-      g.strokeStyle = 'rgba(150,158,172,.24)'; g.lineWidth = 1.3;
+      g.strokeStyle = 'rgba(157,157,157,.24)'; g.lineWidth = 1.3;
       g.beginPath(); g.moveTo(pa[0], pa[1]); g.lineTo(pb[0], pb[1]); g.stroke();
     }
     // lit threshold: the doorway the infantry walk out of, breathing
@@ -403,7 +403,7 @@ if (!sov) {
   mach(cx + fw * 0.38, pyB + fh * 0.40, 13, 5.5);
   for (var stI = 0; stI < 2; stI++) {                   // vent steam, climbing
     var stT = ((bph || 0) + stI / 2) % 1;
-    g.fillStyle = 'rgba(214,220,226,' + (0.30 * (1 - stT)).toFixed(3) + ')';
+    g.fillStyle = 'rgba(219,219,219,' + (0.30 * (1 - stT)).toFixed(3) + ')';
     g.beginPath();
     g.ellipse(cx + fw * 0.38 - 3 - stT * 7, pyB + fh * 0.40 - 6 - stT * 15,
               3.4 + stT * 5, 2.2 + stT * 3.4, 0, 0, 6.29);

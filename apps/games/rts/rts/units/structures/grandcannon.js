@@ -90,7 +90,7 @@ g.beginPath(); g.ellipse(cx, domY + 8, domR * 1.02, 8.2, 0, 0, 6.29); g.fill();
 // near-right flank catches the light in one broad sweep
 g.fillStyle = GC_SPC;
 g.beginPath(); g.ellipse(cx + 5.4, domY - domH * 0.44, 6.6, domH * 0.40, -0.16, 0, 6.29); g.fill();
-g.fillStyle = 'rgba(228,235,248,.48)';
+g.fillStyle = 'rgba(234,234,234,.48)';
 g.beginPath(); g.ellipse(cx + 3.8, domY - domH * 0.54, 3.2, domH * 0.24, -0.16, 0, 6.29); g.fill();
 g.strokeStyle = 'rgba(20,24,36,.45)'; g.lineWidth = 1.1;
 g.beginPath(); g.ellipse(cx + 5.4, domY - domH * 0.44, 6.6, domH * 0.40, -0.16, 0, 6.29); g.stroke();

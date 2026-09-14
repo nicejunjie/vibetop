@@ -341,8 +341,8 @@
     "mass.tightestBand6": 1.499,
     "hue.infantryOwnerMean": 0.1927,
     "hue.infantryBelowBudget": 5,
-    "hue.vehicleOwnerMean": 0.1576,
-    "hue.vehicleOwnerMax": 0.2541,
+    "hue.vehicleOwnerMean": 0.157,
+    "hue.vehicleOwnerMax": 0.2545,
     "hue.maxImpostor": 0.1017,
     "aspect.navalOutsideRA2Band": 0,
     "aspect.navalWorstOffRA2": 0.19,
@@ -378,10 +378,10 @@
     "value.engineerLightPct": 0.0984,
     "value.engineerMarginOverNext": -0.0339,
     "colour.infantry.meanDist": 1.4103,
-    "colour.vehicle.meanDist": 0.9572,
+    "colour.vehicle.meanDist": 0.9584,
     "colour.vehicleAchromatic": 8,
-    "colour.naval.meanDist": 1.3376,
-    "colour.air.meanDist": 1.1582,
+    "colour.naval.meanDist": 1.3666,
+    "colour.air.meanDist": 1.167,
     "colour.navalDarkest": 0,
     "colour.airDarkest": 0.0449
   },
@@ -1071,52 +1071,52 @@
       {
         "a": "mammoth",
         "b": "v3",
-        "dist": 0.159
-      },
-      {
-        "a": "flaktrack",
-        "b": "prismtank",
-        "dist": 0.206
+        "dist": 0.219
       },
       {
         "a": "rhino",
         "b": "teslatank",
-        "dist": 0.211
+        "dist": 0.227
+      },
+      {
+        "a": "flaktrack",
+        "b": "prismtank",
+        "dist": 0.232
       },
       {
         "a": "drone",
         "b": "mcv",
-        "dist": 0.27
-      },
-      {
-        "a": "flaktrack",
-        "b": "v3",
-        "dist": 0.325
+        "dist": 0.272
       },
       {
         "a": "mammoth",
         "b": "flaktrack",
-        "dist": 0.33
+        "dist": 0.335
       },
       {
         "a": "mirage",
         "b": "rhino",
-        "dist": 0.355
+        "dist": 0.351
       },
       {
         "a": "lancer",
         "b": "drone",
-        "dist": 0.384
+        "dist": 0.382
       },
       {
         "a": "drone",
         "b": "prismtank",
-        "dist": 0.402
+        "dist": 0.412
       },
       {
         "a": "flaktrack",
-        "b": "drone",
-        "dist": 0.442
+        "b": "v3",
+        "dist": 0.44
+      },
+      {
+        "a": "mirage",
+        "b": "v3",
+        "dist": 0.446
       }
     ],
     "topImpostors": [
@@ -1130,11 +1130,7 @@
       },
       {
         "key": "warminer",
-        "pct": 0.0931
-      },
-      {
-        "key": "apc",
-        "pct": 0.0907
+        "pct": 0.0672
       },
       {
         "key": "engineer",
@@ -1149,13 +1145,17 @@
         "pct": 0.0509
       },
       {
+        "key": "rhino",
+        "pct": 0.0463
+      },
+      {
         "key": "conscript",
         "pct": 0.0462
       }
     ],
     "ownerPctByUnit": {
-      "chronominer": 0.1122,
-      "warminer": 0.1321,
+      "chronominer": 0.1117,
+      "warminer": 0.1319,
       "rifle": 0.1968,
       "conscript": 0.142,
       "rocket": 0.1239,
@@ -1164,30 +1164,30 @@
       "harrier": 0.21,
       "kirov": 0.2074,
       "lancer": 0.0936,
-      "mammoth": 0.065,
+      "mammoth": 0.0645,
       "engineer": 0.2237,
       "dog": 0.0839,
       "ifv": 0.0501,
-      "mirage": 0.2448,
+      "mirage": 0.2444,
       "tanya": 0.154,
-      "rhino": 0.1567,
-      "flaktrack": 0.2155,
-      "v3": 0.189,
+      "rhino": 0.156,
+      "flaktrack": 0.2151,
+      "v3": 0.1846,
       "teslatrooper": 0.1624,
       "ivan": 0.2782,
-      "drone": 0.2541,
-      "teslatank": 0.1304,
-      "prismtank": 0.1756,
+      "drone": 0.2545,
+      "teslatank": 0.1308,
+      "prismtank": 0.1739,
       "desolator": 0.2333,
       "yuri": 0.2688,
       "cleg": 0.25,
       "spy": 0.08,
-      "nighthawk": 0.0546,
-      "apc": 0.1354,
+      "nighthawk": 0.0389,
+      "apc": 0.1167,
       "destroyer": 0.1618,
       "aegis": 0.1055,
       "carrier": 0.1654,
-      "hornet": 0.2886,
+      "hornet": 0.2861,
       "dolphin": 0.127,
       "lcraft": 0.1568,
       "sub": 0.2042,
@@ -1197,40 +1197,40 @@
       "mcv": 0.2295
     },
     "chromaByUnit": {
-      "chronominer": 0.2775,
-      "warminer": 0.3414,
+      "chronominer": 0.2773,
+      "warminer": 0.341,
       "rifle": 0.3947,
       "conscript": 0.3281,
       "rocket": 0.2242,
       "flak": 0.1769,
       "rocketeer": 0.14,
-      "harrier": 0.0059,
+      "harrier": 0.0058,
       "kirov": 0.3147,
-      "lancer": 0.0865,
-      "mammoth": 0.1299,
+      "lancer": 0.0857,
+      "mammoth": 0.1305,
       "engineer": 0.2274,
       "dog": 0.6238,
       "ifv": 0.0523,
-      "mirage": 0.0388,
+      "mirage": 0.0387,
       "tanya": 0.3966,
-      "rhino": 0.0904,
-      "flaktrack": 0.0689,
-      "v3": 0.1248,
+      "rhino": 0.0911,
+      "flaktrack": 0.0685,
+      "v3": 0.1009,
       "teslatrooper": 0.0992,
       "ivan": 0.3129,
-      "drone": 0.1188,
-      "teslatank": 0.1489,
-      "prismtank": 0.0459,
+      "drone": 0.1187,
+      "teslatank": 0.1469,
+      "prismtank": 0.0452,
       "desolator": 0.1319,
       "yuri": 0.1862,
       "cleg": 0.1528,
       "spy": 0.1546,
-      "nighthawk": 0.1425,
-      "apc": 0.1529,
+      "nighthawk": 0.068,
+      "apc": 0.1231,
       "destroyer": 0.0761,
       "aegis": 0.0053,
       "carrier": 0.0002,
-      "hornet": 0.0195,
+      "hornet": 0.0201,
       "dolphin": 0,
       "lcraft": 0.0028,
       "sub": 0.0355,
@@ -3327,7 +3327,7 @@
         "ok": false,
         "measured": 12,
         "want": "fewest of the four aircraft, and no denser per px than a peer",
-        "note": "12 resolvable features on 91 opaque px = 13.2 per 100 px, against harrier 28 (5.2/100px), nighthawk 66 (7.9/100px), kirov 262 (4.3/100px). The row states no number and is a MAXIMUM, so it is read comparatively: the smallest airframe must carry the fewest parts outright AND must not be denser per pixel than an aircraft with room to spare. A feature is a 4-connected run of one colour quantised to 28 levels, >= 3 px — anything smaller is anti-aliasing.",
+        "note": "12 resolvable features on 91 opaque px = 13.2 per 100 px, against harrier 28 (5.2/100px), nighthawk 51 (6.1/100px), kirov 262 (4.3/100px). The row states no number and is a MAXIMUM, so it is read comparatively: the smallest airframe must carry the fewest parts outright AND must not be denser per pixel than an aircraft with room to spare. A feature is a 4-connected run of one colour quantised to 28 levels, >= 3 px — anything smaller is anti-aliasing.",
         "module": "naval-air.js",
         "refMatch": 1
       },
@@ -3386,7 +3386,7 @@
         "unit": "base",
         "clause": "[dir] house fraction 9-16%, trim only, never the hall roof",
         "ok": true,
-        "measured": "15.2%",
+        "measured": "15.1%",
         "want": "9-21% (doc 9-16%, ceiling widened by the palette-snap census drift — see HOUSE_CEIL)",
         "note": "census = isHouse over the whole sprite (the owner hue is derived in tools/lib/house-hue.js, no positional \"never the roof\" check — that half is unmeasurable without a labelled roof region)",
         "module": "structures.js",
@@ -3446,7 +3446,7 @@
         "unit": "power",
         "clause": "[col] exactly ONE orb held between exactly TWO masses (no fraction is stated)",
         "ok": true,
-        "measured": "1 crown blob(s), 63 house-coloured blob(s)",
+        "measured": "1 crown blob(s), 60 house-coloured blob(s)",
         "want": ">=1 crown blob (no fraction stated)",
         "note": "the row itself states no fraction — this checks only that a distinct crown mass exists, not the 1-orb/2-mass count, which needs shape (round vs masonry) this tool cannot tell",
         "module": "structures.js",
@@ -3576,7 +3576,7 @@
         "unit": "shipyard",
         "clause": "[dir] house colour on the deck kerb and the hut roofs, not on the crane",
         "ok": true,
-        "measured": "3016 house px",
+        "measured": "3005 house px",
         "want": ">0 house px (positional claim not checked)",
         "note": "same shape as barracks:col's house-location row above",
         "module": "structures.js",
@@ -3596,7 +3596,7 @@
         "unit": "shipyard",
         "clause": "[col] house colour on the deck kerb and the hut roofs, not on the crane",
         "ok": true,
-        "measured": "3020 house px",
+        "measured": "3017 house px",
         "want": ">0 house px (positional claim not checked)",
         "note": "same shape as barracks:col's house-location row above",
         "module": "structures.js",
@@ -3686,7 +3686,7 @@
         "unit": "radar",
         "clause": "[col] house colour on the ring collar, the wedge blocks and the hub crescent — never on the dish face",
         "ok": true,
-        "measured": "2123 house px",
+        "measured": "2091 house px",
         "want": ">0 house px (positional \"never on the dish face\" not checked)",
         "note": "",
         "module": "structures.js",
@@ -3766,7 +3766,7 @@
         "unit": "reactor",
         "clause": "[col] house fraction LOW — the reference reads 8%, paint on the vessel bands and rim beacons, never the brick",
         "ok": true,
-        "measured": "11.3%",
+        "measured": "11.4%",
         "want": "LOW, doc cites 8% (checked against a looser <=15% LOW band since our census convention differs from rts.html:18483's reading method)",
         "note": "want loosened to <=15% rather than the doc's literal 8%: this census (isHouse over the whole sprite) is not proven to match rts.html's own reading method 1:1, and a false-fail on a method difference would be dishonest in the other direction",
         "module": "structures.js",
@@ -3866,7 +3866,7 @@
         "unit": "tesla",
         "clause": "[col] house fraction ~40%, carried by the buttresses",
         "ok": true,
-        "measured": "30.2%",
+        "measured": "27.8%",
         "want": "~40% (+-8pp band, floor relaxed by the census drift — see HOUSE_CEIL)",
         "note": "this is the row that moves DOWNWARD with the deeper house colour (36.4 -> 33.9 -> 31.2 on unchanged art): the Tesla Coil is nearly all house paint, so taking the blue onto RA2's #1c3e8c pushed its shadowed buttress rows under isHouse's v >= 0.20 floor",
         "module": "structures.js",
@@ -4028,7 +4028,7 @@
         "ok": false,
         "measured": "3 house-coloured blob(s) >= 18 px",
         "want": "2 blobs",
-        "note": "14 raw house blobs, of which 9 are 2 px or smaller: palette-grid speckle on a near-white sprite, not remapped paint. Sizes: 254/159/24/12/8/2...",
+        "note": "10 raw house blobs, of which 5 are 2 px or smaller: palette-grid speckle on a near-white sprite, not remapped paint. Sizes: 254/159/24/12/8/2...",
         "module": "structures.js",
         "refMatch": 0.44
       },
@@ -4227,7 +4227,7 @@
         "unit": "teslatank",
         "clause": "gap between the coil columns >= 5 px so the pair reads as two",
         "ok": false,
-        "measured": "6/8 bearings resolve two columns, gaps [3,1,5,3,9,1]",
+        "measured": "5/8 bearings resolve two columns, gaps [1,1,1,3,1]",
         "want": ">= 4 of 8 bearings / every gap >= 5 px",
         "note": "copper is s >= 0.30 and hue 12-45, taken above the deck row that spikeOf's 'v' rule finds. The bearings that do NOT resolve two are the end-on pair, where a 2:1 iso camera projects one coil onto the other — geometry, not art, and no drawing can fix it. \"4 of 8 bearings\" is this file's reading of \"the pair reads as two\"; the row states no such number, only the 5 px",
         "module": "vehicle.js",
@@ -4257,9 +4257,9 @@
         "unit": "warminer",
         "clause": "bin >= 25% of body px",
         "ok": true,
-        "measured": 0.351,
+        "measured": 0.353,
         "want": ">= 0.25",
-        "note": "851 tan px (s >= 0.25, hue 28-65) of 2425 opaque, at the broadside octant. The denominator is every opaque pixel of the bbox, contact shadow included — the strictest reading of \"body px\" available without segmenting the shadow, and the one that cannot flatter the bin",
+        "note": "855 tan px (s >= 0.25, hue 28-65) of 2425 opaque, at the broadside octant. The denominator is every opaque pixel of the bbox, contact shadow included — the strictest reading of \"body px\" available without segmenting the shadow, and the one that cannot flatter the bin",
         "module": "vehicle.js",
         "refMatch": 1
       },

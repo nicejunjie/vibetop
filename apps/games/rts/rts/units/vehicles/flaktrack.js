@@ -50,7 +50,7 @@ if (wantH) {
          a, shade(hull, 1.10), dark);                       // cream cab roof
   var fwx = cx + fx * 8.0, fwy = by - 5.6 + fy * 8.0;
   isoBox(g, fwx, fwy, 1.3, wid * 0.52, 3.4, a, '#242a32', '#0f1216');  // windscreen
-  g.fillStyle = 'rgba(214,220,228,.32)';
+  g.fillStyle = 'rgba(219,219,219,.32)';
   g.beginPath();
   g.ellipse(fwx + fx * 0.4, fwy - 2.3 + fy * 0.4, 2.6, 1.1, 0, 0, 6.29); g.fill();
   for (sg = -1; sg <= 1; sg += 2) {

@@ -72,7 +72,7 @@ hquad(-HPO + 0.06, HPO - 0.06, -HPO + 0.06, HPO - 0.06, AFC_CON, null);   // dec
 g.save(); hquad(-HPO + 0.06, HPO - 0.06, -HPO + 0.06, HPO - 0.06, null, null); g.clip();
 srand(311);
 for (var afB = 0; afB < 9; afB++) {                  // worn concrete blotches
-  g.fillStyle = rnd() < 0.5 ? 'rgba(0,0,0,.13)' : 'rgba(214,212,190,.20)';
+  g.fillStyle = rnd() < 0.5 ? 'rgba(0,0,0,.13)' : 'rgba(210,210,210,.20)';
   var ab = hp(rnd() * 1.3 - 0.65, rnd() * 1.3 - 0.65);
   g.beginPath(); g.ellipse(ab[0], ab[1], 5 + rnd() * 6, 2.4 + rnd() * 2.4, 0, 0, 6.29); g.fill();
 }
@@ -224,7 +224,7 @@ g.fillStyle = '#a0a0a0';
 g.beginPath(); g.ellipse(afFx, afFy - 2.4, 9.6, 4.2, 0, 0, 6.29); g.fill();
 g.strokeStyle = 'rgba(30,34,42,.42)'; g.lineWidth = 1;
 g.beginPath(); g.ellipse(afFx, afFy - 2, 12.2, 5.4, 0, 0, 6.29); g.stroke();
-g.strokeStyle = 'rgba(230,238,250,.60)'; g.lineWidth = 1.6;   // the sweep, turning
+g.strokeStyle = 'rgba(237,237,237,.60)'; g.lineWidth = 1.6;   // the sweep, turning
 g.beginPath(); g.moveTo(afFx, afFy - 2.2);
 g.lineTo(afFx + Math.cos(anP) * 16.6, afFy - 2.2 + Math.sin(anP) * 7.4); g.stroke();
 g.fillStyle = '#dadada';
@@ -244,7 +244,7 @@ g.fillStyle = AFC_DKL;
 g.fillRect(abx - abH * 0.40, afRy + abV * 0.44, 7, 5); outline(g, AFC_DKD);
 g.fillStyle = shade(col, 0.90); g.fillRect(abx - abH * 0.40, afRy + abV * 0.44 - 1.6, 7, 1.8);
 railing(g, abx - abH * 0.86, afRy + abV * 0.86, abx - abH * 0.14, afRy + abV * 0.14,
-        5, 'rgba(176,184,196,.55)');
+        5, 'rgba(183,183,183,.55)');
 
 // ---- control tower: house torus, glass cab, scanner coil -----------
 var ctx2 = abx - fw * 0.12, cty = afRy + 5, ctR = 13, ctH = 42;
