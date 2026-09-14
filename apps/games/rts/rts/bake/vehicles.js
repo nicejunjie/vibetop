@@ -197,7 +197,15 @@ function bakeVehicle(col, kind, fac, anim) {
   // The Apocalypse carries a neutral charcoal shadow instead of a warm
   // olive one. It keeps the recesses and gun housings visually cold while
   // the mid-tone hull remains a restrained Soviet olive.
-  var dark = kind === 'mammoth' ? '#1f1f1f' : shade(hull, 0.40);
+  // AND THE EDGE COLOUR IS WHERE MOST OF THE GREY LIVES. `dark` is the side and
+  // edge of nearly every box on a vehicle, so whatever it snaps to is the
+  // single biggest block of shadow on the sprite. For most units it is
+  // shade(hull, 0.40), which keeps the hull's hue — an olive hull gives
+  // #333300. The Apocalypse was the exception, hard-coded #1f1f1f, which snaps
+  // to #333333: 292 px of flat GREY shadow on an olive tank, its largest drab
+  // block by a factor of two. 38/38/15 is the same value carried in the tank's
+  // own hue and lands on #333300 instead.
+  var dark = kind === 'mammoth' ? '#26260f' : shade(hull, 0.40);
   var turreted = kind === 'lancer' || kind === 'spectre' || kind === 'mammoth' ||
                  kind === 'ifv' || kind === 'rhino' || kind === 'flaktrack';
   // Deck height the turret ring stands on — per kind, facing-independent.
@@ -783,7 +791,17 @@ function bakeVehicle(col, kind, fac, anim) {
       for (var q = -1; q <= 1; q += 2)
         isoBox(g, cx + fx * fu + px * fo * q, by - fh + fy * fu + py * fo * q,
                fl, fw, kind === 'mammoth' ? 1.3 : 1.7, a,
-               kind === 'mammoth' ? '#5d5d5d' : STEEL, '#282c33');
+               // A SHADOW IS THE OBJECT'S OWN COLOUR, DARKER — NOT GREY. The
+               // Apocalypse's track guards run the full length of both flanks
+               // and were #5d5d5d, a flat neutral; marked on the sprite they
+               // are most of its 48.7% drab-grey share, a dusty band down each
+               // side of an olive tank. apocalypse.png's guards are warm —
+               // #cecfb5 and #949273 in the rip — so this is the same value
+               // (luma 98 against 93) carried in the tank's OWN hue, which on
+               // this grid lands #666633 instead of #333333. The edge was
+               // #282c33, 40/44/51, one more blue-tinted near-black throwing
+               // #003333.
+               kind === 'mammoth' ? '#64644a' : STEEL, '#2b2b2b');
     }
     // The three fitments every vehicle carries, so the fleet reads as one
     // design language: a hatch ring on the deck, a headlamp at the nose, a

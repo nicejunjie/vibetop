@@ -341,7 +341,7 @@
     "mass.tightestBand6": 1.557,
     "hue.infantryOwnerMean": 0.1927,
     "hue.infantryBelowBudget": 5,
-    "hue.vehicleOwnerMean": 0.153,
+    "hue.vehicleOwnerMean": 0.1532,
     "hue.vehicleOwnerMax": 0.2547,
     "hue.maxImpostor": 0.1017,
     "aspect.navalOutsideRA2Band": 0,
@@ -378,7 +378,7 @@
     "value.engineerLightPct": 0.0984,
     "value.engineerMarginOverNext": -0.0339,
     "colour.infantry.meanDist": 1.4103,
-    "colour.vehicle.meanDist": 1.0293,
+    "colour.vehicle.meanDist": 1.0332,
     "colour.vehicleAchromatic": 6,
     "colour.naval.meanDist": 1.3667,
     "colour.air.meanDist": 1.2244,
@@ -1071,17 +1071,17 @@
       {
         "a": "mammoth",
         "b": "teslatank",
-        "dist": 0.159
+        "dist": 0.129
+      },
+      {
+        "a": "mammoth",
+        "b": "rhino",
+        "dist": 0.168
       },
       {
         "a": "lancer",
         "b": "drone",
         "dist": 0.199
-      },
-      {
-        "a": "mammoth",
-        "b": "rhino",
-        "dist": 0.203
       },
       {
         "a": "flaktrack",
@@ -1092,11 +1092,6 @@
         "a": "chronominer",
         "b": "warminer",
         "dist": 0.371
-      },
-      {
-        "a": "mammoth",
-        "b": "mirage",
-        "dist": 0.408
       },
       {
         "a": "mirage",
@@ -1112,6 +1107,11 @@
         "a": "warminer",
         "b": "rhino",
         "dist": 0.454
+      },
+      {
+        "a": "warminer",
+        "b": "teslatank",
+        "dist": 0.454
       }
     ],
     "topImpostors": [
@@ -1125,7 +1125,7 @@
       },
       {
         "key": "mammoth",
-        "pct": 0.0724
+        "pct": 0.0777
       },
       {
         "key": "engineer",
@@ -1159,7 +1159,7 @@
       "harrier": 0.21,
       "kirov": 0.2074,
       "lancer": 0.0932,
-      "mammoth": 0.0639,
+      "mammoth": 0.0655,
       "engineer": 0.2237,
       "dog": 0.0839,
       "ifv": 0.063,
@@ -1202,7 +1202,7 @@
       "harrier": 0.0058,
       "kirov": 0.3147,
       "lancer": 0.0361,
-      "mammoth": 0.1804,
+      "mammoth": 0.1913,
       "engineer": 0.2274,
       "dog": 0.6238,
       "ifv": 0.0813,
