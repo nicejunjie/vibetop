@@ -87,7 +87,15 @@ function bakeVehicle(col, kind, fac, anim) {
   var hull, deck;
   if (kind === 'lancer')       { hull = '#6b6b6b'; deck = '#454545'; }   // pale steel with a dark top, as allied-grizzly-tank.png (VLIFT lifts it)
   else if (kind === 'spectre') { hull = '#4f4f4f'; deck = '#333333'; }   // dark gunmetal, as allied-prism-tank.png
-  else if (kind === 'mammoth') { hull = '#5a5a4b'; deck = '#35352c'; }   // cold olive; low value and hard plane separation keep the Apocalypse severe
+  // THE DECK WAS BAKING PURE GREY. #35352c is 53/53/44, and on this grid 44
+  // rounds to the SAME cell as 53 — so the Apocalypse's largest visible surface
+  // came out #333333 and the tank measured 76% grey against 9% olive, which is
+  // why she read as a grey slab beside a rip that is unmistakably olive-green.
+  // The fix is the one this file already documents for browns: push the low
+  // channel DOWN off the grid's first step so the hue survives the snap.
+  // 53/53/20 lands on #333300, a dark olive, and the hull's #5a5a4b already
+  // lands on #666633.
+  else if (kind === 'mammoth') { hull = '#5a5a4b'; deck = '#353514'; }   // cold olive; low value and hard plane separation keep the Apocalypse severe
   else if (kind === 'ifv')     { hull = '#9b9b9b'; deck = '#8d8d8d'; }   // pale silver body, as the [FV] voxel render (VLIFT lifts it)
   else if (kind === 'mirage')  { hull = '#474747'; deck = '#2b2b2b'; }   // dark slate, as mirage.png
   else if (kind === 'rhino')     { hull = '#8a8a70'; deck = '#5a5a3c'; } // restrained olive gunmetal, as rhino.png; avoid the washed-out toy dome

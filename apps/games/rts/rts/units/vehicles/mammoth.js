@@ -85,22 +85,29 @@ if (wantH) {
   // The four shoulder blocks are low and separated in both axes. They
   // carry the Soviet remap without turning the side skirt into a red
   // ribbon or a row of tall silos.
+  // TWO DRUMS, NOT FOUR BLOCKS, AND THEY ARE THE SIZE OF DRUMS.
+  // `mammoth-voxel.jpg` carries this tank's owner colour in exactly two places:
+  // a broad RED BAND across the front of the turret, and TWO FAT RED CYLINDERS
+  // sitting on the after deck, side by side and clear of everything — the SAM
+  // packs, and the single loudest thing on the vehicle. Ours spent the same
+  // budget on FOUR small shoulder blocks low on the skirts, which at map size
+  // is four red pixels in a row and names nothing. Two, twice the size, up on
+  // the deck where the reference puts them.
   var mmPods = [];
-  for (mmS = -1; mmS <= 1; mmS += 2)
-    for (i2 = 0; i2 < 2; i2++) {
-      var mmCu = -mmLen * 0.23 - i2 * mmLen * 0.19;
-      var mmCv = mmS * wid * 0.25;
-      mmPods.push([cx + fx * mmCu + px * mmCv,
-                   by - 5.35 + fy * mmCu + py * mmCv]);
-    }
+  for (mmS = -1; mmS <= 1; mmS += 2) {
+    var mmCu = -mmLen * 0.30;
+    var mmCv = mmS * wid * 0.26;
+    mmPods.push([cx + fx * mmCu + px * mmCv,
+                 by - 7.60 + fy * mmCu + py * mmCv]);
+  }
   mmPods.sort(function (m, n) { return m[1] - n[1]; });
   for (i2 = 0; i2 < mmPods.length; i2++) {
-    isoBox(g, mmPods[i2][0], mmPods[i2][1], mmLen * 0.13, 1.32, 1.60, a,
+    isoBox(g, mmPods[i2][0], mmPods[i2][1], mmLen * 0.19, 2.35, 2.70, a,
            dark, PEDGE);
-    isoBox(g, mmPods[i2][0], mmPods[i2][1], mmLen * 0.11, 1.10, 1.24, a,
-           shade(panel, 0.56), dark);
-    isoBox(g, mmPods[i2][0] - fx * 0.08, mmPods[i2][1] - fy * 0.08,
-           mmLen * 0.055, 0.66, 0.20, a, shade(panel, 0.84), dark);
+    isoBox(g, mmPods[i2][0], mmPods[i2][1], mmLen * 0.165, 2.05, 2.35, a,
+           panel, dark);
+    isoBox(g, mmPods[i2][0] - fx * 0.10, mmPods[i2][1] - fy * 0.10,
+           mmLen * 0.10, 1.20, 0.34, a, shade(panel, 1.22), dark);
   }
 }
 if (wantT) {

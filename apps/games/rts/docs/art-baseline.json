@@ -328,8 +328,8 @@
     "peerVsSelf.infantry": 0,
     "peerVsSelf.naval": 2,
     "peerVsSelf.air": 0,
-    "iou.groundCombat.mean": 0.6052,
-    "iou.vehicle.mean": 0.5412,
+    "iou.groundCombat.mean": 0.6061,
+    "iou.vehicle.mean": 0.542,
     "iou.infantry.mean": 0.5124,
     "iou.naval.mean": 0.3609,
     "iou.air.mean": 0.1544,
@@ -337,11 +337,11 @@
     "spike.belowFloor": 2,
     "spike.minThickAtZmin": 1.1,
     "spike.belowDeclaredBudget": 5,
-    "mass.groundCombatSpan": 1.964,
+    "mass.groundCombatSpan": 1.951,
     "mass.tightestBand6": 1.425,
     "hue.infantryOwnerMean": 0.1936,
     "hue.infantryBelowBudget": 5,
-    "hue.vehicleOwnerMean": 0.1528,
+    "hue.vehicleOwnerMean": 0.1541,
     "hue.vehicleOwnerMax": 0.2702,
     "hue.maxImpostor": 0.1017,
     "aspect.navalOutsideRA2Band": 0,
@@ -378,7 +378,7 @@
     "value.engineerLightPct": 0.0984,
     "value.engineerMarginOverNext": -0.0339,
     "colour.infantry.meanDist": 1.4146,
-    "colour.vehicle.meanDist": 1.0479,
+    "colour.vehicle.meanDist": 1.0481,
     "colour.vehicleAchromatic": 7,
     "colour.naval.meanDist": 1.3376,
     "colour.air.meanDist": 1.1582,
@@ -522,21 +522,21 @@
         "bestPeer": "Rhino Tank",
         "bestPeerIoU": 0.8402,
         "nearestPeer": "Apocalypse",
-        "nearestPeerMMD2": -0.0683,
+        "nearestPeerMMD2": -0.0645,
         "peersBeatingSelf": 2
       },
       "mammoth": {
         "group": "vehicle",
         "aspect": 2.308,
-        "selfIoU": 0.5293,
-        "selfIoUCross": 0.5293,
+        "selfIoU": 0.5269,
+        "selfIoUCross": 0.5269,
         "broadsideAspect": 2.308,
         "ra2Aspect": 1.735,
         "vsRA2": 1.33,
         "bestPeer": "Grizzly Tank",
-        "bestPeerIoU": 0.8285,
+        "bestPeerIoU": 0.8093,
         "nearestPeer": "Grizzly Tank",
-        "nearestPeerMMD2": -0.0683,
+        "nearestPeerMMD2": -0.0645,
         "peersBeatingSelf": 2
       },
       "engineer": {
@@ -690,7 +690,7 @@
         "bestPeer": "Rhino Tank",
         "bestPeerIoU": 0.3117,
         "nearestPeer": "Apocalypse",
-        "nearestPeerMMD2": 0.5862,
+        "nearestPeerMMD2": 0.6,
         "peersBeatingSelf": 0
       },
       "teslatank": {
@@ -962,7 +962,7 @@
     },
     "iouGroups": {
       "vehicle": {
-        "mean": 0.5412,
+        "mean": 0.542,
         "pairs": 78,
         "max": 0.8402,
         "over75": 6
@@ -986,7 +986,7 @@
         "over75": 0
       },
       "groundCombat": {
-        "mean": 0.6052,
+        "mean": 0.6061,
         "pairs": 36,
         "max": 0.8402,
         "over75": 4
@@ -1002,7 +1002,7 @@
       {
         "a": "Apocalypse",
         "b": "Rhino Tank",
-        "iou": 0.7635
+        "iou": 0.7638
       },
       {
         "a": "Engineer",
@@ -1071,17 +1071,12 @@
       {
         "a": "mammoth",
         "b": "v3",
-        "dist": 0.136
+        "dist": 0.159
       },
       {
         "a": "warminer",
         "b": "teslatank",
         "dist": 0.343
-      },
-      {
-        "a": "mammoth",
-        "b": "flaktrack",
-        "dist": 0.367
       },
       {
         "a": "drone",
@@ -1097,6 +1092,11 @@
         "a": "flaktrack",
         "b": "v3",
         "dist": 0.412
+      },
+      {
+        "a": "mammoth",
+        "b": "flaktrack",
+        "dist": 0.416
       },
       {
         "a": "flaktrack",
@@ -1159,7 +1159,7 @@
       "harrier": 0.21,
       "kirov": 0.2074,
       "lancer": 0.0496,
-      "mammoth": 0.0482,
+      "mammoth": 0.065,
       "engineer": 0.2237,
       "dog": 0.0839,
       "ifv": 0.0501,
@@ -1202,7 +1202,7 @@
       "harrier": 0.0059,
       "kirov": 0.3147,
       "lancer": 0.0879,
-      "mammoth": 0.1196,
+      "mammoth": 0.1299,
       "engineer": 0.2274,
       "dog": 0.6238,
       "ifv": 0.0523,
@@ -4212,7 +4212,7 @@
         "unit": "mammoth",
         "clause": "each canister >= 6x6 px and individually countable (gaps >= 2 px)",
         "ok": false,
-        "measured": "1 at oct 4 [9x6], tightest gap 0 px (gated oct 3: 0)",
+        "measured": "1 at oct 0 [6x5], tightest gap 0 px (gated oct 3: 1)",
         "want": "4 canisters >= 6x6 / gaps >= 2",
         "note": "FOUR drums are drawn, 2x2 on the rear deck, and FOUR is what the row asks a player to be able to count. A canister is a house component >= 6x6 that is a STANDING CYLINDER (h >= 1.5w): the drums are drawn at 9.6 units of height on 4.0 of width and an isolated one bakes 11x22 = 2.0, while every house PLATE on this hull is 1.29 or flatter — the previous check counted those plates as canisters and passed on the fused build this row exists to catch. Counted at the bearing that resolves them BEST over all eight, because at the gated bearing (3) one drum bakes 4 px of its own and four can never be countable there. UNMET TODAY AND IT IS A REAL FINDING, not a strictness artefact: the 2026-09-06 pass split the LEFT/RIGHT pair and left the NEAR/FAR pair fused, so all eight bearings resolve at most TWO columns, each of them two drums blended into one. It is the same anti-aliasing fusion as before, one axis over — a 1-1.5 px seam between two owner-hued edges blends to something still owner-hued and the mask bridges it — and the lever is the same: more separation along the hull axis (`cu`), or a seam dark enough to survive the bake. NO ART WAS CHANGED HERE; this pass only made the check say what the row says",
         "module": "vehicle.js",
@@ -4754,7 +4754,7 @@
         "bestPeer": "Rhino Tank",
         "bestPeerIoU": 0.3117,
         "nearestPeer": "Apocalypse",
-        "nearestPeerMMD2": 0.5862,
+        "nearestPeerMMD2": 0.6,
         "peersBeatingSelf": 0,
         "peers": 12,
         "spike": {
@@ -5060,7 +5060,7 @@
         "bestPeer": "Rhino Tank",
         "bestPeerIoU": 0.8402,
         "nearestPeer": "Apocalypse",
-        "nearestPeerMMD2": -0.0683,
+        "nearestPeerMMD2": -0.0645,
         "peersBeatingSelf": 2,
         "peers": 12,
         "spike": {
@@ -5113,29 +5113,29 @@
         "name": "Apocalypse",
         "group": "vehicle",
         "fac": "col",
-        "mass": 1004,
+        "mass": 1029,
         "bboxW": 60,
         "bboxH": 42,
-        "aspect": 1.581,
+        "aspect": 1.567,
         "broadsideWH": "60x26",
         "broadsideAspect": 2.308,
         "ra2Aspect": 1.735,
         "vsRA2": 1.33,
-        "selfIoU": 0.5293,
-        "selfIoUCross": 0.5293,
+        "selfIoU": 0.5269,
+        "selfIoUCross": 0.5269,
         "bestPeer": "Grizzly Tank",
-        "bestPeerIoU": 0.8285,
+        "bestPeerIoU": 0.8093,
         "nearestPeer": "Grizzly Tank",
-        "nearestPeerMMD2": -0.0683,
+        "nearestPeerMMD2": -0.0645,
         "peersBeatingSelf": 2,
         "peers": 12,
         "spike": {
           "axis": "h",
-          "len": 16,
-          "thick": 11,
+          "len": 18,
+          "thick": 12,
           "budget": 3.64,
           "floor": 3.64,
-          "atZmin": 6.05,
+          "atZmin": 6.6,
           "floorAtZmin": 2,
           "lenBudget": 19,
           "fails": "short",
