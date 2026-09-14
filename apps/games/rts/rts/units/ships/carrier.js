@@ -43,8 +43,44 @@ var fpoly = function (z, fill, line) {
   if (line) { g.strokeStyle = line; g.lineWidth = 0.9; g.stroke(); }
 };
 fpoly(FR + 0.6, shade(HULL, 0.42));                               // the overhang's shadow
-fpoly(FR + 2.6, shade(DECK, 1.06), shade(HULL, 1.30));            // the flight deck
+fpoly(FR + 2.6, shade(DECK, 1.06), '#cdd3db');                     // the flight deck, edge coaming catching the sky
 g.save(); fpoly(FR + 2.6, null, null); g.clip();
+// DECK PLATING. Measured against the rip: RA2's carrier spends its pixels
+// across the WHOLE value range, biggest bucket 21.7%. Ours put 63% of the
+// ship in one bucket, because the flight deck is a single huge polygon filled
+// with a single tone — and one tone over half a sprite is the definition of
+// "no metal", whatever is drawn on top of it. A steel deck is PLATES, laid in
+// strakes, each catching the light a little differently and each showing its
+// own wear; RA2 renders that as broad flat value blocks, not as noise.
+//
+// Six transverse bands, drawn wider than the deck and clipped to it, so they
+// follow the round-down and the bow taper for free. The values are spaced far
+// enough apart to survive the 6-level palette snap — closer than about 0.12
+// and neighbouring bands land on the same cube corner and the whole thing
+// reverts to one tone.
+// THE GRID DECIDES WHICH FACTORS ARE REAL. `pixelate` snaps every channel to
+// 0/51/102/153/204/255, so on the old #2e2e2e deck all seven of these bands
+// rounded to #333333 and the deck came out a single tone with 59.7% of the
+// ship in it — the plating was drawn and then quantised away. Values must be
+// chosen as GRID CELLS, not as ratios: on a #5c5c5c deck 1.11 lands on 102,
+// 0.55 on 51, 1.66 on 153 and 0.20 on 0. Mostly one tone with two darker
+// plates and a bright strake is what a laid steel deck looks like; an even
+// alternation is a zebra.
+var DPAN = [1.11, 0.55, 1.11, 1.11, 0.55];
+for (var pb = 0; pb < DPAN.length; pb++) {
+  var pu0 = L * (1.06 - pb * 0.44), pu1 = pu0 - L * 0.44;
+  var k0 = P(pu0, W * 2.4, FR + 2.6), k1 = P(pu1, W * 2.4, FR + 2.6);
+  var k2 = P(pu1, -W * 2.4, FR + 2.6), k3 = P(pu0, -W * 2.4, FR + 2.6);
+  g.fillStyle = shade(DECK, DPAN[pb]);
+  g.beginPath(); g.moveTo(k0[0], k0[1]); g.lineTo(k1[0], k1[1]);
+  g.lineTo(k2[0], k2[1]); g.lineTo(k3[0], k3[1]); g.closePath(); g.fill();
+  // the seam between two plates: one hard dark line, not a blend
+  g.strokeStyle = shade(DECK, 0.20); g.lineWidth = 0.7;
+  g.beginPath(); g.moveTo(k0[0], k0[1]); g.lineTo(k3[0], k3[1]); g.stroke();
+}
+// NO LONGITUDINAL STRAKES. Two of them crossing the transverse plates turned
+// the deck into a tiled bathroom floor — a regular grid is the one thing a
+// laid steel deck never looks like at this scale. The plates run one way only.
 g.strokeStyle = '#d9dde2'; g.lineWidth = 1.4;
 for (var ci = 0; ci < 9; ci++) {                                  // dashed centreline
   var cu0 = L * (0.80 - ci * 0.185), cu1 = cu0 - L * 0.10;

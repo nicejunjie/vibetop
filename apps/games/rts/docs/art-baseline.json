@@ -1,6 +1,6 @@
 {
   "_": "Recorded by apps/games/rts/tools/art-metrics.js — do not hand-edit except to RE-RECORD after a deliberate art improvement (node apps/games/rts/tools/art-metrics.js --record). `metrics` is ratcheted by apps/games/rts/rts-art.test.js: a regression fails, and so does an improvement, which is what makes progress stick. `detail` is informational only.",
-  "recorded": "2026-09-13",
+  "recorded": "2026-09-14",
   "env": {
     "dpr": 1,
     "zoom": 1,
@@ -380,7 +380,7 @@
     "colour.infantry.meanDist": 1.4073,
     "colour.vehicle.meanDist": 0.8653,
     "colour.vehicleAchromatic": 6,
-    "colour.naval.meanDist": 1.0093,
+    "colour.naval.meanDist": 1.0091,
     "colour.air.meanDist": 1.134,
     "colour.navalDarkest": 0,
     "colour.airDarkest": 0.0428
@@ -1186,7 +1186,7 @@
       "apc": 0.1356,
       "destroyer": 0.2709,
       "aegis": 0.1007,
-      "carrier": 0.1685,
+      "carrier": 0.1789,
       "hornet": 0.2998,
       "dolphin": 0.159,
       "lcraft": 0.0386,
@@ -1229,7 +1229,7 @@
       "apc": 0.1544,
       "destroyer": 0.0398,
       "aegis": 0.0595,
-      "carrier": 0.0146,
+      "carrier": 0.0137,
       "hornet": 0.035,
       "dolphin": 0.0002,
       "lcraft": 0.0161,
