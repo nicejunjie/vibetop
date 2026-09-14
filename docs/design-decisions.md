@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_298 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_299 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
 - [Scheduled terminal messages ("resume when the token limit resets")](#scheduled-terminal-messages-resume-when-the-token-limit-resets)
@@ -321,6 +321,7 @@ _298 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [The Browser stole the keyboard from whatever app you were using, because "active" meant two things (2026-09-13)](#the-browser-stole-the-keyboard-from-whatever-app-you-were-using-because-active-meant-two-things-2026-09-13)
 - [Shifted punctuation needs two presses inside Claude Code — what it is NOT (2026-09-13, open)](#shifted-punctuation-needs-two-presses-inside-claude-code-what-it-is-not-2026-09-13-open)
 - [The Files listing showed "just now" an hour later: the clock only ticked when the disk did (2026-09-13)](#the-files-listing-showed-just-now-an-hour-later-the-clock-only-ticked-when-the-disk-did-2026-09-13)
+- [The usage strip's ✕ moved to the left, because on the right it looked like a window's (2026-09-13)](#the-usage-strips-moved-to-the-left-because-on-the-right-it-looked-like-a-windows-2026-09-13)
 
 <!-- END TOC -->
 
@@ -13517,3 +13518,38 @@ from the same node ten minutes later; an unchanged label is not rewritten
 screen readers); `exact` skips everything; rows resolve by `dataset.i`; a
 folder gets no size half; and one assertion on the shipped `filesx.html` that
 the page actually runs the tick, because the formatting was never the bug.
+
+## The usage strip's ✕ moved to the left, because on the right it looked like a window's (2026-09-13)
+
+**Symptom.** With floating windows on, the Claude/Codex usage strip is a
+full-width bar sitting directly above them, and its dismiss ✕ was in its
+top-right corner — the same corner, on the same vertical line, as the ✕ of
+every window below it. Two ✕ in a column, a few pixels apart, that do entirely
+different things: one closes one window, the other turns the usage feature
+**off on every device the user owns** (there is no per-tab hide, by design —
+see the entry on the strip toggle). The user reported them as easy to mix up.
+
+**Cause.** Both were placed by the same instinct ("close goes top-right") in
+different files, months apart, and the collision only exists in window mode,
+which is a taskbar toggle rather than the default.
+
+**Fix.** `.cu-strip .cu-x` is pinned `left: 5px` instead of `right: 5px`, and
+the strip's reserved gutter swaps with it (`padding: 4px 10px 4px 30px`) so the
+"Claude" brand does not slide under the out-of-flow ✕. The total horizontal
+padding is unchanged at 40px, so no metric column, bar or reset time moves by a
+pixel. The 340px phone rule that used to shave `padding-left` now shaves
+`padding-right` — same few pixels, taken from the side that is now free.
+
+**Rejected: keep the corner and make the strip's ✕ look different** (colour,
+size, an icon instead of a glyph). Two controls one line apart that mean
+different things should not be told apart by their styling; position is the
+only cue that survives a glance, a phone screen and a colourblind user.
+
+**Rejected: drop the strip's ✕ and leave only the Start-menu toggle.** The ✕ is
+how the strip is discoverable as dismissible at all; removing it trades a
+mix-up for a dead end.
+
+**Test.** `shell/usage-strips.test.js` — two cases, both proven red against the
+pre-change `desktop.html`: the `.cu-x` rule sets `left` and not `right`, the
+window titlebar still closes last-in-flex (i.e. rightmost), the reserved gutter
+is on the ✕'s own side, and the 340px media query does not claw it back.

@@ -233,3 +233,38 @@ test('the Codex strip surfaces the server note', () => {
   assert.match(nodes['cx-strip'].innerHTML, /account unreachable/);
   assert.doesNotMatch(nodes['cx-strip'].innerHTML, /waiting for first/);
 });
+
+test('the strip ✕ is on the LEFT, the opposite side from every window close (2026-09-13)', () => {
+  // Floating windows close at their top-RIGHT. The usage strip is full-width
+  // and sits directly above them, so a ✕ in ITS top-right read as one of
+  // theirs — except that it turns the feature off on every device the user
+  // owns, not just this window. Opposite corner, opposite meaning.
+  const x = shell.match(/\.cu-strip \.cu-x \{[^}]*\}/);
+  assert.ok(x, '.cu-strip .cu-x rule must be present');
+  assert.match(x[0], /\bleft:\s*\d/, 'the strip ✕ must be pinned to the left');
+  assert.doesNotMatch(x[0], /\bright:\s*\d/, 'and never to the right');
+
+  // The window close button it must not be confused with is still on the right:
+  // it is the LAST control in a flex titlebar whose name flexes to fill.
+  assert.match(shell, /\.win-titlebar \.wt-name \{ flex: 1 1 auto;/);
+  assert.match(shell, /wt-min[\s\S]{0,80}wt-max[\s\S]{0,80}wt-close/,
+    'close stays last in the titlebar control order (i.e. rightmost)');
+});
+
+test('the ✕ gutter is reserved on the side the ✕ is actually on', () => {
+  // The ✕ is out of flow, so without padding on its own side the brand text
+  // slides under it. Both paddings are checked because they were swapped as a
+  // pair — 40px total either way, so no metric column moves.
+  const base = shell.match(/\.cu-strip \{[^}]*\}/);
+  assert.ok(base, '.cu-strip rule must be present');
+  const pad = base[0].match(/padding:\s*(\d+)px\s+(\d+)px\s+(\d+)px\s+(\d+)px/);
+  assert.ok(pad, '.cu-strip must set a four-value padding');
+  assert.ok(+pad[4] >= 26, `left gutter must seat the ✕, got ${pad[4]}px`);
+  assert.ok(+pad[2] <= 12, `right side no longer reserves a gutter, got ${pad[2]}px`);
+
+  // ...and the narrowest-phone rule must not claw that gutter back.
+  const narrow = shell.match(/@media \(max-width: 340px\) \{[\s\S]*?\n  \}/);
+  assert.ok(narrow, 'the 340px media query must be present');
+  assert.doesNotMatch(narrow[0], /\.cu-strip \{ padding-left/,
+    'shrinking padding-left on a phone would put the brand under the ✕');
+});
