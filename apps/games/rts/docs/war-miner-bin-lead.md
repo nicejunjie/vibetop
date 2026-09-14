@@ -37,3 +37,39 @@ constraints and produced a worse sprite (bin enlarged to ~70% of the frame in
 saturated orange, cab shrunk to a cluster) while reporting all gates green and
 "visually inspected all eight bearings". Its output was reverted. Render and
 look before believing a delegated report on art.
+
+---
+
+# The structures' teal, and why the obvious sweep is wrong
+
+Scanned `rts/bake/{buildings,civ,walls}.js` and all 27 `rts/units/structures/*`
+against the shade ladder: **313 literals** land on the teal diagonal, across 29
+files. Worst offenders by count: `base.js` 51, `power.js` 41, `civ.js` 24,
+`barracks.js` 24, `depot.js` 21. Worst single colour: `civ.js` `#3f5460`
+(63/84/96), teal at 37 of 80 rungs.
+
+**Do not blanket-neutralise them.** I tried it — 167 replacements over the 25
+combat-structure files, excluding `civ.js` and `weather.js` — and it took
+`clause.unmetStructures` from 1 to 2.
+
+The reason is worth knowing before anyone tries again. `tools/clause-checks/
+structures.js` detects house colour as:
+
+    s >= 0.25 && v >= 0.20 && hueGap(h, 197) <= 20
+
+Hue 197 is a cyan-blue. Those blue-grey structure literals were being counted as
+the OWNER'S COLOUR by the clause checker, so some building was meeting its
+house-colour minimum on colours that are not the owner's at all. Neutralising
+them removed the teal and the accidental house colour together, and the building
+fell under its floor.
+
+So there are really two defects stacked here:
+
+1. structure literals that bake teal, and
+2. at least one structure whose house-colour clause passes on accidental
+   blue-grey rather than on `panel`/the owner's hue.
+
+Fixing (1) alone breaks (2)'s clause. The right order is to find which building
+depends on the accident — render each one and look, rather than trusting the
+count — give it real owner colour, and only then neutralise. That needs a
+session with room to render 25 buildings.
