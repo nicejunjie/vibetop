@@ -60,7 +60,33 @@ function drawSub(C) {
            [-L * 0.72, v, FR * 0.72],                    // the after point
            [-L * 0.44, v, FR * 1.04],
            [-L * 0.12, v, FR * 1.12],
-           [ L * 0.24, v, FR * 1.08]], HOUSE);
+           [ L * 0.24, v, FR * 1.08]], HL);
+    // AND IT NEEDS AN EDGE. Filled in HOUSE it bakes #990000 against a #333333
+    // casing — two dark masses touching, which is why it still read as a
+    // painted band rather than as a body slung under the boat. The lit house
+    // colour for the mass and a hard dark line round it makes it an OBJECT.
+    (function () {
+      var O = [[ L * 0.62, FR * 1.00], [ L * 0.24, FR * 0.42], [-L * 0.12, FR * 0.10],
+               [-L * 0.44, FR * 0.20], [-L * 0.72, FR * 0.72], [-L * 0.44, FR * 1.04],
+               [-L * 0.12, FR * 1.12], [ L * 0.24, FR * 1.08]];
+      g.strokeStyle = '#330000'; g.lineWidth = 0.8;
+      g.beginPath();
+      for (var oi = 0; oi < O.length; oi++) {
+        var q = P(O[oi][0], v, O[oi][1]);
+        if (oi) g.lineTo(q[0], q[1]); else g.moveTo(q[0], q[1]);
+      }
+      g.closePath(); g.stroke();
+      // a darker core low in the mass, so it has volume rather than being flat
+      g.fillStyle = HOUSE;
+      g.beginPath();
+      var c = [[ L * 0.34, FR * 0.72], [-L * 0.12, FR * 0.34], [-L * 0.50, FR * 0.62],
+               [-L * 0.12, FR * 0.86]];
+      for (var ci = 0; ci < c.length; ci++) {
+        var q2 = P(c[ci][0], v, c[ci][1]);
+        if (ci) g.lineTo(q2[0], q2[1]); else g.moveTo(q2[0], q2[1]);
+      }
+      g.closePath(); g.fill();
+    })();
     // a lit crease along its top, where it meets the grey casing
     line([L * 0.54, v, FR * 1.04], [-L * 0.68, v, FR * 1.04], HL, 0.9);
     // and its shaded underside
@@ -121,7 +147,10 @@ function drawSub(C) {
          [su - sl, nearS * sw, FR * 4.30], [su + sl, nearS * sw, FR * 4.05]], '#333333');
   shape([[su + sl, -nearS * sw, FR * 4.05], [su + sl, nearS * sw, FR * 4.05],
          [su - sl, nearS * sw, FR * 4.30], [su - sl, -nearS * sw, FR * 4.30]], '#666666');
-  line([su - sl, nearS * sw, FR * 3.10], [su + sl, nearS * sw, FR * 2.95], HOUSE, 1.2);
+  // NO HOUSE BAND ON THE SAIL. It baked as a second red streak a few pixels
+  // above the belly and the two together read as 'red decoration on a grey
+  // boat' — which is exactly what the belly is not supposed to be. The rip
+  // spends this boat's owner colour on the belly and the stern, nowhere else.
   // a mast cluster, not one wire
   line([su - L * 0.02, 0, FR * 4.25], [su - L * 0.02, 0, FR * 6.60], '#666666', 1.0);
   line([su + L * 0.04, 0, FR * 4.25], [su + L * 0.04, 0, FR * 5.90], '#333333', 0.9);
