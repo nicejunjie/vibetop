@@ -341,8 +341,8 @@
     "mass.tightestBand6": 1.542,
     "hue.infantryOwnerMean": 0.1927,
     "hue.infantryBelowBudget": 5,
-    "hue.vehicleOwnerMean": 0.1551,
-    "hue.vehicleOwnerMax": 0.2662,
+    "hue.vehicleOwnerMean": 0.1546,
+    "hue.vehicleOwnerMax": 0.2601,
     "hue.maxImpostor": 0.1017,
     "aspect.navalOutsideRA2Band": 0,
     "aspect.navalWorstOffRA2": 0.19,
@@ -378,8 +378,8 @@
     "value.engineerLightPct": 0.0984,
     "value.engineerMarginOverNext": -0.0339,
     "colour.infantry.meanDist": 1.4103,
-    "colour.vehicle.meanDist": 1.0899,
-    "colour.vehicleAchromatic": 5,
+    "colour.vehicle.meanDist": 1.0737,
+    "colour.vehicleAchromatic": 6,
     "colour.naval.meanDist": 1.3664,
     "colour.air.meanDist": 1.2244,
     "colour.navalDarkest": 0,
@@ -1064,11 +1064,6 @@
     ],
     "closestVehicleColourPairs": [
       {
-        "a": "ifv",
-        "b": "mcv",
-        "dist": 0.023
-      },
-      {
         "a": "rhino",
         "b": "teslatank",
         "dist": 0.086
@@ -1094,14 +1089,14 @@
         "dist": 0.245
       },
       {
+        "a": "lancer",
+        "b": "mcv",
+        "dist": 0.304
+      },
+      {
         "a": "mirage",
         "b": "v3",
         "dist": 0.317
-      },
-      {
-        "a": "lancer",
-        "b": "mcv",
-        "dist": 0.372
       },
       {
         "a": "lancer",
@@ -1109,9 +1104,14 @@
         "dist": 0.376
       },
       {
+        "a": "ifv",
+        "b": "prismtank",
+        "dist": 0.382
+      },
+      {
         "a": "prismtank",
         "b": "mcv",
-        "dist": 0.378
+        "dist": 0.392
       }
     ],
     "topImpostors": [
@@ -1189,7 +1189,7 @@
       "seascorp": 0.1217,
       "dread": 0.1694,
       "squid": 0,
-      "mcv": 0.2662
+      "mcv": 0.2601
     },
     "chromaByUnit": {
       "chronominer": 0.2093,
@@ -1232,7 +1232,7 @@
       "seascorp": 0.029,
       "dread": 0.076,
       "squid": 0.0495,
-      "mcv": 0.1718
+      "mcv": 0.0375
     },
     "hue": {
       "infantryOwnerMedian": 0.2102,

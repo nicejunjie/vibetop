@@ -56,7 +56,23 @@ var BODY = (function (h, s, l) {
   else if (h < 300) { r = x; g = 0; b = c; }
   else { r = c; g = 0; b = x; }
   return 'rgb(' + Math.round((r + m) * 255) + ',' + Math.round((g + m) * 255) + ',' + Math.round((b + m) * 255) + ')';
+// SATURATION 13% IS THE DARK-GREY BLOCK. At 13/53 this returns rgb(120,120,151)
+// — blue only 1.26x red — and BODY is the largest area on the truck, so at the
+// low shade factors its faces land on 51/51/51: a solid #333333 slab across the
+// rear module and down the flanks. Probing DARK, RUBBER and STEEL accounted for
+// only 3%, 7% and 6% of the sprite; BODY was the block all along. 26% puts the
+// ratio near the 1.8x the rip's own body uses and the same faces bake navy.
 })(hullHue, 13, 53);
+// AND FAR ENOUGH AT THE DARK END, WHICH IS WHERE THE BLOCK WAS. Solving these
+// across the whole ladder was not enough: the shaded faces of the REAR MODULE
+// are drawn at the LOW factors (0.4-0.7), and every one of these values still
+// collapsed to #333333 down there — 303 px of it in one solid block, which is
+// exactly the "massive dark grey shadow" being reported. A colour clears the
+// 76.5 boundary at f=1.0 long before it clears it at f=0.62; the blue channel
+// has to be sized for the DARKEST factor the colour is drawn at, not the
+// nominal one. Re-solved over f = 0.40 to 1.18: every value below now bakes
+// non-grey at all eight.
+//
 // AND FAR ENOUGH COOL TO ACTUALLY RENDER COOL. The first attempt at this used
 // values like #38384a — 56/56/74 — and 74 SNAPS TO 51, the same grid level as
 // 56, so it baked as pure #333333: the cast was invisible and the truck stayed
@@ -94,8 +110,28 @@ var BODY = (function (h, s, l) {
 // The complaint being answered is about SHADOWS reading grey; a near-white
 // highlight reading neutral is correct, and it is what keeps the remap share
 // honest. Mid and dark tones stay cool, the top of the range goes neutral.
-var PAINT = '#8686c0', RAIL = '#7474a8', STEEL = '#b1b1cc', LIGHT = '#e6e6e6';
-var DARK = '#383870', RUBBER = '#24244d', GLASS = '#181835';
+// THE STRUCTURE STAYS NEUTRAL; ONLY BODY CARRIES THE OWNER'S CAST. Two wrong
+// answers were tried here and both are worth recording. Hard-coded BLUE tones
+// (#38389c, #5c5cc0 ...) got them off grey and made the SOVIET MCV blue at the
+// front and pink at the rear, because BODY resolves to a dusty rose for a red
+// owner while the structure stayed periwinkle — and it breaks the roster's rule
+// that only the owner's colour is saturated. Deriving every tone from BODY
+// fixed the clash and took hue.vehicleOwnerMax to 0.5346 against a 0.27
+// ceiling: the whole truck then reads as one block of the player's colour,
+// which is the "re-adding paint" failure that ceiling exists to catch. So the
+// structure is neutral steel, and the CAST comes from BODY, which is the
+// largest area on the vehicle and follows the owner by construction.
+//
+// (kept for the record) EVERY STRUCTURAL TONE WAS DERIVED FROM BODY — I had written
+// these as fixed blues (#38389c, #5c5cc0, #7474c2 ...) to get them off grey,
+// and on the SOVIET MCV that was indefensible: BODY resolves to a dusty rose
+// for a red owner while the structure stayed periwinkle, so the truck came out
+// blue at the front and pink at the rear. It also breaks the roster's own rule
+// — only the owner's colour is saturated, no fixed faction paint. `tone(L)`
+// rescales BODY to a target luma, so the whole vehicle carries ONE family that
+// follows the player: periwinkle for blue, rose for red, sage for green.
+var PAINT = '#8c8c8c', RAIL = '#7474a8', STEEL = '#b4b4b4', LIGHT = '#e6e6e6';
+var DARK = '#434343', RUBBER = '#2b2b2b', GLASS = '#1d1d1d';
 function surface(pts, color, center, unlit) {
   var p = pts[0], e = pts[1].map(function (v, i) { return v - p[i]; });
   var f = pts[2].map(function (v, i) { return v - p[i]; });
@@ -177,14 +213,14 @@ function tyre(u, v) {
     loops.push(loop);
   });
   for (var row = 0; row < 3; row++) for (var q = 0; q < n; q++)
-    surface([loops[row][q], loops[row][(q + 1) % n], loops[row + 1][(q + 1) % n], loops[row + 1][q]], row === 1 && q % 2 ? '#363636' : RUBBER, [u, v, z]);
+    surface([loops[row][q], loops[row][(q + 1) % n], loops[row + 1][(q + 1) % n], loops[row + 1][q]], row === 1 && q % 2 ? '#3c3c3c' : RUBBER, [u, v, z]);
   for (var side = -1; side <= 1; side += 2) {
     surface(loops[side < 0 ? 0 : 3], RUBBER, [u, v, z]);
     var hub = [];
     for (var q = 0; q < n; q++) { var t = q * Math.PI * 2 / n; hub.push([u + radius / KF * 0.64 * Math.cos(t), v + side * 1.44, z + radius * 0.64 * Math.sin(t)]); }
     surface(hub, LIGHT, [u, v, z]);
     var inset = hub.map(function (p) { return [u + (p[0] - u) * 0.79, p[1] + side * 0.03, z + (p[2] - z) * 0.79]; });
-    surface(inset, '#5c5ca8', [u, v, z]);
+    surface(inset, '#676767', [u, v, z]);
     var boss = inset.map(function (p) { return [u + (p[0] - u) * 0.53, p[1] + side * 0.04, z + (p[2] - z) * 0.53]; });
     surface(boss, STEEL, [u, v, z]);
     for (var q = 0; q < 6; q++) {
@@ -205,9 +241,9 @@ function drum(u0, u1, v, z, radius, color) {
   });
   for (var q = 0; q < n; q++)
     surface([loops[0][q], loops[0][(q + 1) % n], loops[1][(q + 1) % n], loops[1][q]], color, [(u0+u1)/2, v, z]);
-  surface(loops[0], '#5c5ca8', [(u0+u1)/2, v, z]);
+  surface(loops[0], '#676767', [(u0+u1)/2, v, z]);
   surface(loops[1], STEEL, [(u0+u1)/2, v, z]);
-  box(u0 + 0.28, u0 + 0.42, v - radius * 0.82, v + radius * 0.82, z - 0.12, z + 0.12, '#36366f');
+  box(u0 + 0.28, u0 + 0.42, v - radius * 0.82, v + radius * 0.82, z - 0.12, z + 0.12, '#414141');
 }
 // A vertical drum (axis along z) with vertical ribs — the folded
 // actuator housing at the very rear of the MCV.
@@ -291,7 +327,7 @@ profile([[10.8,6.0],[14.2,6.0],[15.1,3.9],[18.9,3.9],[19.5,5.9],[18.9,8.5],
 bevel(10.65,14.5,-6.55,6.55,12.1,13.7,0.5,BODY);
 surface([[17.39,-5.6,9.35],[17.39,5.6,9.35],[17.39,5.6,10.83],[17.39,-5.6,10.83]],GLASS,[14,0,7],true);
 box(17.41,17.5,-0.13,0.13,9.3,10.85,STEEL);
-box(17.43,17.5,-5.5,5.5,9.3,9.52,'#6e6eb4');
+box(17.43,17.5,-5.5,5.5,9.3,9.52,'#777777');
 bevel(17.9,19.45,-6.8,6.8,2.5,4.5,0.45,STEEL);
 bevel(18.91,19.18,-4.8,4.8,4.75,7.5,0.1,STEEL);
 box(19.19,19.24,-3.65,3.65,5.0,7.1,GLASS);
@@ -329,7 +365,7 @@ bevel(-10.6,8.6,-6.1,6.1,10.2,11.6,0.5,STEEL);
 // seam survives only as a groove on the top face.
 box(-4.2,8.0,-5.2,5.2,11.4,15.6,NAVY);
 box(-4.0,7.8,-5.0,5.0,15.6,15.85,shade(NAVY,1.45));
-box(-3.8,7.6,-0.32,0.32,15.6,16.0,'#202046');
+box(-3.8,7.6,-0.32,0.32,15.6,16.0,'#272727');
 // A slate tarp band folds across the middle of the load — a desaturated
 // blue-grey that sits between the saturated navy channel and the light box.
 // Neutral periwinkle (R=G) to match the reference hull; a green-cast
@@ -352,7 +388,7 @@ for (var side=-1;side<=1;side+=2) {
   box(-15.0,-12.8,v-1.28,v+1.28,10.85,11.25,LIGHT);
 }
 bevel(-14.75,-12.05,-5.8,5.8,15.6,16.9,0.38,STEEL);
-box(-14.35,-12.8,-4.85,4.85,16.91,17.03,'#45458d');
+box(-14.35,-12.8,-4.85,4.85,16.91,17.03,'#515151');
 // A retracted actuator collar at the very rear — one clean band, not
 // a cluster of exposed drums.
 bevel(-18.8,-17.45,-7.1,7.1,6.4,9.9,0.5,RAIL);
