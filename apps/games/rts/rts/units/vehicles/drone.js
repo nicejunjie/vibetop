@@ -49,12 +49,12 @@ function droneLeg(lu, lv, near) {
   g.lineTo(kneex - wnx * bw, kneey - wny * bw);
   g.lineTo(hipx - wnx * bw * 0.8, hipy - wny * bw * 0.8);
   g.closePath();
-  g.fillStyle = near ? '#919191' : '#4c535c'; g.fill();
-  g.strokeStyle = '#1c2026'; g.lineWidth = 0.6; g.stroke();
+  g.fillStyle = near ? '#919191' : '#525252'; g.fill();
+  g.strokeStyle = '#1f1f1f'; g.lineWidth = 0.6; g.stroke();
   g.strokeStyle = near ? shade(VACC.drone, 1.34) : shade(VACC.drone, 0.72); g.lineWidth = 0.9;
   g.beginPath();
   g.moveTo(hipx, hipy - 0.5); g.lineTo(kneex, kneey - 0.5); g.stroke();
-  g.fillStyle = '#20242a';                                  // foot claw
+  g.fillStyle = '#232323';                                  // foot claw
   g.beginPath(); g.ellipse(footx, footy, 0.8, 0.5, 0, 0, 6.29); g.fill();
 }
 // Splayed along the forward axis rather than across it: the
@@ -82,11 +82,23 @@ gEllipse(cx - fx * 0.5 + px * 0.6, bodyY - 2.1 - fy * 0.5 + py * 0.6, 1.45); g.f
 // The carapace plate is deliberately SMALL. Built out to the hull
 // line it capped the colour ring from above and the drone came back
 // a grey mushroom with a red hairline round its middle.
-puck(cx, bodyY - 2.1, 1.15, 0.75, shade(hull, 0.74), shade(hull, 1.02), '#2f353d');
+// SEVEN BLUE-GREYS ON A UNIT 30 px WIDE. Every structural colour on the drone
+// carried a cool cast — the far legs #4c535c, the head #31373f/#79818c, the
+// claws, the outlines — and #79818c alone throws nine different chromatic
+// results across its ladder, up to #ccffff. On a sprite this small that is a
+// large share of its pixels. All equal-channel at their own luma now.
+//
+// AND THE CARAPACE. The rip's drone is a PALE SILVER BACK with a red band round
+// its lower body; ours was a red dome with a 1.15-radius grey button on top, so
+// it read as an all-red beetle. The file's own comment records that building
+// the plate out to the hull line made "a grey mushroom with a red hairline",
+// which is the opposite error — so this is the middle: big enough to be a back,
+// small enough that the owner's ring still rings.
+puck(cx, bodyY - 2.1, 1.72, 0.95, shade(hull, 0.74), shade(hull, 1.02), '#343434');
 g.fillStyle = shade(hull, 1.22);                            // carapace glint
 gEllipse(cx - fx * 0.35, bodyY - 2.95 - fy * 0.35, 0.6); g.fill();
 puck(cx + fx * 2.0, bodyY - 1.5 + fy * 2.0, 1.0, 1.1,       // the head
-     '#31373f', '#79818c', '#15181d');
+     '#363636', '#808080', '#181818');
 for (sg = -1; sg <= 1; sg += 2) {                           // mandibles
   g.strokeStyle = shade(VACC.drone, 0.46); g.lineWidth = 1.4; g.lineCap = 'round';
   g.beginPath();
