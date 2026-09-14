@@ -331,7 +331,7 @@
     "iou.groundCombat.mean": 0.6051,
     "iou.vehicle.mean": 0.5408,
     "iou.infantry.mean": 0.5124,
-    "iou.naval.mean": 0.3743,
+    "iou.naval.mean": 0.3574,
     "iou.air.mean": 0.1544,
     "iou.sameFactionOver75": 3,
     "spike.belowFloor": 3,
@@ -344,8 +344,8 @@
     "hue.vehicleOwnerMean": 0.1552,
     "hue.vehicleOwnerMax": 0.2733,
     "hue.maxImpostor": 0.1017,
-    "aspect.navalOutsideRA2Band": 1,
-    "aspect.navalWorstOffRA2": 0.327,
+    "aspect.navalOutsideRA2Band": 0,
+    "aspect.navalWorstOffRA2": 0.19,
     "aspect.vehicleOutsideRA2Band": 3,
     "aspect.infantryOutsideRA2Band": 1,
     "aspect.airOutsideRA2Band": 0,
@@ -354,7 +354,7 @@
     "size.infantryOutsideRA2Band": 0,
     "size.airOutsideRA2Band": 0,
     "size.worstOffGroupScale": 0.203,
-    "size.crossGroupSpread": 1.396,
+    "size.crossGroupSpread": 1.381,
     "size.bldOutsideRA2Band": 0,
     "size.bldWorstOffHouseScale": 0.1819,
     "size.bldFootprintMismatch": 0,
@@ -380,7 +380,7 @@
     "colour.infantry.meanDist": 1.4073,
     "colour.vehicle.meanDist": 0.8653,
     "colour.vehicleAchromatic": 6,
-    "colour.naval.meanDist": 1.2409,
+    "colour.naval.meanDist": 1.2463,
     "colour.air.meanDist": 1.134,
     "colour.navalDarkest": 0,
     "colour.airDarkest": 0.0428
@@ -793,10 +793,10 @@
         "selfIoU": 0.6962,
         "selfIoUCross": 0.6962,
         "broadsideAspect": 1.622,
-        "bestPeer": "Landing Craft",
-        "bestPeerIoU": 0.7382,
-        "nearestPeer": "Landing Craft",
-        "nearestPeerMMD2": 0.0275,
+        "bestPeer": "Aegis Cruiser",
+        "bestPeerIoU": 0.6381,
+        "nearestPeer": "Aegis Cruiser",
+        "nearestPeerMMD2": 0.0665,
         "peersBeatingSelf": 0
       },
       "destroyer": {
@@ -862,35 +862,35 @@
         "selfIoUCross": 0.2823,
         "broadsideAspect": 3.154,
         "bestPeer": "Typhoon Attack Sub",
-        "bestPeerIoU": 0.3526,
+        "bestPeerIoU": 0.3618,
         "nearestPeer": "Typhoon Attack Sub",
-        "nearestPeerMMD2": 0.1006,
+        "nearestPeerMMD2": 0.0918,
         "peersBeatingSelf": 0
       },
       "lcraft": {
         "group": "naval",
-        "aspect": 1.744,
-        "selfIoU": 0.6759,
-        "selfIoUCross": 0.6759,
-        "broadsideAspect": 1.744,
+        "aspect": 1.738,
+        "selfIoU": 0.6482,
+        "selfIoUCross": 0.6482,
+        "broadsideAspect": 1.738,
         "bestPeer": "Amphibious Transport",
-        "bestPeerIoU": 0.7382,
-        "nearestPeer": "Amphibious Transport",
-        "nearestPeerMMD2": 0.0275,
+        "bestPeerIoU": 0.5969,
+        "nearestPeer": "Destroyer",
+        "nearestPeerMMD2": 0.0541,
         "peersBeatingSelf": 0
       },
       "sub": {
         "group": "naval",
-        "aspect": 4.714,
-        "selfIoU": 0.2819,
-        "selfIoUCross": 0.2819,
-        "broadsideAspect": 4.714,
+        "aspect": 5.538,
+        "selfIoU": 0.2839,
+        "selfIoUCross": 0.2839,
+        "broadsideAspect": 5.538,
         "ra2Aspect": 5.357,
-        "vsRA2": 0.88,
+        "vsRA2": 1.034,
         "bestPeer": "Sea Scorpion",
-        "bestPeerIoU": 0.4035,
+        "bestPeerIoU": 0.3996,
         "nearestPeer": "Dolphin",
-        "nearestPeerMMD2": 0.1006,
+        "nearestPeerMMD2": 0.0918,
         "peersBeatingSelf": 0
       },
       "seascorp": {
@@ -923,16 +923,16 @@
       },
       "squid": {
         "group": "naval",
-        "aspect": 5.174,
-        "selfIoU": 0.2077,
-        "selfIoUCross": 0.2077,
-        "broadsideAspect": 5.174,
+        "aspect": 4.444,
+        "selfIoU": 0.1604,
+        "selfIoUCross": 0.1604,
+        "broadsideAspect": 4.444,
         "ra2Aspect": 3.9,
-        "vsRA2": 1.327,
-        "bestPeer": "Dreadnought",
-        "bestPeerIoU": 0.4268,
+        "vsRA2": 1.139,
+        "bestPeer": "Destroyer",
+        "bestPeerIoU": 0.3722,
         "nearestPeer": "Destroyer",
-        "nearestPeerMMD2": 0.0651,
+        "nearestPeerMMD2": 0.0852,
         "peersBeatingSelf": 0
       },
       "mcv": {
@@ -974,9 +974,9 @@
         "over75": 2
       },
       "naval": {
-        "mean": 0.3743,
+        "mean": 0.3574,
         "pairs": 45,
-        "max": 0.7382,
+        "max": 0.7188,
         "over75": 0
       },
       "air": {
@@ -1136,16 +1136,16 @@
         "pct": 0.065
       },
       {
+        "key": "squid",
+        "pct": 0.0509
+      },
+      {
         "key": "warminer",
         "pct": 0.05
       },
       {
         "key": "conscript",
         "pct": 0.0462
-      },
-      {
-        "key": "squid",
-        "pct": 0.0457
       }
     ],
     "ownerPctByUnit": {
@@ -1184,8 +1184,8 @@
       "carrier": 0.15,
       "hornet": 0.2998,
       "dolphin": 0.1187,
-      "lcraft": 0.0386,
-      "sub": 0.2555,
+      "lcraft": 0.1291,
+      "sub": 0.2416,
       "seascorp": 0.1518,
       "dread": 0.1764,
       "squid": 0,
@@ -1227,11 +1227,11 @@
       "carrier": 0.0088,
       "hornet": 0.035,
       "dolphin": 0,
-      "lcraft": 0.0161,
+      "lcraft": 0.0101,
       "sub": 0,
       "seascorp": 0.029,
       "dread": 0.0558,
-      "squid": 0.046,
+      "squid": 0.0495,
       "mcv": 0.075
     },
     "hue": {
@@ -1258,13 +1258,6 @@
         "ours": 2.308,
         "ra2": 1.735,
         "ratio": 1.33
-      },
-      {
-        "key": "squid",
-        "wh": "119x23",
-        "ours": 5.174,
-        "ra2": 3.9,
-        "ratio": 1.327
       },
       {
         "key": "warminer",
@@ -1309,6 +1302,13 @@
         "ratio": 0.861
       },
       {
+        "key": "squid",
+        "wh": "120x27",
+        "ours": 4.444,
+        "ra2": 3.9,
+        "ratio": 1.139
+      },
+      {
         "key": "nighthawk",
         "wh": "74x28",
         "ours": 2.643,
@@ -1321,13 +1321,6 @@
         "ours": 2.24,
         "ra2": 2,
         "ratio": 1.12
-      },
-      {
-        "key": "sub",
-        "wh": "66x14",
-        "ours": 4.714,
-        "ra2": 5.357,
-        "ratio": 0.88
       },
       {
         "key": "teslatrooper",
@@ -1470,6 +1463,13 @@
         "ratio": 0.964
       },
       {
+        "key": "sub",
+        "wh": "72x13",
+        "ours": 5.538,
+        "ra2": 5.357,
+        "ratio": 1.034
+      },
+      {
         "key": "chronominer",
         "wh": "69x44",
         "ours": 1.568,
@@ -1532,12 +1532,12 @@
       {
         "key": "squid",
         "group": "naval",
-        "ours": 119,
+        "ours": 120,
         "ra2": 117,
         "ra2WH": "117x30",
-        "scale": 1.0171,
-        "groupScale": 0.8814,
-        "dev": 0.154
+        "scale": 1.0256,
+        "groupScale": 0.8911,
+        "dev": 0.1509
       },
       {
         "key": "conscript",
@@ -1630,6 +1630,16 @@
         "dev": 0.0783
       },
       {
+        "key": "sub",
+        "group": "naval",
+        "ours": 72,
+        "ra2": 75,
+        "ra2WH": "75x14",
+        "scale": 0.96,
+        "groupScale": 0.8911,
+        "dev": 0.0773
+      },
+      {
         "key": "drone",
         "group": "vehicle",
         "ours": 30,
@@ -1720,16 +1730,6 @@
         "dev": -0.0337
       },
       {
-        "key": "dread",
-        "group": "naval",
-        "ours": 121,
-        "ra2": 133,
-        "ra2WH": "133x45",
-        "scale": 0.9098,
-        "groupScale": 0.8814,
-        "dev": 0.0322
-      },
-      {
         "key": "lancer",
         "group": "vehicle",
         "ours": 63,
@@ -1760,6 +1760,16 @@
         "dev": -0.0272
       },
       {
+        "key": "dread",
+        "group": "naval",
+        "ours": 121,
+        "ra2": 133,
+        "ra2WH": "133x45",
+        "scale": 0.9098,
+        "groupScale": 0.8911,
+        "dev": 0.021
+      },
+      {
         "key": "ivan",
         "group": "infantry",
         "ours": 15,
@@ -1768,6 +1778,16 @@
         "scale": 1.25,
         "groupScale": 1.2308,
         "dev": 0.0156
+      },
+      {
+        "key": "aegis",
+        "group": "naval",
+        "ours": 80,
+        "ra2": 91,
+        "ra2WH": "91x35",
+        "scale": 0.8791,
+        "groupScale": 0.8911,
+        "dev": -0.0135
       },
       {
         "key": "chronominer",
@@ -1780,44 +1800,24 @@
         "dev": 0.0122
       },
       {
-        "key": "destroyer",
-        "group": "naval",
-        "ours": 90,
-        "ra2": 101,
-        "ra2WH": "101x41",
-        "scale": 0.8911,
-        "groupScale": 0.8814,
-        "dev": 0.011
-      },
-      {
-        "key": "aegis",
-        "group": "naval",
-        "ours": 80,
-        "ra2": 91,
-        "ra2WH": "91x35",
-        "scale": 0.8791,
-        "groupScale": 0.8814,
-        "dev": -0.0026
-      },
-      {
-        "key": "sub",
-        "group": "naval",
-        "ours": 66,
-        "ra2": 75,
-        "ra2WH": "75x14",
-        "scale": 0.88,
-        "groupScale": 0.8814,
-        "dev": -0.0016
-      },
-      {
         "key": "carrier",
         "group": "naval",
         "ours": 126,
         "ra2": 143,
         "ra2WH": "143x52",
         "scale": 0.8811,
-        "groupScale": 0.8814,
-        "dev": -0.0003
+        "groupScale": 0.8911,
+        "dev": -0.0112
+      },
+      {
+        "key": "seascorp",
+        "group": "naval",
+        "ours": 52,
+        "ra2": 59,
+        "ra2WH": "59x32",
+        "scale": 0.8814,
+        "groupScale": 0.8911,
+        "dev": -0.0109
       },
       {
         "key": "mirage",
@@ -1840,13 +1840,13 @@
         "dev": 0
       },
       {
-        "key": "seascorp",
+        "key": "destroyer",
         "group": "naval",
-        "ours": 52,
-        "ra2": 59,
-        "ra2WH": "59x32",
-        "scale": 0.8814,
-        "groupScale": 0.8814,
+        "ours": 90,
+        "ra2": 101,
+        "ra2WH": "101x41",
+        "scale": 0.8911,
+        "groupScale": 0.8911,
         "dev": 0
       }
     ],
@@ -3202,7 +3202,7 @@
         "ok": false,
         "measured": 1.098,
         "want": ">= 1.33x",
-        "note": "destroyer 90 px broadside against the widest land vehicle, V3 Launcher at 82 px — she is SHORTER than a tank. THE THRESHOLD IS RA2'S OWN, DERIVED: [DEST] 101 px over the widest RA2 land vehicle ([AMCV] 76 px) = 1.329. §2.3 stated 1.7x, 16% ABOVE the game the row cites, and 1.7 would need a 179 px hull (Carrier 264 px on a 150 px sheet). CORRECTING IT CLOSES NOTHING AND IS NOT MEANT TO: at 1.098 the row is still unmet by a factor of 1.21, and the SIGN is the defect. WHAT THIS CLAUSE ACTUALLY MEASURES is the cross-group bake scale, exactly: our 1.098 = RA2's 1.329 x (destroyer scale 0.8911 / V3 Launcher scale 1.3016), to four decimals. The fleet is baked at 0.881x RA2's own sprite widths while the ground vehicles sit at 1.186x — a 1.35x CROSS-GROUP mismatch that NEITHER size gate can see, because `size.navalOutsideRA2Band` and `size.vehicleOutsideRA2Band` both normalise against their own group's median. `size.crossGroupSpread` exists to hold it and is ratcheted at 1.607. THE CEILING IS NOW MEASURED, NOT ARGUED (2026-09-06). Growing the fleet is off the table — it spends the board's best-proportioned group (7 hulls, spread 1.06x, every hull within 5% of its scale) — so the only route left is shrinking the ground roster until the widest land vehicle fits: 67 px against today's 82, i.e. the WHOLE vehicle group at x0.571. That was baked and measured, and it does close this row (1.483) while breaking six gates at once: `size.crossGroupSpread` 1.607 -> 1.899 (the ground roster lands at 0.725 of RA2, BELOW the fleet it was meant to catch, with infantry left at 1.417), `size.vehicleOutsideRA2Band` 0 -> 2, `spike.belowDeclaredBudget` 0 -> 4, `colour.vehicleAchromatic` 0 -> 4, `iou.groundCombat.mean` 0.4652 -> 0.4745, and `clause.unmet` 5 -> 9: the Rhino, Apocalypse, Tesla Tank, V3 and War Miner all lose their own §2 pixel budgets because the sprites are too small to hold the detail. ONE ROW CLOSES AND FIVE OPEN. Left UNMET on purpose, with the arithmetic rather than an estimate. per-unit-art-log.md.",
+        "note": "destroyer 90 px broadside against the widest land vehicle, V3 Launcher at 82 px — she is SHORTER than a tank. THE THRESHOLD IS RA2'S OWN, DERIVED: [DEST] 101 px over the widest RA2 land vehicle ([AMCV] 76 px) = 1.329. §2.3 stated 1.7x, 16% ABOVE the game the row cites, and 1.7 would need a 179 px hull (Carrier 264 px on a 150 px sheet). CORRECTING IT CLOSES NOTHING AND IS NOT MEANT TO: at 1.098 the row is still unmet by a factor of 1.21, and the SIGN is the defect. WHAT THIS CLAUSE ACTUALLY MEASURES is the cross-group bake scale, exactly: our 1.098 = RA2's 1.329 x (destroyer scale 0.8911 / V3 Launcher scale 1.3016), to four decimals. The fleet is baked at 0.891x RA2's own sprite widths while the ground vehicles sit at 1.186x — a 1.33x CROSS-GROUP mismatch that NEITHER size gate can see, because `size.navalOutsideRA2Band` and `size.vehicleOutsideRA2Band` both normalise against their own group's median. `size.crossGroupSpread` exists to hold it and is ratcheted at 1.607. THE CEILING IS NOW MEASURED, NOT ARGUED (2026-09-06). Growing the fleet is off the table — it spends the board's best-proportioned group (7 hulls, spread 1.06x, every hull within 5% of its scale) — so the only route left is shrinking the ground roster until the widest land vehicle fits: 67 px against today's 82, i.e. the WHOLE vehicle group at x0.571. That was baked and measured, and it does close this row (1.483) while breaking six gates at once: `size.crossGroupSpread` 1.607 -> 1.899 (the ground roster lands at 0.725 of RA2, BELOW the fleet it was meant to catch, with infantry left at 1.417), `size.vehicleOutsideRA2Band` 0 -> 2, `spike.belowDeclaredBudget` 0 -> 4, `colour.vehicleAchromatic` 0 -> 4, `iou.groundCombat.mean` 0.4652 -> 0.4745, and `clause.unmet` 5 -> 9: the Rhino, Apocalypse, Tesla Tank, V3 and War Miner all lose their own §2 pixel budgets because the sprites are too small to hold the detail. ONE ROW CLOSES AND FIVE OPEN. Left UNMET on purpose, with the arithmetic rather than an estimate. per-unit-art-log.md.",
         "module": "naval-air.js",
         "refMatch": 1
       },
@@ -3232,7 +3232,7 @@
         "ok": true,
         "measured": 7,
         "want": "<= 10 px",
-        "note": "7 px, the longest CORNER-ANCHORED flat silhouette run over all EIGHT bearings (worst at octant 6; the broadside alone would miss it — the Dolphin's detached-eye bug showed at octants 3/4/5 and not at her broadside 7). Both ends of a run must step >= 2 px onto a REAL neighbour, so a raster curve's apex and a taper off the end of the sprite do not count; without that test the Dolphin's belly scores 19 and the boxy Landing Craft 13 and the measurement is upside down. §2 asks for ZERO, which no raster can give; 10 px is this file's reading, set against the eight machine hulls of MACH, which measure 1-22 with a median of 11 at their broadside. Looked at: what remains is ONE SEGMENT of the plan polyline that approximates each animal (the Squid's 8-point `MANT` mantle at her shoulder, the Dolphin's 7-point `DOL` profile), projected nearly flat — not a drawn rectangle. A detached blob would score its own full width here, which is how a repeat of the eye bug gets caught rather than found by eye a second time.",
+        "note": "7 px, the longest CORNER-ANCHORED flat silhouette run over all EIGHT bearings (worst at octant 6; the broadside alone would miss it — the Dolphin's detached-eye bug showed at octants 3/4/5 and not at her broadside 7). Both ends of a run must step >= 2 px onto a REAL neighbour, so a raster curve's apex and a taper off the end of the sprite do not count; without that test the Dolphin's belly scores 19 and the boxy Landing Craft 13 and the measurement is upside down. §2 asks for ZERO, which no raster can give; 10 px is this file's reading, set against the eight machine hulls of MACH, which measure 2-22 with a median of 11 at their broadside. Looked at: what remains is ONE SEGMENT of the plan polyline that approximates each animal (the Squid's 8-point `MANT` mantle at her shoulder, the Dolphin's 7-point `DOL` profile), projected nearly flat — not a drawn rectangle. A detached blob would score its own full width here, which is how a repeat of the eye bug gets caught rather than found by eye a second time.",
         "module": "naval-air.js",
         "refMatch": 1
       },
@@ -3240,9 +3240,9 @@
         "unit": "squid",
         "clause": "zero straight edges",
         "ok": true,
-        "measured": 5,
+        "measured": 4,
         "want": "<= 10 px",
-        "note": "5 px, the longest CORNER-ANCHORED flat silhouette run over all EIGHT bearings (worst at octant 1; the broadside alone would miss it — the Dolphin's detached-eye bug showed at octants 3/4/5 and not at her broadside 7). Both ends of a run must step >= 2 px onto a REAL neighbour, so a raster curve's apex and a taper off the end of the sprite do not count; without that test the Dolphin's belly scores 19 and the boxy Landing Craft 13 and the measurement is upside down. §2 asks for ZERO, which no raster can give; 10 px is this file's reading, set against the eight machine hulls of MACH, which measure 1-22 with a median of 11 at their broadside. Looked at: what remains is ONE SEGMENT of the plan polyline that approximates each animal (the Squid's 8-point `MANT` mantle at her shoulder, the Dolphin's 7-point `DOL` profile), projected nearly flat — not a drawn rectangle. A detached blob would score its own full width here, which is how a repeat of the eye bug gets caught rather than found by eye a second time.",
+        "note": "4 px, the longest CORNER-ANCHORED flat silhouette run over all EIGHT bearings (worst at octant 1; the broadside alone would miss it — the Dolphin's detached-eye bug showed at octants 3/4/5 and not at her broadside 7). Both ends of a run must step >= 2 px onto a REAL neighbour, so a raster curve's apex and a taper off the end of the sprite do not count; without that test the Dolphin's belly scores 19 and the boxy Landing Craft 13 and the measurement is upside down. §2 asks for ZERO, which no raster can give; 10 px is this file's reading, set against the eight machine hulls of MACH, which measure 2-22 with a median of 11 at their broadside. Looked at: what remains is ONE SEGMENT of the plan polyline that approximates each animal (the Squid's 8-point `MANT` mantle at her shoulder, the Dolphin's 7-point `DOL` profile), projected nearly flat — not a drawn rectangle. A detached blob would score its own full width here, which is how a repeat of the eye bug gets caught rather than found by eye a second time.",
         "module": "naval-air.js",
         "refMatch": 1
       },
@@ -3250,9 +3250,9 @@
         "unit": "lcraft",
         "clause": "visible cargo when loaded",
         "ok": true,
-        "measured": 498,
+        "measured": 485,
         "want": ">= 16 px of block >= 3 px thick standing >= 0.12 in value out of the well",
-        "note": "7 block(s) 16x17, 14x16, 21x15, 4x11, 6x7, 6x6, 8x5, 498 px, mean value step 0.223 — blocks of mid value (0.30-0.66) at least 3 px thick standing inside the well — the largest dark (v <= 0.26) component, 56x38 — with a ring mean of <= 0.26, i.e. surrounded by well floor rather than by hull. The row states no number; 16 px and 0.12 are this file's reading of \"visible\" (0.12 is roughly the step at which two greys separate at 1:1) — the well measures 0.19 and the crate faces 0.34, so the read is a value step and not a hue one. `bakeShip` draws the crates and the vehicle block UNCONDITIONALLY, so the only Landing Craft sprite that exists is the loaded one and \"when loaded\" is the whole of it. Proven against a build with those four `box()` calls disabled: this row goes to 0 there.",
+        "note": "4 block(s) 16x30, 14x16, 4x11, 6x6, 485 px, mean value step 0.233 — blocks of mid value (0.30-0.66) at least 3 px thick standing inside the well — the largest dark (v <= 0.26) component, 70x41 — with a ring mean of <= 0.26, i.e. surrounded by well floor rather than by hull. The row states no number; 16 px and 0.12 are this file's reading of \"visible\" (0.12 is roughly the step at which two greys separate at 1:1) — the well measures 0.19 and the crate faces 0.34, so the read is a value step and not a hue one. `bakeShip` draws the crates and the vehicle block UNCONDITIONALLY, so the only Landing Craft sprite that exists is the loaded one and \"when loaded\" is the whole of it. Proven against a build with those four `box()` calls disabled: this row goes to 0 there.",
         "module": "naval-air.js",
         "refMatch": 1
       },
@@ -3272,7 +3272,7 @@
         "ok": true,
         "measured": 1,
         "want": "exactly 1",
-        "note": "columns standing more than 3.64 px above the casing line (median column top y=6) form 1 run(s) covering 5 of 66 columns — the sail, periscopes included, and nothing else. 3.64 px is not invented: it is `art-metrics.js`'s own SPIKE_FLOOR, 2 px at ZMIN 0.55, i.e. the height at which a mass still reads at furthest zoom. The casing step forward stands 2 px and is correctly NOT counted as a second mass.",
+        "note": "columns standing more than 3.64 px above the casing line (median column top y=5) form 1 run(s) covering 3 of 72 columns — the sail, periscopes included, and nothing else. 3.64 px is not invented: it is `art-metrics.js`'s own SPIKE_FLOOR, 2 px at ZMIN 0.55, i.e. the height at which a mass still reads at furthest zoom. The casing step forward stands 2 px and is correctly NOT counted as a second mass.",
         "module": "naval-air.js",
         "refMatch": 1
       },
@@ -3280,9 +3280,9 @@
         "unit": "seascorp",
         "clause": "shortest armed hull afloat",
         "ok": true,
-        "measured": 1.269,
+        "measured": 1.385,
         "want": "> 1.00x the next hull",
-        "note": "armed hulls broadside: seascorp 52, sub 66, aegis 80, destroyer 90, dread 121, carrier 126 — she is 1.27x clear of the next. EXCLUDED and why: the Dolphin (41 px) and the Giant Squid (119 px) are armed but are ANIMALS, and §2.3/§2.4 give both a row saying their outline is not a machine, so neither is a hull; the Landing Craft and the Amphibious Transport are hulls but carry no weapon. Reading \"armed hull\" as \"armed warship\" is the only one on which the sentence has content — under any other the Dolphin wins it.",
+        "note": "armed hulls broadside: seascorp 52, sub 72, aegis 80, destroyer 90, dread 121, carrier 126 — she is 1.38x clear of the next. EXCLUDED and why: the Dolphin (41 px) and the Giant Squid (120 px) are armed but are ANIMALS, and §2.3/§2.4 give both a row saying their outline is not a machine, so neither is a hull; the Landing Craft and the Amphibious Transport are hulls but carry no weapon. Reading \"armed hull\" as \"armed warship\" is the only one on which the sentence has content — under any other the Dolphin wins it.",
         "module": "naval-air.js",
         "refMatch": 1
       },
@@ -4351,14 +4351,14 @@
         "key": "squid",
         "oct": 3,
         "edges": "L",
-        "bbox": "119x23",
+        "bbox": "120x27",
         "cell": "150x112"
       },
       {
         "key": "squid",
         "oct": 7,
         "edges": "R",
-        "bbox": "119x23",
+        "bbox": "120x28",
         "cell": "150x112"
       }
     ],
@@ -4366,7 +4366,7 @@
       "vehicle": 1.082,
       "air": 0.9732500000000001,
       "infantry": 1.2308,
-      "naval": 0.8814
+      "naval": 0.8911
     },
     "units": {
       "aegis": {
@@ -4415,10 +4415,10 @@
         "broadsideAspect": 1.622,
         "selfIoU": 0.6962,
         "selfIoUCross": 0.6962,
-        "bestPeer": "Landing Craft",
-        "bestPeerIoU": 0.7382,
-        "nearestPeer": "Landing Craft",
-        "nearestPeerMMD2": 0.0275,
+        "bestPeer": "Aegis Cruiser",
+        "bestPeerIoU": 0.6381,
+        "nearestPeer": "Aegis Cruiser",
+        "nearestPeerMMD2": 0.0665,
         "peersBeatingSelf": 0,
         "peers": 9,
         "spike": {
@@ -4684,9 +4684,9 @@
         "selfIoU": 0.2823,
         "selfIoUCross": 0.2823,
         "bestPeer": "Typhoon Attack Sub",
-        "bestPeerIoU": 0.3526,
+        "bestPeerIoU": 0.3618,
         "nearestPeer": "Typhoon Attack Sub",
-        "nearestPeerMMD2": 0.1006,
+        "nearestPeerMMD2": 0.0918,
         "peersBeatingSelf": 0,
         "peers": 9,
         "spike": {
@@ -5081,27 +5081,27 @@
         "name": "Landing Craft",
         "group": "naval",
         "fac": "dir",
-        "mass": 1664,
-        "bboxW": 68,
-        "bboxH": 45,
-        "aspect": 1.641,
-        "broadsideWH": "68x39",
-        "broadsideAspect": 1.744,
-        "selfIoU": 0.6759,
-        "selfIoUCross": 0.6759,
+        "mass": 2285,
+        "bboxW": 73,
+        "bboxH": 56,
+        "aspect": 1.445,
+        "broadsideWH": "73x42",
+        "broadsideAspect": 1.738,
+        "selfIoU": 0.6482,
+        "selfIoUCross": 0.6482,
         "bestPeer": "Amphibious Transport",
-        "bestPeerIoU": 0.7382,
-        "nearestPeer": "Amphibious Transport",
-        "nearestPeerMMD2": 0.0275,
+        "bestPeerIoU": 0.5969,
+        "nearestPeer": "Destroyer",
+        "nearestPeerMMD2": 0.0541,
         "peersBeatingSelf": 0,
         "peers": 9,
         "spike": {
           "axis": "h",
-          "len": 15,
-          "thick": 5,
+          "len": 16,
+          "thick": 28,
           "budget": 3.64,
           "floor": 3.64,
-          "atZmin": 2.75,
+          "atZmin": 15.4,
           "floorAtZmin": 2,
           "lenBudget": null,
           "fails": null,
@@ -5483,29 +5483,29 @@
         "name": "Giant Squid",
         "group": "naval",
         "fac": "col",
-        "mass": 1399,
-        "bboxW": 119,
-        "bboxH": 66,
-        "aspect": 2.426,
-        "broadsideWH": "119x23",
-        "broadsideAspect": 5.174,
+        "mass": 1283,
+        "bboxW": 120,
+        "bboxH": 68,
+        "aspect": 2.262,
+        "broadsideWH": "120x27",
+        "broadsideAspect": 4.444,
         "ra2Aspect": 3.9,
-        "vsRA2": 1.327,
-        "selfIoU": 0.2077,
-        "selfIoUCross": 0.2077,
-        "bestPeer": "Dreadnought",
-        "bestPeerIoU": 0.4268,
+        "vsRA2": 1.139,
+        "selfIoU": 0.1604,
+        "selfIoUCross": 0.1604,
+        "bestPeer": "Destroyer",
+        "bestPeerIoU": 0.3722,
         "nearestPeer": "Destroyer",
-        "nearestPeerMMD2": 0.0651,
+        "nearestPeerMMD2": 0.0852,
         "peersBeatingSelf": 0,
         "peers": 9,
         "spike": {
           "axis": "h",
-          "len": 14,
-          "thick": 8,
+          "len": 31,
+          "thick": 6,
           "budget": 3,
           "floor": 3.64,
-          "atZmin": 4.4,
+          "atZmin": 3.3,
           "floorAtZmin": 2,
           "lenBudget": null,
           "fails": null,
@@ -5517,25 +5517,25 @@
         "name": "Typhoon Attack Sub",
         "group": "naval",
         "fac": "col",
-        "mass": 467,
-        "bboxW": 66,
-        "bboxH": 37,
-        "aspect": 2.227,
-        "broadsideWH": "66x14",
-        "broadsideAspect": 4.714,
+        "mass": 480,
+        "bboxW": 72,
+        "bboxH": 40,
+        "aspect": 2.399,
+        "broadsideWH": "72x13",
+        "broadsideAspect": 5.538,
         "ra2Aspect": 5.357,
-        "vsRA2": 0.88,
-        "selfIoU": 0.2819,
-        "selfIoUCross": 0.2819,
+        "vsRA2": 1.034,
+        "selfIoU": 0.2839,
+        "selfIoUCross": 0.2839,
         "bestPeer": "Sea Scorpion",
-        "bestPeerIoU": 0.4035,
+        "bestPeerIoU": 0.3996,
         "nearestPeer": "Dolphin",
-        "nearestPeerMMD2": 0.1006,
+        "nearestPeerMMD2": 0.0918,
         "peersBeatingSelf": 0,
         "peers": 9,
         "spike": {
           "axis": "v",
-          "len": 6,
+          "len": 5,
           "thick": 5,
           "budget": 3.64,
           "floor": 3.64,

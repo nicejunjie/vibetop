@@ -78,19 +78,62 @@ g.restore();
 // THINNER AND LONGER. The rip's arms are hair-fine pale streaks running well
 // past the mantle's own length; ours were half as long and twice as thick, and
 // six short fat prongs read as a splayed hand, not as tentacles.
-g.strokeStyle = shade(HULL, 0.72); g.lineWidth = 0.8 + 0.34 * ss; g.lineCap = 'round';
-for (var ti = 0; ti < 6; ti++) {
-  var t = (ti / 5) * 2 - 1;                      // -1..1 across the fan
-  var reach = 1.86 - 0.30 * t * t;               // the outer arms fall short
+// THEY WERE BAKING STRAIGHT. These were already quadratic curves, but the
+// control point sat at (0.80, 1.30t) — almost exactly on the chord between the
+// crown and the tip — so the curve had no bow in it and six arms of the same
+// width and nearly the same reach rendered as six PARALLEL STRAIGHT LINES.
+// This unit's whole spec is "zero straight edges ... the only unit whose
+// outline is not a machine", and it was drawn entirely out of them.
+//
+// Three changes, all visible: the control point is pushed well off the chord
+// so each arm actually bows; the reach varies much more from arm to arm, the
+// way a real crown of arms does; and each arm TAPERS, drawn as two strokes
+// with the outer half thinner, because an arm of constant gauge is a rod.
+g.lineCap = 'round';
+// Reach pulled in from 2.20: at that length the arms touched the sheet cell
+// at SIX of the eight octants, so the animal was being cut off by the canvas.
+var ARM = [[-1.05, 1.52, 0.62], [-0.58, 1.86, 0.80], [-0.20, 1.44, 0.92],
+           [0.26, 1.80, 0.86], [0.64, 1.38, 0.72], [1.02, 1.66, 0.56]];
+for (var ti = 0; ti < ARM.length; ti++) {
+  var t = ARM[ti][0], reach = ARM[ti][1], gauge = ARM[ti][2];
   var oq = P(L * 0.42, W * 0.62 * t, FR + 6.4);
-  var aq = P(L * reach, W * 1.55 * t, FR + 5.2);
-  var cq = P(L * 0.80, W * 1.30 * t, FR + 5.2);
-  g.beginPath();
-  g.moveTo(oq[0], oq[1]);
-  g.quadraticCurveTo(cq[0], cq[1] - 1.4, aq[0], aq[1] - 0.4);
+  var mqA = P(L * (0.42 + reach) * 0.5, W * (0.62 * t + 2.30 * t) * 0.5, FR + 5.8);
+  var aq = P(L * reach, W * 1.90 * t, FR + 5.0);
+  // the inner half, full gauge
+  g.strokeStyle = shade(HULL, 0.72); g.lineWidth = (0.8 + 0.34 * ss) * gauge;
+  g.beginPath(); g.moveTo(oq[0], oq[1]);
+  g.quadraticCurveTo(mqA[0], mqA[1] - 7.5 * (1.15 - Math.abs(t)) - 2.0, aq[0], aq[1]);
+  g.stroke();
+  // the outer half again, thinner, so the arm tapers to a tip
+  g.strokeStyle = shade(HULL, 0.86); g.lineWidth = (0.8 + 0.34 * ss) * gauge * 0.45;
+  g.beginPath(); g.moveTo(mqA[0], mqA[1] - 3.8 * (1.15 - Math.abs(t)) - 1.0);
+  g.quadraticCurveTo(mqA[0], mqA[1] - 2.0, aq[0], aq[1]);
   g.stroke();
 }
 g.lineCap = 'butt';
+// THE TAIL FIN, which the animal had none of. The rip's mantle ends in a
+// clear pale DIAMOND fin standing out from the body — it is the widest thing
+// on the tail and the reason the far end does not read as a point.
+(function () {
+  // CURVED, not a diamond. Drawn as a four-point polygon it put a 15 px
+  // straight run into the silhouette and broke this unit's one hard clause,
+  // "zero straight edges" — the animal is the only outline in the game that is
+  // not a machine. Two bezier lobes instead, so every edge of the fin bows.
+  var f0 = P(-L * 1.00, 0, FR + 6.8), f2 = P(-L * 0.44, 0, FR + 6.8);
+  g.fillStyle = shade(HULL, 1.14);
+  g.beginPath();
+  g.moveTo(f0[0], f0[1]);
+  for (var fs2 = 1; fs2 >= -1; fs2 -= 2) {
+    var cA = P(-L * 0.94, W * 1.02 * fs2, FR + 6.6);
+    var cB = P(-L * 0.56, W * 0.98 * fs2, FR + 6.6);
+    g.bezierCurveTo(cA[0], cA[1], cB[0], cB[1], f2[0], f2[1]);
+    var cC = P(-L * 0.60, W * 0.30 * fs2, FR + 6.8);
+    var cD = P(-L * 0.88, W * 0.26 * fs2, FR + 6.8);
+    g.bezierCurveTo(cC[0], cC[1], cD[0], cD[1], f0[0], f0[1]);
+  }
+  g.closePath(); g.fill();
+  g.strokeStyle = shade(HULL, 0.70); g.lineWidth = 0.7; g.stroke();
+})();
 // A DARK MAROON COLLAR, not a cartoon eye. There was a 3-px bright yellow
 // disc with a black pupil painted on the mantle, and at the size this is
 // drawn it was the single loudest thing on the animal — the reason it read

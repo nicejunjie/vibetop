@@ -85,7 +85,10 @@ function bakeShip(col, kind, fac) {
   // the lit mantle came out #669999 and the arms #336666, a bright teal animal.
   // Equal channels stay equal at every rung, which is what "slate" actually
   // needs, and it is what the rip's own #606c70 / #485458 are reaching for.
-  if (kind === 'squid')    { HULL = '#70746e'; DECK = '#3e423c'; }
+  // #70746e IS NOT A NEUTRAL GREY — 112/116/110 — and this file's own header
+  // says so twice. At shade 1.14 it snaps to #999966 and the animal's tail fin
+  // baked KHAKI. Equal channels stay equal at every rung of the ladder.
+  if (kind === 'squid')    { HULL = '#707070'; DECK = '#3f3f3f'; }
   // [LCRAFT] is a HOVERCRAFT, and `library/lcraft-voxel.jpg` reads in exactly
   // three bands: a BLACK rubber skirt all round the bottom, a near-WHITE deck
   // body standing on it, and two dark slate ducted fans aft. It was drawn
