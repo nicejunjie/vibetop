@@ -537,13 +537,24 @@ var VACC = {
   seascorp:    '#e9e9e9',  //     the white flak mount the rip makes the loudest
                            //   surface on the boat (no hue: it is a value note)
   // -- Directorate
-  lancer:      '#33bda6',  // 170 jade   — the vision block beside the Grizzly's mantlet.
-                           //   Its BODY stays pale silver: 1.4 names it, and the
-                           //   silver is the spec, not an omission.
+  // MEASURED AGAINST THE RIPS, not chosen. Each of these accents was tested by
+  // counting pixels within 25 degrees of its hue in the unit's own voxel, over
+  // every saturated pixel in the file:
+  //     lancer  jade #33bda6        0 of 67,896
+  //     mirage  holo-green #2fbe6b  0 of 69,537
+  //     rhino   green #5ba33a       4 of 111,725
+  //     mammoth green #5ba33a       3 of  80,554
+  //     flaktrack hazard #dcd046  464 of  71,497   <- real, kept
+  // Three of them are not in the reference at all. They are inventions that
+  // then have to be defended, and the defence is written into the table: "The
+  // Mirage disguises itself as a TREE" — which is a statement about the
+  // ability, not the machine, and put a green stripe in a white block that read
+  // as a TREE EMBLEM over a third of the sprite. kit.js already carries the
+  // reference-derived value for each of these parts; they now agree.
+  lancer:      '#3c3c3c',  //     neutral grey vision block beside the mantlet
   ifv:         '#dcd046',  //  55 hazard yellow — beacon and chevron on the tall
                            //   launcher box that 2.3 makes the IFV's whole read
-  mirage:      '#2fbe6b',  // 145 holo-green — the projector mouth of the emitter
-                           //   housing. The Mirage disguises itself as a TREE.
+  mirage:      '#ececec',  //     the ribbed WHITE emitter plates, as kit.js has it
   mirageStack: '#ececec',  //     the ribbed WHITE emitter plates 2.3 asks for
   // NO MAGENTA. "The refraction flare across the prism" is invented: there is
   // none in `prismtank-voxel.jpg`, which carries a WHITE crystal, a blue hood
@@ -557,7 +568,7 @@ var VACC = {
                            //   "violet and unmistakably not house hue" (2.3)
   mcv:         '#e0a33c',  //  38 amber  — the folded crane boom on the works slab
   // -- Collective
-  rhino:       '#5ba33a',  // 101 Soviet green — the vision block, the driver's plate
+  rhino:       '#2e2e2e',  //     neutral gunmetal vision block and driver's plate
                            //   and the engine-deck louvres. NOT the 66-degree moss it
                            //   started as: that shared a hue bin with the V3's olive
                            //   truck and the pair measured 0.093 apart, the closest

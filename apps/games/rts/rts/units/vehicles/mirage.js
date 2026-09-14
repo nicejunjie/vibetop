@@ -51,9 +51,11 @@ var drawPanel = function () {
   var ppx = cx - fx * 7.6, ppy = by - 6.2 - fy * 7.6;
   isoBox(g, ppx, ppy, 5.2, wid * 0.72, 7.8, a, '#d4d4d4', '#2c323b');   // the projector: a thick pale BLOCK (rip), not a slab
   isoBox(g, ppx, ppy - 7.8, 5.6, wid * 0.76, 0.9, a, '#ececec', '#2c323b'); // lit top
-  // one owner-colour band low across the slab, one VACC.mirage
-  // (hologram green) strip up its forward face: the panel is the
-  // Mirage's tell, so the two colours that name it sit there.
+  // One owner-colour band low across the slab, and the emitter face above it.
+  // That face used to be VACC.mirage as a HOLOGRAM GREEN, defended in the
+  // table as "the Mirage disguises itself as a TREE" — a statement about the
+  // ability, not the machine. Counted over `mirage-voxel.jpg`: ZERO pixels of
+  // that hue in 69,537 saturated ones. It is the ribbed WHITE emitter now.
   isoBox(g, ppx, ppy - 1.2, 2.0, wid * 0.74, 1.4, a, panel, PEDGE);   // a thin band: the mirage was the roster's owner-colour maximum
   g.fillStyle = VACC.mirage;
   g.beginPath();
@@ -61,7 +63,9 @@ var drawPanel = function () {
   g.lineTo(ppx + fx * 0.9 - px * wid * 0.20, ppy - 3.2 + fy * 0.9 - py * wid * 0.20);
   g.lineTo(ppx + fx * 0.9 - px * wid * 0.20, ppy - 6.4 + fy * 0.9 - py * wid * 0.20);
   g.lineTo(ppx + fx * 0.9 + px * wid * 0.20, ppy - 6.4 + fy * 0.9 + py * wid * 0.20);
-  g.closePath(); g.fill(); outline(g, '#123a20');
+  // AND ITS OUTLINE WAS GREEN TOO. #123a20 is a dark forest green edging the
+  // emitter face — the last of the tree that RA2 never drew.
+  g.closePath(); g.fill(); outline(g, '#2c323b');
   exhaust(cx - fx * len * 0.42 + px * wid * 0.22, by - 5.4 - fy * len * 0.42 + py * wid * 0.22);
 };
 var drawTurret = function () {

@@ -341,7 +341,7 @@
     "mass.tightestBand6": 1.527,
     "hue.infantryOwnerMean": 0.1927,
     "hue.infantryBelowBudget": 5,
-    "hue.vehicleOwnerMean": 0.1583,
+    "hue.vehicleOwnerMean": 0.158,
     "hue.vehicleOwnerMax": 0.2702,
     "hue.maxImpostor": 0.1017,
     "aspect.navalOutsideRA2Band": 0,
@@ -378,7 +378,7 @@
     "value.engineerLightPct": 0.0984,
     "value.engineerMarginOverNext": -0.0339,
     "colour.infantry.meanDist": 1.4103,
-    "colour.vehicle.meanDist": 1.024,
+    "colour.vehicle.meanDist": 0.9956,
     "colour.vehicleAchromatic": 7,
     "colour.naval.meanDist": 1.3376,
     "colour.air.meanDist": 1.1582,
@@ -1084,6 +1084,11 @@
         "dist": 0.343
       },
       {
+        "a": "lancer",
+        "b": "mirage",
+        "dist": 0.405
+      },
+      {
         "a": "flaktrack",
         "b": "v3",
         "dist": 0.412
@@ -1094,6 +1099,11 @@
         "dist": 0.416
       },
       {
+        "a": "mirage",
+        "b": "flaktrack",
+        "dist": 0.489
+      },
+      {
         "a": "flaktrack",
         "b": "drone",
         "dist": 0.489
@@ -1102,16 +1112,6 @@
         "a": "drone",
         "b": "prismtank",
         "dist": 0.497
-      },
-      {
-        "a": "flaktrack",
-        "b": "mcv",
-        "dist": 0.509
-      },
-      {
-        "a": "prismtank",
-        "b": "mcv",
-        "dist": 0.526
       }
     ],
     "topImpostors": [
@@ -1158,14 +1158,14 @@
       "rocketeer": 0.2412,
       "harrier": 0.21,
       "kirov": 0.2074,
-      "lancer": 0.0935,
+      "lancer": 0.0936,
       "mammoth": 0.065,
       "engineer": 0.2237,
       "dog": 0.0839,
       "ifv": 0.0501,
-      "mirage": 0.2453,
+      "mirage": 0.2417,
       "tanya": 0.154,
-      "rhino": 0.1563,
+      "rhino": 0.1567,
       "flaktrack": 0.2089,
       "v3": 0.189,
       "teslatrooper": 0.1624,
@@ -1201,14 +1201,14 @@
       "rocketeer": 0.14,
       "harrier": 0.0059,
       "kirov": 0.3147,
-      "lancer": 0.0873,
+      "lancer": 0.0865,
       "mammoth": 0.1299,
       "engineer": 0.2274,
       "dog": 0.6238,
       "ifv": 0.0523,
-      "mirage": 0.0532,
+      "mirage": 0.0292,
       "tanya": 0.3966,
-      "rhino": 0.1003,
+      "rhino": 0.0904,
       "flaktrack": 0.0696,
       "v3": 0.1248,
       "teslatrooper": 0.0992,
