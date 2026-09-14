@@ -146,11 +146,11 @@ g.lineTo(cx + 0.9, by - 13.4); g.lineTo(cx - 0.9, by - 13.4);
 g.closePath(); g.fill(); outline(g, '#8a8a8a');
 g.fillStyle = '#f1f1f1';                                       // lit collar wings
 g.fillRect(cx - 2.4, by - 20.9, 4.8, 1.0);
-g.fillStyle = '#22252c';                                       // dark tie
+g.fillStyle = '#252525';                                       // dark tie
 g.beginPath();
 g.moveTo(cx - 0.7, by - 19.6); g.lineTo(cx + 0.7, by - 19.6);
 g.lineTo(cx + 0.45, by - 14.8); g.lineTo(cx - 0.45, by - 14.8);
-g.closePath(); g.fill(); outline(g, '#0e1014');
+g.closePath(); g.fill(); outline(g, '#101010');
 g.fillStyle = shade(T.coat, 0.66);                             // the coat's own collar,
 g.fillRect(cx - 4.4, by - 21.1, 8.8, 1.3);                     // standing at the neck
 g.fillStyle = shade(T.coat, 1.10);
@@ -182,7 +182,7 @@ arms(6.2, by - 19.4, 2.6, 6.0, shade(T.coat, 1.06), function (i, x, y) {
     // picture a player picks him out of — and this is §1.5's prop for
     // him, the one object on the field a soldier would never have.
     var bcx2 = x + 2.3, bcy = y + 5.6;
-    g.strokeStyle = '#2a2d33'; g.lineWidth = 0.9; g.lineCap = 'round';
+    g.strokeStyle = '#2d2d2d'; g.lineWidth = 0.9; g.lineCap = 'round';
     g.beginPath(); g.arc(bcx2 - 0.4, bcy - 0.6, 1.4, Math.PI, 0.1); g.stroke();
     g.fillStyle = '#8d6a3e';
     g.beginPath(); g.roundRect(bcx2 - 3.1, bcy, 6.2, 4.6, 0.6); g.fill();
@@ -251,7 +251,7 @@ outline(g, shade(SPY_FELT, 0.55));
 g.fillStyle = shade(SPY_FELT, 0.68);                           // the pinch crease, two dents in
 g.fillRect(shx - scw * 0.80, by - 25.6, 0.9 / TURN, 1.6);      // the front of the crown: a
 g.fillRect(shx + scw * 0.42, by - 25.6, 0.9 / TURN, 1.6);      // fedora, not a bowler
-g.fillStyle = '#1c1e24';                                       // dark grosgrain hat band
+g.fillStyle = '#1e1e1e';                                       // dark grosgrain hat band
 g.fillRect(shx - scw, by - 23.5, scw * 2, 1.1);
 g.fillStyle = shade(SPY_FELT, 1.18);                           // the brim, proud of the crown
 g.beginPath(); g.ellipse(shx, by - 22.4, sbw, 1.35, 0, 0, 6.29); g.fill();

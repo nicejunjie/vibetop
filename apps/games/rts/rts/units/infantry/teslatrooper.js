@@ -146,7 +146,7 @@ function bolt(pts, k) {
   }
 }
 var TT_STUD = [];                                             // the coil terminals, for the arc
-arms(6.5, by - 19.6, 3.4, 6.8, '#5b6478', function (i, x, y) {
+arms(6.5, by - 19.6, 3.4, 6.8, '#646464', function (i, x, y) {
   // The cap is an ELLIPSE that hugs the shoulder, not a slab beside
   // it: as a rounded rectangle it stood clear of the torso on both
   // sides and the trooper walked around carrying two suitcases.
@@ -163,7 +163,7 @@ arms(6.5, by - 19.6, 3.4, 6.8, '#5b6478', function (i, x, y) {
   // it was carrying moved down to the thigh plates.
   g.fillStyle = '#c3c3c3';
   g.fillRect(x - i * 0.5 - 2.0, y + 1.5, 4.0, 1.4);
-  outline(g, '#8992a0');
+  outline(g, '#919191');
   g.fillStyle = '#f1f1f1';
   g.beginPath();
   g.ellipse(x - i * 0.5 - 0.6, y - 0.6, 1.15, 0.7, -0.3, 0, 6.29); g.fill();
@@ -184,7 +184,7 @@ arms(6.5, by - 19.6, 3.4, 6.8, '#5b6478', function (i, x, y) {
   // It sits BELOW the helmet crown on purpose: this man is the widest
   // trooper in the roster and deliberately not the tallest, so his
   // electricity is not allowed to buy height.
-  g.fillStyle = '#6d7580';
+  g.fillStyle = '#747474';
   g.beginPath(); g.roundRect(x - i * 0.5 - 1.25, y - 1.4, 2.5, 1.4, 0.6); g.fill();
   g.fillStyle = '#d1d1d1';
   g.beginPath(); g.ellipse(x - i * 0.5, y - 1.6, 1.05, 0.72, 0, 0, 6.29); g.fill();
@@ -197,10 +197,10 @@ arms(6.5, by - 19.6, 3.4, 6.8, '#5b6478', function (i, x, y) {
     var gux = x + 0.5, guy = y + 5.4;
     g.fillStyle = '#b6b6b6';                                  // the fist itself
     g.beginPath(); g.roundRect(gux - 2.1, guy, 4.2, 3.4, 1.2); g.fill();
-    outline(g, '#3c414a');
+    outline(g, '#404040');
     g.fillStyle = col;                                        // house cuff on the gauntlet
     g.fillRect(gux - 1.9, guy + 0.1, 3.8, 1.4);
-    g.fillStyle = '#5b626c';                                  // knuckle ridge
+    g.fillStyle = '#616161';                                  // knuckle ridge
     g.fillRect(gux - 1.7, guy + 2.0, 3.4, 0.8);
     g.strokeStyle = '#cfcfcf'; g.lineWidth = 1.0; g.lineCap = 'round';
     for (var pr = -1; pr <= 1; pr += 2) {                     // two prongs
@@ -213,7 +213,7 @@ arms(6.5, by - 19.6, 3.4, 6.8, '#5b6478', function (i, x, y) {
   } else {
     g.fillStyle = '#ababab';                                  // plain steel fist
     g.beginPath(); g.roundRect(x - 1.7, y + 5.5, 3.4, 2.8, 1.0); g.fill();
-    outline(g, '#3c414a');
+    outline(g, '#404040');
     g.fillStyle = col;                                        // ...with the same house cuff
     g.fillRect(x - 1.7, y + 5.4, 3.4, 1.3);
   }
@@ -226,13 +226,13 @@ var hby = by - 24.9;
 g.fillStyle = ACC;
 g.beginPath(); g.arc(cx, hby, 3.6, Math.PI, 0); g.fill();
 g.fillRect(cx - 3.6, hby, 7.2, 2.0);
-outline(g, '#454b55');
+outline(g, '#4a4a4a');
 g.fillStyle = '#f5f5f5';                                      // bright crown
 g.beginPath();
 g.ellipse(cx - 1.1, hby - 1.4, 1.7, 0.9, -0.35, 0, 6.29); g.fill();
 if (!FA.back) {                                               // visor slot
   var thx = cx + sd * 1.2 / TURN;
-  g.fillStyle = '#14171c';
+  g.fillStyle = '#171717';
   g.beginPath(); g.roundRect(thx - 2.8 * (1 - 0.2 * sd), hby + 0.5, 5.6 * (1 - 0.2 * sd), 1.6, 0.6); g.fill();
   // The visor is LIT, not merely reflective: he is the only man on the
   // field with a power source strapped to him, and the slot is the

@@ -51,7 +51,7 @@ g.fillStyle = SHIRTI;                                         // the shirt, betw
 g.fillRect(cx - 0.9, by - 20.0, 1.8, 6.6);
 g.fillStyle = shade(SHIRTI, 0.78);
 g.fillRect(cx - 0.9, by - 20.0, 0.7, 6.6);
-g.fillStyle = '#2a2c33';                                      // belt over the shirt
+g.fillStyle = '#2c2c2c';                                      // belt over the shirt
 g.fillRect(cx - 5.1, by - 14.4, 10.2, 1.5);
 g.fillStyle = '#a98c3c';
 g.fillRect(cx - 0.9, by - 14.2, 1.8, 1.1);

@@ -15,7 +15,7 @@ function drawGuardianGi(C) {
 // visor band, and a stubby missile tube braced on the right shoulder
 // with an AMBER warhead in the muzzle. The tube is what names him at
 // 1:1, so it is drawn long enough to break the body outline.
-var GGI_STEEL = '#7f8894';                                    // deep steel helmet
+var GGI_STEEL = '#878787';                                    // deep steel helmet
 legs(2.7, by - 12.2, 3.6, T.coat, 4.2);
 
 g.save(); g.translate(gt.lean, gt.bob);
@@ -122,20 +122,20 @@ var ry = gt.bob ? 0.4 : 0;                                    // launcher rides 
 // points of house colour (0.301 -> 0.259, measured), which is the exact
 // trap the thigh plates above were added to pay off — and it grew his
 // mask enough to put `peerVsSelf.infantry` back to 2.
-g.strokeStyle = '#22262c'; g.lineWidth = 3.4; g.lineCap = 'round';
+g.strokeStyle = '#252525'; g.lineWidth = 3.4; g.lineCap = 'round';
 g.beginPath();                                                // rim under the tube
 g.moveTo(cx - 4.9, by - 13.8 + ry); g.lineTo(cx + 8.4, by - 26.0 - ry); g.stroke();
-g.strokeStyle = '#4e5661'; g.lineWidth = 2.4;
+g.strokeStyle = '#555555'; g.lineWidth = 2.4;
 g.beginPath();                                                // missile tube
 g.moveTo(cx - 4.9, by - 13.8 + ry); g.lineTo(cx + 8.4, by - 26.0 - ry); g.stroke();
-g.strokeStyle = '#828c99'; g.lineWidth = 1.1;                 // tube glint
+g.strokeStyle = '#8a8a8a'; g.lineWidth = 1.1;                 // tube glint
 g.beginPath();
 g.moveTo(cx - 3.9, by - 14.9 + ry); g.lineTo(cx + 7.5, by - 25.5 - ry); g.stroke();
 g.strokeStyle = shade(T.coat, 1.20); g.lineWidth = 3.6; g.lineCap = 'butt';   // trim band
 g.beginPath();
 g.moveTo(cx + 1.9, by - 19.7); g.lineTo(cx + 3.3, by - 21.0); g.stroke();
 g.lineCap = 'round';
-g.fillStyle = '#2a2e34';                                      // pistol grip + rear vent
+g.fillStyle = '#2d2d2d';                                      // pistol grip + rear vent
 g.beginPath(); g.roundRect(cx - 1.6, by - 14.3 + ry, 2.1, 2.8, 0.7); g.fill();
 // The shading line used to run ALONG THE AXIS, straight down the middle
 // of the 5 px amber stroke, and it cut the nose in two: magnified, the
@@ -164,7 +164,7 @@ face(by - 21.3);
 // pulled down over the eyes anyway.
 helmet(by - 23.1, 3.1, GGI_STEEL, 1.0);                       // steel, so the VEST is the remap
 if (!FA.back) {                                               // dark visor band
-g.fillStyle = '#1f2429';
+g.fillStyle = '#232323';
 g.beginPath(); g.roundRect(cx + sd * 1.1 / TURN + HEADX - 2.9, by - 22.1, 5.8, 1.6, 0.7); g.fill();
 g.fillStyle = 'rgba(200,225,255,.30)';
 g.fillRect(cx + sd * 1.1 / TURN + HEADX - 2.4, by - 21.9, 2.3, 0.65);

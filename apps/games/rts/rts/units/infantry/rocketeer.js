@@ -47,9 +47,9 @@ for (ar = -1; ar <= 1; ar += 2) {
 }
 // jet nozzles at the hips
 for (ar = -1; ar <= 1; ar += 2) {
-  g.fillStyle = '#2b2f36';
+  g.fillStyle = '#2f2f2f';
   g.beginPath(); g.ellipse(cx + ar * 4.6, by - 8.6, 2.2, 1.3, 0, 0, 6.29); g.fill();
-  g.fillStyle = '#6a717c';
+  g.fillStyle = '#707070';
   g.beginPath(); g.ellipse(cx + ar * 4.6, by - 9.0, 1.4, 0.7, 0, 0, 6.29); g.fill();
 }
 g.save(); g.translate(gt.lean * 0.4, 0);
@@ -71,7 +71,7 @@ for (ar = -1; ar <= 1; ar += 2) {
   g.fillStyle = shade(col, 0.60);                             // strap bands round it
   g.fillRect(tx - 2.2, by - 17.4, 4.4, 0.9);
   g.fillRect(tx - 2.2, by - 13.6, 4.4, 0.9);
-  g.fillStyle = '#3a3f47';                                    // steel cap
+  g.fillStyle = '#3e3e3e';                                    // steel cap
   g.beginPath(); g.ellipse(tx, by - 19.9, 2.3, 1.0, 0, 0, 6.29); g.fill();
   g.fillStyle = '#929292';
   g.beginPath(); g.ellipse(tx - 0.4, by - 20.1, 1.2, 0.5, 0, 0, 6.29); g.fill();
@@ -115,7 +115,7 @@ arms(5.6, by - 18.2, 3.0, 6.2, RS, function (i, x, y) {
   g.fillStyle = shade(col, 1.22);
   g.beginPath(); g.ellipse(x - 0.5, y - 0.1, 1.1, 0.7, -0.3, 0, 6.29); g.fill();
 });
-g.fillStyle = '#3a3f47';                                      // gloves, hanging at his sides
+g.fillStyle = '#3e3e3e';                                      // gloves, hanging at his sides
 g.beginPath(); g.roundRect(cx - 7.6, by - 12.2, 2.6, 2.2, 0.8); g.fill();
 g.beginPath(); g.roundRect(cx + 5.2, by - 11.6, 2.6, 2.2, 0.8); g.fill();
 // THE GUN COMES OFF THE CHEST. A dark weapon slashed diagonally across a

@@ -41,7 +41,7 @@ arms(5.7, by - 18.0, 3.0, 6.6, T.coat, function (i, x, y) {
   outline(g, shade(col, 0.42));
   g.fillStyle = shade(col, 1.22);
   g.fillRect(x - 1.7, y - 1.2, 3.4, 1.0);
-  g.fillStyle = '#2b2d33';                                    // dark glove
+  g.fillStyle = '#2d2d2d';                                    // dark glove
   g.beginPath(); g.roundRect(x - 1.5, y + 5.4, 3.0, 2.0, 0.9); g.fill();
   g.fillStyle = shade(col, 0.88);                             // house cuff above it
   g.fillRect(x - 1.7, y + 4.2, 3.4, 1.6);
@@ -88,7 +88,7 @@ var fy = gt.bob ? 0.5 : 0;                                    // cannon rides th
 // outline again instead of the gun.
 var bx0 = cx + 3.4, by0 = by - 12.8 + fy;                     // grip, at the right hip
 var bx1 = cx + 7.4, by1 = by - 35.4 - fy;                     // muzzle, a head above the helmet
-g.strokeStyle = '#23262c'; g.lineWidth = 4.6; g.lineCap = 'butt';
+g.strokeStyle = '#262626'; g.lineWidth = 4.6; g.lineCap = 'butt';
 g.beginPath(); g.moveTo(bx0, by0); g.lineTo(bx1, by1); g.stroke();
 g.strokeStyle = '#b1b1b1'; g.lineWidth = 2.6;                 // pale steel barrel
 g.beginPath(); g.moveTo(bx0, by0); g.lineTo(bx1, by1); g.stroke();
@@ -98,12 +98,12 @@ g.moveTo(bx0 - 0.7, by0 - 0.4);                               // pale bore turne
 g.lineTo(bx1 - 0.7, by1 + 0.6); g.stroke();                   // into a LADDER
 g.fillStyle = '#e2e2e2';                                      // muzzle brake
 g.beginPath(); g.roundRect(bx1 - 2.4, by1 - 1.0, 4.8, 2.6, 0.8); g.fill();
-outline(g, '#4a5058');
-g.fillStyle = '#3b414a';                                      // a single collar at the breech
+outline(g, '#4f4f4f');
+g.fillStyle = '#404040';                                      // a single collar at the breech
 g.beginPath(); g.roundRect(bx0 + 0.4, by0 - 6.4, 4.6, 2.0, 0.6); g.fill();
-g.fillStyle = '#2c2f35';                                      // receiver box
+g.fillStyle = '#2f2f2f';                                      // receiver box
 g.beginPath(); g.roundRect(cx + 0.5, by - 15.2 + fy, 3.7, 3.6, 1.0); g.fill();
-outline(g, '#15171a');
+outline(g, '#171717');
 // A house band round the breech. The raised cannon is ~70 px of neutral
 // steel the figure did not carry before, and it took his remap from
 // 22.1% of the sprite to 16.7% — under §1.4's floor for a uniformed
@@ -127,7 +127,7 @@ g.fillRect(cx - 0.4, by - 14.6 + fy, 1.1, 0.75);
 
 face(by - 21.2);
 helmet(by - 23.1, 3.15, '#919191', 1.0);                      // plain steel helmet
-g.fillStyle = '#2a2d33';                                      // chin strap
+g.fillStyle = '#2d2d2d';                                      // chin strap
 g.fillRect(cx - 2.7, by - 19.4, 5.4, 0.8);
 g.restore();
 }

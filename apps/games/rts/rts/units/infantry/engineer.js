@@ -103,7 +103,7 @@ arms(5.7, by - 18.4, 2.8, 6.4, SHIRT, function (i, x, y) {
     // (the leg split and the prop) and this is the prop. It carries
     // house colour, so it pays its own way on the remap budget as well.
     var tbx = x + 1.0, tby = y + 7.4;
-    g.strokeStyle = '#2a2d33'; g.lineWidth = 1.0; g.lineCap = 'round';
+    g.strokeStyle = '#2d2d2d'; g.lineWidth = 1.0; g.lineCap = 'round';
     g.beginPath(); g.arc(tbx, tby + 0.8, 2.2, Math.PI, 0.05); g.stroke();
     g.fillStyle = col;
     g.beginPath(); g.roundRect(tbx - 2.6, tby, 5.2, 3.6, 0.8); g.fill();

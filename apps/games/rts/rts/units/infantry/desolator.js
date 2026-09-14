@@ -48,7 +48,7 @@ for (var dpk = -1; dpk <= 1; dpk += 2) {
   g.fillStyle = shade(col, 0.90);                              // house band round the tank —
   g.fillRect(pkx - 1.7, by - 19.4, 3.4, 1.8);                  // the budget goes ON the named
   outline(g, shade(col, 0.42));                                // part (rule 6), as the Flak
-  g.fillStyle = '#2a2e34';                                     // Trooper's breech band does
+  g.fillStyle = '#2d2d2d';                                     // Trooper's breech band does
   g.beginPath(); g.ellipse(pkx, by - 21.6, 2.1, 1.0, 0, 0, 6.29); g.fill();
   // THE CANISTER CAP IS A LAMP. Put RA2's Desolator plate beside ours and
   // the difference is not a detail: RA2's is a green PICTURE — a
@@ -70,7 +70,7 @@ for (var dpk = -1; dpk <= 1; dpk += 2) {
   g.beginPath();                                               // YELLOW-green at its brightest
   g.ellipse(pkx - 0.35, by - 22.1, 0.70, 0.38, 0, 0, 6.29); g.fill();
 }
-g.strokeStyle = '#3a3f47'; g.lineWidth = 1.2; g.lineCap = 'round';
+g.strokeStyle = '#3e3e3e'; g.lineWidth = 1.2; g.lineCap = 'round';
 g.beginPath();                                                 // yoke across the tank tops
 g.moveTo(cx - 4.0, by - 20.9); g.lineTo(cx + 4.0, by - 20.9); g.stroke();
 for (var dtp = -1; dtp <= 1; dtp += 2) {                       // house-colour thigh plates
@@ -80,9 +80,9 @@ for (var dtp = -1; dtp <= 1; dtp += 2) {                       // house-colour t
   g.fillStyle = shade(col, 1.18);
   g.fillRect(cx + dtp * 3.0 - 1.7, by - 12.8, 3.4, 0.9);
 }
-g.fillStyle = '#5a5f69';                                       // suit waist ring
+g.fillStyle = '#5f5f5f';                                       // suit waist ring
 g.fillRect(cx - 5.4, by - 14.6, 10.8, 1.6);
-g.fillStyle = '#7d8590';
+g.fillStyle = '#848484';
 g.fillRect(cx - 5.2, by - 14.5, 10.4, 0.6);
 
 g.fillStyle = shade(T.coat, 1.04);                             // charcoal carapace
@@ -143,14 +143,14 @@ arms(5.5, by - 18.4, 2.9, 5.6, shade(T.coat, 0.92), function (i, x, y) {
 // through the body squeeze and swings it round with the facing.
 wpn(function () {
   var gy0 = by - 19.4;
-  g.fillStyle = '#5b6169';                                     // barrel body
+  g.fillStyle = '#606060';                                     // barrel body
   g.beginPath(); g.roundRect(cx - 0.4, gy0, 5.8, 3.4, 1.2); g.fill();
-  outline(g, '#232629');
+  outline(g, '#252525');
   g.fillStyle = '#858585';                                     // lit top of the tube
   g.fillRect(cx - 0.1, gy0 + 0.3, 5.2, 1.0);
-  g.fillStyle = '#3d4249';                                     // cooling bands
+  g.fillStyle = '#414141';                                     // cooling bands
   for (var db = 0; db < 3; db++) g.fillRect(cx + 1.0 + db * 1.4, gy0 + 0.3, 0.7, 2.8);
-  g.fillStyle = '#2e3238';                                     // shoulder yoke
+  g.fillStyle = '#313131';                                     // shoulder yoke
   g.beginPath(); g.roundRect(cx - 2.1, gy0 + 0.5, 2.1, 3.2, 0.9); g.fill();
   // the muzzle: a green disc with a soft bloom, his one loud surface
   // WIDE-MOUTHED, as §2.2 asks: "gun muzzle >= 4 px across (fat, not a
@@ -167,7 +167,7 @@ wpn(function () {
   g.beginPath();                                               // an emitter burns out yellow
   g.ellipse(cx + 5.9, gy0 + 1.6, 1.05, 1.10, 0, 0, 6.29); g.fill();
   // the ribbed feed hose running back to the pack
-  g.strokeStyle = '#4a5058'; g.lineWidth = 1.1;
+  g.strokeStyle = '#4f4f4f'; g.lineWidth = 1.1;
   g.beginPath(); g.moveTo(cx - 0.6, gy0 + 2.9);
   g.quadraticCurveTo(cx - 3.4, gy0 + 5.0, cx - 2.6, gy0 + 7.0); g.stroke();
 });

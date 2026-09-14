@@ -79,7 +79,7 @@ for (var clk = -1; clk <= 1; clk += 2) {
   g.beginPath(); g.roundRect(cx + clk * 2.7 - 2.0, by - 8.6, 4.0, 2.0, 0.6); g.fill();
   outline(g, shade(col, 0.44));
 }
-g.fillStyle = '#5f6a7a';                                       // chest vent slot
+g.fillStyle = '#686868';                                       // chest vent slot
 g.fillRect(cx - 1.6, by - 17.4, 3.2, 1.9);
 g.fillStyle = ACC;
 g.fillRect(cx - 1.3, by - 17.2, 1.1, 1.4);
@@ -101,7 +101,7 @@ arms(6.3, by - 18.6, 2.9, 5.4, shade(T.coat, 1.24), function (i, x, y) {
   g.beginPath(); g.roundRect(x - i * 0.35 - 1.85, y - 1.0, 3.7, 2.3, 0.8); g.fill();
   g.fillStyle = shade(T.coat, 1.66);
   g.fillRect(x - i * 0.35 - 1.6, y - 0.8, 3.2, 0.8);
-  g.fillStyle = '#4b5361';                                     // dark glove
+  g.fillStyle = '#525252';                                     // dark glove
   g.beginPath(); g.roundRect(x - 1.3, y + 4.6, 2.6, 2.2, 0.8); g.fill();
 });
 
@@ -178,14 +178,14 @@ arms(6.3, by - 18.6, 2.9, 5.4, shade(T.coat, 1.24), function (i, x, y) {
   g.save();
   g.save();
   g.translate(cx, ry); g.rotate(0.30); g.translate(-cx, -ry);
-  g.fillStyle = '#3f4753';
+  g.fillStyle = '#464646';
   g.beginPath(); g.roundRect(cx - 2.2, ry, 10.8, 2.2, 0.8); g.fill();
-  outline(g, '#1c2026');
-  g.fillStyle = '#7c8694';                                     // lit spine
+  outline(g, '#1f1f1f');
+  g.fillStyle = '#858585';                                     // lit spine
   g.fillRect(cx - 1.9, ry + 0.25, 10.2, 0.8);
-  g.fillStyle = '#272d36';                                     // grip
+  g.fillStyle = '#2c2c2c';                                     // grip
   g.beginPath(); g.roundRect(cx - 0.4, ry + 1.9, 1.6, 2.4, 0.5); g.fill();
-  g.fillStyle = '#272d36';                                     // fore grip
+  g.fillStyle = '#2c2c2c';                                     // fore grip
   g.beginPath(); g.roundRect(cx + 4.2, ry + 1.9, 1.3, 1.8, 0.5); g.fill();
   // THE COIL IS CYAN. RA2's Chrono Legionnaire plate is dominated by one
   // colour that appears nowhere else in the game — the cold cyan of the
@@ -206,7 +206,7 @@ arms(6.3, by - 18.6, 2.9, 5.4, shade(T.coat, 1.24), function (i, x, y) {
   g.fillStyle = '#f5f5f5';                                     // its hot centre
   g.fillRect(cx + 6.45, ry + 0.1, 0.9, 1.9);
   g.restore();
-  g.strokeStyle = '#9fb2c6'; g.lineWidth = 1.3;                // emitter fork
+  g.strokeStyle = '#afafaf'; g.lineWidth = 1.3;                // emitter fork
   g.beginPath();
   g.moveTo(cx + 8.4, ry + 1.1); g.lineTo(cx + 11.9, ry - 0.7);
   g.moveTo(cx + 8.4, ry + 1.1); g.lineTo(cx + 11.9, ry + 3.0); g.stroke();
@@ -235,11 +235,11 @@ outline(g, shade(T.coat, 0.44));
 g.fillStyle = shade(T.coat, 1.85);                             // lit crown
 g.beginPath(); g.ellipse(chx - 1.0, chy - 1.5, 1.4, 0.75, -0.35, 0, 6.29); g.fill();
 if (!FA.back) {
-  g.fillStyle = '#2b323c';                                     // dark faceplate
+  g.fillStyle = '#313131';                                     // dark faceplate
   g.beginPath(); g.roundRect(chx + sd * 0.9 - 2.2, chy + 0.1, 4.4, 1.9, 0.7); g.fill();
   g.fillStyle = 'rgba(190,225,255,.55)';
   g.fillRect(chx + sd * 0.9 - 1.9, chy + 0.35, 1.6, 0.7);
-  g.strokeStyle = '#616b79'; g.lineWidth = 1.1;                // breathing hose
+  g.strokeStyle = '#6a6a6a'; g.lineWidth = 1.1;                // breathing hose
   g.beginPath(); g.moveTo(chx + 2.2, chy + 1.8);
   g.quadraticCurveTo(chx + 4.2, chy + 3.6, chx + 3.0, chy + 5.4); g.stroke();
 } else {

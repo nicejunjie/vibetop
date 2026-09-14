@@ -126,7 +126,7 @@ function bakeInfantry(col, kind, fac, phase, dir, state) {
   // minimum, so the shared legs/arms/helmet keep one call site each.
   var EDGE = INF_EDGE[tkey] || 0;
   function edge(c, f) { return shade(c, f < EDGE ? EDGE : f); }
-  var GUN = '#22242a';
+  var GUN = '#242424';
   var JACKET = '#000033';        // Conscript's near-black tunic
   var SLEEVE = '#333333';        // ...his sleeves, one step lighter so they read
   var POUCH = '#996633';         // his tan ammo pouch
@@ -325,7 +325,7 @@ function bakeInfantry(col, kind, fac, phase, dir, state) {
     x1 = mx + ux * L2 * 0.60; y1 = my + uy * L2 * 0.60;
     g.strokeStyle = GUN; g.lineWidth = w; g.lineCap = 'butt';
     g.beginPath(); g.moveTo(x0, y0); g.lineTo(x1, y1); g.stroke();
-    g.strokeStyle = '#5c636e'; g.lineWidth = w * 0.42;               // barrel glint
+    g.strokeStyle = '#626262'; g.lineWidth = w * 0.42;               // barrel glint
     g.beginPath();
     g.moveTo(x0 + (x1 - x0) * 0.52, y0 + (y1 - y0) * 0.52);
     g.lineTo(x1 - (x1 - x0) * 0.06, y1 - (y1 - y0) * 0.06); g.stroke();

@@ -26,7 +26,7 @@ g.lineTo(cx + 3.9, by - 11.0); g.lineTo(cx - 3.9, by - 11.0);
 g.closePath(); g.fill(); outline(g, '#9a6f47');
 g.fillStyle = shade(T.coat, 1.06);                            // trouser waistband
 g.fillRect(cx - 4.1, by - 12.8, 8.2, 2.2);
-g.fillStyle = '#2a2c32';                                      // belt
+g.fillStyle = '#2c2c2c';                                      // belt
 g.fillRect(cx - 4.2, by - 13.4, 8.4, 1.2);
 g.fillStyle = '#c9a94a';
 g.fillRect(cx - 0.8, by - 13.3, 1.7, 1.1);
@@ -56,7 +56,7 @@ g.fillStyle = shade(col, 0.76);                               // shaded right fo
 g.fillRect(cx + 1.9, by - 20.2, 2.5, 3.4);
 g.fillStyle = shade(col, 0.66);                               // collar shadow
 g.fillRect(cx - 4.9, by - 20.7, 9.8, 0.8);
-g.strokeStyle = '#2f3138'; g.lineWidth = 1.0; g.lineCap = 'butt';
+g.strokeStyle = '#313131'; g.lineWidth = 1.0; g.lineCap = 'butt';
 g.beginPath();                                                // thin holster sling
 g.moveTo(cx - 2.4, by - 20.6); g.lineTo(cx + 1.4, by - 15.4); g.stroke();
 
@@ -77,7 +77,7 @@ g.moveTo(cx - 2.4, by - 20.6); g.lineTo(cx + 1.4, by - 15.4); g.stroke();
 // over the ratchet: a player who cannot tell Tanya from a G.I. in play is a
 // worse outcome than three pixels of extra shoulder.
 arms(6.3, by - 18.8, 2.2, 6.2, T.skin, function (i, x, y) {
-  g.fillStyle = '#3a3d45';                                    // fingerless glove
+  g.fillStyle = '#3d3d3d';                                    // fingerless glove
   g.beginPath(); g.roundRect(x - 1.2, y + 5.5, 2.4, 2.0, 0.7); g.fill();
   // The pistol hangs MUZZLE-DOWN at her side, canted out from the
   // thigh. Held level it merged with the other hand into one dark bar
@@ -86,10 +86,10 @@ arms(6.3, by - 18.8, 2.2, 6.2, T.skin, function (i, x, y) {
   // pistol breaking the outline by >=2 px, and at i*1.3 they were
   // inside the arm's own silhouette and contributed nothing.
   var gxp = x + i * 1.9, gyp = y + 7.2;
-  g.strokeStyle = '#1b1d22'; g.lineWidth = 1.8; g.lineCap = 'butt';
+  g.strokeStyle = '#1d1d1d'; g.lineWidth = 1.8; g.lineCap = 'butt';
   g.beginPath();
   g.moveTo(gxp, gyp); g.lineTo(gxp + i * 3.0, gyp + 3.6); g.stroke();
-  g.fillStyle = '#2b2e35';                                    // grip, canted back
+  g.fillStyle = '#2e2e2e';                                    // grip, canted back
   g.beginPath();
   g.moveTo(gxp - i * 1.3, gyp - 0.4); g.lineTo(gxp + i * 0.5, gyp - 0.4);
   g.lineTo(gxp + i * 0.9, gyp + 1.6); g.lineTo(gxp - i * 0.7, gyp + 1.6);
