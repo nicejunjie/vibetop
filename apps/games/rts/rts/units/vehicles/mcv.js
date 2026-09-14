@@ -87,7 +87,14 @@ var BODY = (function (h, s, l) {
 // flat grey at most rungs — and STEEL and LIGHT were pure neutrals. The rip's
 // own bright body tones are #b8bcd8 and #9090b0, i.e. still cool at the top of
 // the range, so these carry the cast all the way up.
-var PAINT = '#8686c0', RAIL = '#7474a8', STEEL = '#b1b1f0', LIGHT = '#dcdcff';
+// THE HIGHLIGHT DOES NOT HAVE TO BE COOL. Pushing LIGHT and STEEL blue along
+// with the rest put this unit at 0.2712 of hue.vehicleOwnerMax, the highest on
+// the roster and past its 0.27 target — on a blue player a pale blue-grey IS
+// the owner's hue, and these two are the largest bright areas on the truck.
+// The complaint being answered is about SHADOWS reading grey; a near-white
+// highlight reading neutral is correct, and it is what keeps the remap share
+// honest. Mid and dark tones stay cool, the top of the range goes neutral.
+var PAINT = '#8686c0', RAIL = '#7474a8', STEEL = '#b1b1cc', LIGHT = '#e6e6e6';
 var DARK = '#383870', RUBBER = '#24244d', GLASS = '#181835';
 function surface(pts, color, center, unlit) {
   var p = pts[0], e = pts[1].map(function (v, i) { return v - p[i]; });
