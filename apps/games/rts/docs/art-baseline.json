@@ -328,12 +328,12 @@
     "peerVsSelf.infantry": 0,
     "peerVsSelf.naval": 2,
     "peerVsSelf.air": 0,
-    "iou.groundCombat.mean": 0.5978,
-    "iou.vehicle.mean": 0.5356,
+    "iou.groundCombat.mean": 0.5994,
+    "iou.vehicle.mean": 0.5365,
     "iou.infantry.mean": 0.5112,
     "iou.naval.mean": 0.3609,
     "iou.air.mean": 0.1544,
-    "iou.sameFactionOver75": 3,
+    "iou.sameFactionOver75": 4,
     "spike.belowFloor": 2,
     "spike.minThickAtZmin": 1.1,
     "spike.belowDeclaredBudget": 5,
@@ -341,7 +341,7 @@
     "mass.tightestBand6": 1.527,
     "hue.infantryOwnerMean": 0.1927,
     "hue.infantryBelowBudget": 5,
-    "hue.vehicleOwnerMean": 0.158,
+    "hue.vehicleOwnerMean": 0.1583,
     "hue.vehicleOwnerMax": 0.2702,
     "hue.maxImpostor": 0.1017,
     "aspect.navalOutsideRA2Band": 0,
@@ -378,7 +378,7 @@
     "value.engineerLightPct": 0.0984,
     "value.engineerMarginOverNext": -0.0339,
     "colour.infantry.meanDist": 1.4103,
-    "colour.vehicle.meanDist": 0.9956,
+    "colour.vehicle.meanDist": 0.9813,
     "colour.vehicleAchromatic": 7,
     "colour.naval.meanDist": 1.3376,
     "colour.air.meanDist": 1.1582,
@@ -395,10 +395,10 @@
         "broadsideAspect": 1.568,
         "ra2Aspect": 1.615,
         "vsRA2": 0.971,
-        "bestPeer": "War Miner",
-        "bestPeerIoU": 0.726,
-        "nearestPeer": "V3 Launcher",
-        "nearestPeerMMD2": 0.0501,
+        "bestPeer": "Mirage Tank",
+        "bestPeerIoU": 0.753,
+        "nearestPeer": "Mirage Tank",
+        "nearestPeerMMD2": 0.0302,
         "peersBeatingSelf": 0
       },
       "warminer": {
@@ -583,17 +583,17 @@
       },
       "mirage": {
         "group": "vehicle",
-        "aspect": 1.585,
-        "selfIoU": 0.6388,
-        "selfIoUCross": 0.6388,
-        "broadsideAspect": 1.585,
+        "aspect": 1.667,
+        "selfIoU": 0.6568,
+        "selfIoUCross": 0.6568,
+        "broadsideAspect": 1.667,
         "ra2Aspect": 1.452,
-        "vsRA2": 1.091,
+        "vsRA2": 1.148,
         "bestPeer": "Tesla Tank",
-        "bestPeerIoU": 0.7542,
+        "bestPeerIoU": 0.7539,
         "nearestPeer": "V3 Launcher",
-        "nearestPeerMMD2": -0.0274,
-        "peersBeatingSelf": 1
+        "nearestPeerMMD2": -0.0263,
+        "peersBeatingSelf": 2
       },
       "tanya": {
         "group": "infantry",
@@ -646,9 +646,9 @@
         "ra2Aspect": 1.75,
         "vsRA2": 1.065,
         "bestPeer": "Mirage Tank",
-        "bestPeerIoU": 0.6775,
+        "bestPeerIoU": 0.6975,
         "nearestPeer": "Mirage Tank",
-        "nearestPeerMMD2": -0.0274,
+        "nearestPeerMMD2": -0.0263,
         "peersBeatingSelf": 2
       },
       "teslatrooper": {
@@ -702,10 +702,10 @@
         "ra2Aspect": 1.405,
         "vsRA2": 0.886,
         "bestPeer": "Mirage Tank",
-        "bestPeerIoU": 0.7542,
+        "bestPeerIoU": 0.7539,
         "nearestPeer": "V3 Launcher",
         "nearestPeerMMD2": -0.0094,
-        "peersBeatingSelf": 1
+        "peersBeatingSelf": 2
       },
       "prismtank": {
         "group": "vehicle",
@@ -962,7 +962,7 @@
     },
     "iouGroups": {
       "vehicle": {
-        "mean": 0.5356,
+        "mean": 0.5365,
         "pairs": 78,
         "max": 0.8415,
         "over75": 6
@@ -986,12 +986,12 @@
         "over75": 0
       },
       "groundCombat": {
-        "mean": 0.5978,
+        "mean": 0.5994,
         "pairs": 36,
         "max": 0.8415,
         "over75": 4
       },
-      "sameFactionOver75": 3
+      "sameFactionOver75": 4
     },
     "worstSameFactionPairs": [
       {
@@ -1008,6 +1008,11 @@
         "a": "Engineer",
         "b": "Crazy Ivan",
         "iou": 0.7548
+      },
+      {
+        "a": "Chrono Miner",
+        "b": "Mirage Tank",
+        "iou": 0.753
       }
     ],
     "closestColourPairs": [
@@ -1084,9 +1089,9 @@
         "dist": 0.343
       },
       {
-        "a": "lancer",
-        "b": "mirage",
-        "dist": 0.405
+        "a": "mirage",
+        "b": "rhino",
+        "dist": 0.355
       },
       {
         "a": "flaktrack",
@@ -1099,8 +1104,8 @@
         "dist": 0.416
       },
       {
-        "a": "mirage",
-        "b": "flaktrack",
+        "a": "mammoth",
+        "b": "mirage",
         "dist": 0.489
       },
       {
@@ -1163,7 +1168,7 @@
       "engineer": 0.2237,
       "dog": 0.0839,
       "ifv": 0.0501,
-      "mirage": 0.2417,
+      "mirage": 0.2448,
       "tanya": 0.154,
       "rhino": 0.1567,
       "flaktrack": 0.2089,
@@ -1206,7 +1211,7 @@
       "engineer": 0.2274,
       "dog": 0.6238,
       "ifv": 0.0523,
-      "mirage": 0.0292,
+      "mirage": 0.0388,
       "tanya": 0.3966,
       "rhino": 0.0904,
       "flaktrack": 0.0696,
@@ -1302,6 +1307,13 @@
         "ratio": 0.81
       },
       {
+        "key": "mirage",
+        "wh": "65x39",
+        "ours": 1.667,
+        "ra2": 1.452,
+        "ratio": 1.148
+      },
+      {
         "key": "dread",
         "wh": "121x48",
         "ours": 2.521,
@@ -1377,13 +1389,6 @@
         "ours": 1.364,
         "ra2": 1.5,
         "ratio": 0.909
-      },
-      {
-        "key": "mirage",
-        "wh": "65x41",
-        "ours": 1.585,
-        "ra2": 1.452,
-        "ratio": 1.091
       },
       {
         "key": "seascorp",
@@ -4152,9 +4157,9 @@
         "unit": "prismtank",
         "clause": "total height >= 1.10x the Mirage's",
         "ok": true,
-        "measured": 1.39,
+        "measured": 1.462,
         "want": ">= 1.10x",
-        "note": "57 px against the Mirage's 41, both at their own broadside octant, bbox including the contact shadow. §2.3 calls this unit \"the tallest tank profile\" and it is: no other ground vehicle but the MCV is taller",
+        "note": "57 px against the Mirage's 39, both at their own broadside octant, bbox including the contact shadow. §2.3 calls this unit \"the tallest tank profile\" and it is: no other ground vehicle but the MCV is taller",
         "module": "vehicle.js",
         "refMatch": 0.56
       },
@@ -4483,10 +4488,10 @@
         "vsRA2": 0.971,
         "selfIoU": 0.7345,
         "selfIoUCross": 0.7345,
-        "bestPeer": "War Miner",
-        "bestPeerIoU": 0.726,
-        "nearestPeer": "V3 Launcher",
-        "nearestPeerMMD2": 0.0501,
+        "bestPeer": "Mirage Tank",
+        "bestPeerIoU": 0.753,
+        "nearestPeer": "Mirage Tank",
+        "nearestPeerMMD2": 0.0302,
         "peersBeatingSelf": 0,
         "peers": 12,
         "spike": {
@@ -5181,29 +5186,29 @@
         "name": "Mirage Tank",
         "group": "vehicle",
         "fac": "dir",
-        "mass": 1767,
+        "mass": 1721,
         "bboxW": 65,
-        "bboxH": 50,
-        "aspect": 1.298,
-        "broadsideWH": "65x41",
-        "broadsideAspect": 1.585,
+        "bboxH": 48,
+        "aspect": 1.339,
+        "broadsideWH": "65x39",
+        "broadsideAspect": 1.667,
         "ra2Aspect": 1.452,
-        "vsRA2": 1.091,
-        "selfIoU": 0.6388,
-        "selfIoUCross": 0.6388,
+        "vsRA2": 1.148,
+        "selfIoU": 0.6568,
+        "selfIoUCross": 0.6568,
         "bestPeer": "Tesla Tank",
-        "bestPeerIoU": 0.7542,
+        "bestPeerIoU": 0.7539,
         "nearestPeer": "V3 Launcher",
-        "nearestPeerMMD2": -0.0274,
-        "peersBeatingSelf": 1,
+        "nearestPeerMMD2": -0.0263,
+        "peersBeatingSelf": 2,
         "peers": 12,
         "spike": {
           "axis": "v",
-          "len": 17,
-          "thick": 27,
+          "len": 15,
+          "thick": 24,
           "budget": 3.64,
           "floor": 3.64,
-          "atZmin": 14.85,
+          "atZmin": 13.2,
           "floorAtZmin": 2,
           "lenBudget": 6,
           "fails": null,
@@ -5596,10 +5601,10 @@
         "selfIoU": 0.6742,
         "selfIoUCross": 0.6742,
         "bestPeer": "Mirage Tank",
-        "bestPeerIoU": 0.7542,
+        "bestPeerIoU": 0.7539,
         "nearestPeer": "V3 Launcher",
         "nearestPeerMMD2": -0.0094,
-        "peersBeatingSelf": 1,
+        "peersBeatingSelf": 2,
         "peers": 12,
         "spike": {
           "axis": "v",
@@ -5664,9 +5669,9 @@
         "selfIoU": 0.5838,
         "selfIoUCross": 0.5838,
         "bestPeer": "Mirage Tank",
-        "bestPeerIoU": 0.6775,
+        "bestPeerIoU": 0.6975,
         "nearestPeer": "Mirage Tank",
-        "nearestPeerMMD2": -0.0274,
+        "nearestPeerMMD2": -0.0263,
         "peersBeatingSelf": 2,
         "peers": 12,
         "spike": {

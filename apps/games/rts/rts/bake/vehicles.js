@@ -100,7 +100,12 @@ function bakeVehicle(col, kind, fac, anim) {
   // lands on #666633.
   else if (kind === 'mammoth') { hull = '#5a5a4b'; deck = '#353514'; }   // cold olive; low value and hard plane separation keep the Apocalypse severe
   else if (kind === 'ifv')     { hull = '#9b9b9b'; deck = '#8d8d8d'; }   // pale silver body, as the [FV] voxel render (VLIFT lifts it)
-  else if (kind === 'mirage')  { hull = '#474747'; deck = '#2b2b2b'; }   // dark slate, as mirage.png
+  // NOT DARK SLATE. `mirage-voxel.jpg` is a PALE LAVENDER-GREY hull — light
+  // enough that the dark blue deck patch and the khaki turret both read against
+  // it — and at #474747 ours baked a near-black tank that lost every one of
+  // those notes. The comment cited mirage.png, which is a cameo on a dark
+  // background, not the unit.
+  else if (kind === 'mirage')  { hull = '#8a8a8a'; deck = '#5e5e5e'; }
   else if (kind === 'rhino')     { hull = '#8a8a70'; deck = '#5a5a3c'; } // restrained olive gunmetal, as rhino.png; avoid the washed-out toy dome
   else if (kind === 'flaktrack') { hull = '#c4c4c4'; deck = '#b4b49c'; } // cream body AND bed, as soviet-flak-track.png
   else if (kind === 'v3')        { hull = '#9e9e78'; deck = '#666644'; } // tan-khaki truck, as RA2 V3 Rocket Launcher.png

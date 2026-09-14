@@ -49,8 +49,21 @@ bumper(len * 0.41, wid * 0.24, by - 1.6);
 // and the gun, drawn back-to-front by bearing.
 var drawPanel = function () {
   var ppx = cx - fx * 7.6, ppy = by - 6.2 - fy * 7.6;
-  isoBox(g, ppx, ppy, 5.2, wid * 0.72, 7.8, a, '#d4d4d4', '#2c323b');   // the projector: a thick pale BLOCK (rip), not a slab
-  isoBox(g, ppx, ppy - 7.8, 5.6, wid * 0.76, 0.9, a, '#ececec', '#2c323b'); // lit top
+  // LOW AND BESIDE, NOT TALL AND BEHIND. At 7.8 units it stood a white tower
+  // over the turret and dominated the sprite; in the rip the ribbed emitter
+  // plates FLANK the khaki body at about its own height.
+  //
+  // THE TRADE, STATED. Coming down costs one same-faction mask pair:
+  // `Chrono Miner | Mirage Tank` crosses 0.75 IoU (0.753), so
+  // iou.sameFactionOver75 goes 3 -> 4. The tower was carrying that separation,
+  // and the tower is not in the reference — RA2's Mirage is genuinely low and
+  // wide. Swept the height at 4.4, 5.6 and 6.4: the aspect band comes back to
+  // baseline at 6.4 but the pair stays over at every setting, because what
+  // separated them was height this unit should not have. The hard gate is
+  // unaffected — zero confusable in all 24 windows — so this is a ratchet
+  // number against a shape the rip actually shows, and the rip wins.
+  isoBox(g, ppx, ppy, 5.2, wid * 0.72, 6.4, a, '#d4d4d4', '#2c323b');
+  isoBox(g, ppx, ppy - 6.4, 5.6, wid * 0.76, 0.9, a, '#ececec', '#2c323b'); // lit top
   // One owner-colour band low across the slab, and the emitter face above it.
   // That face used to be VACC.mirage as a HOLOGRAM GREEN, defended in the
   // table as "the Mirage disguises itself as a TREE" — a statement about the
@@ -59,10 +72,10 @@ var drawPanel = function () {
   isoBox(g, ppx, ppy - 1.2, 2.0, wid * 0.74, 1.4, a, panel, PEDGE);   // a thin band: the mirage was the roster's owner-colour maximum
   g.fillStyle = VACC.mirage;
   g.beginPath();
-  g.moveTo(ppx + fx * 0.9 + px * wid * 0.20, ppy - 3.2 + fy * 0.9 + py * wid * 0.20);
-  g.lineTo(ppx + fx * 0.9 - px * wid * 0.20, ppy - 3.2 + fy * 0.9 - py * wid * 0.20);
-  g.lineTo(ppx + fx * 0.9 - px * wid * 0.20, ppy - 6.4 + fy * 0.9 - py * wid * 0.20);
-  g.lineTo(ppx + fx * 0.9 + px * wid * 0.20, ppy - 6.4 + fy * 0.9 + py * wid * 0.20);
+  g.moveTo(ppx + fx * 0.9 + px * wid * 0.20, ppy - 2.0 + fy * 0.9 + py * wid * 0.20);
+  g.lineTo(ppx + fx * 0.9 - px * wid * 0.20, ppy - 2.0 + fy * 0.9 - py * wid * 0.20);
+  g.lineTo(ppx + fx * 0.9 - px * wid * 0.20, ppy - 4.2 + fy * 0.9 - py * wid * 0.20);
+  g.lineTo(ppx + fx * 0.9 + px * wid * 0.20, ppy - 4.2 + fy * 0.9 + py * wid * 0.20);
   // AND ITS OUTLINE WAS GREEN TOO. #123a20 is a dark forest green edging the
   // emitter face — the last of the tree that RA2 never drew.
   g.closePath(); g.fill(); outline(g, '#2c323b');
@@ -70,9 +83,10 @@ var drawPanel = function () {
 };
 var drawTurret = function () {
   var mtx = cx + fx * 1.2, mty = by - 6.4 + fy * 1.2;
+  // ...and so is the turret body it comes out of.
   prism(mtx, mty, [[4.6, -3.2], [4.6, 3.2], [-1.6, 4.2], [-4.6, 2.8],
                    [-4.6, -2.8], [-1.6, -4.2]],
-        3.8, shade(hull, 1.12), dark);
+        3.8, '#999966', '#4d4d33');
   for (sg = -1; sg <= 1; sg += 2)                              // owner cheeks
     prism(mtx - fx * 0.6, mty - 0.6 - fy * 0.6,
           [[3.0, 3.1 * sg], [-3.6, 2.7 * sg], [-3.8, 4.4 * sg], [3.0, 4.8 * sg]],
@@ -86,7 +100,11 @@ var drawTurret = function () {
        shade(hull, 0.80), shade(hull, 1.10), dark);
   // THE GUN. ~0.7 of the hull length past the mantlet: on the rip the
   // tube is a good half of the whole sprite's width at broadside.
-  barrel(mtx + fx * 4.8, mty - 2.6 + fy * 4.8, 13.5, 1.7, 1.05, '#2a2e36');
+  // THE GUN IS KHAKI. Nearly every tank in the game has a dark tube, and the
+  // Mirage is the exception the rip actually draws: its barrel and its turret
+  // body are the same olive-tan mass, which is most of what separates her from
+  // the Grizzly at a glance. Ours was #2a2e36 gunmetal like everyone else's.
+  barrel(mtx + fx * 4.8, mty - 2.6 + fy * 4.8, 13.5, 1.7, 1.05, '#999966');
   for (i2 = -1; i2 <= 1; i2 += 2)
     lamp(cx + fx * len * 0.38 + px * wid * 0.26 * i2,
          by - 4.2 + fy * len * 0.38 + py * wid * 0.26 * i2);
