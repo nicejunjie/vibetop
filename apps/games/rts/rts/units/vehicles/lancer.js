@@ -36,13 +36,23 @@ if (wantH) {
   // as paint. The mask is untouched by this: both panels are painted
   // over pixels the hull already owns, so the silhouette, and every
   // metric that reads it, is byte-identical.
+  // "A SHORT PATCH, NOT A SKIRT" WENT TOO FAR THE OTHER WAY. Measured on the
+  // bake the Grizzly was carrying about 2% owner colour; in `lancer-voxel.jpg`
+  // the blue is a BIG rectangle filling most of the hull's side between the
+  // fender and the deck — call it an eighth of the vehicle — with a second
+  // band on the turret. It is the only saturated thing on a pale grey tank and
+  // it is what tells you whose Grizzly it is at map size. Longer, taller, and
+  // the neutral cap above it shrinks so it stops eating the top of the plate.
   function flankPlate(s2) {
-    isoBox(g, cx + px * wid * 0.365 * s2 - fx * 1.2,
-           by - 0.4 + py * wid * 0.365 * s2 - fy * 1.2,
-           len * 0.24, 1.55, 2.35, a, shade(panel, 0.82), PEDGE);   // the rip's blue is a short patch, not a skirt
-    isoBox(g, cx + px * wid * 0.345 * s2 - fx * 1.2,
-           by - 2.6 + py * wid * 0.345 * s2 - fy * 1.2,
-           len * 0.19, 1.25, 0.75, a, shade(hull, 0.92), PEDGE);          // neutral lit cap; owner colour remains one countable flank slab
+    // ...and it belongs at MID-HULL. Standing on by - 0.4 the plate sat down
+    // on the track line with the fender cutting its top off; the rip's blue
+    // rectangle is clear of the running gear, in the middle of the side.
+    isoBox(g, cx + px * wid * 0.365 * s2 - fx * 0.6,
+           by - 2.9 + py * wid * 0.365 * s2 - fy * 0.6,
+           len * 0.40, 1.55, 3.30, a, panel, PEDGE);
+    isoBox(g, cx + px * wid * 0.345 * s2 - fx * 0.6,
+           by - 6.1 + py * wid * 0.345 * s2 - fy * 0.6,
+           len * 0.15, 1.25, 0.50, a, shade(hull, 0.92), PEDGE);
   }
   tracks(len * 1.04, 3.05, wid * 0.23, '#b6b6b6');
   for (sg = -1; sg <= 1; sg += 2) if (py * sg < 0) flankPlate(sg);

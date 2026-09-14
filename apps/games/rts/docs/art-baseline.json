@@ -328,9 +328,9 @@
     "peerVsSelf.infantry": 0,
     "peerVsSelf.naval": 2,
     "peerVsSelf.air": 0,
-    "iou.groundCombat.mean": 0.6061,
-    "iou.vehicle.mean": 0.542,
-    "iou.infantry.mean": 0.5124,
+    "iou.groundCombat.mean": 0.6062,
+    "iou.vehicle.mean": 0.5421,
+    "iou.infantry.mean": 0.5112,
     "iou.naval.mean": 0.3609,
     "iou.air.mean": 0.1544,
     "iou.sameFactionOver75": 3,
@@ -339,22 +339,22 @@
     "spike.belowDeclaredBudget": 5,
     "mass.groundCombatSpan": 1.951,
     "mass.tightestBand6": 1.425,
-    "hue.infantryOwnerMean": 0.1936,
+    "hue.infantryOwnerMean": 0.1927,
     "hue.infantryBelowBudget": 5,
-    "hue.vehicleOwnerMean": 0.1541,
+    "hue.vehicleOwnerMean": 0.1575,
     "hue.vehicleOwnerMax": 0.2702,
     "hue.maxImpostor": 0.1017,
     "aspect.navalOutsideRA2Band": 0,
     "aspect.navalWorstOffRA2": 0.19,
     "aspect.vehicleOutsideRA2Band": 3,
-    "aspect.infantryOutsideRA2Band": 1,
+    "aspect.infantryOutsideRA2Band": 2,
     "aspect.airOutsideRA2Band": 0,
     "size.navalOutsideRA2Band": 0,
     "size.vehicleOutsideRA2Band": 0,
     "size.infantryOutsideRA2Band": 0,
     "size.airOutsideRA2Band": 0,
-    "size.worstOffGroupScale": 0.2215,
-    "size.crossGroupSpread": 1.381,
+    "size.worstOffGroupScale": 0.2308,
+    "size.crossGroupSpread": 1.403,
     "size.bldOutsideRA2Band": 0,
     "size.bldWorstOffHouseScale": 0.1819,
     "size.bldFootprintMismatch": 0,
@@ -377,8 +377,8 @@
     "value.soldiersLighterThanEngineer": 2,
     "value.engineerLightPct": 0.0984,
     "value.engineerMarginOverNext": -0.0339,
-    "colour.infantry.meanDist": 1.4146,
-    "colour.vehicle.meanDist": 1.0481,
+    "colour.infantry.meanDist": 1.4103,
+    "colour.vehicle.meanDist": 1.0507,
     "colour.vehicleAchromatic": 7,
     "colour.naval.meanDist": 1.3376,
     "colour.air.meanDist": 1.1582,
@@ -514,15 +514,15 @@
       "lancer": {
         "group": "vehicle",
         "aspect": 2.423,
-        "selfIoU": 0.5645,
-        "selfIoUCross": 0.5645,
+        "selfIoU": 0.566,
+        "selfIoUCross": 0.566,
         "broadsideAspect": 2.423,
         "ra2Aspect": 1.935,
         "vsRA2": 1.252,
         "bestPeer": "Rhino Tank",
-        "bestPeerIoU": 0.8402,
+        "bestPeerIoU": 0.8415,
         "nearestPeer": "Apocalypse",
-        "nearestPeerMMD2": -0.0645,
+        "nearestPeerMMD2": -0.0643,
         "peersBeatingSelf": 2
       },
       "mammoth": {
@@ -534,9 +534,9 @@
         "ra2Aspect": 1.735,
         "vsRA2": 1.33,
         "bestPeer": "Grizzly Tank",
-        "bestPeerIoU": 0.8093,
+        "bestPeerIoU": 0.8099,
         "nearestPeer": "Grizzly Tank",
-        "nearestPeerMMD2": -0.0645,
+        "nearestPeerMMD2": -0.0643,
         "peersBeatingSelf": 2
       },
       "engineer": {
@@ -549,8 +549,8 @@
         "vsRA2": 0.962,
         "bestPeer": "Crazy Ivan",
         "bestPeerIoU": 0.7548,
-        "nearestPeer": "Tanya",
-        "nearestPeerMMD2": 0.0712,
+        "nearestPeer": "Crazy Ivan",
+        "nearestPeerMMD2": 0.0781,
         "peersBeatingSelf": 0
       },
       "dog": {
@@ -597,16 +597,16 @@
       },
       "tanya": {
         "group": "infantry",
-        "aspect": 0.533,
-        "selfIoU": 0.7543,
-        "selfIoUCross": 0.7543,
-        "broadsideAspect": 0.533,
+        "aspect": 0.667,
+        "selfIoU": 0.6957,
+        "selfIoUCross": 0.6957,
+        "broadsideAspect": 0.667,
         "ra2Aspect": 0.5,
-        "vsRA2": 1.066,
+        "vsRA2": 1.334,
         "bestPeer": "Crazy Ivan",
-        "bestPeerIoU": 0.7692,
+        "bestPeerIoU": 0.7195,
         "nearestPeer": "Engineer",
-        "nearestPeerMMD2": 0.0712,
+        "nearestPeerMMD2": 0.0802,
         "peersBeatingSelf": 0
       },
       "rhino": {
@@ -618,9 +618,9 @@
         "ra2Aspect": 2,
         "vsRA2": 1.14,
         "bestPeer": "Grizzly Tank",
-        "bestPeerIoU": 0.8402,
+        "bestPeerIoU": 0.8415,
         "nearestPeer": "Grizzly Tank",
-        "nearestPeerMMD2": -0.0436,
+        "nearestPeerMMD2": -0.0437,
         "peersBeatingSelf": 2
       },
       "flaktrack": {
@@ -673,8 +673,8 @@
         "broadsideAspect": 0.517,
         "ra2Aspect": 0.48,
         "vsRA2": 1.077,
-        "bestPeer": "Tanya",
-        "bestPeerIoU": 0.7692,
+        "bestPeer": "Engineer",
+        "bestPeerIoU": 0.7548,
         "nearestPeer": "Engineer",
         "nearestPeerMMD2": 0.0781,
         "peersBeatingSelf": 0
@@ -962,16 +962,16 @@
     },
     "iouGroups": {
       "vehicle": {
-        "mean": 0.542,
+        "mean": 0.5421,
         "pairs": 78,
-        "max": 0.8402,
+        "max": 0.8415,
         "over75": 6
       },
       "infantry": {
-        "mean": 0.5124,
+        "mean": 0.5112,
         "pairs": 91,
-        "max": 0.7692,
-        "over75": 2
+        "max": 0.7548,
+        "over75": 1
       },
       "naval": {
         "mean": 0.3609,
@@ -986,9 +986,9 @@
         "over75": 0
       },
       "groundCombat": {
-        "mean": 0.6061,
+        "mean": 0.6062,
         "pairs": 36,
-        "max": 0.8402,
+        "max": 0.8415,
         "over75": 4
       },
       "sameFactionOver75": 3
@@ -1027,14 +1027,14 @@
         "dist": 0.487
       },
       {
+        "a": "conscript",
+        "b": "tanya",
+        "dist": 0.528
+      },
+      {
         "a": "flak",
         "b": "dog",
         "dist": 0.543
-      },
-      {
-        "a": "conscript",
-        "b": "tanya",
-        "dist": 0.567
       },
       {
         "a": "conscript",
@@ -1057,9 +1057,9 @@
         "dist": 0.72
       },
       {
-        "a": "conscript",
-        "b": "spy",
-        "dist": 0.759
+        "a": "engineer",
+        "b": "tanya",
+        "dist": 0.758
       }
     ],
     "closestVehicleColourPairs": [
@@ -1109,9 +1109,9 @@
         "dist": 0.489
       },
       {
-        "a": "lancer",
+        "a": "flaktrack",
         "b": "mcv",
-        "dist": 0.5
+        "dist": 0.509
       }
     ],
     "topImpostors": [
@@ -1120,16 +1120,16 @@
         "pct": 0.1017
       },
       {
+        "key": "tanya",
+        "pct": 0.0973
+      },
+      {
         "key": "warminer",
         "pct": 0.0931
       },
       {
         "key": "apc",
         "pct": 0.0907
-      },
-      {
-        "key": "tanya",
-        "pct": 0.0766
       },
       {
         "key": "engineer",
@@ -1158,13 +1158,13 @@
       "rocketeer": 0.2412,
       "harrier": 0.21,
       "kirov": 0.2074,
-      "lancer": 0.0496,
+      "lancer": 0.0935,
       "mammoth": 0.065,
       "engineer": 0.2237,
       "dog": 0.0839,
       "ifv": 0.0501,
       "mirage": 0.2453,
-      "tanya": 0.1665,
+      "tanya": 0.154,
       "rhino": 0.1563,
       "flaktrack": 0.2089,
       "v3": 0.189,
@@ -1201,13 +1201,13 @@
       "rocketeer": 0.14,
       "harrier": 0.0059,
       "kirov": 0.3147,
-      "lancer": 0.0879,
+      "lancer": 0.0873,
       "mammoth": 0.1299,
       "engineer": 0.2274,
       "dog": 0.6238,
       "ifv": 0.0523,
       "mirage": 0.0532,
-      "tanya": 0.3652,
+      "tanya": 0.3966,
       "rhino": 0.1003,
       "flaktrack": 0.0696,
       "v3": 0.1248,
@@ -1252,6 +1252,13 @@
       "Prism Tank"
     ],
     "ra2Aspect": [
+      {
+        "key": "tanya",
+        "wh": "20x30",
+        "ours": 0.667,
+        "ra2": 0.5,
+        "ratio": 1.334
+      },
       {
         "key": "mammoth",
         "wh": "60x26",
@@ -1393,13 +1400,6 @@
         "ratio": 1.077
       },
       {
-        "key": "tanya",
-        "wh": "16x30",
-        "ours": 0.533,
-        "ra2": 0.5,
-        "ratio": 1.066
-      },
-      {
         "key": "v3",
         "wh": "82x44",
         "ours": 1.864,
@@ -1500,6 +1500,16 @@
     ],
     "ra2Size": [
       {
+        "key": "tanya",
+        "group": "infantry",
+        "ours": 20,
+        "ra2": 13,
+        "ra2WH": "13x26",
+        "scale": 1.5385,
+        "groupScale": 1.25,
+        "dev": 0.2308
+      },
+      {
         "key": "v3",
         "group": "vehicle",
         "ours": 82,
@@ -1550,16 +1560,6 @@
         "dev": 0.1261
       },
       {
-        "key": "conscript",
-        "group": "infantry",
-        "ours": 18,
-        "ra2": 13,
-        "ra2WH": "13x27",
-        "scale": 1.3846,
-        "groupScale": 1.2308,
-        "dev": 0.125
-      },
-      {
         "key": "prismtank",
         "group": "vehicle",
         "ours": 70,
@@ -1570,6 +1570,16 @@
         "dev": 0.1134
       },
       {
+        "key": "conscript",
+        "group": "infantry",
+        "ours": 18,
+        "ra2": 13,
+        "ra2WH": "13x27",
+        "scale": 1.3846,
+        "groupScale": 1.25,
+        "dev": 0.1077
+      },
+      {
         "key": "teslatank",
         "group": "vehicle",
         "ours": 61,
@@ -1578,6 +1588,16 @@
         "scale": 1.1731,
         "groupScale": 1.0656,
         "dev": 0.1009
+      },
+      {
+        "key": "rocketeer",
+        "group": "infantry",
+        "ours": 18,
+        "ra2": 16,
+        "ra2WH": "16x24",
+        "scale": 1.125,
+        "groupScale": 1.25,
+        "dev": -0.1
       },
       {
         "key": "ifv",
@@ -1610,26 +1630,6 @@
         "dev": 0.0867
       },
       {
-        "key": "rocketeer",
-        "group": "infantry",
-        "ours": 18,
-        "ra2": 16,
-        "ra2WH": "16x24",
-        "scale": 1.125,
-        "groupScale": 1.2308,
-        "dev": -0.086
-      },
-      {
-        "key": "dog",
-        "group": "infantry",
-        "ours": 28,
-        "ra2": 21,
-        "ra2WH": "21x15",
-        "scale": 1.3333,
-        "groupScale": 1.2308,
-        "dev": 0.0833
-      },
-      {
         "key": "sub",
         "group": "naval",
         "ours": 72,
@@ -1646,8 +1646,48 @@
         "ra2": 13,
         "ra2WH": "13x25",
         "scale": 1.1538,
-        "groupScale": 1.2308,
-        "dev": -0.0626
+        "groupScale": 1.25,
+        "dev": -0.077
+      },
+      {
+        "key": "dog",
+        "group": "infantry",
+        "ours": 28,
+        "ra2": 21,
+        "ra2WH": "21x15",
+        "scale": 1.3333,
+        "groupScale": 1.25,
+        "dev": 0.0666
+      },
+      {
+        "key": "rifle",
+        "group": "infantry",
+        "ours": 14,
+        "ra2": 12,
+        "ra2WH": "12x28",
+        "scale": 1.1667,
+        "groupScale": 1.25,
+        "dev": -0.0666
+      },
+      {
+        "key": "yuri",
+        "group": "infantry",
+        "ours": 14,
+        "ra2": 12,
+        "ra2WH": "12x29",
+        "scale": 1.1667,
+        "groupScale": 1.25,
+        "dev": -0.0666
+      },
+      {
+        "key": "flak",
+        "group": "infantry",
+        "ours": 14,
+        "ra2": 12,
+        "ra2WH": "12x37",
+        "scale": 1.1667,
+        "groupScale": 1.25,
+        "dev": -0.0666
       },
       {
         "key": "drone",
@@ -1658,36 +1698,6 @@
         "scale": 1,
         "groupScale": 1.0656,
         "dev": -0.0616
-      },
-      {
-        "key": "rifle",
-        "group": "infantry",
-        "ours": 14,
-        "ra2": 12,
-        "ra2WH": "12x28",
-        "scale": 1.1667,
-        "groupScale": 1.2308,
-        "dev": -0.0521
-      },
-      {
-        "key": "yuri",
-        "group": "infantry",
-        "ours": 14,
-        "ra2": 12,
-        "ra2WH": "12x29",
-        "scale": 1.1667,
-        "groupScale": 1.2308,
-        "dev": -0.0521
-      },
-      {
-        "key": "flak",
-        "group": "infantry",
-        "ours": 14,
-        "ra2": 12,
-        "ra2WH": "12x37",
-        "scale": 1.1667,
-        "groupScale": 1.2308,
-        "dev": -0.0521
       },
       {
         "key": "mammoth",
@@ -1710,26 +1720,6 @@
         "dev": -0.0448
       },
       {
-        "key": "teslatrooper",
-        "group": "infantry",
-        "ours": 23,
-        "ra2": 18,
-        "ra2WH": "18x28",
-        "scale": 1.2778,
-        "groupScale": 1.2308,
-        "dev": 0.0382
-      },
-      {
-        "key": "cleg",
-        "group": "infantry",
-        "ours": 19,
-        "ra2": 15,
-        "ra2WH": "15x26",
-        "scale": 1.2667,
-        "groupScale": 1.2308,
-        "dev": 0.0292
-      },
-      {
         "key": "chronominer",
         "group": "vehicle",
         "ours": 69,
@@ -1738,6 +1728,16 @@
         "scale": 1.0952,
         "groupScale": 1.0656,
         "dev": 0.0278
+      },
+      {
+        "key": "teslatrooper",
+        "group": "infantry",
+        "ours": 23,
+        "ra2": 18,
+        "ra2WH": "18x28",
+        "scale": 1.2778,
+        "groupScale": 1.25,
+        "dev": 0.0222
       },
       {
         "key": "dread",
@@ -1760,16 +1760,6 @@
         "dev": -0.0189
       },
       {
-        "key": "ivan",
-        "group": "infantry",
-        "ours": 15,
-        "ra2": 12,
-        "ra2WH": "12x25",
-        "scale": 1.25,
-        "groupScale": 1.2308,
-        "dev": 0.0156
-      },
-      {
         "key": "lancer",
         "group": "vehicle",
         "ours": 63,
@@ -1788,6 +1778,16 @@
         "scale": 0.8791,
         "groupScale": 0.8911,
         "dev": -0.0135
+      },
+      {
+        "key": "cleg",
+        "group": "infantry",
+        "ours": 19,
+        "ra2": 15,
+        "ra2WH": "15x26",
+        "scale": 1.2667,
+        "groupScale": 1.25,
+        "dev": 0.0134
       },
       {
         "key": "mcv",
@@ -1830,13 +1830,13 @@
         "dev": 0
       },
       {
-        "key": "tanya",
+        "key": "ivan",
         "group": "infantry",
-        "ours": 16,
-        "ra2": 13,
-        "ra2WH": "13x26",
-        "scale": 1.2308,
-        "groupScale": 1.2308,
+        "ours": 15,
+        "ra2": 12,
+        "ra2WH": "12x25",
+        "scale": 1.25,
+        "groupScale": 1.25,
         "dev": 0
       },
       {
@@ -3072,7 +3072,7 @@
         "ok": false,
         "measured": 0,
         "want": ">= 0.30",
-        "note": "skin = hue 16-40, s 0.24-0.52, v >= 0.40 — the window round TROOP.tanya.skin #e6b98f (h 27, s 0.38) and its shades, since shade() is a per-channel multiply and preserves both. Denominator is the FIGURE (contact shadow segmented off), 0/205 px",
+        "note": "skin = hue 16-40, s 0.24-0.52, v >= 0.40 — the window round TROOP.tanya.skin #e6b98f (h 27, s 0.38) and its shades, since shade() is a per-channel multiply and preserves both. Denominator is the FIGURE (contact shadow segmented off), 0/229 px",
         "module": "infantry.js",
         "refMatch": 1
       },
@@ -4111,7 +4111,7 @@
         "unit": "lancer",
         "clause": "exactly 2 house blocks, each 4-8 px, individually countable (gap >= 2 px, no fusing)",
         "ok": false,
-        "measured": "2 blocks, minor dims [4,3], gap 7",
+        "measured": "2 blocks, minor dims [6,3], gap 2",
         "want": "2 blocks / minor 4-8 px / gap >= 2",
         "note": "8-connected components of the house mask over 12 px, at the broadside octant. \"each 4-8 px\" is read as the MINOR dimension — see the block comment. THE DEFECT WAS A RENDERING ORDER BUG AND IT IS FIXED: the FAR flank's panel was painted after the chassis, so it lay on the deck instead of behind the hull and anti-aliased into the turret cheek, and what the 2026-09-06 pass measured as \"the cheek, 2 px from the plate\" was that fused blob — which is why raising the turret moved the gap by exactly zero, and it was never the cheek being pinned. Far panel under the hull, near panel on top: the cheek measures alone, the flank panel grows UPWARD to a 6 px minor, and the SILHOUETTE IS BYTE-IDENTICAL (5058 opaque px over eight bearings, before and after) so no mask metric can move. That constraint is load-bearing: the two configurations that DO deliver the row's old \">= 4 px\" both add mask — a raised turret cap (+15 opaque px a bearing) or the panel dropped onto the contact-shadow row (+13) — and both take `iou.groundCombat.mean` 0.4652 -> 0.4667, more than the whole of that gate's last gain. 6 + 4 + 6 is 16 rows of a 22-row sprite and only 14 exist between the turret cap and the track line",
         "module": "vehicle.js",
@@ -4316,14 +4316,14 @@
         "lightPct": 0.0576
       },
       {
+        "key": "tanya",
+        "name": "Tanya",
+        "lightPct": 0.0441
+      },
+      {
         "key": "desolator",
         "name": "Desolator",
         "lightPct": 0.0386
-      },
-      {
-        "key": "tanya",
-        "name": "Tanya",
-        "lightPct": 0.0288
       },
       {
         "key": "ivan",
@@ -4365,7 +4365,7 @@
     "ra2GroupScale": {
       "vehicle": 1.0656,
       "air": 0.9732500000000001,
-      "infantry": 1.2308,
+      "infantry": 1.25,
       "naval": 0.8911
     },
     "units": {
@@ -4787,8 +4787,8 @@
         "selfIoUCross": 0.6587,
         "bestPeer": "Crazy Ivan",
         "bestPeerIoU": 0.7548,
-        "nearestPeer": "Tanya",
-        "nearestPeerMMD2": 0.0712,
+        "nearestPeer": "Crazy Ivan",
+        "nearestPeerMMD2": 0.0781,
         "peersBeatingSelf": 0,
         "peers": 13,
         "spike": {
@@ -4989,8 +4989,8 @@
         "vsRA2": 1.077,
         "selfIoU": 0.8024,
         "selfIoUCross": 0.8024,
-        "bestPeer": "Tanya",
-        "bestPeerIoU": 0.7692,
+        "bestPeer": "Engineer",
+        "bestPeerIoU": 0.7548,
         "nearestPeer": "Engineer",
         "nearestPeerMMD2": 0.0781,
         "peersBeatingSelf": 0,
@@ -5047,7 +5047,7 @@
         "name": "Grizzly Tank",
         "group": "vehicle",
         "fac": "dir",
-        "mass": 1034,
+        "mass": 1035,
         "bboxW": 63,
         "bboxH": 44,
         "aspect": 1.605,
@@ -5055,12 +5055,12 @@
         "broadsideAspect": 2.423,
         "ra2Aspect": 1.935,
         "vsRA2": 1.252,
-        "selfIoU": 0.5645,
-        "selfIoUCross": 0.5645,
+        "selfIoU": 0.566,
+        "selfIoUCross": 0.566,
         "bestPeer": "Rhino Tank",
-        "bestPeerIoU": 0.8402,
+        "bestPeerIoU": 0.8415,
         "nearestPeer": "Apocalypse",
-        "nearestPeerMMD2": -0.0645,
+        "nearestPeerMMD2": -0.0643,
         "peersBeatingSelf": 2,
         "peers": 12,
         "spike": {
@@ -5124,9 +5124,9 @@
         "selfIoU": 0.5269,
         "selfIoUCross": 0.5269,
         "bestPeer": "Grizzly Tank",
-        "bestPeerIoU": 0.8093,
+        "bestPeerIoU": 0.8099,
         "nearestPeer": "Grizzly Tank",
-        "nearestPeerMMD2": -0.0645,
+        "nearestPeerMMD2": -0.0643,
         "peersBeatingSelf": 2,
         "peers": 12,
         "spike": {
@@ -5294,9 +5294,9 @@
         "selfIoU": 0.6456,
         "selfIoUCross": 0.6456,
         "bestPeer": "Grizzly Tank",
-        "bestPeerIoU": 0.8402,
+        "bestPeerIoU": 0.8415,
         "nearestPeer": "Grizzly Tank",
-        "nearestPeerMMD2": -0.0436,
+        "nearestPeerMMD2": -0.0437,
         "peersBeatingSelf": 2,
         "peers": 12,
         "spike": {
@@ -5551,29 +5551,29 @@
         "name": "Tanya",
         "group": "infantry",
         "fac": "dir",
-        "mass": 209,
-        "bboxW": 16,
+        "mass": 226,
+        "bboxW": 20,
         "bboxH": 30,
-        "aspect": 0.372,
-        "broadsideWH": "16x30",
-        "broadsideAspect": 0.533,
+        "aspect": 0.482,
+        "broadsideWH": "20x30",
+        "broadsideAspect": 0.667,
         "ra2Aspect": 0.5,
-        "vsRA2": 1.066,
-        "selfIoU": 0.7543,
-        "selfIoUCross": 0.7543,
+        "vsRA2": 1.334,
+        "selfIoU": 0.6957,
+        "selfIoUCross": 0.6957,
         "bestPeer": "Crazy Ivan",
-        "bestPeerIoU": 0.7692,
+        "bestPeerIoU": 0.7195,
         "nearestPeer": "Engineer",
-        "nearestPeerMMD2": 0.0712,
+        "nearestPeerMMD2": 0.0802,
         "peersBeatingSelf": 0,
         "peers": 13,
         "spike": {
           "axis": "h",
-          "len": 4,
-          "thick": 7,
+          "len": 6,
+          "thick": 6.5,
           "budget": 3.64,
           "floor": 3.64,
-          "atZmin": 3.85,
+          "atZmin": 3.58,
           "floorAtZmin": 2,
           "lenBudget": 2,
           "fails": null,

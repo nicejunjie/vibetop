@@ -60,7 +60,23 @@ g.strokeStyle = '#2f3138'; g.lineWidth = 1.0; g.lineCap = 'butt';
 g.beginPath();                                                // thin holster sling
 g.moveTo(cx - 2.4, by - 20.6); g.lineTo(cx + 1.4, by - 15.4); g.stroke();
 
-arms(5.1, by - 18.8, 2.2, 6.2, T.skin, function (i, x, y) {
+// ARMS OUT, AND FURTHER OUT. Tanya is the dual-pistol commando and in RA2 her
+// arms stand clear of the body — she is WIDER than a rifleman, not narrower.
+// Ours baked 8 px against the GI's 12, and `rifle | tanya` has been the
+// roster's weakest pair for the whole of this work: 9.0 against a 9.3
+// friend-vs-foe floor, failing again every time another unit's remap improves
+// and lifts that floor. Widening her is both what the reference shows and
+// what stops the two silhouettes reading as one standing figure.
+//
+// THE TRADE, STATED. This costs her aspect: 20x30 = 0.67 against RA2's own
+// 0.50, so `aspect.infantryOutsideRA2Band` goes 1 -> 2. Fidelity and
+// legibility genuinely point opposite ways on this one unit — the rip's Tanya
+// is NARROW, and narrow is exactly what makes her mask a rifleman's. Measured
+// at three widths: 5.6 and 5.9 both leave the pair confusable AND sit at the
+// band edge, so there is no setting that satisfies both. The hard gate wins
+// over the ratchet: a player who cannot tell Tanya from a G.I. in play is a
+// worse outcome than three pixels of extra shoulder.
+arms(6.3, by - 18.8, 2.2, 6.2, T.skin, function (i, x, y) {
   g.fillStyle = '#3a3d45';                                    // fingerless glove
   g.beginPath(); g.roundRect(x - 1.2, y + 5.5, 2.4, 2.0, 0.7); g.fill();
   // The pistol hangs MUZZLE-DOWN at her side, canted out from the
@@ -69,10 +85,10 @@ arms(5.1, by - 18.8, 2.2, 6.2, T.skin, function (i, x, y) {
   // ...and canted OUT far enough to clear the hip: §2.1 wants each
   // pistol breaking the outline by >=2 px, and at i*1.3 they were
   // inside the arm's own silhouette and contributed nothing.
-  var gxp = x + i * 1.1, gyp = y + 7.2;
+  var gxp = x + i * 1.9, gyp = y + 7.2;
   g.strokeStyle = '#1b1d22'; g.lineWidth = 1.8; g.lineCap = 'butt';
   g.beginPath();
-  g.moveTo(gxp, gyp); g.lineTo(gxp + i * 2.4, gyp + 4.0); g.stroke();
+  g.moveTo(gxp, gyp); g.lineTo(gxp + i * 3.0, gyp + 3.6); g.stroke();
   g.fillStyle = '#2b2e35';                                    // grip, canted back
   g.beginPath();
   g.moveTo(gxp - i * 1.3, gyp - 0.4); g.lineTo(gxp + i * 0.5, gyp - 0.4);

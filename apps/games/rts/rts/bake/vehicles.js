@@ -85,7 +85,10 @@ function bakeVehicle(col, kind, fac, anim) {
   // #666633 / #999966 / #cccc99, which are RA2's own olives). Values are
   // held where they were, so nothing moves in the legibility matrix.
   var hull, deck;
-  if (kind === 'lancer')       { hull = '#6b6b6b'; deck = '#454545'; }   // pale steel with a dark top, as allied-grizzly-tank.png (VLIFT lifts it)
+  // PALER. At #6b6b6b she baked a mid-grey tank; the rip is a light
+  // lavender-white hull with the dark confined to the track band, and the
+  // difference is most of why ours read as a lump of steel beside it.
+  if (kind === 'lancer')       { hull = '#8f8f8f'; deck = '#5e5e5e'; }   // pale steel with a dark top, as allied-grizzly-tank.png (VLIFT lifts it)
   else if (kind === 'spectre') { hull = '#4f4f4f'; deck = '#333333'; }   // dark gunmetal, as allied-prism-tank.png
   // THE DECK WAS BAKING PURE GREY. #35352c is 53/53/44, and on this grid 44
   // rounds to the SAME cell as 53 — so the Apocalypse's largest visible surface
