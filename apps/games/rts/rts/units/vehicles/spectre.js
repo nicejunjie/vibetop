@@ -132,7 +132,19 @@ if (wantT) {
   var hx = pcx + fx * 0.9, hy = pcy - 7.0 + fy * 0.9;   // up onto the post
   prism(hx, hy, [[PW + 0.5, -PW - 0.7], [PW + 0.5, PW + 0.7],
                  [-PW - 0.5, PW + 0.3], [-PW - 0.5, -PW - 0.3]],
-        PH, '#bebebe', '#12151b');   // PALE: the rip's head is the brightest thing on the tank
+        PH, panel, PEDGE);   // THE HOUSING IS THE OWNER'S, the glazed face stays pale
+  // WHICH WAY ROUND THE HEAD GOES. This housing was #bebebe, chosen from
+  // `prismtank-voxel.jpg`, and the note below records the real hazard that came
+  // with it: a blue CORE inside a pale glazed face blends to lavender and the
+  // snap lands it on #cc66cc — pink, down the one part the tank is named for.
+  // That hazard is about the CORE, not the housing. In allied-prism-tank.png
+  // the head is predominantly BLUE with pale facets on it; ours was
+  // predominantly pale with a blue trim — the ratio inverted. The housing goes
+  // to the owner and the glazed face and its core stay pale, so blue and white
+  // meet along ONE edge instead of running side by side up the whole crystal.
+  // (The voxel render has now misled this roster four times — the Chrono
+  // Miner's violet nose, the IFV's #9b9b9b hull, the Apocalypse's SAM drums and
+  // this. The in-game rip is the authority.)
   for (sg = -1; sg <= 1; sg += 2)                             // house-colour cowl trim
     prism(hx, hy - 0.8, [[PW, 2.1 * sg], [-PW, 1.8 * sg], [-PW, 2.9 * sg], [PW, 3.2 * sg]],
           2.6, panel, PEDGE);
