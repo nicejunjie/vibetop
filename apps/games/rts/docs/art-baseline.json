@@ -328,8 +328,8 @@
     "peerVsSelf.infantry": 0,
     "peerVsSelf.naval": 2,
     "peerVsSelf.air": 0,
-    "iou.groundCombat.mean": 0.6058,
-    "iou.vehicle.mean": 0.5401,
+    "iou.groundCombat.mean": 0.6037,
+    "iou.vehicle.mean": 0.5385,
     "iou.infantry.mean": 0.5112,
     "iou.naval.mean": 0.3609,
     "iou.air.mean": 0.1544,
@@ -338,10 +338,10 @@
     "spike.minThickAtZmin": 1.1,
     "spike.belowDeclaredBudget": 5,
     "mass.groundCombatSpan": 2.09,
-    "mass.tightestBand6": 1.499,
+    "mass.tightestBand6": 1.557,
     "hue.infantryOwnerMean": 0.1927,
     "hue.infantryBelowBudget": 5,
-    "hue.vehicleOwnerMean": 0.1569,
+    "hue.vehicleOwnerMean": 0.1551,
     "hue.vehicleOwnerMax": 0.2545,
     "hue.maxImpostor": 0.1017,
     "aspect.navalOutsideRA2Band": 0,
@@ -378,7 +378,7 @@
     "value.engineerLightPct": 0.0984,
     "value.engineerMarginOverNext": -0.0339,
     "colour.infantry.meanDist": 1.4103,
-    "colour.vehicle.meanDist": 0.9624,
+    "colour.vehicle.meanDist": 0.9648,
     "colour.vehicleAchromatic": 8,
     "colour.naval.meanDist": 1.3666,
     "colour.air.meanDist": 1.1669,
@@ -626,15 +626,15 @@
       "flaktrack": {
         "group": "vehicle",
         "aspect": 0.964,
-        "selfIoU": 0.6512,
-        "selfIoUCross": 0.6512,
+        "selfIoU": 0.6228,
+        "selfIoUCross": 0.6228,
         "broadsideAspect": 0.964,
         "ra2Aspect": 1,
         "vsRA2": 0.964,
         "bestPeer": "IFV",
-        "bestPeerIoU": 0.6992,
+        "bestPeerIoU": 0.6696,
         "nearestPeer": "IFV",
-        "nearestPeerMMD2": 0.087,
+        "nearestPeerMMD2": 0.1136,
         "peersBeatingSelf": 0
       },
       "v3": {
@@ -962,7 +962,7 @@
     },
     "iouGroups": {
       "vehicle": {
-        "mean": 0.5401,
+        "mean": 0.5385,
         "pairs": 78,
         "max": 0.8415,
         "over75": 5
@@ -986,7 +986,7 @@
         "over75": 0
       },
       "groundCombat": {
-        "mean": 0.6058,
+        "mean": 0.6037,
         "pairs": 36,
         "max": 0.8415,
         "over75": 4
@@ -1069,11 +1069,6 @@
         "dist": 0.22
       },
       {
-        "a": "flaktrack",
-        "b": "prismtank",
-        "dist": 0.232
-      },
-      {
         "a": "mammoth",
         "b": "v3",
         "dist": 0.236
@@ -1089,13 +1084,18 @@
         "dist": 0.283
       },
       {
-        "a": "chronominer",
-        "b": "warminer",
-        "dist": 0.354
+        "a": "flaktrack",
+        "b": "prismtank",
+        "dist": 0.32
       },
       {
         "a": "mammoth",
         "b": "flaktrack",
+        "dist": 0.348
+      },
+      {
+        "a": "chronominer",
+        "b": "warminer",
         "dist": 0.354
       },
       {
@@ -1111,7 +1111,7 @@
       {
         "a": "flaktrack",
         "b": "v3",
-        "dist": 0.44
+        "dist": 0.449
       }
     ],
     "topImpostors": [
@@ -1166,7 +1166,7 @@
       "mirage": 0.2401,
       "tanya": 0.154,
       "rhino": 0.1554,
-      "flaktrack": 0.2151,
+      "flaktrack": 0.1918,
       "v3": 0.1846,
       "teslatrooper": 0.1624,
       "ivan": 0.2782,
@@ -1209,7 +1209,7 @@
       "mirage": 0.0406,
       "tanya": 0.3966,
       "rhino": 0.0906,
-      "flaktrack": 0.0685,
+      "flaktrack": 0.0706,
       "v3": 0.1009,
       "teslatrooper": 0.0992,
       "ivan": 0.3129,
@@ -4843,29 +4843,29 @@
         "name": "Flak Track",
         "group": "vehicle",
         "fac": "col",
-        "mass": 1410,
+        "mass": 1357,
         "bboxW": 54,
         "bboxH": 56,
-        "aspect": 0.901,
+        "aspect": 0.887,
         "broadsideWH": "54x56",
         "broadsideAspect": 0.964,
         "ra2Aspect": 1,
         "vsRA2": 0.964,
-        "selfIoU": 0.6512,
-        "selfIoUCross": 0.6512,
+        "selfIoU": 0.6228,
+        "selfIoUCross": 0.6228,
         "bestPeer": "IFV",
-        "bestPeerIoU": 0.6992,
+        "bestPeerIoU": 0.6696,
         "nearestPeer": "IFV",
-        "nearestPeerMMD2": 0.087,
+        "nearestPeerMMD2": 0.1136,
         "peersBeatingSelf": 0,
         "peers": 12,
         "spike": {
           "axis": "v",
           "len": 23,
-          "thick": 16,
+          "thick": 15,
           "budget": 3.64,
           "floor": 3.64,
-          "atZmin": 8.8,
+          "atZmin": 8.25,
           "floorAtZmin": 2,
           "lenBudget": 10,
           "fails": null,

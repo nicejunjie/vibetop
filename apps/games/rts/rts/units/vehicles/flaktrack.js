@@ -94,10 +94,17 @@ if (wantT) {
   // read as a recovery crane.
   var kx = cx - fx * 4.4, ky = by - RING - fy * 4.4;
   puck(kx, ky, 3.1, 2.4, pdark, panel, PEDGE);              // house-colour pintle ring
+  // THE MOUNT IS DARK; ONLY THE RING AND THE CRADLE ARE RED. A house-coloured
+  // pintle ring UNDER a house-coloured cone UNDER a house-coloured clamp stacked
+  // into one red tower filling the middle of the sprite, which is not what the
+  // rip shows: there the mount below the barrel is dark gunmetal and the red is
+  // the ring at its foot, the cradle the barrel pivots in, and the panels on
+  // the hull flank. The cone goes dark and the red stays where it means
+  // something.
   prism(kx - fx * 0.6, ky - 2.4, [[2.4, -2.6], [2.4, 2.6], [-2.6, 2.1], [-2.6, -2.1]],
-        3.6, panel, PEDGE);                                 // house-colour turret cone
+        3.6, '#4a4a4a', '#1a1a1a');                         // dark mount cone
   isoBox(g, kx - fx * 1.2, ky - 5.6 - fy * 1.2, 3.6, 5.4, 3.0,
-         a, '#3d434c', '#14171c');                          // breech housing
+         a, '#454545', '#161616');                          // breech housing
   // STEEPER and HIGHER than one pass ago. "Gun raised >= 10 px above
   // the bed line" (unit-identity-reference.md 2.4) is the Flak
   // Track's whole read, and a shallow jib left its crown the same fat
@@ -112,31 +119,46 @@ if (wantT) {
   // 2x2 sheaf carry the same crown at four times the ink, and the
   // sheaf is what reads as anti-air.
   var gAlong = kx + fx * 0.8, gAlongY = ky - 7.2 + fy * 0.8;
-  var gTipX = kx + fx * 5.2, gTipY = ky - 15.2 + fy * 5.2;   // 2026-09-10: ~45 deg as in flaktrack.png, not near-vertical
-  var quad = [];
-  for (i2 = -1; i2 <= 1; i2 += 2)
-    for (sg = -1; sg <= 1; sg += 2)
-      quad.push([px * 1.25 * sg + fx * 0.85 * i2, py * 1.25 * sg + fy * 0.85 * i2]);
+  var gTipX = kx + fx * 5.6, gTipY = ky - 16.6 + fy * 5.6;   // 2026-09-10: ~45 deg as in flaktrack.png, not near-vertical
+  // FOUR TUBES 1.25 APART UNDER A 3.0 px STROKE IS ONE FAT TUBE. The sheaf
+  // overlapped itself on every axis, so what baked was a single stubby
+  // cylinder with a red band round it — a fire hydrant, not a gun, and the
+  // same arithmetic that welded the Chrono Miner's scoop teeth into a slab.
+  // Zoomed, soviet-flak-track.png does not carry a fat cluster either: it is
+  // ONE slim silver barrel (a tight pair at most), long, raked about 50
+  // degrees, with a bright RED CRADLE at its foot and a dark muzzle. A pair
+  // with real air between them, drawn thinner, reads as that.
+  // ONE BARREL, AND A DARK MUZZLE. The pair looked right in three-quarter view
+  // and grew a FACE head-on: at bearing 4 the two barrels point at the camera,
+  // so their pale #d3d3d3 muzzle discs sat side by side on the dark mount with
+  // the red cradle under them, and the Flak Track acquired eyes and a mouth —
+  // the same defect as the Chrono Miner's headlamps, arrived at from a
+  // different direction. Symmetrical pale circles on a dark mass are a face
+  // wherever you put them. The rip has ONE slim barrel anyway, and its muzzle
+  // is dark, so there is no pale disc to pair up.
+  var quad = [[0, 0]];
   quad.sort(function (m, n) { return m[1] - n[1]; });       // far barrels first
   for (i2 = 0; i2 < quad.length; i2++) {
     var qx = quad[i2][0], qy = quad[i2][1];
-    g.strokeStyle = '#15181c'; g.lineWidth = 3.0; g.lineCap = 'butt';
+    g.strokeStyle = '#15181c'; g.lineWidth = 2.9; g.lineCap = 'butt';
     g.beginPath(); g.moveTo(gAlong + qx, gAlongY + qy); g.lineTo(gTipX + qx, gTipY + qy); g.stroke();
     g.strokeStyle = '#c9c9c9'; g.lineWidth = 1.7;           // SILVER tube, as the sheet
     g.beginPath(); g.moveTo(gAlong + qx, gAlongY + qy); g.lineTo(gTipX + qx, gTipY + qy); g.stroke();
-    g.strokeStyle = '#b1b1b1'; g.lineWidth = 0.8;           // upper glint
+    g.strokeStyle = '#b1b1b1'; g.lineWidth = 0.7;           // upper glint
     g.beginPath();
     g.moveTo(gAlong + qx - 0.7, gAlongY + qy - 0.5); g.lineTo(gTipX + qx - 0.7, gTipY + qy - 0.5); g.stroke();
-    g.fillStyle = '#d3d3d3';                                // muzzle brake
-    g.beginPath(); g.ellipse(gTipX + qx, gTipY + qy, 1.35, 1.15, 0, 0, 6.29); g.fill();
-    outline(g, '#3a4048');
+    g.fillStyle = '#3a3a3a';                                // muzzle brake: DARK, as the rip
+    g.beginPath(); g.ellipse(gTipX + qx, gTipY + qy, 1.25, 1.05, 0, 0, 6.29); g.fill();
+    outline(g, '#141414');
     g.fillStyle = '#15181c';
-    g.beginPath(); g.ellipse(gTipX + qx, gTipY + qy - 0.2, 0.62, 0.55, 0, 0, 6.29); g.fill();
+    g.beginPath(); g.ellipse(gTipX + qx, gTipY + qy - 0.2, 0.55, 0.48, 0, 0, 6.29); g.fill();
   }
   // the sheaf's clamp — one bar across all four, two thirds up, so the
   // cluster reads as ONE weapon rather than four loose rods
-  var clT = 0.62;
-  g.strokeStyle = panel; g.lineWidth = 2.4; g.lineCap = 'round';
+  // ...and the red band belongs at the FOOT, where the rip puts it: it is the
+  // cradle the barrel pivots in, not a hoop two thirds of the way up a tube.
+  var clT = 0.16;
+  g.strokeStyle = panel; g.lineWidth = 2.8; g.lineCap = 'round';
   g.beginPath();
   g.moveTo(gAlong + (gTipX - gAlong) * clT - px * 2.1, gAlongY + (gTipY - gAlongY) * clT - py * 2.1);
   g.lineTo(gAlong + (gTipX - gAlong) * clT + px * 2.1, gAlongY + (gTipY - gAlongY) * clT + py * 2.1);
