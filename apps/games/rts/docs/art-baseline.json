@@ -341,7 +341,7 @@
     "mass.tightestBand6": 1.425,
     "hue.infantryOwnerMean": 0.1927,
     "hue.infantryBelowBudget": 5,
-    "hue.vehicleOwnerMean": 0.1575,
+    "hue.vehicleOwnerMean": 0.156,
     "hue.vehicleOwnerMax": 0.2702,
     "hue.maxImpostor": 0.1017,
     "aspect.navalOutsideRA2Band": 0,
@@ -378,7 +378,7 @@
     "value.engineerLightPct": 0.0984,
     "value.engineerMarginOverNext": -0.0339,
     "colour.infantry.meanDist": 1.4103,
-    "colour.vehicle.meanDist": 1.0507,
+    "colour.vehicle.meanDist": 1.043,
     "colour.vehicleAchromatic": 7,
     "colour.naval.meanDist": 1.3376,
     "colour.air.meanDist": 1.1582,
@@ -1074,19 +1074,19 @@
         "dist": 0.159
       },
       {
-        "a": "warminer",
-        "b": "teslatank",
-        "dist": 0.343
-      },
-      {
         "a": "drone",
         "b": "prismtank",
-        "dist": 0.38
+        "dist": 0.22
       },
       {
         "a": "prismtank",
         "b": "mcv",
-        "dist": 0.409
+        "dist": 0.232
+      },
+      {
+        "a": "warminer",
+        "b": "teslatank",
+        "dist": 0.343
       },
       {
         "a": "flaktrack",
@@ -1101,7 +1101,7 @@
       {
         "a": "flaktrack",
         "b": "prismtank",
-        "dist": 0.462
+        "dist": 0.43
       },
       {
         "a": "flaktrack",
@@ -1172,7 +1172,7 @@
       "ivan": 0.2782,
       "drone": 0.2702,
       "teslatank": 0.1298,
-      "prismtank": 0.1649,
+      "prismtank": 0.146,
       "desolator": 0.2333,
       "yuri": 0.2688,
       "cleg": 0.25,
@@ -1215,7 +1215,7 @@
       "ivan": 0.3129,
       "drone": 0.1675,
       "teslatank": 0.2219,
-      "prismtank": 0.0407,
+      "prismtank": 0.036,
       "desolator": 0.1319,
       "yuri": 0.1862,
       "cleg": 0.1528,

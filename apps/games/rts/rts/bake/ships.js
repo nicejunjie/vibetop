@@ -545,7 +545,13 @@ var VACC = {
   mirage:      '#2fbe6b',  // 145 holo-green — the projector mouth of the emitter
                            //   housing. The Mirage disguises itself as a TREE.
   mirageStack: '#ececec',  //     the ribbed WHITE emitter plates 2.3 asks for
-  spectre:     '#d45ad0',  // 302 magenta — the refraction flare across the prism
+  // NO MAGENTA. "The refraction flare across the prism" is invented: there is
+  // none in `prismtank-voxel.jpg`, which carries a WHITE crystal, a blue hood
+  // behind it and a khaki pedestal under it, and nothing else. Painted down the
+  // crystal's lit edge it blended with the white face and the palette snap put
+  // #cc66cc and #996699 on the one part the tank is named for — pink speckle on
+  // a prism. The mirror face kit.js already defines for this unit is #e7e7e7.
+  spectre:     '#e7e7e7',
                            //   crystal's bright face (the crystal CORE stays owner-hue)
   chronominer: '#8f6ac8',  // 264 violet — the ribbed chrono drum that IS the unit,
                            //   "violet and unmistakably not house hue" (2.3)

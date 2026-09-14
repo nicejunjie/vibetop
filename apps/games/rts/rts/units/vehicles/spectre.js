@@ -129,7 +129,14 @@ if (wantT) {
   g.moveTo(q1[0], q1[1]); g.lineTo(q2[0], q2[1]);
   g.lineTo(q3[0], q3[1]); g.lineTo(q4[0], q4[1]); g.closePath();
   g.fillStyle = '#d2d2d2'; g.fill(); outline(g, '#171b23');
-  g.fillStyle = shade(col, 1.18);                             // the owner-hue core
+  // THE CRYSTAL IS WHITE, AND THE BLUE BELONGS BEHIND IT. An owner-hue core
+  // inside a #d2d2d2 glazed face means white meets blue along the crystal's
+  // whole length, the renderer blends them to a lavender, and the palette snap
+  // lands that on #cc66cc — 14 PINK pixels down the one part this tank is
+  // named for. In `prismtank-voxel.jpg` the crystal is a clean white bar and
+  // the owner colour is the HOOD standing behind it, a separate object. A pale
+  // core keeps the crystal reading as a crystal and takes the blend away.
+  g.fillStyle = '#e8e8e8';
   g.beginPath();
   g.moveTo(q1[0] * 0.78 + q2[0] * 0.22, q1[1] * 0.78 + q2[1] * 0.22);
   g.lineTo(q1[0] * 0.22 + q2[0] * 0.78, q1[1] * 0.22 + q2[1] * 0.78);
