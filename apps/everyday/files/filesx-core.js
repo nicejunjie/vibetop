@@ -216,11 +216,24 @@
     return url + (url.indexOf('?') === -1 ? '?' : '&') + 'v=' + (mtime || 0);
   }
 
+  // Where a text preview should sit after its content was replaced under it.
+  // Watching something grow is the main reason to hold a preview open, so a
+  // reader already at the bottom stays pinned there (like `tail -f`), while
+  // anyone who had scrolled up keeps the line they were reading instead of
+  // being thrown to the end. `before`/`after` are {top, clientH, scrollH}.
+  function scrollAfterReload(before, after) {
+    var maxTop = Math.max(0, after.scrollH - after.clientH);
+    var wasAtEnd = before.top + before.clientH >= before.scrollH - 4;
+    if (wasAtEnd) return maxTop;
+    return Math.min(before.top, maxTop);
+  }
+
   var api = { OFF_RE: OFF_RE, IMG_RE: IMG_RE, VID_RE: VID_RE, AUD_RE: AUD_RE, ARC_RE: ARC_RE,
               KIND_MAP: KIND_MAP, normPath: normPath, relParent: relParent, fmtSize: fmtSize,
               fmtRel: fmtRel, iconFor: iconFor, kindOf: kindOf, fmtMode: fmtMode,
               nextName: nextName, gridStep: gridStep, retickRows: retickRows,
-              previewReload: previewReload, bustUrl: bustUrl };
+              previewReload: previewReload, bustUrl: bustUrl,
+              scrollAfterReload: scrollAfterReload };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.FilesxCore = api;
 })(typeof self !== 'undefined' ? self : this);

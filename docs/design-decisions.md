@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_300 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_301 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
 - [Scheduled terminal messages ("resume when the token limit resets")](#scheduled-terminal-messages-resume-when-the-token-limit-resets)
@@ -323,6 +323,7 @@ _300 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [The Files listing showed "just now" an hour later: the clock only ticked when the disk did (2026-09-13)](#the-files-listing-showed-just-now-an-hour-later-the-clock-only-ticked-when-the-disk-did-2026-09-13)
 - [The usage strip's ✕ moved to the left, because on the right it looked like a window's (2026-09-13)](#the-usage-strips-moved-to-the-left-because-on-the-right-it-looked-like-a-windows-2026-09-13)
 - [Shifted punctuation needs two presses — it is the CHINESE input method, and that is a different code path entirely (2026-09-14, narrowed)](#shifted-punctuation-needs-two-presses-it-is-the-chinese-input-method-and-that-is-a-different-code-path-entirely-2026-09-14-narrowed)
+- [An open preview froze at the bytes it opened with (2026-09-14)](#an-open-preview-froze-at-the-bytes-it-opened-with-2026-09-14)
 
 <!-- END TOC -->
 
@@ -13621,3 +13622,66 @@ terminal, and each keystroke does a `replace()` and a `substring()` over the
 whole thing. That is a real defect on its own, but the offsets the two delivery
 paths use are indices INTO that string, so clearing it is not the free fix it
 looks like. Left alone on purpose.
+
+## An open preview froze at the bytes it opened with (2026-09-14)
+
+**Symptom.** Preview an image or a document in Files and it shows whatever was
+on disk at the moment it opened — for ever. Regenerate the plot, re-render the
+PDF, append to the log: the panel does not notice. macOS Quick Look redraws,
+which is what the user compared it to.
+
+**Cause.** Two separate gaps that both had to be closed. (1) The folder poll is
+deliberately **held back while any preview is open** (`pollQuiet()` excludes
+Quick Look, the text overlay, the PDF overlay and the editor) — a re-render
+would pull the rows out from under the panel. (2) Even if it ran, it watches the
+**listing**, not the bytes of the one file on screen. Nothing was looking at the
+previewed file at all.
+
+**Fix.** A second, much narrower watch: one `stat()` of one path every 1.5s
+while Files is in front, armed by whichever preview surface can follow a file
+and disarmed by every close. On a change each surface reloads *in the way that
+suits it*:
+
+- **Image** — swap `img.src` only. Zoom and pan belong to the user, not to the
+  file, and re-rendering the panel would reset both.
+- **PDF / Office** — swap the iframe's `src`.
+- **Text (Quick Look and the read-only overlay)** — re-read and replace the text,
+  keeping the reader's place: pinned to the end if they were already at the end
+  (`tail -f`, which is the main reason to hold a text preview open), otherwise on
+  the line they were reading, and never past the end of a file that shrank.
+- **Video / audio — deliberately NOT reloaded.** Interrupting playback to show a
+  newer file is not a refresh.
+
+**Cache-busting is not optional here.** Re-pointing an `<img>` or an iframe at
+the same URL serves it from cache and the "refresh" shows the old picture, so
+every preview URL now carries `v=<mtime>`. That key is content-addressed on
+purpose: the same bytes keep the same URL, so reopening a file is still a cache
+hit; new bytes get a new one.
+
+**Rejected: let the folder poll run while a preview is open.** It reaches the
+file through `renderList()`, which costs scroll, selection and keyboard focus —
+the three things the two-click focus bug had just spent three days restoring
+(see those entries) — and it would still be watching the wrong thing.
+
+**Rejected: re-run `qlRender()` on any change.** It is the honest "reload"
+but it calls `qlStop()`, which wipes the body and resets zoom; a user who had
+zoomed into a plot would be thrown back to fit-to-window every time the plot was
+rewritten.
+
+**The editor is out of scope on purpose.** It holds text the user has typed;
+silently replacing it is data loss. It already has its own `edMtime` conflict
+check for saves.
+
+**Watch out — a stat can fail transiently.** A file being rewritten can briefly
+`stat` as an error, so `previewReload()` treats a failed or missing stat as "say
+nothing" rather than "the file is gone". It also refuses a reply whose path is
+not the one currently on screen: the poll is in flight while the arrow keys walk
+the folder, and a late answer about the previous file must not repaint the new
+one.
+
+**Test.** `apps/everyday/files/filesx-core.test.js` — eight cases, all proven
+red against v1.19.363: change detection (mtime **or** size, since a rewrite
+inside one filesystem-timestamp tick moves only the size), the stale-path
+refusal, the failed-stat silence, the cache key, the three scroll-restore cases,
+and one assertion on the shipped `filesx.html` that every followable surface
+arms the watch, every close disarms it, and the media branch does not.

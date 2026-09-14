@@ -2795,7 +2795,7 @@
       if (d && d.ok && !d.binary && !d.truncated) {
         openEditor(absPath, name, d.text || '', (sd && sd.ok && sd.stat) ? sd.stat.mtime : null, gotoLine);
       } else {
-        showPreview(absPath, name, d);
+        showPreview(absPath, name, d, sd);
       }
     });
   }
@@ -2859,6 +2859,7 @@
     qlPanel.focus();                        // keys go to the panel, not a button
   }
   function qlStop() {
+    pvwDisarm();                            // each qlRender branch re-arms
     var m = qlBodyEl.querySelector('video, audio');
     if (m) { try { m.pause(); m.removeAttribute('src'); m.load(); } catch (e) {} }
     qlBodyEl.innerHTML = ''; qlZoomReset();
@@ -2892,9 +2893,14 @@
     if (QL_IMG_RE.test(name)) {
       var im = document.createElement('img');
       im.alt = name; im.decoding = 'async';
-      im.src = '/api/file/image?path=' + encodeURIComponent(abs);
+      pvwSrc(im, '/api/file/image?path=' + encodeURIComponent(abs), e.mtime);
       im.onerror = function() { fallback('Couldn’t load this image.'); };
       body.appendChild(im);
+      // Swap the source only — zoom and pan are the user's, not the file's.
+      pvwArm(abs, e.mtime, e.size, function(st) {
+        pvwSwap(im, st.mtime);
+        qlInfoEl.textContent = kindOf(name, false) + ' · ' + fmtSize(st.size);
+      });
       return;
     }
     var isVid = QL_VID_RE.test(name);
@@ -2912,10 +2918,12 @@
     if (/\.pdf$/i.test(name) || OFF_RE.test(name)) {
       var f = document.createElement('iframe');
       f.title = name;
-      f.src = /\.pdf$/i.test(name)
+      pvwSrc(f, /\.pdf$/i.test(name)
         ? '/api/fs/download?inline=1&path=' + encodeURIComponent(abs)
-        : '/api/office/preview?path=' + encodeURIComponent(abs.replace(/^\//, '')) + '#toolbar=0';
+        : '/api/office/preview?path=' + encodeURIComponent(abs.replace(/^\//, '')) + '#toolbar=0',
+        e.mtime);
       body.appendChild(f);
+      pvwArm(abs, e.mtime, e.size, function(st) { pvwSwap(f, st.mtime); });
       return;
     }
     if (ARC_RE.test(name) || e.size > 32 * 1048576) { fallback(); return; }
@@ -2930,6 +2938,18 @@
       qlStop();
       body.appendChild(el('pre', null, d.text || ''));
       if (d.truncated) qlInfoEl.textContent += ' · first ' + fmtSize(QL_TEXT_MAX);
+      // A log being appended to is the case this exists for: re-read and keep
+      // the reader's place (pinned to the end if that is where they were).
+      pvwArm(abs, e.mtime, e.size, function(st) {
+        var my = qlSeq;
+        api('/api/fs/read?path=' + encodeURIComponent(abs) + '&max=' + QL_TEXT_MAX).then(function(r) {
+          var pre = qlBodyEl.querySelector('pre');
+          if (my !== qlSeq || !pre || !r || !r.ok || r.binary) return;
+          pvwSetText(qlBodyEl, pre, r.text || '');      // .ql-body is the scroller
+          qlInfoEl.textContent = kindOf(name, false) + ' · ' + fmtSize(st.size) +
+            (r.truncated ? ' · first ' + fmtSize(QL_TEXT_MAX) : '');
+        }).catch(function() {});
+      });
     }).catch(function() { fallback('Couldn’t read this file.'); });
   }
   // ---- Quick Look image zoom: wheel (anchored under the cursor), drag, double-click ----
@@ -2977,6 +2997,7 @@
   qlBodyEl.addEventListener('pointercancel', qlDragEnd);
   function qlClose() {
     if (!qlIsOpen()) return;
+    pvwDisarm();
     qlEl.classList.remove('open');
     qlStop();
     qlIdx = -1;
@@ -3004,6 +3025,56 @@
   document.getElementById('ql-open').addEventListener('click', qlOpenEntry);
   qlEl.addEventListener('click', function(ev) { if (ev.target === qlEl) qlClose(); });
 
+  // ---- an open preview follows the file on disk (user, 2026-09-14) ----
+  // Quick Look on a Mac redraws when the file changes underneath it; ours froze
+  // at whatever it opened with — wrong for the thing people hold a preview open
+  // for in the first place: a plot, a report or a log some job is still writing.
+  //
+  // The folder poll cannot do this. It is deliberately held back while a
+  // preview is open (a re-render would pull the rows out from under the panel),
+  // and it watches the LISTING, not the bytes of the one file on screen. So
+  // this is a second, much narrower watch: one stat() of one path.
+  //
+  // Media is excluded on purpose — reloading a <video> mid-playback to show a
+  // newer file is not a refresh, it is an interruption.
+  var PVW_MS = 1500, pvWatch = null;
+  function pvwArm(absPath, mtime, size, reload) {
+    pvWatch = { path: absPath, mtime: mtime, size: size, reload: reload };
+  }
+  function pvwDisarm() { pvWatch = null; }
+  function pvwTick() {
+    var w = pvWatch;
+    if (!w || !inFront || document.hidden) return;
+    api('/api/fs/stat?path=' + encodeURIComponent(w.path)).then(function(d) {
+      if (pvWatch !== w) return;                       // the preview moved on
+      var next = FilesxCore.previewReload(w, w.path, d);
+      if (!next) return;
+      w.mtime = next.mtime; w.size = next.size;
+      w.reload(d.stat);
+    }).catch(function() {});
+  }
+  setInterval(pvwTick, PVW_MS);
+  // Re-point an <img>/<iframe> at the same file, cache-busted by its new mtime.
+  // The base URL rides on the element so the swap never has to re-derive it.
+  function pvwSrc(elm, base, mtime) {
+    elm.dataset.vtsrc = base;
+    elm.src = FilesxCore.bustUrl(base, mtime);
+  }
+  function pvwSwap(elm, mtime) {
+    if (elm && elm.dataset && elm.dataset.vtsrc) elm.src = FilesxCore.bustUrl(elm.dataset.vtsrc, mtime);
+  }
+  // Replace the text inside `node` while keeping the reader's place in
+  // `scroller` (pinned to the end if that is where they already were). The two
+  // differ in Quick Look, where a <pre> sits inside the scrolling panel body.
+  function pvwMeasure(box) {
+    return { top: box.scrollTop, clientH: box.clientHeight, scrollH: box.scrollHeight };
+  }
+  function pvwSetText(scroller, node, text) {
+    var before = pvwMeasure(scroller);
+    node.textContent = text;
+    scroller.scrollTop = FilesxCore.scrollAfterReload(before, pvwMeasure(scroller));
+  }
+
   // ---- read-only preview overlay (binary / >1MB / unreadable) ----
   var pvNameEl = document.getElementById('pv-name');
   var pvInfoEl = document.getElementById('pv-info');
@@ -3011,7 +3082,7 @@
   var pvBodyEl = document.getElementById('pv-body');
   var pvReturnFocus = null;
 
-  function showPreview(absPath, name, d) {
+  function showPreview(absPath, name, d, sd) {
     pvReturnFocus = document.activeElement;
     pvNameEl.textContent = name;
     pvNameEl.title = absPath;
@@ -3038,8 +3109,19 @@
     pvBodyEl.className = 'pv-body';
     pvBodyEl.textContent = d.text || '';
     pvBodyEl.scrollTop = 0;
+    // .pv-body is its own scroller, and it is the same node that holds the text.
+    var st0 = (sd && sd.ok && sd.stat) ? sd.stat : { mtime: 0, size: d.size || 0 };
+    pvwArm(absPath, st0.mtime, st0.size, function(st) {
+      api('/api/fs/read?path=' + encodeURIComponent(absPath) + '&max=' + READ_MAX).then(function(r) {
+        if (!pvEl.classList.contains('open') || !r || !r.ok || r.binary) return;
+        if (pvNameEl.title !== absPath) return;         // a different file is open now
+        pvwSetText(pvBodyEl, pvBodyEl, r.text || '');
+        pvInfoEl.textContent = fmtSize(st.size) + ' · read-only';
+      }).catch(function() {});
+    });
   }
   function closePreview() {
+    pvwDisarm();
     pvEl.classList.remove('open');
     pvBodyEl.textContent = '';
     if (pvReturnFocus && pvReturnFocus.focus) { try { pvReturnFocus.focus(); } catch (e) {} }
@@ -3075,7 +3157,7 @@
     pdfBodyEl.innerHTML = '';
     var f = document.createElement('iframe');
     f.title = name;
-    f.src = pdfUrl(absPath, true);
+    pvwSrc(f, pdfUrl(absPath, true), 0);
     f.addEventListener('load', function() {
       // A failed read comes back as a small JSON document (the PDF plugin's
       // document is opaque) — swap in the download fallback if we can see one.
@@ -3087,8 +3169,13 @@
     pdfBodyEl.appendChild(f);
     pdfovEl.classList.add('open');
     document.getElementById('pdf-close').focus();
+    api('/api/fs/stat?path=' + encodeURIComponent(absPath)).then(function(d) {
+      if (pdfAbs !== absPath || !d || !d.ok || !d.stat) return;
+      pvwArm(absPath, d.stat.mtime, d.stat.size, function(st) { pvwSwap(f, st.mtime); });
+    }).catch(function() {});
   }
   function closePdf() {
+    pvwDisarm();
     pdfovEl.classList.remove('open');
     pdfBodyEl.innerHTML = '';                       // stop rendering / free the PDF
     pdfAbs = null;
