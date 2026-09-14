@@ -62,8 +62,31 @@ var drawPanel = function () {
   // separated them was height this unit should not have. The hard gate is
   // unaffected — zero confusable in all 24 windows — so this is a ratchet
   // number against a shape the rip actually shows, and the rip wins.
-  isoBox(g, ppx, ppy, 5.2, wid * 0.72, 6.4, a, '#d4d4d4', '#2c323b');
-  isoBox(g, ppx, ppy - 6.4, 5.6, wid * 0.76, 0.9, a, '#ececec', '#2c323b'); // lit top
+  isoBox(g, ppx, ppy, 5.2, wid * 0.72, 6.4, a, '#d4d4d4', '#323232');
+  isoBox(g, ppx, ppy - 6.4, 5.6, wid * 0.76, 0.9, a, '#ececec', '#323232'); // lit top
+  // A PROJECTOR HAS VANES. This was a blank white slab — the right size and the
+  // right place, and still not a machine, because nothing on it said what it
+  // did. In the rip the pale block is unmistakably LOUVRED: four horizontal
+  // slats across its face, which is the one texture that separates an emitter
+  // from a cargo box. Drawn on the face's own plane (every endpoint through the
+  // beam vector) so they skew with it instead of floating.
+  for (i2 = 0; i2 < 4; i2++) {
+    var slz = ppy - 1.6 - i2 * 1.35, slx = ppx + fx * 2.7;
+    g.strokeStyle = '#5c5c5c'; g.lineWidth = 0.9; g.lineCap = 'butt';
+    g.beginPath();
+    g.moveTo(slx - px * wid * 0.33, slz + fy * 2.7 - py * wid * 0.33);
+    g.lineTo(slx + px * wid * 0.33, slz + fy * 2.7 + py * wid * 0.33);
+    g.stroke();
+    g.strokeStyle = '#f4f4f4'; g.lineWidth = 0.55;
+    g.beginPath();
+    g.moveTo(slx - px * wid * 0.33, slz - 0.75 + fy * 2.7 - py * wid * 0.33);
+    g.lineTo(slx + px * wid * 0.33, slz - 0.75 + fy * 2.7 + py * wid * 0.33);
+    g.stroke();
+  }
+  // the two emitter rods that stand at the panel's outboard corners
+  for (sg = -1; sg <= 1; sg += 2)
+    isoBox(g, ppx + px * wid * 0.40 * sg, ppy - 6.2 + py * wid * 0.40 * sg,
+           1.0, 1.0, 2.6, a, '#4a4a4a', '#181818');
   // One owner-colour band low across the slab, and the emitter face above it.
   // That face used to be VACC.mirage as a HOLOGRAM GREEN, defended in the
   // table as "the Mirage disguises itself as a TREE" — a statement about the
@@ -78,7 +101,7 @@ var drawPanel = function () {
   g.lineTo(ppx + fx * 0.9 + px * wid * 0.20, ppy - 4.2 + fy * 0.9 + py * wid * 0.20);
   // AND ITS OUTLINE WAS GREEN TOO. #123a20 is a dark forest green edging the
   // emitter face — the last of the tree that RA2 never drew.
-  g.closePath(); g.fill(); outline(g, '#2c323b');
+  g.closePath(); g.fill(); outline(g, '#323232');
   exhaust(cx - fx * len * 0.42 + px * wid * 0.22, by - 5.4 - fy * len * 0.42 + py * wid * 0.22);
 };
 var drawTurret = function () {
@@ -104,7 +127,7 @@ var drawTurret = function () {
   // Mirage is the exception the rip actually draws: its barrel and its turret
   // body are the same olive-tan mass, which is most of what separates her from
   // the Grizzly at a glance. Ours was #2a2e36 gunmetal like everyone else's.
-  barrel(mtx + fx * 4.8, mty - 2.6 + fy * 4.8, 13.5, 1.7, 1.05, '#999966');
+  barrel(mtx + fx * 4.8, mty - 2.6 + fy * 4.8, 13.5, 1.7, 1.05, '#999966', shade('#999966', 1.55));
   for (i2 = -1; i2 <= 1; i2 += 2)
     lamp(cx + fx * len * 0.38 + px * wid * 0.26 * i2,
          by - 4.2 + fy * len * 0.38 + py * wid * 0.26 * i2);

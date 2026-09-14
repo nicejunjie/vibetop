@@ -42,7 +42,16 @@ function bakeVehicle(col, kind, fac, anim) {
   // RA2's wheels are a shade within the track band, not a contrast against it.
   var WHEEL_D = '#1a1a1a', WHEEL_L = '#3d3d3d';
   var BAND = '#d5d5d5', STEEL = '#9f9f9f', CHROME = '#e3e3e3';
-  var GUN = '#191b20', GUN_L = '#5b616b';
+  // GUN_L WAS #5b616b — 91/97/107, a COLD BLUE-GREY, stroked along the upper
+  // edge of every gun barrel in the game. Two faults in one literal. It is not
+  // neutral, so on the shade ladder it threw #336666, #669999 and #99cccc: the
+  // Mirage's gun alone was laying ~50 px of teal down the sprite, which is the
+  // fault the user ruled must not recur ("这个问题很普遍，不能再犯"). And a
+  // specular on a tube is the TUBE's colour brightened, not a fixed grey — on
+  // the Mirage's khaki barrel, the one warm gun in the game, it was a cold line
+  // down a warm tube. Neutral by default now, and `barrel` takes a highlight so
+  // a coloured tube can pass its own.
+  var GUN = '#191b20', GUN_L = '#616161';
   // House colour lives in a narrow shade window: shade() clips the blue
   // owner to white-cyan past ~1.3, and anything under ~0.7 goes to mud that
   // no longer reads as a side. Everything that wants to be DARKER than that
@@ -741,7 +750,7 @@ function bakeVehicle(col, kind, fac, anim) {
     // barrels narrow toward a dark muzzle with one pale pixel on the lip,
     // and that lip is most of what makes a tank look aimed rather than
     // parked.
-    function barrel(x0, y0, L, w0, w1, bcol) {
+    function barrel(x0, y0, L, w0, w1, bcol, hl) {
       var tx = x0 + fx * L, ty = y0 + fy * L;
       var vx = tx - x0, vy = ty - y0, vl = Math.hypot(vx, vy) || 1;
       var ux2 = vx / vl, uy2 = vy / vl, nx = -uy2, ny = ux2;
@@ -757,7 +766,7 @@ function bakeVehicle(col, kind, fac, anim) {
       seg(0.14, 0.86, w0, w1 * 1.12, bc);                          // tapering tube
       seg(0.86, 1, w1 * 1.30, w1 * 1.20, shade(bc, 0.55));         // dark muzzle brake
       var lit = ny < 0 ? 1 : -1;                                   // upper edge of the tube
-      g.strokeStyle = GUN_L; g.lineWidth = 0.85; g.lineCap = 'butt';
+      g.strokeStyle = hl || GUN_L; g.lineWidth = 0.85; g.lineCap = 'butt';
       g.beginPath();
       g.moveTo(x0 + vx * 0.16 + nx * w0 * 0.55 * lit, y0 + vy * 0.16 + ny * w0 * 0.55 * lit);
       g.lineTo(x0 + vx * 0.84 + nx * w1 * 0.60 * lit, y0 + vy * 0.84 + ny * w1 * 0.60 * lit);

@@ -328,12 +328,12 @@
     "peerVsSelf.infantry": 0,
     "peerVsSelf.naval": 2,
     "peerVsSelf.air": 0,
-    "iou.groundCombat.mean": 0.6074,
-    "iou.vehicle.mean": 0.5417,
+    "iou.groundCombat.mean": 0.6064,
+    "iou.vehicle.mean": 0.5407,
     "iou.infantry.mean": 0.5112,
     "iou.naval.mean": 0.3609,
     "iou.air.mean": 0.1544,
-    "iou.sameFactionOver75": 4,
+    "iou.sameFactionOver75": 3,
     "spike.belowFloor": 2,
     "spike.minThickAtZmin": 1.1,
     "spike.belowDeclaredBudget": 5,
@@ -341,7 +341,7 @@
     "mass.tightestBand6": 1.499,
     "hue.infantryOwnerMean": 0.1927,
     "hue.infantryBelowBudget": 5,
-    "hue.vehicleOwnerMean": 0.1579,
+    "hue.vehicleOwnerMean": 0.1574,
     "hue.vehicleOwnerMax": 0.2545,
     "hue.maxImpostor": 0.1017,
     "aspect.navalOutsideRA2Band": 0,
@@ -378,10 +378,10 @@
     "value.engineerLightPct": 0.0984,
     "value.engineerMarginOverNext": -0.0339,
     "colour.infantry.meanDist": 1.4103,
-    "colour.vehicle.meanDist": 0.9594,
+    "colour.vehicle.meanDist": 0.9622,
     "colour.vehicleAchromatic": 8,
     "colour.naval.meanDist": 1.3666,
-    "colour.air.meanDist": 1.167,
+    "colour.air.meanDist": 1.1669,
     "colour.navalDarkest": 0,
     "colour.airDarkest": 0.0449
   },
@@ -396,9 +396,9 @@
         "ra2Aspect": 1.615,
         "vsRA2": 0.971,
         "bestPeer": "Mirage Tank",
-        "bestPeerIoU": 0.7613,
-        "nearestPeer": "Mirage Tank",
-        "nearestPeerMMD2": 0.0214,
+        "bestPeerIoU": 0.7379,
+        "nearestPeer": "V3 Launcher",
+        "nearestPeerMMD2": 0.0438,
         "peersBeatingSelf": 0
       },
       "warminer": {
@@ -583,16 +583,16 @@
       },
       "mirage": {
         "group": "vehicle",
-        "aspect": 1.667,
-        "selfIoU": 0.6568,
-        "selfIoUCross": 0.6568,
-        "broadsideAspect": 1.667,
+        "aspect": 1.512,
+        "selfIoU": 0.6454,
+        "selfIoUCross": 0.6454,
+        "broadsideAspect": 1.512,
         "ra2Aspect": 1.452,
-        "vsRA2": 1.148,
-        "bestPeer": "Chrono Miner",
-        "bestPeerIoU": 0.7613,
+        "vsRA2": 1.041,
+        "bestPeer": "Tesla Tank",
+        "bestPeerIoU": 0.7609,
         "nearestPeer": "V3 Launcher",
-        "nearestPeerMMD2": -0.0263,
+        "nearestPeerMMD2": -0.0241,
         "peersBeatingSelf": 2
       },
       "tanya": {
@@ -648,7 +648,7 @@
         "bestPeer": "IFV",
         "bestPeerIoU": 0.7146,
         "nearestPeer": "Mirage Tank",
-        "nearestPeerMMD2": -0.0263,
+        "nearestPeerMMD2": -0.0241,
         "peersBeatingSelf": 2
       },
       "teslatrooper": {
@@ -702,7 +702,7 @@
         "ra2Aspect": 1.405,
         "vsRA2": 0.886,
         "bestPeer": "Mirage Tank",
-        "bestPeerIoU": 0.7539,
+        "bestPeerIoU": 0.7609,
         "nearestPeer": "V3 Launcher",
         "nearestPeerMMD2": -0.0094,
         "peersBeatingSelf": 2
@@ -962,10 +962,10 @@
     },
     "iouGroups": {
       "vehicle": {
-        "mean": 0.5417,
+        "mean": 0.5407,
         "pairs": 78,
         "max": 0.8415,
-        "over75": 6
+        "over75": 5
       },
       "infantry": {
         "mean": 0.5112,
@@ -986,12 +986,12 @@
         "over75": 0
       },
       "groundCombat": {
-        "mean": 0.6074,
+        "mean": 0.6064,
         "pairs": 36,
         "max": 0.8415,
         "over75": 4
       },
-      "sameFactionOver75": 4
+      "sameFactionOver75": 3
     },
     "worstSameFactionPairs": [
       {
@@ -1003,11 +1003,6 @@
         "a": "Apocalypse",
         "b": "Rhino Tank",
         "iou": 0.7638
-      },
-      {
-        "a": "Chrono Miner",
-        "b": "Mirage Tank",
-        "iou": 0.7613
       },
       {
         "a": "Engineer",
@@ -1069,14 +1064,9 @@
     ],
     "closestVehicleColourPairs": [
       {
-        "a": "mammoth",
-        "b": "v3",
-        "dist": 0.219
-      },
-      {
         "a": "rhino",
         "b": "teslatank",
-        "dist": 0.227
+        "dist": 0.23
       },
       {
         "a": "flaktrack",
@@ -1084,29 +1074,34 @@
         "dist": 0.232
       },
       {
+        "a": "mammoth",
+        "b": "v3",
+        "dist": 0.236
+      },
+      {
         "a": "drone",
         "b": "mcv",
         "dist": 0.272
       },
       {
-        "a": "mammoth",
-        "b": "flaktrack",
-        "dist": 0.335
+        "a": "mirage",
+        "b": "rhino",
+        "dist": 0.283
       },
       {
         "a": "chronominer",
         "b": "warminer",
-        "dist": 0.351
+        "dist": 0.354
       },
       {
-        "a": "mirage",
-        "b": "rhino",
-        "dist": 0.351
+        "a": "mammoth",
+        "b": "flaktrack",
+        "dist": 0.354
       },
       {
         "a": "lancer",
         "b": "drone",
-        "dist": 0.382
+        "dist": 0.38
       },
       {
         "a": "drone",
@@ -1129,10 +1124,6 @@
         "pct": 0.0973
       },
       {
-        "key": "warminer",
-        "pct": 0.0672
-      },
-      {
         "key": "engineer",
         "pct": 0.0637
       },
@@ -1151,11 +1142,15 @@
       {
         "key": "conscript",
         "pct": 0.0462
+      },
+      {
+        "key": "sub",
+        "pct": 0.0359
       }
     ],
     "ownerPctByUnit": {
       "chronominer": 0.1108,
-      "warminer": 0.1319,
+      "warminer": 0.1315,
       "rifle": 0.1968,
       "conscript": 0.142,
       "rocket": 0.1239,
@@ -1163,14 +1158,14 @@
       "rocketeer": 0.2412,
       "harrier": 0.21,
       "kirov": 0.2074,
-      "lancer": 0.0936,
-      "mammoth": 0.0645,
+      "lancer": 0.0932,
+      "mammoth": 0.0634,
       "engineer": 0.2237,
       "dog": 0.0839,
       "ifv": 0.0634,
-      "mirage": 0.2444,
+      "mirage": 0.2401,
       "tanya": 0.154,
-      "rhino": 0.156,
+      "rhino": 0.1554,
       "flaktrack": 0.2151,
       "v3": 0.1846,
       "teslatrooper": 0.1624,
@@ -1198,7 +1193,7 @@
     },
     "chromaByUnit": {
       "chronominer": 0.2275,
-      "warminer": 0.341,
+      "warminer": 0.3405,
       "rifle": 0.3947,
       "conscript": 0.3281,
       "rocket": 0.2242,
@@ -1206,14 +1201,14 @@
       "rocketeer": 0.14,
       "harrier": 0.0058,
       "kirov": 0.3147,
-      "lancer": 0.0857,
-      "mammoth": 0.1305,
+      "lancer": 0.0846,
+      "mammoth": 0.1274,
       "engineer": 0.2274,
       "dog": 0.6238,
       "ifv": 0.0459,
-      "mirage": 0.0387,
+      "mirage": 0.0406,
       "tanya": 0.3966,
-      "rhino": 0.0911,
+      "rhino": 0.0906,
       "flaktrack": 0.0685,
       "v3": 0.1009,
       "teslatrooper": 0.0992,
@@ -1225,7 +1220,7 @@
       "yuri": 0.1862,
       "cleg": 0.1528,
       "spy": 0.1546,
-      "nighthawk": 0.068,
+      "nighthawk": 0.0675,
       "apc": 0.1231,
       "destroyer": 0.0761,
       "aegis": 0.0053,
@@ -1305,13 +1300,6 @@
         "ours": 2.105,
         "ra2": 2.6,
         "ratio": 0.81
-      },
-      {
-        "key": "mirage",
-        "wh": "65x39",
-        "ours": 1.667,
-        "ra2": 1.452,
-        "ratio": 1.148
       },
       {
         "key": "dread",
@@ -1445,6 +1433,13 @@
         "ours": 2.625,
         "ra2": 2.75,
         "ratio": 0.955
+      },
+      {
+        "key": "mirage",
+        "wh": "65x43",
+        "ours": 1.512,
+        "ra2": 1.452,
+        "ratio": 1.041
       },
       {
         "key": "rifle",
@@ -4157,9 +4152,9 @@
         "unit": "prismtank",
         "clause": "total height >= 1.10x the Mirage's",
         "ok": true,
-        "measured": 1.462,
+        "measured": 1.326,
         "want": ">= 1.10x",
-        "note": "57 px against the Mirage's 39, both at their own broadside octant, bbox including the contact shadow. §2.3 calls this unit \"the tallest tank profile\" and it is: no other ground vehicle but the MCV is taller",
+        "note": "57 px against the Mirage's 43, both at their own broadside octant, bbox including the contact shadow. §2.3 calls this unit \"the tallest tank profile\" and it is: no other ground vehicle but the MCV is taller",
         "module": "vehicle.js",
         "refMatch": 0.56
       },
@@ -4489,9 +4484,9 @@
         "selfIoU": 0.7346,
         "selfIoUCross": 0.7346,
         "bestPeer": "Mirage Tank",
-        "bestPeerIoU": 0.7613,
-        "nearestPeer": "Mirage Tank",
-        "nearestPeerMMD2": 0.0214,
+        "bestPeerIoU": 0.7379,
+        "nearestPeer": "V3 Launcher",
+        "nearestPeerMMD2": 0.0438,
         "peersBeatingSelf": 0,
         "peers": 12,
         "spike": {
@@ -5186,29 +5181,29 @@
         "name": "Mirage Tank",
         "group": "vehicle",
         "fac": "dir",
-        "mass": 1721,
+        "mass": 1737,
         "bboxW": 65,
-        "bboxH": 48,
-        "aspect": 1.339,
-        "broadsideWH": "65x39",
-        "broadsideAspect": 1.667,
+        "bboxH": 50,
+        "aspect": 1.284,
+        "broadsideWH": "65x43",
+        "broadsideAspect": 1.512,
         "ra2Aspect": 1.452,
-        "vsRA2": 1.148,
-        "selfIoU": 0.6568,
-        "selfIoUCross": 0.6568,
-        "bestPeer": "Chrono Miner",
-        "bestPeerIoU": 0.7613,
+        "vsRA2": 1.041,
+        "selfIoU": 0.6454,
+        "selfIoUCross": 0.6454,
+        "bestPeer": "Tesla Tank",
+        "bestPeerIoU": 0.7609,
         "nearestPeer": "V3 Launcher",
-        "nearestPeerMMD2": -0.0263,
+        "nearestPeerMMD2": -0.0241,
         "peersBeatingSelf": 2,
         "peers": 12,
         "spike": {
           "axis": "v",
-          "len": 15,
-          "thick": 24,
+          "len": 17,
+          "thick": 22,
           "budget": 3.64,
           "floor": 3.64,
-          "atZmin": 13.2,
+          "atZmin": 12.1,
           "floorAtZmin": 2,
           "lenBudget": 6,
           "fails": null,
@@ -5601,7 +5596,7 @@
         "selfIoU": 0.6742,
         "selfIoUCross": 0.6742,
         "bestPeer": "Mirage Tank",
-        "bestPeerIoU": 0.7539,
+        "bestPeerIoU": 0.7609,
         "nearestPeer": "V3 Launcher",
         "nearestPeerMMD2": -0.0094,
         "peersBeatingSelf": 2,
@@ -5671,7 +5666,7 @@
         "bestPeer": "IFV",
         "bestPeerIoU": 0.7146,
         "nearestPeer": "Mirage Tank",
-        "nearestPeerMMD2": -0.0263,
+        "nearestPeerMMD2": -0.0241,
         "peersBeatingSelf": 2,
         "peers": 12,
         "spike": {
