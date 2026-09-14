@@ -104,7 +104,13 @@ function bakeVehicle(col, kind, fac, anim) {
   // PALER. At #6b6b6b she baked a mid-grey tank; the rip is a light
   // lavender-white hull with the dark confined to the track band, and the
   // difference is most of why ours read as a lump of steel beside it.
-  if (kind === 'lancer')       { hull = '#8f8f8f'; deck = '#5e5e5e'; }   // pale steel with a dark top, as allied-grizzly-tank.png (VLIFT lifts it)
+  // MEASURED, NOT ADJUSTED BY EYE. allied-grizzly-tank.png's hull runs #707490,
+  // #8084a0 and #9090b0 with #b8bcd8 highlights over #282c48 shadow: median
+  // luma 133. Ours measured 153 across the eight bearings — 15% brighter — and
+  // the Grizzly read as a WHITE tank beside the rip's slate one. VLIFT is
+  // already lifting this unit (that is what the note below means), so the base
+  // has to come down to meet it rather than the lift being fought.
+  if (kind === 'lancer')       { hull = '#7d7d7d'; deck = '#545454'; }   // pale steel with a dark top, as allied-grizzly-tank.png (VLIFT lifts it)
   else if (kind === 'spectre') { hull = '#4f4f4f'; deck = '#333333'; }   // dark gunmetal, as allied-prism-tank.png
   // THE DECK WAS BAKING PURE GREY. #35352c is 53/53/44, and on this grid 44
   // rounds to the SAME cell as 53 — so the Apocalypse's largest visible surface
@@ -319,7 +325,16 @@ function bakeVehicle(col, kind, fac, anim) {
     // source value range; giving it the fleet-wide 1.25 lift clips the rear
     // casing to white and makes the works truck look like a toy. Keep the
     // common metal lift for the combat fleet, with a restrained MCV lift.
-    setVLIFT((kind === 'harrier' || kind === 'kirov' || kind === 'hornet' || kind === 'nighthawk') ? 1 : (kind === 'mcv' ? 1.08 : 1.25));
+    // VLIFT 1.25 FLATTENS THE GRIZZLY. On a 6-level grid a 1.25x lift pushes
+    // every mid-grey face onto the SAME rung: #8f8f8f and #7d7d7d both land on
+    // 153 once lifted, which is why dropping this unit's hull by two grid cells
+    // changed the render by nothing at all. The rip's median luma is 133 —
+    // a value the grid cannot spell directly; RA2 reaches it by MIXING 102 and
+    // 153 pixels across faces, and the lift was denying us that mix by sending
+    // everything to 153. At 1.10 the dark faces fall back to 102 and the lit
+    // ones stay at 153, which is the variety the reference actually has.
+    setVLIFT((kind === 'harrier' || kind === 'kirov' || kind === 'hornet' || kind === 'nighthawk') ? 1
+      : (kind === 'mcv' ? 1.08 : (kind === 'lancer' ? 1.22 : 1.25)));
     var wantH = part !== 't', wantT = part !== 'h';
     var a = d * FANG;
     // The Kirov is 137px broadside in RA2 against a Rhino's ~60: it gets a
