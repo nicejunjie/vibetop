@@ -49,12 +49,12 @@ function droneLeg(lu, lv, near) {
   g.lineTo(kneex - wnx * bw, kneey - wny * bw);
   g.lineTo(hipx - wnx * bw * 0.8, hipy - wny * bw * 0.8);
   g.closePath();
-  g.fillStyle = near ? '#919191' : '#525252'; g.fill();
-  g.strokeStyle = '#1f1f1f'; g.lineWidth = 0.6; g.stroke();
+  g.fillStyle = near ? '#919191' : '#4e4e60'; g.fill();
+  g.strokeStyle = '#1d1d26'; g.lineWidth = 0.6; g.stroke();
   g.strokeStyle = near ? shade(VACC.drone, 1.34) : shade(VACC.drone, 0.72); g.lineWidth = 0.9;
   g.beginPath();
   g.moveTo(hipx, hipy - 0.5); g.lineTo(kneex, kneey - 0.5); g.stroke();
-  g.fillStyle = '#232323';                                  // foot claw
+  g.fillStyle = '#212129';                                  // foot claw
   g.beginPath(); g.ellipse(footx, footy, 0.8, 0.5, 0, 0, 6.29); g.fill();
 }
 // Splayed along the forward axis rather than across it: the
@@ -82,6 +82,11 @@ gEllipse(cx - fx * 0.5 + px * 0.6, bodyY - 2.1 - fy * 0.5 + py * 0.6, 1.45); g.f
 // The carapace plate is deliberately SMALL. Built out to the hull
 // line it capped the colour ring from above and the drone came back
 // a grey mushroom with a red hairline round its middle.
+// ...AND COOL AGAIN BY CONSTRUCTION. Neutralising them stopped the teal and
+// left the drone's legs and outlines flat #333333 — 115 px on a sprite this
+// size. Rewritten with r and g IDENTICAL and only blue raised, which cannot
+// bake teal at any rung, so the machine gets its steel cast back.
+//
 // SEVEN BLUE-GREYS ON A UNIT 30 px WIDE. Every structural colour on the drone
 // carried a cool cast — the far legs #4c535c, the head #31373f/#79818c, the
 // claws, the outlines — and #79818c alone throws nine different chromatic
@@ -94,11 +99,11 @@ gEllipse(cx - fx * 0.5 + px * 0.6, bodyY - 2.1 - fy * 0.5 + py * 0.6, 1.45); g.f
 // the plate out to the hull line made "a grey mushroom with a red hairline",
 // which is the opposite error — so this is the middle: big enough to be a back,
 // small enough that the owner's ring still rings.
-puck(cx, bodyY - 2.1, 1.72, 0.95, shade(hull, 0.74), shade(hull, 1.02), '#343434');
+puck(cx, bodyY - 2.1, 1.72, 0.95, shade(hull, 0.74), shade(hull, 1.02), '#32323e');
 g.fillStyle = shade(hull, 1.22);                            // carapace glint
 gEllipse(cx - fx * 0.35, bodyY - 2.95 - fy * 0.35, 0.6); g.fill();
 puck(cx + fx * 2.0, bodyY - 1.5 + fy * 2.0, 1.0, 1.1,       // the head
-     '#363636', '#808080', '#181818');
+     '#343440', '#7c7c94', '#16161d');
 for (sg = -1; sg <= 1; sg += 2) {                           // mandibles
   g.strokeStyle = shade(VACC.drone, 0.46); g.lineWidth = 1.4; g.lineCap = 'round';
   g.beginPath();
