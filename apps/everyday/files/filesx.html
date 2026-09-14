@@ -1638,9 +1638,23 @@
   }
   function setFront(on) {
     var was = inFront; inFront = on;
-    if (on && !was) pollOnce();                     // back in front: catch up now
+    if (on && !was) { pollOnce(); retick(); }       // back in front: catch up now
   }
   setInterval(pollOnce, POLL_MS);
+
+  // ---- and age the clock even when the folder does not change ----
+  // The poll above re-renders only when the DISK changed, which left the
+  // relative times frozen at whatever they said when the folder was opened:
+  // "just now" an hour after the fact. Rewriting the labels in place is not a
+  // refresh — it keeps scroll, selection and focus, so it is safe to run
+  // while the poll itself is held back (mid-rename, editor open, uploading).
+  // 30s is under the coarsest step this can miss ("just now" ends at 45s).
+  var RETICK_MS = 30000;
+  function retick() {
+    if (!inFront || document.hidden) return;
+    FilesxCore.retickRows(mainEl, rows, { exact: exactDates });
+  }
+  setInterval(retick, RETICK_MS);
   document.addEventListener('visibilitychange', function() { setFront(!document.hidden); });
   window.addEventListener('message', function(e) {
     if (e.data && e.data.type === 'vibetop:active') setFront(e.data.active === 'files' && !document.hidden);
