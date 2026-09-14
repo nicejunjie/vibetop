@@ -328,8 +328,8 @@
     "peerVsSelf.infantry": 0,
     "peerVsSelf.naval": 2,
     "peerVsSelf.air": 0,
-    "iou.groundCombat.mean": 0.6035,
-    "iou.vehicle.mean": 0.5386,
+    "iou.groundCombat.mean": 0.6034,
+    "iou.vehicle.mean": 0.5384,
     "iou.infantry.mean": 0.5112,
     "iou.naval.mean": 0.3609,
     "iou.air.mean": 0.1544,
@@ -337,11 +337,11 @@
     "spike.belowFloor": 2,
     "spike.minThickAtZmin": 1.1,
     "spike.belowDeclaredBudget": 5,
-    "mass.groundCombatSpan": 2.09,
+    "mass.groundCombatSpan": 2.105,
     "mass.tightestBand6": 1.557,
     "hue.infantryOwnerMean": 0.1927,
     "hue.infantryBelowBudget": 5,
-    "hue.vehicleOwnerMean": 0.1536,
+    "hue.vehicleOwnerMean": 0.152,
     "hue.vehicleOwnerMax": 0.2547,
     "hue.maxImpostor": 0.1017,
     "aspect.navalOutsideRA2Band": 0,
@@ -378,7 +378,7 @@
     "value.engineerLightPct": 0.0984,
     "value.engineerMarginOverNext": -0.0339,
     "colour.infantry.meanDist": 1.4103,
-    "colour.vehicle.meanDist": 0.9916,
+    "colour.vehicle.meanDist": 0.9923,
     "colour.vehicleAchromatic": 8,
     "colour.naval.meanDist": 1.3666,
     "colour.air.meanDist": 1.1669,
@@ -520,7 +520,7 @@
         "ra2Aspect": 1.935,
         "vsRA2": 1.252,
         "bestPeer": "Rhino Tank",
-        "bestPeerIoU": 0.8415,
+        "bestPeerIoU": 0.8467,
         "nearestPeer": "Apocalypse",
         "nearestPeerMMD2": -0.0643,
         "peersBeatingSelf": 2
@@ -612,15 +612,15 @@
       "rhino": {
         "group": "vehicle",
         "aspect": 2.28,
-        "selfIoU": 0.6456,
-        "selfIoUCross": 0.6456,
+        "selfIoU": 0.6404,
+        "selfIoUCross": 0.6404,
         "broadsideAspect": 2.28,
         "ra2Aspect": 2,
         "vsRA2": 1.14,
         "bestPeer": "Grizzly Tank",
-        "bestPeerIoU": 0.8415,
+        "bestPeerIoU": 0.8467,
         "nearestPeer": "Grizzly Tank",
-        "nearestPeerMMD2": -0.0437,
+        "nearestPeerMMD2": -0.0464,
         "peersBeatingSelf": 2
       },
       "flaktrack": {
@@ -688,7 +688,7 @@
         "ra2Aspect": 1.5,
         "vsRA2": 0.909,
         "bestPeer": "Rhino Tank",
-        "bestPeerIoU": 0.3117,
+        "bestPeerIoU": 0.3136,
         "nearestPeer": "Apocalypse",
         "nearestPeerMMD2": 0.6,
         "peersBeatingSelf": 0
@@ -962,9 +962,9 @@
     },
     "iouGroups": {
       "vehicle": {
-        "mean": 0.5386,
+        "mean": 0.5384,
         "pairs": 78,
-        "max": 0.8415,
+        "max": 0.8467,
         "over75": 5
       },
       "infantry": {
@@ -986,9 +986,9 @@
         "over75": 0
       },
       "groundCombat": {
-        "mean": 0.6035,
+        "mean": 0.6034,
         "pairs": 36,
-        "max": 0.8415,
+        "max": 0.8467,
         "over75": 4
       },
       "sameFactionOver75": 3
@@ -1002,7 +1002,7 @@
       {
         "a": "Apocalypse",
         "b": "Rhino Tank",
-        "iou": 0.7638
+        "iou": 0.7661
       },
       {
         "a": "Engineer",
@@ -1066,17 +1066,17 @@
       {
         "a": "rhino",
         "b": "teslatank",
-        "dist": 0.22
-      },
-      {
-        "a": "mirage",
-        "b": "rhino",
-        "dist": 0.283
+        "dist": 0.211
       },
       {
         "a": "mammoth",
         "b": "v3",
         "dist": 0.29
+      },
+      {
+        "a": "mirage",
+        "b": "rhino",
+        "dist": 0.292
       },
       {
         "a": "flaktrack",
@@ -1136,16 +1136,16 @@
         "pct": 0.0509
       },
       {
-        "key": "rhino",
-        "pct": 0.0463
-      },
-      {
         "key": "conscript",
         "pct": 0.0462
       },
       {
         "key": "sub",
         "pct": 0.0359
+      },
+      {
+        "key": "rocket",
+        "pct": 0.0302
       }
     ],
     "ownerPctByUnit": {
@@ -1165,7 +1165,7 @@
       "ifv": 0.0634,
       "mirage": 0.2401,
       "tanya": 0.154,
-      "rhino": 0.1554,
+      "rhino": 0.1342,
       "flaktrack": 0.1918,
       "v3": 0.1407,
       "teslatrooper": 0.1624,
@@ -1208,7 +1208,7 @@
       "ifv": 0.0459,
       "mirage": 0.0406,
       "tanya": 0.3966,
-      "rhino": 0.0906,
+      "rhino": 0.0934,
       "flaktrack": 0.0706,
       "v3": 0.1126,
       "teslatrooper": 0.0992,
@@ -4202,7 +4202,7 @@
         "unit": "rhino",
         "clause": "5 discrete house blocks, each 4-6 px, gaps >= 3 px",
         "ok": false,
-        "measured": "4 blocks, minor dims [3,4,4,3], min gap 1",
+        "measured": "5 blocks, minor dims [3,4,4,4,4], min gap 1",
         "want": "5 blocks / minor >= 4 px / gap >= 3",
         "note": "components over 10 px at the broadside octant; \"each 4-6 px\" read as the MINOR dimension, as on the Grizzly's row. §2.4 names them and they are all there: three flank panels + two turret cheeks, countable, gaps clear. THE UPPER BOUND OF THE ROW'S SIZE BAND IS NOT ENFORCED and that is a decision, not an oversight: three of the five measure 8 px against the row's 4-6, and our Rhino is 65x38 where RA2's [HTNK] is 56x28 — 1.16x its length and 1.36x its height — so the same panel scales to 4.6-8.2 px here. Thinning them to hit the literal band would take owner colour off the unit, and owner colour is the friend-from-foe read legibility.js gates. The row's content is FIVE COUNTABLE BLOCKS against the Grizzly's two, and that is what is asserted",
         "module": "vehicle.js",
@@ -4752,7 +4752,7 @@
         "selfIoU": 0.6724,
         "selfIoUCross": 0.6724,
         "bestPeer": "Rhino Tank",
-        "bestPeerIoU": 0.3117,
+        "bestPeerIoU": 0.3136,
         "nearestPeer": "Apocalypse",
         "nearestPeerMMD2": 0.6,
         "peersBeatingSelf": 0,
@@ -5058,7 +5058,7 @@
         "selfIoU": 0.566,
         "selfIoUCross": 0.566,
         "bestPeer": "Rhino Tank",
-        "bestPeerIoU": 0.8415,
+        "bestPeerIoU": 0.8467,
         "nearestPeer": "Apocalypse",
         "nearestPeerMMD2": -0.0643,
         "peersBeatingSelf": 2,
@@ -5283,7 +5283,7 @@
         "name": "Rhino Tank",
         "group": "vehicle",
         "fac": "col",
-        "mass": 1011,
+        "mass": 1004,
         "bboxW": 57,
         "bboxH": 39,
         "aspect": 1.57,
@@ -5291,12 +5291,12 @@
         "broadsideAspect": 2.28,
         "ra2Aspect": 2,
         "vsRA2": 1.14,
-        "selfIoU": 0.6456,
-        "selfIoUCross": 0.6456,
+        "selfIoU": 0.6404,
+        "selfIoUCross": 0.6404,
         "bestPeer": "Grizzly Tank",
-        "bestPeerIoU": 0.8415,
+        "bestPeerIoU": 0.8467,
         "nearestPeer": "Grizzly Tank",
-        "nearestPeerMMD2": -0.0437,
+        "nearestPeerMMD2": -0.0464,
         "peersBeatingSelf": 2,
         "peers": 12,
         "spike": {

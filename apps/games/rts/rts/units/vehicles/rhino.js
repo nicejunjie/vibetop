@@ -65,11 +65,25 @@ if (wantH) {
   // three a side, and from any bearing they read as a broken red line at the
   // hull's shoulder, never as plates on its cheek. Raised to deck height and
   // laid flat: longer, wider, and a third the height.
+  // TWO FIXES HERE. The lateral offset used wid*0.40 on px and wid*0.34 on py —
+  // a mismatched pair, so the bins did not sit on one line along the fender;
+  // the two components of the same offset have to be the same distance or the
+  // fitting is not where you think it is. And at len*0.175 each bin was a
+  // 12-unit bar 1.9 wide — better than six to one — so three a side merged into
+  // one long red capsule down each shoulder, which is what has been reading as
+  // sausages on the deck. rhino.png's stowage is a row of SHORT blocks with
+  // clear air between them.
+  // TWO A SIDE, AND SHAPED LIKE BOXES. Three long bars merged into one red
+  // capsule down each shoulder; three SHORT ones became a row of six red
+  // berries, which is a different wrong answer at the same volume of paint.
+  // rhino.png carries a couple of stowage boxes a side with clear air between
+  // them, not a rhythm of lumps. Two per side, long enough to read as a box and
+  // wide enough not to round off.
   for (sg = -1; sg <= 1; sg += 2)
-    for (i2 = -1; i2 <= 1; i2++)
-      isoBox(g, cx + px * wid * 0.40 * sg + fx * (i2 * len * 0.252 - 0.4),
-             by - 7.35 + py * wid * 0.34 * sg + fy * (i2 * len * 0.252 - 0.4),
-             len * 0.175, 1.9, 1.45, a, i2 > 0 ? plit : panel, PEDGE);
+    for (i2 = -1; i2 <= 1; i2 += 2)
+      isoBox(g, cx + px * wid * 0.37 * sg + fx * (i2 * len * 0.215 - 0.4),
+             by - 7.35 + py * wid * 0.37 * sg + fy * (i2 * len * 0.215 - 0.4),
+             len * 0.155, 2.5, 1.45, a, i2 > 0 ? plit : panel, PEDGE);
   fenders(len * 0.44, 3.25, 0.35, 0.18);
   bumper(len * 0.42, wid * 0.18, by - 1.35);
   lamp(cx + fx * len * 0.40 + px * wid * 0.20, by - 4.65 + fy * len * 0.40 + py * wid * 0.20);
