@@ -39,7 +39,15 @@ if (wantH) {
     fw.push([cx + fx * 9.8 + px * tOff * sg, by - 1.4 + fy * 9.8 + py * tOff * sg]);
   fw.sort(function (m, n) { return m[1] - n[1]; });
   for (i2 = 0; i2 < fw.length; i2++)
-    wheelDisc(fw[i2][0], fw[i2][1], 3.4, 0.70, '#2b2b2b', '#a0a0a0');
+    // HALF-WIDTH 0.70 IS NOT A TREAD BAND. wheelDisc's own note says a tyre is
+    // swept sideways by its own width so that HEAD-ON, where the disc collapses
+    // to a line, the tread still reads — and at 0.70 it does not: at bearings 4
+    // and 20 the Flak Track's front wheels came out as two thin black bars at
+    // the extreme edges of the sprite, reading as slivers of shadow rather than
+    // as wheels. The shared `wheels()` helper uses 0.62 on six small road
+    // wheels; this vehicle has TWO large ones carrying its whole front end and
+    // they need the width to match.
+    wheelDisc(fw[i2][0], fw[i2][1], 3.4, 1.15, '#2b2b2b', '#a0a0a0');
   isoBox(g, cx - fx * 5.2, by - 5.0 - fy * 5.2, len * 0.44, wid * 0.64, 4.8,
          a, deck, dark);                                    // olive armoured bed
   isoBox(g, cx - fx * 5.2, by - 9.8 - fy * 5.2, len * 0.26, wid * 0.42, 1.1,
