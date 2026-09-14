@@ -57,18 +57,51 @@ function drawDolphin(C) {
   b(-0.46, near * 1.08, 0.5, -0.22, near * 0.43, 1.4, 0.10, near * 0.24, 1.8);
   b(0.17, near * 0.25, 1.8, 0.23, near * 0.30, 1.8, 0.27, near * 0.35, 1.7); fill('#999999');
 
-  // Rounded blue saddle and strap are the only saturated surfaces.
-  g.beginPath(); m(0.34, -0.42, 4.8);
-  b(0.26, -0.54, 5.3, -0.12, -0.55, 5.4, -0.22, -0.40, 4.9);
-  b(-0.18, -0.13, 4.5, -0.12, 0.34, 3.1, -0.02, 0.48, 2.7);
-  b(0.10, 0.51, 2.9, 0.40, 0.08, 4.0, 0.34, -0.42, 4.8); fill(HOUSE);
-  g.beginPath(); m(0.31, -0.34, 5.1);
-  b(0.19, -0.45, 5.5, -0.05, -0.43, 5.5, -0.13, -0.34, 5.2);
-  b(-0.02, -0.25, 5.2, 0.20, -0.23, 5.1, 0.31, -0.34, 5.1); fill(HL);
-  g.beginPath(); m(-0.02, 0.43, 2.3);
-  b(-0.08, 0.39, 2.4, -0.17, 0.25, 2.8, -0.19, 0.05, 3.3);
-  b(-0.11, 0.15, 2.9, 0.02, 0.31, 2.5, 0.08, 0.40, 2.4);
-  b(0.05, 0.43, 2.3, 0.01, 0.44, 2.3, -0.02, 0.43, 2.3); fill(HD);
+  // THE THING ON ITS BACK IS A WEAPON, and it was drawn as a rounded blue
+  // SADDLE — three soft bezier lobes that read as a marking painted on the
+  // animal. In the rip it is a hard-edged BOX bolted to a dark harness strap,
+  // standing clear of the back, with an emitter facing forward: a machine on
+  // an animal, and the contrast between the two is the whole point. A dolphin
+  // with a blue patch is a dolphin; a dolphin carrying a pod is a weapon.
+  //
+  // The box is legal here. This unit's clause is "no orthogonal edges
+  // anywhere" — not the Squid's "zero straight edges" — and every corner goes
+  // through P(), so its edges lie on the iso axes and none of them is
+  // horizontal or vertical on screen.
+  (function () {
+    var PU = 0.06, PV = -0.06, PL2 = 0.20, PW2 = 0.34, Z0 = 4.2, Z1 = 6.6;
+    function c(du, dv, z) { return P(L * (PU + du), W * (PV + dv), FR + z); }
+    var g0 = c(PL2, PW2, Z0), g1 = c(PL2, -PW2, Z0),
+        g2 = c(-PL2, -PW2, Z0), g3 = c(-PL2, PW2, Z0);
+    var t0 = c(PL2, PW2, Z1), t1 = c(PL2, -PW2, Z1),
+        t2 = c(-PL2, -PW2, Z1), t3 = c(-PL2, PW2, Z1);
+    function face(a, b, a2, b2, col) {
+      g.fillStyle = col; g.beginPath();
+      g.moveTo(a[0], a[1]); g.lineTo(b[0], b[1]);
+      g.lineTo(b2[0], b2[1]); g.lineTo(a2[0], a2[1]); g.closePath(); g.fill();
+    }
+    // the dark harness strap, under the pod and round the body
+    g.strokeStyle = '#1a1a1a'; g.lineWidth = 2.0;
+    var s0 = c(0, PW2 * 1.5, Z0 - 1.4), s1 = c(0, -PW2 * 1.5, Z0 - 1.4);
+    g.beginPath(); g.moveTo(s0[0], s0[1]); g.lineTo(s1[0], s1[1]); g.stroke();
+    face(g0, g1, t0, t1, HOUSE);                       // the pod's forward face
+    face(g3, g0, t3, t0, HD);                          // its near flank
+    face(t0, t1, t3, t2, HL);                          // its lit top
+    g.strokeStyle = '#1a1a1a'; g.lineWidth = 0.7;      // a hard edge all round
+    g.beginPath();
+    g.moveTo(t0[0], t0[1]); g.lineTo(t1[0], t1[1]);
+    g.lineTo(t2[0], t2[1]); g.lineTo(t3[0], t3[1]); g.closePath(); g.stroke();
+    // THE EMITTER, pointing forward past the pod — the part that says "weapon"
+    var e0 = c(PL2, 0, (Z0 + Z1) / 2), e1 = c(PL2 + 0.26, 0, (Z0 + Z1) / 2 - 0.3);
+    g.strokeStyle = '#333333'; g.lineWidth = 2.2; g.lineCap = 'butt';
+    g.beginPath(); g.moveTo(e0[0], e0[1]); g.lineTo(e1[0], e1[1]); g.stroke();
+    g.strokeStyle = '#999999'; g.lineWidth = 0.9;
+    g.beginPath(); g.moveTo(e0[0], e0[1] - 0.7); g.lineTo(e1[0], e1[1] - 0.7); g.stroke();
+    g.fillStyle = HL;                                  // its glowing mouth
+    g.beginPath(); g.ellipse(e1[0], e1[1], 1.0, 1.3, 0, 0, 6.29); g.fill();
+    g.fillStyle = '#ffffff';
+    g.beginPath(); g.ellipse(e1[0], e1[1], 0.5, 0.7, 0, 0, 6.29); g.fill();
+  })();
 
   q = P(L * 0.03, -nearS * W * 0.25, FR + 5.8);
   g.fillStyle = '#333333'; g.beginPath(); g.ellipse(q[0], q[1], 1.2, 0.8, 0, 0, 6.29); g.fill();

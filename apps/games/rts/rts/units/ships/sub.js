@@ -41,11 +41,18 @@ function drawSub(C) {
          [-L * 1.18, -nearS * W * 0.90, FR * 0.95]], HD);
 
   // ---- the casing: one uninterrupted whaleback --------------------------- //
-  shape([[ L * 0.98,  W * 0.18, FR * 1.10], [ L * 0.88,  W * 0.94, FR * 1.20],
-         [ L * 0.48,  W * 1.34, FR * 1.32], [-L * 0.62,  W * 1.38, FR * 1.30],
-         [-L * 0.96,  W * 0.84, FR * 1.16], [-L * 1.00, -W * 0.84, FR * 1.16],
-         [-L * 0.62, -W * 1.38, FR * 1.30], [ L * 0.48, -W * 1.34, FR * 1.32],
-         [ L * 0.88, -W * 0.94, FR * 1.20], [ L * 0.98, -W * 0.18, FR * 1.10]], '#333333');
+  // A SUBMARINE IS A CYLINDER. The casing held full beam only between +0.48L
+  // and -0.62L and tapered away over the whole of each end — it came to W*0.18
+  // at the bow — so the boat read as a spindle with pointed ends. A Typhoon's
+  // pressure hull is ONE DIAMETER for almost its entire length and rounds off
+  // in a short cap at each end; that constant girth is most of what makes a
+  // submarine look like a submarine rather than like a fish.
+  shape([[ L * 1.00,  W * 0.72, FR * 1.14], [ L * 0.90,  W * 1.26, FR * 1.26],
+         [ L * 0.78,  W * 1.36, FR * 1.30], [-L * 0.86,  W * 1.36, FR * 1.30],
+         [-L * 0.98,  W * 1.20, FR * 1.24], [-L * 1.04,  W * 0.66, FR * 1.16],
+         [-L * 1.04, -W * 0.66, FR * 1.16], [-L * 0.98, -W * 1.20, FR * 1.24],
+         [-L * 0.86, -W * 1.36, FR * 1.30], [ L * 0.78, -W * 1.36, FR * 1.30],
+         [ L * 0.90, -W * 1.26, FR * 1.26], [ L * 1.00, -W * 0.72, FR * 1.14]], '#333333');
 
   // ---- THE RED BELLY: a lens under the casing, pointed at both ends ------ //
   // Eight points rather than a stroke, because the shape IS the point: it has
@@ -53,22 +60,25 @@ function drawSub(C) {
   // constant width cannot do that, which is why the old one read as paint.
   (function () {
     var v = nearS * W * 1.16;
-    shape([[ L * 0.62, v, FR * 1.00],                    // the forward point
-           [ L * 0.24, v, FR * 0.42],
-           [-L * 0.12, v, FR * 0.10],                    // deepest, just abaft midships
-           [-L * 0.44, v, FR * 0.20],
-           [-L * 0.72, v, FR * 0.72],                    // the after point
-           [-L * 0.44, v, FR * 1.04],
-           [-L * 0.12, v, FR * 1.12],
-           [ L * 0.24, v, FR * 1.08]], HL);
+    shape([[ L * 0.76, v, FR * 0.92],                    // the forward point
+           [ L * 0.46, v, FR * 0.26],
+           [ L * 0.10, v, FR * 0.10],                    // it holds its depth...
+           [-L * 0.34, v, FR * 0.10],                    // ...across the whole middle
+           [-L * 0.62, v, FR * 0.24],
+           [-L * 0.84, v, FR * 0.80],                    // the after point
+           [-L * 0.62, v, FR * 1.06],
+           [-L * 0.34, v, FR * 1.14],
+           [ L * 0.10, v, FR * 1.14],
+           [ L * 0.46, v, FR * 1.08]], HL);
     // AND IT NEEDS AN EDGE. Filled in HOUSE it bakes #990000 against a #333333
     // casing — two dark masses touching, which is why it still read as a
     // painted band rather than as a body slung under the boat. The lit house
     // colour for the mass and a hard dark line round it makes it an OBJECT.
     (function () {
-      var O = [[ L * 0.62, FR * 1.00], [ L * 0.24, FR * 0.42], [-L * 0.12, FR * 0.10],
-               [-L * 0.44, FR * 0.20], [-L * 0.72, FR * 0.72], [-L * 0.44, FR * 1.04],
-               [-L * 0.12, FR * 1.12], [ L * 0.24, FR * 1.08]];
+      var O = [[ L * 0.76, FR * 0.92], [ L * 0.46, FR * 0.26], [ L * 0.10, FR * 0.10],
+               [-L * 0.34, FR * 0.10], [-L * 0.62, FR * 0.24], [-L * 0.84, FR * 0.80],
+               [-L * 0.62, FR * 1.06], [-L * 0.34, FR * 1.14], [ L * 0.10, FR * 1.14],
+               [ L * 0.46, FR * 1.08]];
       g.strokeStyle = '#330000'; g.lineWidth = 0.8;
       g.beginPath();
       for (var oi = 0; oi < O.length; oi++) {
@@ -79,8 +89,8 @@ function drawSub(C) {
       // a darker core low in the mass, so it has volume rather than being flat
       g.fillStyle = HOUSE;
       g.beginPath();
-      var c = [[ L * 0.34, FR * 0.72], [-L * 0.12, FR * 0.34], [-L * 0.50, FR * 0.62],
-               [-L * 0.12, FR * 0.86]];
+      var c = [[ L * 0.48, FR * 0.72], [ L * 0.06, FR * 0.32], [-L * 0.40, FR * 0.34],
+               [-L * 0.66, FR * 0.70], [-L * 0.40, FR * 0.92], [ L * 0.06, FR * 0.92]];
       for (var ci = 0; ci < c.length; ci++) {
         var q2 = P(c[ci][0], v, c[ci][1]);
         if (ci) g.lineTo(q2[0], q2[1]); else g.moveTo(q2[0], q2[1]);
