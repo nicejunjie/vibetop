@@ -47,8 +47,27 @@ function bakeShip(col, kind, fac) {
   // where the blue-green speckle scattered over every deck was coming from.
   // Equal channels stay equal at every rung. Values are each original's luma,
   // so nothing got lighter or darker; only the false hue is gone.
-  var HULL = sov ? '#4d4d4d' : '#5e5e5e';
-  var DECK = sov ? '#2b2b2b' : '#343434';
+  // THE FLEET WAS TOO DARK, and the number that made it dark was measured
+  // wrong. "RA2 hull median luma 0.20" came off a crop of the Dreadnought
+  // rosette that still had SEA in it — the navy background dragged the median
+  // down and I halved every hull to chase it. Re-measured on frames cropped to
+  // the sprite itself:
+  //
+  //            RA2 med   ours was   RA2 p90   RA2 over 0.75   ours was
+  //   destroyer   0.50      0.20      0.86        13.8%         1.9%
+  //   aegis       0.50      0.40      0.98        20.4%        12.0%
+  //   dread       0.35      0.20      0.74         9.4%         5.8%
+  //
+  // RA2's warships are LIGHT — a pale grey hull carrying a near-white
+  // superstructure, with the dark confined to the boot-topping and the
+  // shadows. Only the Dreadnought is genuinely dark-hulled, and even she sits
+  // at 0.35. The banded flank, the fixed specular and the plating all stay;
+  // what changes is the value they are built on.
+  //
+  // The Carrier keeps its own override below: the user signed that sprite off
+  // at its current value and it is not re-opened by this.
+  var HULL = sov ? '#6e6e6e' : '#949494';
+  var DECK = sov ? '#454545' : '#5e5e5e';
   if (kind === 'sub')      { HULL = '#333333'; DECK = '#212121'; }
   if (kind === 'dolphin')  { HULL = '#6a6a6a'; DECK = '#454545'; }
   // The squid's plum was a HALF-STEP off the palette grid and the shade ladder
