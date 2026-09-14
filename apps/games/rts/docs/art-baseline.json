@@ -328,8 +328,8 @@
     "peerVsSelf.infantry": 0,
     "peerVsSelf.naval": 2,
     "peerVsSelf.air": 0,
-    "iou.groundCombat.mean": 0.5994,
-    "iou.vehicle.mean": 0.5365,
+    "iou.groundCombat.mean": 0.5998,
+    "iou.vehicle.mean": 0.5369,
     "iou.infantry.mean": 0.5112,
     "iou.naval.mean": 0.3609,
     "iou.air.mean": 0.1544,
@@ -338,10 +338,10 @@
     "spike.minThickAtZmin": 1.1,
     "spike.belowDeclaredBudget": 5,
     "mass.groundCombatSpan": 2.09,
-    "mass.tightestBand6": 1.527,
+    "mass.tightestBand6": 1.499,
     "hue.infantryOwnerMean": 0.1927,
     "hue.infantryBelowBudget": 5,
-    "hue.vehicleOwnerMean": 0.1583,
+    "hue.vehicleOwnerMean": 0.1588,
     "hue.vehicleOwnerMax": 0.2702,
     "hue.maxImpostor": 0.1017,
     "aspect.navalOutsideRA2Band": 0,
@@ -378,7 +378,7 @@
     "value.engineerLightPct": 0.0984,
     "value.engineerMarginOverNext": -0.0339,
     "colour.infantry.meanDist": 1.4103,
-    "colour.vehicle.meanDist": 0.9813,
+    "colour.vehicle.meanDist": 0.981,
     "colour.vehicleAchromatic": 7,
     "colour.naval.meanDist": 1.3376,
     "colour.air.meanDist": 1.1582,
@@ -625,16 +625,16 @@
       },
       "flaktrack": {
         "group": "vehicle",
-        "aspect": 1,
-        "selfIoU": 0.6648,
-        "selfIoUCross": 0.6648,
-        "broadsideAspect": 1,
+        "aspect": 0.964,
+        "selfIoU": 0.6512,
+        "selfIoUCross": 0.6512,
+        "broadsideAspect": 0.964,
         "ra2Aspect": 1,
-        "vsRA2": 1,
+        "vsRA2": 0.964,
         "bestPeer": "IFV",
-        "bestPeerIoU": 0.6831,
+        "bestPeerIoU": 0.6838,
         "nearestPeer": "IFV",
-        "nearestPeerMMD2": 0.1194,
+        "nearestPeerMMD2": 0.1065,
         "peersBeatingSelf": 0
       },
       "v3": {
@@ -962,7 +962,7 @@
     },
     "iouGroups": {
       "vehicle": {
-        "mean": 0.5365,
+        "mean": 0.5369,
         "pairs": 78,
         "max": 0.8415,
         "over75": 6
@@ -986,7 +986,7 @@
         "over75": 0
       },
       "groundCombat": {
-        "mean": 0.5994,
+        "mean": 0.5998,
         "pairs": 36,
         "max": 0.8415,
         "over75": 4
@@ -1069,11 +1069,6 @@
     ],
     "closestVehicleColourPairs": [
       {
-        "a": "flaktrack",
-        "b": "prismtank",
-        "dist": 0.118
-      },
-      {
         "a": "drone",
         "b": "mcv",
         "dist": 0.119
@@ -1082,6 +1077,21 @@
         "a": "mammoth",
         "b": "v3",
         "dist": 0.159
+      },
+      {
+        "a": "flaktrack",
+        "b": "prismtank",
+        "dist": 0.206
+      },
+      {
+        "a": "flaktrack",
+        "b": "v3",
+        "dist": 0.325
+      },
+      {
+        "a": "mammoth",
+        "b": "flaktrack",
+        "dist": 0.33
       },
       {
         "a": "warminer",
@@ -1094,29 +1104,19 @@
         "dist": 0.355
       },
       {
-        "a": "flaktrack",
-        "b": "v3",
-        "dist": 0.412
-      },
-      {
-        "a": "mammoth",
-        "b": "flaktrack",
-        "dist": 0.416
-      },
-      {
         "a": "mammoth",
         "b": "mirage",
-        "dist": 0.489
-      },
-      {
-        "a": "flaktrack",
-        "b": "drone",
         "dist": 0.489
       },
       {
         "a": "drone",
         "b": "prismtank",
         "dist": 0.497
+      },
+      {
+        "a": "warminer",
+        "b": "rhino",
+        "dist": 0.507
       }
     ],
     "topImpostors": [
@@ -1171,7 +1171,7 @@
       "mirage": 0.2448,
       "tanya": 0.154,
       "rhino": 0.1567,
-      "flaktrack": 0.2089,
+      "flaktrack": 0.2155,
       "v3": 0.189,
       "teslatrooper": 0.1624,
       "ivan": 0.2782,
@@ -1214,7 +1214,7 @@
       "mirage": 0.0388,
       "tanya": 0.3966,
       "rhino": 0.0904,
-      "flaktrack": 0.0696,
+      "flaktrack": 0.0689,
       "v3": 0.1248,
       "teslatrooper": 0.0992,
       "ivan": 0.3129,
@@ -1468,6 +1468,13 @@
         "ratio": 1.037
       },
       {
+        "key": "flaktrack",
+        "wh": "54x56",
+        "ours": 0.964,
+        "ra2": 1,
+        "ratio": 0.964
+      },
+      {
         "key": "kirov",
         "wh": "147x68",
         "ours": 2.162,
@@ -1494,13 +1501,6 @@
         "ours": 0.318,
         "ra2": 0.324,
         "ratio": 0.98
-      },
-      {
-        "key": "flaktrack",
-        "wh": "54x54",
-        "ours": 1,
-        "ra2": 1,
-        "ratio": 1
       }
     ],
     "ra2Size": [
@@ -4247,9 +4247,9 @@
         "unit": "flaktrack",
         "clause": "body aspect 0.95-1.10",
         "ok": true,
-        "measured": "1 (54x54)",
+        "measured": "0.964 (54x56)",
         "want": "0.95-1.10",
-        "note": "0 off RA2's own [HTK] 1. WAIVED 2026-09-07 (both routes to 0.95 were measured and refused because each failed into `flaktrack | ifv`); RETIRED 2026-09-10 when the roster height pass took the jib to ~45 degrees (barrel ky-19.4 -> ky-15.2) and the unit landed on 52x52 = 1.00 exactly — RA2's own square. The waiver row said it goes red the day the clause is met, and it did; this is the plain check it promised",
+        "note": "0.036 off RA2's own [HTK] 1. WAIVED 2026-09-07 (both routes to 0.95 were measured and refused because each failed into `flaktrack | ifv`); RETIRED 2026-09-10 when the roster height pass took the jib to ~45 degrees (barrel ky-19.4 -> ky-15.2) and the unit landed on 52x52 = 1.00 exactly — RA2's own square. The waiver row said it goes red the day the clause is met, and it did; this is the plain check it promised",
         "module": "vehicle.js",
         "refMatch": 1
       },
@@ -4848,20 +4848,20 @@
         "name": "Flak Track",
         "group": "vehicle",
         "fac": "col",
-        "mass": 1384,
+        "mass": 1410,
         "bboxW": 54,
-        "bboxH": 54,
-        "aspect": 0.918,
-        "broadsideWH": "54x54",
-        "broadsideAspect": 1,
+        "bboxH": 56,
+        "aspect": 0.901,
+        "broadsideWH": "54x56",
+        "broadsideAspect": 0.964,
         "ra2Aspect": 1,
-        "vsRA2": 1,
-        "selfIoU": 0.6648,
-        "selfIoUCross": 0.6648,
+        "vsRA2": 0.964,
+        "selfIoU": 0.6512,
+        "selfIoUCross": 0.6512,
         "bestPeer": "IFV",
-        "bestPeerIoU": 0.6831,
+        "bestPeerIoU": 0.6838,
         "nearestPeer": "IFV",
-        "nearestPeerMMD2": 0.1194,
+        "nearestPeerMMD2": 0.1065,
         "peersBeatingSelf": 0,
         "peers": 12,
         "spike": {

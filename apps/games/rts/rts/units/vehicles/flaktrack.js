@@ -23,18 +23,27 @@ if (wantH) {
   for (sg = -1; sg <= 1; sg += 2)                           // rear track run
     trackRun(cx - fx * 6.4 + px * tOff * sg, by - 1 - fy * 6.4 + py * tOff * sg,
              len * 0.44, wid * 0.32, 3.6);
+  chassis(cx, by - 1.0, len * 0.88, wid * 0.66, 4.0, hull, dark, 2.6);
+  // THE FRONT TYRES WERE DRAWN AND THEN BURIED. This unit is a HALF-TRACK —
+  // wheeled at one end, tracked at the other — and this file's own header says
+  // so: "that mismatch is the read". The tyres were drawn BEFORE `chassis()`,
+  // which then spans the full length and painted straight over them, so the
+  // chassis came out one uniform dark band and the vehicle read as a small
+  // tank. Same fault as the Dreadnought's buried missiles and the Prism Tank's
+  // buried collar: a feature drawn, then covered by something drawn later.
+  //
+  // After the chassis now, and dropped so the tyre breaks the hull line the
+  // way a road wheel under a bonnet does in the rip.
   var fw = [];                                              // front tyres, one axle
   for (sg = -1; sg <= 1; sg += 2)
-    fw.push([cx + fx * 9.8 + px * tOff * sg, by - 2.6 + fy * 9.8 + py * tOff * sg]);
+    fw.push([cx + fx * 9.8 + px * tOff * sg, by - 1.4 + fy * 9.8 + py * tOff * sg]);
   fw.sort(function (m, n) { return m[1] - n[1]; });
   for (i2 = 0; i2 < fw.length; i2++)
-    wheelDisc(fw[i2][0], fw[i2][1], 3.1, 0.68, '#14161a', '#a0a0a0');
-
-  chassis(cx, by - 1.0, len * 0.88, wid * 0.66, 4.0, hull, dark, 2.6);
+    wheelDisc(fw[i2][0], fw[i2][1], 3.4, 0.70, '#1a1a1a', '#a0a0a0');
   isoBox(g, cx - fx * 5.2, by - 5.0 - fy * 5.2, len * 0.44, wid * 0.64, 4.8,
          a, deck, dark);                                    // olive armoured bed
   isoBox(g, cx - fx * 5.2, by - 9.8 - fy * 5.2, len * 0.26, wid * 0.42, 1.1,
-         a, panel, PEDGE);                                  // house-colour bed coaming
+         a, shade(hull, 0.86), dark);                        // the coaming is NOT red: it was the second of the stripes
   isoBox(g, cx + fx * 5.6, by - 5.0 + fy * 5.6, len * 0.26, wid * 0.58, 4.2,
          a, shade(hull, 1.04), dark);                       // cab
   isoBox(g, cx + fx * 5.6, by - 9.2 + fy * 5.6, len * 0.22, wid * 0.50, 1.1,
@@ -49,12 +58,19 @@ if (wantH) {
     // so the cream body it is painted on still reads. Wrapped over
     // the whole side (the first attempt) the half-track came back a
     // solid coloured brick with a lever on top.
-    isoBox(g, cx + px * wid * 0.36 * sg + fx * 3.6,
-           by - 2.5 + py * wid * 0.36 * sg + fy * 3.6,
-           len * 0.24, 1.4, 1.8, a, panel, PEDGE);
-    isoBox(g, cx + px * wid * 0.31 * sg + fx * 5.8,
-           by - 6.6 + py * wid * 0.31 * sg + fy * 5.8,
-           len * 0.15, 1.3, 2.4, a, panel, PEDGE);          // cab door panel
+    // ONE PANEL, TALL, BEHIND THE CAB — not a row of stripes. Two red boxes at
+    // different heights plus the bed coaming plus the pintle ring baked as
+    // three or four horizontal red bars down a white body, and the half-track
+    // read as a FIRE ENGINE. The rip spends its red on a single tall panel
+    // just behind the cab, a thin strip along the front lower edge, and the
+    // gun's collar. The lower box goes; the upper one grows into that panel.
+    isoBox(g, cx + px * wid * 0.34 * sg + fx * 4.6,
+           by - 2.4 + py * wid * 0.34 * sg + fy * 4.6,
+           len * 0.20, 1.5, 5.6, a, panel, PEDGE);
+    // and the thin strip along the front lower edge
+    isoBox(g, cx + px * wid * 0.33 * sg + fx * 10.2,
+           by - 2.2 + py * wid * 0.33 * sg + fy * 10.2,
+           len * 0.10, 1.2, 0.9, a, panel, PEDGE);
   }
   bumper(len * 0.42, wid * 0.22, by - 1.4);
   for (i2 = -1; i2 <= 1; i2 += 2)
