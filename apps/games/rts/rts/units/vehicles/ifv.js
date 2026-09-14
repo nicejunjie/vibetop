@@ -89,9 +89,13 @@ function tyre(u, v) {
     surface(loops[side < 0 ? 0 : 3], RUBBER, [u, v, z]);
     var hub = [];
     for (var q = 0; q < n; q++) { var t = q * Math.PI * 2 / n; hub.push([u + radius / KF * 0.58 * Math.cos(t), v + side * 0.88, z + radius * 0.58 * Math.sin(t)]); }
-    surface(hub, '#cdcdcd', [u, v, z]);
+    // A HUB IS NOT A HEADLIGHT. #cdcdcd inside a near-black tyre is a pale disc
+    // on a dark ring, and six of them down the side baked as bicycle wheels —
+    // the same polka-dot fault the tanks' road wheels had. RA2's running gear
+    // sits within the tyre's own value range.
+    surface(hub, '#6e6e6e', [u, v, z]);
     hub = hub.map(function (p) { return [u + (p[0] - u) * 0.70, p[1] + side * 0.03, z + (p[2] - z) * 0.70]; });
-    surface(hub, '#e1e1e1', [u, v, z]);
+    surface(hub, '#8a8a8a', [u, v, z]);
   }
 }
 // Oriented prism: its local x is along the boom / launch tube, y is
