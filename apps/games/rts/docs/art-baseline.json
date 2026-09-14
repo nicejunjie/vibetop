@@ -371,7 +371,7 @@
     "clause.airUnmet": 1,
     "clause.unmatchedToReference": 0,
     "clause.checkedStructures": 74,
-    "clause.unmetStructures": 1,
+    "clause.unmetStructures": 0,
     "clause.struckStructures": 0,
     "clause.waivedStructures": 0,
     "value.soldiersLighterThanEngineer": 2,
@@ -4020,10 +4020,10 @@
       {
         "unit": "gapgen",
         "clause": "[dir] exactly 2 house collar rings and nothing else remapped",
-        "ok": false,
-        "measured": "3 house-coloured blob(s) >= 18 px",
+        "ok": true,
+        "measured": "2 house-coloured blob(s) >= 18 px",
         "want": "2 blobs",
-        "note": "10 raw house blobs, of which 5 are 2 px or smaller: palette-grid speckle on a near-white sprite, not remapped paint. Sizes: 252/160/24/12/8/2...",
+        "note": "9 raw house blobs, of which 5 are 2 px or smaller: palette-grid speckle on a near-white sprite, not remapped paint. Sizes: 506/24/12/8/2/2...",
         "module": "structures.js",
         "refMatch": 0.44
       },

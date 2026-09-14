@@ -81,7 +81,6 @@ function collar(cy2, rx, ry, th) {
   g.fillStyle = shade(col, 1.44);
   g.beginPath(); g.ellipse(cx - rx * 0.18, cy2 - ry * 0.30, rx * 0.72, ry * 0.44, 0, 0, 6.29); g.fill();
 }
-collar(baseY - 17, 14.4, 6.4, 3.0);
 
 // ---- the waisted column ---------------------------------------------
 var colTop = baseY - 35;
@@ -99,6 +98,9 @@ g.fillRect(cx + 0.6, colTop + 4, 1.0, 14);
 g.fillRect(cx + 4.0, colTop + 4, 1.0, 14);
 
 // ---- upper house collar + the disc platform --------------------------
+collar(baseY - 17, 14.4, 6.4, 3.0);   // AFTER the column: drawn before it, the waisted
+// shaft split this ring into two arcs and the clause counted them as two
+// separate house blobs — three in total against the two it wants.
 collar(colTop, 12.2, 5.4, 2.6);
 var dY = colTop - 7;
 g.fillStyle = '#a9a9a9';
