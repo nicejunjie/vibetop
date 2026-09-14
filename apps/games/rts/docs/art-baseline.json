@@ -378,7 +378,7 @@
     "value.engineerLightPct": 0.0984,
     "value.engineerMarginOverNext": -0.0339,
     "colour.infantry.meanDist": 1.4103,
-    "colour.vehicle.meanDist": 1.0585,
+    "colour.vehicle.meanDist": 1.0582,
     "colour.vehicleAchromatic": 6,
     "colour.naval.meanDist": 1.3667,
     "colour.air.meanDist": 1.2244,
@@ -1066,17 +1066,17 @@
       {
         "a": "rhino",
         "b": "teslatank",
-        "dist": 0.094
+        "dist": 0.093
       },
       {
         "a": "mammoth",
         "b": "teslatank",
-        "dist": 0.129
+        "dist": 0.132
       },
       {
         "a": "mammoth",
         "b": "rhino",
-        "dist": 0.168
+        "dist": 0.171
       },
       {
         "a": "ifv",
@@ -1086,22 +1086,17 @@
       {
         "a": "lancer",
         "b": "prismtank",
-        "dist": 0.26
+        "dist": 0.255
       },
       {
         "a": "lancer",
         "b": "drone",
-        "dist": 0.274
+        "dist": 0.258
       },
       {
         "a": "lancer",
         "b": "mcv",
-        "dist": 0.316
-      },
-      {
-        "a": "prismtank",
-        "b": "mcv",
-        "dist": 0.353
+        "dist": 0.332
       },
       {
         "a": "chronominer",
@@ -1109,9 +1104,14 @@
         "dist": 0.371
       },
       {
+        "a": "prismtank",
+        "b": "mcv",
+        "dist": 0.375
+      },
+      {
         "a": "mirage",
         "b": "v3",
-        "dist": 0.415
+        "dist": 0.391
       }
     ],
     "topImpostors": [
@@ -1144,8 +1144,8 @@
         "pct": 0.0462
       },
       {
-        "key": "sub",
-        "pct": 0.0359
+        "key": "rhino",
+        "pct": 0.0362
       }
     ],
     "ownerPctByUnit": {
@@ -1167,18 +1167,18 @@
       "tanya": 0.154,
       "rhino": 0.1297,
       "flaktrack": 0.1895,
-      "v3": 0.1403,
+      "v3": 0.1405,
       "teslatrooper": 0.1624,
       "ivan": 0.2782,
       "drone": 0.2335,
       "teslatank": 0.1224,
-      "prismtank": 0.2332,
+      "prismtank": 0.2331,
       "desolator": 0.2333,
       "yuri": 0.2688,
       "cleg": 0.25,
       "spy": 0.08,
       "nighthawk": 0.0343,
-      "apc": 0.1297,
+      "apc": 0.1298,
       "destroyer": 0.1605,
       "aegis": 0.1055,
       "carrier": 0.1654,
@@ -1201,27 +1201,27 @@
       "rocketeer": 0.14,
       "harrier": 0.0058,
       "kirov": 0.3147,
-      "lancer": 0.0841,
+      "lancer": 0.0863,
       "mammoth": 0.1913,
       "engineer": 0.2274,
       "dog": 0.6238,
       "ifv": 0.1578,
       "mirage": 0.0404,
       "tanya": 0.3966,
-      "rhino": 0.1599,
+      "rhino": 0.1628,
       "flaktrack": 0.07,
-      "v3": 0.1072,
+      "v3": 0.1106,
       "teslatrooper": 0.0992,
       "ivan": 0.3129,
       "drone": 0.1217,
-      "teslatank": 0.1433,
-      "prismtank": 0.0948,
+      "teslatank": 0.1449,
+      "prismtank": 0.0973,
       "desolator": 0.1319,
       "yuri": 0.1862,
       "cleg": 0.1528,
       "spy": 0.1546,
       "nighthawk": 0.0211,
-      "apc": 0.1228,
+      "apc": 0.1313,
       "destroyer": 0.0505,
       "aegis": 0.0053,
       "carrier": 0.0002,

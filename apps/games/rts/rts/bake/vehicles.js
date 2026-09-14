@@ -219,7 +219,26 @@ function bakeVehicle(col, kind, fac, anim) {
   // to #333333: 292 px of flat GREY shadow on an olive tank, its largest drab
   // block by a factor of two. 38/38/15 is the same value carried in the tank's
   // own hue and lands on #333300 instead.
-  var dark = kind === 'mammoth' ? '#26260f' : shade(hull, 0.40);
+  // IN SHADOW, PUSH THE LOWEST CHANNEL DOWN — that is how this palette keeps a
+  // hue dark. shade(hull, 0.40) scales all three channels equally, and on a
+  // six-level grid that collapses: the APC's #82826a (130/130/106) becomes
+  // 52/52/42, and 42 rounds UP to 51 exactly as 52 does, so an olive hull's
+  // shadow comes out #333333 — flat grey down the side of a coloured vehicle.
+  // Every earth-toned unit on the roster does this. RA2's own palette does not:
+  // 77.6% of its chromatic pixels have a channel AT ZERO, which is precisely
+  // how it spells a dark colour. Scaling the minimum channel harder than the
+  // others reproduces that — #82826a now gives 52/52/23 -> #333300, olive, at
+  // the same value as before.
+  function darkOf(c) {
+    var n = c.charAt(0) === '#' ? parseInt(c.slice(1), 16) : -1, r, g, b, m;
+    if (n >= 0) { r = (n >> 16) & 255; g = (n >> 8) & 255; b = n & 255; }
+    else { m = c.match(/[\d.]+/g); r = +m[0]; g = +m[1]; b = +m[2]; }
+    var lo = Math.min(r, g, b), hi = Math.max(r, g, b);
+    if (hi - lo < 10) return shade(c, 0.40);          // a true grey stays grey
+    function k(v) { return Math.round(v * (v === lo ? 0.22 : 0.40)); }
+    return 'rgb(' + k(r) + ',' + k(g) + ',' + k(b) + ')';
+  }
+  var dark = kind === 'mammoth' ? '#26260f' : darkOf(hull);
   var turreted = kind === 'lancer' || kind === 'spectre' || kind === 'mammoth' ||
                  kind === 'ifv' || kind === 'rhino' || kind === 'flaktrack';
   // Deck height the turret ring stands on — per kind, facing-independent.
