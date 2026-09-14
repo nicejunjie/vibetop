@@ -126,7 +126,17 @@ function bakeVehicle(col, kind, fac, anim) {
   // already lifting this unit (that is what the note below means), so the base
   // has to come down to meet it rather than the lift being fought.
   if (kind === 'lancer')       { hull = '#7d7d7d'; deck = '#545454'; }   // pale steel with a dark top, as allied-grizzly-tank.png (VLIFT lifts it)
-  else if (kind === 'spectre') { hull = '#4f4f4f'; deck = '#333333'; }   // dark gunmetal, as allied-prism-tank.png
+  // A COOL GREY THAT CANNOT GO TEAL: KEEP r == g EXACTLY. The Prism Tank's hull
+  // was #4f4f4f, dead neutral, and marked on the sprite its deck and both
+  // flanks are one flat grey — 527 px of #333333 and 395 of #666666, the whole
+  // body. allied-prism-tank.png's hull is a cool slate, not a neutral one.
+  // Every previous attempt at a cool grey on this roster has eventually thrown
+  // teal, and the reason is precise: teal needs snap(g) == snap(b) > snap(r),
+  // which is IMPOSSIBLE when r and g are equal, because then snap(r) == snap(g)
+  // too. So a cool grey built as r == g with only b raised can only ever land
+  // on grey or on navy/slate. Swept the whole ladder for #4a4a5e: #333333,
+  // #666666, #999999, #333366, #666699, #000033 — and no teal at any rung.
+  else if (kind === 'spectre') { hull = '#4a4a5e'; deck = '#30303f'; }   // dark gunmetal, as allied-prism-tank.png
   // THE DECK WAS BAKING PURE GREY. #35352c is 53/53/44, and on this grid 44
   // rounds to the SAME cell as 53 — so the Apocalypse's largest visible surface
   // came out #333333 and the tank measured 76% grey against 9% olive, which is
