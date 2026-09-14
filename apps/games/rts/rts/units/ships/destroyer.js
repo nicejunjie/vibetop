@@ -182,7 +182,7 @@ mast(-L * 0.30, 0, 13.0, '#333333');
   // aircraft lost most of its span. There is no z-buffer here: the only thing
   // that puts a part behind another is the order it is drawn in.
   function nacelle(ne) {
-    var n0 = pt(0, ne * W * 1.62, 2.2), n1 = pt(0, ne * W * 1.62, 9.4);
+    var n0 = pt(0, ne * W * 1.26, 2.2), n1 = pt(0, ne * W * 1.26, 8.4);
     g.strokeStyle = HOUSE; g.lineWidth = 1.7;
     g.beginPath(); g.moveTo(n0[0], n0[1]); g.lineTo(n1[0], n1[1]); g.stroke();
     g.strokeStyle = HL; g.lineWidth = 0.8;
@@ -192,21 +192,30 @@ mast(-L * 0.30, 0, 13.0, '#333333');
     g.moveTo(n1[0] - 3.4, n1[1] - 0.8); g.lineTo(n1[0] + 3.4, n1[1] + 0.4); g.stroke();
   }
   nacelle(-nearS);
-  // the WING, across the hull — the widest thing on the after deck
-  var wA = pt(0, W * 1.72, 2.2), wB = pt(0, -W * 1.72, 2.2);
-  g.strokeStyle = GOLD; g.lineWidth = 4.0; g.lineCap = 'butt';
+  // IT WAS WIDER THAN THE SHIP. The wing spanned +/-W*1.72 — 3.4 half-beams,
+  // almost twice the hull's own beam — at 4.0 px wide, and the fuselage ran
+  // 0.32L. Together they baked as two enormous lemon bars lying diagonally
+  // across two thirds of the vessel, the loudest thing on her by a wide margin,
+  // and at several bearings they covered the forward turret entirely. Measured
+  // against `library/destroyer.png`, RA2's aircraft is a COMPACT gold shape
+  // parked right aft, roughly one beam across and about a fifth of the ship's
+  // length. The comment above is right that a gold streak crossed by a blue
+  // upright is all the information this sprite can hold — it was just drawn at
+  // twice the size the reference gives it.
+  var wA = pt(0, W * 1.34, 2.2), wB = pt(0, -W * 1.34, 2.2);
+  g.strokeStyle = GOLD; g.lineWidth = 3.2; g.lineCap = 'butt';
   g.beginPath(); g.moveTo(wA[0], wA[1]); g.lineTo(wB[0], wB[1]); g.stroke();
-  g.strokeStyle = GOLD_L; g.lineWidth = 1.6;                       // its lit leading edge
+  g.strokeStyle = GOLD_L; g.lineWidth = 1.1;                       // its lit leading edge
   g.beginPath(); g.moveTo(wA[0], wA[1] - 1.4); g.lineTo(wB[0], wB[1] - 1.4); g.stroke();
   // the fuselage, ALONG the hull
-  var fA = pt(-L * 0.15, 0, 2.6), fB = pt(L * 0.17, 0, 2.6);
-  g.strokeStyle = GOLD; g.lineWidth = 3.6;
+  var fA = pt(-L * 0.12, 0, 2.6), fB = pt(L * 0.13, 0, 2.6);
+  g.strokeStyle = GOLD; g.lineWidth = 2.6;
   g.beginPath(); g.moveTo(fA[0], fA[1]); g.lineTo(fB[0], fB[1]); g.stroke();
   g.strokeStyle = GOLD_L; g.lineWidth = 1.4;
   g.beginPath(); g.moveTo(fA[0], fA[1] - 1.2); g.lineTo(fB[0], fB[1] - 1.2); g.stroke();
   g.strokeStyle = GOLD_D; g.lineWidth = 0.9;
   g.beginPath(); g.moveTo(fA[0], fA[1] + 1.4); g.lineTo(fB[0], fB[1] + 1.4); g.stroke();
-  var ck = pt(L * 0.16, 0, 3.2);                                   // cockpit glass
+  var ck = pt(L * 0.10, 0, 3.2);                                   // cockpit glass
   g.fillStyle = '#333333';
   g.beginPath(); g.ellipse(ck[0], ck[1], 1.5, 1.0, 0, 0, 6.29); g.fill();
   // THE CENTRE PYLON. The rip's aircraft has a tall blue mast standing on the

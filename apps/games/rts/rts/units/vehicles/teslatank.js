@@ -97,9 +97,14 @@ var drawPod5 = function () {
     if (i2 === 1) {
       var h0 = heads5[0], h1 = [kx5, ky5 - 7.3];
       g.lineCap = 'butt';
-      g.strokeStyle = '#141414'; g.lineWidth = 2.2;
+      // NOT NEAR-BLACK. #141414 is 20/20/20 and snaps to pure black, so the bus
+      // bar came out as a solid black stroke between the coils and read as a
+      // gap in the sprite rather than as a conduit — the same fault as the guns
+      // and the tracks. It is still the darkest thing up there, with room now
+      // for its own lit edge to sit above it.
+      g.strokeStyle = '#2e2e2e'; g.lineWidth = 2.2;
       g.beginPath(); g.moveTo(h0[0], h0[1]); g.lineTo(h1[0], h1[1]); g.stroke();
-      g.strokeStyle = '#4e4e4e'; g.lineWidth = 0.9;
+      g.strokeStyle = '#5c5c5c'; g.lineWidth = 0.9;
       g.beginPath(); g.moveTo(h0[0], h0[1] - 0.6); g.lineTo(h1[0], h1[1] - 0.6); g.stroke();
     }
     heads5.push([kx5, ky5 - 7.3]);
@@ -132,7 +137,7 @@ var drawPod5 = function () {
     for (var w5 = 0; w5 < 5; w5++)                                // five windings of strap
       puck(kx5, ky5 - 1.1 - w5 * 1.30, 1.75 - w5 * 0.05, 1.16,
            shade('#b4b4b4', 0.82), shade('#e5e5e5', 1.10), '#3d3d3d');
-    puck(kx5, ky5 - 7.3, 1.45, 1.4, '#2b2b2b', '#4e4e4e', '#141414'); // electrode head
+    puck(kx5, ky5 - 7.3, 1.45, 1.4, '#333333', '#5c5c5c', '#232323'); // electrode head
     puck(kx5, ky5 - 8.6, 0.6, 1.1, '#5c5c5c', '#b4b4b4', '#2b2b2b');  // head stem
     g.fillStyle = '#c8d8ff';                                       // small tip glow
     gEllipse(kx5, ky5 - 9.6, 0.8); g.fill();
