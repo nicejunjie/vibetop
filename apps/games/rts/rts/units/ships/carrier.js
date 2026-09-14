@@ -95,12 +95,38 @@ function drawCarrier(C) {
   box(-L * 0.40, W * 0.30, L * 0.07, W * 0.20, 6.6, HOUSE);
   // Landing pad: raised platform block at the stern quarter, opposite end from the island.
   // Draw the supporting block first (stands off the deck), then paint the X on its top face.
-  box(L * 0.52, W * 0.70, L * 0.16, W * 0.34, 5.0, '#5f5f5f');    // raised platform block
-  var px = P(L * 0.52, W * 0.70, FR + 5.0);                       // top face of the platform
-  g.strokeStyle = HOUSE; g.lineWidth = 2.4;
+  // THE X HUNG IN THE AIR because it was drawn in SCREEN space: four offsets of
+  // +-4.6 and +-2.4 pixels from one projected point. A marking painted on a
+  // deck lies IN the deck plane and skews with it; a screen-space cross is the
+  // same upright X at every one of the eight bearings, which is exactly how the
+  // eye tells a decal floating in front of a sprite from paint on a surface.
+  // Every endpoint goes through P() now, in the pad's own deck coordinates, so
+  // the X leans with the hull like the landing stripe beside it does.
+  //
+  // And it had nothing to sit on. The plinth was #5f5f5f — the same value as
+  // the deck it stands on, once the deck moved up a grid cell — so the pad was
+  // invisible and the X really was floating over bare deck. Its top face is now
+  // drawn a step DOWN from the deck with a bright coaming, which is both what
+  // makes it read as a raised platform and what gives the X a ground.
+  var PU = L * 0.52, PV = W * 0.70, PZ = FR + 5.0;    // pad centre, top face
+  var PL = L * 0.17, PW = W * 0.36;                   // pad half-extents
+  function padPt(du, dv) { return P(PU + du, PV + dv, PZ); }
+  box(PU, PV, L * 0.16, W * 0.34, 5.0, '#5f5f5f');    // the plinth it stands on
+  var f0 = padPt(-PL, -PW), f1 = padPt(PL, -PW), f2 = padPt(PL, PW), f3 = padPt(-PL, PW);
   g.beginPath();
-  g.moveTo(px[0] - 4.6, px[1] - 2.4); g.lineTo(px[0] + 4.6, px[1] + 2.4);
-  g.moveTo(px[0] + 4.6, px[1] - 2.4); g.lineTo(px[0] - 4.6, px[1] + 2.4);
+  g.moveTo(f0[0], f0[1]); g.lineTo(f1[0], f1[1]);
+  g.lineTo(f2[0], f2[1]); g.lineTo(f3[0], f3[1]); g.closePath();
+  g.fillStyle = shade(DECK, 0.55); g.fill();
+  g.strokeStyle = '#cdd3db'; g.lineWidth = 0.8; g.stroke();
+  // 2.4 px was too thick for a pad this size: the two strokes met in the middle
+  // and the whole face baked as one solid house-coloured slab, which reads as a
+  // blue box on the deck, not as a marking.
+  g.strokeStyle = HOUSE; g.lineWidth = 1.5;
+  var xa = padPt(-PL * 0.76, -PW * 0.76), xb = padPt(PL * 0.76, PW * 0.76);
+  var xc = padPt(PL * 0.76, -PW * 0.76), xd = padPt(-PL * 0.76, PW * 0.76);
+  g.beginPath();
+  g.moveTo(xa[0], xa[1]); g.lineTo(xb[0], xb[1]);
+  g.moveTo(xc[0], xc[1]); g.lineTo(xd[0], xd[1]);
   g.stroke();
   for (var hi = 0; hi < 3; hi++) {
     var pq2 = P(-L * (0.24 + hi * 0.24), -W * 0.55, FR + 3.0);
