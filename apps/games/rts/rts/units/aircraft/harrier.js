@@ -34,7 +34,7 @@ function drawHarrier(C) {
 // on the grey diagonal, so no rung of the ladder can fall onto a hue — in
 // particular not the 240 that #6e7480 would have snapped to, which is the
 // navy player's own colour on a jet either player can own.
-var JET = '#6e6e6e', JETL = '#9f9f9f', JETD = '#303338', BELLY = '#d9d9d9', NOSE = '#f1f1f1';
+var JET = '#6e6e6e', JETL = '#9f9f9f', JETD = '#333333', BELLY = '#d9d9d9', NOSE = '#f1f1f1';
 var farH = py < 0 ? 1 : -1;
 // The wing is the LIGHTER of the two greys, as both references have it —
 // not a shade() of the fuselage, which put it a half-step off the grid.
@@ -88,7 +88,7 @@ g.fillRect(n0[0] - 5, n0[1] - 5, 0.9, 10);
 g.restore();
 // canopy: a dark bubble with a pale glint, t 0.3..0.62
 var cpa = pt(0.46), cpr = rad(0.46);
-g.fillStyle = '#2b2f38';
+g.fillStyle = '#2f2f2f';
 g.beginPath(); g.ellipse(cpa[0], cpa[1] - cpr * 0.55, Math.max(2.4, 4.6 * AL / 1.264), 1.9, Math.atan2(uy2, ux2), 0, 6.29); g.fill();
 g.fillStyle = 'rgba(239,239,239,.6)';                     // neutral glint: no blue on a red player's jet
 g.beginPath(); g.ellipse(cpa[0] - 0.6, cpa[1] - cpr * 0.55 - 0.8, 1.6, 0.7, Math.atan2(uy2, ux2), 0, 6.29); g.fill();
@@ -115,6 +115,6 @@ g.closePath(); g.fillStyle = col; g.fill(); g.strokeStyle = shade(col, 0.36); g.
 g.fillStyle = shade(col, 1.3); g.fillRect(fB[0] - 0.4, fB[1] - bodyR - 4.4, 1.0, 3.2);
 // exhaust nozzles at the tail, under the fin
 var ex2 = pt(-0.98);
-g.fillStyle = '#303338';
+g.fillStyle = '#333333';
 g.beginPath(); g.ellipse(ex2[0], ex2[1] + 0.6, 2.2 * Math.max(0.5, 1 - AL / 1.4), 1.6, 0, 0, 6.29); g.fill();
 }
