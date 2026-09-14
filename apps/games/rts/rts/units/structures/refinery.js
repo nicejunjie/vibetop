@@ -339,7 +339,7 @@ if (sov) {
   // block, collars, tanks. Lavender is a desaturated violet, not blue.
   var A_SIL = '#a8a8a8', A_SIL_D = '#3e434c';
   var A_IVO = '#dcdcdc', A_LAV = '#a6a4c6', A_LAV_D = '#70709a';
-  var A_NAV = '#1a1e2c', A_NAV_L = '#3a4258';
+  var A_NAV = '#1a1e2c', A_NAV_L = '#424242';
   var A_OLV = '#5e5e47', A_OLV_L = '#85866c', A_OLV_D = '#2c2d22';
   var A_PLT = '#4c4834', A_PLT_L = '#6c6743', A_PLT_D = '#2a281c';
   var A_CHR = '#24272e', A_GRY = '#7a7a7a';
@@ -482,7 +482,7 @@ if (sov) {
   g.beginPath(); g.ellipse(C0[0], C0[1], C0[2], C0[3], 0, -Math.PI * 0.5, Math.PI * 0.55); g.stroke();
   line(mouthL, C0[1] - C0[3] - 0.5, C0[0], C0[1] - C0[3] - 0.5, 1.2, A_SIL_D);
   line(mouthL, C0[1] - C0[3] + 1, C0[0], C0[1] - C0[3] + 1, 1, 'rgba(255,255,255,.6)');
-  line(mouthL, Ec[1] - Ec[3] - 1.5, Ec[0] - 4, Ec[1] - Ec[3] - 1.5, 4, '#2a2f3c');          // lintel over the opening
+  line(mouthL, Ec[1] - Ec[3] - 1.5, Ec[0] - 4, Ec[1] - Ec[3] - 1.5, 4, '#2f2f2f');          // lintel over the opening
   // hoist column in the cavity (bobs with the phase) + the ore slot glow
   var hzx = cx - 28, hzb = baseY + 9, hzo = 3 * anS;
   line(hzx, hzb - 1, hzx, hzb - 24 + hzo, 5.5, A_TAN_D);
@@ -552,7 +552,7 @@ if (sov) {
   poly([Q(0.0, -0.95), Q(1.0, -0.95), Q(1.0, 0.95), Q(0.0, 0.95)], '#5c5c5c', null);
   for (var raI = 0; raI < 2; raI++) {
     var rw = raI ? 0.68 : -0.68, r0p = Q(0.0, rw), r1p = Q(1.0, rw);
-    line(r0p[0], r0p[1] + 1.2, r1p[0], r1p[1] + 1.2, 4, '#0f1116');
+    line(r0p[0], r0p[1] + 1.2, r1p[0], r1p[1] + 1.2, 4, '#111111');
     line(r0p[0], r0p[1] - 0.6, r1p[0], r1p[1] - 0.6, 3, '#f0f0f0');
   }
   for (var tiI = 0; tiI < 8; tiI++) {

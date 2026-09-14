@@ -173,7 +173,7 @@ function bakeExplosionFamily(ref, lobes, seed, sooty, hotEnd, riseK) {
       var L = lob[i], t2 = L.t;
       bg.fillStyle = t2 < 0.30 ? mixc('#fff2c8', '#ff8c1c', t2 / 0.30)
                    : t2 < 0.62 ? mixc('#ff8c1c', '#6e3f1c', (t2 - 0.30) / 0.32)
-                               : mixc(sooty ? '#3e362c' : '#5c5248', '#2a2d32', (t2 - 0.62) / 0.38);
+                               : mixc(sooty ? '#3e362c' : '#5c5248', '#2d2d2d', (t2 - 0.62) / 0.38);
       bg.globalAlpha = fade * (t2 < 0.62 ? 0.95 : 0.46 * (1 - (t2 - 0.62) / 0.38 * 0.45));
       bg.beginPath(); bg.ellipse(L.x, L.y, L.r, L.r * (0.92 + 0.14 * (tall - 1)), 0, 0, 6.29); bg.fill();
       // Lit crown on the billow's upper left, the same light the sprites use.

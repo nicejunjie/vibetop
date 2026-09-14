@@ -114,7 +114,7 @@ if (!sov) {
   g.lineTo(fl1[0] - 5, fl1[1] - 40); g.stroke();
   var mst = IP(-1.00, -1.76, 0);                 // black flag mast
   qline([[mst[0], mst[1]], [mst[0], mst[1] - 64]], '#1a1d28', 2.2);
-  qline([[mst[0] - 0.6, mst[1] - 30], [mst[0] - 0.6, mst[1] - 62]], '#4b5064', 0.8);
+  qline([[mst[0] - 0.6, mst[1] - 30], [mst[0] - 0.6, mst[1] - 62]], '#515151', 0.8);
   g.fillStyle = '#1c2030';                       // the flag, rippling
   g.beginPath(); g.moveTo(mst[0] + 1, mst[1] - 64); g.lineTo(mst[0] + 22, mst[1] - 60 + anS * 2);
   g.lineTo(mst[0] + 17, mst[1] - 54); g.lineTo(mst[0] + 22, mst[1] - 48 - anS * 2);
@@ -218,7 +218,7 @@ if (!sov) {
   qline([IP(ac - ha * 0.80, vb1 - 0.30, hz), IP(ac + ha * 0.80, vb1 - 0.30, hz)], '#3a3f52', 2.4);
   qline([IP(ac + 0.02, vb1 - 0.30, hz), IP(ac + 0.02, vb1 - 0.30, hkz)], '#8e8e8e', 1);
   var hk = IP(ac + 0.02, vb1 - 0.30, hkz);
-  g.fillStyle = '#5c6172'; g.fillRect(hk[0] - 3, hk[1] - 1, 6, 4);
+  g.fillStyle = '#616161'; g.fillRect(hk[0] - 3, hk[1] - 1, 6, 4);
   g.restore();
   // -- [GAWEAP] UnderDoorAnim=GAWEAP_1 / DoorStages: the bay door -------
   // A steel roller shutter filling the arch, clipped to the mouth so it
@@ -235,7 +235,7 @@ if (!sov) {
       var sz0 = dLo + ii * 3, sz1 = Math.min(dH, sz0 + 3);
       qpoly([IP(ac - ha, vb1 + 0.005, sz0), IP(ac + ha, vb1 + 0.005, sz0),
              IP(ac + ha, vb1 + 0.005, sz1), IP(ac - ha, vb1 + 0.005, sz1)],
-            ii & 1 ? '#8b91a0' : '#a1a1a1', null);
+            ii & 1 ? '#919191' : '#a1a1a1', null);
       qline([IP(ac - ha, vb1 + 0.006, sz1), IP(ac + ha, vb1 + 0.006, sz1)], 'rgba(22,26,38,.55)', 1);
     }
     qpoly([IP(ac - ha, vb1 + 0.007, dLo), IP(ac + ha, vb1 + 0.007, dLo),          // PLAYER: leading rail
@@ -323,7 +323,7 @@ if (!sov) {
   g.fillStyle = NAVY_D; g.beginPath(); g.ellipse(gd2[0], gd2[1], 1.8, 0.9, 0, 0, 6.29); g.fill();
   qline([IP(ac + ha + 0.02, -0.34, zb + 4), IP(0.92, -0.16, 9)], shade(AMB, 0.80), 4);   // amber tube
   qline([IP(ac + ha + 0.02, -0.34, zb + 5), IP(0.92, -0.16, 10)], AMBH, 1.2);
-  var cp = IP(1.16, 0.84, 0); crates(g, cp[0], cp[1], 3, '#6a6f7c');
+  var cp = IP(1.16, 0.84, 0); crates(g, cp[0], cp[1], 3, '#6f6f6f');
   var dp = IP(1.36, 1.16, 0); drums(g, dp[0], dp[1], 3, '#2c2e34');
   var fl = IP(1.66, -1.54, 0); floodlight(g, fl[0], fl[1], -1, AMBH);
 
@@ -338,7 +338,7 @@ if (!sov) {
   // cylinders and the black cauldron with its bent exhausts. The maw is
   // framed in pink limestone with its leaf swung out, hammer-and-sickle
   // on the leaf, over a pale ramp edged red and brass.
-  var NVY = '#262b3c', NVY_D = '#151824', NVY_L = '#3a4058', EDGE2 = '#0b0d14';
+  var NVY = '#262b3c', NVY_D = '#151824', NVY_L = '#414141', EDGE2 = '#0b0d14';
   var PADC = '#c3c3c3', PADE = '#8a8674', RIDGE = '#e8e8e8';
   var PINK = '#c49a8c', PINK_D = '#8f6a60', PINK_L = '#e0bcae';
   var GOLD = '#c8973a', IRON = '#20222a', BOIL = '#a8a8a8', BRASS = '#b8933f';
@@ -409,7 +409,7 @@ if (!sov) {
   // same shape/length) so it clears crown-detection once the tower
   // above was shortened for the aspect fix (factory:col had no
   // committed real-sprite reference to hold either at their old height).
-  qline([IP(-0.66, 0.62, 48), IP(-0.66, hb0 - 0.06, 48), IP(0.50, hb0 - 0.06, 48), IP(0.50, hb0 - 0.06, 31)], '#2a2d38', 6.0);
+  qline([IP(-0.66, 0.62, 48), IP(-0.66, hb0 - 0.06, 48), IP(0.50, hb0 - 0.06, 48), IP(0.50, hb0 - 0.06, 31)], '#2d2d2d', 6.0);
   qline([IP(-0.66, 0.62, 48), IP(-0.66, hb0 - 0.06, 48), IP(0.50, hb0 - 0.06, 48), IP(0.50, hb0 - 0.06, 31)], SIL, 4.0);
   qline([IP(-0.66, 0.62, 49.2), IP(-0.66, hb0 - 0.06, 49.2), IP(0.50, hb0 - 0.06, 49.2)], SILH, 1.2);
   var pe = IP(-0.66, 0.62, 48);
@@ -576,7 +576,7 @@ if (!sov) {
   qpoly([IP(dA0, hb1, 0), IP(dA1, hb1, 0), IP(dA1, hb1, dz), IP(dA0, hb1, dz)], '#0a0b10', '#06070a');
   qpoly([IP(dA0 + 0.03, hb1, 0), IP(dA1 - 0.03, hb1, 0), IP(dA1 - 0.03, hb1, 2.4), IP(dA0 + 0.03, hb1, 2.4)], '#5a5347', null);
   var hkz2 = 11 - anS * 4, dm = (dA0 + dA1) / 2;  // crane hook riding in the bay
-  qline([IP(dm, hb1, dz - 1), IP(dm, hb1, hkz2)], '#6f7482', 1);
+  qline([IP(dm, hb1, dz - 1), IP(dm, hb1, hkz2)], '#747474', 1);
   var hk2 = IP(dm, hb1, hkz2);
   g.fillStyle = '#8e8e8e'; g.fillRect(hk2[0] - 2.5, hk2[1] - 1, 5, 3.5);
   if (ph6 === 1 || ph6 === 4) {                    // welding flash

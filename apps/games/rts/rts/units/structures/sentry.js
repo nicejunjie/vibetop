@@ -91,7 +91,7 @@ g.fillStyle = '#3f3f3f';
 g.beginPath(); g.ellipse(cx, cY + 0.8, pR + 1.2, (pR + 1.2) * 0.35, 0, 0, 6.29); g.fill();
 g.fillStyle = '#e8e8e8';
 g.beginPath(); g.ellipse(cx, cY, pR, pR * 0.34, 0, 0, 6.29); g.fill();
-outline(g, '#5b626d');
+outline(g, '#616161');
 g.save();
 g.beginPath(); g.ellipse(cx, cY, pR, pR * 0.34, 0, 0, 6.29); g.clip();
 g.fillStyle = 'rgba(118,128,146,.42)';                 // shaded far-right of the plate

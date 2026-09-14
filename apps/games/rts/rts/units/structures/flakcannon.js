@@ -21,8 +21,8 @@ function drawFlakcannon(C) {
 // barrel slews and the loader arm works.
 var anP = (bph || 0) * 6.283, anS = Math.sin(anP);
 var ph6 = Math.round((bph || 0) * 6) % 6;
-var FK_GUN = '#343a44', FK_GUNL = '#5f6672', FK_GUND = '#12151a';
-var FK_BAR = '#bcbcbc', FK_BARL = '#eeeeee', FK_BARD = '#2a2e35';
+var FK_GUN = '#393939', FK_GUNL = '#464646', FK_GUND = '#151515';
+var FK_BAR = '#bcbcbc', FK_BARL = '#eeeeee', FK_BARD = '#2e2e2e';
 plot(g, cx, baseY, fw * 2, fh * 2);
 g.fillStyle = 'rgba(30,34,26,.62)'; g.fill();
 g.fillStyle = 'rgba(0,0,0,.30)';
@@ -37,7 +37,7 @@ for (var fli = 0; fli < 4; fli++) {
   g.beginPath(); g.moveTo(cx, baseY - 2); g.lineTo(lx2, ly2 - 1); g.stroke();
   g.strokeStyle = FK_GUNL; g.lineWidth = 1.1;
   g.beginPath(); g.moveTo(cx, baseY - 3.2); g.lineTo(lx2, ly2 - 2.2); g.stroke();
-  g.fillStyle = '#6d7482';                                  // pale foot plate
+  g.fillStyle = '#737373';                                  // pale foot plate
   g.beginPath(); g.ellipse(lx2, ly2 + 0.5, 4.0, 2.1, 0, 0, 6.29); g.fill();
   outline(g, FK_GUND);
 }

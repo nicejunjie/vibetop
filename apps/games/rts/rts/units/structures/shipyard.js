@@ -108,7 +108,7 @@ function launchBay(q, w2, h2, gate, lip) {
   g.fillStyle = gate;
   g.fillRect(q[0] - w2, q[1] - h2, w2 - open * (w2 - 1), h2);
   g.fillRect(q[0] + open * (w2 - 1), q[1] - h2, w2 - open * (w2 - 1), h2);
-  g.strokeStyle = '#161a1e'; g.lineWidth = 0.8;
+  g.strokeStyle = '#191919'; g.lineWidth = 0.8;
   g.strokeRect(q[0] - w2, q[1] - h2, w2 * 2, h2);
   g.fillStyle = lip; g.fillRect(q[0] - w2 - 1, q[1] - h2 - 2.6, w2 * 2 + 2, 2.6);
 }
@@ -151,7 +151,7 @@ if (!sov) {
   // =============== [GAYARD] — the Allied rig ====================== //
   var CAIS = '#949494', CAIS_D = '#3d4348', COLLAR = '#cecece';
   var TOWER = '#adad93', TOWER_D = '#63644f';
-  var ARCH = '#5e656d', ARCH_D = '#282d33';
+  var ARCH = '#646464', ARCH_D = '#2c2c2c';
   var JIBC = '#e6c94f', JIBD = '#8d7622';
   var CH = 44, CU = 0.98;                    // caisson height / corner offset
 
@@ -246,7 +246,7 @@ if (!sov) {
   // the fall. `SWING` moves the tip; the fall hangs from wherever it is.
   var JX = AT[0] + 44 + SWING * 8, JY = AT[1] - 20 + SWING * 5;
   jib(AT[0] + 6, AT[1] - 2, JX, JY, 5.5, 2.4, JIBC, JIBD);
-  g.strokeStyle = '#2a2d31'; g.lineWidth = 1.6;          // the back-stay
+  g.strokeStyle = '#2d2d2d'; g.lineWidth = 1.6;          // the back-stay
   g.beginPath(); g.moveTo(AT[0] + 2, AT[1] - 6); g.lineTo(JX - 6, JY - 3); g.stroke();
   g.strokeStyle = '#23272b'; g.lineWidth = 1.0;          // the fall
   g.beginPath(); g.moveTo(JX, JY + 1); g.lineTo(JX, JY + 1 + FALL); g.stroke();

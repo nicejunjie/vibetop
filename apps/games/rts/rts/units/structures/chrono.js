@@ -21,8 +21,8 @@ function drawChrono(C) {
 // the ring under the dome glows round, and the pod lamps run along.
 var anP = (bph || 0) * 6.283, anS = Math.sin(anP);
 var ph6 = Math.round((bph || 0) * 6) % 6;
-var CH_SH = '#e3e3e3', CH_SHD = '#a6a6a6', CH_ED = '#3a4050';
-var CH_WIN = '#3c4454', CH_WINL = '#aab6c8';   // glass reads as glass, never as the other player's blue
+var CH_SH = '#e3e3e3', CH_SHD = '#a6a6a6', CH_ED = '#404040';
+var CH_WIN = '#434343', CH_WINL = '#b4b4b4';   // glass reads as glass, never as the other player's blue
 
 // ---- the deck on the left, with its arch rails --------------------
 var chDx = cx - fw * 0.44, chDy = baseY + fh * 0.16;
@@ -50,7 +50,7 @@ chArch(chDx - fw * 0.16, chRy + fh * 0.40, chDx + fw * 0.52, chRy - fh * 0.16, 4
 var chPod = function (px2, py2, lit) {
   cylinder(g, px2, py2, 6.4, 15, '#eaeaea', '#f8f8f8', CH_ED);
   g.fillStyle = shade(col, 0.9); g.fillRect(px2 - 6.4, py2 - 11, 12.8, 3);
-  g.fillStyle = lit ? '#e4e4e4' : '#5d6472';
+  g.fillStyle = lit ? '#e4e4e4' : '#636363';
   g.beginPath(); g.ellipse(px2, py2 - 6.5, 2.6, 2.6, 0, 0, 6.29); g.fill();
   g.fillStyle = 'rgba(255,255,255,.5)'; g.fillRect(px2 - 6.4, py2 - 15, 2.4, 15);
 };
@@ -108,6 +108,6 @@ for (var chB = 0; chB < 3; chB++) {
 g.restore();
 g.fillStyle = shade(CH_SH, 0.92);                          // apex cap + beacon
 g.beginPath(); g.ellipse(chCx, chTop - chR * 0.94, 8, 3.4, 0, 0, 6.29); g.fill(); outline(g, CH_ED);
-g.fillStyle = ph6 % 2 ? '#e8e8e8' : '#93a0b2';
+g.fillStyle = ph6 % 2 ? '#e8e8e8' : '#9e9e9e';
 g.beginPath(); g.arc(chCx, chTop - chR * 0.99 - 3, 2.6, 0, 6.29); g.fill();
 }

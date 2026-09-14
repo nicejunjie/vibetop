@@ -36,7 +36,7 @@ function drawReactor(C) {
 var anP = (bph || 0) * 6.283, ph6 = Math.round((bph || 0) * 6) % 6;
 var NU_BRK = '#b09489', NU_BRKL = '#cdb3a7', NU_BRKD = '#3e302b';
 var NU_PAD = '#9b9b9b', NU_PADL = '#b7b7b7', NU_PADD = '#4a4a4a';
-var NU_DUC = '#464c53', NU_DUCD = '#111417', NU_DUCL = '#929292';
+var NU_DUC = '#4b4b4b', NU_DUCD = '#131313', NU_DUCL = '#929292';
 var NU_VES = '#6c6046', NU_VESL = '#8d7f5f', NU_VESD = '#241d13';
 var NU_GRN = '#7ec828';
 var nuPulse = 0.68 + 0.32 * Math.sin(anP);              // the core breathing
@@ -287,7 +287,7 @@ if (sov) {
   drums(g, cx - 60, baseY - 12, 2, '#4e5240');
 } else {
   // Directorate never builds this (Soviet-only in RA2): plain block.
-  prism(g, cx, baseY, fw * 0.8, fh * 0.8, 30, '#6f6f6f', '#8f8f8f', '#2a2e36');
+  prism(g, cx, baseY, fw * 0.8, fh * 0.8, 30, '#6f6f6f', '#8f8f8f', '#2e2e2e');
   g.fillStyle = col; g.fillRect(cx - fw * 0.5, baseY - 32, fw, 4);
 }
 }

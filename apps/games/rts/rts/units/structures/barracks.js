@@ -24,7 +24,7 @@ var bkPad = sov ? '#8b8770' : '#7d7850';
 plot(g, cx, baseY - 2, fw * 1.92, fh * 1.92);
 g.fillStyle = bkPad; g.fill(); outline(g, sov ? shade(bkPad, 0.52) : '#20242e');
 if (!sov) {                                        // navy kerb round the Allied pad
-  g.strokeStyle = '#2a2e38'; g.lineWidth = 2.2;
+  g.strokeStyle = '#2e2e2e'; g.lineWidth = 2.2;
   plot(g, cx, baseY - 2, fw * 1.90, fh * 1.90); g.stroke();
   g.strokeStyle = 'rgba(255,255,255,.10)'; g.lineWidth = 1;
   plot(g, cx, baseY - 3.5, fw * 1.74, fh * 1.74); g.stroke();
@@ -45,7 +45,7 @@ if (!sov) {
   // drum bands and the section joints; nothing else is saturated (the
   // flag is navy with a cyan device in the sprite, not a house flag).
   var CANV = '#f4f4f4', CANVD = '#c1c1c1';
-  var HULL = '#2a2f3b', HULLL = '#4a4d58';          // navy body / its lit side
+  var HULL = '#2f2f2f', HULLL = '#4a4d58';          // navy body / its lit side
   var BRASS = '#a9823f', BRASSL = '#dcbb78';        // the fat end ring
   var RIBD = shade(col, 0.34), RIBH = shade(col, 1.20);
   var LX = 28.6, LY = 14.3;                         // half-length, +gy (screen -x,+y)
@@ -123,7 +123,7 @@ if (!sov) {
       var on = ((wi + (lit ? 0 : 2) + ph6) % 4) !== 0;   // one pane dark, walking
       bpoly([bpt(hx, hy, t0, w0, z0), bpt(hx, hy, t1, w0, z0),
              bpt(hx, hy, t1, w1, z1), bpt(hx, hy, t0, w1, z1)],
-            on ? '#3f8a52' : '#24402c', '#131b17');
+            on ? '#3f8a52' : '#24402c', '#181818');
       if (on) {
         bpoly([bpt(hx, hy, t0 + 0.012, w0 - 0.02, z0 - 0.5), bpt(hx, hy, t1 - 0.012, w0 - 0.02, z0 - 0.5),
                bpt(hx, hy, t1 - 0.012, w1 + 0.06, z1 + 0.9), bpt(hx, hy, t0 + 0.012, w1 + 0.06, z1 + 0.9)],
@@ -135,7 +135,7 @@ if (!sov) {
     for (var ci = 1; ci < 7; ci++)                   // fabric corrugation
       bHoop(hx, hy, SEC_F + (SEC_N - SEC_F) * ci / 7, 1.11, 'rgba(24,28,38,.12)', 1);
     // NEAR collar: dark ribbed steel
-    bTube(hx, hy, SEC_N, 0.98, 1.0, '#40434d', '#8d95a8');
+    bTube(hx, hy, SEC_N, 0.98, 1.0, '#40434d', '#959595');
     for (ci = 1; ci < 5; ci++)
       bHoop(hx, hy, SEC_N + (0.98 - SEC_N) * ci / 5, 1.005, 'rgba(239,239,239,.26)', 1.4);
     // BROAD player straps: one at each section joint, two on the canvas.
@@ -175,7 +175,7 @@ if (!sov) {
         var bz0 = bzL + bsi * 2.4, bz1 = Math.min(bzT, bz0 + 2.4);
         bpoly([bpt(hx, hy, 1.035, -0.82, bz0), bpt(hx, hy, 1.035, 0.82, bz0),
                bpt(hx, hy, 1.035, 0.82, bz1), bpt(hx, hy, 1.035, -0.82, bz1)],
-              bsi & 1 ? '#7f8593' : '#959595', 'rgba(20,24,34,.45)', 0.8);
+              bsi & 1 ? '#858585' : '#959595', 'rgba(20,24,34,.45)', 0.8);
       }
       bpoly([bpt(hx, hy, 1.04, -0.82, bzL), bpt(hx, hy, 1.04, 0.82, bzL),
              bpt(hx, hy, 1.04, 0.82, bzL + 1.7), bpt(hx, hy, 1.04, -0.82, bzL + 1.7)],
@@ -211,12 +211,12 @@ if (!sov) {
   // observation collar with one teal pane, a silver dome, a short mast.
   var twx = cx - 24, twy = baseY - 26;
   diamond(g, twx, twy + 1, 16, 8); g.fillStyle = shade(BODY, 0.58); g.fill(); outline(g, PLAT_E);
-  cylinder(g, twx, twy, 6.2, 34, '#767d8c', '#98a0af', PLAT_E);
+  cylinder(g, twx, twy, 6.2, 34, '#7d7d7d', '#9f9f9f', PLAT_E);
   g.fillStyle = shade(col, 0.42); g.fillRect(twx - 6.2, twy - 27.5, 12.4, 5.2);
   g.fillStyle = col; g.fillRect(twx - 6.2, twy - 26.7, 12.4, 3.0);
   g.fillStyle = shade(col, 0.42); g.fillRect(twx - 6.2, twy - 15.0, 12.4, 4.0);
   g.fillStyle = col; g.fillRect(twx - 6.2, twy - 14.4, 12.4, 2.2);
-  g.fillStyle = '#2a2e36';                                // observation collar
+  g.fillStyle = '#2e2e2e';                                // observation collar
   g.fillRect(twx - 7.8, twy - 40, 15.6, 6.2); outline(g, PLAT_E);
   g.fillStyle = '#8fe2d6'; g.fillRect(twx - 6.4, twy - 38.8, 5.4, 3.4);   // teal glass: the
   //   only other lit pane on the sprite, kept off the blue/red axis so a
@@ -256,7 +256,7 @@ if (!sov) {
   g.quadraticCurveTo(cx + (-13), baseY + (-44), cx + (-7), baseY + (-33));
   g.stroke();
   g.restore();
-  drums(g, cx + fw * 0.60, baseY + fh * 0.30, 3, '#3f4550');
+  drums(g, cx + fw * 0.60, baseY + fh * 0.30, 3, '#444444');
 
 } else {
   // ---- Soviet Barracks: THE MONUMENT ------------------------------
@@ -467,7 +467,7 @@ if (!sov) {
   //   lath. Every x below is a body coordinate scaled by SW, so the mass
   //   grows without moving the silhouette's height or the plinth.
   var SX = function (v) { return sx3 + v * SW; };
-  var SL2 = '#dcdcdc', SM2 = '#9e9e9e', SS2 = '#565d64',
+  var SL2 = '#dcdcdc', SM2 = '#9e9e9e', SS2 = '#5c5c5c',
       SD2 = '#4a4a4a', SO2 = '#20242a';
   var spoly = function (pts, fill, edge, lw) {
     g.beginPath(); g.moveTo(SX(pts[0][0]), FY + pts[0][1]);
@@ -490,7 +490,7 @@ if (!sov) {
     g.beginPath(); g.moveTo(SX(-hw3), FY + y2 + 1.2); g.lineTo(SX(hw3), FY + y2 + 2.3); g.stroke();
   };
   // rifle butt/stock behind the body, so the barrel reads continuous
-  slimb(12.4, -18, 18.6, -132, 4.6, '#33383e');
+  slimb(12.4, -18, 18.6, -132, 4.6, '#373737');
   // boots and legs - close together, thick, mostly under the coat
   spoly([[-8.8, 0], [8.6, 0], [7.8, -9], [-8.0, -9]], SD2, SO2, 1.3);
   spoly([[-8.8, 0], [-8.0, -9], [-2.4, -9], [-2.8, 0]], SS2, null);

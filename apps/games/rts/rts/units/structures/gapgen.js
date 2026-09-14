@@ -24,7 +24,7 @@ function drawGapgen(C) {
 // too narrow for its height. art.ini [GAGAP] Foundation=1x1, Height=6:
 // the base genuinely overhangs its single cell.
 var GP_W = '#e9eaec', GP_WL = '#ffffff', GP_WD = '#909090', GP_WM = '#bcbcbc';
-var GP_G = '#979797', GP_GD = '#4a4f57', GP_BLK = '#141518';
+var GP_G = '#979797', GP_GD = '#4e4e4e', GP_BLK = '#141518';
 var GP_GOLD = '#c9a94e', GP_GOLDD = '#7d6528';
 var gpPh = (bph || 0) * 6.2832;
 

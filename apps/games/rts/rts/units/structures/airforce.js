@@ -31,8 +31,8 @@ function drawAirforce(C) {
 // Six idle phases (`bph`): the scanner coil turns, the roof dish sweeps,
 // the cab windows light in turn and the pad corner lamps blink.
 var anP = (bph || 0) * 6.283, ph6 = Math.round((bph || 0) * 6) % 6;
-var AFC_DK = '#2c313e', AFC_DKD = '#0c0f16', AFC_DKL = '#4c5261';
-var AFC_SIL = '#aeaeae', AFC_SILL = '#eaeaea', AFC_SILD = '#646a75';
+var AFC_DK = '#313131', AFC_DKD = '#0c0f16', AFC_DKL = '#525252';
+var AFC_SIL = '#aeaeae', AFC_SILL = '#eaeaea', AFC_SILD = '#696969';
 var AFC_CON = '#a1a1a1', AFC_COND = '#5b5a4e', AFC_CONL = '#c1c1c1';
 var AFC_YEL = '#f6d63f', AFC_YELL = '#fef6b6', AFC_YELD = '#8d7211';
 var AFC_OLV = '#9d9e66', AFC_OLVD = '#6b4526', AFC_TAN = '#d0ae7e';
@@ -173,7 +173,7 @@ g.fillStyle = shade(col, 0.86);
 g.beginPath(); g.ellipse(ldx, ldy - 28.6, 14.5, 6.1, 0, 3.35, 6.08); g.fill();
 g.fillStyle = '#161a22';
 g.beginPath(); g.ellipse(ldx, ldy - 28, 9.2, 3.8, 0, 0, 6.29); g.fill();
-g.strokeStyle = '#2a303c'; g.lineWidth = 1.4;        // instrument rods on the collar
+g.strokeStyle = '#303030'; g.lineWidth = 1.4;        // instrument rods on the collar
 for (var ldR = 0; ldR < 5; ldR++) {
   var lra = ldR / 5 * 6.283 + 0.5;
   var lrx = ldx + Math.cos(lra) * 10.4, lry = ldy - 28 + Math.sin(lra) * 4.2;
@@ -200,9 +200,9 @@ var swRy = prism(g, swx, swy, fw * 0.15, fh * 0.15, 26, shade(AFC_DK, 0.86),
                  shade(AFC_DK, 1.10), AFC_DKD);
 g.fillStyle = AFC_SILD; g.fillRect(swx - fw * 0.15, swRy - 1.6, fw * 0.30, 2.2);
 var afWhip = function (wx, wy, wh2) {
-  g.strokeStyle = '#12151b'; g.lineWidth = 2.2;
+  g.strokeStyle = '#151515'; g.lineWidth = 2.2;
   g.beginPath(); g.moveTo(wx, wy); g.lineTo(wx + wh2 * 0.03, wy - wh2); g.stroke();
-  g.strokeStyle = '#5a626e'; g.lineWidth = 1;
+  g.strokeStyle = '#616161'; g.lineWidth = 1;
   g.beginPath(); g.moveTo(wx - 0.7, wy); g.lineTo(wx + wh2 * 0.03 - 0.7, wy - wh2); g.stroke();
   g.fillStyle = '#e3e3e3';
   g.beginPath(); g.ellipse(wx + wh2 * 0.03, wy - wh2 - 1.2, 1.4, 2, 0, 0, 6.29); g.fill();
@@ -218,7 +218,7 @@ g.fillStyle = AFC_SILD;
 g.beginPath(); g.ellipse(afFx, afFy, 18.5, 8.4, 0, 0, 6.29); g.fill(); outline(g, AFC_DKD);
 g.fillStyle = AFC_SIL;
 g.beginPath(); g.ellipse(afFx, afFy - 2.4, 18.5, 8.4, 0, 3.25, 6.18); g.fill();
-g.fillStyle = '#6f7681';
+g.fillStyle = '#757575';
 g.beginPath(); g.ellipse(afFx, afFy - 1.4, 14.4, 6.4, 0, 0, 6.29); g.fill();
 g.fillStyle = '#a0a0a0';
 g.beginPath(); g.ellipse(afFx, afFy - 2.4, 9.6, 4.2, 0, 0, 6.29); g.fill();
@@ -295,6 +295,6 @@ for (var scI = 0; scI < 6; scI++) {
 }
 g.fillStyle = '#141820';
 g.beginPath(); g.ellipse(ctx2 - 1, scTop - 23, 3.2, 2.8, 0, 0, 6.29); g.fill();
-g.fillStyle = '#5b6270';
+g.fillStyle = '#616161';
 g.beginPath(); g.ellipse(ctx2 - 1, scTop - 24.6, 1.6, 1.4, 0, 0, 6.29); g.fill();
 }

@@ -23,7 +23,7 @@ function drawPatriot(C) {
 // missile at the tubes.
 var anP = (bph || 0) * 6.283, anS = Math.sin(anP);
 var ph6 = Math.round((bph || 0) * 6) % 6;
-var PT_BOX = '#2c3342', PT_BOXL = '#4c5668', PT_BOXD = '#12161f';
+var PT_BOX = '#333333', PT_BOXL = '#555555', PT_BOXD = '#12161f';
 var PT_SIL = '#e3e3e3', PT_SILL = '#fcfcfc', PT_SILD = '#888888';
 plot(g, cx, baseY, fw * 2, fh * 2);
 g.fillStyle = 'rgba(30,34,26,.62)'; g.fill();
@@ -60,7 +60,7 @@ g.fillStyle = PT_SILL;
 g.beginPath(); g.ellipse(cx - 4.6, baseY - 11.6, 6.4, 2.8, -0.3, 0, 6.29); g.fill();
 g.fillStyle = 'rgba(90,98,112,.30)';
 g.beginPath(); g.ellipse(cx + 7.4, baseY - 7.4, 6.4, 4.6, 0.4, 0, 6.29); g.fill();
-cylinder(g, cx, baseY - 14, 6.4, 5, '#39404e', '#5a6373', PT_BOXD);   // pedestal collar
+cylinder(g, cx, baseY - 14, 6.4, 5, '#3f3f3f', '#626262', PT_BOXD);   // pedestal collar
 
 // ---- the launcher: four chunky tubes in a 2x2 stack -------------------
 // Traverse and tilt come off the phase: the whole block leans a little
@@ -90,7 +90,7 @@ var ptTube = function (dx, yb, hgt, lit) {
   g.closePath(); g.fill();
   g.fillStyle = '#060708';                                  // the mouth (near-black: the >=25%-contrast dark disc the clause counts)
   g.beginPath(); g.ellipse(xt, y1 - 1.1, 5.0, 2.2, 0, 0, 6.29); g.fill();
-  g.strokeStyle = '#98a0b2'; g.lineWidth = 1.1; g.stroke();
+  g.strokeStyle = '#a0a0a0'; g.lineWidth = 1.1; g.stroke();
   g.fillStyle = 'rgba(233,233,233,.55)';
   g.beginPath(); g.ellipse(xt - 1.6, y1 - 1.9, 2.2, 0.9, 0, 0, 6.29); g.fill();
 };
@@ -115,6 +115,6 @@ g.closePath(); g.fill();
 g.fillStyle = '#a0a0a0';
 g.beginPath(); g.ellipse(cx - 13.6, baseY - 12.4, 3.6, 2.0, 0, 0, 6.29); g.fill();
 outline(g, PT_BOXD);
-g.fillStyle = (ph6 === 0 || ph6 === 3) ? '#ffe9a8' : '#6d7484';
+g.fillStyle = (ph6 === 0 || ph6 === 3) ? '#ffe9a8' : '#747474';
 g.beginPath(); g.ellipse(cx - 13.6, baseY - 14.4, 1.5, 1.2, 0, 0, 6.29); g.fill();
 }

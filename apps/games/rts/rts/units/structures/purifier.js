@@ -35,7 +35,7 @@ var anP = (bph || 0) * 6.283, ph6 = Math.round((bph || 0) * 6) % 6;
 var PU_MND = '#75704a', PU_MNDD = '#2f2c19', PU_MNDL = '#928c5c';
 var PU_SIL = '#919191', PU_SILL = '#c9c9c9', PU_SILD = '#535353';
 var PU_CRU = '#7c7855', PU_CRUD = '#4c4a32';
-var PU_GUN = '#1f232b', PU_GUNL = '#525a66';
+var PU_GUN = '#1f232b', PU_GUNL = '#595959';
 var PU_DUC = '#232939', PU_DUCL = '#a2a2a2';
 var PU_HOT = '#ffa424', PU_HOTL = '#ffe8ad', PU_HOTD = '#6f3005';
 var PU_EDG = '#1a1815';
@@ -197,7 +197,7 @@ for (var puEI = -3; puEI <= 3; puEI++) {
 g.fillStyle = PU_SILD;
 g.beginPath(); g.ellipse(cx, baseY - 73, 10, 3.9, 0, 0, 6.29); g.fill();
 outline(g, PU_SILD);
-g.fillStyle = '#12151b';                                 // the black bore
+g.fillStyle = '#151515';                                 // the black bore
 g.beginPath(); g.ellipse(cx, baseY - 73.4, 6.3, 2.4, 0, 0, 6.29); g.fill();
 g.fillStyle = 'rgba(255,150,40,' + (0.14 + 0.20 * puGlow).toFixed(3) + ')';
 g.beginPath(); g.ellipse(cx, baseY - 72.8, 4.2, 1.5, 0, 0, 6.29); g.fill();

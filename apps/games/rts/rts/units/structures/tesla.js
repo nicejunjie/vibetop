@@ -24,7 +24,7 @@ function drawTesla(C) {
 // (`bph`): the arcs crawl up the coil and the sphere's glow breathes.
 var anP = (bph || 0) * 6.283, anS = Math.sin(anP);
 var ph6 = Math.round((bph || 0) * 6) % 6;
-var IRON = '#2b2d34', IRON_D = '#111318', IRON_L = '#4a4e59';
+var IRON = '#2b2d34', IRON_D = '#111318', IRON_L = '#4e4e4e';
 var COIL_D = '#0e0f12';                              // near-black coil core
 var WIND = '#c9c9c9', WIND_M = '#8d90a6', WIND_D = '#54576b';   // silver winding
 var SHELL = '#b2b2b2', SHELL_L = '#f3f3f3', SHELL_D = '#71718a';  // electrode

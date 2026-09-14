@@ -21,9 +21,9 @@ function drawGrandcannon(C) {
 // bright boss, and the gun poking out of its shoulder is SHORT and
 // thick with a fat multi-baffle muzzle brake. `bdir` is the bearing it
 // is laid on (aimOf bakes the 32 RA2 voxel bearings).
-var GC_ST = '#939393', GC_STL = '#c7c7c7', GC_STD = '#3a4050';   // turntable steel
-var GC_DM = '#3b4152', GC_DML = '#666d80', GC_DMD = '#1d2130';   // dome armour
-var GC_SPC = '#9aa2b8';                                          // the big specular sweep
+var GC_ST = '#939393', GC_STL = '#c7c7c7', GC_STD = '#404040';   // turntable steel
+var GC_DM = '#414141', GC_DML = '#6d6d6d', GC_DMD = '#1d2130';   // dome armour
+var GC_SPC = '#a2a2a2';                                          // the big specular sweep
 var GC_GUN = '#838383', GC_GUND = '#23262e';
 // The idle bearing is the one the cameo and the placement ghost show,
 // so it is the grid direction that projects to a flat horizontal gun
@@ -56,7 +56,7 @@ for (var gk = 0; gk < 4; gk++) {
   g.beginPath(); g.ellipse(apx - 0.6, apy - 4.0, 2.2, 1.3, 0, 0, 6.29); g.fill();
 }
 // hub plinth the dome turns on, with a house rim round the race
-cylinder(g, cx, baseY - 1, 21, 6, '#6e7484', GC_ST, GC_STD);
+cylinder(g, cx, baseY - 1, 21, 6, '#747474', GC_ST, GC_STD);
 g.fillStyle = shade(col, 0.72);
 g.beginPath(); g.ellipse(cx, baseY - 7, 21, 9.4, 0, 0, 6.29);
 g.ellipse(cx, baseY - 7, 17.4, 7.8, 0, 0, 6.29); g.fill('evenodd');
@@ -116,7 +116,7 @@ domePath(); outline(g, GC_DMD);
 g.strokeStyle = '#adadad'; g.lineWidth = 2.4; g.lineCap = 'round';
 g.beginPath(); g.moveTo(cx - 7, domY - domH * 0.88); g.lineTo(cx - 10, domY - domH - 7); g.stroke();
 g.beginPath(); g.moveTo(cx - 2, domY - domH * 0.94); g.lineTo(cx - 3.6, domY - domH - 4); g.stroke();
-g.strokeStyle = '#5d636d'; g.lineWidth = 1;
+g.strokeStyle = '#626262'; g.lineWidth = 1;
 g.beginPath(); g.moveTo(cx - 10, domY - domH - 7); g.lineTo(cx - 3.6, domY - domH - 4); g.stroke();
 
 // ---- the gun --------------------------------------------------------
@@ -150,14 +150,14 @@ g.beginPath(); g.moveTo(p0[0], p0[1] - 2.8); g.lineTo(p1[0], p1[1] - 2.8); g.str
 g.strokeStyle = shade(col, 1.34); g.lineWidth = 1.2;
 g.beginPath(); g.moveTo(p0[0] - 1.0, p0[1] - 4.2); g.lineTo(p1[0] - 1.0, p1[1] - 4.2); g.stroke();
 // three baffle fins, then the brake
-g.strokeStyle = '#565d68'; g.lineWidth = 10.4;
+g.strokeStyle = '#5c5c5c'; g.lineWidth = 10.4;
 for (gk = 0; gk < 3; gk++) {
   var pf = gcAt(0.62 + gk * 0.16);
   g.beginPath(); g.moveTo(pf[0], pf[1]); g.lineTo(pf[0] + ux2 * 1.6, pf[1] + uy2 * 1.6 - 1.0); g.stroke();
 }
-g.fillStyle = '#6a7280';
+g.fillStyle = '#717171';
 g.beginPath(); g.ellipse(tipX, tipY, 6.2, 5.4, 0, 0, 6.29); g.fill(); outline(g, GC_GUND);
-g.fillStyle = '#12151a';
+g.fillStyle = '#151515';
 g.beginPath(); g.ellipse(tipX + ux2 * 1.8, tipY + uy2 * 1.8 - 0.5, 2.6, 2.3, 0, 0, 6.29); g.fill();
 g.lineWidth = 1;
 }

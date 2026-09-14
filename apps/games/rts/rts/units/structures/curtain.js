@@ -18,13 +18,13 @@ function drawCurtain(C) {
 // Six idle phases crackle the coils and roll the charge round the drum.
 var anP = (bph || 0) * 6.283, anS = Math.sin(anP);
 var ph6 = Math.round((bph || 0) * 6) % 6;
-var IC_ST = '#7b7b7b', IC_STD = '#2a2e36', IC_DRK = '#22262d';
+var IC_ST = '#7b7b7b', IC_STD = '#2e2e2e', IC_DRK = '#22262d';
 
 // ---- the drum ------------------------------------------------------
 var icCy = baseY + fh * 0.16, icR = fw * 0.74;
 g.fillStyle = 'rgba(0,0,0,.30)';
 g.beginPath(); g.ellipse(cx + 3, icCy + 4, icR, icR * 0.44, 0, 0, 6.29); g.fill();
-cylinder(g, cx, icCy, icR, 17, shade(IC_ST, 0.82), '#5f656e', IC_STD);
+cylinder(g, cx, icCy, icR, 17, shade(IC_ST, 0.82), '#646464', IC_STD);
 // The hub paints BEFORE the spokes/rim band (not after): painted last it
 // sat right on the point all 8 spokes converge on and the rim band
 // crosses, cutting the "one ring" the sprite is meant to read as into a
@@ -52,7 +52,7 @@ g.fillStyle = 'rgba(0,0,0,.22)'; g.fillRect(cx + icR * 0.36, icCy - 15, icR * 0.
 
 // cable spools round the rim
 var icSpool = function (spx, spy) {
-  cylinder(g, spx, spy, 6.6, 8.4, '#4a505a', '#606773', IC_STD);
+  cylinder(g, spx, spy, 6.6, 8.4, '#4f4f4f', '#666666', IC_STD);
   g.strokeStyle = 'rgba(16,18,22,.55)'; g.lineWidth = 1;
   g.beginPath(); g.moveTo(spx - 6.6, spy - 4.4); g.lineTo(spx + 6.6, spy - 4.4); g.stroke();
 };

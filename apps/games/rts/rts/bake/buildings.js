@@ -222,7 +222,7 @@ function bakeBuilding(key, col, fac, bph, bdir, dopen) {
   // concrete shed was ever going to converge on that.
   var PLAT = '#4e5348', PLAT_E = '#2f332c';
   var BODY = '#818181', BODY_D = '#585858';
-  var RIBL = '#e2e2e2', RIB = '#bcbcbc', RIBP = '#8b92b0';
+  var RIBL = '#e2e2e2', RIB = '#bcbcbc', RIBP = '#939393';
   var BLU = '#2f5aa0', BLUL = '#4f86d6';
   var STK = '#707070', STK_T = '#23262a';
   var AMB = '#ffb347', AMBH = '#ffe7a8', HAZ = '#e0b028';
@@ -357,7 +357,7 @@ function bakeBuilding(key, col, fac, bph, bdir, dopen) {
     // the size of the footprint with a house-colour band, never shipped as
     // final art (see docs/rts-roadmap.md, roster expansion).
     var lift = Math.min(40, 14 + (fw + fh) * 0.25);
-    prism(g, cx, baseY, fw * 0.8, fh * 0.8, lift, '#6f6f6f', '#8f8f8f', '#2a2e36');
+    prism(g, cx, baseY, fw * 0.8, fh * 0.8, lift, '#6f6f6f', '#8f8f8f', '#2e2e2e');
     g.fillStyle = col; g.fillRect(cx - fw * 0.5, baseY - lift - 2, fw, 4);
   }
   pixelate(s, 6, 96);   // RA2's 6-level channel grid: a structure must not be a smooth

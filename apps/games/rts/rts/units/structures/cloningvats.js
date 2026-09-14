@@ -26,7 +26,7 @@ for (var cvI = 0; cvI < 4; cvI++) {
   var vx = cx - fw * 0.62 + cvI * fw * 0.34, vy = baseY + 3 + (cvI - 1.5) * 3;
   g.fillStyle = 'rgba(10,14,12,.32)';
   g.beginPath(); g.ellipse(vx + 2, vy + 2, 8, 3.4, 0, 0, 6.29); g.fill();
-  cylinder(g, vx, vy, 6.4, 24, '#3d5a48', '#54785f', '#1d2a22');
+  cylinder(g, vx, vy, 6.4, 24, '#4f4f4f', '#6a6a6a', '#1d2a22');
   // the fluid, lit from within
   g.fillStyle = 'rgba(96,214,138,' + (0.42 + 0.24 * (cvI === ((bph || 0) * 4 | 0) ? cvPh : 0.3)).toFixed(2) + ')';
   g.fillRect(vx - 5.4, vy - 21, 10.8, 18);

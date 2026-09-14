@@ -25,7 +25,7 @@ function drawPrism(C) {
 var anP = (bph || 0) * 6.283, anS = Math.sin(anP);
 var ph6 = Math.round((bph || 0) * 6) % 6;
 var PZ_NAV = '#2d3446', PZ_NAVL = '#434c68', PZ_NAVD = '#191d26';
-var PZ_SIL = '#c7c7c7', PZ_SILL = '#f4f4f4', PZ_SILD = '#767c8a';
+var PZ_SIL = '#c7c7c7', PZ_SILL = '#f4f4f4', PZ_SILD = '#7c7c7c';
 var PZ_STR = '#5d6a90', PZ_BLT = '#e08a1c';
 
 // ---- olive-khaki ground disc -----------------------------------------
@@ -136,14 +136,14 @@ g.fillStyle = shade(col, 0.68);
 g.fillRect(cx - 8.0, colT, 16, 4.6); outline(g, shade(col, 0.32));
 g.fillStyle = shade(col, 0.98); g.fillRect(cx - 8.0, colT, 16, 1.8);
 var capY = baseY - 72;
-g.fillStyle = '#333c4d';
+g.fillStyle = '#3b3b3b';
 g.beginPath(); g.ellipse(cx, capY, 12.6, 9.2, 0, 0, 6.29); g.fill();
 outline(g, PZ_NAVD);
 g.save();
 g.beginPath(); g.ellipse(cx, capY, 12.6, 9.2, 0, 0, 6.29); g.clip();
 g.fillStyle = '#161c27';
 g.beginPath(); g.ellipse(cx + 4.6, capY + 5.4, 11.4, 8.4, 0, 0, 6.29); g.fill();
-g.fillStyle = '#79828f';
+g.fillStyle = '#818181';
 g.beginPath(); g.ellipse(cx - 2.4, capY - 5.2, 8.4, 3.4, 0, 0, 6.29); g.fill();
 g.fillStyle = 'rgba(150,220,255,' + (0.10 + 0.18 * (0.5 + 0.5 * anS)) + ')';
 g.beginPath(); g.ellipse(cx, capY, 9.0, 6.4, 0, 0, 6.29); g.fill();

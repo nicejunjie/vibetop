@@ -31,7 +31,7 @@ function drawRadar(C) {
 // sweep together) and the mast beacon blinks.
 var anP = (bph || 0) * 6.283, ph6 = Math.round((bph || 0) * 6) % 6;
 var RDR_CAM = '#5e5c3e', RDR_CAMD = '#23241a', RDR_CAML = '#8e8a60';
-var RDR_IRN = '#2a303c', RDR_IRND = '#0d1016', RDR_IRNL = '#4e5563';
+var RDR_IRN = '#303030', RDR_IRND = '#0d1016', RDR_IRNL = '#545454';
 var RDR_DSH = '#cccccc', RDR_DSHL = '#f2f2f2', RDR_DSHD = '#828282';
 if (sov) {
   // ---- ground: only a thin hardstanding, the sprite has no raft ------
@@ -93,12 +93,12 @@ if (sov) {
     g.fillStyle = rnd() < 0.55 ? 'rgba(20,24,14,.60)' : 'rgba(120,112,70,.52)';
     g.beginPath(); g.ellipse(ex, ey, 3 + rnd() * 4.4, 2 + rnd() * 2.6, 0, 0, 6.29); g.fill();
   }
-  g.fillStyle = '#101218';                             // service hatch, front-left
+  g.fillStyle = '#121212';                             // service hatch, front-left
   g.beginPath();
   g.moveTo(cx - fw * 0.32, rdBy + fh * 0.10); g.lineTo(cx - fw * 0.16, rdBy + fh * 0.18);
   g.lineTo(cx - fw * 0.16, rdBy + fh * 0.18 - 13); g.lineTo(cx - fw * 0.32, rdBy + fh * 0.10 - 13);
   g.closePath(); g.fill(); outline(g, '#000');
-  g.fillStyle = '#5c6270';
+  g.fillStyle = '#626262';
   g.fillRect(cx - fw * 0.31, rdBy + fh * 0.10 - 12, fw * 0.13, 1.6);
 
   // ---- three house-coloured wedge blocks off the mound ---------------
@@ -139,7 +139,7 @@ if (sov) {
       g.moveTo(fx + dx * wt, fy + dy * wt);
       g.lineTo(fx + dx * wt + wd * 0.34, fy + dy * wt + wd * 0.46); g.stroke();
     }
-    g.fillStyle = '#565c64';                           // grate strip, downhill edge
+    g.fillStyle = '#5b5b5b';                           // grate strip, downhill edge
     g.beginPath();
     g.moveTo(fx + wd * 0.34, fy + wd * 0.46); g.lineTo(fx + dx + wd * 0.34, fy + dy + wd * 0.46);
     g.lineTo(fx + dx + wd * 0.34, fy + dy + wd * 0.46 + 3.2);
@@ -315,14 +315,14 @@ if (sov) {
   g.strokeStyle = 'rgba(240,240,240,.72)'; g.lineWidth = 1;
   g.beginPath(); g.ellipse(rdDx, rdDy, rdR - 2.6, rdRv - 2.6, 0, 0.50, 2.70); g.stroke();
   // the feed mast: one thin bar through the hub and out past the rim
-  g.strokeStyle = '#181c24'; g.lineWidth = 2.6;
+  g.strokeStyle = '#1c1c1c'; g.lineWidth = 2.6;
   g.beginPath(); g.moveTo(rdDx - 1, rdDy - rdRv * 0.24);
   g.lineTo(rdDx - 1, rdDy + rdRv * 1.06); g.stroke();
-  g.strokeStyle = '#484f5c'; g.lineWidth = 1.1;
+  g.strokeStyle = '#4e4e4e'; g.lineWidth = 1.1;
   g.beginPath(); g.moveTo(rdDx - 2.2, rdDy - rdRv * 0.22);
   g.lineTo(rdDx - 2.2, rdDy + rdRv * 1.03); g.stroke();
   // the domed hub, with the house crescent on its left flank
-  g.fillStyle = '#3c424c';
+  g.fillStyle = '#414141';
   g.beginPath(); g.ellipse(rdDx + 1, rdDy - rdRv * 0.30, 10.4, 9.8, 0, 0, 6.29); g.fill();
   g.fillStyle = '#888888';
   g.beginPath(); g.ellipse(rdDx, rdDy - rdRv * 0.32, 9.2, 8.6, 0, 0, 6.29); g.fill();
@@ -344,7 +344,7 @@ if (sov) {
   }
 } else {
   // Directorate never builds this (Soviet-only in RA2): plain block.
-  prism(g, cx, baseY, fw * 0.8, fh * 0.8, 30, '#6f6f6f', '#8f8f8f', '#2a2e36');
+  prism(g, cx, baseY, fw * 0.8, fh * 0.8, 30, '#6f6f6f', '#8f8f8f', '#2e2e2e');
   g.fillStyle = col; g.fillRect(cx - fw * 0.5, baseY - 32, fw, 4);
 }
 }

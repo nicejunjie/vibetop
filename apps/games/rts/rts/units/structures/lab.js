@@ -282,10 +282,10 @@ if (sov) {
   }
 } else {
   // ---- Directorate Battle Lab ---------------------------------------
-  var LAB_PLT = '#ababab', LAB_PLL = '#e2e2e2', LAB_PLD = '#636978';
-  var LAB_SPN = '#272c3a', LAB_SPD = '#11141d', LAB_SPL = '#434a5c';
+  var LAB_PLT = '#ababab', LAB_PLL = '#e2e2e2', LAB_PLD = '#696969';
+  var LAB_SPN = '#2c2c2c', LAB_SPD = '#11141d', LAB_SPL = '#4a4a4a';
   var LAB_DOM = '#2e2c46', LAB_DML = '#5b5880', LAB_DMD = '#16152a';
-  var LAB_GUN = '#5a616c', LAB_GUD = '#282d35';
+  var LAB_GUN = '#606060', LAB_GUD = '#2c2c2c';
 
   // ---- the deck ------------------------------------------------------
   g.fillStyle = 'rgba(0,0,0,.34)';
@@ -293,20 +293,20 @@ if (sov) {
   g.fillStyle = '#1e222a';
   g.beginPath(); g.ellipse(cx, baseY + 3, fw * 0.92, fh * 0.92, 0, 0, 6.29); g.fill();
   outline(g, '#0d1015');
-  g.fillStyle = '#2b3038';
+  g.fillStyle = '#2f2f2f';
   g.beginPath(); g.ellipse(cx, baseY + 1, fw * 0.84, fh * 0.84, 0, 0, 6.29); g.fill();
-  outline(g, '#14181e');
+  outline(g, '#171717');
   // the pale skid with its house-rimmed circular hatch
   var lhx = cx + fw * 0.18, lhy = baseY + fh * 0.30;
   g.fillStyle = '#949494';
-  g.beginPath(); g.ellipse(lhx, lhy, 23, 11.5, 0, 0, 6.29); g.fill(); outline(g, '#4a4f58');
+  g.beginPath(); g.ellipse(lhx, lhy, 23, 11.5, 0, 0, 6.29); g.fill(); outline(g, '#4e4e4e');
   g.fillStyle = '#bebebe';
   g.beginPath(); g.ellipse(lhx, lhy - 1.4, 20, 9.6, 0, 0, 6.29); g.fill();
   g.strokeStyle = shade(col, 0.62); g.lineWidth = 3.2;
   g.beginPath(); g.ellipse(lhx, lhy - 1, 15.4, 7.4, 0, 0, 6.29); g.stroke();
   g.strokeStyle = ph6 % 3 === 0 ? shade(col, 1.26) : col; g.lineWidth = 1.6;
   g.beginPath(); g.ellipse(lhx, lhy - 1.8, 15.4, 7.4, 0, 0, 6.29); g.stroke();
-  g.fillStyle = '#31363f';
+  g.fillStyle = '#353535';
   g.beginPath(); g.ellipse(lhx, lhy - 2, 9.4, 4.6, 0, 0, 6.29); g.fill();
   g.fillStyle = '#a8663a';                                 // tan plank
   g.fillRect(cx + fw * 0.46, baseY + fh * 0.30, 17, 4);
@@ -314,7 +314,7 @@ if (sov) {
   g.fillStyle = '#1a2130';                                 // small dark crate
   g.fillRect(cx + fw * 0.03, baseY + fh * 0.44, 11, 8); outline(g, '#0a0d14');
   g.fillStyle = '#39445c'; g.fillRect(cx + fw * 0.03, baseY + fh * 0.44, 11, 2.4);
-  g.strokeStyle = '#12151b'; g.lineWidth = 1.6;            // two little deck masts
+  g.strokeStyle = '#151515'; g.lineWidth = 1.6;            // two little deck masts
   g.beginPath(); g.moveTo(cx - fw * 0.78, baseY + fh * 0.06); g.lineTo(cx - fw * 0.78, baseY - 16); g.stroke();
   g.beginPath(); g.moveTo(cx + fw * 0.76, baseY + fh * 0.02); g.lineTo(cx + fw * 0.76, baseY - 14); g.stroke();
 
@@ -353,7 +353,7 @@ if (sov) {
     g.beginPath(); g.ellipse(dx + 3, dy + 3, rx * 0.94, rx * 0.34, 0, 0, 6.29); g.fill();
     g.fillStyle = LAB_PLD;                                 // curved underside
     g.beginPath(); g.ellipse(dx, dy - rx * 0.12, rx, rx * 0.46, 0, 0, Math.PI); g.fill();
-    outline(g, '#4a4f5c');
+    outline(g, '#4f4f4f');
     g.fillStyle = 'rgba(0,0,0,.26)';
     g.beginPath(); g.ellipse(dx, dy - rx * 0.12, rx * 0.98, rx * 0.32, 0, 0, Math.PI); g.fill();
     var lbH = h - rx * 0.12;
@@ -420,7 +420,7 @@ if (sov) {
 
   // ---- the arched service duct down the near face --------------------
   var ldA = [cx - 4, baseY - 128], ldB = [cx - 44, baseY - 74], ldC = [cx - 18, baseY - 4];
-  g.strokeStyle = '#262b33'; g.lineWidth = 11; g.lineCap = 'butt';
+  g.strokeStyle = '#2a2a2a'; g.lineWidth = 11; g.lineCap = 'butt';
   g.beginPath(); g.moveTo(ldA[0], ldA[1]); g.quadraticCurveTo(ldB[0], ldB[1], ldC[0], ldC[1]); g.stroke();
   g.strokeStyle = '#808080'; g.lineWidth = 7.4;
   g.beginPath(); g.moveTo(ldA[0], ldA[1]); g.quadraticCurveTo(ldB[0], ldB[1], ldC[0], ldC[1]); g.stroke();
@@ -474,7 +474,7 @@ if (sov) {
     g.beginPath(); g.moveTo(wx - 0.8, wyBot); g.lineTo(wx - 0.8, wyTop); g.stroke();
     g.fillStyle = lit ? '#ffffff' : '#c8c8c8';
     g.beginPath(); g.arc(wx, wyTop - 2, 2.4, 0, 6.29); g.fill();
-    outline(g, '#6e7480');
+    outline(g, '#747474');
     if (coilY !== null) {
       cylinder(g, wx, coilY + 34, 8.6, 34, shade(col, 0.80), shade(col, 1.10), shade(col, 0.32));
       for (var lwI = 0; lwI < 8; lwI++) {                  // the winding

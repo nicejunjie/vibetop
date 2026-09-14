@@ -111,7 +111,7 @@ if (sov) {
   // ---- Collective Service Depot -------------------------------------
   var SDP_CON = '#a1a1a1', SDP_COND = '#4b4f44', SDP_CONL = '#bcbcbc';
   var SDP_BRK = '#8d7159', SDP_BRKL = '#a98a6c', SDP_BRKD = '#3c2d21';
-  var SDP_IRN = '#20242b', SDP_IRND = '#0b0d11', SDP_IRNL = '#5a626d';
+  var SDP_IRN = '#20242b', SDP_IRND = '#0b0d11', SDP_IRNL = '#616161';
   var SDP_SIL = '#9f9f9f', SDP_SILL = '#dadada';
   var SDP_TNK = '#c2b34a', SDP_HAZ = '#e8bc22';
 
@@ -211,7 +211,7 @@ if (sov) {
   g.beginPath();
   g.moveTo(sdGx - 36, sdGy - sdGh); g.lineTo(sdGx + 30, sdGy - sdGh - 15);
   g.lineTo(sdGx + 30, sdGy - sdGh - 7); g.lineTo(sdGx - 36, sdGy - sdGh + 8);
-  g.closePath(); g.fill(); outline(g, '#4a4f56');
+  g.closePath(); g.fill(); outline(g, '#4e4e4e');
   g.fillStyle = SDP_SILL;
   g.beginPath();
   g.moveTo(sdGx - 36, sdGy - sdGh); g.lineTo(sdGx + 30, sdGy - sdGh - 15);
@@ -220,7 +220,7 @@ if (sov) {
   for (var sdLg = 0; sdLg < 4; sdLg++) {                      // legs
     var slt = sdLg / 3;
     var slx = sdGx - 36 + 66 * slt, sly = sdGy - sdGh + 8 - 23 * slt;
-    g.fillStyle = '#5d636b'; g.fillRect(slx - 1.8, sly, 3.6, sdGh - 2);
+    g.fillStyle = '#626262'; g.fillRect(slx - 1.8, sly, 3.6, sdGh - 2);
   }
 
   // pale olive tank on a black cradle, front-left
@@ -289,9 +289,9 @@ if (sov) {
   g.strokeStyle = SDP_IRND; g.lineWidth = 6.4; g.lineCap = 'round';
   g.beginPath(); g.moveTo(smsx, smsTop + 6); g.lineTo(sdJx, sdJy); g.stroke();
   g.beginPath(); g.moveTo(smsx, smsTop + 6); g.lineTo(sdKx, sdKy); g.stroke();
-  lattice(g, smsx, smsTop + 6, sdJx, sdJy, 9, '#464d57');
-  lattice(g, smsx, smsTop + 6, sdKx, sdKy, 7, '#464d57');
-  g.strokeStyle = '#14171c'; g.lineWidth = 1.1;               // stay cables
+  lattice(g, smsx, smsTop + 6, sdJx, sdJy, 9, '#4c4c4c');
+  lattice(g, smsx, smsTop + 6, sdKx, sdKy, 7, '#4c4c4c');
+  g.strokeStyle = '#171717'; g.lineWidth = 1.1;               // stay cables
   g.beginPath(); g.moveTo(smsx + 1, smsTop - 12); g.lineTo(sdJx, sdJy); g.stroke();
   g.beginPath(); g.moveTo(smsx + 1, smsTop - 12); g.lineTo(sdKx, sdKy); g.stroke();
   g.beginPath();
@@ -321,11 +321,11 @@ if (sov) {
   g.beginPath(); g.ellipse(smsx + 9, smsTop - 14.6, 2.4, 1.7, 0, 0, 6.29); g.fill();
   g.fillStyle = SDP_IRN;                                      // operator cab
   g.fillRect(smsx - 22, smsTop + 2, 10, 12); outline(g, SDP_IRND);
-  g.fillStyle = '#66707c'; g.fillRect(smsx - 21, smsTop + 3.5, 7, 4.4);
+  g.fillStyle = '#6e6e6e'; g.fillRect(smsx - 21, smsTop + 3.5, 7, 4.4);
 
   // hoist cable and the house hook
   var sdHk = 34 + 14 * (0.5 + 0.5 * anC);                     // the hook rides
-  g.strokeStyle = '#12151a'; g.lineWidth = 1.3;
+  g.strokeStyle = '#151515'; g.lineWidth = 1.3;
   g.beginPath(); g.moveTo(sdJx, sdJy); g.lineTo(sdJx + 1, sdJy + sdHk); g.stroke();
   g.fillStyle = SDP_IRN;
   g.beginPath();
@@ -362,8 +362,8 @@ if (sov) {
 } else {
   // ---- Directorate Service Depot -------------------------------------
   var DEP_YEL = '#eda01a', DEP_YELL = '#ffdc6a', DEP_YELD = '#8a5804';
-  var DEP_NAV = '#3b4354', DEP_NAVL = '#5d657a', DEP_NAVD = '#151a26';
-  var DEP_SIL = '#bababa', DEP_SILL = '#f1f1f1', DEP_SILD = '#5f646f';
+  var DEP_NAV = '#424242', DEP_NAVL = '#656565', DEP_NAVD = '#151a26';
+  var DEP_SIL = '#bababa', DEP_SILL = '#f1f1f1', DEP_SILD = '#646464';
   var DEP_RIM = '#dd8a12', DEP_RIML = '#ffc84e', DEP_RIMD = '#6a3f04';
   var DEP_CON = '#969696', DEP_COND = '#4a4739', DEP_CONL = '#b3b3b3';
 
@@ -581,8 +581,8 @@ if (sov) {
   }
   for (var dpGI = 0; dpGI < 3; dpGI++) {                      // roof vent boxes
     var dpGx = dpWx - 20 + dpGI * 15, dpGy = dpWy - dpShL - 6 + (dpGI % 2) * 5;
-    g.fillStyle = '#2c313a'; g.fillRect(dpGx, dpGy, 12, 9); outline(g, '#12151b');
-    g.fillStyle = '#666d78'; g.fillRect(dpGx, dpGy, 12, 2.4);
+    g.fillStyle = '#303030'; g.fillRect(dpGx, dpGy, 12, 9); outline(g, '#151515');
+    g.fillStyle = '#6c6c6c'; g.fillRect(dpGx, dpGy, 12, 2.4);
     g.fillStyle = DEP_SIL; g.fillRect(dpGx + 2, dpGy + 3.8, 3.8, 3);
   }
 
@@ -658,13 +658,13 @@ if (sov) {
   g.beginPath(); g.moveTo(dpPx + 1, dpPy + 8); g.lineTo(dpPx + 1, dpDeck - 12); g.stroke();
   g.strokeStyle = DEP_SIL; g.lineWidth = 3;
   g.beginPath(); g.moveTo(dpPx - 0.4, dpPy + 8); g.lineTo(dpPx - 0.4, dpDeck - 12); g.stroke();
-  g.fillStyle = '#3a4049';
+  g.fillStyle = '#3f3f3f';
   g.beginPath(); g.ellipse(dpPx + 1, dpPy - 1, 7.2, 6.4, 0, 0, 6.29); g.fill();
   outline(g, '#1a1e25');
   g.fillStyle = DEP_SIL;
   g.beginPath(); g.ellipse(dpPx - 0.4, dpPy - 2.2, 5.2, 4.8, 0, 0, 6.29); g.fill();
   outline(g, DEP_SILD);
-  g.fillStyle = '#767d89';
+  g.fillStyle = '#7c7c7c';
   g.beginPath(); g.ellipse(dpPx + 0.6, dpPy - 2, 2.4, 2.2, 0, 0, 6.29); g.fill();
   g.fillStyle = DEP_SILL;
   g.beginPath(); g.ellipse(dpPx - 2.4, dpPy - 3.6, 1.5, 1.4, 0, 0, 6.29); g.fill();
@@ -691,7 +691,7 @@ if (sov) {
   // 2-px caps still above the cut, which reads as 5 groups rather than
   // 4; 0.18 puts the whole stack under it. They stand on the apron
   // either way.
-  drums(g, cx - fw * 0.82, baseY + fh * 0.18, 3, '#4d5763');
+  drums(g, cx - fw * 0.82, baseY + fh * 0.18, 3, '#555555');
   crates(g, cx - fw * 0.64, baseY + fh * 0.68, 2, '#7a6a45');
 }
 }

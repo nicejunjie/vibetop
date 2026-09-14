@@ -179,7 +179,7 @@ if (sov) {
   g.beginPath();
   g.moveTo(LT.x - LT.hw, LT.y - 1); g.lineTo(LT.x - LT.hw * 0.20, LT.y - LT.hh * 0.72);
   g.lineTo(LT.x - LT.hw * 0.20, LT.y - LT.hh * 0.72 - 5);
-  g.lineTo(LT.x - LT.hw, LT.y - 6); g.closePath(); g.fill(); outline(g, '#2a2e34');
+  g.lineTo(LT.x - LT.hw, LT.y - 6); g.closePath(); g.fill(); outline(g, '#2d2d2d');
   g.fillStyle = '#a0a0a0';
   g.fillRect(LT.x - LT.hw + 1, LT.y - 7.5, 4, 2);
   slab(LT, 0.06, 1.02, 0.02, 0.72, 3);
@@ -196,20 +196,20 @@ if (sov) {
 
   // horizontal pipe stub projecting LEFT out of the tower's flank
   g.fillStyle = shade(PIPE, 0.62);
-  g.fillRect(lx - 25, ly - 21, 16, 7.4); outline(g, '#0f1116');
+  g.fillRect(lx - 25, ly - 21, 16, 7.4); outline(g, '#111111');
   g.fillStyle = PIPE; g.fillRect(lx - 25, ly - 21, 16, 3.0);
   g.fillStyle = shade(PIPE, 1.24); g.fillRect(lx - 25, ly - 20.4, 16, 1.2);
   g.fillStyle = '#9f9f9f';
   g.beginPath(); g.ellipse(lx - 25, ly - 17.3, 2.6, 3.9, 0, 0, 6.29); g.fill();
-  outline(g, '#0f1116');
-  g.fillStyle = '#41464e';
+  outline(g, '#111111');
+  g.fillStyle = '#454545';
   g.beginPath(); g.ellipse(lx - 25, ly - 17.3, 1.3, 2.2, 0, 0, 6.29); g.fill();
 
   // ---- girder frame between the masses (behind the orb).
   g.strokeStyle = '#2c3244'; g.lineWidth = 3;
   g.beginPath();
   g.moveTo(lx + 9, ly - 42); g.lineTo(cx + fw * 0.34, dTop - 32); g.stroke();
-  g.strokeStyle = '#464f66'; g.lineWidth = 1.2;
+  g.strokeStyle = '#4f4f4f'; g.lineWidth = 1.2;
   g.beginPath();
   g.moveTo(lx + 9, ly - 44); g.lineTo(cx + fw * 0.34, dTop - 34); g.stroke();
   g.strokeStyle = '#232838'; g.lineWidth = 2.2;
@@ -249,7 +249,7 @@ if (sov) {
   og.addColorStop(0, '#fdfdfd');
   og.addColorStop(0.18, '#e1e1e1');
   og.addColorStop(0.44, '#b3b3b3');
-  og.addColorStop(0.70, '#7c8095');
+  og.addColorStop(0.70, '#818181');
   og.addColorStop(0.90, '#52566c');
   og.addColorStop(1, '#33364a');
   g.fillStyle = og;
@@ -295,9 +295,9 @@ if (sov) {
     var fx2 = cx - fw * 0.18 + fr * fw * 0.10;
     g.beginPath(); g.moveTo(fx2, dTop - 5 + fr * 2.1); g.lineTo(fx2, dTop + 3 + fr * 2.1); g.stroke();
   }
-  g.fillStyle = '#2a2f3e';
+  g.fillStyle = '#2f2f2f';
   g.fillRect(cx - fw * 0.06, dTop - 12, 9, 8); outline(g, '#0c0e15');
-  g.fillStyle = '#4a5163';
+  g.fillStyle = '#515151';
   g.fillRect(cx - fw * 0.06, dTop - 12, 9, 1.6);
 
   // ---- right mass: a wider, LOWER terraced rubble stack.
@@ -328,7 +328,7 @@ if (sov) {
     var vx = rx3 + 4 + vb * 10, vy = dTop + fh * 0.62 + vb * 4;
     g.fillStyle = 'rgba(0,0,0,.42)';
     g.beginPath(); g.ellipse(vx + 2, vy + 2, 5.6, 2.7, 0, 0, 6.29); g.fill();
-    cylinder(g, vx, vy, 4.8, 10 - vb * 2, '#383c44', '#6a707a', '#15181d');
+    cylinder(g, vx, vy, 4.8, 10 - vb * 2, '#383c44', '#6f6f6f', '#15181d');
   }
 
   // ---- deck surfaces: one big red panel front-left with dark stipple,
@@ -418,8 +418,8 @@ if (sov) {
   // columns are cool slate-indigo with a narrow specular and a thin
   // gold plasma slit, so a red-owner plant carries no blue and a
   // blue-owner plant carries no red.
-  var STL_D = '#22252b', STL = '#585f6b', STL_L = '#9b9b9b';
-  var GLS_D = '#31344e', GLS = '#5f6684', GLS_L = '#9aa2be';
+  var STL_D = '#22252b', STL = '#5e5e5e', STL_L = '#9b9b9b';
+  var GLS_D = '#31344e', GLS = '#676767', GLS_L = '#a3a3a3';
   var PLATE = '#33363f', BRASS = '#a8823c', SILV = '#939393';
 
   // Octagonal base plate (a cut-cornered iso diamond).
@@ -441,7 +441,7 @@ if (sov) {
   };
   srand(211);
   octa(cx + 3, baseY + 5, fw * 1.00, fh * 1.00, 'rgba(0,0,0,.42)', null);
-  octa(cx, baseY, fw * 1.00, fh * 1.00, '#2e2e2e', '#0d0f12');       // pad riser
+  octa(cx, baseY, fw * 1.00, fh * 1.00, '#2e2e2e', '#0f0f0f');       // pad riser
   octa(cx, baseY - 4, fw * 0.99, fh * 0.99, '#5e6255', '#141613');   // pad top (grey-olive)
   octa(cx, baseY - 5, fw * 0.99, fh * 0.99, null, col, 2);           // HOUSE rim line
   octa(cx, baseY - 6, fw * 0.90, fh * 0.90, '#565a4d', '#22251f');
@@ -510,7 +510,7 @@ if (sov) {
   var tower = function (px, py, r, hCol, lamp) {
     var dr = r * PW_DK;                                              // drum radius
     octa(px + 2, py + 3, dr * (PW_PK + 0.04), dr * 0.54, 'rgba(0,0,0,.44)', null);
-    octa(px, py, dr * PW_PK, dr * 0.52, '#4c515a', '#15171b');       // rock plinth riser
+    octa(px, py, dr * PW_PK, dr * 0.52, '#505050', '#15171b');       // rock plinth riser
     octa(px, py - 4, dr * (PW_PK - 0.06), dr * 0.50, SILV, '#15171b');
     octa(px, py - 5, dr * (PW_PK - 0.06), dr * 0.50, 'rgba(255,255,255,.22)', null);
     g.fillStyle = 'rgba(24,26,32,.34)';                              // rubble specks
@@ -563,7 +563,7 @@ if (sov) {
     g.ellipse(px, pTop + 1.8, pw, pw * 0.30, 0, 0, Math.PI);
     g.closePath(); g.fill();
     g.restore();
-    g.fillStyle = '#282b3c';                                         // dark drum lip
+    g.fillStyle = '#2c2c2c';                                         // dark drum lip
     g.beginPath(); g.ellipse(px, dTopY, dr * PW_TP, dr * 0.26, 0, 0, 6.29); g.fill();
     outline(g, '#0a0c14');
     g.fillStyle = '#3c4054';
@@ -696,7 +696,7 @@ if (sov) {
   // far inner wall in shadow, hot pool at the near side. Nothing else in
   // the game aims a dish at the sky, so it has to read as concave.
   var bowlY = baseY - 41, bw = PW_BW, tlt = 0.22, bry = bw * 0.55;
-  cylinder(g, cx, bowlY + 11, 4.4, 7, '#4a4f58', '#717171', '#1d1f25');  // neck
+  cylinder(g, cx, bowlY + 11, 4.4, 7, '#4e4e4e', '#717171', '#1d1f25');  // neck
   g.fillStyle = '#5a360f';                                           // bowl underside
   g.beginPath();
   g.moveTo(cx - bw * Math.cos(tlt), bowlY - bw * Math.sin(tlt));
@@ -739,7 +739,7 @@ if (sov) {
   tower(rcx, rcy, PW_R, COL_H, ph6 === 2 || ph6 === 5);              // front-right
 
   // ---- base greebles: a valve run threaded between the three plinths.
-  g.strokeStyle = '#464a53'; g.lineWidth = 3.2; g.lineCap = 'round';
+  g.strokeStyle = '#4a4a4a'; g.lineWidth = 3.2; g.lineCap = 'round';
   g.beginPath();
   g.moveTo(lcx + 18, baseY + fh * 0.44);
   g.quadraticCurveTo(cx, baseY + fh * 0.64, rcx - 18, baseY + fh * 0.44);
@@ -755,7 +755,7 @@ if (sov) {
     g.fillStyle = '#3d424b';
     g.fillRect(vgx - 3.2, vgy - 5, 6.4, 5.6);
     outline(g, '#15181d');
-    g.fillStyle = '#717782';
+    g.fillStyle = '#767676';
     g.fillRect(vgx - 3.2, vgy - 5, 6.4, 1.4);
     g.fillStyle = BRASS;
     g.fillRect(vgx - 1, vgy - 7.6, 2, 2.8);

@@ -23,7 +23,7 @@ function drawSentrygun(C) {
 // trunnion and the muzzles flare.
 var anP = (bph || 0) * 6.283, anS = Math.sin(anP);
 var ph6 = Math.round((bph || 0) * 6) % 6;
-var SGN_ARM = '#2f333c', SGN_ARML = '#4f5563', SGN_ARMD = '#0d1016';
+var SGN_ARM = '#333333', SGN_ARML = '#555555', SGN_ARMD = '#0d1016';
 var SGN_BAR = '#a9a37c', SGN_BARL = '#e4dfc2', SGN_BARD = '#33301f';
 if (sov) {
   // No hardstanding slab: a solid pad under the whole footprint fused
@@ -53,7 +53,7 @@ if (sov) {
     g.beginPath(); g.moveTo(cx, baseY - 9); if (bent) g.lineTo(kx, ky - 1); g.lineTo(fx2, fy2 - 1); g.stroke();
     g.strokeStyle = SGN_ARML; g.lineWidth = 1.0;
     g.beginPath(); g.moveTo(cx - 0.6, baseY - 10); if (bent) g.lineTo(kx - 0.6, ky - 2); g.lineTo(fx2 - 0.6, fy2 - 2); g.stroke();
-    g.fillStyle = '#7d8492';                              // pale foot pad
+    g.fillStyle = '#838383';                              // pale foot pad
     g.beginPath(); g.ellipse(fx2, fy2 + 1, 3.6, 1.9, 0, 0, 6.29); g.fill();
     outline(g, SGN_ARMD);
   };
@@ -143,7 +143,7 @@ if (bdir != null) { var sgAim = gunAim(bdir, 1.082); sgA = sgAim.a; sgK = sgAim.
   g.lineWidth = 1;
 } else {
   // Directorate never builds this (Soviet-only in RA2): plain block.
-  prism(g, cx, baseY, fw * 0.8, fh * 0.8, 16, '#6f6f6f', '#8f8f8f', '#2a2e36');
+  prism(g, cx, baseY, fw * 0.8, fh * 0.8, 16, '#6f6f6f', '#8f8f8f', '#2e2e2e');
   g.fillStyle = col; g.fillRect(cx - fw * 0.5, baseY - 18, fw, 4);
 }
 }
