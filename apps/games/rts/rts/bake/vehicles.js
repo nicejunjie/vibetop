@@ -164,7 +164,12 @@ function bakeVehicle(col, kind, fac, anim) {
   // machine over pale ground, against a Harrier plate that is nearly a black
   // silhouette. Value, not hue, is what separates two grey aircraft at 20 px,
   // so the chopper carries the light end of the pair and the jet the dark.
-  else if (kind === 'nighthawk') { hull = '#6d747e'; deck = '#363b43'; } // gunship grey, LIGHTER than the jet
+  // #6d747e is 109/116/126 and throws #336666, #669999, #99cccc and #ccffff
+  // across its ladder — the heaviest teal source left on the roster, on an
+  // airframe that is mostly hull. #363b43 does the same at the dark end. Both
+  // equal-channel at their own luma now, which also takes this unit off the
+  // grid-boundary flip list.
+  else if (kind === 'nighthawk') { hull = '#737373'; deck = '#3a3a3a'; } // gunship grey, LIGHTER than the jet
   // The APC was the WORST impostor on the field (11.0% of its pixels within
   // 18 degrees of the enemy's red), for the same reason as the Tesla Tank:
   // #8a8d76's red channel is nearer its grid line than its green, so the

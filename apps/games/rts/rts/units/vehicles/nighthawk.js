@@ -183,8 +183,26 @@ if (wantH) {
   // on the sprite's own axes.
   for (i2 = 0; i2 < 4; i2++) {
     var mra = mrPh + 0.42 + i2 * 1.5708;
-    g.strokeStyle = i2 % 2 ? 'rgba(232,232,232,.22)' : 'rgba(238,238,238,.40)';
-    g.lineWidth = i2 % 2 ? 1.0 : 1.3;
+    // THE BLADES HAVE TO CARRY IT, BECAUSE A BLUR CANNOT SURVIVE THE CUT.
+    // pixelate kills every pixel under alpha 140, and this disc's gradient
+    // peaks at .42 — alpha 107 — so nothing of it should render at all. What
+    // DID render was the handful of places where the rim band and a blade
+    // stroke compounded past the cut: 25 disc pixels and 34 blade pixels,
+    // scattered into a thin broken ellipse. That is why the Nighthawk has been
+    // wearing a WIRE HOOP instead of a rotor. The gradient stays (the comment
+    // above is right that the feathered rim holds the sprite's span, which is
+    // this airframe's whole RA2 spec) but the blades go solidly over the cut so
+    // the thing that reads is blade streaks, which is what the cameo shows.
+    // ...and they have to land in a WINDOW, not merely above the cut. pixelate
+    // kills under alpha 140; the §2.x fuselage clause isolates the airframe as
+    // the pixels at alpha >= 192 and calls everything under 128 rotor blur. So
+    // .88 (224) made the blades count as FUSELAGE and took "fuselage height
+    // <= 0.35 x length" straight through its limit. .74 (188) and .58 (147) sit
+    // between the two thresholds: solid enough to survive the snap and read as
+    // blades, transparent enough that the measurement still knows they are not
+    // the aircraft.
+    g.strokeStyle = i2 % 2 ? 'rgba(232,232,232,.58)' : 'rgba(238,238,238,.74)';
+    g.lineWidth = i2 % 2 ? 1.2 : 1.6;
     g.beginPath();
     g.moveTo(mrx + Math.cos(mra) * rx * 0.22, mry + Math.sin(mra) * ry * 0.22);
     g.lineTo(mrx + Math.cos(mra) * rx * 0.94, mry + Math.sin(mra) * ry * 0.94);
