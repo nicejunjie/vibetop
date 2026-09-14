@@ -114,7 +114,16 @@ function bakeVehicle(col, kind, fac, anim) {
   // channel DOWN off the grid's first step so the hue survives the snap.
   // 53/53/20 lands on #333300, a dark olive, and the hull's #5a5a4b already
   // lands on #666633.
-  else if (kind === 'mammoth') { hull = '#5a5a4b'; deck = '#353514'; }   // cold olive; low value and hard plane separation keep the Apocalypse severe
+  // THE APOCALYPSE'S MUD WAS A KNIFE EDGE. #5a5a4b is 90/90/75, and 75 sits
+  // almost exactly on the grid's boundary between 51 and 102 — so the same
+  // olive snapped to #666666 at one shade factor and #999966 at the next, and
+  // the hull baked as salt-and-pepper khaki ON grey across every panel. That
+  // speckle is what has been reading as "muddy": not a colour choice, a colour
+  // sitting on a fence. Measured off apocalypse.png the hull is #6b694a, a real
+  // olive; 94/94/56 keeps this unit's value where it was (90 -> 94, the comment
+  // below still holds) and stays on the khaki side of the fence from 0.8 to
+  // 1.4, so the panels read as one material.
+  else if (kind === 'mammoth') { hull = '#5e5e38'; deck = '#353514'; }   // cold olive; low value and hard plane separation keep the Apocalypse severe
   else if (kind === 'ifv')     { hull = '#9b9b9b'; deck = '#8d8d8d'; }   // pale silver body, as the [FV] voxel render (VLIFT lifts it)
   // NOT DARK SLATE. `mirage-voxel.jpg` is a PALE LAVENDER-GREY hull — light
   // enough that the dark blue deck patch and the khaki turret both read against

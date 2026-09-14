@@ -589,10 +589,14 @@ var VACC = {
                            //   colour pair on the field.
   rhinoGun:    '#303030',  //     NEUTRAL gunmetal barrel. The Lancer's navy put an
                            //     OPPOSING hue on a Soviet tank (4.4% of the sprite).
-  mammothGun:  '#161616',  //     gun-black twin barrels. 1.4: "hull, tracks and the
-                           //     twin barrels are olive-grey" — so the Apocalypse's
-                           //     own colour is its OLIVE, deepened in `hull` below,
-                           //     and the house colour is the four canister drums.
+  mammothGun:  '#3d3d3d',  //     The twin cannons ARE the Apocalypse, and at #161616
+                           //     they were two black threads: a near-black tube has
+                           //     no room left below it for its own breech collar,
+                           //     muzzle brake or lit edge, so all three quantised
+                           //     onto the same value and the barrel lost every bit
+                           //     of form it was drawn with. apocalypse.png's barrels
+                           //     are mid-dark grey and plainly cylindrical. Lifting
+                           //     two grid cells gives the ladder somewhere to go.
   teslatank:   '#e5e5e5',  //     PALE coil windings, as kit.js has it
                            //   A Tesla coil is wound in copper; pale steel rings were
                            //   the ninth grey on a field of greys.

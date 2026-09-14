@@ -378,8 +378,8 @@
     "value.engineerLightPct": 0.0984,
     "value.engineerMarginOverNext": -0.0339,
     "colour.infantry.meanDist": 1.4103,
-    "colour.vehicle.meanDist": 0.9923,
-    "colour.vehicleAchromatic": 8,
+    "colour.vehicle.meanDist": 1.0052,
+    "colour.vehicleAchromatic": 7,
     "colour.naval.meanDist": 1.3666,
     "colour.air.meanDist": 1.1669,
     "colour.navalDarkest": 0,
@@ -1064,14 +1064,19 @@
     ],
     "closestVehicleColourPairs": [
       {
-        "a": "rhino",
-        "b": "teslatank",
-        "dist": 0.211
+        "a": "mammoth",
+        "b": "rhino",
+        "dist": 0.12
       },
       {
         "a": "mammoth",
-        "b": "v3",
-        "dist": 0.29
+        "b": "teslatank",
+        "dist": 0.132
+      },
+      {
+        "a": "rhino",
+        "b": "teslatank",
+        "dist": 0.211
       },
       {
         "a": "mirage",
@@ -1084,11 +1089,6 @@
         "dist": 0.32
       },
       {
-        "a": "mammoth",
-        "b": "flaktrack",
-        "dist": 0.348
-      },
-      {
         "a": "chronominer",
         "b": "warminer",
         "dist": 0.354
@@ -1099,19 +1099,19 @@
         "dist": 0.38
       },
       {
+        "a": "mammoth",
+        "b": "mirage",
+        "dist": 0.39
+      },
+      {
         "a": "drone",
         "b": "prismtank",
         "dist": 0.412
       },
       {
         "a": "warminer",
-        "b": "teslatank",
-        "dist": 0.451
-      },
-      {
-        "a": "flaktrack",
-        "b": "drone",
-        "dist": 0.453
+        "b": "mammoth",
+        "dist": 0.449
       }
     ],
     "topImpostors": [
@@ -1122,6 +1122,10 @@
       {
         "key": "tanya",
         "pct": 0.0973
+      },
+      {
+        "key": "mammoth",
+        "pct": 0.0723
       },
       {
         "key": "engineer",
@@ -1142,10 +1146,6 @@
       {
         "key": "sub",
         "pct": 0.0359
-      },
-      {
-        "key": "rocket",
-        "pct": 0.0302
       }
     ],
     "ownerPctByUnit": {
@@ -1159,7 +1159,7 @@
       "harrier": 0.21,
       "kirov": 0.2074,
       "lancer": 0.0932,
-      "mammoth": 0.0634,
+      "mammoth": 0.0635,
       "engineer": 0.2237,
       "dog": 0.0839,
       "ifv": 0.0634,
@@ -1202,7 +1202,7 @@
       "harrier": 0.0058,
       "kirov": 0.3147,
       "lancer": 0.0846,
-      "mammoth": 0.1274,
+      "mammoth": 0.1835,
       "engineer": 0.2274,
       "dog": 0.6238,
       "ifv": 0.0459,
