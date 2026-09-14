@@ -39,11 +39,14 @@ var drawRig3 = function () {
   // remap belongs on the missile's two ENDS (nose cone and fins,
   // below); the truck is deliberately dull so nothing competes with
   // that diagonal, and a bar down the bed was competing.
+  // ...and only the REAR pair. Four red plates down the bed put house colour
+  // right under the missile's nose, which is where the rocket's own red cone
+  // has to read; this file's own header says the truck is kept dull so nothing
+  // competes with the diagonal, and then drew four of them.
   for (sg = -1; sg <= 1; sg += 2)
-    for (i2 = -1; i2 <= 1; i2 += 2)
-      isoBox(g, cx + px * wid * 0.36 * sg + fx * (i2 * 4.6 - 4.0),
-             by - 2.4 + py * wid * 0.36 * sg + fy * (i2 * 4.6 - 4.0),
-             len * 0.21, 1.5, 2.6, a, panel, PEDGE);
+    isoBox(g, cx + px * wid * 0.36 * sg + fx * -8.6,
+           by - 2.4 + py * wid * 0.36 * sg + fy * -8.6,
+           len * 0.21, 1.5, 2.6, a, panel, PEDGE);
   isoBox(g, cx - fx * 3.6, by - 4.4 - fy * 3.6, len * 0.58, wid * 0.56, 1.5,
          a, deck, dark);                                    // flat bed
   // the RAIL: two dark girders climbing from the tail to the cab, with
@@ -61,8 +64,21 @@ var drawRig3 = function () {
     g.strokeStyle = '#838383'; g.lineWidth = 1.0;
     g.beginPath(); g.moveTo(r0x, r0y - 0.9); g.lineTo(r1x, r1y - 0.9); g.stroke();
   }
-  isoBox(g, cx + fx * 5.4, by - 10.4 + fy * 5.4, 1.8, wid * 0.44, 5.4,
-         a, STEEL, '#3f444c');                              // jack strut
+  // A STRUT IS A POST, NOT A BILLBOARD. This was 1.8 x wid*0.44 x 5.4 — nearly
+  // eight units across — painted STEEL, the brightest colour on the unit. At
+  // every bearing where its broad face turned toward the camera it was a pale
+  // slab the size of the rocket, standing directly over it, and THAT is what
+  // has been reading as "a jumble of slabs": the missile was drawn correctly
+  // underneath and buried by its own jack. Two thin legs in dark gunmetal hold
+  // the rail up and leave the diagonal to the thing the unit is named for.
+  // AND A STRUT HAS TO STAND ON SOMETHING. Its base was by - 10.4 with a height
+  // of 5.4, so it occupied -10.4 to -15.8 — entirely ABOVE the bed at -4.4,
+  // floating in the air. The old slab hid that because it was wide enough to
+  // overlap the rail visually; two honest legs made it obvious at once. They
+  // rise FROM the bed to the rail's high end, and stay inside the beam.
+  for (var js = -1; js <= 1; js += 2)
+    isoBox(g, cx + fx * 5.4 + px * wid * 0.17 * js, by - 4.6 + fy * 5.4 + py * wid * 0.17 * js,
+           1.5, 1.5, 8.6, a, '#6e6e6e', '#232323');         // jack legs
   exhaust(cx - fx * len * 0.40, by - 4.4 - fy * len * 0.40);
 };
 var drawRocket3 = function () {
@@ -101,7 +117,7 @@ var drawRocket3 = function () {
     g.beginPath();
     g.moveTo(tlx + nx3 * 2.3 * sg, tly + ny3 * 2.3 * sg);
     g.lineTo(tlx + vx * 0.15 + nx3 * 2.3 * sg, tly + vy * 0.15 + ny3 * 2.3 * sg);
-    g.lineTo(tlx + vx * 0.02 + nx3 * 7.4 * sg, tly + vy * 0.02 + ny3 * 7.4 * sg);
+    g.lineTo(tlx + vx * 0.02 + nx3 * 4.9 * sg, tly + vy * 0.02 + ny3 * 4.9 * sg);
     g.closePath();
     g.fillStyle = sg < 0 ? plit : pdark; g.fill(); outline(g, PEDGE);
   }
