@@ -95,27 +95,55 @@ var drawFront = function () {
   // the height is what §2.3's "height <= 0.55 x length" is measured
   // on (0.522 today, and it must stay under). Radius 4.3 -> 5.3 is
   // +52% of violet area for zero rows of bbox.
-  puck(nx, ny, 5.3, 5.2, shade(VACC.chronominer, 0.48), VACC.chronominer, '#1c1430');
-  for (i2 = -3; i2 <= 3; i2++) {                            // ribs across the drum face
+  // THE HOUSING IS SILVER; THE VIOLET IS WHAT SITS INSIDE IT. This drum was
+  // painted violet end to end because the identity row says "a ribbed chrono
+  // drum for a nose (violet, fixed hue)" — and that row is one of the ones
+  // written from a cameo. The rip disagrees at every one of its eight bearings:
+  // the nose is a PALE SILVER-GREY rounded housing with dark slots, two bright
+  // white lit shoulders, and a LAVENDER CLUSTER set into its face above the
+  // white scoop teeth. Ours had the two exactly inverted — a violet mass with
+  // silver ribs — so 5% of the sprite was a saturated colour the reference does
+  // not put there, and the machinery it is named for was invisible inside it.
+  // The violet is not gone: it moves to the core and the gear, where the rip
+  // has it, which is also the only place it means anything (a painted housing
+  // is a paint job; a glowing core is a chrono rig).
+  puck(nx, ny, 5.3, 5.2, '#6b6b6b', '#a8a8a8', '#1b1b1b');
+  for (i2 = -3; i2 <= 3; i2++) {                            // slots across the drum face
     var rvx = nx + fx * 2.6 + px * i2 * 1.7, rvy = ny - 4.8 + fy * 2.6 + py * i2 * 1.7;
-    g.strokeStyle = shade(VACC.chronominer, 1.52); g.lineWidth = 1.5; g.lineCap = 'round';
+    g.strokeStyle = '#343434'; g.lineWidth = 1.5; g.lineCap = 'round';
     g.beginPath(); g.moveTo(rvx, rvy); g.lineTo(rvx, rvy + 3.8); g.stroke();
-    g.strokeStyle = '#2a1f47'; g.lineWidth = 0.7;
+    g.strokeStyle = '#c6c6c6'; g.lineWidth = 0.7;
     g.beginPath(); g.moveTo(rvx + 0.9, rvy + 0.3); g.lineTo(rvx + 0.9, rvy + 3.8); g.stroke();
   }
-  for (i2 = -1; i2 <= 1; i2++)                              // three feed pipes over the drum
+  // the chrono core: three lavender blocks recessed into the housing's face,
+  // the cluster the rip shows sitting just above the scoop teeth
+  for (i2 = -1; i2 <= 1; i2++)
+    isoBox(g, nx + fx * 3.4 + px * i2 * 3.0, ny - 1.9 + fy * 3.4 + py * i2 * 3.0,
+           1.5, 2.4, 2.9, a, i2 ? shade(VACC.chronominer, 1.16) : VACC.chronominer, '#2a1f47');
+  // THE FEED PIPES WERE READING AS EYES. Three small pucks with a #d9d9d9 cap
+  // on a violet drum: at the bearings where two of them face the camera they
+  // are a pair of pale circles on a coloured mass, and the miner acquired a
+  // FACE. A pipe mouth is darker than the pipe, not brighter — and #6b7280 is
+  // 107/114/128, blue over red, sitting just above the palette test's bar and
+  // splitting on the grid like every other near-grey of that shape.
+  for (i2 = -1; i2 <= 1; i2++)
     puck(nx - fx * 1.0 + px * 2.6 * i2, ny - 5.0 - fy * 1.0 + py * 2.6 * i2,
-         0.85, 2.0, '#6b7280', '#d9d9d9', '#3a3f47');
+         0.85, 2.0, '#727272', '#8a8a8a', '#3d3d3d');
   // the SCOOP FINGERS under the chin. Parked they are tucked up under
   // the drum; digging they drop to the dirt — that plus the turned
   // gear is the whole mining animation.
+  // SPACING 1.6 WITH A 1.9 px STROKE IS NOT A COMB, IT IS A SLAB. The five
+  // teeth overlapped each other by 0.3 px, so the scoop baked as one white
+  // blob — and a scoop is only legible as a scoop when you can see BETWEEN the
+  // fingers. The rip's teeth are pale bars separated by hard black gaps. Butt
+  // caps too: round ones fattened each tooth by half a width at both ends.
   var fl = dig ? 6.0 : 1.8, ftop = dig ? 0.8 : -2.6;
   for (i2 = -2; i2 <= 2; i2++) {
-    var fvx = cx + fx * Q * 12.8 + px * i2 * 1.6, fvy = by + ftop + fy * Q * 12.8 + py * i2 * 1.6;
-    g.strokeStyle = '#ececec'; g.lineWidth = 1.9; g.lineCap = 'round';
+    var fvx = cx + fx * Q * 12.8 + px * i2 * 2.7, fvy = by + ftop + fy * Q * 12.8 + py * i2 * 2.7;
+    g.strokeStyle = '#ececec'; g.lineWidth = 1.4; g.lineCap = 'butt';
     g.beginPath(); g.moveTo(fvx, fvy - fl); g.lineTo(fvx, fvy); g.stroke();
-    g.strokeStyle = '#6b727c'; g.lineWidth = 0.7;
-    g.beginPath(); g.moveTo(fvx + 0.9, fvy - fl + 0.4); g.lineTo(fvx + 0.9, fvy - 0.4); g.stroke();
+    g.strokeStyle = '#5e5e5e'; g.lineWidth = 0.7;
+    g.beginPath(); g.moveTo(fvx + 0.8, fvy - fl + 0.4); g.lineTo(fvx + 0.8, fvy - 0.4); g.stroke();
   }
   if (dig) {                                               // spoil at the fingers
     for (i2 = -1; i2 <= 1; i2++) {
@@ -135,23 +163,42 @@ var drawFront = function () {
   // machinery that makes the nose read as a chrono rig rather than as
   // a paint job. It rides the drum's FLANK, so its growth is across
   // the beam and costs the height clause nothing.
-  g.fillStyle = shade(VACC.chronominer, dig ? 0.62 : 0.54);
+  g.fillStyle = shade(VACC.chronominer, dig ? 0.48 : 0.42);
   for (i2 = 0; i2 < 8; i2++) {                             // gear teeth
     var ga = ga0 + i2 * Math.PI / 4;
     g.beginPath();
-    g.ellipse(gxx + Math.cos(ga) * 3.5, gyy + Math.sin(ga) * 2.1, 1.25, 0.86, 0, 0, 6.29);
+    g.ellipse(gxx + Math.cos(ga) * 2.7, gyy + Math.sin(ga) * 1.7, 0.95, 0.66, 0, 0, 6.29);
     g.fill();
   }
-  g.fillStyle = shade(VACC.chronominer, dig ? 1.06 : 0.94);   // disc
-  g.beginPath(); g.ellipse(gxx, gyy, 3.3, 2.0, 0, 0, 6.29); g.fill();
+  g.fillStyle = shade(VACC.chronominer, dig ? 0.82 : 0.70);   // disc
+  g.beginPath(); g.ellipse(gxx, gyy, 2.4, 1.5, 0, 0, 6.29); g.fill();
   outline(g, '#2a1f47');
-  g.fillStyle = shade(VACC.chronominer, dig ? 1.44 : 1.30);   // lit rim, swung with the gear
+  // A FILLED BRIGHT ELLIPSE ON A ROUND FACE IS AN EYE. The "lit rim" was
+  // 2.3 x 1.3 of #9966cc laid over a 3.3 x 2.0 disc — i.e. the rim covered
+  // most of the disc, so the gear baked as one solid magenta circle, the
+  // brightest thing on the unit, sitting on the nose. That is the same defect
+  // as the headlamps, drawn a different way. A turned steel gear catches light
+  // as a GLINT on one shoulder, not as a full face, so it is now a small
+  // offset highlight and the teeth carry the shape instead.
+  g.fillStyle = shade(VACC.chronominer, dig ? 1.06 : 0.96);   // glint, swung with the gear
   g.beginPath();
-  g.ellipse(gxx + (dig ? 0.7 : -0.7), gyy - 0.6, 2.3, 1.3, 0, 0, 6.29); g.fill();
-  g.fillStyle = '#e2e2e2';                                 // hub
-  g.beginPath(); g.ellipse(gxx, gyy, 0.9, 0.6, 0, 0, 6.29); g.fill();
-  for (var lI = -1; lI <= 1; lI += 2)                      // headlamps
-    lamp(cx + fx * Q * 11.6 + px * 3.6 * lI, by - 4.2 + nz + fy * Q * 11.6 + py * 3.6 * lI);
+  g.ellipse(gxx + (dig ? 0.9 : -0.9), gyy - 0.7, 1.1, 0.6, 0, 0, 6.29); g.fill();
+  g.fillStyle = '#9a9a9a';                                 // hub
+  g.beginPath(); g.ellipse(gxx, gyy, 0.7, 0.5, 0, 0, 6.29); g.fill();
+  // WORK LIGHT, NOT HEADLAMPS. Two round pale lamps sat at Q*11.6 — inside the
+  // drum's own footprint, symmetric about the centreline, on a violet round
+  // mass. A coloured disc with a matched pair of pale circles on it is a FACE,
+  // and the miner had one at every bearing. It is also wrong as machinery: you
+  // do not bolt a lamp to a rotating cutting head. A mining rig carries a LIGHT
+  // BAR on the frame above the head, aimed down at the cut — one continuous
+  // strip on a dark cowl, which is a fitting rather than a pair of eyes.
+  var lbx = nx + fx * 2.4, lby = ny - 5.4 + nz * 0 + fy * 2.4;
+  isoBox(g, lbx, lby, 1.8, 8.4, 1.5, a, '#464646', '#1b1b1b');
+  g.strokeStyle = '#f4e6b4'; g.lineWidth = 1.3; g.lineCap = 'butt';
+  g.beginPath();
+  g.moveTo(lbx + fx * 0.9 - px * 3.3, lby - 0.9 + fy * 0.9 - py * 3.3);
+  g.lineTo(lbx + fx * 0.9 + px * 3.3, lby - 0.9 + fy * 0.9 + py * 3.3);
+  g.stroke();
 };
 if (fy > 0) { drawBin(); drawFront(); } else { drawFront(); drawBin(); }
 }
