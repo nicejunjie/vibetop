@@ -331,12 +331,12 @@
     "iou.groundCombat.mean": 0.6051,
     "iou.vehicle.mean": 0.5408,
     "iou.infantry.mean": 0.5124,
-    "iou.naval.mean": 0.3737,
+    "iou.naval.mean": 0.3746,
     "iou.air.mean": 0.1544,
-    "iou.sameFactionOver75": 4,
-    "spike.belowFloor": 2,
+    "iou.sameFactionOver75": 3,
+    "spike.belowFloor": 3,
     "spike.minThickAtZmin": 1.1,
-    "spike.belowDeclaredBudget": 5,
+    "spike.belowDeclaredBudget": 6,
     "mass.groundCombatSpan": 2,
     "mass.tightestBand6": 1.425,
     "hue.infantryOwnerMean": 0.1932,
@@ -344,7 +344,7 @@
     "hue.vehicleOwnerMean": 0.1552,
     "hue.vehicleOwnerMax": 0.2733,
     "hue.maxImpostor": 0.1017,
-    "aspect.navalOutsideRA2Band": 2,
+    "aspect.navalOutsideRA2Band": 1,
     "aspect.navalWorstOffRA2": 0.327,
     "aspect.vehicleOutsideRA2Band": 3,
     "aspect.infantryOutsideRA2Band": 1,
@@ -380,7 +380,7 @@
     "colour.infantry.meanDist": 1.4073,
     "colour.vehicle.meanDist": 0.8653,
     "colour.vehicleAchromatic": 6,
-    "colour.naval.meanDist": 1.2253,
+    "colour.naval.meanDist": 1.2235,
     "colour.air.meanDist": 1.134,
     "colour.navalDarkest": 0,
     "colour.airDarkest": 0.0428
@@ -808,23 +808,23 @@
         "ra2Aspect": 2.463,
         "vsRA2": 0.869,
         "bestPeer": "Aegis Cruiser",
-        "bestPeerIoU": 0.7627,
+        "bestPeerIoU": 0.6772,
         "nearestPeer": "Aegis Cruiser",
-        "nearestPeerMMD2": -0.042,
+        "nearestPeerMMD2": -0.0302,
         "peersBeatingSelf": 2
       },
       "aegis": {
         "group": "naval",
-        "aspect": 1.818,
-        "selfIoU": 0.5501,
-        "selfIoUCross": 0.5501,
-        "broadsideAspect": 1.818,
+        "aspect": 2.105,
+        "selfIoU": 0.4245,
+        "selfIoUCross": 0.4245,
+        "broadsideAspect": 2.105,
         "ra2Aspect": 2.6,
-        "vsRA2": 0.699,
+        "vsRA2": 0.81,
         "bestPeer": "Destroyer",
-        "bestPeerIoU": 0.7627,
+        "bestPeerIoU": 0.6772,
         "nearestPeer": "Destroyer",
-        "nearestPeerMMD2": -0.042,
+        "nearestPeerMMD2": -0.0302,
         "peersBeatingSelf": 1
       },
       "carrier": {
@@ -903,8 +903,8 @@
         "vsRA2": 0.94,
         "bestPeer": "Amphibious Transport",
         "bestPeerIoU": 0.5979,
-        "nearestPeer": "Amphibious Transport",
-        "nearestPeerMMD2": 0.1964,
+        "nearestPeer": "Aegis Cruiser",
+        "nearestPeerMMD2": 0.1479,
         "peersBeatingSelf": 0
       },
       "dread": {
@@ -929,10 +929,10 @@
         "broadsideAspect": 5.174,
         "ra2Aspect": 3.9,
         "vsRA2": 1.327,
-        "bestPeer": "Dreadnought",
-        "bestPeerIoU": 0.4181,
-        "nearestPeer": "Dreadnought",
-        "nearestPeerMMD2": 0.053,
+        "bestPeer": "Aegis Cruiser",
+        "bestPeerIoU": 0.4405,
+        "nearestPeer": "Aegis Cruiser",
+        "nearestPeerMMD2": 0.0518,
         "peersBeatingSelf": 0
       },
       "mcv": {
@@ -974,10 +974,10 @@
         "over75": 2
       },
       "naval": {
-        "mean": 0.3737,
+        "mean": 0.3746,
         "pairs": 45,
-        "max": 0.7627,
-        "over75": 1
+        "max": 0.7382,
+        "over75": 0
       },
       "air": {
         "mean": 0.1544,
@@ -991,7 +991,7 @@
         "max": 0.8544,
         "over75": 4
       },
-      "sameFactionOver75": 4
+      "sameFactionOver75": 3
     },
     "worstSameFactionPairs": [
       {
@@ -1003,11 +1003,6 @@
         "a": "MCV",
         "b": "War Miner",
         "iou": 0.7714
-      },
-      {
-        "a": "Aegis Cruiser",
-        "b": "Destroyer",
-        "iou": 0.7627
       },
       {
         "a": "Engineer",
@@ -1185,7 +1180,7 @@
       "nighthawk": 0.0546,
       "apc": 0.1356,
       "destroyer": 0.1514,
-      "aegis": 0.1025,
+      "aegis": 0.1221,
       "carrier": 0.15,
       "hornet": 0.2998,
       "dolphin": 0.159,
@@ -1228,7 +1223,7 @@
       "nighthawk": 0.1429,
       "apc": 0.1544,
       "destroyer": 0.0766,
-      "aegis": 0.0554,
+      "aegis": 0.0099,
       "carrier": 0.0088,
       "hornet": 0.035,
       "dolphin": 0.0002,
@@ -1272,13 +1267,6 @@
         "ratio": 1.327
       },
       {
-        "key": "aegis",
-        "wh": "80x44",
-        "ours": 1.818,
-        "ra2": 2.6,
-        "ratio": 0.699
-      },
-      {
         "key": "warminer",
         "wh": "69x55",
         "ours": 1.255,
@@ -1305,6 +1293,13 @@
         "ours": 1.12,
         "ra2": 1.4,
         "ratio": 0.8
+      },
+      {
+        "key": "aegis",
+        "wh": "80x38",
+        "ours": 2.105,
+        "ra2": 2.6,
+        "ratio": 0.81
       },
       {
         "key": "sub",
@@ -3215,9 +3210,9 @@
         "unit": "aegis",
         "clause": "explicitly NO barrel",
         "ok": false,
-        "measured": 17,
+        "measured": 7,
         "want": "0 px of barrel",
-        "note": "longest vertically-isolated dark bar on her superstructure 17 px, against the Destroyer's 17 px on the same detector — the live positive control, and it is her `barrel(L*0.66, 0, 6.2, 9, 3.0)` call, which the Aegis block does not have. \"Isolated\" = daylight or a >= 0.34 value step 2 rows above and 3 rows below over >= 75% of the run. Colour alone is worthless here: the plain longest dark run over the same band reads the Aegis at 17 and the Destroyer at 17, i.e. it says the missile cruiser is the more heavily gunned of the two.",
+        "note": "longest vertically-isolated dark bar on her superstructure 7 px, against the Destroyer's 17 px on the same detector — the live positive control, and it is her `barrel(L*0.66, 0, 6.2, 9, 3.0)` call, which the Aegis block does not have. \"Isolated\" = daylight or a >= 0.34 value step 2 rows above and 3 rows below over >= 75% of the run. Colour alone is worthless here: the plain longest dark run over the same band reads the Aegis at 17 and the Destroyer at 17, i.e. it says the missile cruiser is the more heavily gunned of the two.",
         "module": "naval-air.js",
         "refMatch": 1
       },
@@ -4378,32 +4373,32 @@
         "name": "Aegis Cruiser",
         "group": "naval",
         "fac": "dir",
-        "mass": 1893,
+        "mass": 1526,
         "bboxW": 80,
         "bboxH": 60,
-        "aspect": 1.148,
-        "broadsideWH": "80x44",
-        "broadsideAspect": 1.818,
+        "aspect": 1.351,
+        "broadsideWH": "80x38",
+        "broadsideAspect": 2.105,
         "ra2Aspect": 2.6,
-        "vsRA2": 0.699,
-        "selfIoU": 0.5501,
-        "selfIoUCross": 0.5501,
+        "vsRA2": 0.81,
+        "selfIoU": 0.4245,
+        "selfIoUCross": 0.4245,
         "bestPeer": "Destroyer",
-        "bestPeerIoU": 0.7627,
+        "bestPeerIoU": 0.6772,
         "nearestPeer": "Destroyer",
-        "nearestPeerMMD2": -0.042,
+        "nearestPeerMMD2": -0.0302,
         "peersBeatingSelf": 1,
         "peers": 9,
         "spike": {
           "axis": "v",
-          "len": 23,
-          "thick": 33,
+          "len": 17,
+          "thick": 3,
           "budget": 8,
           "floor": 3.64,
-          "atZmin": 18.15,
+          "atZmin": 1.65,
           "floorAtZmin": 2,
           "lenBudget": 8,
-          "fails": null,
+          "fails": "thin",
           "src": "radar panel >= 8x8 px, vertical, explicitly no barrel",
           "feature": "a vertical flat-panel radar face >=8x8 px, explicitly no barrel"
         }
@@ -4623,9 +4618,9 @@
         "selfIoU": 0.4485,
         "selfIoUCross": 0.4485,
         "bestPeer": "Aegis Cruiser",
-        "bestPeerIoU": 0.7627,
+        "bestPeerIoU": 0.6772,
         "nearestPeer": "Aegis Cruiser",
-        "nearestPeerMMD2": -0.042,
+        "nearestPeerMMD2": -0.0302,
         "peersBeatingSelf": 2,
         "peers": 9,
         "spike": {
@@ -5434,8 +5429,8 @@
         "selfIoUCross": 0.6188,
         "bestPeer": "Amphibious Transport",
         "bestPeerIoU": 0.5979,
-        "nearestPeer": "Amphibious Transport",
-        "nearestPeerMMD2": 0.1964,
+        "nearestPeer": "Aegis Cruiser",
+        "nearestPeerMMD2": 0.1479,
         "peersBeatingSelf": 0,
         "peers": 9,
         "spike": {
@@ -5498,10 +5493,10 @@
         "vsRA2": 1.327,
         "selfIoU": 0.2077,
         "selfIoUCross": 0.2077,
-        "bestPeer": "Dreadnought",
-        "bestPeerIoU": 0.4181,
-        "nearestPeer": "Dreadnought",
-        "nearestPeerMMD2": 0.053,
+        "bestPeer": "Aegis Cruiser",
+        "bestPeerIoU": 0.4405,
+        "nearestPeer": "Aegis Cruiser",
+        "nearestPeerMMD2": 0.0518,
         "peersBeatingSelf": 0,
         "peers": 9,
         "spike": {

@@ -2,108 +2,148 @@
 // Called by bakeShip() with one context object carrying the canvas, the anchor,
 // the facing and the helpers it draws with — see rts/README.md.
 
-
-
 function drawAegis(C) {
   var DECK = C.DECK, FR = C.FR, HD = C.HD, HL = C.HL, HOUSE = C.HOUSE, L = C.L, P = C.P, W = C.W,
       box = C.box, g = C.g, mast = C.mast, nearS = C.nearS;
 
-// [AEGIS]: the whole ship is a missile battery, and §2.3's read is
-// "explicitly no barrel". ONE slab deckhouse running two thirds of her
-// length, carrying the four phased-array PANELS (the house colour lives
-// on those, nowhere else), with a box launcher fore and aft.
+// [AEGIS] REDRAWN FROM THE RIP. The old bake's defining feature — a big
+// house-coloured GRIDDED PANEL standing over both flanks of the deckhouse —
+// is not in the reference at all. `library/aegis.png` has no lattice, no grid
+// and no wall of owner colour. It was invented to satisfy a §2.3 line about a
+// "radar panel >= 8x8 px, vertical", and what it produced was a blue
+// pegboard fence down the middle of the ship.
 //
-// SHE IS LONG AND LOW. The old block read 91x35-against-101x41 as
-// "shorter and BEAMIER than the Destroyer" and built her at beam 17 on
-// a 41 hull under a 20-unit tower. But 35 and 41 are SCREEN HEIGHTS of
-// an isometric render: beam and superstructure are the only things in
-// them, so the Aegis being 6 px SHORTER than the Destroyer says she is
-// narrower and lower, not fatter. Built the wrong way round she
-// measured 78x52, aspect 1.50 against RA2's 2.60 — a tugboat, and the
-// reason `aegis | squid` sat under the friend-vs-foe floor for weeks:
-// two tall blobs. Beam 17 -> 13, freeboard 5.6 -> 4.4, and the
-// superstructure comes down from 20 units to 8.6 so the slab is a
-// deckhouse on a cruiser instead of a wheelhouse on a tug.
-// THE PANEL IS THE SHIP. §2.3's budget is "radar panel >= 8x8 px,
-// vertical; explicitly no barrel", and one 10x6 quad on the near
-// flank of a dark deckhouse was neither big enough nor lit enough to
-// survive the bake: at zoom 1 the Aegis and the Destroyer were two
-// grey slabs on two blue-rimmed hulls, which is exactly what
-// `peerVsSelf.naval` has been reporting. So the deckhouse becomes a
-// stepped PYRAMID — wide at the deck, narrow at the top, the opposite
-// massing to the Destroyer's tall thin mack — and it carries a big
-// house-coloured array on BOTH visible faces, gridded, standing over
-// its full height. Missile cells fore and aft become a countable 4x2
-// grid of black throats instead of three dots.
-box(-L * 0.02, 0, L * 0.70, W * 1.66, 4.2, DECK);
-box(-L * 0.06, 0, L * 0.50, W * 1.44, 6.0, shade(DECK, 1.46));   // 2026-09-10: a PALE deckhouse against the Destroyer's dark gunhouse
-// The arrays sit ON the deckhouse faces, not over them: the box is
-// 10.4 tall off FR and the panel runs FR+3.0 to FR+10.6, so the top
-// of the array IS the top of the ship. Far face first.
-// IN THE SHIP'S OWN PLANE, not in screen space. The array this
-// replaces was four fixed screen offsets off one P() point, which is
-// invisible while the quad is 10 px wide and becomes a billboard the
-// moment it is big enough to matter: enlarged, it stayed axis-aligned
-// through all 32 bearings and hung off the beam at the axial ones.
-// Every corner goes through P(u, v, z) so the panel turns with her.
-var paU0 = L * 0.10 - 7.2, paU1 = L * 0.10 + 7.2;
-var paZ0 = FR + 3.2, paZ1 = FR + 10.6;
-// The FAR array is painted before the deckhouse and the near one after
-// it, so the tower actually stands between them. Both after (the first
-// draft) left the far panel hanging in the air over the far rail.
-var aeArray = function (pf) {
-  var pv = W * 0.55 * pf;
-  var c0 = P(paU0, pv, paZ0), c1 = P(paU1, pv, paZ0),
-      c2 = P(paU1, pv, paZ1), c3 = P(paU0, pv, paZ1);
-  g.fillStyle = pf === nearS ? HOUSE : HD;
+// What the reference ACTUALLY shows, forward to aft:
+//   - a low grey hull, LONG and FLAT: 95x41 broadside, aspect 2.32. Ours was
+//     81x48 = 1.69, half again too tall — a tugboat, which is the same error
+//     this file's own history says was fixed once before and came back with
+//     the launcher boxes;
+//   - a TALL THIN BLACK MAST well forward with a small GOLD LAMP at its head,
+//     the only warm pixel on the ship and the highest point;
+//   - a BLUE SLANTED SAIL beside it — a flat angled plate, not a box;
+//   - a short BLUE-AND-WHITE STRIPED FUNNEL;
+//   - amidships and aft, a cluster of WHITE ANGULAR PLATES at DIFFERENT
+//     TILTS — the array faces. They are what the eye catches, and the reason
+//     they read is that none of them is axis-aligned. Ours were upright white
+//     crates, which is the one thing they are not;
+//   - a blue block right aft.
+
+// ---- the hull's own low deckhouse ---------------------------------------- //
+box(-L * 0.02, 0, L * 0.72, W * 1.62, 3.4, DECK);
+box(-L * 0.06, 0, L * 0.52, W * 1.34, 5.4, shade(DECK, 1.46));
+
+// ---- the forward mast, and the gold lamp at its head --------------------- //
+// Thin. The reference's mast is one or two pixels wide and reaches the top of
+// the frame; a thick one turns into the "barrel" §2.3 says this ship has none
+// of, which is what the clause checker reads off her superstructure.
+(function () {
+  var m0 = P(L * 0.46, W * 0.30, FR + 3.4);
+  g.strokeStyle = '#2b2b2b'; g.lineWidth = 1.1;
+  g.beginPath(); g.moveTo(m0[0], m0[1]); g.lineTo(m0[0], m0[1] - 10.8); g.stroke();
+  g.strokeStyle = '#2b2b2b'; g.lineWidth = 0.9;                    // one yard
   g.beginPath();
-  g.moveTo(c0[0], c0[1]); g.lineTo(c1[0], c1[1]);
-  g.lineTo(c2[0], c2[1]); g.lineTo(c3[0], c3[1]);
-  g.closePath(); g.fill();
-  g.strokeStyle = pf === nearS ? HL : HD; g.lineWidth = 0.9; g.stroke();
-  g.strokeStyle = HD; g.lineWidth = 0.6;                            // the array's cells
-  for (var pi = 1; pi < 5; pi++) {
-    var pu = paU0 + (paU1 - paU0) * (pi / 5);
-    var e0 = P(pu, pv, paZ0 + 0.6), e1 = P(pu, pv, paZ1 - 0.6);
-    g.beginPath(); g.moveTo(e0[0], e0[1]); g.lineTo(e1[0], e1[1]); g.stroke();
+  g.moveTo(m0[0] - 2.0, m0[1] - 7.8); g.lineTo(m0[0] + 2.0, m0[1] - 7.8); g.stroke();
+  g.fillStyle = '#ffcc33';                                         // the lamp
+  g.beginPath(); g.ellipse(m0[0], m0[1] - 11.5, 1.2, 1.5, 0, 0, 6.29); g.fill();
+  g.fillStyle = '#ffffff';
+  g.beginPath(); g.ellipse(m0[0], m0[1] - 11.9, 0.6, 0.8, 0, 0, 6.29); g.fill();
+})();
+
+// ---- the blue slanted sail, abaft the mast ------------------------------- //
+// A flat plate leaning aft, in the owner's colour — this is where the rip
+// spends its blue forward, and it is a SHAPE, not a painted rectangle.
+(function () {
+  var sv = W * 0.28 * nearS;
+  var s0 = P(L * 0.34, sv, FR + 3.4), s1 = P(L * 0.10, sv, FR + 3.4),
+      s2 = P(L * 0.16, sv, FR + 9.8), s3 = P(L * 0.32, sv, FR + 9.4);
+  g.fillStyle = HOUSE;
+  g.beginPath();
+  g.moveTo(s0[0], s0[1]); g.lineTo(s1[0], s1[1]);
+  g.lineTo(s2[0], s2[1]); g.lineTo(s3[0], s3[1]); g.closePath(); g.fill();
+  g.strokeStyle = HL; g.lineWidth = 0.9;                           // its lit leading edge
+  g.beginPath(); g.moveTo(s0[0], s0[1]); g.lineTo(s3[0], s3[1]); g.stroke();
+  g.strokeStyle = HD; g.lineWidth = 0.8;
+  g.beginPath(); g.moveTo(s1[0], s1[1]); g.lineTo(s2[0], s2[1]); g.stroke();
+})();
+
+// ---- the striped funnel -------------------------------------------------- //
+box(-L * 0.06, 0, 5.0, W * 0.62, 7.4, '#cccccc');
+(function () {
+  var f0 = P(-L * 0.06, 0, FR + 5.6);
+  g.strokeStyle = HOUSE; g.lineWidth = 2.2;
+  g.beginPath(); g.moveTo(f0[0] - 3.4, f0[1]); g.lineTo(f0[0] + 3.4, f0[1]); g.stroke();
+  var f1 = P(-L * 0.06, 0, FR + 7.4);
+  g.strokeStyle = '#333333'; g.lineWidth = 1.2;                    // the soot cap
+  g.beginPath(); g.moveTo(f1[0] - 2.8, f1[1]); g.lineTo(f1[0] + 2.8, f1[1]); g.stroke();
+})();
+
+// ---- THE ARRAY FACES: white plates, each at its own tilt ------------------ //
+// None of them is upright and none is square to the hull. That is the whole
+// reason the cluster reads as machinery instead of as crates, and it is what
+// separates her from the Destroyer at map size — the pair the naval peer test
+// still scores. Every corner is projected, so the tilt survives every bearing.
+(function () {
+  var FACE = [
+    // u0    u1    v      z0    z1    lean   tone
+    [-0.10, -0.34, 0.56,  3.0,  9.6,  1.8, '#eef1f4'],
+    [-0.30, -0.52, 0.34,  3.0,  8.4, -2.2, '#d8dce2'],
+    [-0.46, -0.68, 0.60,  3.0,  7.2,  1.4, '#c9ced6'],
+    [-0.16, -0.36, -0.52, 3.0,  8.8, -1.6, '#d8dce2']
+  ];
+  for (var fi = 0; fi < FACE.length; fi++) {
+    var F = FACE[fi], fv = W * F[2];
+    var a0 = P(L * F[0], fv, FR + F[3]), a1 = P(L * F[1], fv, FR + F[3]);
+    var a2 = P(L * F[1] + F[5], fv, FR + F[4]), a3 = P(L * F[0] + F[5], fv, FR + F[4]);
+    g.fillStyle = F[6];
+    g.beginPath();
+    g.moveTo(a0[0], a0[1]); g.lineTo(a1[0], a1[1]);
+    g.lineTo(a2[0], a2[1]); g.lineTo(a3[0], a3[1]); g.closePath(); g.fill();
+    g.strokeStyle = '#8a8a8a'; g.lineWidth = 0.7; g.stroke();
+    g.strokeStyle = '#666666'; g.lineWidth = 0.6;                  // one panel line each
+    var b0 = P((L * F[0] + L * F[1]) / 2, fv, FR + F[3] + 0.8);
+    var b1 = P((L * F[0] + L * F[1]) / 2 + F[5], fv, FR + F[4] - 0.8);
+    g.beginPath(); g.moveTo(b0[0], b0[1]); g.lineTo(b1[0], b1[1]); g.stroke();
   }
-  var m0 = P(paU0 + 0.6, pv, (paZ0 + paZ1) / 2), m1 = P(paU1 - 0.6, pv, (paZ0 + paZ1) / 2);
-  g.beginPath(); g.moveTo(m0[0], m0[1]); g.lineTo(m1[0], m1[1]); g.stroke();
-};
-aeArray(-nearS);
-// THE LAUNCHERS ARE WHITE, ANGULAR AND TALL, and they are 15% of the sprite.
-// Measured off `library/aegis.png` (100x38), the white resolves into three
-// boxes amidships — 15x8 at x 32-46%, 17x7 at x 38-54%, and a 10x13 standing
-// from y 13% right down to 45%, i.e. a third of the frame's height. That
-// cluster IS the ship: she is a missile battery and §2.3's "explicitly no
-// barrel" means the launchers do the talking. Ours had a pale deckhouse and
-// two 2.8-unit VLS pads, nothing that stood up, and read as a grey slab with
-// blue rectangles painted on it.
-box(-L * 0.06, 0, L * 0.34, W * 1.06, 10.4, shade(DECK, 1.62));
-box(-L * 0.02, 0, 13, W * 1.12, 14.5, '#d8dce2');                 // the tall launcher
-box(-L * 0.02, 0, 9, W * 0.80, 19.5, '#eef1f4');
-box(L * 0.20, 0, 11, W * 1.00, 11.0, '#c9ced6');                  // the forward pair
-box(-L * 0.26, 0, 11, W * 1.00, 11.5, '#c9ced6');
-g.strokeStyle = '#4a5058'; g.lineWidth = 0.8;                     // the cell lids
-for (var vc = -1; vc <= 1; vc++) {
-  var vq = P(L * (0.20 + vc * 0.0), W * 0.42 * vc, FR + 11.0);
-  g.beginPath(); g.moveTo(vq[0] - 3.4, vq[1]); g.lineTo(vq[0] + 3.4, vq[1] - 0.6); g.stroke();
-}
-aeArray(nearS);
-box(L * 0.62, 0, 8, W * 1.24, 2.8, '#3a4048');                    // forward VLS
-box(-L * 0.74, 0, 8, W * 1.24, 2.8, '#3a4048');                   // aft VLS
-g.fillStyle = '#12161b';
+})();
+
+// ---- the blue block right aft, and the VLS lids fore and aft -------------- //
+// HL, NOT HOUSE, and the reason is the palette grid. `box` derives its side
+// faces with a shade ladder, and shade(#1c3e8c, 0.5) is (14, 31, 70), which
+// snaps to 0/51/51 = #003333 — pure TEAL. 48 px of the stern were coming out
+// green-blue whoever owned the ship. Starting one rung up puts the same face
+// on #003366 and it stays navy all the way down.
+// EXPLICIT QUADS, NOT box(). isoBox grades every face down to f * 0.80 of the
+// colour it is given, so its darkest face is about 0.44 — and shade(HOUSE,
+// 0.44) is (15, 34, 77), which snaps to 0/51/51 = #003333, pure TEAL. 53 px of
+// this ship's stern were coming out green-blue whoever owned her, and moving
+// the fill a rung up the ladder only moved which rung produced it. Drawing the
+// block from projected quads in HOUSE / HL / HD keeps every face on a value
+// that is known to stay navy on the grid.
+// NOTE: this is systemic — any box() given a saturated house colour can do it.
+(function () {
+  var bu = -L * 0.80, bl = L * 0.09, bw = W * 0.42, bz = FR, bh = FR + 5.0;
+  var c = [[bl, bw], [bl, -bw], [-bl, -bw], [-bl, bw]];
+  function q(i, z) { return P(bu + c[i][0], c[i][1], z); }
+  var faces = [[0, 1, HL], [1, 2, HOUSE], [3, 0, HD]];
+  for (var fi = 0; fi < faces.length; fi++) {
+    var a = q(faces[fi][0], bz), b = q(faces[fi][1], bz);
+    var a2 = q(faces[fi][0], bh), b2 = q(faces[fi][1], bh);
+    g.fillStyle = faces[fi][2];
+    g.beginPath();
+    g.moveTo(a[0], a[1]); g.lineTo(b[0], b[1]);
+    g.lineTo(b2[0], b2[1]); g.lineTo(a2[0], a2[1]); g.closePath(); g.fill();
+  }
+  var t0 = q(0, bh), t1 = q(1, bh), t2 = q(2, bh), t3 = q(3, bh);
+  g.fillStyle = HL;
+  g.beginPath();
+  g.moveTo(t0[0], t0[1]); g.lineTo(t1[0], t1[1]);
+  g.lineTo(t2[0], t2[1]); g.lineTo(t3[0], t3[1]); g.closePath(); g.fill();
+})();
+box(L * 0.66, 0, 8, W * 1.20, 2.4, '#3d3d3d');
+g.fillStyle = '#121212';
 for (var vu = -1; vu <= 1; vu += 2)
   for (var vi = 0; vi < 4; vi++) {
-    var vq = P(L * (vu > 0 ? 0.62 : -0.74) + (vi - 1.5) * 2.0, vu * 1.9, FR + 2.8);
+    var vq = P(L * 0.66 + (vi - 1.5) * 2.0, vu * 1.9, FR + 2.4);
     g.beginPath(); g.ellipse(vq[0], vq[1], 1.1, 0.7, 0, 0, 6.29); g.fill();
   }
-// AND A REAL MAST. The reference's top edge peaks at 38 px on a 38-px frame
-// — the mast reaches the very top — against our 4.4-unit stub.
-mast(-L * 0.36, 0, 15.0, '#2b2b2b');
-var rdq = P(-L * 0.36, 0, FR + 15.0);                             // the radar at its head
-g.fillStyle = '#b9bec6';
-g.beginPath(); g.ellipse(rdq[0], rdq[1] - 1.2, 3.2, 1.5, 0, 0, 6.29); g.fill();
-g.fillStyle = '#6e737a';
-g.beginPath(); g.ellipse(rdq[0], rdq[1] - 0.2, 3.2, 1.2, 0, 0, 6.29); g.fill();
 }
