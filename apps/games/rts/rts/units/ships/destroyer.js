@@ -60,7 +60,16 @@ box(L * 0.52, 0, L * 0.26, W * 1.46, 3.2, shade(DECK, 1.08));     // barbette
 // truncated ship. The reference's barrel is shorter than the overhang we had
 // anyway.
 (function () {
-  var u0 = L * 0.62, u1 = L * 1.06, z0 = FR + 6.7, z1 = FR + 9.1;
+  // IT WAS FLOATING, AND THAT IS WHY IT LOOKED LIKE IT POINTED THE WRONG WAY.
+  // The barbette top is FR + 3.2 and the dome above it rises about 4 px; the
+  // tube ran z = FR+6.7 to FR+9.1, so its underside started two and a half
+  // pixels ABOVE the dome's crown with clear sky between them. A gun that does
+  // not touch its own turret reads as a separate object hanging over the deck,
+  // and because it sat that high it also read as elevated — aimed up and away
+  // rather than out along the bow, which is what it is actually doing (u runs
+  // 0.62L to 1.06L at v = 0, dead on the centreline). Dropped onto the dome and
+  // started inside it, so the tube emerges from the turret instead of hovering.
+  var u0 = L * 0.55, u1 = L * 1.02, z0 = FR + 5.6, z1 = FR + 7.8;
   var a = P(u0, 0, z0), b = P(u1, 0, z0), c = P(u1, 0, z1), d = P(u0, 0, z1);
   g.fillStyle = '#333333'; g.beginPath();
   g.moveTo(a[0], a[1]); g.lineTo(b[0], b[1]); g.lineTo(c[0], c[1]); g.lineTo(d[0], d[1]);
@@ -69,9 +78,16 @@ box(L * 0.52, 0, L * 0.26, W * 1.46, 3.2, shade(DECK, 1.08));     // barbette
   g.fillStyle = '#999999'; g.beginPath();
   g.moveTo(e[0], e[1]); g.lineTo(f[0], f[1]); g.lineTo(h[0], h[1]); g.lineTo(i[0], i[1]);
   g.closePath(); g.fill();
+  // ...AND THE PALE BLOB AT THE END WAS HALF OF WHY IT LOOKED DETACHED. The
+  // muzzle was a #999999 ellipse 1.25 x 1.65 — WIDER than the tube it caps and
+  // in the deck's own value — so at map size it read as a small pale block
+  // hanging in front of a thin grey line rather than as the end of a gun. The
+  // vehicle bake banned exactly this on land guns ("NO PALE TIP ... reads as a
+  // chrome cap"); the same rule applies afloat. A muzzle is the tube's own
+  // value, no wider than the tube, with a small dark bore.
   var mq = P(u1, 0, (z0 + z1) * 0.5);
-  g.fillStyle = '#999999'; g.beginPath(); g.ellipse(mq[0], mq[1], 1.25, 1.65, 0, 0, 6.29); g.fill();
-  g.fillStyle = '#333333'; g.beginPath(); g.ellipse(mq[0], mq[1], 0.55, 0.85, 0, 0, 6.29); g.fill();
+  g.fillStyle = '#6b6b6b'; g.beginPath(); g.ellipse(mq[0], mq[1], 0.95, 1.20, 0, 0, 6.29); g.fill();
+  g.fillStyle = '#2e2e2e'; g.beginPath(); g.ellipse(mq[0], mq[1], 0.40, 0.58, 0, 0, 6.29); g.fill();
 })();
 // THE BRIDGE IS WHITE, and it is a MASS. Measured off `library/destroyer.png`
 // (103x48) the superstructure is a single 18x14 px white block at x 37-53% of

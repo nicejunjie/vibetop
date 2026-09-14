@@ -34,13 +34,20 @@ function bakeVehicle(col, kind, fac, anim) {
   // hull's own value family — on rhino-voxel the track run is barely darker
   // than the sand above it, and what separates them is the wheels and the
   // shadow, not a change of key.
-  var TRK_TOP = '#6e6e6e', TRK_SIDE = '#494949', TRK_D = '#242424';
+  // TRACKS AND WHEELS HAVE TO READ AS OBJECTS, NOT AS SHADOW. TRK_D #242424 and
+  // WHEEL_D #1a1a1a both snap to #000000 or #333333 with nothing between, so on
+  // a pale vehicle — the Flak Track is cream — the running gear came out as a
+  // black mass under the hull and read as the unit's own shadow rather than as
+  // a track and a wheel. Same fault as the near-black gun: a part drawn at the
+  // bottom of the grid has no room to be a part. Lifted one cell each, which
+  // keeps them the darkest things on the sprite without making them voids.
+  var TRK_TOP = '#6e6e6e', TRK_SIDE = '#494949', TRK_D = '#333333';
   // A ROAD WHEEL IS TEXTURE, NOT A POLKA DOT. #131519 under #808080 is a 3 px
   // near-black disc with a mid-grey centre, and at the size a wheel actually
   // occupies that quantises to a BLACK BLOB WITH A WHITE PIP — five of them a
   // side, reading as a dashed line under the hull rather than as running gear.
   // RA2's wheels are a shade within the track band, not a contrast against it.
-  var WHEEL_D = '#1a1a1a', WHEEL_L = '#3d3d3d';
+  var WHEEL_D = '#2b2b2b', WHEEL_L = '#4a4a4a';
   var BAND = '#d5d5d5', STEEL = '#9f9f9f', CHROME = '#e3e3e3';
   // GUN_L WAS #5b616b — 91/97/107, a COLD BLUE-GREY, stroked along the upper
   // edge of every gun barrel in the game. Two faults in one literal. It is not
@@ -51,7 +58,15 @@ function bakeVehicle(col, kind, fac, anim) {
   // the Mirage's khaki barrel, the one warm gun in the game, it was a cold line
   // down a warm tube. Neutral by default now, and `barrel` takes a highlight so
   // a coloured tube can pass its own.
-  var GUN = '#191b20', GUN_L = '#616161';
+  // GUN WAS #191b20 — 25/27/32, near-black AND blue-tinted. Two faults. A tube
+  // that dark has nothing left below it, so `shade(bc, 0.55)` for the muzzle
+  // brake came out 14/15/18 and snapped to PURE BLACK: every gun in the game
+  // ended in a black blob that reads as a hole, not as a muzzle, and against a
+  // pale hull the whole barrel read as a detached dark object rather than as
+  // something bolted to the turret. Same fault as the Apocalypse's #161616
+  // cannons. Neutral, and two grid cells up so the barrel is an OBJECT with a
+  // value of its own instead of a void.
+  var GUN = '#2e2e2e', GUN_L = '#616161';
   // House colour lives in a narrow shade window: shade() clips the blue
   // owner to white-cyan past ~1.3, and anything under ~0.7 goes to mud that
   // no longer reads as a side. Everything that wants to be DARKER than that
@@ -677,7 +692,12 @@ function bakeVehicle(col, kind, fac, anim) {
         }
       ws.sort(function (m, n2) { return m[1] - n2[1]; });
       for (i3 = 0; i3 < ws.length; i3++)
-        wheelDisc(ws[i3][0], ws[i3][1], r, 0.62, tyre || '#14161a', rim || '#919191');
+        // ...AND THE SAME FOR THE TYRES. #14161a is 20/22/26: it snaps to pure
+        // black, and it is also blue-tinted. On the cream Flak Track the front
+        // wheels came out as two solid black discs with no tread, no rim and no
+        // form — read as holes in the vehicle, or as its shadow. A tyre is very
+        // dark rubber, not an absence.
+        wheelDisc(ws[i3][0], ws[i3][1], r, 0.62, tyre || '#2b2b2b', rim || '#919191');
     }
     // Hull: dark underbody, body box, raked glacis, lit contour.
     function chassis(hx, hy, hl2, hw2, h, body, edge, rake, underH) {
@@ -801,7 +821,12 @@ function bakeVehicle(col, kind, fac, anim) {
       }
       seg(0, 0.16, w0 * 1.35, w0 * 1.10, shade(bc, 1.5));          // breech collar
       seg(0.14, 0.86, w0, w1 * 1.12, bc);                          // tapering tube
-      seg(0.86, 1, w1 * 1.30, w1 * 1.20, shade(bc, 0.55));         // dark muzzle brake
+      // A MUZZLE BRAKE IS A THICKER SECTION, NOT A DARKER ONE. At 0.55 it was
+      // the darkest thing on the sprite and detached from its own tube; the
+      // file already refuses the opposite error a few lines down ("NO PALE
+      // TIP", a #c8c8c8 chrome cap). It is the same value as the tube now and
+      // reads by its WIDTH STEP alone, which is how a real brake reads.
+      seg(0.86, 1, w1 * 1.34, w1 * 1.26, bc);                      // muzzle brake
       var lit = ny < 0 ? 1 : -1;                                   // upper edge of the tube
       g.strokeStyle = hl || GUN_L; g.lineWidth = 0.85; g.lineCap = 'butt';
       g.beginPath();
@@ -815,8 +840,14 @@ function bakeVehicle(col, kind, fac, anim) {
       // mammoth-voxel, lancer-voxel and prismtank-voxel: RA2's tubes are
       // uniformly dark right to the mouth, and what terminates them is a
       // slightly DARKER bore, not a highlight.
+      // AND THE BORE IS A MOUTH, NOT A BLOB. On a dark tube this grid gives no
+      // rung between the tube and black — anything under about 26 rounds to 0 —
+      // so the bore is ALWAYS pure black; the only lever is its SIZE. At
+      // w1*0.75 it was two-thirds the tube's width, a black disc capping the
+      // barrel, which is the other half of why the gun read as detached. A
+      // muzzle opening is about one pixel at this scale.
       g.fillStyle = shade(bc, 0.34);
-      g.beginPath(); g.ellipse(tx, ty, w1 * 0.75, w1 * 0.75, 0, 0, 6.29); g.fill();
+      g.beginPath(); g.ellipse(tx, ty, w1 * 0.40, w1 * 0.40, 0, 0, 6.29); g.fill();
     }
     // A slatted ore crate: vertical planks, top and mid rails, and an X
     // brace on each visible flank — the brace is the single detail that

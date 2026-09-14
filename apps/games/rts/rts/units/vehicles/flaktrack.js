@@ -39,7 +39,7 @@ if (wantH) {
     fw.push([cx + fx * 9.8 + px * tOff * sg, by - 1.4 + fy * 9.8 + py * tOff * sg]);
   fw.sort(function (m, n) { return m[1] - n[1]; });
   for (i2 = 0; i2 < fw.length; i2++)
-    wheelDisc(fw[i2][0], fw[i2][1], 3.4, 0.70, '#1a1a1a', '#a0a0a0');
+    wheelDisc(fw[i2][0], fw[i2][1], 3.4, 0.70, '#2b2b2b', '#a0a0a0');
   isoBox(g, cx - fx * 5.2, by - 5.0 - fy * 5.2, len * 0.44, wid * 0.64, 4.8,
          a, deck, dark);                                    // olive armoured bed
   isoBox(g, cx - fx * 5.2, by - 9.8 - fy * 5.2, len * 0.26, wid * 0.42, 1.1,

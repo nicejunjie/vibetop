@@ -328,20 +328,20 @@
     "peerVsSelf.infantry": 0,
     "peerVsSelf.naval": 2,
     "peerVsSelf.air": 0,
-    "iou.groundCombat.mean": 0.6034,
-    "iou.vehicle.mean": 0.5384,
+    "iou.groundCombat.mean": 0.6037,
+    "iou.vehicle.mean": 0.5387,
     "iou.infantry.mean": 0.5112,
-    "iou.naval.mean": 0.361,
+    "iou.naval.mean": 0.3615,
     "iou.air.mean": 0.1557,
     "iou.sameFactionOver75": 3,
     "spike.belowFloor": 2,
     "spike.minThickAtZmin": 1.1,
     "spike.belowDeclaredBudget": 5,
-    "mass.groundCombatSpan": 2.105,
+    "mass.groundCombatSpan": 2.107,
     "mass.tightestBand6": 1.557,
     "hue.infantryOwnerMean": 0.1927,
     "hue.infantryBelowBudget": 5,
-    "hue.vehicleOwnerMean": 0.1533,
+    "hue.vehicleOwnerMean": 0.1532,
     "hue.vehicleOwnerMax": 0.2547,
     "hue.maxImpostor": 0.1017,
     "aspect.navalOutsideRA2Band": 0,
@@ -354,7 +354,7 @@
     "size.infantryOutsideRA2Band": 0,
     "size.airOutsideRA2Band": 0,
     "size.worstOffGroupScale": 0.2308,
-    "size.crossGroupSpread": 1.403,
+    "size.crossGroupSpread": 1.418,
     "size.bldOutsideRA2Band": 0,
     "size.bldWorstOffHouseScale": 0.1819,
     "size.bldFootprintMismatch": 0,
@@ -378,10 +378,10 @@
     "value.engineerLightPct": 0.0984,
     "value.engineerMarginOverNext": -0.0339,
     "colour.infantry.meanDist": 1.4103,
-    "colour.vehicle.meanDist": 1.0318,
+    "colour.vehicle.meanDist": 1.0312,
     "colour.vehicleAchromatic": 6,
-    "colour.naval.meanDist": 1.3666,
-    "colour.air.meanDist": 1.2232,
+    "colour.naval.meanDist": 1.3669,
+    "colour.air.meanDist": 1.2244,
     "colour.navalDarkest": 0,
     "colour.airDarkest": 0.0449
   },
@@ -396,7 +396,7 @@
         "ra2Aspect": 1.615,
         "vsRA2": 0.971,
         "bestPeer": "Mirage Tank",
-        "bestPeerIoU": 0.7379,
+        "bestPeerIoU": 0.7383,
         "nearestPeer": "V3 Launcher",
         "nearestPeerMMD2": 0.0127,
         "peersBeatingSelf": 0
@@ -404,15 +404,15 @@
       "warminer": {
         "group": "vehicle",
         "aspect": 1.255,
-        "selfIoU": 0.6966,
-        "selfIoUCross": 0.6966,
+        "selfIoU": 0.6973,
+        "selfIoUCross": 0.6973,
         "broadsideAspect": 1.255,
         "ra2Aspect": 1.784,
         "vsRA2": 0.704,
         "bestPeer": "MCV",
-        "bestPeerIoU": 0.7753,
+        "bestPeerIoU": 0.7754,
         "nearestPeer": "MCV",
-        "nearestPeerMMD2": 0.0153,
+        "nearestPeerMMD2": 0.0142,
         "peersBeatingSelf": 0
       },
       "rifle": {
@@ -492,7 +492,7 @@
         "ra2Aspect": 1.614,
         "vsRA2": 0.946,
         "bestPeer": "Nighthawk",
-        "bestPeerIoU": 0.3565,
+        "bestPeerIoU": 0.3566,
         "nearestPeer": "Nighthawk",
         "nearestPeerMMD2": 0.0286,
         "peersBeatingSelf": 0
@@ -513,30 +513,30 @@
       },
       "lancer": {
         "group": "vehicle",
-        "aspect": 2.423,
-        "selfIoU": 0.566,
-        "selfIoUCross": 0.566,
-        "broadsideAspect": 2.423,
+        "aspect": 2.385,
+        "selfIoU": 0.5722,
+        "selfIoUCross": 0.5722,
+        "broadsideAspect": 2.385,
         "ra2Aspect": 1.935,
-        "vsRA2": 1.252,
+        "vsRA2": 1.232,
         "bestPeer": "Rhino Tank",
-        "bestPeerIoU": 0.8467,
+        "bestPeerIoU": 0.8461,
         "nearestPeer": "Apocalypse",
-        "nearestPeerMMD2": -0.0643,
+        "nearestPeerMMD2": -0.0637,
         "peersBeatingSelf": 2
       },
       "mammoth": {
         "group": "vehicle",
-        "aspect": 2.308,
-        "selfIoU": 0.5269,
-        "selfIoUCross": 0.5269,
-        "broadsideAspect": 2.308,
+        "aspect": 2.269,
+        "selfIoU": 0.5366,
+        "selfIoUCross": 0.5366,
+        "broadsideAspect": 2.269,
         "ra2Aspect": 1.735,
-        "vsRA2": 1.33,
+        "vsRA2": 1.308,
         "bestPeer": "Grizzly Tank",
-        "bestPeerIoU": 0.8099,
+        "bestPeerIoU": 0.8167,
         "nearestPeer": "Grizzly Tank",
-        "nearestPeerMMD2": -0.0643,
+        "nearestPeerMMD2": -0.0637,
         "peersBeatingSelf": 2
       },
       "engineer": {
@@ -584,13 +584,13 @@
       "mirage": {
         "group": "vehicle",
         "aspect": 1.512,
-        "selfIoU": 0.6454,
-        "selfIoUCross": 0.6454,
+        "selfIoU": 0.6459,
+        "selfIoUCross": 0.6459,
         "broadsideAspect": 1.512,
         "ra2Aspect": 1.452,
         "vsRA2": 1.041,
         "bestPeer": "Tesla Tank",
-        "bestPeerIoU": 0.7513,
+        "bestPeerIoU": 0.7518,
         "nearestPeer": "V3 Launcher",
         "nearestPeerMMD2": -0.0046,
         "peersBeatingSelf": 1
@@ -612,15 +612,15 @@
       "rhino": {
         "group": "vehicle",
         "aspect": 2.28,
-        "selfIoU": 0.6404,
-        "selfIoUCross": 0.6404,
+        "selfIoU": 0.6414,
+        "selfIoUCross": 0.6414,
         "broadsideAspect": 2.28,
         "ra2Aspect": 2,
         "vsRA2": 1.14,
         "bestPeer": "Grizzly Tank",
-        "bestPeerIoU": 0.8467,
+        "bestPeerIoU": 0.8461,
         "nearestPeer": "Grizzly Tank",
-        "nearestPeerMMD2": -0.0464,
+        "nearestPeerMMD2": -0.0479,
         "peersBeatingSelf": 2
       },
       "flaktrack": {
@@ -688,9 +688,9 @@
         "ra2Aspect": 1.5,
         "vsRA2": 0.909,
         "bestPeer": "Rhino Tank",
-        "bestPeerIoU": 0.3136,
+        "bestPeerIoU": 0.3141,
         "nearestPeer": "Apocalypse",
-        "nearestPeerMMD2": 0.6,
+        "nearestPeerMMD2": 0.6057,
         "peersBeatingSelf": 0
       },
       "teslatank": {
@@ -702,7 +702,7 @@
         "ra2Aspect": 1.405,
         "vsRA2": 0.886,
         "bestPeer": "Mirage Tank",
-        "bestPeerIoU": 0.7513,
+        "bestPeerIoU": 0.7518,
         "nearestPeer": "V3 Launcher",
         "nearestPeerMMD2": -0.0099,
         "peersBeatingSelf": 1
@@ -782,7 +782,7 @@
         "ra2Aspect": 3.048,
         "vsRA2": 0.867,
         "bestPeer": "Harrier",
-        "bestPeerIoU": 0.3565,
+        "bestPeerIoU": 0.3566,
         "nearestPeer": "Harrier",
         "nearestPeerMMD2": 0.0286,
         "peersBeatingSelf": 0
@@ -801,16 +801,16 @@
       },
       "destroyer": {
         "group": "naval",
-        "aspect": 2.25,
-        "selfIoU": 0.4294,
-        "selfIoUCross": 0.4294,
-        "broadsideAspect": 2.25,
+        "aspect": 2.2,
+        "selfIoU": 0.4339,
+        "selfIoUCross": 0.4339,
+        "broadsideAspect": 2.2,
         "ra2Aspect": 2.463,
-        "vsRA2": 0.913,
+        "vsRA2": 0.893,
         "bestPeer": "Aegis Cruiser",
-        "bestPeerIoU": 0.7122,
+        "bestPeerIoU": 0.7056,
         "nearestPeer": "Aegis Cruiser",
-        "nearestPeerMMD2": -0.0608,
+        "nearestPeerMMD2": -0.0665,
         "peersBeatingSelf": 1
       },
       "aegis": {
@@ -822,9 +822,9 @@
         "ra2Aspect": 2.6,
         "vsRA2": 0.81,
         "bestPeer": "Destroyer",
-        "bestPeerIoU": 0.7122,
+        "bestPeerIoU": 0.7056,
         "nearestPeer": "Destroyer",
-        "nearestPeerMMD2": -0.0608,
+        "nearestPeerMMD2": -0.0665,
         "peersBeatingSelf": 1
       },
       "carrier": {
@@ -876,7 +876,7 @@
         "bestPeer": "Amphibious Transport",
         "bestPeerIoU": 0.5978,
         "nearestPeer": "Destroyer",
-        "nearestPeerMMD2": 0.05,
+        "nearestPeerMMD2": 0.0493,
         "peersBeatingSelf": 0
       },
       "sub": {
@@ -917,8 +917,8 @@
         "vsRA2": 0.853,
         "bestPeer": "Aircraft Carrier",
         "bestPeerIoU": 0.6244,
-        "nearestPeer": "Destroyer",
-        "nearestPeerMMD2": 0.0227,
+        "nearestPeer": "Aircraft Carrier",
+        "nearestPeerMMD2": 0.0255,
         "peersBeatingSelf": 0
       },
       "squid": {
@@ -932,7 +932,7 @@
         "bestPeer": "Aegis Cruiser",
         "bestPeerIoU": 0.3769,
         "nearestPeer": "Destroyer",
-        "nearestPeerMMD2": 0.0861,
+        "nearestPeerMMD2": 0.0863,
         "peersBeatingSelf": 0
       },
       "mcv": {
@@ -944,9 +944,9 @@
         "ra2Aspect": 2.111,
         "vsRA2": 0.861,
         "bestPeer": "War Miner",
-        "bestPeerIoU": 0.7753,
+        "bestPeerIoU": 0.7754,
         "nearestPeer": "War Miner",
-        "nearestPeerMMD2": 0.0153,
+        "nearestPeerMMD2": 0.0142,
         "peersBeatingSelf": 0
       }
     },
@@ -962,9 +962,9 @@
     },
     "iouGroups": {
       "vehicle": {
-        "mean": 0.5384,
+        "mean": 0.5387,
         "pairs": 78,
-        "max": 0.8467,
+        "max": 0.8461,
         "over75": 5
       },
       "infantry": {
@@ -974,21 +974,21 @@
         "over75": 1
       },
       "naval": {
-        "mean": 0.361,
+        "mean": 0.3615,
         "pairs": 45,
-        "max": 0.7122,
+        "max": 0.7056,
         "over75": 0
       },
       "air": {
         "mean": 0.1557,
         "pairs": 6,
-        "max": 0.3565,
+        "max": 0.3566,
         "over75": 0
       },
       "groundCombat": {
-        "mean": 0.6034,
+        "mean": 0.6037,
         "pairs": 36,
-        "max": 0.8467,
+        "max": 0.8461,
         "over75": 4
       },
       "sameFactionOver75": 3
@@ -997,12 +997,12 @@
       {
         "a": "MCV",
         "b": "War Miner",
-        "iou": 0.7753
+        "iou": 0.7754
       },
       {
         "a": "Apocalypse",
         "b": "Rhino Tank",
-        "iou": 0.7661
+        "iou": 0.7738
       },
       {
         "a": "Engineer",
@@ -1066,32 +1066,42 @@
       {
         "a": "rhino",
         "b": "teslatank",
-        "dist": 0.076
+        "dist": 0.111
       },
       {
         "a": "mammoth",
         "b": "teslatank",
-        "dist": 0.132
+        "dist": 0.141
+      },
+      {
+        "a": "lancer",
+        "b": "drone",
+        "dist": 0.199
       },
       {
         "a": "mammoth",
         "b": "rhino",
-        "dist": 0.172
+        "dist": 0.203
       },
       {
         "a": "flaktrack",
         "b": "prismtank",
-        "dist": 0.295
+        "dist": 0.26
       },
       {
         "a": "chronominer",
         "b": "warminer",
-        "dist": 0.375
+        "dist": 0.371
       },
       {
         "a": "mammoth",
         "b": "mirage",
-        "dist": 0.39
+        "dist": 0.408
+      },
+      {
+        "a": "mirage",
+        "b": "v3",
+        "dist": 0.415
       },
       {
         "a": "warminer",
@@ -1102,16 +1112,6 @@
         "a": "warminer",
         "b": "rhino",
         "dist": 0.454
-      },
-      {
-        "a": "warminer",
-        "b": "teslatank",
-        "dist": 0.454
-      },
-      {
-        "a": "mirage",
-        "b": "v3",
-        "dist": 0.458
       }
     ],
     "topImpostors": [
@@ -1125,7 +1125,7 @@
       },
       {
         "key": "mammoth",
-        "pct": 0.0723
+        "pct": 0.0724
       },
       {
         "key": "engineer",
@@ -1158,28 +1158,28 @@
       "rocketeer": 0.2412,
       "harrier": 0.21,
       "kirov": 0.2074,
-      "lancer": 0.093,
-      "mammoth": 0.0635,
+      "lancer": 0.0932,
+      "mammoth": 0.0639,
       "engineer": 0.2237,
       "dog": 0.0839,
       "ifv": 0.0634,
-      "mirage": 0.2401,
+      "mirage": 0.2402,
       "tanya": 0.154,
-      "rhino": 0.1294,
-      "flaktrack": 0.1918,
-      "v3": 0.1407,
+      "rhino": 0.1297,
+      "flaktrack": 0.1895,
+      "v3": 0.1403,
       "teslatrooper": 0.1624,
       "ivan": 0.2782,
       "drone": 0.2203,
-      "teslatank": 0.124,
-      "prismtank": 0.2323,
+      "teslatank": 0.1243,
+      "prismtank": 0.2324,
       "desolator": 0.2333,
       "yuri": 0.2688,
       "cleg": 0.25,
       "spy": 0.08,
       "nighthawk": 0.0343,
       "apc": 0.1297,
-      "destroyer": 0.1618,
+      "destroyer": 0.1601,
       "aegis": 0.1055,
       "carrier": 0.1654,
       "hornet": 0.2861,
@@ -1192,8 +1192,8 @@
       "mcv": 0.2547
     },
     "chromaByUnit": {
-      "chronominer": 0.2275,
-      "warminer": 0.3377,
+      "chronominer": 0.2265,
+      "warminer": 0.3374,
       "rifle": 0.3947,
       "conscript": 0.3281,
       "rocket": 0.2242,
@@ -1201,28 +1201,28 @@
       "rocketeer": 0.14,
       "harrier": 0.0058,
       "kirov": 0.3147,
-      "lancer": 0.0835,
-      "mammoth": 0.1835,
+      "lancer": 0.0361,
+      "mammoth": 0.1804,
       "engineer": 0.2274,
       "dog": 0.6238,
       "ifv": 0.0459,
-      "mirage": 0.0406,
+      "mirage": 0.0404,
       "tanya": 0.3966,
-      "rhino": 0.1654,
-      "flaktrack": 0.0706,
-      "v3": 0.1126,
+      "rhino": 0.1599,
+      "flaktrack": 0.07,
+      "v3": 0.1072,
       "teslatrooper": 0.0992,
       "ivan": 0.3129,
       "drone": 0.074,
-      "teslatank": 0.1477,
-      "prismtank": 0.0441,
+      "teslatank": 0.1446,
+      "prismtank": 0.0437,
       "desolator": 0.1319,
       "yuri": 0.1862,
       "cleg": 0.1528,
       "spy": 0.1546,
       "nighthawk": 0.0211,
       "apc": 0.1228,
-      "destroyer": 0.0761,
+      "destroyer": 0.0762,
       "aegis": 0.0053,
       "carrier": 0.0002,
       "hornet": 0.0201,
@@ -1261,10 +1261,10 @@
       },
       {
         "key": "mammoth",
-        "wh": "60x26",
-        "ours": 2.308,
+        "wh": "59x26",
+        "ours": 2.269,
         "ra2": 1.735,
-        "ratio": 1.33
+        "ratio": 1.308
       },
       {
         "key": "warminer",
@@ -1274,18 +1274,18 @@
         "ratio": 0.704
       },
       {
-        "key": "lancer",
-        "wh": "63x26",
-        "ours": 2.423,
-        "ra2": 1.935,
-        "ratio": 1.252
-      },
-      {
         "key": "conscript",
         "wh": "18x30",
         "ours": 0.6,
         "ra2": 0.481,
         "ratio": 1.246
+      },
+      {
+        "key": "lancer",
+        "wh": "62x26",
+        "ours": 2.385,
+        "ra2": 1.935,
+        "ratio": 1.232
       },
       {
         "key": "dog",
@@ -1365,6 +1365,13 @@
         "ratio": 0.889
       },
       {
+        "key": "destroyer",
+        "wh": "88x40",
+        "ours": 2.2,
+        "ra2": 2.463,
+        "ratio": 0.893
+      },
+      {
         "key": "prismtank",
         "wh": "70x57",
         "ours": 1.228,
@@ -1391,13 +1398,6 @@
         "ours": 1.677,
         "ra2": 1.844,
         "ratio": 0.91
-      },
-      {
-        "key": "destroyer",
-        "wh": "90x40",
-        "ours": 2.25,
-        "ra2": 2.463,
-        "ratio": 0.913
       },
       {
         "key": "ifv",
@@ -1530,6 +1530,16 @@
         "dev": 0.1881
       },
       {
+        "key": "squid",
+        "group": "naval",
+        "ours": 120,
+        "ra2": 117,
+        "ra2WH": "117x30",
+        "scale": 1.0256,
+        "groupScale": 0.8814,
+        "dev": 0.1636
+      },
+      {
         "key": "harrier",
         "group": "air",
         "ours": 58,
@@ -1538,16 +1548,6 @@
         "scale": 0.8169,
         "groupScale": 0.9733,
         "dev": -0.1606
-      },
-      {
-        "key": "squid",
-        "group": "naval",
-        "ours": 120,
-        "ra2": 117,
-        "ra2WH": "117x30",
-        "scale": 1.0256,
-        "groupScale": 0.8911,
-        "dev": 0.1509
       },
       {
         "key": "flaktrack",
@@ -1610,6 +1610,16 @@
         "dev": 0.0949
       },
       {
+        "key": "sub",
+        "group": "naval",
+        "ours": 72,
+        "ra2": 75,
+        "ra2WH": "75x14",
+        "scale": 0.96,
+        "groupScale": 0.8814,
+        "dev": 0.0892
+      },
+      {
         "key": "hornet",
         "group": "air",
         "ours": 24,
@@ -1628,16 +1638,6 @@
         "scale": 1.0576,
         "groupScale": 0.9733,
         "dev": 0.0867
-      },
-      {
-        "key": "sub",
-        "group": "naval",
-        "ours": 72,
-        "ra2": 75,
-        "ra2WH": "75x14",
-        "scale": 0.96,
-        "groupScale": 0.8911,
-        "dev": 0.0773
       },
       {
         "key": "engineer",
@@ -1702,12 +1702,12 @@
       {
         "key": "mammoth",
         "group": "vehicle",
-        "ours": 60,
+        "ours": 59,
         "ra2": 59,
         "ra2WH": "59x34",
-        "scale": 1.0169,
+        "scale": 1,
         "groupScale": 1.0656,
-        "dev": -0.0457
+        "dev": -0.0616
       },
       {
         "key": "rhino",
@@ -1718,6 +1718,26 @@
         "scale": 1.0179,
         "groupScale": 1.0656,
         "dev": -0.0448
+      },
+      {
+        "key": "dread",
+        "group": "naval",
+        "ours": 121,
+        "ra2": 133,
+        "ra2WH": "133x45",
+        "scale": 0.9098,
+        "groupScale": 0.8814,
+        "dev": 0.0322
+      },
+      {
+        "key": "lancer",
+        "group": "vehicle",
+        "ours": 62,
+        "ra2": 60,
+        "ra2WH": "60x31",
+        "scale": 1.0333,
+        "groupScale": 1.0656,
+        "dev": -0.0303
       },
       {
         "key": "chronominer",
@@ -1740,16 +1760,6 @@
         "dev": 0.0222
       },
       {
-        "key": "dread",
-        "group": "naval",
-        "ours": 121,
-        "ra2": 133,
-        "ra2WH": "133x45",
-        "scale": 0.9098,
-        "groupScale": 0.8911,
-        "dev": 0.021
-      },
-      {
         "key": "warminer",
         "group": "vehicle",
         "ours": 69,
@@ -1758,26 +1768,6 @@
         "scale": 1.0455,
         "groupScale": 1.0656,
         "dev": -0.0189
-      },
-      {
-        "key": "lancer",
-        "group": "vehicle",
-        "ours": 63,
-        "ra2": 60,
-        "ra2WH": "60x31",
-        "scale": 1.05,
-        "groupScale": 1.0656,
-        "dev": -0.0146
-      },
-      {
-        "key": "aegis",
-        "group": "naval",
-        "ours": 80,
-        "ra2": 91,
-        "ra2WH": "91x35",
-        "scale": 0.8791,
-        "groupScale": 0.8911,
-        "dev": -0.0135
       },
       {
         "key": "cleg",
@@ -1800,24 +1790,34 @@
         "dev": -0.0122
       },
       {
+        "key": "destroyer",
+        "group": "naval",
+        "ours": 88,
+        "ra2": 101,
+        "ra2WH": "101x41",
+        "scale": 0.8713,
+        "groupScale": 0.8814,
+        "dev": -0.0115
+      },
+      {
+        "key": "aegis",
+        "group": "naval",
+        "ours": 80,
+        "ra2": 91,
+        "ra2WH": "91x35",
+        "scale": 0.8791,
+        "groupScale": 0.8814,
+        "dev": -0.0026
+      },
+      {
         "key": "carrier",
         "group": "naval",
         "ours": 126,
         "ra2": 143,
         "ra2WH": "143x52",
         "scale": 0.8811,
-        "groupScale": 0.8911,
-        "dev": -0.0112
-      },
-      {
-        "key": "seascorp",
-        "group": "naval",
-        "ours": 52,
-        "ra2": 59,
-        "ra2WH": "59x32",
-        "scale": 0.8814,
-        "groupScale": 0.8911,
-        "dev": -0.0109
+        "groupScale": 0.8814,
+        "dev": -0.0003
       },
       {
         "key": "mirage",
@@ -1840,13 +1840,13 @@
         "dev": 0
       },
       {
-        "key": "destroyer",
+        "key": "seascorp",
         "group": "naval",
-        "ours": 90,
-        "ra2": 101,
-        "ra2WH": "101x41",
-        "scale": 0.8911,
-        "groupScale": 0.8911,
+        "ours": 52,
+        "ra2": 59,
+        "ra2WH": "59x32",
+        "scale": 0.8814,
+        "groupScale": 0.8814,
         "dev": 0
       }
     ],
@@ -3200,9 +3200,9 @@
         "unit": "destroyer",
         "clause": "length >= 1.46x any land vehicle",
         "ok": false,
-        "measured": 1.098,
+        "measured": 1.073,
         "want": ">= 1.33x",
-        "note": "destroyer 90 px broadside against the widest land vehicle, V3 Launcher at 82 px — she is SHORTER than a tank. THE THRESHOLD IS RA2'S OWN, DERIVED: [DEST] 101 px over the widest RA2 land vehicle ([AMCV] 76 px) = 1.329. §2.3 stated 1.7x, 16% ABOVE the game the row cites, and 1.7 would need a 179 px hull (Carrier 264 px on a 150 px sheet). CORRECTING IT CLOSES NOTHING AND IS NOT MEANT TO: at 1.098 the row is still unmet by a factor of 1.21, and the SIGN is the defect. WHAT THIS CLAUSE ACTUALLY MEASURES is the cross-group bake scale, exactly: our 1.098 = RA2's 1.329 x (destroyer scale 0.8911 / V3 Launcher scale 1.3016), to four decimals. The fleet is baked at 0.891x RA2's own sprite widths while the ground vehicles sit at 1.186x — a 1.33x CROSS-GROUP mismatch that NEITHER size gate can see, because `size.navalOutsideRA2Band` and `size.vehicleOutsideRA2Band` both normalise against their own group's median. `size.crossGroupSpread` exists to hold it and is ratcheted at 1.607. THE CEILING IS NOW MEASURED, NOT ARGUED (2026-09-06). Growing the fleet is off the table — it spends the board's best-proportioned group (7 hulls, spread 1.06x, every hull within 5% of its scale) — so the only route left is shrinking the ground roster until the widest land vehicle fits: 67 px against today's 82, i.e. the WHOLE vehicle group at x0.571. That was baked and measured, and it does close this row (1.483) while breaking six gates at once: `size.crossGroupSpread` 1.607 -> 1.899 (the ground roster lands at 0.725 of RA2, BELOW the fleet it was meant to catch, with infantry left at 1.417), `size.vehicleOutsideRA2Band` 0 -> 2, `spike.belowDeclaredBudget` 0 -> 4, `colour.vehicleAchromatic` 0 -> 4, `iou.groundCombat.mean` 0.4652 -> 0.4745, and `clause.unmet` 5 -> 9: the Rhino, Apocalypse, Tesla Tank, V3 and War Miner all lose their own §2 pixel budgets because the sprites are too small to hold the detail. ONE ROW CLOSES AND FIVE OPEN. Left UNMET on purpose, with the arithmetic rather than an estimate. per-unit-art-log.md.",
+        "note": "destroyer 88 px broadside against the widest land vehicle, V3 Launcher at 82 px — she is SHORTER than a tank. THE THRESHOLD IS RA2'S OWN, DERIVED: [DEST] 101 px over the widest RA2 land vehicle ([AMCV] 76 px) = 1.329. §2.3 stated 1.7x, 16% ABOVE the game the row cites, and 1.7 would need a 179 px hull (Carrier 264 px on a 150 px sheet). CORRECTING IT CLOSES NOTHING AND IS NOT MEANT TO: at 1.073 the row is still unmet by a factor of 1.24, and the SIGN is the defect. WHAT THIS CLAUSE ACTUALLY MEASURES is the cross-group bake scale, exactly: our 1.073 = RA2's 1.329 x (destroyer scale 0.8713 / V3 Launcher scale 1.3016), to four decimals. The fleet is baked at 0.881x RA2's own sprite widths while the ground vehicles sit at 1.186x — a 1.35x CROSS-GROUP mismatch that NEITHER size gate can see, because `size.navalOutsideRA2Band` and `size.vehicleOutsideRA2Band` both normalise against their own group's median. `size.crossGroupSpread` exists to hold it and is ratcheted at 1.607. THE CEILING IS NOW MEASURED, NOT ARGUED (2026-09-06). Growing the fleet is off the table — it spends the board's best-proportioned group (7 hulls, spread 1.06x, every hull within 5% of its scale) — so the only route left is shrinking the ground roster until the widest land vehicle fits: 66 px against today's 82, i.e. the WHOLE vehicle group at x0.571. That was baked and measured, and it does close this row (1.483) while breaking six gates at once: `size.crossGroupSpread` 1.607 -> 1.899 (the ground roster lands at 0.725 of RA2, BELOW the fleet it was meant to catch, with infantry left at 1.417), `size.vehicleOutsideRA2Band` 0 -> 2, `spike.belowDeclaredBudget` 0 -> 4, `colour.vehicleAchromatic` 0 -> 4, `iou.groundCombat.mean` 0.4652 -> 0.4745, and `clause.unmet` 5 -> 9: the Rhino, Apocalypse, Tesla Tank, V3 and War Miner all lose their own §2 pixel budgets because the sprites are too small to hold the detail. ONE ROW CLOSES AND FIVE OPEN. Left UNMET on purpose, with the arithmetic rather than an estimate. per-unit-art-log.md.",
         "module": "naval-air.js",
         "refMatch": 1
       },
@@ -3212,7 +3212,7 @@
         "ok": false,
         "measured": 34,
         "want": "0 px of barrel",
-        "note": "longest vertically-isolated dark bar on her superstructure 34 px, against the Destroyer's 17 px on the same detector — the live positive control, and it is her `barrel(L*0.66, 0, 6.2, 9, 3.0)` call, which the Aegis block does not have. \"Isolated\" = daylight or a >= 0.34 value step 2 rows above and 3 rows below over >= 75% of the run. Colour alone is worthless here: the plain longest dark run over the same band reads the Aegis at 9 and the Destroyer at 17, i.e. it says the missile cruiser is the more heavily gunned of the two.",
+        "note": "longest vertically-isolated dark bar on her superstructure 34 px, against the Destroyer's 19 px on the same detector — the live positive control, and it is her `barrel(L*0.66, 0, 6.2, 9, 3.0)` call, which the Aegis block does not have. \"Isolated\" = daylight or a >= 0.34 value step 2 rows above and 3 rows below over >= 75% of the run. Colour alone is worthless here: the plain longest dark run over the same band reads the Aegis at 9 and the Destroyer at 19, i.e. it says the missile cruiser is the more heavily gunned of the two.",
         "module": "naval-air.js",
         "refMatch": 1
       },
@@ -3282,7 +3282,7 @@
         "ok": true,
         "measured": 1.385,
         "want": "> 1.00x the next hull",
-        "note": "armed hulls broadside: seascorp 52, sub 72, aegis 80, destroyer 90, dread 121, carrier 126 — she is 1.38x clear of the next. EXCLUDED and why: the Dolphin (41 px) and the Giant Squid (120 px) are armed but are ANIMALS, and §2.3/§2.4 give both a row saying their outline is not a machine, so neither is a hull; the Landing Craft and the Amphibious Transport are hulls but carry no weapon. Reading \"armed hull\" as \"armed warship\" is the only one on which the sentence has content — under any other the Dolphin wins it.",
+        "note": "armed hulls broadside: seascorp 52, sub 72, aegis 80, destroyer 88, dread 121, carrier 126 — she is 1.38x clear of the next. EXCLUDED and why: the Dolphin (41 px) and the Giant Squid (120 px) are armed but are ANIMALS, and §2.3/§2.4 give both a row saying their outline is not a machine, so neither is a hull; the Landing Craft and the Amphibious Transport are hulls but carry no weapon. Reading \"armed hull\" as \"armed warship\" is the only one on which the sentence has content — under any other the Dolphin wins it.",
         "module": "naval-air.js",
         "refMatch": 1
       },
@@ -4101,9 +4101,9 @@
         "unit": "lancer",
         "clause": "hull height <= 0.55 x length",
         "ok": true,
-        "measured": 0.397,
+        "measured": 0.403,
         "want": "<= 0.55",
-        "note": "whole-sprite 63x25 at the HULL-BROADSIDE octant 7 (see hullBroadsideOct); the hull is a SUBSET of the bbox (which also carries the barrel and the contact shadow), so this ratio is an upper bound on the hull's own — meeting it here is stronger than the clause asks. THIS ROW IS THE NULL CONTROL for the bearing rule: for the Grizzly the widest octant (3) and the most-elongated one are the SAME, so the number is byte-identical to what the widest-octant convention reported (0.423). A bearing rule that moved a unit it should not have moved would show up here first",
+        "note": "whole-sprite 62x25 at the HULL-BROADSIDE octant 7 (see hullBroadsideOct); the hull is a SUBSET of the bbox (which also carries the barrel and the contact shadow), so this ratio is an upper bound on the hull's own — meeting it here is stronger than the clause asks. THIS ROW IS THE NULL CONTROL for the bearing rule: for the Grizzly the widest octant (3) and the most-elongated one are the SAME, so the number is byte-identical to what the widest-octant convention reported (0.423). A bearing rule that moved a unit it should not have moved would show up here first",
         "module": "vehicle.js",
         "refMatch": 0.75
       },
@@ -4144,7 +4144,7 @@
         "ok": true,
         "measured": 12,
         "want": ">= 12 px",
-        "note": "12 px of protrusion clear of the body (left), against the Grizzly's own 16 px barrel measured identically. The separation from the Grizzly is the projector panel (dark hull, pale upright slab behind the turret), not a missing gun",
+        "note": "12 px of protrusion clear of the body (left), against the Grizzly's own 15 px barrel measured identically. The separation from the Grizzly is the projector panel (dark hull, pale upright slab behind the turret), not a missing gun",
         "module": "vehicle.js",
         "refMatch": 0.6
       },
@@ -4366,7 +4366,7 @@
       "vehicle": 1.0656,
       "air": 0.9732500000000001,
       "infantry": 1.25,
-      "naval": 0.8911
+      "naval": 0.8814
     },
     "units": {
       "aegis": {
@@ -4384,9 +4384,9 @@
         "selfIoU": 0.4629,
         "selfIoUCross": 0.4629,
         "bestPeer": "Destroyer",
-        "bestPeerIoU": 0.7122,
+        "bestPeerIoU": 0.7056,
         "nearestPeer": "Destroyer",
-        "nearestPeerMMD2": -0.0608,
+        "nearestPeerMMD2": -0.0665,
         "peersBeatingSelf": 1,
         "peers": 9,
         "spike": {
@@ -4484,7 +4484,7 @@
         "selfIoU": 0.7346,
         "selfIoUCross": 0.7346,
         "bestPeer": "Mirage Tank",
-        "bestPeerIoU": 0.7379,
+        "bestPeerIoU": 0.7383,
         "nearestPeer": "V3 Launcher",
         "nearestPeerMMD2": 0.0127,
         "peersBeatingSelf": 0,
@@ -4607,29 +4607,29 @@
         "name": "Destroyer",
         "group": "naval",
         "fac": "dir",
-        "mass": 1834,
-        "bboxW": 90,
-        "bboxH": 66,
-        "aspect": 1.37,
-        "broadsideWH": "90x40",
-        "broadsideAspect": 2.25,
+        "mass": 1820,
+        "bboxW": 88,
+        "bboxH": 64,
+        "aspect": 1.372,
+        "broadsideWH": "88x40",
+        "broadsideAspect": 2.2,
         "ra2Aspect": 2.463,
-        "vsRA2": 0.913,
-        "selfIoU": 0.4294,
-        "selfIoUCross": 0.4294,
+        "vsRA2": 0.893,
+        "selfIoU": 0.4339,
+        "selfIoUCross": 0.4339,
         "bestPeer": "Aegis Cruiser",
-        "bestPeerIoU": 0.7122,
+        "bestPeerIoU": 0.7056,
         "nearestPeer": "Aegis Cruiser",
-        "nearestPeerMMD2": -0.0608,
+        "nearestPeerMMD2": -0.0665,
         "peersBeatingSelf": 1,
         "peers": 9,
         "spike": {
           "axis": "v",
-          "len": 24,
-          "thick": 17,
+          "len": 22,
+          "thick": 18,
           "budget": 3.64,
           "floor": 3.64,
-          "atZmin": 9.35,
+          "atZmin": 9.9,
           "floorAtZmin": 2,
           "lenBudget": null,
           "fails": null,
@@ -4719,8 +4719,8 @@
         "selfIoUCross": 0.3989,
         "bestPeer": "Aircraft Carrier",
         "bestPeerIoU": 0.6244,
-        "nearestPeer": "Destroyer",
-        "nearestPeerMMD2": 0.0227,
+        "nearestPeer": "Aircraft Carrier",
+        "nearestPeerMMD2": 0.0255,
         "peersBeatingSelf": 0,
         "peers": 9,
         "spike": {
@@ -4752,9 +4752,9 @@
         "selfIoU": 0.6724,
         "selfIoUCross": 0.6724,
         "bestPeer": "Rhino Tank",
-        "bestPeerIoU": 0.3136,
+        "bestPeerIoU": 0.3141,
         "nearestPeer": "Apocalypse",
-        "nearestPeerMMD2": 0.6,
+        "nearestPeerMMD2": 0.6057,
         "peersBeatingSelf": 0,
         "peers": 12,
         "spike": {
@@ -4888,7 +4888,7 @@
         "selfIoU": 0.3868,
         "selfIoUCross": 0.3868,
         "bestPeer": "Nighthawk",
-        "bestPeerIoU": 0.3565,
+        "bestPeerIoU": 0.3566,
         "nearestPeer": "Nighthawk",
         "nearestPeerMMD2": 0.0286,
         "peersBeatingSelf": 0,
@@ -5047,25 +5047,25 @@
         "name": "Grizzly Tank",
         "group": "vehicle",
         "fac": "dir",
-        "mass": 1035,
-        "bboxW": 63,
+        "mass": 1033,
+        "bboxW": 62,
         "bboxH": 44,
-        "aspect": 1.605,
-        "broadsideWH": "63x26",
-        "broadsideAspect": 2.423,
+        "aspect": 1.587,
+        "broadsideWH": "62x26",
+        "broadsideAspect": 2.385,
         "ra2Aspect": 1.935,
-        "vsRA2": 1.252,
-        "selfIoU": 0.566,
-        "selfIoUCross": 0.566,
+        "vsRA2": 1.232,
+        "selfIoU": 0.5722,
+        "selfIoUCross": 0.5722,
         "bestPeer": "Rhino Tank",
-        "bestPeerIoU": 0.8467,
+        "bestPeerIoU": 0.8461,
         "nearestPeer": "Apocalypse",
-        "nearestPeerMMD2": -0.0643,
+        "nearestPeerMMD2": -0.0637,
         "peersBeatingSelf": 2,
         "peers": 12,
         "spike": {
           "axis": "h",
-          "len": 16,
+          "len": 15,
           "thick": 7,
           "budget": 2.2,
           "floor": 3.64,
@@ -5092,7 +5092,7 @@
         "bestPeer": "Amphibious Transport",
         "bestPeerIoU": 0.5978,
         "nearestPeer": "Destroyer",
-        "nearestPeerMMD2": 0.05,
+        "nearestPeerMMD2": 0.0493,
         "peersBeatingSelf": 0,
         "peers": 9,
         "spike": {
@@ -5113,25 +5113,25 @@
         "name": "Apocalypse",
         "group": "vehicle",
         "fac": "col",
-        "mass": 1029,
-        "bboxW": 60,
-        "bboxH": 42,
-        "aspect": 1.567,
-        "broadsideWH": "60x26",
-        "broadsideAspect": 2.308,
+        "mass": 1025,
+        "bboxW": 59,
+        "bboxH": 41,
+        "aspect": 1.545,
+        "broadsideWH": "59x26",
+        "broadsideAspect": 2.269,
         "ra2Aspect": 1.735,
-        "vsRA2": 1.33,
-        "selfIoU": 0.5269,
-        "selfIoUCross": 0.5269,
+        "vsRA2": 1.308,
+        "selfIoU": 0.5366,
+        "selfIoUCross": 0.5366,
         "bestPeer": "Grizzly Tank",
-        "bestPeerIoU": 0.8099,
+        "bestPeerIoU": 0.8167,
         "nearestPeer": "Grizzly Tank",
-        "nearestPeerMMD2": -0.0643,
+        "nearestPeerMMD2": -0.0637,
         "peersBeatingSelf": 2,
         "peers": 12,
         "spike": {
           "axis": "h",
-          "len": 18,
+          "len": 17,
           "thick": 12,
           "budget": 3.64,
           "floor": 3.64,
@@ -5158,9 +5158,9 @@
         "selfIoU": 0.5952,
         "selfIoUCross": 0.5952,
         "bestPeer": "War Miner",
-        "bestPeerIoU": 0.7753,
+        "bestPeerIoU": 0.7754,
         "nearestPeer": "War Miner",
-        "nearestPeerMMD2": 0.0153,
+        "nearestPeerMMD2": 0.0142,
         "peersBeatingSelf": 0,
         "peers": 12,
         "spike": {
@@ -5181,7 +5181,7 @@
         "name": "Mirage Tank",
         "group": "vehicle",
         "fac": "dir",
-        "mass": 1737,
+        "mass": 1735,
         "bboxW": 65,
         "bboxH": 50,
         "aspect": 1.284,
@@ -5189,10 +5189,10 @@
         "broadsideAspect": 1.512,
         "ra2Aspect": 1.452,
         "vsRA2": 1.041,
-        "selfIoU": 0.6454,
-        "selfIoUCross": 0.6454,
+        "selfIoU": 0.6459,
+        "selfIoUCross": 0.6459,
         "bestPeer": "Tesla Tank",
-        "bestPeerIoU": 0.7513,
+        "bestPeerIoU": 0.7518,
         "nearestPeer": "V3 Launcher",
         "nearestPeerMMD2": -0.0046,
         "peersBeatingSelf": 1,
@@ -5226,7 +5226,7 @@
         "selfIoU": 0.2647,
         "selfIoUCross": 0.2647,
         "bestPeer": "Harrier",
-        "bestPeerIoU": 0.3565,
+        "bestPeerIoU": 0.3566,
         "nearestPeer": "Harrier",
         "nearestPeerMMD2": 0.0286,
         "peersBeatingSelf": 0,
@@ -5283,20 +5283,20 @@
         "name": "Rhino Tank",
         "group": "vehicle",
         "fac": "col",
-        "mass": 1004,
+        "mass": 1003,
         "bboxW": 57,
-        "bboxH": 39,
-        "aspect": 1.57,
+        "bboxH": 38,
+        "aspect": 1.573,
         "broadsideWH": "57x25",
         "broadsideAspect": 2.28,
         "ra2Aspect": 2,
         "vsRA2": 1.14,
-        "selfIoU": 0.6404,
-        "selfIoUCross": 0.6404,
+        "selfIoU": 0.6414,
+        "selfIoUCross": 0.6414,
         "bestPeer": "Grizzly Tank",
-        "bestPeerIoU": 0.8467,
+        "bestPeerIoU": 0.8461,
         "nearestPeer": "Grizzly Tank",
-        "nearestPeerMMD2": -0.0464,
+        "nearestPeerMMD2": -0.0479,
         "peersBeatingSelf": 2,
         "peers": 12,
         "spike": {
@@ -5496,7 +5496,7 @@
         "bestPeer": "Aegis Cruiser",
         "bestPeerIoU": 0.3769,
         "nearestPeer": "Destroyer",
-        "nearestPeerMMD2": 0.0861,
+        "nearestPeerMMD2": 0.0863,
         "peersBeatingSelf": 0,
         "peers": 9,
         "spike": {
@@ -5596,7 +5596,7 @@
         "selfIoU": 0.6699,
         "selfIoUCross": 0.6699,
         "bestPeer": "Mirage Tank",
-        "bestPeerIoU": 0.7513,
+        "bestPeerIoU": 0.7518,
         "nearestPeer": "V3 Launcher",
         "nearestPeerMMD2": -0.0099,
         "peersBeatingSelf": 1,
@@ -5687,29 +5687,29 @@
         "name": "War Miner",
         "group": "vehicle",
         "fac": "col",
-        "mass": 2276,
+        "mass": 2275,
         "bboxW": 69,
         "bboxH": 55,
-        "aspect": 1.248,
+        "aspect": 1.25,
         "broadsideWH": "69x55",
         "broadsideAspect": 1.255,
         "ra2Aspect": 1.784,
         "vsRA2": 0.704,
-        "selfIoU": 0.6966,
-        "selfIoUCross": 0.6966,
+        "selfIoU": 0.6973,
+        "selfIoUCross": 0.6973,
         "bestPeer": "MCV",
-        "bestPeerIoU": 0.7753,
+        "bestPeerIoU": 0.7754,
         "nearestPeer": "MCV",
-        "nearestPeerMMD2": 0.0153,
+        "nearestPeerMMD2": 0.0142,
         "peersBeatingSelf": 0,
         "peers": 12,
         "spike": {
           "axis": "v",
-          "len": 13,
-          "thick": 6,
+          "len": 12,
+          "thick": 8,
           "budget": 6,
           "floor": 3.64,
-          "atZmin": 3.3,
+          "atZmin": 4.4,
           "floorAtZmin": 2,
           "lenBudget": 6,
           "fails": null,
