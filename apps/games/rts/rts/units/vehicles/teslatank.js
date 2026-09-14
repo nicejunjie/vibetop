@@ -85,8 +85,24 @@ var drawPod5 = function () {
   // not a spike (reference 1.3 rule 4). It buys the silhouette twice:
   // a vertical mass does not swing with the bearing the way a hull
   // does, so the Tesla Tank's own self-IoU rises with it.
+  var heads5 = [];
   for (i2 = 0; i2 < cols5.length; i2++) {
     var kx5 = cols5[i2][0], ky5 = cols5[i2][1];
+    // THE BUS BAR GOES BETWEEN THE ELECTRODES, AND IT GOES UNDER THE NEAR ONE.
+    // Drawn after the loop from the coils' BASE points with a fixed offset, it
+    // ended in mid-air short of the near column — the bar is anchored to the
+    // heads themselves now, which cannot drift from them — and drawn after the
+    // far coil but before the near one, so the near column occludes it the way
+    // a real conduit passing behind it would.
+    if (i2 === 1) {
+      var h0 = heads5[0], h1 = [kx5, ky5 - 7.3];
+      g.lineCap = 'butt';
+      g.strokeStyle = '#141414'; g.lineWidth = 2.2;
+      g.beginPath(); g.moveTo(h0[0], h0[1]); g.lineTo(h1[0], h1[1]); g.stroke();
+      g.strokeStyle = '#4e4e4e'; g.lineWidth = 0.9;
+      g.beginPath(); g.moveTo(h0[0], h0[1] - 0.6); g.lineTo(h1[0], h1[1] - 0.6); g.stroke();
+    }
+    heads5.push([kx5, ky5 - 7.3]);
     puck(kx5, ky5, 2.1, 2.0, pdark, panel, PEDGE);                // colour foot
     // PALE windings. The copper here was a fix for a real problem — the
     // original '#5e2a24'/'#7a3a30' snapped to #663333 and #993333, the RED
@@ -99,24 +115,37 @@ var drawPod5 = function () {
     // windings". Both were right and the implementation ignored them. Pale is
     // also FURTHER from the red player than copper is — it leaves the hue
     // question entirely rather than trying to sit 30 degrees off it.
-    for (var w5 = 0; w5 < 5; w5++)                                // five windings of copper strap
+    // A COIL NEEDS AN ELECTRODE. Five identical pale rings stacked to a thin
+    // stem gave a smooth white cylinder with nothing on top — a beer can, and
+    // at four of the eight facings that is exactly what the pair read as.
+    // soviet-tesla-tank.png caps each column with a DARK head: the windings
+    // stop, a black electrode housing sits on them, and the blue-white is only
+    // the couple of pixels at the very tip. Four windings at a wider pitch
+    // leaves room for that head without the column losing a single unit of
+    // height — the clause this file argues for is that the coil CLEARS the
+    // hull, and it still does (tip at -9.0 against -9.2 before).
+    // THE PITCH IS WHAT SAYS COIL. Widening these to four rings at 1.45 to make
+    // room for a head quantised the ribs away completely and left a smooth
+    // white cylinder — a worse can than before. The winding count and pitch go
+    // back to what actually renders as strap, and the electrode sits ON TOP of
+    // them instead of taking their space.
+    for (var w5 = 0; w5 < 5; w5++)                                // five windings of strap
       puck(kx5, ky5 - 1.1 - w5 * 1.30, 1.75 - w5 * 0.05, 1.16,
            shade('#b4b4b4', 0.82), shade('#e5e5e5', 1.10), '#3d3d3d');
-    puck(kx5, ky5 - 7.8, 0.7, 1.3, '#666666', '#cccccc', '#2b2b2b'); // head stem
+    puck(kx5, ky5 - 7.3, 1.45, 1.4, '#2b2b2b', '#4e4e4e', '#141414'); // electrode head
+    puck(kx5, ky5 - 8.6, 0.6, 1.1, '#5c5c5c', '#b4b4b4', '#2b2b2b');  // head stem
     g.fillStyle = '#c8d8ff';                                       // small tip glow
-    gEllipse(kx5, ky5 - 9.2, 0.85); g.fill();
+    gEllipse(kx5, ky5 - 9.6, 0.8); g.fill();
   }
-  g.strokeStyle = 'rgba(237,237,237,.72)'; g.lineWidth = 0.8;      // arc across the pair
-  g.lineCap = 'round'; g.lineJoin = 'round';
-  g.beginPath();
-  for (var ka = 0; ka <= 4; ka++) {
-    var kt = ka / 4;
-    var akx = cols5[0][0] + (cols5[1][0] - cols5[0][0]) * kt;
-    var aky = cols5[0][1] + (cols5[1][1] - cols5[0][1]) * kt
-            - 8.9 - Math.sin(kt * 3.14) * 1.6 + (ka & 1 ? 1.5 : -1.5);
-    if (!ka) g.moveTo(akx, aky + (ka & 1 ? -1.5 : 1.5)); else g.lineTo(akx, aky);
-  }
-  g.stroke();
+  // A GREY WIRE BETWEEN TWO CANS IS A HANDBAG HANDLE. This was meant as a
+  // lightning arc — a five-point zigzag — but at 0.8 px in rgba(237,237,237,.72)
+  // the alternating offsets quantised away and what baked was one smooth pale
+  // curve joining the two coil tops, in the STAND frame, at every bearing. A
+  // tesla tank at rest is not arcing; what the rip shows between its columns is
+  // a dark BUS BAR, the conduit that feeds them both. Drawn as a real box at
+  // electrode height, it reads as machinery instead of as a carry handle, and
+  // the blue-white stays where it belongs — the couple of pixels at each tip.
+
 };
 if (fy > 0) { drawTail5(); drawPod5(); } else { drawPod5(); drawTail5(); }
 lamp(cx + fx * len * 0.39 + px * wid * 0.24, by - 4.5 + fy * len * 0.39 + py * wid * 0.24);
