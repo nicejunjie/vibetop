@@ -57,13 +57,31 @@ if (wantH) {
 }
 if (wantT) {
   var pcx = cx - fx * 0.6, pcy = by - RING - fy * 0.6;
-  // low box turret
+  // THE MOUNT, AND THE HEAD RAISED ONTO IT.
+  // The crystal head used to be drawn 2.8 units above the turret ring, so
+  // there was no room under it for anything and the one part this tank is
+  // named for appeared to sit straight on the hull. An earlier attempt added
+  // the mount's tiers UNDER the existing head and rendered four yellow pixels:
+  // the head is drawn afterwards and simply covered them. The two have to move
+  // together, which is what this does.
+  //
+  // Reading the rip's assembly from the deck up: a BLUE CONE, a bright
+  // YELLOW-OLIVE COLLAR standing proud of what it carries — the only warm note
+  // on the tank — a KHAKI POST, then the head. Three tiers, not five: the whole
+  // mount has about eight pixels of height to work in and anything thinner than
+  // two or three merges the moment the palette snaps.
   prism(pcx, pcy, [[4.2, -3.0], [4.2, 3.0], [-1.8, 4.0], [-4.4, 2.4],
                    [-4.4, -2.4], [-1.8, -4.0]],
-        2.8, shade(hull, 1.08), '#14171d');
-  for (sg = -1; sg <= 1; sg += 2)                             // owner band round the turret
-    prism(pcx, pcy - 0.6, [[3.8, 2.8 * sg], [-4.0, 2.2 * sg], [-4.0, 3.8 * sg], [3.8, 4.2 * sg]],
-          2.4, panel, PEDGE);
+        2.6, panel, PEDGE);                                   // the blue cone
+  // A RING, NOT A BAND. At 1.7 tall and 2.9 wide it came out a broad yellow
+  // belt across the tank — the loudest thing on it, where the rip has a thin
+  // collar you notice without it shouting.
+  prism(pcx, pcy - 2.6, [[2.4, -1.8], [2.4, 1.8], [-1.0, 2.3], [-2.5, 1.4],
+                         [-2.5, -1.4], [-1.0, -2.3]],
+        1.0, '#cccc66', '#666633');                           // the yellow collar
+  prism(pcx, pcy - 3.6, [[1.7, -1.3], [1.7, 1.3], [-0.7, 1.6], [-1.8, 1.0],
+                         [-1.8, -1.0], [-0.7, -1.6]],
+        3.4, '#999966', '#4d4d33');                           // the khaki post
   // THE PRISM: an upright block standing on the turret roof, not a
   // mast. Dark housing, a bright emitter face on its forward side and
   // a glowing crystal cap — the tallest thing on the chassis.
@@ -111,7 +129,7 @@ if (wantT) {
   // far under the 0.75 ceiling) and buys more than that everywhere
   // else. Do not re-taper without re-running the gate.
   var PW = 3.0, PWT = PW, PH = 7.4;   // 2026-09-10: 12.4 -> 6.8. prism.png rip: a SHORT mast with a bright head, not a tower
-  var hx = pcx + fx * 0.9, hy = pcy - 2.8 + fy * 0.9;
+  var hx = pcx + fx * 0.9, hy = pcy - 7.0 + fy * 0.9;   // up onto the post
   prism(hx, hy, [[PW + 0.5, -PW - 0.7], [PW + 0.5, PW + 0.7],
                  [-PW - 0.5, PW + 0.3], [-PW - 0.5, -PW - 0.3]],
         PH, '#bebebe', '#12151b');   // PALE: the rip's head is the brightest thing on the tank
