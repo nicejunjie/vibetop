@@ -341,8 +341,8 @@
     "mass.tightestBand6": 1.499,
     "hue.infantryOwnerMean": 0.1927,
     "hue.infantryBelowBudget": 5,
-    "hue.vehicleOwnerMean": 0.1588,
-    "hue.vehicleOwnerMax": 0.2702,
+    "hue.vehicleOwnerMean": 0.1576,
+    "hue.vehicleOwnerMax": 0.2541,
     "hue.maxImpostor": 0.1017,
     "aspect.navalOutsideRA2Band": 0,
     "aspect.navalWorstOffRA2": 0.19,
@@ -378,8 +378,8 @@
     "value.engineerLightPct": 0.0984,
     "value.engineerMarginOverNext": -0.0339,
     "colour.infantry.meanDist": 1.4103,
-    "colour.vehicle.meanDist": 0.981,
-    "colour.vehicleAchromatic": 7,
+    "colour.vehicle.meanDist": 0.9572,
+    "colour.vehicleAchromatic": 8,
     "colour.naval.meanDist": 1.3376,
     "colour.air.meanDist": 1.1582,
     "colour.navalDarkest": 0,
@@ -1069,11 +1069,6 @@
     ],
     "closestVehicleColourPairs": [
       {
-        "a": "drone",
-        "b": "mcv",
-        "dist": 0.119
-      },
-      {
         "a": "mammoth",
         "b": "v3",
         "dist": 0.159
@@ -1082,6 +1077,16 @@
         "a": "flaktrack",
         "b": "prismtank",
         "dist": 0.206
+      },
+      {
+        "a": "rhino",
+        "b": "teslatank",
+        "dist": 0.211
+      },
+      {
+        "a": "drone",
+        "b": "mcv",
+        "dist": 0.27
       },
       {
         "a": "flaktrack",
@@ -1094,29 +1099,24 @@
         "dist": 0.33
       },
       {
-        "a": "warminer",
-        "b": "teslatank",
-        "dist": 0.343
-      },
-      {
         "a": "mirage",
         "b": "rhino",
         "dist": 0.355
       },
       {
-        "a": "mammoth",
-        "b": "mirage",
-        "dist": 0.489
+        "a": "lancer",
+        "b": "drone",
+        "dist": 0.384
       },
       {
         "a": "drone",
         "b": "prismtank",
-        "dist": 0.497
+        "dist": 0.402
       },
       {
-        "a": "warminer",
-        "b": "rhino",
-        "dist": 0.507
+        "a": "flaktrack",
+        "b": "drone",
+        "dist": 0.442
       }
     ],
     "topImpostors": [
@@ -1175,8 +1175,8 @@
       "v3": 0.189,
       "teslatrooper": 0.1624,
       "ivan": 0.2782,
-      "drone": 0.2702,
-      "teslatank": 0.1298,
+      "drone": 0.2541,
+      "teslatank": 0.1304,
       "prismtank": 0.1756,
       "desolator": 0.2333,
       "yuri": 0.2688,
@@ -1218,8 +1218,8 @@
       "v3": 0.1248,
       "teslatrooper": 0.0992,
       "ivan": 0.3129,
-      "drone": 0.1675,
-      "teslatank": 0.2219,
+      "drone": 0.1188,
+      "teslatank": 0.1489,
       "prismtank": 0.0459,
       "desolator": 0.1319,
       "yuri": 0.1862,
@@ -4227,7 +4227,7 @@
         "unit": "teslatank",
         "clause": "gap between the coil columns >= 5 px so the pair reads as two",
         "ok": false,
-        "measured": "7/8 bearings resolve two columns, gaps [2,2,1,5,4,9,1]",
+        "measured": "6/8 bearings resolve two columns, gaps [3,1,5,3,9,1]",
         "want": ">= 4 of 8 bearings / every gap >= 5 px",
         "note": "copper is s >= 0.30 and hue 12-45, taken above the deck row that spikeOf's 'v' rule finds. The bearings that do NOT resolve two are the end-on pair, where a 2:1 iso camera projects one coil onto the other — geometry, not art, and no drawing can fix it. \"4 of 8 bearings\" is this file's reading of \"the pair reads as two\"; the row states no such number, only the 5 px",
         "module": "vehicle.js",
@@ -4277,9 +4277,9 @@
         "unit": "drone",
         "clause": "core in house hue",
         "ok": true,
-        "measured": 0.614,
+        "measured": 0.448,
         "want": ">= 0.35 of the core",
-        "note": "89 house px of 145 opaque in the core box x[9,21) y[2,15) — the middle 40% x 60% of the bbox, which excludes the leg tips at every bearing. The row states NO fraction; 0.35 is this file's reading of \"in house hue\", taken from the 38.7% the same row records for RA2's own [DRON] core",
+        "note": "65 house px of 145 opaque in the core box x[9,21) y[2,15) — the middle 40% x 60% of the bbox, which excludes the leg tips at every bearing. The row states NO fraction; 0.35 is this file's reading of \"in house hue\", taken from the 38.7% the same row records for RA2's own [DRON] core",
         "module": "vehicle.js",
         "refMatch": 1
       }

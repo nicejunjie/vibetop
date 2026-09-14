@@ -544,7 +544,21 @@ var VACC = {
   //     mirage  holo-green #2fbe6b  0 of 69,537
   //     rhino   green #5ba33a       4 of 111,725
   //     mammoth green #5ba33a       3 of  80,554
-  //     flaktrack hazard #dcd046  464 of  71,497   <- real, kept
+  //     flaktrack ordnance green #3fae43   5 of  71,497
+  // CORRECTION. An earlier pass recorded "flaktrack hazard #dcd046 464 of
+  // 71,497 <- real, kept" and that was the WRONG PAIRING: #dcd046 is the IFV's
+  // accent, not the Flak Track's, and the IFV has no voxel to test against.
+  // The Flak Track's own accent is #3fae43 ordnance green, and re-tested
+  // against its own rip it is 5 pixels of 71,497. Invented like the rest.
+  //
+  // FOUR MORE, found by diffing this table against kit.js rather than one unit
+  // at a time: wherever VACC is saturated and kit.js is NEUTRAL for the same
+  // part, the two disagree and kit.js has been right every time it could be
+  // checked. ifv #dcd046, teslatank #d08c46 copper, flaktrack #3fae43,
+  // drone #6a63e0 indigo — all now match kit.js. The Tesla Tank's copper was
+  // 8% of the whole tank: a BROWN POST where the rip has pale windings, and
+  // the only Tesla-themed reference in the repo (teslatrooper.gif) has ONE
+  // copper-hue pixel in 259 saturated ones.
   // Three of them are not in the reference at all. They are inventions that
   // then have to be defended, and the defence is written into the table: "The
   // Mirage disguises itself as a TREE" — which is a statement about the
@@ -552,7 +566,7 @@ var VACC = {
   // as a TREE EMBLEM over a third of the sprite. kit.js already carries the
   // reference-derived value for each of these parts; they now agree.
   lancer:      '#3c3c3c',  //     neutral grey vision block beside the mantlet
-  ifv:         '#dcd046',  //  55 hazard yellow — beacon and chevron on the tall
+  ifv:         '#e9e9e9',  //     pale beacon and chevron, as kit.js has it
                            //   launcher box that 2.3 makes the IFV's whole read
   mirage:      '#ececec',  //     the ribbed WHITE emitter plates, as kit.js has it
   mirageStack: '#ececec',  //     the ribbed WHITE emitter plates 2.3 asks for
@@ -579,15 +593,15 @@ var VACC = {
                            //     twin barrels are olive-grey" — so the Apocalypse's
                            //     own colour is its OLIVE, deepened in `hull` below,
                            //     and the house colour is the four canister drums.
-  teslatank:   '#d08c46',  //  28 copper — the ring windings of the two coil columns.
+  teslatank:   '#e5e5e5',  //     PALE coil windings, as kit.js has it
                            //   A Tesla coil is wound in copper; pale steel rings were
                            //   the ninth grey on a field of greys.
-  flaktrack:   '#3fae43',  // 122 ordnance green — the gun shield, the one bright
+  flaktrack:   '#dcdcdc',  //     the pale gun shield, as kit.js has it
                            //   vertical face on an otherwise cream halftrack
   v3:          '#e7e7e7',  //     the missile midbody is PURE WHITE and 2.4 says so in
                            //     as many words; the V3's colour is its OLIVE TRUCK,
                            //     which the same bullet calls olive and we drew grey.
-  drone:       '#6a63e0',  // 243 electric indigo — the eye cluster and leg joints
+  drone:       '#adadad',  //     neutral eye cluster and leg joints, as kit.js has it
   warminer:    '#b39a4e',  //  45 — the golden slatted ore bin. Already its own hue:
                            //     the War Miner is one of C5's three control units.
 };
