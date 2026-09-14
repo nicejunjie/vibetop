@@ -151,10 +151,47 @@
     return i;
   }
 
+  // Age the relative timestamps of rows that are ALREADY on screen.
+  //
+  // The listing re-renders only when the folder itself changes (the 4s poll
+  // compares names/sizes/mtimes), so in a folder nobody is touching, a row
+  // that rendered as "just now" still said "just now" an hour later. The cure
+  // is not a faster poll — a re-render throws away scroll, selection and
+  // keyboard focus to fix a text label. This rewrites the two time labels in
+  // place and touches nothing else.
+  //
+  // `rows` is the rendered order; each element carries `dataset.i`, its index
+  // into that array (position is NOT the index — the grid and the filter both
+  // leave gaps). Returns how many labels actually changed, which is what the
+  // tests assert on: writing an unchanged label would churn the DOM on every
+  // tick for no reason.
+  function retickRows(container, rows, opts) {
+    opts = opts || {};
+    if (opts.exact) return 0;                 // absolute dates never go stale
+    if (!container || !rows || !rows.length) return 0;
+    var els = container.querySelectorAll('.row'), n = 0;
+    for (var i = 0; i < els.length; i++) {
+      var e = rows[+els[i].dataset.i];
+      if (!e) continue;
+      var mt = els[i].querySelector('.mt');
+      if (mt) {
+        var s = fmtRel(e.mtime, false, false, opts.nowMs);
+        if (mt.textContent !== s) { mt.textContent = s; n++; }
+      }
+      var meta = els[i].querySelector('.meta');   // the mobile subtitle
+      if (meta) {
+        var m = fmtRel(e.mtime, true, false, opts.nowMs) +
+                (e.isDir ? '' : ' · ' + fmtSize(e.size));
+        if (meta.textContent !== m) { meta.textContent = m; n++; }
+      }
+    }
+    return n;
+  }
+
   var api = { OFF_RE: OFF_RE, IMG_RE: IMG_RE, VID_RE: VID_RE, AUD_RE: AUD_RE, ARC_RE: ARC_RE,
               KIND_MAP: KIND_MAP, normPath: normPath, relParent: relParent, fmtSize: fmtSize,
               fmtRel: fmtRel, iconFor: iconFor, kindOf: kindOf, fmtMode: fmtMode,
-              nextName: nextName, gridStep: gridStep };
+              nextName: nextName, gridStep: gridStep, retickRows: retickRows };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.FilesxCore = api;
 })(typeof self !== 'undefined' ? self : this);

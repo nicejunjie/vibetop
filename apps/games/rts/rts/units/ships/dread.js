@@ -3,101 +3,157 @@
 // the facing and the helpers it draws with — see rts/README.md.
 
 function drawDread(C) {
-  var DECK = C.DECK, FR = C.FR, HD = C.HD, HOUSE = C.HOUSE, L = C.L, P = C.P, W = C.W, box = C.box,
-      g = C.g, mast = C.mast;
+  var DECK = C.DECK, FR = C.FR, HD = C.HD, HL = C.HL, HOUSE = C.HOUSE, L = C.L, P = C.P, W = C.W,
+      box = C.box, g = C.g, mast = C.mast;
 
-// [DRED]: the missile ship, and §2.4's read is "the V3's silhouette
-// logic at capital-ship scale". Two huge box launchers STANDING PROUD
-// of a low hull, angled up and aft.
+// [DRED] REDRAWN FROM THE RIP, because the old one had the ship back to front
+// and its missiles were not missiles.
 //
-// They are the crown, and they are what separates him from the
-// Carrier, who is nearly the same length in RA2 and beat him at 0.77
-// while the boxes were only 9 units tall on a hull as wide as her
-// deck. Countable means real daylight: box with real gap, not two
-// boxes touching.
+// What `library/dread.png` actually shows, bow to stern:
+//   - a long low DARK hull, pointed forward, the deck flat and empty forward;
+//   - TWO MISSILES lying on that forward deck, side by side, nose OVER THE
+//     BOW: red nose cone, white body, a red band, a dark finned tail. They are
+//     the largest and brightest thing on the ship by a wide margin;
+//   - a TAN/KHAKI superstructure amidships and aft — low, long, blocky, with
+//     dark slit windows — NOT a cluster of grey towers;
+//   - THREE tall thin LAVENDER antennas standing off it, and a red mast aft;
+//   - the house colour as a BIG SLAB LOW ON THE HULL SIDE, running from
+//     amidships to the stern, broken by dark vertical separators.
 //
-// "Standing proud" was then read as HEIGHT and nothing else: 25-unit
-// boxes on a beam-20 hull rendered 109x67, aspect 1.63 against RA2's
-// 133x45 = 2.96 — 65% too tall against the Destroyer, and it read as a
-// container ship, not a battleship. RA2's own [DRED] is only 10%
-// taller than [DEST] for 32% more length. The boxes come down to 11.5
-// and grow ALONG the hull to 15, which is the shape a V3 launch box
-// actually has and keeps them countable at half the elevation.
-box(-L * 0.10, 0, L * 0.50, W * 1.55, 3.8, DECK);
-// TWO MISSILES, LYING SIDE BY SIDE AFT, and each one a fifth of the ship.
-// Measured off `library/dread.png` (135x49): the white bodies are 31x4 and
-// 27x4 px at x 51-73% of the hull, i.e. 22% of her LENGTH each, parallel, both
-// abaft midships, with a small red nose cap (8x3 at x 53-58%). Ours were 7.6
-// units — 13% — sat on two launchers a third of the ship apart, one forward
-// and one aft, and they read as two little grey boxes with a red chip on each.
-// The missiles are what this ship IS; at map size they should be the first
-// thing seen and they were the last.
-for (var si = -1; si <= 1; si += 2) {
-  var sv = W * 0.62 * si;                        // side by side, not fore and aft
-  var mA = P(-L * 0.62, sv, FR + 4.6);           // tail of the missile
-  var mB = P(L * 0.18, sv, FR + 4.6);            // nose
-  var mN = P(L * 0.34, sv, FR + 4.6);            // the cap's tip
-  // the cradle it lies in
-  g.strokeStyle = '#4a4d53'; g.lineWidth = 4.6; g.lineCap = 'butt';
-  g.beginPath(); g.moveTo(mA[0], mA[1] + 1.6); g.lineTo(mB[0], mB[1] + 1.6); g.stroke();
-  // body
-  g.strokeStyle = '#e6e9ec'; g.lineWidth = 3.4;
-  g.beginPath(); g.moveTo(mA[0], mA[1]); g.lineTo(mB[0], mB[1]); g.stroke();
-  g.strokeStyle = '#ffffff'; g.lineWidth = 1.2;  // the lit top of the cylinder
-  g.beginPath(); g.moveTo(mA[0], mA[1] - 1.0); g.lineTo(mB[0], mB[1] - 1.0); g.stroke();
-  g.strokeStyle = '#8f939a'; g.lineWidth = 0.8;  // the shaded underside
-  g.beginPath(); g.moveTo(mA[0], mA[1] + 1.5); g.lineTo(mB[0], mB[1] + 1.5); g.stroke();
-  // the nose cap, in the owner's colour
-  g.fillStyle = HOUSE;
-  g.beginPath();
-  g.moveTo(mB[0], mB[1] - 1.8); g.lineTo(mN[0], mN[1] - 0.2);
-  g.lineTo(mB[0], mB[1] + 1.8); g.closePath(); g.fill();
-  // three banding rings along the body
-  g.strokeStyle = '#9aa0a8'; g.lineWidth = 0.7;
-  for (var mr = 1; mr <= 3; mr++) {
-    var f2 = mr / 4;
-    var rx = mA[0] + (mB[0] - mA[0]) * f2, ry = mA[1] + (mB[1] - mA[1]) * f2;
-    g.beginPath(); g.moveTo(rx, ry - 1.8); g.lineTo(rx, ry + 1.8); g.stroke();
+// The old bake got every one of those wrong. The missiles ran from -0.62L to
+// +0.34L at v = +-0.62W while the superstructure was drawn afterwards at v = 0
+// with a width of 1.30W — spanning +-0.65W, straight over them — so the two
+// things the ship is known by were painted out by the thing behind them, and
+// what survived read as two white planks. The house colour was a red BRICK
+// standing on the foredeck instead of a slab down the side aft, and the
+// superstructure was a stack of near-black towers where the reference is a
+// low khaki mass. Bow and stern were effectively swapped.
+
+// ---- the house colour: a slab low on the hull side, amidships to stern ---- //
+// RA2 spends this ship's owner colour as one big mass down the flank, not as a
+// stripe and not as a box on the deck. It is drawn before anything stands on
+// the deck so the deck fittings sit in front of it.
+// It has to be on the FLANK, not the centreline. Drawn at v = 0 the slab
+// projects down the middle of the hull and comes out in patches behind the
+// deck edge — which is what it did, and it read as three red bricks rather
+// than one sponson. Both sides are drawn, far side first, so whichever flank
+// faces the camera carries it at every bearing.
+(function () {
+  for (var si = -1; si <= 1; si += 2) {
+    var sv = W * 0.97 * si;
+    var hA = P(L * 0.16, sv, FR * 0.34), hB = P(-L * 0.94, sv, FR * 0.34);
+    g.strokeStyle = HOUSE; g.lineWidth = FR * 0.86; g.lineCap = 'butt';
+    g.beginPath(); g.moveTo(hA[0], hA[1]); g.lineTo(hB[0], hB[1]); g.stroke();
+    g.strokeStyle = HD; g.lineWidth = 0.9;                     // its shaded lower edge
+    g.beginPath();
+    g.moveTo(hA[0], hA[1] + FR * 0.43); g.lineTo(hB[0], hB[1] + FR * 0.43); g.stroke();
+    g.strokeStyle = HL; g.lineWidth = 0.8;                     // and its lit top edge
+    g.beginPath();
+    g.moveTo(hA[0], hA[1] - FR * 0.41); g.lineTo(hB[0], hB[1] - FR * 0.41); g.stroke();
+    g.strokeStyle = shade(HOUSE, 0.56); g.lineWidth = 0.6;     // sponson separators
+    for (var sp = 0; sp < 3; sp++) {
+      var q = P(L * 0.16 - L * 1.10 * (0.26 + sp * 0.24), sv, FR * 0.34);
+      g.beginPath();
+      g.moveTo(q[0], q[1] - FR * 0.40); g.lineTo(q[0], q[1] + FR * 0.42); g.stroke();
+    }
   }
-  // the tail fins
-  g.fillStyle = '#5a5e66';
-  g.beginPath();
-  g.moveTo(mA[0], mA[1] - 1.6); g.lineTo(mA[0] - 3.2, mA[1] - 3.4);
-  g.lineTo(mA[0] - 3.2, mA[1] + 1.0); g.lineTo(mA[0], mA[1] + 1.6);
-  g.closePath(); g.fill();
-}
-// THE SUPERSTRUCTURE AND THE MASTS, which is where RA2 gets her height and
-// ours had none. Reading the reference's top edge every 5% of her length, the
-// silhouette rises from 21 px at the bow to TWO peaks — 37 px at 15% and
-// 38-40 px at 35-45% — then falls to 20 px aft. Ours topped out at 33 px
-// against her 49 and read as a raft with missiles on it, because everything
-// above the deck had been deleted along with the old launcher boxes.
-(function () {
-  box(L * 0.22, 0, 17, W * 1.30, 11.0, '#5a5e66');
-  box(L * 0.22, 0, 11, W * 0.92, 16.0, '#6b6f78');
-  box(L * 0.22, 0, 6, W * 0.60, 19.5, '#7c818a');
-  var bw = P(L * 0.22, 0, FR + 17.4);                    // the bridge windows
-  g.fillStyle = '#9fd2e4'; g.fillRect(bw[0] - 4.0, bw[1] - 1.4, 8.0, 1.4);
-  box(L * 0.04, 0, 7, W * 0.78, 13.0, '#42464d');        // the funnel abaft the bridge
-  // EXPLICIT DARK NEUTRAL. mast() falls back to DKSTEEL, a blue-grey that the
-  // palette grid splits into teal — the two masts baked as cyan crosses.
-  mast(L * 0.22, 0, 18.0, '#2b2b2b');                    // the taller mast, on the house
-  mast(L * 0.56, 0, 12.5, '#2b2b2b');                    // and one a third forward
 })();
-// A RED HULL BLOCK FORWARD. The rip's largest single red mass is 40x10 px low
-// on the bow — 30% of her length — and it is the owner's colour carried as a
-// BLOCK, which is how RA2 spends house colour on a ship. Ours carried it as a
-// band round two launcher bases and nothing else.
+
+// ---- the superstructure: LOW, LONG, KHAKI, amidships to aft -------------- //
+// Tan is the reference's own colour for it and it is what separates this ship
+// from every grey hull in the game at a glance. Equal channels are not
+// required here because it is a chromatic colour, but it stays on the grid.
+// LOW AND LONG, NOT TWO CARTONS. The first pass stood two tall khaki boxes on
+// the deck and they read as cardboard crates: the reference's superstructure
+// is a long low mass running most of the after half, stepped, with the tallest
+// point well under the antennas. Five shallow boxes, each stepping in, carry
+// that without any of them being a crate.
+var TAN = '#999966', TAN_D = '#666633', TAN_L = '#cccc99';
+box(-L * 0.30, 0, L * 0.62, W * 1.24, 4.6, TAN_D);          // the long base
+box(-L * 0.16, 0, L * 0.26, W * 1.06, 6.6, TAN_D);
+box(-L * 0.18, 0, L * 0.15, W * 0.78, 8.8, TAN);
+box(-L * 0.56, 0, L * 0.20, W * 0.96, 6.2, TAN_D);
+box(-L * 0.58, 0, L * 0.11, W * 0.66, 8.4, TAN);
+box(-L * 0.38, 0, L * 0.09, W * 0.52, 8.4, '#666666');      // the dark turret between them
+// The slit windows, PROJECTED. Drawing these as a screen-space fillRect put a
+// teal block out over the missile tails at this bearing — the same mistake the
+// carrier's landing X made, in the same file's neighbour.
 (function () {
-  var fA = P(L * 0.38, 0, FR + 0.4), fB = P(L * 0.92, 0, FR + 0.4);
-  g.strokeStyle = HOUSE; g.lineWidth = 5.2; g.lineCap = 'butt';
-  g.beginPath(); g.moveTo(fA[0], fA[1]); g.lineTo(fB[0], fB[1]); g.stroke();
-  g.strokeStyle = HD; g.lineWidth = 1.0;
-  g.beginPath(); g.moveTo(fA[0], fA[1] + 2.4); g.lineTo(fB[0], fB[1] + 2.4); g.stroke();
+  var ws = [[-L * 0.18, 9.0, L * 0.12], [-L * 0.58, 8.6, L * 0.08]];
+  for (var wi = 0; wi < ws.length; wi++) {
+    var a = P(ws[wi][0] + ws[wi][2], W * 0.56, FR + ws[wi][1]);
+    var b = P(ws[wi][0] - ws[wi][2], W * 0.56, FR + ws[wi][1]);
+    g.strokeStyle = '#333333'; g.lineWidth = 1.6;
+    g.beginPath(); g.moveTo(a[0], a[1]); g.lineTo(b[0], b[1]); g.stroke();
+  }
 })();
-box(-L * 0.68, 0, 8, W * 1.10, 6.4, '#3b3d42');                   // aft house
-mast(-L * 0.64, 0, 5.0, '#2c2e33');
-g.strokeStyle = '#8e2c2c'; g.lineWidth = 1.0;                      // hazard hatching fore
-var zq = P(L * 0.66, 0, FR + 0.4);
-g.beginPath(); g.moveTo(zq[0] - 4, zq[1] - 1.2); g.lineTo(zq[0] + 4, zq[1] + 1.2); g.stroke();
+
+// ---- three tall thin LAVENDER antennas, and the red mast aft ------------- //
+// The reference's tallest things are hair-thin and pale violet, which is the
+// one non-grey, non-red note on the whole ship and reads instantly.
+(function () {
+  var LAV = '#9999cc';
+  var at = [[-L * 0.10, W * 0.30, 13.5], [-L * 0.26, -W * 0.34, 12.0], [-L * 0.52, W * 0.24, 10.5]];
+  for (var i = 0; i < at.length; i++) {
+    var a0 = P(at[i][0], at[i][1], FR + 7.0);
+    g.strokeStyle = LAV; g.lineWidth = 1.0;
+    g.beginPath(); g.moveTo(a0[0], a0[1]); g.lineTo(a0[0], a0[1] - at[i][2]); g.stroke();
+    g.strokeStyle = shade(LAV, 0.72); g.lineWidth = 0.8;       // a short yard near the head
+    g.beginPath();
+    g.moveTo(a0[0] - 1.2, a0[1] - at[i][2] * 0.80);
+    g.lineTo(a0[0] + 1.2, a0[1] - at[i][2] * 0.80); g.stroke();
+  }
+  var rm = P(-L * 0.78, 0, FR + 8.0);                          // the red mast aft
+  g.strokeStyle = HOUSE; g.lineWidth = 1.2;
+  g.beginPath(); g.moveTo(rm[0], rm[1]); g.lineTo(rm[0], rm[1] - 9.0); g.stroke();
+})();
+
+// ---- THE TWO MISSILES, on the forward deck, nose over the bow ------------ //
+// Drawn LAST, because they are forward of everything else and they overhang
+// the stem; nothing may be painted over them. Each is a real cylinder — a
+// body, a lit top, a shaded underside — with a CONE at the front, a coloured
+// band, and fins at the tail. The old bake drew a flat bar and a chip of red
+// and it read as a plank.
+(function () {
+  for (var si = -1; si <= 1; si += 2) {
+    var sv = W * 0.46 * si, lift = FR + 2.6 + (si < 0 ? 1.3 : 0);
+    var tA = P(L * 0.14, sv, lift);                            // tail
+    var nB = P(L * 0.84, sv, lift);                            // where the cone starts
+    var nT = P(L * 1.06, sv, lift);                            // the cone's point
+    // the launch rail it lies in
+    g.strokeStyle = '#3d3d3d'; g.lineWidth = 5.0; g.lineCap = 'butt';
+    g.beginPath(); g.moveTo(tA[0], tA[1] + 2.2); g.lineTo(nB[0], nB[1] + 2.2); g.stroke();
+    // the white body, with its lit top and shaded belly
+    g.strokeStyle = '#cccccc'; g.lineWidth = 4.0;
+    g.beginPath(); g.moveTo(tA[0], tA[1]); g.lineTo(nB[0], nB[1]); g.stroke();
+    g.strokeStyle = '#ffffff'; g.lineWidth = 1.4;
+    g.beginPath(); g.moveTo(tA[0], tA[1] - 1.3); g.lineTo(nB[0], nB[1] - 1.3); g.stroke();
+    g.strokeStyle = '#666666'; g.lineWidth = 1.0;
+    g.beginPath(); g.moveTo(tA[0], tA[1] + 1.7); g.lineTo(nB[0], nB[1] + 1.7); g.stroke();
+    // the band, a third back from the nose
+    var bx = nB[0] + (tA[0] - nB[0]) * 0.30, by = nB[1] + (tA[1] - nB[1]) * 0.30;
+    g.strokeStyle = HOUSE; g.lineWidth = 4.0;
+    g.beginPath(); g.moveTo(bx, by); g.lineTo(bx + (tA[0] - nB[0]) * 0.10,
+                                              by + (tA[1] - nB[1]) * 0.10); g.stroke();
+    // the nose CONE — a triangle, not a cap
+    g.fillStyle = HOUSE;
+    g.beginPath();
+    g.moveTo(nB[0], nB[1] - 2.1); g.lineTo(nT[0], nT[1]);
+    g.lineTo(nB[0], nB[1] + 2.1); g.closePath(); g.fill();
+    g.fillStyle = HL;                                          // its lit upper face
+    g.beginPath();
+    g.moveTo(nB[0], nB[1] - 2.1); g.lineTo(nT[0], nT[1]);
+    g.lineTo(nB[0], nB[1] - 0.4); g.closePath(); g.fill();
+    // the finned tail
+    // #4a4d53 is not a neutral grey: its channels snap to 51/102/102 = #336666,
+    // and the tail fins baked as a TEAL block over the deck. Equal channels only.
+    g.fillStyle = '#4d4d4d';
+    g.beginPath();
+    g.moveTo(tA[0], tA[1] - 2.0); g.lineTo(tA[0] - 4.0, tA[1] - 4.2);
+    g.lineTo(tA[0] - 4.0, tA[1] + 1.4); g.lineTo(tA[0], tA[1] + 2.0);
+    g.closePath(); g.fill();
+    g.strokeStyle = '#2b2b2b'; g.lineWidth = 0.8;
+    g.beginPath(); g.moveTo(tA[0] - 4.0, tA[1] - 4.2); g.lineTo(tA[0] - 4.0, tA[1] + 1.4); g.stroke();
+  }
+})();
 }

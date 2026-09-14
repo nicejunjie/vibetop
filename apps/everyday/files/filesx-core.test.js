@@ -181,3 +181,101 @@ test('with nothing selected any arrow picks the first item; an empty listing sta
   assert.equal(C.gridStep(-1, 'ArrowDown', 4, 0), -1);
   assert.equal(C.gridStep(3, 'ArrowDown', 4, 0), -1);
 });
+
+// -- retickRows: the listing's clock, when the folder itself never changes ---
+//
+// Files re-renders only when the DISK changes, so in a quiet folder every
+// relative time froze at whatever it said when the folder was opened. These
+// drive the real function over a minimal stand-in for the rendered rows.
+
+function fakeRow(i, has) {
+  const parts = {};
+  if (has.mt) parts['.mt'] = { textContent: '', writes: 0 };
+  if (has.meta) parts['.meta'] = { textContent: '', writes: 0 };
+  for (const k of Object.keys(parts)) {
+    const p = parts[k];
+    Object.defineProperty(p, 'textContent', {
+      get() { return p._t === undefined ? '' : p._t; },
+      set(v) { p._t = v; p.writes++; },
+    });
+  }
+  return { dataset: { i: String(i) }, parts, querySelector: (s) => parts[s] || null };
+}
+function fakeList(els) {
+  return { querySelectorAll: (s) => (s === '.row' ? els : []) };
+}
+
+const T0 = 1_700_000_000;                       // the files' mtime, in seconds
+const AT = (secs) => (T0 + secs) * 1000;        // wall clock, in ms
+
+test('a row rendered as "just now" ages in place, without a re-render', () => {
+  const rows = [{ name: 'a.txt', mtime: T0, size: 100, isDir: false }];
+  const els = [fakeRow(0, { mt: true, meta: true })];
+  const box = fakeList(els);
+
+  C.retickRows(box, rows, { nowMs: AT(1) });
+  assert.equal(els[0].parts['.mt'].textContent, 'just now');
+  assert.equal(els[0].parts['.meta'].textContent, 'now · 100 B');
+
+  // ...and ten minutes later the SAME node says so. This is the whole bug:
+  // before retickRows nothing rewrote these until a file changed on disk.
+  C.retickRows(box, rows, { nowMs: AT(600) });
+  assert.equal(els[0].parts['.mt'].textContent, '10m ago');
+  assert.equal(els[0].parts['.meta'].textContent, '10m · 100 B');
+});
+
+test('a label that has not changed is not rewritten', () => {
+  // The tick runs every 30s forever; churning the DOM each time would fight
+  // text selection and screen readers for no gain.
+  const rows = [{ name: 'a.txt', mtime: T0, size: 100, isDir: false }];
+  const els = [fakeRow(0, { mt: true, meta: true })];
+  const box = fakeList(els);
+
+  assert.equal(C.retickRows(box, rows, { nowMs: AT(600) }), 2);   // first paint
+  assert.equal(C.retickRows(box, rows, { nowMs: AT(605) }), 0);   // still "10m"
+  assert.equal(els[0].parts['.mt'].writes, 1);
+  assert.equal(C.retickRows(box, rows, { nowMs: AT(660) }), 2);   // now "11m"
+});
+
+test('exact dates are skipped entirely — an absolute date never goes stale', () => {
+  const rows = [{ name: 'a.txt', mtime: T0, size: 100, isDir: false }];
+  const els = [fakeRow(0, { mt: true, meta: true })];
+  assert.equal(C.retickRows(fakeList(els), rows, { exact: true, nowMs: AT(9e5) }), 0);
+  assert.equal(els[0].parts['.mt'].writes, 0);
+});
+
+test('rows are found by dataset.i, not by position', () => {
+  // The filter and the grid both leave the rendered elements out of step with
+  // the array; indexing by position would put one file's time on another.
+  const rows = [
+    { name: 'old', mtime: T0 - 86400, size: 1, isDir: false },
+    { name: 'new', mtime: T0, size: 1, isDir: false },
+  ];
+  const els = [fakeRow(1, { mt: true })];        // only the second row rendered
+  C.retickRows(fakeList(els), rows, { nowMs: AT(60) });
+  assert.equal(els[0].parts['.mt'].textContent, '1m ago');
+});
+
+test('a folder keeps its size half empty, and missing labels are tolerated', () => {
+  const rows = [{ name: 'docs', mtime: T0, size: 4096, isDir: true }];
+  const els = [fakeRow(0, { meta: true }), fakeRow(0, {})];   // one has no .mt
+  C.retickRows(fakeList(els), rows, { nowMs: AT(3600) });
+  assert.equal(els[0].parts['.meta'].textContent, '1h');      // no size for a dir
+});
+
+test('an empty listing and a row pointing past the array are no-ops', () => {
+  assert.equal(C.retickRows(fakeList([]), [], { nowMs: AT(0) }), 0);
+  const els = [fakeRow(7, { mt: true })];
+  assert.equal(C.retickRows(fakeList(els), [{ mtime: T0, size: 1 }], { nowMs: AT(0) }), 0);
+});
+
+test('the Files page actually runs the tick on a timer', () => {
+  // The unit above proves the function ages a label; this proves the page
+  // calls it. The bug was never in the formatting — it was that nothing
+  // re-ran it while the folder sat still.
+  const html = fs.readFileSync(path.join(__dirname, 'filesx.html'), 'utf8');
+  assert.match(html, /FilesxCore\.retickRows\(mainEl, rows, \{ exact: exactDates \}\)/);
+  assert.match(html, /setInterval\(retick, RETICK_MS\)/);
+  // and catches up the moment Files comes back to the front
+  assert.match(html, /if \(on && !was\) \{ pollOnce\(\); retick\(\); \}/);
+});

@@ -331,12 +331,12 @@
     "iou.groundCombat.mean": 0.6051,
     "iou.vehicle.mean": 0.5408,
     "iou.infantry.mean": 0.5124,
-    "iou.naval.mean": 0.3754,
+    "iou.naval.mean": 0.3743,
     "iou.air.mean": 0.1544,
     "iou.sameFactionOver75": 4,
     "spike.belowFloor": 2,
     "spike.minThickAtZmin": 1.1,
-    "spike.belowDeclaredBudget": 4,
+    "spike.belowDeclaredBudget": 5,
     "mass.groundCombatSpan": 2,
     "mass.tightestBand6": 1.425,
     "hue.infantryOwnerMean": 0.1932,
@@ -354,7 +354,7 @@
     "size.infantryOutsideRA2Band": 0,
     "size.airOutsideRA2Band": 0,
     "size.worstOffGroupScale": 0.203,
-    "size.crossGroupSpread": 1.397,
+    "size.crossGroupSpread": 1.396,
     "size.bldOutsideRA2Band": 0,
     "size.bldWorstOffHouseScale": 0.1819,
     "size.bldFootprintMismatch": 0,
@@ -380,7 +380,7 @@
     "colour.infantry.meanDist": 1.4073,
     "colour.vehicle.meanDist": 0.8653,
     "colour.vehicleAchromatic": 6,
-    "colour.naval.meanDist": 1.0198,
+    "colour.naval.meanDist": 1.175,
     "colour.air.meanDist": 1.134,
     "colour.navalDarkest": 0,
     "colour.airDarkest": 0.0428
@@ -836,9 +836,9 @@
         "ra2Aspect": 2.75,
         "vsRA2": 0.955,
         "bestPeer": "Dreadnought",
-        "bestPeerIoU": 0.5883,
+        "bestPeerIoU": 0.5648,
         "nearestPeer": "Dreadnought",
-        "nearestPeerMMD2": 0.0434,
+        "nearestPeerMMD2": 0.0804,
         "peersBeatingSelf": 0
       },
       "hornet": {
@@ -909,16 +909,16 @@
       },
       "dread": {
         "group": "naval",
-        "aspect": 2.578,
-        "selfIoU": 0.4027,
-        "selfIoUCross": 0.4027,
-        "broadsideAspect": 2.578,
+        "aspect": 2.565,
+        "selfIoU": 0.3717,
+        "selfIoUCross": 0.3717,
+        "broadsideAspect": 2.565,
         "ra2Aspect": 2.956,
-        "vsRA2": 0.872,
+        "vsRA2": 0.868,
         "bestPeer": "Destroyer",
-        "bestPeerIoU": 0.6101,
+        "bestPeerIoU": 0.6217,
         "nearestPeer": "Destroyer",
-        "nearestPeerMMD2": -0.0357,
+        "nearestPeerMMD2": -0.0125,
         "peersBeatingSelf": 1
       },
       "squid": {
@@ -930,9 +930,9 @@
         "ra2Aspect": 3.9,
         "vsRA2": 1.327,
         "bestPeer": "Dreadnought",
-        "bestPeerIoU": 0.4257,
+        "bestPeerIoU": 0.4181,
         "nearestPeer": "Dreadnought",
-        "nearestPeerMMD2": 0.0674,
+        "nearestPeerMMD2": 0.053,
         "peersBeatingSelf": 0
       },
       "mcv": {
@@ -974,7 +974,7 @@
         "over75": 2
       },
       "naval": {
-        "mean": 0.3754,
+        "mean": 0.3743,
         "pairs": 45,
         "max": 0.7846,
         "over75": 1
@@ -1192,7 +1192,7 @@
       "lcraft": 0.0386,
       "sub": 0.0508,
       "seascorp": 0.0418,
-      "dread": 0.0741,
+      "dread": 0.219,
       "squid": 0,
       "mcv": 0.2328
     },
@@ -1235,7 +1235,7 @@
       "lcraft": 0.0161,
       "sub": 0.0705,
       "seascorp": 0.045,
-      "dread": 0.0419,
+      "dread": 0.0621,
       "squid": 0.046,
       "mcv": 0.075
     },
@@ -1328,18 +1328,18 @@
         "ratio": 0.867
       },
       {
+        "key": "dread",
+        "wh": "118x46",
+        "ours": 2.565,
+        "ra2": 2.956,
+        "ratio": 0.868
+      },
+      {
         "key": "destroyer",
         "wh": "92x43",
         "ours": 2.14,
         "ra2": 2.463,
         "ratio": 0.869
-      },
-      {
-        "key": "dread",
-        "wh": "116x45",
-        "ours": 2.578,
-        "ra2": 2.956,
-        "ratio": 0.872
       },
       {
         "key": "rhino",
@@ -1541,8 +1541,8 @@
         "ra2": 117,
         "ra2WH": "117x30",
         "scale": 1.0171,
-        "groupScale": 0.8811,
-        "dev": 0.1544
+        "groupScale": 0.8814,
+        "dev": 0.154
       },
       {
         "key": "conscript",
@@ -1715,16 +1715,6 @@
         "dev": 0.0382
       },
       {
-        "key": "destroyer",
-        "group": "naval",
-        "ours": 92,
-        "ra2": 101,
-        "ra2WH": "101x41",
-        "scale": 0.9109,
-        "groupScale": 0.8811,
-        "dev": 0.0338
-      },
-      {
         "key": "warminer",
         "group": "vehicle",
         "ours": 69,
@@ -1733,6 +1723,16 @@
         "scale": 1.0455,
         "groupScale": 1.082,
         "dev": -0.0337
+      },
+      {
+        "key": "destroyer",
+        "group": "naval",
+        "ours": 92,
+        "ra2": 101,
+        "ra2WH": "101x41",
+        "scale": 0.9109,
+        "groupScale": 0.8814,
+        "dev": 0.0335
       },
       {
         "key": "lancer",
@@ -1787,12 +1787,12 @@
       {
         "key": "dread",
         "group": "naval",
-        "ours": 116,
+        "ours": 118,
         "ra2": 133,
         "ra2WH": "133x45",
-        "scale": 0.8722,
-        "groupScale": 0.8811,
-        "dev": -0.0101
+        "scale": 0.8872,
+        "groupScale": 0.8814,
+        "dev": 0.0066
       },
       {
         "key": "aegis",
@@ -1801,8 +1801,8 @@
         "ra2": 91,
         "ra2WH": "91x35",
         "scale": 0.8791,
-        "groupScale": 0.8811,
-        "dev": -0.0023
+        "groupScale": 0.8814,
+        "dev": -0.0026
       },
       {
         "key": "sub",
@@ -1811,18 +1811,18 @@
         "ra2": 75,
         "ra2WH": "75x14",
         "scale": 0.88,
-        "groupScale": 0.8811,
-        "dev": -0.0012
+        "groupScale": 0.8814,
+        "dev": -0.0016
       },
       {
-        "key": "seascorp",
+        "key": "carrier",
         "group": "naval",
-        "ours": 52,
-        "ra2": 59,
-        "ra2WH": "59x32",
-        "scale": 0.8814,
-        "groupScale": 0.8811,
-        "dev": 0.0003
+        "ours": 126,
+        "ra2": 143,
+        "ra2WH": "143x52",
+        "scale": 0.8811,
+        "groupScale": 0.8814,
+        "dev": -0.0003
       },
       {
         "key": "mirage",
@@ -1845,13 +1845,13 @@
         "dev": 0
       },
       {
-        "key": "carrier",
+        "key": "seascorp",
         "group": "naval",
-        "ours": 126,
-        "ra2": 143,
-        "ra2WH": "143x52",
-        "scale": 0.8811,
-        "groupScale": 0.8811,
+        "ours": 52,
+        "ra2": 59,
+        "ra2WH": "59x32",
+        "scale": 0.8814,
+        "groupScale": 0.8814,
         "dev": 0
       }
     ],
@@ -3237,7 +3237,7 @@
         "ok": true,
         "measured": 6,
         "want": "<= 10 px",
-        "note": "6 px, the longest CORNER-ANCHORED flat silhouette run over all EIGHT bearings (worst at octant 7; the broadside alone would miss it — the Dolphin's detached-eye bug showed at octants 3/4/5 and not at her broadside 7). Both ends of a run must step >= 2 px onto a REAL neighbour, so a raster curve's apex and a taper off the end of the sprite do not count; without that test the Dolphin's belly scores 19 and the boxy Landing Craft 13 and the measurement is upside down. §2 asks for ZERO, which no raster can give; 10 px is this file's reading, set against the eight machine hulls of MACH, which measure 1-26 with a median of 16 at their broadside. Looked at: what remains is ONE SEGMENT of the plan polyline that approximates each animal (the Squid's 8-point `MANT` mantle at her shoulder, the Dolphin's 7-point `DOL` profile), projected nearly flat — not a drawn rectangle. A detached blob would score its own full width here, which is how a repeat of the eye bug gets caught rather than found by eye a second time.",
+        "note": "6 px, the longest CORNER-ANCHORED flat silhouette run over all EIGHT bearings (worst at octant 7; the broadside alone would miss it — the Dolphin's detached-eye bug showed at octants 3/4/5 and not at her broadside 7). Both ends of a run must step >= 2 px onto a REAL neighbour, so a raster curve's apex and a taper off the end of the sprite do not count; without that test the Dolphin's belly scores 19 and the boxy Landing Craft 13 and the measurement is upside down. §2 asks for ZERO, which no raster can give; 10 px is this file's reading, set against the eight machine hulls of MACH, which measure 1-22 with a median of 13 at their broadside. Looked at: what remains is ONE SEGMENT of the plan polyline that approximates each animal (the Squid's 8-point `MANT` mantle at her shoulder, the Dolphin's 7-point `DOL` profile), projected nearly flat — not a drawn rectangle. A detached blob would score its own full width here, which is how a repeat of the eye bug gets caught rather than found by eye a second time.",
         "module": "naval-air.js",
         "refMatch": 1
       },
@@ -3247,7 +3247,7 @@
         "ok": true,
         "measured": 5,
         "want": "<= 10 px",
-        "note": "5 px, the longest CORNER-ANCHORED flat silhouette run over all EIGHT bearings (worst at octant 1; the broadside alone would miss it — the Dolphin's detached-eye bug showed at octants 3/4/5 and not at her broadside 7). Both ends of a run must step >= 2 px onto a REAL neighbour, so a raster curve's apex and a taper off the end of the sprite do not count; without that test the Dolphin's belly scores 19 and the boxy Landing Craft 13 and the measurement is upside down. §2 asks for ZERO, which no raster can give; 10 px is this file's reading, set against the eight machine hulls of MACH, which measure 1-26 with a median of 16 at their broadside. Looked at: what remains is ONE SEGMENT of the plan polyline that approximates each animal (the Squid's 8-point `MANT` mantle at her shoulder, the Dolphin's 7-point `DOL` profile), projected nearly flat — not a drawn rectangle. A detached blob would score its own full width here, which is how a repeat of the eye bug gets caught rather than found by eye a second time.",
+        "note": "5 px, the longest CORNER-ANCHORED flat silhouette run over all EIGHT bearings (worst at octant 1; the broadside alone would miss it — the Dolphin's detached-eye bug showed at octants 3/4/5 and not at her broadside 7). Both ends of a run must step >= 2 px onto a REAL neighbour, so a raster curve's apex and a taper off the end of the sprite do not count; without that test the Dolphin's belly scores 19 and the boxy Landing Craft 13 and the measurement is upside down. §2 asks for ZERO, which no raster can give; 10 px is this file's reading, set against the eight machine hulls of MACH, which measure 1-22 with a median of 13 at their broadside. Looked at: what remains is ONE SEGMENT of the plan polyline that approximates each animal (the Squid's 8-point `MANT` mantle at her shoulder, the Dolphin's 7-point `DOL` profile), projected nearly flat — not a drawn rectangle. A detached blob would score its own full width here, which is how a repeat of the eye bug gets caught rather than found by eye a second time.",
         "module": "naval-air.js",
         "refMatch": 1
       },
@@ -3287,7 +3287,7 @@
         "ok": true,
         "measured": 1.269,
         "want": "> 1.00x the next hull",
-        "note": "armed hulls broadside: seascorp 52, sub 66, aegis 80, destroyer 92, dread 116, carrier 126 — she is 1.27x clear of the next. EXCLUDED and why: the Dolphin (38 px) and the Giant Squid (119 px) are armed but are ANIMALS, and §2.3/§2.4 give both a row saying their outline is not a machine, so neither is a hull; the Landing Craft and the Amphibious Transport are hulls but carry no weapon. Reading \"armed hull\" as \"armed warship\" is the only one on which the sentence has content — under any other the Dolphin wins it.",
+        "note": "armed hulls broadside: seascorp 52, sub 66, aegis 80, destroyer 92, dread 118, carrier 126 — she is 1.27x clear of the next. EXCLUDED and why: the Dolphin (38 px) and the Giant Squid (119 px) are armed but are ANIMALS, and §2.3/§2.4 give both a row saying their outline is not a machine, so neither is a hull; the Landing Craft and the Amphibious Transport are hulls but carry no weapon. Reading \"armed hull\" as \"armed warship\" is the only one on which the sentence has content — under any other the Dolphin wins it.",
         "module": "naval-air.js",
         "refMatch": 1
       },
@@ -4371,7 +4371,7 @@
       "vehicle": 1.082,
       "air": 0.9732500000000001,
       "infantry": 1.2308,
-      "naval": 0.8811
+      "naval": 0.8814
     },
     "units": {
       "aegis": {
@@ -4455,9 +4455,9 @@
         "selfIoU": 0.5253,
         "selfIoUCross": 0.5253,
         "bestPeer": "Dreadnought",
-        "bestPeerIoU": 0.5883,
+        "bestPeerIoU": 0.5648,
         "nearestPeer": "Dreadnought",
-        "nearestPeerMMD2": 0.0434,
+        "nearestPeerMMD2": 0.0804,
         "peersBeatingSelf": 0,
         "peers": 9,
         "spike": {
@@ -4712,32 +4712,32 @@
         "name": "Dreadnought",
         "group": "naval",
         "fac": "col",
-        "mass": 2691,
-        "bboxW": 116,
-        "bboxH": 73,
-        "aspect": 1.513,
-        "broadsideWH": "116x45",
-        "broadsideAspect": 2.578,
+        "mass": 2516,
+        "bboxW": 118,
+        "bboxH": 82,
+        "aspect": 1.505,
+        "broadsideWH": "118x46",
+        "broadsideAspect": 2.565,
         "ra2Aspect": 2.956,
-        "vsRA2": 0.872,
-        "selfIoU": 0.4027,
-        "selfIoUCross": 0.4027,
+        "vsRA2": 0.868,
+        "selfIoU": 0.3717,
+        "selfIoUCross": 0.3717,
         "bestPeer": "Destroyer",
-        "bestPeerIoU": 0.6101,
+        "bestPeerIoU": 0.6217,
         "nearestPeer": "Destroyer",
-        "nearestPeerMMD2": -0.0357,
+        "nearestPeerMMD2": -0.0125,
         "peersBeatingSelf": 1,
         "peers": 9,
         "spike": {
           "axis": "v",
-          "len": 17,
-          "thick": 28,
+          "len": 21,
+          "thick": 9,
           "budget": 10,
           "floor": 3.64,
-          "atZmin": 15.4,
+          "atZmin": 4.95,
           "floorAtZmin": 2,
           "lenBudget": 10,
-          "fails": null,
+          "fails": "thin",
           "src": "two launch boxes >= 10x10 px, countable, standing proud of the deck",
           "feature": "two countable missile boxes >=10x10 px standing on the deck"
         }
@@ -5499,9 +5499,9 @@
         "selfIoU": 0.2077,
         "selfIoUCross": 0.2077,
         "bestPeer": "Dreadnought",
-        "bestPeerIoU": 0.4257,
+        "bestPeerIoU": 0.4181,
         "nearestPeer": "Dreadnought",
-        "nearestPeerMMD2": 0.0674,
+        "nearestPeerMMD2": 0.053,
         "peersBeatingSelf": 0,
         "peers": 9,
         "spike": {
