@@ -125,7 +125,11 @@ function bakeVehicle(col, kind, fac, anim) {
   // the Grizzly read as a WHITE tank beside the rip's slate one. VLIFT is
   // already lifting this unit (that is what the note below means), so the base
   // has to come down to meet it rather than the lift being fought.
-  if (kind === 'lancer')       { hull = '#7d7d7d'; deck = '#545454'; }   // pale steel with a dark top, as allied-grizzly-tank.png (VLIFT lifts it)
+  // ...and the same cast, by the r == g construction. The rip's Grizzly hull is
+  // #707490 / #8084a0 / #9090b0 — slate-BLUE, not neutral — and ours was dead
+  // grey, which is most of its 47.6% drab share. r and g identical, b raised:
+  // cannot bake teal (see the Prism Tank's note), lands on grey and slate.
+  if (kind === 'lancer')       { hull = '#78788c'; deck = '#525266'; }   // pale steel with a dark top, as allied-grizzly-tank.png (VLIFT lifts it)
   // A COOL GREY THAT CANNOT GO TEAL: KEEP r == g EXACTLY. The Prism Tank's hull
   // was #4f4f4f, dead neutral, and marked on the sprite its deck and both
   // flanks are one flat grey — 527 px of #333333 and 395 of #666666, the whole

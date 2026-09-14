@@ -341,7 +341,7 @@
     "mass.tightestBand6": 1.557,
     "hue.infantryOwnerMean": 0.1927,
     "hue.infantryBelowBudget": 5,
-    "hue.vehicleOwnerMean": 0.1532,
+    "hue.vehicleOwnerMean": 0.1537,
     "hue.vehicleOwnerMax": 0.2547,
     "hue.maxImpostor": 0.1017,
     "aspect.navalOutsideRA2Band": 0,
@@ -378,7 +378,7 @@
     "value.engineerLightPct": 0.0984,
     "value.engineerMarginOverNext": -0.0339,
     "colour.infantry.meanDist": 1.4103,
-    "colour.vehicle.meanDist": 1.0761,
+    "colour.vehicle.meanDist": 1.0854,
     "colour.vehicleAchromatic": 6,
     "colour.naval.meanDist": 1.3667,
     "colour.air.meanDist": 1.2244,
@@ -1080,13 +1080,8 @@
       },
       {
         "a": "lancer",
-        "b": "drone",
-        "dist": 0.199
-      },
-      {
-        "a": "ifv",
         "b": "prismtank",
-        "dist": 0.293
+        "dist": 0.26
       },
       {
         "a": "chronominer",
@@ -1097,6 +1092,11 @@
         "a": "mirage",
         "b": "v3",
         "dist": 0.415
+      },
+      {
+        "a": "ifv",
+        "b": "prismtank",
+        "dist": 0.423
       },
       {
         "a": "warminer",
@@ -1158,11 +1158,11 @@
       "rocketeer": 0.2412,
       "harrier": 0.21,
       "kirov": 0.2074,
-      "lancer": 0.0932,
+      "lancer": 0.0984,
       "mammoth": 0.0655,
       "engineer": 0.2237,
       "dog": 0.0839,
-      "ifv": 0.063,
+      "ifv": 0.0641,
       "mirage": 0.2402,
       "tanya": 0.154,
       "rhino": 0.1297,
@@ -1201,11 +1201,11 @@
       "rocketeer": 0.14,
       "harrier": 0.0058,
       "kirov": 0.3147,
-      "lancer": 0.0361,
+      "lancer": 0.0841,
       "mammoth": 0.1913,
       "engineer": 0.2274,
       "dog": 0.6238,
-      "ifv": 0.0813,
+      "ifv": 0.1578,
       "mirage": 0.0404,
       "tanya": 0.3966,
       "rhino": 0.1599,
@@ -4111,7 +4111,7 @@
         "unit": "lancer",
         "clause": "exactly 2 house blocks, each 4-8 px, individually countable (gap >= 2 px, no fusing)",
         "ok": false,
-        "measured": "2 blocks, minor dims [6,3], gap 2",
+        "measured": "3 blocks, minor dims [15,4,4], gap 1",
         "want": "2 blocks / minor 4-8 px / gap >= 2",
         "note": "8-connected components of the house mask over 12 px, at the broadside octant. \"each 4-8 px\" is read as the MINOR dimension — see the block comment. THE DEFECT WAS A RENDERING ORDER BUG AND IT IS FIXED: the FAR flank's panel was painted after the chassis, so it lay on the deck instead of behind the hull and anti-aliased into the turret cheek, and what the 2026-09-06 pass measured as \"the cheek, 2 px from the plate\" was that fused blob — which is why raising the turret moved the gap by exactly zero, and it was never the cheek being pinned. Far panel under the hull, near panel on top: the cheek measures alone, the flank panel grows UPWARD to a 6 px minor, and the SILHOUETTE IS BYTE-IDENTICAL (5058 opaque px over eight bearings, before and after) so no mask metric can move. That constraint is load-bearing: the two configurations that DO deliver the row's old \">= 4 px\" both add mask — a raised turret cap (+15 opaque px a bearing) or the panel dropped onto the contact-shadow row (+13) — and both take `iou.groundCombat.mean` 0.4652 -> 0.4667, more than the whole of that gate's last gain. 6 + 4 + 6 is 16 rows of a 22-row sprite and only 14 exist between the turret cap and the track line",
         "module": "vehicle.js",
