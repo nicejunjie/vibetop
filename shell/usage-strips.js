@@ -235,6 +235,11 @@ function ageText(sec) {
     return dt.toLocaleTimeString([], {hour: 'numeric', minute: '2-digit'});
   }
   function segment(label, value) {
+    if (!value || value.pct == null) {
+      return '<span class="cu-seg" title="Session usage unavailable">' +
+        '<span class="cu-lbl">' + label + '</span><span class="cu-bar"></span>' +
+        '<span class="cu-pct">—</span></span>';
+    }
     var p = Math.round(Math.max(0, Math.min(1, Number(value.pct) || 0)) * 100);
     var cls = p >= 90 ? 'crit' : p >= 70 ? 'warn' : '';
     var reset = resetText(value.reset);
@@ -290,7 +295,7 @@ function ageText(sec) {
     var hasSession = data && data.session && data.session.pct != null;
     var hasWeekly = data && data.weekly && data.weekly.pct != null;
     if (hasSession || hasWeekly) {
-      if (hasSession) html += segment('session', data.session);
+      html += segment('session', data.session);
       if (hasWeekly) html += segment('week', data.weekly);
     } else {
       html += '<span class="cu-dim">' + (data && data.note ? data.note : 'waiting for first Codex response…') + '</span>';
