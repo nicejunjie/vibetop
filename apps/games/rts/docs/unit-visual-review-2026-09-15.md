@@ -635,3 +635,15 @@ declare a visual match.
   actual palette processor: neutral preservation in all modes, bounded colour
   quantization across authored palettes in 12/16-level modes, tiny material
   accents and translucent shadows. No art baseline regenerated for this release.
+
+### Mirage silhouette follow-up (after release)
+
+- User still found the Mirage indistinct. Replaced the two flat-topped pods
+  with faceted wraparound shells descending from high inner shoulders to the
+  outer chassis, with a recessed olive centre. Replaced the round barrel with
+  a broad olive shroud and dark muzzle. Removed generic bright bumper/lamps
+  and disabled Mirage's surface value lift to keep its dark/pale contrast.
+- Opened the first render and corrected over-tall shells and a hidden muzzle;
+  reopened the lower-shell/extended-shroud revision in eight bearings and live
+  game scale. Vehicle DPR/layer tests and module/palette tests pass. Local
+  revision only; this follow-up has not been committed or deployed.
