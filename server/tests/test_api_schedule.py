@@ -382,6 +382,36 @@ def test_create_accepts_a_loop_and_stores_its_shape(client, mgr, home, op_cookie
     assert abs(ent["until"] - (now + 3600)) < 1
 
 
+@pytest.mark.parametrize("age", [600, 365 * 86400])
+def test_past_loop_start_skips_elapsed_slots(client, mgr, home, op_cookie,
+                                            monkeypatch, age):
+    now = time.time()
+    monkeypatch.setattr(mgr.time, "time", lambda: now)
+    sent = []
+    monkeypatch.setattr(mgr, "_inject_terminal",
+                        lambda *args: (sent.append(args), (True, None))[1])
+    start = now - age - 17
+    status, body = client.post("/api/terminals/schedules",
+                              {"term": 1, "text": "continue", "at": start,
+                               "every": 300, "until": now + 3600}, cookie=op_cookie)
+    assert status == 200, body
+    ent = body["schedule"]
+    assert ent["at"] == pytest.approx(now + 283)
+    assert ent["runs"] == 0 and ent["status"] == "pending"
+    assert sent == [], "elapsed runs must not be replayed"
+    mgr._run_due_schedules(now=now + 283)
+    assert len(sent) == 1
+    assert _read_reg(mgr)[mgr.APP_USER][0]["at"] == pytest.approx(now + 583)
+
+
+def test_past_loop_with_no_remaining_slot_is_rejected(client, home, op_cookie):
+    now = time.time()
+    status, body = client.post("/api/terminals/schedules",
+                              {"term": 1, "text": "continue", "at": now - 617,
+                               "every": 300, "until": now + 60}, cookie=op_cookie)
+    assert status == 400 and "no remaining runs" in body["error"]
+
+
 def test_a_one_shot_still_records_no_loop(client, mgr, home, op_cookie):
     """The added fields must not change what a plain scheduled message is."""
     client.post("/api/terminals/schedules",

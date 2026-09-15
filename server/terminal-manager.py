@@ -2948,7 +2948,7 @@ def _share_prune(reg, now=None):
 SCHEDULES_FILE = os.environ.get("SCHEDULES_FILE") or "/var/lib/vibetop/schedules.json"
 SCHED_MAX_PER_USER = 20             # pending cap per user
 SCHED_MAX_HORIZON = 30 * 86400      # no scheduling further out than a month
-SCHED_PAST_TOLERANCE = 90           # how far into the past `at` may be — see below
+SCHED_PAST_TOLERANCE = 90           # "send now" grace; older loop starts skip elapsed slots
 SCHED_LATE_GRACE = 2 * 3600         # fire up to 2h late (manager restart), else "missed"
 SCHED_TICK = 15                     # sweeper period -> ±15s accuracy
 SCHED_TEXT_MAX = 2000
@@ -6645,7 +6645,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
         # typing the message add more. Inside the window it just fires on the next
         # sweeper tick (≤15s), which is what "send it now" should do; outside it,
         # scheduling 9am when it's 10am is still caught.
-        if at < now - SCHED_PAST_TOLERANCE:
+        if at < now - SCHED_PAST_TOLERANCE and data.get("every") in (None, ""):
             return self._json(400, {"error": "that time has already passed"})
         if at > now + SCHED_MAX_HORIZON:
             return self._json(400, {
@@ -6669,6 +6669,13 @@ class Handler(http.server.BaseHTTPRequestHandler):
             if until > now + SCHED_MAX_HORIZON:
                 return self._json(400, {
                     "error": f"can't schedule more than {SCHED_MAX_HORIZON // 86400} days out"})
+            # A past loop start anchors the cadence; it is not a missed one-shot.
+            # Skip elapsed slots before counting runs or handing it to the
+            # sweeper. Keep the short "send now" tolerance for the minute picker.
+            if at < now - SCHED_PAST_TOLERANCE:
+                at = _sched_next_slot(at, every, now)
+                if at > until:
+                    return self._json(400, {"error": "no remaining runs before the end time"})
             # Bound the whole loop, not just its cadence: "every 1m for 30 days" is
             # 43200 messages typed into someone's shell, which is a mistake rather
             # than a plan. The cap names both escapes so the fix is obvious.
