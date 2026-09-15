@@ -368,6 +368,24 @@ def test_the_account_answer_is_shaped_like_the_log_reading(mgr):
     assert mgr._codex_usage_from_api(None) is None
 
 
+def test_weekly_only_account_uses_primary_for_its_week(mgr):
+    raw = {"plan_type": "prolite", "rate_limit": {
+        "primary_window": {"used_percent": 13, "limit_window_seconds": 604800,
+                           "reset_at": 1790034845},
+        "secondary_window": None}}
+    got = mgr._codex_usage_from_api(raw)
+    assert got["session"] is None
+    assert got["weekly"] == {"pct": .13, "reset": 1790034845, "minutes": 10080}
+
+
+def test_window_duration_identifies_reversed_slots(mgr):
+    got = mgr._codex_usage_from_api({"rate_limit": {
+        "primary_window": _API["rate_limit"]["secondary_window"],
+        "secondary_window": _API["rate_limit"]["primary_window"]}})
+    assert got["session"]["minutes"] == 300
+    assert got["weekly"]["minutes"] == 10080
+
+
 def test_the_payload_prefers_the_account_over_the_logs(mgr, tmp_path, monkeypatch):
     """The logs say 100% weekly with a reset in the past (so: rolled, 0%, no
     reset); the account says 5% with a reset next week. The account wins, and

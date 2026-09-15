@@ -790,10 +790,19 @@ def _codex_usage_from_api(raw):
         return {"pct": max(0.0, min(1.0, pct / 100.0)),
                 "reset": w.get("reset_at"),
                 "minutes": int(secs // 60) if secs else None}
-    return {"session": window(limit.get("primary_window")),
-            "weekly": window(limit.get("secondary_window")),
-            "plan": raw.get("plan_type"),
-            "limited": bool(limit.get("limit_reached"))}
+    out = {"session": None, "weekly": None,
+           "plan": raw.get("plan_type"),
+           "limited": bool(limit.get("limit_reached"))}
+    # A weekly-only account puts its seven-day window in primary_window.
+    # The duration, not the slot, identifies which metric it represents.
+    for slot, fallback in (("primary_window", "session"),
+                           ("secondary_window", "weekly")):
+        value = window(limit.get(slot))
+        if value is not None:
+            minutes = value["minutes"]
+            key = fallback if minutes is None else ("weekly" if minutes >= 10080 else "session")
+            out[key] = value
+    return out
 
 
 def _codex_usage_refresh(home):
