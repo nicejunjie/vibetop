@@ -287,13 +287,15 @@ function ageText(sec) {
     var asof = age >= 1 ? '<span class="cu-asof">' + ageText(data.ageSec) + ' ago</span>' :
       '<span class="cu-asof is-empty" aria-hidden="true">0m ago</span>';
     var html = '<span class="cu-who"><span class="cu-brand">Codex</span>' + asof + '</span><span class="cu-metrics">';
-    if (data && data.session && data.session.pct != null) {
-      html += segment('session', data.session);
-      if (data.weekly && data.weekly.pct != null) html += segment('week', data.weekly);
+    var hasSession = data && data.session && data.session.pct != null;
+    var hasWeekly = data && data.weekly && data.weekly.pct != null;
+    if (hasSession || hasWeekly) {
+      if (hasSession) html += segment('session', data.session);
+      if (hasWeekly) html += segment('week', data.weekly);
     } else {
       html += '<span class="cu-dim">' + (data && data.note ? data.note : 'waiting for first Codex response…') + '</span>';
     }
-    if (data && data.note && data.session && data.session.pct != null) {
+    if (data && data.note && (hasSession || hasWeekly)) {
       html += '<span class="cu-dim" title="showing the last reading from this machine\'s Codex logs">· ' + data.note + '</span>';
     }
     strip.innerHTML = html + '</span><span class="cu-x" id="cx-x" title="Turn off Codex Limit (all devices)">✕</span>';

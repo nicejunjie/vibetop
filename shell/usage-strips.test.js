@@ -222,6 +222,20 @@ test('the reading age is shown in the unit a person would use', () => {
 // When the account cannot be asked, the server says so in `note`; the strip
 // shows it, beside the log-based numbers when there are any and instead of the
 // "waiting" text when there are none.
+test('a weekly-only Codex reading shows its percentage and reset without a session', () => {
+  const { sandbox, nodes } = load(src);
+  sandbox.applyServerCodexUsage(true, { enabled: true, session: null,
+    weekly: { pct: .13, reset: Math.floor(Date.now() / 1000) + 86400 },
+    note: 'account unreachable' });
+  const html = nodes['cx-strip'].innerHTML;
+  assert.match(html, /cu-lbl">week</);
+  assert.match(html, /13%/);
+  assert.match(html, /resets/);
+  assert.match(html, /account unreachable/);
+  assert.doesNotMatch(html, /cu-lbl">session<|waiting for first/);
+  assert.equal((html.match(/class="cu-seg"/g) || []).length, 1);
+});
+
 test('the Codex strip surfaces the server note', () => {
   const { sandbox, nodes } = load(src);
   const now = Math.floor(Date.now() / 1000);
