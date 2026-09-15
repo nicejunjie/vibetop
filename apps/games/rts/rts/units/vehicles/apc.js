@@ -20,13 +20,13 @@ if (wantH) {
     var near0 = (q0[1] + q1[1]) / 2 > by - 0.8;
     g.beginPath();
     g.moveTo(q0[0], q0[1]); g.lineTo(q1[0], q1[1]);
-    g.lineTo(q1[0], q1[1] - 2.4); g.lineTo(q0[0], q0[1] - 2.4);
+    g.lineTo(q1[0], q1[1] - 3.35); g.lineTo(q0[0], q0[1] - 3.35);
     g.closePath();
-    g.fillStyle = near0 ? '#4e5241' : '#31342a'; g.fill();
+    g.fillStyle = near0 ? '#373838' : '#2a2b2b'; g.fill();
     g.strokeStyle = 'rgba(0,0,0,.42)'; g.lineWidth = 0.8; g.stroke();
   }
-  polyPath(SK, -2.4); g.fillStyle = '#666a52'; g.fill();       // the crown of the tube
-  g.strokeStyle = '#23261e'; g.lineWidth = 0.8; g.stroke();
+  polyPath(SK, -3.35); g.fillStyle = '#565858'; g.fill();       // the crown of the tube
+  g.strokeStyle = '#222424'; g.lineWidth = 0.8; g.stroke();
   // THE HOVERCRAFT IS A PANCAKE. She measured 53x49 — aspect 1.08,
   // the roundest thing afloat — because a 7.4 hull on a 2.8 skirt
   // carried an 11.6 deck, a 5.6 bridge and then a 4-unit MAST with a
@@ -58,8 +58,8 @@ if (wantH) {
   // the owner, with two thwarts across it so it reads as a well with
   // seats and not as a painted panel. All of it sits inside the hull
   // outline at z ~ +1, so not one silhouette pixel moves.
-  var wlx = cx + fx * 1.0 - px * wid * 0.16, wly = by - 9.0 + fy * 1.0 - py * wid * 0.16;
-  isoBox(g, wlx, wly, len * 0.50, wid * 0.24, 1.0, a, '#1d201a', PEDGE);
+  var wlx = cx - fx * 1.0, wly = by - 9.0 - fy * 1.0;
+  isoBox(g, wlx, wly, len * 0.55, wid * 0.40, 1.0, a, '#323232', PEDGE);
   // THE WELL FLOOR HAS TO FILL THE WELL. It was wid*0.15 inside a coaming of
   // wid*0.24, so the dark rim took a third of the opening on each side and the
   // owner's colour came out as a narrow strip — which is why this craft still
@@ -68,17 +68,20 @@ if (wantH) {
   // on the hovercraft and it fills the opening. Widened to just inside the
   // coaming, lengthened to match, and the two thwarts narrowed so they read as
   // seats ACROSS it instead of eating half of it.
-  isoBox(g, wlx, wly - 0.9, len * 0.475, wid * 0.205, 0.6, a, panel, PEDGE);
-  for (i2 = -1; i2 <= 1; i2 += 2)                              // two seat thwarts
-    isoBox(g, wlx + fx * len * 0.14 * i2, wly - 1.3 + fy * len * 0.14 * i2,
-           0.85, wid * 0.19, 1.0, a, shade(deck, 0.72), PEDGE);
+  isoBox(g, wlx, wly - 0.9, len * 0.53, wid * 0.36, 0.6, a, '#bf2525', '#431c1c');
+  // Rails are attached to the coaming; the broad red floor stays clear.
+  for (sg = -1; sg <= 1; sg += 2)
+    isoBox(g, wlx + px * wid * 0.205 * sg,
+           wly - 1.15 + py * wid * 0.205 * sg,
+           len * 0.53, 0.62, 0.75, a, '#7b7b76', '#333333');
   // the bridge block, running fore-and-aft along the port side
-  var brx = cx - fx * 2.4 + px * wid * 0.20, bry = by - 8.6 - fy * 2.4 + py * wid * 0.20;
-  isoBox(g, brx, bry, len * 0.46, wid * 0.26, 4.2, a, shade(hull, 0.88), PEDGE);
-  isoBox(g, brx, bry - 4.4, len * 0.42, wid * 0.22, 1.2, a, panel, PEDGE);
-  isoBox(g, brx + fx * 6.0, bry - 2.2 + fy * 6.0, 1.0, wid * 0.20, 2.4, a, '#232a33', '#0e1115');
+  var brx = cx + fx * 6.7 + px * wid * 0.28,
+      bry = by - 8.6 + fy * 6.7 + py * wid * 0.28;
+  isoBox(g, brx, bry, len * 0.16, wid * 0.17, 2.7, a, shade(hull, 0.88), PEDGE);
+  isoBox(g, brx, bry - 2.7, len * 0.15, wid * 0.16, 0.7, a, '#88888a', PEDGE);
+  isoBox(g, brx + fx * 1.8, bry - 1.3 + fy * 1.8, 1.0, wid * 0.15, 1.4, a, '#242a30', '#0e1115');
   g.fillStyle = 'rgba(190,210,228,.36)';
-  g.beginPath(); g.ellipse(brx + fx * 6.4, bry - 3.6 + fy * 6.4, 1.8, 0.8, 0, 0, 6.29); g.fill();
+  g.beginPath(); g.ellipse(brx + fx * 2.1, bry - 2.1 + fy * 2.1, 1.3, 0.7, 0, 0, 6.29); g.fill();
   g.strokeStyle = '#939393'; g.lineWidth = 0.9;                 // a short mast with a lamp
   g.beginPath();
   g.moveTo(brx - fx * 5.0, bry - 5.4 - fy * 5.0);
@@ -95,20 +98,20 @@ if (wantH) {
   g.stroke();
   // two big ducted lift fans across the stern, standing on the hull
   for (sg = -1; sg <= 1; sg += 2) {
-    var fnx = cx - fx * len * 0.30 + px * wid * 0.22 * sg;
-    var fny = by - 8.2 - fy * len * 0.30 + py * wid * 0.22 * sg;
-    puck(fnx, fny, 3.1, 2.6, shade(deck, 0.82), shade(deck, 1.08), PEDGE);
-    g.fillStyle = '#15171b';
-    gEllipse(fnx, fny - 2.6, 2.3); g.fill();
+    var fnx = cx - fx * len * 0.35 + px * wid * 0.27 * sg;
+    var fny = by - 8.2 - fy * len * 0.35 + py * wid * 0.27 * sg;
+    puck(fnx, fny, 4.1, 3.0, '#656565', '#989898', '#353535');
+    g.fillStyle = '#4a4a4a';
+    gEllipse(fnx, fny - 3.0, 3.1); g.fill();
     g.strokeStyle = 'rgba(193,193,193,.66)'; g.lineWidth = 1.0;
     for (i2 = 0; i2 < 4; i2++) {
       var fna = i2 * 1.5708;
-      g.beginPath(); g.moveTo(fnx, fny - 2.6);
-      g.lineTo(fnx + Math.cos(fna) * 2.2 * ER, fny - 2.6 + Math.sin(fna) * 2.2 * ERY);
+      g.beginPath(); g.moveTo(fnx, fny - 3.0);
+      g.lineTo(fnx + Math.cos(fna) * 2.75 * ER, fny - 3.0 + Math.sin(fna) * 2.75 * ERY);
       g.stroke();
     }
     g.strokeStyle = STEEL; g.lineWidth = 0.9;
-    gEllipse(fnx, fny - 2.6, 2.35); g.stroke();
+    gEllipse(fnx, fny - 3.0, 3.1); g.stroke();
   }
 }
 }

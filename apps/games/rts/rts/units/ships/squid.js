@@ -33,17 +33,17 @@ var mq = P(0, 0, FR);
 // The mantle outline: tail tip aft, widest a touch abaft amidships,
 // narrowing to the arm crown forward. Sampled in (u, v) and projected,
 // so every bearing gets the right foreshortening for free.
-var MANT = [[-1.00, 0.00], [-0.90, 0.30], [-0.62, 0.74], [-0.22, 1.00],
-            [0.12, 0.96], [0.34, 0.74], [0.46, 0.40], [0.50, 0.00]];
+var MANT = [[-0.65, 0.00], [-0.62, 0.22], [-0.50, 0.50], [-0.22, 0.72],
+            [0.12, 0.68], [0.34, 0.53], [0.46, 0.29], [0.50, 0.00]];
 var mpoly = function (lift, fill) {
   g.beginPath();
   var i4, q4;
   for (i4 = 0; i4 < MANT.length; i4++) {
-    q4 = P(L * MANT[i4][0], W * 1.06 * MANT[i4][1], FR + lift);
+    q4 = P(L * MANT[i4][0], W * 0.88 * MANT[i4][1], FR + lift);
     if (i4) g.lineTo(q4[0], q4[1]); else g.moveTo(q4[0], q4[1]);
   }
   for (i4 = MANT.length - 1; i4 >= 0; i4--) {
-    q4 = P(L * MANT[i4][0], -W * 1.06 * MANT[i4][1], FR + lift);
+    q4 = P(L * MANT[i4][0], -W * 0.88 * MANT[i4][1], FR + lift);
     g.lineTo(q4[0], q4[1]);
   }
   g.closePath(); g.fillStyle = fill; g.fill();
@@ -55,11 +55,11 @@ g.beginPath();
 (function () {
   var i5, q5;
   for (i5 = 0; i5 < MANT.length; i5++) {
-    q5 = P(L * MANT[i5][0] * 0.82 - L * 0.06, W * 0.72 * MANT[i5][1], FR + 8.2);
+    q5 = P(L * MANT[i5][0] * 0.82 - L * 0.06, W * 0.62 * MANT[i5][1], FR + 8.2);
     if (i5) g.lineTo(q5[0], q5[1]); else g.moveTo(q5[0], q5[1]);
   }
   for (i5 = MANT.length - 1; i5 >= 0; i5--) {
-    q5 = P(L * MANT[i5][0] * 0.82 - L * 0.06, -W * 0.72 * MANT[i5][1], FR + 8.2);
+    q5 = P(L * MANT[i5][0] * 0.82 - L * 0.06, -W * 0.62 * MANT[i5][1], FR + 8.2);
     g.lineTo(q5[0], q5[1]);
   }
 })();
@@ -97,15 +97,15 @@ var ARM = [[-1.05, 1.52, 0.62], [-0.58, 1.86, 0.80], [-0.20, 1.44, 0.92],
 for (var ti = 0; ti < ARM.length; ti++) {
   var t = ARM[ti][0], reach = ARM[ti][1], gauge = ARM[ti][2];
   var oq = P(L * 0.42, W * 0.62 * t, FR + 6.4);
-  var mqA = P(L * (0.42 + reach) * 0.5, W * (0.62 * t + 2.30 * t) * 0.5, FR + 5.8);
-  var aq = P(L * reach, W * 1.90 * t, FR + 5.0);
+  var mqA = P(L * (0.42 + reach) * 0.5, W * (0.62 * t + 1.12 * t) * 0.5, FR + 5.8);
+  var aq = P(L * reach, W * 0.82 * t, FR + 5.0);
   // the inner half, full gauge
-  g.strokeStyle = shade(HULL, 0.72); g.lineWidth = (0.8 + 0.34 * ss) * gauge;
+  g.strokeStyle = '#555555'; g.lineWidth = (1.0 + 0.34 * ss) * gauge;
   g.beginPath(); g.moveTo(oq[0], oq[1]);
   g.quadraticCurveTo(mqA[0], mqA[1] - 7.5 * (1.15 - Math.abs(t)) - 2.0, aq[0], aq[1]);
   g.stroke();
   // the outer half again, thinner, so the arm tapers to a tip
-  g.strokeStyle = shade(HULL, 0.86); g.lineWidth = (0.8 + 0.34 * ss) * gauge * 0.45;
+  g.strokeStyle = '#777777'; g.lineWidth = (1.0 + 0.34 * ss) * gauge * 0.45;
   g.beginPath(); g.moveTo(mqA[0], mqA[1] - 3.8 * (1.15 - Math.abs(t)) - 1.0);
   g.quadraticCurveTo(mqA[0], mqA[1] - 2.0, aq[0], aq[1]);
   g.stroke();
@@ -119,20 +119,18 @@ g.lineCap = 'butt';
   // straight run into the silhouette and broke this unit's one hard clause,
   // "zero straight edges" — the animal is the only outline in the game that is
   // not a machine. Two bezier lobes instead, so every edge of the fin bows.
-  var f0 = P(-L * 1.00, 0, FR + 6.8), f2 = P(-L * 0.44, 0, FR + 6.8);
-  g.fillStyle = shade(HULL, 1.14);
-  g.beginPath();
-  g.moveTo(f0[0], f0[1]);
+  var f0 = P(-L * 0.65, 0, FR + 6.8), f2 = P(-L * 0.28, 0, FR + 6.8);
   for (var fs2 = 1; fs2 >= -1; fs2 -= 2) {
-    var cA = P(-L * 0.94, W * 1.02 * fs2, FR + 6.6);
-    var cB = P(-L * 0.56, W * 0.98 * fs2, FR + 6.6);
+    var cA = P(-L * 0.70, W * 1.22 * fs2, FR + 8.4);
+    var cB = P(-L * 0.40, W * 1.08 * fs2, FR + 8.0);
+    g.beginPath(); g.moveTo(f0[0], f0[1]);
     g.bezierCurveTo(cA[0], cA[1], cB[0], cB[1], f2[0], f2[1]);
-    var cC = P(-L * 0.60, W * 0.30 * fs2, FR + 6.8);
-    var cD = P(-L * 0.88, W * 0.26 * fs2, FR + 6.8);
+    var cC = P(-L * 0.39, W * 0.28 * fs2, FR + 7.1);
+    var cD = P(-L * 0.57, W * 0.26 * fs2, FR + 7.1);
     g.bezierCurveTo(cC[0], cC[1], cD[0], cD[1], f0[0], f0[1]);
+    g.closePath(); g.fillStyle = shade(HULL, fs2 > 0 ? 1.14 : 0.92); g.fill();
+    g.strokeStyle = shade(HULL, 0.70); g.lineWidth = 0.7; g.stroke();
   }
-  g.closePath(); g.fill();
-  g.strokeStyle = shade(HULL, 0.70); g.lineWidth = 0.7; g.stroke();
 })();
 // A DARK MAROON COLLAR, not a cartoon eye. There was a 3-px bright yellow
 // disc with a black pupil painted on the mantle, and at the size this is

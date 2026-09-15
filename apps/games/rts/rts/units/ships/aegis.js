@@ -5,10 +5,10 @@ function drawAegis(C) {
       L = C.L, P = C.P, W = C.W, box = C.box, g = C.g, nearS = C.nearS;
 
   box(-L * 0.02, 0, L * 0.72, W * 1.62, 3.4, DECK);
-  box(-L * 0.06, 0, L * 0.52, W * 1.34, 5.4, shade(DECK, 1.46));
+  box(-L * 0.01, 0, L * 0.42, W * 0.98, 4.4, shade(DECK, 1.32));
 
   (function () {
-    var b = P(L * 0.46, W * 0.30, FR + 3.4), t = P(L * 0.46, W * 0.30, FR + 14.2);
+    var b = P(-L * 0.78, W * 0.30, FR + 3.4), t = P(-L * 0.78, W * 0.30, FR + 14.2);
     g.strokeStyle = '#333333'; g.lineWidth = 1.1;
     g.beginPath(); g.moveTo(b[0], b[1]); g.lineTo(t[0], t[1]); g.stroke();
     g.beginPath(); g.moveTo(t[0] - 2, t[1] + 3); g.lineTo(t[0] + 2, t[1] + 3); g.stroke();
@@ -20,8 +20,8 @@ function drawAegis(C) {
 
   (function () {
     var v = W * 0.28 * nearS;
-    var a = P(L * 0.34, v, FR + 3.4), b = P(L * 0.10, v, FR + 3.4);
-    var c = P(L * 0.16, v, FR + 9.8), d = P(L * 0.32, v, FR + 9.4);
+    var a = P(-L * 0.72, v, FR + 3.4), b = P(-L * 0.45, v, FR + 3.4);
+    var c = P(-L * 0.52, v, FR + 9.8), d = P(-L * 0.70, v, FR + 9.4);
     g.fillStyle = HOUSE; g.beginPath();
     g.moveTo(a[0], a[1]); g.lineTo(b[0], b[1]);
     g.lineTo(c[0], c[1]); g.lineTo(d[0], d[1]); g.closePath(); g.fill();
@@ -31,8 +31,10 @@ function drawAegis(C) {
     g.beginPath(); g.moveTo(b[0], b[1]); g.lineTo(c[0], c[1]); g.stroke();
   })();
 
-  var fu = L * 0.19;
-  box(fu, 0, L * 0.12, W * 0.62, 7.4, '#cccccc');
+  // RA2's raised aft house is dark steel; the white masses are the guns in
+  // front of it, not a white bridge ahead of the battery.
+  var fu = -L * 0.58;
+  box(fu, 0, L * 0.18, W * 0.82, 8.4, '#555555');
   (function () {
     function band(z, col, lw) {
       var a = P(fu, -W * 0.31, FR + z), b = P(fu, W * 0.31, FR + z);
@@ -42,51 +44,50 @@ function drawAegis(C) {
     band(5.6, HOUSE, 2.2); band(7.4, '#333333', 1.2);
   })();
 
-  // THE AA MOUNT — A LAUNCHER WITH VOLUME, NOT SHEETS.
-  // It was five flat white quads, each drawn at a single v as one filled
-  // polygon: no top face, no end face, no thickness. That is exactly how you
-  // draw a SAIL, and that is what it looked like — white canvas luffing over
-  // the after deck. A launcher is a BOX: it has a lit top, a shaded near side
-  // and a darker end, and the three of them meeting at a corner is the whole
-  // of what tells the eye it is a solid object.
-  //
-  // Two canted launcher blocks side by side on a broad base, each with its
-  // cells opening upward, which is the shape the reference carries and the
-  // reason this ship reads as anti-air at a glance.
-  box(-L * 0.34, 0, L * 0.72, W * 1.72, 3.6, '#666666');            // the base
+  // Two large forward-facing AA tubes on one traversable centre pedestal.
+  // The voxel reference shows thick white horizontal housings with dark
+  // square mouths, not tall canted launch boxes with holes on their roofs.
+  box(-L * 0.29, 0, L * 0.24, W * 1.10, 4.4, '#444444');
+  box(-L * 0.29, 0, L * 0.16, W * 0.72, 6.2, '#666666');
   (function () {
-    // one canted box: u/v centre, half-length, half-width, base z, top z, and
-    // how far the top is shifted aft of the bottom (the cant).
-    function launcher(cu, cv, hl, hw, z0, z1, cant, tone) {
-      function c(du, dv, z, aft) {
-        return P(L * (cu + du + (aft ? cant : 0)), W * (cv + dv), FR + z);
-      }
-      var b0 = c(hl, hw, z0, 0), b1 = c(hl, -hw, z0, 0),
-          b2 = c(-hl, -hw, z0, 0), b3 = c(-hl, hw, z0, 0);
-      var t0 = c(hl, hw, z1, 1), t1 = c(hl, -hw, z1, 1),
-          t2 = c(-hl, -hw, z1, 1), t3 = c(-hl, hw, z1, 1);
-      function quad(a, b, cc, d, col) {
-        g.fillStyle = col; g.beginPath();
-        g.moveTo(a[0], a[1]); g.lineTo(b[0], b[1]);
-        g.lineTo(cc[0], cc[1]); g.lineTo(d[0], d[1]); g.closePath(); g.fill();
-        g.strokeStyle = '#666666'; g.lineWidth = 0.7; g.stroke();
-      }
-      quad(b3, b0, t0, t3, tone[1]);                 // the near flank
-      quad(b0, b1, t1, t0, tone[2]);                 // the forward end
-      quad(t0, t1, t2, t3, tone[0]);                 // the lit top
-      // the cell mouths in the top face, which is what says "launcher"
-      for (var ci = -1; ci <= 1; ci++) {
-        var m = c(hl * 0.45 * ci, 0, z1, 1);
-        g.fillStyle = '#333333';
-        g.beginPath(); g.ellipse(m[0], m[1], 1.5, 1.0, 0, 0, 6.29); g.fill();
-        g.fillStyle = HOUSE;
-        g.beginPath(); g.ellipse(m[0], m[1] - 0.3, 0.9, 0.6, 0, 0, 6.29); g.fill();
-      }
+    function quad(qs, col) {
+      g.fillStyle = col; g.beginPath();
+      g.moveTo(qs[0][0], qs[0][1]);
+      for (var j = 1; j < qs.length; j++) g.lineTo(qs[j][0], qs[j][1]);
+      g.closePath(); g.fill();
+      g.strokeStyle = '#777777'; g.lineWidth = 0.65; g.stroke();
     }
-    var PALE = ['#ffffff', '#cccccc', '#999999'];
-    var DIM  = ['#cccccc', '#999999', '#666666'];
-    launcher(-L * 0.001 - 0.18, -0.62 * nearS, 0.17, 0.34, 3.6, 10.8, 0.10, DIM);
-    launcher(-0.34, 0.52 * nearS, 0.19, 0.38, 3.6, 12.4, 0.11, PALE);
+    function tube(side) {
+      var vv = side * W * 0.80, tipV = vv + side * W * 0.38, hw = W * 0.16;
+      var u0 = -L * 0.35, u1 = L * 0.02, z0 = FR + 6.0, z1 = FR + 9.4;
+      function p(u, v, z) { return P(u, v, z); }
+      var rise = 1.8;
+      var a = p(u0, vv - hw, z0), b = p(u1, tipV - hw, z0 + rise),
+          c = p(u1, tipV - hw, z1 + rise), d = p(u0, vv - hw, z1);
+      var e = p(u0, vv + hw, z0), f = p(u1, tipV + hw, z0 + rise),
+          h = p(u1, tipV + hw, z1 + rise), k = p(u0, vv + hw, z1);
+      // A faceted broad cylinder keeps a long, connected cannon read at
+      // broadside; four roof quads merged into an upright white deckhouse.
+      var root = p(u0, vv, (z0 + z1) * 0.5), tip = p(u1, tipV, (z0 + z1) * 0.5 + rise);
+      g.lineCap = 'butt';
+      g.strokeStyle = '#555555'; g.lineWidth = 5.8;
+      g.beginPath(); g.moveTo(root[0], root[1] + 1.0); g.lineTo(tip[0], tip[1] + 1.0); g.stroke();
+      g.strokeStyle = '#dddddd'; g.lineWidth = 4.8;
+      g.beginPath(); g.moveTo(root[0], root[1]); g.lineTo(tip[0], tip[1]); g.stroke();
+      g.strokeStyle = '#ffffff'; g.lineWidth = 1.7;
+      g.beginPath(); g.moveTo(root[0], root[1] - 2.0); g.lineTo(tip[0], tip[1] - 2.0); g.stroke();
+      // Square muzzle collar with one recessed launch opening.
+      quad([b, f, h, c], '#cccccc');
+      var mu = u1 + L * 0.006;
+      quad([p(mu, tipV - hw * 0.58, z0 + rise + 0.6),
+            p(mu, tipV + hw * 0.58, z0 + rise + 0.6),
+            p(mu, tipV + hw * 0.58, z1 + rise - 0.6),
+            p(mu, tipV - hw * 0.58, z1 + rise - 0.6)], '#333333');
+      g.strokeStyle = HOUSE; g.lineWidth = 1.0;
+      var q0 = p(u0 - L * 0.01, vv - hw, z0 + 1.1), q1 = p(u0 - L * 0.01, vv + hw, z0 + 1.1);
+      g.beginPath(); g.moveTo(q0[0], q0[1]); g.lineTo(q1[0], q1[1]); g.stroke();
+    }
+    tube(-nearS); tube(nearS);
   })();
 
   // Explicit house-colour faces avoid isoBox's teal palette rung.

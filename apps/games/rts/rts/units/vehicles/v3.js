@@ -9,16 +9,38 @@
 function drawV3(C) {
   var PEDGE = C.PEDGE, STEEL = C.STEEL, a = C.a, bumper = C.bumper, by = C.by, chassis = C.chassis,
       cx = C.cx, dark = C.dark, deck = C.deck, exhaust = C.exhaust, fx = C.fx, fy = C.fy, g = C.g,
-      hull = C.hull, i2 = C.i2, lamp = C.lamp, len = C.len, panel = C.panel, pdark = C.pdark,
-      plit = C.plit, px = C.px, py = C.py, sg = C.sg, wheels = C.wheels, wid = C.wid;
+      hull = C.hull, i2 = C.i2, lamp = C.lamp, len = C.len, nearS = C.nearS,
+      panel = C.panel, pdark = C.pdark,
+      plit = C.plit, px = C.px, py = C.py, sg = C.sg, trackRun = C.trackRun,
+      wheelDisc = C.wheelDisc, wid = C.wid;
 
 // V3 LAUNCHER — a plain olive six-wheeled truck carrying a rocket so
 // big it IS the unit: a white body on an angled rail over the bed,
 // nose cone and tail fins in house colour, breaking well past both
 // ends of the chassis. Everything about the truck is deliberately
 // dull so nothing competes with that diagonal.
-wheels(len * 0.70, 2.5, 3);
+// The genuine V3 is a half-track: a front steering axle and continuous
+// rear crawler belts carry the heavy rail and missile.
+for (sg = -1; sg <= 1; sg += 2) {
+  var v3to = wid * 0.34 * sg, v3tu = -5.5;
+  if (sg !== nearS)
+    trackRun(cx + fx * v3tu + px * v3to,
+             by - 1.1 + fy * v3tu + py * v3to,
+             len * 0.58, wid * 0.21, 3.8, '#777777',
+             {top: '#343634', side: '#242625', dark: '#151716'});
+  var v3wu = 8.0;
+  wheelDisc(cx + fx * v3wu + px * wid * 0.38 * sg,
+            by - 2.05 + fy * v3wu + py * wid * 0.38 * sg,
+            2.25, 0.65, '#292929', '#8d8d8d');
+}
 chassis(cx, by - 1.0, len * 0.86, wid * 0.62, 3.6, hull, dark, 2.4);
+if (Math.abs(C.flank) > 0.14) {
+  var v3nearOff = wid * 0.34 * nearS, v3nearU = -5.5;
+  trackRun(cx + fx * v3nearU + px * v3nearOff,
+           by - 1.1 + fy * v3nearU + py * v3nearOff,
+           len * 0.58, wid * 0.21, 3.8, '#777777',
+           {top: '#343634', side: '#242625', dark: '#151716'});
+}
 var drawCab3 = function () {
   isoBox(g, cx + fx * 8.2, by - 4.4 + fy * 8.2, len * 0.22, wid * 0.62, 4.4,
          a, shade(hull, 1.06), dark);
@@ -58,7 +80,7 @@ var drawRig3 = function () {
     // of its own launcher at the tail — the sort of thing a number in
     // band will never catch and a player sees immediately.
     var r0x = cx - fx * 13.4 + px * 2.6 * sg, r0y = by - 4.2 - fy * 13.4 + py * 2.6 * sg;
-    var r1x = cx + fx * 6.8 + px * 2.6 * sg, r1y = by - 13.2 + fy * 6.8 + py * 2.6 * sg;
+    var r1x = cx + fx * 6.8 + px * 2.6 * sg, r1y = by - 15.0 + fy * 6.8 + py * 2.6 * sg;
     g.strokeStyle = '#2b2f36'; g.lineWidth = 2.6; g.lineCap = 'round';
     g.beginPath(); g.moveTo(r0x, r0y); g.lineTo(r1x, r1y); g.stroke();
     g.strokeStyle = '#838383'; g.lineWidth = 1.0;
@@ -78,7 +100,7 @@ var drawRig3 = function () {
   // rise FROM the bed to the rail's high end, and stay inside the beam.
   for (var js = -1; js <= 1; js += 2)
     isoBox(g, cx + fx * 5.4 + px * wid * 0.17 * js, by - 4.6 + fy * 5.4 + py * wid * 0.17 * js,
-           1.5, 1.5, 8.6, a, '#6e6e6e', '#232323');         // jack legs
+           1.5, 1.5, 10.2, a, '#6e6e6e', '#232323');        // jack legs from bed to high rail
   exhaust(cx - fx * len * 0.40, by - 4.4 - fy * len * 0.40);
 };
 var drawRocket3 = function () {
@@ -100,7 +122,7 @@ var drawRocket3 = function () {
   // board. The chord goes 23.6 -> 30.2 (1.37x the truck, 7 px of nose
   // clear of the bumper) and the rise comes down a shade with it, so
   // the rail keeps its diagonal at about 36 degrees instead of 39.
-  var tu = 18.5, tv = -11.5, hu = -15.5, hv = -3.6;   // 2026-09-10: the sheet's rocket lies along the WHOLE truck at ~20 deg, nose past the cab
+  var tu = 18.5, tv = -18.5, hu = -15.5, hv = -6.0;  // long chassis, inclined missile close over its supported rail
   var tipx = cx + fx * tu, tipy = by + tv + fy * tu;
   var tlx = cx + fx * hu, tly = by + hv + fy * hu;
   var vx = tipx - tlx, vy = tipy - tly, vl = Math.hypot(vx, vy) || 1;
@@ -119,40 +141,40 @@ var drawRocket3 = function () {
     g.lineTo(tlx + vx * 0.15 + nx3 * 2.3 * sg, tly + vy * 0.15 + ny3 * 2.3 * sg);
     g.lineTo(tlx + vx * 0.02 + nx3 * 4.9 * sg, tly + vy * 0.02 + ny3 * 4.9 * sg);
     g.closePath();
-    g.fillStyle = sg < 0 ? plit : pdark; g.fill(); outline(g, PEDGE);
+    g.fillStyle = sg < 0 ? '#d43c35' : '#a32924'; g.fill(); outline(g, '#51231f');
   }
   // WHITE body, colour at the two ENDS only. A third colour ring
   // across the midbody (the previous pass) turned the rocket into a
   // candy stripe; on the sheet the V3's missile is white with a red
   // nose and red fins, nothing else.
-  band(0.00, 0.09, 2.0, 2.5, pdark);                        // colour motor skirt
-  band(0.08, 0.72, 2.5, 2.5, VACC.v3);                      // parallel white midbody
-  band(0.70, 0.76, 2.5, 2.1, shade(VACC.v3, 0.94));         // shoulder
+  band(0.00, 0.09, 1.20, 1.35, '#777777');                  // motor skirt
+  band(0.08, 0.84, 1.35, 1.35, VACC.v3);                    // slim white midbody
+  band(0.82, 0.86, 1.35, 1.12, shade(VACC.v3, 0.94));       // shoulder
   g.beginPath();                                            // house-colour nose cone
-  g.moveTo(tlx + vx * 0.76 + nx3 * 2.1, tly + vy * 0.81 + ny3 * 1.9);
+  g.moveTo(tlx + vx * 0.86 + nx3 * 1.45, tly + vy * 0.86 + ny3 * 1.45);
   g.lineTo(tipx, tipy);
-  g.lineTo(tlx + vx * 0.76 - nx3 * 2.1, tly + vy * 0.81 - ny3 * 1.9);
-  g.closePath(); g.fillStyle = panel; g.fill(); outline(g, PEDGE);
-  g.fillStyle = plit;
+  g.lineTo(tlx + vx * 0.86 - nx3 * 1.45, tly + vy * 0.86 - ny3 * 1.45);
+  g.closePath(); g.fillStyle = '#c7342e'; g.fill(); outline(g, '#51231f');
+  g.fillStyle = '#ed5a4d';
   g.beginPath();
-  g.moveTo(tlx + vx * 0.78 + nx3 * 1.7, tly + vy * 0.78 + ny3 * 1.7);
+  g.moveTo(tlx + vx * 0.87 + nx3 * 1.05, tly + vy * 0.87 + ny3 * 1.05);
   g.lineTo(tipx - vx * 0.02, tipy - vy * 0.02);
-  g.lineTo(tlx + vx * 0.78 + nx3 * 0.2, tly + vy * 0.78 + ny3 * 0.2);
+  g.lineTo(tlx + vx * 0.87 + nx3 * 0.1, tly + vy * 0.87 + ny3 * 0.1);
   g.closePath(); g.fill();
   g.strokeStyle = 'rgba(255,255,255,.78)'; g.lineWidth = 1.0;  // lit upper seam
   g.beginPath();
-  g.moveTo(tlx + vx * 0.10 + nx3 * 1.3, tly + vy * 0.10 + ny3 * 1.3);
-  g.lineTo(tlx + vx * 0.80 + nx3 * 1.3, tly + vy * 0.80 + ny3 * 1.3); g.stroke();
+  g.moveTo(tlx + vx * 0.10 + nx3 * 0.8, tly + vy * 0.10 + ny3 * 0.8);
+  g.lineTo(tlx + vx * 0.75 + nx3 * 0.8, tly + vy * 0.75 + ny3 * 0.8); g.stroke();
   g.strokeStyle = 'rgba(60,64,70,.55)'; g.lineWidth = 1.4;     // shadowed lower seam
   g.beginPath();
-  g.moveTo(tlx + vx * 0.10 - nx3 * 1.6, tly + vy * 0.10 - ny3 * 1.6);
-  g.lineTo(tlx + vx * 0.80 - nx3 * 1.6, tly + vy * 0.80 - ny3 * 1.6); g.stroke();
+  g.moveTo(tlx + vx * 0.10 - nx3 * 0.9, tly + vy * 0.10 - ny3 * 0.9);
+  g.lineTo(tlx + vx * 0.75 - nx3 * 0.9, tly + vy * 0.75 - ny3 * 0.9); g.stroke();
   g.strokeStyle = 'rgba(24,26,30,.55)'; g.lineWidth = 0.8;     // two thin body straps
   for (i2 = 0; i2 < 2; i2++) {
     var tq = 0.20 + i2 * 0.38;
     g.beginPath();
-    g.moveTo(tlx + vx * tq + nx3 * 2.5, tly + vy * tq + ny3 * 2.5);
-    g.lineTo(tlx + vx * tq - nx3 * 2.5, tly + vy * tq - ny3 * 2.5); g.stroke();
+    g.moveTo(tlx + vx * tq + nx3 * 1.35, tly + vy * tq + ny3 * 1.35);
+    g.lineTo(tlx + vx * tq - nx3 * 1.35, tly + vy * tq - ny3 * 1.35); g.stroke();
   }
 };
 if (fy > 0) { drawRig3(); drawCab3(); } else { drawCab3(); drawRig3(); }

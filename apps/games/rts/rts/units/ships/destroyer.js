@@ -166,7 +166,7 @@ mast(-L * 0.30, 0, 13.0, '#333333');
 // Everything here is projected through P(), not offset in pixels from one
 // point, so the aircraft lies in the deck plane and skews with the hull.
 (function () {
-  var AU = -L * 0.62, AZ = FR + 1.2;                    // where it sits, and its deck
+  var AU = -L * 0.62, AZ = FR + 1.2;                    // stern flight pad
   // LEMON, NOT DARK GOLD. At 22x the rip's aircraft is a bright yellow — the
   // single lightest saturated thing in the whole fleet — and ours was #cc9900
   // amber, which at map size sinks into the grey deck it sits on.
@@ -177,62 +177,67 @@ mast(-L * 0.30, 0, 13.0, '#333333');
   g.strokeStyle = HOUSE; g.lineWidth = 0.9;
   var hq = pt(0, 0, -0.6);
   g.beginPath(); g.ellipse(hq[0], hq[1], 5.2, 2.7, 0, 0, 6.29); g.stroke();
+  // Short landing struts tie the raised fuselage to the flight pad.
+  for (var gs = -1; gs <= 1; gs += 2) {
+    var ga = pt(-L * 0.035, gs * W * 0.15, 0.5), gb = pt(-L * 0.035, gs * W * 0.15, 4.2);
+    g.strokeStyle = '#555555'; g.lineWidth = 1.1;
+    g.beginPath(); g.moveTo(ga[0], ga[1]); g.lineTo(gb[0], gb[1]); g.stroke();
+  }
   // THE FAR NACELLE GOES BEHIND THE WING. Both were drawn after it, so the
   // far upright painted over the gold that should pass in front of it and the
   // aircraft lost most of its span. There is no z-buffer here: the only thing
   // that puts a part behind another is the order it is drawn in.
   function nacelle(ne) {
-    var n0 = pt(0, ne * W * 1.26, 2.2), n1 = pt(0, ne * W * 1.26, 8.4);
-    g.strokeStyle = HOUSE; g.lineWidth = 1.7;
+    var n0 = pt(0, ne * W * 1.06, 2.2), n1 = pt(0, ne * W * 1.06, 8.4);
+    // Each wingtip carries a thick motor/rotor nacelle, not a thin flagpole.
+    g.strokeStyle = '#333333'; g.lineWidth = 5.8;
     g.beginPath(); g.moveTo(n0[0], n0[1]); g.lineTo(n1[0], n1[1]); g.stroke();
-    g.strokeStyle = HL; g.lineWidth = 0.8;
-    g.beginPath(); g.moveTo(n0[0] - 0.7, n0[1]); g.lineTo(n1[0] - 0.7, n1[1]); g.stroke();
-    g.strokeStyle = '#333333'; g.lineWidth = 1.0;                  // the folded blades on top
+    g.strokeStyle = HOUSE; g.lineWidth = 4.0;
+    g.beginPath(); g.moveTo(n0[0] - 0.8, n0[1]); g.lineTo(n1[0] - 0.8, n1[1]); g.stroke();
+    g.fillStyle = shade(HOUSE, 1.08); g.beginPath();
+    g.ellipse(n1[0], n1[1], 3.4, 1.7, 0, 0, 6.29); g.fill();
+    g.strokeStyle = '#333333'; g.lineWidth = 1.3;                  // folded propeller blades
     g.beginPath();
-    g.moveTo(n1[0] - 3.4, n1[1] - 0.8); g.lineTo(n1[0] + 3.4, n1[1] + 0.4); g.stroke();
+    g.moveTo(n1[0] - 4.6, n1[1] - 0.8); g.lineTo(n1[0] + 4.6, n1[1] + 0.4); g.stroke();
   }
   nacelle(-nearS);
-  // IT WAS WIDER THAN THE SHIP. The wing spanned +/-W*1.72 — 3.4 half-beams,
-  // almost twice the hull's own beam — at 4.0 px wide, and the fuselage ran
-  // 0.32L. Together they baked as two enormous lemon bars lying diagonally
-  // across two thirds of the vessel, the loudest thing on her by a wide margin,
-  // and at several bearings they covered the forward turret entirely. Measured
-  // against `library/destroyer.png`, RA2's aircraft is a COMPACT gold shape
-  // parked right aft, roughly one beam across and about a fifth of the ship's
-  // length. The comment above is right that a gold streak crossed by a blue
-  // upright is all the information this sprite can hold — it was just drawn at
-  // twice the size the reference gives it.
-  var wA = pt(0, W * 1.34, 2.2), wB = pt(0, -W * 1.34, 2.2);
-  g.strokeStyle = GOLD; g.lineWidth = 3.2; g.lineCap = 'butt';
-  g.beginPath(); g.moveTo(wA[0], wA[1]); g.lineTo(wB[0], wB[1]); g.stroke();
-  g.strokeStyle = GOLD_L; g.lineWidth = 1.1;                       // its lit leading edge
-  g.beginPath(); g.moveTo(wA[0], wA[1] - 1.4); g.lineTo(wB[0], wB[1] - 1.4); g.stroke();
-  // the fuselage, ALONG the hull
-  var fA = pt(-L * 0.12, 0, 2.6), fB = pt(L * 0.13, 0, 2.6);
-  g.strokeStyle = GOLD; g.lineWidth = 2.6;
-  g.beginPath(); g.moveTo(fA[0], fA[1]); g.lineTo(fB[0], fB[1]); g.stroke();
-  g.strokeStyle = GOLD_L; g.lineWidth = 1.4;
-  g.beginPath(); g.moveTo(fA[0], fA[1] - 1.2); g.lineTo(fB[0], fB[1] - 1.2); g.stroke();
-  g.strokeStyle = GOLD_D; g.lineWidth = 0.9;
-  g.beginPath(); g.moveTo(fA[0], fA[1] + 1.4); g.lineTo(fB[0], fB[1] + 1.4); g.stroke();
-  var ck = pt(L * 0.10, 0, 3.2);                                   // cockpit glass
+  // A parked aircraft needs an actual wing and tapered body. Thin crossing
+  // strokes vanished into the deck at game scale and looked like a deck glyph.
+  function fillPart(points, color) {
+    g.fillStyle = color; g.beginPath();
+    g.moveTo(points[0][0], points[0][1]);
+    for (var j = 1; j < points.length; j++) g.lineTo(points[j][0], points[j][1]);
+    g.closePath(); g.fill();
+  }
+  fillPart([pt(L * 0.035, -W * 1.08, 3.7), pt(-L * 0.045, -W * 1.08, 3.7),
+            pt(-L * 0.075, W * 1.08, 3.7), pt(L * 0.055, W * 1.08, 3.7)], GOLD_D);
+  fillPart([pt(L * 0.055, -W * 0.93, 3.9), pt(-L * 0.025, -W * 0.93, 3.9),
+            pt(-L * 0.05, W * 0.93, 3.9), pt(L * 0.075, W * 0.93, 3.9)], GOLD);
+  var leadingA = pt(L * 0.075, -W * 0.93, 4.0), leadingB = pt(L * 0.075, W * 0.93, 4.0);
+  g.strokeStyle = GOLD_L; g.lineWidth = 1.2;
+  g.beginPath(); g.moveTo(leadingA[0], leadingA[1]); g.lineTo(leadingB[0], leadingB[1]); g.stroke();
+  fillPart([pt(-L * 0.23, 0, 5.2), pt(-L * 0.10, -W * 0.28, 5.2),
+            pt(L * 0.12, -W * 0.26, 5.2), pt(L * 0.22, 0, 5.2),
+            pt(L * 0.12, W * 0.26, 5.2), pt(-L * 0.10, W * 0.28, 5.2)], GOLD_D);
+  fillPart([pt(-L * 0.20, 0, 5.8), pt(-L * 0.09, -W * 0.22, 5.8),
+            pt(L * 0.10, -W * 0.20, 5.8), pt(L * 0.19, 0, 5.8),
+            pt(L * 0.10, W * 0.20, 5.8), pt(-L * 0.09, W * 0.22, 5.8)], GOLD);
+  // Keep the wing spar visibly continuous across the centre fuselage at
+  // gameplay scale; otherwise the dark parked pad makes two yellow brackets.
+  var sparA = pt(0, -W * 0.94, 4.8), sparB = pt(0, W * 0.94, 4.8);
+  g.strokeStyle = GOLD_L; g.lineWidth = 2.2; g.lineCap = 'butt';
+  g.beginPath(); g.moveTo(sparA[0], sparA[1]); g.lineTo(sparB[0], sparB[1]); g.stroke();
+  var ck = pt(L * 0.10, 0, 5.8);                                   // cockpit glass
   g.fillStyle = '#333333';
   g.beginPath(); g.ellipse(ck[0], ck[1], 1.5, 1.0, 0, 0, 6.29); g.fill();
-  // THE CENTRE PYLON. The rip's aircraft has a tall blue mast standing on the
-  // fuselage between the wings — it is the tallest thing aft and most of what
-  // makes the stern read busy. We had only the two wingtip nacelles.
-  (function () {
-    var c0 = pt(L * 0.02, 0, 3.4), c1 = pt(L * 0.02, 0, 12.6);
-    g.strokeStyle = HOUSE; g.lineWidth = 2.0;
-    g.beginPath(); g.moveTo(c0[0], c0[1]); g.lineTo(c1[0], c1[1]); g.stroke();
-    g.strokeStyle = HL; g.lineWidth = 0.9;
-    g.beginPath(); g.moveTo(c0[0] - 0.8, c0[1]); g.lineTo(c1[0] - 0.8, c1[1]); g.stroke();
-    g.strokeStyle = '#333333'; g.lineWidth = 1.0;                  // the rotor across its head
-    g.beginPath(); g.moveTo(c1[0] - 4.0, c1[1] - 0.6); g.lineTo(c1[0] + 4.0, c1[1] + 0.5); g.stroke();
-  })();
+  // A low canopy sits on the aircraft's own fuselage; a tall centre mast
+  // made it read as three poles on the destroyer instead of an airframe.
+  var canopy = pt(L * 0.055, 0, 6.4);
+  g.fillStyle = '#333333'; g.beginPath();
+  g.ellipse(canopy[0], canopy[1], 1.8, 1.0, 0, 0, 6.29); g.fill();
   nacelle(nearS);                                   // and the near one, in front
   // the tail fin, aft on the fuselage
-  var tf = pt(-L * 0.14, 0, 2.6);
+  var tf = pt(-L * 0.14, 0, 4.0);
   g.fillStyle = HOUSE;
   g.beginPath();
   g.moveTo(tf[0], tf[1]); g.lineTo(tf[0] - 1.0, tf[1] - 4.0);

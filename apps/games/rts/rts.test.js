@@ -5112,10 +5112,13 @@ test("the Kirov is baked at its drawn size, with no per-unit draw scale", () => 
   assert.ok(!/\buk\b/.test(src.slice(d0, d1)),
     "drawUnit still carries a per-unit sprite scale factor");
 
-  // The size moved into the bake instead.
+  // The accepted airship now has a larger authored hull and canvas, rather
+  // than magnifying the old small model by 1.3. It still draws at baked size.
   const vsc = src.match(/\n\s+kirov: (\d\.\d+),/);
-  assert.ok(vsc && Number(vsc[1]) > 1.2,
-    "the Kirov's VSC does not carry the scale the draw fudge used to");
+  assert.ok(vsc && Number(vsc[1]) === 1,
+    "Kirov should use its authored native size");
+  assert.match(src, /kind === 'kirov' \? vehicleCanvas\(184, 125 \+ UPAD\)/,
+    "Kirov lost its dedicated canvas for the authored hull and bomb rack");
 
   // Nothing else on the roster acquired a draw-time scale to replace it.
   for (const [k, u] of Object.entries(T.UNITS))

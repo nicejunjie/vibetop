@@ -18,7 +18,7 @@ function drawTeslatank(C) {
 // tail. The blue-white at the coil tips is kept to a couple of pixels
 // a side: at any size that reads across the field it swamps the owner
 // colour and both players' tanks glow the same.
-tracks(len * 1.00, 4.2, wid * 0.30, '#b6b6b6');
+tracks(len * 1.00, 4.2, wid * 0.30, '#555555');
 chassis(cx, by - 1.3, len * 0.86, wid * 0.76, 4.2, hull, dark, 3.2);
 deckPlate(-0.8, len * 0.58, wid * 0.48, 6.8, shade(hull, 1.08));
 // TWO plates a flank with a gap, not a bar: the Tesla Tank's own
@@ -31,8 +31,8 @@ for (sg = -1; sg <= 1; sg += 2)
   for (i2 = -1; i2 <= 1; i2 += 2)
     isoBox(g, cx + px * wid * 0.375 * sg + fx * (i2 * 5.6 - 1.4),
            by - 3.2 + py * wid * 0.375 * sg + fy * (i2 * 5.6 - 1.4),
-           len * 0.24, 1.7, 3.4, a, i2 > 0 ? panel : shade(hull, 1.10), PEDGE);
-fenders(len * 0.42, 3.4);
+           len * 0.18, 1.5, 2.5, a, shade(hull, i2 > 0 ? 0.94 : 1.10), PEDGE);
+fenders(len * 0.42, 3.4, 0.40, 0.20, 0.13);
 bumper(len * 0.41, wid * 0.24, by - 1.5);
 var drawTail5 = function () {
   // The capacitor bank. Built at full black (the first attempt) it was
@@ -152,6 +152,53 @@ var drawPod5 = function () {
   // the blue-white stays where it belongs — the couple of pixels at each tip.
 
 };
-if (fy > 0) { drawTail5(); drawPod5(); } else { drawPod5(); drawTail5(); }
+// The RA2 vehicle has one squat red power/turret assembly. Its two
+// silver electrodes are small end fittings, not tall parallel masts.
+var drawPodRA2 = function () {
+  var tx = cx - fx * 2.2, ty = by - 6.2 - fy * 2.2;
+  isoBox(g, tx, ty, len * 0.36, wid * 0.50, 2.35, a, '#292b2a', '#171918');
+  isoBox(g, tx, ty - 2.35, len * 0.31, wid * 0.43, 2.65,
+         a, shade(panel, 0.80), '#292929');
+  isoBox(g, tx + fx * 1.55, ty - 5.0 + fy * 1.55,
+         len * 0.19, wid * 0.40, 1.0, a, shade(panel, 1.08), '#292929');
+  // Paired raised electrodes flank the red power housing. They are short
+  // articulated insulators with dark conductive heads, not gun barrels.
+  for (var er = -1; er <= 1; er += 2) {
+    var lateral = wid * 0.245 * er;
+    var bx5 = tx + fx * 0.8 + px * lateral;
+    var by5 = ty - 4.2 + fy * 0.8 + py * lateral;
+    isoBox(g, bx5, by5, len * 0.12, wid * 0.16, 2.4,
+           a, '#888888', '#444444');                     // root at the power housing
+    isoBox(g, bx5 + fx * 1.6, by5 - 2.7 + fy * 1.6,
+           len * 0.14, wid * 0.14, 2.0,
+           a, '#dddddd', '#777777');                     // forward-leaning ceramic arm
+    var headx = bx5 + fx * 2.5;
+    var heady = by5 - 5.2 + fy * 2.5;
+    puck(headx, heady, 1.25, 1.5, '#444444', '#bbbbbb', '#333333');
+    g.strokeStyle = '#eeeeee'; g.lineWidth = 0.95;
+    for (var wr = 0; wr < 2; wr++) {
+      var wy = by5 - 3.0 - wr * 1.1;
+      g.beginPath(); g.moveTo(bx5 + fx * 1.6 - px * 1.4, wy + fy * 1.6 - py * 1.4);
+      g.lineTo(bx5 + fx * 1.6 + px * 1.4, wy + fy * 1.6 + py * 1.4); g.stroke();
+    }
+    g.fillStyle = '#aaddff';
+    gEllipse(headx, heady - 1.5, 0.55); g.fill();
+  }
+  // The red power housing stays proud of the conductors, not buried by
+  // them; it is the visual root of the gun in the RA2 render.
+  isoBox(g, tx - fx * 0.55, ty - 5.8 - fy * 0.55,
+         len * 0.20, wid * 0.32, 1.25, a, shade(panel, 0.94), '#292929');
+  // A dark transverse bus and paired porcelain heads sit on the
+  // after edge of the red machinery, visibly connected to its base.
+  isoBox(g, tx - fx * 2.55, ty - 4.35 - fy * 2.55,
+         1.15, wid * 0.48, 0.95, a, '#343535', '#1d1e1e');
+  for (var s5 = -1; s5 <= 1; s5 += 2) {
+    var ex5 = tx - fx * 3.2 + px * wid * 0.205 * s5;
+    var ey5 = ty - 4.4 - fy * 3.2 + py * wid * 0.205 * s5;
+    isoBox(g, ex5, ey5, 1.4, 1.4, 2.15, a, '#9b9b9b', '#333333');
+    puck(ex5, ey5 - 2.15, 0.85, 0.85, '#343434', '#bbbbbb', '#252525');
+  }
+};
+if (fy > 0) { drawTail5(); drawPodRA2(); } else { drawPodRA2(); drawTail5(); }
 lamp(cx + fx * len * 0.39 + px * wid * 0.24, by - 4.5 + fy * len * 0.39 + py * wid * 0.24);
 }

@@ -11,23 +11,27 @@ function drawSpectre(C) {
       col = C.col, cx = C.cx, dark = C.dark, deck = C.deck, deckPlate = C.deckPlate,
       exhaust = C.exhaust, fenders = C.fenders, fx = C.fx, fy = C.fy, g = C.g,
       gEllipse = C.gEllipse, hull = C.hull, i2 = C.i2, lamp = C.lamp, len = C.len, panel = C.panel,
-      plit = C.plit, prism = C.prism, px = C.px, py = C.py, sg = C.sg, tracks = C.tracks,
+      plit = C.plit, prism = C.prism, px = C.px, py = C.py, sg = C.sg, trackRun = C.trackRun,
       wantH = C.wantH, wantT = C.wantT, wid = C.wid;
 
 // PRISM TANK — built against `allied-prism-tank.png` (52x40 at the
 // down-right facing). A COMPACT tank, not a long flat barge: a dark
-// slate hull with ONE solid owner-colour plate down each upper flank,
-// a pale stripe along the track guard, and a low box turret carrying a
-// TALL upright prism block. The previous pass strung six owner-colour
-// dominoes down a hull a quarter too long and put a thin mast where
-// the sprite has a chunky crystal housing.
+// slate hull with restrained blue flank paint, a narrow pale track-guard
+// stripe and a compact turret socket carrying a slender steel mast and a
+// small blue/white emitter head. Read the gameplay rip, not the cameo.
 if (wantH) {
-  tracks(len * 1.00, 4.2, wid * 0.30);
-  chassis(cx, by - 1.4, len * 0.84, wid * 0.72, 4.4, hull, dark, 3.0);
-  deckPlate(0.4, len * 0.56, wid * 0.44, 6.4, shade(hull, 1.30));
-  isoBox(g, cx + fx * 7.2, by - 8.2 + fy * 7.2, len * 0.16, wid * 0.40, 1.2, a, deck, dark);
-  isoBox(g, cx - fx * 7.6, by - 7.4 - fy * 7.6, len * 0.24, wid * 0.48, 2.8, a,
-         shade(hull, 0.86), dark);                      // rear engine deck
+  // RA2's [SREF] is a low tracked chassis, not a deep purple platform. The
+  // side belt and pale guard remain visible below a thin armour ledge.
+  for (sg = -1; sg <= 1; sg += 2)
+    trackRun(cx + px * wid * 0.42 * sg, by - 1 + py * wid * 0.42 * sg,
+             len * 1.04, wid * 0.26, 4.8, '#999999',
+             { top: '#343434', side: '#2b2b2b', dark: '#171717',
+               wheelCount: 6, wheelScale: 0.8 });
+  chassis(cx, by - 2.2, len * 0.88, wid * 0.60, 3.1, hull, dark, 2.2, 0.85);
+  deckPlate(0.4, len * 0.54, wid * 0.34, 6.2, shade(hull, 1.12));
+  isoBox(g, cx + fx * 7.2, by - 7.2 + fy * 7.2, len * 0.14, wid * 0.31, 0.85, a, deck, dark);
+  isoBox(g, cx - fx * 7.6, by - 7.1 - fy * 7.6, len * 0.18, wid * 0.34, 1.5, a,
+         shade(hull, 0.86), dark);                      // compact rear engine deck
   for (i2 = -1; i2 <= 1; i2++)                          // louvres on it
     isoBox(g, cx - fx * (7.6 + i2 * 2.0), by - 10.0 - fy * (7.6 + i2 * 2.0),
            0.9, wid * 0.40, 0.7, a, '#2c3038', '#14171c');
@@ -42,15 +46,15 @@ if (wantH) {
     // felt it: this unit's owner fraction fell 0.162 -> 0.137 and
     // `hue.vehicleOwnerMean` with it. Scaled up they read the same
     // weight per flank as before and the census comes back out ahead.
-    for (i2 = 1; i2 <= 1; i2 += 2)                       // ONE plate a flank (2026-09-10)
+    for (i2 = 1; i2 <= 1; i2 += 2)                       // one restrained plate a flank
       isoBox(g, cx + px * wid * 0.375 * sg + fx * (i2 * 6.0 - 0.6),
              by - 3.6 + py * wid * 0.375 * sg + fy * (i2 * 6.0 - 0.6),
-             len * 0.30, 1.8, 3.6, a, i2 > 0 ? plit : panel, PEDGE);
+             len * 0.24, 1.4, 1.8, a, i2 > 0 ? plit : panel, PEDGE);
     isoBox(g, cx + px * wid * 0.40 * sg - fx * 0.6,
-           by - 6.4 + py * wid * 0.40 * sg - fy * 0.6,
-           len * 0.70, 1.5, 1.1, a, '#d8d8d8', '#4b5058');
+           by - 5.4 + py * wid * 0.40 * sg - fy * 0.6,
+           len * 0.76, 0.85, 0.65, a, '#bababa', '#4b5058');
   }
-  fenders(len * 0.42, 3.6);
+  fenders(len * 0.42, 3.3, 0.40, 0.12, 0.10);
   bumper(len * 0.41, wid * 0.26, by - 1.8);
   lamp(cx + fx * len * 0.38 + px * wid * 0.24, by - 4.2 + fy * len * 0.38 + py * wid * 0.24);
   exhaust(cx - fx * len * 0.40, by - 4.8 - fy * len * 0.40);
@@ -70,69 +74,44 @@ if (wantT) {
   // on the tank — a KHAKI POST, then the head. Three tiers, not five: the whole
   // mount has about eight pixels of height to work in and anything thinner than
   // two or three merges the moment the palette snaps.
-  prism(pcx, pcy, [[4.2, -3.0], [4.2, 3.0], [-1.8, 4.0], [-4.4, 2.4],
-                   [-4.4, -2.4], [-1.8, -4.0]],
-        2.6, panel, PEDGE);                                   // the blue cone
+  prism(pcx, pcy, [[3.1, -2.4], [3.1, 2.4], [-1.4, 3.1], [-3.3, 1.9],
+                   [-3.3, -1.9], [-1.4, -3.1]],
+        2.1, panel, PEDGE);                                   // compact turret socket
   // A RING, NOT A BAND. At 1.7 tall and 2.9 wide it came out a broad yellow
   // belt across the tank — the loudest thing on it, where the rip has a thin
   // collar you notice without it shouting.
-  prism(pcx, pcy - 2.6, [[2.4, -1.8], [2.4, 1.8], [-1.0, 2.3], [-2.5, 1.4],
-                         [-2.5, -1.4], [-1.0, -2.3]],
-        1.0, '#cccc66', '#666633');                           // the yellow collar
-  prism(pcx, pcy - 3.6, [[1.7, -1.3], [1.7, 1.3], [-0.7, 1.6], [-1.8, 1.0],
-                         [-1.8, -1.0], [-0.7, -1.6]],
-        3.4, '#999966', '#4d4d33');                           // the khaki post
+  prism(pcx, pcy - 2.1, [[1.8, -1.4], [1.8, 1.4], [-0.8, 1.7], [-1.9, 1.0],
+                         [-1.9, -1.0], [-0.8, -1.7]],
+        0.55, '#a9a9a9', '#555555');                          // narrow steel hinge collar
+  prism(pcx, pcy - 2.65, [[1.15, -0.85], [1.15, 0.85], [-0.5, 1.1], [-1.25, 0.7],
+                         [-1.25, -0.7], [-0.5, -1.1]],
+        3.8, '#a0a0a0', '#414141');                           // visible steel mast
   // THE PRISM: an upright block standing on the turret roof, not a
   // mast. Dark housing, a bright emitter face on its forward side and
   // a glowing crystal cap — the tallest thing on the chassis.
-  // THE CRYSTAL, and it is the TALLEST THING ON ANY TANK. The
-  // reference budget is ">= 10 px tall x >= 5 px wide, standing above
-  // the turret roof; total height >= 1.15x the Mirage's"
-  // (unit-identity-reference.md 2.3), and the squat 7.2-unit housing
-  // this replaces measured barely taller than the Mirage's emitter —
-  // which is the pair the audit puts at 0.816 silhouette IoU. Narrow
-  // it as it rises, too: a shard, not a chimney, so the ONE crown in
-  // the fleet that is tall is also the one that is thin.
-  // DO NOT SHORTEN THIS TO BUY ASPECT. Measured 2026-09-05: the Prism
-  // Tank was 81x77, aspect 1.052 against RA2's 1.37, and the obvious
-  // fix — trim the crystal, drop the ring — worked on paper and cost
-  // more than it bought. At PH 10.4 / RING 6.2 the aspect came good
-  // (0.856 of RA2) but `iou.groundCombat.mean` went 0.4744 -> 0.4824
-  // and `mass.tightestBand6` 2.093 -> 1.983, THROUGH its floor: shorn
-  // of its crown the unit is a generic tank blob, and its worst pair
-  // (mammoth|prismtank) went 0.586 -> 0.656. The aspect was bought
-  // from the hull's BEAM instead (`wid` 16 -> 22, below), which moves
-  // the same number the right way — a wider footprint pushes a ground
-  // diamond's w/h toward the projection's own 2.0 — and leaves the
-  // spike alone. That scored 0.840 of RA2 with iou.groundCombat 0.4625
-  // and the band at 2.235, i.e. better than the day started on both.
-  // WIDER, AND THE CRYSTAL IS LIT DOWN ITS WHOLE HEIGHT. The column
-  // was 12.4 units tall and dark slate for 9 of them, with the glass
-  // only in the top 3: at zoom 1 the Prism Tank's crown read as a
-  // black chimney and the one part the unit is named for was three
-  // pixels. §2.3 asks for a CRYSTAL >= 10 x 5 px "standing above the
-  // turret roof", and a crystal is bright by definition — the dark
-  // housing is the mount, not the emitter. So the forward face is
-  // glazed from the cowl up, and PW goes 1.85 -> 2.30, which also
-  // moves the unit's broadside aspect TOWARD [SREF]'s 1.372 (ours
-  // 1.141, ratio 0.832) rather than away, because width is the axis
-  // it is short on. The HEIGHT is untouched: shortening this crown is
-  // a proven dead end and the comment above records the numbers.
-  // AND IT STAYS A STRAIGHT COLUMN. Tapering it — wide at the mount,
-  // narrow at the tip — is the more crystal-like drawing and it was
-  // MEASURED and reverted: splitting the housing at 5.6 with a 1.55
-  // top took `iou.groundCombat.mean` 0.4645 -> 0.4660 and
-  // `mass.tightestBand6` through a tenth, because a tapered crown has
-  // less mass standing clear of the hull and the whole ground-combat
-  // set closes up behind it. The straight column costs 0.0005 on
-  // `iou.vehicle.mean` (`mcv | prismtank` 0.634 -> 0.646, both still
-  // far under the 0.75 ceiling) and buys more than that everywhere
-  // else. Do not re-taper without re-running the gate.
-  var PW = 3.0, PWT = PW, PH = 7.4;   // 2026-09-10: 12.4 -> 6.8. prism.png rip: a SHORT mast with a bright head, not a tower
-  var hx = pcx + fx * 0.9, hy = pcy - 7.0 + fy * 0.9;   // up onto the post
-  prism(hx, hy, [[PW + 0.5, -PW - 0.7], [PW + 0.5, PW + 0.7],
-                 [-PW - 0.5, PW + 0.3], [-PW - 0.5, -PW - 0.3]],
-        PH, panel, PEDGE);   // THE HOUSING IS THE OWNER'S, the glazed face stays pale
+  // The real eight-bearing prism rip is visually authoritative here. Its
+  // emitter is a small blue/white head on a narrow upright steel mast;
+  // earlier metric-driven comments about keeping a massive tall column
+  // described the wrong visual shape and have been superseded.
+  var PW = 1.75, PWT = PW, PH = 5.8;
+  var hx = pcx + fx * 0.9, hy = pcy - 6.5 + fy * 0.9;
+  // Open C-shaped optical frame: blue rear upright and lower cradle support
+  // the narrow front crystal, while the upper hood bridges above the recess.
+  // A solid prism across this whole outline erased the functional opening.
+  prism(hx - fx * 0.95, hy - 0.15 - fy * 0.95,
+        [[0.8, -PW], [0.8, PW], [-0.8, PW], [-0.8, -PW]],
+        PH - 0.2, panel, PEDGE);
+  prism(hx + fx * 0.8, hy - 0.15 + fy * 0.8,
+        [[2.0, -PW * 0.88], [2.0, PW * 0.88],
+         [-2.0, PW * 0.88], [-2.0, -PW * 0.88]],
+        1.0, panel, PEDGE);
+  // The emitter is a thin solid in the front of the blue casing. A flat
+  // frontal decal collapses to nothing at broadside, although the RA2 crystal
+  // remains visible there as a pale vertical leading edge.
+  prism(hx + fx * 3.4, hy - 0.45 + fy * 3.4,
+        [[0.9, -PW * 0.56], [0.9, PW * 0.56],
+         [-0.9, PW * 0.56], [-0.9, -PW * 0.56]],
+        PH - 0.5, '#d9d9d9', '#5e5e5e');
   // WHICH WAY ROUND THE HEAD GOES. This housing was #bebebe, chosen from
   // `prismtank-voxel.jpg`, and the note below records the real hazard that came
   // with it: a blue CORE inside a pale glazed face blends to lavender and the
@@ -145,12 +124,17 @@ if (wantT) {
   // (The voxel render has now misled this roster four times — the Chrono
   // Miner's violet nose, the IFV's #9b9b9b hull, the Apocalypse's SAM drums and
   // this. The in-game rip is the authority.)
-  for (sg = -1; sg <= 1; sg += 2)                             // house-colour cowl trim
-    prism(hx, hy - 0.8, [[PW, 2.1 * sg], [-PW, 1.8 * sg], [-PW, 2.9 * sg], [PW, 3.2 * sg]],
-          2.6, panel, PEDGE);
+  // No broad side cowls: the source head is a small blue/white emitter on a
+  // narrow mast, and flaring trim turned it into a round heavy turret.
+  // A shallow forward overhanging hood makes the blue rear casing wrap the
+  // narrow white aperture, as it does in the voxel construction views.
+  prism(hx + fx * 1.15, hy - PH + 1.0 + fy * 1.15,
+        [[PW + 1.85, -PW * 0.8], [PW + 1.85, PW * 0.8],
+         [-PW - 0.9, PW], [-PW - 0.9, -PW]],
+        1.05, panel, PEDGE);
   // the glazed forward face: pale prism glass with the owner's hue in
   // its core and one VACC.spectre refraction line down it
-  var gzU = PWT + 0.5, gzV = PWT + 0.7, gzB = 2.2;
+  var gzU = 4.5, gzV = PWT * 0.68, gzB = 1.6;
   var q1 = [hx + fx * gzU + px * gzV, hy + fy * gzU + py * gzV - gzB];
   var q2 = [hx + fx * gzU - px * gzV, hy + fy * gzU - py * gzV - gzB];
   var q3 = [q2[0], q2[1] - (PH - gzB - 0.6)];
@@ -178,10 +162,10 @@ if (wantT) {
   g.moveTo(q1[0] * 0.84 + q2[0] * 0.16, q1[1] * 0.84 + q2[1] * 0.16);
   g.lineTo(q4[0] * 0.84 + q3[0] * 0.16, q4[1] * 0.84 + q3[1] * 0.16); g.stroke();
   var tfy = hy - PH;
-  var e1 = [hx + fx * (PWT + 0.5) + px * 1.95, tfy + fy * (PWT + 0.5) + py * 1.95 + 0.8];
-  var e2 = [hx + fx * (PWT + 0.5) - px * 1.95, tfy + fy * (PWT + 0.5) - py * 1.95 + 0.8];
-  var e3 = [hx - fx * 0.2 - px * 1.95, tfy - fy * 0.2 - py * 1.95 - 2.6];
-  var e4 = [hx - fx * 0.2 + px * 1.95, tfy - fy * 0.2 + py * 1.95 - 2.6];
+  var e1 = [hx + fx * (PWT + 0.5) + px * 1.25, tfy + fy * (PWT + 0.5) + py * 1.25 + 0.6];
+  var e2 = [hx + fx * (PWT + 0.5) - px * 1.25, tfy + fy * (PWT + 0.5) - py * 1.25 + 0.6];
+  var e3 = [hx - fx * 0.2 - px * 1.25, tfy - fy * 0.2 - py * 1.25 - 1.65];
+  var e4 = [hx - fx * 0.2 + px * 1.25, tfy - fy * 0.2 + py * 1.25 - 1.65];
   g.beginPath();                                             // the ONE bright face
   g.moveTo(e1[0], e1[1]); g.lineTo(e2[0], e2[1]);
   g.lineTo(e3[0], e3[1]); g.lineTo(e4[0], e4[1]); g.closePath();
@@ -203,6 +187,6 @@ if (wantT) {
   g.lineTo(e1[0] * 0.56 + e4[0] * 0.44, e1[1] * 0.56 + e4[1] * 0.44);
   g.closePath(); g.fill();
   g.fillStyle = '#f5f5f5';                                   // cap glint
-  gEllipse(hx, hy - PH - 0.2, 1.3); g.fill();
+  gEllipse(hx, hy - PH - 0.2, 1.65); g.fill();
 }
 }

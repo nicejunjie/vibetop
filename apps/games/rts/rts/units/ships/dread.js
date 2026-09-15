@@ -11,8 +11,8 @@ function drawDread(C) {
 //
 // What `library/dread.png` actually shows, bow to stern:
 //   - a long low DARK hull, pointed forward, the deck flat and empty forward;
-//   - TWO MISSILES lying on that forward deck, side by side, nose OVER THE
-//     BOW: red nose cone, white body, a red band, a dark finned tail. They are
+//   - TWO MISSILES lying on that forward deck, side by side, pointed toward
+//     the bow: red nose cone, white body, a red band, a dark finned tail. They are
 //     the largest and brightest thing on the ship by a wide margin;
 //   - a TAN/KHAKI superstructure amidships and aft — low, long, blocky, with
 //     dark slit windows — NOT a cluster of grey towers;
@@ -159,53 +159,53 @@ box(-L * 0.38, 0, L * 0.09, W * 0.52, 8.4, '#666666');      // the dark turret b
   g.beginPath(); g.moveTo(rm[0], rm[1]); g.lineTo(rm[0], rm[1] - 9.0); g.stroke();
 })();
 
-// ---- THE TWO MISSILES, on the forward deck, nose over the bow ------------ //
-// Drawn LAST, because they are forward of everything else and they overhang
-// the stem; nothing may be painted over them. Each is a real cylinder — a
+// ---- THE TWO MISSILES, seated parallel on the forward launch rails -------- //
+// Drawn LAST, because they are forward of everything else; nothing may be
+// painted over them. Each is a real cylinder — a
 // body, a lit top, a shaded underside — with a CONE at the front, a coloured
 // band, and fins at the tail. The old bake drew a flat bar and a chip of red
 // and it read as a plank.
 (function () {
   for (var si = -1; si <= 1; si += 2) {
-    var sv = W * 0.96 * si, lift = FR + 3.0;
-    var stagger = si < 0 ? -L * 0.10 : L * 0.05;
-    var tA = P(L * 0.14 + stagger, sv, lift);                  // tail
-    var nB = P(L * 0.84 + stagger, sv, lift);                  // where the cone starts
-    var nT = P(L * 1.06 + stagger, sv, lift);                  // the cone's point
+    var sv = W * 0.58 * si, lift = FR + 3.0;
+    var stagger = 0;                                         // parallel pair at the same fore/aft station
+    var tA = P(L * 0.18 + stagger, sv, lift);                  // tail on the launch rail
+    var nB = P(L * 0.66 + stagger, sv, lift);                  // where the cone starts
+    var nT = P(L * 0.80 + stagger, sv, lift);                  // nose remains inside the bow
     // the launch rail it lies in
-    g.strokeStyle = '#333333'; g.lineWidth = 7.4; g.lineCap = 'butt';
+    g.strokeStyle = '#333333'; g.lineWidth = 4.7; g.lineCap = 'butt';
     g.beginPath(); g.moveTo(tA[0], tA[1] + 2.8); g.lineTo(nB[0], nB[1] + 2.8); g.stroke();
     // the white body, with its lit top and shaded belly
-    g.strokeStyle = '#cccccc'; g.lineWidth = 6.6;
+    g.strokeStyle = '#cccccc'; g.lineWidth = 4.0;
     g.beginPath(); g.moveTo(tA[0], tA[1]); g.lineTo(nB[0], nB[1]); g.stroke();
-    g.strokeStyle = '#ffffff'; g.lineWidth = 2.2;
-    g.beginPath(); g.moveTo(tA[0], tA[1] - 2.0); g.lineTo(nB[0], nB[1] - 2.0); g.stroke();
-    g.strokeStyle = '#666666'; g.lineWidth = 2.0;
-    g.beginPath(); g.moveTo(tA[0], tA[1] + 2.3); g.lineTo(nB[0], nB[1] + 2.3); g.stroke();
+    g.strokeStyle = '#ffffff'; g.lineWidth = 1.8;
+    g.beginPath(); g.moveTo(tA[0], tA[1] - 1.5); g.lineTo(nB[0], nB[1] - 1.5); g.stroke();
+    g.strokeStyle = '#666666'; g.lineWidth = 1.5;
+    g.beginPath(); g.moveTo(tA[0], tA[1] + 1.9); g.lineTo(nB[0], nB[1] + 1.9); g.stroke();
     // the band, a third back from the nose
     var bx = nB[0] + (tA[0] - nB[0]) * 0.30, by = nB[1] + (tA[1] - nB[1]) * 0.30;
-    g.strokeStyle = HOUSE; g.lineWidth = 6.6;
+    g.strokeStyle = HOUSE; g.lineWidth = 4.0;
     g.beginPath(); g.moveTo(bx, by); g.lineTo(bx + (tA[0] - nB[0]) * 0.10,
                                               by + (tA[1] - nB[1]) * 0.10); g.stroke();
     // the nose CONE — a triangle, not a cap
     g.fillStyle = HOUSE;
     g.beginPath();
-    g.moveTo(nB[0], nB[1] - 3.6); g.lineTo(nT[0], nT[1]);
-    g.lineTo(nB[0], nB[1] + 3.6); g.closePath(); g.fill();
+    g.moveTo(nB[0], nB[1] - 2.1); g.lineTo(nT[0], nT[1]);
+    g.lineTo(nB[0], nB[1] + 2.1); g.closePath(); g.fill();
     g.fillStyle = HL;                                          // its lit upper face
     g.beginPath();
-    g.moveTo(nB[0], nB[1] - 3.6); g.lineTo(nT[0], nT[1]);
-    g.lineTo(nB[0], nB[1] - 0.7); g.closePath(); g.fill();
+    g.moveTo(nB[0], nB[1] - 2.1); g.lineTo(nT[0], nT[1]);
+    g.lineTo(nB[0], nB[1] - 0.5); g.closePath(); g.fill();
     // the finned tail
     // #4a4d53 is not a neutral grey: its channels snap to 51/102/102 = #336666,
     // and the tail fins baked as a TEAL block over the deck. Equal channels only.
     g.fillStyle = '#666666';
     g.beginPath();
-    g.moveTo(tA[0], tA[1] - 3.1); g.lineTo(tA[0] - 5.0, tA[1] - 5.0);
-    g.lineTo(tA[0] - 5.0, tA[1] + 2.5); g.lineTo(tA[0], tA[1] + 3.1);
+    g.moveTo(tA[0], tA[1] - 2.5); g.lineTo(tA[0] - 3.5, tA[1] - 3.8);
+    g.lineTo(tA[0] - 3.5, tA[1] + 2.0); g.lineTo(tA[0], tA[1] + 2.5);
     g.closePath(); g.fill();
     g.strokeStyle = '#333333'; g.lineWidth = 1.0;
-    g.beginPath(); g.moveTo(tA[0] - 5.0, tA[1] - 5.0); g.lineTo(tA[0] - 5.0, tA[1] + 2.5); g.stroke();
+    g.beginPath(); g.moveTo(tA[0] - 3.5, tA[1] - 3.8); g.lineTo(tA[0] - 3.5, tA[1] + 2.0); g.stroke();
   }
 })();
 }

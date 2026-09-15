@@ -214,7 +214,7 @@ function valuePre(c, gm) {
 //     ramp into the handful of flat bands a hand-drawn sprite uses.
 // Both are one pass over the pixels and run at BAKE time, once, never in a
 // frame — the game still draws a finished bitmap.
-function pixelate(s, levels, alphaCut) {
+function pixelate(s, levels, alphaCut, preserveSurfaceColours) {
   levels = levels || 6;
   alphaCut = alphaCut == null ? 140 : alphaCut;
   var step = 255 / (levels - 1);
@@ -258,7 +258,7 @@ function pixelate(s, levels, alphaCut) {
     // greys out a pixel that was visibly coloured, scale the whole pixel toward
     // its quantised MAX first and snap that — which lands (47,66,30) on exactly
     // #333300, and the house navy on RA2's own #333399.
-    if (qr === qg && qg === qb && (mx - mn) / mx > 0.18) {
+    if (!preserveSurfaceColours && qr === qg && qg === qb && (mx - mn) / mx > 0.18) {
       var q = Math.round(Math.round(mx / step) * step) || 1, k = q / mx;
       qr = qstep(r * k, step); qg = qstep(g * k, step); qb = qstep(b * k, step);
     }
@@ -272,11 +272,18 @@ function pixelate(s, levels, alphaCut) {
     // off pure red — a Soviet conscript reading as the RED player's man
     // whoever owned him. Warm hues only: a navy with its middle and low
     // channels both at 51 is #333399, which is one of RA2's own Allied blues.
-    if (r > g && g >= b && qr > qg && qg === qb && qg > 0 && (mx - mn) / mx >= 0.35) {
+    if (!preserveSurfaceColours && r > g && g >= b && qr > qg && qg === qb && qg > 0 && (mx - mn) / mx >= 0.35) {
       var hw = ((g - b) / (mx - mn)) * 60;         // 0..60, the warm wedge
       if (hw >= 12 && hw <= 52) qb = 0;
     }
     d[i] = qr; d[i + 1] = qg; d[i + 2] = qb;
+  }
+  // A tiny authored material may occupy only one or two pixels (a helmet
+  // highlight or a hand). Preserve those deliberate colours when requested;
+  // frequency-based merging can otherwise turn steel into skin or cloth.
+  if (preserveSurfaceColours) {
+    s.g.putImageData(id, 0, 0);
+    return;
   }
   // ...and then SPEND A SPRITE'S PALETTE LIKE RA2 DOES. The cube snap alone
   // leaves 55-71 colours on a vehicle where RA2's own rips spend 16-32 on

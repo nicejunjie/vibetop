@@ -93,7 +93,7 @@ if (wantH) {
   // budget. §2.3's numbers were corrected to §1.4's own (4-8 px,
   // countable) — full working in docs/per-unit-art-log.md.
   for (sg = -1; sg <= 1; sg += 2) if (py * sg >= 0) flankPlate(sg);   // near flank, on top
-  fenders(len * 0.44, 3.2);
+  fenders(len * 0.44, 3.2, 0.40, 0.16, 0.13);
   bumper(len * 0.42, wid * 0.20, by - 1.4);
   lamp(cx + fx * len * 0.40 + px * wid * 0.22, by - 4.0 + fy * len * 0.40 + py * wid * 0.22);
   exhaust(cx - fx * len * 0.40, by - 4.4 - fy * len * 0.40);
@@ -106,7 +106,7 @@ if (wantT) {
   // the plan narrow and let the long barrel carry the forward read.
   prism(tx, ty, [[4.6, -1.45], [4.6, 1.45], [1.2, 3.15], [-3.2, 2.65],
                  [-4.4, 0], [-3.2, -2.65], [1.2, -3.15]],
-        2.35, shade(hull, 1.02), dark);   // low angular Grizzly turret
+        2.8, '#77778a', dark);            // continuous low angular turret
   // The SECOND of the Grizzly's two blocks: one remap cheek a side,
   // set back from the mantlet. It carries the colour the flank band
   // gave up, so the budget holds while the count drops to two.
@@ -114,29 +114,30 @@ if (wantT) {
     prism(tx - fx * 1.8, ty - 0.4 - fy * 1.8,
           [[0.8, 1.9 * sg], [-2.5, 1.8 * sg], [-2.6, 3.0 * sg], [0.8, 3.35 * sg]],
           1.35, shade(panel, 0.78), PEDGE);
-  prism(tx - fx * 0.7, ty - 4.4 - fy * 0.7,                  // chamfered cap
+  prism(tx - fx * 0.7, ty - 2.8 - fy * 0.7,                  // seated chamfered cap
         [[3.9, -1.35], [3.9, 1.35], [0.8, 2.85], [-3.8, 2.25], [-3.8, -2.25], [0.8, -2.85]],
-        0.78, shade(hull, 1.06), dark);
+        0.7, '#777788', dark);
   g.strokeStyle = 'rgba(239,239,239,.55)'; g.lineWidth = 1.6;  // light-catch streak
   g.lineCap = 'round';
   g.beginPath();
-  g.moveTo(tx + fx * 3.6 + px * 1.2, ty - 5.7 + fy * 3.6 + py * 1.2);
-  g.lineTo(tx - fx * 3.4 + px * 1.9, ty - 5.7 - fy * 3.4 + py * 1.9);
+  g.moveTo(tx + fx * 3.6 + px * 1.2, ty - 3.8 + fy * 3.6 + py * 1.2);
+  g.lineTo(tx - fx * 3.4 + px * 1.9, ty - 3.8 - fy * 3.4 + py * 1.9);
   g.stroke();
-  puck(tx - fx * 2.2, ty - 4.1 - fy * 2.2, 1.05, 1.55,         // low commander hatch
-       shade(hull, 0.84), shade(hull, 1.20), dark);
+  puck(tx - fx * 2.2, ty - 3.1 - fy * 2.2, 0.65, 0.85,        // small low hatch
+       '#666677', '#9999a8', dark);
   g.fillStyle = VACC.lancer;                                 // jade vision block
-  gEllipse(tx + fx * 2.4 + px * 2.4, ty - 4.9 + fy * 2.4 + py * 2.4, 0.95); g.fill();
+  gEllipse(tx + fx * 2.4 + px * 2.4, ty - 3.4 + fy * 2.4 + py * 2.4, 0.65); g.fill();
   g.fillStyle = shade(VACC.lancer, 1.42);
-  gEllipse(tx + fx * 2.4 + px * 2.4, ty - 5.2 + fy * 2.4 + py * 2.4, 0.50); g.fill();
+  gEllipse(tx + fx * 2.4 + px * 2.4, ty - 3.6 + fy * 2.4 + py * 2.4, 0.35); g.fill();
   var lz = [tx + fx * 6.2, ty - 3.1 + fy * 6.2];
-  puck(tx + fx * 5.0, ty - 0.2 + fy * 5.0, 1.30, 2.45,         // compact mantlet
-       shade(hull, 0.80), shade(hull, 1.08), dark);
+  prism(tx + fx * 5.0, ty - 1.6 + fy * 5.0,
+        [[1.2,-1.3],[1.2,1.3],[-1.2,1.3],[-1.2,-1.3]],
+        1.55, '#69697a', dark);                                 // square mantlet
   // 3.4 px of tube at zoom 1, not the reference's 2.2. The scale
   // gate (unit-redesign-plan.md 2, option 1) outranks the sprite
   // here: an RA2-faithful 2 px barrel is 1.1 device px at our
   // ZMIN 0.55 and smears away, and the Grizzly's gun is the one
   // feature that names it. Long and thin still, just not invisible.
-  barrel(lz[0], lz[1], 18.0, 2.35, 1.5);
+  barrel(lz[0], lz[1], 18.0, 1.05, 0.65, '#393939', '#929292');
 }
 }

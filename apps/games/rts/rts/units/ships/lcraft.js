@@ -51,8 +51,8 @@ function drawLcraft(C) {
 box(-L * 0.10, W * 0.80, L * 0.90, W * 0.24, 3.8, shade(HULL, 0.94));
 box(-L * 0.10, -W * 0.80, L * 0.90, W * 0.24, 3.8, shade(HULL, 0.94));
 g.save(); poly(FR, null, null); g.clip();
-g.fillStyle = '#4d4d4d';
-poly(FR, '#4d4d4d', null);                     // the open well, in shadow
+g.fillStyle = '#777777';
+poly(FR, '#777777', null);                     // pale steel well within dark skirt
 g.strokeStyle = '#767676'; g.lineWidth = 0.8;
 for (var ri = -2; ri <= 2; ri++) {
   var r0 = P(L * 0.5, ri * 3.0, FR), r1 = P(-L * 0.8, ri * 3.0, FR);
@@ -66,11 +66,10 @@ g.restore();
 // they stood on — invisible. They separate in VALUE now, and the loaded
 // vehicle gets a house-coloured band and dark tracks so it is recognisably a
 // machine being carried rather than another crate.
-box(-L * 0.36, -W * 0.36, 7.0, W * 0.62, 4.2, '#999999');         // crate
-box(-L * 0.36, W * 0.40, 5.4, W * 0.52, 3.4, '#cccccc');          // crate, lighter
-box(-L * 0.62, W * 0.02, 4.6, W * 0.44, 3.0, '#777777');          // a third, low
-box(L * 0.04, 0, 9.0, W * 0.96, 5.4, '#666666');                  // a loaded vehicle
-box(L * 0.04, 0, 5.4, W * 0.62, 7.4, '#999999');                  // its cab
+box(-L * 0.36, -W * 0.36, 6.0, W * 0.48, 2.8, '#999999');         // low stowage
+box(-L * 0.36, W * 0.40, 5.0, W * 0.42, 2.5, '#cccccc');          // stowage beside it
+box(L * 0.04, 0, 8.0, W * 0.80, 3.8, '#666666');                  // a loaded vehicle
+box(L * 0.04, 0, 5.0, W * 0.55, 5.2, '#999999');                  // its cab
 (function () {
   var bq0 = P(L * 0.04, W * 0.50, FR + 4.6), bq1 = P(L * 0.04, -W * 0.50, FR + 4.6);
   g.strokeStyle = HOUSE; g.lineWidth = 1.4;                       // its owner band
@@ -84,10 +83,10 @@ box(L * 0.04, 0, 5.4, W * 0.62, 7.4, '#999999');                  // its cab
 // Ramp: a pale wedge hinged at the stem and lying DOWN on the water,
 // with two side rails so it reads as a ramp and not a shadow.
 var m0 = P(L * 0.80, W * 0.60, FR + 1.2), m1 = P(L * 0.80, -W * 0.60, FR + 1.2);
-var m2 = P(L * 1.22, -W * 0.50, 0.6), m3 = P(L * 1.22, W * 0.50, 0.6);
+var m2 = P(L * 1.08, -W * 0.50, 0.6), m3 = P(L * 1.08, W * 0.50, 0.6);
 g.beginPath(); g.moveTo(m0[0], m0[1]); g.lineTo(m1[0], m1[1]);
 g.lineTo(m2[0], m2[1]); g.lineTo(m3[0], m3[1]); g.closePath();
-g.fillStyle = shade(HULL, 1.16); g.fill();
+g.fillStyle = '#aaaaaa'; g.fill();
 g.strokeStyle = '#242424'; g.lineWidth = 1.0; g.stroke();
 g.strokeStyle = shade(HULL, 1.42); g.lineWidth = 1.4;             // ramp rails
 g.beginPath(); g.moveTo(m0[0], m0[1] - 1.6); g.lineTo(m3[0], m3[1] - 1.6); g.stroke();
@@ -108,27 +107,29 @@ box(-L * 0.78, 0, 6, W * 0.50, 5.2, shade(DECK, 1.1));            // little whee
     // almost on top of each other and only one was visible; the reference puts
     // them on the after CORNERS, well outboard.
     var fu = -L * 0.70, fv = W * 1.00 * fs, fz = FR + 1.0;
-    var c0 = P(fu, fv, fz), c1 = P(fu, fv, fz + 9.4);
+    var c0 = P(fu, fv, fz), c1 = P(fu, fv, fz + 5.8);
     // the duct: a fat drum, drawn as a stack so it reads round rather than
     // as a box. Equal-channel greys only — a duct that splits into teal is
     // the trap that has caught three units in this directory.
-    g.strokeStyle = '#333333'; g.lineWidth = 9.4; g.lineCap = 'butt';
+    g.fillStyle = '#777777';
+    g.beginPath(); g.ellipse(c0[0], c0[1] + 1.0, 7.0, 3.2, 0, 0, 6.29); g.fill();
+    g.strokeStyle = '#666666'; g.lineWidth = 13.0; g.lineCap = 'butt';
     g.beginPath(); g.moveTo(c0[0], c0[1]); g.lineTo(c1[0], c1[1]); g.stroke();
     // BANDED ACROSS, so the duct reads ROUND. One flat fill of HOUSE over the
     // whole drum baked as a blue rectangle — a box, not a cylinder. Four
     // strokes at decreasing width, offset across the drum, curve it.
-    var DR = [[1.2, HD, 6.4], [-0.4, HOUSE, 4.4], [-2.0, HL, 2.6], [-3.2, '#cccccc', 1.0]];
+    var DR = [[2.0, '#666666', 9.0], [-0.5, HOUSE, 4.2], [-3.0, '#aaaaaa', 3.8], [-5.2, '#cccccc', 1.2]];
     for (var di = 0; di < DR.length; di++) {
       g.strokeStyle = DR[di][1]; g.lineWidth = DR[di][2];
       g.beginPath();
       g.moveTo(c0[0] + DR[di][0], c0[1]); g.lineTo(c1[0] + DR[di][0], c1[1]); g.stroke();
     }
     // the ring at its mouth, and the blades inside it
-    var mq = P(fu, fv, fz + 9.4);
+    var mq = P(fu, fv, fz + 5.8);
     g.fillStyle = '#999999';
-    g.beginPath(); g.ellipse(mq[0], mq[1], 5.0, 2.6, 0, 0, 6.29); g.fill();
+    g.beginPath(); g.ellipse(mq[0], mq[1], 7.2, 3.8, 0, 0, 6.29); g.fill();
     g.fillStyle = '#333333';
-    g.beginPath(); g.ellipse(mq[0], mq[1], 3.7, 1.9, 0, 0, 6.29); g.fill();
+    g.beginPath(); g.ellipse(mq[0], mq[1], 5.7, 2.9, 0, 0, 6.29); g.fill();
     // A FAN IS A DISC OF BLADES, NOT THREE SPOKES. Three lines radiating from
     // the hub baked as a peace sign inside the ring. Six short chords set
     // round the mouth read as blades turning, and at this size that is all the
@@ -139,7 +140,7 @@ box(-L * 0.78, 0, 6, W * 0.50, 5.2, shade(DECK, 1.1));            // little whee
     for (var bl = 0; bl < 4; bl++) {
       var a = bl * 0.785 + 0.39;
       g.beginPath(); g.moveTo(mq[0], mq[1]);
-      g.lineTo(mq[0] + Math.cos(a) * 2.8, mq[1] + Math.sin(a) * 1.4); g.stroke();
+      g.lineTo(mq[0] + Math.cos(a) * 4.3, mq[1] + Math.sin(a) * 2.1); g.stroke();
     }
     g.fillStyle = '#cccccc';                                       // the hub
     g.beginPath(); g.ellipse(mq[0], mq[1], 0.9, 0.6, 0, 0, 6.29); g.fill();

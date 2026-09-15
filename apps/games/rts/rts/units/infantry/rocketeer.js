@@ -26,10 +26,10 @@ function drawRocketeer(C) {
 // see of him is mostly owner colour and this suit const, neither of
 // which the ladder touches. The lever is here.
 var RS = '#d2d2d2', RSD = shade(RS, 0.64), RSL = shade(RS, 1.22);
-var fl = [5.2, 7.4, 6.2, 8.0, 5.6, 6.9][gt.ph], fw2 = [2.0, 2.5, 2.2, 2.6, 2.1, 2.4][gt.ph];
+var fl = [4.2, 5.8, 4.8, 6.2, 4.4, 5.4][gt.ph], fw2 = [1.6, 2.0, 1.8, 2.1, 1.7, 1.9][gt.ph];
 // jet flames first, behind the legs: white-blue core in an orange sheath
 for (ar = -1; ar <= 1; ar += 2) {
-  var jx = cx + ar * 4.6, jy = by - 8.4;
+  var jx = cx + ar * 5.2, jy = by - 8.4;
   g.fillStyle = 'rgba(255,140,40,.75)';
   g.beginPath(); g.moveTo(jx - fw2, jy); g.lineTo(jx + fw2, jy); g.lineTo(jx, jy + fl + 1.5); g.closePath(); g.fill();
   g.fillStyle = '#eeeeee';
@@ -37,20 +37,20 @@ for (ar = -1; ar <= 1; ar += 2) {
 }
 // legs hang together: two narrow trouser columns, boots toe-down
 for (ar = -1; ar <= 1; ar += 2) {
-  var lx = cx + ar * 1.7;
-  g.fillStyle = shade(T.coat, ar < 0 ? 1.08 : 0.86);
-  g.beginPath(); g.roundRect(lx - 1.6, by - 11.4, 3.2, 8.2, 1.0); g.fill(); outline(g, shade(T.coat, 0.46));
-  g.fillStyle = shade(RS, 0.86);                              // shin guard, suit cloth
-  g.beginPath(); g.roundRect(lx - 1.4, by - 8.0, 2.8, 3.0, 0.6); g.fill();
-  g.fillStyle = T.boot;
-  g.beginPath(); g.roundRect(lx - 1.7, by - 3.6, 3.4, 3.6, 1.0); g.fill();
+  var lx = cx + ar * 3.0;
+  g.fillStyle = shade(RS, ar < 0 ? 0.82 : 0.74);
+  g.beginPath(); g.roundRect(lx - 1.35, by - 11.4, 2.7, 7.2, 1.0); g.fill(); outline(g, '#777777');
+  g.fillStyle = shade(RS, 0.92);                              // silver shin guard
+  g.beginPath(); g.roundRect(lx - 1.2, by - 8.0, 2.4, 2.7, 0.6); g.fill();
+  g.fillStyle = '#777777';
+  g.beginPath(); g.roundRect(lx - 1.4, by - 4.6, 2.8, 3.3, 1.0); g.fill();
 }
 // jet nozzles at the hips
 for (ar = -1; ar <= 1; ar += 2) {
   g.fillStyle = '#2f2f2f';
-  g.beginPath(); g.ellipse(cx + ar * 4.6, by - 8.6, 2.2, 1.3, 0, 0, 6.29); g.fill();
+  g.beginPath(); g.ellipse(cx + ar * 5.2, by - 8.6, 2.2, 1.3, 0, 0, 6.29); g.fill();
   g.fillStyle = '#707070';
-  g.beginPath(); g.ellipse(cx + ar * 4.6, by - 9.0, 1.4, 0.7, 0, 0, 6.29); g.fill();
+  g.beginPath(); g.ellipse(cx + ar * 5.2, by - 9.0, 1.4, 0.7, 0, 0, 6.29); g.fill();
 }
 g.save(); g.translate(gt.lean * 0.4, 0);
 // THE PACK IS THE HOUSE MASS, and it is now big enough to be one.
@@ -63,24 +63,40 @@ g.save(); g.translate(gt.lean * 0.4, 0);
 // 9.2 tall, banded, standing clear of the suit either side. They stay
 // strictly below the crown (top at by-19.9 against a helmet at by-23.7).
 for (ar = -1; ar <= 1; ar += 2) {
-  var tx = cx + ar * 5.3;
+  var tx = cx + ar * 6.1;
   g.fillStyle = shade(col, 0.82);
-  g.beginPath(); g.roundRect(tx - 2.0, by - 19.4, 4.0, 6.0, 1.6); g.fill(); outline(g, shade(col, 0.38));
+  g.beginPath(); g.roundRect(tx - 2.0, by - 19.4, 4.0, 7.0, 1.5); g.fill(); outline(g, shade(col, 0.38));
   g.fillStyle = shade(col, 1.26);                             // lit barrel
-  g.fillRect(tx - 1.6, by - 18.9, 1.3, 5.2);
+  g.fillRect(tx - 1.8, by - 18.9, 1.3, 6.0);
   g.fillStyle = shade(col, 0.60);                             // strap bands round it
-  g.fillRect(tx - 2.2, by - 17.4, 4.4, 0.9);
-  g.fillRect(tx - 2.2, by - 13.6, 4.4, 0.9);
+  g.fillRect(tx - 2.1, by - 17.4, 4.2, 0.9);
+  g.fillRect(tx - 2.1, by - 13.0, 4.2, 0.9);
   g.fillStyle = '#3e3e3e';                                    // steel cap
-  g.beginPath(); g.ellipse(tx, by - 19.9, 2.3, 1.0, 0, 0, 6.29); g.fill();
+  g.beginPath(); g.ellipse(tx, by - 19.9, 2.0, 1.0, 0, 0, 6.29); g.fill();
   g.fillStyle = '#929292';
   g.beginPath(); g.ellipse(tx - 0.4, by - 20.1, 1.2, 0.5, 0, 0, 6.29); g.fill();
+}
+for (ar = -1; ar <= 1; ar += 2) {                       // pack feeds the hip nozzles
+  g.fillStyle = '#767676';
+  g.beginPath();
+  g.moveTo(cx + ar * 6.1 - 1.15, by - 13.4);
+  g.lineTo(cx + ar * 6.1 + 1.15, by - 13.4);
+  g.lineTo(cx + ar * 5.2 + 1.15, by - 9.1);
+  g.lineTo(cx + ar * 5.2 - 1.15, by - 9.1);
+  g.closePath(); g.fill();
+  g.fillStyle = '#bdbdbd';
+  g.fillRect(cx + ar * 5.75 - 0.55, by - 12.7, 1.1, 3.2);
 }
 g.fillStyle = RS;                                             // suit torso
 g.beginPath();
 g.moveTo(cx - 5.2, by - 19.6); g.lineTo(cx + 5.2, by - 19.6);
 g.lineTo(cx + 4.6, by - 11.0); g.lineTo(cx - 4.6, by - 11.0);
 g.closePath(); g.fill(); outline(g, RSD);
+// Pressure collar joins the flight helmet to the harness; at the taller
+// flight stance this join must remain visible rather than a black gap.
+g.fillStyle = '#8f9899';
+g.beginPath(); g.roundRect(cx - 2.7, by - 21.4, 5.4, 3.2, 0.7); g.fill();
+g.fillStyle = '#ccd2d0'; g.fillRect(cx - 2.2, by - 21.2, 1.1, 2.6);
 g.fillStyle = RSL; g.fillRect(cx - 5.0, by - 19.4, 1.4, 8.0);  // lit edge
 g.fillStyle = shade(RS, 0.6); g.fillRect(cx - 4.7, by - 12.6, 9.4, 1.4);   // harness belt
 // ...and the CHEST is the pressure suit, with the house note cut into
@@ -99,15 +115,13 @@ g.moveTo(cx - 5.0, by - 19.5); g.lineTo(cx + 5.0, by - 19.5);
 g.lineTo(cx + 4.4, by - 12.4); g.lineTo(cx - 4.4, by - 12.4);
 g.closePath(); g.fill(); outline(g, shade(RS, 0.70));
 g.fillStyle = shade(RS, 1.06); g.fillRect(cx + 0.4, by - 19.3, 4.0, 6.7);  // shaded far half
-g.fillStyle = col;                                            // the chest chevron
+g.fillStyle = col;                                            // broad owner-colour flight chest
 g.beginPath();
-g.moveTo(cx - 4.6, by - 19.4); g.lineTo(cx + 4.6, by - 19.4);
-g.lineTo(cx + 4.2, by - 17.6); g.lineTo(cx, by - 16.0);
-g.lineTo(cx - 4.2, by - 17.6);
+g.moveTo(cx - 2.9, by - 19.4); g.lineTo(cx + 2.9, by - 19.4);
+g.lineTo(cx + 3.25, by - 16.8); g.lineTo(cx + 2.8, by - 12.7);
+g.lineTo(cx - 2.8, by - 12.7); g.lineTo(cx - 3.25, by - 16.8);
 g.closePath(); g.fill(); outline(g, shade(col, 0.42));
-g.fillStyle = shade(col, 1.24); g.fillRect(cx - 4.4, by - 19.2, 3.0, 0.9);
-g.fillStyle = shade(RS, 0.74);                                // the suit's own centre seam
-g.fillRect(cx - 0.4, by - 15.8, 0.8, 3.3);
+g.fillStyle = shade(col, 1.18); g.fillRect(cx - 2.6, by - 18.9, 1.0, 5.3);
 arms(5.6, by - 18.2, 3.0, 6.2, RS, function (i, x, y) {
   g.fillStyle = col;                                          // house-colour pauldron
   g.beginPath(); g.ellipse(x, y + 0.4, 2.2, 1.6, 0, 0, 6.29); g.fill();

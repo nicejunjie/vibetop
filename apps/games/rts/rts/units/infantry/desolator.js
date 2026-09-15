@@ -1,207 +1,114 @@
-// Iron Frontier — infantry/desolator: the art for one unit.
-// Called by bakeInfantry() with one context object carrying the canvas, the anchor,
-// the facing and the helpers it draws with — see rts/README.md.
-
-
-
-
+// Iron Frontier — infantry/desolator.
+// Read against the local RA2 animation: dark pressure suit, coloured shoulder
+// shell and knee guards, green equipment, and a heavy shoulder-borne cannon.
 function drawDesolator(C) {
-  var ACC = C.ACC, FA = C.FA, T = C.T, TURN = C.TURN, arms = C.arms, by = C.by, col = C.col, cx = C.cx, g = C.g,
-      gt = C.gt, legs = C.legs, sd = C.sd, wpn = C.wpn;
+  var g = C.g, cx = C.cx, by = C.by, col = C.col, gt = C.gt;
+  var sd = C.sd, TURN = C.TURN, back = C.FA.back;
+  var firing = C.state === 'fire' || C.state === 'fireprone';
+  var moving = C.state === 'walk' || C.state === 'crawl';
+  function box(x, y, w, h, r, colour) {
+    g.fillStyle = colour;
+    g.beginPath(); g.roundRect(x, y, w, h, r); g.fill();
+  }
 
-// DESOLATOR ([DESO]), read off docs/ra2-ref/ra2-deso-RA2_Desolator_
-// {Render,Manual_Render}. What actually identifies him at 1:1 is the
-// SHOULDER: a fat cylindrical rad cannon carried on the leading
-// shoulder with a glowing green muzzle disc pointing forward, so his
-// silhouette is lopsided in a way nothing else on the field is. Under
-// it, a charcoal hazard suit with house-colour plates on the chest,
-// one shoulder and both thighs, a domed helmet with a green visor
-// slit, and heavy black boots. Bulk one class above a Conscript.
-legs(3.0, by - 12.2, 4.4, T.coat, 5.2);
+  // Flexible dark thighs bend into coloured knee guards and heavy boots.
+  var order = gt.sw ? [-gt.sw, gt.sw] : [-1, 1];
+  for (var n = 0; n < 2; n++) {
+    var i = order[n], lead = gt.sw ? (i === gt.sw ? 1 : -1) : 0;
+    var lat = 1 - 0.48 * sd;
+    var hip = cx + i * 2.5 * lat;
+    var knee = cx + i * (3.0 + (lead > 0 ? 1.7 : lead < 0 ? -1.3 : 0)) * lat
+      + (lead > 0 ? 2.4 : lead < 0 ? -1.8 : 0) * sd / TURN;
+    var foot = knee + (lead > 0 ? 1.2 : lead < 0 ? -1.0 : i * 0.4) / TURN;
+    var lift = lead < 0 ? 2.0 : 0;
+    g.strokeStyle = lead < 0 ? '#393939' : '#575757';
+    g.lineWidth = lead < 0 ? 3.9 : 4.5; g.lineCap = 'round'; g.lineJoin = 'round';
+    g.beginPath(); g.moveTo(hip, by - 12.0);
+    g.lineTo(knee, by - 6.1 - lift); g.lineTo(foot, by - 2.2 - lift); g.stroke();
+    box(knee - 2.05, by - 7.4 - lift, 4.1, 3.2, 0.8, shade(col, lead < 0 ? 0.58 : 0.93));
+    box(knee - 1.7, by - 7.3 - lift, 3.4, 0.85, 0.2, shade(col, 1.13));
+    box(foot - 2.3, by - 3.2 - lift, 5.0, 3.2, 0.8, '#252525');
+    box(foot - 1.7, by - 2.7 - lift, 3.8, 0.7, 0.2, '#545454');
+  }
 
-g.save(); g.translate(gt.lean, gt.bob);
-// THE PACK, first, so the shoulders sit in front of it. §2.2 asks for a
-// "pack >= 5w x 8h ABOVE the shoulder line" and the figure never had
-// one: without it he was a Guardian GI with a green light, and his
-// closest silhouette match on the whole field was a GI. They sit just
-// ABOVE the shoulder line and BELOW the helmet crown — raised level
-// with the head they became the widest rows on the sprite, which made
-// the gate score the helmet as his spike instead of the pack and took
-// its measured thickness from 6 px to 4.
-// ...and the way they came to meet §2.2's "pack >= 5w x 8h ABOVE the
-// shoulder line" is the C4 note's trap read backwards. The gate scored 7
-// rows of protrusion, not 8, and the obvious move — raise the tanks — is
-// the one that makes it WORSE: at the profile facings the body is
-// squeezed 0.66 but the tanks are not, so lifting them into the helmet's
-// rows takes that band over the 55% body cut and the run gets SHORTER.
-// Raising the HELMET a unit and dropping the tanks half of one buys the
-// eighth row, because what is measured is the number of rows that stay
-// NARROW, not how high the widest thing sits. Sweep: +2.0 -> 4 rows,
-// +1.0 -> 6, 0 -> 7, -1.0 -> 8.
-for (var dpk = -1; dpk <= 1; dpk += 2) {
-  var pkx = cx + dpk * 4.0;
-  g.fillStyle = shade(T.coat, dpk < 0 ? 1.40 : 1.10);
-  g.beginPath(); g.roundRect(pkx - 2.1, by - 21.6, 4.2, 9.2, 1.6); g.fill();
-  outline(g, shade(T.coat, 0.40));
-  g.fillStyle = shade(T.coat, dpk < 0 ? 1.74 : 1.32);          // lit stave
-  g.fillRect(pkx - 1.6, by - 21.0, 1.2, 7.8);
-  g.fillStyle = shade(col, 0.90);                              // house band round the tank —
-  g.fillRect(pkx - 1.7, by - 19.4, 3.4, 1.8);                  // the budget goes ON the named
-  outline(g, shade(col, 0.42));                                // part (rule 6), as the Flak
-  g.fillStyle = '#2d2d2d';                                     // Trooper's breech band does
-  g.beginPath(); g.ellipse(pkx, by - 21.6, 2.1, 1.0, 0, 0, 6.29); g.fill();
-  // THE CANISTER CAP IS A LAMP. Put RA2's Desolator plate beside ours and
-  // the difference is not a detail: RA2's is a green PICTURE — a
-  // yellow-green radioactive wash over a hazmat rig — and ours was a
-  // charcoal figure carrying ONE green dot. The whole signature sat on a
-  // 4 px muzzle disc that the sidebar's portrait crop shrinks to nothing.
-  // The isotope has to be visible on the man, and the only surface high
-  // enough to survive that crop is the top of the tanks: everything from
-  // by-20.4 down is overdrawn by the carapace and the waist ring, so a
-  // sight glass on the tank BODY would be painted over and buy nothing
-  // (tried first, measured, discarded). So each cap glows — two green
-  // lamps at the top of the silhouette, left and right, which is the
-  // first thing the eye finds on the plate and reads at 1:1 as well.
-  g.fillStyle = 'rgba(77,224,74,.34)';                         // bloom off the cap
-  g.beginPath(); g.ellipse(pkx, by - 21.9, 2.3, 1.5, 0, 0, 6.29); g.fill();
-  g.fillStyle = ACC;                              // the isotope itself
-  g.beginPath(); g.ellipse(pkx, by - 21.9, 1.45, 0.80, 0, 0, 6.29); g.fill();
-  g.fillStyle = '#dcff7a';                                     // hot centre — RA2's glow is
-  g.beginPath();                                               // YELLOW-green at its brightest
-  g.ellipse(pkx - 0.35, by - 22.1, 0.70, 0.38, 0, 0, 6.29); g.fill();
-}
-g.strokeStyle = '#3e3e3e'; g.lineWidth = 1.2; g.lineCap = 'round';
-g.beginPath();                                                 // yoke across the tank tops
-g.moveTo(cx - 4.0, by - 20.9); g.lineTo(cx + 4.0, by - 20.9); g.stroke();
-for (var dtp = -1; dtp <= 1; dtp += 2) {                       // house-colour thigh plates
-  g.fillStyle = shade(col, 0.86);
-  g.beginPath(); g.roundRect(cx + dtp * 3.0 - 1.6, by - 12.8, 3.2, 2.6, 0.9); g.fill();
-  outline(g, shade(col, 0.42));
-  g.fillStyle = shade(col, 1.18);
-  g.fillRect(cx + dtp * 3.0 - 1.7, by - 12.8, 3.4, 0.9);
-}
-g.fillStyle = '#5f5f5f';                                       // suit waist ring
-g.fillRect(cx - 5.4, by - 14.6, 10.8, 1.6);
-g.fillStyle = '#848484';
-g.fillRect(cx - 5.2, by - 14.5, 10.4, 0.6);
+  g.save(); g.translate(gt.lean, gt.bob);
+  g.translate(cx, by - 11.0);
+  g.rotate((moving ? 0.16 : 0.07) * sd);
+  g.translate(-cx, -(by - 11.0));
 
-g.fillStyle = shade(T.coat, 1.04);                             // charcoal carapace
-g.beginPath();
-g.moveTo(cx - 5.3, by - 20.4); g.lineTo(cx + 5.3, by - 20.4);
-g.lineTo(cx + 5.6, by - 15.0); g.lineTo(cx - 5.6, by - 15.0);
-g.closePath(); g.fill(); outline(g, shade(T.coat, 0.44));
-g.fillStyle = col;                                             // house-colour chest plate
-g.beginPath();
-g.moveTo(cx - 3.6, by - 20.0); g.lineTo(cx + 3.6, by - 20.0);
-g.lineTo(cx + 2.8, by - 16.4); g.lineTo(cx - 2.8, by - 16.4);
-g.closePath(); g.fill(); outline(g, shade(col, 0.40));
-g.fillStyle = shade(col, 1.24);
-g.fillRect(cx - 3.4, by - 19.9, 6.8, 1.0);
-// rivets down the plate — the render's studded seam
-g.fillStyle = 'rgba(20,22,26,.55)';
-for (var drv = 0; drv < 3; drv++) g.fillRect(cx - 0.5, by - 19.0 - drv * 1.5, 1.0, 0.8);
-// GREEN KEY LIGHT. What makes RA2's plate green is not one bright part,
-// it is that the MAN IS LIT GREEN by what he is carrying. Drawn as a
-// translucent wash it costs no owner colour at all — a tint over the
-// house plate still differs between the two owners' bakes, so it stays
-// remap to the colour census — and it costs no silhouette either, which
-// is why it can be this broad where an outward bloom could not be.
-// It has to FALL OFF, or it is a stripe and not a light: two flat bands
-// put a hard green edge across his chest (looked at, and it read as
-// painted-on livery). One gradient from the canisters down.
-g.save();
-g.globalCompositeOperation = 'lighter';
-var dwg = g.createLinearGradient(0, by - 21.0, 0, by - 14.4);
-dwg.addColorStop(0, 'rgba(46,150,44,.42)');
-dwg.addColorStop(0.55, 'rgba(46,150,44,.20)');
-dwg.addColorStop(1, 'rgba(46,150,44,0)');
-g.fillStyle = dwg;
-g.beginPath();
-g.moveTo(cx - 5.3, by - 20.4); g.lineTo(cx + 5.3, by - 20.4);
-g.lineTo(cx + 5.6, by - 15.0); g.lineTo(cx - 5.6, by - 15.0);
-g.closePath(); g.fill();
-g.restore();
-
-arms(5.5, by - 18.4, 2.9, 5.6, shade(T.coat, 0.92), function (i, x, y) {
-  // Suit pauldrons, in HOUSE colour, as the Manual_Render wears them.
-  // They are also where the owner-colour budget the rad glow spent comes
-  // back from: making the isotope visible added opaque non-remap pixels
-  // and diluted his share from 30.6% to 29.6% (measured), and §1.4 wants
-  // that block ON a named part rather than sprayed over the suit.
-  g.fillStyle = shade(T.coat, 1.10);
-  g.beginPath(); g.ellipse(x - i * 0.4, y + 0.5, 2.1, 1.7, 0, Math.PI, 0); g.fill();
-  g.fillRect(x - i * 0.4 - 2.1, y + 0.5, 4.2, 1.2);
-  outline(g, shade(col, 0.40));
-  g.fillStyle = shade(T.coat, 1.32);
-  g.beginPath(); g.ellipse(x - i * 0.4 - 0.6, y - 0.3, 1.1, 0.6, -0.3, 0, 6.29); g.fill();
-  g.fillStyle = shade(T.coat, 1.18);                           // armoured gauntlet
-  g.beginPath(); g.roundRect(x - 1.6, y + 4.7, 3.2, 2.7, 0.9); g.fill();
-  outline(g, shade(col, 0.42));
-});
-
-// The rad cannon on the leading shoulder. `wpn` keeps its true length
-// through the body squeeze and swings it round with the facing.
-wpn(function () {
-  var gy0 = by - 19.4;
-  g.fillStyle = '#606060';                                     // barrel body
-  g.beginPath(); g.roundRect(cx - 0.4, gy0, 5.8, 3.4, 1.2); g.fill();
-  outline(g, '#252525');
-  g.fillStyle = '#858585';                                     // lit top of the tube
-  g.fillRect(cx - 0.1, gy0 + 0.3, 5.2, 1.0);
-  g.fillStyle = '#414141';                                     // cooling bands
-  for (var db = 0; db < 3; db++) g.fillRect(cx + 1.0 + db * 1.4, gy0 + 0.3, 0.7, 2.8);
-  g.fillStyle = '#313131';                                     // shoulder yoke
-  g.beginPath(); g.roundRect(cx - 2.1, gy0 + 0.5, 2.1, 3.2, 0.9); g.fill();
-  // the muzzle: a green disc with a soft bloom, his one loud surface
-  // WIDE-MOUTHED, as §2.2 asks: "gun muzzle >= 4 px across (fat, not a
-  // rifle)". The green disc measured 2.7 px at zoom 1 and was the one
-  // hue on the field nobody else carries — too small to do either job.
-  g.fillStyle = 'rgba(77,224,74,.22)';                         // outer bloom
-  g.beginPath(); g.ellipse(cx + 6.0, gy0 + 1.7, 3.3, 3.3, 0, 0, 6.29); g.fill();
-  g.fillStyle = 'rgba(77,224,74,.40)';
-  g.beginPath(); g.ellipse(cx + 6.0, gy0 + 1.7, 2.5, 2.5, 0, 0, 6.29); g.fill();
-  g.fillStyle = ACC;
-  g.beginPath(); g.ellipse(cx + 6.0, gy0 + 1.7, 1.95, 2.05, 0, 0, 6.29); g.fill();
-  outline(g, '#1f5c1e');
-  g.fillStyle = '#dcff7a';                                     // a HOT core, not a highlight:
-  g.beginPath();                                               // an emitter burns out yellow
-  g.ellipse(cx + 5.9, gy0 + 1.6, 1.05, 1.10, 0, 0, 6.29); g.fill();
-  // the ribbed feed hose running back to the pack
-  g.strokeStyle = '#4f4f4f'; g.lineWidth = 1.1;
-  g.beginPath(); g.moveTo(cx - 0.6, gy0 + 2.9);
-  g.quadraticCurveTo(cx - 3.4, gy0 + 5.0, cx - 2.6, gy0 + 7.0); g.stroke();
-});
-
-// A sealed helmet, not a face: a domed shell with a green visor band. It
-// stands a unit higher than it did — see the pack note above; the extra
-// helmet-only band is what carries the pack's eighth row of protrusion.
-g.fillStyle = shade(T.coat, 1.28);
-var dhy = by - 23.3;
-g.beginPath(); g.ellipse(cx + sd * 1.1 / TURN, dhy, 3.4 * (1 - 0.16 * sd), 3.5, 0, Math.PI, 0); g.fill();
-g.fillRect(cx + sd * 1.1 / TURN - 3.4 * (1 - 0.16 * sd), dhy, 6.8 * (1 - 0.16 * sd), 1.9);
-outline(g, shade(T.coat, 0.42));
-if (!FA.back) {
-  // A LIT FACEPLATE, not a slit. The helmet is the top of the portrait
-  // crop and therefore the loudest real estate the cameo has; a 4.8x1.5
-  // band there was a green pinstripe. RA2's rig glows out of the whole
-  // faceplate, and the dome above it catches that light.
-  g.fillStyle = 'rgba(77,224,74,.30)';                         // the dome catches it
+  // Pack seated behind the shoulder blades, with a green inset exposed
+  // around the side and rear. The dark waist remains below this equipment.
+  var packX = cx - sd * 4.0 / TURN;
+  box(packX - 4.0, by - 22.4, 8.0, 10.1, 1.6, '#393939');
+  box(packX - 3.8, by - 21.8, 7.6, 3.4, 1.0, shade(col, 0.87));
+  if (sd > 0.4 || back) {
+    box(packX - 3.3, by - 18.7, 6.6, 5.7, 0.8, '#316b2d');
+    box(packX - 2.8, by - 18.2, 2.0, 4.5, 0.3, '#69c339');
+  }
+  g.fillStyle = '#393939';
   g.beginPath();
-  g.ellipse(cx + sd * 1.1 / TURN, dhy + 0.2, 3.2 * (1 - 0.16 * sd), 2.6, 0, Math.PI, 0); g.fill();
-  var dvx = cx + sd * 1.9 / TURN;
-  g.fillStyle = 'rgba(77,224,74,.92)';                         // the faceplate
-  g.beginPath(); g.roundRect(dvx - 2.7, dhy - 0.7, 5.4, 3.0, 1.1); g.fill();
-  g.fillStyle = '#8bf07f';
-  g.fillRect(dvx - 2.4, dhy - 0.4, 4.8, 1.3);
-  g.fillStyle = '#dcff7a';                                     // glint on the glass
-  g.fillRect(dvx - 2.2, dhy - 0.2, 1.8, 0.8);
-  g.strokeStyle = shade(T.coat, 0.44); g.lineWidth = 0.8;      // the rubber seal round it
-  g.beginPath(); g.roundRect(dvx - 2.7, dhy - 0.7, 5.4, 3.0, 1.1); g.stroke();
-} else {
-  g.fillStyle = shade(T.coat, 0.62);
-  g.beginPath(); g.ellipse(cx, dhy + 1.3, 2.7, 1.5, 0, 0, Math.PI); g.fill();
-}
-g.fillStyle = shade(col, 1.0);                                 // house-colour crest
-g.fillRect(cx + sd * 1.1 / TURN - 0.8, dhy - 3.6, 1.6, 3.2);
-g.restore();
+  g.moveTo(cx - 4.5, by - 20.3); g.lineTo(cx + 4.5, by - 20.3);
+  g.lineTo(cx + 4.7, by - 11.0); g.lineTo(cx + 3.0, by - 9.7);
+  g.lineTo(cx - 3.5, by - 9.7); g.lineTo(cx - 4.9, by - 11.4);
+  g.closePath(); g.fill();
+  box(cx - 4.2, by - 16.0, 3.4, 5.0, 0.8, '#575757');
+  box(cx - 5.4, by - 21.0, 10.8, 5.3, 2.1, shade(col, 0.94));
+  g.fillStyle = shade(col, 1.22);
+  g.beginPath(); g.ellipse(cx - 2.4, by - 20.1, 2.5, 1.0, -0.2, 0, 6.29); g.fill();
+  box(cx - 4.7, by - 11.8, 9.4, 2.0, 0.7, '#292929');
+
+  // Small sealed head nested between the shoulders and the weapon.
+  var headX = cx + sd * 1.3 / TURN;
+  g.fillStyle = '#404040';
+  g.beginPath(); g.ellipse(headX, by - 23.2, 2.8, 3.2, 0, 0, 6.29); g.fill();
+  g.fillStyle = '#727272';
+  g.beginPath(); g.ellipse(headX - 0.6, by - 24.6, 1.8, 1.1, -0.15, 0, 6.29); g.fill();
+  if (!back) {
+    box(headX - 2.1, by - 23.4, 4.5, 2.3, 0.8, '#242b24');
+    box(headX - 1.6, by - 23.1, 3.3, 0.7, 0.2, '#788c71');
+  }
+
+  // Connected sleeves and gauntlets brace the receiver from below.
+  for (var arm = -1; arm <= 1; arm += 2) {
+    var ax = cx + arm * 5.0;
+    g.strokeStyle = shade(col, arm < 0 ? 0.76 : 0.96);
+    g.lineWidth = 3.7; g.lineCap = 'round'; g.lineJoin = 'round';
+    g.beginPath(); g.moveTo(ax, by - 19.2);
+    g.lineTo(ax + arm * 0.5, by - 16.1);
+    g.lineTo(cx + (back ? -1 : 1) * 3.6, by - 20.0); g.stroke();
+    g.fillStyle = '#707070';
+    g.beginPath(); g.ellipse(cx + (back ? -1 : 1) * 3.6, by - 20.0, 1.8, 1.3, 0, 0, 6.29); g.fill();
+  }
+
+  if (!back) {
+    // The source shows a green equipment chamber below the shoulder barrel.
+    box(cx + 1.0, by - 20.4, 3.8, 4.8, 0.8, '#2d5427');
+    box(cx + 1.6, by - 19.9, 2.6, 3.7, 0.5, '#54bf36');
+    box(cx + 1.8, by - 19.6, 0.8, 3.0, 0.2, '#94db4f');
+  }
+  C.wpn(function () {
+    // A substantial cylinder carried above the shoulder, lowered to fire.
+    g.save(); g.translate(cx + 2.5, by - 21.1);
+    if (firing) g.scale(0.45 + 0.55 * sd, 1);
+    g.rotate(firing ? -0.10 - 0.25 * (1 - sd) : -1.0 + 0.55 * sd);
+    box(-2.5, -1.9, 11.8, 3.8, 1.0, '#343434');
+    box(-1.9, -1.7, 10.8, 1.0, 0.5, '#747474');
+    box(2.8, -1.9, 1.1, 3.8, 0.2, '#4e4e4e');
+    box(7.8, -2.0, 1.1, 4.0, 0.2, '#4e4e4e');
+    g.fillStyle = '#263c25';
+    g.beginPath(); g.ellipse(9.2, 0, 1.0, 2.0, 0, 0, 6.29); g.fill();
+    g.fillStyle = C.ACC;
+    g.beginPath(); g.ellipse(9.4, 0, 0.7, 1.4, 0, 0, 6.29); g.fill();
+    g.fillStyle = '#dcff7a';
+    g.beginPath(); g.ellipse(9.55, -0.35, 0.3, 0.7, 0, 0, 6.29); g.fill();
+    g.restore();
+  });
+
+  // Rear pack covers the harness, not the projecting barrel.
+  if (back) {
+    box(packX - 3.4, by - 20.1, 6.8, 7.4, 1.2, '#353535');
+    box(packX - 2.6, by - 19.0, 5.2, 5.0, 0.8, '#419833');
+    box(packX - 2.1, by - 18.5, 1.5, 3.8, 0.2, '#82d242');
+  }
+  g.restore();
 }

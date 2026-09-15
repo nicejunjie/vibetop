@@ -12,6 +12,11 @@ function drawNighthawk(C) {
       wid = C.wid;
 
 if (wantH) {
+  // Restrained steel-blue military paint. Owner colour belongs to markings,
+  // not the entire airframe. Broad ivory panels and cyan glass looked plastic.
+  // Separate the lit crown, side plane and shaded belly by value, not haze.
+  var paint = '#556d82', paintDark = '#25313b';
+  var paintLight = '#91a4b1', alloy = '#b6bfbe', alloyEdge = '#617582';
   var hy = by - 5.4;                                  // the belly line
   // THE BOOM IS THE LENGTH, and `len` is not. Sweeping `len` 34/42/50
   // leaves the broadside aspect at 1.622 to three decimals, which was
@@ -66,7 +71,15 @@ if (wantH) {
       g.lineTo(bx2 - bnx * w1, by2 - bny * w1); g.lineTo(ax - bnx * w0, ay - bny * w0);
       g.closePath(); g.fillStyle = col; g.fill();
     };
-    quad(2.5, 1.0, 0, 1, shade(hull, 0.66));
+    quad(3.2, 1.2, 0, 1, paint);
+    // The white-blue cargo flash belongs at the cabin/boom joint,
+    // not at the tail tip; it anchors the long boom to a real fuselage.
+    isoBox(g, cx - fx * 8.5 + px * wid * 0.20,
+           hy - 4.2 - fy * 8.5 + py * wid * 0.20,
+           4.6, 1.6, 2.2, a, alloy, alloyEdge);
+    isoBox(g, cx - fx * 8.5 + px * wid * 0.20,
+           hy - 5.3 - fy * 8.5 + py * wid * 0.20,
+           4.2, 1.7, 0.48, a, panel, PEDGE);
     // and the lit crown along whichever edge is the UPPER one on
     // screen. It is a NARROW band on a dark tube, not the other way
     // round: at 0.78/1.10 over two thirds of the depth the boom came
@@ -74,7 +87,7 @@ if (wantH) {
     // length of the sprite beside an equally bright rotor blade.
     var blit = bny < 0 ? 1 : -1;
     (function () {
-      var w0 = 2.5 * blit, w1 = 1.0 * blit;
+      var w0 = 3.2 * blit, w1 = 1.2 * blit;
       g.beginPath();
       g.moveTo(b0x + bnx * w0, b0y + bny * w0); g.lineTo(b1x + bnx * w1, b1y + bny * w1);
       g.lineTo(b1x + bnx * w1 * 0.48, b1y + bny * w1 * 0.48);
@@ -82,10 +95,10 @@ if (wantH) {
       // 1.02, not the 1.18 this edge used to carry and not the 1.55
       // before that: both were tuned against a charcoal hull, and on
       // the gunship grey they clip toward white.
-      g.closePath(); g.fillStyle = shade(hull, 1.02); g.fill();
+      g.closePath(); g.fillStyle = paintLight; g.fill();
     })();
     // horizontal stabiliser, out at the fin where a Black Hawk carries it
-    g.strokeStyle = shade(hull, 1.02); g.lineWidth = 2.0; g.lineCap = 'round';
+    g.strokeStyle = paint; g.lineWidth = 2.0; g.lineCap = 'round';
     g.beginPath();
     g.moveTo(b1x + fx * 2.4 + px * 4.2, b1y + 0.6 + fy * 2.4 + py * 4.2);
     g.lineTo(b1x + fx * 2.4 - px * 4.2, b1y + 0.6 + fy * 2.4 - py * 4.2);
@@ -93,10 +106,10 @@ if (wantH) {
     // the fin, wearing the house flash, and the tail rotor on it. Lower
     // and longer than the 3.2x0.9x5.0 post it was: at the end of a boom
     // this long a tall thin box reads as a lamp standard.
-    isoBox(g, b1x, b1y + 0.4, 4.2, 0.9, 4.2, a, shade(hull, 0.94), PEDGE);
+    isoBox(g, b1x, b1y + 0.4, 4.2, 0.9, 4.2, a, paint, paintDark);
     isoBox(g, b1x - fx * 0.4, b1y - 3.4 - fy * 0.4, 2.8, 1.0, 1.4, a, panel, PEDGE);
     var trR = 3.6, trPh = anim === 'prop' ? 0.5236 : 0;
-    g.strokeStyle = 'rgba(213,213,213,.40)'; g.lineWidth = 1.0; g.lineCap = 'round';
+    g.strokeStyle = alloy; g.lineWidth = 1.0; g.lineCap = 'round';
     for (i2 = 0; i2 < 3; i2++) {
       var tra = trPh + i2 * 2.094;
       g.beginPath(); g.moveTo(b1x + px * 1.2, b1y - 2.6 + py * 1.2);
@@ -109,29 +122,60 @@ if (wantH) {
     // A LOW cabin. At 6.4 deep with the roof 8.0 up it was as tall as
     // it was long and the mast had to sit above THAT, which is where
     // the sprite's height came from once the gear was tucked.
-    chassis(kx, ky, len * 0.30, wid * 0.62, 5.0, hull, PEDGE, 2.4);
-    isoBox(g, kx - fx * 0.6, ky - 6.4 - fy * 0.6, len * 0.24, wid * 0.52, 1.2, a,
-           shade(hull, 1.16), PEDGE);                             // roof
+    // The generic land-vehicle chassis inserts a near-black underbody box.
+    // On a flying helicopter that box becomes most of the visible cabin and
+    // makes the grey airframe read as a floating shadow.
+    isoBox(g, kx, ky - 1.3, len * 0.67, wid * 0.91, 7.2, a,
+           paint, paintDark);
+    isoBox(g, kx - fx * 1.4, ky - 8.1 - fy * 1.4, len * 0.48, wid * 0.69, 1.2, a,
+           paintLight, paint);                                  // roof crown
     // the glass nose
-    isoBox(g, kx + fx * 4.2, ky - 2.6 + fy * 4.2, 1.5, wid * 0.50, 5.4, a, '#222a33', '#0b0e12');
-    g.fillStyle = 'rgba(168,196,222,.52)';
-    g.beginPath(); g.ellipse(kx + fx * 4.7, ky - 6.2 + fy * 4.7, 3.0, 1.5, 0, 0, 6.29); g.fill();
-    g.fillStyle = 'rgba(214,232,248,.34)';
-    g.beginPath(); g.ellipse(kx + fx * 4.9, ky - 7.0 + fy * 4.9, 1.7, 0.7, 0, 0, 6.29); g.fill();
+    isoBox(g, kx + fx * 9.2, ky - 3.0 + fy * 9.2, 6.2, wid * 0.70, 5.8, a, paint, paintDark);
+    // Sloped glazing and a narrowing metal chin turn the front cargo box
+    // into a forward cockpit; the small gun sits under, not across, the nose.
+    g.fillStyle = paint;
+    g.beginPath();
+    g.moveTo(kx + fx * 10.0 + px * wid * 0.33, ky - 6.6 + fy * 10.0 + py * wid * 0.33);
+    g.lineTo(kx + fx * 14.5, ky - 4.3 + fy * 14.5);
+    g.lineTo(kx + fx * 10.0 - px * wid * 0.33, ky - 6.6 + fy * 10.0 - py * wid * 0.33);
+    g.closePath(); g.fill();
+    // Two sloping windshield panes with a metal centre post. A single
+    // cyan ellipse read as a searchlight, not an enclosed pilot's cockpit.
+    for (var paneSide = -1; paneSide <= 1; paneSide += 2) {
+      var inner = paneSide * 0.45, outer = paneSide * wid * 0.27;
+      g.beginPath();
+      g.moveTo(kx + fx * 8.6 + px * inner, ky - 8.0 + fy * 8.6 + py * inner);
+      g.lineTo(kx + fx * 8.6 + px * outer, ky - 8.0 + fy * 8.6 + py * outer);
+      g.lineTo(kx + fx * 12.8 + px * outer * .72, ky - 5.0 + fy * 12.8 + py * outer * .72);
+      g.lineTo(kx + fx * 12.8 + px * inner, ky - 5.0 + fy * 12.8 + py * inner);
+      g.closePath(); g.fillStyle = paneSide * py < 0 ? '#3d6071' : '#162c39'; g.fill();
+      g.strokeStyle = paintLight; g.lineWidth = .5; g.stroke();
+    }
     for (sg = -1; sg <= 1; sg += 2) {
       // the sliding door a side, with the owner's band over it
       isoBox(g, kx + px * wid * 0.34 * sg, ky - 3.0 + py * wid * 0.34 * sg,
-             len * 0.18, 0.9, 3.6, a, shade(hull, 0.52), PEDGE);   // was flat '#151920': on the
+             len * 0.34, 0.9, 3.6, a, paint, paintDark);         // sliding cargo door
+      // Recessed door window and the cabin's narrow lit shoulder. Keep the
+      // highlight on an edge, not a broad white panel across the fuselage.
+      isoBox(g, kx + px * wid * 0.36 * sg, ky - 5.0 + py * wid * 0.36 * sg,
+             len * 0.19, 0.95, 1.7, a, '#243947', '#17262e');
+      isoBox(g, kx - fx * 1.0 + px * wid * 0.37 * sg,
+             ky - 7.1 - fy * 1.0 + py * wid * 0.37 * sg,
+             len * 0.48, .7, .55, a, alloy, alloyEdge);
       // charcoal hull it vanished, on the grey one it made the cabin a
       // black wedge hanging off a pale boom. Tied to the hull it stays
       // a shadowed door however the airframe is valued.
       isoBox(g, kx + px * wid * 0.34 * sg, ky - 5.6 + py * wid * 0.34 * sg,
-             len * 0.20, 1.0, 1.2, a, panel, PEDGE);
-      puck(kx - fx * 1.8 + px * wid * 0.42 * sg, ky - 3.4 - fy * 1.8 + py * wid * 0.42 * sg,
-           0.9, 1.2, shade(hull, 0.70), STEEL, PEDGE);            // sensor pod on a stub pylon
+             len * 0.10, 1.0, 0.8, a, panel, '#434343');
+      // Light alloy lower door panel is a real part of the cabin, not a
+      // highlight on the rotor. It keeps the cargo volume separate from
+      // the dark cockpit opening and from the round map shadow below.
+      isoBox(g, kx - fx * 1.6 + px * wid * 0.37 * sg,
+             ky - 2.6 - fy * 1.6 + py * wid * 0.37 * sg,
+             len * 0.29, 0.86, 1.9, a, paintLight, paint);
     }
     // the chin gun ([BlackHawkCannon], a 20mm quad)
-    barrel(kx + fx * 4.6, ky - 1.4 + fy * 4.6, 5.6, 0.75, 0.50, '#131519');
+    barrel(kx + fx * 10.0, ky - 1.4 + fy * 10.0, 5.6, 0.75, 0.50, '#333333');
   };
   drawSkids();
   if (fy > 0) { drawBoom(); drawCabin(); } else { drawCabin(); drawBoom(); }
@@ -169,9 +213,9 @@ if (wantH) {
   g.translate(mrx, mry); g.scale(1, ry / rx);       // circle space, then squash to the iso ellipse
   var mrg = g.createRadialGradient(0, 0, 0, 0, 0, rx);
   mrg.addColorStop(0.00, 'rgba(213,213,213,.05)');  // nearly clear at the hub
-  mrg.addColorStop(0.55, 'rgba(213,213,213,.22)');
-  mrg.addColorStop(0.90, 'rgba(230,230,230,.42)');  // densest just inside the tip
-  mrg.addColorStop(1.00, 'rgba(230,230,230,.09)');  // and feathered off it -- but not
+  mrg.addColorStop(0.55, 'rgba(70,70,70,.03)');
+  mrg.addColorStop(0.90, 'rgba(70,70,70,.04)');
+  mrg.addColorStop(1.00, 'rgba(70,70,70,.02)');
   // to nothing: a rim that reaches zero alpha loses the outer 2 px of
   // span off the bounding box, and this airframe's whole RA2 spec is
   // rotor span. 5% is under the eye and over the measurement's floor.
@@ -201,8 +245,8 @@ if (wantH) {
     // between the two thresholds: solid enough to survive the snap and read as
     // blades, transparent enough that the measurement still knows they are not
     // the aircraft.
-    g.strokeStyle = i2 % 2 ? 'rgba(232,232,232,.58)' : 'rgba(238,238,238,.74)';
-    g.lineWidth = i2 % 2 ? 1.2 : 1.6;
+    g.strokeStyle = i2 % 2 ? 'rgba(30,33,35,.88)' : 'rgba(43,46,48,.94)';
+    g.lineWidth = i2 % 2 ? 2.0 : 2.4;
     g.beginPath();
     g.moveTo(mrx + Math.cos(mra) * rx * 0.22, mry + Math.sin(mra) * ry * 0.22);
     g.lineTo(mrx + Math.cos(mra) * rx * 0.94, mry + Math.sin(mra) * ry * 0.94);

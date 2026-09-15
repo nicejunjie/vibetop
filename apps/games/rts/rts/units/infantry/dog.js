@@ -54,10 +54,10 @@ var LEAP = ST === 'leap' ? sph : -1;
 var air = LEAP === 1 ? 7.0 : (LEAP === 2 ? 2.2 : 0);
 var stretch = LEAP === 1 ? 1.22 : (LEAP === 0 ? 0.86 : 1.0);
 
-var TAN = '#996633', TANL = '#b98a4a', TAND = '#4a2f12';   // 2026-09-10: darker, browner; dog|tanya sat 0.0 over the friend-vs-foe floor
+var TAN = '#b88945', TANL = '#d4aa65', TAND = '#654921';   // golden shepherd coat against the dark saddle
 var BLK = '#22201c', BLKL = '#3d3830';
 // The saddle is the animal's own black; the HOUSE colour is worn, never coat.
-var SAD = '#26231e', SADD = '#141210', SADL = '#4a453c';
+var SAD = '#292722', SADD = '#171613', SADL = '#48453d';
 var HSE = col, HSED = shade(col, 0.60), HSEL = shade(col, 1.25);
 
 shadowBlob(g, cx + (air ? 3 : 0), by, 8.2 * (0.55 + 0.45 * sd), 2.6);
@@ -215,7 +215,7 @@ if (!BACK) {
   // A shepherd's muzzle is long, BLOCKY and black-masked -- but only the
   // muzzle: mask the whole head and the dog loses its face and reads as a
   // black blob on a tan body.
-  g.fillStyle = TAN;
+  g.fillStyle = TANL;
   g.beginPath(); g.ellipse(mxo - 1.1, myo - 0.1, 2.1 + sd * 0.8, 1.5, 0, 0, 6.29); g.fill();
   outline(g, TAND);
   g.fillStyle = BLK;

@@ -27,13 +27,13 @@ function drawDolphin(C) {
   b(0.18, far * 0.22, 1.9, 0.24, far * 0.28, 1.8, 0.28, far * 0.34, 1.7); fill('#666666');
 
   // One continuous bottlenose silhouette: pointed beak, melon, belly and peduncle.
-  g.beginPath(); m(1.18, 0, 2.1);
-  b(1.08, -0.10, 2.9, 0.92, -0.18, 3.2, 0.82, -0.28, 4.4);
+  g.beginPath(); m(1.38, 0, 2.1);
+  b(1.24, -0.08, 2.7, 1.02, -0.14, 3.1, 0.82, -0.28, 4.4);
   b(0.61, -0.57, 5.5, 0.13, -0.72, 5.5, -0.19, -0.62, 5.0);
   b(-0.50, -0.52, 4.4, -0.75, -0.24, 3.2, -0.94, 0, 2.0);
   b(-0.72, 0.26, 0.8, -0.30, 0.64, -0.3, 0.16, 0.60, -0.1);
-  b(0.53, 0.55, 0.3, 0.76, 0.28, 0.9, 0.87, 0.13, 1.4);
-  b(0.96, 0.08, 1.6, 1.09, 0.04, 1.9, 1.18, 0, 2.1); fill('#999999');
+  b(0.53, 0.55, 0.3, 0.88, 0.28, 0.9, 1.06, 0.12, 1.4);
+  b(1.19, 0.06, 1.6, 1.31, 0.03, 1.9, 1.38, 0, 2.1); fill('#777777');
 
   // Dark back and pale underside stay contained inside the animal.
   g.beginPath(); m(0.80, -0.18, 4.1);
@@ -43,7 +43,7 @@ function drawDolphin(C) {
   g.beginPath(); m(0.88, 0.10, 1.4);
   b(0.58, 0.42, 0.4, 0.14, 0.43, 0.1, -0.20, 0.40, 0.2);
   b(-0.43, 0.34, 0.6, -0.60, 0.16, 1.3, -0.72, 0.04, 1.8);
-  b(-0.40, 0.18, 1.3, 0.35, 0.16, 1.1, 0.88, 0.10, 1.4); fill('#cccccc');
+  b(-0.40, 0.18, 1.3, 0.35, 0.16, 1.1, 0.88, 0.10, 1.4); fill('#aaaaaa');
 
   // Curved dorsal and the near pectoral fin complete the dolphin silhouette.
   g.beginPath(); m(0.04, -0.20, 5.1);
@@ -55,7 +55,7 @@ function drawDolphin(C) {
   g.beginPath(); m(0.27, near * 0.35, 1.7);
   b(0.03, near * 0.60, 1.3, -0.37, near * 1.34, 0.4, -0.55, near * 1.48, 0.2);
   b(-0.46, near * 1.08, 0.5, -0.22, near * 0.43, 1.4, 0.10, near * 0.24, 1.8);
-  b(0.17, near * 0.25, 1.8, 0.23, near * 0.30, 1.8, 0.27, near * 0.35, 1.7); fill('#999999');
+  b(0.17, near * 0.25, 1.8, 0.23, near * 0.30, 1.8, 0.27, near * 0.35, 1.7); fill('#777777');
 
   // THE THING ON ITS BACK IS A WEAPON, and it was drawn as a rounded blue
   // SADDLE — three soft bezier lobes that read as a marking painted on the
@@ -69,7 +69,7 @@ function drawDolphin(C) {
   // through P(), so its edges lie on the iso axes and none of them is
   // horizontal or vertical on screen.
   (function () {
-    var PU = 0.06, PV = -0.06, PL2 = 0.20, PW2 = 0.34, Z0 = 4.2, Z1 = 6.6;
+    var PU = 0.06, PV = -0.06, PL2 = 0.16, PW2 = 0.29, Z0 = 4.2, Z1 = 6.1;
     function c(du, dv, z) { return P(L * (PU + du), W * (PV + dv), FR + z); }
     var g0 = c(PL2, PW2, Z0), g1 = c(PL2, -PW2, Z0),
         g2 = c(-PL2, -PW2, Z0), g3 = c(-PL2, PW2, Z0);
@@ -107,7 +107,7 @@ function drawDolphin(C) {
   g.fillStyle = '#333333'; g.beginPath(); g.ellipse(q[0], q[1], 1.2, 0.8, 0, 0, 6.29); g.fill();
   q = P(L * 0.78, nearS * W * 0.25, FR + 3.0);
   g.fillStyle = '#333333'; g.beginPath(); g.ellipse(q[0], q[1], 0.65, 0.55, 0, 0, 6.29); g.fill();
-  var e = P(L * 1.10, nearS * W * 0.08, FR + 1.9), r = P(L * 0.72, nearS * W * 0.30, FR + 1.4),
+  var e = P(L * 1.28, nearS * W * 0.06, FR + 1.9), r = P(L * 0.80, nearS * W * 0.26, FR + 1.4),
       t = P(L * 0.57, nearS * W * 0.38, FR + 1.3);
   g.strokeStyle = '#666666'; g.lineWidth = 0.65; g.lineCap = 'round'; g.beginPath();
   g.moveTo(e[0], e[1]); g.bezierCurveTo(r[0], r[1], r[0], r[1], t[0], t[1]); g.stroke();

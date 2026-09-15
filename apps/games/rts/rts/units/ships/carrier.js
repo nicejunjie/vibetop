@@ -25,7 +25,7 @@ function drawCarrier(C) {
   var DECK = C.DECK, FR = C.FR, GLASS = C.GLASS, HD = C.HD, HL = C.HL, HOUSE = C.HOUSE, HULL = C.HULL, L = C.L,
       P = C.P, W = C.W, box = C.box, g = C.g, mast = C.mast, plan = C.plan;
   var fd = [], fi;
-  for (fi = 0; fi < plan.length; fi++) fd.push([plan[fi][0] * 1.02, plan[fi][1] * 1.42]);
+  for (fi = 0; fi < plan.length; fi++) fd.push([plan[fi][0] * 1.06, plan[fi][1] * 1.05]);
   var fpoly = function (z, fill, line) {
     g.beginPath();
     for (var i3 = 0; i3 < fd.length; i3++) {
@@ -85,16 +85,16 @@ function drawCarrier(C) {
   // separate on MASSING: she is flat where he is tall. A tall island gives her
   // a Destroyer's read, which is the exact note already in this file's history.
   // Same stack, same four colours, scaled to clear the band.
-  box(-L * 0.60, W * 0.78, L * 0.20, W * 0.36, 4.0, '#8a8a8a');   // base deck 1 (widest)
-  box(-L * 0.60, W * 0.78, L * 0.16, W * 0.30, 5.9, '#a8a8a8');   // base deck 2
-  box(-L * 0.60, W * 0.78, L * 0.13, W * 0.25, 7.8, HL);          // base deck 3 (HL: box() on HOUSE throws teal on its dark face)
-  box(-L * 0.60, W * 0.78, L * 0.10, W * 0.20, 9.8, '#e6e6e6');   // bridge block
-  mast(-L * 0.58, W * 0.78, 13.0);                                // mast (tallest point)
+  box(-L * 0.50, W * 0.48, L * 0.27, W * 0.65, 5.0, '#aaaaaa');  // broad machinery base
+  box(-L * 0.50, W * 0.48, L * 0.23, W * 0.52, 8.2, '#dddddd');  // white island mass
+  box(-L * 0.50, W * 0.48, L * 0.17, W * 0.43, 11.5, '#eeeeee'); // wheelhouse
+  box(-L * 0.50, W * 0.48, L * 0.11, W * 0.30, 13.0, '#cccccc'); // bridge crown
+  mast(-L * 0.50, W * 0.48, 16.2);
   // THE BRIDGE WINDOWS, PROJECTED. A screen-space fillRect again — the third
   // time in this directory — so the glass sat at a fixed angle while the island
   // under it leaned.
   (function () {
-    var a = P(-L * 0.54, W * 0.78, FR + 6.2), b = P(-L * 0.66, W * 0.78, FR + 6.2);
+    var a = P(-L * 0.39, W * 0.69, FR + 10.2), b = P(-L * 0.61, W * 0.69, FR + 10.2);
     g.strokeStyle = GLASS; g.lineWidth = 1.6;
     g.beginPath(); g.moveTo(a[0], a[1]); g.lineTo(b[0], b[1]); g.stroke();
   })();
@@ -106,7 +106,7 @@ function drawCarrier(C) {
   // island is one mass; this is now a low blue deckhouse at its foot, drawn
   // from projected quads so every face stays navy.
   (function () {
-    var bu = -L * 0.60, bv = W * 0.78, bl = L * 0.17, bw = W * 0.30;
+    var bu = -L * 0.50, bv = W * 0.48, bl = L * 0.18, bw = W * 0.34;
     var c = [[bl, bw], [bl, -bw], [-bl, -bw], [-bl, bw]];
     function q(i, z) { return P(bu + c[i][0], bv + c[i][1], z); }
     var faces = [[0, 1, HL], [1, 2, HOUSE], [3, 0, HD]];
@@ -142,10 +142,10 @@ function drawCarrier(C) {
   // against the plan at ITS OWN station, not against the beam amidships.
   // -L * 0.10 is inside the full-beam run (L * 0.12 back to -L * 0.76), and
   // 0.74 +- 0.34 reaches W * 1.08 against W * 1.42 there.
-  var PU = -L * 0.10, PV = W * 0.74, PZ = FR + 5.0;   // pad centre, top face
-  var PL = L * 0.17, PW = W * 0.34;                   // pad half-extents
+  var PU = -L * 0.10, PV = W * 0.55, PZ = FR + 5.0;   // pad centre, top face
+  var PL = L * 0.17, PW = W * 0.29;                   // pad half-extents
   function padPt(du, dv) { return P(PU + du, PV + dv, PZ); }
-  box(PU, PV, L * 0.16, W * 0.32, 5.0, '#5f5f5f');    // the plinth it stands on
+  box(PU, PV, L * 0.16, W * 0.27, 5.0, '#5f5f5f');    // the plinth it stands on
   var f0 = padPt(-PL, -PW), f1 = padPt(PL, -PW), f2 = padPt(PL, PW), f3 = padPt(-PL, PW);
   g.beginPath();
   g.moveTo(f0[0], f0[1]); g.lineTo(f1[0], f1[1]);
@@ -199,5 +199,3 @@ function drawCarrier(C) {
     g.beginPath(); g.moveTo(tail[0], tail[1] - 0.4); g.lineTo(tail[0] + 1.6, tail[1] - 1.6); g.stroke();
   }
 }
-
-

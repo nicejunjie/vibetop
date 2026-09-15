@@ -65,9 +65,9 @@ function missile(side) {
 // A BROAD swept delta: in `allied-harriers.png` the wing is over
 // half the silhouette. The 10.5-span sliver the previous pass drew
 // left a fuselage with two fins.
-wing(farH, 0.34, -0.50, -0.58, -0.26, 13.4, wingTop);
-wing(farH, 0.34, -0.50, -0.58, -0.26, 13.4, col, 0.74, false);  // house wingtip
-wing(farH, -0.74, -0.96, -1.02, -0.86, 4.8, wingTop);
+wing(farH, 0.34, -0.56, -0.32, -0.68, 13.4, wingTop);
+wing(farH, 0.34, -0.56, -0.32, -0.68, 13.4, col, 0.90, false);  // house wingtip
+wing(farH, -0.74, -0.96, -0.82, -1.08, 4.8, wingTop);
 if (anim !== 'empty') missile(farH);
 // fuselage
 bodyPath();
@@ -102,9 +102,9 @@ for (i2 = -1; i2 <= 1; i2 += 2) {
 // A BROAD swept delta: in `allied-harriers.png` the wing is over
 // half the silhouette. The 10.5-span sliver the previous pass drew
 // left a fuselage with two fins.
-wing(-farH, 0.34, -0.50, -0.58, -0.26, 13.4, wingTop);
-wing(-farH, 0.34, -0.50, -0.58, -0.26, 13.4, col, 0.74, false);  // house wingtip
-wing(-farH, -0.74, -0.96, -1.02, -0.86, 4.8, wingTop);
+wing(-farH, 0.34, -0.56, -0.32, -0.68, 13.4, wingTop);
+wing(-farH, 0.34, -0.56, -0.32, -0.68, 13.4, col, 0.90, false);  // house wingtip
+wing(-farH, -0.74, -0.96, -0.82, -1.08, 4.8, wingTop);
 if (anim !== 'empty') missile(-farH);
 // swept fin: leading edge rakes back from t=-0.55 at the spine to t=-0.98 at the tip
 var fA = pt(-0.52), fB = pt(-0.98), fC = pt(-0.84);

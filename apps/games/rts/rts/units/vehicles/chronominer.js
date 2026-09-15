@@ -1,209 +1,190 @@
-// Iron Frontier — vehicles/chronominer: the art for one unit.
-// Called by bakeVehicle() with one context object carrying the canvas, the anchor,
-// the facing and the helpers it draws with — see rts/README.md.
-
-
-
-
+// Iron Frontier — vehicles/chronominer: Allied Chrono Miner art.
 
 function drawChronominer(C) {
-  var BIN = C.BIN, BIN_E = C.BIN_E, PEDGE = C.PEDGE, a = C.a, by = C.by, chassis = C.chassis,
-      crate = C.crate, cx = C.cx, dark = C.dark, dig = C.dig, fx = C.fx, fy = C.fy, g = C.g,
-      hull = C.hull, i2 = C.i2, lamp = C.lamp, len = C.len, nearS = C.nearS, panel = C.panel,
-      plit = C.plit, puck = C.puck, px = C.px, py = C.py, sg = C.sg, tracks = C.tracks, wid = C.wid;
+  var BIN=C.BIN,BIN_E=C.BIN_E,PEDGE=C.PEDGE,a=C.a,by=C.by,chassis=C.chassis,
+      cx=C.cx,dig=C.dig,fx=C.fx,fy=C.fy,g=C.g,i2=C.i2,len=C.len,
+      panel=C.panel,plit=C.plit,prism=C.prism,puck=C.puck,px=C.px,py=C.py,sg=C.sg,
+      trackRun=C.trackRun,wid=C.wid;
 
-// CHRONO MINER — a LOW, DARK truck. In `allied-chrono-miner.png` the
-// body is near-black charcoal, the house colour is ONE bright band
-// across its middle, and the nose is a bulbous VIOLET ribbed cluster
-// with a comb of white scoop teeth under its chin. The previous pass
-// built it out of chrome and pale blue and it came back a bright toy
-// truck: the reference is dark, and the violet nose — not the bin — is
-// what names the unit.
-// Q spreads the superstructure along the LONGER hull this pass gives
-// it (len 30 -> 36) instead of leaving cab, drum and bin bunched in
-// the middle of a stretched chassis. Heights are NOT scaled by it:
-// "height <= 0.55 x length" (unit-identity-reference.md 2.3) is the
-// whole point, so every vertical number below came DOWN while every
-// along-axis one went out.
-var Q = len / 30;
-tracks(len * 0.96, 3.4, wid * 0.30, '#919191');
-chassis(cx, by - 1.1, len * 0.94, wid * 0.78, 3.0, hull, dark, 0);
-// The skirt run sits FORWARD of centre, not on it. The bin below now
-// rests on the bed instead of floating over it, and where it used to
-// clear the rear two plates it now covers them: the remap census had
-// this unit at 0.119 of its pixels and the drop cost it 0.017, the
-// largest single loss on the field. Slid forward under the cab and
-// nose they are visible again from every bearing.
-for (sg = -1; sg <= 1; sg += 2)                        // house-colour chassis skirt
-  for (i2 = -1; i2 <= 1; i2++)
-    isoBox(g, cx + px * wid * 0.37 * sg + fx * Q * (i2 * 5.8 + 3.6),
-           by - 1.8 + py * wid * 0.37 * sg + fy * Q * (i2 * 5.8 + 3.6),
-           len * 0.20, 1.5, 2.2, a, panel, PEDGE);
-var drawBin = function () {
-  // The bin SITS ON THE BED, and it used to float 3.0 units above it
-  // hung 8.2 back off the tail. Measured, that one offset was the
-  // whole of the Chrono Miner's aspect fault: the bin's rear-top
-  // corner — not the drum, not the cab, not the rails, each of which
-  // was swept and moved the bbox by ZERO — was the topmost pixel on
-  // the sprite, and dropping it to the deck takes the bbox from 55x37
-  // to 55x33. RA2's [CMIN] is 55x28, aspect 1.96, the LOWEST body in
-  // the vehicle class, and 2.3's budget for this unit is written as
-  // "height <= 0.55 x length"; at 0.67 we were not close.
-  var bcx = cx - fx * Q * 6.6, bcy = by - 1.0 - fy * Q * 6.6;
-  // 2026-09-06, the §2.3 clause pass: the bin and its furniture ARE the
-  // topmost pixels at the broadside bearing (rows 0-8 of the bake are
-  // bin tan and rail grey), so "height <= 0.55 x length" is decided
-  // here and nowhere else. It measured 33/55 = 0.600. Every number
-  // below came down 1.4-2.0 units and NOTHING moved along the axis, so
-  // the bbox loses height without losing a pixel of width — which also
-  // walks the broadside aspect from 0.849 of RA2's [CMIN] toward it,
-  // the same direction the aspect gate wants. The bin is still the
-  // deepest thing on the truck; it is no longer the tallest.
-  crate(bcx, bcy, 11.6 * Q, 11.6, 7.0, BIN, BIN_E);   // 2026-09-10: the sheet's crate is as tall as the cab
-  for (var br = -1; br <= 1; br += 2)                                 // steel bin rails
-    isoBox(g, bcx + px * 5.5 * br, bcy - 6.4 + py * 5.5 * br, 11.8 * Q, 1.4, 0.9, a, '#747474', '#31363d');
-  isoBox(g, bcx + fx * Q * 5.4, bcy - 6.4 + fy * Q * 5.4, 1.6, 2.8, 1.4, a, '#272b32', '#101216'); // chute
-  isoBox(g, bcx + fx * Q * 5.4, bcy - 7.8 + fy * Q * 5.4, 2.0, 3.2, 0.7, a, '#747474', '#101216');
-};
-var drawFront = function () {
-  // The cab is a DARK charcoal block; the house colour is the single
-  // bright band wrapping its middle, exactly as the sprite reads.
-  isoBox(g, cx + fx * Q * 3.2, by - 2.6 + fy * Q * 3.2, 6.4 * Q, 8.2, 3.2, a, '#2b3038', '#101317');
-  isoBox(g, cx + fx * Q * 3.2, by - 3.8 + fy * Q * 3.2, 6.6 * Q, 8.8, 2.6, a, panel, PEDGE);  // the ONE band
-  isoBox(g, cx + fx * Q * 3.2, by - 6.4 + fy * Q * 3.2, 5.2 * Q, 7.2, 1.0, a, plit, PEDGE);
-  var wcx = cx + fx * Q * 5.6, wcy = by - 4.6 + fy * Q * 5.6;
-  isoBox(g, wcx, wcy, 1.3, 6.6, 2.2, a, '#20262e', '#0e1114');       // windscreen frame
-  g.fillStyle = 'rgba(221,221,221,.42)';                             // neutral glass: no blue on a red owner
-  g.beginPath();
-  g.ellipse(wcx + fx * 0.4, wcy - 1.7 + fy * 0.4, 2.5, 1.1, 0, 0, 6.29); g.fill();
-  // dark standpipe between cab and nose
-  puck(cx + fx * Q * 5.6, by - 2.6 + fy * Q * 5.6, 1.2, 4.2, '#4b5159', '#939393', '#1d2126');
-  // the nose: a rounded chrome DRUM lying across the truck, ribbed.
-  // Digging drops the whole cluster onto the ground — the dip plus the
-  // dropped fingers is what sells the two-frame loop.
-  var nz = dig ? 1.4 : 0;
-  var nx = cx + fx * Q * 9.6, ny = by - 1.4 + nz + fy * Q * 9.6;
-  // VIOLET, not chrome. The chrono gear in the reference is not a
-  // badge on the flank — the whole nose drum glows indigo, and that
-  // one violet mass is the unit's name at 1:1. It is also the Chrono
-  // Miner's entry in VACC: the one violet mass in the ground fleet.
-  // THE DRUM IS THE UNIT AND IT HAS TO BE BIG. This is the one part
-  // the unit is NAMED after and at radius 4.3 it baked as a violet
-  // smudge on a dark truck — the Chrono Miner was the weakest read on
-  // the board at zoom 1. It grows in the GROUND PLANE only: `puck`'s
-  // radius spreads the footprint in x and y at the same height, and
-  // the height is what §2.3's "height <= 0.55 x length" is measured
-  // on (0.522 today, and it must stay under). Radius 4.3 -> 5.3 is
-  // +52% of violet area for zero rows of bbox.
-  // THE HOUSING IS SILVER; THE VIOLET IS WHAT SITS INSIDE IT. This drum was
-  // painted violet end to end because the identity row says "a ribbed chrono
-  // drum for a nose (violet, fixed hue)" — and that row is one of the ones
-  // written from a cameo. The rip disagrees at every one of its eight bearings:
-  // the nose is a PALE SILVER-GREY rounded housing with dark slots, two bright
-  // white lit shoulders, and a LAVENDER CLUSTER set into its face above the
-  // white scoop teeth. Ours had the two exactly inverted — a violet mass with
-  // silver ribs — so 5% of the sprite was a saturated colour the reference does
-  // not put there, and the machinery it is named for was invisible inside it.
-  // The violet is not gone: it moves to the core and the gear, where the rip
-  // has it, which is also the only place it means anything (a painted housing
-  // is a paint job; a glowing core is a chrono rig).
-  puck(nx, ny, 5.3, 5.2, '#6b6b6b', '#a8a8a8', '#1b1b1b');
-  for (i2 = -3; i2 <= 3; i2++) {                            // slots across the drum face
-    var rvx = nx + fx * 2.6 + px * i2 * 1.7, rvy = ny - 4.8 + fy * 2.6 + py * i2 * 1.7;
-    g.strokeStyle = '#343434'; g.lineWidth = 1.5; g.lineCap = 'round';
-    g.beginPath(); g.moveTo(rvx, rvy); g.lineTo(rvx, rvy + 3.8); g.stroke();
-    g.strokeStyle = '#c6c6c6'; g.lineWidth = 0.7;
-    g.beginPath(); g.moveTo(rvx + 0.9, rvy + 0.3); g.lineTo(rvx + 0.9, rvy + 3.8); g.stroke();
-  }
-  // the chrono core: three lavender blocks recessed into the housing's face,
-  // the cluster the rip shows sitting just above the scoop teeth
-  for (i2 = -1; i2 <= 1; i2++)
-    isoBox(g, nx + fx * 3.4 + px * i2 * 3.0, ny - 1.9 + fy * 3.4 + py * i2 * 3.0,
-           1.5, 2.4, 2.9, a, i2 ? shade(VACC.chronominer, 1.16) : VACC.chronominer, '#2b2b2b');
-  // THE FEED PIPES WERE READING AS EYES. Three small pucks with a #d9d9d9 cap
-  // on a violet drum: at the bearings where two of them face the camera they
-  // are a pair of pale circles on a coloured mass, and the miner acquired a
-  // FACE. A pipe mouth is darker than the pipe, not brighter — and #6b7280 is
-  // 107/114/128, blue over red, sitting just above the palette test's bar and
-  // splitting on the grid like every other near-grey of that shape.
-  for (i2 = -1; i2 <= 1; i2++)
-    puck(nx - fx * 1.0 + px * 2.6 * i2, ny - 5.0 - fy * 1.0 + py * 2.6 * i2,
-         0.85, 2.0, '#727272', '#8a8a8a', '#3d3d3d');
-  // the SCOOP FINGERS under the chin. Parked they are tucked up under
-  // the drum; digging they drop to the dirt — that plus the turned
-  // gear is the whole mining animation.
-  // SPACING 1.6 WITH A 1.9 px STROKE IS NOT A COMB, IT IS A SLAB. The five
-  // teeth overlapped each other by 0.3 px, so the scoop baked as one white
-  // blob — and a scoop is only legible as a scoop when you can see BETWEEN the
-  // fingers. The rip's teeth are pale bars separated by hard black gaps. Butt
-  // caps too: round ones fattened each tooth by half a width at both ends.
-  var fl = dig ? 6.0 : 1.8, ftop = dig ? 0.8 : -2.6;
-  for (i2 = -2; i2 <= 2; i2++) {
-    var fvx = cx + fx * Q * 12.8 + px * i2 * 2.7, fvy = by + ftop + fy * Q * 12.8 + py * i2 * 2.7;
-    g.strokeStyle = '#ececec'; g.lineWidth = 1.4; g.lineCap = 'butt';
-    g.beginPath(); g.moveTo(fvx, fvy - fl); g.lineTo(fvx, fvy); g.stroke();
-    g.strokeStyle = '#5e5e5e'; g.lineWidth = 0.7;
-    g.beginPath(); g.moveTo(fvx + 0.8, fvy - fl + 0.4); g.lineTo(fvx + 0.8, fvy - 0.4); g.stroke();
-  }
-  if (dig) {                                               // spoil at the fingers
-    for (i2 = -1; i2 <= 1; i2++) {
-      g.fillStyle = i2 ? 'rgba(150,120,58,.55)' : 'rgba(190,158,80,.62)';
-      g.beginPath();
-      g.ellipse(cx + fx * Q * 13.8 + px * i2 * 3.0, by + 1.2 + fy * Q * 13.8 + py * i2 * 3.0,
-                2.0, 1.0, 0, 0, 6.29);
-      g.fill();
+  // Rear tracked carrier: gold ore box at the rear, one blue
+  // transition wedge, and a hemispherical glazed cab at the front.
+  var off=wid*0.31,runCx=cx-fx*4.4,runCy=by+1.4-fy*4.4;
+  for(sg=-1;sg<=1;sg+=2)
+    trackRun(runCx+px*off*sg,runCy+py*off*sg,len*0.82,wid*0.22,4.8,'#999999',
+      {top:'#3a3a3a',side:'#242424',dark:'#151515',wheelCount:4,endSprockets:false,projectedWheels:true});
+  chassis(cx-fx*2.7,by-1.0-fy*2.7,len*0.92,wid*0.62,3.0,'#343434','#151515',1.4);
+  for(sg=-1;sg<=1;sg+=2)
+    isoBox(g,cx-fx*2.4+px*wid*0.30*sg,by-2.0-fy*2.4+py*wid*0.30*sg,
+      len*0.62,1.25,2.0,a,panel,PEDGE);
+
+  function oreBox(){
+    var bx=cx-fx*8.5,yy=by-1.2-fy*8.5;
+    var ln=11.5,wd=11.4,h=9.3,hl=ln*0.5,hw=wd*0.5,binCol='#95834f';
+    // The cargo body narrows at its lower forward end, leaving space over
+    // the chassis. The upper rim stays broad and carries the full volume.
+    var upperPlan=[[hl,hw],[hl,-hw],[-hl,-hw],[-hl,hw]];
+    var lowerPlan=[[hl-3.6,hw-1.8],[hl-3.6,-hw+1.8],[-hl,-hw+.5],[-hl,hw-.5]];
+    var upper=upperPlan.map(function(p){return [bx+fx*p[0]+px*p[1],yy+fy*p[0]+py*p[1]-h];});
+    var lower=lowerPlan.map(function(p){return [bx+fx*p[0]+px*p[1],yy+fy*p[0]+py*p[1]];});
+    var order=[0,1,2,3].sort(function(i,j){return lower[i][1]+lower[(i+1)%4][1]-lower[j][1]-lower[(j+1)%4][1];});
+    order.forEach(function(i){
+      var j=(i+1)%4;
+      var nx=(upperPlan[i][0]+upperPlan[j][0])/2;
+      var nv=(upperPlan[i][1]+upperPlan[j][1])/2;
+      var lighting=.82-.20*(fx*nx+px*nv)/Math.hypot(nx,nv);
+      g.fillStyle=shade(binCol,lighting);
+      g.beginPath();g.moveTo(lower[i][0],lower[i][1]);g.lineTo(lower[j][0],lower[j][1]);
+      g.lineTo(upper[j][0],upper[j][1]);g.lineTo(upper[i][0],upper[i][1]);g.closePath();g.fill();
+    });
+    // Broad pressed metal walls, not Soviet-style reinforcing ribs.
+    for(var face=0;face<4;face++){
+      var p0=lower[face],p1=lower[(face+1)%4];
+      if((p0[1]+p1[1])*0.5<=yy+0.1)continue;
+      // One broad pressed side plate, rather than Soviet-style vertical ribs.
+      var u0=upper[face],u1=upper[(face+1)%4];
+      var pu=(upperPlan[face][0]+upperPlan[(face+1)%4][0])/2;
+      var pv=(upperPlan[face][1]+upperPlan[(face+1)%4][1])/2;
+      var plateLight=.82-.20*(fx*pu+px*pv)/Math.hypot(pu,pv);
+      g.fillStyle=shade(binCol,plateLight*.92);g.beginPath();
+      g.moveTo(p0[0]*.85+p1[0]*.15,p0[1]*.85+p1[1]*.15-1.0);
+      g.lineTo(p0[0]*.15+p1[0]*.85,p0[1]*.15+p1[1]*.85-1.0);
+      g.lineTo(u0[0]*.15+u1[0]*.85,u0[1]*.15+u1[1]*.85+1.5);
+      g.lineTo(u0[0]*.85+u1[0]*.15,u0[1]*.85+u1[1]*.15+1.5);
+      g.closePath();g.fill();
+      g.strokeStyle='#b5a16b';g.lineWidth=1.0;
+      g.beginPath();g.moveTo(upper[face][0],upper[face][1]+1.0);
+      g.lineTo(upper[(face+1)%4][0],upper[(face+1)%4][1]+1.0);g.stroke();
     }
+    g.fillStyle=binCol;g.beginPath();
+    upper.forEach(function(p,i){if(i)g.lineTo(p[0],p[1]);else g.moveTo(p[0],p[1]);});
+    g.closePath();g.fill();
+    isoBox(g,bx,yy-h-0.1,9.6,9.1,0.7,a,'#655a35',BIN_E);
+    // Low longitudinal raised channels terminate at the rear crossbar.
+    // They share the lid plane and remain shallow, unlike the Soviet ribs.
+    for(var channel=-1;channel<=1;channel++)
+      isoBox(g,bx+fx*.4+px*channel*2.7,yy-h-.7+fy*.4+py*channel*2.7,
+        8.4,.8,.45,a,'#a08d53','#55482d');
+    for(var side=-1;side<=1;side+=2)
+      isoBox(g,bx+px*5.2*side,yy-h+0.2+py*5.2*side,
+        11.5,1.0,0.9,a,'#948050','#3b3424');
+    isoBox(g,bx-fx*5.0,yy-h+0.3-fy*5.0,1.1,9.5,0.8,a,'#948050','#3b3424');
+    // The reference has a single transverse raised bar, not two antennae.
+    isoBox(g,bx-fx*4.4,yy-h-fy*4.4,1.6,8.8,1.8,a,'#444444','#242424');
   }
-  // the violet chrono gear, riding on the near flank of the drum, a
-  // half-tooth further round while digging
-  var gxx = cx + fx * Q * 8.9 + px * 3.5 * nearS;
-  var gyy = by - 4.8 + nz + fy * Q * 8.9 + py * 3.5 * nearS;
-  var ga0 = dig ? Math.PI / 8 : 0;
-  // The gear grows with the drum, and for the same reason: it is the
-  // machinery that makes the nose read as a chrono rig rather than as
-  // a paint job. It rides the drum's FLANK, so its growth is across
-  // the beam and costs the height clause nothing.
-  g.fillStyle = shade(VACC.chronominer, dig ? 0.48 : 0.42);
-  for (i2 = 0; i2 < 8; i2++) {                             // gear teeth
-    var ga = ga0 + i2 * Math.PI / 4;
-    g.beginPath();
-    g.ellipse(gxx + Math.cos(ga) * 2.7, gyy + Math.sin(ga) * 1.7, 0.95, 0.66, 0, 0, 6.29);
-    g.fill();
+
+  function chronoHead(){
+    var mx=cx+fx*2.0,my=by-3.2+fy*2.0;
+    // A closed wedge with a genuinely sloping roof. All faces use the same
+    // four top vertices; no flat box remains behind the sloping side panels.
+    var plan=[[-4.8,-3.9],[-4.8,3.9],[4.0,4.8],[4.0,-4.8]];
+    var bottom=plan.map(function(p){return [mx+fx*p[0]+px*p[1],my+fy*p[0]+py*p[1]];});
+    var top=bottom.map(function(p,i){return [p[0],p[1]-(i<2?4.3:6.8)];});
+    function wedgeFace(points,col){
+      g.fillStyle=col;g.beginPath();g.moveTo(points[0][0],points[0][1]);
+      for(var j=1;j<points.length;j++)g.lineTo(points[j][0],points[j][1]);
+      g.closePath();g.fill();
+    }
+    var walls=[0,1,2,3].sort(function(i,j){
+      return bottom[i][1]+bottom[(i+1)%4][1]-bottom[j][1]-bottom[(j+1)%4][1];
+    });
+    walls.forEach(function(i){
+      var j=(i+1)%4;
+      wedgeFace([bottom[i],bottom[j],top[j],top[i]],shade(panel,i===1?1.1:0.78));
+    });
+    wedgeFace(top,'#303030');
+    [0.3,0.62].forEach(function(t){
+      var left=[top[0][0]+(top[3][0]-top[0][0])*t,top[0][1]+(top[3][1]-top[0][1])*t];
+      var right=[top[1][0]+(top[2][0]-top[1][0])*t,top[1][1]+(top[2][1]-top[1][1])*t];
+      g.strokeStyle='#565656';g.lineWidth=0.65;
+      g.beginPath();g.moveTo(left[0],left[1]);g.lineTo(right[0],right[1]);g.stroke();
+    });
+    // Painted shoulders border the dark inclined engine cover.
+    [1,3].forEach(function(i){
+      var j=(i+1)%4;
+      g.strokeStyle=plit;g.lineWidth=1.25;g.lineCap='butt';
+      g.beginPath();g.moveTo(top[i][0],top[i][1]);g.lineTo(top[j][0],top[j][1]);g.stroke();
+    });
+    if(fy<0)miningFingers();
+    var nx=cx+fx*9.2,ny=by-2.0+fy*9.2;
+    function cabSupport(side){
+      var sx=cx+fx*5.3+px*5.9*side,sy=by-2.0+fy*5.3+py*5.9*side;
+      isoBox(g,sx,sy,1.8,1.8,6.6,a,'#888888','#353535');
+      puck(sx,sy-6.6,1.2,.7,'#aaaaaa','#dddddd','#555555');
+    }
+    cabSupport(py>=0?-1:1);
+    // Cab saddle joins the lower chassis and supports the fixed glazing.
+    isoBox(g,cx+fx*7.0,by-1.2+fy*7.0,7.0,7.4,1.5,a,'#555555','#242424');
+    // Fixed hemispherical glazed cab. Sample one continuous curved surface
+    // and sort its panels by ground depth, so every bearing has the same dome.
+    puck(nx,ny+1.2,7.0,1.2,'#494949','#777777','#222222');
+    function cabCheek(side){
+      // Low side cradles climb behind the glass and taper toward the teeth.
+      var profile=[[-3.3,0.2],[4.4,0.2],[4.0,1.8],[-2.5,4.2],[-3.3,3.8]];
+      var points=profile.map(function(p){
+        return [nx+fx*p[0]+px*5.8*side,ny+fy*p[0]+py*5.8*side-p[1]];
+      });
+      wedgeFace(points,'#999999');
+      g.strokeStyle='#cccccc';g.lineWidth=0.8;g.lineCap='butt';
+      g.beginPath();g.moveTo(points[2][0],points[2][1]);
+      g.lineTo(points[3][0],points[3][1]);g.lineTo(points[4][0],points[4][1]);g.stroke();
+    }
+    cabCheek(py>=0?-1:1);
+    function domePoint(theta,lat){
+      var u=7.0*Math.cos(lat)*Math.cos(theta),v=7.0*Math.cos(lat)*Math.sin(theta);
+      var z=7.0*Math.sin(lat);
+      return {x:nx+fx*u+px*v,y:ny+fy*u+py*v-z,depth:2*(fy*u+py*v)+0.5*z};
+    }
+    var glass=[];
+    for(var band=0;band<6;band++)for(var seg=0;seg<24;seg++){
+      var theta=seg*Math.PI/12,lat=band*Math.PI/12;
+      var pts=[domePoint(theta,lat),domePoint(theta+Math.PI/12,lat),
+        domePoint(theta+Math.PI/12,lat+Math.PI/12),domePoint(theta,lat+Math.PI/12)];
+      var mid=domePoint(theta+Math.PI/24,lat+Math.PI/24);
+      // A dark pane with broad curved sky reflections, not diffuse metal
+      // shading. Reflection coordinates follow the surface normal.
+      var normalX=(mid.x-nx)/7.0,normalZ=Math.sin(lat+Math.PI/24);
+      var sky=Math.exp(-Math.pow((normalZ-0.73)/0.17,2)) *
+        Math.exp(-Math.pow((normalX+0.28)/0.52,2));
+      var glimmer=Math.exp(-Math.pow((normalX+0.58)/0.16,2)-Math.pow((normalZ-0.44)/0.3,2));
+      glass.push({pts:pts,depth:mid.depth,light:0.10+0.15*normalZ+0.67*sky+0.45*glimmer});
+    }
+    glass.sort(function(a,b){return a.depth-b.depth;});
+    glass.forEach(function(f){
+      var colors=['#161622','#292938','#444466','#777799','#aaaacc'];
+      g.fillStyle=colors[Math.min(4,Math.floor(f.light*5))];
+      g.beginPath();f.pts.forEach(function(p,i){if(i)g.lineTo(p.x,p.y);else g.moveTo(p.x,p.y);});
+      g.closePath();g.fill();
+    });
+    // Rear transverse arch follows the glass surface; the large front pane
+    // stays uninterrupted. Narrow reflected sky strips sit inside the pane.
+    function cabArc(u,col,width){
+      var radius=Math.sqrt(1-u*u/(7.0*7.0));
+      g.strokeStyle=col;g.lineWidth=width;g.lineCap='round';g.beginPath();
+      for(var step=0;step<=24;step++){
+        var t=step*Math.PI/24,v=7.0*radius*Math.cos(t),z=7.0*radius*Math.sin(t);
+        var x=nx+fx*u+px*v,y=ny+fy*u+py*v-z;
+        if(step)g.lineTo(x,y);else g.moveTo(x,y);
+      }
+      g.stroke();
+    }
+    cabArc(-2.7,'#363636',2.3);
+    cabArc(-2.7,'#bcbcbc',1.35);
+    cabCheek(py>=0?1:-1);
+    cabSupport(py>=0?1:-1);
+    // The scoop fingers extend forward from the cab's lower cradle. The cab
+    // stays fixed; only the fingers lower and reach out during harvesting.
+    function miningFingers(){
+    var tooth=dig?5.2:3.8,toothBase=dig?1.2:0.0;
+    for(i2=-2;i2<=2;i2++){
+      var tx=cx+fx*13.2+px*i2*2.5,ty=by-2.0+fy*13.2+py*i2*2.5;
+      var ex=tx+fx*tooth,ey=by+toothBase+fy*(13.2+tooth)+py*i2*2.5;
+      g.strokeStyle='#303030';g.lineWidth=2.3;g.lineCap='butt';
+      g.beginPath();g.moveTo(tx,ty);g.lineTo(ex,ey);g.stroke();
+      g.strokeStyle='#d7d7d7';g.lineWidth=1.35;
+      g.beginPath();g.moveTo(tx,ty-0.6);g.lineTo(ex,ey-0.6);g.stroke();
+    }
+    }
+    if(fy>=0)miningFingers();
   }
-  g.fillStyle = shade(VACC.chronominer, dig ? 0.82 : 0.70);   // disc
-  g.beginPath(); g.ellipse(gxx, gyy, 2.4, 1.5, 0, 0, 6.29); g.fill();
-  // AN OUTLINE SHOULD RECEDE, NOT ADD A HUE. #2a1f47 is 42/31/71 and its ladder
-  // includes #330033 — a saturated magenta — so the gear wore a dark magenta
-  // ring and the core blocks were edged in it, which at map size is the busiest
-  // thing on the nose. Neutral dark: it reads as a shadowed edge and lets the
-  // lavender inside it be the only violet up there.
-  outline(g, '#2b2b2b');
-  // A FILLED BRIGHT ELLIPSE ON A ROUND FACE IS AN EYE. The "lit rim" was
-  // 2.3 x 1.3 of #9966cc laid over a 3.3 x 2.0 disc — i.e. the rim covered
-  // most of the disc, so the gear baked as one solid magenta circle, the
-  // brightest thing on the unit, sitting on the nose. That is the same defect
-  // as the headlamps, drawn a different way. A turned steel gear catches light
-  // as a GLINT on one shoulder, not as a full face, so it is now a small
-  // offset highlight and the teeth carry the shape instead.
-  g.fillStyle = shade(VACC.chronominer, dig ? 1.06 : 0.96);   // glint, swung with the gear
-  g.beginPath();
-  g.ellipse(gxx + (dig ? 0.9 : -0.9), gyy - 0.7, 1.1, 0.6, 0, 0, 6.29); g.fill();
-  g.fillStyle = '#9a9a9a';                                 // hub
-  g.beginPath(); g.ellipse(gxx, gyy, 0.7, 0.5, 0, 0, 6.29); g.fill();
-  // WORK LIGHT, NOT HEADLAMPS. Two round pale lamps sat at Q*11.6 — inside the
-  // drum's own footprint, symmetric about the centreline, on a violet round
-  // mass. A coloured disc with a matched pair of pale circles on it is a FACE,
-  // and the miner had one at every bearing. It is also wrong as machinery: you
-  // do not bolt a lamp to a rotating cutting head. A mining rig carries a LIGHT
-  // BAR on the frame above the head, aimed down at the cut — one continuous
-  // strip on a dark cowl, which is a fitting rather than a pair of eyes.
-  var lbx = nx + fx * 2.4, lby = ny - 5.4 + nz * 0 + fy * 2.4;
-  isoBox(g, lbx, lby, 1.8, 8.4, 1.5, a, '#464646', '#1b1b1b');
-  g.strokeStyle = '#f4e6b4'; g.lineWidth = 1.3; g.lineCap = 'butt';
-  g.beginPath();
-  g.moveTo(lbx + fx * 0.9 - px * 3.3, lby - 0.9 + fy * 0.9 - py * 3.3);
-  g.lineTo(lbx + fx * 0.9 + px * 3.3, lby - 0.9 + fy * 0.9 + py * 3.3);
-  g.stroke();
-};
-if (fy > 0) { drawBin(); drawFront(); } else { drawFront(); drawBin(); }
+  if(fy>0){oreBox();chronoHead();}else{chronoHead();oreBox();}
 }

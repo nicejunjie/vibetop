@@ -35,8 +35,8 @@ if (wantH) {
   // The hull, the deck it carries and the ring the turret stands on
   // all come up together, which is also what the gate needed: a low
   // lozenge's silhouette swings with its facing, a tall one does not.
-  chassis(cx, by - 1.4, len * 0.86, wid * 0.68, 5.15, hull, dark, 3.2);
-  deckPlate(-0.6, len * 0.62, wid * 0.42, 6.9, shade(hull, 1.08));
+  chassis(cx, by - 1.4, len * 0.86, wid * 0.68, 4.3, hull, dark, 3.2);
+  deckPlate(-0.6, len * 0.62, wid * 0.42, 6.3, shade(hull, 1.05));
   isoBox(g, cx - fx * 9.2, by - 7.0 - fy * 9.2, len * 0.24, wid * 0.46, 1.35,
          a, deck, dark);                                    // rear engine deck
   for (i2 = -1; i2 <= 1; i2++)                              // louvres on it
@@ -96,38 +96,39 @@ if (wantT) {
   var rtx = cx, rty = by - RING;
   prism(rtx, rty, [[5.6, -2.35], [5.6, 2.35], [1.8, 4.2], [-4.0, 3.7],
                    [-5.5, 0], [-4.0, -3.7], [1.8, -4.2]],
-        2.75, shade(hull, 0.96), dark);
+        2.75, '#77776e', dark);
   // Blocks four and five: the two turret CHEEKS. Hull-value cheeks
   // with a bar painted across the turret face (the last pass) put
   // the remap where nothing is shaped; the sheet puts it on the two
   // bulges, where it counts as two more plates from every bearing.
   for (sg = -1; sg <= 1; sg += 2) {
     prism(rtx - fx * 0.4, rty - 0.8 - fy * 0.4,
-          [[4.0, 3.6 * sg], [-3.7, 3.35 * sg], [-3.8, 4.45 * sg], [4.0, 4.9 * sg]],
-          0.9, shade(hull, 0.88), dark);
-    prism(rtx - fx * 0.4, rty - 1.55 - fy * 0.4,
-          [[4.0, 3.6 * sg], [-3.7, 3.35 * sg], [-3.8, 4.45 * sg], [4.0, 4.9 * sg]],
-          2.0, shade(panel, 0.80), PEDGE);
+          [[2.5, 3.5 * sg], [-1.3, 3.35 * sg], [-1.4, 4.3 * sg], [2.5, 4.55 * sg]],
+          0.7, '#73736a', dark);
+    prism(rtx - fx * 0.4, rty - 1.4 - fy * 0.4,
+          [[2.5, 3.5 * sg], [-1.3, 3.35 * sg], [-1.4, 4.3 * sg], [2.5, 4.55 * sg]],
+          1.25, shade(panel, 0.88), PEDGE);
   }
-  prism(rtx - fx * 0.8, rty - 4.8 - fy * 0.8,               // chamfered cap
+  prism(rtx - fx * 0.8, rty - 2.75 - fy * 0.8,              // seated chamfered cap
         [[4.2, -1.65], [4.2, 1.65], [0.8, 3.25], [-4.0, 2.55], [-4.0, -2.55], [0.8, -3.25]],
-        0.68, shade(hull, 1.08), dark);
-  g.strokeStyle = 'rgba(241,241,241,.50)'; g.lineWidth = 1.6;  // light-catch streak
+        0.65, '#85857a', dark);
+  g.strokeStyle = 'rgba(241,241,241,.32)'; g.lineWidth = 1.2;  // restrained roof edge
   g.lineCap = 'round';
   g.beginPath();
-  g.moveTo(rtx + fx * 3.8 + px * 1.4, rty - 6.2 + fy * 3.8 + py * 1.4);
-  g.lineTo(rtx - fx * 3.6 + px * 2.1, rty - 6.2 - fy * 3.6 + py * 2.1);
+  g.moveTo(rtx + fx * 3.8 + px * 1.4, rty - 3.6 + fy * 3.8 + py * 1.4);
+  g.lineTo(rtx - fx * 3.6 + px * 2.1, rty - 3.6 - fy * 3.6 + py * 2.1);
   g.stroke();
   // The reference hatch is a small dark fitting on the low roof. Keep
   // it proud enough to catch light, but never let it turn the Rhino
   // into a dome or tower.
-  puck(rtx - fx * 2.5, rty - 4.0 - fy * 2.5, 1.20, 1.75,     // low commander hatch
-       shade(hull, 0.84), shade(hull, 1.20), dark);
+  puck(rtx - fx * 2.5, rty - 3.0 - fy * 2.5, 0.8, 1.0,       // low commander hatch
+       '#555550', '#92928a', dark);
   g.fillStyle = VACC.rhino;                                 // moss-green vision block
-  gEllipse(rtx - fx * 2.5 + px * 0.7, rty - 5.5 - fy * 2.5 + py * 0.7, 0.60); g.fill();
+  gEllipse(rtx - fx * 2.5 + px * 0.7, rty - 3.85 - fy * 2.5 + py * 0.7, 0.45); g.fill();
   var rz = [rtx + fx * 5.6, rty - 2.0 + fy * 5.6];
-  puck(rtx + fx * 5.35, rty - 0.15 + fy * 5.35, 1.55, 2.45,      // compact mantlet
-       shade(hull, 0.80), shade(hull, 1.08), dark);
+  prism(rtx + fx * 5.35, rty - 1.55 + fy * 5.35,
+        [[1.25,-1.5],[1.25,1.5],[-1.25,1.5],[-1.25,-1.5]],
+        1.65, '#64645b', dark);                                   // hard-edged mantlet
   // 13.2 -> 16.0. The spec is "a thicker, SHORTER gun than the
   // Grizzly's" (2.4) and 16.0 against the Grizzly's 19.5 is still
   // 0.82x — but 13.2 was 0.68x, which broke rule 4 ("the spike must
@@ -151,6 +152,6 @@ if (wantT) {
   // `aspect.vehicleOutsideRA2Band` went 3 -> 4. Measured at three lengths:
   // 20.5 -> ratio 1.26, 18.5 -> 1.20, 17.0 -> 1.14. 17.0 keeps the tube slender
   // and clear of the glacis while putting her back inside the band with room.
-  barrel(rz[0], rz[1], 17.0, 1.7, 1.15, VACC.rhinoGun);
+  barrel(rz[0], rz[1], 17.0, 1.3, 0.8, VACC.rhinoGun);
 }
 }

@@ -1,68 +1,151 @@
-// Iron Frontier — infantry/gi: the art for one unit.
-// Called by bakeInfantry() with one context object carrying the canvas, the anchor,
-// the facing and the helpers it draws with — see rts/README.md.
-
-
-
-
+// Iron Frontier — GI. Small steel helmet, shaped cloth vest, exposed
+// forearms, olive fatigues and a rifle supported by two articulated hands.
 function drawGi(C) {
-  var ACC = C.ACC, T = C.T, arms = C.arms, by = C.by, carbine = C.carbine, col = C.col, cx = C.cx,
-      g = C.g, gt = C.gt, helmet = C.helmet, legs = C.legs;
+  var g = C.g, cx = C.cx, by = C.by, sd = C.sd, TURN = C.TURN;
+  var gt = C.gt, col = C.col, back = C.FA.back;
+  var fire = C.state === 'fire' || C.state === 'fireprone';
+  function poly(points, colour) {
+    g.fillStyle = colour; g.beginPath(); g.moveTo(points[0][0], points[0][1]);
+    for (var p = 1; p < points.length; p++) g.lineTo(points[p][0], points[p][1]);
+    g.closePath(); g.fill();
+  }
+  function stroke(points, colour, width) {
+    // Rasterize connected strokes onto the final pixel grid. Thin rifle,
+    // wrist and boot highlights must be pixels, not fractional grey coverage.
+    var m=g.getTransform(), w=Math.max(1,Math.round(width*Math.sqrt(Math.abs(m.a*m.d-m.b*m.c))));
+    var pts=points.map(function(p){return [Math.round(m.a*p[0]+m.c*p[1]+m.e),Math.round(m.b*p[0]+m.d*p[1]+m.f)];});
+    g.save();g.setTransform(1,0,0,1,0,0);g.fillStyle=colour;
+    for(var p=1;p<pts.length;p++){
+      var x=pts[p-1][0],y=pts[p-1][1],tx=pts[p][0],ty=pts[p][1];
+      if (!Number.isFinite(x+y+tx+ty)) throw new Error('Non-finite GI stroke coordinates');
+      var dx=Math.abs(tx-x),sx=x<tx?1:-1,dy=-Math.abs(ty-y),sy=y<ty?1:-1,err=dx+dy;
+      while(true){
+        g.fillRect(x-Math.floor(w/2),y-Math.floor(w/2),w,w);
+        if(x===tx&&y===ty)break;
+        var e=2*err;if(e>=dy){err+=dy;x+=sx;}if(e<=dx){err+=dx;y+=sy;}
+      }
+    }
+    g.restore();
+  }
+  function ramp(x, y, w, h, a, b, c) {
+    var grad = g.createLinearGradient(x, y, x + w, y + h);
+    // Three authored planes, without a gradient of intermediary shades.
+    grad.addColorStop(0, a); grad.addColorStop(.22, a);
+    grad.addColorStop(.22, b); grad.addColorStop(.70, b);
+    grad.addColorStop(.70, c); grad.addColorStop(1, c);
+    return grad;
+  }
+  // The pelvis ends above the thighs; it must not fill the space between knees.
+  poly([[cx-3.5,by-12.8],[cx+3.5,by-12.8],[cx+2.8,by-9.8],
+        [cx,by-10.5],[cx-2.8,by-9.8]], '#3f462b');
+  var order = gt.sw ? [-gt.sw, gt.sw] : [-1, 1];
+  for (var n = 0; n < 2; n++) {
+    var i = order[n], lead = gt.sw ? (i === gt.sw ? 1 : -1) : 0;
+    var lat = 1 - 0.48 * sd;
+    var hx = cx + i * 2.1 * lat;
+    var kx = cx + i * (lead > 0 ? 3.8 : lead < 0 ? 1.2 : 2.6) * lat
+      + (lead > 0 ? 2.2 : lead < 0 ? -1.7 : 0) * sd / TURN;
+    var fx = kx + (lead > 0 ? 1.0 : lead < 0 ? -0.8 : i * 0.45) / TURN;
+    var lift = lead < 0 ? 2.0 : (!gt.sw && i < 0 ? 0.45 : 0);
+    var ky = by - 6.8 - lift, ay = by - 3.0 - lift;
+    var w = lead < 0 ? 1.65 : 1.9;
+    poly([[hx-w,by-12.2],[hx+w,by-12.2],[kx+w*.86,ky],
+          [kx+w*.58,ky+1.1],[kx-w*.86,ky+.3]],
+      ramp(hx-w,by-12.2,w*2,5.5,'#74784b','#555d36','#303924'));
+    // Broad irregular camouflage/fold planes follow the thigh, not screen stripes.
+    poly([[hx-w*.8,by-10.7],[hx+.4,by-11.2],[kx+.5,ky-1.4],
+          [kx-.7,ky-.8],[hx-.9,by-9.2]], '#394329');
+    poly([[kx-w*.8,ky],[kx+w*.8,ky],[fx+1.3,ay],[fx-1.35,ay]],
+      ramp(kx-w,ky,w*2,3.8,'#697445','#4b5830','#2a3326'));
+    stroke([[kx-w*.65,ky+.1],[kx+.3,ky-.2]], '#85905a', .65);
+    // Black leather boot: narrow ankle, weight over a broader forward toe.
+    poly([[fx-1.35,ay-.4],[fx+1.35,ay-.4],[fx+1.7,by-1.6-lift],
+          [fx+2.2,by-.45-lift],[fx+1.6,by+.05-lift],[fx-1.9,by-.1-lift],
+          [fx-2.0,by-1.0-lift]], '#202625');
+    stroke([[fx-1.1,by-1.65-lift],[fx+.9,by-1.7-lift],[fx+1.55,by-.9-lift]],
+      '#59615a', .6);
+  }
 
-// GI ([E1]). The RA2 layout, and it is the OPPOSITE of what this branch
-// used to draw: a GREY POT HELMET over a house-colour TORSO BLOCK over
-// OLIVE legs (unit-identity-reference.md §1.5). The old pass had the
-// colour on the helmet and a 4px chest sliver — 12-19% of the figure,
-// which is the STRUCTURE budget applied to a man, and it left seven
-// silhouette-identical soldiers with nothing to tell them apart
-// (unit-redesign-plan.md §1). The torso is one block from the collar to
-// the belt, the helmet is a distinct VALUE from both torso and legs,
-// and the legs read olive — the only thing separating him from a
-// Conscript, so nothing is allowed to sit on them.
-legs(3.6, by - 14.0, 3.4, T.coat, 3.2);
+  g.save(); g.translate(gt.lean, gt.bob);
+  g.translate(cx, by - 11.8); g.rotate(sd * (gt.sw ? .09 : .025));
+  g.translate(-cx, -(by - 11.8));
+  // Weapon and hands share the same endpoints through every bearing/pose.
+  var sign = back ? -1 : 1;
+  var angle = fire ? -.17 : -.40 + .14 * sd;
+  var length = 12.0 + 1.8 * sd;
+  var gunX = cx + sign * (.5 + 1.7 * sd) / TURN;
+  var gunY = by - (fire ? 19.0 : 15.7);
+  function onGun(t) {
+    return [gunX + sign * Math.cos(angle) * length * (t-.40) / TURN,
+            gunY + Math.sin(angle) * length * (t-.40)];
+  }
+  function rifle() {
+    var p0=onGun(0), p1=onGun(.28), p2=onGun(.65), p3=onGun(1);
+    stroke([p0,p1], '#303733', 2.25);
+    stroke([p1,p2], '#222a2b', 2.0);
+    stroke([p2,p3], '#222829', 1.15);
+    stroke([onGun(.43),onGun(.92)], '#929b94', .55);
+    var mag=onGun(.40);
+    poly([[mag[0]-.6,mag[1]],[mag[0]+1.0,mag[1]],
+          [mag[0]+.65,mag[1]+2.5],[mag[0]-.7,mag[1]+2.2]], '#252d2c');
+  }
+  function arm(i) {
+    var hand=onGun(i < 0 ? .28 : .62);
+    var shoulder=[cx+i*4.25,by-18.7+i*sd*.3];
+    var elbow=[cx+i*5.35,by-(fire?17.0:15.3)+i*sd*.35];
+    stroke([shoulder,elbow],shade(col,i < 0 ? .62 : .48),3.25);
+    stroke([[shoulder[0]-.35,shoulder[1]-.3],
+            [elbow[0]-.3,elbow[1]-.5]],shade(col,i < 0 ? 1.15 : .83),2.05);
+    stroke([elbow,hand], '#917462', 2.25);
+    stroke([[elbow[0]-.15,elbow[1]-.35],[hand[0]-.15,hand[1]-.35]], '#d6b99b', 1.5);
+    g.fillStyle='#3e4640'; g.beginPath();
+    g.ellipse(hand[0],hand[1],1.05,.9,0,0,6.29); g.fill();
+  }
+  if (back) { rifle(); arm(-1); arm(1); }
+  else arm(-sign);
+  // Vest wraps around the rib cage and tapers into the belt. Lit shoulder,
+  // breast and lower abdomen form distinct connected planes.
+  var vest=ramp(cx-4.6,by-20.1,9.2,8.3,
+    shade(col,1.18),shade(col,.9),shade(col,.48));
+  g.fillStyle=vest; g.beginPath();
+  g.moveTo(cx-3.5,by-20.2);
+  g.quadraticCurveTo(cx-5.0,by-19.3,cx-4.55,by-16.7);
+  g.quadraticCurveTo(cx-3.95,by-13.8,cx-3.2,by-12.0);
+  g.quadraticCurveTo(cx,by-11.4,cx+3.25,by-12.0);
+  g.quadraticCurveTo(cx+4.4,by-14.8,cx+4.45,by-17.4);
+  g.quadraticCurveTo(cx+4.75,by-19.5,cx+3.25,by-20.1);
+  g.quadraticCurveTo(cx,by-20.8,cx-3.5,by-20.2); g.closePath(); g.fill();
+  poly([[cx-3.7,by-19.5],[cx-.6,by-19.9],[cx-.8,by-17.4],
+        [cx-3.7,by-17.0]],shade(col,1.07));
+  poly([[cx+.1,by-17.0],[cx+3.8,by-17.7],[cx+3.3,by-15.0],
+        [cx+.4,by-14.6]],shade(col,.75));
+  stroke([[cx-3.1,by-13.8],[cx-.7,by-13.35],[cx+2.6,by-13.8]],
+    shade(col,.51),.6);
+  // Quiet shoulder straps and waist pouches have volume rather than black outlines.
+  for (var st=-1;st<=1;st+=2) {
+    stroke([[cx+st*2.8,by-19.9],[cx+st*2.45,by-17.2]],
+      shade(col,st<0?.58:.48),.8);
+    g.fillStyle=ramp(cx+st*2.5-1.0,by-12.9,2.0,2.0,'#7b7b4b','#585e36','#303a28');
+    g.beginPath(); g.roundRect(cx+st*2.5-1.0,by-12.9,2.0,2.0,.4); g.fill();
+  }
+  stroke([[cx-3.3,by-11.75],[cx+3.2,by-11.75]], '#303827', .9);
+  if (!back) arm(sign);
+  if (!back) rifle();
 
-g.save(); g.translate(gt.lean, gt.bob);
-g.fillStyle = shade(T.coat, 1.06);                            // olive tunic (whole torso)
-g.beginPath();
-g.moveTo(cx - 5.1, by - 19.4); g.lineTo(cx + 5.1, by - 19.4);
-g.lineTo(cx + 4.6, by - 14.2); g.lineTo(cx - 4.6, by - 14.2);
-g.closePath(); g.fill(); outline(g, shade(T.coat, 0.22));
-g.fillStyle = '#c9a94a';                                      // ammo pouch
-g.beginPath(); g.roundRect(cx - 1.5, by - 13.8, 3.0, 2.0, 0.6); g.fill();
-
-// THE BLOCK: collar to belt, full shoulder width, unbroken. Only two
-// folds and a belt shadow cut it, and they stay inside 0.70..1.24 —
-// above about f=1.3 the blue #4aa3db clips to white-cyan and stops
-// reading as the owner's colour at all.
-g.fillStyle = col;
-g.beginPath();
-g.moveTo(cx - 5.8, by - 19.8); g.lineTo(cx + 5.8, by - 19.8);
-g.lineTo(cx + 5.2, by - 14.0); g.lineTo(cx - 5.2, by - 14.0);
-g.closePath(); g.fill(); outline(g, shade(col, 0.30));
-g.fillStyle = shade(col, 1.22);                               // lit left panel
-g.fillRect(cx - 5.3, by - 19.3, 2.2, 5.0);
-g.fillStyle = shade(col, 0.76);                               // shaded right fold
-g.fillRect(cx + 2.0, by - 18.9, 1.6, 4.6);
-g.fillStyle = shade(col, 0.62);                               // collar shadow
-g.fillRect(cx - 5.6, by - 19.4, 11.2, 0.9);
-g.fillStyle = shade(T.coat, 0.62);                            // webbing belt, under the block
-g.fillRect(cx - 4.9, by - 14.6, 9.8, 1.15);
-
-// The block spills over the SHOULDERS, as it does on the E1 sprite: the
-// upper sleeve is remapped and the forearm is not, which is what takes
-// a GI from a 19% figure to RA2's 30-45% band without painting a man
-// who then reads as a plastic figure. The elbow line is the edge.
-arms(5.5, by - 18.4, 2.9, 4.4, T.coat);                       // house sleeves to the cuff
-g.fillStyle = shade(T.coat, 1.02);                            // olive forearms crossing in
-g.beginPath(); g.roundRect(cx - 4.5, by - 14.4, 3.4, 2.1, 1.0); g.fill();
-g.beginPath(); g.roundRect(cx + 1.4, by - 15.4, 3.0, 2.0, 1.0); g.fill();
-outline(g, shade(T.coat, 0.22));
-carbine(cx - 3.4, by - 13.8 + gt.sw * 0.4, cx + 5.0, by - 17.2 - gt.sw * 0.4, 1.9);
-// The E1 GI has NO face: the grey pot helmet sits straight on the house-colour
-// torso block (rifle.gif rows 2-5 helmet, row 6 the brim meeting the torso,
-// rows 7+ red torso — no skin tone anywhere). The old tan face/neck between
-// them was invented; it is gone, and the helmet drops 1.75 so its brim lands
-// on the collar instead of floating above it.
-helmet(by - 21.75, 3.15, ACC, 0.95, 0.72);              // grey pot, NOT house colour
-g.restore();
+  // Small steel helmet. Its curved crown carries one light plane; the brim
+  // casts a narrow dark shadow over the face instead of a broad white cap.
+  var headX=cx+sd*1.15/TURN;
+  poly([[headX-1.65,by-21.5],[headX+1.7,by-21.5],
+        [headX+1.2,by-19.6],[headX-1.2,by-19.8]],'#353c3b');
+  g.fillStyle=ramp(headX-2.8,by-24.8,5.6,3.7,'#c5c5c5','#898989','#434343');
+  g.beginPath();
+  g.moveTo(headX-2.8,by-21.6);
+  g.bezierCurveTo(headX-2.9,by-24.6,headX-.8,by-25.0,headX+.8,by-24.2);
+  g.quadraticCurveTo(headX+2.6,by-23.5,headX+2.7,by-21.5);
+  g.closePath(); g.fill();
+  stroke([[headX-2.9,by-21.55],[headX-.3,by-21.0],[headX+2.9,by-21.55]],
+    '#494949',.9);
+  stroke([[headX-1.85,by-23.7],[headX-.9,by-24.1],[headX+.05,by-23.9]],
+    '#d0d0d0',.6);
+  g.restore();
 }

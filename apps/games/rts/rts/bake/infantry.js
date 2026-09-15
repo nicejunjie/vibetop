@@ -17,8 +17,47 @@
 
 
 
+// A fixed logical pixel grid, independent of the display's devicePixelRatio.
+// Other unit families continue using their existing high-DPI canvases.
+function infantryCanvas() {
+  var c = document.createElement('canvas');
+  c.width = 104; c.height = 63 + UPAD;
+  return { c: c, g: c.getContext('2d'), w: c.width, h: c.height, crispInfantry: true };
+}
+
+function finishInfantryPixels(s, owner) {
+  // Deliberate material ramps, not independent RGB rounding or frequency
+  // merging. Small hands and helmet glints have the same priority as cloth.
+  var colours = [
+    '#141922', '#343434', '#626262', '#999999', '#d0d0d0', '#f2eee3',
+    '#252f44', '#3d495c', '#465674', '#65748a', '#798ba3',
+    '#323d24', '#586332', '#8a9250', '#b4b584',
+    '#46332b', '#795342', '#ae8064', '#d7ae87', '#f0d0a5',
+    '#584937', '#8d7953', '#c0aa77', '#e3cd91',
+    '#75601d', '#bd9127', '#ffdc65',
+    '#193d2c', '#327d3c', '#69c34a', '#b0e98a',
+    '#28565e', '#58949d', '#99dce1',
+    '#c7a7dd'
+  ];
+  for (var k = 0; k < 4; k++) colours.push(shade(owner, [.35, .65, 1, 1.3][k]));
+  var pal = colours.map(rgbOf);
+  var id = s.g.getImageData(0, 0, s.w, s.h), p = id.data;
+  for (var i = 0; i < p.length; i += 4) {
+    if (p[i+3] < 128) { p[i]=p[i+1]=p[i+2]=p[i+3]=0; continue; }
+    var best=0, distance=Infinity;
+    for (var j=0;j<pal.length;j++) {
+      var dr=p[i]-pal[j][0], dg=p[i+1]-pal[j][1], db=p[i+2]-pal[j][2];
+      var d=dr*dr+dg*dg+db*db;
+      if (d<distance) { distance=d; best=j; }
+    }
+    p[i]=pal[best][0];p[i+1]=pal[best][1];p[i+2]=pal[best][2];p[i+3]=255;
+  }
+  s.g.putImageData(id,0,0);
+}
+
 function bakeInfantry(col, kind, fac, phase, dir, state) {
-  var s = unitCanvas(), g = s.g, cx = s.w / 2, by = s.h - UPAD;
+  var owner = col;
+  var s = infantryCanvas(), g = s.g, cx = s.w / 2, by = s.h - UPAD;
   g.translate(cx, by); g.scale(USC_I, USC_I); g.translate(-cx, -by);
   // PROPORTION. An RA2 infantry walk frame is about 15x28 (w:h 0.50-0.55)
   // with the head a SIXTH of the height and clearly narrower than the
@@ -86,8 +125,10 @@ function bakeInfantry(col, kind, fac, phase, dir, state) {
   var gt = gait(gph);
   // Contact shadow first: it belongs to the GROUND, so it is drawn before
   // the turn and the pose so a prone man's shadow does not stand on end.
+  var shadow = infantryCanvas();
+  shadow.g.setTransform(g.getTransform());
   if (kind !== 'rocketeer')
-    shadowBlob(g, cx + (PRONE ? sd * 5.5 : 0), by,
+    shadowBlob(shadow.g, cx + (PRONE ? sd * 5.5 : 0), by,
                (6.0 + gt.amp * 0.9) * (1 + PRONE * 1.05 * sd), 2.5 * (1 - PRONE * 0.25));
 
   if (MIR) { g.translate(cx, by); g.scale(-1, 1); g.translate(-cx, -by); }
@@ -183,10 +224,10 @@ function bakeInfantry(col, kind, fac, phase, dir, state) {
       g.fillStyle = lead < 0 ? shade(T.boot, 0.74) : T.boot;
       g.beginPath();
       g.roundRect(fx - bw / 2, by - 2.8 - lift, bw, 2.8, 0.9); g.fill();
-      if (lead > 0) {                                // toe-cap glint on the lead boot
-        g.fillStyle = 'rgba(255,255,255,.16)';
-        g.fillRect(fx - bw / 2 + 0.4, by - 2.7, bw - 0.8, 0.8);
-      }
+      // A small leather upper stays visible above the contact shadow even
+      // when standing. Do not leave stationary feet as one black shadow bar.
+      g.fillStyle = lead < 0 ? '#555d61' : '#737b7b';
+      g.fillRect(fx - bw / 2 + 0.55, by - 2.5 - lift, bw - 1.1, 0.85);
     }
   }
   // Sleeves counter-swing the legs: the arm OPPOSITE the leading leg comes
@@ -336,7 +377,8 @@ function bakeInfantry(col, kind, fac, phase, dir, state) {
 
   var C = { ACC: ACC, FA: FA, HEADX: HEADX, JACKET: JACKET, POUCH: POUCH, SLEEVE: SLEEVE, T: T, TURN: TURN,
             ar: ar, arms: arms, by: by, carbine: carbine, col: col, cx: cx, edge: edge,
-            face: face, g: g, gt: gt, helmet: helmet, legs: legs, sd: sd, sov: sov, wpn: wpn };
+            face: face, g: g, gt: gt, helmet: helmet, legs: legs, sd: sd, sov: sov,
+            state: ST, wpn: wpn };
   if (kind === 'conscript') {
     drawConscript(C);
 
@@ -377,7 +419,12 @@ function bakeInfantry(col, kind, fac, phase, dir, state) {
     drawGi(C);
   }
   if (VG !== 1) valuePass(s, VG);       // the kind's rung on the value ladder
-  pixelate(s, 6, 96);                   // RA2's own 6-level channel grid, as the rips measure
+  finishInfantryPixels(s, owner);
+  // Composite the translucent ground shadow AFTER making the body opaque.
+  // Otherwise antialiased ankles borrow shadow colour and fade into terrain.
+  g.save(); g.setTransform(1,0,0,1,0,0);
+  g.globalCompositeOperation = 'destination-over';
+  g.drawImage(shadow.c,0,0); g.restore();
   return s;
 }
 

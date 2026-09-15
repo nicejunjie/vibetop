@@ -49,9 +49,9 @@ function droneLeg(lu, lv, near) {
   g.lineTo(kneex - wnx * bw, kneey - wny * bw);
   g.lineTo(hipx - wnx * bw * 0.8, hipy - wny * bw * 0.8);
   g.closePath();
-  g.fillStyle = near ? '#919191' : '#4e4e8c'; g.fill();
+  g.fillStyle = near ? '#9696a0' : '#725181'; g.fill();
   g.strokeStyle = '#1d1d26'; g.lineWidth = 0.6; g.stroke();
-  g.strokeStyle = near ? shade(VACC.drone, 1.34) : shade(VACC.drone, 0.72); g.lineWidth = 0.9;
+  g.strokeStyle = near ? '#c2c2c8' : '#9c71a5'; g.lineWidth = 0.9;
   g.beginPath();
   g.moveTo(hipx, hipy - 0.5); g.lineTo(kneex, kneey - 0.5); g.stroke();
   g.fillStyle = '#212147';                                  // foot claw
@@ -64,7 +64,7 @@ function droneLeg(lu, lv, near) {
 // plate ours read as a squat body with stubby legs; theirs is a spider
 // whose splayed legs ARE the silhouette. The arch above is unchanged,
 // because that is what carries the scale gate.
-var legsD = [[5.9, -4.9], [5.9, 4.9], [-6.0, -5.0], [-6.0, 5.0]];
+var legsD = [[7.0, -5.5], [7.0, 5.5], [-7.1, -5.6], [-7.1, 5.6]];
 var legOrder = [];
 for (i2 = 0; i2 < 4; i2++)
   legOrder.push([fy * legsD[i2][0] + py * legsD[i2][1], legsD[i2]]);
@@ -75,9 +75,9 @@ for (i2 = 0; i2 < 2; i2++) droneLeg(legOrder[i2][1][0], legOrder[i2][1][1], fals
 // The house colour is the WIDEST ring, so it survives from every
 // angle: built as a thin band under a broad pale lid (the first
 // attempt) the drone came back a grey mushroom with two red pixels.
-puck(cx, bodyY + 1.1, 2.5, 1.0, shade(col, 0.72), pdark, PEDGE);   // colour underbelly
-puck(cx, bodyY + 0.3, 3.3, 3.4, pdark, panel, PEDGE);              // colour hull ring
-g.fillStyle = plit;
+puck(cx, bodyY + 1.1, 2.5, 1.0, '#3b1d23', '#73232b', PEDGE); // lower machine
+puck(cx, bodyY + 0.3, 3.3, 2.8, '#7d1c25', '#c52b35', '#491a20'); // red collar
+g.fillStyle = '#e1e1e1';
 gEllipse(cx - fx * 0.5 + px * 0.6, bodyY - 2.1 - fy * 0.5 + py * 0.6, 1.45); g.fill();
 // The carapace plate is deliberately SMALL. Built out to the hull
 // line it capped the colour ring from above and the drone came back
@@ -99,11 +99,11 @@ gEllipse(cx - fx * 0.5 + px * 0.6, bodyY - 2.1 - fy * 0.5 + py * 0.6, 1.45); g.f
 // the plate out to the hull line made "a grey mushroom with a red hairline",
 // which is the opposite error — so this is the middle: big enough to be a back,
 // small enough that the owner's ring still rings.
-puck(cx, bodyY - 2.1, 1.72, 0.95, shade(hull, 0.74), shade(hull, 1.02), '#323262');
+puck(cx, bodyY - 1.9, 2.35, 1.4, '#898994', '#dedee2', '#40404b');
 g.fillStyle = shade(hull, 1.22);                            // carapace glint
 gEllipse(cx - fx * 0.35, bodyY - 2.95 - fy * 0.35, 0.6); g.fill();
-puck(cx + fx * 2.0, bodyY - 1.5 + fy * 2.0, 1.0, 1.1,       // the head
-     '#343470', '#7c7cd3', '#16162f');
+puck(cx + fx * 2.0, bodyY - 1.5 + fy * 2.0, 0.8, 0.9,
+     '#4a4a52', '#a6a6ae', '#24242a');
 for (sg = -1; sg <= 1; sg += 2) {                           // mandibles
   g.strokeStyle = shade(VACC.drone, 0.46); g.lineWidth = 1.4; g.lineCap = 'round';
   g.beginPath();

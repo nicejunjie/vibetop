@@ -48,7 +48,7 @@ var NAVY = 'rgb(' + cr.map(function (v) { return Math.round(18 + 150 * Math.pow(
 // mid). r and g identical with only b raised cannot produce teal at any rung,
 // so the cast comes back for free. STEEL_IV #9191ac is 145/145/172 and already
 // obeys the rule by accident; RUBBER goes cool the same way.
-var BODY = '#6a6ab0', STEEL_IV = '#9191ac', RUBBER = '#313160';
+var BODY = '#a9a9bf', STEEL_IV = '#c5c5c5', RUBBER = '#303030';
 function surface(pts, color, center, unlit) {
   var p = pts[0], e = pts[1].map(function (v, i) { return v - p[i]; });
   var f = pts[2].map(function (v, i) { return v - p[i]; });
@@ -69,7 +69,9 @@ function surface(pts, color, center, unlit) {
   // in them — the same #cc99cc lavender the Prism Tank's note warns about, from
   // the same cause. The owner's ramp cannot be brightened; the shadows can be
   // deepened. 0.46-1.00 buys the extra rung at the bottom and clips nothing.
-  var illumination = 0.46 + 0.54 * Math.max(0, (n[0] * light[0] + n[1] * light[1] + n[2] * light[2]) / (length * 1.87));
+  var incidence = Math.max(0, (n[0] * light[0] + n[1] * light[1] + n[2] * light[2]) / (length * 1.87));
+  var hubMetal = color === '#bbbbbb' || color === '#e0e0e0';
+  var illumination = hubMetal ? 0.76 + 0.28 * incidence : 0.46 + 0.54 * incidence;
   var depth = 0;
   for (var q = 0; q < pts.length; q++) depth += pts[q][0] * Lu + pts[q][1] * Lv + pts[q][2] * Lz;
   faces.push({ p: pts, col: unlit ? color : shade(color, illumination), depth: depth / pts.length });
@@ -125,9 +127,9 @@ function tyre(u, v) {
     // on a dark ring, and six of them down the side baked as bicycle wheels —
     // the same polka-dot fault the tanks' road wheels had. RA2's running gear
     // sits within the tyre's own value range.
-    surface(hub, '#6e6e6e', [u, v, z]);
+    surface(hub, '#bbbbbb', [u, v, z]);
     hub = hub.map(function (p) { return [u + (p[0] - u) * 0.70, p[1] + side * 0.03, z + (p[2] - z) * 0.70]; });
-    surface(hub, '#8a8a8a', [u, v, z]);
+    surface(hub, '#e0e0e0', [u, v, z]);
   }
 }
 // Oriented prism: its local x is along the boom / launch tube, y is
@@ -142,7 +144,7 @@ function inclined(u, v, z, angle, length, width, height, color, decor) {
 }
 if (wantH) {
   [-9.0, -2.0, 6.7].forEach(function (u) { tyre(u, -5.7); tyre(u, 5.7); });
-  box(-11.8, 11.5, -4.2, 4.2, 3.0, 4.7, '#3a3a6e');
+  box(-11.8, 11.5, -4.2, 4.2, 3.0, 4.7, '#555555');
   profile([[-12, 4.4], [12, 4.4], [12, 5.7], [9.5, 7.0], [2.5, 7.0], [1.3, 8.2], [-11.2, 8.2], [-12, 7.3]], -4.75, 4.75, BODY);
   // Fender strips dip between the three arches, exposing the tyres.
   var skirt = [[-12.1, 4.3], [-11.8, 6.5], [-10.9, 7.1], [1.8, 7.1], [3.1, 6.4], [10.2, 6.4], [12.1, 5.6], [12.1, 3.8], [9.1, 3.8]];
@@ -195,7 +197,7 @@ if (wantT) {
     // sitting INSIDE the beam with its tube mouths visible. Everything below is
     // the same construction at the reference's proportions.
     var angle = 0.66, L = 9.2, PW = 7.6, PH = 5.6;
-    inclined(-3.2, 0, Z + 2.9, angle, L, PW, PH, STEEL_IV, function (pt) {
+    inclined(-3.2, 0, Z + 2.9, angle, L, PW, PH, '#777787', function (pt) {
       // Broad waist band on both cheeks and the crown, following the
       // launch axis. Its dark blue also appears around the rear edge.
       for (var side = -1; side <= 1; side += 2) {
@@ -210,8 +212,8 @@ if (wantT) {
         [[L, 1.58, 0.70], [L + 0.9, 1.40, 0.56]].forEach(function (r) {
           cell.push(pt(r[0], vv - r[1], zz - r[2]), pt(r[0], vv + r[1], zz - r[2]), pt(r[0], vv + r[1], zz + r[2]), pt(r[0], vv - r[1], zz + r[2]));
         });
-        solid(cell, boxFaces, '#9e9db7');
-        surface([pt(L + 0.92, vv - 0.92, zz - 0.36), pt(L + 0.92, vv + 0.92, zz - 0.36), pt(L + 0.92, vv + 0.92, zz + 0.36), pt(L + 0.92, vv - 0.92, zz + 0.36)], '#686980', pt(L / 2, 0, 0));
+        solid(cell, boxFaces, '#b7b7b7');
+        surface([pt(L + 0.92, vv - 0.92, zz - 0.36), pt(L + 0.92, vv + 0.92, zz - 0.36), pt(L + 0.92, vv + 0.92, zz + 0.36), pt(L + 0.92, vv - 0.92, zz + 0.36)], '#292929', pt(L / 2, 0, 0));
       }
     });
   } else if (ivT === IFV_TUR_GUN || ivT === IFV_TUR_TECH) {
@@ -256,12 +258,16 @@ if (wantT) {
 // buries small details (lamps, remap strips, cell mouths) underneath a
 // large bonnet or pod face, even though they are physically in front.
 // Two samples per axis keep shared polygon edges watertight at zoom 1.
-var samples = 2, raster = mkCanvas(s.w * samples, s.h * samples);
+var samples = 2, rasterRatio = s.c.width / s.w;
+var rasterCanvas = document.createElement('canvas');
+rasterCanvas.width = Math.ceil(s.w * samples * rasterRatio);
+rasterCanvas.height = Math.ceil(s.h * samples * rasterRatio);
+var raster = { c: rasterCanvas, g: rasterCanvas.getContext('2d') };
 var rw = raster.c.width, rh = raster.c.height;
 var pixels = raster.g.getImageData(0, 0, rw, rh), data = pixels.data;
 var depths = new Float32Array(rw * rh);
 depths.fill(-Infinity);
-var rasterScale = DPR * samples, vehicleScale = USC_V * VSC;
+var rasterScale = rasterRatio * samples, vehicleScale = USC_V * VSC;
 function triangle(v0, v1, v2, color) {
   var area = (v1[0] - v0[0]) * (v2[1] - v0[1]) - (v1[1] - v0[1]) * (v2[0] - v0[0]);
   if (Math.abs(area) < 0.0001) return;
@@ -313,6 +319,6 @@ if (data.length === rw * rh * 4) faces.forEach(function (face) {
   if (pts.length === 3) triangle(pts[0], pts[1], pts[2], color);
 });
 raster.g.putImageData(pixels, 0, 0);
-g.save(); g.setTransform(DPR, 0, 0, DPR, 0, 0);
+g.save(); g.setTransform(rasterRatio, 0, 0, rasterRatio, 0, 0);
 g.drawImage(raster.c, 0, 0, s.w, s.h); g.restore();
 }

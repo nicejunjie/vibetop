@@ -79,8 +79,8 @@ function drawSub(C) {
     }
     g.closePath(); g.fill();
     // THE CROWN STRAKE — a fixed pale value, not a multiple of the hull.
-    line([L * 0.92, -W * 0.10, FR * 1.32], [-L * 0.98, -W * 0.10, FR * 1.32], '#999999', 1.0);
-    line([L * 0.92,  W * 0.24, FR * 1.32], [-L * 0.98,  W * 0.24, FR * 1.32], '#666666', 0.7);
+    line([L * 0.92, -W * 0.10, FR * 1.32], [-L * 0.98, -W * 0.10, FR * 1.32], '#666666', 0.8);
+    line([L * 0.92,  W * 0.24, FR * 1.32], [-L * 0.98,  W * 0.24, FR * 1.32], '#333333', 0.7);
     // plating seams across the casing, one value down
     for (var si2 = 0; si2 < 9; si2++) {
       var su2 = L * (0.84 - si2 * 0.22);

@@ -8,19 +8,17 @@
 function drawIvan(C) {
   var ACC = C.ACC, FA = C.FA, HEADX = C.HEADX, JACKET = C.JACKET, T = C.T, TURN = C.TURN, arms = C.arms,
       by = C.by, col = C.col, cx = C.cx, face = C.face, g = C.g, gt = C.gt, legs = C.legs, sd = C.sd;
-  // The fur hat is FUR, not house paint. It was the whole crown, and on a
-  // 14-px man that put a quarter of him in the player's colour.
-  var FUR = '#4a3a2a';
+  // The local RA2 image has a red headgear accent; keep that player-remapped.
+  var FUR = col;
+  // Pale shirt and exposed arms separate him from armoured infantry.
+  JACKET = '#414141';
+  var REDCOAT = col;
 
-// CRAZY IVAN, read off soviet-crazy-ivan-frames: a fur USHANKA in
-// house colour with the ear flaps hanging, a brown beard filling the
-// lower face, and a long dark coat worn OPEN — two house-colour lapel
-// panels either side of a pale shirt strip that runs from the collar
-// to the belt. The coat skirt hangs past the hips, which is why he
-// reads as a civilian in a greatcoat rather than another soldier.
-// In his right hand, at hip height, a bound bundle of dynamite.
+// Crazy Ivan: source frames show red head/shoulder accent, bare arms,
+// dark separate trousers, and a hand-held explosive bundle. Do not
+// return to the old skirted red greatcoat that deleted his legs.
 var SHIRTI = '#cbb79a';
-legs(2.5, by - 12.2, 3.4, T.coat, 4.0);
+legs(3.3, by - 12.2, 3.8, '#383838', 4.2);
 
 g.save(); g.translate(gt.lean, gt.bob);
 // the coat SKIRT first, hanging below the belt over the thighs and
@@ -28,21 +26,10 @@ g.save(); g.translate(gt.lean, gt.bob);
 // The skirt FLARES past the hips and is a step lighter than the coat
 // body, so it separates from the trousers below it. At the coat's own
 // value it vanished and he read as another soldier in a tunic.
-g.fillStyle = shade(JACKET, 1.16);
-g.beginPath();
-g.moveTo(cx - 5.0, by - 14.4); g.lineTo(cx + 5.0, by - 14.4);
-g.lineTo(cx + 7.8, by - 5.2); g.lineTo(cx + 1.2, by - 6.8);
-g.lineTo(cx - 1.2, by - 6.8); g.lineTo(cx - 7.8, by - 5.2);
-g.closePath(); g.fill(); outline(g, shade(JACKET, 0.44));
-g.fillStyle = shade(JACKET, 1.46);                            // lit left skirt panel
-g.beginPath();
-g.moveTo(cx - 5.0, by - 14.2); g.lineTo(cx - 3.0, by - 14.2);
-g.lineTo(cx - 4.2, by - 6.0); g.lineTo(cx - 7.4, by - 5.4);
-g.closePath(); g.fill();
-g.fillStyle = 'rgba(0,0,0,.30)';                              // the split at the hem
-g.fillRect(cx - 0.7, by - 12.0, 1.4, 4.8);
+g.fillStyle = '#363636';                                     // short belt-level shirt hem
+g.fillRect(cx - 4.5, by - 14.4, 9.0, 2.0);
 
-g.fillStyle = JACKET;                                         // coat body
+g.fillStyle = JACKET;                                         // work shirt body
 g.beginPath();
 g.moveTo(cx - 5.2, by - 20.0); g.lineTo(cx + 5.2, by - 20.0);
 g.lineTo(cx + 5.0, by - 13.6); g.lineTo(cx - 5.0, by - 13.6);
@@ -70,19 +57,19 @@ g.fillRect(cx - 0.9, by - 14.2, 1.8, 1.1);
 // the coat skirt already owns those rows, so the mask is unchanged and
 // his distance from Tanya is not touched a second time.
 for (var iv = -1; iv <= 1; iv += 2) {
-  g.fillStyle = col;
+  g.fillStyle = REDCOAT;
   g.beginPath();
-  g.moveTo(cx + iv * 0.70, by - 19.8); g.lineTo(cx + iv * 3.9, by - 19.8);
-  g.lineTo(cx + iv * 3.7, by - 15.8); g.lineTo(cx + iv * 1.05, by - 15.8);
-  g.closePath(); g.fill(); outline(g, shade(col, 0.40));
-  g.fillStyle = shade(col, iv < 0 ? 1.22 : 0.88);
-  g.fillRect(cx + (iv < 0 ? -5.3 : 2.6), by - 20.4, 2.7, 9.9);
+  g.moveTo(cx + iv * 0.9, by - 19.8); g.lineTo(cx + iv * 4.7, by - 19.8);
+  g.lineTo(cx + iv * 4.1, by - 14.0); g.lineTo(cx + iv * 0.6, by - 14.0);
+  g.closePath(); g.fill(); outline(g, shade(col, 0.38));
+  g.fillStyle = shade(REDCOAT, iv < 0 ? 1.22 : 0.88);
+  g.fillRect(cx + (iv < 0 ? -5.3 : 3.4), by - 20.2, 1.6, 5.8);
 }
-g.fillStyle = shade(col, 0.66);                               // collar shadow
+g.fillStyle = '#42251e';                                      // collar shadow
 g.fillRect(cx - 5.3, by - 20.5, 10.6, 0.9);
 
-arms(5.5, by - 19.0, 2.7, 6.4, JACKET, function (i, x, y) {
-  g.fillStyle = T.skin;                                       // bare hand
+arms(6.1, by - 19.0, 3.0, 6.4, '#f1d9b5', function (i, x, y) {
+  g.fillStyle = '#f1d9b5';                                   // bare hand
   g.beginPath(); g.roundRect(x - 1.3, y + 5.2, 2.6, 2.2, 0.9); g.fill();
   outline(g, '#8a6440');
   if (i > 0) {
@@ -124,23 +111,23 @@ arms(5.5, by - 19.0, 2.7, 6.4, JACKET, function (i, x, y) {
     // carapace: at this size the outline is not trim, it is most of the
     // surface, and a 1 px stroke round a 1.25 px fill leaves no fill.
     var dbx = x + 1.2, dby = y + 4.3;
-    g.fillStyle = '#c6a76e';                                  // the bound body
-    g.beginPath(); g.roundRect(dbx - 2.7, dby, 5.4, 5.2, 0.7); g.fill();
+    g.fillStyle = '#b0806d';                                  // warm brown dynamite bundle
+    g.beginPath(); g.roundRect(dbx - 2.1, dby, 4.2, 5.8, 0.7); g.fill();
     outline(g, '#4c3a1a');
     // Three sticks read as three TONES, never as seams: a 0.5-unit dark
     // seam is 0.44 px and does to the fill beside it exactly what the
     // per-stick outline did to the stick. Measured, two seams took the
     // block from v 0.81 to v 0.16-0.35 over half its own rows.
-    g.fillStyle = '#e0c288';                                  // lit stick, left
-    g.fillRect(dbx - 2.45, dby + 0.25, 1.85, 4.7);
-    g.fillStyle = '#a98a58';                                  // shaded stick, right
-    g.fillRect(dbx + 0.75, dby + 0.25, 1.7, 4.7);
-    g.fillStyle = '#f4e2ba';                                  // lit end caps, one band
-    g.fillRect(dbx - 2.45, dby + 0.2, 4.9, 1.15);
-    g.fillStyle = '#8a7452';                                  // one lashing band, and it is a
-    g.fillRect(dbx - 2.8, dby + 2.5, 5.6, 0.75);              // TONE of the sticks rather than
-    g.fillStyle = '#b8a077';                                  // the near-black bar that used
-    g.fillRect(dbx - 2.8, dby + 2.55, 5.6, 0.3);              // to cut the bundle in half
+    g.fillStyle = '#c49883';                                  // lit stick, left
+    g.fillRect(dbx - 1.85, dby + 0.25, 1.35, 5.25);
+    g.fillStyle = '#9a6d5b';                                  // shaded stick, right
+    g.fillRect(dbx + 0.55, dby + 0.25, 1.35, 5.25);
+    g.fillStyle = '#d2ac94';                                  // lit end caps, one band
+    g.fillRect(dbx - 1.85, dby + 0.2, 3.7, 1.15);
+    g.fillStyle = '#856f63';                                  // one lashing band, and it is a
+    g.fillRect(dbx - 2.25, dby + 2.8, 4.5, 0.75);             // TONE of the sticks rather than
+    g.fillStyle = '#a78d7f';                                  // the near-black bar that used
+    g.fillRect(dbx - 2.25, dby + 2.85, 4.5, 0.3);             // to cut the bundle in half
     g.strokeStyle = '#4a4038'; g.lineWidth = 1.5; g.lineCap = 'round';
     g.beginPath();                                            // fuse, rimmed so it survives
     g.moveTo(dbx + 0.2, dby + 0.2); g.lineTo(dbx + 1.3, dby - 1.5);

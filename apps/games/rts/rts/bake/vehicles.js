@@ -25,6 +25,16 @@
 
 
 function bakeVehicle(col, kind, fac, anim) {
+  // One authored pixel grid at every display DPR. Keep the mesh-rendered
+  // MCV and the separately reviewed miners on their existing pipeline.
+  var crispVehicle = ['lancer','spectre','mammoth','rhino','mirage','teslatank',
+    'ifv','flaktrack','v3','harrier','hornet','nighthawk','kirov'].indexOf(kind) >= 0;
+  function vehicleCanvas(w, h) {
+    if (!crispVehicle) return mkCanvas(w, h);
+    var c = document.createElement('canvas');
+    c.width = Math.ceil(w); c.height = Math.ceil(h);
+    return { c: c, g: c.getContext('2d'), w: c.width, h: c.height, crispVehicle: true };
+  }
   var sov = fac === 'col';
   var dig = anim === 'mine';
   // Neutral, because #4e535c / #2d3138 / #101316 all have blue over red and
@@ -129,7 +139,7 @@ function bakeVehicle(col, kind, fac, anim) {
   // #707490 / #8084a0 / #9090b0 — slate-BLUE, not neutral — and ours was dead
   // grey, which is most of its 47.6% drab share. r and g identical, b raised:
   // cannot bake teal (see the Prism Tank's note), lands on grey and slate.
-  if (kind === 'lancer')       { hull = '#7878b8'; deck = '#525290'; }   // pale steel with a dark top, as allied-grizzly-tank.png (VLIFT lifts it)
+  if (kind === 'lancer')       { hull = '#81819a'; deck = '#55556f'; }   // restrained cool grey-blue armour
   // CROSSING A BOUNDARY, NOT JUST LEANING. The first cool values here were too
   // timid — #4a4a5e is 74/74/94, and 94 SNAPS TO 102 only above f=0.82; below
   // that it lands on 51 exactly as 74 does, so the colour baked pure #333333
@@ -147,7 +157,7 @@ function bakeVehicle(col, kind, fac, anim) {
   // too. So a cool grey built as r == g with only b raised can only ever land
   // on grey or on navy/slate. Swept the whole ladder for #4a4a8d: #333333,
   // #666666, #999999, #333366, #666699, #000033 — and no teal at any rung.
-  else if (kind === 'spectre') { hull = '#4a4a74'; deck = '#303050'; }   // dark gunmetal, as allied-prism-tank.png
+  else if (kind === 'spectre') { hull = '#696987'; deck = '#41415f'; }   // cool slate armour over dark tracked gear
   // THE DECK WAS BAKING PURE GREY. #35352c is 53/53/44, and on this grid 44
   // rounds to the SAME cell as 53 — so the Apocalypse's largest visible surface
   // came out #333333 and the tank measured 76% grey against 9% olive, which is
@@ -173,14 +183,14 @@ function bakeVehicle(col, kind, fac, anim) {
   // deepening the weak channel cannot rescue a face whose high channels have
   // already rounded down together. 112/112/62 puts all three faces on olive —
   // #666633, #666633, #999933 — and keeps the value range the file wants.
-  else if (kind === 'mammoth') { hull = '#70703e'; deck = '#353514'; }   // cold olive; low value and hard plane separation keep the Apocalypse severe
+  else if (kind === 'mammoth') { hull = '#818176'; deck = '#626259'; }   // warm olive steel, darker than the shoulder equipment
   else if (kind === 'ifv')     { hull = '#9b9b9b'; deck = '#8d8d8d'; }   // pale silver body, as the [FV] voxel render (VLIFT lifts it)
   // NOT DARK SLATE. `mirage-voxel.jpg` is a PALE LAVENDER-GREY hull — light
   // enough that the dark blue deck patch and the khaki turret both read against
   // it — and at #474747 ours baked a near-black tank that lost every one of
   // those notes. The comment cited mirage.png, which is a cameo on a dark
   // background, not the unit.
-  else if (kind === 'mirage')  { hull = '#8a8a8a'; deck = '#5e5e5e'; }
+  else if (kind === 'mirage')  { hull = '#737382'; deck = '#444454'; }
   // SAME FENCE AS THE APOCALYPSE. #8a8a70 is 138/138/112, and 112 crosses the
   // 102/153 midpoint at about f=1.14 — so the Rhino's own olive snapped
   // chromatic on some faces and flat grey on others, and the tank read cream.
@@ -189,7 +199,7 @@ function bakeVehicle(col, kind, fac, anim) {
   // because it hand-picks a palette entry per face; we pass one colour through
   // a shade ladder, so ours has to be chosen to survive the whole ladder.
   // 138/138/80 stays chromatic from 0.86 through 1.40.
-  else if (kind === 'rhino')     { hull = '#74743e'; deck = '#5a5a3c'; } // restrained olive gunmetal, as rhino.png; avoid the washed-out toy dome
+  else if (kind === 'rhino')     { hull = '#aaa99a'; deck = '#77766b'; } // pale Soviet steel under red armour fittings
   else if (kind === 'flaktrack') { hull = '#c4c4c4'; deck = '#b4b49c'; } // cream body AND bed, as soviet-flak-track.png
   // Same fault as the Apocalypse: isoBox's SHADOWED face (f*0.80) collapsed to
   // flat grey while the lit two stayed coloured, so the unit read half-dusty.
@@ -205,7 +215,7 @@ function bakeVehicle(col, kind, fac, anim) {
   // Same fault as the Apocalypse: isoBox's SHADOWED face (f*0.80) collapsed to
   // flat grey while the lit two stayed coloured, so the unit read half-dusty.
   // Solved against the three grades rather than tuned by eye.
-  else if (kind === 'teslatank') { hull = '#70703e'; deck = '#33331e'; } // dark olive iron, as the sheet measures
+  else if (kind === 'teslatank') { hull = '#55554c'; deck = '#333330'; } // low dark olive iron beneath the red apparatus
   else if (kind === 'mcv')     { hull = '#6e6e6e'; deck = '#484848'; }   // steel truck, as allied-mcv.png
   // NIGHTHAWK. This was '#31353d' matte charcoal, which put it at the SAME
   // value as the Harrier's airframe -- the one pair that failed
@@ -219,7 +229,7 @@ function bakeVehicle(col, kind, fac, anim) {
   // airframe that is mostly hull. #363b43 does the same at the dark end. Both
   // equal-channel at their own luma now, which also takes this unit off the
   // grid-boundary flip list.
-  else if (kind === 'nighthawk') { hull = '#737373'; deck = '#3a3a3a'; } // gunship grey, LIGHTER than the jet
+  else if (kind === 'nighthawk') { hull = '#777777'; deck = '#555555'; } // neutral mid-value alloy avoids cyan raster bands on the fuselage
   // The APC was the WORST impostor on the field (11.0% of its pixels within
   // 18 degrees of the enemy's red), for the same reason as the Tesla Tank:
   // #8a8d76's red channel is nearer its grid line than its green, so the
@@ -227,7 +237,7 @@ function bakeVehicle(col, kind, fac, anim) {
   // Same fault as the Apocalypse: isoBox's SHADOWED face (f*0.80) collapsed to
   // flat grey while the lit two stayed coloured, so the unit read half-dusty.
   // Solved against the three grades rather than tuned by eye.
-  else if (kind === 'apc')       { hull = '#8a8a5e'; deck = '#4e4e36'; } // olive-grey hovercraft
+  else if (kind === 'apc')       { hull = '#a5a59a'; deck = '#565650'; } // pale steel deck above charcoal flotation skirt
   // The two MINERS fall through to here, and the fallback was the same bug a
   // third time: #4c515a -> #336666 teal for the War Miner and #40454e ->
   // #333366 NAVY for the Chrono Miner — a Soviet harvester in Allied blue.
@@ -365,7 +375,7 @@ function bakeVehicle(col, kind, fac, anim) {
     // Soviet hull.
     lancer: 0.840, rhino: 0.820,
     flaktrack: 1.000, ifv: 1.300,                    // the light class
-    teslatank: 0.950, mirage: 1.060, spectre: 1.100, // the mid specials
+    teslatank: 0.950, mirage: 1.060, spectre: 1.000, // the mid specials
     v3: 1.180, mammoth: 0.840,                       // the longest / the heaviest
     mcv: 1.100, drone: 0.920, hornet: 0.45,
     // THE TWO AIRCRAFT, sized against RA2 rather than against each other.
@@ -394,7 +404,7 @@ function bakeVehicle(col, kind, fac, anim) {
     // image smoothing on, so the largest airframe in the game was the one
     // sprite on the field going through a bilinear upscale while every
     // tank beside it drew 1:1.
-    kirov: 1.30,
+    kirov: 1.00,
   }[kind] || 1);
 
   // part: 'a' = hull+turret in one canvas (the fallback strip), 'h' = hull
@@ -419,7 +429,7 @@ function bakeVehicle(col, kind, fac, anim) {
     // everything to 153. At 1.10 the dark faces fall back to 102 and the lit
     // ones stay at 153, which is the variety the reference actually has.
     setVLIFT((kind === 'harrier' || kind === 'kirov' || kind === 'hornet' || kind === 'nighthawk') ? 1
-      : (kind === 'mcv' ? 1.08 : (kind === 'lancer' ? 1.22 : 1.25)));
+      : (kind === 'harv' ? 1.05 : (kind === 'mcv' ? 1.08 : (kind === 'lancer' ? 1.10 : (kind === 'rhino' ? 1.08 : (kind === 'mammoth' ? 1.08 : 1.25))))));
     var wantH = part !== 't', wantT = part !== 'h';
     var a = d * FANG;
     // The Kirov is 137px broadside in RA2 against a Rhino's ~60: it gets a
@@ -439,10 +449,10 @@ function bakeVehicle(col, kind, fac, anim) {
     // pixels of margin, which is not a margin. Height is untouched; only the room
     // either side of the anchor grows, and `h - UPAD` is unchanged, so no
     // draw-side code moves (every call site is `px - s.w/2`).
-    var s = kind === 'kirov' ? mkCanvas(184, 125 + UPAD)
-          : kind === 'nighthawk' ? mkCanvas(136, 63 + UPAD)
-          : (VSC > 1 ? mkCanvas(Math.round(104 * VSC) + 8, Math.round(63 * VSC) + UPAD)
-                     : unitCanvas());
+    var s = kind === 'kirov' ? vehicleCanvas(184, 125 + UPAD)
+          : kind === 'nighthawk' ? vehicleCanvas(136, 63 + UPAD)
+          : (VSC > 1 ? vehicleCanvas(Math.round(104 * VSC) + 8, Math.round(63 * VSC) + UPAD)
+                     : vehicleCanvas(104, 63 + UPAD));
     var g = s.g;
     var cx = s.w / 2, by = s.h - UPAD;
     g.translate(cx, by); g.scale(USC_V * VSC, USC_V * VSC); g.translate(-cx, -by);
@@ -453,7 +463,7 @@ function bakeVehicle(col, kind, fac, anim) {
     var SMOOTH = !(kind === 'harrier' || kind === 'kirov' || kind === 'hornet' || kind === 'nighthawk' || kind === 'apc');
     var sc = null;
     if (SMOOTH) {
-      sc = mkCanvas(s.w, s.h);
+      sc = vehicleCanvas(s.w, s.h);
       sc.g.translate(cx, by); sc.g.scale(USC_V * VSC, USC_V * VSC); sc.g.translate(-cx, -by);
       g = sc.g; setNO_RIM(true);
     }
@@ -515,15 +525,15 @@ function bakeVehicle(col, kind, fac, anim) {
     var len = kind === 'harv' ? (sov ? 33 : 27) : (kind === 'ifv' ? 24 :
               (kind === 'drone' ? 9 : (kind === 'spectre' ? 24 :
               (kind === 'flaktrack' ? 23 : (kind === 'mammoth' ? 27 :
-              (kind === 'rhino' ? 25 : (kind === 'v3' ? 22 :
+              (kind === 'rhino' ? 25 : (kind === 'v3' ? 29 :
               (kind === 'mirage' ? 24 : (kind === 'lancer' ? 26 :
               (kind === 'teslatank' ? 27 : 30))))))))));
     var wid = kind === 'harv' ? (sov ? 20 : 18) : (kind === 'ifv' ? 12 :
-              (kind === 'drone' ? 8 : (kind === 'spectre' ? 22 :
+              (kind === 'drone' ? 8 : (kind === 'spectre' ? 19 :
              (kind === 'mammoth' ? 21 : (kind === 'harv' ? (sov ? 22 : 18) :
               (kind === 'lancer' ? 17.5 : (kind === 'ifv' ? 15 :
               (kind === 'mirage' ? 19 : (kind === 'rhino' ? 18.5 :
-              (kind === 'flaktrack' ? 15 : (kind === 'v3' ? 19 :
+              (kind === 'flaktrack' ? 15 : (kind === 'v3' ? 17 :
               (kind === 'drone' ? 12 : (kind === 'teslatank' ? 19 : 17)))))))))))));
     // MCV bounds include the wide tyres and retracted stabilizer feet;
     // its articulated construction plant is authored below in 3D.
@@ -659,10 +669,13 @@ function bakeVehicle(col, kind, fac, anim) {
     // then the lit top run drawn last so it caps the shape cleanly. Road
     // wheels are DARK and sit in the shadowed gap under the top run — the
     // old pale dots read as a row of beads glued to a black box.
-    function trackRun(ux, uy, tl, tw, th, wheelCol) {
+    function trackRun(ux, uy, tl, tw, th, wheelCol, trackCols) {
+      var runTop = trackCols && trackCols.top || TRK_TOP;
+      var runSide = trackCols && trackCols.side || TRK_SIDE;
+      var runDark = trackCols && trackCols.dark || TRK_D;
       var hw = tw / 2, st = Math.max(0.5, tl / 2 - hw);
       var P = stadium(ux, uy, st, hw), i, p0, p1;
-      polyPath(P, 0); g.fillStyle = TRK_D; g.fill();               // underside
+      polyPath(P, 0); g.fillStyle = runDark; g.fill();             // underside
       for (i = 0; i < P.length; i++) {                             // near walls
         p0 = P[i]; p1 = P[(i + 1) % P.length];
         if ((p0[1] + p1[1]) / 2 <= uy) continue;
@@ -670,21 +683,53 @@ function bakeVehicle(col, kind, fac, anim) {
         g.moveTo(p0[0], p0[1]); g.lineTo(p1[0], p1[1]);
         g.lineTo(p1[0], p1[1] - th); g.lineTo(p0[0], p0[1] - th);
         g.closePath();
-        g.fillStyle = TRK_SIDE; g.fill();
+        g.fillStyle = runSide; g.fill();
       }
       // road wheels sunk into the visible flank
       if (flank > 0.14) {
-        for (i = -2; i <= 2; i++) {
-          var wu = i * st * 0.46;
+        // Optional heavy carrier wheels; defaults preserve other vehicles.
+        var wheelCount = trackCols && trackCols.wheelCount || 5;
+        var wheelScale = trackCols && trackCols.wheelScale || 1;
+        for (i = 0; i < wheelCount; i++) {
+          var wu = wheelCount === 5 ? (i - 2) * st * 0.46 : (i / (wheelCount - 1) * 2 - 1) * st * 0.92;
           var wx = ux + fx * wu + px * hw * 0.94 * nearS;
           var wy = uy + fy * wu + py * hw * 0.94 * nearS - th * 0.46;
+          if (trackCols && trackCols.projectedWheels) {
+            // A wheel lies in the vehicle's longitudinal / vertical plane.
+            // Fixed screen ellipses made the miners look dotted at obliques.
+            var wr = th * .43;
+            function wheelFace(radius, fill) {
+              g.beginPath();
+              for (var arc = 0; arc <= 28; arc++) {
+                var angle = arc * Math.PI / 14;
+                var along = radius * Math.cos(angle), height = radius * Math.sin(angle);
+                var x = wx + fx * along, y = wy + fy * along - height;
+                if (arc) g.lineTo(x, y); else g.moveTo(x, y);
+              }
+              g.closePath(); g.fillStyle = fill; g.fill();
+            }
+            wheelFace(wr, '#191919');
+            var wheelLight = g.createLinearGradient(wx-wr, wy-wr, wx+wr, wy+wr);
+            wheelLight.addColorStop(0, '#aaaaaa');
+            wheelLight.addColorStop(.45, wheelCol || '#888888');
+            wheelLight.addColorStop(1, '#555555');
+            wheelFace(wr*.79, wheelLight);
+            wheelFace(wr*.24, '#555555');
+            continue;
+          }
           g.fillStyle = WHEEL_D;
-          g.beginPath(); g.ellipse(wx, wy, 1.55, 1.35, 0, 0, 6.29); g.fill();
+          g.beginPath(); g.ellipse(wx, wy, 1.55 * wheelScale, 1.35 * wheelScale, 0, 0, 6.29); g.fill();
           g.fillStyle = wheelCol || WHEEL_L;
-          g.beginPath(); g.ellipse(wx, wy - 0.35, 0.85, 0.7, 0, 0, 6.29); g.fill();
+          var discScale = wheelScale > 1 ? 1.3 : 1;
+          g.beginPath(); g.ellipse(wx, wy - 0.35, 0.85 * wheelScale * discScale, 0.7 * wheelScale * discScale, 0, 0, 6.29); g.fill();
+          if (wheelScale > 1) {
+            g.fillStyle = '#555555';
+            g.beginPath(); g.ellipse(wx, wy - 0.2, .4 * wheelScale, .35 * wheelScale, 0, 0, 6.29); g.fill();
+          }
         }
         // drive sprockets, one per end, sitting proud of the run
         for (i = -1; i <= 1; i += 2) {
+          if (trackCols && trackCols.endSprockets === false) continue;
           var spx = ux + fx * st * i + px * hw * 0.92 * nearS;
           var spy = uy + fy * st * i + py * hw * 0.92 * nearS - th * 0.46;
           g.fillStyle = '#202020';
@@ -695,9 +740,9 @@ function bakeVehicle(col, kind, fac, anim) {
       }
       polyPath(P, -th);                                            // lit top run
       var tg2 = g.createLinearGradient(0, uy - th - hw * 1.2, 0, uy - th + hw * 1.2);
-      tg2.addColorStop(0, shade(TRK_TOP, 1.16)); tg2.addColorStop(1, shade(TRK_TOP, 0.78));
+      tg2.addColorStop(0, shade(runTop, 1.16)); tg2.addColorStop(1, shade(runTop, 0.78));
       g.fillStyle = tg2; g.fill();
-      g.strokeStyle = TRK_D; g.lineWidth = 0.8; g.stroke();
+      g.strokeStyle = runDark; g.lineWidth = 0.8; g.stroke();
       g.strokeStyle = 'rgba(0,0,0,.45)'; g.lineWidth = 0.9;        // track links
       for (i = -3; i <= 3; i++) {
         var lu = i * st * 0.30;
@@ -1015,7 +1060,7 @@ function bakeVehicle(col, kind, fac, anim) {
       // fat ellipsoid the previous pass drew came back 1.38 at the
       // down-right facing against the reference's 1.50. Harrier: the
       // fuselage is slim and the WINGS carry the silhouette.
-      var bodyL = kind === 'kirov' ? 58 : 23, bodyR = kind === 'kirov' ? 9.4 : 2.35;
+      var bodyL = kind === 'kirov' ? 64 : 23, bodyR = kind === 'kirov' ? 7.5 : 2.35;
       var C0y = by - (kind === 'kirov' ? 28 : 3);   // a parked Harrier sits on its gear at the anchor; altitude is added by the renderer
       function pt(t) { return [cx + fx * t * bodyL / 2, C0y + fy * t * bodyL / 2]; }
       // r(t): blunt nose (t=+1), tapering tail (t=-1).
@@ -1045,20 +1090,26 @@ function bakeVehicle(col, kind, fac, anim) {
       function rad(t) {
         var q = Math.max(0, 1 - t * t);
         if (kind !== 'kirov') return bodyR * Math.pow(q, t >= 0 ? 0.55 : 0.5);
+        if (t > 0.72) {
+          // A quarter ellipse over the last 28% of the envelope. A short
+          // 15% cap formed a cone at pixel-art size, not a rounded nose.
+          var capU = (t - 0.72) / 0.28;
+          return bodyR * 0.80 * Math.sqrt(Math.max(0, 1 - capU * capU));
+        }
         var u = (t + 1) / 2 * (KIROV_R.length - 1);
         var i0 = Math.floor(u), i1 = Math.min(KIROV_R.length - 1, i0 + 1), f = u - i0;
         if (i0 < 0) { i0 = 0; i1 = 0; f = 0; }
         return bodyR * (KIROV_R[i0] + (KIROV_R[i1] - KIROV_R[i0]) * f);
       }
       function bodyPath() {
-        var i3, t3, p3, e3;
+        var i3, t3, p3, e3, steps3 = kind === 'kirov' ? 48 : 24;
         g.beginPath();
-        for (i3 = 0; i3 <= 24; i3++) {
-          t3 = -1 + i3 / 12; p3 = pt(t3); e3 = rad(t3) * secK;
+        for (i3 = 0; i3 <= steps3; i3++) {
+          t3 = -1 + i3 * 2 / steps3; p3 = pt(t3); e3 = rad(t3) * secK;
           if (i3 === 0) g.moveTo(p3[0] + nx2 * e3, p3[1] + ny2 * e3); else g.lineTo(p3[0] + nx2 * e3, p3[1] + ny2 * e3);
         }
-        for (i3 = 24; i3 >= 0; i3--) {
-          t3 = -1 + i3 / 12; p3 = pt(t3); e3 = rad(t3) * secK;
+        for (i3 = steps3; i3 >= 0; i3--) {
+          t3 = -1 + i3 * 2 / steps3; p3 = pt(t3); e3 = rad(t3) * secK;
           g.lineTo(p3[0] - nx2 * e3, p3[1] - ny2 * e3);
         }
         g.closePath();
@@ -1085,7 +1136,7 @@ function bakeVehicle(col, kind, fac, anim) {
       } else {
         drawHarrier(C);
       }
-      pixelate(s, 6, 96);   // RA2's own 6-level channel grid: flat bands, not a gradient
+      pixelate(s, 12, 96, true); // Retain steel, glass and painted-panel colour families.
       return s;
     }
 
@@ -1144,7 +1195,7 @@ function bakeVehicle(col, kind, fac, anim) {
     // in-game bearings in allied-mcv.png. +u is forward, +v across, +z up.
     // A wide six-wheel chassis carries folded foundation wings, retracted
     // stabilizers, a loaded steel cradle and its exposed hinge machinery.
-    var C = { VSC: VSC, by: by, cd: cd, col: col, cx: cx, d: d, fx: fx, fy: fy, g: g, px: px,
+    var C = { VSC: VSC, by: by, cd: cd, col: col, cx: cx, d: d, fac: fac, fx: fx, fy: fy, g: g, px: px,
               py: py, s: s, sd: sd };
     if (kind === 'mcv' && wantH) drawMcv(C);
 
@@ -1194,18 +1245,19 @@ function bakeVehicle(col, kind, fac, anim) {
     if (SMOOTH) {
       // MCV shades its metal, rubber and glass separately in the mesh
       // rasterizer; the generic grain pass would put metal marks on tyres.
-      if (kind !== 'mcv') metalFinish(sc.c, metalSeed);
+      if (!crispVehicle && kind !== 'mcv' && kind !== 'harv') metalFinish(sc.c, metalSeed);
       setNO_RIM(false);
       // the silhouette outline: the scratch sheet stamped in eight
       // directions and tinted dark, under the sheet itself
-      var oc = mkCanvas(s.w, s.h), og = oc.g, od = kind === 'ifv' || kind === 'mcv' ? 0.25 : 0.65;
+      var oc = vehicleCanvas(s.w, s.h), og = oc.g, od = kind === 'ifv' || kind === 'mcv' ? 0.25 : (kind === 'harv' ? .35 : .65);
       for (var oi = 0; oi < 8; oi++) {
         var oa = oi * Math.PI / 4;
         og.drawImage(sc.c, Math.cos(oa) * od, Math.sin(oa) * od, sc.w, sc.h);
       }
       og.globalCompositeOperation = 'source-in';
       og.fillStyle = '#1a1d23'; og.fillRect(0, 0, oc.w, oc.h);
-      s.g.setTransform(DPR, 0, 0, DPR, 0, 0);
+      var rasterRatio = crispVehicle ? 1 : DPR;
+      s.g.setTransform(rasterRatio, 0, 0, rasterRatio, 0, 0);
       s.g.drawImage(oc.c, 0, 0, oc.w, oc.h);
       s.g.drawImage(sc.c, 0, 0, sc.w, sc.h);
     } else if (kind === 'apc') {
@@ -1214,7 +1266,9 @@ function bakeVehicle(col, kind, fac, anim) {
       // machining grain as the tracked fleet.
       metalFinish(s.c, metalSeed);
     }
-    pixelate(s, 6, 96);   // RA2's own 6-level channel grid: flat bands, not a gradient
+    // Miners need separate dark glass, metal bevels and rubber tones. A six
+    // level RGB cube merged those planes; retain pixel edges with finer tones.
+    pixelate(s, crispVehicle ? 12 : (kind === 'harv' ? 16 : 6), 96, crispVehicle);
     return s;
   }
 

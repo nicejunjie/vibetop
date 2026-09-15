@@ -8,7 +8,7 @@
 function drawGuardianGi(C) {
   var ACC = C.ACC, FA = C.FA, HEADX = C.HEADX, T = C.T, TURN = C.TURN, arms = C.arms, by = C.by, col = C.col,
       cx = C.cx, face = C.face, g = C.g, gt = C.gt, helmet = C.helmet, legs = C.legs, sd = C.sd,
-      wpn = C.wpn;
+      state = C.state, wpn = C.wpn;
 
 // GUARDIAN GI (Directorate). Heavier than the rifleman in every axis:
 // a slab vest that squares the shoulders, a deep helmet with a dark
@@ -16,7 +16,7 @@ function drawGuardianGi(C) {
 // with an AMBER warhead in the muzzle. The tube is what names him at
 // 1:1, so it is drawn long enough to break the body outline.
 var GGI_STEEL = '#878787';                                    // deep steel helmet
-legs(2.7, by - 12.2, 3.6, T.coat, 4.2);
+legs(3.3, by - 12.2, 3.8, '#687044', 4.2);
 
 g.save(); g.translate(gt.lean, gt.bob);
 g.fillStyle = shade(T.coat, 1.04);                            // olive undersuit torso
@@ -42,15 +42,15 @@ outline(g, shade(col, 0.08));
 // zone layout is steel helmet / house torso / olive legs, the same
 // three zones as the GI beside him, and the TUBE is what separates the
 // two (unit-identity-reference.md §2.1).
-g.fillStyle = col;
+g.fillStyle = shade(col, 0.86);
 g.beginPath();
 g.moveTo(cx - 3.6, by - 19.4); g.lineTo(cx + 3.6, by - 19.4);
-g.lineTo(cx + 3.2, by - 16.0); g.lineTo(cx - 3.2, by - 16.0);
+g.lineTo(cx + 3.2, by - 12.0); g.lineTo(cx - 3.2, by - 12.0);
 g.closePath(); g.fill(); outline(g, shade(col, 0.38));
 g.fillStyle = shade(col, 1.22);                               // lit shoulder line
 g.fillRect(cx - 4.2, by - 19.3, 8.4, 1.2);
 g.fillStyle = shade(col, 0.72);                               // vest seam
-g.fillRect(cx - 0.6, by - 18.4, 1.2, 3.4);
+g.fillRect(cx - 0.6, by - 18.4, 1.2, 5.8);
 g.fillStyle = '#c7ac3e';                                      // brass clasp
 g.beginPath(); g.roundRect(cx - 1.6, by - 15.4, 3.2, 2.0, 0.6); g.fill();
 outline(g, '#7f6a1c');
@@ -81,8 +81,42 @@ arms(6.0, by - 18.0, 3.2, 6.4, T.coat, function (i, x, y) {   // house upper sle
 // aimed along the facing really does foreshorten head-on and open out at
 // profile, which is the case `wpn` exists for. (A rifle held across the
 // chest is the opposite case, and that is why the CLeg moved.)
-wpn(function () {
+if (state === 'cameo') {
+  // A shoulder-braced launcher sits below the helmet, so its barrel
+  // identifies the soldier without turning the entire portrait into gun.
+  g.strokeStyle = '#252b29'; g.lineWidth = 3.4; g.lineCap = 'butt';
+  g.beginPath(); g.moveTo(cx + 4.6, by - 15.5);
+  g.lineTo(cx - 11.2, by - 16.8); g.stroke();
+  g.strokeStyle = '#647269'; g.lineWidth = 1.7;
+  g.beginPath(); g.moveTo(cx + 3.6, by - 16.1);
+  g.lineTo(cx - 10.4, by - 17.3); g.stroke();
+  g.fillStyle = '#1d2521';
+  g.fillRect(cx - 12.2, by - 18.6, 1.7, 3.2);
+  g.fillStyle = '#efdc9e';
+  g.beginPath();
+  g.moveTo(cx - 12.2, by - 17.0);
+  g.lineTo(cx - 15.2, by - 19.3);
+  g.lineTo(cx - 14.1, by - 16.8);
+  g.lineTo(cx - 15.2, by - 15.5);
+  g.closePath(); g.fill();
+} else wpn(function () {
 var ry = gt.bob ? 0.4 : 0;                                    // launcher rides the bob
+// A broad receiver sits on the shoulder and carries the narrower tube;
+// the weapon is not a loose line drawn across the soldier's chest.
+g.fillStyle = '#343a37';
+g.beginPath();
+g.moveTo(cx - 4.1, by - 18.5 + ry);
+g.lineTo(cx + 4.9, by - 21.9 - ry);
+g.lineTo(cx + 5.6, by - 18.9 - ry);
+g.lineTo(cx - 3.2, by - 15.4 + ry);
+g.closePath(); g.fill(); outline(g, '#1d2421');
+g.fillStyle = '#777c74';
+g.beginPath();
+g.moveTo(cx - 2.8, by - 18.3 + ry);
+g.lineTo(cx + 3.7, by - 20.8 - ry);
+g.lineTo(cx + 4.0, by - 19.8 - ry);
+g.lineTo(cx - 2.3, by - 17.3 + ry);
+g.closePath(); g.fill();
 // BRACED AND ANGLED UP, not carried level. §2.1 gives the Guardian "the
 // shoulder missile tube, angled ~30 deg up, overhanging the head by 5-6
 // px" and it was lying flat across his chest at 20 deg, which put its
@@ -124,19 +158,19 @@ var ry = gt.bob ? 0.4 : 0;                                    // launcher rides 
 // mask enough to put `peerVsSelf.infantry` back to 2.
 g.strokeStyle = '#252525'; g.lineWidth = 3.4; g.lineCap = 'round';
 g.beginPath();                                                // rim under the tube
-g.moveTo(cx - 4.9, by - 13.8 + ry); g.lineTo(cx + 8.4, by - 26.0 - ry); g.stroke();
+g.moveTo(cx - 5.2, by - 17.5 + ry); g.lineTo(cx + 8.8, by - 22.2 - ry); g.stroke();
 g.strokeStyle = '#555555'; g.lineWidth = 2.4;
 g.beginPath();                                                // missile tube
-g.moveTo(cx - 4.9, by - 13.8 + ry); g.lineTo(cx + 8.4, by - 26.0 - ry); g.stroke();
+g.moveTo(cx - 5.2, by - 17.5 + ry); g.lineTo(cx + 8.8, by - 22.2 - ry); g.stroke();
 g.strokeStyle = '#8a8a8a'; g.lineWidth = 1.1;                 // tube glint
 g.beginPath();
-g.moveTo(cx - 3.9, by - 14.9 + ry); g.lineTo(cx + 7.5, by - 25.5 - ry); g.stroke();
+g.moveTo(cx - 4.3, by - 18.2 + ry); g.lineTo(cx + 8.0, by - 22.0 - ry); g.stroke();
 g.strokeStyle = shade(T.coat, 1.20); g.lineWidth = 3.6; g.lineCap = 'butt';   // trim band
 g.beginPath();
-g.moveTo(cx + 1.9, by - 19.7); g.lineTo(cx + 3.3, by - 21.0); g.stroke();
+g.moveTo(cx + 1.9, by - 19.9); g.lineTo(cx + 3.3, by - 20.5); g.stroke();
 g.lineCap = 'round';
 g.fillStyle = '#2d2d2d';                                      // pistol grip + rear vent
-g.beginPath(); g.roundRect(cx - 1.6, by - 14.3 + ry, 2.1, 2.8, 0.7); g.fill();
+g.beginPath(); g.roundRect(cx - 1.6, by - 16.9 + ry, 2.1, 2.8, 0.7); g.fill();
 // The shading line used to run ALONG THE AXIS, straight down the middle
 // of the 5 px amber stroke, and it cut the nose in two: magnified, the
 // warhead read as a gold RING hanging in the air — a coin, not a
@@ -145,15 +179,15 @@ g.beginPath(); g.roundRect(cx - 1.6, by - 14.3 + ry, 2.1, 2.8, 0.7); g.fill();
 // becomes a RIM under the amber instead, which is how every other prop
 // on the roster is edged.
 g.lineCap = 'round';
-g.strokeStyle = '#4a3308'; g.lineWidth = 5.0;                 // rim, at the warhead's OWN
+g.strokeStyle = '#343a32'; g.lineWidth = 3.7;                 // connected launcher muzzle
 g.beginPath();                                                // width — see the tube note
-g.moveTo(cx + 7.5, by - 25.2 - ry); g.lineTo(cx + 9.2, by - 27.2 - ry); g.stroke();
-g.strokeStyle = ACC; g.lineWidth = 3.9;             // amber warhead: BLUNT, and
+g.moveTo(cx + 8.0, by - 22.0 - ry); g.lineTo(cx + 10.1, by - 22.9 - ry); g.stroke();
+g.strokeStyle = '#65705d'; g.lineWidth = 2.7;
 g.beginPath();                                                // standing above the crown
-g.moveTo(cx + 7.5, by - 25.2 - ry); g.lineTo(cx + 9.2, by - 27.2 - ry); g.stroke();
-g.strokeStyle = shade(ACC, 1.28); g.lineWidth = 1.6;
+g.moveTo(cx + 8.0, by - 22.0 - ry); g.lineTo(cx + 10.1, by - 22.9 - ry); g.stroke();
+g.strokeStyle = '#a1aa91'; g.lineWidth = 0.9;
 g.beginPath();
-g.moveTo(cx + 7.9, by - 26.3 - ry); g.lineTo(cx + 9.1, by - 27.7 - ry); g.stroke();
+g.moveTo(cx + 8.2, by - 22.6 - ry); g.lineTo(cx + 10.0, by - 23.1 - ry); g.stroke();
 });
 
 face(by - 21.3);

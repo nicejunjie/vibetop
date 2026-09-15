@@ -26,6 +26,7 @@ function stubCtx() {
     fill: noop, stroke: noop, arc: noop, ellipse: noop, roundRect: noop, clip: noop,
     quadraticCurveTo: noop, bezierCurveTo: noop, arcTo: noop, rect: noop,
     save: noop, restore: noop, scale: noop, translate: noop, rotate: noop, setTransform: noop,
+    getTransform: () => ({ a: 1, b: 0, c: 0, d: 1, e: 0, f: 0 }),
     drawImage: noop, putImageData: noop,
     getImageData: () => ({ data: [] }),
     createRadialGradient: () => ({ addColorStop: noop }),

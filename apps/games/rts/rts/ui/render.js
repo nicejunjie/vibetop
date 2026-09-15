@@ -1457,10 +1457,28 @@ function drawUnit(u) {
     var BGb = SPR.bags[u.p].back;
     ctx.drawImage(BGb.c, px - BGb.w / 2, py - (BGb.h - UPAD), BGb.w, BGb.h);
   }
-  ctx.drawImage(s.c, ox, oy, s.w, s.h);
+  if (s.crispInfantry || s.crispVehicle) {
+    ctx.save(); ctx.imageSmoothingEnabled = false;
+    // Snap the sprite origin in device space, including camera zoom/pan.
+    var im = ctx.getTransform();
+    var ix = im.a * ox + im.c * oy + im.e, iy = im.b * ox + im.d * oy + im.f;
+    var det = im.a * im.d - im.b * im.c;
+    if (det) {
+      var dx = Math.round(ix) - ix, dy = Math.round(iy) - iy;
+      ox += (im.d * dx - im.c * dy) / det;
+      oy += (im.a * dy - im.b * dx) / det;
+    }
+    ctx.drawImage(s.c, ox, oy, s.w, s.h); ctx.restore();
+  } else ctx.drawImage(s.c, ox, oy, s.w, s.h);
   if (submerged && !(u.erase > 0)) ctx.restore();
-  if (gondS) ctx.drawImage(gondS.c, ox + gondDx, oy + gondDy, gondS.w, gondS.h);
-  if (turretS) ctx.drawImage(turretS.c, ox, oy, turretS.w, turretS.h);
+  // Layered turrets must use the same snapped hull origin and sampling.
+  if (gondS || turretS) {
+    ctx.save();
+    if (s.crispVehicle) ctx.imageSmoothingEnabled = false;
+    if (gondS) ctx.drawImage(gondS.c, ox + gondDx, oy + gondDy, gondS.w, gondS.h);
+    if (turretS) ctx.drawImage(turretS.c, ox, oy, turretS.w, turretS.h);
+    ctx.restore();
+  }
   if (u.erase > 0) {
     ctx.restore();
     // ...and rings of collapsing spacetime close on it as it goes.

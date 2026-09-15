@@ -7,7 +7,7 @@
 
 function drawCleg(C) {
   var ACC = C.ACC, FA = C.FA, HEADX = C.HEADX, T = C.T, TURN = C.TURN, arms = C.arms, by = C.by, col = C.col,
-      cx = C.cx, g = C.g, gt = C.gt, legs = C.legs, sd = C.sd;
+      cx = C.cx, g = C.g, gt = C.gt, legs = C.legs, sd = C.sd, state = C.state;
 
 // CHRONO LEGIONNAIRE ([CLEG]), read off docs/ra2-ref/ra2-cleg-CC_Legion
 // _Chrono_Legionnaire.png and the sprite animation. He is the PALEST
@@ -22,7 +22,29 @@ function drawCleg(C) {
 // floor is measured — and is barely in the plate at all. That is the
 // whole trade this pass makes for him: the budget the shoulder shell
 // gives up lands here and on the greaves, not on another chest slab.
-legs(2.7, by - 12.0, 3.8, shade(T.coat, 0.94), 4.4, shade(T.coat, 1.12));
+// Each shin shell and knee band follows its own leg, including on a stride.
+var legOrder = gt.sw ? [-gt.sw, gt.sw] : [-1, 1];
+for (var ln = 0; ln < 2; ln++) {
+  var li = legOrder[ln], lead = gt.sw ? (li === gt.sw ? 1 : -1) : 0;
+  var lat = 1 - .4 * sd;
+  var hx = cx + li * 2.6 * lat;
+  var kx = cx + li * (lead > 0 ? 4.1 : lead < 0 ? 1.5 : 3.15) * lat
+    + (lead > 0 ? 2.1 : lead < 0 ? -1.6 : 0) * sd / TURN;
+  var fx = kx + (lead > 0 ? .9 : lead < 0 ? -.65 : li * .25) / TURN;
+  var lift = lead < 0 ? 2.1 : 0, ky = by - 6.4 - lift;
+  g.strokeStyle = '#505866'; g.lineWidth = 3.9; g.lineCap = 'round';
+  g.beginPath(); g.moveTo(hx, by - 12.4); g.lineTo(kx, ky);
+  g.lineTo(fx, by - 2.0 - lift); g.stroke();
+  g.strokeStyle = lead < 0 ? '#9fa8b1' : '#c4cbd0'; g.lineWidth = 2.6;
+  g.beginPath(); g.moveTo(hx - .35, by - 11.7); g.lineTo(kx - .35, ky - 1.2); g.stroke();
+  g.strokeStyle = lead < 0 ? '#a0aab4' : '#d0d5d8'; g.lineWidth = 2.2;
+  g.beginPath(); g.moveTo(kx - .4, ky + .8); g.lineTo(fx - .4, by - 2.8 - lift); g.stroke();
+  g.fillStyle = shade(col, .83);
+  g.beginPath(); g.roundRect(kx - 1.55, ky - .55, 3.1, .9, .25); g.fill();
+  g.fillStyle = '#202730';
+  g.beginPath(); g.roundRect(fx - 1.85, by - 2.4 - lift, 4.0, 2.4, .6); g.fill();
+  g.fillStyle = '#8d979e'; g.fillRect(fx - 1.25, by - 2.2 - lift, 2.6, .8);
+}
 
 g.save(); g.translate(gt.lean, gt.bob);
 g.fillStyle = shade(T.coat, 0.80);                             // belt rig
@@ -62,6 +84,17 @@ g.fillStyle = shade(T.coat, 1.72);                             // lit crest
 g.fillRect(cx - 5.4, by - 20.5, 3.4, 1.4);
 g.fillStyle = shade(T.coat, 0.86);                             // shoulder seam, so the
 g.fillRect(cx - 5.5, by - 17.2, 11.0, 0.7);                    // wrap reads as a plate
+g.fillStyle = col;                                             // diagonal equipment harness
+g.beginPath();
+g.moveTo(cx - 5.0, by - 20.8); g.lineTo(cx - 2.7, by - 20.8);
+g.lineTo(cx - 2.1, by - 14.7); g.lineTo(cx - 4.4, by - 14.7);
+g.closePath(); g.fill();
+// The shoulder harness is a connected cross-piece, not isolated trim.
+// It seats the red chest strap on the pale shell above the carried rifle.
+g.fillStyle = shade(col, 0.86);
+g.beginPath(); g.roundRect(cx - 5.0, by - 19.2, 10.0, 2.2, 0.5); g.fill();
+g.fillStyle = col;
+g.fillRect(cx - 1.35, by - 19.0, 2.7, 4.2);
 // THE COLLAR RING (§2.1), which the old yoke stood in for and which is
 // the natural home for the house note on a sealed suit: a band round
 // the neck line, drawn under the dome so the dome seats INTO it.
@@ -74,11 +107,7 @@ g.fillRect(cx - 3.2, by - 21.1, 6.4, 0.7);
 // trooper under §1.4's 20% floor at 19.4%, and "red trim" (§1.5) is
 // exactly what a knee band is — it does not touch the bone-white plate
 // that is his actual identity.
-for (var clk = -1; clk <= 1; clk += 2) {
-  g.fillStyle = shade(col, 0.94);
-  g.beginPath(); g.roundRect(cx + clk * 2.7 - 2.0, by - 8.6, 4.0, 2.0, 0.6); g.fill();
-  outline(g, shade(col, 0.44));
-}
+// Knee trim is painted with the moving legs above, not across torso space.
 g.fillStyle = '#686868';                                       // chest vent slot
 g.fillRect(cx - 1.6, by - 17.4, 3.2, 1.9);
 g.fillStyle = ACC;
@@ -177,7 +206,7 @@ arms(6.3, by - 18.6, 2.9, 5.4, shade(T.coat, 1.24), function (i, x, y) {
   var ry = by - 16.2;
   g.save();
   g.save();
-  g.translate(cx, ry); g.rotate(0.30); g.translate(-cx, -ry);
+  g.translate(cx, ry); g.rotate(-0.08); g.translate(-cx, -ry);
   g.fillStyle = '#464646';
   g.beginPath(); g.roundRect(cx - 2.2, ry, 10.8, 2.2, 0.8); g.fill();
   outline(g, '#1f1f1f');
@@ -194,7 +223,8 @@ arms(6.3, by - 18.6, 2.9, 5.4, shade(T.coat, 1.24), function (i, x, y) {
   // over a bone-white suit it came out as plain white: the same note as
   // every muzzle flash on the field, carrying none of his identity. The
   // hue has to be real or the light is not his.
-  g.save();                                                    // the coil, drawn as light
+  if (state === 'cameo') g.save();                             // charge light only in the active portrait
+  if (state === 'cameo') {
   g.globalCompositeOperation = 'lighter';
   g.fillStyle = 'rgba(40,190,235,.34)';                        // bloom kept TIGHT: every
   g.beginPath();                                               // opaque pixel added here
@@ -206,13 +236,17 @@ arms(6.3, by - 18.6, 2.9, 5.4, shade(T.coat, 1.24), function (i, x, y) {
   g.fillStyle = '#f5f5f5';                                     // its hot centre
   g.fillRect(cx + 6.45, ry + 0.1, 0.9, 1.9);
   g.restore();
+  }
+  g.fillStyle = '#79b7bd';                                    // recessed idle coil on the receiver
+  g.fillRect(cx + 6.2, ry - 0.1, 1.4, 2.4);
   g.strokeStyle = '#afafaf'; g.lineWidth = 1.3;                // emitter fork
   g.beginPath();
   g.moveTo(cx + 8.4, ry + 1.1); g.lineTo(cx + 11.9, ry - 0.7);
   g.moveTo(cx + 8.4, ry + 1.1); g.lineTo(cx + 11.9, ry + 3.0); g.stroke();
   // ...and the charge standing between its prongs, which is what makes
   // the fork a chrono emitter rather than a bayonet.
-  g.save();
+  if (state === 'cameo') g.save();
+  if (state === 'cameo') {
   g.globalCompositeOperation = 'lighter';
   g.strokeStyle = 'rgba(60,215,255,.60)'; g.lineWidth = 1.8; g.lineCap = 'round';
   g.beginPath();
@@ -222,6 +256,7 @@ arms(6.3, by - 18.6, 2.9, 5.4, shade(T.coat, 1.24), function (i, x, y) {
   g.moveTo(cx + 11.5, ry - 0.2); g.lineTo(cx + 11.1, ry + 1.2);
   g.lineTo(cx + 11.8, ry + 1.5); g.lineTo(cx + 11.5, ry + 2.5); g.stroke();
   g.restore();
+  }
   g.restore();
   g.restore();
 }());

@@ -11,7 +11,8 @@ function drawMammoth(C) {
       chassis = C.chassis, cx = C.cx, dark = C.dark, deck = C.deck, deckPlate = C.deckPlate,
       exhaust = C.exhaust, fenders = C.fenders, flank = C.flank, fx = C.fx, fy = C.fy, g = C.g,
       hull = C.hull, i2 = C.i2, lamp = C.lamp, len = C.len, nearS = C.nearS, panel = C.panel,
-      prism = C.prism, px = C.px, py = C.py, tracks = C.tracks, wantH = C.wantH, wantT = C.wantT,
+      plit = C.plit,
+      prism = C.prism, px = C.px, py = C.py, trackRun = C.trackRun, wantH = C.wantH, wantT = C.wantT,
       wid = C.wid;
 
 // APOCALYPSE — a long, low Soviet tank. The eight-bearing rip has a
@@ -19,12 +20,15 @@ function drawMammoth(C) {
 // the visual work; the red remap is four small rear shoulder blocks.
 // This branch is intentionally self-contained so its proportions do
 // not inherit the rounded furniture used by the other vehicles.
-var mmOff = 0.28, mmLen = len * 0.80;
+var mmOff = 0.33, mmLen = len * 0.80;
 if (wantH) {
-  // Slim envelope pass: the Apocalypse carries its weight along a
-  // long track run. Narrow track spacing, a low skirt and a thin
-  // glacis leave the twin barrels to establish the heavy silhouette.
-  tracks(mmLen * 1.10, 4.2, wid * 0.22, '#9a9a9a', mmOff);
+  // The track belts are load-bearing dark masses, not a row of pale
+  // wheel dots below a light hull. Keep them outside the armour skirts.
+  for (var mmTrackSide = -1; mmTrackSide <= 1; mmTrackSide += 2)
+    trackRun(cx + px * wid * mmOff * mmTrackSide,
+             by - 1 + py * wid * mmOff * mmTrackSide,
+             mmLen * 1.12, wid * 0.24, 4.75, '#787878',
+             {top: '#383a39', side: '#272929', dark: '#171919', wheelScale: 1.12});
   chassis(cx, by - 1.05, mmLen * 0.95, wid * 0.58, 4.35, hull, dark, 4.35, 0.9);
   deckPlate(-0.35, mmLen * 0.70, wid * 0.37, 6.6, shade(hull, 1.06));
   // A low engine deck at the rear and a short front glacis step give
@@ -34,8 +38,8 @@ if (wantH) {
   isoBox(g, cx + fx * 6.8, by - 4.2 + fy * 6.8,
          mmLen * 0.16, wid * 0.40, 0.72, a, shade(hull, 0.86), dark);
   for (var mmS = -1; mmS <= 1; mmS += 2) {
-    // Narrow skirts sit close to the hull rather than making a second
-    // wide body. Their lower edge is almost black, as in the rip.
+    // Armoured skirts cap the continuous tracks while leaving their
+    // lower run exposed; the lower edge is almost black in the rip.
     isoBox(g, cx + px * wid * mmOff * mmS,
            by - 1.95 + py * wid * mmOff * mmS,
            mmLen * 0.90, 1.16, 2.65, a, shade(hull, 0.60), dark);
@@ -45,6 +49,14 @@ if (wantH) {
       isoBox(g, cx + fx * (mmR * mmLen * 0.24) + px * wid * (mmOff + 0.02) * mmS,
              by - 2.55 + fy * (mmR * mmLen * 0.24) + py * wid * (mmOff + 0.02) * mmS,
              mmLen * 0.12, 1.04, 0.58, a, shade(hull, 0.78), dark);
+    // A forward cheek protects the track return and supports the
+    // glacis; its remap plate is structural, not a floating red dot.
+    isoBox(g, cx + fx * mmLen * 0.28 + px * wid * 0.27 * mmS,
+           by - 4.15 + fy * mmLen * 0.28 + py * wid * 0.27 * mmS,
+           mmLen * 0.24, 2.7, 1.55, a, shade(hull, 0.79), dark);
+    isoBox(g, cx + fx * mmLen * 0.32 + px * wid * 0.28 * mmS,
+           by - 5.58 + fy * mmLen * 0.32 + py * wid * 0.28 * mmS,
+           mmLen * 0.15, 2.35, 0.42, a, plit, dark);
   }
   fenders(mmLen * 0.46, 3.35, mmOff, 0.22, 0.13);
   bumper(mmLen * 0.46, wid * 0.20, by - 1.45);
@@ -55,29 +67,27 @@ if (wantH) {
   exhaust(cx - fx * mmLen * 0.40 + px * wid * 0.18,
           by - 5.9 - fy * mmLen * 0.40 + py * wid * 0.18);
 
-  // Five small road wheels on the visible flank and two larger end
-  // sprockets make the long track read as a machined assembly. They
-  // are drawn after the skirt so the detail is not swallowed by its
-  // top face.
+  // Road wheels show through below the skirt, but stay subordinate
+  // to the continuous dark belt.
   if (flank > 0.14) {
-    var mmHw = wid * 0.22 / 2, mmSt = Math.max(0.5, mmLen * 1.10 / 2 - mmHw);
+    var mmHw = wid * 0.24 / 2, mmSt = Math.max(0.5, mmLen * 1.12 / 2 - mmHw);
     for (var mmW = -2; mmW <= 2; mmW++) {
       var mmU = mmW * mmSt * 0.46;
       var mmX = cx + fx * mmU + px * (wid * mmOff + mmHw * 0.94) * nearS;
-      var mmY = by - 0.7 + fy * mmU + py * (wid * mmOff + mmHw * 0.94) * nearS - 3.8 * 0.46;
+      var mmY = by - 0.7 + fy * mmU + py * (wid * mmOff + mmHw * 0.94) * nearS - 4.75 * 0.46;
       g.fillStyle = '#171a1d';
       g.beginPath(); g.ellipse(mmX, mmY, 1.58, 1.34, 0, 0, 6.29); g.fill();
-      g.fillStyle = '#989898';
+      g.fillStyle = '#777777';
       g.beginPath(); g.ellipse(mmX, mmY - 0.20, 0.84, 0.66, 0, 0, 6.29); g.fill();
       g.fillStyle = '#343434';
       g.beginPath(); g.ellipse(mmX, mmY - 0.25, 0.32, 0.26, 0, 0, 6.29); g.fill();
     }
     for (var mmE = -1; mmE <= 1; mmE += 2) {
       var mmEX = cx + fx * mmSt * mmE + px * (wid * mmOff + mmHw * 0.94) * nearS;
-      var mmEY = by - 0.7 + fy * mmSt * mmE + py * (wid * mmOff + mmHw * 0.94) * nearS - 3.8 * 0.46;
+      var mmEY = by - 0.7 + fy * mmSt * mmE + py * (wid * mmOff + mmHw * 0.94) * nearS - 4.75 * 0.46;
       g.fillStyle = '#101216';
       g.beginPath(); g.ellipse(mmEX, mmEY, 1.98, 1.72, 0, 0, 6.29); g.fill();
-      g.strokeStyle = '#989898'; g.lineWidth = 0.65;
+      g.strokeStyle = '#777777'; g.lineWidth = 0.65;
       g.beginPath(); g.ellipse(mmEX, mmEY - 0.20, 1.02, 0.84, 0, 0, 6.29); g.stroke();
     }
   }
@@ -102,12 +112,12 @@ if (wantH) {
   }
   mmPods.sort(function (m, n) { return m[1] - n[1]; });
   for (i2 = 0; i2 < mmPods.length; i2++) {
-    isoBox(g, mmPods[i2][0], mmPods[i2][1], mmLen * 0.19, 2.35, 2.70, a,
+    isoBox(g, mmPods[i2][0], mmPods[i2][1], mmLen * 0.25, 3.25, 3.10, a,
            dark, PEDGE);
-    isoBox(g, mmPods[i2][0], mmPods[i2][1], mmLen * 0.165, 2.05, 2.35, a,
-           panel, dark);
+    isoBox(g, mmPods[i2][0], mmPods[i2][1], mmLen * 0.23, 3.05, 2.80, a,
+           plit, dark);
     isoBox(g, mmPods[i2][0] - fx * 0.10, mmPods[i2][1] - fy * 0.10,
-           mmLen * 0.10, 1.20, 0.34, a, shade(panel, 1.22), dark);
+           mmLen * 0.13, 1.50, 0.32, a, shade(panel, 1.22), dark);
   }
 }
 if (wantT) {
@@ -116,7 +126,7 @@ if (wantT) {
   // hull, and the rear corners pull in instead of bulging outward.
   var mmPlan = [[5.25, -1.75], [5.25, 1.75], [2.35, 2.70], [-3.55, 2.45],
                 [-4.50, 1.15], [-4.50, -1.15], [-3.55, -2.45], [2.35, -2.70]];
-  var mmGround = prism(mmx, mmy, mmPlan, 3.50, shade(hull, 0.64), dark);
+  var mmGround = prism(mmx, mmy, mmPlan, 3.50, '#555550', dark);
   g.strokeStyle = 'rgba(19,23,23,.78)'; g.lineWidth = 0.62;
   g.beginPath();
   for (var mmP = 0; mmP < mmGround.length; mmP++) {
@@ -127,7 +137,11 @@ if (wantT) {
   prism(mmx - fx * 0.38, mmy - 3.50 - fy * 0.38,
         [[4.20, -1.35], [4.20, 1.35], [1.65, 2.20], [-3.05, 2.00],
          [-3.80, 0.95], [-3.80, -0.95], [-3.05, -2.00], [1.65, -2.20]],
-        0.70, shade(hull, 0.90), dark);
+        0.70, '#74746a', dark);
+  // A broad red face plate belongs to the front of the turret assembly;
+  // otherwise the two rear packs were the only faction-colour volumes.
+  isoBox(g, mmx + fx * 3.9, mmy - 2.9 + fy * 3.9,
+         2.5, 4.9, 1.0, a, plit, dark);
   // Deep cheek plates are structural and the two small red plates are
   // the only colour on the turret besides the shoulder blocks.
   for (mmS = -1; mmS <= 1; mmS += 2)
@@ -147,11 +161,11 @@ if (wantT) {
   // guns overhang the hull by roughly one third, matching the real rip.
   var mmz = [mmx + fx * 5.25, mmy - 2.40 + fy * 5.25];
   for (var mmB = -1; mmB <= 1; mmB += 2) {
-    isoBox(g, mmx + fx * 4.85 + px * 2.72 * mmB,
-           mmy - 0.92 + fy * 4.85 + py * 2.72 * mmB,
-           2.35, 1.58, 1.45, a, shade(hull, 0.50), dark);
-    barrel(mmz[0] + px * 2.72 * mmB, mmz[1] + py * 2.72 * mmB,
-           18.8, 1.38, 1.02, VACC.mammothGun);
+    isoBox(g, mmx + fx * 4.85 + px * 3.35 * mmB,
+           mmy - 0.92 + fy * 4.85 + py * 3.35 * mmB,
+           2.1, 1.18, 1.25, a, '#474747', dark);
+    barrel(mmz[0] + px * 3.35 * mmB, mmz[1] + py * 3.35 * mmB,
+           18.8, 0.92, 0.62, VACC.mammothGun);
   }
 }
 }

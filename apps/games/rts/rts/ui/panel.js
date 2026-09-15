@@ -258,7 +258,11 @@ function cameoFor(key, isBld, fac, ownFac, noCap) {
   var src = null, sw, sh, sc, kb = 1;
   try {
     if (isBld) { var A = SPR.bld[0][fac][key]; if (!A) return null; src = A.s.c; var bb = A.s.bb || { x0: 0, y0: 0, x1: A.s.w, y1: A.s.h }; sw = bb.x1 - bb.x0; sh = bb.y1 - bb.y0; sc = { x: bb.x0, y: bb.y0 }; kb = src.width / A.s.w; }
-    else { var U = SPR.unit[0][fac][key]; if (!U) return null; var f = Array.isArray(U) ? U[iconFaceOf(UNITS[key])] : U; src = f.c; var ub = f.bb || { x0: 0, y0: 0, x1: f.w, y1: f.h }; sw = ub.x1 - ub.x0; sh = ub.y1 - ub.y0; sc = { x: ub.x0, y: ub.y0 }; kb = src.width / f.w; }
+    else { var U = SPR.unit[0][fac][key]; if (!U) return null;
+      var f = (key === 'flak' || key === 'rocket' || key === 'spy' || key === 'rifle' || key === 'teslatrooper' || key === 'yuri') ? bakeInfantry(COL[ME], key, fac, -1, 1, 'cameo')
+                             : Array.isArray(U) ? U[iconFaceOf(UNITS[key])] : U;
+      src = f.c; var ub = f.bb || artBox(f); sw = ub.x1 - ub.x0; sh = ub.y1 - ub.y0;
+      sc = { x: ub.x0, y: ub.y0 }; kb = src.width / f.w; }
   } catch (e) { return null; }
   if (!src || sw <= 0 || sh <= 0) return null;
   // RA2's cameos are 60x48 PCX plates in a house-tinted frame: a lit sky

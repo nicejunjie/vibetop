@@ -73,7 +73,7 @@ function bakeShip(col, kind, fac) {
   // dark smear with a red stripe. The rip's casing is a MID grey that catches
   // light along its crown. The cylindrical banding that makes it read as metal
   // is in sub.js; this is the value it is built on.
-  if (kind === 'sub')      { HULL = '#666666'; DECK = '#3f3f3f'; }
+  if (kind === 'sub')      { HULL = '#4d4d4d'; DECK = '#3f3f3f'; }
   if (kind === 'dolphin')  { HULL = '#6a6a6a'; DECK = '#454545'; }
   // The squid's plum was a HALF-STEP off the palette grid and the shade ladder
   // kept falling off it on the red side: #6c4a60 lit by 1.2 snaps to #996666
@@ -131,11 +131,11 @@ function bakeShip(col, kind, fac) {
   // size class cannot be undone by fittings that are 8% of the mask.
   var G = { destroyer: { L: 46, W: 12, FREE: 5.0 },
             aegis:     { L: 43, W: 13, FREE: 4.4 },
-            carrier:   { L: 71, W: 23, FREE: 6.6 },
+            carrier:   { L: 63, W: 19, FREE: 6.6 },
             dolphin:   { L: 19, W: 5,  FREE: 2.0 },
             lcraft:    { L: 32, W: 24, FREE: 3.4 },
             sub:       { L: 35, W: 5,  FREE: 1.0 },
-            seascorp:  { L: 27, W: 13, FREE: 3.6 },
+            seascorp:  { L: 33, W: 8.5, FREE: 3.6 },
             dread:     { L: 62, W: 16, FREE: 4.2 },
             squid:     { L: 48, W: 14, FREE: 2.2 } }[kind];
 
