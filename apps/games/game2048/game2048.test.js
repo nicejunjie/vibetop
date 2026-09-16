@@ -329,6 +329,40 @@ test("a move that does change the board spawns exactly one tile", () => {
   assert.strictEqual(g2.tiles(), 2, "two became one, then one spawned");
 });
 
+test('Undo restores the exact board and score, removes the spawn, and is single-use', () => {
+  const g = load();
+  assert.strictEqual(g.byId('undoBtn').disabled, true);
+  g.seed([[2,2,0,0],[0,0,0,0],[0,0,0,0],[0,0,0,0]]);
+  const before = g.read();
+  g.T.move(0, -1);
+  assert.strictEqual(g.score(), 4);
+  assert.strictEqual(g.byId('undoBtn').disabled, false);
+  g.byId('undoBtn').listeners.click[0]();
+  g.flush();
+  assert.deepStrictEqual(g.read(), before);
+  assert.strictEqual(g.score(), 0);
+  assert.strictEqual(g.byId('undoBtn').disabled, true);
+  g.byId('undoBtn').listeners.click[0]();
+  assert.deepStrictEqual(g.read(), before);
+});
+
+test('an ineffective move keeps Undo, while New clears it and pending win cards', () => {
+  const g = load();
+  g.seed([[1024,1024,0,0],[0,0,0,0],[0,0,0,0],[0,0,0,0]]);
+  const before = g.read();
+  g.T.move(0, -1);
+  assert.strictEqual(g.T.move(0, -1), false);
+  g.byId('undoBtn').listeners.click[0]();
+  g.flush();
+  assert.deepStrictEqual(g.read(), before);
+  assert.ok(!g.byId('overlay').classList.contains('show'));
+  g.T.move(0, -1);
+  g.T.newGame();
+  g.flush();
+  assert.strictEqual(g.byId('undoBtn').disabled, true);
+  assert.ok(!g.byId('overlay').classList.contains('show'));
+});
+
 // --- game over --------------------------------------------------------------
 
 test("canMove sees an empty cell, sees an available merge, and knows a dead board", () => {
@@ -356,6 +390,12 @@ test("the move that fills the last cell with no moves left ends the game", () =>
   assert.strictEqual(g.calls.finish[0].extra.tile, 8, "the best tile on the dead board");
   assert.ok(g.byId("overlay").classList.contains("show"), "the game-over card is up");
   assert.strictEqual(g.T.move(0, -1), false, "a finished game ignores further moves");
+  g.byId('undoBtn').listeners.click[0]();
+  assert.ok(!g.byId('overlay').classList.contains('show'));
+  assert.ok(g.T.canMove(), 'Undo reopens the game after a loss');
+  assert.strictEqual(g.T.move(0, 1), true);
+  g.flush();
+  assert.strictEqual(g.calls.finish.length, 1, 'retrying the last move does not count another game');
 });
 
 // --- the player's actual path ----------------------------------------------

@@ -37,6 +37,8 @@
     cursor: pointer; min-height: 30px;
   }
   button:hover { background: #47336a; border-color: #8a4adb; }
+  button:disabled { opacity: .4; cursor: default; }
+  .bar { flex-wrap: wrap; }
   button:focus-visible { outline: 2px solid #8a4adb; outline-offset: 1px; }
   .stat { position: relative; }
   .plus {
@@ -185,6 +187,7 @@
     <div class="stat"><span class="lbl">Best</span><span class="val" id="best">0</span></div>
     <button id="lbBtn" title="Leaderboard — best scores and stats">🏆</button>
     <button id="helpBtn" title="How to play">?</button>
+    <button id="undoBtn" title="Undo the last move" disabled>↶ Undo</button>
     <button id="newBtn">New</button>
   </div>
   <div class="wrap" id="wrap">
@@ -246,6 +249,8 @@
   var ovKeep = document.getElementById('ovKeep');
   var ovClose = document.getElementById('ovClose');
   var hintEl = document.getElementById('hint');
+  var undoBtn = document.getElementById('undoBtn');
+  var previous = null, winTimer = null, loseTimer = null, finishRecorded = false;
 
   var grid = [];          // N*N array of tile objects or null: {v, el, r, c}
   var sess = '';
@@ -325,6 +330,8 @@
   }
 
   function newGame() {
+    clearTimeout(winTimer); clearTimeout(loseTimer);
+    previous = null; undoBtn.disabled = true; finishRecorded = false;
     flushMerges();
     each(function(t) { t.el.remove(); });
     boardEl.querySelectorAll('.tile').forEach(function(el) { el.remove(); });
@@ -335,6 +342,22 @@
     overlay.classList.remove('show');
     layout();
     spawn(); spawn();
+  }
+
+  function undo() {
+    if (!previous) return;
+    clearTimeout(winTimer); clearTimeout(loseTimer);
+    flushMerges();
+    each(function(t) { t.el.remove(); });
+    grid = new Array(N * N).fill(null);
+    previous.values.forEach(function(v, i) {
+      if (v) makeTile(Math.floor(i / N), i % N, v, false);
+    });
+    score = previous.score; won = previous.won; over = false;
+    scoreEl.textContent = score;
+    scoreEl.parentNode.querySelectorAll('.plus').forEach(function(el) { el.remove(); });
+    overlay.classList.remove('show');
+    previous = null; undoBtn.disabled = true;
   }
 
   function addScore(v) {
@@ -362,6 +385,7 @@
   function move(dr, dc) {
     if (over) return false;
     flushMerges();
+    var before = { values: grid.map(function(t) { return t ? t.v : 0; }), score: score, won: won };
     moved = false;
     var gained = 0;
     var merged = [];
@@ -394,7 +418,7 @@
           target.v *= 2;
           addScore(target.v);
           gained += target.v;
-          if (target.v === 2048 && !won) { won = true; setTimeout(showWin, 300); }
+          if (target.v === 2048 && !won) { won = true; winTimer = setTimeout(showWin, 300); }
           var dead = t, into = target;
           var entry = {
             fn: function() {
@@ -417,11 +441,12 @@
       });
     });
     if (moved) {
+      previous = before; undoBtn.disabled = false;
       // Spawn synchronously (the .spawn animation-delay hides it until the
       // slide finishes) so the logical grid is always current for the next move.
       spawn();
       if (gained > 0) showPlus(gained);
-      if (!canMove()) { over = true; setTimeout(showLose, 260); }
+      if (!canMove()) { over = true; loseTimer = setTimeout(showLose, 260); }
     }
     return moved;
   }
@@ -451,7 +476,10 @@
     ovMsg.textContent = 'Final score ' + score + (score >= best && score > 0 ? ' — new best!' : '.');
     var tile = 0;
     each(function(t) { if (t.v > tile) tile = t.v; });
-    vibeScores.finish('2048', '', won, { tile: tile });
+    if (!finishRecorded) {
+      vibeScores.finish('2048', '', won, { tile: tile });
+      finishRecorded = true;
+    }
     showScores();
     ovKeep.style.display = 'none';
     ovClose.style.display = 'block';
@@ -547,6 +575,7 @@
   });
 
   document.getElementById('newBtn').addEventListener('click', newGame);
+  undoBtn.addEventListener('click', undo);
   ovNew.addEventListener('click', newGame);
   ovKeep.addEventListener('click', function() { overlay.classList.remove('show'); });
   // See minesweeper: the card is a menu, and a backdrop tap is not an answer.
