@@ -329,7 +329,7 @@ test("a move that does change the board spawns exactly one tile", () => {
   assert.strictEqual(g2.tiles(), 2, "two became one, then one spawned");
 });
 
-test('Undo restores the exact board and score, removes the spawn, and is single-use', () => {
+test('Undo restores the exact board and score and removes the spawn', () => {
   const g = load();
   assert.strictEqual(g.byId('undoBtn').disabled, true);
   g.seed([[2,2,0,0],[0,0,0,0],[0,0,0,0],[0,0,0,0]]);
@@ -344,6 +344,36 @@ test('Undo restores the exact board and score, removes the spawn, and is single-
   assert.strictEqual(g.byId('undoBtn').disabled, true);
   g.byId('undoBtn').listeners.click[0]();
   assert.deepStrictEqual(g.read(), before);
+});
+
+test('Undo walks every move back to the initial board, including after branching', () => {
+  const g = load();
+  const snapshots = [];
+  for (let i = 0; i < 40; i++) {
+    const before = { board: g.read(), score: g.score() };
+    const directions = [[0,-1],[-1,0],[0,1],[1,0]];
+    let changed = false;
+    for (let j = 0; j < 4; j++) {
+      if (g.T.move(...directions[(i + j) % 4])) { changed = true; break; }
+    }
+    if (!changed) break;
+    snapshots.push(before);
+  }
+  assert.ok(snapshots.length > 10, 'exercise more than a small fixed undo limit');
+  while (snapshots.length) {
+    const expected = snapshots.pop();
+    g.byId('undoBtn').listeners.click[0]();
+    g.flush();
+    assert.deepStrictEqual(g.read(), expected.board);
+    assert.strictEqual(g.score(), expected.score);
+    assert.strictEqual(g.byId('undoBtn').disabled, snapshots.length === 0);
+    if (snapshots.length === 5) {
+      assert.ok(g.T.move(0, 1) || g.T.move(0, -1));
+      g.byId('undoBtn').listeners.click[0]();
+      assert.deepStrictEqual(g.read(), expected.board);
+      assert.strictEqual(g.score(), expected.score);
+    }
+  }
 });
 
 test('an ineffective move keeps Undo, while New clears it and pending win cards', () => {

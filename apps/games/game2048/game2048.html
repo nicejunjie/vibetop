@@ -250,7 +250,7 @@
   var ovClose = document.getElementById('ovClose');
   var hintEl = document.getElementById('hint');
   var undoBtn = document.getElementById('undoBtn');
-  var previous = null, winTimer = null, loseTimer = null, finishRecorded = false;
+  var history = [], winTimer = null, loseTimer = null, finishRecorded = false;
 
   var grid = [];          // N*N array of tile objects or null: {v, el, r, c}
   var sess = '';
@@ -331,7 +331,7 @@
 
   function newGame() {
     clearTimeout(winTimer); clearTimeout(loseTimer);
-    previous = null; undoBtn.disabled = true; finishRecorded = false;
+    history = []; undoBtn.disabled = true; finishRecorded = false;
     flushMerges();
     each(function(t) { t.el.remove(); });
     boardEl.querySelectorAll('.tile').forEach(function(el) { el.remove(); });
@@ -345,7 +345,8 @@
   }
 
   function undo() {
-    if (!previous) return;
+    if (!history.length) return;
+    var previous = history.pop();
     clearTimeout(winTimer); clearTimeout(loseTimer);
     flushMerges();
     each(function(t) { t.el.remove(); });
@@ -357,7 +358,7 @@
     scoreEl.textContent = score;
     scoreEl.parentNode.querySelectorAll('.plus').forEach(function(el) { el.remove(); });
     overlay.classList.remove('show');
-    previous = null; undoBtn.disabled = true;
+    undoBtn.disabled = !history.length;
   }
 
   function addScore(v) {
@@ -441,7 +442,7 @@
       });
     });
     if (moved) {
-      previous = before; undoBtn.disabled = false;
+      history.push(before); undoBtn.disabled = false;
       // Spawn synchronously (the .spawn animation-delay hides it until the
       // slide finishes) so the logical grid is always current for the next move.
       spawn();
