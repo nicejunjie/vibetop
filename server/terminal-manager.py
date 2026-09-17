@@ -116,6 +116,22 @@ def _cached(key, ttl, producer):
     return value
 
 
+# A negative memo: "this failed recently, don't pay for it again". Separate from
+# _cached because the thing being remembered has no value to return and its cost
+# is precisely what we are avoiding — re-running the producer to learn "still
+# broken" is the bug, not the cache miss.
+def _note_failure(key, ttl):
+    with _cache_lock:
+        _cache["fail:" + key] = (True, time.monotonic() + ttl)
+
+
+def _recent_failure(key):
+    now = time.monotonic()
+    with _cache_lock:
+        hit = _cache.get("fail:" + key)
+        return bool(hit and hit[1] > now)
+
+
 # ---- system-health warnings --------------------------------------------------
 # A single, extensible producer of "something is wrong" alerts, surfaced as a red
 # banner on EVERY client via the desktop heartbeat (see /api/desktop). It is the
@@ -2483,6 +2499,11 @@ def _x11dbus_unit(user):
 
 X11DBUS_DIR = "/run/vibetop/x11bus"
 
+# How long a failed private-bus start is remembered, so it cannot re-tax every
+# terminal start. Long enough that a persistently broken bus is free, short
+# enough that a fix (a redeploy, a repaired dir) takes effect without a restart.
+X11_DBUS_FAIL_TTL = _port_env("X11_DBUS_FAIL_TTL", 300)
+
 
 def _x11dbus_socket(uid):
     """Where the per-user private X11 bus socket lives.
@@ -2498,21 +2519,54 @@ def _x11dbus_socket(uid):
     exposed this one a step later.)
 
     /run/vibetop/x11bus is ours, so we can create it once with a label dbus is
-    allowed to write, and it survives being a per-user path via the filename."""
+    allowed to write, and it survives being a per-user path via the filename.
+
+    The socket sits one level down, in a per-user directory. dbus-daemon runs AS
+    the user (systemd-run --uid), so it must CREATE the sock_file — which needs
+    WRITE on the containing directory, not merely traverse. The flat layout put
+    the socket straight into a 0755 root-owned dir, so every bind died with
+    'Failed to bind socket ... Permission denied' on ordinary DAC, long before
+    SELinux was reached. Sticky-1777 would fix the bind and reintroduce the
+    /tmp socket-squatting break documented for the file agent (another user
+    pre-binds your path and serves your session bus), so this mirrors the fix
+    used there: a root-owned base dir holding one 0700 dir per user, owned by
+    that user."""
+    return f"{_x11dbus_user_dir(uid)}/bus"
+
+
+def _x11dbus_user_dir(uid):
     return f"{X11DBUS_DIR}/{uid}"
 
 
-def _ensure_x11dbus_dir():
-    """Create the shared socket directory with a dbus-writable SELinux label.
-
-    0755 root: the socket files themselves are per-user and created 0600 by
-    dbus-daemon, so the directory only needs to be traversable."""
+def _ensure_x11dbus_dir(uid=None, gid=None):
+    """Create the shared socket directory with a dbus-writable SELinux label,
+    plus this user's own 0700 subdirectory (owned by them) to bind inside."""
     try:
         os.makedirs(X11DBUS_DIR, mode=0o755, exist_ok=True)
         os.chmod(X11DBUS_DIR, 0o755)
     except OSError as e:
         log.warning("x11 private dbus: cannot create %s: %s", X11DBUS_DIR, e)
         return False
+    if uid is not None:
+        d = _x11dbus_user_dir(uid)
+        try:
+            # A host upgraded from the flat layout has the OLD socket sitting at
+            # exactly this path as a sock_file. makedirs would then fail forever
+            # (FileExistsError on a non-directory) and the bus would stay broken
+            # across every restart. The old socket is dead by definition — the
+            # daemon that owned it is gone — so clear it.
+            if os.path.exists(d) and not os.path.isdir(d):
+                os.unlink(d)
+            os.makedirs(d, mode=0o700, exist_ok=True)
+            os.chmod(d, 0o700)
+            if os.geteuid() == 0:
+                os.chown(d, int(uid), int(gid if gid is not None else -1))
+        except OSError as e:
+            log.warning("x11 private dbus: cannot create %s: %s", d, e)
+            return False
+        if shutil.which("chcon") and os.path.isdir("/run/dbus"):
+            subprocess.run(["chcon", "--reference=/run/dbus", d],
+                           capture_output=True, text=True)
     # Give it the label dbus uses for its own runtime sockets, so system_dbusd_t
     # may create one here. No-op where SELinux isn't in use.
     if shutil.which("chcon") and os.path.isdir("/run/dbus"):
@@ -2524,8 +2578,16 @@ def _ensure_x11dbus_dir():
 def _ensure_user_x11_dbus(user, uid, gid):
     """Ensure the user's private, activation-free D-Bus session bus is running and
     return its socket path — or None if it can't be started (caller then falls back
-    to the real user bus, i.e. the slow-but-works path)."""
-    _ensure_x11dbus_dir()
+    to the real user bus, i.e. the slow-but-works path).
+
+    NEVER let a broken bus tax the hot path. Starting a terminal calls this, and
+    a failing daemon (systemd-run returns 0, the daemon then dies) used to be
+    paid for with the FULL socket wait on EVERY new tab — a dead 3s before the
+    shell's own units were even launched, which is what made "+ tab" feel slow.
+    A failure is now remembered for X11_DBUS_FAIL_TTL so it costs that once."""
+    if _recent_failure("x11dbus:" + user):
+        return None
+    _ensure_x11dbus_dir(uid, gid)
     sock = _x11dbus_socket(uid)
     unit = _x11dbus_unit(user)
     try:
@@ -2588,16 +2650,39 @@ def _ensure_user_x11_dbus(user, uid, gid):
             capture_output=True, text=True, timeout=20)
     except (OSError, subprocess.SubprocessError) as e:
         log.warning("x11 private dbus start failed for %s: %s", user, e)
+        _note_failure("x11dbus:" + user, X11_DBUS_FAIL_TTL)
         return None
     if r.returncode != 0:
         log.warning("x11 private dbus rc=%s for %s: %s", r.returncode, user,
                     (r.stderr or r.stdout or "").strip()[:200])
+        _note_failure("x11dbus:" + user, X11_DBUS_FAIL_TTL)
         return None
-    for _ in range(30):                  # wait for the socket to appear (~0-1s)
+    # Wait for the socket (~0-1s) — but STOP the moment the unit is gone. A
+    # dbus-daemon that cannot bind exits in milliseconds, so polling a path that
+    # will never exist for the full window is pure dead time on the terminal-start
+    # path. systemd has already reaped it; ask, rather than sleep out the clock.
+    for i in range(30):
         if os.path.exists(sock):
+            return sock
+        if i and i % 3 == 0 and not _unit_alive(unit):
             break
         time.sleep(0.1)
-    return sock if os.path.exists(sock) else None
+    if os.path.exists(sock):
+        return sock
+    log.warning("x11 private dbus for %s never bound %s — falling back to the real "
+                "user bus (GUI apps from a terminal may hang on portal activation)",
+                user, sock)
+    _note_failure("x11dbus:" + user, X11_DBUS_FAIL_TTL)
+    return None
+
+
+def _unit_alive(unit):
+    try:
+        st = subprocess.run(["systemctl", "is-active", unit],
+                            capture_output=True, text=True, timeout=5)
+        return st.stdout.strip() in ("active", "activating")
+    except (OSError, subprocess.SubprocessError):
+        return True                      # can't tell -> keep waiting, as before
 
 
 # System-status readers (CPU/MEM/GPU/disk/net/processes) live in system_status.py

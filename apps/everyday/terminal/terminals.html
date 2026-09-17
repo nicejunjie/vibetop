@@ -384,7 +384,12 @@
     return new Promise(function(resolve) {
       var deadline = Date.now() + 20000;
       (function ping() {
-        fetch('/t' + n + '/', { cache: 'no-store' }).then(function(r) {
+        // HEAD, not GET: this probe only asks "is ttyd answering yet". A GET
+        // pulls ttyd's ~730KB bundled page and THROWS IT AWAY, and the iframe
+        // then fetches the very same page again a moment later in activate() —
+        // so every new tab paid for that payload twice, once with nothing to
+        // show for it. Free on the LAN, not over the tunnel on a phone.
+        fetch('/t' + n + '/', { method: 'HEAD', cache: 'no-store' }).then(function(r) {
           if (r.ok || Date.now() > deadline) resolve();
           else setTimeout(ping, 300);
         }).catch(function() {
