@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_302 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_303 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
 - [Scheduled terminal messages ("resume when the token limit resets")](#scheduled-terminal-messages-resume-when-the-token-limit-resets)
@@ -325,6 +325,7 @@ _302 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [Shifted punctuation needs two presses — it is the CHINESE input method, and that is a different code path entirely (2026-09-14, narrowed)](#shifted-punctuation-needs-two-presses-it-is-the-chinese-input-method-and-that-is-a-different-code-path-entirely-2026-09-14-narrowed)
 - [An open preview froze at the bytes it opened with (2026-09-14)](#an-open-preview-froze-at-the-bytes-it-opened-with-2026-09-14)
 - [Two fingers did nothing to a previewed picture (2026-09-14)](#two-fingers-did-nothing-to-a-previewed-picture-2026-09-14)
+- [A new terminal tab took 3 seconds, and none of it was the terminal (2026-09-17)](#a-new-terminal-tab-took-3-seconds-and-none-of-it-was-the-terminal-2026-09-17)
 
 <!-- END TOC -->
 
@@ -13738,3 +13739,92 @@ anchors (or the picture jumps when you hit the limit), a zero-distance
 degenerate that must not divide by zero, and one assertion that **both** pages
 load the module, call it, and track `pointerId` — proven red against the
 unwired pages, because what was reported was a wiring bug, not an algebra one.
+
+## A new terminal tab took 3 seconds, and none of it was the terminal (2026-09-17)
+
+**Symptom.** Clicking **+** in the Terminal app took ~3.3s to produce a usable
+tab. It felt like the shell was slow to spawn; it was not.
+
+**Measuring it first.** Replicating the server's own start sequence by hand —
+`loginctl enable-linger`, the two `systemd-run` units, the socket wait, the TCP
+wait — totalled **254ms**. The same start through the manager took **3.3s**, so
+the gap was something the manager does that the sequence itself does not.
+`strace -f -tt -T` on the running manager put the request thread in a
+100ms-granularity sleep loop for **2.9 of those seconds**, *before* the
+terminal's own `systemd-run` was ever issued.
+
+**Cause.** `_user_terminal_setenvs` calls `_ensure_user_x11_dbus`, so every
+terminal start also brings up the user's private, activation-free X11 D-Bus.
+That bus had **never once come up on any host** — `/run/vibetop/x11bus` was
+empty and both units were `inactive`, with the journal showing the same line
+going back to the feature's first deploy:
+
+    dbus-daemon: Failed to start message bus:
+      Failed to bind socket "/run/vibetop/x11bus/1001": Permission denied
+
+`dbus-daemon` runs **as the user** (`systemd-run --uid`) and must *create* its
+socket, which needs **write on the containing directory**. The socket went
+directly into `/run/vibetop/x11bus`, `0755 root:root`. `_ensure_x11dbus_dir`
+said as much in its own comment — *"the directory only needs to be
+traversable"* — which is true for *reaching* a socket and false for *binding*
+one. The path had been chosen and carefully documented to solve an **SELinux**
+labelling problem (`system_dbusd_t` cannot create a `sock_file` in
+`user_tmp_t`), and the plain **DAC** permission was never revisited. On this
+host, with no SELinux at all, it failed on ordinary EACCES.
+
+`systemd-run` returns 0 the moment the transient unit *starts*, so the manager
+saw success; the daemon then died in milliseconds, and the code slept out its
+full `for _ in range(30): time.sleep(0.1)` waiting for a socket that could
+never appear — then silently fell back to the real session bus.
+
+**Fix.** Three changes, each buying something different:
+
+- **The socket moved into a per-user `0700` directory owned by that user**
+  (`x11bus/<uid>/bus`), so the bind works. `1777`-sticky would also have fixed
+  the bind — and would have reintroduced the socket-squatting break already
+  documented for the file agent, where another real user pre-binds your path
+  and serves a forged bus. This is the same layout that break was fixed with:
+  a root-owned base holding one `0700` per-user directory. Upgrading hosts
+  unlink the stale flat socket sitting at the path that must now become a
+  directory, or `makedirs` raises `FileExistsError` forever.
+- **The wait loop asks systemd whether the unit is still alive** instead of
+  sleeping out the clock, and **a failed start is memoized for 5 minutes**
+  (`_note_failure`/`_recent_failure`, a negative memo distinct from `_cached`:
+  the thing remembered has no value to return, and re-running the producer to
+  learn "still broken" *is* the bug).
+- **The client's readiness probe became a `HEAD`.** It was a `GET` that pulled
+  ttyd's ~730KB page and discarded it, after which `activate()` fetched the same
+  page again into the iframe. Two full downloads per tab, one of them with
+  nothing to show for it — invisible on the LAN, not over the tunnel on a phone.
+
+**Result.** Cold start 3.3s → **0.26s**. The private bus is now genuinely
+running for the first time, so GUI apps launched from a terminal also stop
+falling back to the real bus and its ~25-40s portal-activation hang — the exact
+thing the bus was built to avoid, silently not happening since it shipped.
+
+**The general lesson, and the one worth carrying.** *A best-effort helper on a
+hot path must be bounded by its own failure, not by its success timeout.* The
+fallback here was correct — it fell back to the real bus, and terminals worked —
+so nothing was ever reported as broken. Only the **cost** of the failure was
+visible, and it showed up somewhere that pointed at the wrong subsystem
+entirely. The memoization is the durable half of this fix: it makes a broken bus
+free regardless of *why* it broke.
+
+**Watch out.** `systemd-run` returning 0 means the unit was *accepted*, never
+that the process it launched survived. Anything that polls for a side effect of
+such a unit needs a liveness check in the loop, or it converts a fast failure
+into a slow one.
+
+**Rejected: drop the private-bus call from the terminal path.** It would have
+fixed the 3s and left the portal hang — and the bus would have stayed dead with
+nothing left to notice it. See also the `1777` rejection above.
+
+**Test.** `server/tests/test_x11_dbus.py` — five cases: the socket's parent is
+per-user and not the shared root, the `0700`/ownership that makes the bind
+possible, the flat-layout upgrade unlink, the failure memo (and its expiry, so a
+redeploy takes effect without a manager restart), and the liveness bail-out. The
+ownership asymmetry that triggers the bug (root creates, the *user* binds)
+cannot be reproduced unprivileged — run as one user the creator **is** the
+binder and any mode passes — so the first assertion is the structural property,
+checked **before** touching the new API so it fails on the unfixed build for the
+real reason instead of on a changed signature. Verified red against `HEAD`.
