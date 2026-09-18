@@ -263,7 +263,7 @@ def test_stale_xpra_on_wrong_port_is_recreated(mgr, monkeypatch):
         return types.SimpleNamespace(returncode=0, stdout=out, stderr="")
 
     monkeypatch.setattr(mgr.subprocess, "run", fake_run)
-    monkeypatch.setattr(mgr, "_wait_tcp", lambda port, timeout=8.0: False)  # nothing on expected port
+    monkeypatch.setattr(mgr, "_wait_tcp", lambda port, timeout=8.0, unit=None: False)  # nothing on expected port
     monkeypatch.setattr(mgr, "_provision_user", lambda u: None)
     monkeypatch.setattr(mgr.pwd, "getpwnam",
                         lambda u: types.SimpleNamespace(pw_uid=4321, pw_gid=4321,
@@ -285,7 +285,7 @@ def test_healthy_xpra_on_right_port_is_reused_not_recreated(mgr, monkeypatch):
                                             types.SimpleNamespace(returncode=0,
                                                 stdout="active\n" if args[:2] == ["systemctl", "is-active"] else "",
                                                 stderr=""))[1])
-    monkeypatch.setattr(mgr, "_wait_tcp", lambda port, timeout=8.0: True)   # port answers
+    monkeypatch.setattr(mgr, "_wait_tcp", lambda port, timeout=8.0, unit=None: True)   # port answers
     monkeypatch.setattr(mgr.pwd, "getpwnam",
                         lambda u: types.SimpleNamespace(pw_uid=4321, pw_gid=4321,
                                                         pw_dir="/home/" + u, pw_name=u))

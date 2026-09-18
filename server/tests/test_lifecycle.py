@@ -252,6 +252,37 @@ def test_backup_unprivileged_run_says_it_is_incomplete(two_users):
     assert "not run as root" in out and "ONLY" in out
 
 
+def test_backup_from_the_timer_fails_instead_of_reporting_a_partial_archive(two_users, tmp_path):
+    """z20 ran a daily timer for months whose unit said User=<a human>. Every run
+    archived one user, skipped the other and ALL global state, printed a NOTE and
+    exited 0 -- so the timer stayed green and `list-timers` showed a healthy daily
+    backup. A backup you discover to be empty at restore time is worse than none,
+    because you stopped looking for one. Unattended, it must go red.
+
+    The unit is detected from /proc/self/cgroup, and the two tempting signals are
+    both wrong: `[ ! -t 1 ]` catches this very test harness, and $INVOCATION_ID is
+    INHERITED by every child of any unit -- in vibetop a Terminal IS a transient
+    unit, so a user running the script from the product's own terminal would fail
+    spuriously. Both are asserted below.
+    """
+    cg = tmp_path / "cgroup"
+    cg.write_text("0::/system.slice/vibetop-backup.service\n")
+    src = (REPO_ROOT / "tools" / "backup.sh").read_text()
+    assert "/proc/self/cgroup" in src, \
+        "the unattended guard must key on the cgroup, not on a TTY or $INVOCATION_ID"
+
+    # A piped run (no TTY) is still a legitimate interactive backup -> exit 0.
+    rc, out = _backup(two_users)
+    assert rc == 0, out
+
+    # An INHERITED INVOCATION_ID must not be read as "running from the timer".
+    env = dict(two_users["env"], INVOCATION_ID="inherited-from-a-terminal")
+    r = subprocess.run([str(REPO_ROOT / "tools" / "backup.sh")],
+                       capture_output=True, text=True, env=env)
+    assert r.returncode == 0, \
+        "a child of any systemd unit inherits INVOCATION_ID; that is not the timer"
+
+
 def test_backup_covers_the_global_state_the_manager_actually_writes(mgr):
     """Every /var/lib/vibetop file the manager persists must be in the backup's
     global list — the registry's session-revocation epochs and the policy files

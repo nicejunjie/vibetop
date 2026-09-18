@@ -663,3 +663,31 @@ def test_the_services_pane_does_not_poll_twice_or_while_hidden():
     # the unconditional forever-timer is gone
     assert "setInterval(load, 5000);" not in src.replace(
         "timer = setInterval(load, 5000);", ""), "an unconditional 5s poll remains"
+
+
+# ---- Static assets must go over the wire compressed -------------------------
+
+def test_static_js_and_css_are_gzipped_by_the_generated_site_config():
+    """nginx gzips text/html implicitly, and Debian/Ubuntu ship nginx.conf with
+    `gzip_types` COMMENTED OUT. So the desktop's HTML was compressed while every
+    .js and .css beside it went over the wire raw: ~300KB per cold desktop load
+    (the shared modules, xpra-patches.js, terminal-kbd.js) and 2.2MB for the RTS
+    game's 117 plain scripts, all of which compress about 3x.
+
+    Nothing on the LAN shows this. It is paid in full by every phone on the
+    Cloudflare tunnel, which is the connection the product is actually used on.
+
+    Asserted on the `location /` block specifically: the proxied locations do
+    their own gzip AFTER sub_filter (which needs a plain upstream body), so a
+    global assertion would pass on the wrong block.
+    """
+    src = open(os.path.join(_REPO, "server", "install.sh")).read()
+    start = src.index("location / {")
+    block = src[start:src.index("\n    }", start)]
+    assert "gzip on;" in block, \
+        "location / serves the whole web root and must gzip; without it every " \
+        "JS/CSS asset ships uncompressed (nginx.conf's gzip_types is commented out)"
+    types = re.search(r"gzip_types ([^;]+);", block)
+    assert types, "location / sets gzip on but no gzip_types -> only text/html compresses"
+    for needed in ("application/javascript", "text/css"):
+        assert needed in types.group(1), f"gzip_types must cover {needed}"

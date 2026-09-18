@@ -1945,17 +1945,42 @@ def _user_term_port(user, n):
     return _user_block_port(user, int(n))
 
 
-def _wait_tcp(port, timeout=8.0):
+def _wait_tcp(port, timeout=8.0, unit=None):
     """Poll until 127.0.0.1:port accepts a connection (or timeout). Avoids a
-    cold-start 502 when nginx would proxy to a service that isn't listening yet."""
+    cold-start 502 when nginx would proxy to a service that isn't listening yet.
+
+    Pass `unit` when the listener is a transient unit we just launched: the wait
+    then ends as soon as that unit is gone, instead of spending the whole timeout
+    on a process that is already dead. ALWAYS CHECK THE RETURN VALUE — a False
+    here means nothing is listening, and reporting that start as a success is how
+    a 502 reaches the user with no error recorded anywhere."""
     deadline = time.monotonic() + timeout
+    i = 0
     while time.monotonic() < deadline:
         try:
             with socket.create_connection(("127.0.0.1", int(port)), timeout=0.5):
                 return True
         except OSError:
+            i += 1
+            if unit and i % 6 == 0 and not _unit_alive(unit):
+                return False
             time.sleep(0.1)
     return False
+
+
+def _wait_path(path, timeout, unit=None):
+    """Poll until `path` exists (or timeout), giving up early when `unit` dies.
+    The socket-appears counterpart of _wait_tcp; same contract on the result."""
+    deadline = time.monotonic() + timeout
+    i = 0
+    while time.monotonic() < deadline:
+        if os.path.exists(path):
+            return True
+        i += 1
+        if unit and i % 6 == 0 and not _unit_alive(unit):
+            return os.path.exists(path)
+        time.sleep(0.1)
+    return os.path.exists(path)
 
 
 def _term_instance(user, n):
@@ -2089,11 +2114,18 @@ def _start_user_terminal(user, n):
         # Wait for the daemon to bind its socket before starting ttyd (which would
         # otherwise `attach` to a not-yet-existent socket and exit). Mirrors the
         # old ttyd unit's ExecStartPre.
+        #
+        # THE SAME SHAPE AS THE PRIVATE-D-BUS BUG, and reached from
+        # _handle_authcheck, so nginx pays it on a cold /tN/: systemd-run above
+        # returns 0 when the unit is ACCEPTED, and a session daemon that dies on
+        # startup leaves this polling a socket that will never appear. Bail on a
+        # dead unit instead of sleeping out all 5s and then launching ttyd to
+        # `attach` to nothing, which produced a tab that was slow AND broken.
         sock = f"/tmp/vibetop-session-{inst}.sock"
-        for _ in range(50):
-            if os.path.exists(sock):
-                break
-            time.sleep(0.1)
+        if not _wait_path(sock, 5.0, sess_unit):
+            subprocess.run(["systemctl", "stop", sess_unit],
+                           capture_output=True, timeout=15)
+            return False, "session daemon never bound %s" % sock
         r2 = subprocess.run(
             base + [f"--unit={ttyd_unit}"] + setenvs +
             [_term_helper("ttyd-run.sh"), inst, str(port), str(int(n))],
@@ -2102,7 +2134,13 @@ def _start_user_terminal(user, n):
             subprocess.run(["systemctl", "stop", sess_unit],
                            capture_output=True, timeout=15)
             return False, (r2.stderr or r2.stdout or "ttyd start failed").strip()
-        _wait_tcp(port)                 # so the first /tN/ hit doesn't 502
+        # The RESULT of this wait used to be discarded, so a ttyd that never bound
+        # was reported as a successful start: the caller cached the port, nginx
+        # proxied to nothing, and the user got a 502 tab with no error anywhere.
+        if not _wait_tcp(port, unit=ttyd_unit):
+            subprocess.run(["systemctl", "stop", ttyd_unit, sess_unit],
+                           capture_output=True, timeout=15)
+            return False, f"ttyd never bound port {port}"
     except (OSError, subprocess.SubprocessError) as e:
         return False, str(e)
     if not was_running:
@@ -2434,7 +2472,18 @@ def _start_user_xpra(user, kind):
         capture_output=True, text=True, timeout=30)
     if r.returncode != 0:
         return False, (r.stderr or r.stdout or "xpra start failed").strip()
-    _wait_tcp(port, timeout=20)          # xpra (Xorg + WM + child) is slower to bind
+    # xpra (Xorg + WM + child) is slower to bind, hence the long wait — but a unit
+    # that has already died must not cost the full 20s on a path nginx runs for
+    # EVERY /browser/ asset. `unit=` ends the wait as soon as it is gone.
+    #
+    # Deliberately still reports success on a timeout, unlike the terminal path
+    # above: xpra legitimately exceeds 20s on a cold or loaded host, and the
+    # client's retry does get there. The warning is so a genuinely dead display
+    # leaves a trace instead of only a 502.
+    if not _wait_tcp(port, timeout=20, unit=unit):
+        log.warning("xpra %s for %s did not bind port %s within 20s (unit %s) — "
+                    "serving anyway; a 502 here means it never came up",
+                    kind, user, port, _unit_alive(unit) and "still starting" or "DEAD")
     return True, port
 
 
