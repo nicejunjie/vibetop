@@ -18,14 +18,29 @@ const SRC = (function () {
   return b[0];
 })();
 
-// A canvas context that records nothing but answers every call the chart makes.
+// A canvas context that answers every call the chart makes AND records the path
+// it walked. The recording is what lets a test see what the chart DREW rather
+// than only what the text beside it said — the two disagreed for years (a
+// missing sensor read "--" in the text and a flat line on the floor in the
+// chart), and only the vertex list can tell those apart.
 function ctx2d() {
   const noop = () => {};
-  return {
-    setTransform: noop, clearRect: noop, beginPath: noop, moveTo: noop, lineTo: noop,
-    stroke: noop, fill: noop, closePath: noop,
+  const ops = [];
+  const c = {
+    ops,
+    setTransform: noop, clearRect: noop, closePath: noop, stroke: noop, fill: noop,
+    beginPath() { ops.push({ op: "beginPath", color: c.strokeStyle }); },
+    moveTo(x, y) { ops.push({ op: "moveTo", x, y, color: c.strokeStyle }); },
+    lineTo(x, y) { ops.push({ op: "lineTo", x, y, color: c.strokeStyle }); },
     strokeStyle: "", fillStyle: "", lineWidth: 0, lineJoin: "",
   };
+  return c;
+}
+// Every vertex drawn in one dataset's colour, in order. The two series sharing a
+// chart are told apart by colour, exactly as the eye does.
+function vertices(canvasEl, color) {
+  const ctx = canvasEl._ctx || {ops: []};
+  return ctx.ops.filter((o) => (o.op === "moveTo" || o.op === "lineTo") && o.color === color);
 }
 
 function el(tag) {
@@ -51,7 +66,8 @@ function el(tag) {
     querySelectorAll() { return []; },
     closest() { return null; },
     getBoundingClientRect: () => ({ width: 300, height: 100, top: 0, left: 0 }),
-    getContext: () => ctx2d(),
+    // One context per canvas, kept, so its recorded path survives the frame.
+    getContext: () => (e._ctx || (e._ctx = ctx2d())),
     fire(t, ev) {
       const evt = Object.assign({ target: e, preventDefault() {}, stopPropagation() {} }, ev || {});
       (e._on[t] || []).slice().forEach((fn) => fn.call(e, evt));
@@ -112,7 +128,10 @@ function load(opts) {
       calls.push({ url: String(url), method: (opt && opt.method) || "GET" });
       const p = queue.length > 1 ? queue.shift() : queue[0];
       if (p === undefined) return Promise.reject(new Error("offline"));
-      return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve(p) });
+      // opts.httpStatus lets a test answer with a real HTTP error: fetch resolves
+      // on a 403 or a 500, so that path is NOT the rejection above.
+      const st = opts.httpStatus || 200;
+      return Promise.resolve({ ok: st < 400, status: st, json: () => Promise.resolve(p) });
     },
     addEventListener(t, fn) { (sandbox._on[t] || (sandbox._on[t] = [])).push(fn); },
     _on: {},
@@ -127,6 +146,7 @@ function load(opts) {
     tick: () => ticker && ticker(),
     message: (data, origin) => (sandbox._on.message || []).forEach((fn) => fn({ origin: origin || "https://host.test", data })),
     setClock: (ms) => { clock = ms; },
+    clearPaths: () => Object.keys(byId).forEach((k) => byId[k]._ctx && (byId[k]._ctx.ops.length = 0)),
     settle: () => new Promise((r) => setImmediate(() => setImmediate(r))),
   };
 }
@@ -233,8 +253,15 @@ test("the network rate is a delta over elapsed time, not the counter itself", as
     ],
   });
   await h.settle();
-  // The first sample has nothing to subtract from: 0, never the raw counter.
-  assert.ok(/↓ 0 B\/s/.test(h.id("net-stats").innerHTML), "the first sample cannot know a rate");
+  // The first sample has nothing to subtract from, so there is no rate to show.
+  // This used to assert "0 B/s" — but 0 B/s is a MEASUREMENT meaning the link was
+  // idle, and the chart opened with a real point on the floor to match. Blank is
+  // the honest representation of "not measured yet". The original protection (it
+  // must never be the raw COUNTER) is kept explicitly below.
+  const first = h.id("net-stats").innerHTML;
+  assert.ok(/↓ --/.test(first), `the first sample cannot know a rate: ${first}`);
+  assert.ok(!/1000000|977 KB|1\.0 MB/.test(first),
+    `the first sample must never render the counter as a rate: ${first}`);
   h.setClock(1002000);                     // exactly 2 seconds later
   h.tick();
   await h.settle();
@@ -296,13 +323,126 @@ test("a host with no GPU shows dashes, not zeros pretending to be readings", asy
   assert.strictEqual(h.id("gpu-pwr-text").textContent, "--");
 });
 
-test("an unreachable API is swallowed — the last good frame stays on screen", async () => {
+// The GREEN line on the GPU card is utilisation, the BLUE one is VRAM; the same
+// two colours carry CPU/GPU on the temperature and power cards.
+const GREEN = "rgb(90,173,138)", BLUE = "rgb(90,138,176)";
+
+test("a sensor the host does not have draws NO line — not a line along the floor", async () => {
+  // A machine with no discrete GPU: util, VRAM, temp and power all absent, but
+  // memory (the same chart geometry) present throughout.
+  const none = { gpu_percent: null, gpu_vram_used_gb: null, gpu_vram_total_gb: null,
+                 gpu_temp: null, gpu_power_w: null };
+  const h = load({ payloads: [fullStatus(none)] });
+  await h.settle();
+  h.tick(); await h.settle();
+  h.clearPaths();
+  h.tick(); await h.settle();           // the frame under test: 3 samples of history
+  const floor = 100;                    // getBoundingClientRect().height in this harness
+  for (const [chart, color, what] of [["gpu-chart", GREEN, "GPU utilisation"],
+                                      ["gpu-chart", BLUE, "VRAM"],
+                                      ["temp-chart", BLUE, "GPU temperature"],
+                                      ["pwr-chart", BLUE, "GPU power"]]) {
+    const pts = vertices(h.id(chart), color);
+    assert.deepStrictEqual(pts.map((p) => p.y), [],
+      `${what} was never reported, so nothing may be plotted for it — ` +
+      `a run of points at y=${floor} is a line pinned to the bottom of the card, ` +
+      `which is what a genuinely idle sensor looks like. Got: ` +
+      JSON.stringify(pts.map((p) => p.y)));
+  }
+  // ...and the sensors the host DOES have are unaffected.
+  assert.ok(vertices(h.id("mem-chart"), GREEN).length >= 3, "memory still draws");
+  assert.ok(vertices(h.id("temp-chart"), GREEN).length >= 3, "the CPU temperature still draws");
+});
+
+test("a real zero still draws on the floor — absence and idleness must stay different", async () => {
+  const h = load({ payloads: [fullStatus({ gpu_percent: 0 })] });
+  await h.settle();
+  h.tick(); await h.settle();
+  h.clearPaths();
+  h.tick(); await h.settle();
+  const ys = vertices(h.id("gpu-chart"), GREEN).map((p) => p.y);
+  assert.ok(ys.length >= 3, "an idle GPU is a measurement and must be plotted");
+  assert.deepStrictEqual([...new Set(ys)], [100], "0% belongs on the floor of the card");
+});
+
+test("a sensor that comes and goes leaves a gap, and the line resumes after it", async () => {
+  const h = load({ payloads: [
+    fullStatus({ gpu_percent: 40 }), fullStatus({ gpu_percent: 44 }),
+    fullStatus({ gpu_percent: null }),
+    fullStatus({ gpu_percent: 60 }), fullStatus({ gpu_percent: 64 }),
+  ] });
+  await h.settle();
+  for (let i = 0; i < 3; i++) { h.tick(); await h.settle(); }
+  h.clearPaths();
+  h.tick(); await h.settle();
+  const ops = (h.id("gpu-chart")._ctx.ops).filter((o) => o.color === GREEN);
+  const moves = ops.filter((o) => o.op === "moveTo");
+  assert.strictEqual(moves.length, 2,
+    "the missing sample must break the line in two, so the reading either side is not joined " +
+    "through a value the host never gave: " + JSON.stringify(ops.map((o) => o.op + "@" + Math.round(o.y))));
+  // The run-closing vertices at y=h are the shaded fill under each run, not data
+  // points; the data points are everything down to the first close. None of them
+  // may sit on the floor, because no sample here was 0.
+  const data = ops.slice(0, ops.findIndex((o, i) => i > 0 && o.y === 100));
+  assert.ok(!data.some((o) => o.y === 100),
+    "no DATA point may land on the floor: the absent sample must be skipped, not drawn as 0");
+});
+
+// ---- when the poll itself stops ------------------------------------------
+
+test("a failing poll says so instead of leaving a frozen page looking live", async () => {
+  // One good frame, then the manager stops answering. Everything on this page
+  // comes from that one 2s poll, and the page has a Pause button — so a chart
+  // that stops moving reads as something the USER did.
+  const h = load({ now: 1000000, payloads: [fullStatus(), undefined, undefined, fullStatus()] });
+  await h.settle();
+  // The observable is the TEXT (an element with none says nothing to anybody);
+  // `hidden` is checked alongside it so an off-screen message doesn't count.
+  const badge = h.id("poll-stale");
+  assert.strictEqual(badge.textContent, "", "nothing to say while the poll is healthy");
+  assert.ok(badge.hidden);
+
+  h.setClock(1002000); h.tick(); await h.settle();
+  assert.ok(badge.hidden, "one dropped request is not news");
+
+  h.setClock(1004000); h.tick(); await h.settle();
+  assert.ok(!badge.hidden, "after two missed polls the page must admit it is not updating");
+  assert.match(badge.textContent, /\S/, "and must actually say something");
+  assert.match(badge.textContent, /\d+\s*[smh]\b/,
+    "and must say HOW OLD the figures on screen are, not merely that something is wrong: " +
+    JSON.stringify(badge.textContent));
+
+  // The last good frame is still on screen — that is deliberate, it is just no
+  // longer presented as current.
+  assert.strictEqual(h.id("h-host").textContent, "z20");
+
+  // Recovery clears it with no reload.
+  h.setClock(1006000); h.tick(); await h.settle();
+  assert.ok(badge.hidden, "one good poll and the page is live again");
+  assert.strictEqual(badge.textContent, "");
+});
+
+test("an HTTP error is a failed poll, not an empty host", async () => {
+  // fetch resolves on a 403/500; without an r.ok check the body was parsed as a
+  // status object with every field undefined, blanking a healthy readout.
+  const h = load({ payloads: [fullStatus()], httpStatus: 403 });
+  await h.settle();
+  h.tick(); await h.settle();
+  h.tick(); await h.settle();
+  assert.match(h.id("poll-stale").textContent, /\S/,
+    "a refused poll is a failed poll and must be reported as one");
+  assert.notStrictEqual(h.id("h-host").textContent, "undefined");
+});
+
+test("an unreachable API keeps the last good frame on screen (marked stale)", async () => {
   const h = load({ payloads: [] });     // every fetch rejects
   await h.settle();
   h.tick();
   await h.settle();
   assert.ok(h.calls.length >= 2, "it keeps trying");
   assert.strictEqual(h.id("h-host").textContent, "", "and never blanks out with an error");
+  assert.match(h.id("poll-stale").textContent, /\S/,
+    "with nothing ever received, the page must say that rather than show empty fields");
 });
 
 // ---- when it polls at all -----------------------------------------------

@@ -23,6 +23,33 @@ RestartSec=2
 # under a brief load spike). A watchdog kill exits non-zero → Restart fires.
 WatchdogSec=60
 
+# ---- memory ceiling ---------------------------------------------------------
+# MEASURED on the reference host: RSS 970MB after 8h, systemd MemoryPeak 2.03GB,
+# with no limit of any kind. It is RETENTION, not a leak — RSS is flat at idle —
+# but it ratchets: ~940MB of it sits in per-thread glibc malloc ARENAS, not the
+# Python heap ([heap] was 17MB). This is a ThreadingHTTPServer with a thread per
+# request and no pool, and glibc gives a 32-core host up to 8*32 arenas of 64MB.
+# Every burst of concurrency raises the floor and it never comes back down, in a
+# process that normally runs for WEEKS between deploys.
+#
+# Two ceilings rather than a cap that kills:
+#   MALLOC_ARENA_MAX bounds the cause — far fewer arenas, so transient
+#   concurrency stops carving new 64MB regions that are never returned.
+#   MemoryHigh throttles and reclaims at the limit instead of OOM-killing, so a
+#   genuine spike degrades rather than dropping every terminal on the host.
+# No MemoryMax on purpose: this service is the one that must not die.
+#
+# THE CEILING MUST SIT ABOVE THE MEASURED PEAK, not above the idle RSS. Set to
+# 1500M first — between the 970MB idle reading and the 2.03GB MemoryPeak — the
+# cgroup throttled 8979 times within three minutes and a Token Stats request
+# went from 2s to SIXTY (nginx's read timeout); MemoryHigh does not reduce what
+# the process needs, it just makes it fight for it. A cold parse of a 2.6GB
+# corpus legitimately works above 1.5GB. 3G leaves real headroom over the
+# observed peak while still catching genuine runaway.
+Environment=MALLOC_ARENA_MAX=2
+MemoryHigh=3G
+MemoryAccounting=yes
+
 # Sandboxing — DELIBERATELY conservative. This service runs as root and is the
 # one that legitimately needs broad power: it drives systemctl, drops to
 # APP_USER via su/sudo (both setuid), reads sysfs/debugfs, and rewrites

@@ -199,11 +199,31 @@ function ageText(sec) {
     var opt = {}; for (var k in (lastData || {})) opt[k] = lastData[k];
     opt.enabled = want;
     render(opt);
+    // A REFUSED toggle must not look like a flaky one. `fetch` resolves on a 403
+    // — Claude-usage is operator-only (`_is_admin()`), so a 403 here is the
+    // ORDINARY outcome for every non-admin user — and the old `.then()` had no
+    // `r.ok`: it took the refusal as agreement, cleared the guard window early,
+    // and left the optimistic ON state up until the next heartbeat (≤5s) put it
+    // back OFF. A switch that flips itself back reads as a bug in the switch.
+    // The answer was in the status code all along; revert now and say it.
+    function refused(status) {
+      localOverrideUntil = 0;
+      var back = {}; for (var k2 in (lastData || {})) back[k2] = lastData[k2];
+      back.enabled = !want;                 // the server's state, not the one we hoped for
+      render(back);                         // ...which re-renders the row, so the note comes after
+      var it = document.querySelector('.sm-item[data-id="claudeusage"]');
+      var ds = it && it.querySelector('.sm-desc');
+      if (ds) ds.textContent = status === 403 ? 'Operator only — not changed'
+                            : status ? 'Could not change (' + status + ')'
+                                     : 'Could not reach the server — not changed';
+    }
     fetch('/api/claude/usage', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ enabled: want })
-    }).then(function() { localOverrideUntil = 0; if (window.pushDesktop) window.pushDesktop(); })
-      .catch(function() { localOverrideUntil = 0; });
+    }).then(function(r) {
+      if (!r.ok) { refused(r.status); return; }
+      localOverrideUntil = 0; if (window.pushDesktop) window.pushDesktop();
+    }).catch(function() { refused(0); });
   };
   // No initial poll / interval / visibilitychange handler: the restore GET and
   // the 5s heartbeat (which also re-fires on visibilitychange) drive the strip.
@@ -319,10 +339,26 @@ function ageText(sec) {
     var want = !enabled;
     localOverrideUntil = Date.now() + 8000;
     render(Object.assign({}, lastData || {}, {enabled: want}));
+    // Same refusal rule as the Claude strip above — see the comment there. This
+    // endpoint is not admin-gated today, so the 403 branch is the unlikely one
+    // here; the 500 / unreachable branch is not, and both used to land in the
+    // success path and then be silently undone by the heartbeat.
+    function refused(status) {
+      localOverrideUntil = 0;
+      render(Object.assign({}, lastData || {}, {enabled: !want}));
+      var row = document.querySelector('.sm-item[data-id="codexusage"]');
+      var desc = row && row.querySelector('.sm-desc');
+      if (desc) desc.textContent = status === 403 ? 'Operator only — not changed'
+                                : status ? 'Could not change (' + status + ')'
+                                         : 'Could not reach the server — not changed';
+    }
     fetch('/api/desktop/ui', {method: 'POST', headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({codexUsage: want})})
-      .then(function() { localOverrideUntil = 0; if (window.pushDesktop) window.pushDesktop(); })
-      .catch(function() { localOverrideUntil = 0; });
+      .then(function(r) {
+        if (!r.ok) { refused(r.status); return; }
+        localOverrideUntil = 0; if (window.pushDesktop) window.pushDesktop();
+      })
+      .catch(function() { refused(0); });
   };
   var fitTimer = null;
   window.addEventListener('resize', function() {

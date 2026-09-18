@@ -482,3 +482,38 @@ test("a host that reports no disk data says so instead of rendering an empty box
   await h.settle();
   assert.ok(/No data\./.test(h.id("disk-body").innerHTML));
 });
+
+// The sweep gives itself a 20s wall budget across every `du -sx` and reports
+// `truncated` when it runs out. The homes are walked in /etc/passwd order and
+// the budget is spent by whichever home takes longest — so the home big enough
+// to blow it is the one most likely to be missing, i.e. precisely the answer
+// this panel exists to give. A short list under "the largest home directories"
+// is a claim; it may only be made about a completed measurement.
+test("a home list cut short by the time budget says so instead of passing as complete", async () => {
+  const h = load({
+    routes: { "GET /api/config/disk": () => ({ status: 200, data: {
+      filesystems: [{ mount: "/", pct: 80, free: 1024, total: 10240 }],
+      homes: [{ user: "junjie", bytes: 5368709120 }],
+      truncated: true,
+    } }) },
+  });
+  await h.settle();
+  const html = h.id("disk-body").innerHTML;
+  assert.ok(/5\.0 GB/.test(html), "what WAS measured still shows");
+  assert.ok(/incomplete|timed out|could not/i.test(html),
+    "a partial list must be labelled partial — otherwise the biggest home being " +
+    "absent reads as the biggest home not existing: " + html);
+});
+
+test("and a completed sweep is not hedged", async () => {
+  const h = load({
+    routes: { "GET /api/config/disk": () => ({ status: 200, data: {
+      filesystems: [{ mount: "/", pct: 80, free: 1024, total: 10240 }],
+      homes: [{ user: "junjie", bytes: 5368709120 }],
+      truncated: false,
+    } }) },
+  });
+  await h.settle();
+  assert.ok(!/incomplete|timed out/i.test(h.id("disk-body").innerHTML),
+    "a complete list must read as complete — a permanent caveat is noise");
+});

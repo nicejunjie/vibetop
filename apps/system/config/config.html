@@ -677,6 +677,21 @@
             '<span class="sz">' + fmtBytes(h.bytes) + '</span></div>';
         }).join('') + '</div>';
       }
+      // The sweep gives itself a 20s wall budget across every `du -sx` and sets
+      // `truncated` when it runs out — and this panel used to drop that flag on
+      // the floor, presenting a PARTIAL list under a heading that promises "the
+      // largest home directories". The omission is not random: homes are walked
+      // in /etc/passwd order and the budget is spent by whichever home takes
+      // longest, so the one home big enough to blow the budget is exactly the
+      // one most likely to be missing — the panel systematically hid the answer
+      // it exists to give. A list that is admittedly incomplete is useful; one
+      // that is silently incomplete is worse than none.
+      if (d.truncated) {
+        html += '<div class="hint">Measurement timed out — ' +
+          (homes.length ? 'this list is incomplete, and the largest home may be the missing one.'
+                        : 'no home could be measured in the time available.') +
+          '</div>';
+      }
       // The sweep (`du -sx` per home) no longer runs on the request thread — it
       // used to cost up to 15s with the panel blank, so it now refreshes behind
       // the request and the FIRST open of a fresh manager has nothing to show

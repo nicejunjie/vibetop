@@ -6,6 +6,7 @@ A TTL does not fix that -- it only decides how often someone waits.
 """
 import importlib.util
 import os
+import re
 import threading
 import time
 
@@ -153,3 +154,202 @@ def test_rapid_status_polls_reuse_the_last_cpu_reading(tmp_path):
     assert out["cpu_percent"] is not None, \
         "reusing the last reading must still REPORT one, not drop the field"
     assert len(out["cpu_cores"]) > 0
+
+
+# ---- the corpus is re-read only where it CHANGED ---------------------------
+
+def _stats_mod(name):
+    here = os.path.dirname(os.path.abspath(__file__))
+    spec = importlib.util.spec_from_file_location(
+        name + "_probe", os.path.join(os.path.dirname(here), name + ".py"))
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+def _claude_corpus(root, n_files=6, per_file=40):
+    proj = os.path.join(root, ".claude", "projects", "p")
+    os.makedirs(proj)
+    for i in range(n_files):
+        with open(os.path.join(proj, "s%d.jsonl" % i), "w") as f:
+            for j in range(per_file):
+                f.write(
+                    '{"type":"assistant","message":{"id":"m%d-%d","model":'
+                    '"claude-opus-5","usage":{"input_tokens":10,"output_tokens":5}},'
+                    '"requestId":"r%d-%d","sessionId":"s%d",'
+                    '"timestamp":"2026-09-18T10:00:00Z"}\n' % (i, j, i, j, i))
+    return proj
+
+
+def test_an_unchanged_transcript_is_never_re_read(tmp_path):
+    """8.46s over 2.6GB on every 45s refresh -- ~19% of a core, continuously,
+    while Token Stats was open, and growing forever because nothing prunes the
+    corpus. Transcripts are append-only, so a file whose (mtime, size) is
+    unchanged cannot have different contents."""
+    cs = _stats_mod("claude_stats")
+    _claude_corpus(str(tmp_path))
+    cs.get_stats(str(tmp_path))
+
+    reads = []
+    real_open = cs.open if hasattr(cs, "open") else open
+    import builtins
+    orig = builtins.open
+
+    def counting_open(path, *a, **k):
+        if str(path).endswith(".jsonl"):
+            reads.append(str(path))
+        return orig(path, *a, **k)
+
+    builtins.open = counting_open
+    try:
+        cs._cache.clear()                  # force _compute, keep the file cache
+        cs.get_stats(str(tmp_path))
+    finally:
+        builtins.open = orig
+    assert reads == [], f"unchanged transcripts were re-read: {reads[:3]}"
+
+
+def test_an_appended_transcript_is_picked_up(tmp_path):
+    """The counterweight: caching on (mtime, size) must not make the numbers
+    stale. A cache that never re-reads is worse than the cost it removed."""
+    cs = _stats_mod("claude_stats")
+    proj = _claude_corpus(str(tmp_path))
+    before = cs.get_stats(str(tmp_path))
+    with open(os.path.join(proj, "s0.jsonl"), "a") as f:
+        f.write('{"type":"assistant","message":{"id":"probe","model":'
+                '"claude-opus-5","usage":{"input_tokens":111,"output_tokens":0}},'
+                '"requestId":"rq","sessionId":"s0",'
+                '"timestamp":"2026-09-18T11:00:00Z"}\n')
+    cs._cache.clear()
+    after = cs.get_stats(str(tmp_path))
+    gain = (sum(m["in"] for m in after["byModel"])
+            - sum(m["in"] for m in before["byModel"]))
+    assert gain == 111, f"appended record not counted (delta {gain})"
+
+
+def test_a_dedup_key_in_two_files_is_still_counted_once(tmp_path):
+    """Why claude_stats caches extracted RECORDS rather than per-file aggregates.
+
+    Dedup on (message id, requestId) is GLOBAL across the corpus, and on the
+    reference host 259 keys really do appear in two files -- a resumed session
+    re-records history. Summing cached per-file aggregates would double-count
+    every one of them, so the records are replayed through the original
+    global-dedup loop instead. codex_stats has no cross-file dedup, which is why
+    it may cache aggregates.
+    """
+    cs = _stats_mod("claude_stats")
+    proj = os.path.join(str(tmp_path), ".claude", "projects", "p")
+    os.makedirs(proj)
+    dup = ('{"type":"assistant","message":{"id":"shared","model":"claude-opus-5",'
+           '"usage":{"input_tokens":100,"output_tokens":0}},"requestId":"rq",'
+           '"sessionId":"%s","timestamp":"2026-09-18T10:00:00Z"}\n')
+    for name, sid in (("a.jsonl", "sa"), ("b.jsonl", "sb")):
+        with open(os.path.join(proj, name), "w") as f:
+            f.write(dup % sid)
+    out = cs.get_stats(str(tmp_path))
+    assert sum(m["in"] for m in out["byModel"]) == 100, \
+        "the same (message id, requestId) in two files must count ONCE"
+
+
+def test_codex_stats_is_incremental_too(tmp_path):
+    cs = _stats_mod("codex_stats")
+    d = os.path.join(str(tmp_path), ".codex", "sessions")
+    os.makedirs(d)
+    with open(os.path.join(d, "s.jsonl"), "w") as f:
+        f.write('{"type":"event_msg","timestamp":"2026-09-18T10:00:00Z",'
+                '"payload":{"type":"token_count","info":{"last_token_usage":'
+                '{"input_tokens":50,"output_tokens":7}}}}\n')
+    first = cs.get_stats(str(tmp_path))
+    assert sum(m["in"] for m in first["byModel"]) == 50
+    import inspect
+    assert "_file_cache" in inspect.getsource(cs._compute), \
+        "codex_stats must key its per-file cache the same way"
+
+
+# ---- reporting the outcome, not the intent ---------------------------------
+
+def test_a_failed_usage_proxy_is_not_reported_as_enabled(mgr, monkeypatch):
+    """The toggle discarded systemctl's returncode and wrote the env regardless,
+    and `_claude_usage_enabled()` re-reads the key it just wrote — so it echoed
+    the WRITE, not the service. It reported ON while every new Claude session was
+    pinned to a loopback URL that refuses connections, and the usage strip
+    rendered empty, which is indistinguishable from "no session yet"."""
+    class _Fail:
+        returncode, stdout, stderr = 1, "", "Failed to start"
+    monkeypatch.setattr(mgr.subprocess, "run", lambda *a, **k: _Fail())
+    wrote = []
+    monkeypatch.setattr(mgr, "_set_claude_usage_env", lambda on: wrote.append(on))
+
+    assert mgr._set_claude_usage(True) is False
+    assert wrote == [], \
+        "pinning sessions to a proxy that did not start is worse than leaving it off"
+
+
+def test_cannot_tell_is_not_treated_as_dead(mgr, monkeypatch):
+    """The counterweight, and the mistake this whole audit is about: an
+    unreadable or unexpected unit status must not block a toggle whose enable
+    command reported success. Only a KNOWN-dead state counts."""
+    class _Odd:
+        returncode, stdout, stderr = 0, "something-unexpected", ""
+    monkeypatch.setattr(mgr.subprocess, "run", lambda *a, **k: _Odd())
+    assert mgr._unit_definitely_dead("whatever.service") is False
+
+    class _Dead:
+        returncode, stdout, stderr = 3, "inactive", ""
+    monkeypatch.setattr(mgr.subprocess, "run", lambda *a, **k: _Dead())
+    assert mgr._unit_definitely_dead("whatever.service") is True
+
+
+def test_reset_reports_the_terminals_it_actually_stopped(mgr, monkeypatch):
+    """`terminals_stopped` was the list that WAS running before the attempt, and
+    `ok` was hardcoded True — so a terminal that refused to die was reported as
+    stopped and the desktop drew a clean slate over processes still holding the
+    user's files. Every step is best-effort by design; the RESULT must still say
+    what happened."""
+    import inspect
+    src = inspect.getsource(mgr.Handler._handle_reset)
+    assert "terminals_remaining" in src, \
+        "reset must verify what actually stopped, not echo what was running"
+    assert '"--no-block"' not in src, \
+        "a handler that reports what it stopped must wait long enough to know"
+    assert '{"ok": True, **result}' not in src, \
+        "`ok` must reflect the verified outcome, not be hardcoded"
+
+
+def test_office_save_back_failure_is_reported_to_the_editor(mgr):
+    """`{"error": 0}` is OnlyOffice's "saved — you may discard your copy". It was
+    returned even when the download-and-replace had thrown: the editor said "All
+    changes saved", the user closed the tab, the file was unchanged, and the
+    session key was dropped so the forcesave safety net went with it."""
+    import inspect
+    save = inspect.getsource(mgr.Handler._office_save_back)
+    assert "return False" in save and "return True" in save, \
+        "_office_save_back must report whether it wrote the file"
+    cb = inspect.getsource(mgr.Handler._handle_office_callback)
+    assert '{"error": 1}' in cb, \
+        "a failed save-back must tell OnlyOffice the save failed, so it retries"
+    assert "saved is False" in cb, \
+        "the callback must branch on the save-back result, not ignore it"
+
+
+def test_the_memory_ceiling_sits_above_the_measured_peak():
+    """A ceiling below what the process actually needs does not reduce its use —
+    it makes it fight for it. Set to 1500M (between the 970MB idle RSS and the
+    2.03GB MemoryPeak) the cgroup throttled 8979 times in three minutes and a
+    Token Stats request went from 2s to SIXTY, nginx's read timeout. The idle
+    reading is the wrong number to size this from."""
+    here = os.path.dirname(os.path.abspath(__file__))
+    unit = os.path.join(os.path.dirname(here), "systemd", "vibetop-manager.service")
+    body = open(unit).read()
+    assert "MALLOC_ARENA_MAX" in body, \
+        "the arena count is the CAUSE of the ratchet; bound it, not just the total"
+    m = re.search(r"^MemoryHigh=(\d+)([MG])\s*$", body, re.M)
+    assert m, "MemoryHigh must be set, with an explicit unit"
+    mb = int(m.group(1)) * (1024 if m.group(2) == "G" else 1)
+    assert mb >= 2048, (
+        f"MemoryHigh={m.group(0).strip()} is at or below the 2.03GB peak measured "
+        "on the reference host — that throttles the service instead of bounding it")
+    # Directives only: the unit's own prose explains why MemoryMax is absent.
+    directives = [l for l in body.splitlines() if l and not l.lstrip().startswith("#")]
+    assert not any(l.startswith("MemoryMax=") for l in directives), \
+        "this service must degrade under pressure, never be OOM-killed"

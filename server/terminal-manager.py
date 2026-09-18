@@ -125,6 +125,27 @@ def _note_failure(key, ttl):
         _cache["fail:" + key] = (True, time.monotonic() + ttl)
 
 
+# A small token bucket for endpoints that write to the log on a client's say-so.
+# Refills one slot per _LOG_BUDGET_WINDOW / _LOG_BUDGET_N seconds.
+_LOG_BUDGET_N, _LOG_BUDGET_WINDOW = 20, 300.0
+_log_budget_state = {}
+
+
+def _log_budget(key):
+    """True when `key` may write another log line. Bounded state: one entry per
+    (endpoint, user), which is closed over the host's real users."""
+    now = time.monotonic()
+    with _cache_lock:
+        tokens, last = _log_budget_state.get(key, (float(_LOG_BUDGET_N), now))
+        tokens = min(float(_LOG_BUDGET_N),
+                     tokens + (now - last) * (_LOG_BUDGET_N / _LOG_BUDGET_WINDOW))
+        if tokens < 1.0:
+            _log_budget_state[key] = (tokens, now)
+            return False
+        _log_budget_state[key] = (tokens - 1.0, now)
+        return True
+
+
 def _recent_failure(key):
     now = time.monotonic()
     with _cache_lock:
@@ -794,8 +815,20 @@ def _set_claude_usage(on):
     concurrent toggles can't interleave the steps."""
     with _claude_lock:
         if on:
-            subprocess.run(["systemctl", "enable", "--now", CLAUDE_PROXY_SERVICE],
-                           capture_output=True, text=True, timeout=30)
+            # CHECK THE RESULT before routing Claude at it. The returncode was
+            # discarded and the env written regardless, and `_claude_usage_enabled()`
+            # re-reads the key it just wrote — so it echoed the WRITE, not the
+            # service. The toggle reported ON while every new Claude session was
+            # pinned to a loopback URL that refuses connections, and the strip
+            # rendered empty, which is indistinguishable from "no session yet".
+            r = subprocess.run(["systemctl", "enable", "--now", CLAUDE_PROXY_SERVICE],
+                               capture_output=True, text=True, timeout=30)
+            if r.returncode != 0 or _unit_definitely_dead(CLAUDE_PROXY_SERVICE):
+                log.warning("claude usage: proxy did not start (rc=%s): %s",
+                            r.returncode, (r.stderr or r.stdout or "").strip()[:200])
+                # Do NOT write the env: pinning sessions to a dead proxy is worse
+                # than leaving the feature off.
+                return False
             _set_claude_usage_env(True)
         else:
             _set_claude_usage_env(False)
@@ -805,6 +838,7 @@ def _set_claude_usage(on):
                            capture_output=True, text=True, timeout=30)
     log.info("claude usage enabled" if on else
              "claude usage disabled (proxy left running for pinned sessions)")
+    return True
 
 # ---- Codex plan-usage strip (opt-in display) -------------------------------
 # Codex already records account rate-limit snapshots in token_count events in
@@ -1947,8 +1981,15 @@ def _disk_usage():
                                capture_output=True, text=True, timeout=15)
             if r.returncode == 0:
                 homes.append({"user": pw.pw_name, "bytes": int(r.stdout.split()[0])})
+            else:
+                truncated = True        # unreadable subtree, permissions, ...
         except (OSError, subprocess.SubprocessError, ValueError, IndexError):
-            pass
+            # `truncated` covered only the 20s WALL BUDGET above, so a single home
+            # that hit its own 15s timeout was dropped from the list in silence —
+            # and since the panel exists to show the LARGEST homes, and the largest
+            # is the likeliest to time out, it systematically omitted the answer it
+            # was opened to give. A missing row must make the list say it is partial.
+            truncated = True
     homes.sort(key=lambda x: -x["bytes"])
     return {"filesystems": fs, "homes": homes, "truncated": truncated}
 
@@ -2817,6 +2858,21 @@ def _ensure_user_x11_dbus(user, uid, gid):
                 user, sock)
     _note_failure("x11dbus:" + user, X11_DBUS_FAIL_TTL)
     return None
+
+
+def _unit_definitely_dead(unit):
+    """True only when systemd says the unit is in a KNOWN-dead state.
+
+    Deliberately not `not _unit_alive(...)`: that treats "I could not tell" as
+    dead, which is the exact mistake this whole audit is about. An unreadable or
+    unexpected status must not block a toggle the enable command reported as
+    succeeding."""
+    try:
+        st = subprocess.run(["systemctl", "is-active", unit],
+                            capture_output=True, text=True, timeout=5)
+        return st.stdout.strip() in ("inactive", "failed", "deactivating")
+    except (OSError, subprocess.SubprocessError):
+        return False
 
 
 def _unit_alive(unit):
@@ -4844,6 +4900,14 @@ class Handler(http.server.BaseHTTPRequestHandler):
             except ValueError:
                 return self._json(400, {"error": "invalid json"})
             ua = str(data.get("ua", ""))[:120] if isinstance(data, dict) else ""
+            # Rate-limited per user. The log FILE is already bounded (a self
+            # rotating 2MB x 5), so the risk is not disk — it is EVICTION: this
+            # endpoint writes up to ~12KB per POST at INFO, so a page stuck in a
+            # retry loop can push the entire useful history out of the ring in
+            # minutes, which is exactly when that history is being read. Dropping
+            # the excess keeps the diagnostic value the endpoint exists for.
+            if not _log_budget("clientlog:" + _ctx_user()):
+                return self._json(200, {"ok": True, "throttled": True})
             log.info("clientlog user=%s ua=%r guard=%s sw=%s", _ctx_user(), ua,
                      json.dumps(data.get("guard", []))[:6000] if isinstance(data, dict) else "?",
                      json.dumps(data.get("sw", []))[:6000] if isinstance(data, dict) else "?")
@@ -4948,11 +5012,18 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 data = json.loads(raw or b"{}")
             except ValueError:
                 return self._json(400, {"error": "invalid json"})
+            want = bool(data.get("enabled"))
             try:
-                _set_claude_usage(bool(data.get("enabled")))
+                applied = _set_claude_usage(want)
             except Exception as e:
                 log.warning("claude usage toggle failed: %s", e)
                 return self._json(500, {"error": str(e)})
+            if not applied:
+                # The proxy refused to start, so nothing was routed at it. Say so
+                # rather than echoing back the state the caller asked for.
+                return self._json(503, {
+                    "error": "the usage proxy did not start — see the manager log",
+                    "enabled": _claude_usage_enabled()})
             return self._json(200, {"ok": True, "enabled": _claude_usage_enabled()})
         self.send_error(404)
 
@@ -5119,6 +5190,11 @@ class Handler(http.server.BaseHTTPRequestHandler):
             txt = body.decode("utf-8", "replace") if isinstance(body, (bytes, bytearray)) else str(body)
         except Exception:
             txt = ""
+        # Same budget as /api/clientlog: this is the higher-volume of the two
+        # (already ~40% of the log on the reference host), and a page in a retry
+        # loop would otherwise evict every other line from the rotation.
+        if not _log_budget("client-debug:" + _ctx_user()):
+            return self._json(200, {"ok": True, "throttled": True})
         log.info("client-debug[%s]: %s", _ctx_user(), " ".join(txt.split())[:1500])
         return self._json(200, {"ok": True})
 
@@ -5399,11 +5475,28 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 subprocess.run(["systemctl", "kill", "--kill-whom=all",
                                 "--signal=SIGKILL"] + units,
                                check=False, capture_output=True, text=True, timeout=30)
-                subprocess.run(["systemctl", "stop", "--no-block"] + units,
+                # NOT --no-block: this reports what it stopped, so it has to wait
+                # long enough to know. The cgroup was just SIGKILLed, so the stop
+                # is near-instant; the 30s timeout is the same bound as before.
+                subprocess.run(["systemctl", "stop"] + units,
                                check=False, capture_output=True, text=True, timeout=30)
             except (subprocess.TimeoutExpired, OSError) as e:
                 log.warning("reset: stopping terminals timed out/failed: %s", e)
-            result["terminals_stopped"] = running
+            # VERIFY. This used to report `running` — the list that WAS running
+            # before the attempt — so a terminal that refused to die was reported
+            # as stopped, and the desktop drew a clean slate over processes still
+            # holding the user's files. Every step here is best-effort by design;
+            # that is fine, but the RESULT must say what actually happened.
+            try:
+                still = _list_running_terminals(user)
+            except Exception:
+                still = []
+            result["terminals_stopped"] = [n for n in running if n not in still]
+            result["terminals_remaining"] = [n for n in running if n in still]
+            if result["terminals_remaining"]:
+                log.warning("reset: terminals still running for %s after stop: %s",
+                            user, result["terminals_remaining"])
+                result["ok"] = False
         with _cache_lock:                      # so status reflects it at once
             _cache.pop("running_terminals:" + user, None)
 
@@ -5467,10 +5560,18 @@ class Handler(http.server.BaseHTTPRequestHandler):
         with _cache_lock:
             _cache.pop("xpra_port:x11:" + user, None)
 
-        log.info("reset: %s — %d terminal(s), browser_reset=%s apps_reset=%s",
+        log.info("reset: %s — %d terminal(s), browser_reset=%s apps_reset=%s%s",
                  user, len(result["terminals_stopped"]),
-                 result.get("browser_reset"), result.get("apps_reset"))
-        self._json(200, {"ok": True, **result})
+                 result.get("browser_reset"), result.get("apps_reset"),
+                 (" REMAINING=%s" % result["terminals_remaining"])
+                 if result.get("terminals_remaining") else "")
+        # `ok` reflects the VERIFIED outcome. It was hardcoded True, so a reset
+        # that left terminals running still told the desktop it had a clean slate
+        # — and the desktop, which does not read the body at all, drew one over
+        # processes still holding the user's files. The per-step flags below have
+        # always been honest; this one was not.
+        result.setdefault("ok", True)
+        self._json(200, result)
 
     # ---- Config app (sudo-gated): idle policy + user management ---------------
     def _config_body(self):
@@ -6717,11 +6818,22 @@ class Handler(http.server.BaseHTTPRequestHandler):
         if not isinstance(data, dict):
             data = verified
         status = data.get("status")
+        saved = None
         if status in (2, 6) and data.get("url"):
-            self._office_save_back(data["url"], src, owner)
+            saved = self._office_save_back(data["url"], src, owner)
+        # `{"error": 0}` is OnlyOffice's "saved — you may discard your copy", and
+        # it used to be returned even when the download-and-replace had thrown:
+        # the editor said "All changes saved", the user closed the tab, the file
+        # was unchanged, and the session key was dropped so the forcesave safety
+        # net went with it. Report the failure instead — OnlyOffice then keeps the
+        # document and retries rather than discarding the user's edits.
+        if saved is False:
+            log.warning("office: reporting save failure to the editor for %s", rel)
+            return self._json(200, {"error": 1})
         # 2 = closed-with-changes (saved), 3 = save error, 4 = closed-no-changes.
         # The editing session has ended → drop the session key so a reopen gets a
         # fresh key (and loads the file from disk, not the server's stale cache).
+        # Only ever on a session that did NOT end with a failed write.
         if status in (2, 3, 4):
             with _office_sessions_lock:
                 _office_sessions.pop((owner, rel), None)
@@ -6789,6 +6901,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
             _chown_app(dst, user)
         except Exception as e:
             log.warning("office: save-back failed from %s: %s", local, e)
+            return False
+        return True
 
 
     def _handle_terminal_open_at(self):

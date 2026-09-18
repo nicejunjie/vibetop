@@ -25,6 +25,16 @@
   }
   #pause-btn:hover { background: rgba(255,255,255,0.12); border-color: #4a5a6a; color: #fff; }
   #pause-btn.paused { background: rgba(52,168,83,0.15); border-color: #34a853; color: #34a853; }
+  /* The "these numbers stopped moving" badge. Amber, not red: the host is
+     probably fine and the poll is not — and it sits NEXT TO the Pause button on
+     purpose, because a paused-looking page with a Resume button beside it is the
+     exact confusion this badge exists to end. */
+  #poll-stale {
+    margin-left: auto; font-size: 12px; padding: 3px 9px; border-radius: 6px;
+    border: 1px solid #6b5426; background: rgba(192,147,90,0.15); color: #e0b877;
+  }
+  #poll-stale[hidden] { display: none; }
+  #poll-stale + #pause-btn { margin-left: 8px; }
 
   .layout {
     display: grid;
@@ -176,6 +186,7 @@
     <span><span class="h-label">IP </span><span class="h-val" id="h-ips">--</span></span>
     <span><span class="h-label">UP </span><span class="h-up" id="h-up">--</span></span>
     <span><span class="h-label">TERMS </span><span class="h-val" id="h-terms">--</span></span>
+    <span id="poll-stale" hidden></span>
     <span id="pause-btn" title="Pause/Resume">⏸ Pause</span>
   </div>
 
@@ -398,25 +409,42 @@
       var y = Math.round(h * i / 4) + 0.5;
       ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(w, y); ctx.stroke();
     }
+    // A `null` sample means "the host reported no value for that sensor at that
+    // moment" — it is NOT a zero. This loop used to coerce it (`data[j] != null
+    // ? data[j] : 0`), so a machine with no discrete GPU, no VRAM counter or no
+    // RAPL energy file drew a crisp line pinned to the floor of the card: the
+    // chart asserted "0%" for the whole hour while the text beside it honestly
+    // said "--". Absent samples now BREAK the series instead, so a missing
+    // sensor is a gap you can see and an idle GPU is still a line at the floor.
+    // Each contiguous run of real samples is its own stroke + fill; a run of one
+    // is skipped, because a single point cannot be drawn as a line anyway (this
+    // subsumes the old `data.length < 2` early-out).
     datasets.forEach(function(ds) {
       var data = ds.data;
-      if (data.length < 2) return;
       var step = w / (HISTORY_LEN - 1);
       var offset = HISTORY_LEN - data.length;
-      ctx.beginPath();
-      ctx.strokeStyle = ds.color; ctx.lineWidth = 1.5; ctx.lineJoin = 'round';
-      for (var j = 0; j < data.length; j++) {
-        var x = (offset + j) * step;
-        var val = data[j] != null ? data[j] : 0;
-        var y = h - (val / maxVal) * h;
-        if (j === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+      var run = [];
+      function flushRun() {
+        if (run.length >= 2) {
+          ctx.beginPath();
+          ctx.strokeStyle = ds.color; ctx.lineWidth = 1.5; ctx.lineJoin = 'round';
+          for (var k = 0; k < run.length; k++) {
+            if (k === 0) ctx.moveTo(run[k].x, run[k].y); else ctx.lineTo(run[k].x, run[k].y);
+          }
+          ctx.stroke();
+          ctx.lineTo(run[run.length - 1].x, h);
+          ctx.lineTo(run[0].x, h);
+          ctx.closePath();
+          ctx.fillStyle = ds.color.replace(')', ',0.08)').replace('rgb', 'rgba');
+          ctx.fill();
+        }
+        run = [];
       }
-      ctx.stroke();
-      ctx.lineTo((offset + data.length - 1) * step, h);
-      ctx.lineTo(offset * step, h);
-      ctx.closePath();
-      ctx.fillStyle = ds.color.replace(')', ',0.08)').replace('rgb', 'rgba');
-      ctx.fill();
+      for (var j = 0; j < data.length; j++) {
+        if (data[j] == null) { flushRun(); continue; }
+        run.push({ x: (offset + j) * step, y: h - (data[j] / maxVal) * h });
+      }
+      flushRun();
     });
   }
 
@@ -448,7 +476,11 @@
     var now = Date.now() / 1000;
     var totalRx = 0, totalTx = 0;
     Object.keys(netData).forEach(function(k) { totalRx += netData[k].rx_bytes; totalTx += netData[k].tx_bytes; });
-    var rxRate = 0, txRate = 0;
+    // A rate is a DELTA, so the first sample has no rate — there is nothing to
+    // subtract from yet. Reporting 0 B/s there states the network was idle, when
+    // in truth it has not been measured once; the chart then opens with a real
+    // point on the floor. `haveRate` keeps that first tick blank.
+    var rxRate = 0, txRate = 0, haveRate = false;
     if (lastNet !== null) {
       var dt = now - lastNetTime;
       if (dt > 0) {
@@ -456,13 +488,16 @@
         Object.keys(lastNet).forEach(function(k) { prevRx += lastNet[k].rx_bytes; prevTx += lastNet[k].tx_bytes; });
         rxRate = (totalRx - prevRx) / dt;
         txRate = (totalTx - prevTx) / dt;
+        haveRate = true;
       }
     }
     lastNet = netData; lastNetTime = now;
     document.getElementById('net-stats').innerHTML =
-      '<span class="net-rx">↓ ' + fmtRate(rxRate) + '</span> <span class="net-tx">↑ ' + fmtRate(txRate) + '</span>';
-    push(netRxHist, rxRate); push(netTxHist, txRate);
-    var allVals = netRxHist.concat(netTxHist).filter(function(v) { return v > 0; });
+      '<span class="net-rx">↓ ' + (haveRate ? fmtRate(rxRate) : '--') + '</span> ' +
+      '<span class="net-tx">↑ ' + (haveRate ? fmtRate(txRate) : '--') + '</span>';
+    push(netRxHist, haveRate ? rxRate : null);
+    push(netTxHist, haveRate ? txRate : null);
+    var allVals = netRxHist.concat(netTxHist).filter(function(v) { return v != null && v > 0; });
     if (allVals.length > 0) netMaxRate = Math.max.apply(null, allVals) * 1.2;
     if (netMaxRate < 1024) netMaxRate = 1024;
     var ya = document.getElementById('net-yaxis');
@@ -473,16 +508,57 @@
     ], netMaxRate);
   }
 
+  // Staleness. Every number and every chart on this page comes from one 2s poll,
+  // and its failure used to land in a bare `.catch(function(){})`: the charts
+  // held their last frame and the header kept its last uptime, looking exactly
+  // like a healthy but quiet host. The page even has a Pause button, so a
+  // stopped chart reads as something the USER did. After two missed polls
+  // (~4s — one dropped request is not news) the header says how old what you
+  // are looking at is, in the same "Nm ago" idiom as the usage strips, and it
+  // clears the instant a poll succeeds.
+  // `r.ok` is checked because fetch resolves happily on a 403/500: without it an
+  // "unauthorised" reply reached r.json() and either threw here anyway or, worse,
+  // parsed as an object with every field undefined.
+  var lastOkAt = 0;          // Date.now() of the last successful poll (0 = none yet)
+  var missed = 0;
+  function ageAgo(ms) {
+    var s = Math.round(ms / 1000);
+    if (s < 60) return s + 's';
+    var m = Math.round(s / 60);
+    if (m < 60) return m + 'm';
+    return Math.floor(m / 60) + 'h';
+  }
+  function showStale() {
+    var el = document.getElementById('poll-stale');
+    if (!el) return;
+    // Cleared, not just hidden: a hidden element that still holds "as of 4m ago"
+    // is a stale claim waiting to be revealed by the next CSS/layout change.
+    if (missed < 2) { el.hidden = true; el.textContent = ''; el.title = ''; return; }
+    el.hidden = false;
+    el.textContent = lastOkAt
+      ? '⚠ not updating — as of ' + ageAgo(Date.now() - lastOkAt) + ' ago'
+      : '⚠ no data from the host yet';
+    el.title = 'The 2s poll of /api/system/status is failing; these figures are frozen.';
+  }
   function update() {
-    fetch('/api/system/status').then(function(r) { return r.json(); }).then(function(d) {
+    fetch('/api/system/status').then(function(r) {
+      if (!r.ok) throw new Error('status ' + r.status);
+      return r.json();
+    }).then(function(d) {
+      missed = 0; lastOkAt = Date.now();
+      showStale();
       if (d.cpu_cores && d.cpu_cores.length) updateCores(d.cpu_cores);  // [] is truthy → avoid 0/0=NaN avg
       renderLoadAvg(d.load_avg);
       var memPct = d.memory_total_gb > 0 ? (d.memory_used_gb / d.memory_total_gb * 100) : 0;
       var gpuPct = d.gpu_percent != null ? d.gpu_percent : 0;
       var vramPct = d.gpu_vram_total_gb > 0 ? (d.gpu_vram_used_gb / d.gpu_vram_total_gb * 100) : 0;
       push(memHist, memPct);
-      push(gpuHist, gpuPct);
-      push(vramHist, vramPct);
+      // The bars need a number to size themselves, the SERIES must not be given
+      // one: `gpuPct`/`vramPct` fall back to 0 for a host with no GPU, and a 0 in
+      // the history is indistinguishable from a real idle reading. Push the
+      // absence instead — drawChart breaks the line on a null.
+      push(gpuHist, d.gpu_percent != null ? gpuPct : null);
+      push(vramHist, d.gpu_vram_total_gb > 0 ? vramPct : null);
       push(cpuTempHist, d.cpu_temp);
       push(gpuTempHist, d.gpu_temp);
       setBar('mem-bar', 'mem-bar-text', memPct, (d.memory_total_gb != null ? d.memory_used_gb + ' / ' + d.memory_total_gb + ' GB' : '--'), '#5aad8a', false);
@@ -502,10 +578,20 @@
       if (d.processes) updateProcs(d.processes);
       var cpuW = d.cpu_power_w != null ? d.cpu_power_w : 0;
       var gpuW = d.gpu_power_w != null ? d.gpu_power_w : 0;
-      push(cpuPwrHist, cpuW); push(gpuPwrHist, gpuW);
+      // Same rule for power: no RAPL / no nvidia-smi is not "drawing 0 watts".
+      push(cpuPwrHist, d.cpu_power_w != null ? cpuW : null);
+      push(gpuPwrHist, d.gpu_power_w != null ? gpuW : null);
       setBar('cpu-pwr-bar', 'cpu-pwr-text', cpuW / CPU_TDP * 100, (d.cpu_power_w != null ? cpuW + 'W' : '--'), '#5aad8a', true);
       setBar('gpu-pwr-bar', 'gpu-pwr-text', gpuW / GPU_TDP * 100, (d.gpu_power_w != null ? gpuW + 'W' : '--'), '#5a8ab0', true);
-      var totalW = (d.cpu_power_w != null || d.gpu_power_w != null) ? (cpuW + gpuW) + 'W total' : '--';
+      // A sum is only a total when EVERY term was measured. With one sensor
+      // present and the other absent this added the missing one as 0W and
+      // labelled the result "total" — a number that reads as the machine's whole
+      // draw while silently omitting a component. Say which part it covers.
+      var haveCpuW = d.cpu_power_w != null, haveGpuW = d.gpu_power_w != null;
+      var totalW = (haveCpuW && haveGpuW) ? (cpuW + gpuW) + 'W total'
+                 : haveCpuW ? cpuW + 'W CPU only'
+                 : haveGpuW ? gpuW + 'W GPU only'
+                 : '--';
       document.getElementById('pwr-total').textContent = totalW;
       var allPwr = cpuPwrHist.concat(gpuPwrHist).filter(function(v) { return v > 0; });
       if (allPwr.length > 0) pwrMax = Math.max(Math.max.apply(null, allPwr) * 1.2, 50);
@@ -521,18 +607,24 @@
         var diskPct = d.disk_total_gb > 0 ? (d.disk_used_gb / d.disk_total_gb * 100) : 0;
         setBar('disk-bar', 'disk-bar-text', diskPct, d.disk_used_gb + ' / ' + d.disk_total_gb + ' GB', '#5aad8a', false);
       }
-      var rdRate = d.disk_read_bytes != null ? d.disk_read_bytes : 0;
-      var wrRate = d.disk_write_bytes != null ? d.disk_write_bytes : 0;
-      push(diskRdHist, rdRate); push(diskWrHist, wrRate);
+      // Same rule as the GPU series: an absent counter breaks the line rather
+      // than drawing a real 0, and the text says '--' instead of "0 B/s" — which
+      // claims the disk was idle when nothing was measured at all.
+      var haveRd = d.disk_read_bytes != null, haveWr = d.disk_write_bytes != null;
+      var rdRate = haveRd ? d.disk_read_bytes : 0;
+      var wrRate = haveWr ? d.disk_write_bytes : 0;
+      push(diskRdHist, haveRd ? rdRate : null);
+      push(diskWrHist, haveWr ? wrRate : null);
       document.getElementById('disk-stats').innerHTML =
-        '<span class="net-rx">R ' + fmtRate(rdRate) + '</span> <span class="net-tx">W ' + fmtRate(wrRate) + '</span>';
-      var allDisk = diskRdHist.concat(diskWrHist).filter(function(v) { return v > 0; });
+        '<span class="net-rx">R ' + (haveRd ? fmtRate(rdRate) : '--') + '</span> ' +
+        '<span class="net-tx">W ' + (haveWr ? fmtRate(wrRate) : '--') + '</span>';
+      var allDisk = diskRdHist.concat(diskWrHist).filter(function(v) { return v != null && v > 0; });
       if (allDisk.length > 0) diskMaxRate = Math.max(Math.max.apply(null, allDisk) * 1.2, 1024 * 1024);
       else diskMaxRate = 1024 * 1024;
       var dya = document.getElementById('disk-yaxis');
       if (dya) dya.innerHTML = '<span>' + fmtRate(diskMaxRate) + '</span><span>' + fmtRate(diskMaxRate/2) + '</span><span>0</span>';
       drawChart('disk-chart', [{data: diskRdHist, color: 'rgb(90,173,138)'}, {data: diskWrHist, color: 'rgb(90,138,176)'}], diskMaxRate);
-    }).catch(function() {});
+    }).catch(function() { missed++; showStale(); });
   }
 
   var paused = false;
