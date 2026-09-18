@@ -39,15 +39,25 @@ WatchdogSec=60
 #   genuine spike degrades rather than dropping every terminal on the host.
 # No MemoryMax on purpose: this service is the one that must not die.
 #
-# THE CEILING MUST SIT ABOVE THE MEASURED PEAK, not above the idle RSS. Set to
-# 1500M first — between the 970MB idle reading and the 2.03GB MemoryPeak — the
-# cgroup throttled 8979 times within three minutes and a Token Stats request
-# went from 2s to SIXTY (nginx's read timeout); MemoryHigh does not reduce what
-# the process needs, it just makes it fight for it. A cold parse of a 2.6GB
-# corpus legitimately works above 1.5GB. 3G leaves real headroom over the
-# observed peak while still catching genuine runaway.
+# THE CEILING MUST CLEAR ANON *PLUS* RECLAIMABLE SLAB — and I sized it wrong
+# twice before measuring properly.
+#   1500M, taken from the 970MB IDLE rss: throttled the process's real working
+#   set 8979 times in three minutes and turned a 2s request into SIXTY (nginx's
+#   read timeout). MemoryHigh does not reduce what a process needs; it makes it
+#   fight for it.
+#   3G, taken from a 2.03GB peak measured on OLDER code: exceeded as well —
+#   MemoryPeak 3.22GB, 727 "high" events. But measuring the breakdown showed
+#   those were harmless: memory.stat was anon 1.00GB (essentially the
+#   pre-MALLOC_ARENA_MAX baseline) against 1.90GB of slab, ALL of it
+#   slab_reclaimable — dentry/inode cache from `du`-ing every home and reading
+#   629 transcripts. The cgroup charges that cache here, so the kernel was
+#   reclaiming exactly what MemoryHigh exists to reclaim, and request latency
+#   stayed at 0.5-1.5ms throughout.
+# 4G clears anon plus that cache, so the ceiling guards runaway instead of
+# nibbling the page cache on every filesystem walk. A climbing "high" counter is
+# only a problem when latency moves with it — check both, never just the counter.
 Environment=MALLOC_ARENA_MAX=2
-MemoryHigh=3G
+MemoryHigh=4G
 MemoryAccounting=yes
 
 # Sandboxing — DELIBERATELY conservative. This service runs as root and is the

@@ -132,10 +132,42 @@ if [ -n "$RESTORE_FILE" ]; then
     [ -f "$RESTORE_FILE" ] || { echo "ERROR: no such archive: $RESTORE_FILE" >&2; exit 1; }
     # v1 archives are home-relative with no MANIFEST; v2 are users/<name>/… +
     # system/…. Detect rather than assume, so old archives still restore.
-    if tar tzf "$RESTORE_FILE" | grep -q '^MANIFEST$'; then
+    #
+    # `./MANIFEST`, NOT `MANIFEST`. The archive is written with `tar czf … -C
+    # "$stage" .`, so every member is stored with a leading `./` — and the
+    # anchored `^MANIFEST$` therefore NEVER matched. Every archive this host has
+    # ever produced fell through to the legacy branch, which unpacks `users/` and
+    # `system/` into one human's HOME and restores nothing at all: no
+    # /var/lib/vibetop, no secrets, no manager.env, no second user. It then
+    # printed "Restored." and exited 0. The v2 branch below had never once run.
+    #
+    # The same `./` bites the manifest read on the next line (GNU tar does not
+    # normalise it for member selection), so that is anchored too. Both spellings
+    # are accepted so an archive made by any future `tar` invocation still works.
+    if tar tzf "$RESTORE_FILE" | grep -qE '^\./?MANIFEST$'; then
+        if (( DRY_RUN )); then
+            # `--dry-run --restore FILE` used to RESTORE: the restore block runs
+            # before DRY_RUN is consulted anywhere, while the usage text
+            # advertises the flag. An operator being careful got the destructive
+            # form. Now it prints the plan and stops.
+            echo "DRY RUN — nothing will be written. This restore would:"
+            tar tzf "$RESTORE_FILE" | sed 's|^\./||' \
+              | awk -F/ -v vd="$VAR_DIR" -v ve="$VT_ETC" -v vs="$(dirname "$VT_ENV_FILE")" '
+                  /^users\/[^\/]+\/./{u[$2]++}
+                  /^system\/var\/./{v++} /^system\/etc\/./{e++} /^system\/sysetc\/./{g++}
+                  END{for(k in u) printf "  restore %-16s %d item(s) -> that user%s home\n",k,u[k],"\x27s";
+                      if(v)printf "  restore %-16s %d file(s) -> %s\n","global state",v,vd;
+                      if(e)printf "  restore %-16s %d file(s) -> %s (0600 root)\n","secrets",e,ve;
+                      if(g)printf "  restore %-16s %d file(s) -> %s\n","manager config",g,vs}'
+            echo "  and chown each restored tree to its user, re-tightening ~/.local and ~/.config to 0700."
+            echo "Re-run without --dry-run to apply."
+            exit 0
+        fi
         (( IS_ROOT )) || { echo "ERROR: restoring a multi-user archive needs root (sudo)." >&2; exit 1; }
         echo "About to restore '$RESTORE_FILE'. Manifest:"
-        tar xzOf "$RESTORE_FILE" MANIFEST | sed 's/^/  /'
+        tar xzOf "$RESTORE_FILE" ./MANIFEST 2>/dev/null \
+            || tar xzOf "$RESTORE_FILE" MANIFEST 2>/dev/null \
+            || echo "  (manifest unreadable)"
         echo
         echo "Existing files at those paths will be OVERWRITTEN."
         read -r -p "Proceed? [y/N] " ans
@@ -147,15 +179,40 @@ if [ -n "$RESTORE_FILE" ]; then
             u="$(basename "$d")"
             h="$(getent passwd "$u" | cut -d: -f6)"
             if [ -z "$h" ] || [ ! -d "$h" ]; then
-                echo "  SKIP $u — no such user on this host (data left in $tmp)"; trap - EXIT; continue
+                # Keep JUST this user's data, not the whole staging tree. `trap -
+                # EXIT` disarmed cleanup for the entire run, leaving the session
+                # secret and every user's notes in /tmp indefinitely after a
+                # disaster-recovery run — an unadvertised plaintext copy of the
+                # credential that forges any user's cookie.
+                _keep="${BACKUP_DIR}/unrestored-${u}-$(date +%Y%m%d-%H%M%S)"
+                if mkdir -p "$_keep" 2>/dev/null && cp -a "$d." "$_keep/" 2>/dev/null; then
+                    chmod 0700 "$_keep"
+                    echo "  SKIP $u — no such user on this host (their data kept at $_keep)"
+                else
+                    echo "  SKIP $u — no such user on this host (data NOT preserved)"
+                fi
+                continue
             fi
             echo "  restoring $u -> $h"
             # --no-same-owner then an explicit chown: extracting as root with
             # tar's default --same-owner would stamp the STAGED intermediate
             # dirs' root ownership onto the live ~/.local/share and ~/.config.
             ( cd "$d" && tar cf - . ) | tar xf - -C "$h" --no-same-owner
-            chown -R "$u" "$h/.local" "$h/.config" "$h/Documents" "$h/Uploads" \
+            # `$u:$u`, not `$u`: a user-only chown leaves the GROUP as root
+            # (the files arrived root-owned from --no-same-owner), so every
+            # restored file ended up `alice:root` forever — and Documents/ files
+            # written 0664 by OnlyOffice became group-root-writable.
+            _grp="$(id -gn "$u" 2>/dev/null || echo "$u")"
+            chown -R "$u:$_grp" "$h/.local" "$h/.config" "$h/Documents" "$h/Uploads" \
                 2>/dev/null || true
+            # The archive's intermediate dirs were staged 0755 under umask 022, and
+            # tar RESETS an existing directory's mode — so a restore silently
+            # relaxed every user's ~/.local and ~/.config from 0700 to 0755. On a
+            # multi-user host that exposes one tenant's app-state listing to every
+            # other, and Unix permissions are the whole isolation boundary here.
+            for _priv in "$h/.local" "$h/.local/share" "$h/.config"; do
+                [ -d "$_priv" ] && chmod 0700 "$_priv" 2>/dev/null || true
+            done
         done
         if [ -d "$tmp/system/var" ]; then
             echo "  restoring global state -> $VAR_DIR"
