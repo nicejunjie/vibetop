@@ -379,7 +379,35 @@
       if (ssig !== _lastTabsSig) reconcile(idx);
     }).catch(function() {});
   }
-  setInterval(tick, 2000);
+  // Poll only while Notes is the app on screen. The shell keeps every app's
+  // iframe MOUNTED (display:none) after you switch away, and `document.hidden`
+  // inside an iframe follows the TOP document — so a Notes window sitting behind
+  // Terminal kept refetching the open note's whole body AND the index every 2s
+  // for the life of the session. Notes was the last polling app without this
+  // gate; Files uses inFront, Monitor appActive, Services EMBEDDED.
+  //
+  // Payloads are small, so the cost is round trips, and on a phone a radio wake
+  // every 2s — a battery item rather than a bandwidth one.
+  //
+  // Standalone (opened directly, no shell) there is no broadcast, so it stays
+  // true and behaves exactly as before.
+  var appActive = true;
+  setInterval(function () {
+    if (appActive && !document.hidden) tick();
+  }, 2000);
+  window.addEventListener('message', function (e) {
+    if (e.origin !== location.origin) return;
+    if (!e.data || e.data.type !== 'vibetop:active') return;
+    var nowActive = (e.data.active === 'notes');
+    var wasActive = appActive;
+    appActive = nowActive;
+    // Coming back to a note edited on another device must show it AT ONCE, not
+    // up to 2s later — the gate must never make the sync feel slower than before.
+    if (nowActive && !wasActive) tick();
+  });
+  document.addEventListener('visibilitychange', function () {
+    if (!document.hidden && appActive) tick();
+  });
 
   // --- init ---
   api('/api/notes').then(function(r) { return r.json(); }).then(function(idx) {

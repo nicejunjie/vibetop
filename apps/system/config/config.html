@@ -677,6 +677,19 @@
             '<span class="sz">' + fmtBytes(h.bytes) + '</span></div>';
         }).join('') + '</div>';
       }
+      // The sweep (`du -sx` per home) no longer runs on the request thread — it
+      // used to cost up to 15s with the panel blank, so it now refreshes behind
+      // the request and the FIRST open of a fresh manager has nothing to show
+      // yet. That is a wait, not an empty host, and must not read as "No data."
+      if (d.pending) {
+        document.getElementById('disk-body').innerHTML =
+          '<div class="hint">Measuring disk usage…</div>';
+        if (!loadDisk._retry) {
+          loadDisk._retry = true;
+          setTimeout(function () { loadDisk._retry = false; loadDisk(); }, 2000);
+        }
+        return;
+      }
       document.getElementById('disk-body').innerHTML = html || '<div class="hint">No data.</div>';
     });
   }

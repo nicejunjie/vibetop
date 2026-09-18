@@ -1558,7 +1558,11 @@
     noticeEl.classList.toggle('on', !!text);
   }
 
-  function load(p, keepScroll) {
+  // `have` is a listing the caller ALREADY fetched (the 4s poll downloads one to
+  // decide whether anything changed). Without it, detecting a change meant
+  // fetching the identical listing a THIRD time — the poll's copy was downloaded,
+  // compared, and thrown away — which also delayed the refresh by a round trip.
+  function load(p, keepScroll, have) {
     var my = ++seq;
     var st = keepScroll ? mainEl.scrollTop : 0;
     if (p !== path) {
@@ -1585,7 +1589,8 @@
     if (searchOpen) updateScope();
     mainEl.innerHTML = '';
     setNotice('');
-    api('/api/fs/list?path=' + encodeURIComponent(p)).then(function(d) {
+    (have ? Promise.resolve(have)
+          : api('/api/fs/list?path=' + encodeURIComponent(p))).then(function(d) {
       if (seq !== my) return;                       // navigated away meanwhile
       // A FILE path can arrive via the hash (a shared tab whose stored entry
       // was a file rather than a folder): land in the parent folder and open the
@@ -1634,13 +1639,26 @@
            !mainEl.querySelector('input.edit') && !edEl.classList.contains('open') && !qlIsOpen() &&
            !pvEl.classList.contains('open') && !pdfovEl.classList.contains('open');
   }
+  // FNV-1a over UTF-8 — must match fileagent._list_digest byte for byte. JS string
+  // indexing yields UTF-16 code units, so encode first: a folder with a non-ASCII
+  // name would otherwise hash differently on each side and either never refresh
+  // or refresh on every poll.
+  function digestOf(sig) {
+    var b = new TextEncoder().encode(sig), h = 0x811c9dc5;
+    for (var i = 0; i < b.length; i++) { h = Math.imul(h ^ b[i], 0x01000193) >>> 0; }
+    return ('0000000' + h.toString(16)).slice(-8);
+  }
   function pollOnce() {
     if (!pollQuiet()) return;
     var p = path, my = seq;
-    api('/api/fs/list?path=' + encodeURIComponent(p)).then(function(d) {
-      if (seq !== my || path !== p || !d || !d.ok || !pollQuiet()) return;
-      if (sigOf(d.entries || []) !== listSig) load(p, true);
-    }).catch(function() {});
+    // Send the digest of what we already have: an unchanged folder — the usual
+    // case — comes back as a few bytes instead of a full listing every 4s.
+    api('/api/fs/list?path=' + encodeURIComponent(p) + '&sig=' + digestOf(listSig))
+      .then(function(d) {
+        if (seq !== my || path !== p || !d || !d.ok || !pollQuiet()) return;
+        if (d.unchanged) return;
+        if (sigOf(d.entries || []) !== listSig) load(p, true, d);   // reuse it, don't refetch
+      }).catch(function() {});
   }
   function setFront(on) {
     var was = inFront; inFront = on;

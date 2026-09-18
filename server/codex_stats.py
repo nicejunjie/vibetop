@@ -68,7 +68,10 @@ def _compute(home):
         model, sid = "gpt-5.6-sol", os.path.basename(path)
         sessions.add(sid)
         try:
-            fh = open(path)
+            # errors="replace" -- see the note in claude_stats._compute: a bad
+            # byte raises from the iteration, not from open(), so it escaped
+            # the OSError guard and permanently 500d the endpoint.
+            fh = open(path, errors="replace")
         except OSError:
             continue
         with fh:

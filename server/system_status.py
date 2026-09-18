@@ -52,6 +52,9 @@ _PROC_TTL = 1.8           # seconds; slightly under the 2s taskbar/Monitor poll
 # Whole-system CPU snapshot for delta-based calculation
 # ({name: ticks}, monotonic timestamp) from the previous status call
 _prev_cpu_snap = None
+# The last CPU percentages we actually computed. A caller arriving too soon after
+# another gets THESE instead of sleeping 0.1s for a fresh sample — see _collect.
+_prev_cpu_result = None
 
 # Root block device is fixed at runtime — compute once, then cache.
 _root_disk_cached = False
@@ -361,6 +364,10 @@ def get_system_status(running_terminals, cached):
         return _collect(running_terminals, cached)
 
 
+class _CpuTooSoon(Exception):
+    """Two polls landed inside the 0.5s sampling window — serve the last reading."""
+
+
 def _collect(running_terminals, cached):
     # CPU: delta against the snapshot from the previous status call
     # (clients poll every few seconds, so the window is meaningful).
@@ -376,7 +383,7 @@ def _collect(running_terminals, cached):
                     vals = list(map(int, parts[1:]))
                     cores[name] = vals
         return cores
-    global _prev_cpu_snap
+    global _prev_cpu_snap, _prev_cpu_result
     cpu = None
     cpu_cores = []
     # Guard the whole CPU section: a transient /proc/stat read failure should
@@ -387,7 +394,21 @@ def _collect(running_terminals, cached):
         prev = _prev_cpu_snap
         if prev and time.monotonic() - prev[1] >= 0.5:
             snap1 = prev[0]
+        elif prev is not None and _prev_cpu_result is not None:
+            # TOO SOON for a meaningful delta, but we already measured one moments
+            # ago — reuse it rather than sleeping 0.1s for a near-identical answer.
+            #
+            # This whole branch runs under the process-global _collect_lock, and it
+            # SELF-AMPLIFIED: the first caller stamped _prev_cpu_snap to now, so
+            # every caller queued behind it then failed the 0.5s test and slept its
+            # own 0.1s in turn — K near-simultaneous pollers cost K x 0.1s
+            # SERIALIZED, host-wide. Two devices' 5s heartbeats plus Monitor's 2s
+            # poll collide by construction, and /api/desktop folds `system` in, so
+            # this sat between the shell parsing and the first app frame loading.
+            raise _CpuTooSoon
         else:
+            # First call of the process only: there is genuinely nothing to delta
+            # against, so pay the two-read sample once.
             snap1 = snap2
             time.sleep(0.1)
             snap2 = read_proc_stat()
@@ -407,6 +428,9 @@ def _collect(running_terminals, cached):
             if f"cpu{i}" in snap2:
                 cpu_cores.append(calc_pct(snap1[f"cpu{i}"], snap2[f"cpu{i}"]))
             i += 1
+        _prev_cpu_result = (cpu, cpu_cores)
+    except _CpuTooSoon:
+        cpu, cpu_cores = _prev_cpu_result
     except (OSError, ValueError, KeyError):
         pass
 

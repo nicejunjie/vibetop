@@ -132,6 +132,79 @@ def _recent_failure(key):
         return bool(hit and hit[1] > now)
 
 
+# A refresh-ahead memo for producers too slow to ever run on a request thread.
+#
+# _cached makes the FIRST caller after expiry pay the whole cost, so a 15s `du`
+# sweep behind a 30s TTL means opening the Config app half a minute after the
+# last look costs 15 SECONDS. A longer TTL only makes the number staler without
+# making anyone wait less; the fix is to stop putting the work on the request
+# path at all. This returns the last known value IMMEDIATELY and refreshes in a
+# daemon thread, exactly as _codex_usage_api already does for its HTTP fetch.
+#
+# `fresh` is how old a value may be before a refresh is kicked off; the value
+# itself is served however old it is (None only before the first one lands), so
+# a caller never blocks. `inflight` is the thundering-herd guard: N clients
+# polling during a slow refresh start ONE producer between them.
+_bg_lock = threading.Lock()
+_bg = {}            # key -> {"val":…, "at":…, "inflight":bool, "started":…}
+
+
+def _bg_cached(key, fresh, producer, block_first=False):
+    """`block_first` computes the FIRST value synchronously instead of reporting
+    that none exists yet. Use it when the producer is slow enough to be worth
+    moving off the steady-state path but short enough to wait for once per
+    process — it keeps the response shape unchanged, so callers need no
+    "pending" branch. Leave it off when a first call would block long enough to
+    look like a hang; those callers must render a waiting state instead."""
+    now = time.monotonic()
+    with _bg_lock:
+        ent = _bg.setdefault(key, {"val": None, "at": -1e9, "inflight": False,
+                                   "started": -1e9})
+        stale = now - ent["at"] >= fresh and now >= ent.get("retry_at", 0.0)
+        # A producer that hangs must not wedge the key forever: allow a retry
+        # once it has been running for more than 4x the freshness window.
+        wedged = ent["inflight"] and now - ent["started"] > max(60.0, fresh * 4)
+        if stale and (not ent["inflight"] or wedged):
+            ent["inflight"] = True
+            ent["started"] = now
+            if block_first and ent["at"] <= -1e8:
+                # Nothing measured yet AND the caller cannot render a wait state.
+                # Compute inline, still holding `inflight` so concurrent callers
+                # do not each start their own producer.
+                pass
+            else:
+                threading.Thread(target=_bg_refresh, args=(key, producer),
+                                 name="bg-" + key[:24], daemon=True).start()
+                return ent["val"], ent["at"] > -1e8
+        else:
+            return ent["val"], ent["at"] > -1e8
+    # Inline first compute, OUTSIDE the lock so other keys are not blocked.
+    _bg_refresh(key, producer)
+    with _bg_lock:
+        ent = _bg[key]
+        return ent["val"], ent["at"] > -1e8
+
+
+def _bg_refresh(key, producer):
+    val, ok = None, False
+    try:
+        val, ok = producer(), True
+    except Exception as e:
+        log.warning("background refresh of %s failed: %s", key, e)
+    with _bg_lock:
+        ent = _bg.setdefault(key, {})
+        ent["inflight"] = False
+        if ok:
+            ent["val"], ent["at"] = val, time.monotonic()
+            ent["retry_at"] = 0.0
+        else:
+            # `at` is deliberately NOT stamped on failure: the last good value
+            # must keep its real age rather than be laundered into looking fresh.
+            # But the key would then be permanently stale, so every request would
+            # kick another doomed producer — hence an explicit retry floor.
+            ent["retry_at"] = time.monotonic() + 30.0
+
+
 # ---- system-health warnings --------------------------------------------------
 # A single, extensible producer of "something is wrong" alerts, surfaced as a red
 # banner on EVERY client via the desktop heartbeat (see /api/desktop). It is the
@@ -5439,7 +5512,21 @@ class Handler(http.server.BaseHTTPRequestHandler):
     def _handle_config_disk_get(self):
         if not self._require_sudo():
             return
-        self._json(200, _cached("disk_usage", 30.0, _disk_usage))
+        # Measured at 15.1s cold on z20 (worst case 35s: `du -sx` per login home,
+        # timeout=15 each, under a 20s overall budget). Behind _cached's 30s TTL
+        # that meant opening the Config app half a minute after the last look
+        # cost FIFTEEN SECONDS with the panel empty. Home sizes are a slowly
+        # moving number; there was never a reason to compute them while someone
+        # waited. Served from the last sweep, refreshed behind the request.
+        val, have = _bg_cached("disk_usage", 30.0, _disk_usage)
+        if not have:
+            # First call of the process: nothing measured yet. Say so explicitly
+            # rather than returning empty lists, which the panel cannot tell from
+            # "this host has no homes" — the refresh is already running.
+            self._json(200, {"filesystems": [], "homes": [], "truncated": False,
+                             "pending": True})
+            return
+        self._json(200, dict(val or {}, pending=False))
 
     def _handle_config_services_get(self):
         if not self._require_sudo():
@@ -6185,6 +6272,12 @@ class Handler(http.server.BaseHTTPRequestHandler):
             req["mode"] = q["mode"][0]
         if "algo" in q:
             req["algo"] = q["algo"][0]
+        if "sig" in q:
+            # Conditional listing: the digest the client already holds. The agent
+            # answers {"unchanged": true} instead of resending an identical
+            # listing, which the Files poll asks for every 4s. Bounded so a
+            # crafted URL cannot push an unbounded string into the agent.
+            req["sig"] = q["sig"][0][:64]
         ok, err = _ensure_fileagent(user)
         if not ok:
             return self._json(502, {"ok": False, "error": err or "agent unavailable",
@@ -7625,8 +7718,19 @@ class Handler(http.server.BaseHTTPRequestHandler):
             # response runs `git log` twice and inlines the whole update history
             # (~44 KB measured) behind the history-file lock. Answer it from the
             # deployed sw.js alone.
-            if "build=1" in urllib.parse.urlparse(self.path).query.split("&"):
+            _q = urllib.parse.urlparse(self.path).query.split("&")
+            if "build=1" in _q:
                 self._json(200, {"build": _shell_version()})
+                return
+            # `?version=1` is the desktop's version strip, fetched on EVERY cold
+            # load, PWA resume and post-deploy reload. It reads three short
+            # strings, and the full payload measured 47KB -- 46.9KB of which is
+            # the per-host update history it never looks at. On a phone that is
+            # the first request of the session, competing with the shell itself.
+            if "version=1" in _q:
+                info = self._update_version_info()
+                info.pop("history", None)
+                self._json(200, info)
                 return
             self._json(200, self._update_version_info())
             return
@@ -7638,19 +7742,34 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 return
             self._json(200, _claude_usage_payload())
             return
-        if self.path == "/api/claude/stats":
+        # Both of these parse the user's WHOLE transcript corpus (measured: 2.12s
+        # over 607 files / 2.6GB for Claude, 0.68s / 1.1GB for Codex). Their own
+        # module TTL is 45s and the Token Stats page polls every 45s -- and the
+        # timestamp is stamped AFTER the compute, so the poll misses the cache by
+        # construction and the user pays a full reparse roughly every other tick.
+        # Two devices missed together meant two concurrent reparses, because the
+        # compute runs outside the module lock.
+        #
+        # Refresh-ahead fixes all of it: the page always gets the last reading
+        # instantly, one producer runs no matter how many clients ask, and the
+        # cost grows with corpus size without ever reaching a request thread.
+        if self.path in ("/api/claude/stats", "/api/codex/stats"):
+            mod = claude_stats if "claude" in self.path else codex_stats
+            home = _office_home()
+            # block_first: the very first parse after a manager restart is paid
+            # inline (2.1s, once per process), exactly as before. Every later
+            # request — which is all of them — is served instantly from the last
+            # reading while a refresh runs behind it. Keeping the first call
+            # synchronous means the payload shape never changes, so nothing
+            # downstream needs a "pending" branch.
             try:
-                self._json(200, claude_stats.get_stats(_office_home()))
+                val, have = _bg_cached(f"{mod.__name__}:{home}", 45.0,
+                                       lambda: mod.get_stats(home), block_first=True)
             except Exception as e:
-                log.warning("claude stats failed: %s", e)
+                log.warning("%s failed: %s", mod.__name__, e)
                 self._json(500, {"error": str(e)})
-            return
-        if self.path == "/api/codex/stats":
-            try:
-                self._json(200, codex_stats.get_stats(_office_home()))
-            except Exception as e:
-                log.warning("codex stats failed: %s", e)
-                self._json(500, {"error": str(e)})
+                return
+            self._json(200, val if have else {})
             return
         if self.path == "/api/share/list":
             return self._handle_share_list()

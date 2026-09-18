@@ -4017,7 +4017,7 @@
   // stamped @SW_VERSION@ so it doesn't read as a second version alongside v1.13.x.
   var _bsw = document.getElementById('build-sw');
   if (_bsw) _bsw.textContent = _bsw.textContent.replace(/^v/i, '');
-  fetch('/api/update').then(function(r) { return r.json(); }).then(function(d) {
+  fetch('/api/update?version=1').then(function(r) { return r.json(); }).then(function(d) {
     var el = document.getElementById('build-ver');
     if (el && d && d.version) el.textContent = d.version;
     // Full version stamp on the desktop wallpaper — version · build · release date ·
