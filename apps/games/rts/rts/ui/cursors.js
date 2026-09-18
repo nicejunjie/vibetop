@@ -312,7 +312,12 @@ function pickCursor() {
 // 6.7 fps: RA2's cursors are slow, deliberate loops, not a flicker. The
 // same beat re-reads the hover context, so a cursor that changes because
 // Ctrl went down updates without the mouse moving.
-if (typeof setInterval === 'function') setInterval(function () { curFrameN++; pickCursor(); }, 150);
+if (typeof setInterval === 'function') setInterval(function () {
+  curFrameN++; pickCursor();
+  // Combat, movement and camera panning also change what is under a stationary
+  // pointer. Refresh the card on the same bounded beat as the cursor.
+  updateHover(G && mouse.in && !drag ? pickAt(mouse.x, mouse.y) : null, mouse.x, mouse.y);
+}, 150);
 
 // --- generated ---
 // ESM import bindings are read-only, so a write from another module goes

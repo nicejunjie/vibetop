@@ -49,6 +49,19 @@ function swInit() {
   return o;
 }
 
+// Multiple chargers share one timer: one enabled structure is sufficient.
+// Missing structures are handled separately by stepSW's charge reset.
+function swOffline(g, p, key) {
+  var found = false;
+  for (var i = 0; i < g.blds.length; i++) {
+    var b = g.blds[i];
+    if (b.dead || b.p !== p || b.type !== SW[key].bld) continue;
+    found = true;
+    if (!b.offline) return false;
+  }
+  return found;
+}
+
 // Is this structure a superweapon? (The captured Airport carries the
 // Paratrooper special but is not buildable, so it never reaches canBuild.)
 function swBld(key) {

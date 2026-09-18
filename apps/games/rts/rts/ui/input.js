@@ -913,7 +913,7 @@ function orderUnitsTo(g, units, gx, gy, opts) {
     requestPath(g, u, tx, ty);
     n++;
   });
-  if (opts.voice && n) unitAck(units, onOre ? 'harvest' : 'move');
+  if (opts.voice && n) unitAck(units, onOre && units.some(isHarv) ? 'harvest' : 'move');
   if (wet && !n && !headless) { say(g.terrain[idx(gx, gy)] === T_WATER ? 'No sea route — that water is not joined to ours' : 'A ship cannot go ashore', true); sfx('no'); }
   return n;
 }

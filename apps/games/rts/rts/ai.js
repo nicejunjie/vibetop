@@ -196,10 +196,24 @@ function newAI(diff) {
 // What the AI can see: only tiles within sight of something it owns.
 // AINavalYardAdjacency: settled once, from the Construction Yard's own
 // start position, because neither the map nor the start moves.
-function aiCheckShore(g, ai, me) { ai.shore = hasShore(g, me); ai.shoreAt = 1; }
+function aiCheckShore(g, ai, me) {
+  // A nearby pond is not a naval front. Gem Valley has two disconnected
+  // lakes: proximity alone bought eight stranded hulls per side, consuming
+  // the money needed for the land war. Require a body of water that reaches
+  // both starting regions. This uses map topology, not hidden enemy units.
+  var home = g.start[me], foe = g.start[1 - me], own = {}, other = {};
+  for (var y = 0; y < MAP; y++) for (var x = 0; x < MAP; x++) {
+    var z = waterZoneAt(g, x, y); if (!z) continue;
+    if (Math.abs(x - home.x) <= AI_NAVAL_ADJ && Math.abs(y - home.y) <= AI_NAVAL_ADJ) own[z] = true;
+    if (Math.abs(x - foe.x) <= AI_NAVAL_ADJ && Math.abs(y - foe.y) <= AI_NAVAL_ADJ) other[z] = true;
+  }
+  ai.shoreZones = Object.keys(own).filter(function (z) { return !!other[z]; }).map(Number);
+  ai.shore = ai.shoreZones.length > 0;
+  ai.shoreAt = 2; // Recompute the old proximity-only cache on save restoration.
+}
 
 function scoutEnemy(g, ai, me, foe) {
-  if (!ai.shoreAt) aiCheckShore(g, ai, me);
+  if (ai.shoreAt !== 2) aiCheckShore(g, ai, me);
   var seen = { inf: 0, veh: 0, bld: 0, air: 0 };
   var eyes = [];
   var i;
@@ -451,6 +465,7 @@ function aiTeamPass(g, ai, me, foe) {
     if (!w) continue;
     if (aiTeamCount(ai, d.key) >= d.max) continue;
     if (d.need && !hasBld(g, me, d.need)) continue;
+    if (d.naval && !ai.shore) continue;
     if (d.role === 'defend' && nDef >= cfg.defMax) continue;
     if (d.role === 'attack' || d.role === 'siege' || d.role === 'harass') {
       if (offCount(d.naval) >= (d.naval ? navCap : atkCap)) continue;
@@ -652,18 +667,38 @@ function aiDefencePlan(g, ai, me) {
   return Math.max(1, Math.min(ai.cfg.defCount, n));
 }
 
-// Can the other house put anything in the air AT ALL? RA2's aircraft all
-// hang off two structures: [ORCA]/[ROCK]/[SHAD] need an Airforce Command,
-// and the Collective's [ZEP] needs a Battle Lab with a War Factory to build
-// it in. The AI already reads the enemy's base directly everywhere else
-// (target picking, superweapon aim), so this reads it the same way.
+// Air-tech capability remains a whole-map query. A scouting-only replacement
+// needs a coordinated scouting/endgame policy; the isolated experiment
+// increased Coastal stalemates and was not retained.
 function aiFoeCanFly(g, foe) {
   if (hasBld(g, foe, 'airforce')) return true;
   return g.side[foe].fac === 'col' && hasBld(g, foe, 'lab') && hasBld(g, foe, 'factory');
 }
 
+// Losing the last miner is an income emergency, not a request to append a
+// miner behind four tanks. Use ordinary cancellation/refund and pause rules;
+// never grant money or discard a miner's already-paid progress.
+function aiRecoverEconomy(g, ai, me) {
+  var s = g.side[me], lanes = ai.recoveryPaused || [];
+  lanes.forEach(function (lane) { s.queues[lane].pause = false; });
+  ai.recoveryPaused = [];
+  if (countUnit(g, me, 'harvester') || !hasBld(g, me, 'factory') || !hasBld(g, me, 'refinery')) return false;
+  var key = harvKey(s.fac), q = s.queues.v;
+  if (!aiCanMake(g, me, key)) return false;
+  while (q.list.length && q.list[0] !== key) cancelLast(g, me, 'v', q.list[0]);
+  ['i', 'a', 'n', 'd', 'b'].forEach(function (lane) {
+    var other = s.queues[lane];
+    // Restoring power and refinery production is still useful during recovery.
+    if (lane === 'b' && ['power', 'reactor', 'refinery'].indexOf(other.list[0]) >= 0) return;
+    if (!other.pause) { other.pause = true; ai.recoveryPaused.push(lane); }
+  });
+  if (!q.list.length && canBuild(g, me, key, false)) enqueue(g, me, key, 'v');
+  return true;
+}
+
 function aiProduce(g, ai, me, foe) {
   var s = g.side[me], cfg = ai.cfg;
+  if (aiRecoverEconomy(g, ai, me)) return;
   // RA2's AI rebuilds its base rather than dying with it: with no yard
   // standing it unfolds an MCV on the spot, shuffling one tile at a time if
   // the ground under it is blocked, and buys one if it still has the War
@@ -947,7 +982,7 @@ function aiProduce(g, ai, me, foe) {
   // Aircraft lane: whatever the air team is short of, up to the pad count.
   // The naval lane. Same shape as the aircraft lane: whatever the fleet
   // teams are short of, capped so a yard never eats the land army's money.
-  if (hasBld(g, me, 'shipyard') && !s.queues.n.list.length && s.credits > 1500 &&
+  if (ai.shore && hasBld(g, me, 'shipyard') && !s.queues.n.list.length && s.credits > 1500 &&
       countUnit(g, me, null, 'n') < 8) {
     var navWant = pickFrom('n', null);
     if (navWant && canBuild(g, me, navWant, false)) enqueue(g, me, navWant, 'n');
@@ -1031,6 +1066,15 @@ function aiSpearhead(ai) {
 
 function aiSuper(g, ai, me, foe) {
   var s = g.side[me];
+  // A captured Tech Airport has its own free reinforcement timer. It was
+  // absent from this dispatch entirely, so the AI captured airports but
+  // never used them — even in a resource-starved endgame. Drop onto clear
+  // ground at the staging area; the ordinary team layer recruits the men.
+  if (s.sw.para.ready) {
+    var stage = aiStaging(g, me, foe);
+    var drop = freeTileNear(g, Math.round(stage.x), Math.round(stage.y));
+    if (drop) swFire(g, me, 'para', drop.x, drop.y);
+  }
   if (!s.sw.nuke.ready && !s.sw.storm.ready && !s.sw.curtain.ready && !s.sw.chrono.ready) return;
   var hit = aiSwTarget(g, foe);
   if (hit && s.sw.nuke.ready) swFire(g, me, 'nuke', hit.x, hit.y);
@@ -1106,6 +1150,7 @@ function aiPlace(g, ai, me, foe) {
       if (Math.max(Math.abs(ox), Math.abs(oy)) !== r) continue;
       var gx = Math.round(home.x + ox), gy = Math.round(home.y + oy);
       if (!canPlace(g, me, key, gx, gy)) continue;
+      if (d.water && ai.shoreZones && ai.shoreZones.indexOf(waterZoneAt(g, gx, gy)) < 0) continue;
       // Packing structures shoulder to shoulder walls the AI's own army
       // inside its own base — measured: 33 of one side's infantry frozen
       // behind its own buildings, and the match a stalemate because the

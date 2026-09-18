@@ -1,285 +1,67 @@
-// Iron Frontier — infantry/cleg: the art for one unit.
-// Called by bakeInfantry() with one context object carrying the canvas, the anchor,
-// the facing and the helpers it draws with — see rts/README.md.
-
-
-
-
+// Chrono Legionnaire: sealed heavy suit, backpack and a two-handed emitter.
 function drawCleg(C) {
-  var ACC = C.ACC, FA = C.FA, HEADX = C.HEADX, T = C.T, TURN = C.TURN, arms = C.arms, by = C.by, col = C.col,
-      cx = C.cx, g = C.g, gt = C.gt, legs = C.legs, sd = C.sd, state = C.state;
-
-// CHRONO LEGIONNAIRE ([CLEG]), read off docs/ra2-ref/ra2-cleg-CC_Legion
-// _Chrono_Legionnaire.png and the sprite animation. He is the PALEST
-// figure on the field: bone-white plate over a light blue-grey suit,
-// a full domed helmet with a dark faceplate and a breathing hose, and
-// a heavy two-handed neutron rifle held ACROSS the body with a cold
-// blue coil glowing on top of the receiver. Value alone separates him
-// from every other man in the line-up before colour does.
-// HOUSE COLOUR RIDES THE THIGH, not the chest. The sidebar crops an
-// infantry cameo to its TOP 72% (`cameoFor`), so owner colour below
-// about `by - 9` is carried in full by the sprite — where §1.4's remap
-// floor is measured — and is barely in the plate at all. That is the
-// whole trade this pass makes for him: the budget the shoulder shell
-// gives up lands here and on the greaves, not on another chest slab.
-// Each shin shell and knee band follows its own leg, including on a stride.
-var legOrder = gt.sw ? [-gt.sw, gt.sw] : [-1, 1];
-for (var ln = 0; ln < 2; ln++) {
-  var li = legOrder[ln], lead = gt.sw ? (li === gt.sw ? 1 : -1) : 0;
-  var lat = 1 - .4 * sd;
-  var hx = cx + li * 2.6 * lat;
-  var kx = cx + li * (lead > 0 ? 4.1 : lead < 0 ? 1.5 : 3.15) * lat
-    + (lead > 0 ? 2.1 : lead < 0 ? -1.6 : 0) * sd / TURN;
-  var fx = kx + (lead > 0 ? .9 : lead < 0 ? -.65 : li * .25) / TURN;
-  var lift = lead < 0 ? 2.1 : 0, ky = by - 6.4 - lift;
-  g.strokeStyle = '#505866'; g.lineWidth = 3.9; g.lineCap = 'round';
-  g.beginPath(); g.moveTo(hx, by - 12.4); g.lineTo(kx, ky);
-  g.lineTo(fx, by - 2.0 - lift); g.stroke();
-  g.strokeStyle = lead < 0 ? '#9fa8b1' : '#c4cbd0'; g.lineWidth = 2.6;
-  g.beginPath(); g.moveTo(hx - .35, by - 11.7); g.lineTo(kx - .35, ky - 1.2); g.stroke();
-  g.strokeStyle = lead < 0 ? '#a0aab4' : '#d0d5d8'; g.lineWidth = 2.2;
-  g.beginPath(); g.moveTo(kx - .4, ky + .8); g.lineTo(fx - .4, by - 2.8 - lift); g.stroke();
-  g.fillStyle = shade(col, .83);
-  g.beginPath(); g.roundRect(kx - 1.55, ky - .55, 3.1, .9, .25); g.fill();
-  g.fillStyle = '#202730';
-  g.beginPath(); g.roundRect(fx - 1.85, by - 2.4 - lift, 4.0, 2.4, .6); g.fill();
-  g.fillStyle = '#8d979e'; g.fillRect(fx - 1.25, by - 2.2 - lift, 2.6, .8);
-}
-
-g.save(); g.translate(gt.lean, gt.bob);
-g.fillStyle = shade(T.coat, 0.80);                             // belt rig
-g.fillRect(cx - 4.9, by - 14.2, 9.8, 1.5);
-g.fillStyle = shade(T.coat, 1.34);
-g.fillRect(cx - 4.7, by - 14.1, 9.4, 0.6);
-
-g.fillStyle = shade(T.coat, 1.30);                             // bone-white torso plate
-g.beginPath();
-g.moveTo(cx - 5.0, by - 20.6); g.lineTo(cx + 5.0, by - 20.6);
-g.lineTo(cx + 5.2, by - 14.4); g.lineTo(cx - 5.2, by - 14.4);
-g.closePath(); g.fill(); outline(g, shade(T.coat, 0.52));
-g.fillStyle = shade(T.coat, 1.44);                             // lit left half
-g.fillRect(cx - 4.8, by - 20.4, 3.2, 5.8);
-// THE POWERED-SUIT SHOULDERS ARE THE SUIT, NOT THE HOUSE BLOCK.
-// §2.1 names his one feature "powered-suit shoulders with no neck, a
-// COLLAR RING, and a long rifle held level", and §1.5's zone row for him
-// reads "silver suit, RED TRIM". This yoke was neither: a solid
-// owner-colour cape from shoulder point to sternum. Measured on the
-// 60x48 plate the sidebar actually draws, it made him the BLUEST cameo
-// in the Directorate — 61.9% of the plate's centre band in owner hue,
-// against the G.I.'s 49.2% — which is why `GI | Chrono Legionnaire` and
-// `Spy | Chrono Legionnaire` were two of that sidebar's eight worst
-// pairs. The five worst were one picture: an owner-blue torso filling
-// the middle of the frame, identity left to a small low-contrast prop.
-//
-// So the shell is ARMOUR: one continuous silver shoulder wrap, and the
-// owner colour goes to the COLLAR RING §2.1 had already asked for
-// (and which was not drawn), the pauldron rims, the knee bands and the
-// thigh plates. Same clause, same shoulder line, opposite paint.
-g.fillStyle = shade(T.coat, 1.50);                             // silver shoulder shell
-g.beginPath();
-g.moveTo(cx - 5.6, by - 20.7); g.lineTo(cx + 5.6, by - 20.7);
-g.lineTo(cx + 3.4, by - 15.9); g.lineTo(cx - 3.4, by - 15.9);
-g.closePath(); g.fill(); outline(g, shade(T.coat, 0.64));
-g.fillStyle = shade(T.coat, 1.72);                             // lit crest
-g.fillRect(cx - 5.4, by - 20.5, 3.4, 1.4);
-g.fillStyle = shade(T.coat, 0.86);                             // shoulder seam, so the
-g.fillRect(cx - 5.5, by - 17.2, 11.0, 0.7);                    // wrap reads as a plate
-g.fillStyle = col;                                             // diagonal equipment harness
-g.beginPath();
-g.moveTo(cx - 5.0, by - 20.8); g.lineTo(cx - 2.7, by - 20.8);
-g.lineTo(cx - 2.1, by - 14.7); g.lineTo(cx - 4.4, by - 14.7);
-g.closePath(); g.fill();
-// The shoulder harness is a connected cross-piece, not isolated trim.
-// It seats the red chest strap on the pale shell above the carried rifle.
-g.fillStyle = shade(col, 0.86);
-g.beginPath(); g.roundRect(cx - 5.0, by - 19.2, 10.0, 2.2, 0.5); g.fill();
-g.fillStyle = col;
-g.fillRect(cx - 1.35, by - 19.0, 2.7, 4.2);
-// THE COLLAR RING (§2.1), which the old yoke stood in for and which is
-// the natural home for the house note on a sealed suit: a band round
-// the neck line, drawn under the dome so the dome seats INTO it.
-g.fillStyle = col;
-g.beginPath(); g.roundRect(cx - 3.5, by - 21.3, 7.0, 1.9, 0.9); g.fill();
-outline(g, shade(col, 0.40));
-g.fillStyle = shade(col, 1.24);
-g.fillRect(cx - 3.2, by - 21.1, 6.4, 0.7);
-// ...and one trim band round each greave. He was the last uniformed
-// trooper under §1.4's 20% floor at 19.4%, and "red trim" (§1.5) is
-// exactly what a knee band is — it does not touch the bone-white plate
-// that is his actual identity.
-// Knee trim is painted with the moving legs above, not across torso space.
-g.fillStyle = '#686868';                                       // chest vent slot
-g.fillRect(cx - 1.6, by - 17.4, 3.2, 1.9);
-g.fillStyle = ACC;
-g.fillRect(cx - 1.3, by - 17.2, 1.1, 1.4);
-
-// THE WIDEST ALLIED FOOT SILHOUETTE. §2.1 asks for a shoulder line
-// >= 15 px — "powered-suit shoulders with no neck", >= 20% wider than a
-// GI's 12 — and the suit was being drawn at a rifleman's 10.4, which is
-// why his nearest silhouette match was the GI. The pauldrons are wide
-// slabs now and the arms hang off them.
-arms(6.3, by - 18.6, 2.9, 5.4, shade(T.coat, 1.24), function (i, x, y) {
-  // The pauldron is the SHOULDER, so it is the suit's own material and
-  // wears the house colour as a RIM — the same division the shell above
-  // makes, and the reason the shoulder line still measures 20 px against
-  // §2.1's 15: nothing here moved, only what it is painted in.
-  g.fillStyle = shade(col, 0.88);                              // rim, one step proud
-  g.beginPath(); g.roundRect(x - i * 0.35 - 2.2, y - 1.3, 4.4, 3.0, 1.0); g.fill();
-  outline(g, shade(col, 0.42));
-  g.fillStyle = shade(T.coat, 1.38);                           // silver slab pauldron
-  g.beginPath(); g.roundRect(x - i * 0.35 - 1.85, y - 1.0, 3.7, 2.3, 0.8); g.fill();
-  g.fillStyle = shade(T.coat, 1.66);
-  g.fillRect(x - i * 0.35 - 1.6, y - 0.8, 3.2, 0.8);
-  g.fillStyle = '#525252';                                     // dark glove
-  g.beginPath(); g.roundRect(x - 1.3, y + 4.6, 2.6, 2.2, 0.8); g.fill();
-});
-
-// The neutron rifle: a long slab receiver with a glowing coil ring
-// near the muzzle and a stubby emitter fork at the end.
-// THE NEUTRON RIFLE, and it is NOT drawn through `wpn()` any more.
-// `wpn` models a weapon that points along the facing — a shoulder tube,
-// a rad cannon — so it gives the piece its full length back as the man
-// turns to profile (`wl = (0.82 + 0.33*sd) / TURN`). The Chrono
-// Legionnaire's rifle is held ACROSS the body, which is the opposite
-// case: front-on you see all of it, end-on you see almost none. Under
-// `wpn` it grew by half at the profile facings, and when §2.1's "rifle
-// >= 9 px LONG" was finally enforced and it got longer still, that swing
-// took his own cross-bearing self-IoU from 0.707 to 0.631 and handed him
-// to the Rocketeer as a peer-vs-self failure. Drawn in body space it
-// narrows WITH the shoulders, which is both what a rifle across a chest
-// actually does and what keeps his eight bearings the same man.
-// ...and it does not swap hands front-to-back either. `wpn`'s `GSIDE`
-// mirror is right for a piece that points along the facing; a rifle held
-// across the chest is BEHIND the man on the three rear facings, so which
-// screen side it lands on there is arbitrary — and flipping it cost
-// another 0.03 of self-IoU for nothing a player can see at 26 px. The
-// outer `MIR` still swaps it left-for-right with the facing, so the
-// muzzle always leads the way he is walking.
-(function () {
-  // Carried across the body and CANTED — the muzzle drops toward the
-  // leading hip. Level, an 8-unit slab at waist height read as a belt.
-  //
-  // A LONG rifle, and that is the whole budget. §2.1 asks for a "rifle
-  // >= 9 px LONG held horizontal"; the gate's `budget` field means the
-  // THIN dimension, so the 9 had been entered as a demand for a NINE
-  // PIXEL THICK weapon, which is a fence post. Corrected, the number is
-  // an extent: the receiver runs 9.2 units (12 px) and the emitter fork
-  // carries it another 2.6, so 9 columns of it stand clear of the body.
-  //
-  // THIS RIFLE IS WHY THE CHRONO LEGIONNAIRE IS THE ONE INFANTRYMAN
-  // LEFT OUTSIDE THE RA2 ASPECT BAND, and it is a conflict between two
-  // declared budgets rather than a fault in the art. He measures 28x30
-  // (w:h 0.933) against RA2's 15x26 (0.577) — 62% too wide. Every route
-  // to the band was built and MEASURED in the 2026-09-05 proportion
-  // pass, and each one trades this gate for another:
-  //
-  //   STATURE [1.00,1.00], this rifle   23x35 r1.139 IN | spike 7/9 X
-  //   ...with the rifle 15% longer      25x35 r1.238    | spike 9/9,
-  //                                     but peerVsSelf.infantry 1 X
-  //   ...longer rifle, [1.00,1.05]      25x38 r1.141 IN | peerVsSelf 1 X
-  //   ...longer rifle, [0.95,1.02]      24x36 r1.156 IN | peerVsSelf 1 X
-  //   height alone, [1.22,1.15]         28x41 r1.184 IN | peerVsSelf 1
-  //                                     and a legibility confusable X
-  //
-  // The middle rows are this function's own trap, already recorded
-  // above: the rifle is drawn in BODY space, so a longer one differs
-  // MORE between the front-on and profile bearings, and his own
-  // cross-bearing self-IoU falls (0.656 -> 0.617) until the Tesla
-  // Trooper matches his outline better than he does — the exact
-  // regression the last lengthening caused.
-  //
-  // And the arithmetic says no tuning fixes it. At his RA2-relative
-  // height (RA2 puts him at 26 against the Conscript's 27; ours is 36,
-  // so ~35) the +-20% band allows 24 px of width. `SPIKES.cleg.len = 9`
-  // spends NINE of those on weapon standing clear of the body, leaving
-  // 15 px for a man §2.1 calls the WIDEST Allied infantry — "shoulder
-  // line >= 15 px, >= 20% wider than a GI's 12", which at our 1.38x
-  // width scale is about 21 px. 15 < 21, so the two budgets cannot both
-  // be met. The inconsistency is in the REFERENCE readings, not here:
-  // RA2's own CLEG is 15 px wide IN TOTAL while carrying this rifle,
-  // which proves its 9 px of rifle do not stand 9 columns clear of the
-  // body — the gate reads §2.1's "9 px LONG" as a protrusion, and that
-  // is stricter than the sprite the sentence cites.
-  // So he stays wide, on purpose, and the debt is the aspect metric.
-  // Re-reading `SPIKES.cleg.len` against the real CLEG rip is the fix;
-  // do not shorten the rifle or stretch the man to bury it.
-  var ry = by - 16.2;
-  g.save();
-  g.save();
-  g.translate(cx, ry); g.rotate(-0.08); g.translate(-cx, -ry);
-  g.fillStyle = '#464646';
-  g.beginPath(); g.roundRect(cx - 2.2, ry, 10.8, 2.2, 0.8); g.fill();
-  outline(g, '#1f1f1f');
-  g.fillStyle = '#858585';                                     // lit spine
-  g.fillRect(cx - 1.9, ry + 0.25, 10.2, 0.8);
-  g.fillStyle = '#2c2c2c';                                     // grip
-  g.beginPath(); g.roundRect(cx - 0.4, ry + 1.9, 1.6, 2.4, 0.5); g.fill();
-  g.fillStyle = '#2c2c2c';                                     // fore grip
-  g.beginPath(); g.roundRect(cx + 4.2, ry + 1.9, 1.3, 1.8, 0.5); g.fill();
-  // THE COIL IS CYAN. RA2's Chrono Legionnaire plate is dominated by one
-  // colour that appears nowhere else in the game — the cold cyan of the
-  // chrono beam, blazing off the muzzle across most of the picture. Ours
-  // glowed in #cfe4f5, which is a pale blue-WHITE, and drawn `lighter`
-  // over a bone-white suit it came out as plain white: the same note as
-  // every muzzle flash on the field, carrying none of his identity. The
-  // hue has to be real or the light is not his.
-  if (state === 'cameo') g.save();                             // charge light only in the active portrait
-  if (state === 'cameo') {
-  g.globalCompositeOperation = 'lighter';
-  g.fillStyle = 'rgba(40,190,235,.34)';                        // bloom kept TIGHT: every
-  g.beginPath();                                               // opaque pixel added here
-  g.ellipse(cx + 6.8, ry + 1.0, 2.5, 2.4, 0, 0, 6.29); g.fill();  // dilutes his house block
-  g.fillStyle = 'rgba(60,215,255,.55)';
-  g.beginPath(); g.ellipse(cx + 6.8, ry + 1.0, 2.0, 1.9, 0, 0, 6.29); g.fill();
-  g.fillStyle = '#4fdcff';                                     // the coil ring itself
-  g.fillRect(cx + 6.2, ry - 0.6, 1.4, 3.4);
-  g.fillStyle = '#f5f5f5';                                     // its hot centre
-  g.fillRect(cx + 6.45, ry + 0.1, 0.9, 1.9);
-  g.restore();
+  var g=C.g,cx=C.cx,by=C.by,sd=C.sd,turn=C.TURN,gt=C.gt,col=C.col;
+  var aiming=C.state==='fire'||C.state==='fireprone';
+  var aim=aiming?C.raise*2.2:0;
+  var order=gt.sw?[-gt.sw,gt.sw]:[-1,1];
+  for(var n=0;n<2;n++){
+    var i=order[n],lead=gt.sw?(i===gt.sw?1:-1):0;
+    var hx=cx+i*2.7, kx=cx+i*3.4+(lead?lead*2.1: i*.7)*sd/turn;
+    var fx=kx+(lead?lead*1.1:i*.4),lift=lead<0?2:0;
+    g.lineCap='round';g.lineJoin='round';g.strokeStyle='#3d495c';g.lineWidth=5.1;
+    g.beginPath();g.moveTo(hx,by-12.5);g.lineTo(kx,by-7-lift);g.lineTo(fx,by-2.4-lift);g.stroke();
+    g.strokeStyle=lead<0?'#999999':'#d0d0d0';g.lineWidth=3.5;
+    g.beginPath();g.moveTo(hx-.4,by-11.5);g.lineTo(kx-.4,by-8-lift);g.stroke();
+    g.beginPath();g.moveTo(kx-.4,by-5.8-lift);g.lineTo(fx-.4,by-2.7-lift);g.stroke();
+    g.fillStyle='#626262';g.fillRect(kx-2,by-7.9-lift,4,2);
+    g.fillStyle='#252f44';g.fillRect(fx-2.4,by-2.4-lift,5.2,2.5);
+    g.fillStyle='#999999';g.fillRect(fx-1.7,by-2.4-lift,3.5,1);
   }
-  g.fillStyle = '#79b7bd';                                    // recessed idle coil on the receiver
-  g.fillRect(cx + 6.2, ry - 0.1, 1.4, 2.4);
-  g.strokeStyle = '#afafaf'; g.lineWidth = 1.3;                // emitter fork
-  g.beginPath();
-  g.moveTo(cx + 8.4, ry + 1.1); g.lineTo(cx + 11.9, ry - 0.7);
-  g.moveTo(cx + 8.4, ry + 1.1); g.lineTo(cx + 11.9, ry + 3.0); g.stroke();
-  // ...and the charge standing between its prongs, which is what makes
-  // the fork a chrono emitter rather than a bayonet.
-  if (state === 'cameo') g.save();
-  if (state === 'cameo') {
-  g.globalCompositeOperation = 'lighter';
-  g.strokeStyle = 'rgba(60,215,255,.60)'; g.lineWidth = 1.8; g.lineCap = 'round';
-  g.beginPath();
-  g.moveTo(cx + 11.5, ry - 0.2); g.lineTo(cx + 11.5, ry + 2.5); g.stroke();
-  g.strokeStyle = '#cdf6ff'; g.lineWidth = 0.9;
-  g.beginPath();
-  g.moveTo(cx + 11.5, ry - 0.2); g.lineTo(cx + 11.1, ry + 1.2);
-  g.lineTo(cx + 11.8, ry + 1.5); g.lineTo(cx + 11.5, ry + 2.5); g.stroke();
-  g.restore();
+  g.save();g.translate(gt.lean,gt.bob);
+  // Power pack stands behind the shoulders, rather than becoming chest paint.
+  var px=cx-(2.4+sd*2.4)/turn;
+  g.fillStyle='#465674';g.fillRect(px-4.3,by-22.1,8.6,10.2);
+  g.fillStyle='#999999';g.fillRect(px-4.3,by-21.6,2.5,8.8);
+  g.fillStyle=col;g.fillRect(px-3.8,by-20,1.6,6.8);
+  g.fillStyle='#3d495c';g.fillRect(cx-5.2,by-14,10.4,2.7);
+  g.fillStyle='#d0d0d0';
+  g.beginPath();g.moveTo(cx-6.1,by-21.3);g.lineTo(cx+6.1,by-21.3);
+  g.lineTo(cx+5.1,by-13.6);g.lineTo(cx-5.1,by-13.6);g.closePath();g.fill();
+  g.fillStyle='#f2eee3';g.fillRect(cx-4.7,by-20.4,3.7,5.6);
+  g.fillStyle='#999999';g.fillRect(cx+3.4,by-19.5,2,5.4);
+  g.fillStyle=col;g.fillRect(cx-4.1,by-20.7,1.8,6.7);
+  g.fillRect(cx-3.2,by-21.2,6.4,1.7);
+  // Arms connect the shoulder shells to both grips of the rifle.
+  for(var a=-1;a<=1;a+=2){
+    var sx=cx+a*6,ex=cx+a*6.6,hand=cx+(a<0?-1.7:4.9)/turn;
+    g.strokeStyle='#626262';g.lineWidth=4.3;g.lineCap='round';
+    g.beginPath();g.moveTo(sx,by-19.6);g.lineTo(ex,by-16.1-aim*.5);g.lineTo(hand,by-15.2-aim);g.stroke();
+    g.strokeStyle='#d0d0d0';g.lineWidth=2.8;
+    g.beginPath();g.moveTo(sx-.4,by-19.5);g.lineTo(ex-.4,by-16.3-aim*.5);g.lineTo(hand,by-15.4-aim);g.stroke();
+    g.fillStyle='#f2eee3';g.fillRect(sx-2.3,by-21,4.6,3);
+  }
+  var ry=by-16.7-aim,wl=(1-.2*sd)/turn;
+  g.fillStyle='#252f44';g.fillRect(cx-3.1*wl,ry,11*wl,3.1);
+  g.fillStyle='#798ba3';g.fillRect(cx-2.5*wl,ry,9.8*wl,1);
+  g.fillStyle='#343434';g.fillRect(cx+6.7*wl,ry+.3,5*wl,2);
+  g.fillStyle='#58949d';g.fillRect(cx+5.6*wl,ry-.8,2.1*wl,4.1);
+  g.fillStyle='#99dce1';g.fillRect(cx+5.7*wl,ry-.6,.9*wl,3.7);
+  g.fillStyle='#d0d0d0';g.fillRect(cx+10.7*wl,ry-.5,1.5*wl,3.5);
+  g.fillStyle='#343434';g.fillRect(cx-1.9*wl,ry+2,2.1,2);g.fillRect(cx+3.8*wl,ry+2,2.1,2);
+  var h=cx+sd*1.2/turn+C.HEADX;
+  g.fillStyle='#626262';g.fillRect(h-3.5,by-22,7,2.2);
+  g.fillStyle='#d0d0d0';g.beginPath();g.ellipse(h,by-23.2,3.4,3.5,0,0,Math.PI*2);g.fill();
+  g.fillStyle='#f2eee3';g.fillRect(h-1.9,by-25.6,3,1.8);
+  if(!C.FA.back){
+    g.fillStyle='#252f44';g.fillRect(h-2+sd,by-23.5,4.5,2.1);
+    g.fillStyle='#65748a';g.fillRect(h-1.6+sd,by-23.4,1.8,.8);
+    g.strokeStyle='#626262';g.lineWidth=1.4;
+    g.beginPath();g.moveTo(h+2.1,by-21.9);g.lineTo(h+3.9,by-20);g.lineTo(h+3.5,by-18.4);g.stroke();
+  }
+  if(C.FA.back){
+    g.fillStyle='#999999';g.fillRect(cx-4.6,by-20.5,8.3,7.7);
+    g.fillStyle='#d0d0d0';g.fillRect(cx-4.4,by-20.2,2.5,7);
+    g.fillStyle=col;g.fillRect(cx-1.2,by-20.3,1.8,7.2);
   }
   g.restore();
-  g.restore();
-}());
-
-// A sealed dome, a dark faceplate and the hose down to the chest.
-var chy = by - 22.3, chx = cx + sd * 1.1 / TURN + HEADX;
-g.fillStyle = shade(T.coat, 1.5);
-g.beginPath(); g.ellipse(chx, chy, 3.2 * (1 - 0.16 * sd), 3.3, 0, Math.PI, 0); g.fill();
-g.fillRect(chx - 3.2 * (1 - 0.16 * sd), chy, 6.4 * (1 - 0.16 * sd), 1.8);
-outline(g, shade(T.coat, 0.44));
-g.fillStyle = shade(T.coat, 1.85);                             // lit crown
-g.beginPath(); g.ellipse(chx - 1.0, chy - 1.5, 1.4, 0.75, -0.35, 0, 6.29); g.fill();
-if (!FA.back) {
-  g.fillStyle = '#313131';                                     // dark faceplate
-  g.beginPath(); g.roundRect(chx + sd * 0.9 - 2.2, chy + 0.1, 4.4, 1.9, 0.7); g.fill();
-  g.fillStyle = 'rgba(190,225,255,.55)';
-  g.fillRect(chx + sd * 0.9 - 1.9, chy + 0.35, 1.6, 0.7);
-  g.strokeStyle = '#6a6a6a'; g.lineWidth = 1.1;                // breathing hose
-  g.beginPath(); g.moveTo(chx + 2.2, chy + 1.8);
-  g.quadraticCurveTo(chx + 4.2, chy + 3.6, chx + 3.0, chy + 5.4); g.stroke();
-} else {
-  g.fillStyle = shade(T.coat, 0.70);
-  g.beginPath(); g.ellipse(chx, chy + 1.2, 2.5, 1.4, 0, 0, Math.PI); g.fill();
-}
-g.restore();
 }

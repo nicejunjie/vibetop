@@ -56,7 +56,7 @@ var lastRadar = null;
 // player could not see. One function now answers for both.
 function radarUp() {
   return !!G && (G.debug
-    || ((hasBld(G, ME, 'radar') || hasBld(G, ME, 'airforce')) && powered(G, ME)));
+    || ((hasEnabledBld(G, ME, 'radar') || hasEnabledBld(G, ME, 'airforce')) && powered(G, ME)));
 }
 
 function drawMini() {

@@ -35,6 +35,17 @@
 // --------------------------------------------------------------------- //
 var VX0 = 0, VY0 = 0, VX1 = 800, VY1 = 600;   // visible window in unzoomed screen space
 
+// Instant beams expose their entire line at once. Do not disclose an unseen
+// emitter or a gap-shrouded portion of the route through a visible endpoint.
+function shotLineSeen(g, s) {
+  var steps = Math.max(1, Math.ceil(Math.max(Math.abs(s.tx - s.x), Math.abs(s.ty - s.y)) * 4));
+  for (var i = 0; i <= steps; i++) {
+    var f = i / steps;
+    if (!tileSeen(g, s.x + (s.tx - s.x) * f, s.y + (s.ty - s.y) * f)) return false;
+  }
+  return true;
+}
+
 function render() {
   updatePsi();
   ctx.fillStyle = (G && APRON_BG[G.theatre]) || '#0b0e14';
@@ -51,9 +62,12 @@ function render() {
   var c0 = screenToGrid(0, 0), c1 = screenToGrid(cvW, 0);
   var c2 = screenToGrid(0, cvH), c3 = screenToGrid(cvW, cvH);
   var minX = Math.floor(Math.min(c0.x, c1.x, c2.x, c3.x)) - 1;
-  var maxX = Math.ceil(Math.max(c0.x, c1.x, c2.x, c3.x)) + 1;
+  // Raised terrain below the flat viewport can project into it. Include
+  // that extra strip so taller cliffs don't pop at the lower screen edge.
+  var heightPad = G.hiAny ? Math.ceil(HSTEP / TH) : 0;
+  var maxX = Math.ceil(Math.max(c0.x, c1.x, c2.x, c3.x)) + 1 + heightPad;
   var minY = Math.floor(Math.min(c0.y, c1.y, c2.y, c3.y)) - 1;
-  var maxY = Math.ceil(Math.max(c0.y, c1.y, c2.y, c3.y)) + 2;
+  var maxY = Math.ceil(Math.max(c0.y, c1.y, c2.y, c3.y)) + 2 + heightPad;
   var minXr = minX, minYr = minY, maxXr = maxX, maxYr = maxY;
   minX = Math.max(0, minX); minY = Math.max(0, minY);
   maxX = Math.min(MAP - 1, maxX); maxY = Math.min(MAP - 1, maxY);
@@ -459,7 +473,7 @@ function render() {
   // Crate pickup: the effect's glyph rises off the spot, RA2's crate pip.
   for (i = 0; i < G.fx.length; i++) {
     var kf = G.fx[i];
-    if (!kf.crateFx || kf.t < 0) continue;
+    if (!kf.crateFx || kf.t < 0 || !tileSeen(G, kf.x, kf.y)) continue;
     var kq = kf.t / kf.life;
     ctx.globalAlpha = Math.max(0, 1 - kq * kq);
     ctx.font = 'bold 15px system-ui'; ctx.textAlign = 'center';
@@ -549,6 +563,9 @@ function render() {
   for (i = 0; i < G.shots.length; i++) {
     var s = G.shots[i];
     var f = s.t / s.life;
+    var sightF = s.flak ? Math.min(1, f / 0.45) : f;
+    if (!tileSeen(G, s.x + (s.tx - s.x) * sightF, s.y + (s.ty - s.y) * sightF)) continue;
+    if ((s.beam || s.tesla || s.link) && !shotLineSeen(G, s)) continue;
     var ax = sx(s.x, s.y) + (s.ox || 0), ay = sy(s.x, s.y) - 10 - (s.alt || 0);
     var bx = sx(s.tx, s.ty), by = sy(s.tx, s.ty) - 8 - (s.talt || 0);
     if (s.shell) {
@@ -561,7 +578,7 @@ function render() {
       ctx.beginPath(); ctx.ellipse(shx, shy, 3.4, 2.9, 0, 0, 6.29); ctx.fill();
       ctx.fillStyle = '#767d88';
       ctx.beginPath(); ctx.ellipse(shx - 1.1, shy - 1.1, 1.5, 1.2, 0, 0, 6.29); ctx.fill();
-      if (f < 0.22) {                              // muzzle smoke, thinning out
+      if (f < 0.22 && tileSeen(G, s.x, s.y)) {      // muzzle smoke, thinning out
         ctx.globalAlpha = 0.5 * (1 - f / 0.22);
         ctx.fillStyle = '#b8b2a6';
         ctx.beginPath(); ctx.arc(ax, ay - 2, 5 + f * 22, 0, 6.29); ctx.fill();
@@ -654,6 +671,7 @@ function render() {
       ctx.globalCompositeOperation = 'source-over';
       for (var vp = 0; vp <= 28; vp++) {
         var pq = vp / 28; if (pq > f) break;
+        if (!tileSeen(G, s.x + (s.tx - s.x) * pq, s.y + (s.ty - s.y) * pq)) continue;
         var vage = f - pq;
         var pqx = ax + (bx - ax) * pq, pqy = ay + (by - ay) * pq - Math.sin(pq * Math.PI) * ARC;
         ctx.globalAlpha = Math.max(0, 0.46 - vage * 0.44);
@@ -690,6 +708,7 @@ function render() {
       ctx.globalCompositeOperation = 'source-over';
       for (var rp = 0; rp <= 14; rp++) {
         var rq2 = rp / 14; if (rq2 > f) break;
+        if (!tileSeen(G, s.x + (s.tx - s.x) * rq2, s.y + (s.ty - s.y) * rq2)) continue;
         var rage = f - rq2;
         ctx.globalAlpha = Math.max(0, 0.42 - rage * 0.58);
         ctx.fillStyle = rage < 0.08 ? '#ded6c8' : '#8f8b85';
@@ -726,7 +745,7 @@ function render() {
     ctx.strokeStyle = core + (1 - f) + ')';
     ctx.lineWidth = s.rocket ? 2 : 1.1;
     ctx.beginPath(); ctx.moveTo(hx, hy); ctx.lineTo(tx2, ty2); ctx.stroke();
-    if (s.t <= 1) {
+    if (s.t <= 1 && tileSeen(G, s.x, s.y)) {
       var fsz = (s.rocket ? 30 : 20) * (1 - s.t * 0.35);
       ctx.globalCompositeOperation = 'lighter';
       ctx.drawImage(SPR.flash.c, mfx - fsz / 2, mfy - fsz / 2, fsz, fsz);
@@ -742,6 +761,8 @@ function render() {
   for (i = 0; i < G.fx.length; i++) {
     var fx = G.fx[i], ff = fx.t / fx.life;
     if (fx.t < 0 || fx.corpse) continue;          // queued (a bomb still falling) / drawn in the depth pass
+    // Command pings are player feedback, not information about hidden combat.
+    if (!fx.ping && !tileSeen(G, fx.x, fx.y)) continue;
     var fxx = sx(fx.x, fx.y) + (fx.ox || 0), fyy = sy(fx.x, fx.y) + (fx.oy || 0);
     if (fx.smoke) {
       ctx.globalCompositeOperation = 'source-over';
@@ -997,6 +1018,7 @@ function render() {
     var dp = G.drops[i];
     for (var mi = 0; mi < dp.men.length; mi++) {
       var mn = dp.men[mi];
+      if (dp.p !== ME && !tileSeen(G, mn.x, mn.y)) continue;
       var fall = 1 - mn.fall / PARA_FALL;                 // 0 = jumped, 1 = touching down
       var gxp = sx(mn.x, mn.y), gyp = sy(mn.x, mn.y);
       var swing = Math.sin(mn.sway + G.tick * 0.055) * (10 * (1 - fall));
@@ -1156,6 +1178,11 @@ function infSeqOf(u, moving, alt) {
     if (moving) return { st: 'walk', ph: (G.tick >> 1) % 6 };   // twice a man's cadence
     return { st: 'stand', ph: 0 };
   }
+  var planting = G.tick - (u.plantAt == null ? -999 : u.plantAt);
+  // Finish the physical action before cheering, including a C4 strike that
+  // destroys the last enemy building on the very tick it begins.
+  if (u.type === 'tanya' && (!moving || G.over) && planting >= 0 && planting < 24)
+    return { st: 'plant', ph: Math.min(5, planting >> 2) };
   if (G.over && G.overAt != null && G.tick - G.overAt < 180 &&
       G.over === (u.p === P_HUMAN ? 1 : -1)) return { st: 'cheer', ph: (G.tick >> 3) & 1 };
   // keyboard.ini AllToCheer=67 (C): the whole army cheers on command. The
@@ -1166,10 +1193,10 @@ function infSeqOf(u, moving, alt) {
   if (u.prone) {
     if (firing) return { st: 'fireprone', ph: Math.min(5, (G.tick - u.fireAt) >> 1) };
     if (moving) return { st: 'crawl', ph: (G.tick >> 3) % 6 };
-    if (G.tick - (u.downAt || -99) < 12) return { st: 'down', ph: 0 };
+    if (G.tick - (u.downAt == null ? -99 : u.downAt) < 12) return { st: 'down', ph: Math.min(5, (G.tick - u.downAt) >> 1) };
     return { st: 'prone', ph: 0 };
   }
-  if (G.tick - (u.upAt == null ? -99 : u.upAt) < 12) return { st: 'up', ph: 0 };
+  if (G.tick - (u.upAt == null ? -99 : u.upAt) < 12) return { st: 'up', ph: Math.min(5, (G.tick - u.upAt) >> 1) };
   // Six frames over the 13-tick burst window, two ticks each — `FireUp`'s
   // own length. `>>2` with a min of 2 was the three-frame cycle.
   if (firing) return { st: 'fire', ph: Math.min(5, (G.tick - u.fireAt) >> 1) };
@@ -1181,12 +1208,8 @@ function infSeqOf(u, moving, alt) {
   return { st: 'stand', ph: 0 };
 }
 
-// The RA2 infantry deaths, all played off the SAME baked figure: a twirl
-// spins the standing frame down onto its face, a flying death throws it
-// back along the shot, a burn blackens it under flames (the sprite drawn
-// over itself in `multiply`, so no black silhouette needs baking), an
-// electro strobes it white, and a crush flattens it. The last stretch of
-// every one of them is the prone frame, fading.
+// Articulated collapse, with the existing burn/electric/flight effects layered
+// on top. The final frame is a relaxed corpse, not an alert prone rifleman.
 function drawCorpse(f) {
   var art = SPR.unit[f.p][f.fac][f.type];
   if (!art || !art.fr) return;
@@ -1197,19 +1220,24 @@ function drawCorpse(f) {
   var DROP = f.mode === 6 ? 4 : 22;                      // ticks of the fall itself
   var down = t < DROP, q = down ? t / DROP : 1;
   var s = art.dog ? art.fr('stand', f.face, 0)
-                  : (down && f.mode !== 6 ? art.fr('stand', f.face, 0) : art.fr('prone', f.face, 0));
+                  : art.fr('death', f.face, down ? Math.min(5, (q * 6) | 0) : 5);
   var ox = px - s.w / 2, oy = py - (s.h - UPAD);
   ctx.save();
+  ctx.imageSmoothingEnabled = false;
   ctx.globalAlpha = k > 0.72 ? Math.max(0, (1 - k) / 0.28) : 1;
   if (down) {
     // The fall itself: pivot on the ground point so the body never slides
     // off its own tile.
     ctx.translate(px, py); 
-    if (f.mode === 1) ctx.rotate(q * q * 1.45);                     // twirl
-    else if (f.mode === 3) { ctx.translate(-Math.cos(f.face * FANG) * q * 9, -q * q * 5 + q * 7); ctx.rotate(-q * 1.5); }
+    if (art.dog && f.mode === 1) ctx.rotate(q*q*1.45); // preserve the separate canine animation
+    else if (f.mode === 3) { ctx.translate(-Math.cos(f.face * FANG) * q * 9, -q * q * 5 + q * 7); ctx.rotate(art.dog ? -q*1.5 : -Math.sin(q * Math.PI) * .5); }
     else if (f.mode === 5) ctx.translate(((t % 3) - 1) * 0.8, 0);   // electro judder
     ctx.translate(-px, -py);
   }
+  // Corpse sprites keep the same native-grid sampling as living infantry.
+  var cm=ctx.getTransform(),ci=cm.a*ox+cm.c*oy+cm.e,cj=cm.b*ox+cm.d*oy+cm.f;
+  var cd=cm.a*cm.d-cm.b*cm.c;
+  if(cd){var cdx=Math.round(ci)-ci,cdy=Math.round(cj)-cj;ox+=(cm.d*cdx-cm.c*cdy)/cd;oy+=(cm.a*cdy-cm.b*cdx)/cd;}
   ctx.drawImage(s.c, ox, oy, s.w, s.h);
   if (f.mode === 4) {                                    // burn: char the body
     ctx.globalCompositeOperation = 'multiply';
@@ -1452,7 +1480,12 @@ function drawUnit(u) {
   // Being erased ([ChronoBeam] Temporal=yes): the unit fades out of the
   // frame over its own outline instead of taking damage.
   if (u.erase > 0) { ctx.save(); ctx.globalAlpha = Math.max(0.08, 1 - u.erase * 0.85); }
-  else if (submerged) { ctx.save(); ctx.globalAlpha = 0.42; }
+  else if (submerged) {
+    ctx.save();
+    // Small organic bodies vanished at submarine opacity. Keep the owner's
+    // animal legible; enemy detection/visibility above remains unchanged.
+    ctx.globalAlpha = u.p === ME && (u.type === 'dolphin' || u.type === 'squid') ? 0.86 : 0.42;
+  }
   if (u.deployed && SPR.bags) {                        // the pit and the BACK lip, UNDER him
     var BGb = SPR.bags[u.p].back;
     ctx.drawImage(BGb.c, px - BGb.w / 2, py - (BGb.h - UPAD), BGb.w, BGb.h);
@@ -1673,6 +1706,7 @@ function drawBombs() {
 }
 
 function drawWreck(w) {
+  if (w.p !== ME && !tileSeen(G, w.x, w.y)) return;
   var alt = wreckAlt(w), px = sx(w.x, w.y), py = sy(w.x, w.y);
   if (px < VX0 - 90 || py < VY0 - 90 || px > VX1 + 90 || py > VY1 + 90) return;
   var art = SPR.unit[w.p][facOf(G, w.p) || 'dir'][w.type];
@@ -1707,6 +1741,7 @@ function drawWreck(w) {
   for (var k = 1; k <= 4; k++) {
     var tt = w.t - k * 5; if (tt < 0) break;
     var bx = w.x - w.vx * (w.t - tt), by = w.y - w.vy * (w.t - tt);
+    if (w.p !== ME && !tileSeen(G, bx, by)) continue;
     var ba = w.alt0 * (1 - tt / w.life) * (1 - tt / w.life);
     ctx.globalAlpha = 0.30 * (1 - k / 5);
     ctx.fillStyle = '#39404a';
@@ -1829,7 +1864,8 @@ function drawNeutral(b) {
   var ox = px - art.ax, oy = py - art.ay;
   var frac = b.hp / b.maxhp, hurt = frac <= 0.5;
   var setN = hurt ? dmgSetOf(art, b.type + (art === A0 ? '' : 'lit')) : [art.s];
-  ctx.drawImage(setN[0].c, ox, oy, art.s.w, art.s.h);
+  var surfaceN = b.offline ? offOf(art, hurt ? 'neutral-damaged' : 'neutral', setN[0]) : setN[0];
+  ctx.drawImage(surfaceN.c, ox, oy, art.s.w, art.s.h);
   if (hurt) {
     var crit0 = frac < 0.25, ports0 = portsOf(art), per0 = crit0 ? 7 : 13;
     if (((G.tick + b.id * 7) % per0) === 0) {
@@ -1843,6 +1879,12 @@ function drawNeutral(b) {
   // Over the MASS, not over the mast tip (see artTopSolid).
   var topN = py - Math.max(art.mass || art.rise || 0, (b.gw + b.gh) * 8) - 6;
   if (b.hp < b.maxhp) hpBar(px, topN - 4, 30, frac);
+  if (b.offline) {
+    ctx.fillStyle = 'rgba(150,162,180,.95)';
+    ctx.font = 'bold 9px system-ui'; ctx.textAlign = 'center';
+    ctx.fillText('OFF', px, topN - (held ? 20 : 8));
+    ctx.textAlign = 'left';
+  }
   // Garrison pips: RA2 shows how many men are inside as a row of dots.
   if (held) {
     var capN = occCapOf(b), k0, pw = Math.min(3.4, 26 / capN);

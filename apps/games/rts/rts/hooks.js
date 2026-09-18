@@ -180,6 +180,7 @@ window.__rtsTest = {
   // that cell would. Exposed for the footprint-geometry test.
   pickCell: function (gx, gy) { return pickAtW(sx(gx, gy), sy(gx, gy)); },
   toScreen: function (gx, gy) { return { x: (sx(gx, gy) - cvW / 2) * zoom + cvW / 2, y: (sy(gx, gy) - cvH / 2) * zoom + cvH / 2 }; },
+  fromScreen: function (px, py) { return screenToGrid(px, py); },
   zoom: function (z) { if (z) setZoom(z, cvW / 2, cvH / 2); return zoom; },
   isPrimary: function (b) { return G ? isPrimary(G, b) : false; },
   killBld: function (b) { if (G) killBld(G, b); },
@@ -201,6 +202,8 @@ window.__rtsTest = {
   // Frame cost: the renderer on its own, so a perf check measures drawing
   // and not the browser's idle time between animation frames.
   render: function () { render(); },
+  infantrySequence: function (u, moving, alt) { return infSeqOf(u, !!moving, alt || 0); },
+  resultDetail: resultDetail,
   // THE PLAYER'S OWN INPUT PATH, addressed by grid cell instead of by pixel.
   // `orderOwn` above reaches applyCmd but starts from a building the test
   // handed it, so it can only ever prove that an order WORKS once issued —
@@ -262,6 +265,7 @@ window.__rtsTest = {
          blocked: blocked, adjOf: adjOf, buildMask: buildMask, gateOpen: gateOpen, applyGaps: applyGaps,
          gapped: gapped, tileSeen: tileSeen, entSeen: entSeen, versesVs: versesVs, isWall: isWall, detected: detected,
          aiSwTarget: aiSwTarget, aiSwValue: aiSwValue, aiPickTarget: aiPickTarget, aiDefencePlan: aiDefencePlan,
+         aiRecoverEconomy: aiRecoverEconomy,
          bspecFor: bspecFor },
   // Phase 8 navy: the mover classes, the underwater visibility model and
   // the water-placement rule, so a test can ask the same questions the sim

@@ -102,7 +102,10 @@ function canBoard(g, tr, u) {
   if ((d.harv && !td.paxHarv) || d.deploysInto || d.air) return false;  // no MCV, nothing that flies;
                                                       // a miner only rides an AMPHIBIOUS hull (island ore)
   if (d.cls === 'i') return !!td.paxInf;
-  return !!td.paxVeh;
+  // Vehicle cargo means land vehicles, not every non-infantry unit. Otherwise
+  // selecting a loaded landing craft with Destroyers selected issues ENTER:
+  // the escorts chase its hull and can never reach a land-side boarding point.
+  return d.cls === 'v' && !!td.paxVeh;
 }
 
 function boardTransport(g, tr, u) {
@@ -125,8 +128,29 @@ function boardTransport(g, tr, u) {
 function unloadTransport(g, tr) {
   var out = [], used = {};
   if (!tr || !tr.pax || !tr.pax.length) return out;
+  var tx = Math.round(tr.x), ty = Math.round(tr.y);
+  // Disembark onto connected dry ground, never across several sea/cliff
+  // cells merely because standSpot found an empty tile within its radius.
+  var exits = new Uint8Array(MAP * MAP), queue = [], at = 0;
+  function addExit(x, y) {
+    if (!inMap(x, y) || Math.max(Math.abs(x - tx), Math.abs(y - ty)) > 6 || blocked(g, x, y)) return;
+    var i = idx(x, y);
+    if (exits[i]) return;
+    exits[i] = 1; queue.push({ x: x, y: y });
+  }
+  if (!blocked(g, tx, ty)) addExit(tx, ty);
+  else if (inMap(tx, ty) && g.terrain[idx(tx, ty)] === T_WATER) {
+    addExit(tx - 1, ty); addExit(tx + 1, ty);
+    addExit(tx, ty - 1); addExit(tx, ty + 1);
+  }
+  while (at < queue.length) {
+    var cell = queue[at++];
+    addExit(cell.x - 1, cell.y); addExit(cell.x + 1, cell.y);
+    addExit(cell.x, cell.y - 1); addExit(cell.x, cell.y + 1);
+  }
+  used[tx + ',' + ty] = 1; // do not depend on the spatial hash seeing the hull yet
   while (tr.pax.length) {
-    var sp = standSpot(g, Math.round(tr.x), Math.round(tr.y), used);
+    var sp = standSpot(g, tx, ty, used, exits);
     if (!sp) break;
     used[sp.x + ',' + sp.y] = 1;
     var o = tr.pax[0];

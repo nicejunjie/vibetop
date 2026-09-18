@@ -144,6 +144,7 @@ function stepGarrison(g, b) {
 // hospital's field healing ([CATHOSP] Hospital=yes).
 function stepNeutral(g, b) {
   var d = BLDS[b.type];
+  if (b.offline) { b.target = null; return; }
   if (b.occ && b.occ.length) stepGarrison(g, b);
   if (neutral(b.p)) return;                       // the rest needs an owner
   if (d.cash && (g.tick % d.cashDelay) === 0) {
@@ -453,7 +454,7 @@ function stepBld(g, b) {
   if (d.neut) { if (b.make > 0) b.make = 0; stepNeutral(g, b); return; }
   // Production door: it opens, the finished unit comes out of the mouth
   // partway through, then it shuts again. Never set headless.
-  if (b.door > 0) {
+  if (b.door > 0 && !b.offline) {
     b.door--;
     if (b.hold && DOOR_T - b.door >= DOOR_OPEN) {
       var hd = b.hold; b.hold = null;
@@ -477,9 +478,16 @@ function stepBld(g, b) {
   if (b.repair) {
     if (b.hp >= b.maxhp) b.repair = false;
     else if ((g.tick % 6) === 0) {
-      var step = b.maxhp * 0.005, price = d.cost * 0.15 * (step / b.maxhp);   // [General] RepairPercent=15%
+      var step = Math.min(b.maxhp - b.hp, b.maxhp * 0.005);
+      var price = bspecOfB(g, b).cost * 0.15 * (step / b.maxhp);   // [General] RepairPercent=15%, actual hull faction
       if (g.side[b.p].credits >= price) { g.side[b.p].credits -= price; b.hp = Math.min(b.maxhp, b.hp + step); }
     }
+  }
+  // Manual shutdown is not a grid brown-out: even a crew-charged coil
+  // must obey it. Maintenance may continue, but active services/weapons stop.
+  if (b.offline) {
+    b.target = null; b.charging = 0; b.chgT = null; b.sup = 0;
+    return;
   }
   if (d.gate) { stepGate(g, b); return; }
   if (b.type === 'depot' && (g.tick % 30) === 0 && powered(g, b.p)) {
@@ -520,7 +528,10 @@ function stepBld(g, b) {
   if (!d.dmg) return;
   // Unpowered defences go dark — except the Pillbox, which has no Powered=
   // key in rules.ini ([NALASR] Sentry Gun does, though it draws nothing).
-  if (!powered(g, b.p) && (d.power < 0 || b.type === 'sentrygun') && !coilCharged(g, b)) return;
+  if (!powered(g, b.p) && (d.power < 0 || b.type === 'sentrygun') && !coilCharged(g, b)) {
+    b.target = null; b.charging = 0; b.chgT = null; b.sup = 0;
+    return;
+  }
   var t = findTarget(g, b, d.rng);
   b.target = t;                                 // what the turret frames point at
   // Tesla Coil / Prism Tower: 28 ticks of charge before the bolt, and the

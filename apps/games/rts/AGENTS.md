@@ -98,6 +98,10 @@ one appear ahead of the other.
   side and rear views, including firing. Generic hanging arms with tiny
   muzzle-down marks at the hips lose her identity. Inspect animation frames,
   not just the GIF's initial idle frame, before deciding how weapons are held.
+  Tanya must retain a lean, athletic figure: the broad shoulders, thick arms
+  and boxy trousers from the readability pass were rejected. Keep a tapered
+  waist and articulated, separated legs; do not bulk up her whole body merely
+  to make the small sprite clearer. Pouches must follow their own moving thigh.
 
 - After each meaningful structural change, render and OPEN the output alongside
   the RA2 reference before declaring improvement or moving to finer detail.
@@ -151,6 +155,12 @@ one appear ahead of the other.
   A render or a small edit is a progress checkpoint, not a handoff milestone.
   Continue the inspect/change/render loop until the requested work is complete
   or a genuine blocker requires user input.
+- Action poses must preserve each unit's actual clothing and equipment, not
+  fall back to stale generic palette tokens. Author prone motion with separate
+  hips, knees, ankles, shoulders, elbows and hands; do not rotate/squash the
+  entire standing figure. Check that a reused head crop does not also contain
+  a standing-only gun barrel or backpack fragment. Death rendering needs the
+  same unfiltered, device-aligned sampling as living infantry.
 - Inspect the full miner turntable as well as the paired reference board:
   `art/out/ra2-compare-miners-rotation.png` contains all 32 bearings in idle and
   mining poses for both units. Boundary checks catch clipping, not bad art.

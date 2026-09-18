@@ -23,7 +23,7 @@ async function main() {
         for(const owner of [0,1]) for(const key of keys) {
           const fac=['conscript','flak','teslatrooper','desolator','ivan','yuri'].includes(key)?'col':'dir';
           const art=H.spr().unit[owner][fac][key];
-          for(const state of ['stand','walk','fire']) for(const face of [0,4,8,12,16,20,24,28]) {
+          for(const state of ['stand','walk','fire','prone','crawl','fireprone','down','up','death','plant']) for(const face of [0,4,8,12,16,20,24,28]) {
             const s=art.fr(state,face,2); tracked.add(s.c);
             if(!s.crispInfantry||s.c.width!==s.w||s.c.height!==s.h)throw Error('Non-native grid: '+key);
             const data=s.g.getImageData(0,0,s.w,s.h).data;
@@ -32,19 +32,24 @@ async function main() {
               const a=data[i+3];
               if(a>=128&&a!==255)throw Error('Soft body edge: '+key);
               if(a===255) {
+                const pixel=i/4,x=pixel%s.w,y=Math.floor(pixel/s.w);
+                if(x===0||x===s.w-1||y===0||y===s.h-1)throw Error('Clipped body: '+key+' '+state+' '+face);
                 opaque++;
                 if(owner===1&&data[i]>data[i+1]*1.5&&data[i]>data[i+2]*1.5)ownerPixels++;
               }
               for(let c=0;c<4;c++)hash=Math.imul(hash^data[i+c],16777619)>>>0;
             }
             if(!opaque)throw Error('Empty body: '+key);
-            if(key==='rifle'&&owner===1&&!ownerPixels)throw Error('Lost red team colour');
+            // A fallen body's shoulder patch can be underneath an arm/head;
+            // require the identifier on living poses, not on a rotated corpse.
+            if(key==='rifle'&&owner===1&&state!=='death'&&!ownerPixels)throw Error('Lost red team colour: '+state+' facing '+face);
             frames.push(hash);
           }
         }
         const live=H.begin(9340,'normal',null,true,true); live.seen.fill(1);
         const start=live.start[0];
         const u=H.spawn('rifle',0,start.x,start.y);u.stopped=true;u.face=4;
+        live.fx.push({corpse:true,type:'rifle',p:0,fac:'dir',face:12,mode:1,t:8,life:84,x:start.x+1,y:start.y});
         H.centerOn(start.x,start.y);
         const proto=CanvasRenderingContext2D.prototype,original=proto.drawImage;
         let checked=0;

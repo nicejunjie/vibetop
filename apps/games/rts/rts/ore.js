@@ -45,7 +45,7 @@ function findRefinery(g, p, fromX, fromY) {
   var best = null, bd = 1e9;
   for (var i = 0; i < g.blds.length; i++) {
     var b = g.blds[i];
-    if (b.dead || b.p !== p || b.type !== 'refinery') continue;
+    if (b.dead || b.offline || b.p !== p || b.type !== 'refinery') continue;
     var d = (b.cx - fromX) * (b.cx - fromX) + (b.cy - fromY) * (b.cy - fromY);
     if (d < bd) { bd = d; best = b; }
   }
@@ -239,7 +239,7 @@ function stepHarvester(g, u) {
   if (u.state === 'warp') {
     if (g.tick < u.warpAt) { u.path = null; return; }
     var wr = u.homeRef;
-    if (!wr || wr.dead) { u.state = 'toref'; return; }
+    if (!wr || wr.dead || wr.p !== u.p) { u.state = 'toref'; return; }
     var wd = refDock(g, wr), wsp = freeTileNear(g, wd.x, wd.y);
     if (!headless) g.fx.push({ x: u.x, y: u.y, t: 0, life: 24, chrono: true });
     if (wsp) { u.x = wsp.x; u.y = wsp.y; }
@@ -271,8 +271,19 @@ function stepHarvester(g, u) {
 
   if (u.state === 'idle' || (u.state === 'tomine' && !u.mineAt)) {
     var patch;
-    if (u.order && u.order.t === 'harvest') patch = { x: u.order.x, y: u.order.y };
-    else {
+    if (u.order && u.order.t === 'harvest') {
+      var orderedCell = idx(u.order.x, u.order.y);
+      if (oreT(g.terrain[orderedCell]) && g.ore[orderedCell] > 1) {
+        patch = { x: u.order.x, y: u.order.y };
+      } else {
+        // A resource click chooses a FIELD, not a one-cell errand. Preserve
+        // its anchor across deliveries and search locally when that cell is
+        // exhausted, rather than silently switching to ore by the refinery.
+        patch = findOre(g, u.order.x, u.order.y, 6, u.noGo, g.tick);
+        if (!patch) u.order = null; // field exhausted: resume normal prospecting
+      }
+    }
+    if (!patch) {
       // Every harvester used to take the NEAREST seam, so a whole fleet
       // converged on one tile. Separation then pushed them apart faster
       // than they could close the last tile: all of them sat beside the ore
@@ -304,7 +315,11 @@ function stepHarvester(g, u) {
   if (u.state === 'tomine') {
     var m = u.mineAt;
     if (!oreT(g.terrain[idx(m.x, m.y)]) || g.ore[idx(m.x, m.y)] <= 1) {
-      u.mineAt = null; u.state = 'idle'; u.order = null; return;
+      // Another miner can empty the seam while this one is travelling.
+      // Let the idle branch choose another seam around the same order anchor.
+      u.mineAt = null; u.state = 'idle';
+      if (!u.order || u.order.t !== 'harvest') u.order = null;
+      return;
     }
     var ddx = u.x - m.x, ddy = u.y - m.y, d2 = ddx * ddx + ddy * ddy;
     // Radial, not per-axis: separation can hold a harvester 0.85 off the
@@ -383,7 +398,7 @@ function stepHarvester(g, u) {
 
   if (u.state === 'toref') {
     var ref2 = u.homeRef;
-    if (!ref2 || ref2.dead) {
+    if (!ref2 || ref2.dead || ref2.p !== u.p) {
       // The refinery was shot out from under it. Take the nearest survivor;
       // with none left, go idle rather than hold a pointer to a dead
       // building (RA2Web: "harvesters should permanently halt when no
@@ -392,19 +407,27 @@ function stepHarvester(g, u) {
       sendHome(g, u, findRefinery(g, u.p, u.x, u.y), false);
       return;
     }
+    if (ref2.offline) {
+      // Keep the cargo and an explicit docking choice. Automatic deliveries
+      // may use another refinery; otherwise resume here on reactivation.
+      var otherRef = !u.forcedDock && findRefinery(g, u.p, u.x, u.y);
+      if (otherRef) sendHome(g, u, otherRef, false);
+      else { u.noProg = 0; u.stallAt = g.tick; }
+      return;
+    }
     if (atRefinery(u, ref2)) {
       // Ore Purifier: +25%.  [General] AIVirtualPurifiers=4,2,0 (hard,
       // medium, easy) gives a skirmish AI that many IMAGINARY purifiers at
       // 25% each — RA2's own economy handicap curve, so hard mines at 2x and
       // medium at 1.5x with no building to shoot. See docs/design-decisions.md.
-      var _pur = (hasBld(g, u.p, 'purifier') ? 1 : 0) + aiVirtualPurifiers(g, u.p);
+      var _pur = (hasEnabledBld(g, u.p, 'purifier') ? 1 : 0) + aiVirtualPurifiers(g, u.p);
       var _got = Math.round(u.cargoV * (1 + 0.25 * _pur));
       g.side[u.p].credits += _got; g.side[u.p].harv += _got;
       // An EMPTY miner can be sent home by hand, so this branch now runs
       // with nothing in the hold. A floating "+0" over the refinery and a
       // cash register for no money are both wrong; the dump still plays,
       // because it did dock.
-      if (u.p === ME && !headless && _got > 0) creditPop(Math.round(u.cargoV));
+      if (u.p === ME && !headless && _got > 0) creditPop(_got);
       u.cargo = 0; u.cargoV = 0; u.state = 'idle'; u.path = null; u.noProg = 0; u.stallAt = g.tick;
       // The order is DISCHARGED here, not abandoned: 'idle' falls into the
       // seam search on the next tick with no order set, which takes the

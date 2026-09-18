@@ -298,7 +298,7 @@ function stepUnit(g, u) {
   // still in the air on the way just cancels the order.
   if (u.order && u.order.t === 'enter') {
     var tr = entById(g, u.order.id);
-    if (!tr || tr.dead || tr.kind !== 'u' || paxCount(tr) >= paxCapOf(tr) || tr.p !== u.p) { u.order = null; return; }
+    if (!canBoard(g, tr, u)) { u.order = null; u.path = null; return; }
     if (dist(u, tr) <= 1.5) {                                  // any of the 8 neighbour cells (a diagonal is 1.41)
       if (tr.air && !tr.landed) { u.path = null; return; }     // wait for it to touch down
       if (boardTransport(g, tr, u)) return;
@@ -659,6 +659,8 @@ function stepAircraft0(g, u) {
   var pad = u.pad ? entById(g, u.pad) : null;
   if (pad && pad.p !== u.p) pad = null;
   if (!pad) {
+    // Losing a parking place is not an order to loiter, even with full ammo.
+    if (u.landed) u.rtb = true;
     u.pad = 0; u.landed = false;
     var fp = findPad(g, u);
     if (fp) { u.pad = fp.b.id; u.slot = fp.slot; pad = fp.b; }
@@ -686,7 +688,7 @@ function stepAircraft0(g, u) {
   }
 
   if (u.rtb) {
-    if (!pad) { u.rtb = false; return; }           // nowhere to land: hover here
+    if (!pad) { hoverIdle(g, u); return; }        // retain return intent until a slot exists
     var sl = padSlot(pad, u.slot);
     u.landed = false;
     if (!flyToward(g, u, sl.x, sl.y, uspd(u))) {
@@ -697,8 +699,11 @@ function stepAircraft0(g, u) {
   }
   if (u.landed) {
     // On the pad: rearm one missile per `reload` ticks, patch the airframe.
-    if (u.ammo < d.ammo && (g.tick % d.reload) === 0) u.ammo++;
-    if (u.hp < u.maxhp && (g.tick % 30) === 0) u.hp = Math.min(u.maxhp, u.hp + u.maxhp * 0.02);
+    // A disabled field remains safe parking, but its ground crew is offline.
+    if (!pad.offline) {
+      if (u.ammo < d.ammo && (g.tick % d.reload) === 0) u.ammo++;
+      if (u.hp < u.maxhp && (g.tick % 30) === 0) u.hp = Math.min(u.maxhp, u.hp + u.maxhp * 0.02);
+    }
     if (u.ammo >= d.ammo && u.order && u.order.t === 'attack') u.landed = false;   // sortie again
     return;
   }
@@ -730,7 +735,7 @@ function prismSupport(g, b) {
   var n = 0;
   for (var i = 0; i < g.blds.length && n < PRISM_SUP_MAX; i++) {
     var o = g.blds[i];
-    if (o === b || o.dead || o.p !== b.p || o.type !== 'prism') continue;
+    if (o === b || o.dead || o.offline || o.p !== b.p || o.type !== 'prism') continue;
     if (o.charging > 0 || o.cool > 0 || o.make > 0) continue;
     var dx = o.cx - b.cx, dy = o.cy - b.cy, rr = BLDS.prism.rng;
     if (dx * dx + dy * dy > rr * rr) continue;

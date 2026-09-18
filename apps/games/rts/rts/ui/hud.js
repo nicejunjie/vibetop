@@ -109,8 +109,8 @@ var hovEl = document.getElementById('hov');
 var hovName = document.getElementById('hovName'), hovSub = document.getElementById('hovSub');
 
 function updateHover(e, nx, ny) {
-  if (!e || state !== 'play' || placing || swMode) { hovEl.hidden = true; return; }
-  var d = e.kind === 'b' ? BLDS[e.type] : UNITS[e.type];
+  if (!e || e.dead || state !== 'play' || placing || swMode) { hovEl.hidden = true; return; }
+  var d = e.kind === 'b' ? bspecOfB(G, e) : UNITS[e.type];
   var mine = e.p === ME;
   var who = mine ? 'Yours' : (e.p < 0 || !G.side[e.p]) ? 'Neutral' : 'Enemy (' + FACTIONS[facOf(G, e.p)].name + ')';
   hovName.textContent = d.em + ' ' + d.name +
@@ -128,7 +128,7 @@ function updateHover(e, nx, ny) {
     if (d.ifv) paxTxt += ' · ' + ifvSpec(e).n;
     if (d.air && e.landed) paxTxt += ' · landed';
   }
-  hovSub.textContent = who + ' · ' + d.desc + ' · ' + Math.ceil(e.hp) + '/' + d.hp + ' hp' + ammoTxt + paxTxt + vet;
+  hovSub.textContent = who + ' · ' + d.desc + ' · ' + Math.ceil(e.hp) + '/' + e.maxhp + ' hp' + ammoTxt + paxTxt + vet;
   hovEl.className = mine ? '' : 'enemy';
   hovEl.hidden = false;
   // Sit to the lower-right of the cursor, flipping to stay on the canvas.
@@ -267,18 +267,19 @@ function refreshSW() {
     el.style.display = 'block';
     var st = G.side[ME].sw[k], frac = st.ready ? 1 : st.t / SW[k].charge;
     var left = Math.max(0, Math.ceil((SW[k].charge - st.t) / 60));
-    var hold = !st.ready && !powered(G, ME);
-    el._cd.textContent = st.ready ? 'READY' : hold ? 'LOW POWER' : (Math.floor(left / 60) + ':' + ('0' + (left % 60)).slice(-2));
-    el.title = SW[k].name + (hold ? ' — charging halted: low power (' + Math.floor(left / 60) + ':' + ('0' + (left % 60)).slice(-2) + ' left)' : '');
+    var off = swOffline(G, ME, k), hold = off || (!st.ready && !powered(G, ME));
+    el._cd.textContent = off ? 'OFFLINE' : st.ready ? 'READY' : hold ? 'LOW POWER' : (Math.floor(left / 60) + ':' + ('0' + (left % 60)).slice(-2));
+    el.title = SW[k].name + (off ? ' — power on the structure; charge retained' : hold ? ' — charging halted: low power (' + Math.floor(left / 60) + ':' + ('0' + (left % 60)).slice(-2) + ' left)' : '');
     el._arc.style.background = 'conic-gradient(from 0deg, rgba(110,231,168,.32) ' +
                                (frac * 360).toFixed(0) + 'deg, rgba(0,0,0,0) 0)';
-    el.className = 'swic' + (st.ready ? ' rdy' : '') + (hold ? ' hold' : '') + (swMode && swMode.key === k ? ' arm' : '');
+    el.className = 'swic' + (st.ready && !off ? ' rdy' : '') + (hold ? ' hold' : '') + (swMode && swMode.key === k ? ' arm' : '');
   }
 }
 
 function swArm(key) {
   if (!G || state !== 'play') return;
   var st = G.side[ME].sw[key];
+  if (swOffline(G, ME, key)) { say('Power on the ' + bspecFor(SW[key].bld, facOf(G, ME)).name + ' first', true); sfx('no'); return; }
   if (!st || !st.ready) { say(SW[key].name + ' is still charging', true); sfx('no'); return; }
   if (placing) { setPlacing(null); setWallDrag(null); cv.classList.remove('placing'); }
   swMode = { key: key, stage: 0, x: 0, y: 0 };

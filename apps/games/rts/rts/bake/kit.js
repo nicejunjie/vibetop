@@ -338,7 +338,7 @@ var TROOP = {
 // Flak Trooper, the Tesla Trooper, Yuri and the dog (whose 0.57 saturation
 // already separates him from every man in the game).
 var INF_VALUE = {
-  ivan:      [1.52, 1.39, 1.25],   // darkest man on the field; the uneven
+  ivan:      1.0,                 // retain authored skin, vest and denim material ramps
                                    //  channels DESATURATE as they darken -- a
                                    //  flat gamma turns his brown coat into a dark
                                    //  RED one, which is the enemy's hue
@@ -413,7 +413,7 @@ var INF_VALUE = {
   // unit, with the owner-signal floor (hue.infantryOwnerMean >= 0.29) as the
   // binding constraint. Do not reach for the ladder again.
   rocketeer: [1.31, 1.31, 1.36],   //  a light CREAM pressure suit
-  cleg:      [1.85, 1.78, 1.60],   //  bone-white plate over blue-grey
+  cleg:      1.0,                 // pale armour must survive as pale armour
   // Re-solved against tanya.gif after her hair and skin were corrected. Baked
   // at gamma 1 she medians (102, 80, 80); the rip medians (102, 51, 51), so the
   // ladder is 1.00 / 1.39 / 1.39 — flat across green and blue. The shipped
@@ -522,16 +522,9 @@ var STATURE = {
   teslatrooper: [1.02, 0.96],  // armoured human stance, not a squat blue chest block
   rifle:        [0.98, 0.88],   // broad combat stance, not long olive sticks
   conscript:    [1.06, 0.91],   // i-M 13x27 — the reference figure
-  cleg:         [0.83, 0.89],   // i-M 15x26 — RA2 0.577; the old [1.22,0.84] was tuned against a spike budget that misread its own citation   // i-M 15x26 — the widest Directorate shoulders
-  tanya:        [0.78, 0.89],   // i-M 13x26 — and the pistols do NOT keep her wide,
-                                // which is what this entry used to say. Measured, her
-                                // 22 px of width was 14 px of body and three columns
-                                // of gun a side; RA2 gives her a Conscript's width.
-                                // 18x33 is the one point clearing BOTH neighbours she
-                                // is wedged between — the Spy (16x35) on same-faction
-                                // IoU and the Attack Dog on legibility, which she fell
-                                // under at 18x31.
-  ivan:         [0.86, 0.82],   // short red upper body and exposed arms need a broader human stance
+  cleg:         [1.03, 0.89],   // broad sealed armour, not narrow silver sticks
+  tanya:        [0.94, 0.89],   // retain enough raster width for face, arms and trousers
+  ivan:         [0.99, 0.86],   // bare arms, exposed face and raised explosive bundle
   engineer:     [0.75, 0.84],   // i-S 13x25 — a workman, not a soldier: broader in
                                 // the shoulder than a rifleman, and NOT the squat one
                                 // he was. This read [1.22,0.76] to break two
@@ -609,8 +602,8 @@ function gait(phase) {
 // exactly as `Walk=8,6,6` is. The walk was corrected to six in an earlier
 // pass and the fire cycle was not, so a burst played raise / recoil /
 // settle in three steps against the walk's six and read as a twitch.
-var INF_SEQ = { stand: 1, walk: 6, fire: 6, down: 1, up: 1, prone: 1,
-                crawl: 6, fireprone: 6, idle1: 3, idle2: 3, cheer: 2 };
+var INF_SEQ = { stand: 1, walk: 6, fire: 6, down: 6, up: 6, prone: 1,
+                crawl: 6, fireprone: 6, death: 6, plant: 6, idle1: 3, idle2: 3, cheer: 2 };
 
 // grid facing -> SCREEN octant. The iso projection sends d0 to SE, d1 to S,
 // d2 to SW, d3 to W, d4 to NW, d5 to N, d6 to NE, d7 to E (see "The RA2

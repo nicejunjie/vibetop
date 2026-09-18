@@ -100,7 +100,7 @@ function bakeInfantry(col, kind, fac, phase, dir, state) {
   var ST = state || 'stand';
   var nf = INF_SEQ[ST] || 1, sph = (((phase | 0) % nf) + nf) % nf;
   var PRONE = (ST === 'prone' || ST === 'crawl' || ST === 'fireprone') ? 1 :
-              ((ST === 'down' || ST === 'up') ? 0.55 : 0);
+              (ST === 'down' || ST === 'death' ? [.08,.28,.5,.75,.94,1][sph] : ST === 'up' ? [1,.9,.65,.35,.1,0][sph] : 0);
   var FIRING = ST === 'fire' || ST === 'fireprone';
   // RA2's FireUp is a raise, a shot, a recoil and a long settle over SIX
   // frames; the muzzle flash itself is the renderer's, so these frames only
@@ -127,24 +127,21 @@ function bakeInfantry(col, kind, fac, phase, dir, state) {
   // the turn and the pose so a prone man's shadow does not stand on end.
   var shadow = infantryCanvas();
   shadow.g.setTransform(g.getTransform());
-  if (kind !== 'rocketeer')
-    shadowBlob(shadow.g, cx + (PRONE ? sd * 5.5 : 0), by,
-               (6.0 + gt.amp * 0.9) * (1 + PRONE * 1.05 * sd), 2.5 * (1 - PRONE * 0.25));
+  if (kind !== 'rocketeer') {
+    if (PRONE) {
+      shadow.g.save();shadow.g.translate(cx-hx*2*PRONE,by-fz*.85*PRONE);
+      shadow.g.rotate(Math.atan2(fz*.43,hx));
+      var groundLength=Math.sqrt(hx*hx+fz*fz*.43*.43);
+      shadowBlob(shadow.g,0,0,6*(1-PRONE)+13*PRONE*groundLength,2.5);shadow.g.restore();
+    } else shadowBlob(shadow.g,cx,by,6.0+gt.amp*.9,2.5);
+  }
 
   if (MIR) { g.translate(cx, by); g.scale(-1, 1); g.translate(-cx, -by); }
-  if (PRONE) {
-    // Lie the standing figure down about its own ground point: rotate it
-    // toward the way it faces, then flatten in SCREEN space (the scale is
-    // written OUTSIDE the rotate so it squashes the lying body, not the
-    // standing one). Head-on there is nothing to rotate, so almost all of
-    // it is foreshortening; side-on it is almost all rotation.
-    g.translate(cx, by + PRONE * 1.0);
-    g.scale(1 + PRONE * 0.25 * (1 - sd), 1 - PRONE * (0.62 - 0.24 * sd));
-    g.rotate(PRONE * (0.30 + 0.85 * sd));
-    g.translate(-cx, -by);
-  }
   g.translate(cx, by); g.scale(TURN, 1); g.translate(-cx, -by);
-  if (RECOIL || HOP) g.translate(RECOIL * (0.75 + 0.5 * sd), HOP);
+  // These specialists articulate their equipment; recoil must not drag boots
+  // and the entire silhouette sideways over a stationary ground shadow.
+  var jointAction = kind === 'tanya' || kind === 'ivan' || kind === 'cleg';
+  if (RECOIL || HOP) g.translate(jointAction || PRONE ? 0 : RECOIL * (0.75 + 0.5 * sd), HOP);
   var sov = fac === 'col';
   // The Flak Trooper's art was built under `rocket` for the Collective; the
   // unit now has its own key, the art path is the same.
@@ -378,7 +375,8 @@ function bakeInfantry(col, kind, fac, phase, dir, state) {
   var C = { ACC: ACC, FA: FA, HEADX: HEADX, JACKET: JACKET, POUCH: POUCH, SLEEVE: SLEEVE, T: T, TURN: TURN,
             ar: ar, arms: arms, by: by, carbine: carbine, col: col, cx: cx, edge: edge,
             face: face, g: g, gt: gt, helmet: helmet, legs: legs, sd: sd, sov: sov,
-            state: ST, wpn: wpn };
+            state: ST, phase: sph, raise: RAISE, recoil: RECOIL, wpn: wpn };
+  function standingFigure() {
   if (kind === 'conscript') {
     drawConscript(C);
 
@@ -418,6 +416,9 @@ function bakeInfantry(col, kind, fac, phase, dir, state) {
   } else {
     drawGi(C);
   }
+  }
+  if (PRONE) drawGroundInfantry(C, kind, PRONE, standingFigure);
+  else standingFigure();
   if (VG !== 1) valuePass(s, VG);       // the kind's rung on the value ladder
   finishInfantryPixels(s, owner);
   // Composite the translucent ground shadow AFTER making the body opaque.
@@ -426,6 +427,101 @@ function bakeInfantry(col, kind, fac, phase, dir, state) {
   g.globalCompositeOperation = 'destination-over';
   g.drawImage(shadow.c,0,0); g.restore();
   return s;
+}
+
+// A grounded skeleton, not a flattened standing bitmap. Forward/side coordinates
+// project onto the ground; the separate height keeps elbows, knees and equipment
+// attached while the chest lowers. Standing art is reused ONLY for the head.
+function drawGroundInfantry(C, kind, amount, headFigure) {
+  var g=C.g, cx=C.cx, by=C.by, sd=C.sd, fz=C.FA.fz, turn=C.TURN;
+  var dead=C.state==='death', crawl=C.state==='crawl';
+  var wave=crawl?Math.sin(C.phase*Math.PI/3):0;
+  var cloth={rifle:'#586332',conscript:'#795342',tanya:'#586332',ivan:'#465674',
+    engineer:'#8d7953',spy:'#252f44',cleg:'#999999',rocket:C.sov?'#795342':'#586332',
+    teslatrooper:'#999999',yuri:'#343434'}[kind]||C.T.coat;
+  var shirt={rifle:'#586332',conscript:'#343434',tanya:'#252525',ivan:C.col,
+    engineer:'#d0d0d0',spy:'#252f44',cleg:'#d0d0d0',rocket:C.sov?C.T.coat:'#999999',
+    teslatrooper:'#d0d0d0',yuri:'#626262'}[kind]||C.T.coat;
+  var bare=kind==='tanya'||kind==='ivan'||kind==='rifle';
+  function ground(f,s,z){return [cx+sd*f/turn+fz*s,by+fz*f*.43-sd*s*.3-z];}
+  function joint(x,z,f,s,h){var p=ground(f,s,h);return [cx+x+(p[0]-cx-x)*amount,by-z+(p[1]-by+z)*amount];}
+  function line(points,c,w){g.strokeStyle=c;g.lineWidth=w;g.lineCap='round';g.lineJoin='round';g.beginPath();g.moveTo(points[0][0],points[0][1]);for(var j=1;j<points.length;j++)g.lineTo(points[j][0],points[j][1]);g.stroke();}
+  function limb(points,c,w){line(points,'#141922',w+.8);line(points,c,w);line(points.map(function(p){return[p[0]-.35,p[1]-.5];}),shade(c,1.18),Math.max(.8,w*.36));}
+  var hip=joint(0,12,-3,0,2.8),chest=joint(0,18.5,4.3,0,dead?2.3:4.4);
+  // Each bent knee travels with its own ankle. The opposing elbow reaches
+  // while that knee pulls forward; no sideways standing-walk scissor.
+  for(var n=0;n<2;n++){
+    var side=n?1:-1, pull=wave*side;
+    var h=joint(side*2,12,-3,side*1.9,2.8);
+    var knee=joint(side*2.8,6.5,-8+pull*2.4,side*(3.3+Math.max(0,pull)),1.2);
+    // Kneel before extending: the knee touches down while the ankle still
+    // bears weight. Linear standing-to-lying interpolation makes stiff planks.
+    var kneel=Math.sin(amount*Math.PI);
+    knee[0]+=sd*3.5*kneel/turn+side*.8*kneel;knee[1]+=2.5*kneel;
+    var foot=joint(side*3.4,1,-14+pull*2.8,side*2.8,.8);
+    limb([h,knee,foot],cloth,kind==='tanya'?2.5:3.1);
+    line([foot,[foot[0]-sd*2/turn,foot[1]-fz*.7]],C.T.boot,2.4);
+  }
+  limb([hip,chest],shirt,kind==='tanya'?5:6.5);
+  var badge=joint(-1,16,0,-1,5.3);
+  line([badge,[badge[0]+fz*2.6,badge[1]-sd*.8]],C.col,1.8);
+  if(kind==='teslatrooper'||kind==='cleg'||kind==='desolator'||kind==='rocketeer'){
+    var pack=ground(0,-1.5,6);
+    limb([[hip[0]-1,hip[1]-2],pack],kind==='desolator'?'#327d3c':'#999999',4);
+  }
+  var hands=[];
+  for(var a=0;a<2;a++){
+    var s=a?1:-1, reach=crawl?-wave*s*1.4:0;
+    var shoulder=joint(s*3,18.5,4,s*2.5,4.5);
+    var elbow=joint(s*4,14,5+reach,s*4,dead?.5:1.1);
+    var hand=joint(s*4,16,10+reach,s*(kind==='tanya'?3.2:1.2),dead?.5:3.1);
+    if(dead)hand=joint(s*4,16,7,s*5,.5);
+    if(kind==='yuri'&&C.state==='fireprone')hand=ground(7.5,s*2.3,7);
+    limb([shoulder,elbow],shirt,2.6);
+    limb([elbow,hand],bare?C.T.skin:shirt,2.1);hands.push(hand);
+    line([hand,[hand[0]+.3,hand[1]]],C.T.skin,1.8);
+  }
+  // The existing head remains upright above the supported shoulders: helmets,
+  // hair, face opening and specialist masks keep their accepted identity.
+  var neck=joint(0,20,7.3,0,dead?1.7:5.0);
+  g.save();g.translate(neck[0]-cx,neck[1]-(by-20));
+  if(dead){g.translate(cx,by-20);g.rotate(amount*.35);g.translate(-cx,-(by-20));}
+  if(kind==='rocket'&&C.sov){
+    C.face(by-21.2);C.helmet(by-23.1,3.15,'#919191',1);
+  }else if(kind==='desolator'){
+    var headX=cx+sd*1.3/turn;
+    g.fillStyle='#343d30';g.beginPath();g.ellipse(headX,by-23.2,2.8,3.2,0,0,6.29);g.fill();
+    g.fillStyle='#657451';g.beginPath();g.ellipse(headX-.6,by-24.6,1.8,1.1,-.15,0,6.29);g.fill();
+    if(!C.FA.back){g.fillStyle='#242b24';g.fillRect(headX-2.1,by-23.4,4.5,2.3);g.fillStyle='#788c71';g.fillRect(headX-1.6,by-23.1,3.3,.7);}
+  }else{
+    // Tight head bounds exclude an upright shoulder weapon/backpack. Cropping
+    // the whole top third smuggles those standing-only parts into prone poses.
+    g.beginPath();g.rect(cx-4,by-28,8,8.2);g.clip();
+    g.translate(-C.gt.lean,-C.gt.bob);headFigure();
+  }
+  g.restore();
+  if(kind==='ivan'){
+    var explosive=hands[1];
+    line([[explosive[0],explosive[1]-3],explosive],'#ae8064',3);
+    line([[explosive[0]-1,explosive[1]-1],[explosive[0]+1,explosive[1]-1]],'#c0aa77',1);
+  }else if(kind==='engineer'){
+    var tool=hands[1];g.fillStyle='#46332b';g.fillRect(tool[0]-2,tool[1]+.8,4,3);
+    line([[tool[0]-1,tool[1]+1],[tool[0]-1,tool[1]],[tool[0]+1,tool[1]],[tool[0]+1,tool[1]+1]],'#999999',.8);
+  }else if(kind==='teslatrooper'){
+    hands.forEach(function(h){line([h,[h[0]+sd*2/turn,h[1]+fz]],'#d0d0d0',3);});
+  }else if(kind==='tanya'){
+    hands.forEach(function(h){line([h,[h[0]+sd*3.6/turn,h[1]+fz*1.5]],'#343434',1.7);});
+  }else if(!({engineer:1,spy:1,yuri:1,ivan:1}[kind])){
+    var hand=hands[1],dx=sd/turn,dy=fz*.43;
+    var recoil=C.state==='fireprone'?C.recoil*.35:0;
+    var gun=[[hand[0]-dx*(3+recoil),hand[1]-dy*3-.6],[hand[0]+dx*(6-recoil),hand[1]+dy*6-.6]];
+    line(gun,'#141922',kind==='rocket'||kind==='cleg'?3:2);
+    line([[gun[0][0],gun[0][1]-.6],[gun[1][0],gun[1][1]-.6]],'#626262',.8);
+    if(kind==='cleg'||kind==='desolator'){
+      var ring=[gun[1][0]-dx*1.6,gun[1][1]-dy*1.6];
+      line([[ring[0]-.5,ring[1]-1.7],[ring[0]+.5,ring[1]+1.7]],kind==='cleg'?'#99dce1':'#69c34a',1.4);
+    }
+  }
 }
 
 // Infantry art is a LAZY facing/state atlas, not a baked array. Nine kinds

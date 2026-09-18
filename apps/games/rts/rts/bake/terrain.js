@@ -950,7 +950,7 @@ function bakeScree(kind, mask, rockSheet) {
   return s;
 }
 
-var CLIFF_H = 32, CLIFF_SH = 10;
+var CLIFF_H = HSTEP, CLIFF_SH = 10;
 
 // An array whose slots bake on first read and then become plain values --
 // the same self-replacing-getter trick `faceSheet` uses for unit facings,
@@ -1468,6 +1468,7 @@ function armPt(e, t) {
 function bakeRoad(kind, mask, vv) {
   var s = mkCanvas(TCW, TCH), g = s.g, cx = TCW / 2, cy = TCH / 2, i, e;
   var snowy = kind === 'snow';
+  var arms = (mask & 1) + ((mask >> 1) & 1) + ((mask >> 2) & 1) + ((mask >> 3) & 1);
   bsr(1900 + mask * 211 + (vv || 0) * 4099 + (snowy ? 3 : 0));
   g.save(); diamondT(g, cx, cy); g.clip();
   var W = 0.28;
@@ -1480,12 +1481,15 @@ function bakeRoad(kind, mask, vv) {
   roadPath(g, mask, W, 2.0, 1800 + mask * 13); g.fill();
   g.save(); roadPath(g, mask, W, 2.0, 1800 + mask * 13); g.clip();
   g.fillStyle = snowy ? '#cdcdcd' : '#87794f'; g.globalAlpha = 0.5;   // worn pale centre
-  for (i = 0; i < 5; i++) { g.beginPath(); g.ellipse(cx + (brnd() - 0.5) * 22, cy + (brnd() - 0.5) * 10, 10 + brnd() * 12, 5 + brnd() * 5, 0, 0, 6.29); g.fill(); }
+  for (i = 0; i < (arms < 3 ? 5 : 0); i++) { g.beginPath(); g.ellipse(cx + (brnd() - 0.5) * 22, cy + (brnd() - 0.5) * 10, 10 + brnd() * 12, 5 + brnd() * 5, 0, 0, 6.29); g.fill(); }
   g.globalAlpha = 1;
   // 3. wheel ruts down each arm -- two parallel scuffs, which is what makes
   //    a bend read as a bend rather than a painted corner
   g.lineCap = 'round';
   for (e = 0; e < 4; e++) {
+    // Multi-cell roads contain a repeated field of three/four-way masks.
+    // Drawing crossing ruts on every tile makes a wire-mesh pattern.
+    if (arms >= 3) break;
     if (!(mask & (1 << e))) continue;
     var P0 = armPt(e, 0.02), P1 = armPt(e, 1.02);
     var nx = -(P1[1] - P0[1]), ny = (P1[0] - P0[0]), nl = Math.hypot(nx, ny) || 1;
@@ -1499,7 +1503,7 @@ function bakeRoad(kind, mask, vv) {
     }
   }
   g.globalAlpha = 0.24; g.fillStyle = snowy ? '#aaaaaa' : '#5f5439';   // dusty edges
-  for (i = 0; i < 9; i++) { var a2 = brnd() * 6.29, d = 0.7 + brnd() * 0.34; g.beginPath(); g.ellipse(cx + Math.cos(a2) * TW / 2 * d, cy + Math.sin(a2) * TH / 2 * d, 5 + brnd() * 7, 2.5 + brnd() * 3, 0, 0, 6.29); g.fill(); }
+  for (i = 0; i < (arms < 3 ? 9 : 0); i++) { var a2 = brnd() * 6.29, d = 0.7 + brnd() * 0.34; g.beginPath(); g.ellipse(cx + Math.cos(a2) * TW / 2 * d, cy + Math.sin(a2) * TH / 2 * d, 5 + brnd() * 7, 2.5 + brnd() * 3, 0, 0, 6.29); g.fill(); }
   g.globalAlpha = 1;
   for (i = 0; i < 10; i++) {                                           // grit
     var gx4 = cx + (brnd() - 0.5) * (TW - 10), gy4 = cy + (brnd() - 0.5) * (TH - 6), gr = 0.8 + brnd() * 1.2;
@@ -1512,6 +1516,7 @@ function bakeRoad(kind, mask, vv) {
   //    it works over grass, sand or rock without knowing which is under it.
   g.globalCompositeOperation = 'destination-out';
   for (e = 0; e < 4; e++) {
+    if (mask === 15) break; // an interior tile has no exposed shoulder to erode
     if (!(mask & (1 << e))) continue;
     var Q0 = armPt(e, 0.0), Q1 = armPt(e, 1.06);
     var qx = -(Q1[1] - Q0[1]), qy = (Q1[0] - Q0[0]), ql = Math.hypot(qx, qy) || 1;

@@ -466,6 +466,9 @@ if (!sov) {
   //   0.47 of the apron width and 2.24 tall/wide; ours was 0.39 and 2.94 - a
   //   lath. Every x below is a body coordinate scaled by SW, so the mass
   //   grows without moving the silhouette's height or the plinth.
+  // Keep the monument dominant, but reduce the oversized statue as one
+  // solid object around its feet; the foundation and training block stay put.
+  g.save(); g.translate(sx3, FY); g.scale(0.90, 0.82); g.translate(-sx3, -FY);
   var SX = function (v) { return sx3 + v * SW; };
   var SL2 = '#dcdcdc', SM2 = '#9e9e9e', SS2 = '#5c5c5c',
       SD2 = '#4a4a4a', SO2 = '#20242a';
@@ -562,5 +565,6 @@ if (!sov) {
   g.moveTo(SX(18.6), FY - 132); g.lineTo(SX(19.8), FY - 146); g.stroke();
   g.fillStyle = SM2;                                    // right hand on the stock
   spoly([[10.4, -68.0], [15.6, -68.0], [15.6, -61.6], [10.4, -61.6]], SM2, SO2, 1.1);
+  g.restore();
 }
 }

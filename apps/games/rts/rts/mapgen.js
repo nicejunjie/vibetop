@@ -25,7 +25,7 @@ var MAPS = {
   frontier: { name: 'Iron Frontier', theatre: 'temperate', light: { mul: '#fff0d0', a: 0.12 }, blurb: 'Open plains, rock outcrops, a road between the bases',
               gen: function (g) { g.tech2 = 'airport'; genCore(g, 26, null); mapRoad(g); mapFarms(g); mapTrees(g, 14); } },
   lake:     { name: 'Lake Divide',   theatre: 'temperate', light: { mul: '#cbd6e6', a: 0.20 }, blurb: 'A lake splits the middle; cliff ridges guard the flanks',
-              gen: function (g) { g.tech2 = 'hospital'; genCore(g, 14, function () { mapLake(g, 31.5, 31.5, 11, 7); mapLake(g, 19, 19, 4, 3); mapRidge(g, 12, 40, 26, 40, 3); mapRidge(g, 44, 18, 44, 30, 3); }); mapFarms(g); mapTrees(g, 10); } },
+              gen: function (g) { g.tech2 = 'hospital'; genCore(g, 14, function () { mapLake(g, 31.5, 31.5, 14, 9); mapLake(g, 19, 19, 4, 3); mapRidge(g, 12, 40, 26, 40, 3); mapRidge(g, 44, 18, 44, 30, 3); }); mapFarms(g); mapTrees(g, 14); } },
   tundra:   { name: 'Frozen Front',  theatre: 'snow',      light: { mul: '#bfcfe8', a: 0.24 }, blurb: 'Snowfield with frozen lakes and cliff ridges',
               gen: function (g) { g.tech2 = 'hospital'; genCore(g, 18, function () { mapLake(g, 20, 44, 5, 3.2); mapRidge(g, 21, 4, 21, 16, 3); mapRidge(g, 34, 44, 46, 44, 3); }); mapFarms(g); mapTrees(g, 12); } },
   choke:    { name: 'Chokepoint Pass', theatre: 'temperate', light: { mul: '#ffb07a', a: 0.24, add: '#2a1424', aa: 0.09 }, blurb: 'One cliff wall across the middle; two ramps decide the game',
@@ -37,9 +37,9 @@ var MAPS = {
   coastal:  { name: 'Coastal',        theatre: 'temperate', light: { mul: '#e6efff', a: 0.14 }, blurb: 'A wide bay between the two bases, a harbour each and an ore island in the middle',
               gen: function (g) { g.tech2 = 'airport'; genCore(g, 10, function () { mapCoast(g); },
                 function (mp, gp) { gp(31.5, 31.5, 3.0, 900); mp(31.5, 31.5, 4.6, 700); }); mapFarms(g); mapTrees(g, 8); } },
-  gems:     { name: 'Gem Valley',     theatre: 'temperate', light: { mul: '#fff7e4', a: 0.08 }, blurb: 'A gem plateau ringed by cliffs — two ramps in, and everyone wants them',
-              gen: function (g) { g.tech2 = 'airport'; genCore(g, 13, function () { mapPlateau(g); },
-                function (mp, gp) { gp(31.5, 27, 3.4, 560); gp(27, 31.5, 3.0, 480); mp(19, 17, 3.0, 820); }); mapFarms(g); mapTrees(g, 10); } }
+  gems:     { name: 'Gem Valley',     theatre: 'temperate', light: { mul: '#fff7e4', a: 0.08 }, blurb: 'A gem summit on the main route; two lowland flanks lead past exposed expansion mines',
+              gen: function (g) { g.tech2 = 'airport'; genCore(g, 0, function () { mapGemValley(g); },
+                function (mp, gp) { gp(27, 30, 2.5, 700); mp(19, 14, 2.8, 820); mp(14, 38, 3.1, 1000); }, true); mapFarms(g); } }
 };
 
 function genMap(g) { (MAPS[g.mapId] || MAPS.frontier).gen(g); }
@@ -57,17 +57,22 @@ function setFM(g, x, y, t) { setF(g, x, y, t); setF(g, MAP - 1 - x, MAP - 1 - y,
 function mapLake(g, cx, cy, rx, ry) {
   for (var y = Math.floor(cy - ry) - 1; y <= Math.ceil(cy + ry) + 1; y++) for (var x = Math.floor(cx - rx) - 1; x <= Math.ceil(cx + rx) + 1; x++) {
     var dx = (x - cx) / rx, dy = (y - cy) / ry;
-    if (dx * dx + dy * dy <= 1) setTM(g, x, y, T_WATER);
+    // Even angular harmonics make opposite shores agree under the mirror.
+    // Broad coves and headlands, not isolated random shoreline pixels.
+    var a = Math.atan2(dy, dx), shore = 1 + 0.09 * Math.cos(a * 4) + 0.045 * Math.sin(a * 6);
+    if (dx * dx + dy * dy <= shore) setTM(g, x, y, T_WATER);
   }
 }
 
 function mapRidge(g, x0, y0, x1, y1, w) {
-  // A cliff line with a two-tile gap at its middle, mirrored.
+  // A bent, tapered ridge with an open pass at its middle, mirrored.
   var n = Math.max(Math.abs(x1 - x0), Math.abs(y1 - y0));
   for (var i = 0; i <= n; i++) {
     if (Math.abs(i - n / 2) < 1.5) continue;                       // the pass
     var x = Math.round(x0 + (x1 - x0) * i / n), y = Math.round(y0 + (y1 - y0) * i / n);
-    for (var k = 0; k < w; k++) setTM(g, x + (x1 === x0 ? k : 0), y + (y1 === y0 ? k : 0), T_CLIFF);
+    var bend = Math.round(Math.sin(i / n * Math.PI * 2) * 1.2);
+    var width = Math.max(1, Math.round(w * Math.sin(Math.PI * (i + 1) / (n + 2))));
+    for (var k = 0; k < width; k++) setTM(g, x + (x1 === x0 ? k + bend : 0), y + (y1 === y0 ? k + bend : 0), T_CLIFF);
   }
 }
 
@@ -100,11 +105,14 @@ function nearT(g, x, y, t) {
 
 function mapTrees(g, clusters) {
   for (var c = 0; c < clusters; c++) {
-    var cx = 3 + rint(MAP - 6), cy = 3 + rint((MAP >> 1) - 4), n = 2 + rint(4);
+    // Keep the open-plains map's established lanes and replay sequence.
+    var cx = 3 + rint(MAP - 6), cy = 3 + rint((MAP >> 1) - 4);
+    var n = g.mapId === 'frontier' ? 2 + rint(4) : 3 + rint(6);
     for (var i = 0; i < n; i++) {
       var x = cx + rint(5) - 2, y = cy + rint(4) - 2;
       if (Math.abs(x - g.start[0].x) < 7 && Math.abs(y - g.start[0].y) < 7) continue;   // clear of the 4x4 yard and its opening force
       if (nearT(g, x, y, T_WATER) || nearT(g, x, y, T_CLIFF)) continue;   // no trees on the shoreline or against a cliff face
+      if (g.mapId !== 'frontier' && nearT(g, x, y, T_RAMP)) continue;   // leave the pass mouths open
       setTM(g, x, y, T_TREE);
     }
   }
@@ -118,26 +126,33 @@ function mapWall(g) {
   for (var x = 0; x < MAP; x++) {
     var ramp = (x >= 16 && x <= 20) || (x >= 43 && x <= 47);
     for (var k = -1; k <= 1; k++) setTM(g, x, MAP - 1 - x + k, ramp ? T_RAMP : T_CLIFF);
+    if (ramp) for (var approach = 2; approach <= 4; approach++) {
+      setTM(g, x, MAP - 1 - x + approach, T_ROAD);
+      setTM(g, x, MAP - 1 - x - approach, T_ROAD);
+    }
   }
 }
 
-// River Crossing: a four-tile river across the waist (y 30..33 is
+// River Crossing: an eight-tile river across the waist (y 28..35 is
 // self-mirroring) with two bridge crossings and their approach roads, plus
 // a street along each bank.
 function mapRiver(g) {
   var x, y, c, cols = [14, 15, 16];
-  for (y = 30; y <= 33; y++) for (x = 0; x < MAP; x++) setTM(g, x, y, T_WATER);
-  for (x = 0; x < MAP; x++) setTM(g, x, 28, T_ROAD);            // mirrors to the y=35 bank street
+  for (y = 28; y <= 35; y++) for (x = 0; x < MAP; x++) setTM(g, x, y, T_WATER);
+  for (x = 0; x < MAP; x++) setTM(g, x, 26, T_ROAD);            // mirrors to the y=37 bank street
   for (c = 0; c < cols.length; c++) {
-    for (y = 30; y <= 33; y++) setFM(g, cols[c], y, T_BRIDGE);
-    for (y = 22; y <= 29; y++) setTM(g, cols[c], y, T_ROAD);    // mirrors to the far approach
+    for (y = 28; y <= 35; y++) setFM(g, cols[c], y, T_BRIDGE);
+    for (y = 22; y <= 27; y++) {
+      setTM(g, cols[c], y, T_ROAD);
+      setTM(g, cols[c], MAP - 1 - y, T_ROAD);
+    } // reserve BOTH banks of BOTH crossings before random rocks/trees
   }
   // [CABHUT] sits at BOTH ends of the crossing, off the deck and off the
   // approach road, so an engineer can reach a hut from either bank even
   // when the span between them is in the river.
-  g.neut.push({ key: 'bhut', x: cols[0] - 2, y: 29 }, { key: 'bhut', x: cols[2] + 2, y: 34 },
-               { key: 'bhut', x: MAP - 1 - (cols[0] - 2), y: MAP - 1 - 29 },
-               { key: 'bhut', x: MAP - 1 - (cols[2] + 2), y: MAP - 1 - 34 });
+  g.neut.push({ key: 'bhut', x: cols[0] - 2, y: 27 }, { key: 'bhut', x: cols[2] + 2, y: 36 },
+               { key: 'bhut', x: MAP - 1 - (cols[0] - 2), y: MAP - 1 - 27 },
+               { key: 'bhut', x: MAP - 1 - (cols[2] + 2), y: MAP - 1 - 36 });
 }
 
 // Coastal. ONE body of water shared by both players, laid on the map's own
@@ -153,13 +168,17 @@ function mapCoast(g) {
   for (y = 0; y < MAP; y++) for (x = 0; x < MAP; x++) {
     u = ((x - 31.5) + (y - 31.5)) / 1.41421;      // across the bay
     v = ((x - 31.5) - (y - 31.5)) / 1.41421;      // along it
-    var inBay = (u / 11) * (u / 11) + (v / 25) * (v / 25) <= 1;
+    var a = Math.atan2(v / 25, u / 14.5);
+    var shore = 1 + 0.08 * Math.cos(4 * a) - 0.045 * Math.cos(6 * a);
+    var inBay = (u / 14.5) * (u / 14.5) + (v / 25) * (v / 25) <= shore;
     // The channel has to stay navigable AROUND a yard: a 4x4 WaterBound
     // footprint spans six cells of |x-y| on the diagonal, so a channel any
     // narrower than this is one a single Shipyard plugs — and a plugged
     // channel strands the fleet behind it for the rest of the match
     // (measured: one Destroyer re-flagged B1-stuck 557 times).
-    var inChan = Math.abs(v) <= 4.6 && Math.abs(u) >= 9 && Math.abs(u) <= 25;
+    // Taper smoothly into the bay instead of making a right-angle cross.
+    var channelWidth = 5.2 + Math.max(0, 21 - Math.abs(u)) * 0.32;
+    var inChan = Math.abs(v) <= channelWidth && Math.abs(u) >= 9 && Math.abs(u) <= 25;
     if (inBay || inChan) setF(g, x, y, T_WATER);
   }
   // The island: a rounded shoal at the exact mirror centre, so it is its
@@ -278,17 +297,44 @@ function indexBridges(g) {
   }
 }
 
-// Gem Valley: a cliff-ringed plateau, 22..41 square (self-mirroring), open
+// Gem Valley: a rounded cliff-ringed plateau, 22..41 (self-mirroring), open
 // only through a four-wide ramp on the north face and its mirror on the
 // south. The gems go inside.
 function mapPlateau(g) {
   for (var y = 22; y <= 41; y++) for (var x = 22; x <= 41; x++) {
-    if (x > 23 && x < 40 && y > 23 && y < 40) continue;                // the plateau top stays clear
+    var dx = Math.abs(x - 31.5), dy = Math.abs(y - 31.5);
+    if (Math.pow(dx / 10, 4) + Math.pow(dy / 10, 4) > 1) continue;
+    if (Math.pow(dx / 8, 4) + Math.pow(dy / 8, 4) <= 1) continue;      // plateau top
     setTM(g, x, y, (x >= 30 && x <= 33) ? T_RAMP : T_CLIFF);
   }
 }
 
-function genCore(g, rocks, features, extraOre) {
+// Authored lanes are reserved BEFORE resources and scenery. Roads cannot be
+// overwritten by ore or random rocks, and the cliff/ramp ring remains intact.
+function mapGemValley(g) {
+  mapPlateau(g);
+  mapLake(g, 8, 32, 4.5, 8);
+  function lane(x0, y0, x1, y1, width) {
+    var n = Math.max(Math.abs(x1 - x0), Math.abs(y1 - y0));
+    for (var i = 0; i <= n; i++) {
+      var x = Math.round(x0 + (x1 - x0) * i / n), y = Math.round(y0 + (y1 - y0) * i / n);
+      for (var d = 0; d < width; d++) setTM(g, x + (x0 === x1 ? d : 0), y + (y0 === y1 ? d : 0), T_ROAD);
+    }
+  }
+  lane(12, 18, 31, 18, 3);             // assembly ground and main approach
+  lane(30, 18, 30, 45, 4);             // paired ramp mouths and clear summit spine
+  lane(18, 18, 18, 45, 3);             // lowland flank, mirrored to the east
+  lane(18, 43, 32, 43, 3);             // rejoin beyond the opposing ramp
+  // Landmark woodland outside the traffic corridors, not random pass blockers.
+  var groves = [[7, 23], [12, 46], [24, 10], [44, 12]];
+  for (var j = 0; j < groves.length; j++) for (var dy = -2; dy <= 2; dy++) for (var dx = -2; dx <= 2; dx++) {
+    if (dx * dx + dy * dy > 5) continue;
+    var tx = groves[j][0] + dx, ty = groves[j][1] + dy;
+    if (!nearT(g, tx, ty, T_WATER)) setTM(g, tx, ty, T_TREE);
+  }
+}
+
+function genCore(g, rocks, features, extraOre, replaceContested) {
   var i, x, y;
   for (i = 0; i < MAP * MAP; i++) { g.terrain[i] = T_GROUND; g.ore[i] = 0; }
   if (features) features();                       // water and cliffs first: ore never lands on an island
@@ -336,11 +382,13 @@ function genCore(g, rocks, features, extraOre) {
 
   mirrorPatch(15, 8, 3.4, 900);
   mirrorPatch(7, 17, 3.0, 780);
-  mirrorPatch(27, 20, 3.6, 1000);
   // The contested middle. A single patch at MAP>>1 cannot be self-mirroring
   // (the mirror centre of a 64-tile map is 31.5, not 32), so it is a mirrored
   // PAIR that overlaps into one central field — symmetric by construction.
-  mirrorPatch(30, 30, 3.8, 1150);
+  if (!replaceContested) {
+    mirrorPatch(27, 20, 3.6, 1000);
+    mirrorPatch(30, 30, 3.8, 1150);
+  }
   if (extraOre) extraOre(mirrorPatch, mirrorGem);   // per-map pockets and gem fields
 
   mapTech(g, g.tech2);
@@ -384,7 +432,12 @@ function computeGroundMat(g) {
     var ax = x, ay = y;
     if (y * MAP + x > my * MAP + mx) { ax = mx; ay = my; }
     var v = vn(ax, ay, 10.5, 0) * 0.82 + vn(ax, ay, 4.3, 7) * 0.18;
-    g.gm[y * MAP + x] = v > 0.62 ? 1 : 0;
+    var material = v > 0.62 ? 1 : 0;
+    // Tie materials to the landscape: sandy/scoured margins at water and
+    // exposed earth beneath cliffs, greener ground beneath woodland.
+    if (nearT(g, x, y, T_WATER) || nearT(g, x, y, T_CLIFF)) material = 1;
+    else if (nearT(g, x, y, T_TREE)) material = 0;
+    g.gm[y * MAP + x] = material;
   }
 }
 

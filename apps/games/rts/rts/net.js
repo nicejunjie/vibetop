@@ -467,7 +467,7 @@ function applyCmd(g, p, c) {
       us = entsOf(g, c.u);
       n = orderUnitsTo(g, us, c.x, c.y, { queue: !!c.queue, voice: local });
       if (local && n) {
-        say(c.queue ? 'Waypoint added' : (c.ore ? 'Harvesting' : 'Moving')); sfx('click');
+        say(c.queue ? 'Waypoint added' : (us.some(function (u) { return u.order && u.order.t === 'harvest'; }) ? 'Harvesting' : 'Moving')); sfx('click');
         g.fx.push({ x: c.x, y: c.y, t: 0, life: 18, size: 0, ping: true });
       }
       return;
@@ -671,6 +671,9 @@ function applyCmd(g, p, c) {
       if (!local) return;
       if (outN) say('Unloaded — ' + outN + ' out');
       else if (waiting) say('Landing to unload');
+      else if (us.some(function (u) { return paxCount(u) && g.terrain[idx(Math.round(u.x), Math.round(u.y))] === T_WATER; })) {
+        say('Move closer to a clear shore to unload', true);
+      }
       else say('Nowhere to put them — the ground around it is blocked', true);
       sfx(outN || waiting ? 'click' : 'no'); refreshCmdbar();
       return;
@@ -803,14 +806,14 @@ function applyCmd(g, p, c) {
       tgt.repair = !tgt.repair;
       if (!local) return;
       if (tgt.repair) eva('Repairing', 4000);                            // eva.ini #57
-      say(tgt.repair ? 'Repairing ' + BLDS[tgt.type].name : 'Repair stopped');
+      say(tgt.repair ? 'Repairing ' + bspecOfB(g, tgt).name : 'Repair stopped');
       sfx(tgt.repair ? 'wrench' : 'click', tgt.cx, tgt.cy);
       return;
 
     case 'sw':
       var okSw = SW[c.k].two ? swFire(g, p, c.k, c.x, c.y, c.x2, c.y2)
                              : swFire(g, p, c.k, c.x, c.y);
-      if (local && !okSw) say(SW[c.k].name + ' is not charged', true);
+      if (local && !okSw) say(swOffline(g, p, c.k) ? 'Power on the ' + bspecFor(SW[c.k].bld, facOf(g, p)).name + ' first' : SW[c.k].name + ' is not charged', true);
       if (local) refreshSW();
       return;
 

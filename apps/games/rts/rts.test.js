@@ -1111,16 +1111,16 @@ test("a bridge carries units over the river, and nothing can be built on the dec
   const W = load(), T = W.__rtsTables, API = W.__rtsTest.api, TER = T.TER;
   const g = API.newState(33, "normal", "river");
   const deck = tiles(g, TER.BRIDGE);
-  assert.ok(deck.length >= 16, `expected two crossings, got ${deck.length} deck tiles`);
+  assert.equal(deck.length, 48, 'two three-lane crossings span the eight-cell river');
   // every deck tile sits in the river band, i.e. it really is over water
-  for (const d of deck) assert.ok(d.y >= 30 && d.y <= 33, `bridge tile at ${d.x},${d.y} is not on the river`);
+  for (const d of deck) assert.ok(d.y >= 28 && d.y <= 35, `bridge tile at ${d.x},${d.y} is not on the river`);
 
   const a = g.start[0], b = g.start[1];
   const path = API.astar(g, a.x, a.y, b.x, b.y);
   assert.ok(path && path.length, "no route across the river");
   let onDeck = 0;
   for (const p of path) if (g.terrain[p.y * 64 + p.x] === TER.BRIDGE) onDeck++;
-  assert.ok(onDeck >= 4, `the route crossed the river without using a bridge (${onDeck} deck tiles)`);
+  assert.ok(onDeck >= 8, `the route crossed the river without using a bridge (${onDeck} deck tiles)`);
 
   // Drop the decks and the crossing is gone.
   for (const d of deck) g.terrain[d.y * 64 + d.x] = TER.WATER;
@@ -3326,10 +3326,11 @@ test("Passengers= : each transport loads exactly its rules.ini seat count", () =
                                          ["apc", "col", "conscript", 12]]) {
     const g = transportBase(H, 8100, fac);
     const st = g.start[0];
-    const tr = H.spawn(kind, 0, st.x + 6, st.y + 6);
+    const spot = clearSpot(H, g, st.x + 6, st.y + 6);
+    const tr = H.spawn(kind, 0, spot.x, spot.y);
     let aboard = 0;
     for (let i = 0; i < cap + 3; i++) {                 // three more than it can hold
-      const m = H.spawn(rider, 0, st.x + 6, st.y + 6);
+      const m = H.spawn(rider, 0, spot.x, spot.y);
       if (H.board(tr, m)) aboard++;
       else { assert.equal(m.dead, false, "a refused passenger is still on the map"); m.dead = true; }
     }
@@ -3350,15 +3351,16 @@ test("a passenger is off the map: not targetable, not army, not band-selected", 
   const H = W.__rtsTest, API = H.api;
   const g = transportBase(H, 8101, "col");
   const st = g.start[0];
-  const tr = H.spawn("flaktrack", 0, st.x + 6, st.y + 6);
+  const spot = clearSpot(H, g, st.x + 6, st.y + 6);
+  const tr = H.spawn("flaktrack", 0, spot.x, spot.y);
   const men = [];
-  for (let i = 0; i < 3; i++) men.push(H.spawn("conscript", 0, st.x + 6, st.y + 6));
+  for (let i = 0; i < 3; i++) men.push(H.spawn("conscript", 0, spot.x, spot.y));
   const before = API.countUnit(g, 0, "conscript");
   assert.equal(before, 3);
   men.forEach((m) => H.board(tr, m));
   assert.equal(API.countUnit(g, 0, "conscript"), 0, "riders do not count as units");
   // findTarget for an enemy standing on top of the halftrack must not see them
-  const foe = H.spawn("rhino", 1, st.x + 6, st.y + 6);
+  const foe = H.spawn("rhino", 1, spot.x, spot.y);
   for (let i = 0; i < 60; i++) H.step(1);
   assert.ok(men.every((m) => m.dead), "riders stay off the map");
   assert.ok(!foe.target || foe.target.type !== "conscript", "nothing can shoot a rider");

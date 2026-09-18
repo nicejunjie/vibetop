@@ -374,9 +374,9 @@ function bakeVehicle(col, kind, fac, anim) {
     // guns; the Grizzly remains the long low wedge and the Rhino the broad
     // Soviet hull.
     lancer: 0.840, rhino: 0.820,
-    flaktrack: 1.000, ifv: 1.300,                    // the light class
+    flaktrack: 1.000, ifv: 1.060,                    // compact light chassis, below the battle tanks
     teslatank: 0.950, mirage: 1.060, spectre: 1.000, // the mid specials
-    v3: 1.180, mammoth: 0.840,                       // the longest / the heaviest
+    v3: 1.180, mammoth: 0.980,                       // heavy hull visibly larger than Rhino/Grizzly
     mcv: 1.100, drone: 0.920, hornet: 0.45,
     // THE TWO AIRCRAFT, sized against RA2 rather than against each other.
     // Aspect is scale-INVARIANT, so the whole art gate was blind to a unit

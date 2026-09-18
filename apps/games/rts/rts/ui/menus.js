@@ -1030,7 +1030,8 @@ function startMatch() {
   setTimeout(touchHint, 4000);                 // after the opening tip has had its say
   say('Left-drag to select · Left-click to move or attack · Right-drag to look around · Esc clears the selection', false, 420);
   say(FACTIONS[faction].name + ' vs ' + FACTIONS[G.side[P_AI].fac].name +
-      ' — build a Power Plant, then a Refinery. Harvesters mine on their own.', false, 340);
+      ' — build a ' + bspecFor('power', faction).name + ', then a ' +
+      bspecFor('refinery', faction).name + '. Harvesters mine on their own.', false, 340);
 }
 
 // ------------------------------------------------------------------- //
@@ -1366,6 +1367,13 @@ function buildScoreCard(won) {
   scoreCard.hidden = false;
 }
 
+function resultDetail(g, won, me) {
+  var loser = won ? 1 - me : me, mm = mmss(Math.floor(g.tick / 60));
+  if (g.side[loser].deadFor > 60 * 75)
+    return (won ? 'Enemy economy collapsed at ' : 'Your economy collapsed at ') + mm + '.';
+  return won ? 'Enemy base levelled in ' + mm + '.' : 'Your base is gone at ' + mm + '.';
+}
+
 function finish(won, why) {
   setState('over');
   stallHide();
@@ -1390,12 +1398,11 @@ function finish(won, why) {
       highlight: { s: sess }
     });
   }
-  var mm = mmss(secs);
   onA = function () { hideCard(); menu(); };
   onB = null;
   showCard(won ? '🏆' : '💥',
     won ? 'Victory' : 'Defeated',
-    why || (won ? 'Enemy base levelled in ' + mm + '.' : 'Your base is gone at ' + mm + '.'),
+    why || resultDetail(G, won, ME),
     'Menu', null, false, true);
   buildScoreCard(won);
   eva(won ? 'You are victorious' : 'You have lost', 30000);       // eva.ini #22 / #23

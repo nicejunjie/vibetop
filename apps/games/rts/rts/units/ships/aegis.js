@@ -49,6 +49,11 @@ function drawAegis(C) {
   // square mouths, not tall canted launch boxes with holes on their roofs.
   box(-L * 0.29, 0, L * 0.24, W * 1.10, 4.4, '#444444');
   box(-L * 0.29, 0, L * 0.16, W * 0.72, 6.2, '#666666');
+  // Two seated trunnion blocks bridge the central foundation to the
+  // launchers. Their roots overlap the pedestal, not empty water.
+  box(-L * 0.28, 0, L * 0.25, W * 1.52, 4.6, '#59636b');
+  box(-L * 0.28, -W * 0.56, L * 0.18, W * 0.48, 5.3, '#66737b');
+  box(-L * 0.28, W * 0.56, L * 0.18, W * 0.48, 5.3, '#66737b');
   (function () {
     function quad(qs, col) {
       g.fillStyle = col; g.beginPath();
@@ -58,24 +63,25 @@ function drawAegis(C) {
       g.strokeStyle = '#777777'; g.lineWidth = 0.65; g.stroke();
     }
     function tube(side) {
-      var vv = side * W * 0.80, tipV = vv + side * W * 0.38, hw = W * 0.16;
-      var u0 = -L * 0.35, u1 = L * 0.02, z0 = FR + 6.0, z1 = FR + 9.4;
+      var vv = side * W * 0.58, tipV = vv, hw = W * 0.23;
+      var u0 = -L * 0.40, u1 = L * 0.08, z0 = FR + 4.5, z1 = FR + 7.5;
       function p(u, v, z) { return P(u, v, z); }
-      var rise = 1.8;
+      var rise = 3.0;
       var a = p(u0, vv - hw, z0), b = p(u1, tipV - hw, z0 + rise),
           c = p(u1, tipV - hw, z1 + rise), d = p(u0, vv - hw, z1);
       var e = p(u0, vv + hw, z0), f = p(u1, tipV + hw, z0 + rise),
           h = p(u1, tipV + hw, z1 + rise), k = p(u0, vv + hw, z1);
-      // A faceted broad cylinder keeps a long, connected cannon read at
-      // broadside; four roof quads merged into an upright white deckhouse.
-      var root = p(u0, vv, (z0 + z1) * 0.5), tip = p(u1, tipV, (z0 + z1) * 0.5 + rise);
-      g.lineCap = 'butt';
-      g.strokeStyle = '#555555'; g.lineWidth = 5.8;
-      g.beginPath(); g.moveTo(root[0], root[1] + 1.0); g.lineTo(tip[0], tip[1] + 1.0); g.stroke();
-      g.strokeStyle = '#dddddd'; g.lineWidth = 4.8;
-      g.beginPath(); g.moveTo(root[0], root[1]); g.lineTo(tip[0], tip[1]); g.stroke();
-      g.strokeStyle = '#ffffff'; g.lineWidth = 1.7;
-      g.beginPath(); g.moveTo(root[0], root[1] - 2.0); g.lineTo(tip[0], tip[1] - 2.0); g.stroke();
+      // Closed housings with real side/roof faces: white shells on grey
+      // cradles, not disconnected screen-space strokes beyond the beam.
+      quad([a,b,c,d], '#aeb9bf');
+      quad([e,f,h,k], '#ced5d5');
+      quad([a,e,k,d], '#909da5');
+      // Bevelled shoulders separate the two canisters from slab-like walls.
+      var d2=p(u0,vv-hw*.60,z1+.65),c2=p(u1,tipV-hw*.60,z1+rise+.65);
+      var k2=p(u0,vv+hw*.60,z1+.65),h2=p(u1,tipV+hw*.60,z1+rise+.65);
+      quad([d,c,c2,d2], '#c4cecf');
+      quad([k,h,h2,k2], '#d6dcdc');
+      quad([d2,c2,h2,k2], '#edf0e9');
       // Square muzzle collar with one recessed launch opening.
       quad([b, f, h, c], '#cccccc');
       var mu = u1 + L * 0.006;

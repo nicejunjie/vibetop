@@ -140,12 +140,18 @@ function bakeShip(col, kind, fac) {
             squid:     { L: 48, W: 14, FREE: 2.2 } }[kind];
 
   function frame(d) {
-    // The three hulls whose plan runs off a 104 px sheet. The Squid joined
-    // them when it grew to RA2's own 117 px class: its arms reach L * 1.05
-    // from the mantle, and a clipped arm is an invisible bug that only a
-    // rendered frame catches.
+    // Large hulls and the squid need more room than the standard unit sheet.
     var big = kind === 'carrier' || kind === 'dread' || kind === 'squid';
-    var s = big ? mkCanvas(150, 112) : unitCanvas(), g = s.g;
+    // Long squid arms sweep beyond the hull-sized sheet at oblique bearings.
+    // Add horizontal room without changing scale or the world ground anchor.
+    var s = kind === 'squid' ? mkCanvas(200, 112)
+          : big ? mkCanvas(150, 112) : unitCanvas(), g = s.g;
+    var crisp = kind === 'aegis' || kind === 'dolphin' || kind === 'squid';
+    if (crisp) {
+      s.c.width = Math.ceil(s.w); s.c.height = Math.ceil(s.h);
+      // Resizing clears the DPR transform: author once on the logical grid.
+      s.crispVehicle = true;
+    }
     var cx = s.w / 2, by = s.h - UPAD;
     g.translate(cx, by); g.scale(USC_V, USC_V); g.translate(-cx, -by);
     var a = d * FANG, cd = Math.cos(a), sd = Math.sin(a);
@@ -370,7 +376,7 @@ function bakeShip(col, kind, fac) {
     // are ON the superstructure, 47 to 227 of them, and the full contact sheet
     // has no detached arc beside any hull. RA2's wake is an engine effect over
     // the water, not part of the unit's art.
-    pixelate(s, 6, 96);   // RA2's own 6-level channel grid: flat bands, not a gradient
+    pixelate(s, crisp ? 12 : 6, 96, crisp);
     return s;
   }
   // 32 bearings, baked LAZILY, exactly as bakeVehicle's sheet is. Hulls

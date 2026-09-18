@@ -58,6 +58,14 @@ function hasBld(g, p, type) {
   return false;
 }
 
+function hasEnabledBld(g, p, type) {
+  for (var i = 0; i < g.blds.length; i++) {
+    var b = g.blds[i];
+    if (!b.dead && !b.offline && b.p === p && b.type === type) return true;
+  }
+  return false;
+}
+
 function countBld(g, p, type) {
   var n = 0;
   for (var i = 0; i < g.blds.length; i++) {
@@ -141,6 +149,7 @@ function cancelLast(g, p, lane, key) {
 // a curve on the size of the deficit, not the flat 0.4x this used to be.
 function prodSpeed(g, p) {
   var s = g.side[p];
+  if (s.blackout > g.tick) return 0.5;
   if (s.powerUse === 0 || s.powerMade >= s.powerUse) return 1;
   return 0.8 - 0.3 * Math.min(1, (s.powerUse - s.powerMade) / s.powerUse);
 }
@@ -190,10 +199,7 @@ function stepQueues(g, p) {
     var spec = isBldLane(lane) ? bspecOf(g, key, p) : UNITS[key];   // byFac cost/build: a Tesla Reactor is $600/25 s, not the Allied plant's
     // A lane with no producing structure left stalls (and refunds nothing —
     // same as RA2: rebuild the factory and it resumes).
-    if (lane === 'i' && !hasBld(g, p, 'barracks')) continue;
-    if (lane === 'v' && !hasBld(g, p, 'factory')) continue;
-    if (lane === 'a' && !hasBld(g, p, 'airforce')) continue;
-    if (lane === 'n' && !hasBld(g, p, 'shipyard')) continue;
+    if (!producersOf(g, p, lane).length) continue;
     // A prerequisite lost mid-build (the Radar behind a queued coil) puts the
     // item ON HOLD with a reason, instead of a silent stall at 0%.
     if (!reqMet(g, p, spec)) {
@@ -277,7 +283,7 @@ function producerType(lane) {
 var FACTORY_STEP = 0.8, FACTORY_FLOOR = 0.25;
 
 function buildFactor(g, p, lane) {
-  var n = countBld(g, p, producerType(lane));
+  var n = producersOf(g, p, lane).length;
   return n <= 1 ? 1 : Math.max(FACTORY_FLOOR, Math.pow(FACTORY_STEP, n - 1));
 }
 
@@ -288,7 +294,7 @@ function producersOf(g, p, lane) {
   var want = producerType(lane), list = [];
   for (var i = 0; i < g.blds.length; i++) {
     var b = g.blds[i];
-    if (!b.dead && b.p === p && b.type === want) list.push(b);
+    if (!b.dead && !b.offline && b.p === p && b.type === want) list.push(b);
   }
   return list;
 }
@@ -301,6 +307,10 @@ function producerFor(g, p, lane) {
   var list = producersOf(g, p, lane);
   if (!list.length) return null;
   var s = g.side[p], id = s.primary && s.primary[lane];
+  // A temporarily disabled primary yields its exit without losing the
+  // player's designation; switching it back on restores that choice.
+  var preferred = id && g.blds.find(function (b) { return b.id === id && !b.dead && b.p === p; });
+  if (preferred && preferred.offline) return list[0];
   for (var i = 0; i < list.length; i++) if (list[i].id === id) return list[i];
   if (!s.primary) s.primary = { i: 0, v: 0, a: 0 };
   s.primary[lane] = list[0].id;
@@ -343,15 +353,21 @@ function spreadSpot(g, x, y, taken, mv, zone) {
 // A passable tile near (x,y) with no ground unit already standing on it.
 // `used` (optional) is a set of "x,y" keys already handed out this tick, for
 // callers that place several units before the neighbour index is rebuilt.
-function standSpot(g, x, y, used) {
+// `reachable` (optional) limits transport exits to connected ground cells.
+function standSpot(g, x, y, used, reachable) {
   for (var r = 0; r < 7; r++) {
     for (var oy = -r; oy <= r; oy++) for (var ox = -r; ox <= r; ox++) {
       if (Math.max(Math.abs(ox), Math.abs(oy)) !== r) continue;
       var nx = x + ox, ny = y + oy;
       if (!inMap(nx, ny) || blocked(g, nx, ny)) continue;
+      if (reachable && !reachable[idx(nx, ny)]) continue;
       if (used && used[nx + ',' + ny]) continue;
       var taken = false;
-      near(nx, ny, 0.6, function (o) { if (o.kind === 'u' && !o.dead && !o.air) taken = true; });
+      // near() returns whole spatial buckets, not a distance-filtered list.
+      near(nx, ny, 0.6, function (o) {
+        if (o.kind === 'u' && !o.dead && !o.air &&
+            Math.hypot(o.x - nx, o.y - ny) < 0.6) taken = true;
+      });
       if (!taken) return { x: nx, y: ny };
     }
   }

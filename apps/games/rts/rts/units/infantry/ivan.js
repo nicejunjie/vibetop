@@ -1,194 +1,71 @@
-// Iron Frontier — infantry/ivan: the art for one unit.
-// Called by bakeInfantry() with one context object carrying the canvas, the anchor,
-// the facing and the helpers it draws with — see rts/README.md.
-
-
-
-
+// Crazy Ivan: exposed face, sleeveless vest, bent stance and raised dynamite.
 function drawIvan(C) {
-  var ACC = C.ACC, FA = C.FA, HEADX = C.HEADX, JACKET = C.JACKET, T = C.T, TURN = C.TURN, arms = C.arms,
-      by = C.by, col = C.col, cx = C.cx, face = C.face, g = C.g, gt = C.gt, legs = C.legs, sd = C.sd;
-  // The local RA2 image has a red headgear accent; keep that player-remapped.
-  var FUR = col;
-  // Pale shirt and exposed arms separate him from armoured infantry.
-  JACKET = '#414141';
-  var REDCOAT = col;
-
-// Crazy Ivan: source frames show red head/shoulder accent, bare arms,
-// dark separate trousers, and a hand-held explosive bundle. Do not
-// return to the old skirted red greatcoat that deleted his legs.
-var SHIRTI = '#cbb79a';
-legs(3.3, by - 12.2, 3.8, '#383838', 4.2);
-
-g.save(); g.translate(gt.lean, gt.bob);
-// the coat SKIRT first, hanging below the belt over the thighs and
-// splitting at the front so the stride still reads through it
-// The skirt FLARES past the hips and is a step lighter than the coat
-// body, so it separates from the trousers below it. At the coat's own
-// value it vanished and he read as another soldier in a tunic.
-g.fillStyle = '#363636';                                     // short belt-level shirt hem
-g.fillRect(cx - 4.5, by - 14.4, 9.0, 2.0);
-
-g.fillStyle = JACKET;                                         // work shirt body
-g.beginPath();
-g.moveTo(cx - 5.2, by - 20.0); g.lineTo(cx + 5.2, by - 20.0);
-g.lineTo(cx + 5.0, by - 13.6); g.lineTo(cx - 5.0, by - 13.6);
-g.closePath(); g.fill(); outline(g, shade(JACKET, 0.52));
-g.fillStyle = SHIRTI;                                         // the shirt, between the lapels
-g.fillRect(cx - 0.9, by - 20.0, 1.8, 6.6);
-g.fillStyle = shade(SHIRTI, 0.78);
-g.fillRect(cx - 0.9, by - 20.0, 0.7, 6.6);
-g.fillStyle = '#2c2c2c';                                      // belt over the shirt
-g.fillRect(cx - 5.1, by - 14.4, 10.2, 1.5);
-g.fillStyle = '#a98c3c';
-g.fillRect(cx - 0.9, by - 14.2, 1.8, 1.1);
-
-// THE MOST SATURATED MAN ON THE FIELD — 47.9% in RA2, the top of the
-// whole roster (§2.2 asks for >=35%). The lapels used to leave a 3px
-// shirt canyon down the middle and stop at the belt; they close to a
-// 1.8px seam now and run to the skirt, so the coat reads as a red vest
-// worn open rather than as two red stripes.
-// ...and they run a pixel further ONTO the skirt than they did. Two
-// reasons, and the second is the honest one. RA2 measures him at 47.9%
-// owner colour and §2.2 asks a Soviet greatcoat for >= 35%; ours was at
-// 34.1% before this pass and 32.7% after it, because making the dynamite
-// legible added neutral tan and diluted the block. The lapel is the
-// named part, and lengthening it downward costs NO silhouette at all —
-// the coat skirt already owns those rows, so the mask is unchanged and
-// his distance from Tanya is not touched a second time.
-for (var iv = -1; iv <= 1; iv += 2) {
-  g.fillStyle = REDCOAT;
-  g.beginPath();
-  g.moveTo(cx + iv * 0.9, by - 19.8); g.lineTo(cx + iv * 4.7, by - 19.8);
-  g.lineTo(cx + iv * 4.1, by - 14.0); g.lineTo(cx + iv * 0.6, by - 14.0);
-  g.closePath(); g.fill(); outline(g, shade(col, 0.38));
-  g.fillStyle = shade(REDCOAT, iv < 0 ? 1.22 : 0.88);
-  g.fillRect(cx + (iv < 0 ? -5.3 : 3.4), by - 20.2, 1.6, 5.8);
-}
-g.fillStyle = '#42251e';                                      // collar shadow
-g.fillRect(cx - 5.3, by - 20.5, 10.6, 0.9);
-
-arms(6.1, by - 19.0, 3.0, 6.4, '#f1d9b5', function (i, x, y) {
-  g.fillStyle = '#f1d9b5';                                   // bare hand
-  g.beginPath(); g.roundRect(x - 1.3, y + 5.2, 2.6, 2.2, 0.9); g.fill();
-  outline(g, '#8a6440');
-  if (i > 0) {
-    // THE BUNDLE — and it is the whole point of him. RA2's Crazy Ivan
-    // cameo is not a portrait at all: it is a hand holding a fistful of
-    // dynamite, and the sticks fill two thirds of the plate. Ours was a
-    // 4x4 lump at the hip with TWO lashing bands across four pixels of
-    // stick, so at the size it is drawn each visible segment was one
-    // pixel and the whole thing read as "something brown in his hand".
-    //
-    // Taller sticks, ONE band, and lit end caps, so the bundle reads as
-    // a fistful of cylinders rather than a block; lifted a pixel so it
-    // sits against the dark coat body instead of the lit skirt flare.
-    // It stays neutral TAN: RA2's sticks are red-brown, but red is a
-    // house colour here, and a saturated red mass on a unit is the
-    // impostor case the census exists to catch. Value and shape carry
-    // it instead.
-    // HELD UP, not at the hip. The first sizing put the bundle at hand
-    // height on one side, which is exactly where TANYA's pistols hang:
-    // the art gate caught it immediately — her best silhouette match
-    // stopped being herself at another bearing and became Ivan (0.7897
-    // against her own 0.7827), the first peer-vs-self loss any infantry
-    // pass has caused. Raised to belt height it clears her outline, and
-    // it also sits further inside the cameo's portrait crop, which is
-    // where it needs to be anyway.
-    // ONE BODY, ONE OUTLINE, and the sticks are TONE COLUMNS in it. Three
-    // separately-outlined 1.42-unit sticks is the shape this used to be,
-    // and at STATURE.ivan [0.80,0.88] each one drew 1.25 px wide under a
-    // 1 px stroke centred on its own border: the outline ate the stick.
-    // MEASURED — not one pixel of #d7b87d, #c6a76e, #a98a58 or the lit
-    // caps survived at ANY of the eight bearings, and §2.2's "bundle
-    // >= 4x3 at waist height" measured 0x0 against the reference's own
-    // ">= 25% value contrast against what is behind it" floor: what was
-    // left was hue-37 mush at v 0.12-0.35 on a v 0.15 coat. It read as
-    // "something brown in his hand", which is the exact complaint the
-    // previous pass wrote down and then fixed by adding DETAIL rather
-    // than by removing the strokes that were eating it.
-    // Same lesson as the Engineer's coverall and the Tesla Trooper's
-    // carapace: at this size the outline is not trim, it is most of the
-    // surface, and a 1 px stroke round a 1.25 px fill leaves no fill.
-    var dbx = x + 1.2, dby = y + 4.3;
-    g.fillStyle = '#b0806d';                                  // warm brown dynamite bundle
-    g.beginPath(); g.roundRect(dbx - 2.1, dby, 4.2, 5.8, 0.7); g.fill();
-    outline(g, '#4c3a1a');
-    // Three sticks read as three TONES, never as seams: a 0.5-unit dark
-    // seam is 0.44 px and does to the fill beside it exactly what the
-    // per-stick outline did to the stick. Measured, two seams took the
-    // block from v 0.81 to v 0.16-0.35 over half its own rows.
-    g.fillStyle = '#c49883';                                  // lit stick, left
-    g.fillRect(dbx - 1.85, dby + 0.25, 1.35, 5.25);
-    g.fillStyle = '#9a6d5b';                                  // shaded stick, right
-    g.fillRect(dbx + 0.55, dby + 0.25, 1.35, 5.25);
-    g.fillStyle = '#d2ac94';                                  // lit end caps, one band
-    g.fillRect(dbx - 1.85, dby + 0.2, 3.7, 1.15);
-    g.fillStyle = '#856f63';                                  // one lashing band, and it is a
-    g.fillRect(dbx - 2.25, dby + 2.8, 4.5, 0.75);             // TONE of the sticks rather than
-    g.fillStyle = '#a78d7f';                                  // the near-black bar that used
-    g.fillRect(dbx - 2.25, dby + 2.85, 4.5, 0.3);             // to cut the bundle in half
-    g.strokeStyle = '#4a4038'; g.lineWidth = 1.5; g.lineCap = 'round';
-    g.beginPath();                                            // fuse, rimmed so it survives
-    g.moveTo(dbx + 0.2, dby + 0.2); g.lineTo(dbx + 1.3, dby - 1.5);
-    g.lineTo(dbx + 2.5, dby - 2.0); g.stroke();
-    g.strokeStyle = '#bcbcbc'; g.lineWidth = 0.9;
-    g.beginPath();
-    g.moveTo(dbx + 0.2, dby + 0.2); g.lineTo(dbx + 1.3, dby - 1.5);
-    g.lineTo(dbx + 2.5, dby - 2.0); g.stroke();
+  var g=C.g,cx=C.cx,by=C.by,sd=C.sd,turn=C.TURN,gt=C.gt,col=C.col;
+  var planting=C.state==='fire'||C.state==='fireprone';
+  var reach=planting?[.1,.5,1,.85,.45,.1][C.phase]:0;
+  // Alternate planted and passing legs. The generic helper pulled both knees
+  // to one side in front view, making the run read as a sideways squat.
+  var walking=C.state==='walk'||C.state==='crawl';
+  var order=gt.sw?[-gt.sw,gt.sw]:[-1,1];
+  for(var leg=0;leg<2;leg++){
+    var li=order[leg],swing=walking?li*gt.swf:0;
+    var hx0=cx+li*2.5*(1-.25*sd);
+    var fx0=cx+li*3.4*(1-.7*sd)+(walking?swing*4.5:li*.7)*sd/turn;
+    var lift=Math.max(0,-swing)*2.8;
+    var ky=by-6.2-lift*.5,kx=(hx0+fx0)/2+Math.max(0,-swing)*1.1/turn;
+    g.strokeStyle='#252f44';g.lineWidth=4.5;g.lineCap='round';g.lineJoin='round';
+    g.beginPath();g.moveTo(hx0,by-11.8);g.lineTo(kx,ky);g.lineTo(fx0,by-2.5-lift);g.stroke();
+    g.strokeStyle=swing<0?'#3d495c':'#465674';g.lineWidth=2.8;
+    g.beginPath();g.moveTo(hx0-.3,by-11.4);g.lineTo(kx-.3,ky);g.lineTo(fx0-.3,by-2.7-lift);g.stroke();
+    g.fillStyle='#343434';g.fillRect(fx0-2.1,by-2.5-lift,4.5,2.6);
+    g.fillStyle='#626262';g.fillRect(fx0-1.5,by-2.4-lift,3,.8);
   }
-});
-
-// The whole head is pushed DOWN a pixel and a half and the beard cut
-// back to the chin, because at the first sizing the ushanka's brim met
-// the beard and he read as a man in a red balaclava with no face.
-face(by - 21.0);
-if (!FA.back) {
-var ihx = cx + sd * 1.9 / TURN + HEADX;
-g.fillStyle = ACC;                                    // beard, chin only
-g.beginPath();
-g.moveTo(ihx - 2.0, by - 20.4); g.lineTo(ihx + 2.0, by - 20.4);
-g.lineTo(ihx + 1.7, by - 19.3); g.lineTo(ihx, by - 18.5);
-g.lineTo(ihx - 1.7, by - 19.3); g.closePath(); g.fill();
-outline(g, '#3d2a16');
-g.fillStyle = shade(ACC, 1.24);
-g.fillRect(ihx - 1.7, by - 20.25, 1.5, 0.7);
-g.fillStyle = '#3a2b1c';                                      // two eyes under the brim
-g.fillRect(ihx - 1.55, by - 21.5, 0.95 * (1 - 0.5 * sd), 0.8);
-g.fillRect(ihx + 0.6, by - 21.5, 0.95, 0.8);
-}
-
-// the USHANKA: a fur crown with the two ear flaps hanging beside the
-// face. Drawn as a plain dome it was indistinguishable from a helmet,
-// and the flaps are the whole difference.
-// A hat, not a helmet: the crown is SHALLOWER than a dome and the two
-// flaps hang clear of it with a dark gap between, which is the whole
-// difference from the Conscript's steel pot beside him.
-// Two SHORT straps at ear level. Drawn long they closed round the
-// cheeks and the hat read as a red balaclava with a beard in it.
-for (var uf = -1; uf <= 1; uf += 2) {
-  g.fillStyle = shade(FUR, uf < 0 ? 1.10 : 0.82);
-  g.beginPath();                                              // flap: >=2 px clear of the crown (§2.2)
-  g.roundRect(cx + uf * 3.80 - 1.25, by - 23.7, 2.5, 3.4, 0.7); g.fill();
-  outline(g, shade(col, 0.36));
-}
-// The HAT carries the owner budget the dynamite dilutes, and it is the
-// one place on him that can. Making the bundle legible cost 0.3601 ->
-// 0.3491 of remap against §2.2's >= 35%, and the obvious repair —
-// running the lapels a pixel further down the skirt — was MEASURED and
-// REJECTED: it put blue on his lower body, which is exactly where Yuri's
-// robe carries its own, and took `ivan | yuri` from 12.5 to 12.3 against
-// a 12.2 friend-vs-foe floor (CELL 96, zoom 1) — the tightest pair in the
-// Collective infantry. Yuri's head is BALD. Blue on the ushanka buys the
-// same budget in the one band where the two figures do not compete.
-g.fillStyle = FUR;                                            // shallow fur crown
-g.beginPath(); g.ellipse(cx, by - 24.1, 2.95, 2.15, 0, Math.PI, 0); g.fill();
-g.fillRect(cx - 2.95, by - 24.1, 5.9, 1.7);
-outline(g, shade(col, 0.38));
-g.fillStyle = shade(FUR, 1.18);                               // lit fur crown
-g.beginPath();
-g.ellipse(cx - 1.05, by - 24.9, 1.7, 0.85, -0.35, 0, 6.29); g.fill();
-g.fillStyle = shade(FUR, 0.70);                               // shadowed brow band
-g.fillRect(cx - 2.8, by - 22.9, 5.6, 0.75);
-g.restore();
+  g.save();g.translate(gt.lean+reach*sd*.8,gt.bob+reach*.8);
+  g.fillStyle='#252f44';g.fillRect(cx-4.8,by-13,9.6,2.5);
+  g.fillStyle='#d7ae87';g.fillRect(cx-5.0,by-20,10,7);
+  g.fillStyle=col;
+  g.fillRect(cx-4.8,by-20,3.7,7.2);g.fillRect(cx+1.1,by-20,3.7,7.2);
+  g.fillStyle='#f0d0a5';g.fillRect(cx-1,by-19.3,2,5.5);
+  g.fillStyle='#46332b';g.fillRect(cx-5,by-13.4,10,1.5);
+  g.fillStyle='#c0aa77';g.fillRect(cx-.8,by-13.3,1.6,1.1);
+  // Both elbows bend; the explosive hand is held away from the torso.
+  for(var i=-1;i<=1;i+=2){
+    var sx=cx+i*5.2, ex=cx+i*(6.4+sd)/turn;
+    var hx=cx+i*(i>0?7.8:5.8)/turn;
+    var hy=by-(i>0?17.8:14.4), ey=by-14.8;
+    if(i>0){
+      hx+=reach*(2.8+sd*2)/turn;
+      hy+=reach*5.3;ex+=reach*1.5/turn;ey+=reach*.8;
+    }else if(C.state==='walk'||C.state==='crawl'){
+      hx+=gt.swf*1.4/turn;hy-=gt.swf*.9;
+    }
+    g.lineCap='round';g.lineJoin='round';
+    g.strokeStyle='#795342';g.lineWidth=3.8;
+    g.beginPath();g.moveTo(sx,by-19);g.lineTo(ex,ey);g.lineTo(hx,hy);g.stroke();
+    g.strokeStyle='#f0d0a5';g.lineWidth=2.6;
+    g.beginPath();g.moveTo(sx-.3,by-19);g.lineTo(ex-.3,ey);g.lineTo(hx,hy);g.stroke();
+    if(i>0){
+      g.fillStyle='#795342';g.fillRect(hx-2.1,hy-6.1,4.5,6.0);
+      g.fillStyle='#ae8064';g.fillRect(hx-1.8,hy-6,1.5,5.6);
+      g.fillStyle='#c0aa77';g.fillRect(hx+.2,hy-6.6,1.5,6.2);
+      g.fillStyle='#46332b';g.fillRect(hx-2,hy-3.3,4.1,1);
+      g.strokeStyle='#e3cd91';g.lineWidth=1;
+      g.beginPath();g.moveTo(hx+.8,hy-6.6);g.lineTo(hx+1.8,hy-8);g.lineTo(hx+3,hy-7.8);g.stroke();
+      g.fillStyle='#f0d0a5';g.fillRect(hx-1.6,hy-1.1,3.2,1.8);
+    }
+  }
+  var h=cx+sd*1.3/turn+C.HEADX;
+  g.fillStyle=C.FA.back?'#795342':'#d7ae87';
+  g.beginPath();g.ellipse(h,by-22,2.8,3,0,0,Math.PI*2);g.fill();
+  if(!C.FA.back){
+    g.fillStyle='#f0d0a5';g.fillRect(h-.8,by-23,2.6,2.3);
+    g.fillStyle='#46332b';g.fillRect(h-1.7,by-20.3,3.5,1.2);
+    g.fillStyle='#343434';g.fillRect(h+.5,by-22.6,1, .8);
+  }
+  // Shallow fur crown and short ear flaps, leaving cheeks unobstructed.
+  g.fillStyle=col;g.fillRect(h-3.3,by-26,6.4,2.8);
+  g.fillRect(h-3.8,by-24,1.6,2.3);
+  if(C.FA.back)g.fillRect(h+2.2,by-24,1.5,2.3);
+  g.fillStyle=shade(col,1.3);g.fillRect(h-2.5,by-26.3,4.1,1.1);
+  g.restore();
 }

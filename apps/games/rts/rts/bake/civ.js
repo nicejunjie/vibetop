@@ -39,7 +39,8 @@ function rampDir(g, x, y) {
 // RA2 draws a ramp as the theatre's own surface tilted between two stone
 // retaining kerbs: dark at the top of the slope where it meets the cliff
 // face, bright at the foot where it rejoins the ground.
-var RAMP_SKIRT = 14, RAMP_SKIRT_ON = 14;
+// Cover the projected rise between consecutive cells of a two-cell ramp.
+var RAMP_SKIRT = Math.ceil(HSTEP / 3) + 4, RAMP_SKIRT_ON = RAMP_SKIRT;
 
 function bakeRamp(kind, dir, flat, walls) {
   // A step only has to be PAINTED where the projection exposes it. The

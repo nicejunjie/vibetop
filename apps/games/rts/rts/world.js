@@ -25,7 +25,7 @@ var T_RAMP = 7, T_BRIDGE = 8, T_GEM = 9, T_CIV = 10;
 // units, buildings, decals -- draws that much further up the screen. One
 // level is exactly the height of the baked cliff face (CLIFF_H), so a
 // plateau's surface meets the crown of the cliff that rings it.
-var HSTEP = 32;
+var HSTEP = 56;
 
 var GEM_MULT = 2;
 

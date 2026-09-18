@@ -435,7 +435,7 @@ function stepSW(g, p) {
   for (var i = 0; i < SW_KEYS.length; i++) {
     var k = SW_KEYS[i], st = s.sw[k];
     if (!hasBld(g, p, SW[k].bld)) { st.t = 0; st.ready = false; st.armed = false; continue; }
-    if (st.ready || !pw) continue;
+    if (st.ready || !pw || swOffline(g, p, k)) continue;
     if (++st.t >= SW[k].charge) {
       st.t = SW[k].charge; st.ready = true;
       if (p === ME) {
@@ -559,6 +559,7 @@ function stepNuke(g, nk) {
 function swFire(g, p, key, x, y, x2, y2) {
   var s = g.side[p], st = s.sw[key];
   if (!st || !st.ready) return false;
+  if (swOffline(g, p, key)) return false;
   if (!inMap(Math.round(x), Math.round(y))) return false;
   st.ready = false; st.t = 0; st.armed = false; st.fired++;
   var mine = p === ME, W = SW[key], i, u;
@@ -640,6 +641,8 @@ function fire(g, src, tgt) {
   // Patriot alternates its left and right tube.
   if (src.kind === 'b' && src.type === 'patriot') src.tube = src.tube ? 0 : 1;
   if (src.kind === 'u') src.fireAt = g.tick;        // a Mirage that shoots is a Mirage again
+  var plantingC4 = src.kind === 'u' && src.type === 'tanya' && tgt.kind === 'b';
+  if (plantingC4) src.plantAt = g.tick;
   // `DecloakToFire=no` is on the torpedo and the sonic zap, but RA2 still
   // shows the wake and the launch: firing is what gives a submerged hull
   // away for SUB_SURFACE ticks.
@@ -647,7 +650,7 @@ function fire(g, src, tgt) {
   if (src.kind === 'u' && spec.ammo) src.ammo = Math.max(0, (src.ammo || 0) - 1);
   if (!headless) {
     var tx0 = tgt.kind === 'b' ? tgt.cx : tgt.x, ty0 = tgt.kind === 'b' ? tgt.cy : tgt.y;
-    g.shots.push({
+    if (!plantingC4) g.shots.push({
       x: src.kind === 'b' ? src.cx : src.x, y: src.kind === 'b' ? src.cy : src.y,
       tx: tx0, ty: ty0,
       t: 0, life: src.type === 'tesla' ? 12 : (src.type === 'grandcannon' ? 26 : (src.kind === 'u' && src.type === 'v3' ? 30 : (spec.bomb ? 14 : (isAir(tgt) ? 9 : 7)))), id: g.nextId++,

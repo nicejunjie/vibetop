@@ -49,10 +49,10 @@ const unitById = (page, id) => page.evaluate((id) => {
   const u = window.__rtsTest.saveBlob().g.units.find((x) => x.id === id);
   return u ? { x: u.x, y: u.y, hp: u.hp, maxhp: u.maxhp, order: u.order, limbo: !!u.limbo } : null;
 }, id);
-// Screen point of a grid position, given the current camera (zoom 1).
+// Use the renderer's projection, including raised terrain and current zoom.
 const screenOf = (page, gx, gy, dy = -8) => page.evaluate(([gx, gy, dy]) => {
-  const cam = window.__rtsTest.cam(), r = document.getElementById('cv').getBoundingClientRect();
-  return { x: (gx - gy) * 32 - cam.x + r.width / 2 + r.left, y: (gx + gy) * 16 - cam.y + r.height / 2 + r.top + dy };
+  const p = window.__rtsTest.toScreen(gx, gy), r = document.getElementById('cv').getBoundingClientRect();
+  return { x: p.x + r.left, y: p.y + r.top + dy };
 }, [gx, gy, dy]);
 // Stage a scene on CLEAR GROUND near mid-map (the map is random per match, so
 // the centre itself may be rock or water), away from both bases' guards, the
@@ -61,9 +61,23 @@ async function stage(page, spawns, radius = 5) {
   return page.evaluate(([spawns, radius]) => {
     const H = window.__rtsTest, T = window.__rtsTables, M = T.MAP, g = H.world();
     const ok = new Set([T.TER.GROUND, T.TER.ORE, T.TER.GEM, T.TER.ROAD]);           // passable for ground units
-    const ground = (x, y) => x >= 0 && y >= 0 && x < M && y < M && ok.has(g.terrain[y * M + x]);
+    // Neutral buildings may stand on otherwise passable terrain. Do not
+    // stage boarding/pathing fixtures inside an oil derrick's footprint.
+    const ground = (x, y) => x >= 0 && y >= 0 && x < M && y < M &&
+      ok.has(g.terrain[y * M + x]) && !g.occ[y * M + x];
     const farFromBases = (x, y) => g.start.every((st) => Math.hypot(x - st.x, y - st.y) > 16);
-    const clearAround = (x, y, R) => { if (!farFromBases(x, y)) return false; for (let dy = -R; dy <= R; dy++) for (let dx = -R; dx <= R; dx++) if (!ground(x + dx, y + dy)) return false; return true; };
+    const clearAround = (x, y, R) => {
+      if (!farFromBases(x, y)) return false;
+      for (let dy = -R; dy <= R; dy++) for (let dx = -R; dx <= R; dx++) if (!ground(x + dx, y + dy)) return false;
+      // Some scenarios reach beyond R (the attack target is seven cells out).
+      // Validate every spawn and its approach, including map bounds, even
+      // when the search falls back to a smaller clear centre.
+      for (const [, , , dx, dy] of spawns) {
+        const n=Math.max(1,Math.abs(dx),Math.abs(dy));
+        for(let step=0;step<=n;step++) if(!ground(x+Math.round(dx*step/n),y+Math.round(dy*step/n))) return false;
+      }
+      return true;
+    };
     let cx = Math.floor(M / 2), cy = Math.floor(M / 2), found = null;
     // The map is random per match: take the largest clear area that exists.
     for (const R of [radius, radius - 1, radius - 2]) for (let r = 0; r < M / 2 && !found; r++) for (let dy = -r; dy <= r && !found; dy++) for (let dx = -r; dx <= r && !found; dx++) if (clearAround(cx + dx, cy + dy, R)) found = [cx + dx, cy + dy];
@@ -101,16 +115,26 @@ test('a left click on the ground moves the selection there', async ({ page }) =>
   expect(Math.hypot(u.x - s.t.x, u.y - s.t.y)).toBeGreaterThan(1.5);
 });
 
-test("a player's attack order drives to the named target past a bystander in range", async ({ page }) => {
+for (const raised of [false, true]) test("a player's attack order drives to the named target past a bystander in range" + (raised ? ' on raised terrain' : ''), async ({ page }) => {
   await startMatch(page);
   // The named target inside SIGHT (8) but outside the Grizzly's gun (5); a bystander in gun range.
   const s = await stage(page, [['t', 'lancer', 0, 0, 0], ['near', 'rifle', 1, 2, 0], ['far', 'rifle', 1, 0, 7]]);
+  if (raised) await page.evaluate(() => { const g=window.__rtsTest.world();g.hf.fill(3);g.hiAny=true; });
   const p = await screenOf(page, s.t.x, s.t.y);
   await page.mouse.click(p.x, p.y); await page.waitForTimeout(200);
-  const f = await screenOf(page, s.far.x, s.far.y);
+  // The enemy can start moving during the selection delay. Click its current
+  // position, not the original spawn cell that may now be empty.
+  const targetNow = await unitById(page, s.far.id);
+  const f = await screenOf(page, targetNow.x, targetNow.y);
+  const clickState = await page.evaluate(({s,f}) => {
+    const H=window.__rtsTest,g=H.world(),u=g.units.find(u=>u.id===s.far.id),r=document.getElementById('cv').getBoundingClientRect(),p=H.toScreen(u.x,u.y);
+    const cell=Math.round(u.y)*window.__rtsTables.MAP+Math.round(u.x);
+    return {seed:g.seed,tick:g.tick,initial:s.far,current:{x:u.x,y:u.y,order:u.order},terrain:g.terrain[cell],seen:g.seen[cell],clicked:f,actualScreen:{x:p.x+r.left,y:p.y+r.top-8},selected:H.selected().map(u=>u.id)};
+  },{s,f});
+  await test.info().attach('attack-click-state', { contentType: 'application/json', body: JSON.stringify(clickState) });
   await page.mouse.click(f.x, f.y); await page.waitForTimeout(250);
   const right = await unitById(page, s.t.id);
-  expect(right.order && right.order.t).toBe('attack');
+  expect(right.order && right.order.t,JSON.stringify({clickState,right,farAfter:await unitById(page,s.far.id),tip:await page.locator('#tip').innerText()})).toBe('attack');
   expect(right.order.id).toBe(s.far.id);
   expect(right.order.focus).toBe(1);
   await page.waitForTimeout(2500);

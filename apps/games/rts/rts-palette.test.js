@@ -8,7 +8,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
 const RTS = path.join(__dirname, 'rts');
-const context = vm.createContext({TW:48,TH:24});
+const context = vm.createContext({TW:64,TH:32,HSTEP:56});
 vm.runInContext(fs.readFileSync(path.join(RTS,'bake/terrain.js'),'utf8'),context);
 function processPixels(pixels, levels, preserve) {
   const id={data:new Uint8ClampedArray(pixels.flat())};

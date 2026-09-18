@@ -150,13 +150,15 @@ g.restore();
 if (!sov) {
   // =============== [GAYARD] — the Allied rig ====================== //
   var CAIS = '#949494', CAIS_D = '#3d4348', COLLAR = '#cecece';
-  var TOWER = '#adad93', TOWER_D = '#63644f';
+  var TOWER = '#59636a', TOWER_D = '#303942';
   var ARCH = '#646464', ARCH_D = '#2c2c2c';
   var JIBC = '#e6c94f', JIBD = '#8d7622';
-  var CH = 44, CU = 0.98;                    // caisson height / corner offset
+  var CH = 51;                              // compact four-column load-bearing rig
 
   // The four caissons, back to front so the near pair overlaps.
-  var LEGS = [[-CU, -CU], [CU, -CU], [-CU, CU], [CU, CU]];
+  // Offset the rear support around the crane core so all four caps remain
+  // legible in this fixed isometric view, while keeping roots inside the plot.
+  var LEGS = [[-1.15, -.25], [.90, -.95], [-.95, .90], [.85, .65]];
   LEGS.sort(function (m, n) { return (m[0] + m[1]) - (n[0] + n[1]); });
   function caisson(du, dv) {
     var q0 = P(du, dv, 0);
@@ -173,24 +175,36 @@ if (!sov) {
     g.strokeStyle = CAIS_D; g.lineWidth = 0.8;
     for (var rbd = 1; rbd < 7; rbd++) {                  // the bands round the tube
       var ry3 = q0[1] - 3.4 - CH * rbd / 7;
-      g.beginPath(); g.moveTo(q0[0] - 18, ry3); g.lineTo(q0[0] + 18, ry3); g.stroke();
+      g.beginPath();g.ellipse(q0[0],ry3,18,4,0,0,Math.PI);g.stroke();
     }
     g.fillStyle = 'rgba(0,0,0,.16)';                     // a shadowed quarter, so it reads round
     g.fillRect(q0[0] + 8, q0[1] - 3.4 - CH, 10, CH);
     g.strokeStyle = CAIS_D; g.strokeRect(q0[0] - 18, q0[1] - 3.4 - CH, 36, CH);
     var dy2 = q0[1] - 3.4 - CH;
-    g.fillStyle = shade(col, 1.20);                      // the house ring
+    g.fillStyle = shade(col, 1.20);                      // painted ring around a silver cap
     g.beginPath(); g.ellipse(q0[0], dy2, 20, 9.6, 0, 0, 6.29); g.fill();
     g.strokeStyle = shade(col, 0.50); g.lineWidth = 0.9; g.stroke();
     var dg2 = g.createRadialGradient(q0[0] - 6, dy2 - 10, 1, q0[0], dy2 - 4, 19);
-    dg2.addColorStop(0, shade(col, 1.80)); dg2.addColorStop(0.52, shade(col, 0.90));
-    dg2.addColorStop(1, shade(col, 0.34));
+    dg2.addColorStop(0, '#f3f3ed'); dg2.addColorStop(0.52, '#c1c5c5');
+    dg2.addColorStop(1, '#525d68');
     g.fillStyle = dg2;                                   // and the dome over it
-    g.beginPath(); g.ellipse(q0[0], dy2, 17, 14, 0, Math.PI, 0); g.fill();
+    g.beginPath(); g.ellipse(q0[0], dy2 - 1, 12, 10, 0, Math.PI, 0); g.fill();
     g.fillStyle = 'rgba(255,255,255,.55)';
     g.beginPath(); g.ellipse(q0[0] - 5.4, dy2 - 9.4, 3.8, 2.8, -0.5, 0, 6.29); g.fill();
   }
   caisson(LEGS[0][0], LEGS[0][1]);            // the far leg, behind the core
+
+  // Load-bearing diagonal arms join every caisson to the machinery deck.
+  // Drawn before the drums, their ends disappear INTO the support columns.
+  for (var arm = 0; arm < LEGS.length; arm++) {
+    var ap = P(LEGS[arm][0], LEGS[arm][1], 31), ac = P(0, 0, 31);
+    g.lineCap = 'butt'; g.strokeStyle = '#343f4a'; g.lineWidth = 19;
+    g.beginPath(); g.moveTo(ac[0], ac[1]+5); g.lineTo(ap[0], ap[1]+5); g.stroke();
+    g.strokeStyle = '#b7b4a0'; g.lineWidth = 15;
+    g.beginPath(); g.moveTo(ac[0], ac[1]); g.lineTo(ap[0], ap[1]); g.stroke();
+    g.strokeStyle = '#e0ddc8'; g.lineWidth = 2;
+    g.beginPath(); g.moveTo(ac[0], ac[1]-5); g.lineTo(ap[0], ap[1]-5); g.stroke();
+  }
 
   // The deck rosette between the legs: a round plate with radiating
   // ribs, which is what the sprite's pale spoked centre actually is.
@@ -207,7 +221,7 @@ if (!sov) {
   }
   // The stepped tower: three cylinders, each narrower and paler than the
   // one below, the way the reference's pale core is built.
-  var TIER = [[25, 12.5, 26], [18, 9, 24], [12, 6, 20]];
+  var TIER = [[25, 12.5, 19], [21, 10.5, 17], [18, 9, 14]];
   var ty2 = DKY;
   for (var ti = 0; ti < TIER.length; ti++) {
     var rx2 = TIER[ti][0], ry4 = TIER[ti][1], hh2 = TIER[ti][2];
@@ -219,21 +233,35 @@ if (!sov) {
     g.fillStyle = shade(TOWER, 1.24);
     g.beginPath(); g.ellipse(dc[0], ty2 - hh2, rx2, ry4, 0, 0, 6.29); g.fill();
     g.strokeStyle = TOWER_D; g.lineWidth = 0.8; g.stroke();
+    // Narrow steel bearing rings, not whole cream cylinders.
+    g.strokeStyle='#a8aea7';g.lineWidth=2;
+    g.beginPath();g.ellipse(dc[0],ty2-2,rx2,ry4,0,0,Math.PI);g.stroke();
     ty2 -= hh2;
   }
   // The dark steel arch. It springs from behind the tower, bends over
   // its head and carries the one house band on the whole shell.
-  var A0 = P(-0.60, -0.60, 38), AT = [dc[0] + 9, ty2 - 62];
-  var AC = [A0[0] - 12, ty2 - 76];                       // the arch's control point
-  g.strokeStyle = ARCH; g.lineWidth = 13;
-  g.beginPath(); g.moveTo(A0[0], A0[1]);
-  g.quadraticCurveTo(AC[0], AC[1], AT[0], AT[1]); g.stroke();
-  g.strokeStyle = ARCH_D; g.lineWidth = 2.2;             // its shaded underside
-  g.beginPath(); g.moveTo(A0[0] + 5, A0[1]);
-  g.quadraticCurveTo(AC[0] + 5, AC[1] + 5, AT[0] + 4, AT[1] + 3); g.stroke();
-  g.strokeStyle = col; g.lineWidth = 2.8;                // the house band along its back
-  g.beginPath(); g.moveTo(A0[0] - 4.5, A0[1] - 4);
-  g.quadraticCurveTo(AC[0] - 4.5, AC[1] - 2, AT[0] - 4, AT[1] - 2); g.stroke();
+  var A0 = P(0, 0, 77), AT = [dc[0] - 24, ty2 - 66];
+  // Broad curved machinery housing, seated on the drum, not a bent pipe.
+  g.fillStyle = '#3b4653'; g.strokeStyle = '#202831'; g.lineWidth = 1.3;
+  g.beginPath();g.moveTo(A0[0]-21,A0[1]);g.lineTo(A0[0]+18,A0[1]);
+  g.bezierCurveTo(A0[0]+26,AT[1]+40,AT[0]+17,AT[1]+8,AT[0]+9,AT[1]);
+  g.lineTo(AT[0]-20,AT[1]+2);
+  g.bezierCurveTo(AT[0]-15,AT[1]+38,A0[0]-25,A0[1]-32,A0[0]-21,A0[1]);
+  g.closePath();g.fill();g.stroke();
+  g.strokeStyle = '#a6adb0';g.lineWidth = 4;
+  g.beginPath();g.moveTo(A0[0]-17,A0[1]-4);
+  g.bezierCurveTo(A0[0]-17,A0[1]-35,AT[0]-13,AT[1]+35,AT[0]-17,AT[1]+6);g.stroke();
+  g.strokeStyle = col;g.lineWidth = 7;
+  g.beginPath();g.moveTo(A0[0]+11,A0[1]-4);
+  g.bezierCurveTo(A0[0]+20,AT[1]+43,AT[0]+9,AT[1]+13,AT[0]+2,AT[1]+5);g.stroke();
+  // Recessed machinery panels and a round luffing pivot on the housing.
+  g.fillStyle='#202b38';g.fillRect(AT[0]-20,AT[1]+14,23,14);
+  g.strokeStyle='#9ba3a8';g.lineWidth=1;
+  for(var vent=0;vent<4;vent++){
+    g.beginPath();g.moveTo(AT[0]-19,AT[1]+16+vent*3);g.lineTo(AT[0]+1,AT[1]+16+vent*3);g.stroke();
+  }
+  g.fillStyle='#a8a992';g.beginPath();g.ellipse(A0[0]+2,A0[1]-24,6,8,0,0,6.29);g.fill();
+  g.fillStyle='#404d56';g.beginPath();g.ellipse(A0[0]+2,A0[1]-24,3,4,0,0,6.29);g.fill();
   // The little domed head on the crown.
   g.fillStyle = shade(ARCH, 1.12);
   g.fillRect(AT[0] - 8, AT[1] - 7, 16, 8);
@@ -244,18 +272,19 @@ if (!sov) {
   g.beginPath(); g.ellipse(AT[0], AT[1] - 7, 7, 6, 0, Math.PI, 0); g.fill();
   // The lattice jib, slewing over the sea to starboard, with a grab on
   // the fall. `SWING` moves the tip; the fall hangs from wherever it is.
-  var JX = AT[0] + 44 + SWING * 8, JY = AT[1] - 20 + SWING * 5;
-  jib(AT[0] + 6, AT[1] - 2, JX, JY, 5.5, 2.4, JIBC, JIBD);
+  var JX = AT[0] + 119 + SWING * 5, JY = AT[1] + 46 + SWING * 3;
+  jib(AT[0] + 17, AT[1] + 38, JX, JY, 8.5, 3.2, JIBC, JIBD);
   g.strokeStyle = '#2d2d2d'; g.lineWidth = 1.6;          // the back-stay
-  g.beginPath(); g.moveTo(AT[0] + 2, AT[1] - 6); g.lineTo(JX - 6, JY - 3); g.stroke();
+  g.beginPath(); g.moveTo(AT[0] + 2, AT[1] + 5); g.lineTo(JX - 6, JY - 3); g.stroke();
   g.strokeStyle = '#23272b'; g.lineWidth = 1.0;          // the fall
-  g.beginPath(); g.moveTo(JX, JY + 1); g.lineTo(JX, JY + 1 + FALL); g.stroke();
+  var grabDrop = FALL + 32;
+  g.beginPath(); g.moveTo(JX, JY + 1); g.lineTo(JX, JY + 1 + grabDrop); g.stroke();
   g.fillStyle = JIBC;                                    // the grab
-  g.fillRect(JX - 5, JY + FALL, 10, 5);
+  g.fillRect(JX - 5, JY + grabDrop, 10, 5);
   g.strokeStyle = JIBD; g.lineWidth = 1.4;
   g.beginPath();
-  g.moveTo(JX - 5, JY + FALL + 5); g.lineTo(JX - 6, JY + FALL + 11);
-  g.moveTo(JX + 5, JY + FALL + 5); g.lineTo(JX + 6, JY + FALL + 11);
+  g.moveTo(JX - 5, JY + grabDrop + 5); g.lineTo(JX - 9, JY + grabDrop + 13);g.lineTo(JX-3,JY+grabDrop+18);
+  g.moveTo(JX + 5, JY + grabDrop + 5); g.lineTo(JX + 9, JY + grabDrop + 13);g.lineTo(JX+3,JY+grabDrop+18);
   g.stroke();
   // Two more caissons in FRONT of the deck, so the rosette reads as
   // standing between them, then the launch bay between their feet.
@@ -281,19 +310,19 @@ if (!sov) {
   var BRICK = '#8d7f5e', BRICK_D = '#4a422f', CAP = '#d8cf94', CAP_D = '#7c7443';
   var TOWR = '#2f3140', TOWR_D = '#13141c', MACH = '#3b4436';
   var JIBC2 = '#d9cf8a', JIBD2 = '#7d7440';
-  var PH2 = 17;                                       // pontoon freeboard
+  var PH2 = 19;                                       // substantial floating foundation
 
   // Corner pilings, each breaking the water.
   for (var pl2 = 0; pl2 < 4; pl2++) {
-    var pu2 = (pl2 & 1 ? 1 : -1) * 1.10, pv2 = (pl2 & 2 ? 1 : -1) * 1.10;
+    var pu2 = (pl2 & 1 ? 1 : -1) * 1.40, pv2 = (pl2 & 2 ? 1 : -1) * 1.40;
     var pq = P(pu2, pv2, 0);
     foam(pq, 11);
     g.fillStyle = '#2b2f26';
     g.beginPath(); g.ellipse(pq[0], pq[1] - 2, 9, 4.5, 0, 0, 6.29); g.fill();
   }
   // The barge itself, and the painted rim that is its whole read.
-  var pq4 = slab(0, 0, 2.42, 2.42, PH2, PONT, PONT_D);
-  g.strokeStyle = shade(col, 0.92); g.lineWidth = 2.0;  // the painted rim, top
+  var pq4 = slab(0, 0, 3.22, 3.22, PH2, PONT, PONT_D);
+  g.strokeStyle = shade(col, 0.92); g.lineWidth = 4.0;  // substantial painted rim
   g.beginPath();
   for (var rq = 0; rq < 4; rq++) {
     var pA = pq4[rq], pB = pq4[(rq + 1) % 4];
@@ -324,55 +353,52 @@ if (!sov) {
   g.globalAlpha = 1;
   // Four brick blockhouse pylons with cream caps and a house grille on
   // each — the reference's most distinctive feature by a long way.
-  var PYL = [[-0.68, -0.68], [0.68, -0.68], [-0.68, 0.68], [0.68, 0.68]];
+  var PYL = [[-1.02, -1.02], [1.02, -1.02], [-1.02, 1.02], [1.02, 1.02]];
   PYL.sort(function (m, n) { return (m[0] + m[1]) - (n[0] + n[1]); });
   function pylon2(du, dv) {
-    var bq2 = P(du, dv, PH2), BH = 50, BW = 14;
-    var bg2 = g.createLinearGradient(bq2[0] - BW, 0, bq2[0] + BW, 0);
-    bg2.addColorStop(0, shade(BRICK, 0.60)); bg2.addColorStop(0.34, shade(BRICK, 1.12));
-    bg2.addColorStop(1, shade(BRICK, 0.62));
-    g.fillStyle = bg2; g.fillRect(bq2[0] - BW, bq2[1] - BH, BW * 2, BH);
-    g.strokeStyle = BRICK_D; g.lineWidth = 0.7;         // brick courses, staggered
-    for (var cr = 1; cr < 8; cr++) {
-      var cy4 = bq2[1] - BH * cr / 8;
-      g.beginPath(); g.moveTo(bq2[0] - BW, cy4); g.lineTo(bq2[0] + BW, cy4); g.stroke();
-      for (var bk = 0; bk < 4; bk++) {
-        var bx2 = bq2[0] - BW + (bk + (cr % 2) * 0.5) * (BW / 2);
-        g.beginPath(); g.moveTo(bx2, cy4); g.lineTo(bx2, cy4 + BH / 8); g.stroke();
-      }
+    // Forward machinery housings lean back beneath an inclined vent deck.
+    // Rear structures remain upright service towers.
+    var front=du+dv>=0, shift=front?-.18:0;
+    function q(u,v,z){return P(du+u,dv+v,PH2+z);}
+    function face(pts,colour){
+      g.fillStyle=colour;g.strokeStyle=BRICK_D;g.lineWidth=.8;
+      g.beginPath();g.moveTo(pts[0][0],pts[0][1]);
+      for(var i=1;i<pts.length;i++)g.lineTo(pts[i][0],pts[i][1]);
+      g.closePath();g.fill();g.stroke();
     }
-    g.fillStyle = 'rgba(0,0,0,.14)'; g.fillRect(bq2[0] + 7, bq2[1] - BH, BW - 7, BH);
-    g.strokeStyle = BRICK_D; g.strokeRect(bq2[0] - BW, bq2[1] - BH, BW * 2, BH);
-    // the cream slab cap, tilted, with the house grille on it
-    var capY = bq2[1] - BH;
-    g.fillStyle = CAP;                                  // the cream slab cap, tilted
-    g.beginPath();
-    g.moveTo(bq2[0] - BW - 3, capY + 2); g.lineTo(bq2[0] + 9, capY - 11);
-    g.lineTo(bq2[0] + BW + 3, capY - 5); g.lineTo(bq2[0] - 9, capY + 8);
-    g.closePath(); g.fill();
-    g.strokeStyle = CAP_D; g.lineWidth = 1.0; g.stroke();
-    g.fillStyle = shade(CAP, 0.72);                     // its thickness
-    g.beginPath();
-    g.moveTo(bq2[0] - BW - 3, capY + 2); g.lineTo(bq2[0] - 9, capY + 8);
-    g.lineTo(bq2[0] + BW + 3, capY - 5); g.lineTo(bq2[0] + BW + 3, capY - 2);
-    g.lineTo(bq2[0] - 9, capY + 11); g.lineTo(bq2[0] - BW - 3, capY + 5);
-    g.closePath(); g.fill(); g.stroke();
-    g.fillStyle = shade(col, 0.34);                     // the grille bed, then its rungs
-    g.beginPath();
-    g.moveTo(bq2[0] - 11, capY + 1.4); g.lineTo(bq2[0] + 6, capY - 8);
-    g.lineTo(bq2[0] + 11, capY - 5); g.lineTo(bq2[0] - 6, capY + 4.4);
-    g.closePath(); g.fill();
-    g.strokeStyle = col; g.lineWidth = 2.2;
-    for (var rg2 = 0; rg2 < 5; rg2++) {
-      var tt2 = 0.10 + rg2 * 0.20;
-      var gx4 = bq2[0] - 11 + 17 * tt2, gy4 = capY + 1.4 - 9.4 * tt2;
-      g.beginPath(); g.moveTo(gx4, gy4); g.lineTo(gx4 + 5, gy4 + 3.0); g.stroke();
+    function roof(u,v){return q(u+shift,v,front?41-u*24:44);}
+    var a=q(-.38,-.38,0),b=q(.38,-.38,0),c=q(.38,.38,0),d=q(-.38,.38,0);
+    var A=roof(-.38,-.38),B=roof(.38,-.38),D=roof(-.38,.38),E=roof(.38,.38);
+    face([a,b,B,A],shade(BRICK,.64));
+    face([b,c,E,B],shade(BRICK,.72));
+    face([c,d,D,E],shade(BRICK,1.08));
+    // Horizontal courses follow the actual side planes.
+    g.strokeStyle=BRICK_D;g.lineWidth=.6;
+    for(var h=6;h<30;h+=6){
+      var off=shift*h/41;
+      var l=q(-.38+off,.38,h),m=q(.38+off,.38,h),r=q(.38+off,-.38,h);
+      g.beginPath();g.moveTo(l[0],l[1]);g.lineTo(m[0],m[1]);g.lineTo(r[0],r[1]);g.stroke();
+    }
+    face([A,B,E,D],CAP);
+    face([roof(-.29,-.26),roof(.29,-.26),roof(.29,.26),roof(-.29,.26)],shade(col,.36));
+    g.strokeStyle=col;g.lineWidth=2.6;
+    for(var j=0;j<5;j++){
+      var u=-.23+j*.115,l=roof(u,-.23),r=roof(u,.23);
+      g.beginPath();g.moveTo(l[0],l[1]-.7);g.lineTo(r[0],r[1]-.7);g.stroke();
+    }
+    if(front){
+      // Recessed machine opening and a pale sill on the working face.
+      face([q(.39,.27,8),q(.39,-.27,8),q(.28,-.27,22),q(.28,.27,22)],'#27323a');
+      g.strokeStyle='#b0b3a1';g.lineWidth=2;
+      var l=q(.39,.29,7),r=q(.39,-.29,7);
+      g.beginPath();g.moveTo(l[0],l[1]);g.lineTo(r[0],r[1]);g.stroke();
     }
   }
   pylon2(PYL[0][0], PYL[0][1]); pylon2(PYL[1][0], PYL[1][1]);
   // The crane tower: a black mast with a house band and a counterweight,
   // set back-left, then the cream jib slewing out to starboard.
-  var TQ = P(-0.75, -0.10, PH2), TH2 = 124;  // off to port, so all four pylons read
+  var TQ = P(-0.80, -0.45, PH2), TH2 = 108;  // machinery behind the working deck
+  slab(-0.80,-0.45,0.9,0.8,PH2+25,'#555c54',PONT_D);
   g.strokeStyle = TOWR; g.lineWidth = 3.0;              // a splayed lattice base
   for (var sp3 = -1; sp3 <= 1; sp3 += 2) {
     g.beginPath(); g.moveTo(TQ[0] + sp3 * 17, TQ[1]); g.lineTo(TQ[0] + sp3 * 9, TQ[1] - 26); g.stroke();
@@ -383,26 +409,27 @@ if (!sov) {
     g.beginPath(); g.moveTo(TQ[0] - bw2, byy); g.lineTo(TQ[0] + bw2, byy - 6); g.stroke();
     g.beginPath(); g.moveTo(TQ[0] + bw2, byy); g.lineTo(TQ[0] - bw2, byy - 6); g.stroke();
   }
-  g.fillStyle = TOWR; g.fillRect(TQ[0] - 9, TQ[1] - TH2, 18, TH2 - 24);
-  g.fillStyle = TOWR_D; g.fillRect(TQ[0] + 4, TQ[1] - TH2, 5, TH2 - 24);
-  g.strokeStyle = TOWR_D; g.lineWidth = 0.8; g.strokeRect(TQ[0] - 9, TQ[1] - TH2, 18, TH2 - 24);
+  g.fillStyle = TOWR; g.fillRect(TQ[0] - 12, TQ[1] - TH2, 24, TH2 - 24);
+  g.fillStyle = TOWR_D; g.fillRect(TQ[0] + 5, TQ[1] - TH2, 7, TH2 - 24);
+  g.strokeStyle = '#929382'; g.lineWidth = 1.2; g.strokeRect(TQ[0] - 12, TQ[1] - TH2, 24, TH2 - 24);
   g.fillStyle = col; g.fillRect(TQ[0] - 6, TQ[1] - TH2 + 12, 7, TH2 - 40);
   g.fillStyle = shade(col, 0.55); g.fillRect(TQ[0] + 1, TQ[1] - TH2 + 12, 2.4, TH2 - 40);
   var TT = [TQ[0], TQ[1] - TH2];
   g.fillStyle = MACH;                                   // the machinery cab
-  g.fillRect(TT[0] - 22, TT[1] - 5, 18, 15);
-  g.strokeStyle = '#1b201a'; g.lineWidth = 0.9; g.strokeRect(TT[0] - 22, TT[1] - 5, 18, 15);
+  g.fillRect(TT[0] - 32, TT[1] - 9, 37, 22);
+  g.strokeStyle = '#1b201a'; g.lineWidth = 1.3; g.strokeRect(TT[0] - 32, TT[1] - 9, 37, 22);
   g.fillStyle = shade(MACH, 1.35);
-  g.fillRect(TT[0] - 19, TT[1] - 2, 6, 5);
+  g.fillRect(TT[0] - 29, TT[1] - 6, 13, 7);
+  g.fillStyle='#b5b5a0';g.fillRect(TT[0]-29,TT[1]+4,21,3);
   g.fillStyle = CAP;                                    // the counterweight box
-  g.fillRect(TT[0] - 28, TT[1] - 9, 11, 15);
-  g.strokeStyle = CAP_D; g.lineWidth = 0.9; g.strokeRect(TT[0] - 28, TT[1] - 9, 11, 15);
+  g.fillRect(TT[0] - 43, TT[1] - 6, 14, 26);
+  g.strokeStyle = CAP_D; g.lineWidth = 0.9; g.strokeRect(TT[0] - 43, TT[1] - 6, 14, 26);
   g.fillStyle = TOWR; g.fillRect(TT[0] - 7, TT[1] - 9, 14, 8);
-  var JX2 = TT[0] + 48 + SWING * 9, JY2 = TT[1] - 12 + SWING * 6;
-  jib(TT[0] + 5, TT[1] - 5, JX2, JY2, 5.0, 2.2, JIBC2, JIBD2);
+  var JX2 = TT[0] + 117 + SWING * 5, JY2 = TT[1] + 21 + SWING * 3;
+  jib(TT[0] + 5, TT[1] - 5, JX2, JY2, 8.0, 2.8, JIBC2, JIBD2);
   g.strokeStyle = '#171a20'; g.lineWidth = 1.5;         // stays over the jib
   g.beginPath();
-  g.moveTo(TT[0] - 1, TT[1] - 11); g.lineTo((TT[0] + JX2) / 2, (TT[1] + JY2) / 2 - 8);
+  g.moveTo(TT[0] - 18, TT[1] - 24); g.lineTo((TT[0] + JX2) / 2, (TT[1] + JY2) / 2 - 8);
   g.lineTo(JX2 - 4, JY2 - 3); g.stroke();
   g.strokeStyle = '#23272b'; g.lineWidth = 1.0;         // the fall
   g.beginPath(); g.moveTo(JX2, JY2 + 1); g.lineTo(JX2, JY2 + 1 + FALL); g.stroke();
@@ -433,6 +460,6 @@ if (!sov) {
   launchBay(P(0, 1.32, PH2 - 4), 13, 13, shade(PONT, 1.25), col);
   floods([P(-1.12, 1.12, PH2), P(1.12, -1.12, PH2)]);
 }
-pixelate(s, 6, 96);   // as bakeBuilding's own return does
+pixelate(s, 12, 96, true);   // preserve steel, warm masonry and local paint separately
 return { s: s, ax: cx, ay: baseY };
 }

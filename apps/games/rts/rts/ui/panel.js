@@ -578,6 +578,12 @@ function hideTip() { if (ptip) ptip.style.display = 'none'; }
 // when its own prerequisites are met. One table for the click's message and
 // the tooltip: the naval lane fell off the click's else-ladder and said
 // "You need a Construction Yard", and the tooltip said nothing (audit).
+function producerWaitReason(lane) {
+  var key = { b: 'base', d: 'base', i: 'barracks', v: 'factory', a: 'airforce', n: 'shipyard' }[lane];
+  if (!key || producersOf(G, ME, lane).length) return null;
+  return (hasBld(G, ME, key) ? 'Power on ' : 'Rebuild ') + bspecOf(G, key, ME).name;
+}
+
 function laneNeeds(lane) {
   if (lane === 'i' && !hasBld(G, ME, 'barracks')) return 'Build a Barracks first';
   if (lane === 'v' && !hasBld(G, ME, 'factory')) return 'Build a War Factory first';
@@ -602,7 +608,9 @@ function showItemTip(el, it, fac) {
   else if (s.credits < sp.cost) { lines.push({ t: 'Not enough credits', c: '#ff9c8f' }); tone = 'bad'; }
   var q = s.queues[it.lane], n = 0;
   if (q) for (var i = 0; i < q.list.length; i++) if (q.list[i] === it.k) n++;
+  var missing = n && producerWaitReason(it.lane);
   if (isBldLane(it.lane) && q && q.ready === it.k) lines.push({ t: 'Ready — click, then click the map', c: '#ffe14d' });
+  else if (missing) lines.push({ t: missing + ' — queued progress retained', c: '#ffcf8f' });
   else if (q && q.pause && q.list[0] === it.k) lines.push({ t: 'On hold — click to resume · right-click to cancel', c: '#ffcf8f' });
   else if (n) lines.push({ t: n + ' queued · right-click to ' + (q.list[0] === it.k && q.prog > 0 ? 'hold' : 'cancel'), c: '#a8b8cc' });
   showTip(el, sp.name, lines, tone);
@@ -669,7 +677,7 @@ function refreshPanel() {
                   ? s.queues.b.ready : s.queues.d.ready;
     lastReady = rdyNow;
     if (fresh) {
-      say(BLDS[fresh].name + ' ready — click it under ' +
+      say(bspecFor(fresh, keyFac(G, ME, fresh, true)).name + ' ready — click it under ' +
           (laneOfBld(fresh) === 'd' ? 'Defence' : 'Structures') +
           ', then click the map to place it', false, 420);
     }
@@ -680,9 +688,11 @@ function refreshPanel() {
   }
   // Power going negative stops turrets and crawls production; say so once
   // rather than letting the build bar mysteriously slow down.
-  if (s.powerMade - s.powerUse < 0 && G.tick - lastPowerWarn > 60 * 45) {
+  if (!powered(G, ME) && G.tick - lastPowerWarn > 60 * 45) {
     lastPowerWarn = G.tick;
-    say('Low power — production is slowed and defences are offline. Build a Power Plant.', true, 300);
+    say(s.blackout > G.tick ? 'Power sabotaged — production is slowed until the blackout ends.' :
+        'Low power — production is slowed and defences are offline. Build a ' +
+        bspecFor('power', keyFac(G, ME, 'power', true)).name + '.', true, 300);
     sfx('lowpower'); eva('Low power', 30000);
   }
   for (var k in panelRows) {
@@ -692,6 +702,7 @@ function refreshPanel() {
     for (var i = 0; i < q.list.length; i++) if (q.list[i] === k) n++;
     var isReady = isBldLane(it.lane) && q.ready === k;
     var first = q.list[0] === k && !(isBldLane(it.lane) && q.ready);
+    var waiting = first && producerWaitReason(it.lane);
     // RA2 wipes a clock over the cameo: a dark sector sweeping clockwise
     // from noon, leaving the finished part of the picture lit.
     var fl = el.querySelector('.fill');
@@ -701,7 +712,7 @@ function refreshPanel() {
       // Two layers: the bright clock hand at the leading edge, and the
       // unbuilt sector behind it. A HELD item's hand goes cold, because a
       // bright hand that never advances reads as the game having frozen.
-      var hand = (q.hold || q.pause) ? 'rgba(255,120,110,.9)' : 'rgba(255,230,150,.95)';
+      var hand = (q.hold || q.pause || waiting) ? 'rgba(255,120,110,.9)' : 'rgba(255,230,150,.95)';
       fl.style.background =
         'conic-gradient(from ' + deg + 'deg, ' + hand + ' 0deg 2.4deg, rgba(0,0,0,0) 2.4deg),' +
         'conic-gradient(from 0deg, rgba(0,0,0,0) 0deg ' + deg + 'deg, rgba(4,6,11,.8) ' + deg + 'deg 360deg)';
@@ -709,7 +720,7 @@ function refreshPanel() {
     // The ::after stamp says READY now; the corner carries queue depth, or
     // HOLD when the credits ran out mid-build (RA2's on-hold cameo).
     el.querySelector('.qn').textContent = isReady ? ''
-      : (first && q.hold ? 'HOLD' : (n > 1 ? '\u00d7' + n : ''));
+      : (waiting ? 'WAIT' : (first && q.hold ? 'HOLD' : (n > 1 ? '\u00d7' + n : '')));
     el.classList.toggle('rdy', isReady);
     var ok = isReady || canBuild(G, ME, k, isBldLane(it.lane));
     el.classList.toggle('dis', !ok);
