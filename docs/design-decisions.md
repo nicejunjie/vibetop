@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_306 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_307 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
 - [Scheduled terminal messages ("resume when the token limit resets")](#scheduled-terminal-messages-resume-when-the-token-limit-resets)
@@ -329,6 +329,7 @@ _306 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [Auditing for the 3s-tab bug CLASS found three more, and one of them was the backup (2026-09-17)](#auditing-for-the-3s-tab-bug-class-found-three-more-and-one-of-them-was-the-backup-2026-09-17)
 - [Six measured costs taken off the request path, and why a TTL was never the fix (2026-09-18)](#six-measured-costs-taken-off-the-request-path-and-why-a-ttl-was-never-the-fix-2026-09-18)
 - [A root-trusted file owned by a tenant, and three things the UI claimed without knowing (2026-09-18)](#a-root-trusted-file-owned-by-a-tenant-and-three-things-the-ui-claimed-without-knowing-2026-09-18)
+- [Caching what changed, a ceiling set from the wrong number, and nine invented values (2026-09-18)](#caching-what-changed-a-ceiling-set-from-the-wrong-number-and-nine-invented-values-2026-09-18)
 
 <!-- END TOC -->
 
@@ -14119,3 +14120,116 @@ cannot pass on static markup), and five in `server/tests/test_fileagent.py`. All
 proven red against the previous commit. The live share registry on z20 was
 repaired by hand, since a fix to the writer does not re-own a file already
 written — the same "the stale artifact is the bug" trap as the backup unit.
+
+## Caching what changed, a ceiling set from the wrong number, and nine invented values (2026-09-18)
+
+### The corpus was re-read in full every 45 seconds
+
+`claude_stats._compute` globbed `~/.claude/projects/**/*.jsonl` and read **every
+file end to end** on each refresh: measured at **8.46s over 2.6GB**, i.e. ~19% of
+a core continuously for as long as Token Stats was open, growing forever because
+nothing prunes that directory. The module docstring's "~1.5s" was written when the
+corpus was 5.6x smaller — a comment that aged into a wrong claim.
+
+Transcripts are **append-only**, so a file whose `(mtime, size)` is unchanged
+cannot have different contents. The interesting part is *what* to cache:
+
+**Not the per-file aggregates.** Dedup on `(message id, requestId)` is GLOBAL
+across the corpus, and a measurement said 259 keys really do appear in two files
+here — a resumed session re-records history. Summing cached per-file aggregates
+would double-count every one of them. The first attempt did exactly that and was
+caught by a disjointness check written on the assumption it would never fire.
+
+**The extracted records.** ~49k small tuples, replayed through the original
+global-dedup loop in glob order: ~50ms, byte-identical output, and the 2.6GB of
+message text they were extracted from is read only where a file changed. Verified
+against a **frozen copy** of the corpus (identical), and an appended record still
+lands with the exact expected delta. `codex_stats` gets the simpler treatment
+because it has no cross-file dedup and `model` is per-file state, so its
+aggregates really are independent.
+
+Steady-state cost: **8.46s → 4ms**.
+
+### A memory ceiling sized from the wrong number, which I then had to undo
+
+The RSS ratchet was real and correctly diagnosed: ~940MB of a 970MB baseline sat
+in **per-thread glibc arenas**, not the Python heap (`[heap]` was 17MB), because
+this is a `ThreadingHTTPServer` with a thread per request and no pool, and glibc
+gives a 32-core host up to 8×32 arenas of 64MB. `MALLOC_ARENA_MAX=2` bounds that
+cause and is the right fix.
+
+The mistake was the second half. `MemoryHigh=1500M` was chosen from the **idle
+RSS** — 970MB — while the same audit had reported a 2.03GB `MemoryPeak`. Within
+three minutes the cgroup had throttled **8979 times** and a Token Stats request
+went from 2s to **sixty** (nginx's read timeout), which read exactly like a
+catastrophic regression in the caching work that had just landed. A cold parse of
+a 2.6GB corpus legitimately works above 1.5GB; **MemoryHigh does not reduce what
+a process needs, it makes it fight for it.** Raised to 3G — above the measured
+peak, still a ceiling against runaway — and the test now asserts the ceiling
+against the *peak*, so the next person sizes it from the right number.
+
+Worth stating plainly: this was caught only because the change was measured after
+deploying rather than assumed correct. The symptom appeared in a different
+subsystem from the cause, which is the recurring theme of this whole audit.
+
+### Nine more values the UI stated without knowing
+
+Same shape as the previous round's `fetch`-doesn't-reject and 403-as-empty cases:
+
+- **Monitor drew an absent sensor as a real 0** — a flat line on the floor,
+  indistinguishable from an idle GPU. The chart renderer coerced `null` to 0
+  internally, so it now draws each contiguous run of real samples and **breaks on
+  a gap**. Same for disk counters, and for the network rate's FIRST tick, which
+  has no previous sample to subtract from and therefore has no rate at all. A
+  power "total" that summed a missing sensor as 0W now says "CPU only".
+- **Config's Disk panel** never rendered the `truncated` flag the server
+  computes — and that flag covered only the 20s wall budget, so a single home
+  hitting its own 15s timeout was dropped in silence. Because `/etc/passwd` order
+  means the LARGEST home times out first, the "largest homes" panel
+  systematically omitted the answer it exists to give.
+- **Taskbar stats froze** at their last reading with no cue, `up 23h 27m` worst
+  of all: a clock reading as a measurement. And a heartbeat payload with no
+  `warnings` key **cleared a live red disk-full banner** — a missing key now
+  leaves it alone, while an explicit `[]` still clears.
+- **All three toggles reported success on a 403**, clearing the guard window so
+  the next heartbeat flipped the row back within 5s — a flaky switch, never
+  "operator only".
+- **The Claude-usage toggle** enabled the proxy without checking it started, then
+  reported ON by re-reading the key it had just written — echoing the WRITE, not
+  the service, while every new session was pinned to a loopback URL that refuses
+  connections. `_unit_definitely_dead` is deliberately **not** `not
+  _unit_alive(...)`: "cannot tell" must not mean "failed", which is the same
+  mistake in the opposite direction.
+- **`/api/reset`** reported the terminals that WERE running as stopped, with `ok`
+  hardcoded true and `--no-block` so nothing was ever confirmed.
+
+### And one finding that was wrong, so nothing was changed
+
+The audit reported `manager.log` as having no rotation and therefore unbounded
+disk growth. It does have rotation — a self-rotating 2MB × 5 handler, ~12MB
+capped, and the code comment says so. "No logrotate config anywhere" was true and
+the conclusion drawn from it was not. **The real harm is eviction, not disk**: the
+two client-log endpoints write up to ~12KB per POST, so a page in a retry loop
+pushes the entire useful history out of the ring precisely when someone is reading
+it. That got a per-user token bucket; the imaginary disk problem got nothing.
+
+**The lesson.** Two of the three biggest mistakes in this round were *mine or the
+audit's, not the original code's*: a ceiling sized from the idle number instead of
+the peak, and a fix proposed for a problem that did not exist. Both were caught the
+same way — by measuring the live result afterwards instead of trusting the change.
+
+**Watch out.** A comment stating a measurement ("~1.5s for a full parse") is a
+claim with an expiry date; when the thing it describes grows 5.6x, the comment is
+how you get talked out of investigating. And a cache keyed on `(mtime, size)` is
+only sound for genuinely append-only data — it is wrong the moment a file can be
+rewritten in place with the same length.
+
+**Test.** `server/tests/test_hot_path_cost.py` grew to 16 cases (an unchanged
+transcript is never re-read, an appended one is picked up, a key in two files is
+counted once, the memory ceiling sits above the peak, "cannot tell" is not "dead",
+reset verifies, Office reports its failure). Plus 13 frontend cases, each
+re-verified independently against unfixed copies rather than taken on trust. One
+existing test had to change: it asserted the first network sample renders
+"0 B/s" — encoding 0 as the representation of "unknown", the very bug — so it now
+asserts blank and keeps its original protection that the raw counter must never
+be shown as a rate.
