@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_307 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_308 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
 - [Scheduled terminal messages ("resume when the token limit resets")](#scheduled-terminal-messages-resume-when-the-token-limit-resets)
@@ -330,6 +330,7 @@ _307 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [Six measured costs taken off the request path, and why a TTL was never the fix (2026-09-18)](#six-measured-costs-taken-off-the-request-path-and-why-a-ttl-was-never-the-fix-2026-09-18)
 - [A root-trusted file owned by a tenant, and three things the UI claimed without knowing (2026-09-18)](#a-root-trusted-file-owned-by-a-tenant-and-three-things-the-ui-claimed-without-knowing-2026-09-18)
 - [Caching what changed, a ceiling set from the wrong number, and nine invented values (2026-09-18)](#caching-what-changed-a-ceiling-set-from-the-wrong-number-and-nine-invented-values-2026-09-18)
+- [A restore path that had never once run, and three findings it was right to refute (2026-09-18)](#a-restore-path-that-had-never-once-run-and-three-findings-it-was-right-to-refute-2026-09-18)
 
 <!-- END TOC -->
 
@@ -14233,3 +14234,105 @@ existing test had to change: it asserted the first network sample renders
 "0 B/s" — encoding 0 as the representation of "unknown", the very bug — so it now
 asserts blank and keeps its original protection that the raw counter must never
 be shown as a rate.
+
+## A restore path that had never once run, and three findings it was right to refute (2026-09-18)
+
+**The process changed first.** After a self-inflicted regression earlier the same
+day (a memory ceiling sized from an idle reading), every finding in this round was
+handed to a *separate* agent whose brief was to REFUTE it. Three of them were
+refuted or narrowed, and not acting on those is as much of this entry as the
+fixes.
+
+### `tools/backup.sh --restore` had never executed its own v2 branch
+
+The archive is written `tar czf … -C "$stage" .`, so every member carries a
+leading `./`. The restore detector grepped the anchored `^MANIFEST$`. It never
+matched — verified directly: `grep -c '^MANIFEST$'` returns 0 on a real archive,
+tar lists `./MANIFEST`, and the very next line's `tar xzOf … MANIFEST` errors
+*"Not found in archive"*.
+
+So **every archive this host ever produced fell through to the "legacy" branch**,
+which unpacks `users/` and `system/` into one human's home and restores nothing:
+no `/var/lib/vibetop`, no secrets, no `manager.env`, no second user. Then it
+printed **"Restored."** and exited 0. The operator learns this at the one moment
+they cannot afford to — and the multi-user backup fixed earlier the same day would
+have been just as unrestorable.
+
+Two things about this are worth keeping. First, **every unit-level check of the
+pieces passed while the whole thing was broken**: the manifest was written
+correctly, the prefixes were right, the v2 branch handled all three of them. The
+regression test is therefore a round trip — make an archive with the real backup
+path, then assert the real detector matches it — because that is the only shape
+that would have caught it. Second, `--dry-run --restore` **performed the restore**:
+the restore block runs before `DRY_RUN` is consulted anywhere, while the usage
+text advertises the flag, so the cautious form was the destructive one.
+
+The rest of that path was wrong in ways that only matter once it runs at all:
+`chown $u` without a group left every restored file `alice:root` forever; tar
+resets an existing directory's mode, so a restore silently relaxed each user's
+`~/.local` and `~/.config` from 0700 to 0755 on a host where Unix permissions are
+the whole isolation boundary; and a missing user ran `trap - EXIT`, disarming
+cleanup for the **entire run** and leaving the session secret in `/tmp`
+indefinitely after a disaster-recovery run.
+
+### The three that were refuted or narrowed
+
+- **"Concurrent starts tear down each other's xpra display, and that is the
+  two-device Browser loading loop."** The mechanism is real — `systemctl
+  is-active` reports "active" the moment systemd *accepts* a transient unit, a
+  real cold xpra binds in ~9s here, and the 3s stale-port probe therefore always
+  times out on a young unit. But the attribution is **chronologically
+  impossible**: the loading-loop symptom is dated 2026-06-28 against the *legacy
+  shared* unit, three weeks before per-user units or this branch existed. In 86
+  days of log the warning fired 3 times and the victim-side signature zero times;
+  the one destructive occurrence followed a **manual `systemctl restart`** and
+  self-healed in a single cycle. The reproduction proved the code unsafe under
+  concurrency but **assumed the concurrency** — a cold open makes exactly one
+  authcheck, because the asset fan-out cannot begin until the page it is parked
+  behind returns. Fixed narrowly (don't tear down a unit younger than 40s, since
+  the stale-port case it was written for is always old) and explicitly NOT
+  credited with the loading loop.
+- **"Notes' save path races the tab-delete and loses data."** Refuted. Both
+  operations are already individually atomic, so the proposed lock would not
+  change the outcome — it is an ordering question, not a race; the index never
+  scans the directory, so an orphan cannot resurrect; and the client adopts the
+  server's set within 2s. The bytes at risk are under a second of typing into a
+  note the other device just confirmed deleting. Not actioned.
+- **"The memory ceiling is wrong again."** Narrowed. 3G *was* exceeded
+  (MemoryPeak 3.22GB, 727 events) — but the breakdown showed anon at 1.00GB
+  against 1.90GB of slab, **all of it reclaimable** dentry cache from walking
+  homes and 629 transcripts, with latency flat at 0.5–1.5ms. The kernel was
+  reclaiming precisely what `MemoryHigh` exists to reclaim. The reviewer's
+  inference that the record cache cost "~1.5GB of permanent RSS" was wrong;
+  measured in isolation it costs ~60MB. **A climbing counter is only a problem
+  when latency moves with it.**
+
+### The review of my own work, which was right about the tests
+
+A reviewer mutation-tested the new suite and proved four cases worthless: it
+reintroduced the exact discarded return value and `test_wait_tcp_result_is_honoured`
+stayed green; it neutered `block_first` and that test passed too. Both now assert
+behaviour and fail under the same mutations. The memory-ceiling test claimed to
+"assert the ceiling against the peak" while comparing two hardcoded constants —
+it now asserts only what a hermetic test honestly can, and `doctor.sh` does the
+live check, flagging only the case that hurts (anon near the ceiling, not the
+reclaim counter).
+
+**Two smaller things measured along the way.** The listen backlog was
+socketserver's default of **five**, with `TcpExtListenOverflows` at 3250 and 12
+concurrent callers spread 0.004s … 1.037s — a 1s kernel-level tail dwarfing every
+per-endpoint cost this audit had been shaving; at 128 the same test spans
+0.005–0.013s. And four stale QA screenshots of the operator's desktop sat in the
+served web root, `GET /shots/01-desktop.png` → 200, 1.2MB, no cookie required,
+referenced by nothing in git.
+
+**Watch out.** `ast.parse` does NOT catch `'continue' not properly in loop` —
+that is a compile-time check — so a syntax gate built on `ast.parse` will pass
+code that cannot import. Use `compile()`.
+
+**The lesson.** The refutation step paid for itself three times in one round: it
+stopped a wrong root-cause being recorded against a known symptom, stopped a
+pointless lock going into the notes save path, and corrected a memory diagnosis
+that would have had me raise a ceiling for the third time from the wrong number.
+An agent's *observation* can be sound while its *conclusion* is not, and the
+cheapest way to tell them apart is to ask a different agent to attack it.

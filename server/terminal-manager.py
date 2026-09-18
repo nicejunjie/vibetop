@@ -37,6 +37,7 @@ import shlex
 import shutil
 import stat
 import socket
+import stat
 import struct
 import subprocess
 import sys
@@ -2977,6 +2978,55 @@ class _MultipartError(Exception):
     pass
 
 
+def _safe_user_dir(path, user):
+    """Return `path` only if it is a REAL directory (not a symlink) owned by
+    `user`, creating it safely if absent. Otherwise None.
+
+    The manager is root, and every one of these paths sits inside a tenant's own
+    home — so the tenant controls what the name points AT. `os.makedirs(...,
+    exist_ok=True)` does not raise on a symlink-to-a-directory (its check is
+    os.path.isdir, which follows), and the code then treated the LINK TARGET as
+    the user's directory: root chowned it, listed it, and deleted files in it.
+    Pointing ~/Uploads at /etc turned an ordinary upload into a root escalation.
+
+    Checked with lstat, which is the only stat that does not follow."""
+    try:
+        st = os.lstat(path)
+    except FileNotFoundError:
+        try:
+            os.makedirs(path, mode=0o755, exist_ok=True)
+            _chown_app(path, user)
+            st = os.lstat(path)
+        except OSError as e:
+            log.warning("cannot create %s for %s: %s", path, user, e)
+            return None
+    except OSError:
+        return None
+    if stat.S_ISLNK(st.st_mode) or not stat.S_ISDIR(st.st_mode):
+        log.warning("refusing to use %s for %s: not a real directory "
+                    "(mode %o) — it is inside their home, so they control it",
+                    path, user, st.st_mode)
+        return None
+    # The SYMLINK check above is unconditional — it is cheap and correct
+    # everywhere. The OWNERSHIP check below only applies when we are root, which
+    # is the only situation where acting on someone else's directory is a
+    # privilege escalation rather than a plain EACCES. Unprivileged (tests, a
+    # home-owned install) the kernel is already the fence, and demanding a
+    # resolvable passwd entry there would refuse perfectly valid directories.
+    if os.geteuid() != 0:
+        return path
+    try:
+        want = pwd.getpwnam(user).pw_uid
+    except KeyError:
+        log.warning("refusing to use %s: no such user %s", path, user)
+        return None
+    if st.st_uid != want:
+        log.warning("refusing to use %s for %s: owned by uid %d, not %d",
+                    path, user, st.st_uid, want)
+        return None
+    return path
+
+
 def _chown_app(path, user=None):
     """chown `path` to `user` (default: the current request's authenticated user)
     when running as root. Best-effort — silently ignored on failure. Multi-user:
@@ -2986,7 +3036,12 @@ def _chown_app(path, user=None):
         if os.geteuid() != 0:
             return
         pw = pwd.getpwnam(user or _ctx_user())
-        os.chown(path, pw.pw_uid, pw.pw_gid)
+        # lchown, NEVER chown: this runs as ROOT on paths inside a tenant's own
+        # home, and os.chown FOLLOWS SYMLINKS. A tenant who replaces such a path
+        # with a link to /etc has root hand them /etc — a local root escalation
+        # from an ordinary, authenticated request. os.lchown acts on the link
+        # itself, so the worst case becomes "the tenant owns their own symlink".
+        os.lchown(path, pw.pw_uid, pw.pw_gid)
     except Exception:
         pass
 
@@ -5120,7 +5175,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
         # Delete every regular file directly inside _upload_dir(). Subdirectories
         # are left alone (this endpoint is for clearing the quick-sync inbox,
         # not nuking arbitrary trees).
-        if not os.path.isdir(_upload_dir()):
+        if _safe_user_dir(_upload_dir(), _ctx_user()) is None:
             self._json(200, {"ok": True, "removed": 0})
             return
         removed = 0
@@ -5360,19 +5415,31 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self._json(411, {"error": "Content-Length required"})
             return
         body = _LimitedReader(self.rfile, length)
-        os.makedirs(_upload_dir(), exist_ok=True)
-        _chown_app(_upload_dir())
+        updir = _safe_user_dir(_upload_dir(), _ctx_user())
+        if updir is None:
+            return self._json(409, {"error": "your Uploads folder is not a normal "
+                                             "directory you own — fix it and retry"})
         saved, total_bytes = [], 0
         partial = None  # file currently being written, if a part fails mid-copy
         try:
             for filename, src in _iter_multipart_files(body, boundary):
                 safe = _safe_upload_name(filename)
-                out, dst = _open_unique(os.path.join(_upload_dir(), safe))
+                out, dst = _open_unique(os.path.join(updir, safe))
                 partial = dst
                 with out:
                     shutil.copyfileobj(src, out)
-                _chown_app(dst)
-                size = os.path.getsize(dst)
+                    out.flush()          # or fstat sees a still-buffered 0 bytes
+                    # fchown/fstat on the OPEN descriptor, not a fresh lookup by
+                    # path. Re-resolving `dst` after the close let the tenant —
+                    # who owns the directory — unlink it and drop a symlink in its
+                    # place between the two, so root would chown whatever it now
+                    # pointed at. The fd cannot be swapped underneath us.
+                    try:
+                        pw = pwd.getpwnam(_ctx_user())
+                        os.fchown(out.fileno(), pw.pw_uid, pw.pw_gid)
+                    except (OSError, KeyError):
+                        pass
+                    size = os.fstat(out.fileno()).st_size
                 total_bytes += size
                 saved.append({"name": os.path.basename(dst), "size": size})
                 partial = None
@@ -8122,7 +8189,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
             return
         if self.path == "/api/upload/list":
             files = []
-            if os.path.isdir(_upload_dir()):
+            if _safe_user_dir(_upload_dir(), _ctx_user()) is not None:
                 for name in sorted(os.listdir(_upload_dir())):
                     p = os.path.join(_upload_dir(), name)
                     try:
