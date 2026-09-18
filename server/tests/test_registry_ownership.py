@@ -17,6 +17,8 @@ with a docstring saying why -- so this is asserted for EVERY such registry rathe
 than for the one that happened to be wrong.
 """
 import inspect
+import os
+import pwd
 
 
 def _atomic_writes(src):
@@ -97,3 +99,78 @@ def test_per_user_state_still_defaults_to_the_request_user(mgr):
         for call in _call_mentioning(src, needle):
             assert "owner=" not in call, (
                 f"per-user state must keep the default chown: {call[:120]}")
+
+
+# ---- root must never follow a path a tenant controls ------------------------
+
+def test_a_symlinked_upload_dir_is_refused(mgr, tmp_path):
+    """LOCAL ROOT ESCALATION. `/api/upload` did, before reading a single body
+    byte:
+
+        os.makedirs(_upload_dir(), exist_ok=True)
+        _chown_app(_upload_dir())
+
+    `_upload_dir()` is ~<request user>/Uploads — inside the tenant's OWN home, so
+    the tenant controls what that name points at. `os.makedirs(..., exist_ok=True)`
+    does not raise on a symlink-to-a-directory (its check is os.path.isdir, which
+    follows), and `os.chown` follows symlinks too. So a tenant replaced ~/Uploads
+    with a link to /etc, POSTed an empty multipart with their OWN valid session,
+    and root handed them /etc. Reproduced against a scratch target before fixing.
+    """
+    victim = tmp_path / "victim"
+    victim.mkdir()
+    link = tmp_path / "Uploads"
+    link.symlink_to(victim)
+    me = pwd.getpwuid(os.getuid()).pw_name
+
+    assert mgr._safe_user_dir(str(link), me) is None, \
+        "a symlink standing in for the user's own directory must be refused"
+
+
+def test_a_normal_upload_dir_is_still_accepted(mgr, tmp_path):
+    """The counterweight: refusing everything would be its own outage."""
+    real = tmp_path / "Uploads"
+    real.mkdir()
+    me = pwd.getpwuid(os.getuid()).pw_name
+    assert mgr._safe_user_dir(str(real), me) == str(real)
+
+
+def test_the_ownership_half_is_root_only_and_the_symlink_half_is_not(mgr, tmp_path):
+    """The two checks have different scopes, on purpose.
+
+    Rejecting a symlink is cheap and correct everywhere. Requiring a specific
+    OWNER only matters as root — unprivileged, acting on someone else's directory
+    is a plain EACCES, not an escalation, and demanding a resolvable passwd entry
+    would refuse valid directories (it broke a multi-user test whose fixture users
+    are not in /etc/passwd).
+    """
+    import inspect
+    src = inspect.getsource(mgr._safe_user_dir)
+    assert "os.lstat(" in src, "only lstat does not follow the link"
+    i_link = src.index("S_ISLNK")
+    i_root = src.index("os.geteuid() != 0")
+    assert i_link < i_root, \
+        "the symlink check must be unconditional, i.e. BEFORE the root-only gate"
+
+
+def test_chown_never_follows_a_symlink(mgr):
+    """_chown_app runs as root on paths inside tenants' homes, so it must act on
+    the link itself — the worst case then being "the tenant owns their own
+    symlink" rather than "the tenant owns the link's target"."""
+    import inspect
+    src = inspect.getsource(mgr._chown_app)
+    assert "os.lchown(" in src and "os.chown(" not in src, \
+        "os.chown follows symlinks; root must use os.lchown on tenant-controlled paths"
+
+
+def test_the_uploaded_file_is_chowned_by_descriptor_not_by_path(mgr):
+    """The write-then-chown-by-path race: `dst` was re-resolved AFTER the file
+    closed, and the tenant owns that directory — so they could unlink it and drop
+    a symlink in between, and root would chown whatever it then pointed at. An fd
+    cannot be swapped underneath us."""
+    import inspect
+    src = inspect.getsource(mgr.Handler._handle_upload)
+    assert "os.fchown(out.fileno()" in src, \
+        "chown the open descriptor, not a fresh path lookup"
+    assert "os.fstat(out.fileno()" in src, \
+        "and stat it the same way, for the same reason"
