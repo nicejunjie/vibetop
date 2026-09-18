@@ -311,6 +311,34 @@ size="$(du -h "$archive" | cut -f1)"
 echo "Wrote $archive ($size, $MODE, ${#USERS[@]} user(s), ${#FOUND_PATH[@]} user item(s), ${#FOUND_GLOBAL[@]} global item(s))."
 (( IS_ROOT )) || echo "NOTE: not run as root — this covers ONLY $APP_USER. Use sudo for a complete backup."
 
+# An UNATTENDED incomplete backup must not look like success.
+#
+# z20 ran a daily timer for months whose unit was written by an older version of
+# this script: User=<a human>, so IS_ROOT was never true. Every run archived one
+# user's home, skipped the other user entirely and every global item (including
+# /etc/vibetop/manager.env), printed the NOTE above, and exited 0 — so the timer
+# stayed green and `systemctl list-timers` showed a healthy daily backup. The
+# only trace was one line in the journal that nobody reads. A backup you would
+# discover to be empty at restore time is worse than no backup, because you
+# stopped looking for one.
+#
+# Detected from our own CGROUP, which names the unit we are actually running in.
+# The two obvious signals are both wrong here:
+#   - `[ ! -t 1 ]` ("no TTY") also catches a piped interactive run and every test
+#     harness, and an unprivileged `./tools/backup.sh` to grab your own data is
+#     legitimate and must still exit 0.
+#   - `$INVOCATION_ID` is INHERITED by every descendant of any systemd unit — and
+#     in vibetop a Terminal IS a transient unit, so running this script from the
+#     product's own terminal would spuriously fail.
+_in_backup_unit=0
+grep -qs 'vibetop-backup' /proc/self/cgroup && _in_backup_unit=1
+if ! (( IS_ROOT )) && [ -z "$ONE_USER" ] && (( _in_backup_unit )); then
+    echo "ERROR: unattended backup ran as $(id -un), not root, so it covered only" >&2
+    echo "  $APP_USER and NO global state. This is an incomplete backup." >&2
+    echo "  Fix the unit: sudo $0 --install-timer   (re-renders it with User=root)" >&2
+    exit 1
+fi
+
 # Prune: keep the newest $KEEP.
 mapfile -t all < <(ls -1t "$BACKUP_DIR"/vibetop-*.tar.gz 2>/dev/null || true)
 if [ "${#all[@]}" -gt "$KEEP" ]; then

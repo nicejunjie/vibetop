@@ -372,6 +372,17 @@ $tls_listen    server_name _;
     location / {
         try_files \$uri \$uri/ =404;
         add_header Cache-Control 'no-cache, no-store' always;
+        # nginx gzips text/html implicitly, and nginx.conf ships gzip_types
+        # COMMENTED OUT — so every .js and .css in the web root went over the
+        # wire raw. That is ~300KB per cold desktop load (shared modules, the
+        # xpra/ttyd patch scripts) and 2.2MB for the RTS game's 117 plain
+        # scripts, all of which compress ~3x. Invisible on the LAN; the whole
+        # cost over the Cloudflare tunnel on a phone. Static files only — the
+        # sub_filter locations below re-gzip separately, after filtering, since
+        # sub_filter needs a plain upstream body.
+        gzip on;
+        gzip_types text/javascript application/javascript text/css application/json image/svg+xml;
+        gzip_min_length 1024;
         # Security headers on the shell/static HTML. frame-ancestors 'self'
         # blocks external sites from framing the desktop (clickjacking); the
         # desktop frames its own same-origin app pages, so it's unaffected.

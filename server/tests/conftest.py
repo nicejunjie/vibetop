@@ -224,6 +224,12 @@ def stubs(mgr, monkeypatch):
     # _wait_tcp would busy-loop the full timeout against a port nothing is
     # listening on (the launches are stubbed) — short-circuit it.
     monkeypatch.setattr(mgr, "_wait_tcp", lambda *a, **k: True)
+    # Same for the socket-appears wait: the stubbed systemd-run starts nothing,
+    # so no session socket is ever created. Neutralizing time.sleep alone used to
+    # be enough only because the caller DISCARDED this result; now that a false
+    # readiness result correctly fails the start, it has to be stubbed like
+    # _wait_tcp or every terminal-start test asserts against a failed launch.
+    monkeypatch.setattr(mgr, "_wait_path", lambda *a, **k: True)
     # No real terminals / heavy /proc scans in the endpoint tests.
     monkeypatch.setattr(mgr.Handler, "_get_running_terminals", lambda self: [])
     monkeypatch.setattr(mgr.Handler, "_get_system_status",

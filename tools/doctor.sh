@@ -474,6 +474,36 @@ if vt_git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
     fi
 else adv "$ROOT is not a git checkout — the in-app Update needs a full clone"; fi
 
+# ---- Backup: is the installed unit one that produces a COMPLETE backup? ----
+# A systemd unit is written ONCE, by whichever version of backup.sh was current
+# that day, and nothing ever re-renders it. z20's was written by a version that
+# ran as a human: it archived one user, no global state, and exited 0 for months
+# behind a green timer. The generator has been correct for a long time — the
+# stale ARTIFACT is the bug, and only a check against the live unit finds it.
+head_ "Backup"
+_bsvc=/etc/systemd/system/vibetop-backup.service
+if [ ! -f "$_bsvc" ]; then
+    if systemctl list-unit-files vibetop-backup.timer >/dev/null 2>&1; then
+        adv "no backup timer installed — user data (notes, desktop layout, uploads, Office docs) is not archived. Fix: sudo $ROOT/tools/backup.sh --install-timer"
+    fi
+else
+    _buser="$(sed -n 's/^User=//p' "$_bsvc" | tail -1)"
+    _bexec="$(sed -n 's/^ExecStart=//p' "$_bsvc" | tail -1 | awk '{print $1}')"
+    if [ -n "$_buser" ] && [ "$_buser" != "root" ]; then
+        bad "backup runs as '$_buser', not root — it silently covers ONLY that user and NO global state (/etc/vibetop/manager.env, nginx, sessions), and still exits 0. Fix: sudo $ROOT/tools/backup.sh --install-timer"
+    else
+        ok "backup unit runs as root (all users + global state)"
+    fi
+    if grep -q '^Environment=.*APP_USER=' "$_bsvc"; then
+        adv "backup unit pins APP_USER= — a leftover from the single-user layout; it overrides the real service account. Fix: sudo $ROOT/tools/backup.sh --install-timer"
+    fi
+    if [ -n "$_bexec" ] && [ ! -e "$_bexec" ]; then
+        bad "backup ExecStart points at a missing file ($_bexec) — the timer fires and nothing runs"
+    elif [ -n "$_bexec" ] && [ "${ROOT#/opt/}" != "$ROOT" ] && [ "${_bexec#/opt/}" = "$_bexec" ]; then
+        adv "prod runs from $ROOT but the backup unit executes $_bexec — a personal checkout, so the nightly backup runs whatever uncommitted state is in that tree. Fix: sudo $ROOT/tools/backup.sh --install-timer"
+    fi
+fi
+
 # ---------------------------------------------------------------------------
 printf '\n%s────────────────────────────────────────%s\n' "$(c b)" "$(c 0)"
 printf 'doctor: %s%d pass%s, %s%d warn%s, %s%d fail%s\n' \

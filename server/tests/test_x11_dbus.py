@@ -104,3 +104,42 @@ def test_the_wait_loop_gives_up_when_the_unit_is_already_dead(mgr, monkeypatch):
     will never exist for the full 3s window is exactly the dead time that made
     '+ tab' slow, so the loop asks systemd instead of sleeping out the clock."""
     assert mgr._unit_alive("vibetop-ux11dbus-definitely-not-a-real-unit.service") is False
+
+
+# ---- The same shape, in the terminal-start path itself -----------------------
+
+def test_a_dead_session_daemon_fails_the_start_instead_of_sleeping_5s(mgr, monkeypatch):
+    """The unfixed twin of the D-Bus bug, 500 lines above it in the same file and
+    reached from _handle_authcheck (so nginx pays it on a cold /tN/).
+
+    `systemd-run` returns 0 when the unit is ACCEPTED, so a session daemon that
+    dies on startup left this polling for a socket that would never appear: the
+    full 5s, then ttyd launched anyway to `attach` to nothing -- a tab that was
+    slow AND broken, with the 8s _wait_tcp after it for 13s total.
+    """
+    seen = {"slept": 0.0, "alive_checks": 0}
+    monkeypatch.setattr(mgr.time, "sleep", lambda s: seen.__setitem__("slept", seen["slept"] + s))
+
+    def dead(unit):
+        seen["alive_checks"] += 1
+        return False
+    monkeypatch.setattr(mgr, "_unit_alive", dead)
+
+    assert mgr._wait_path("/nonexistent/never-appears.sock", 5.0, "some-dead.service") is False
+    assert seen["alive_checks"] >= 1, "the wait must ask whether the unit is still alive"
+    assert seen["slept"] < 2.0, \
+        f"gave up after {seen['slept']}s of sleeping; a dead unit must not cost the full 5s"
+
+
+def test_wait_tcp_result_is_honoured_so_a_dead_ttyd_is_not_reported_as_started(mgr):
+    """_wait_tcp's return value was DISCARDED in both the terminal and xpra start
+    paths, so a service that never bound its port was reported as a successful
+    start: the caller cached the port, nginx proxied to nothing, and the user got
+    a 502 with no error recorded anywhere. Asserted on the source, because the
+    bug was a dropped return value rather than wrong logic."""
+    import inspect
+    src = inspect.getsource(mgr._start_user_terminal)
+    assert "if not _wait_tcp(" in src, \
+        "_start_user_terminal must branch on _wait_tcp, not call it for its side effect"
+    assert "if not _wait_path(" in src, \
+        "_start_user_terminal must branch on the session-socket wait too"
