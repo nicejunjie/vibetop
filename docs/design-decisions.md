@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_305 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_306 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
 - [Scheduled terminal messages ("resume when the token limit resets")](#scheduled-terminal-messages-resume-when-the-token-limit-resets)
@@ -328,6 +328,7 @@ _305 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [A new terminal tab took 3 seconds, and none of it was the terminal (2026-09-17)](#a-new-terminal-tab-took-3-seconds-and-none-of-it-was-the-terminal-2026-09-17)
 - [Auditing for the 3s-tab bug CLASS found three more, and one of them was the backup (2026-09-17)](#auditing-for-the-3s-tab-bug-class-found-three-more-and-one-of-them-was-the-backup-2026-09-17)
 - [Six measured costs taken off the request path, and why a TTL was never the fix (2026-09-18)](#six-measured-costs-taken-off-the-request-path-and-why-a-ttl-was-never-the-fix-2026-09-18)
+- [A root-trusted file owned by a tenant, and three things the UI claimed without knowing (2026-09-18)](#a-root-trusted-file-owned-by-a-tenant-and-three-things-the-ui-claimed-without-knowing-2026-09-18)
 
 <!-- END TOC -->
 
@@ -14016,3 +14017,105 @@ reason (5 polls took 0.511s, i.e. 5 × 100ms) and the parser one with the actual
 Start menu in a browser: 6 requests while front, 0 while backgrounded with the
 iframe still mounted. Note that `notes.test.js`'s sandbox had never needed a
 `location` until a test delivered a `postMessage` the page's origin check reads.
+
+## A root-trusted file owned by a tenant, and three things the UI claimed without knowing (2026-09-18)
+
+**Why a second pass.** The first sweep chased *latency* caused by swallowed
+failures. The same question asked about *correctness* — "which success signals
+cannot tell success from failure?" — found a security bug and a data-loss bug the
+latency sweep had walked straight past.
+
+### The share registry was owned by whichever tenant last used Share
+
+`_atomic_write` chowns its result to the request user by default. That is right
+for per-user state in a user's own home and wrong for anything root later trusts,
+and its own docstring says so: *"Pass owner='root' for a registry the manager ACTS
+ON as root."* `_write_schedules` follows it, with a docstring explaining the
+identical trust shape. `_write_shares` simply did not.
+
+It matters because **`/s/<token>` is deliberately cookieless** — that is what a
+share link is. The serve path reads the entry's `owner` field to decide whose home
+to read from, and then opens that file **as root**. So the registry is a
+root-trusted authorization input. Every share endpoint rewrites it, `list`
+included, so merely opening the Share UI once handed ownership of that file to the
+tenant who did it — and a 0600 file's owner can rewrite it in place.
+
+Two things the audit got right that are worth preserving: the registry being
+**global is correct and deliberate** (a cookieless handler cannot resolve a
+per-user home), and the **API surface was already properly owner-fenced** — A
+cannot list, revoke or overwrite B's shares. The hole was the file's ownership,
+not its location or its endpoints. One keyword.
+
+The same override was missing on four root-trusted registries in
+`/var/lib/vibetop` (port slots and session-revocation epochs, resource caps, idle
+policy, hints). Those were safe **only** because that directory is `0700 root` —
+one permission change away from the same bug — so they are pinned now too. The
+test asserts the whole class, and deliberately keeps a fourth case proving
+per-user state still takes the default chown, so it cannot degrade into "put
+owner= everywhere".
+
+### `fetch` does not reject on 400, and Notes believed it did
+
+`fetch` rejects only on a **network-layer** failure. A 400, 401 or 500 is a
+perfectly successful fetch. Notes' save had no `r.ok` check, so every one of those
+landed in the success branch: `unsaved` cleared, green **saved** badge, nothing
+written. Clearing `unsaved` then unblocks the 2s `syncContent`, which pulls the
+server's **older** body, assigns it into the editor and reports **synced** — also
+green. The user watched a paragraph vanish after being told twice it was safe.
+
+Reachable with no network trouble at all: a note crossing the manager's 1 MiB body
+cap (400) **stops persisting permanently**, and an expired session (401). The
+page's own comment said *"Only a CONFIRMED save clears `unsaved`"* — the check it
+assumed was missing, and the sibling `loadContent` had always done it, so this was
+an omission rather than the file's style. The regression test shows the loss
+directly: on the old page the editor ends up holding the server's stale
+`alpha body` instead of `the words I typed`.
+
+### A search that gave up, and a folder that was busy
+
+Two more of the same shape in Files. `SEARCH_TIMEOUT` was **exactly** `_fs_call`'s
+transport timeout, so the agent's own answer lost that race by construction — the
+second instance this month of two deadlines that must differ living in different
+files with nothing tying them together (the first was a cache TTL equal to a poll
+interval). And `TimeoutExpired.stdout` — everything the search found before the
+deadline — was discarded, so a timeout returned an empty list, which the UI drew
+as **"No matches"** because it returns on an empty result *before* it looks at
+`truncated`. "No matches" is a claim about the disk, and only a completed search
+may make it.
+
+Worse, and data-affecting: the agent's accept loop is **serial**, so a large copy,
+zip or hash cannot answer `_ensure_fileagent`'s 1.5s liveness probe — and the
+revive path then `systemctl stop`s the unit, **killing the operation in flight**.
+Files polls the open folder every 4s and any second tab or device asks too, so a
+long copy was reliably interrupted by the app's own background traffic. Reproduced
+against a stub agent: one busy for 3s probes as `{"ok": false, "code": "agent"}`
+after exactly 1.5s, indistinguishable from a crash. **systemd knows which it is**,
+so it is now asked. `op_hash` gained a deadline for the same reason — "streams the
+file, any size" meant a multi-GB file held the whole app long past the point the
+caller had given up.
+
+### Services told every non-admin their network was empty
+
+Discovery is operator-only, and a 403's body is valid JSON — so `r.json()`
+succeeded, `model.services` was `undefined`, `render()` coerced it to `[]`, and
+the page showed **"No network services detected."** A confident claim about the
+user's *network*, when the truth — sitting in the payload the code discarded —
+was about their *permissions*. 100% of non-admin users, every time.
+
+**The lesson these four share.** Every one of them had the right information
+available and threw it away: the HTTP status, `TimeoutExpired.stdout`, the 403
+body, systemd's view of the unit. None was a hard problem; each was a place where
+code decided what had happened instead of reading what it was told. **Ask the
+component that knows.**
+
+**Watch out.** `fetch` not rejecting on HTTP errors is the single most likely way
+for a frontend to report a write it never made — grep for `.then(` on a POST with
+no `r.ok` before trusting any "saved" indicator.
+
+**Test.** `server/tests/test_registry_ownership.py` (four cases, including the
+per-user counterweight), two in `apps/everyday/notes/notes.test.js`, two in
+`apps/utilities/services/index.test.js` (the second drives 403 → recovery, so it
+cannot pass on static markup), and five in `server/tests/test_fileagent.py`. All
+proven red against the previous commit. The live share registry on z20 was
+repaired by hand, since a fix to the writer does not re-own a file already
+written — the same "the stale artifact is the bug" trap as the backup unit.
