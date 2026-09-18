@@ -283,6 +283,17 @@ def test_backup_from_the_timer_fails_instead_of_reporting_a_partial_archive(two_
         "a child of any systemd unit inherits INVOCATION_ID; that is not the timer"
 
 
+def test_backup_covers_manager_env_the_admin_lives_in():
+    """VIBETOP_ADMINS has exactly one authority: /etc/vibetop/manager.env. The
+    global sweep collected only *.secret, so that file was in no archive -- a
+    restored host silently falls back to ADMIN_USERS=[APP_USER], and Claude-usage
+    and Update stop working for the real admin while everything else looks right.
+    """
+    body = (REPO_ROOT / "tools" / "backup.sh").read_text()
+    assert "$VT_ENV_FILE" in body, \
+        "backup collects only *.secret from /etc/vibetop -- manager.env (VIBETOP_ADMINS) is lost"
+
+
 def test_backup_covers_the_global_state_the_manager_actually_writes(mgr):
     """Every /var/lib/vibetop file the manager persists must be in the backup's
     global list — the registry's session-revocation epochs and the policy files
