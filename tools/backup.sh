@@ -168,6 +168,12 @@ if [ -n "$RESTORE_FILE" ]; then
             cp -a "$tmp/system/etc/." "$VT_ETC/"
             chmod 0600 "$VT_ETC"/* 2>/dev/null || true
         fi
+        if [ -d "$tmp/system/sysetc" ]; then
+            _sysetc="$(dirname "$VT_ENV_FILE")"
+            echo "  restoring manager config -> $_sysetc"
+            install -d -m 0755 -o root -g root "$_sysetc"
+            cp -a "$tmp/system/sysetc/." "$_sysetc/"
+        fi
     else
         echo "About to restore legacy archive '$RESTORE_FILE' OVER $HOME_DIR."
         tar tzf "$RESTORE_FILE" | sed 's/^/  /'
@@ -246,6 +252,19 @@ if (( IS_ROOT )) && [ -z "$ONE_USER" ]; then
     for f in "$VT_ETC"/*.secret; do
         [ -e "$f" ] && FOUND_GLOBAL+=("etc/$(basename "$f")")
     done
+    # manager.env, which is NOT under $VT_ETC (/opt/vibetop/etc, the 0700 secrets
+    # dir) but in /etc/vibetop — layout.sh calls it $VT_ENV_FILE, so take it from
+    # there rather than re-deriving a path. It is the single authority for
+    # VIBETOP_ADMINS (docs: "VIBETOP_ADMINS has ONE authority"), so an archive
+    # without it restores a host on which _is_admin() silently falls back to the
+    # service account: Claude-usage and Update quietly stop working for the real
+    # admin, while the identity model looks correct everywhere else.
+    # A SEPARATE prefix from etc/: those come from $VT_ETC and are restored 0600
+    # into it. These live in a different directory and are world-readable config,
+    # so folding them together would restore them to the wrong path AND mode.
+    for f in "$VT_ENV_FILE" "$(dirname "$VT_ENV_FILE")/deploy.env"; do
+        [ -e "$f" ] && FOUND_GLOBAL+=("sysetc/$(basename "$f")")
+    done
 fi
 
 if [ ${#FOUND_PATH[@]} -eq 0 ] && [ ${#FOUND_GLOBAL[@]} -eq 0 ]; then
@@ -286,6 +305,7 @@ for g in ${FOUND_GLOBAL[@]+"${FOUND_GLOBAL[@]}"}; do
     case "$g" in
         var/*) cp -a "$VAR_DIR/${g#var/}" "$stage/system/$g" ;;
         etc/*) cp -a "$VT_ETC/${g#etc/}"  "$stage/system/$g" ;;
+        sysetc/*) cp -a "$(dirname "$VT_ENV_FILE")/${g#sysetc/}" "$stage/system/$g" ;;
     esac
 done
 
