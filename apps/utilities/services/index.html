@@ -100,7 +100,12 @@ function render(model) {
   var empty = document.getElementById('empty');
   var list = (model && Array.isArray(model.services)) ? model.services : [];
   if (model && model.lan_ip) document.getElementById('host').textContent = model.lan_ip;
-  if (!list.length) { grid.innerHTML = ''; empty.hidden = false; return; }
+  if (!list.length) {
+    grid.innerHTML = '';
+    empty.textContent = 'No network services detected.';   // reset any error text
+    empty.hidden = false;
+    return;
+  }
   empty.hidden = true;
   grid.innerHTML = '';
   list.forEach(function (s) {
@@ -143,7 +148,35 @@ var EMBEDDED = window.top !== window;
 var timer = null;
 
 function load() {
-  fetch('/api/services/discover').then(function (r) { return r.json(); }).then(render).catch(function () {});
+  // Check the STATUS. Service discovery is operator-only, and its 403 body is
+  // valid JSON — so `r.json()` succeeded, `model.services` was undefined, and
+  // render() coerced it to [] and showed "No network services detected." to
+  // every non-admin user, every time. The 403 payload carries the real
+  // explanation; the code was discarding it and inventing a claim about the
+  // network instead.
+  fetch('/api/services/discover')
+    .then(function (r) {
+      return r.json().catch(function () { return {}; })
+        .then(function (d) { return { status: r.status, ok: r.ok, data: d }; });
+    })
+    .then(function (res) {
+      if (res.ok) { render(res.data); return; }
+      showMessage(res.status === 403
+        ? ((res.data && res.data.error) ||
+           'Service discovery is available to the operator only.')
+        : 'Could not read the service list (HTTP ' + res.status + ').');
+    })
+    .catch(function () {
+      showMessage('Could not reach the manager to list services.');
+    });
+}
+
+// An explicit failure state, distinct from a genuinely empty network.
+function showMessage(msg) {
+  var empty = document.getElementById('empty');
+  document.getElementById('grid').innerHTML = '';
+  empty.textContent = msg;
+  empty.hidden = false;
 }
 window.addEventListener('message', function (e) {
   if (e.origin !== location.origin) return;

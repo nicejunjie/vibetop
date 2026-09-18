@@ -3915,6 +3915,19 @@
     applyView('list');            // results carry a parent path / snippet: always flat
     var res = d.results || [];
     if (!res.length) {
+      // "No matches" is a CLAIM ABOUT THE DISK, and it must only be made when
+      // the search actually finished. A timed-out search also returns an empty
+      // list, and this branch returned before the `truncated` notice below was
+      // ever reached — so giving up looked exactly like finding nothing, and the
+      // user concluded their file did not exist.
+      if (d.timedOut || d.truncated) {
+        mainEl.appendChild(stateEl([
+          el('div', 'big', 'Search timed out'),
+          el('div', null, 'No matches in the part of this folder it reached. ' +
+                          'Try a narrower folder or a more specific query.')
+        ]));
+        return;
+      }
       mainEl.appendChild(stateEl([el('div', 'big', 'No matches')]));
       return;
     }
@@ -3944,7 +3957,16 @@
     });
     mainEl.appendChild(frag);
     mainEl.scrollTop = 0;
-    if (d.truncated) setNotice('Showing the first ' + res.length + ' matches.');
+    // Distinguish the two reasons a result set is partial: a hit CAP (the search
+    // finished, there are simply more) from a TIMEOUT (it never got through the
+    // folder, so absence here means nothing).
+    if (d.timedOut) {
+      setNotice('Search timed out — showing the ' + res.length +
+                ' match' + (res.length === 1 ? '' : 'es') +
+                ' found so far. There may be more.');
+    } else if (d.truncated) {
+      setNotice('Showing the first ' + res.length + ' matches.');
+    }
   }
   // Names result: jump to its folder with the item selected; files also open.
   // Jump to the containing folder with the item selected, WITHOUT opening it.

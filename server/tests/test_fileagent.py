@@ -489,3 +489,140 @@ def test_trash_empty_clears_files_and_info(mgr, agent, tmp_path):
     assert r["ok"] and r["removed"] == 2
     assert os.listdir(tmp_path / "share" / "Trash" / "files") == []
     assert os.listdir(tmp_path / "share" / "Trash" / "info") == []
+
+
+# ---- a search that gave up must not look like a search that found nothing ----
+
+def _load_agent_module():
+    """Import fileagent directly (not over the socket) so the timeout branch can
+    be driven without waiting for a real search to run out of time."""
+    import importlib.util
+    spec = importlib.util.spec_from_file_location("fileagent_probe", AGENT)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+def test_a_timed_out_search_keeps_what_it_found_and_says_it_timed_out(tmp_path, monkeypatch):
+    """`TimeoutExpired.stdout` holds everything the search printed before the
+    deadline, and it was thrown away -- so a timeout returned
+    {"ok": true, "results": [], "truncated": true}, which the Files app draws as
+    "No matches" because it returns on an empty list BEFORE it looks at
+    `truncated`. Giving up was indistinguishable from finding nothing, and the
+    user concluded their file did not exist.
+    """
+    fa = _load_agent_module()
+    d = tmp_path / "big"
+    d.mkdir()
+    (d / "alpha.txt").write_text("x")
+    (d / "beta.txt").write_text("y")
+
+    def fake_run(cmd, **kw):
+        raise subprocess.TimeoutExpired(
+            cmd, kw.get("timeout", 6),
+            output=f"{d}/alpha.txt\n{d}/beta.txt\n")
+
+    # monkeypatch, not a bare assignment: `fa.subprocess` IS the global module
+    # object, so setting .run on it leaks into every later test in the run.
+    monkeypatch.setattr(fa.subprocess, "run", fake_run)
+    r = fa.op_search({"path": str(d), "q": "a", "mode": "names"})
+    assert r["ok"] and r["timedOut"] is True and r["truncated"] is True
+    assert len(r["results"]) == 2, "the matches found before the deadline are real results"
+    assert {os.path.basename(x["path"]) for x in r["results"]} == {"alpha.txt", "beta.txt"}
+
+
+def test_a_genuine_no_match_is_not_reported_as_a_timeout(tmp_path):
+    """The other half: `timedOut` is what lets the UI claim "No matches" at all,
+    so it must be false whenever the search really did finish."""
+    fa = _load_agent_module()
+    d = tmp_path / "empty"
+    d.mkdir()
+    (d / "a.txt").write_text("x")
+    r = fa.op_search({"path": str(d), "q": "zzz-nothing-like-this", "mode": "names"})
+    assert r["ok"] and r["results"] == []
+    assert r["timedOut"] is False, \
+        '"No matches" is a claim about the disk — only a completed search may make it'
+
+
+def test_the_search_deadline_is_below_the_transport_deadline(mgr):
+    """SEARCH_TIMEOUT was EXACTLY _fs_call's transport timeout, so the agent's
+    own answer lost the race by construction: the manager's socket read expired
+    at the same instant the search did, and the caller saw a transport failure
+    instead of the partial results the agent was about to send. Two deadlines
+    that must differ, in two files, with nothing tying them together."""
+    import inspect
+    fa = _load_agent_module()
+    transport = inspect.signature(mgr._fs_call).parameters["timeout"].default
+    assert fa.SEARCH_TIMEOUT < transport, (
+        f"agent SEARCH_TIMEOUT={fa.SEARCH_TIMEOUT} must leave room under the "
+        f"manager's _fs_call timeout={transport} for the reply to be sent")
+
+
+def test_hashing_a_huge_file_gives_up_instead_of_freezing_the_app(tmp_path, monkeypatch):
+    """The agent's accept loop is SERIAL, so whatever it is hashing blocks that
+    user's entire Files app. "Streams the file -- any size" meant a multi-GB file
+    held it for minutes, long past the manager's 10s transport timeout: the
+    caller had already given up while the agent kept going.
+
+    A partial hash is worthless, so this reports the truth rather than a wrong
+    digest -- the info dialog renders `error` when ok is false, so the user sees
+    "too large" instead of a checksum that is silently for the first N bytes.
+    """
+    fa = _load_agent_module()
+    f = tmp_path / "big.bin"
+    f.write_bytes(b"x" * (4 << 20))
+    monkeypatch.setattr(fa, "HASH_DEADLINE", 0.0)      # deadline already passed
+    r = fa.op_hash({"path": str(f), "algo": "sha256"})
+    assert r["ok"] is False and r["code"] == "etoobig"
+    assert "hex" not in r, "a partial hash must never be presented as the checksum"
+    assert r["bytes"] > 0 and "too large" in r["error"]
+
+
+def test_a_normal_file_still_hashes(tmp_path):
+    """The deadline must not break the ordinary case it was added to protect."""
+    import hashlib
+    fa = _load_agent_module()
+    f = tmp_path / "small.txt"
+    f.write_bytes(b"hello vibetop")
+    r = fa.op_hash({"path": str(f), "algo": "sha256"})
+    assert r["ok"] and r["hex"] == hashlib.sha256(b"hello vibetop").hexdigest()
+
+
+def test_the_hash_deadline_is_below_the_transport_deadline(mgr):
+    """Same trap as the search deadline: a bound at or above the transport
+    timeout cannot deliver its own answer."""
+    import inspect
+    fa = _load_agent_module()
+    transport = inspect.signature(mgr._fs_call).parameters["timeout"].default
+    assert fa.HASH_DEADLINE < transport
+
+
+def test_a_busy_agent_is_not_mistaken_for_a_dead_one(mgr, monkeypatch):
+    """THE DANGEROUS ONE. `_ensure_fileagent` probes with a 1.5s timeout before
+    every /api/fs/* request, and the agent's serial accept loop cannot answer
+    while it is copying a large tree. The revive path then `systemctl stop`s the
+    unit -- killing the copy partway through. Files polls the open folder every
+    4s and any second tab or device asks too, so a long copy was reliably
+    interrupted by the app's own background traffic.
+
+    Reproduced against a stub: a healthy agent busy for 3s probes as
+    {"ok": false, "code": "agent"} after exactly 1.5s, indistinguishable from a
+    crash. systemd knows the difference, so ask it.
+    """
+    monkeypatch.setattr(mgr, "_fs_call",
+                        lambda user, req, timeout=10.0: {"ok": False, "code": "agent"})
+    stopped = []
+    monkeypatch.setattr(mgr.subprocess, "run",
+                        lambda a, **k: stopped.append(list(a)) or _Done())
+    monkeypatch.setattr(mgr, "_unit_alive", lambda unit: True)      # alive, just busy
+
+    ok, err = mgr._ensure_fileagent("alice")
+    assert ok, f"a live-but-busy agent must be left alone, got {err}"
+    assert not any("stop" in c for c in stopped), \
+        f"the busy agent's unit was torn down anyway: {stopped}"
+
+
+class _Done:
+    returncode = 0
+    stdout = ""
+    stderr = ""

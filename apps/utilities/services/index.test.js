@@ -84,6 +84,7 @@ function load(opts) {
   // One current payload, swappable mid-test: the page fires two immediate loads
   // at startup (its own + startPolling's), so a queue would desync.
   let payload = opts.payload;
+  let status = opts.status || 200;
   const offline = !("payload" in opts);
   const sandbox = {
     console: { log() {}, warn() {}, error() {} },
@@ -96,7 +97,10 @@ function load(opts) {
     fetch(url, opt) {
       calls.push({ url: String(url), method: (opt && opt.method) || "GET", body: opt && opt.body, headers: (opt && opt.headers) || {} });
       if (offline) return Promise.reject(new Error("offline"));
-      return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve(payload) });
+      // `status` lets a test serve a REAL HTTP error whose body is still valid
+      // JSON — the 403 shape that used to render as an empty network.
+      return Promise.resolve({ ok: status >= 200 && status < 300, status: status,
+                               json: () => Promise.resolve(payload) });
     },
     addEventListener(t, fn) { (sandbox._on[t] || (sandbox._on[t] = [])).push(fn); },
     _on: {},
@@ -114,6 +118,7 @@ function load(opts) {
     id: (x) => doc.getElementById(x),
     hasTimer: () => ticker !== null,
     serve: (p) => { payload = p; },
+    setResponse: (st, p) => { status = st; payload = p; },
     tick: () => ticker && ticker(),
     message: (data, origin) => (sandbox._on.message || []).forEach((fn) => fn({ origin: origin || "https://host.test", data })),
     settle: () => new Promise((r) => setImmediate(() => setImmediate(r))),
@@ -255,4 +260,45 @@ test("a failed discovery leaves the page alone rather than throwing", async () =
   await h.settle();
   assert.strictEqual(h.id("grid").children.length, 0);
   assert.strictEqual(h.id("host").textContent, "", "nothing is written from a failed scan");
+});
+
+
+test("a 403 says it is operator-only, not \"no services on your network\"", async () => {
+  // Discovery is operator-gated and its 403 body is valid JSON, so `r.json()`
+  // succeeded, `model.services` was undefined, and render() coerced it to [] and
+  // showed the empty state. Every non-admin user saw a confident claim about
+  // their NETWORK when the truth — carried in the payload the code discarded —
+  // was about their PERMISSIONS.
+  const h = load({
+    status: 403,
+    payload: { error: "this feature is available to the operator only (not yet per-user)" },
+  });
+  await h.settle();
+  const empty = h.id("empty");
+  assert.strictEqual(empty.hidden, false);
+  assert.match(empty.textContent, /operator/i,
+    `a 403 must explain itself, got: ${empty.textContent}`);
+  assert.doesNotMatch(empty.textContent, /No network services detected/);
+});
+
+test("the error text does not stick once discovery works again", async () => {
+  // The real hazard in the counterweight direction: the failure message is
+  // written into the SAME element as the empty state, so a later successful
+  // scan that happens to find nothing would keep claiming "operator only"
+  // forever. Drive the actual sequence — 403, then a good empty scan — rather
+  // than asserting the static markup, which would pass without the reset.
+  const h = load({
+    status: 403,
+    payload: { error: "this feature is available to the operator only (not yet per-user)" },
+  });
+  await h.settle();
+  assert.match(h.id("empty").textContent, /operator/i);
+
+  h.setResponse(200, { services: [], lan_ip: "10.0.0.5" });
+  h.id("refresh").fire("click");
+  await h.settle();
+  const empty = h.id("empty");
+  assert.strictEqual(empty.hidden, false);
+  assert.match(empty.textContent, /No network services detected/,
+    `stale error text survived a successful scan: ${empty.textContent}`);
 });

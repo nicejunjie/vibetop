@@ -382,7 +382,13 @@ def op_delete(req):
 
 
 SEARCH_MAX = 200
-SEARCH_TIMEOUT = 10
+# MUST stay comfortably below _fs_call's transport timeout in the manager (10s).
+# At exactly 10 the agent's own answer lost the race by construction: the socket
+# read timed out at the same instant the search did, so the caller saw a
+# transport failure instead of the partial results the agent was about to send.
+# Two timeouts that must differ, in two files, with nothing tying them together —
+# the same trap as a cache TTL set equal to the client's poll interval.
+SEARCH_TIMEOUT = 6
 
 
 def op_search(req):
@@ -398,7 +404,7 @@ def op_search(req):
     if not q or len(q) > 256:
         return {"ok": False, "error": "query required", "code": "einval"}
     mode = req.get("mode") or "names"
-    results, truncated = [], False
+    results, truncated, timed_out = [], False, False
     try:
         if mode == "content":
             if shutil.which("rg"):
@@ -427,14 +433,47 @@ def op_search(req):
                     break
                 if line and line != root:
                     results.append({"path": line, "isDir": os.path.isdir(line)})
-    except subprocess.TimeoutExpired:
-        truncated = True
+    except subprocess.TimeoutExpired as e:
+        # KEEP what the search already found. TimeoutExpired carries the output
+        # produced before the deadline, and discarding it returned
+        # {"ok": true, "results": [], "truncated": true} -- which the Files app
+        # draws as "No matches", because it returns on an empty result list
+        # BEFORE it ever looks at `truncated`. A search that gave up therefore
+        # looked exactly like a search that found nothing, and the user concluded
+        # the file did not exist.
+        truncated, timed_out = True, True
+        results = _search_rows(_as_text(e.stdout), mode, root, results)
     except (OSError, subprocess.SubprocessError) as e:
         return {"ok": False, "error": str(e), "code": "eio"}
-    return {"ok": True, "results": results, "truncated": truncated, "mode": mode}
+    return {"ok": True, "results": results, "truncated": truncated,
+            "timedOut": timed_out, "mode": mode}
+
+
+def _as_text(out):
+    if out is None:
+        return ""
+    return out if isinstance(out, str) else out.decode("utf-8", "replace")
+
+
+def _search_rows(text, mode, root, results):
+    """Parse search output into result rows, appending to `results` up to
+    SEARCH_MAX. Shared by the normal path and the timeout path so a partial
+    result is parsed exactly like a complete one."""
+    for line in text.splitlines():
+        if len(results) >= SEARCH_MAX:
+            break
+        if mode == "content":
+            parts = line.split(":", 2)
+            if len(parts) == 3 and parts[1].isdigit():
+                results.append({"path": parts[0], "line": int(parts[1]),
+                                "text": parts[2].strip()[:300]})
+        elif line and line != root:
+            results.append({"path": line, "isDir": os.path.isdir(line)})
+    return results
 
 
 HASH_ALGOS = {"md5", "sha1", "sha256", "sha512"}
+HASH_DEADLINE = 6      # < the manager's _fs_call transport timeout; see op_hash
 
 
 def op_hash(req):
@@ -449,6 +488,18 @@ def op_hash(req):
     if algo not in HASH_ALGOS:
         return {"ok": False, "error": "unknown algo", "code": "einval"}
     h = hashlib.new(algo)
+    # A DEADLINE, because the accept loop is serial: whatever this is hashing, the
+    # user's whole Files app is blocked behind it. "Streams the file -- any size"
+    # meant a multi-GB file held the agent for minutes, long past the manager's
+    # 10s transport timeout, so the caller had already given up while the agent
+    # kept going. Below that transport timeout for the same reason as the search
+    # deadline: the reply has to fit inside the window the caller is still waiting.
+    #
+    # A partial hash is worthless, so this reports honestly rather than returning
+    # a wrong digest -- the info dialog shows "too large" and offers no checksum,
+    # which is the truth.
+    deadline = time.monotonic() + HASH_DEADLINE
+    done = 0
     try:
         with open(path, "rb") as f:
             while True:
@@ -456,6 +507,11 @@ def op_hash(req):
                 if not chunk:
                     break
                 h.update(chunk)
+                done += len(chunk)
+                if time.monotonic() > deadline:
+                    return {"ok": False, "code": "etoobig", "bytes": done,
+                            "error": "file too large to checksum quickly "
+                                     f"(hashed {done} bytes in {HASH_DEADLINE}s)"}
     except OSError as e:
         return {"ok": False, "error": str(e), "code": _errcode(e)}
     return {"ok": True, "algo": algo, "hex": h.hexdigest()}
