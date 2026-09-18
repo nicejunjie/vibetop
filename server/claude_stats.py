@@ -105,7 +105,13 @@ def _compute(home):
 
     for f in files:
         try:
-            fh = open(f)
+            # errors="replace": the except below catches OSError, but an
+            # undecodable byte raises UnicodeDecodeError (a ValueError) from
+            # the ITERATION below, not from open() -- so it escaped _compute
+            # entirely and 500d the endpoint. Nothing was cached on that path,
+            # so every later request re-read the whole corpus and re-crashed.
+            # One bad byte written by any tool was enough to kill Token Stats.
+            fh = open(f, errors="replace")
         except OSError:
             continue
         with fh:

@@ -141,8 +141,44 @@ def op_list(req):
     if len(entries) > MAX_ENTRIES:
         truncated = True
         entries = entries[:MAX_ENTRIES]
+    # Conditional listing. The Files app re-lists the open folder every 4s purely
+    # to notice a change, and a folder usually has not changed — so it downloaded
+    # a full listing (measured 7.7KB raw / 1.6KB gzipped for a plain home, and it
+    # grows linearly with entry count) and threw it away, once every 4 seconds for
+    # as long as Files was on screen.
+    #
+    # `sig` is the signature the CLIENT already holds, computed by the same rule
+    # it uses to decide whether to re-render (name/size/mtime/isDir per row). When
+    # it still matches, say so in a few bytes instead of resending the listing.
+    # The scan still happens here — this saves the transfer, not the syscalls,
+    # which is the part that was actually costing anything.
+    sig = req.get("sig")
+    if sig and sig == _list_digest(entries):
+        return {"ok": True, "path": path, "unchanged": True}
     return {"ok": True, "path": path, "entries": entries,
             "truncated": truncated, "total": total}
+
+
+def _list_digest(entries):
+    """A SHORT digest of the client's sigOf() string.
+
+    It must be short because it travels as a query parameter: the signature
+    itself is name/size/mtime/isDir per row, i.e. about as large as the listing
+    it is meant to avoid sending, so passing it raw would cost more than it saved.
+
+    FNV-1a over UTF-8, which filesx.html implements identically. Both sides must
+    hash the SAME BYTES -- JS string indexing yields UTF-16 code units, so the
+    client encodes to UTF-8 first; a mismatch here means a folder that either
+    never refreshes or refreshes on every poll, so it is asserted in the tests.
+
+    Not a security boundary: a collision costs a missed refresh until the next
+    change, never someone else's data."""
+    sig = "\n".join("{}\x01{}\x01{}\x01{}".format(
+        e["name"], e["size"], e["mtime"], 1 if e["isDir"] else 0) for e in entries)
+    h = 0x811c9dc5
+    for b in sig.encode("utf-8", "surrogatepass"):
+        h = ((h ^ b) * 0x01000193) & 0xFFFFFFFF
+    return format(h, "08x")
 
 
 def op_usage(req):
