@@ -440,6 +440,12 @@
   .tb-stats .u:nth-child(8n+3) { padding-right: 6px; }
   /* Gap between ° and the MEM/VRAM label */
   .tb-stats .u:nth-child(8n+5) { padding-right: 12px; }
+  /* Heartbeat lost: the numbers are frozen, so stop presenting them as live.
+     Dimmed rather than hidden or blanked — the last known reading is still worth
+     something, it just must not look current. The wallpaper host line says HOW
+     old in words ("as of 2m ago"); this is the peripheral-vision half of it. */
+  .tb-stats.tb-stale .n, .tb-stats.tb-stale .u { color: #5b6470; }
+  .tb-stats.tb-stale { opacity: 0.65; }
 
   /* === System-health warning banner ===
      IN THE FLEX FLOW (a `flex:0 0 auto` first child of body, like .cu-strip) —
@@ -2650,7 +2656,14 @@
     // on) and the terminal count for the Start-menu badge. Set terminalCount
     // before markMenuRunning so the Terminal dot reflects it this beat.
     if (d.system) renderSysStats(d.system);
-    renderWarnings(d.warnings);   // system-health red banner (disk-full etc.), always on the heartbeat
+    // system-health red banner (disk-full etc.), normally on every heartbeat —
+    // but ONLY when the key is actually present. `renderWarnings(undefined)`
+    // coerces to `[]`, which is the "all clear" render: a reply that simply did
+    // not carry `warnings` (an older manager, a partial/ trimmed payload, a
+    // future flag that gates the collector) WIPED a live "disk 96% full" banner
+    // off the screen, and the next beat that did carry it put it back. Not
+    // knowing is not the same as nothing being wrong: leave the banner alone.
+    if ('warnings' in d) renderWarnings(d.warnings);
     if (typeof d.terminals_running === 'number') terminalCount = d.terminals_running;
     if (Array.isArray(d.running)) { runningGlobal = d.running; markMenuRunning(); }
     switch (VibeDeskState.resetDecision(lastResetEpoch, d.reset_epoch)) {
@@ -2720,7 +2733,8 @@
     }).then(function(r) {
       if (!r.ok) throw new Error('Desktop heartbeat failed');
       return r.json();
-    }).then(onDesktopResp).catch(function() { window.vibeCheckAuth(); });
+    }).then(function(d) { noteHeartbeat(true); onDesktopResp(d); })
+      .catch(function() { noteHeartbeat(false); window.vibeCheckAuth(); });
   }
   window.pushDesktop = pushDesktop;   // usage-strips.js calls it after a toggle
 
@@ -3879,14 +3893,38 @@
     if (on === sysStatsOn()) return;
     setSysStatsLocal(on);
   };
+  // A REFUSED toggle must not look like a flaky one. `fetch` resolves happily on
+  // a 403 or a 500, so `.then(function() { ... })` with no `r.ok` treated a
+  // refusal as agreement: the optimistic state stayed on screen, the override
+  // window was cleared early, and the next heartbeat (≤5s) carried the server's
+  // unchanged value and flipped the row straight back. The user saw a switch
+  // that "doesn't stick" — while the reason was sitting in the status code the
+  // code never read. Revert at once, and say which kind of no it was.
+  function noteToggleRefusal(id, status) {
+    var it = document.querySelector('.sm-item[data-id="' + id + '"]');
+    var ds = it && it.querySelector('.sm-desc');
+    if (!ds) return;
+    ds.textContent = status === 403 ? 'Operator only — not changed'
+                   : status ? 'Could not change (' + status + ')'
+                            : 'Could not reach the server — not changed';
+  }
   window.toggleSysStats = function() {
     var want = !sysStatsOn();
     setSysStatsLocal(want);   // optimistic; other clients pick it up on their heartbeat
     sysStatsOverrideUntil = Date.now() + 8000;   // fallback if the POST never resolves
     fetch('/api/desktop/ui', { method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ sysStats: want }) })
-      .then(function() { sysStatsOverrideUntil = 0; if (want) pushDesktop(); })   // server agrees → heartbeat returns d.system
-      .catch(function() { sysStatsOverrideUntil = 0; });
+      .then(function(r) {
+        sysStatsOverrideUntil = 0;
+        // Refused: put the switch back where the SERVER says it is, then explain.
+        // setSysStatsLocal re-renders the row, so the note is written after it.
+        if (!r.ok) { setSysStatsLocal(!want); noteToggleRefusal('sysstats', r.status); return; }
+        if (want) pushDesktop();   // server agrees → heartbeat returns d.system
+      })
+      .catch(function() {
+        sysStatsOverrideUntil = 0;
+        setSysStatsLocal(!want); noteToggleRefusal('sysstats', 0);
+      });
   };
 
   // Render-only: the taskbar stats now arrive on the desktop heartbeat as
@@ -3922,8 +3960,46 @@
     // Wallpaper host line — which machine this desktop IS, at a glance (this
     // matters once you run vibetop on more than one host) + how long it's been
     // up. Rides the heartbeat that delivered `d`; textContent, never HTML.
+    // Kept in a variable rather than written straight out, because the staleness
+    // suffix below has to be able to re-render it without a fresh payload.
+    hbHostLine = (d.hostname || '') + (d.uptime ? '  ·  up ' + d.uptime : '');
+    renderHeartbeatAge();
+  }
+
+  // --- Is the heartbeat still arriving? --------------------------------------
+  // The taskbar's CPU/GPU/MEM figures, the wallpaper's host + uptime line and
+  // the Start-menu terminal count ALL arrive on one 5s POST, and that POST's
+  // failure handler only re-checked auth — it never touched the render. So a
+  // stopped manager, a dropped tunnel or a laptop waking from sleep left every
+  // one of those numbers frozen at its last value while still looking live. The
+  // uptime was the worst: "up 23h 27m" is a clock, and a stopped clock reads as
+  // a measurement rather than as an absence.
+  // Two missed beats (~10s) before saying anything — one dropped POST while a
+  // phone changes network is not worth a badge — and the wording is deliberately
+  // the usage strips' own "as of Nm ago", via their `ageText` (guarded: that
+  // file loads at the end of <body>, so it may not exist when this first runs).
+  var hbLastOkAt = 0, hbMissed = 0, hbHostLine = '';
+  function hbAgeText() {
+    var sec = hbLastOkAt ? Math.max(0, (Date.now() - hbLastOkAt) / 1000) : 0;
+    // Under a minute the strips' minute granularity would say "0m"; this is a
+    // 5s channel, so seconds are the readable unit down here.
+    if (sec < 60) return Math.round(sec) + 's';
+    return window.ageText ? window.ageText(sec) : Math.round(sec / 60) + 'm';
+  }
+  function renderHeartbeatAge() {
+    var stale = hbMissed >= 2;
+    var st = document.querySelector('.tb-stats');
+    if (st) {
+      st.classList.toggle('tb-stale', stale);
+      st.title = stale ? 'Not updating — this reading is ' + hbAgeText() + ' old' : '';
+    }
     var wh = document.getElementById('wp-host');
-    if (wh) wh.textContent = (d.hostname || '') + (d.uptime ? '  ·  up ' + d.uptime : '');
+    if (wh) wh.textContent = hbHostLine +
+      (stale && hbHostLine ? '  ·  as of ' + hbAgeText() + ' ago' : '');
+  }
+  function noteHeartbeat(ok) {
+    if (ok) { hbMissed = 0; hbLastOkAt = Date.now(); } else { hbMissed++; }
+    renderHeartbeatAge();
   }
 
   // System-health warning banner, driven by the heartbeat's `warnings` array (see

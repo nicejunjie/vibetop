@@ -2816,7 +2816,12 @@
       api('/api/fs/read?path=' + encodeURIComponent(absPath) + '&max=' + READ_MAX).catch(function() { return null; })
     ]).then(function(rs) {
       var sd = rs[0], d = rs[1];
-      if (d && d.ok && !d.binary && !d.truncated) {
+      // `!d.lossy` for the same reason as `!d.truncated`: the buffer we hold is
+      // not what is on disk. A latin-1 / cp1252 text file decodes with U+FFFD
+      // substitutions, and saving the textarea back as UTF-8 would make every one
+      // of them permanent — irreversibly, behind a "Saved" toast. Preview it
+      // instead, which is exactly how a truncated file is already handled.
+      if (d && d.ok && !d.binary && !d.truncated && !d.lossy) {
         openEditor(absPath, name, d.text || '', (sd && sd.ok && sd.stat) ? sd.stat.mtime : null, gotoLine);
       } else {
         showPreview(absPath, name, d, sd);
@@ -3174,6 +3179,10 @@
     }
     if (d.truncated) {
       pvNoteEl.textContent = 'Large file — read-only preview of the first ' + fmtSize(READ_MAX) + ' of ' + fmtSize(d.size) + '.';
+      pvNoteEl.className = 'pv-note on';
+    } else if (d.lossy) {
+      pvNoteEl.textContent = 'Not UTF-8 — read-only. Some bytes cannot be shown, ' +
+        'and editing here would rewrite them permanently. Download it to edit.';
       pvNoteEl.className = 'pv-note on';
     }
     pvBodyEl.className = 'pv-body';

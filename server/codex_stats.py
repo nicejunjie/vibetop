@@ -60,13 +60,20 @@ def get_stats(home):
     return data
 
 
-def _compute(home):
-    by_day, by_hour, by_model, sessions = {}, {}, {}, set()
-    files = glob.glob(os.path.join(home, ".codex", "sessions", "**", "*.jsonl"),
-                      recursive=True)
-    for path in files:
+# Per-file aggregate cache. Same motivation as claude_stats (append-only JSONL,
+# re-read in full on every 45s refresh -- 1.1GB here), but SIMPLER: Codex has no
+# cross-file dedup and `model` is per-file state set by that file's own
+# turn_context events, so each file's contribution is independent and plain
+# aggregates can be summed. claude_stats has to cache extracted records instead,
+# because its (message id, requestId) dedup spans files.
+_file_cache = {}
+_FILE_CACHE_MAX = 4000
+
+
+def _parse_file(path):
+    by_day, by_hour, by_model = {}, {}, {}
+    for path_ in (path,):
         model, sid = "gpt-5.6-sol", os.path.basename(path)
-        sessions.add(sid)
         try:
             # errors="replace" -- see the note in claude_stats._compute: a bad
             # byte raises from the iteration, not from open(), so it escaped
@@ -103,6 +110,40 @@ def _compute(home):
                 _add(by_day, dt.strftime("%Y-%m-%d"), tin, tout, cached, cost)
                 _add(by_hour, int(dt.timestamp()) // 3600, tin, tout, cached, cost)
                 _add(by_model, model, tin, tout, cached, cost)
+    return {"by_day": by_day, "by_hour": by_hour, "by_model": by_model}
+
+
+def _compute(home):
+    by_day, by_hour, by_model, sessions = {}, {}, {}, set()
+    files = glob.glob(os.path.join(home, ".codex", "sessions", "**", "*.jsonl"),
+                      recursive=True)
+    cache = _file_cache.setdefault(home, {})
+    live = set()
+    for path in files:
+        sessions.add(os.path.basename(path))
+        try:
+            st = os.stat(path)
+            sig = (st.st_mtime_ns, st.st_size)
+        except OSError:
+            continue
+        live.add(path)
+        ent = cache.get(path)
+        if ent is None or ent["sig"] != sig:
+            ent = cache[path] = {"sig": sig, "part": _parse_file(path)}
+        for src, dst in ((ent["part"]["by_day"], by_day),
+                         (ent["part"]["by_hour"], by_hour),
+                         (ent["part"]["by_model"], by_model)):
+            for k, e in src.items():
+                d = dst.get(k)
+                if d is None:
+                    dst[k] = dict(e)
+                else:
+                    for fld in d:
+                        d[fld] += e[fld]
+    for gone in [k for k in cache if k not in live]:
+        cache.pop(gone, None)
+    if len(cache) > _FILE_CACHE_MAX:
+        cache.clear()
 
     today = datetime.now().astimezone().date()
     def sum_days(n):

@@ -94,16 +94,29 @@ def _fmt(e):
             "cost": round(e["cost"], 4), "req": e["req"]}
 
 
-def _compute(home):
-    pattern = os.path.join(home, ".claude", "projects", "**", "*.jsonl")
-    files = glob.glob(pattern, recursive=True)
-    seen = set()
-    by_day = {}
-    by_hour = {}
-    by_model = {}
-    sessions = set()
+# ---- incremental parse ------------------------------------------------------
+# The corpus is APPEND-ONLY JSONL, so a file whose (mtime, size) is unchanged
+# yields byte-identical records. Re-reading all of it on every refresh cost 8.46s
+# over 2.6GB here -- the module docstring's "~1.5s" was written when the corpus
+# was 5.6x smaller -- i.e. ~19% of a core continuously while Token Stats was
+# open, growing without bound with ordinary use since nothing prunes
+# ~/.claude/projects.
+#
+# What is cached is each file's EXTRACTED RECORDS, not its aggregates. Dedup on
+# (message id, requestId) is GLOBAL across the corpus and 259 keys really do
+# appear in two files here (measured -- a resumed session re-records history), so
+# summing per-file aggregates would double-count them. Replaying ~49k small
+# records through the original global-dedup loop is ~50ms and byte-identical,
+# while the 2.6GB of message text those records were extracted from is read only
+# when a file actually changes.
+_file_cache = {}        # home -> {path: {"sig": (mtime_ns, size), "recs": [...]}}
+_FILE_CACHE_MAX = 4000  # bound the per-home map; far above any real corpus
 
-    for f in files:
+
+def _parse_file(path):
+    """Extract this file's usage records. Pure: same bytes -> same list."""
+    recs = []
+    for f in (path,):
         try:
             # errors="replace": the except below catches OSError, but an
             # undecodable byte raises UnicodeDecodeError (a ValueError) from
@@ -129,13 +142,13 @@ def _compute(home):
                 model = msg.get("model") or o.get("model") or ""
                 if not model or str(model).startswith("<"):
                     continue
+                # The dedup itself moved to the replay in _compute: it is GLOBAL
+                # across the corpus (259 keys really do appear in two files here),
+                # so it cannot be applied while parsing one file in isolation.
+                # A record with no message id was never deduped and still is not.
                 mid = msg.get("id")
                 rid = o.get("requestId")
-                if mid:
-                    key = (mid, rid)
-                    if key in seen:
-                        continue
-                    seen.add(key)
+                key = (mid, rid) if mid else None
                 tin = u.get("input_tokens", 0) or 0
                 tout = u.get("output_tokens", 0) or 0
                 cr = u.get("cache_read_input_tokens", 0) or 0
@@ -147,8 +160,6 @@ def _compute(home):
                     cw5 = cwtot
                 cost = _cost(_tier(model), tin, tout, cw5, cw1h, cr)
                 sid = o.get("sessionId")
-                if sid:
-                    sessions.add(sid)
                 ts = o.get("timestamp")
                 dt = None
                 if ts:
@@ -157,12 +168,51 @@ def _compute(home):
                             ts.replace("Z", "+00:00")).astimezone()
                     except (ValueError, TypeError):
                         dt = None
-                if dt is not None:
-                    _add(by_day, dt.strftime("%Y-%m-%d"),
-                         tin, tout, cwtot, cr, cost)
-                    _add(by_hour, int(dt.timestamp()) // 3600,
-                         tin, tout, cwtot, cr, cost)
-                _add(by_model, model, tin, tout, cwtot, cr, cost)
+                recs.append((key, sid,
+                             dt.strftime("%Y-%m-%d") if dt is not None else None,
+                             int(dt.timestamp()) // 3600 if dt is not None else None,
+                             model, tin, tout, cwtot, cr, cost))
+    return recs
+
+
+def _compute(home):
+    pattern = os.path.join(home, ".claude", "projects", "**", "*.jsonl")
+    files = glob.glob(pattern, recursive=True)
+    cache = _file_cache.setdefault(home, {})
+    seen = set()
+    by_day = {}
+    by_hour = {}
+    by_model = {}
+    sessions = set()
+
+    live = set()
+    for f in files:
+        try:
+            st = os.stat(f)
+            sig = (st.st_mtime_ns, st.st_size)
+        except OSError:
+            continue
+        live.add(f)
+        ent = cache.get(f)
+        if ent is None or ent["sig"] != sig:
+            ent = cache[f] = {"sig": sig, "recs": _parse_file(f)}
+        # Replay through the ORIGINAL global-dedup loop, in glob order, so the
+        # result is identical to the single-pass version it replaces.
+        for key, sid, day, hour, model, tin, tout, cwtot, cr, cost in ent["recs"]:
+            if key is not None:
+                if key in seen:
+                    continue
+                seen.add(key)
+            if sid:
+                sessions.add(sid)
+            if day is not None:
+                _add(by_day, day, tin, tout, cwtot, cr, cost)
+                _add(by_hour, hour, tin, tout, cwtot, cr, cost)
+            _add(by_model, model, tin, tout, cwtot, cr, cost)
+    for gone in [k for k in cache if k not in live]:      # deleted transcripts
+        cache.pop(gone, None)
+    if len(cache) > _FILE_CACHE_MAX:
+        cache.clear()
 
     today = datetime.now().astimezone().date()
 

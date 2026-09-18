@@ -65,7 +65,12 @@ function el(id) {
     id, innerHTML: '', style: {}, onclick: null, dataset: {},
     _classes: new Set(),
     get className() { return [...node._classes].join(' '); },
-    querySelector: () => null, querySelectorAll: () => [],
+    // Start-menu rows carry a `.sm-desc` line ("On — plan usage strip" / "Off");
+    // it is the only place either strip can say anything to the user, so the
+    // stub has to hand one back rather than null.
+    querySelector: (sel) => (String(sel).indexOf('sm-desc') >= 0
+      ? (node._desc || (node._desc = el(id + '-desc'))) : null),
+    querySelectorAll: () => [],
     addEventListener() {}, getBoundingClientRect: () => ({ width: 360, height: 20 }),
     appendChild() {}, removeChild() {}, remove() {},
   };
@@ -79,7 +84,8 @@ function el(id) {
   return node;
 }
 
-function load(source) {
+function load(source, opts) {
+  const reply = (opts && opts.reply) || { ok: true, status: 200 };
   const nodes = {
     'cu-strip': el('cu-strip'), 'cx-strip': el('cx-strip'),
     'cu-x': el('cu-x'), 'cx-x': el('cx-x'), 'sm-util-parent': el('sm-util-parent'),
@@ -99,7 +105,10 @@ function load(source) {
   const sandbox = {
     document, console, Date, Math, JSON, String, Number, Object, Array,
     setTimeout, clearTimeout, setInterval: () => 0, clearInterval() {},
-    fetch: (url, opt) => { posted.push({ url, opt }); return Promise.resolve({ ok: true, json: () => Promise.resolve({}) }); },
+    // fetch RESOLVES on a 403 — that is the whole point of the refusal tests
+    // below, so the stub must be able to answer with one.
+    fetch: (url, opt) => { posted.push({ url, opt }); return Promise.resolve(
+      Object.assign({ json: () => Promise.resolve({}) }, reply)); },
   };
   sandbox.window = sandbox;
   sandbox.self = sandbox;
@@ -197,6 +206,46 @@ test('every window.* function the module calls is published by the shell', () =>
   }
 });
 
+// A REFUSED toggle must not read as a flaky one. Claude-usage is operator-only
+// (`_is_admin()`), so a 403 is the ORDINARY reply for every non-admin who clicks
+// that row — and `fetch` resolves on it. With no `r.ok` the refusal ran the
+// success path: the guard window was cleared, the optimistic ON state stayed up,
+// and the next 5s heartbeat carried the server's unchanged value and flipped the
+// row back OFF. The user saw a switch that does not stick; the reason was in the
+// status code the code never read.
+for (const [name, toggle, rowId] of [
+  ['Claude', 'toggleClaudeUsage', 'claudeusage'],
+  ['Codex', 'toggleCodexUsage', 'codexusage'],
+]) {
+  test(`a refused ${name} toggle reverts at once and says why`, async () => {
+    const { sandbox, rows } = load(src, { reply: { ok: false, status: 403 } });
+    sandbox.pushDesktop = () => {};
+    sandbox[`applyServer${name}Usage`](false, { enabled: false });   // starts OFF
+    assert.equal(rows[rowId].classList.contains('cu-on'), false);
+
+    sandbox[toggle]();                                               // user turns it ON
+    assert.equal(rows[rowId].classList.contains('cu-on'), true, 'optimistic while in flight');
+    await new Promise((r) => setTimeout(r, 10));
+
+    assert.equal(rows[rowId].classList.contains('cu-on'), false,
+      'the server refused, so the switch must go back NOW — not silently 5s later ' +
+      'when a heartbeat happens to contradict it');
+    assert.match(rows[rowId].querySelector('.sm-desc').textContent, /operator/i,
+      'and a 403 must be reported as what it is: this feature is operator-only');
+  });
+
+  test(`an unreachable server also reverts the ${name} toggle`, async () => {
+    const { sandbox, rows } = load(src, { reply: { ok: false, status: 500 } });
+    sandbox.pushDesktop = () => {};
+    sandbox[`applyServer${name}Usage`](false, { enabled: false });
+    sandbox[toggle]();
+    await new Promise((r) => setTimeout(r, 10));
+    assert.equal(rows[rowId].classList.contains('cu-on'), false, 'a 500 is not a yes');
+    assert.match(rows[rowId].querySelector('.sm-desc').textContent, /\S/,
+      'and it must say something rather than leave the row looking idle');
+  });
+}
+
 test('the strips survive a shell that never published pushDesktop', () => {
   const { sandbox } = load(src);
   assert.doesNotThrow(() => sandbox.toggleClaudeUsage(), 'must not require pushDesktop to exist');
@@ -282,4 +331,143 @@ test('the ✕ gutter is reserved on the side the ✕ is actually on', () => {
   assert.ok(narrow, 'the 340px media query must be present');
   assert.doesNotMatch(narrow[0], /\.cu-strip \{ padding-left/,
     'shrinking padding-left on a phone would put the brand under the ✕');
+});
+
+// ==========================================================================
+// desktop.html — the shell's own two "states something it does not know" bugs.
+//
+// The shell's main script is one ~4,000-line IIFE that cannot be instantiated
+// without most of a browser, so these tests lift the exact functions under test
+// out of the SHIPPED file by name (brace-matched, not copied) and run that
+// source in a sandbox with their free variables stubbed. It is the real code —
+// change it and these see the change — without pretending to boot a desktop.
+// ==========================================================================
+
+// Brace-matched extraction. Every brace inside a string literal in these
+// functions happens to be balanced ('{}' , {} ), so a plain counter is safe; if
+// that ever stops being true this throws rather than extracting nonsense.
+function cut(sig, { optional = false } = {}) {
+  const i = shell.indexOf('\n  ' + sig);
+  if (i < 0) {
+    if (optional) return '';
+    assert.fail(`desktop.html no longer contains "${sig}"`);
+  }
+  const start = shell.indexOf('{', i);
+  let depth = 0;
+  for (let j = start; j < shell.length; j++) {
+    if (shell[j] === '{') depth++;
+    else if (shell[j] === '}' && --depth === 0) return shell.slice(i, j + 1) + ';\n';
+  }
+  assert.fail(`unbalanced braces extracting ${sig}`);
+}
+
+function shellSandbox(parts, opts = {}) {
+  opts = opts || {};
+  const nodes = { 'wp-host': el('wp-host'), 'sys-warn': el('sys-warn') };
+  nodes['sys-warn'].children = [];
+  nodes['sys-warn'].appendChild = function (c) { nodes['sys-warn'].children.push(c); };
+  Object.defineProperty(nodes['sys-warn'], 'innerHTML', {
+    set(v) { if (v === '') nodes['sys-warn'].children.length = 0; }, get() { return ''; },
+  });
+  const stats = el('tb-stats');
+  const rows = { sysstats: el('row-sysstats') };
+  let stored = opts.sysStats === undefined ? '1' : opts.sysStats;
+  const document = {
+    getElementById: (id) => nodes[id] || null,
+    querySelector(sel) {
+      if (sel === '.tb-stats') return stats;
+      const m = String(sel).match(/data-id="([a-z]+)"/);
+      return m ? rows[m[1]] || null : null;
+    },
+    querySelectorAll: () => [],
+    createElement: () => el('new'), addEventListener() {}, body: el('body'), hidden: false,
+  };
+  const posted = [];
+  const prelude = `
+    var terminalCount = 0, runningGlobal = [], lastResetEpoch = null;
+    var INSTANCE_ID = 'i', openApps = [], active = null, persistTimer = null;
+    var hbLastOkAt = 0, hbMissed = 0, hbHostLine = '';
+    var sysStatsOverrideUntil = 0;
+    function markMenuRunning() {} function clearAllLocal() {} function closeApp() {}
+    function onDesktopResp() {}   // replaced by the real one when a test extracts it
+    function pushDesktop() {} function noteHeartbeat() {} function renderHeartbeatAge() {}
+    window.vibeCheckAuth = function () {};   // the real one re-checks the session cookie
+    function hbAgeText() { return '?'; } function noteToggleRefusal() {}
+    var VibeDeskState = { resetDecision: function () { return 'none'; },
+                          closeTargetsFor: function () { return []; } };
+  `;
+  const sandbox = {
+    document, console, Date, Math, JSON, String, Number, Object, Array, Promise,
+    setTimeout, clearTimeout, Error,
+    localStorage: { getItem: () => stored, setItem: (k, v) => { stored = v; }, removeItem() {} },
+    sessionStorage: { getItem: () => null, setItem() {} },
+    fetch: (url, opt) => { posted.push({ url, opt }); return opts.reply === 'reject'
+      ? Promise.reject(new Error('offline'))
+      : Promise.resolve(Object.assign({ json: () => Promise.resolve({}) }, opts.reply || { ok: true, status: 200 })); },
+  };
+  sandbox.window = sandbox;
+  sandbox.addEventListener = () => {};
+  vm.runInNewContext(prelude + parts, sandbox, { filename: 'desktop.html' });
+  return { sandbox, nodes, stats, rows, posted, stored: () => stored };
+}
+
+// --- the disk-full banner --------------------------------------------------
+// `renderWarnings(undefined)` coerces to [] — which is the ALL-CLEAR render. A
+// heartbeat that simply did not carry `warnings` therefore wiped a live
+// "disk 96% full" banner off the screen. Not knowing is not the same as nothing
+// being wrong.
+test('a heartbeat with no warnings key leaves a live warning banner alone', () => {
+  const h = shellSandbox(cut('function onDesktopResp') + cut('function renderWarnings'));
+  h.sandbox.onDesktopResp({ warnings: [{ id: 'disk', level: 'critical', text: 'disk 96% full' }] });
+  assert.equal(h.nodes['sys-warn'].children.length, 1, 'the banner shows while the server reports it');
+
+  h.sandbox.onDesktopResp({ running: [] });          // a reply that says nothing about warnings
+  assert.equal(h.nodes['sys-warn'].children.length, 1,
+    'a payload that does not mention warnings must not CLEAR them — the disk is still full, ' +
+    'and the user just watched the alarm disappear on its own');
+
+  h.sandbox.onDesktopResp({ warnings: [] });         // an explicit all-clear still clears
+  assert.equal(h.nodes['sys-warn'].children.length, 0, 'an explicit empty list is an all-clear');
+});
+
+// --- the frozen taskbar ----------------------------------------------------
+test('taskbar stats stop claiming to be live once the heartbeat stops', async () => {
+  const parts = cut('function renderSysStats') + cut('function pushDesktop') +
+    cut('function hbAgeText', { optional: true }) +
+    cut('function renderHeartbeatAge', { optional: true }) +
+    cut('function noteHeartbeat', { optional: true });
+  const h = shellSandbox(parts, { reply: 'reject' });
+  // One good beat's worth of figures, rendered exactly as the heartbeat does.
+  h.sandbox.renderSysStats({ hostname: 'z20', uptime: '23h 27m', cpu_percent: 12 });
+  const live = h.nodes['wp-host'].textContent;
+  assert.match(live, /z20/);
+  assert.match(live, /23h 27m/);
+
+  await h.sandbox.pushDesktop();      // beat 1 fails
+  assert.equal(h.nodes['wp-host'].textContent, live, 'one dropped beat is not worth a word');
+  await h.sandbox.pushDesktop();      // beat 2 fails
+  const shown = h.nodes['wp-host'].textContent;
+  assert.notEqual(shown, live,
+    '"up 23h 27m" is a clock. Once the heartbeat feeding it has stopped, leaving it ' +
+    'unchanged states a measurement the shell no longer has.');
+  assert.match(shown, /ago/,
+    'and it must say how old the reading is, in the same idiom as the usage strips');
+  assert.ok(h.stats.classList.contains('tb-stale'),
+    'the taskbar figures beside it are just as frozen and must be marked too');
+});
+
+// --- a refused toggle ------------------------------------------------------
+test('a refused System-Stats toggle goes back and says why', async () => {
+  const parts = cut('function sysStatsOn') + cut('function applySysStats') +
+    cut('function setSysStatsLocal') + cut('function noteToggleRefusal', { optional: true }) +
+    cut('window.toggleSysStats = function');
+  const h = shellSandbox(parts, { sysStats: '1', reply: { ok: false, status: 403 } });
+  assert.equal(h.stored(), '1', 'starts on');
+  h.sandbox.window.toggleSysStats();
+  assert.equal(h.stored(), '0', 'optimistic while the POST is in flight');
+  await new Promise((r) => setTimeout(r, 10));
+  assert.equal(h.stored(), '1',
+    'the server refused: the switch must return to the state the server is actually in, ' +
+    'now — not be contradicted by a heartbeat 5s later, which reads as a broken toggle');
+  assert.equal(h.stats.style.display, '', 'and the stats it hid must come back');
 });

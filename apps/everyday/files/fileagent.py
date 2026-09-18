@@ -233,8 +233,23 @@ def op_read(req):
     truncated = len(data) > limit
     data = data[:limit]
     binary = b"\x00" in data[:8192]
+    # `lossy` — whether decoding DESTROYED anything. "binary" is only "is there a
+    # NUL in the first 8KiB", so a latin-1/cp1252 .txt or an Excel-exported .csv
+    # is neither binary nor truncated and opened in the EDITABLE editor; saving
+    # posted the textarea back as UTF-8 and every invalid byte became U+FFFD
+    # permanently, with a "Saved" toast and no signal at any point.
+    #
+    # The replaced text is still returned so the file can be PREVIEWED — the
+    # caller just must not offer to write it back. Same contract the editor
+    # already honours for `truncated`.
+    text, lossy = "", False
+    if not binary:
+        try:
+            text = data.decode("utf-8")
+        except UnicodeDecodeError:
+            text, lossy = data.decode("utf-8", "replace"), True
     return {"ok": True, "size": size, "truncated": truncated, "binary": binary,
-            "text": "" if binary else data.decode("utf-8", "replace")}
+            "lossy": lossy, "text": text}
 
 
 # ---- phase 2: mutations -----------------------------------------------------
