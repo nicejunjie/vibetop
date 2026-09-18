@@ -772,7 +772,14 @@ def _set_claude_usage_env(on):
     else:
         d.pop("env", None)
     os.makedirs(os.path.dirname(CLAUDE_SETTINGS_FILE), exist_ok=True)
-    _atomic_write(CLAUDE_SETTINGS_FILE, json.dumps(d, indent=2))
+    # OPERATOR, not the request user: this is the human operator's OWN
+    # ~/.claude/settings.json, which their `claude` CLI reads outside vibetop
+    # entirely. _atomic_write's default would chown it to whoever called the
+    # endpoint — and while that is admin-gated, an install with more than one
+    # name in VIBETOP_ADMINS would hand one admin's Claude config to another and
+    # break the CLI for its owner. The documented rule for any `~` path meaning
+    # "the operator's home".
+    _atomic_write(CLAUDE_SETTINGS_FILE, json.dumps(d, indent=2), owner=OPERATOR)
 
 
 def _set_claude_usage(on):
@@ -1466,7 +1473,7 @@ def _write_resource_policy(mem_max, cpu_cores):
         try:
             os.makedirs(os.path.dirname(RESOURCE_POLICY_FILE), exist_ok=True)
             _atomic_write(RESOURCE_POLICY_FILE, json.dumps(
-                {"memMax": mem_max, "cpuCores": cpu_cores}))
+                {"memMax": mem_max, "cpuCores": cpu_cores}), owner="root")
         except OSError as e:
             log.warning("resource policy write failed: %s", e)
 
@@ -1563,7 +1570,7 @@ def _user_slot(user):
         reg[user] = ent
         try:
             os.makedirs(os.path.dirname(USERS_REGISTRY), exist_ok=True)
-            _atomic_write(USERS_REGISTRY, json.dumps(reg))
+            _atomic_write(USERS_REGISTRY, json.dumps(reg), owner="root")
         except OSError:
             pass
         return slot
@@ -1596,7 +1603,7 @@ def _bump_token_epoch(user):
         reg[user] = ent
         try:
             os.makedirs(os.path.dirname(USERS_REGISTRY), exist_ok=True)
-            _atomic_write(USERS_REGISTRY, json.dumps(reg))
+            _atomic_write(USERS_REGISTRY, json.dumps(reg), owner="root")
         except OSError:
             pass
     with _cache_lock:
@@ -1643,7 +1650,7 @@ def _write_idle_policy(enabled, hours, reap_terminals):
             os.makedirs(os.path.dirname(IDLE_POLICY_FILE), exist_ok=True)
             _atomic_write(IDLE_POLICY_FILE, json.dumps(
                 {"enabled": bool(enabled), "hours": int(hours),
-                 "reapTerminals": bool(reap_terminals)}))
+                 "reapTerminals": bool(reap_terminals)}), owner="root")
         except OSError as e:
             log.warning("idle policy write failed: %s", e)
 
@@ -1669,7 +1676,7 @@ def _write_hints_enabled(enabled):
     with _hints_lock:
         try:
             os.makedirs(os.path.dirname(HINTS_POLICY_FILE), exist_ok=True)
-            _atomic_write(HINTS_POLICY_FILE, json.dumps({"enabled": bool(enabled)}))
+            _atomic_write(HINTS_POLICY_FILE, json.dumps({"enabled": bool(enabled)}), owner="root")
         except OSError as e:
             log.warning("hints policy write failed: %s", e)
 
@@ -1891,7 +1898,7 @@ def _tombstone_user_in_registry(user):
         reg[user] = {"token_epoch": epoch}          # drop slot/ts, keep the epoch
         try:
             os.makedirs(os.path.dirname(USERS_REGISTRY), exist_ok=True)
-            _atomic_write(USERS_REGISTRY, json.dumps(reg))
+            _atomic_write(USERS_REGISTRY, json.dumps(reg), owner="root")
         except OSError:
             pass
     with _cache_lock:                               # so revocation is visible at once
@@ -2382,6 +2389,20 @@ def _ensure_fileagent(user):
     + workdir + SELinux props); --collect reaps it after its idle exit."""
     probe = _fs_call(user, {"op": "home"}, timeout=1.5)
     if probe.get("ok"):
+        return True, None
+    # A SILENT AGENT IS NOT A DEAD AGENT. The agent's accept loop is serial, so
+    # while it is copying a large tree, zipping, or hashing a big file it cannot
+    # answer this probe within 1.5s -- and the revive path below `systemctl stop`s
+    # the unit, KILLING the operation in flight. Files polls the open folder every
+    # 4s, and any second tab or device asks too, so a long copy was reliably
+    # interrupted partway through by the app's own background traffic.
+    #
+    # Reproduced against a stub agent: a healthy agent busy for 3s probes as
+    # {"ok": false, "code": "agent"} after exactly 1.5s -- identical to one that
+    # has crashed. Ask systemd which it is instead of guessing from silence.
+    if _unit_alive(_fileagent_unit(user)):
+        log.info("file agent for %s is alive but busy (probe timed out) — "
+                 "not restarting it", user)
         return True, None
     try:
         pw = pwd.getpwnam(user)
@@ -2891,6 +2912,10 @@ def _atomic_write(path, text, owner=None):
     desktop registry would reset reset_epoch and drop every instance's state).
 
     `owner` overrides who the result is chown'd to (default: the request user).
+    The default is right for PER-USER state in that user's own home, and wrong
+    for anything root later trusts: the share registry shipped without it, so
+    whichever tenant last touched the Share UI owned the file that tells the
+    cookieless /s/ handler whose home to serve from.
     Pass owner="root" for a registry the manager ACTS ON as root — see
     _write_schedules: a file the manager reads to decide whose PTY to write to
     must not be writable by a tenant."""
@@ -3123,7 +3148,30 @@ def _read_shares():
 
 
 def _write_shares(data):
-    _atomic_write(_shares_file(), json.dumps(data))
+    """Persist the share registry as root-owned 0600 — NOT _atomic_write's
+    default chown-to-the-request-user. Same trust shape as _write_schedules, and
+    the reason is the stronger one here.
+
+    `/s/<token>` is deliberately cookieless (that is the point of a share link),
+    so _handle_share_serve reads the entry's `owner` field to decide WHOSE home
+    to serve from, and _serve_share_file then opens that path AS ROOT. The file
+    is therefore a root-trusted authorization input.
+
+    The default chown handed ownership of it to whichever tenant last touched the
+    Share feature — and every share endpoint rewrites it, including `list`, so
+    merely opening the share UI once was enough. A tenant owning a 0600 file can
+    rewrite it in place, and an entry naming another user (or root) as `owner`
+    would then be served over an unauthenticated URL. The containing directory is
+    0755 root-owned, so a root-owned file here can be replaced by nobody but us.
+
+    The registry being global IS correct: the cookieless handler cannot resolve a
+    per-user home, so there is one registry, fenced per entry by `owner`. Its
+    ownership is what had to change, not its location."""
+    _atomic_write(_shares_file(), json.dumps(data), owner="root")
+    try:
+        os.chmod(_shares_file(), 0o600)
+    except OSError:
+        pass
 
 
 def _share_prune(reg, now=None):

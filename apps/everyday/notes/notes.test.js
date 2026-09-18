@@ -486,3 +486,45 @@ test("coming back to Notes syncs at once rather than up to 2s later", async () =
   assert.ok(h.gets("/api/notes").length > before,
     "regaining focus must refresh immediately, without waiting for the tick");
 });
+
+test("a save the server REFUSED is never reported as saved", async () => {
+  // `fetch` rejects only on a network-layer failure, so a 400/401/500 is a
+  // perfectly successful fetch. Without a status check every one of them landed
+  // in the success branch: `unsaved` cleared, the green "saved" badge shown, and
+  // the note never written. The page's own comment said "Only a CONFIRMED save
+  // clears `unsaved`" — the check it assumed was missing.
+  //
+  // Two ways to hit this with no network trouble at all: a note crossing the
+  // manager's 1 MiB body cap (400), and an expired session (401).
+  const h = await boot();
+  h.onFetch = (rec) =>
+    rec.method === "POST" && rec.url === "/api/notes"
+      ? { ok: false, status: 400, json: () => Promise.resolve({ error: "too large" }) }
+      : undefined;
+
+  h.type("a paragraph the server will reject");
+  h.advance(900); await flush();          // autosave debounce
+  assert.notEqual(h.status.textContent, "saved",
+    "a refused save must never show the success badge");
+  assert.match(h.status.textContent, /fail/i);
+});
+
+test("a refused save keeps the text, and the background sync cannot clobber it", async () => {
+  // The second half, and the one that actually destroyed work: clearing
+  // `unsaved` unblocks syncContent, which pulls the server's OLDER body, assigns
+  // it into the editor and reports "synced" — also green. The user watched their
+  // paragraph vanish after being told twice that it was safe.
+  const h = await boot();
+  h.onFetch = (rec) =>
+    rec.method === "POST" && rec.url === "/api/notes"
+      ? { ok: false, status: 400, json: () => Promise.resolve({ error: "too large" }) }
+      : undefined;
+
+  const mine = "the words I typed";
+  h.type(mine);
+  h.advance(900); await flush();          // save refused
+  h.advance(2000); await flush();         // a sync tick lands
+  h.advance(2000); await flush();         // and another
+  assert.equal(h.editor.value, mine,
+    "the unsaved text must survive every background sync after a refused save");
+});

@@ -88,7 +88,12 @@
 
   function persistTabs() {
     _lastTabsSig = tabsSig();
-    api('/api/notes/tabs', { tabs: tabs, active: active }).catch(function() {});
+    // Same reasoning as doSave: a non-2xx is not a rejection, and silently
+    // treating a refused tab-set push as success desyncs this device from the
+    // shared set until something else forces a write.
+    api('/api/notes/tabs', { tabs: tabs, active: active })
+      .then(function(r) { if (!r.ok) throw new Error('tabs: HTTP ' + r.status); })
+      .catch(function() { _lastTabsSig = null; });   // retry on the next tick
   }
 
   function renderTabs() {
@@ -144,7 +149,25 @@
     savingInFlight = true;
     setStatus('saving…');
     api('/api/notes', { id: id, content: content })
-      .then(function() {
+      .then(function(r) {
+        // `fetch` REJECTS ONLY ON A NETWORK-LAYER FAILURE. A 400, 401 or 500 is
+        // a perfectly successful fetch, so without this check every one of them
+        // landed in the branch below: `unsaved` was cleared, the green "saved"
+        // badge appeared, and the note was never written. Clearing `unsaved`
+        // then unblocks syncContent, which on the next 2s tick pulls the
+        // server's OLDER body, assigns it into the editor and reports "synced"
+        // — also green. The user watched their paragraph disappear after being
+        // told twice that it was safe.
+        //
+        // Two ways to hit it with no network trouble at all: a note crossing the
+        // manager's 1 MiB body cap (400), which makes the note stop persisting
+        // PERMANENTLY, and an expired session (401).
+        //
+        // Throwing here routes it into the .catch below, which already keeps
+        // `unsaved` true and re-arms the autosave — the retry this needed all
+        // along. The sibling loadContent has always checked r.ok, so this was an
+        // omission rather than the file's style.
+        if (!r.ok) throw new Error('save failed: HTTP ' + r.status);
         // Only a CONFIRMED save clears `unsaved` — and only if the editor still
         // holds exactly what we saved (the user may have typed more meanwhile).
         if (active === id && editor.value === content) unsaved = false;
