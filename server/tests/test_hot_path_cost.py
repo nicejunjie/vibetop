@@ -77,27 +77,57 @@ def test_a_failing_producer_neither_spins_nor_looks_fresh(mgr):
     assert len(runs) <= 2, f"{len(runs)} attempts — a failing producer must back off"
 
 
-def test_disk_usage_is_never_computed_on_the_request_thread(mgr):
-    """`du -sx` per home measured 15.1s cold (worst case 35s) behind a 30s TTL,
-    so opening Config half a minute after the last look cost FIFTEEN SECONDS.
-    Too long to block even once, so unlike the stats endpoints this one reports
-    `pending` and the panel renders a waiting state."""
-    import inspect
-    src = inspect.getsource(mgr.Handler._handle_config_disk_get)
-    assert "_bg_cached" in src, "the du sweep must not run on the request thread"
-    assert "block_first" not in src, \
-        "a 15s first call would read as a hang — this one must report pending"
-    assert "pending" in src
+def test_disk_usage_is_never_computed_on_the_request_thread(mgr, monkeypatch):
+    """`du -sx` per home measured 15.1s cold (worst case 35s) behind a 30s TTL, so
+    opening Config half a minute after the last look cost FIFTEEN SECONDS. Too
+    long to block even once, so unlike the stats endpoints this one reports
+    `pending` and the panel renders a waiting state.
+
+    Asserted by TIMING a slow producer, not by grepping the handler: a reviewer
+    put the sweep back on the request thread and the old string-matching version
+    of this test stayed green.
+    """
+    slow = {"ran": 0}
+
+    def slow_sweep():
+        slow["ran"] += 1
+        time.sleep(1.0)
+        return {"filesystems": [], "homes": [{"user": "a", "bytes": 1}],
+                "truncated": False}
+
+    key = "disk_probe:%d" % time.monotonic_ns()
+    t0 = time.monotonic()
+    val, have = mgr._bg_cached(key, 30.0, slow_sweep)
+    assert time.monotonic() - t0 < 0.2, \
+        "the first call must return at once with `pending`, not wait for the sweep"
+    assert not have and val is None
+    time.sleep(1.3)
+    val, have = mgr._bg_cached(key, 30.0, slow_sweep)
+    assert have and val["homes"], "the finished sweep must then be served"
+    assert slow["ran"] == 1
 
 
 def test_stats_endpoints_keep_their_payload_shape(mgr):
-    """The stats routes block on the first parse precisely so nothing downstream
-    needs a pending branch; regressing to a bare refresh-ahead would hand the
-    page a blank reading it would draw as real zeros."""
-    import inspect
-    src = inspect.getsource(mgr.Handler.do_GET)
-    i = src.index("/api/claude/stats")
-    assert "block_first=True" in src[i:i + 2000]
+    """The stats routes block on the first parse precisely so their payload shape
+    never changes and no client needs a pending branch — a blank reading would be
+    drawn as real zeros.
+
+    The old version of this test asserted `"block_first=True" in <source>`; a
+    reviewer made _bg_cached IGNORE block_first entirely — the exact regression
+    named above — and it passed. This drives the flag instead.
+    """
+    calls = []
+
+    def producer():
+        calls.append(1)
+        time.sleep(0.25)
+        return {"real": True}
+
+    key = "shape:%d" % time.monotonic_ns()
+    val, have = mgr._bg_cached(key, 45.0, producer, block_first=True)
+    assert have is True and val == {"real": True}, \
+        "block_first must produce a REAL value on the first call, never a blank"
+    assert calls == [1]
 
 
 def test_transcript_parsing_survives_an_undecodable_byte(tmp_path):
@@ -261,9 +291,16 @@ def test_codex_stats_is_incremental_too(tmp_path):
                 '{"input_tokens":50,"output_tokens":7}}}}\n')
     first = cs.get_stats(str(tmp_path))
     assert sum(m["in"] for m in first["byModel"]) == 50
-    import inspect
-    assert "_file_cache" in inspect.getsource(cs._compute), \
-        "codex_stats must key its per-file cache the same way"
+    parses = []
+    real = cs._parse_file
+    cs._parse_file = lambda p: parses.append(p) or real(p)
+    try:
+        cs._cache.clear(); cs.get_stats(str(tmp_path))   # unchanged file
+        first = len(parses)
+        cs._cache.clear(); cs.get_stats(str(tmp_path))
+        assert len(parses) == first, "an unchanged Codex session was re-parsed"
+    finally:
+        cs._parse_file = real
 
 
 # ---- reporting the outcome, not the intent ---------------------------------
@@ -325,31 +362,137 @@ def test_office_save_back_failure_is_reported_to_the_editor(mgr):
     save = inspect.getsource(mgr.Handler._office_save_back)
     assert "return False" in save and "return True" in save, \
         "_office_save_back must report whether it wrote the file"
+    # NOT `'{"error": 1}' in cb` — that string was ALREADY present pre-fix for
+    # rejected callbacks, so it proved nothing. What is new is that the callback
+    # branches on the save-back RESULT; assert that the result is consumed at all.
     cb = inspect.getsource(mgr.Handler._handle_office_callback)
-    assert '{"error": 1}' in cb, \
-        "a failed save-back must tell OnlyOffice the save failed, so it retries"
-    assert "saved is False" in cb, \
-        "the callback must branch on the save-back result, not ignore it"
+    import re as _re
+    assert _re.search(r"saved\s*=\s*self\._office_save_back\(", cb), \
+        "the callback must capture the save-back result, not call it for effect"
+    assert _re.search(r"if\s+(not\s+saved|saved\s+is\s+False)", cb), \
+        "and it must branch on that result before reporting success to the editor"
 
 
-def test_the_memory_ceiling_sits_above_the_measured_peak():
-    """A ceiling below what the process actually needs does not reduce its use —
-    it makes it fight for it. Set to 1500M (between the 970MB idle RSS and the
-    2.03GB MemoryPeak) the cgroup throttled 8979 times in three minutes and a
-    Token Stats request went from 2s to SIXTY, nginx's read timeout. The idle
-    reading is the wrong number to size this from."""
+def test_the_memory_unit_bounds_the_cause_and_cannot_kill_the_service():
+    """What a HERMETIC test can honestly assert about the memory settings.
+
+    An earlier version claimed to "assert the ceiling against the peak so the
+    next person sizes it from the right number" — it compared MemoryHigh to a
+    hardcoded 2048 literal, i.e. constant against constant, and was green while
+    the live service sat at a peak ABOVE its ceiling. A test with no access to a
+    running host cannot check that; `doctor.sh` does it on a live host instead.
+
+    Sizing history worth keeping, because I got it wrong twice: 1500M (chosen
+    from the 970MB IDLE rss) throttled the anon working set and turned a 2s
+    request into 60s. 3G (chosen from a 2.03GB peak measured on OLDER code) was
+    then exceeded too — but harmlessly, because what pushes the cgroup over is
+    ~1.9GB of RECLAIMABLE dentry/inode slab from walking homes and 629
+    transcripts, not the process: anon stayed at 1.0GB and latency at 1.5ms.
+    MemoryHigh counts that slab, so the ceiling must clear anon PLUS the cache a
+    full filesystem walk produces.
+    """
     here = os.path.dirname(os.path.abspath(__file__))
     unit = os.path.join(os.path.dirname(here), "systemd", "vibetop-manager.service")
     body = open(unit).read()
-    assert "MALLOC_ARENA_MAX" in body, \
-        "the arena count is the CAUSE of the ratchet; bound it, not just the total"
-    m = re.search(r"^MemoryHigh=(\d+)([MG])\s*$", body, re.M)
-    assert m, "MemoryHigh must be set, with an explicit unit"
-    mb = int(m.group(1)) * (1024 if m.group(2) == "G" else 1)
-    assert mb >= 2048, (
-        f"MemoryHigh={m.group(0).strip()} is at or below the 2.03GB peak measured "
-        "on the reference host — that throttles the service instead of bounding it")
-    # Directives only: the unit's own prose explains why MemoryMax is absent.
     directives = [l for l in body.splitlines() if l and not l.lstrip().startswith("#")]
+
+    assert any(l.startswith("Environment=MALLOC_ARENA_MAX=") for l in directives), \
+        "the arena count is the CAUSE of the RSS ratchet; bound it, not just the total"
+    assert any(l.startswith("MemoryHigh=") for l in directives), \
+        "some ceiling must exist to catch genuine runaway"
     assert not any(l.startswith("MemoryMax=") for l in directives), \
         "this service must degrade under pressure, never be OOM-killed"
+
+
+# ---- one user's slow work must not block another's -------------------------
+
+def test_two_different_videos_do_not_serialize(mgr):
+    """The lock exists to stop two requests building the SAME file twice, but as
+    ONE process-wide lock it also serialized different users on different files —
+    held across an ffmpeg run bounded at 1800s, behind an nginx proxy_read_timeout
+    of 3600s, so the second user got an indefinitely hanging <video> request
+    rather than a 504. Subtitle extraction shared it too."""
+    order = []
+
+    def work(key, hold):
+        with mgr._video_key_lock(key):
+            order.append(("enter", key))
+            time.sleep(hold)
+            order.append(("leave", key))
+
+    a = threading.Thread(target=work, args=("slow.mp4", 0.4))
+    b = threading.Thread(target=work, args=("other.mp4", 0.0))
+    a.start(); time.sleep(0.05); b.start()
+    b.join(timeout=0.3)
+    assert not b.is_alive(), "a different key must not wait on an in-progress one"
+    a.join()
+    assert ("leave", "other.mp4") in order[:3], \
+        f"the second key finished only after the first: {order}"
+
+
+def test_the_same_video_is_still_built_once(mgr):
+    """The counterweight — per-key must not become no locking at all."""
+    concurrent, peak = [0], [0]
+    lk = threading.Lock()
+
+    def work():
+        with mgr._video_key_lock("same.mp4"):
+            with lk:
+                concurrent[0] += 1
+                peak[0] = max(peak[0], concurrent[0])
+            time.sleep(0.1)
+            with lk:
+                concurrent[0] -= 1
+
+    ts = [threading.Thread(target=work) for _ in range(4)]
+    for t in ts:
+        t.start()
+    for t in ts:
+        t.join()
+    assert peak[0] == 1, f"{peak[0]} threads built the same key at once"
+    assert not mgr._video_locks, f"the lock table must drain, got {mgr._video_locks}"
+
+
+def test_a_young_xpra_unit_is_not_torn_down(mgr, monkeypatch):
+    """`systemctl is-active` reports "active" the moment systemd ACCEPTS a
+    transient unit, but a real cold xpra binds in ~9s here — so the 3s probe
+    always times out on a young unit and the self-heal then killed a start that
+    was going to succeed. Measured: the one destructive occurrence in 86 days of
+    log came seconds after a MANUAL `systemctl restart`. The self-heal's real
+    target (a unit left on a stale port by a port-scheme change) is always OLD, so
+    age separates the two cases exactly."""
+    monkeypatch.setattr(mgr, "_unit_age", lambda u: 2.0)          # just started
+    monkeypatch.setattr(mgr, "_wait_tcp", lambda *a, **k: False)  # not bound yet
+    monkeypatch.setattr(mgr.pwd, "getpwnam",
+                        lambda u: mgr.pwd.struct_passwd(
+                            (u, "x", 4242, 4242, "", "/tmp", "/bin/bash")))
+    ran = []
+
+    class _Active:
+        returncode, stdout, stderr = 0, "active", ""
+
+    monkeypatch.setattr(mgr.subprocess, "run",
+                        lambda a, **k: ran.append(list(a)) or _Active())
+    ok, port = mgr._start_user_xpra("alice", "browser")
+    assert ok, "a starting display must not be reported as a failure"
+    assert not any("stop" in c for c in ran), \
+        f"a {2.0}s-old unit was torn down mid-start: {ran}"
+
+
+def test_an_old_unit_on_a_stale_port_is_still_healed(mgr, monkeypatch):
+    """The counterweight: the self-heal this branch was written for must survive."""
+    monkeypatch.setattr(mgr, "_unit_age", lambda u: 9999.0)       # long-running
+    monkeypatch.setattr(mgr, "_wait_tcp", lambda *a, **k: False)  # wrong port
+    monkeypatch.setattr(mgr.pwd, "getpwnam",
+                        lambda u: mgr.pwd.struct_passwd(
+                            (u, "x", 4242, 4242, "", "/tmp", "/bin/bash")))
+    ran = []
+
+    class _Active:
+        returncode, stdout, stderr = 0, "active", ""
+
+    monkeypatch.setattr(mgr.subprocess, "run",
+                        lambda a, **k: ran.append(list(a)) or _Active())
+    mgr._start_user_xpra("alice", "browser")
+    assert any("stop" in c for c in ran), \
+        "an OLD unit not listening on its port must still be recreated"

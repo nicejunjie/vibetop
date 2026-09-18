@@ -1298,7 +1298,47 @@ _VIDEO_DIRECT_EXT = {".mp4", ".m4v", ".webm"}
 # can't be shown as text tracks and are omitted from the picker.
 _VIDEO_TEXT_SUBS = {"subrip", "srt", "ass", "ssa", "mov_text", "webvtt", "text"}
 _VIDEO_PREP_TIMEOUT = _port_env("VIDEO_PREP_TIMEOUT", 1800)  # transcode ceiling
-_video_convert_lock = threading.Lock()
+# PER-CACHE-KEY, not one global lock. It exists to stop two requests building the
+# SAME file twice — but as a single process-wide lock it also made two users
+# transcoding DIFFERENT videos serialize, with the lock held across an ffmpeg run
+# bounded at _VIDEO_PREP_TIMEOUT (1800s). nginx's proxy_read_timeout for /api/ is
+# 3600s, i.e. LONGER, so the second user got an indefinitely hanging <video>
+# request rather than a 504 — no error, no log line, nothing to see. Subtitle
+# extraction shares it too, so a long transcode also stalled every subtitle fetch.
+#
+# Unlike _office_convert_lock — which is global on purpose, because LibreOffice
+# locks its user profile — ffmpeg has no shared state, so there was never a reason
+# for one lock. The dict is bounded: an entry is dropped when its last holder
+# leaves.
+_video_locks = {}
+_video_locks_meta = threading.Lock()
+
+
+class _video_key_lock:
+    """`with _video_key_lock(key):` — mutual exclusion for one cache key only."""
+
+    def __init__(self, key):
+        self.key = key
+
+    def __enter__(self):
+        with _video_locks_meta:
+            ent = _video_locks.get(self.key)
+            if ent is None:
+                ent = _video_locks[self.key] = [threading.Lock(), 0]
+            ent[1] += 1
+            self.lock = ent[0]
+        self.lock.acquire()
+        return self
+
+    def __exit__(self, *exc):
+        self.lock.release()
+        with _video_locks_meta:
+            ent = _video_locks.get(self.key)
+            if ent is not None:
+                ent[1] -= 1
+                if ent[1] <= 0:
+                    _video_locks.pop(self.key, None)
+        return False
 
 
 def _video_cache_dir(user=None):
@@ -2589,6 +2629,29 @@ def _start_user_xpra(user, kind):
             # through to recreate it on the correct port (self-heals the migration).
             if _wait_tcp(port, 3):
                 return True, port
+            # DO NOT TEAR DOWN A UNIT THAT IS STILL STARTING. `systemctl is-active`
+            # reports "active" the moment systemd ACCEPTS a transient unit, but a
+            # real cold xpra (Xorg + WM + Chromium) takes ~9s to bind here — so
+            # this 3s probe always times out on a genuinely young unit, and the
+            # teardown below then kills a start that was going to succeed.
+            #
+            # Measured, not assumed: this warning fired 3 times in 86 days of log,
+            # and the one destructive occurrence (2026-08-19) came seconds after a
+            # MANUAL `systemctl restart vibetop-ubrowser-junjie` — two authcheck
+            # threads both blew the 3s probe and both stopped a healthy starting
+            # unit. It self-healed in one cycle. (It is NOT the cause of the
+            # two-device Browser "loading loop": that was documented 2026-06-28
+            # against the legacy shared unit, three weeks before this branch
+            # existed.) The self-heal this was written for targets a unit left on a
+            # stale port by a port-scheme change — always an OLD unit, never a
+            # young one — so age separates the two cases exactly.
+            if _unit_age(unit) < XPRA_YOUNG_SEC:
+                log.info("xpra %s for %s not listening on :%d yet, but its unit is "
+                         "only %.0fs old — waiting instead of recreating",
+                         kind, user, port, _unit_age(unit))
+                if _wait_tcp(port, 20, unit=unit):
+                    return True, port
+                return True, port          # still starting; the client retries
             log.warning("xpra %s for %s is active but not listening on :%d "
                         "(stale/wrong port) — recreating", kind, user, port)
             subprocess.run(["systemctl", "stop", unit], capture_output=True, text=True)
@@ -2858,6 +2921,27 @@ def _ensure_user_x11_dbus(user, uid, gid):
                 user, sock)
     _note_failure("x11dbus:" + user, X11_DBUS_FAIL_TTL)
     return None
+
+
+XPRA_YOUNG_SEC = 40.0   # a cold xpra binds in ~9s here; well clear of it
+
+
+def _unit_age(unit):
+    """Seconds since the unit entered the active state, or a large number when it
+    cannot be determined (so an unknown unit is treated as OLD and the existing
+    self-heal still runs — failing toward the previous behaviour, not away)."""
+    try:
+        r = subprocess.run(["systemctl", "show", unit, "-p",
+                            "ActiveEnterTimestampMonotonic", "--value"],
+                           capture_output=True, text=True, timeout=5)
+        us = int((r.stdout or "0").strip() or 0)
+        if us <= 0:
+            return 1e9
+        with open("/proc/uptime") as f:
+            now_us = float(f.read().split()[0]) * 1e6
+        return max(0.0, (now_us - us) / 1e6)
+    except (OSError, ValueError, subprocess.SubprocessError):
+        return 1e9
 
 
 def _unit_definitely_dead(unit):
@@ -4151,7 +4235,7 @@ def _video_prepared_path(src, aidx, user=None):
     cached = os.path.join(cache_dir, key + ".mp4")
     if os.path.isfile(cached):
         return cached
-    with _video_convert_lock:
+    with _video_key_lock(key + ".mp4"):
         if os.path.isfile(cached):
             return cached
         os.makedirs(cache_dir, exist_ok=True)
@@ -4196,7 +4280,7 @@ def _ffmpeg_extract_subs(src, sidx, user=None):
     cached = os.path.join(cache_dir, key + ".vtt")
     if os.path.isfile(cached):
         return cached
-    with _video_convert_lock:
+    with _video_key_lock(key + ".vtt"):
         if os.path.isfile(cached):
             return cached
         os.makedirs(cache_dir, exist_ok=True)
@@ -4266,7 +4350,12 @@ def _read_update_history():
 
 def _write_update_history(entries):
     try:
-        _atomic_write(UPDATE_HISTORY_FILE, json.dumps(entries[-UPDATE_HISTORY_MAX:]))
+        # owner="root" for the same reason as the share registry: this is a GLOBAL
+        # file in APP_USER's home, not per-user state, and _atomic_write's default
+        # would chown it to whichever admin last ran an update. Lower stakes than
+        # the share registry (admin-gated, display-only) but the same rule.
+        _atomic_write(UPDATE_HISTORY_FILE, json.dumps(entries[-UPDATE_HISTORY_MAX:]),
+                      owner="root")
     except Exception:
         pass
 
@@ -8333,6 +8422,15 @@ if __name__ == "__main__":
     # Seed the per-host update log with a "deployed" baseline on first start
     # (≈ deploy time) so the history starts from when this deployment came up.
     _seed_update_history()
+    # request_queue_size: socketserver defaults the listen backlog to FIVE. Every
+    # nginx-proxied call opens TWO upstream connections (the auth_request
+    # subrequest plus the proxy itself), so roughly eight concurrent API requests
+    # overflow the accept queue — and an overflowed SYN costs a full 1s RTO.
+    # Measured on this host before raising it: `ss -lnt` showed a backlog of 5,
+    # `TcpExtListenOverflows` 3250, and 12 concurrent callers produced
+    # 0.004s … 0.009s, 0.210s, 1.034s, 1.035s, 1.036s — a 1s tail out of nowhere,
+    # dwarfing every per-endpoint cost this audit has been shaving.
+    http.server.ThreadingHTTPServer.request_queue_size = 128
     server = http.server.ThreadingHTTPServer(("127.0.0.1", port), Handler)
     server.daemon_threads = True
     log.info("terminal-manager listening on 127.0.0.1:%d (log level %s)",

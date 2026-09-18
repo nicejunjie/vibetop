@@ -72,44 +72,45 @@ _FILE_CACHE_MAX = 4000
 
 def _parse_file(path):
     by_day, by_hour, by_model = {}, {}, {}
-    for path_ in (path,):
-        model, sid = "gpt-5.6-sol", os.path.basename(path)
-        try:
-            # errors="replace" -- see the note in claude_stats._compute: a bad
-            # byte raises from the iteration, not from open(), so it escaped
-            # the OSError guard and permanently 500d the endpoint.
-            fh = open(path, errors="replace")
-        except OSError:
-            continue
-        with fh:
-            for line in fh:
-                if '"turn_context"' not in line and '"token_count"' not in line:
-                    continue
-                try:
-                    event = json.loads(line); payload = event.get("payload") or {}
-                except ValueError:
-                    continue
-                if event.get("type") == "turn_context":
-                    model = payload.get("model") or model
-                    continue
-                if event.get("type") != "event_msg" or payload.get("type") != "token_count":
-                    continue
-                usage = (payload.get("info") or {}).get("last_token_usage")
-                if not isinstance(usage, dict):
-                    continue
-                tin = int(usage.get("input_tokens") or 0)
-                cached = min(tin, int(usage.get("cached_input_tokens") or 0))
-                tout = int(usage.get("output_tokens") or 0)
-                if not (tin or tout):
-                    continue
-                cost = _cost(model, tin, cached, tout)
-                try:
-                    dt = datetime.fromisoformat(event["timestamp"].replace("Z", "+00:00")).astimezone()
-                except (KeyError, ValueError, TypeError):
-                    continue
-                _add(by_day, dt.strftime("%Y-%m-%d"), tin, tout, cached, cost)
-                _add(by_hour, int(dt.timestamp()) // 3600, tin, tout, cached, cost)
-                _add(by_model, model, tin, tout, cached, cost)
+    model = "gpt-5.6-sol"
+    try:
+        # errors="replace" -- see the note in claude_stats._compute: a bad
+        # byte raises from the iteration, not from open(), so it escaped
+        # the OSError guard and permanently 500d the endpoint.
+        fh = open(path, errors="replace")
+    except OSError:
+        # One file, so an unreadable one contributes nothing (this was `continue`
+        # when the body still sat inside a per-file loop).
+        return {"by_day": by_day, "by_hour": by_hour, "by_model": by_model}
+    with fh:
+        for line in fh:
+            if '"turn_context"' not in line and '"token_count"' not in line:
+                continue
+            try:
+                event = json.loads(line); payload = event.get("payload") or {}
+            except ValueError:
+                continue
+            if event.get("type") == "turn_context":
+                model = payload.get("model") or model
+                continue
+            if event.get("type") != "event_msg" or payload.get("type") != "token_count":
+                continue
+            usage = (payload.get("info") or {}).get("last_token_usage")
+            if not isinstance(usage, dict):
+                continue
+            tin = int(usage.get("input_tokens") or 0)
+            cached = min(tin, int(usage.get("cached_input_tokens") or 0))
+            tout = int(usage.get("output_tokens") or 0)
+            if not (tin or tout):
+                continue
+            cost = _cost(model, tin, cached, tout)
+            try:
+                dt = datetime.fromisoformat(event["timestamp"].replace("Z", "+00:00")).astimezone()
+            except (KeyError, ValueError, TypeError):
+                continue
+            _add(by_day, dt.strftime("%Y-%m-%d"), tin, tout, cached, cost)
+            _add(by_hour, int(dt.timestamp()) // 3600, tin, tout, cached, cost)
+            _add(by_model, model, tin, tout, cached, cost)
     return {"by_day": by_day, "by_hour": by_hour, "by_model": by_model}
 
 

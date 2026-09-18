@@ -379,3 +379,81 @@ def test_uninstall_removes_every_nginx_fragment_by_glob():
     nobody adds to the removal list survives every uninstall."""
     body = (REPO_ROOT / "uninstall.sh").read_text()
     assert "/etc/nginx/conf.d/vibetop-*.conf" in body
+
+
+# ---- restore: the path an operator uses after a disk loss --------------------
+
+def test_a_real_archive_is_detected_as_v2_not_legacy(two_users):
+    """THE BUG THIS FILE EXISTS FOR NOW. The archive is written with
+    `tar czf … -C "$stage" .`, so every member is stored with a leading `./` —
+    and the detector grepped the anchored `^MANIFEST$`, which therefore NEVER
+    matched. Every archive this host ever produced fell through to the LEGACY
+    branch, which unpacks `users/` and `system/` into one human's home and
+    restores nothing: no /var/lib/vibetop, no secrets, no manager.env, no second
+    user. It then printed "Restored." and exited 0.
+
+    The v2 branch had never once executed. Asserted end to end — make an archive
+    with the real backup path, then confirm the real restore path takes the v2
+    branch on it — because every unit-level check of the pieces passed while the
+    whole thing was broken.
+    """
+    rc, out = _backup(two_users)
+    assert rc == 0, out
+    archive = sorted((two_users["tmp"] / "backups").glob("*.tar.gz"))[-1]
+
+    listing = subprocess.run(["tar", "tzf", str(archive)],
+                             capture_output=True, text=True).stdout
+    assert "./MANIFEST" in listing.splitlines() or "MANIFEST" in listing.splitlines(), \
+        "the archive must carry a manifest at all"
+
+    body = (REPO_ROOT / "tools" / "backup.sh").read_text()
+    detector = [l for l in body.splitlines() if "MANIFEST$" in l and "grep" in l]
+    assert detector, "the v2 detector line moved — re-point this test"
+    import re as _re
+    pat = _re.search(r"grep -qE? '([^']+)'", detector[0]).group(1)
+    names = [l.lstrip() for l in listing.splitlines()]
+    assert any(_re.match(pat.replace("\\\\", "\\"), n) for n in names), (
+        f"the detector pattern {pat!r} matches no member of a REAL archive "
+        f"(members look like {names[:2]}) — restore silently takes the legacy path")
+
+
+def test_dry_run_restore_writes_nothing(two_users):
+    """`--dry-run --restore FILE` used to RESTORE: the restore block runs before
+    DRY_RUN is consulted anywhere, while the usage text advertises the flag. An
+    operator being careful got the destructive form."""
+    rc, out = _backup(two_users)
+    assert rc == 0, out
+    archive = sorted((two_users["tmp"] / "backups").glob("*.tar.gz"))[-1]
+
+    canary = two_users["homes"]["alice"] / ".local/share/desktop-notes" / "1.md"
+    before = canary.read_text()
+    canary.write_text("EDITED SINCE THE BACKUP")
+
+    rc, out = _backup(two_users, "--dry-run", "--restore", str(archive))
+    assert canary.read_text() == "EDITED SINCE THE BACKUP", \
+        "--dry-run --restore overwrote real data"
+    assert "DRY RUN" in out and "would" in out.lower(), out
+    assert before not in canary.read_text()
+
+
+def test_restore_chowns_the_group_too(two_users):
+    """A user-only `chown $u` leaves the GROUP as root — the files arrived
+    root-owned from --no-same-owner — so every restored file ended up
+    `alice:root` forever, and Documents/ files written 0664 by OnlyOffice became
+    group-root-writable."""
+    body = (REPO_ROOT / "tools" / "backup.sh").read_text()
+    assert 'chown -R "$u:$_grp"' in body, \
+        "restore must set owner AND group; a bare `chown $u` leaves group=root"
+    assert 'chmod 0700 "$_priv"' in body, \
+        "tar resets an existing dir's mode, so restore relaxed ~/.local to 0755"
+
+
+def test_a_skipped_user_does_not_disarm_cleanup_of_the_secrets(two_users):
+    """`trap - EXIT` disarmed cleanup for the WHOLE run, leaving the staging tree
+    — session secret, manager.env, every user's notes — in /tmp indefinitely
+    after a disaster-recovery run."""
+    body = (REPO_ROOT / "tools" / "backup.sh").read_text()
+    i = body.index("no such user on this host")
+    window = body[max(0, i - 700):i + 300]
+    assert "trap - EXIT" not in window, \
+        "a missing user must not disarm cleanup of the whole staging tree"

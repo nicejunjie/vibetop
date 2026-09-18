@@ -131,15 +131,46 @@ def test_a_dead_session_daemon_fails_the_start_instead_of_sleeping_5s(mgr, monke
         f"gave up after {seen['slept']}s of sleeping; a dead unit must not cost the full 5s"
 
 
-def test_wait_tcp_result_is_honoured_so_a_dead_ttyd_is_not_reported_as_started(mgr):
-    """_wait_tcp's return value was DISCARDED in both the terminal and xpra start
-    paths, so a service that never bound its port was reported as a successful
-    start: the caller cached the port, nginx proxied to nothing, and the user got
-    a 502 with no error recorded anywhere. Asserted on the source, because the
-    bug was a dropped return value rather than wrong logic."""
-    import inspect
-    src = inspect.getsource(mgr._start_user_terminal)
-    assert "if not _wait_tcp(" in src, \
-        "_start_user_terminal must branch on _wait_tcp, not call it for its side effect"
-    assert "if not _wait_path(" in src, \
-        "_start_user_terminal must branch on the session-socket wait too"
+def test_wait_tcp_result_is_honoured_so_a_dead_ttyd_is_not_reported_as_started(
+        mgr, monkeypatch, stubs):
+    """_wait_tcp's return value was DISCARDED in both start paths, so a service
+    that never bound its port was reported as a successful start: the caller
+    cached the port, nginx proxied to nothing, and the user got a 502 with no
+    error recorded anywhere.
+
+    Asserted on BEHAVIOUR. An earlier version of this test checked the source
+    text for `if not _wait_tcp(` — a reviewer reintroduced the bug by replacing
+    both teardown blocks with `pass` and the test stayed green, which is exactly
+    what a source-text assertion buys you.
+    """
+    monkeypatch.setattr(mgr, "_user_home", lambda u: "/tmp")
+    monkeypatch.setattr(mgr, "_provision_user", lambda u: None)
+    monkeypatch.setattr(mgr, "_user_terminal_setenvs", lambda u: [])
+    monkeypatch.setattr(mgr.pwd, "getpwnam",
+                        lambda u: mgr.pwd.struct_passwd(
+                            (u, "x", 4242, 4242, "", "/tmp", "/bin/bash")))
+    monkeypatch.setattr(mgr, "_wait_path", lambda *a, **k: True)   # socket appears
+    monkeypatch.setattr(mgr, "_wait_tcp", lambda *a, **k: False)   # ttyd never binds
+
+    ok, err = mgr._start_user_terminal("alice", 7)
+    assert ok is False, "a ttyd that never bound its port is not a started terminal"
+    assert "never bound" in str(err)
+    stopped = [c for c in stubs["run"] if "stop" in c]
+    assert stopped, "the half-started units must be torn down, not left running"
+
+
+def test_a_session_socket_that_never_appears_fails_the_start(mgr, monkeypatch, stubs):
+    """The other half: ttyd would otherwise be launched to `attach` to nothing,
+    producing a tab that was slow AND broken."""
+    monkeypatch.setattr(mgr, "_user_home", lambda u: "/tmp")
+    monkeypatch.setattr(mgr, "_provision_user", lambda u: None)
+    monkeypatch.setattr(mgr, "_user_terminal_setenvs", lambda u: [])
+    monkeypatch.setattr(mgr.pwd, "getpwnam",
+                        lambda u: mgr.pwd.struct_passwd(
+                            (u, "x", 4242, 4242, "", "/tmp", "/bin/bash")))
+    monkeypatch.setattr(mgr, "_wait_path", lambda *a, **k: False)  # socket never binds
+
+    ok, err = mgr._start_user_terminal("alice", 8)
+    assert ok is False and "never bound" in str(err)
+    assert not any("ttyd-run.sh" in " ".join(map(str, c)) for c in stubs["run"]), \
+        "ttyd must not be launched against a session daemon that never came up"

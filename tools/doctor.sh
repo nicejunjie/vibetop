@@ -474,6 +474,32 @@ if vt_git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
     fi
 else adv "$ROOT is not a git checkout — the in-app Update needs a full clone"; fi
 
+# ---- Manager memory: is the ceiling actually above what the service uses? ----
+# A hermetic test cannot check this — it has no running host — so it lives here.
+# Sized wrong twice: 1500M throttled the real working set (2s request -> 60s),
+# then 3G was exceeded by reclaimable dentry cache. The counter alone is not the
+# signal: `high` climbing while latency is flat is the kernel reclaiming cache,
+# which is what MemoryHigh is for. Only flag it when anon itself is near the
+# ceiling, which is the case that actually hurts.
+head_ "Manager memory"
+if [ -r /sys/fs/cgroup/system.slice/vibetop-manager.service/memory.stat ]; then
+    _cg=/sys/fs/cgroup/system.slice/vibetop-manager.service
+    _anon=$(awk '/^anon /{print $2}' "$_cg/memory.stat")
+    _high=$(cat "$_cg/memory.high" 2>/dev/null)
+    _peak=$(cat "$_cg/memory.peak" 2>/dev/null || echo 0)
+    _hi_ev=$(awk '/^high /{print $2}' "$_cg/memory.events" 2>/dev/null || echo 0)
+    _gb() { awk -v v="$1" 'BEGIN{printf "%.2fGB", v/1073741824}'; }
+    if [ "$_high" = "max" ] || [ -z "$_high" ]; then
+        adv "manager has no MemoryHigh — nothing bounds a runaway (anon $(_gb "$_anon"))"
+    elif [ "$_anon" -gt $(( _high * 8 / 10 )) ]; then
+        bad "manager anon $(_gb "$_anon") is within 20% of MemoryHigh $(_gb "$_high") — the ceiling is throttling the WORKING SET, not cache; raise it (this made a 2s request take 60s once)"
+    else
+        ok "manager memory: anon $(_gb "$_anon") under MemoryHigh $(_gb "$_high") (peak $(_gb "$_peak"), $_hi_ev reclaim events)"
+    fi
+else
+    skip "manager cgroup not readable (not running, or cgroup v1)"
+fi
+
 # ---- Backup: is the installed unit one that produces a COMPLETE backup? ----
 # A systemd unit is written ONCE, by whichever version of backup.sh was current
 # that day, and nothing ever re-renders it. z20's was written by a version that
