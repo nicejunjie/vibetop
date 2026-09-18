@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_303 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_304 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
 - [Scheduled terminal messages ("resume when the token limit resets")](#scheduled-terminal-messages-resume-when-the-token-limit-resets)
@@ -326,6 +326,7 @@ _303 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [An open preview froze at the bytes it opened with (2026-09-14)](#an-open-preview-froze-at-the-bytes-it-opened-with-2026-09-14)
 - [Two fingers did nothing to a previewed picture (2026-09-14)](#two-fingers-did-nothing-to-a-previewed-picture-2026-09-14)
 - [A new terminal tab took 3 seconds, and none of it was the terminal (2026-09-17)](#a-new-terminal-tab-took-3-seconds-and-none-of-it-was-the-terminal-2026-09-17)
+- [Auditing for the 3s-tab bug CLASS found three more, and one of them was the backup (2026-09-17)](#auditing-for-the-3s-tab-bug-class-found-three-more-and-one-of-them-was-the-backup-2026-09-17)
 
 <!-- END TOC -->
 
@@ -13828,3 +13829,96 @@ cannot be reproduced unprivileged — run as one user the creator **is** the
 binder and any mode passes — so the first assertion is the structural property,
 checked **before** touching the new API so it fails on the unfixed build for the
 real reason instead of on a changed signature. Verified red against `HEAD`.
+
+## Auditing for the 3s-tab bug CLASS found three more, and one of them was the backup (2026-09-17)
+
+**Why an audit at all.** The 3s terminal tab (entry above) was not interesting as
+a bug; it was interesting as a *shape*: **a best-effort helper on a hot path
+whose cost on FAILURE is its full success-timeout, with the failure then swallowed
+by a fallback.** Nothing is ever reported broken — the product still works — so
+the only visible symptom is latency, and it points at the wrong subsystem. That
+shape is greppable, so the right response to finding one was to go looking.
+
+**What the sweep found.**
+
+- **The unfixed twin, 500 lines above the original.** `_start_user_terminal`
+  polled `for _ in range(50): time.sleep(0.1)` for the session socket after a
+  `systemd-run` that returns 0 on *acceptance*. A session daemon that died cost
+  the full 5s, after which ttyd was launched anyway to `attach` to nothing — a
+  tab that was slow **and** broken. Reached from `_handle_authcheck`, so nginx
+  pays it on a cold `/tN/`. The identical fix (liveness-aware wait) now lives in
+  shared `_wait_path`/`_wait_tcp` helpers rather than being written twice.
+- **`_wait_tcp`'s return value was discarded in BOTH start paths.** A service
+  that never bound its port was reported as a *successful* start: the caller
+  cached the port, nginx proxied to nothing, and the user got a 502 with nothing
+  in the log. The terminal path now fails and tears the units down. The xpra path
+  deliberately still reports success on timeout — xpra legitimately exceeds 20s
+  on a cold host and the client's retry gets there — but it logs, and no longer
+  spends 20s on a unit that is already dead.
+- **Static JS/CSS shipped uncompressed.** nginx gzips `text/html` implicitly and
+  Debian/Ubuntu ship `gzip_types` commented out, so the desktop's HTML was
+  compressed while every asset beside it was not: 297KB per cold desktop load,
+  and **2.19MB for the RTS game's 117 plain scripts**. Measured at 1.46MB saved
+  per cold load. Invisible on the LAN — which is exactly why it survived.
+
+**And the one that was not about latency at all: the backup.** The daily timer
+had been green for months while archiving **one user, and no global state**. The
+unit said `User=junjie`, so `IS_ROOT` was never true; every run printed a `NOTE:`
+and **exited 0**. `systemctl list-timers` showed a healthy daily backup.
+
+The generator in `backup.sh --install-timer` had been correct for a long time —
+`User=root`, all users. **The stale ARTIFACT was the bug.** A systemd unit is
+written once, by whichever version of the script was current that day, and
+*nothing ever re-renders it*. Same class as the per-user stale-port 502: fixing
+the generator does not fix the hosts already carrying its old output. So
+`doctor.sh` now checks the LIVE unit — non-root `User=`, a stale `APP_USER=` pin,
+and an `ExecStart` pointing into a personal checkout (z20's nightly backup ran
+out of a dev tree, i.e. whatever was uncommitted that night).
+
+**Detecting "running from the timer" — both obvious signals are wrong.**
+`[ ! -t 1 ]` catches every piped run and every test harness (it broke an existing
+test immediately, correctly). `$INVOCATION_ID` is **inherited by every descendant
+of any systemd unit** — and in vibetop a Terminal *is* a transient unit, so a user
+running `./tools/backup.sh` from the product's own terminal would have failed
+spuriously. The answer is `/proc/self/cgroup`, which names the unit we are
+actually in. All three cases are asserted in the test.
+
+**Then the fix's own result had to be read, not assumed.** With the timer finally
+running as root, the first archive still reported `0 global item(s)` → then 5 —
+and `manager.env` was not among them. The sweep collected `$VT_ETC/*.secret`, and
+`$VT_ETC` is `/opt/vibetop/etc`; `manager.env` lives in `/etc/vibetop`, which
+`layout.sh` already names `$VT_ENV_FILE`. It is the single authority for
+`VIBETOP_ADMINS`, so an archive without it restores a host where `_is_admin()`
+silently falls back to the service account — Claude-usage and Update stop working
+for the real admin while the identity model looks correct everywhere else. It
+needed its own `sysetc/` prefix: the restore path copies `system/etc/` into
+`$VT_ETC` and chmods it `0600`, the wrong directory and mode for world-readable
+config.
+
+**The lesson worth keeping.** *A success signal that cannot distinguish "worked"
+from "partly worked" is not a success signal.* `exit 0` on a one-user backup,
+`return True, port` on a port nothing bound, and a green timer over an archive
+missing half the host are the same defect wearing three costumes. The durable
+half of each fix is not the specific repair — it is making the failure
+**expensive to ignore**: a red unit, a failed start, a doctor FAIL.
+
+**Watch out.** `systemd-run` returning 0 means the unit was *accepted*, never that
+the process survived; and anything generated once at install time needs a check
+against the live artifact, because the next fix to the generator will not reach it.
+
+**Rejected: fixing every finding in one pass.** The audit surfaced ~20 ranked
+items (`/api/config/disk` at 15s with a 30s cache, Token Stats reparsing 2.6GB
+because its TTL equals the client's poll interval, `system_status`'s 100ms sleep
+under a process-global lock, Notes polling every 2s ungated, Files re-listing a
+directory every 4s and discarding it). Those are real and measured, but each is a
+different subsystem with its own failure modes; batching them into one release
+would make a regression un-bisectable. They are recorded for their own changes.
+
+**Test.** `server/tests/test_x11_dbus.py` (the twin + the discarded return value,
+the latter asserted on the source since the bug was a dropped result, not wrong
+logic), `test_static.py` (the `location /` gzip block specifically — a global
+assertion would pass on the wrong block), `test_lifecycle.py` (the timer exits
+non-zero, a piped run does not, and an inherited `$INVOCATION_ID` does not).
+`conftest` must now stub `_wait_path` as it already stubbed `_wait_tcp` —
+neutralizing `time.sleep` was only ever sufficient because the caller discarded
+the result.
