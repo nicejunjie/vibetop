@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_304 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_305 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
 - [Scheduled terminal messages ("resume when the token limit resets")](#scheduled-terminal-messages-resume-when-the-token-limit-resets)
@@ -327,6 +327,7 @@ _304 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [Two fingers did nothing to a previewed picture (2026-09-14)](#two-fingers-did-nothing-to-a-previewed-picture-2026-09-14)
 - [A new terminal tab took 3 seconds, and none of it was the terminal (2026-09-17)](#a-new-terminal-tab-took-3-seconds-and-none-of-it-was-the-terminal-2026-09-17)
 - [Auditing for the 3s-tab bug CLASS found three more, and one of them was the backup (2026-09-17)](#auditing-for-the-3s-tab-bug-class-found-three-more-and-one-of-them-was-the-backup-2026-09-17)
+- [Six measured costs taken off the request path, and why a TTL was never the fix (2026-09-18)](#six-measured-costs-taken-off-the-request-path-and-why-a-ttl-was-never-the-fix-2026-09-18)
 
 <!-- END TOC -->
 
@@ -13922,3 +13923,96 @@ non-zero, a piped run does not, and an inherited `$INVOCATION_ID` does not).
 `conftest` must now stub `_wait_path` as it already stubbed `_wait_tcp` —
 neutralizing `time.sleep` was only ever sufficient because the caller discarded
 the result.
+
+## Six measured costs taken off the request path, and why a TTL was never the fix (2026-09-18)
+
+**The common mistake.** Every item here was a cost that is perfectly fine ONCE,
+placed where it was paid over and over. The instinct in each case had been to put
+a TTL in front of it — but a TTL does not remove the cost, it only decides **how
+often someone waits for it**. `/api/config/disk` is the clearest case: a 15.08s
+`du -sx` sweep behind a 30s memo meant opening the Config app half a minute after
+the last look cost fifteen seconds, and lengthening the TTL would only have made
+the number staler without making anyone wait less.
+
+**The fix that replaces the TTL.** `_bg_cached` serves the last value
+**immediately** and refreshes in a daemon thread — the pattern `_codex_usage_api`
+already used for its HTTP fetch, generalised. Three details are load-bearing:
+
+- **An inflight guard.** N clients arriving during a slow refresh must start ONE
+  producer. Token Stats had exactly this bug: `_compute` ran outside the module
+  lock, so two devices polling together meant two concurrent reparses of 2.6GB.
+- **Failure must neither launder nor spin.** Stamping the timestamp on failure
+  would make a stale value look fresh forever; not stamping it leaves the key
+  permanently stale so every request kicks another doomed producer. Hence an
+  explicit retry floor, separate from the timestamp.
+- **`block_first`.** The stats endpoints compute the first value INLINE, so their
+  payload shape never changes and no client needs a `pending` branch. Disk does
+  not: 15s would read as a hang, so that panel renders "Measuring disk usage…".
+  The choice is about whether the caller can honestly show a wait, not about how
+  slow the producer is.
+
+**Token Stats' TTL equalled the client's poll interval.** `_TTL = 45` and
+`setInterval(load, 45000)` — and the timestamp is stamped AFTER the 2.1s compute,
+so the poll missed the cache **by construction** and the user paid a full reparse
+roughly every other tick. Two numbers that must not be equal, in two files, with
+nothing tying them together.
+
+**A latent crash in the same parser.** `except OSError` guards `open()`, but an
+undecodable byte raises `UnicodeDecodeError` from the **iteration** — so it
+escaped `_compute`, 500'd the endpoint, and cached nothing, meaning every later
+request re-read the whole corpus and re-crashed. One bad byte written by any tool
+would have killed Token Stats permanently. Reproduced in a test first.
+
+**The 100ms sleep that multiplied itself.** `system_status` sampled CPU by
+sleeping 0.1s between two `/proc/stat` reads whenever the previous snapshot was
+under 0.5s old — **under the process-global `_collect_lock`**. It self-amplified:
+the first caller stamped the snapshot to *now*, so everyone queued behind it
+failed the freshness test and slept their own 0.1s in turn, K pollers costing
+K × 0.1s serialized host-wide. Two devices' 5s heartbeats plus Monitor's 2s poll
+collide by construction, and `/api/desktop` folds `system` in — so this sat
+between the shell parsing and the first app frame loading. A caller arriving too
+soon now reuses the reading taken moments ago; only the first call of the process
+still samples. 102ms → 1.7ms.
+
+**Two payload fixes.** `/api/update` is 47,116 bytes and the desktop's version
+strip reads three short strings from it; 46.9KB was the update history it never
+looks at. A `?version=1` variant (239 bytes) joins the `?build=1` one that already
+existed for the liveness poll. And Files re-listed the open folder every 4s purely
+to notice a change — downloading a full listing and discarding it, then fetching
+the SAME listing a third time when something had changed. It now sends a short
+digest of what it holds; an unchanged folder answers in 55 bytes, and a changed
+one hands its payload straight to the renderer.
+
+**Why the Files digest is hashed, and why it is tested rather than eyeballed.**
+The natural conditional-request key is the client's own signature string — but
+that is name/size/mtime/isDir per row, i.e. about as large as the listing it
+would avoid sending, so passing it raw costs more than it saves. FNV-1a over
+UTF-8 shrinks it to 8 characters. Both sides must hash the **same bytes**: JS
+string indexing yields UTF-16 code units, so the client encodes to UTF-8 first. A
+mismatch is silent and bimodal — the folder either never refreshes or refreshes
+on every poll — so the two implementations are checked against each other on CJK
+and emoji instead of by inspection.
+
+**Notes was the last polling app with no front-app gate.** The shell keeps every
+app's iframe MOUNTED after you switch away, and `document.hidden` inside an
+iframe follows the TOP document — so a Notes window behind Terminal kept
+refetching the open note's whole body AND the index every 2s for the life of the
+session. Files gates on `inFront`, Monitor on `appActive`, Services on
+`EMBEDDED`; Notes on nothing. The gate must not make the cross-device sync feel
+slower, so regaining focus refreshes immediately rather than waiting for the next
+tick — asserted separately, because that is the half a naive gate gets wrong.
+
+**Watch out.** Two constants that must differ (a cache TTL and a client poll
+interval) living in different files with nothing connecting them will eventually
+be set equal. And `except OSError` around a file open does not cover reading it.
+
+**Test.** `server/tests/test_hot_path_cost.py` (seven cases: block-first, the
+herd guard, the failure that neither spins nor looks fresh, disk staying off the
+request thread, the stats payload shape, the undecodable byte, and five
+back-to-back status polls) plus two in `apps/everyday/notes/notes.test.js`. All
+proven red against the previous commit first — the CPU one for its real measured
+reason (5 polls took 0.511s, i.e. 5 × 100ms) and the parser one with the actual
+`UnicodeDecodeError`. The Notes gate was additionally driven through the real
+Start menu in a browser: 6 requests while front, 0 while backgrounded with the
+iframe still mounted. Note that `notes.test.js`'s sandbox had never needed a
+`location` until a test delivered a `postMessage` the page's origin check reads.

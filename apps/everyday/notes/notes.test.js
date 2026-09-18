@@ -157,6 +157,10 @@ function makeHarness(opts = {}) {
     body: makeEl("body"),
   };
   sandbox.document = doc;
+  // The page's message handler rejects cross-origin posts (`e.origin !==
+  // location.origin`), so the sandbox needs an origin for that check to run at
+  // all. Existing tests never delivered a message, so this was never needed.
+  sandbox.location = { origin: "http://localhost", href: "http://localhost/notes.html" };
   sandbox.window = sandbox;
   sandbox.globalThis = sandbox;
   sandbox.top = sandbox;
@@ -193,6 +197,10 @@ function makeHarness(opts = {}) {
     now = target;
   };
   h.posts = (url) => calls.filter((c) => c.method === "POST" && c.url === url);
+  h.gets = (prefix) => calls.filter((c) => c.method !== "POST" && String(c.url).startsWith(prefix));
+  // The shell's front-app broadcast, delivered exactly as desktop.html sends it.
+  h.setActive = (id) => (sandbox._wls.message || []).forEach((fn) =>
+    fn({ origin: sandbox.location.origin, data: { type: "vibetop:active", active: id } }));
   h.type = (text) => { h.editor.value = text; fire(h.editor, "input"); };
   h.tabIds = () => h.tabsEl.children.map((el) => el.dataset.id);
   h.tabNames = () => h.tabsEl.children.map((el) => el.querySelector(".lbl").textContent);
@@ -440,4 +448,41 @@ test("opening a chip hands the browser a URL with shell metacharacters escaped",
   const open = h.posts("/api/browser/open");
   assert.equal(open.length, 1);
   assert.equal(open[0].body.url, "https://en.wikipedia.org/wiki/Ra_%28god%29");
+});
+
+
+test("Notes stops polling when it is not the app on screen", async () => {
+  // The shell keeps every app's iframe MOUNTED (display:none) after you switch
+  // away, and `document.hidden` inside an iframe follows the TOP document — so
+  // without a gate a Notes window sitting behind Terminal kept refetching the
+  // open note's whole body AND the index every 2s for the life of the session.
+  // Notes was the last polling app without one.
+  const h = await boot();
+  const base = h.gets("/api/notes").length;
+  h.advance(2000); await flush();
+  h.advance(2000); await flush();
+  const whileFront = h.gets("/api/notes").length - base;
+  assert.ok(whileFront > 0, "Notes must still poll while it IS the front app");
+
+  h.setActive("terminal");
+  const behindBase = h.gets("/api/notes").length;
+  h.advance(2000); await flush();
+  h.advance(2000); await flush();
+  h.advance(2000); await flush();
+  assert.equal(h.gets("/api/notes").length, behindBase,
+    "backgrounded, the 2s tick must make no requests at all");
+});
+
+test("coming back to Notes syncs at once rather than up to 2s later", async () => {
+  // The gate must not make the cross-device sync feel SLOWER than before: a note
+  // edited on the phone has to be on screen when you switch back, not after the
+  // next tick lands.
+  const h = await boot();
+  h.setActive("terminal");
+  await flush();
+  const before = h.gets("/api/notes").length;
+  h.setActive("notes");
+  await flush();
+  assert.ok(h.gets("/api/notes").length > before,
+    "regaining focus must refresh immediately, without waiting for the tick");
 });
