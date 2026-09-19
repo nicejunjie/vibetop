@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_308 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_309 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
 - [Scheduled terminal messages ("resume when the token limit resets")](#scheduled-terminal-messages-resume-when-the-token-limit-resets)
@@ -331,6 +331,7 @@ _308 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [A root-trusted file owned by a tenant, and three things the UI claimed without knowing (2026-09-18)](#a-root-trusted-file-owned-by-a-tenant-and-three-things-the-ui-claimed-without-knowing-2026-09-18)
 - [Caching what changed, a ceiling set from the wrong number, and nine invented values (2026-09-18)](#caching-what-changed-a-ceiling-set-from-the-wrong-number-and-nine-invented-values-2026-09-18)
 - [A restore path that had never once run, and three findings it was right to refute (2026-09-18)](#a-restore-path-that-had-never-once-run-and-three-findings-it-was-right-to-refute-2026-09-18)
+- [A read check is not a write check, and an encoded path is still that path (2026-09-19)](#a-read-check-is-not-a-write-check-and-an-encoded-path-is-still-that-path-2026-09-19)
 
 <!-- END TOC -->
 
@@ -14336,3 +14337,117 @@ pointless lock going into the notes save path, and corrected a memory diagnosis
 that would have had me raise a ceiling for the third time from the wrong number.
 An agent's *observation* can be sound while its *conclusion* is not, and the
 cheapest way to tell them apart is to ask a different agent to attack it.
+
+## A read check is not a write check, and an encoded path is still that path (2026-09-19)
+
+Four authorization defects, each independently verified before being touched —
+one by an agent briefed to REFUTE it, which instead made the finding worse.
+
+### Office: the read check was authorizing writes
+
+`_resolve_user_file`'s docstring argues, correctly, that an as-the-user READ
+check *"subsumes path-traversal / symlink / absolute-path escapes: any of them
+can only ever land on a file the user could already read."* That is true — **for
+a viewer**. Office is an editor, and it had no write check at all:
+`permissions.edit` was an unconditional `True`, the `t=` HMAC was minted in
+`/api/office/config` before anyone asked whether this user may write, and the
+callback re-checked READ before handing the bytes to root. Root bypasses
+directory permissions, so both the `mkstemp` and the `os.replace` succeeded in
+directories the tenant cannot write.
+
+Verified on this host: `junjie` can read but not write
+`/usr/share/ieee-data/oui.csv` (root:root 0644). The exploit is *navigate → click
+Edit → type → close* — the Files app browses from `/` and gates its Edit button
+on the filename alone.
+
+Two consequences nobody had noticed, both now fixed: `mkstemp` creates 0600 and
+`os.replace` keeps the **temp** file's mode, so every save-back silently tightened
+the document (0644 → 0600); and the unconditional `_chown_app` then took
+ownership of whatever was saved over. Together they locked the original owner out
+of their own file.
+
+**The gate belongs in the callback**, because that is the only place that is
+authoritative — a config-only fix is cosmetic when the HMAC is already signed.
+The config now *derives* `permissions.edit` and `mode` from the same check, so the
+editor opens read-only rather than promising a save it will refuse.
+`_user_can_write` checks the **directory** too, since `os.replace` renames into it.
+
+### An encoded path bypassed the gate entirely
+
+nginx percent-decodes the URI **before** matching a location, so
+`/%66ileview/etc/hostname` routes to `location /fileview/` — while the handler
+compared the RAW string and its `startswith("/fileview/")` gate missed it. Live,
+as a non-admin: the plain path returned 403, the encoded one returned **200 with
+the file's contents**. `/fileview/` aliases `/` and serves raw bytes as the nginx
+worker, so that gate is the only thing between a non-admin and every file that
+worker can read.
+
+The authcheck now decodes and normalizes before any routing or gating decision,
+so it authorizes the path nginx actually routed. `_is_public_path` deliberately
+stays on the raw string: it is an exact-match allowlist, where decoding could
+only ever let an encoded spelling match a public path — raw fails closed there,
+normalized fails closed here.
+
+**That fix broke Browser and X11 on the first attempt.** `normpath` strips a
+trailing slash and the port resolution is `startswith("/browser/")`-shaped, so
+`"/browser/"` became `"/browser"` and matched nothing — two 500s, caught by the
+live smoke test. Normalization must only ever remove *encoding and traversal*,
+never a meaningful character.
+
+Separately, `/fileview/` responses carried no `nosniff` and no CSP: nginx drops
+inherited `add_header`s in any location that sets one of its own, so the
+`location /` protections never applied to the one location that aliases `/`. An
+HTML file reached through it executed in the vibetop **origin**.
+
+### Two more of the same shape
+
+A **share served files its own owner could not read** — the fence proves the path
+is inside the owner's home, not that the owner can read it. This was the only
+root-served path skipping the as-the-user check, so a 0600 file another tenant
+left in a world-writable directory of the owner's home went out over a cookieless
+public URL. The ZIP walk had the identical hole with a bigger mouth; there the
+check is done with in-process mode arithmetic on the `stat` already taken, because
+forking `/usr/bin/test` 50k times is not a check but an outage — and it therefore
+fails **closed** on ACL-granted reads, which is the safe direction.
+
+And `_require_sudo` now gates on `_session_user()` like `_require_admin`, whose
+docstring already explained why: `_ctx_user()` falls back to APP_USER for a
+cookieless request, and a local tenant can reach the manager's loopback port
+directly. Inert here, but `install.sh` explicitly supports a home-owned install
+where APP_USER *is* the operator and *is* a sudoer — and these endpoints reset
+Linux passwords.
+
+### Deploy-path hardening, and two mistakes of my own
+
+**An invalid nginx config waited on disk for the next reboot.** `nginx_write`
+installs, and the callers validate *afterwards* — so a config that fails to parse
+stayed there. The running nginx is unaffected (it holds the old config in
+memory), so the host looks healthy until the next `systemctl restart nginx`,
+when it does not come up at all: a total outage caused by an update days earlier
+that printed one red line. Now it installs, tests, and puts the old file back if
+it does not parse — and the installer fails loudly, because otherwise it would
+report success: the `nginx -t` at the end **passes**, the reverted config being
+valid.
+
+My first version of that signalled failure through a variable, and my own test
+caught it: `nginx_write` is always the right-hand side of a pipe, so it runs in a
+**subshell** and the variable never reaches the caller — which is precisely why
+the existing contract signals "changed" through the return code. A marker file
+crosses that boundary. Then the suite's own shellcheck gate caught
+`sudo cat "$dest" > "$bak"`: the redirect is performed by the invoking shell, not
+by sudo.
+
+**The Update verified nothing before restarting onto pulled code.** A syntax
+error meant the restart failed, `Restart=on-failure` retried, and
+`StartLimitBurst` gave up — leaving nginx's `auth_request` pointed at a dead
+manager, every protected surface 500ing, and no way to fix the product from
+inside the product. Now every `server/*.py` must compile first. It uses
+`compile()`, **not** `ast.parse`: `'continue' not properly in loop` is a
+compile-time error that parses cleanly, and an `ast.parse` gate had already told
+me "syntax ok" about a file that could not be imported earlier the same day.
+
+**Watch out.** A path check and the router must see the *same* string, and nginx
+has already decoded by the time it picks a location. A function on the right-hand
+side of a pipe cannot report anything through a variable. And an installer that
+reverts a bad artifact must fail explicitly, or its own validation will now pass
+and hide the fact that the deploy did nothing.
