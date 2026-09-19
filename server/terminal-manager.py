@@ -36,6 +36,7 @@ import signal
 import shlex
 import shutil
 import stat
+import posixpath
 import socket
 import stat
 import struct
@@ -3252,6 +3253,51 @@ def _user_can_read(path, user):
         return False
 
 
+def _user_can_write(path, user):
+    """True iff `user` could themselves write `path`, under real Unix perms.
+
+    The twin `_user_can_read` has always been the authorization boundary for the
+    root-served viewers, and its docstring argues correctly that a read check
+    "subsumes path-traversal / symlink / absolute-path escapes: any of them can
+    only ever land on a file the user could already read". That reasoning holds
+    for a VIEWER. Office is an EDITOR, and it had no write check at all — so a
+    tenant could open any office-extension file they could merely READ, type into
+    it, and have ROOT perform the save: another user's 0640 document, or a
+    root-owned .csv in /usr/share. Root bypasses directory permissions, so both
+    the mkstemp and the os.replace succeeded on a directory they cannot write.
+
+    Writing needs the DIRECTORY too — `os.replace` renames into it — so both are
+    checked. A missing file is writable if its directory is (that is `office/new`).
+    """
+    d = os.path.dirname(path) or "/"
+    if not _user_can_exec_test(d, "-w", user):
+        return False
+    if os.path.exists(path):
+        return _user_can_exec_test(path, "-w", user)
+    return True
+
+
+def _user_can_exec_test(path, flag, user):
+    """`test <flag> <path>` with the USER's credentials — uid, primary gid and
+    every supplementary group — because root's own access(2) bypasses permissions.
+    Shared by _user_can_read and _user_can_write so the two can never diverge."""
+    try:
+        if os.geteuid() != 0:
+            return os.access(path, os.W_OK if flag == "-w" else os.R_OK)
+        pw = pwd.getpwnam(user)
+        gids = os.getgrouplist(user, pw.pw_gid)
+    except (KeyError, OSError, TypeError):
+        return False
+    try:
+        r = subprocess.run(["/usr/bin/test", flag, path],
+                           user=pw.pw_uid, group=pw.pw_gid, extra_groups=gids,
+                           timeout=10, stdin=subprocess.DEVNULL,
+                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        return r.returncode == 0
+    except (OSError, ValueError, subprocess.SubprocessError):
+        return False
+
+
 def _resolve_user_file(rel, user=None):
     """Resolve a Files-app path to an absolute regular file the `user` is AUTHORIZED
     to read, or None. The Files app browses from `/`, so the paths it sends are
@@ -3320,6 +3366,16 @@ def _safe_share_target(rel, user=None):
     if any(p.startswith(".") for p in inside.split(os.sep) if p):
         return (None, None)
     if os.path.isfile(full):
+        # The fence proves the path is INSIDE the owner's home; it does not prove
+        # the owner can READ it. This is the one root-served path that skipped the
+        # as-the-user check that _resolve_user_file's docstring names as THE
+        # authorization boundary — so a 0600 file someone else dropped into a
+        # world-writable directory in the owner's home was served to the public
+        # over a cookieless /s/ URL. Cross-tenant, no race, no crafted request.
+        if not _user_can_read(full, user or _ctx_user()):
+            log.warning("share: %s cannot read %s — refusing to serve it",
+                        user or _ctx_user(), full)
+            return (None, None)
         return (full, "file")
     if os.path.isdir(full):
         return (full, "dir")
@@ -4820,10 +4876,21 @@ class Handler(http.server.BaseHTTPRequestHandler):
     def _require_sudo(self):
         """Guard for the Config admin app (idle policy + user management). Gates on
         real OS sudo membership (_can_sudo), NOT VIBETOP_ADMINS — these endpoints do
-        OS-level user/password ops. Returns True if allowed; else writes 403."""
-        if _can_sudo(_ctx_user()):
+        OS-level user/password ops. Returns True if allowed; else writes 403.
+
+        Gates on `_session_user()`, NOT `_ctx_user()`, for exactly the reason
+        _require_admin spells out above: _ctx_user() falls back to APP_USER for a
+        cookieless request, and a local tenant can reach the manager's loopback
+        port directly, bypassing nginx's auth_request. That is inert on this host
+        because APP_USER is the no-login `vibetop` account, which is not in
+        `sudo` — but server/install.sh explicitly supports a home-owned install
+        where APP_USER *is* the operator and therefore *is* a sudoer, and there
+        the fallback would hand a cookieless caller every endpoint here,
+        including resetting the admin's Linux password."""
+        u = self._session_user()
+        if u and _can_sudo(u):
             return True
-        log.warning("sudo-only %s denied for user %s", self.path, _ctx_user())
+        log.warning("sudo-only %s denied for user %s", self.path, u or "<no session>")
         self._json(403, {"error": "this feature requires sudo privileges"})
         return False
 
@@ -4957,13 +5024,42 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self.end_headers()
             return
         path = orig.split("?", 1)[0]
+        # DECODE AND NORMALIZE before any routing or gating decision, because
+        # nginx already did. nginx percent-decodes the URI BEFORE matching a
+        # location, so `/%66ileview/etc/hostname` routes to `location /fileview/`
+        # — while this handler compared the RAW string and its
+        # `startswith("/fileview/")` gate missed it entirely. Verified live: as a
+        # non-admin, `/fileview/etc/hostname` returned 403 and
+        # `/%66ileview/etc/hostname` returned 200 with the file's contents.
+        #
+        # The same skew applied to the /tN/ and /browser/ port resolution below,
+        # which decides which backend nginx is handed — so this re-aligns what we
+        # authorize with what actually gets served.
+        #
+        # `_is_public_path(orig)` above deliberately stays on the RAW string: it
+        # is an exact-match allowlist, so decoding could only ever let an encoded
+        # spelling match a public path. Raw fails closed there; normalized fails
+        # closed here.
+        try:
+            _norm = posixpath.normpath(urllib.parse.unquote(path))
+            # normpath STRIPS A TRAILING SLASH, and several checks below are
+            # `startswith("/browser/")`-shaped — so normalizing naively turned
+            # "/browser/" into "/browser" and matched none of them. That broke
+            # Browser and X11 routing outright (500s, caught by smoke). Put the
+            # slash back when the original had one, so normalization only ever
+            # removes encoding and traversal, never a meaningful character.
+            if path.endswith("/") and not _norm.endswith("/"):
+                _norm += "/"
+            path = _norm
+        except (UnicodeDecodeError, ValueError):
+            path = "/"          # undecodable -> nothing matches, everything gated
         # /fileview/ serves raw files as the nginx worker (APP_USER's tree, shared
         # embedded Browser) -> operator only until it's per-user (Phase 3c). Gate on
         # _is_admin, NOT `user != APP_USER`: on prod APP_USER is the no-login service
         # account (`vibetop`) while the human operator logs in as a named admin, so
         # `!= APP_USER` denied EVERY real session (feature dead). The named admins
         # (VIBETOP_ADMINS) are exactly who should reach it.
-        if path.startswith("/fileview/") and not _is_admin(user):
+        if (path == "/fileview" or path.startswith("/fileview/")) and not _is_admin(user):
             self.send_response(403)
             self.send_header("Content-Length", "0")
             self.end_headers()
@@ -6861,18 +6957,24 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 while len(_office_sessions) > 64:
                     _office_sessions.pop(next(iter(_office_sessions)))
         ext = os.path.splitext(src)[1].lstrip(".").lower()
+        # Ask ONCE, here, and let both the permission flag and the editor mode
+        # follow from it — otherwise the two can disagree and the user types into
+        # a document that will not save.
+        _can_edit = _user_can_write(src, owner)
         qp = urllib.parse.urlencode({"path": rel, "u": owner,
                                      "t": _onlyoffice_sig(secret, owner, rel)})
         cfg = {
             "document": {
                 "fileType": ext, "key": key, "title": os.path.basename(src),
                 "url": f"{ONLYOFFICE_HOST}/api/office/doc?{qp}",
-                "permissions": {"edit": True, "download": True, "print": True},
+                # Derived, not asserted: this used to be an unconditional True,
+                # so the editor promised an edit that (now) the callback refuses.
+                "permissions": {"edit": _can_edit, "download": True, "print": True},
             },
             "documentType": _onlyoffice_doctype(ext),
             "editorConfig": {
                 "callbackUrl": f"{ONLYOFFICE_HOST}/api/office/callback?{qp}",
-                "lang": "en", "mode": "edit",
+                "lang": "en", "mode": "edit" if _can_edit else "view",
                 "user": {"id": "vibetop", "name": "Vibetop"},
                 "customization": {"forcesave": True, "uiTheme": "theme-dark"},
             },
@@ -6976,6 +7078,18 @@ class Handler(http.server.BaseHTTPRequestHandler):
         status = data.get("status")
         saved = None
         if status in (2, 6) and data.get("url"):
+            # THE authorization point. `_resolve_under_home` above is a READ
+            # check — correct for a viewer, useless for an editor — and the `t=`
+            # HMAC was minted back in /api/office/config before anyone asked
+            # whether this user may WRITE. So a tenant could open any
+            # office-extension file they could merely read (another user's 0640
+            # document, a root-owned .csv under /usr/share), type into it, and
+            # have ROOT perform the save: root bypasses directory permissions, so
+            # both the mkstemp and the os.replace succeeded.
+            if not _user_can_write(src, owner):
+                log.warning("office: %s may read but not write %s — refusing the "
+                            "save-back", owner, src)
+                return self._json(200, {"error": 1})
             saved = self._office_save_back(data["url"], src, owner)
         # `{"error": 0}` is OnlyOffice's "saved — you may discard your copy", and
         # it used to be returned even when the download-and-replace had thrown:
@@ -7049,12 +7163,28 @@ class Handler(http.server.BaseHTTPRequestHandler):
             try:
                 with os.fdopen(fd, "wb") as f:
                     f.write(body)
+                # mkstemp creates 0600 and os.replace keeps the TEMP file's mode,
+                # so every save-back silently tightened the document — a 0644 file
+                # became 0600, and a collaborator lost access to a file they had
+                # been editing. fileagent.py already preserves mode on its own
+                # atomic writes; the manager just never copied it.
+                try:
+                    os.chmod(tmp, stat.S_IMODE(os.stat(dst).st_mode))
+                except OSError:
+                    pass
                 os.replace(tmp, dst)
             except BaseException:
                 try: os.unlink(tmp)
                 except OSError: pass
                 raise
-            _chown_app(dst, user)
+            # Only claim a file that is ALREADY theirs. Chowning unconditionally
+            # took ownership of whatever was saved over — combined with the mode
+            # clobber above, the original owner lost access to their own document.
+            try:
+                if os.stat(dst).st_uid == pwd.getpwnam(user or _ctx_user()).pw_uid:
+                    _chown_app(dst, user)
+            except (OSError, KeyError):
+                pass
         except Exception as e:
             log.warning("office: save-back failed from %s: %s", local, e)
             return False
