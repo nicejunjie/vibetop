@@ -174,3 +174,73 @@ def test_the_uploaded_file_is_chowned_by_descriptor_not_by_path(mgr):
         "chown the open descriptor, not a fresh path lookup"
     assert "os.fstat(out.fileno()" in src, \
         "and stat it the same way, for the same reason"
+
+
+# ---- a READ check does not authorize a WRITE -------------------------------
+
+def test_office_refuses_a_save_back_the_user_could_not_perform(mgr):
+    """`_resolve_user_file`'s docstring argues correctly that an as-the-user READ
+    check "subsumes path-traversal / symlink / absolute-path escapes: any of them
+    can only ever land on a file the user could already read". That holds for a
+    VIEWER. Office is an EDITOR and had no write check at all — so a tenant could
+    open any office-extension file they could merely READ, type into it, and have
+    ROOT perform the save. Root bypasses directory permissions, so both the
+    mkstemp and the os.replace succeeded on a directory they cannot write.
+
+    Verified live on this host: junjie can read but not write
+    /usr/share/ieee-data/oui.csv (root:root 0644), and `permissions.edit` was an
+    unconditional True with the `t=` HMAC minted before any permission question
+    was asked — which is why the authoritative gate has to be in the CALLBACK,
+    not the config.
+    """
+    import inspect
+    cb = inspect.getsource(mgr.Handler._handle_office_callback)
+    assert "_user_can_write(" in cb, \
+        "the save-back must be gated on WRITE permission, not the read check"
+    i_gate, i_save = cb.index("_user_can_write("), cb.index("_office_save_back(")
+    assert i_gate < i_save, "the check must precede the write, not follow it"
+
+    cfg = inspect.getsource(mgr.Handler._handle_office_config)
+    assert '"edit": True' not in cfg, \
+        "permissions.edit was unconditional; derive it so the UI matches reality"
+
+
+def test_write_permission_needs_the_directory_too(mgr, tmp_path):
+    """`os.replace` renames INTO the directory, so a writable file in an
+    unwritable directory is still not writable in the way a save-back needs."""
+    d = tmp_path / "ro"
+    d.mkdir()
+    f = d / "doc.csv"
+    f.write_text("x")
+    me = pwd.getpwuid(os.getuid()).pw_name
+    assert mgr._user_can_write(str(f), me) is True
+    os.chmod(d, 0o500)                      # read+exec, not writable
+    try:
+        if os.getuid() != 0:                # root ignores the mode; skip there
+            assert mgr._user_can_write(str(f), me) is False, \
+                "a file in an unwritable directory cannot be atomically replaced"
+    finally:
+        os.chmod(d, 0o700)
+
+
+def test_a_save_back_does_not_tighten_or_steal_the_document(mgr):
+    """mkstemp creates 0600 and os.replace keeps the TEMP file's mode, so every
+    save-back silently tightened the document — a 0644 file became 0600 — and the
+    unconditional chown then took ownership of whatever was saved over. Together
+    that stripped the original owner's access to their own file."""
+    import inspect
+    src = inspect.getsource(mgr.Handler._office_save_back)
+    assert "os.chmod(tmp" in src, "the replacement must inherit the target's mode"
+    assert "st_uid ==" in src, "only chown a file that is already that user's"
+
+
+def test_a_share_serves_only_what_its_owner_can_read(mgr):
+    """The share fence proves the path is INSIDE the owner's home; it does not
+    prove the owner can READ it. This was the one root-served path that skipped
+    the as-the-user check, so a 0600 file another tenant dropped into a
+    world-writable directory in the owner's home was served to the public over a
+    cookieless /s/ URL — cross-tenant, no race, no crafted request."""
+    import inspect
+    src = inspect.getsource(mgr._safe_share_target)
+    assert "_user_can_read(" in src, \
+        "the share target must pass the same as-the-user read check as the viewers"

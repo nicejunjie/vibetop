@@ -588,3 +588,72 @@ def test_terminal_env_falls_back_to_real_bus_if_private_unavailable(mgr, monkeyp
     d = dict(e.split("=", 1) for e in mgr._user_terminal_setenvs("alice"))
     assert d.get("DBUS_SESSION_BUS_ADDRESS") == "unix:path=/run/user/4321/bus", \
         "must fall back to the real user bus when the private bus is unavailable"
+
+
+# ---- the gate must see the path nginx actually routed ----------------------
+
+def _authcheck(client, uri, cookie=None):
+    """(status, headers) for an authcheck of `uri`, exactly as nginx asks it."""
+    status, hdrs, _ = client.get_full(
+        "/api/authcheck", headers={"X-Original-URI": uri}, cookie=cookie)
+    return status, hdrs
+
+
+def _admin_cookie(mgr):
+    return "vt_session=" + mgr._sign_session(mgr.OPERATOR)
+
+
+def test_a_percent_encoded_fileview_is_still_gated(mgr, client, users):
+    """AUTHORIZATION BYPASS. nginx percent-decodes the URI BEFORE matching a
+    location, so `/%66ileview/etc/hostname` routes to `location /fileview/` — but
+    this handler compared the RAW string, and its `startswith("/fileview/")` gate
+    missed it. Verified live before the fix: as a non-admin, the plain path
+    returned 403 and the encoded one returned 200 WITH THE FILE'S CONTENTS.
+
+    /fileview/ aliases `/` and serves raw bytes as the nginx worker, so the gate
+    is the only thing between a non-admin and any file that worker can read.
+    """
+    _, non_admin = users["alice"]          # alice is not in VIBETOP_ADMINS
+    for uri in ("/fileview/etc/hostname",
+                "/%66ileview/etc/hostname",          # the bypass
+                "/fileview/%65tc/hostname",          # encoded deeper in the path
+                "/fileview/../fileview/etc/hostname"):
+        status, _ = _authcheck(client, uri, cookie=non_admin)
+        assert status == 403, f"{uri} was not gated (got {status})"
+
+
+def test_normalizing_does_not_break_the_routing_it_shares(mgr, client, users):
+    """normpath STRIPS A TRAILING SLASH, and the port-resolution checks below the
+    gate are `startswith("/browser/")`-shaped — so normalizing naively turned
+    "/browser/" into "/browser", matched none of them, and broke Browser and X11
+    routing outright (live smoke caught it as two 500s). Normalization must only
+    ever remove encoding and traversal, never a meaningful character."""
+    admin = _admin_cookie(mgr)
+    for uri, header in (("/t1/", "X-Term-Port"),
+                        ("/browser/", "X-App-Port"),
+                        ("/x11-display/", "X-App-Port")):
+        status, hdrs = _authcheck(client, uri, cookie=admin)
+        assert status == 200, f"{uri} -> {status}"
+        assert hdrs.get(header), \
+            f"{uri} resolved no {header}; nginx would have nothing to route to"
+
+
+def test_sudo_gate_requires_a_session_not_the_app_user_fallback(mgr):
+    """`_ctx_user()` falls back to APP_USER for a cookieless request, and a local
+    tenant can reach the manager's loopback port directly, bypassing nginx's
+    auth_request. `_require_admin` documents exactly this and gates on
+    `_session_user()`; `_require_sudo` — which gates OS user/password management —
+    did not.
+
+    Inert on this host (APP_USER is the no-login `vibetop`, not a sudoer), but
+    server/install.sh explicitly supports a home-owned install where APP_USER IS
+    the operator and therefore IS in `sudo`; there the fallback would hand a
+    cookieless caller the endpoint that resets the admin's Linux password.
+    """
+    import inspect
+    src = inspect.getsource(mgr.Handler._require_sudo)
+    assert "_session_user()" in src, \
+        "the sudo gate must require a verified session, not _ctx_user()'s fallback"
+    assert "_can_sudo(_ctx_user())" not in src
+    admin_src = inspect.getsource(mgr.Handler._require_admin)
+    assert "_session_user()" in admin_src, "both operator gates must agree"

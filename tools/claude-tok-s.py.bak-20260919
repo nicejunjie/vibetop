@@ -14,21 +14,8 @@ Three fields, each from a different source and each independently optional:
               rate = this_turn.output_tokens / (this_turn.ts - prev_turn.ts)
 
           The gap includes model thinking + tool-execution time, so this reads
-          low during long tool calls and spikes on a text-heavy turn.
-
-          That used to be described here as the ceiling of what the logs
-          support. It is not: llama-server prints its OWN decode rate, and this
-          script already opens that log for the acceptance field. Measured
-          2026-09-19 at a 164k-token context, the two disagree by a third --
-          30 tok/s end-to-end against 40 tok/s of actual decoding -- because
-          the gap was mostly a 30-second prefill. So the server's figure is
-          used when a fresh local log exists, and the transcript estimate is
-          the fallback for cloud sessions.
-
-  pf      Prefill seconds for the last turn, from the same log. At a long
-          context this is the number that explains a slow session: 5,098 new
-          tokens cost 29.7 s before a single output token appears, which is a
-          third of the turn and is invisible in any tok/s figure.
+          low during long tool calls and spikes on a text-heavy turn. That is
+          the real ceiling on what the logs support, not a bug in this script.
 
   ctx     Straight from stdin. Claude Code passes a `context_window` object:
           total_input_tokens, total_output_tokens, context_window_size,
@@ -73,10 +60,6 @@ LOG_MAX_AGE_SECONDS = 600
 ACCEPTANCE_SAMPLES = 5
 ACCEPTANCE_RE = re.compile(
     r"draft acceptance = [0-9.]+ \(\s*(\d+) accepted /\s*(\d+) generated\)")
-# "|<spaces>eval time" is the DECODE line; the prefill line reads
-# "| prompt eval time", so anchoring on the pipe keeps them apart.
-DECODE_RE = re.compile(r"\|\s+eval time =.*?([\d.]+) tokens per second")
-PREFILL_RE = re.compile(r"\|\s+prompt eval time =\s+([\d.]+) ms")
 
 
 def _stdin_json():
@@ -158,42 +141,6 @@ def _usage_entries(transcript):
     return [(sec, out, total) for sec, (out, total) in items[-2:]]
 
 
-def server_rate_field(model_id):
-    """Decode rate as the server itself measured it, or None.
-
-    Preferred over the transcript estimate because it excludes prefill, tool
-    execution and queueing -- the three things that make the estimate read low
-    exactly when a session feels slow, which is when the number is looked at.
-    """
-    if model_id.startswith("claude"):
-        return None
-    path = _fresh_server_log()
-    if not path:
-        return None
-    rates = DECODE_RE.findall(_tail(path, LOG_TAIL_BYTES))
-    if not rates:
-        return None
-    return f"{float(rates[-1]):.0f} tok/s"
-
-
-def prefill_field(model_id):
-    """Seconds spent on prefill in the last turn, when that is worth knowing.
-
-    Hidden in every tok/s figure and often the larger half of a turn at a long
-    context, so it is shown only once it is big enough to matter.
-    """
-    if model_id.startswith("claude"):
-        return None
-    path = _fresh_server_log()
-    if not path:
-        return None
-    times = PREFILL_RE.findall(_tail(path, LOG_TAIL_BYTES))
-    if not times:
-        return None
-    seconds = float(times[-1]) / 1000.0
-    return f"pf {seconds:.0f}s" if seconds >= 3 else None
-
-
 def rate_field(entries):
     if len(entries) < 2:
         return "tok/s n/a"
@@ -273,14 +220,8 @@ def main():
     except Exception:
         pass
 
-    measured = None
-    try:
-        measured = server_rate_field(model_id)
-    except Exception:
-        pass
-    parts = [measured or rate_field(entries)]
-    for builder in (lambda: prefill_field(model_id),
-                    lambda: context_field(data, entries),
+    parts = [rate_field(entries)]
+    for builder in (lambda: context_field(data, entries),
                     lambda: acceptance_field(model_id)):
         try:
             value = builder()
