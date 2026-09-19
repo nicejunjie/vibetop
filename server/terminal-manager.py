@@ -4491,6 +4491,28 @@ def _write_update_history(entries):
         pass
 
 
+def _uncompilable_sources():
+    """Names of server/*.py that fail to compile, newest code on disk. Uses
+    compile(), NOT ast.parse: `'continue' not properly in loop` is a COMPILE-time
+    error that parses cleanly, and that exact class already slipped past an
+    ast.parse gate in this project once."""
+    bad = []
+    d = os.path.join(REPO_DIR, "server")
+    try:
+        names = sorted(n for n in os.listdir(d) if n.endswith(".py"))
+    except OSError:
+        return bad
+    for n in names:
+        try:
+            with open(os.path.join(d, n), "rb") as f:
+                compile(f.read(), n, "exec")
+        except (SyntaxError, ValueError):
+            bad.append(n)
+        except OSError:
+            pass
+    return bad
+
+
 def _append_update_history(entry):
     with _update_lock:
         h = _read_update_history()
@@ -7751,6 +7773,25 @@ class Handler(http.server.BaseHTTPRequestHandler):
         # report success (and reload onto a half-deployed shell), and log it as a
         # 'failed' event rather than the 'updated' recorded above.
         failed = [s["name"] for s in steps if not s["ok"]]
+        # COMPILE THE CODE WE ARE ABOUT TO RESTART ONTO. Nothing verified the
+        # pulled sources: if server/terminal-manager.py landed with a syntax or
+        # import error, the out-of-band restart below failed, Restart=on-failure
+        # retried, and StartLimitBurst gave up after ~10 attempts. nginx's
+        # auth_request points at the dead manager, so EVERY protected surface
+        # 500s — terminals included — and the operator cannot use the product to
+        # fix the product. Recovery is SSH + git reset.
+        #
+        # py_compile is cheap and catches the whole class that makes the process
+        # unstartable. It is not a test suite and does not pretend to be: a
+        # runtime bug still gets through, and there is still no rollback. But a
+        # file that cannot even be parsed must never become the running manager.
+        if restart and not failed:
+            bad = _uncompilable_sources()
+            if bad:
+                failed = ["compile: " + ", ".join(bad)]
+                restart = False
+                log.error("update: refusing to restart onto code that does not "
+                          "compile: %s", bad)
         deploy_ok = not failed
         if not deploy_ok:
             _append_update_history({"time": int(time.time()), "event": "failed",

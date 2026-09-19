@@ -192,3 +192,42 @@ def test_web_redeploy_trigger_covers_every_dir_the_installer_walks():
         "shell/install.sh deploys from %r but the Update redeploy trigger only "
         "fires on %r — a change under %r would be pulled and never installed"
         % (sorted(walked), sorted(triggered), sorted(missing)))
+
+
+def test_update_refuses_to_restart_onto_code_that_does_not_compile(mgr, tmp_path, monkeypatch):
+    """Nothing verified the pulled sources. If server/terminal-manager.py landed
+    with a syntax error the out-of-band restart failed, Restart=on-failure
+    retried, and StartLimitBurst gave up after ~10 attempts — at which point
+    nginx's auth_request points at a dead manager, so EVERY protected surface
+    500s (terminals included) and the operator cannot use the product to fix the
+    product.
+
+    Uses compile(), NOT ast.parse: `'continue' not properly in loop` is a
+    COMPILE-time error that parses cleanly, and that exact class slipped past an
+    ast.parse check in this project earlier the same day.
+    """
+    d = tmp_path / "server"
+    d.mkdir()
+    (d / "fine.py").write_text("x = 1\n")
+    monkeypatch.setattr(mgr, "REPO_DIR", str(tmp_path))
+    assert mgr._uncompilable_sources() == []
+
+    (d / "broken.py").write_text("def f():\n    continue\n")      # parses, won't compile
+    assert mgr._uncompilable_sources() == ["broken.py"], \
+        "a compile-only error must be caught; ast.parse would accept this file"
+
+    import ast
+    ast.parse((d / "broken.py").read_text())      # proves the weaker gate passes it
+
+
+def test_the_compile_gate_is_wired_into_the_restart_decision(mgr):
+    """The check is worthless unless it actually suppresses the restart and
+    surfaces as a failed deploy."""
+    import inspect
+    src = inspect.getsource(mgr.Handler._handle_update_locked)
+    assert "_uncompilable_sources()" in src
+    i_check = src.index("_uncompilable_sources()")
+    i_ok = src.index("deploy_ok = not failed")
+    assert i_check < i_ok, "the compile result must feed deploy_ok, not follow it"
+    assert "restart = False" in src[i_check:i_ok], \
+        "code that does not compile must not become the running manager"

@@ -31,7 +31,14 @@ async function useWindowMode(page) {
 async function openUtility(page, id) {
   await openStartMenu(page);
   await page.locator('#sm-util-parent').click();
-  await page.locator(`#startmenu .sm-item[data-id="${id}"]`).first().click();
+  // BOTH parents. Since v1.19.307 (2026-09-05) makeFlyout() hoists the flyout
+  // panel out of the menu (`document.body.appendChild(sub)`), so a Utilities row
+  // is no longer a descendant of #startmenu — this locator had matched nothing
+  // since then, and the three tests using this helper have been failing on a
+  // 30s timeout each ever since. start-flyout.spec.js already carries the dual
+  // locator with a comment naming that same hoist; this just adopts it.
+  await page.locator(`#startmenu .sm-item[data-id="${id}"], ` +
+                     `.sm-sub .sm-item[data-id="${id}"]`).first().click();
   await expect(page.locator(`#task-apps .task-app[data-id="${id}"]`)).toBeVisible();
 }
 
