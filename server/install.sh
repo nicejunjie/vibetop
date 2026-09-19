@@ -117,12 +117,47 @@ NGINX_DIRTY=0
 # set inside wouldn't reach the parent — the caller captures the change as the
 # pipe exit status:  <render> | nginx_write "$dest" || NGINX_DIRTY=1
 nginx_write() {
-    local dest="$1" tmp; tmp="$(mktemp)"; cat >"$tmp"
+    local dest="$1" tmp bak; tmp="$(mktemp)"; cat >"$tmp"
     if ! [ -s "$tmp" ]; then echo "nginx_write: refusing to write EMPTY config to $dest (upstream render failed?)" >&2; rm -f "$tmp"; return 0; fi
     if [ -f "$dest" ] && cmp -s "$tmp" "$dest"; then rm -f "$tmp"; return 0; fi
-    if (( DRY_RUN )); then echo "+ nginx: would update $dest"; else sudo install -m 0644 "$tmp" "$dest"; fi
-    rm -f "$tmp"; return 1
+    if (( DRY_RUN )); then echo "+ nginx: would update $dest"; rm -f "$tmp"; return 1; fi
+
+    # VALIDATE, AND ROLL BACK IF INVALID. Callers validate with `nginx -t` only
+    # AFTER this function has already installed the file, so a config that fails
+    # to parse stayed on disk: the RUNNING nginx is unaffected (it holds the old
+    # config in memory), so the host looks perfectly healthy — until the next
+    # `systemctl restart nginx`, i.e. a reboot, when nginx does not come up AT
+    # ALL. The operator then sees a total outage whose cause was an update days
+    # earlier that printed one red line.
+    #
+    # nginx -t validates the whole tree, so a file cannot be tested in isolation:
+    # install it, test, and put the old one back if it does not parse.
+    bak=""
+    # `sudo cp`, not `sudo cat > "$bak"`: the redirect is performed by the
+    # invoking shell, not by sudo (shellcheck SC2024). cp writes into the
+    # already-created mktemp file, so it stays owned by the invoking user and
+    # the later `rm -f` works without sudo.
+    if [ -f "$dest" ]; then bak="$(mktemp)"; sudo cp "$dest" "$bak"; fi
+    sudo install -m 0644 "$tmp" "$dest"
+    rm -f "$tmp"
+    if ! sudo nginx -t >/dev/null 2>&1; then
+        echo "nginx_write: $dest does NOT parse — reverting so it cannot break the next restart" >&2
+        sudo nginx -t 2>&1 | sed 's/^/    /' >&2
+        if [ -n "$bak" ]; then sudo install -m 0644 "$bak" "$dest"; else sudo rm -f "$dest"; fi
+        rm -f "$bak"
+        # A MARKER FILE, not a variable: nginx_write is always invoked as the
+        # right-hand side of a pipe (`<render> | nginx_write "$dest"`), so it runs
+        # in a SUBSHELL and any variable it sets is lost — which is exactly why
+        # the existing contract signals "changed" through the return code. A file
+        # crosses the subshell boundary.
+        : > "$NGINX_FAIL_MARK"
+        return 0            # nothing changed on disk, so nothing to reload
+    fi
+    rm -f "$bak"
+    return 1
 }
+NGINX_FAIL_MARK="$(mktemp -u /tmp/vt-nginx-fail.XXXXXX)"
+trap 'rm -f "$NGINX_FAIL_MARK"' EXIT
 
 cat <<EOF
 vibetop install
@@ -712,6 +747,15 @@ PYEOF
         fi
     else
         echo "   nginx config unchanged — skipping reload"
+    fi
+    # nginx_write REVERTS a config that does not parse, so the check above now
+    # passes even when a render was broken — the old config is valid, after all.
+    # Without this the installer would report success having silently dropped the
+    # change it was run to apply.
+    if [ -e "$NGINX_FAIL_MARK" ]; then
+        echo "ERROR: at least one nginx config failed to parse and was reverted —" >&2
+        echo "       the host is SAFE (old config kept) but this deploy did NOT apply." >&2
+        exit 1
     fi
 fi
 

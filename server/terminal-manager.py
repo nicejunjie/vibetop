@@ -3253,6 +3253,26 @@ def _user_can_read(path, user):
         return False
 
 
+def _stat_readable_by(st, uid, gids):
+    """Standard Unix read check against an ALREADY-TAKEN stat, no fork.
+
+    `_user_can_read` forks `/usr/bin/test` so it honours ACLs, which is right for
+    a single file — but the share zip walk visits up to SHARE_ZIP_MAX_FILES
+    entries, and 50k forks is not a check, it is an outage. This does the mode
+    arithmetic in process instead. It therefore MISSES ACLs (an ACL-granted read
+    reads as denied here, i.e. it fails CLOSED — a file is omitted from the zip
+    rather than wrongly included), which is the safe direction and acceptable for
+    a fence this coarse."""
+    if uid == 0:
+        return True
+    m = st.st_mode
+    if st.st_uid == uid:
+        return bool(m & 0o400)
+    if st.st_gid in gids:
+        return bool(m & 0o040)
+    return bool(m & 0o004)
+
+
 def _user_can_write(path, user):
     """True iff `user` could themselves write `path`, under real Unix perms.
 
@@ -8004,6 +8024,12 @@ class Handler(http.server.BaseHTTPRequestHandler):
             total = count = 0
             top = os.path.basename(absdir.rstrip("/")) or "share"
             with zipfile.ZipFile(tmppath, "w", zipfile.ZIP_DEFLATED, allowZip64=True) as z:
+                try:
+                    _pw = pwd.getpwnam(owner)
+                    _owner_uid = _pw.pw_uid
+                    _owner_gids = set(os.getgrouplist(owner, _pw.pw_gid))
+                except (KeyError, OSError):
+                    _owner_uid, _owner_gids = -1, set()   # unknown -> nothing readable
                 for root, dirs, files in os.walk(absdir):
                     dirs[:] = [d for d in dirs if not d.startswith(".")]
                     for fn in files:
@@ -8018,9 +8044,17 @@ class Handler(http.server.BaseHTTPRequestHandler):
                         if not os.path.isfile(rp):
                             continue
                         try:
-                            sz = os.path.getsize(rp)
+                            st = os.stat(rp)
                         except OSError:
                             continue
+                        # Same rule as a single-file share: the fence proves the
+                        # path is inside the owner's home, not that the owner can
+                        # READ it. Without this, a 0600 file another tenant left
+                        # in a world-writable directory of the owner's home was
+                        # zipped up and served over a cookieless public URL.
+                        if not _stat_readable_by(st, _owner_uid, _owner_gids):
+                            continue
+                        sz = st.st_size
                         count += 1
                         total += sz
                         if count > SHARE_ZIP_MAX_FILES or total > SHARE_ZIP_MAX_BYTES:

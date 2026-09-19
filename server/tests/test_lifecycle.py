@@ -457,3 +457,37 @@ def test_a_skipped_user_does_not_disarm_cleanup_of_the_secrets(two_users):
     window = body[max(0, i - 700):i + 300]
     assert "trap - EXIT" not in window, \
         "a missing user must not disarm cleanup of the whole staging tree"
+
+
+# ---- a config that does not parse must not survive on disk ------------------
+
+def test_nginx_write_validates_and_reverts():
+    """Callers run `nginx -t` only AFTER nginx_write has installed the file, so a
+    config that fails to parse stayed on disk. The RUNNING nginx is unaffected —
+    it holds the old config in memory — so the host looks perfectly healthy until
+    the next `systemctl restart nginx`, i.e. a reboot, when nginx does not come
+    up AT ALL. A total outage whose cause was an update days earlier that printed
+    one red line.
+    """
+    body = (REPO_ROOT / "server" / "install.sh").read_text()
+    fn = body[body.index("nginx_write() {"):body.index("NGINX_FAIL_MARK=")]
+    assert "nginx -t" in fn, "nginx_write must validate before leaving the file in place"
+    assert "install -m 0644 \"$bak\"" in fn or "$bak" in fn, \
+        "it must be able to put the previous config back"
+
+
+def test_the_failure_signal_survives_the_subshell():
+    """nginx_write is ALWAYS the right-hand side of a pipe
+    (`<render> | nginx_write "$dest"`), so it runs in a subshell and any variable
+    it sets is lost — which is exactly why the existing contract signals
+    "changed" through the return code. My first version of this fix set a
+    variable and it silently never reached the caller; a marker file crosses the
+    boundary."""
+    body = (REPO_ROOT / "server" / "install.sh").read_text()
+    fn = body[body.index("nginx_write() {"):body.index("NGINX_FAIL_MARK=")]
+    assert "NGINX_FAIL_MARK" in fn, "the failure signal must cross a subshell"
+    assert "NGINX_WRITE_FAILED=1" not in body, \
+        "a variable set inside the pipe's subshell never reaches the caller"
+    # and the installer must actually fail on it, or it reports a success it did
+    # not achieve (nginx -t passes: the REVERTED config is valid)
+    assert '[ -e "$NGINX_FAIL_MARK" ]' in body and "exit 1" in body
