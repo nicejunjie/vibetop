@@ -122,6 +122,10 @@
   //
   // Bounded on purpose: at most VTJ_MAX reports per page, and the endpoint is
   // per-user rate-limited server-side. Remove this block once the cause is known.
+  // Was the user following the live bottom? Updated only on a scroll the USER
+  // performed, so a buffer wipe cannot flip it — a wipe moves the viewport
+  // without the user having chosen anything.
+  var vtFollowOnReconnect = true;
   var vtjCause = 'none', vtjCauseAt = 0, vtjUserAt = 0, vtjSent = 0, vtjLastY = null;
   var VTJ_MAX = 25;
   function vtjMark(c) { vtjCause = c; vtjCauseAt = Date.now(); }
@@ -133,6 +137,31 @@
   (function vtjWatch() {
     var t = window.term;
     if (!t || !t.buffer || !t.onScroll) { setTimeout(vtjWatch, 500); return; }
+    // Name the thing that actually wipes the buffer. Every field record so far
+    // shows baseY collapsing to 0 with a STALE cause marker (28s, 91s, 131s) —
+    // so it is neither a reconnect nor any resize we trigger. That leaves the
+    // application's own output. Watch for the sequences that clear scrollback,
+    // and for a PTY resize (SIGWINCH), which is what makes a TUI redraw.
+    try {
+      t.onResize(function (sz) {
+        vtjMark('pty-resize:' + sz.cols + 'x' + sz.rows);
+      });
+    } catch (_) {}
+    try {
+      var _origWrite = t.write.bind(t);
+      t.write = function (data) {
+        try {
+          var str = (typeof data === 'string') ? data : '';
+          if (str) {
+            // ESC c = RIS (full reset); ESC[3J = clear scrollback. Either wipes
+            // the history the user is reading.
+            if (str.indexOf('\x1bc') >= 0) vtjMark('app-RIS');
+            else if (str.indexOf('\x1b[3J') >= 0) vtjMark('app-clear-scrollback');
+          }
+        } catch (_) {}
+        return _origWrite.apply(null, arguments);
+      };
+    } catch (_) {}
     try {
       t.onScroll(function (y) {
         var prev = vtjLastY; vtjLastY = y;
@@ -140,10 +169,15 @@
         var delta = y - prev;
         // Ignore the user's own scrolling, and ordinary following of new output
         // (a move DOWN while the buffer is growing is just the terminal working).
-        if (Date.now() - vtjUserAt < 500) return;
+        if (Date.now() - vtjUserAt < 500) {
+          // The user moved: this is their intent, so record it for a reconnect.
+          try { vtFollowOnReconnect = atLatest(); } catch (_) {}
+          return;
+        }
         if (Math.abs(delta) < 3) return;
         var b = t.buffer.active;
         if (delta > 0 && b.baseY - y <= 1) return;      // snapped to the live bottom
+        var wiped = (b.baseY === 0 && prev > 5);        // the scrollback vanished
         vtjSent++;
         try {
           fetch('/api/client-debug', {
@@ -152,7 +186,7 @@
               tag: 'vpjump', src: location.pathname,
               from: prev, to: y, delta: delta, baseY: b.baseY,
               cols: t.cols, rows: t.rows,
-              cause: vtjCause, causeAgeMs: Date.now() - vtjCauseAt,
+              cause: vtjCause, causeAgeMs: Date.now() - vtjCauseAt, wiped: wiped ? 1 : 0,
               following: Date.now() < followLatestUntil ? 1 : 0
             })
           }).catch(function () {});
@@ -232,7 +266,30 @@
       try {
         ttydWS = ws; loadingBar(ws);
         try {
-          ws.addEventListener('open', function () { window.__vtjMark && window.__vtjMark('ws-open'); });
+          ws.addEventListener('open', function () {
+            window.__vtjMark && window.__vtjMark('ws-open');
+            // FOLLOW THE REPLAY WHEN THE USER WAS AT THE BOTTOM.
+            //
+            // A reconnect replays the ring buffer, and the replay begins by
+            // clearing — so the buffer is WIPED (baseY 0, viewport 0) and then
+            // refilled underneath a viewport still pinned at row 0. The user ends
+            // up staring at the OLDEST line in the buffer while ~1000 rows of
+            // their actual session fill in below.
+            //
+            // loadingBar() already knows how to follow a replay, but every one of
+            // its reveal calls is gated on `followLatestUntil` — a window only tab
+            // or app ACTIVATION opens. A spontaneous reconnect opens nothing, so
+            // the follow machinery sat there doing nothing. Measured in the field:
+            //   from=986 to=0 baseY=0    cause=ws-open   following=0   (wiped)
+            //   from=979 to=0 baseY=980  cause=ws-open   following=0   (refilled,
+            //                                              viewport still at 0)
+            //
+            // Gated on where the user WAS, so this cannot hijack deliberate
+            // history reading: if they had scrolled up before the drop, they are
+            // left alone. The reported trigger — type a reply, press Enter — is by
+            // definition at the bottom, which is exactly when following is right.
+            try { if (vtFollowOnReconnect) armLatest(); } catch (_) {}
+          });
           ws.addEventListener('close', function () { window.__vtjMark && window.__vtjMark('ws-close'); });
         } catch (_) {}
         // Re-fit after a (re)connect's replay settles so the buffer isn't left
