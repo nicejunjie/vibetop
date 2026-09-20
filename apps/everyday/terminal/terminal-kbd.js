@@ -71,6 +71,7 @@
     followLatestTimer = null;
   }
   function armLatest(requestId) {
+    try { window.__vtjMark && window.__vtjMark('armLatest#' + requestId); } catch (_) {}
     // showLatest retries one activation while a new iframe/replay comes up. Once
     // the user scrolls, ignore the remaining retries from THAT activation; a
     // later tab/app activation gets a new id and may reveal latest normally.
@@ -106,6 +107,59 @@
     if (e.clientX >= r.right - 20) cancelLatest();   // scrollbar click/drag
   }, true);
   window.__vibetopShowLatest = armLatest;
+
+  // ---- field diagnostic: "the view jumps back to old content" --------------
+  // Reported while READING HISTORY in Claude Code / Codex on desktop Safari.
+  // Four hypotheses were tested against this host and eliminated: a WS flap from
+  // the dual-homed LAN (WS held 45s on both loopback and LAN, zero closes), a
+  // keepalive-tripped reconnect under load (4002 lines streamed, one WS, zero
+  // closes), and reflow drift (not isolated — the follow loop moved the viewport
+  // before it could be measured). Chromium here is also not Safari, and this
+  // project has already shipped a "fix" for a Safari bug that Linux WebKit never
+  // reproduced. So: measure it in the real session instead of guessing a fifth
+  // time. Every viewport move the USER did not make is reported with whatever
+  // marked itself as the most recent cause.
+  //
+  // Bounded on purpose: at most VTJ_MAX reports per page, and the endpoint is
+  // per-user rate-limited server-side. Remove this block once the cause is known.
+  var vtjCause = 'none', vtjCauseAt = 0, vtjUserAt = 0, vtjSent = 0, vtjLastY = null;
+  var VTJ_MAX = 25;
+  function vtjMark(c) { vtjCause = c; vtjCauseAt = Date.now(); }
+  window.__vtjMark = vtjMark;
+  function vtjUser() { vtjUserAt = Date.now(); }
+  ['wheel', 'mousedown', 'touchstart', 'keydown'].forEach(function (ev) {
+    try { window.addEventListener(ev, vtjUser, { capture: true, passive: true }); } catch (_) {}
+  });
+  (function vtjWatch() {
+    var t = window.term;
+    if (!t || !t.buffer || !t.onScroll) { setTimeout(vtjWatch, 500); return; }
+    try {
+      t.onScroll(function (y) {
+        var prev = vtjLastY; vtjLastY = y;
+        if (prev == null || vtjSent >= VTJ_MAX) return;
+        var delta = y - prev;
+        // Ignore the user's own scrolling, and ordinary following of new output
+        // (a move DOWN while the buffer is growing is just the terminal working).
+        if (Date.now() - vtjUserAt < 500) return;
+        if (Math.abs(delta) < 3) return;
+        var b = t.buffer.active;
+        if (delta > 0 && b.baseY - y <= 1) return;      // snapped to the live bottom
+        vtjSent++;
+        try {
+          fetch('/api/client-debug', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              tag: 'vpjump', src: location.pathname,
+              from: prev, to: y, delta: delta, baseY: b.baseY,
+              cols: t.cols, rows: t.rows,
+              cause: vtjCause, causeAgeMs: Date.now() - vtjCauseAt,
+              following: Date.now() < followLatestUntil ? 1 : 0
+            })
+          }).catch(function () {});
+        } catch (_) {}
+      });
+    } catch (_) {}
+  })();
   // Shared by desktop and touch. This must stay ABOVE the desktop early return
   // below; putting it with the touch-only message handlers made desktop tab
   // activation silently ignore the request.
@@ -115,7 +169,10 @@
   // A genuine viewport resize can reach /tN/ without the wrapper's synthetic
   // nudge. Ignore synthetic resize events (used by reFit itself) to avoid a
   // feedback loop. Preserve history when the user was already scrolled up.
-  window.addEventListener('resize', function (e) { if (e.isTrusted && atLatest()) armLatest(); });
+  window.addEventListener('resize', function (e) {
+    try { window.__vtjMark && window.__vtjMark(e.isTrusted ? 'resize' : 'resize-synthetic'); } catch (_) {}
+    if (e.isTrusted && atLatest()) armLatest();
+  });
   function loadingBar(ws) {
     var idle = null, cap = null, done = false;
     var show = setTimeout(_barShow, 160);   // don't flash on an instant connect
@@ -151,6 +208,7 @@
   // Mobile keeps its own keyboard/caret-aware resize path (two-finger claim), so
   // this is desktop-only. (function declarations → hoisted, usable below.)
   function reFit() {
+    try { window.__vtjMark && window.__vtjMark('reFit'); } catch (_) {}
     try {
       var t = window.term;
       if (t && t.element && t.element.clientWidth > 0) {
@@ -173,6 +231,10 @@
       var ws = (proto === undefined) ? new Native(url) : new Native(url, proto);
       try {
         ttydWS = ws; loadingBar(ws);
+        try {
+          ws.addEventListener('open', function () { window.__vtjMark && window.__vtjMark('ws-open'); });
+          ws.addEventListener('close', function () { window.__vtjMark && window.__vtjMark('ws-close'); });
+        } catch (_) {}
         // Re-fit after a (re)connect's replay settles so the buffer isn't left
         // rendered at a stale width. Desktop only.
         if (!isTouch) ws.addEventListener('open', function () { setTimeout(reFit, 500); });
