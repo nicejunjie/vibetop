@@ -231,3 +231,42 @@ def test_the_compile_gate_is_wired_into_the_restart_decision(mgr):
     assert i_check < i_ok, "the compile result must feed deploy_ok, not follow it"
     assert "restart = False" in src[i_check:i_ok], \
         "code that does not compile must not become the running manager"
+
+
+def test_the_reload_push_is_held_back_during_an_update(mgr, monkeypatch):
+    """The update runs shell/install.sh FIRST, which writes the new sw.js — and
+    /api/events notices within ~2-7s and reloads every connected tab onto the new
+    shell while nginx still has the old config, the manager is still the old
+    process, and the remaining installers may not have run or may be about to
+    FAIL. The admin who pressed the button gets ok:false; everyone else already
+    reloaded onto a new shell talking to an old API, and nothing un-deploys a
+    web root.
+    """
+    import inspect
+    src = inspect.getsource(mgr.Handler._events_stream)
+    assert "_update_quiet_until" in src, \
+        "the reload push must be held back while an update is in flight"
+    i_hold = src.index("_update_quiet_until")
+    i_push = src.index("event: reload")
+    assert i_hold < i_push, "the check must precede the push, not follow it"
+
+
+def test_the_quiet_window_is_a_deadline_not_a_flag(mgr):
+    """A boolean would be the more obvious design and a worse one: if the update
+    dies mid-way — or the process is killed between setting and clearing it —
+    every client would stop reloading for the life of the process, which is worse
+    than the problem being solved. A deadline expires on its own, so the failure
+    mode is 'reloads resume a little late'."""
+    import time as _t
+    assert isinstance(mgr._update_quiet_until, float)
+    assert mgr._update_quiet_until <= _t.monotonic(), \
+        "at rest the window must be closed"
+    assert mgr.UPDATE_QUIET_MAX > 0
+
+    src = __import__("inspect").getsource(mgr.Handler._handle_update)
+    assert "finally:" in src and "_update_quiet_until = 0.0" in src, \
+        "it must also be released explicitly, not left to the deadline"
+    i_try, i_finally = src.index("try:"), src.index("finally:")
+    i_lock = src.index("with _update_run_lock")
+    assert i_try < i_lock < i_finally, \
+        "the release must cover the locked body, so an exception inside it still frees clients"

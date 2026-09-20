@@ -4468,6 +4468,11 @@ _update_lock = threading.Lock()
 # checkout at once (index.lock conflicts, half-applied trees). Separate from
 # _update_lock so a long update doesn't stall version-info reads/history appends.
 _update_run_lock = threading.Lock()
+# While this is in the future, /api/events holds back its `reload` push — see
+# _events_stream. A deadline rather than a flag so a died-mid-way update cannot
+# wedge every client into never reloading again.
+_update_quiet_until = 0.0
+UPDATE_QUIET_MAX = 600.0        # hard ceiling: an update this long has failed
 
 
 def _read_update_history():
@@ -7582,8 +7587,20 @@ class Handler(http.server.BaseHTTPRequestHandler):
         # checkout. Uses _update_run_lock (NOT _update_lock) so the brief
         # history-file lock — and thus the frequently-polled GET /api/update,
         # which seeds history — stays responsive during the multi-minute op.
-        with _update_run_lock:
-            return self._handle_update_locked()
+        global _update_quiet_until
+        # Hold back /api/events' reload push for the duration. shell/install.sh
+        # runs FIRST and writes the new sw.js, which that loop would otherwise
+        # act on within ~2-7s — reloading every connected tab onto a new shell
+        # while the backend is still the old one and later steps may yet fail.
+        _update_quiet_until = time.monotonic() + UPDATE_QUIET_MAX
+        try:
+            with _update_run_lock:
+                return self._handle_update_locked()
+        finally:
+            # Release it here, not inside the locked body: an exception anywhere
+            # in there must still let clients reload again. The deadline above is
+            # the backstop for the case where this never runs at all.
+            _update_quiet_until = 0.0
 
     def _handle_update_locked(self):
         """Pull the latest from GitHub and redeploy whatever changed. Each step's
@@ -8562,6 +8579,23 @@ class Handler(http.server.BaseHTTPRequestHandler):
             time.sleep(2)
             try:
                 cur = _cached("shell_ver", 5.0, _shell_version)
+                # HOLD THE SIGNAL WHILE AN UPDATE IS MID-FLIGHT. The update runs
+                # shell/install.sh FIRST, which writes the new sw.js — and this
+                # loop notices within ~2-7s and reloads every connected tab onto
+                # the new shell while nginx still has the old config, the manager
+                # is still the old process, and the remaining installers may not
+                # have run or may be about to FAIL. The admin who pressed the
+                # button gets ok:false; everyone else already reloaded onto a new
+                # shell talking to an old API, and nothing un-deploys a web root.
+                #
+                # A DEADLINE, not a boolean: if the update dies mid-way (or the
+                # process is killed between setting and clearing a flag), a
+                # boolean would suppress every reload for the life of the process
+                # — clients stale forever, which is worse than the problem. This
+                # expires on its own, so the failure mode is "reloads resume a
+                # little late" instead.
+                if cur != ver0 and time.monotonic() < _update_quiet_until:
+                    continue
                 if cur != ver0 and cur != "?":
                     self.wfile.write(f"event: reload\ndata: {cur}\n\n".encode())
                     self.wfile.flush()
