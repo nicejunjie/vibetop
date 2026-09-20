@@ -157,6 +157,13 @@
             // the history the user is reading.
             if (str.indexOf('\x1bc') >= 0) vtjMark('app-RIS');
             else if (str.indexOf('\x1b[3J') >= 0) vtjMark('app-clear-scrollback');
+            // The alternate screen has NO scrollback by design, so baseY is 0
+            // there — which reads exactly like a wipe from the outside. The
+            // field data shows baseY returning (0 -> 1014 -> 0 -> 1109), and a
+            // destroyed scrollback cannot come back, so a buffer SWITCH is the
+            // only thing that fits. Mark both directions to prove it.
+            else if (str.indexOf('\x1b[?1049h') >= 0 || str.indexOf('\x1b[?47h') >= 0) vtjMark('alt-screen-ENTER');
+            else if (str.indexOf('\x1b[?1049l') >= 0 || str.indexOf('\x1b[?47l') >= 0) vtjMark('alt-screen-EXIT');
           }
         } catch (_) {}
         return _origWrite.apply(null, arguments);
@@ -187,6 +194,7 @@
               from: prev, to: y, delta: delta, baseY: b.baseY,
               cols: t.cols, rows: t.rows,
               cause: vtjCause, causeAgeMs: Date.now() - vtjCauseAt, wiped: wiped ? 1 : 0,
+              buf: (function () { try { return t.buffer.active.type; } catch (_) { return '?'; } })(),
               following: Date.now() < followLatestUntil ? 1 : 0
             })
           }).catch(function () {});
