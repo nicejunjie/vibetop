@@ -419,10 +419,34 @@
           if (!t || !t.element) return;
           clearInterval(_arm);
           var wasVisible = t.element.clientWidth > 0;
+          var lastH = t.element.clientHeight;
           try {
             new ResizeObserver(function () {
               var vis = t.element.clientWidth > 0;
-              if (vis && wasVisible === false) claimSoon();   // hidden -> shown only
+              var h = t.element.clientHeight;
+              if (vis && wasVisible === false) {
+                claimSoon();                                  // hidden -> shown
+              } else if (vis && lastH > 0 && h > 0) {
+                // THE KEYBOARD CHANGES HEIGHT, NOT WIDTH — so it never crosses
+                // the 0-edge above and, before this, never triggered a claim at
+                // all. Sending a prompt closes the keyboard, the terminal was
+                // left shaped for keyboard-OPEN geometry, and the TUI kept
+                // painting its frame at that stale shape: the reported "jumped
+                // to old content".
+                //
+                // The reporter found the workaround themselves and it is the
+                // proof: switching to another tab and back fixes it every time —
+                // because THAT crosses the 0-edge and claims. This just makes the
+                // same claim happen without the detour.
+                //
+                // Scale is what separates this from the URL bar the ban above is
+                // about: a collapsing iOS URL bar moves the height by a few tens
+                // of pixels, a keyboard by a third of the screen. Requiring a
+                // 25% change keeps the URL bar ignored, which is why that ban
+                // existed, while catching every keyboard transition.
+                if (Math.abs(h - lastH) >= lastH * 0.25) claimSoon();
+              }
+              if (h > 0) lastH = h;
               wasVisible = vis;
             }).observe(t.element);
           } catch (_) {}
