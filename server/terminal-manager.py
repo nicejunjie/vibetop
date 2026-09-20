@@ -7968,12 +7968,39 @@ class Handler(http.server.BaseHTTPRequestHandler):
             return self._serve_share_zip(target, ent.get("name") or "share", owner,
                                          token=token)
         return self._serve_share_file(target, ent.get("name") or os.path.basename(target),
-                                      force_dl, self.headers.get("Range"))
+                                      force_dl, self.headers.get("Range"),
+                                      base=os.path.realpath(_share_root(owner)))
 
-    def _serve_share_file(self, path, name, force_dl, range_hdr):
+    def _serve_share_file(self, path, name, force_dl, range_hdr, base=None):
+        # OPEN ONCE, THEN VALIDATE THE DESCRIPTOR. `_safe_share_target` fences the
+        # path correctly, but it returns a PATH — and this then resolved that path
+        # twice more (getsize, open), as root, with every component under the
+        # OWNER's control. Between the check and the open the owner can swap a
+        # directory component for a symlink, hammering their own cookieless /s/
+        # link, and root opens whatever it now points at. (The `limit_req` on /s/
+        # is no bound: a local user reaches 127.0.0.1:7680 directly.)
+        #
+        # An fd cannot be swapped underneath us. `/proc/self/fd/N` gives the TRUE
+        # path of the file actually opened, after every symlink — so validating
+        # THAT against the fence, and serving from the same descriptor, closes the
+        # window instead of narrowing it.
         try:
-            size = os.path.getsize(path)
+            fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW)
         except OSError:
+            return self.send_error(404)
+        try:
+            st = os.fstat(fd)
+            if not stat.S_ISREG(st.st_mode):
+                raise OSError("not a regular file")
+            if base is not None:
+                real = os.readlink("/proc/self/fd/%d" % fd)
+                if real != base and not real.startswith(base + os.sep):
+                    log.warning("share: opened %s resolved OUTSIDE the fence (%s)",
+                                path, real)
+                    raise OSError("outside the fence")
+            size = st.st_size
+        except OSError:
+            os.close(fd)
             return self.send_error(404)
         ctype = mimetypes.guess_type(name)[0] or "application/octet-stream"
         inline = (not force_dl) and any(
@@ -8007,9 +8034,15 @@ class Handler(http.server.BaseHTTPRequestHandler):
         self._share_safety_headers()
         self.end_headers()
         if self.command == "HEAD":
+            os.close(fd)
             return
         try:
-            with open(path, "rb") as f:
+            f = os.fdopen(fd, "rb")             # the SAME descriptor we validated
+        except OSError:
+            os.close(fd)                        # fdopen did not take ownership
+            return
+        try:
+            with f:
                 f.seek(start)
                 remaining = length
                 while remaining > 0:

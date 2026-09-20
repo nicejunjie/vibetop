@@ -186,3 +186,48 @@ def test_folder_traversal_still_fenced(client, home):
     # A dir path escaping the fence is rejected at create time.
     st, _ = _create(client, "../..")
     assert st == 400
+
+
+def test_share_serves_from_a_validated_descriptor_not_a_re_resolved_path(mgr):
+    """TOCTOU. `_safe_share_target` fences the path correctly, but it returns a
+    PATH — and the serve path then resolved that path twice MORE (getsize, open),
+    as root, with every component under the OWNER's control. Between the check
+    and the open the owner can swap a directory component for a symlink and root
+    opens whatever it then points at. The `limit_req` on /s/ is no bound at all:
+    a local user reaches 127.0.0.1:7680 directly, which is exactly the threat
+    model here (a Terminal is SSH as that user).
+
+    An fd cannot be swapped underneath us, so the fix opens ONCE and validates
+    THAT descriptor: /proc/self/fd/N gives the true path of the file actually
+    opened, after every symlink.
+    """
+    import inspect
+    src = inspect.getsource(mgr.Handler._serve_share_file)
+    assert "os.open(" in src and "O_NOFOLLOW" in src, \
+        "the share must open once, not re-resolve the path"
+    assert 'os.readlink("/proc/self/fd/' in src, \
+        "the DESCRIPTOR's true path is what must be validated against the fence"
+    assert "os.fstat(fd)" in src, "size must come from the same fd, not getsize()"
+    assert "os.path.getsize(path)" not in src, \
+        "a second path resolution reopens the window this closes"
+    # Anchor the ORDER on the call forms, not on prose: the first literal
+    # "/proc/self/fd/" in this function is in its explanatory comment, which sits
+    # above os.open() — so indexing on the bare string measured the comment and
+    # failed. Exactly the fragility that makes source-text assertions a last
+    # resort rather than a default.
+    i_open = src.index("os.open(")
+    i_check = src.index('os.readlink("/proc/self/fd/')
+    i_serve = src.index("os.fdopen(fd")
+    assert i_open < i_check < i_serve, \
+        "validate the descriptor AFTER opening and BEFORE streaming from it"
+
+
+def test_the_video_range_server_was_not_collaterally_changed(mgr):
+    """`_serve_file_range` is a near-copy of the share streaming loop, and a
+    naive search-and-replace patched IT instead — the video tests caught it as a
+    truncated body. It must keep its own plain path-based open."""
+    import inspect
+    src = inspect.getsource(mgr.Handler._serve_file_range)
+    assert "os.fdopen(fd" not in src and "os.close(fd)" not in src, \
+        "the video streamer has no fd of its own; it was patched by mistake once"
+    assert 'with open(path, "rb") as f:' in src
