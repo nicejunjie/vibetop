@@ -318,6 +318,12 @@
   // sees mis-shaped (too-narrow / too-wide) output until it re-claims.
   function claimSize() {
     var t = window.term; if (!t) return;
+    // Distinguish THIS from the generic resize path. Every field record so far
+    // reads `armLatest#undefined`, which both claimSize and the window resize
+    // listener produce — and on a phone (the reporter's device) claimSize is the
+    // one that also NUDGES THE COLUMN, forcing two SIGWINCHes and therefore two
+    // full TUI repaints. If the jumps are ours, this marker names it.
+    try { window.__vtjMark && window.__vtjMark('claimSize:' + t.cols + 'x' + t.rows); } catch (_) {}
     // The SIGWINCH redraw triggered by a two-finger/mobile or double-click/
     // desktop claim can restore an old viewport row. This is the resize action
     // itself, so arm bottom-following here rather than relying on outer layout
