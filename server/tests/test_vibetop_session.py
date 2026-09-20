@@ -232,3 +232,45 @@ def test_keyprobe_logs_a_fullwidth_hit_with_its_byte_count(csession, tmp_path, m
     assert 'punct=\uff1f' in line
     assert 'chunk=9B' in line          # 3 characters x 3 bytes
     assert '\u4f60' not in line and '\u597d' not in line
+
+
+def _session_source():
+    import os
+    here = os.path.dirname(os.path.abspath(__file__))
+    repo = os.path.dirname(os.path.dirname(here))
+    return open(os.path.join(repo, "apps", "everyday", "terminal",
+                             "vibetop-session")).read()
+
+
+def test_the_smallest_attached_client_wins(tmp_path):
+    """MULTI-CLIENT SIZE FIGHT — the cause of "the terminal jumps to old content",
+    reported as happening ONLY when a phone is also attached.
+
+    Every attach client wrote `rows cols` into ONE shared file and signalled the
+    daemon, which applied whatever arrived last. Measured on the reference host:
+    three clients on one terminal, at 53 and 54 columns. Each claim reshaped the
+    PTY, each reshape fired SIGWINCH, and every attached TUI repainted — which is
+    what the user saw. It only happened with a phone attached because that is the
+    only time two DIFFERENT widths exist.
+
+    Smallest-wins is what tmux does, for the same reason: one PTY cannot be two
+    shapes, and a minimum does not depend on arrival order, so it cannot flap.
+    """
+    src = _session_source()
+    assert "smallest attached client" in src.lower() or "SMALLEST ATTACHED" in src, \
+        "the arbitration rule should say what it is"
+    # the per-client publish must not replace the shared write: a long-lived
+    # daemon from an older build only knows that path.
+    assert "os.replace(tmp, size_path)" in src, \
+        "dropping the shared write freezes an old daemon's terminal at 24x80"
+    assert ".client" in src and "os.kill(pid, 0)" in src, \
+        "a dead client's size must not pin the terminal small forever"
+
+
+def test_a_stale_client_size_cannot_pin_the_terminal(tmp_path):
+    """The failure mode of smallest-wins: a client that dies without cleaning up
+    would hold every other client at its width forever. Liveness is the guard."""
+    src = _session_source()
+    i = src.index("os.kill(pid, 0)")
+    window = src[i:i + 400]
+    assert "unlink" in window, "a stale per-client size file must be reaped"

@@ -317,6 +317,42 @@ def cmd_serve(instance):
     # -- helpers --
 
     def read_saved_size():
+        # SMALLEST ATTACHED CLIENT WINS, which is what tmux does and for the same
+        # reason: one PTY cannot be two shapes, and the shared size file is
+        # last-writer-wins — so two clients of different widths flap it back and
+        # forth, firing a SIGWINCH each time and making every attached TUI repaint.
+        # Taking the minimum is stable (it does not depend on arrival order) and
+        # keeps the content readable on every client rather than correct on one
+        # and wrapped on the rest.
+        #
+        # A client that died without cleaning up would otherwise pin the size
+        # small forever, so its pid must still be alive to count.
+        rows = cols = None
+        try:
+            import glob as _glob
+            for f in _glob.glob(size_path + '.*.client'):
+                try:
+                    pid = int(f.rsplit('.', 2)[-2])
+                    os.kill(pid, 0)                 # still attached?
+                except (ValueError, IndexError, ProcessLookupError, PermissionError, OSError):
+                    try:
+                        os.unlink(f)                # stale: reap it
+                    except OSError:
+                        pass
+                    continue
+                try:
+                    with open(f) as fh:
+                        r, c = fh.read().split()[:2]
+                    r, c = int(r), int(c)
+                except Exception:
+                    continue
+                if r > 0 and c > 0:
+                    rows = r if rows is None else min(rows, r)
+                    cols = c if cols is None else min(cols, c)
+        except Exception:
+            rows = cols = None
+        if rows is not None and cols is not None:
+            return min(9999, max(1, rows)), min(9999, max(1, cols))
         try:
             with open(size_path) as f:
                 parts = f.read().split()
@@ -794,7 +830,28 @@ def cmd_attach(instance):
             fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC | os.O_NOFOLLOW, 0o600)
             with os.fdopen(fd, 'w') as f:
                 f.write(f'{rows} {cols}')
+            # Publish to BOTH the shared file and a per-client file.
+            #
+            # The shared file is last-writer-wins, and with more than one client
+            # attached that is a size FIGHT: three clients were measured on one
+            # terminal at 53 and 54 columns, each claim reshaping the PTY, each
+            # reshape firing SIGWINCH, and every TUI on every client repainting —
+            # which is what the "it jumped to old content" reports were.
+            #
+            # Keeping the shared write is deliberate: a long-lived daemon from an
+            # older build only knows that path, and dropping it would freeze its
+            # terminal at 24x80. New daemons prefer the per-client minimum and
+            # fall back to this.
             os.replace(tmp, size_path)
+            try:
+                mine = f'{size_path}.{os.getpid()}.client'
+                tmp2 = f'{mine}.tmp'
+                fd2 = os.open(tmp2, os.O_WRONLY | os.O_CREAT | os.O_TRUNC | os.O_NOFOLLOW, 0o600)
+                with os.fdopen(fd2, 'w') as f:
+                    f.write(f'{rows} {cols}')
+                os.replace(tmp2, mine)
+            except Exception:
+                pass
             with open(pid_path) as f:
                 pid = int(f.read().strip())
             os.kill(pid, signal.SIGUSR1)
