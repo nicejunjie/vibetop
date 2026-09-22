@@ -6230,7 +6230,15 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 s = system_status.read_wall_power(plug)
                 resp["reading"] = (s or {}).get("w")
             except Exception as e:
-                resp["probe_error"] = str(e) or e.__class__.__name__
+                # This string is read by a person, so unwrap urllib's
+                # "<urlopen error [Errno 113] No route to host>" down to the part
+                # that tells them something: "No route to host". A plug that
+                # answers but isn't one we understand raises ValueError with its
+                # own message, which is already the useful sentence.
+                reason = getattr(e, "reason", None)
+                msg = str(reason if reason is not None else e)
+                msg = re.sub(r"^\[Errno -?\d+\]\s*", "", msg).strip()
+                resp["probe_error"] = msg or e.__class__.__name__
         self._json(200, resp)
 
     def _handle_config_users_get(self):

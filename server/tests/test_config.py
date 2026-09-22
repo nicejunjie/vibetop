@@ -142,6 +142,23 @@ def test_plug_save_reports_what_the_device_said(client, mgr, users, stubs, home,
     # but the operator is told nobody answered.
     assert st == 200 and "timed out" in body["probe_error"]
     assert mgr._read_power_plug() == "10.0.0.6"
+
+    # The message is read by a person: urllib's wrapper and the errno are noise.
+    import urllib.error
+
+    def unreachable(p=None, **k):
+        raise urllib.error.URLError(OSError(113, "No route to host"))
+    monkeypatch.setattr(mgr.system_status, "read_wall_power", unreachable)
+    err = client.post("/api/config/power", {"plug": "10.0.0.7"}, cookie=ck)[1]["probe_error"]
+    assert err == "No route to host", err
+
+    # But a plug that answered with something we cannot read explains itself,
+    # and that sentence must survive intact — it is the useful one.
+    def nonsense(p=None, **k):
+        raise ValueError("smart plug response has no numeric 'apower'")
+    monkeypatch.setattr(mgr.system_status, "read_wall_power", nonsense)
+    assert "no numeric 'apower'" in \
+        client.post("/api/config/power", {"plug": "10.0.0.8"}, cookie=ck)[1]["probe_error"]
     # Blank saves without contacting anything at all.
     assert "probe_error" not in client.post("/api/config/power", {"plug": ""}, cookie=ck)[1]
 
