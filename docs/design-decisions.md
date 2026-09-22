@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_309 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_310 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
 - [Scheduled terminal messages ("resume when the token limit resets")](#scheduled-terminal-messages-resume-when-the-token-limit-resets)
@@ -332,6 +332,7 @@ _309 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [Caching what changed, a ceiling set from the wrong number, and nine invented values (2026-09-18)](#caching-what-changed-a-ceiling-set-from-the-wrong-number-and-nine-invented-values-2026-09-18)
 - [A restore path that had never once run, and three findings it was right to refute (2026-09-18)](#a-restore-path-that-had-never-once-run-and-three-findings-it-was-right-to-refute-2026-09-18)
 - [A read check is not a write check, and an encoded path is still that path (2026-09-19)](#a-read-check-is-not-a-write-check-and-an-encoded-path-is-still-that-path-2026-09-19)
+- [The terminal "jumped back to old content": a multi-client size fight (2026-09-21)](#the-terminal-jumped-back-to-old-content-a-multi-client-size-fight-2026-09-21)
 
 <!-- END TOC -->
 
@@ -14451,3 +14452,73 @@ has already decoded by the time it picks a location. A function on the right-han
 side of a pipe cannot report anything through a variable. And an installer that
 reverts a bad artifact must fail explicitly, or its own validation will now pass
 and hide the fact that the deploy did nothing.
+
+## The terminal "jumped back to old content": a multi-client size fight (2026-09-21)
+
+**Symptom.** While using a TUI (a local LLM, Claude Code, Codex) the view jumped
+to much older content — most reliably right after sending a prompt. Reported from
+a phone.
+
+**What it actually was.** Every attach client writes `rows cols` into ONE shared
+file (`/tmp/vibetop-session-<inst>.size`) and signals the daemon, which applies
+whatever arrived LAST. Measured live: **three clients attached to one terminal at
+53 and 54 columns**. Each claim reshaped the PTY, each reshape fired SIGWINCH, and
+every attached TUI repainted at a shape that was not its own. That repaint is the
+"jump".
+
+The decisive clue was the user's: *"it only happens when I'm on mobile."* That is
+the only time two DIFFERENT widths exist — desktop-only, every client is the same
+width and nothing flaps. Their other observation, *"switch to another tab and back
+and it's in the right place,"* was the same fact from the other side: that path
+re-claims the shape for the device you are looking at.
+
+**Fix.** Smallest attached client wins, as tmux does and for the same reason: one
+PTY cannot be two shapes, and a minimum does not depend on arrival order, so it
+cannot flap. Each client also publishes its own size to a per-client file; the
+daemon takes the minimum across clients whose pid is still alive and reaps stale
+files, so a client that died cannot pin the terminal small forever. The shared
+write is KEPT: a long-lived daemon from an older build only knows that path, and
+terminals here outlive deploys.
+
+The trade is explicit — with a phone attached the desktop renders at the phone's
+width. Narrower, but stable and readable everywhere, rather than correct on one
+client and repainting on the rest.
+
+### Four wrong turns, and what each cost
+
+Worth recording because the failure mode was *my process*, not the code:
+
+- **Assumed the device.** A memory note says this user's daily client is Safari on
+  macOS, so I reasoned about `reFit` and the desktop `ResizeObserver` — all of
+  which sit behind `if (!isTouch)` and never execute on a phone. Several rounds
+  spent in code that could not have produced the symptom. **Ask which device
+  before reading any code.**
+- **Treated a normal value as an anomaly.** 53x38 looks alarming on a Mac and is
+  unremarkable on a phone. I pushed that theory twice and the user rightly pushed
+  back. A measurement is not anomalous until you know the device it came from.
+- **Nearly shipped the inverse of the fix.** I had written a change to SUPPRESS
+  `claimSize`, believing its column nudge caused the repaints. The user's
+  tab-switch observation arrived while it was still uncommitted and inverted it:
+  `claimSize` is the CURE. Suppressing it would have made this strictly worse.
+- **Built on my own instrument's bug.** The `wiped` flag reported a "wipe"
+  whenever `baseY` was 0 — which is also true of the alternate screen, where
+  there is no scrollback by design. That sent me down a confident
+  alt-screen-toggling explanation until a later record showed `buf=normal`. The
+  `term.write` hook was also string-only while ttyd writes BINARY, so the
+  clear-sequence markers could never have fired.
+
+**Watch out.** A diagnostic can be wrong in exactly the way the bug is, and then
+it launders a guess into "evidence". Every field record here said
+`cause=armLatest#undefined`, which two different call sites produce — that
+ambiguity cost a round on its own. Make each marker unique to one call site.
+
+**The thing that actually solved it** was neither the instrumentation nor the
+code reading: it was two offhand observations from the person experiencing it —
+*only on mobile*, and *switching tabs fixes it*. Either one alone identifies the
+mechanism. Ask for those first.
+
+**Test.** `server/tests/test_vibetop_session.py` — the arbitration rule, the
+preserved shared write (old daemons), and the liveness check that stops a dead
+client pinning the size. The instrumentation remains, narrowed to the one
+signature that matters (scrollback collapsing), and should be removed once a few
+quiet days have passed.

@@ -184,7 +184,13 @@
         if (Math.abs(delta) < 3) return;
         var b = t.buffer.active;
         if (delta > 0 && b.baseY - y <= 1) return;      // snapped to the live bottom
-        var wiped = (b.baseY === 0 && prev > 5);        // the scrollback vanished
+        // Report ONLY the pathological signature: the scrollback collapsing.
+        // A move within an intact buffer (from=5725 to=5703 baseY=5703) is the
+        // terminal working normally, and logging those buried the real events
+        // and burned the endpoint's rate limit. The bug always looked the same —
+        // baseY falling to ~0 with a large prior position.
+        var wiped = (b.baseY <= 1 && prev > 50);
+        if (!wiped) return;
         vtjSent++;
         try {
           fetch('/api/client-debug', {
