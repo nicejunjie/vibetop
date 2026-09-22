@@ -47,9 +47,10 @@
     border: 1px solid #2a3040; border-radius: 8px; padding: 8px 10px;
   }
   input[type=number] { width: 90px; }
-  /* The plug address is long enough to clip in a default-width box on a phone;
-     let it take the rest of the row instead of scrolling inside itself. */
-  #pwr-plug { flex: 1 1 200px; min-width: 0; }
+  /* Wide enough for a hostname without scrolling inside itself, capped so it
+     doesn't become a full-width canvas for an IP address on a desktop; on a
+     phone the row wraps and it takes what is left. */
+  #pwr-plug { flex: 1 1 200px; min-width: 0; max-width: 320px; }
   input.small-label { color: #8a9aaa; font-size: 12px; }
   .fld-label { font-size: 12px; color: #8a9aaa; }
   .status { font-size: 13px; min-height: 18px; margin-top: 10px;
@@ -193,9 +194,8 @@
         <h2>Wall power meter</h2>
         <div class="hint">A smart plug this machine is plugged into, adding a <b>WALL</b>
           row to the Monitor's Power card — the whole box's draw at the socket, next to
-          the CPU and GPU figures. Shelly Gen2+ plugs speak the protocol vibetop reads.
-          Shared by every viewer, so extra watchers cost the device nothing.
-          <b>Blank = off.</b></div>
+          the CPU and GPU figures. Works with <b>Shelly Gen2+</b> plugs. Saving contacts
+          it once and reports what it read. <b>Blank = off.</b></div>
         <div class="row"><span class="fld-label cap-l">Plug address</span>
           <input type="text" id="pwr-plug" spellcheck="false" autocomplete="off"
                  autocapitalize="none" placeholder="e.g. 192.168.1.42 — blank = no WALL row"></div>
