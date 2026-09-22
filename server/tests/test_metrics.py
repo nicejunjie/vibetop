@@ -234,3 +234,53 @@ def test_status_payload_has_no_wall_key_without_a_plug(mgr, monkeypatch):
     monkeypatch.setattr(mgr.system_status, "wall_power_endpoint",
                         lambda *a, **k: None)
     assert "wall_power_w" not in _status_payload(mgr, monkeypatch)
+
+
+def test_bg_cached_retry_floor_defaults_to_the_slow_producer_value(mgr):
+    """The default must not move: the producers this was written for (a du
+    sweep, a usage fetch) rely on a failure costing 30s of quiet."""
+    key = "t_retry_default"
+    with mgr._bg_lock:
+        mgr._bg.pop(key, None)
+
+    def boom():
+        raise RuntimeError("nope")
+
+    mgr._bg_cached(key, 1.0, boom, block_first=True)
+    with mgr._bg_lock:
+        floor = mgr._bg[key]["retry_at"] - mgr.time.monotonic()
+        mgr._bg.pop(key, None)
+    assert 25.0 < floor <= 30.0, floor
+
+
+def test_bg_cached_honours_a_short_retry_floor(mgr):
+    """A cheap producer polled every second must not be silenced for half a
+    minute by one dropped packet."""
+    key = "t_retry_short"
+    with mgr._bg_lock:
+        mgr._bg.pop(key, None)
+
+    def boom():
+        raise RuntimeError("nope")
+
+    mgr._bg_cached(key, 1.0, boom, block_first=True, retry_after=3.0)
+    with mgr._bg_lock:
+        floor = mgr._bg[key]["retry_at"] - mgr.time.monotonic()
+        mgr._bg.pop(key, None)
+    assert 0 < floor <= 3.0, floor
+
+
+def test_wall_power_retry_floor_is_short_enough_to_recover_within_max_age(mgr):
+    """The three constants have to agree, or a single failed sample ages the
+    reading past MAX_AGE before the retry floor even lifts — and the row blanks
+    for the whole difference. Sized so a blip costs at most one retry."""
+    assert mgr.WALL_POWER_RETRY < mgr.WALL_POWER_MAX_AGE
+    assert mgr.WALL_POWER_FRESH <= mgr.WALL_POWER_RETRY
+    assert mgr.WALL_POWER_RETRY * 2 < mgr.WALL_POWER_MAX_AGE, \
+        "two consecutive failures must still fall inside the staleness window"
+
+
+def test_wall_power_is_not_asked_for_faster_than_the_device_updates(mgr):
+    """The plug refreshes at 1Hz; asking more often returns the same number and
+    spends the device's budget for nothing."""
+    assert mgr.WALL_POWER_FRESH >= 1.0

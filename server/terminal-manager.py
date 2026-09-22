@@ -172,8 +172,14 @@ _bg_lock = threading.Lock()
 _bg = {}            # key -> {"val":…, "at":…, "inflight":bool, "started":…}
 
 
-def _bg_cached(key, fresh, producer, block_first=False):
-    """`block_first` computes the FIRST value synchronously instead of reporting
+def _bg_cached(key, fresh, producer, block_first=False, retry_after=30.0):
+    """`retry_after` is how long a FAILED producer is left alone before another
+    attempt. The default suits the expensive producers this was written for (a
+    `du` sweep, an HTTP usage fetch), where retrying hard costs more than the
+    staleness does. A cheap producer refreshed every second wants a much shorter
+    floor, or one dropped packet blanks its reading for half a minute.
+
+    `block_first` computes the FIRST value synchronously instead of reporting
     that none exists yet. Use it when the producer is slow enough to be worth
     moving off the steady-state path but short enough to wait for once per
     process — it keeps the response shape unchanged, so callers need no
@@ -196,19 +202,20 @@ def _bg_cached(key, fresh, producer, block_first=False):
                 # do not each start their own producer.
                 pass
             else:
-                threading.Thread(target=_bg_refresh, args=(key, producer),
+                threading.Thread(target=_bg_refresh,
+                                 args=(key, producer, retry_after),
                                  name="bg-" + key[:24], daemon=True).start()
                 return ent["val"], ent["at"] > -1e8
         else:
             return ent["val"], ent["at"] > -1e8
     # Inline first compute, OUTSIDE the lock so other keys are not blocked.
-    _bg_refresh(key, producer)
+    _bg_refresh(key, producer, retry_after)
     with _bg_lock:
         ent = _bg[key]
         return ent["val"], ent["at"] > -1e8
 
 
-def _bg_refresh(key, producer):
+def _bg_refresh(key, producer, retry_after=30.0):
     val, ok = None, False
     try:
         val, ok = producer(), True
@@ -225,7 +232,7 @@ def _bg_refresh(key, producer):
             # must keep its real age rather than be laundered into looking fresh.
             # But the key would then be permanently stale, so every request would
             # kick another doomed producer — hence an explicit retry floor.
-            ent["retry_at"] = time.monotonic() + 30.0
+            ent["retry_at"] = time.monotonic() + retry_after
 
 
 # ---- system-health warnings --------------------------------------------------
@@ -2980,19 +2987,26 @@ def _unit_alive(unit):
 # see system_status.read_wall_power). Everything about how it is driven follows
 # from that single difference.
 #
-# 30s is the DEVICE's budget, not ours. The Monitor polls /api/system/status
-# every 2s and the desktop heartbeat folds the same payload in, from every open
-# tab on every device — so without a cache here a handful of viewers would each
-# become a request stream against a board with a few hundred KB of RAM. One
-# shared sample every 30s is what the plug can comfortably serve, and it is why
-# this is a memo rather than an inline read.
-WALL_POWER_FRESH = 30.0
-# Three missed refreshes. _bg_cached serves its last value however old it is —
-# right for a disk sweep, wrong for a reading whose whole purpose is to track
-# the machine right now. Past this the number is withheld entirely, so the
-# Monitor draws a gap and says "--" instead of redrawing a ten-minute-old
-# wattage as though it were live.
-WALL_POWER_MAX_AGE = 95.0
+# The plug updates its own measurement at 1Hz (measured: successive readings
+# change on a 1.00s cadence, and it served 10.8 req/s with a 39ms median and no
+# errors — it is an ESP32-class board, not the fragile thing "limited memory"
+# suggested). So 1s is the floor worth asking for: anything faster returns the
+# same number twice, and anything slower throws readings away. This is a CEILING
+# on the rate, not a schedule — the memo only refreshes when something asks, so
+# the real cadence is set by the watcher (the Monitor's 2s tick, the desktop
+# heartbeat's 5s) and drops to zero when nobody is looking.
+WALL_POWER_FRESH = 1.0
+# A failed sample is retried after this, instead of the memo's 30s default. That
+# default is sized for producers where retrying hard costs more than staleness;
+# here the producer is a 40ms request on a Wi-Fi device, and a 30s penalty for
+# one dropped packet would blank the row for fifteen Monitor frames.
+WALL_POWER_RETRY = 3.0
+# How old a reading may be before it is withheld entirely. _bg_cached serves its
+# last value however old it is — right for a disk sweep, wrong for a live
+# wattage. Ten seconds is ~2 heartbeats or 5 Monitor frames: long enough that a
+# closed-then-reopened Monitor or a single retry does not blink the row, short
+# enough that a plug which went quiet stops being drawn as though it were live.
+WALL_POWER_MAX_AGE = 10.0
 
 
 def _wall_power_w():
@@ -3001,7 +3015,8 @@ def _wall_power_w():
     if not system_status.wall_power_endpoint():
         return None
     sample, have = _bg_cached("wall_power", WALL_POWER_FRESH,
-                              system_status.read_wall_power)
+                              system_status.read_wall_power,
+                              retry_after=WALL_POWER_RETRY)
     if not have or not isinstance(sample, dict):
         return None
     if time.time() - sample.get("at", 0.0) > WALL_POWER_MAX_AGE:

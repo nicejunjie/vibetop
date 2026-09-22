@@ -14544,16 +14544,26 @@ fact that this reading is the only one in the file that travels over a network:
   The `cached` memoizer passed into `get_system_status()` makes the first caller
   after expiry pay the full cost, which here would be a request thread parked on
   a network timeout. Refresh-ahead is the only correct shape.
-- **30s is the device's budget, not ours.** The Monitor polls every 2s, the
-  desktop heartbeat folds the same payload in, and both run in every open tab on
-  every device. The plug is a board with a few hundred KB of RAM running the
-  relay off the same stack. One shared sample per 30s is what keeps N viewers
-  from becoming N times the load on it.
+- **The rate is the device's, and it was worth measuring.** The first cut used
+  30s on the stated assumption that the plug had "limited memory". Measured, it
+  updates its own reading at **1.00Hz** and served **10.8 req/s at a 39ms median
+  with no errors** — an ESP32-class board, not a fragile one. 30s was discarding
+  29 of every 30 readings for a constraint that did not exist. It is now 1s: the
+  floor below which the device returns the same number twice. The memo is
+  demand-driven, so that is a CEILING, not a schedule — the real cadence is set
+  by whoever is watching (the Monitor's 2s tick, the heartbeat's 5s) and falls
+  to zero when nobody is. **Ask the device what it can do before designing
+  around a guess about it.**
 - **The sample carries its own timestamp.** `_bg_cached` serves its last value
   however old it is — right for a disk sweep, wrong for a live wattage. A plug
   can be unplugged, rebooted, or fall off the Wi-Fi while every other sensor
-  here cannot, so past `WALL_POWER_MAX_AGE` (95s ≈ three missed refreshes) the
-  key is withheld entirely and the page shows `--` with a gap in the line.
+  here cannot, so past `WALL_POWER_MAX_AGE` (10s ≈ 5 Monitor frames) the key is
+  withheld entirely and the page shows `--` with a gap in the line.
+- **A failed sample needed its own retry floor.** `_bg_cached` hardcoded 30s,
+  which is right for the `du` sweep it was written for and wrong for a 40ms
+  request at 1Hz: one dropped packet would blank the row for fifteen frames.
+  `retry_after` is now a parameter, defaulting to the old 30s so no existing
+  caller moves, and wall power passes 3s.
 - **The path is ours, never the setting's.** A Shelly's root serves a ~280KB web
   app. Accepting a full URL from the setting and fetching it verbatim would pull
   that every 30s forever; the setting gives a host, the RPC path is appended here.

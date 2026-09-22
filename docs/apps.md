@@ -68,13 +68,18 @@ sudo systemctl restart vibetop-manager # EnvironmentFile is read at start
 The key is listed in `VT_ENV_PRESERVE` (`tools/lib/layout.sh`), so a deploy —
 which rewrites that file — carries it across instead of reverting it.
 
-- **Sampled once every 30s for the whole host**, from a refresh-ahead memo, no
-  matter how many tabs or users are watching. The Monitor polls every 2s and the
-  desktop heartbeat folds the same payload in; without the memo a handful of
-  viewers would each become a request stream against a small embedded board.
-- **A reading older than 95s is withheld**, not redrawn. An unplugged or
+- **Sampled at most once a second for the whole host**, from a refresh-ahead
+  memo shared by every tab and every user. 1Hz is the plug's own update rate
+  (measured), so asking faster returns the same number twice. The memo is
+  demand-driven, not a schedule: the real cadence is whatever the watcher asks
+  for — the Monitor's 2s tick, the desktop heartbeat's 5s — and **drops to zero
+  when nobody is looking**.
+- **A reading older than 10s is withheld**, not redrawn. An unplugged or
   rebooted plug makes the row read `--` with a gap in the chart, rather than
   freezing the last wattage on screen looking live.
+- **A failed sample is retried after 3s**, not the memo's 30s default — that
+  default is sized for expensive producers, and here one dropped packet would
+  otherwise blank the row for fifteen Monitor frames.
 - **`0W` is a real reading** (nothing drawing) and renders as a number. Only the
   *absence* of `wall_power_w` in `/api/system/status` means unknown.
 - With a plug present, **wall is the total** and the CPU+GPU figure relabels

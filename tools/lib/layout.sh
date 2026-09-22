@@ -49,11 +49,6 @@ vt_ensure_dirs() {
     install -d -m 0755 /etc/vibetop
 }
 
-# vt_write_manager_env <admins> — read by vibetop-manager.service via
-# EnvironmentFile=-. `admins` may be empty: with no admin named, the
-# operator-only surfaces (Update, Claude-usage) are simply unavailable, which is
-# the safe default for an unattended install. Everything else is per-user.
-# Never clobbers an existing VIBETOP_ADMINS with an empty value.
 # Keys this function does NOT own but must not destroy. It rewrites the whole
 # file every deploy, so an operator's hand-set line is gone the moment someone
 # runs Update — a setting that works until the next deploy and then silently
@@ -62,6 +57,11 @@ vt_ensure_dirs() {
 # generated file below belongs in this list.
 VT_ENV_PRESERVE="${VT_ENV_PRESERVE:-VIBETOP_POWER_PLUG}"
 
+# vt_write_manager_env <admins> — read by vibetop-manager.service via
+# EnvironmentFile=-. `admins` may be empty: with no admin named, the
+# operator-only surfaces (Update, Claude-usage) are simply unavailable, which is
+# the safe default for an unattended install. Everything else is per-user.
+# Never clobbers an existing VIBETOP_ADMINS with an empty value.
 vt_write_manager_env() {
     local admins="${1:-}" existing="" k v carry=""
     if [ -z "$admins" ] && [ -r "$VT_ENV_FILE" ]; then
@@ -87,8 +87,9 @@ SESSION_SECRET_FILE=$VT_ETC/session.secret
 # Optional, set by hand (preserved across deploys — see VT_ENV_PRESERVE):
 #   VIBETOP_POWER_PLUG=<host>   A Shelly Gen2+ smart plug the machine is
 #       plugged into. Adds the WALL row to the Monitor's Power card: the whole
-#       box's draw at the socket. Sampled once every 30s for everyone, so extra
-#       viewers cost the device nothing. Unset = the card shows CPU/GPU only.
+#       box's draw at the socket. Sampled at most once a second and shared by
+#       every viewer, so extra watchers cost the device nothing and nobody
+#       watching costs it nothing at all. Unset = the card shows CPU/GPU only.
 EOF
     [ -n "$carry" ] && printf '%s' "$carry" >> "$VT_ENV_FILE"
     chmod 0644 "$VT_ENV_FILE"
