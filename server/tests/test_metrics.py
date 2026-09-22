@@ -123,3 +123,114 @@ def test_system_warnings_thresholds(mgr, monkeypatch):
     assert len(c) == 1 and c[0]["level"] == "critical"
     c2 = at(St(4096, 100_000_000, 1_000_000, 400_000))                     # <2GB free
     assert c2 and c2[0]["level"] == "critical"
+
+
+# ---- wall power: what the manager does with a sample once it has one ---------
+# system_status owns the fetch (see test_system_status.py); these cover the part
+# only the manager can get wrong — serving a number that is no longer true.
+
+@pytest.fixture()
+def wall(mgr, monkeypatch):
+    """A configured plug whose sample the test dictates, with the background
+    memo cleared so no earlier test's entry leaks in."""
+    with mgr._bg_lock:
+        mgr._bg.pop("wall_power", None)
+    monkeypatch.setattr(mgr.system_status, "wall_power_endpoint",
+                        lambda *a, **k: "http://plug.lan/rpc/Switch.GetStatus?id=0")
+
+    def put(sample):
+        with mgr._bg_lock:
+            mgr._bg["wall_power"] = {"val": sample, "at": mgr.time.monotonic(),
+                                     "inflight": False, "started": 0.0}
+    yield put
+    with mgr._bg_lock:
+        mgr._bg.pop("wall_power", None)
+
+
+def test_wall_power_absent_without_a_plug(mgr, monkeypatch):
+    monkeypatch.setattr(mgr.system_status, "wall_power_endpoint",
+                        lambda *a, **k: None)
+    assert mgr._wall_power_w() is None
+
+
+def test_wall_power_reports_a_fresh_sample(mgr, wall):
+    import time
+    wall({"w": 42.5, "at": time.time()})
+    assert mgr._wall_power_w() == 42.5
+
+
+def test_wall_power_reports_a_fresh_zero(mgr, wall):
+    """0W is a measurement. Dropping it here would make the Monitor show '--'
+    for a plug that is answering perfectly well with nothing plugged in."""
+    import time
+    wall({"w": 0.0, "at": time.time()})
+    assert mgr._wall_power_w() == 0.0
+
+
+def test_wall_power_withholds_a_stale_sample(mgr, wall):
+    """The memo serves its last value however old it is — right for a disk
+    sweep, wrong here. An unplugged or rebooted plug must make the reading
+    disappear, not freeze the last wattage on screen looking live."""
+    import time
+    wall({"w": 42.5, "at": time.time() - (mgr.WALL_POWER_MAX_AGE + 1)})
+    assert mgr._wall_power_w() is None
+
+
+def test_wall_power_survives_one_missed_refresh(mgr, wall):
+    """The staleness cut must sit clear of the refresh interval, or a single
+    slow poll would blink the row out."""
+    import time
+    assert mgr.WALL_POWER_MAX_AGE > mgr.WALL_POWER_FRESH * 2
+    wall({"w": 42.5, "at": time.time() - (mgr.WALL_POWER_FRESH + 1)})
+    assert mgr._wall_power_w() == 42.5
+
+
+def test_wall_power_never_polls_the_plug_on_a_request(mgr, wall, monkeypatch):
+    """The Monitor polls every 2s from every open tab; the plug is a small
+    embedded board. The request path must read the memo and nothing else."""
+    import time
+    monkeypatch.setattr(mgr.system_status, "read_wall_power",
+                        lambda *a, **k: pytest.fail("fetched on the request path"))
+    wall({"w": 42.5, "at": time.time()})
+    for _ in range(50):
+        assert mgr._wall_power_w() == 42.5
+
+
+# The injection into the status payload, driven through the real method with a
+# stand-in `self` and a stubbed collector. Deliberately NOT through the `client`
+# fixture: its `stubs` replaces _get_system_status wholesale, which is the very
+# method under test.
+def _status_payload(mgr, monkeypatch):
+    monkeypatch.setattr(mgr.system_status, "get_system_status",
+                        lambda *a, **k: {"hostname": "test", "cpu_percent": 1.0})
+    monkeypatch.setattr(mgr, "_ctx_user", lambda *a, **k: mgr.APP_USER)
+
+    class _H:
+        def _get_running_terminals(self):
+            return []
+    return mgr.Handler._get_system_status(_H())
+
+
+@pytest.mark.parametrize("watts", [0.0, 137.4])
+def test_status_payload_carries_a_measured_wall_reading(mgr, wall, monkeypatch,
+                                                        watts):
+    """Includes 0.0 on purpose: a truthiness test at the injection site
+    (`if wall:`) would drop exactly that value, and the Monitor would show '--'
+    for a plug that answered correctly."""
+    import time
+    wall({"w": watts, "at": time.time()})
+    assert _status_payload(mgr, monkeypatch).get("wall_power_w") == watts
+
+
+def test_status_payload_omits_wall_power_when_stale(mgr, wall, monkeypatch):
+    """Absence is the signal the page reads as 'unknown'. Sending a stale number
+    would render it as a live one."""
+    import time
+    wall({"w": 137.4, "at": time.time() - (mgr.WALL_POWER_MAX_AGE + 1)})
+    assert "wall_power_w" not in _status_payload(mgr, monkeypatch)
+
+
+def test_status_payload_has_no_wall_key_without_a_plug(mgr, monkeypatch):
+    monkeypatch.setattr(mgr.system_status, "wall_power_endpoint",
+                        lambda *a, **k: None)
+    assert "wall_power_w" not in _status_payload(mgr, monkeypatch)

@@ -122,3 +122,116 @@ def test_cpu_snapshot_delta_path(status):
     for r in (r1, r2):
         assert 0.0 <= r["cpu_percent"] <= 100.0
         assert all(0.0 <= c <= 100.0 for c in r["cpu_cores"])
+
+
+# ---- wall power (smart plug) -------------------------------------------------
+# The only reading in this module that comes off the network, so the tests care
+# about things no sysfs reader can get wrong: what URL we actually hit, that a
+# real 0W stays a number, and that a failure is raised rather than smoothed over.
+
+class _Resp:
+    def __init__(self, body):
+        self._body = body
+
+    def read(self, n=None):
+        return self._body[:n] if n else self._body
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *a):
+        return False
+
+
+def _opener(body, seen=None):
+    def open_(url, timeout=None):
+        if seen is not None:
+            seen.append((url, timeout))
+        return _Resp(body if isinstance(body, bytes) else body.encode())
+    return open_
+
+
+@pytest.mark.parametrize("plug,want", [
+    ("192.168.1.42", "http://192.168.1.42/rpc/Switch.GetStatus?id=0"),
+    ("192.168.1.42:8080", "http://192.168.1.42:8080/rpc/Switch.GetStatus?id=0"),
+    ("http://plug.lan/", "http://plug.lan/rpc/Switch.GetStatus?id=0"),
+    ("  plug.lan  ", "http://plug.lan/rpc/Switch.GetStatus?id=0"),
+])
+def test_wall_power_endpoint_builds_the_rpc_url(status, plug, want):
+    assert status.wall_power_endpoint(plug) == want
+
+
+def test_wall_power_endpoint_absent_when_unconfigured(status, monkeypatch):
+    monkeypatch.delenv("VIBETOP_POWER_PLUG", raising=False)
+    assert status.wall_power_endpoint() is None
+    assert status.wall_power_endpoint("") is None
+    assert status.wall_power_endpoint("   ") is None
+    # ...and reading is then a no-op rather than an error.
+    assert status.read_wall_power("") is None
+
+
+def test_wall_power_never_fetches_the_device_web_ui(status):
+    """The plug's root serves a ~280KB app. Polling THAT every 30s is the
+    failure this asserts against: the path must always be the small RPC one, and
+    must come from us rather than from whatever the setting happens to contain."""
+    seen = []
+    status.read_wall_power("plug.lan/anything/else",
+                           opener=_opener('{"apower": 5}', seen))
+    url = seen[0][0]
+    assert url.endswith("/rpc/Switch.GetStatus?id=0")
+    assert url.count("/rpc/") == 1
+
+
+def test_wall_power_reads_watts_and_stamps_the_sample(status):
+    import time as _t
+    before = _t.time()
+    got = status.read_wall_power(
+        "plug.lan", opener=_opener('{"apower": 123.456, "voltage": 122.6}'))
+    assert got["w"] == 123.5                      # rounded for display
+    assert before <= got["at"] <= _t.time()       # stamped with the SAMPLE time
+
+
+def test_wall_power_zero_watts_is_a_measurement_not_a_gap(status):
+    """A plug reporting 0.0 has measured nothing drawing — a fact. Returning
+    None here would make the Monitor draw '--' and a broken line, claiming the
+    reading was unavailable when it was taken successfully."""
+    got = status.read_wall_power("plug.lan", opener=_opener('{"apower": 0.0}'))
+    assert got is not None and got["w"] == 0.0
+
+
+@pytest.mark.parametrize("body", [
+    '{"apower": null}',        # field present but empty
+    '{"voltage": 122.6}',      # relay-only response, no meter
+    '{"apower": "12.3"}',      # a string is not a measurement
+    '{"apower": true}',        # bool is an int in Python; it is not watts
+    'not json at all',
+])
+def test_wall_power_raises_on_an_unusable_answer(status, body):
+    """Raising is what lets the caller's memo keep the last good value at its
+    real age and apply a retry floor. Returning None would be read as 'no plug
+    configured' and returning 0 would invent a measurement."""
+    with pytest.raises(Exception):
+        status.read_wall_power("plug.lan", opener=_opener(body))
+
+
+def test_wall_power_bounds_the_read(status):
+    """A misconfigured host pointing at something huge must not be pulled into
+    memory every 30s for the life of the process.
+
+    Asserted as "the read asked for a limit" rather than by feeding it a big
+    body: JSON ignores trailing bytes, so a size-based check passes whether or
+    not the cap exists and proves nothing."""
+    asked = []
+
+    class _Recording(_Resp):
+        def read(self, n=None):
+            asked.append(n)
+            return super().read(n)
+
+    def open_(url, timeout=None):
+        return _Recording(b'{"apower": 7}')
+
+    got = status.read_wall_power("plug.lan", opener=open_)
+    assert got["w"] == 7.0
+    assert asked and all(isinstance(n, int) and 0 < n <= 1 << 20 for n in asked), \
+        f"the plug response must be read with a bound, got read({asked})"

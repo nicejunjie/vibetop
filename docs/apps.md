@@ -51,6 +51,40 @@ The Codex counterpart of the strip above (Start ▸ Utilities ▸ **Codex Limit*
 
 A **Token Stats** app (Start ▸ Utilities ▸ Token Stats) — a read-only analytics dashboard with **Combined**, **Claude**, and **Codex** tabs. Claude is reconstructed from `~/.claude/projects/**/*.jsonl`; Codex is reconstructed from each `event_msg.payload.info.last_token_usage` snapshot in `~/.codex/sessions/**/*.jsonl`, using the active `turn_context.payload.model`. `GET /api/claude/stats` and `GET /api/codex/stats` return the same aggregation shape and are memoized per user for ~45s. The Combined tab adds their matching time buckets client-side. Costs are explicitly **API-equivalent estimates**, not subscription charges: each provider's public per-token pricing is applied to local input/output/cache counts. The response aggregates into `windows` (`today`/`d7`/`d30`/`all`), `byDay`, `byHour`, and `byModel`, plus sessions, active days, retained span, and cache-hit rate. The page renders concise cards, averages, cost/token charts, and a model breakdown. Purely local; no API or admin key is required.
 
+## System Monitor — wall power (`VIBETOP_POWER_PLUG`, opt-in)
+
+The Monitor's Power card shows CPU (RAPL) and GPU power from sensors inside the
+machine. Set **`VIBETOP_POWER_PLUG`** in `/etc/vibetop/manager.env` to the host
+of a **Shelly Gen2+** smart plug the machine is plugged into and it gains a
+**WALL** row above them: the whole box's draw at the socket, including PSU loss,
+drives, fans and board — which no internal sensor can see. Unset (the default),
+the card is exactly as it was and no request is ever made.
+
+```
+VIBETOP_POWER_PLUG=192.168.1.42        # bare host, host:port, or a base URL
+sudo systemctl restart vibetop-manager # EnvironmentFile is read at start
+```
+
+The key is listed in `VT_ENV_PRESERVE` (`tools/lib/layout.sh`), so a deploy —
+which rewrites that file — carries it across instead of reverting it.
+
+- **Sampled once every 30s for the whole host**, from a refresh-ahead memo, no
+  matter how many tabs or users are watching. The Monitor polls every 2s and the
+  desktop heartbeat folds the same payload in; without the memo a handful of
+  viewers would each become a request stream against a small embedded board.
+- **A reading older than 95s is withheld**, not redrawn. An unplugged or
+  rebooted plug makes the row read `--` with a gap in the chart, rather than
+  freezing the last wattage on screen looking live.
+- **`0W` is a real reading** (nothing drawing) and renders as a number. Only the
+  *absence* of `wall_power_w` in `/api/system/status` means unknown.
+- With a plug present, **wall is the total** and the CPU+GPU figure relabels
+  itself `CPU+GPU` rather than also claiming to be "total".
+
+Only the Gen2+ `/rpc/` surface is spoken; Gen1's `/meter/0` is not probed. The
+RPC path is always appended by the manager, never taken from the setting — a
+Shelly's root serves a ~280KB web app that must not be fetched every 30s.
+Reasoning and the rejected alternatives: `docs/design-decisions.md`.
+
 ## Services dashboard (`apps/utilities/services/index.html`, `server/service_discovery.py`)
 
 The **Services** app (served at `/landing.html`) — an auto-discovering list of the host's network services. `service_discovery.py` is a stdlib sibling module (like `system_status.py`/`claude_stats.py`) the manager imports; `GET /api/services/discover` calls `service_discovery.discover()`, memoized ~5s. It runs `ss -H -tlnp`, and for each listener bound to a non-loopback address that survives the port/proc denylists, classifies it via `/proc/<pid>/cmdline`:

@@ -95,6 +95,17 @@ function el(tag) {
   return e;
 }
 
+// Ids the real markup ships with a `hidden` attribute. Elements here are
+// created lazily and were all born visible, which silently modelled the wrong
+// page: an element the browser starts hidden (and that the script only ever
+// UNhides) looked as though it were on screen from the first frame. Seeded from
+// the real HTML so the harness and the browser agree on the starting state.
+const HIDDEN_AT_REST = new Set(
+  [...HTML.matchAll(/<[a-z]+\b[^>]*>/gi)]
+    .filter((m) => /\shidden(?=[\s>=])/i.test(m[0]))
+    .map((m) => (m[0].match(/\bid="([^"]+)"/) || [])[1])
+    .filter(Boolean));
+
 function load(opts) {
   opts = opts || {};
   const byId = {};
@@ -103,7 +114,13 @@ function load(opts) {
   let clock = opts.now || 1e9;                 // seconds*1000, settable per test
   const doc = {
     hidden: false, _on: {},
-    getElementById(id) { return byId[id] || (byId[id] = el(id.indexOf("chart") >= 0 ? "canvas" : "div")); },
+    getElementById(id) {
+      if (!byId[id]) {
+        byId[id] = el(id.indexOf("chart") >= 0 ? "canvas" : "div");
+        byId[id].hidden = HIDDEN_AT_REST.has(id);
+      }
+      return byId[id];
+    },
     createElement(t) { return el(t); },
     querySelector() { return null; }, querySelectorAll() { return []; },
     addEventListener(t, fn) { (doc._on[t] || (doc._on[t] = [])).push(fn); },
@@ -501,4 +518,103 @@ test("a hidden tab does not poll", async () => {
   h.doc.fire("visibilitychange");
   await h.settle();
   assert.strictEqual(h.calls.length, before + 1, "becoming visible refreshes at once");
+});
+
+// ---- wall power ----------------------------------------------------------
+//
+// The whole machine's draw, read from a smart plug rather than a sensor inside
+// the box. Two things make it unlike every other series here: the row does not
+// exist on a host with no plug, and the reading can vanish mid-session (the
+// plug reboots, drops off Wi-Fi, gets unplugged) while the rest of the page
+// carries on. The manager signals both the same way — by omitting the key — so
+// these tests are about telling "no plug" from "plug went quiet" from "0W".
+
+const VIOLET = "rgb(176,127,208)";
+
+test("a host with no smart plug shows no wall row at all", async () => {
+  const h = load({ payloads: [fullStatus()] });      // no wall_power_w
+  await h.settle();
+  assert.strictEqual(h.id("wall-pwr-row").hidden, true,
+    "an empty WALL line on every host that will never have a plug is clutter");
+  assert.strictEqual(h.id("pwr-total").textContent, "185W total",
+    "with no wall reading the CPU+GPU sum is still the total it always was");
+});
+
+test("a measured wall draw is the headline, and CPU+GPU stops claiming 'total'", async () => {
+  const h = load({ payloads: [fullStatus({ wall_power_w: 240 })] });
+  await h.settle();
+  assert.strictEqual(h.id("wall-pwr-row").hidden, false);
+  assert.strictEqual(h.id("wall-pwr-text").textContent, "240W");
+  const t = h.id("pwr-total").textContent;
+  assert.ok(t.startsWith("240W wall"), `wall leads the headline, got ${t}`);
+  assert.ok(t.includes("185W CPU+GPU"), `the components stay visible, got ${t}`);
+  assert.ok(!t.includes("total"),
+    `two numbers on one line both called "total" is the defect this avoids, got ${t}`);
+});
+
+test("a plug reporting nothing drawing shows 0W, not a dash", async () => {
+  // The reporter's own plug reads 0.0W with nothing plugged into it. That is a
+  // successful measurement and must not render as "unavailable".
+  const h = load({ payloads: [fullStatus({ wall_power_w: 0 })] });
+  await h.settle();
+  assert.strictEqual(h.id("wall-pwr-row").hidden, false);
+  assert.strictEqual(h.id("wall-pwr-text").textContent, "0W");
+  assert.ok(h.id("pwr-total").textContent.startsWith("0W wall"));
+});
+
+test("a real 0W draws on the floor; a plug that went quiet draws nothing", async () => {
+  const zero = load({ payloads: [fullStatus({ wall_power_w: 0 })] });
+  await zero.settle(); zero.tick(); await zero.settle();
+  zero.clearPaths(); zero.tick(); await zero.settle();
+  const ys = vertices(zero.id("pwr-chart"), VIOLET).map((p) => p.y);
+  assert.ok(ys.length >= 3, "an idle plug is a measurement and must be plotted");
+  assert.deepStrictEqual([...new Set(ys)], [100], "0W belongs on the floor");
+
+  const gone = load({ payloads: [fullStatus()] });   // key absent entirely
+  await gone.settle(); gone.tick(); await gone.settle();
+  gone.clearPaths(); gone.tick(); await gone.settle();
+  assert.deepStrictEqual(vertices(gone.id("pwr-chart"), VIOLET).map((p) => p.y), [],
+    "with no plug configured nothing may be plotted for wall power");
+});
+
+test("a plug that drops out leaves the row in place reading '--', and the line breaks", async () => {
+  // The manager withholds the key once a sample goes stale. The row must NOT
+  // disappear — the card would resize under the user's eyes on a blip — and the
+  // missing samples must break the series instead of being drawn as 0W.
+  //
+  // Counted as STROKE STARTS, not by looking for points on the floor: every
+  // filled run closes itself with two baseline vertices at y=h, so `100` shows
+  // up in the vertex list of any healthy series and proves nothing.
+  const h = load({ payloads: [
+    fullStatus({ wall_power_w: 240 }), fullStatus({ wall_power_w: 244 }),
+    fullStatus(), fullStatus(),
+    fullStatus({ wall_power_w: 250 }), fullStatus({ wall_power_w: 252 }),
+  ] });
+  await h.settle();
+  h.tick(); await h.settle();
+  h.tick(); await h.settle();                     // first frame with no reading
+  assert.strictEqual(h.id("wall-pwr-row").hidden, false,
+    "a blip must not make the row vanish and shove the card around");
+  assert.strictEqual(h.id("wall-pwr-text").textContent, "--",
+    "a withheld reading is unknown, not zero");
+  h.tick(); await h.settle();
+  h.tick(); await h.settle();
+  h.clearPaths();
+  h.tick(); await h.settle();                     // history: 240 244 - - 250 252
+  assert.strictEqual(h.id("wall-pwr-text").textContent, "252W", "and it recovers");
+  const starts = vertices(h.id("pwr-chart"), VIOLET).filter((p) => p.op === "moveTo");
+  assert.strictEqual(starts.length, 2,
+    `the outage must split the series into two strokes; one stroke means the ` +
+    `missing samples were plotted as 0W and the line joined straight across ` +
+    `the gap. Got ${starts.length}`);
+});
+
+test("the power chart scales to the wall reading, not just to CPU and GPU", async () => {
+  // Wall power is several times either component; without it in the y-axis the
+  // violet line would run off the top of the card.
+  const h = load({ payloads: [fullStatus({ wall_power_w: 600 })] });
+  await h.settle(); h.tick(); await h.settle();
+  const axis = h.id("pwr-yaxis").innerHTML;
+  const top = parseInt(axis.match(/(\d+)W/)[1], 10);
+  assert.ok(top >= 600, `the y-axis must cover the wall reading, got ${top}W`);
 });

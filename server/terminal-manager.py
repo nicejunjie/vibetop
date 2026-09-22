@@ -2974,6 +2974,40 @@ def _unit_alive(unit):
 # and are reached via system_status.get_system_status(); the per-poll CPU/RAPL/
 # disk/process snapshot globals moved there with them.
 
+# ---- wall power --------------------------------------------------------------
+# The one system-status number that comes off the NETWORK: a smart plug the
+# machine is plugged into, reporting the whole box's draw (VIBETOP_POWER_PLUG,
+# see system_status.read_wall_power). Everything about how it is driven follows
+# from that single difference.
+#
+# 30s is the DEVICE's budget, not ours. The Monitor polls /api/system/status
+# every 2s and the desktop heartbeat folds the same payload in, from every open
+# tab on every device — so without a cache here a handful of viewers would each
+# become a request stream against a board with a few hundred KB of RAM. One
+# shared sample every 30s is what the plug can comfortably serve, and it is why
+# this is a memo rather than an inline read.
+WALL_POWER_FRESH = 30.0
+# Three missed refreshes. _bg_cached serves its last value however old it is —
+# right for a disk sweep, wrong for a reading whose whole purpose is to track
+# the machine right now. Past this the number is withheld entirely, so the
+# Monitor draws a gap and says "--" instead of redrawing a ten-minute-old
+# wattage as though it were live.
+WALL_POWER_MAX_AGE = 95.0
+
+
+def _wall_power_w():
+    """Measured wall draw in watts, or None when there is no plug configured,
+    no sample has landed yet, or the last one has gone stale."""
+    if not system_status.wall_power_endpoint():
+        return None
+    sample, have = _bg_cached("wall_power", WALL_POWER_FRESH,
+                              system_status.read_wall_power)
+    if not have or not isinstance(sample, dict):
+        return None
+    if time.time() - sample.get("at", 0.0) > WALL_POWER_MAX_AGE:
+        return None
+    return sample.get("w")
+
 
 class _MultipartError(Exception):
     pass
@@ -4783,6 +4817,15 @@ class Handler(http.server.BaseHTTPRequestHandler):
         except Exception as e:
             log.warning("system status collection failed: %s", e)
             return {"error": "status unavailable: %s" % e}
+        # Wall power rides along rather than living in system_status.get_system_status():
+        # it is the one reading that must not be produced on a request thread
+        # (it is an HTTP call to a plug on the LAN), so it is served from a
+        # refresh-ahead memo here. Omitted entirely when unconfigured or stale —
+        # the key's ABSENCE is what makes the Monitor say "--" rather than 0W.
+        if isinstance(st, dict):
+            wall = _wall_power_w()
+            if wall is not None:
+                st["wall_power_w"] = wall
         # Multi-user: the top-processes list carries every user's process names —
         # a non-admin sees only their OWN processes; an ADMIN (VIBETOP_ADMINS, e.g.
         # the human operator on a prod host where APP_USER is the no-login service

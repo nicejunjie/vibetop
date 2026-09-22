@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_310 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_311 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
 - [Scheduled terminal messages ("resume when the token limit resets")](#scheduled-terminal-messages-resume-when-the-token-limit-resets)
@@ -333,6 +333,7 @@ _310 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [A restore path that had never once run, and three findings it was right to refute (2026-09-18)](#a-restore-path-that-had-never-once-run-and-three-findings-it-was-right-to-refute-2026-09-18)
 - [A read check is not a write check, and an encoded path is still that path (2026-09-19)](#a-read-check-is-not-a-write-check-and-an-encoded-path-is-still-that-path-2026-09-19)
 - [The terminal "jumped back to old content": a multi-client size fight (2026-09-21)](#the-terminal-jumped-back-to-old-content-a-multi-client-size-fight-2026-09-21)
+- [Wall power on the Monitor: a sensor that lives on the network](#wall-power-on-the-monitor-a-sensor-that-lives-on-the-network)
 
 <!-- END TOC -->
 
@@ -14522,3 +14523,73 @@ preserved shared write (old daemons), and the liveness check that stops a dead
 client pinning the size. The instrumentation remains, narrowed to the one
 signature that matters (scrollback collapsing), and should be removed once a few
 quiet days have passed.
+
+## Wall power on the Monitor: a sensor that lives on the network
+
+**Symptom.** The Monitor's Power card could only show what the machine says about
+itself — RAPL for the CPU package, nvidia-smi/sysfs for the GPU. Neither knows
+what the box actually pulls from the socket: PSU loss, drives, fans, and the
+board are all invisible, and the "total" on that card was only ever CPU+GPU.
+
+**Cause.** There was no sensor for it. The measurement exists only outside the
+machine, in a smart plug upstream of the PSU.
+
+**Fix.** `VIBETOP_POWER_PLUG` names a Shelly Gen2+ plug; `system_status.read_wall_power()`
+samples `/rpc/Switch.GetStatus?id=0` and the Monitor gains a WALL row above
+CPU/GPU. Four things about it are deliberate, and all four follow from the one
+fact that this reading is the only one in the file that travels over a network:
+
+- **Driven by `_bg_cached`, never inline.** Every other reading here is a sysfs
+  read costing microseconds; this one is an HTTP round-trip that can time out.
+  The `cached` memoizer passed into `get_system_status()` makes the first caller
+  after expiry pay the full cost, which here would be a request thread parked on
+  a network timeout. Refresh-ahead is the only correct shape.
+- **30s is the device's budget, not ours.** The Monitor polls every 2s, the
+  desktop heartbeat folds the same payload in, and both run in every open tab on
+  every device. The plug is a board with a few hundred KB of RAM running the
+  relay off the same stack. One shared sample per 30s is what keeps N viewers
+  from becoming N times the load on it.
+- **The sample carries its own timestamp.** `_bg_cached` serves its last value
+  however old it is — right for a disk sweep, wrong for a live wattage. A plug
+  can be unplugged, rebooted, or fall off the Wi-Fi while every other sensor
+  here cannot, so past `WALL_POWER_MAX_AGE` (95s ≈ three missed refreshes) the
+  key is withheld entirely and the page shows `--` with a gap in the line.
+- **The path is ours, never the setting's.** A Shelly's root serves a ~280KB web
+  app. Accepting a full URL from the setting and fetching it verbatim would pull
+  that every 30s forever; the setting gives a host, the RPC path is appended here.
+
+**0W is a measurement, not a gap.** A plug with nothing plugged into it reports
+`apower: 0.0`, and that is a successful reading — it renders as `0W` and plots on
+the floor. Only a *missing* key means unknown. This is the same rule the card
+already followed for absent RAPL/nvidia-smi, and it has a matching trap at the
+injection site: `if wall:` instead of `if wall is not None:` silently drops
+exactly the zero. Both directions are pinned by tests.
+
+**"Total" is now spoken for.** When a plug is present the wall figure IS the
+machine's total and CPU+GPU are components inside it, so the sum relabels itself
+`CPU+GPU` rather than competing for the word. Two numbers on one line both
+claiming to be the total is the defect the existing rule was written to prevent,
+in a new coat.
+
+**Rejected: a Gen1 `/meter/0` fallback.** A second, untested transport for a
+device nobody here owns is a liability. Gen2+ RPC only, and the config comment
+says so.
+
+**Two things this turned up that were not the feature.**
+
+- `vt_write_manager_env` rewrites `/etc/vibetop/manager.env` from scratch on
+  every deploy, preserving only `VIBETOP_ADMINS`. A hand-set key would have
+  worked until the next Update and then silently reverted — the worst shape of
+  bug, because nothing connects the symptom to the deploy weeks later. There is
+  now a `VT_ENV_PRESERVE` list, and the generated file documents the key inline
+  so it is discoverable without reading the installer.
+- The Monitor's JS harness created every element with `hidden: false`, ignoring
+  the markup, so an element the browser starts hidden looked on-screen from the
+  first frame. It now seeds `hidden` from the real HTML. My own new test is what
+  caught it, and it was modelling the wrong page for `poll-stale` too.
+
+**A test of mine was wrong in a way worth recording.** `drawChart` closes each
+filled run with two baseline vertices at `y = h`, so "no point sits on the floor"
+is false for *every* healthy series — I asserted it and read the resulting
+failure as a bug in the code. The honest signal for "the line broke" is the
+number of `moveTo` ops in that series' colour: one stroke per contiguous run.

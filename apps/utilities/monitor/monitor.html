@@ -101,6 +101,9 @@
 
   /* Metric bars */
   .metric-row { display: flex; align-items: center; gap: 8px; }
+  /* `display:flex` above outranks the UA stylesheet's [hidden]{display:none},
+     so a hidden metric row would still be laid out without this. */
+  .metric-row[hidden] { display: none; }
   .metric-label {
     font-size: 11px; color: #6a7a8a; min-width: 40px;
     font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
@@ -267,6 +270,18 @@
     <!-- Power -->
     <div class="card">
       <div class="card-title">Power <span class="avg" id="pwr-total">--</span></div>
+      <!-- Wall sits above CPU/GPU because it CONTAINS them: it is the whole
+           machine's draw, read from a smart plug upstream of the PSU, while the
+           two below are components inside that envelope. The row is hidden
+           outright when no plug is configured (VIBETOP_POWER_PLUG) — an empty
+           "WALL --" line on every host that will never have one is clutter. -->
+      <div class="metric-row" id="wall-pwr-row" hidden>
+        <div class="metric-label" style="color:#b07fd0">WALL</div>
+        <div class="metric-bar-wrap">
+          <div class="metric-bar" id="wall-pwr-bar" style="width:0%;background:#b07fd0"></div>
+          <div class="metric-bar-text" id="wall-pwr-text">--</div>
+        </div>
+      </div>
       <div class="metric-row">
         <div class="metric-label" style="color:#5aad8a">CPU</div>
         <div class="metric-bar-wrap">
@@ -310,7 +325,7 @@
   var memHist = [], gpuHist = [], vramHist = [];
   var cpuTempHist = [], gpuTempHist = [];
   var netRxHist = [], netTxHist = [];
-  var cpuPwrHist = [], gpuPwrHist = [];
+  var cpuPwrHist = [], gpuPwrHist = [], wallPwrHist = [];
   var diskRdHist = [], diskWrHist = [];
   var coreRows = [];
   var lastNet = null, lastNetTime = 0;
@@ -318,6 +333,11 @@
   var pwrMax = 300;
   var diskMaxRate = 1024 * 1024;
   var CPU_TDP = 170, GPU_TDP = 290;
+  // Full-scale for the wall bar. Not a TDP — nothing declares what the whole
+  // machine may pull — so it is CPU+GPU plus headroom for board, drives, fans
+  // and PSU loss. Only the bar's fill fraction depends on it; the watt figure
+  // and the chart's own auto-scale do not, so an off guess misleads nobody.
+  var WALL_FS = CPU_TDP + GPU_TDP + 140;
 
   function push(arr, val) { arr.push(val); if (arr.length > HISTORY_LEN) arr.shift(); }
 
@@ -583,17 +603,43 @@
       push(gpuPwrHist, d.gpu_power_w != null ? gpuW : null);
       setBar('cpu-pwr-bar', 'cpu-pwr-text', cpuW / CPU_TDP * 100, (d.cpu_power_w != null ? cpuW + 'W' : '--'), '#5aad8a', true);
       setBar('gpu-pwr-bar', 'gpu-pwr-text', gpuW / GPU_TDP * 100, (d.gpu_power_w != null ? gpuW + 'W' : '--'), '#5a8ab0', true);
+      // Wall power: the whole machine, measured at the socket. Absent whenever
+      // no plug is configured OR its last sample went stale — and absent is the
+      // ONLY thing that means "unknown". A plug reporting 0.0W has genuinely
+      // measured nothing drawing, so that renders as 0W, not as '--'.
+      var haveWallW = d.wall_power_w != null;
+      var wallW = haveWallW ? d.wall_power_w : 0;
+      var wallRow = document.getElementById('wall-pwr-row');
+      // Reveal on the first reading and keep the row from then on: once the
+      // machine is known to have a plug, a momentarily stale sample should read
+      // '--' in place, not make the row disappear and shove the card around.
+      if (haveWallW && wallRow) wallRow.hidden = false;
+      var wallShown = wallRow && !wallRow.hidden;
+      if (wallShown) {
+        push(wallPwrHist, haveWallW ? wallW : null);
+        setBar('wall-pwr-bar', 'wall-pwr-text', wallW / WALL_FS * 100,
+               (haveWallW ? wallW + 'W' : '--'), '#b07fd0', true);
+      }
       // A sum is only a total when EVERY term was measured. With one sensor
       // present and the other absent this added the missing one as 0W and
       // labelled the result "total" — a number that reads as the machine's whole
       // draw while silently omitting a component. Say which part it covers.
+      //
+      // Wall power makes that stricter, not looser: when it is present IT is the
+      // machine's total and CPU+GPU are components inside it, so the sum drops
+      // the word "total" rather than competing for it. Two different numbers on
+      // one line both claiming to be the total is the same defect in a new coat.
       var haveCpuW = d.cpu_power_w != null, haveGpuW = d.gpu_power_w != null;
-      var totalW = (haveCpuW && haveGpuW) ? (cpuW + gpuW) + 'W total'
-                 : haveCpuW ? cpuW + 'W CPU only'
-                 : haveGpuW ? gpuW + 'W GPU only'
-                 : '--';
+      var sumLabel = wallShown ? 'W CPU+GPU' : 'W total';
+      var sumW = (haveCpuW && haveGpuW) ? (cpuW + gpuW) + sumLabel
+               : haveCpuW ? cpuW + 'W CPU only'
+               : haveGpuW ? gpuW + 'W GPU only'
+               : '';
+      var totalW = wallShown
+                 ? (haveWallW ? wallW + 'W wall' : '-- wall') + (sumW ? ' · ' + sumW : '')
+                 : (sumW || '--');
       document.getElementById('pwr-total').textContent = totalW;
-      var allPwr = cpuPwrHist.concat(gpuPwrHist).filter(function(v) { return v > 0; });
+      var allPwr = cpuPwrHist.concat(gpuPwrHist, wallPwrHist).filter(function(v) { return v > 0; });
       if (allPwr.length > 0) pwrMax = Math.max(Math.max.apply(null, allPwr) * 1.2, 50);
       var pya = document.getElementById('pwr-yaxis');
       if (pya) pya.innerHTML = '<span>' + Math.round(pwrMax) + 'W</span><span>' + Math.round(pwrMax/2) + 'W</span><span>0</span>';
@@ -601,7 +647,7 @@
       drawChart('mem-chart', [{data: memHist, color: 'rgb(90,173,138)'}], 100);
       drawChart('gpu-chart', [{data: gpuHist, color: 'rgb(90,173,138)'}, {data: vramHist, color: 'rgb(90,138,176)'}], 100);
       drawChart('temp-chart', [{data: cpuTempHist, color: 'rgb(90,173,138)'}, {data: gpuTempHist, color: 'rgb(90,138,176)'}], 110);
-      drawChart('pwr-chart', [{data: cpuPwrHist, color: 'rgb(90,173,138)'}, {data: gpuPwrHist, color: 'rgb(90,138,176)'}], pwrMax);
+      drawChart('pwr-chart', [{data: cpuPwrHist, color: 'rgb(90,173,138)'}, {data: gpuPwrHist, color: 'rgb(90,138,176)'}, {data: wallPwrHist, color: 'rgb(176,127,208)'}], pwrMax);
 
       if (d.disk_total_gb != null) {
         var diskPct = d.disk_total_gb > 0 ? (d.disk_used_gb / d.disk_total_gb * 100) : 0;

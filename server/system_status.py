@@ -14,10 +14,12 @@ import os
 import pwd
 import re
 import shutil
+import json
 import socket
 import subprocess
 import threading
 import time
+import urllib.request
 
 # The collector keeps per-call delta snapshots (CPU/RAPL/disk/process) in module
 # globals; the manager is a ThreadingHTTPServer, so concurrent polls (taskbar +
@@ -721,3 +723,77 @@ def _collect(running_terminals, cached):
         result["disk_read_bytes"] = disk_read_bytes
         result["disk_write_bytes"] = disk_write_bytes
     return result
+
+
+# ---- wall power --------------------------------------------------------------
+# The machine's WHOLE draw, measured by a smart plug it is plugged into, rather
+# than by a sensor inside it. Every other reading in this module costs a sysfs
+# read in microseconds; this one is an HTTP round-trip to a small board on the
+# LAN, which makes it different in three ways the rest of the file need not care
+# about:
+#
+#   * It must never run on a request thread. The manager drives it through
+#     _bg_cached (refresh-ahead), not through the `cached` memoizer passed into
+#     get_system_status() — that one makes the first caller after expiry pay the
+#     full cost, which here is a network timeout.
+#   * The device is the constraint, not us. A Shelly plug has a few hundred KB
+#     of RAM and serves this from the same tiny stack that runs the relay; the
+#     Monitor polls every 2s from every open tab, so the cache upstream of this
+#     is what keeps N viewers from becoming N times the load on it.
+#   * It can simply vanish (unplugged, rebooted, off the Wi-Fi) while every
+#     other sensor here cannot. So a sample is STAMPED and the consumer drops a
+#     stale one, instead of redrawing a ten-minute-old wattage as if it were now.
+#
+# Protocol: Shelly Gen2+ RPC (gen 2/3/4 — the /rpc/ JSON-RPC surface). Gen1's
+# /meter/0 is deliberately not probed: a second untested transport for a device
+# nobody here has is a liability, not a feature.
+
+WALL_POWER_TIMEOUT = 4.0
+
+
+def wall_power_endpoint(plug=None):
+    """The RPC URL to sample, or None when no plug is configured.
+
+    `VIBETOP_POWER_PLUG` accepts a bare host ("192.168.1.42"), a host:port, or a
+    full base URL. The path is always appended here and never taken from the
+    setting: pointed at a Shelly's root this would pull its ~280KB web UI on
+    every poll, which is both useless and unkind to the device.
+    """
+    if plug is None:
+        plug = os.environ.get("VIBETOP_POWER_PLUG", "")
+    plug = (plug or "").strip()
+    if not plug:
+        return None
+    if "://" not in plug:
+        plug = "http://" + plug
+    return plug.rstrip("/") + "/rpc/Switch.GetStatus?id=0"
+
+
+def read_wall_power(plug=None, timeout=WALL_POWER_TIMEOUT, opener=None):
+    """One sample from the configured smart plug.
+
+    Returns {"w": watts, "at": epoch} — or None when no plug is configured.
+    RAISES when a plug IS configured but is unreachable or answers nonsense:
+    the caller's background memo owns the retry floor, and swallowing the error
+    here would let it stamp a failure as a fresh successful reading.
+
+    `at` stamps the SAMPLE, not the cache entry. A refresh-ahead memo serves its
+    last value however old it is — correct for a disk sweep, wrong for a live
+    wattage — so the age has to travel with the number.
+    """
+    url = wall_power_endpoint(plug)
+    if not url:
+        return None
+    get = opener or urllib.request.urlopen
+    with get(url, timeout=timeout) as r:
+        # A few hundred bytes in practice. Bounded anyway: a setting that points
+        # at something large must not pull it into memory every 30s forever.
+        body = r.read(65536)
+    d = json.loads(body.decode("utf-8", "replace"))
+    w = d.get("apower")
+    # A plug reporting 0.0 is a real measurement (nothing drawing) and must stay
+    # a number. Only a MISSING or non-numeric field is "unknown" — conflating
+    # the two is how a monitor ends up claiming an idle machine draws nothing.
+    if not isinstance(w, (int, float)) or isinstance(w, bool):
+        raise ValueError("smart plug response has no numeric 'apower'")
+    return {"w": round(float(w), 1), "at": time.time()}
