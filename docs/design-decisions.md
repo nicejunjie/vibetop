@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_311 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_312 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
 - [Scheduled terminal messages ("resume when the token limit resets")](#scheduled-terminal-messages-resume-when-the-token-limit-resets)
@@ -334,6 +334,7 @@ _311 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [A read check is not a write check, and an encoded path is still that path (2026-09-19)](#a-read-check-is-not-a-write-check-and-an-encoded-path-is-still-that-path-2026-09-19)
 - [The terminal "jumped back to old content": a multi-client size fight (2026-09-21)](#the-terminal-jumped-back-to-old-content-a-multi-client-size-fight-2026-09-21)
 - [Wall power on the Monitor: a sensor that lives on the network](#wall-power-on-the-monitor-a-sensor-that-lives-on-the-network)
+- [The plug's address is a setting, not a deployment detail](#the-plugs-address-is-a-setting-not-a-deployment-detail)
 
 <!-- END TOC -->
 
@@ -14630,3 +14631,62 @@ filled run with two baseline vertices at `y = h`, so "no point sits on the floor
 is false for *every* healthy series — I asserted it and read the resulting
 failure as a bug in the code. The honest signal for "the line broke" is the
 number of `moveTo` ops in that series' colour: one stroke per contiguous run.
+
+## The plug's address is a setting, not a deployment detail
+
+**Symptom.** Wall power shipped configured by `VIBETOP_POWER_PLUG` in
+`/etc/vibetop/manager.env`. Changing the number on the Monitor's Power card
+therefore took a root shell, knowing that file exists, an editor, and a manager
+restart — and because the deploy regenerates that file wholesale, the key also
+had to be added to `VT_ENV_PRESERVE` or the setting reverted at the next Update.
+That is a lot of machinery for an IP address, and every step of it is invisible
+from the page that shows the number.
+
+**Cause.** I reached for an env var because the feature began as "read this one
+plug on this one host". Env vars are right for things the *deployment* decides
+(secret paths, the service account) and wrong for things an *operator* decides
+while looking at the product. Nothing about a LAN address is a deployment fact.
+
+**Fix.** A **Wall power meter** card in Config ▸ Vibetop, stored in
+`/var/lib/vibetop/power.json` behind `GET`/`POST /api/config/power`, sudo-gated
+like the rest of that panel. Host-wide, not per-user: it describes what *this
+machine* is plugged into. Four things that are not obvious:
+
+- **Precedence is one-way.** The file wins whenever it EXISTS, even holding `""`.
+  Falling back to the env var on blank would make the panel unable to undo what
+  the panel just did. Before the first save the env var still decides, so an
+  unattended install keeps working and its value appears in the field as the
+  current setting rather than as an empty box.
+- **The save probes the plug and reports what it saw.** A mistyped address and
+  no address are indistinguishable on the Monitor — both show no WALL row, and
+  the second is the state the operator just left. The write happens first, so a
+  plug that is merely switched off still saves; the probe only decides what the
+  card says afterwards (`Connected — reading 14.3 W` / `… did not answer: …`).
+- **Changing the address discards the history.** Watts from one socket say
+  nothing about another, and the series is keyed by the *old device's* clock.
+  The plug is stored beside the history (`_wall_plug`) rather than cleared on
+  write, so the paths the Config app never sees — a hand-edited file, a changed
+  env var, a restart — are covered by the same check, and a sample still in
+  flight when the address changed is dropped instead of landing in the new chart.
+- **Validation is a security boundary, not politeness.** The string becomes a URL
+  the **root** manager fetches, so it is matched against one anchored pattern:
+  host, optional `:port`, optional `http(s)://`, optional trailing slash. A path,
+  a query, a fragment, `user:pass@` or a `file://` scheme is refused. The anchor
+  is `\Z`, not `$` — Python's `$` also matches before a trailing newline.
+
+**And one new key on the status payload.** `wall_plug` is sent on *every* poll,
+`true` or `false`, which is unlike every other key there (absence is the signal
+for "unknown"). The Monitor needs to tell a plug that is configured but silent —
+row stays, reading `--` — from no plug at all — row removed. Reading alone cannot
+separate those, and now that the address is editable at runtime it is a
+difference a user can create in one click. It has to be sent when false so that
+*absence* keeps meaning "a manager too old to answer the question": deploys are
+not atomic, and a page that outlives one must fall back to the old rule (reveal
+on first reading, never hide) rather than read a missing key as "no plug".
+
+**Rejected: inferring it from `wall_series`.** Tempting — the series is present
+whenever there is history and vanishes when the plug is cleared, so it needs no
+new field. But an older manager sends readings with no series at all (a
+deliberately supported case, `a manager with no series still drives the wall line
+the old way`), and on that server a single stale sample would have hidden the
+row. A question worth asking directly is worth one boolean.

@@ -51,22 +51,38 @@ The Codex counterpart of the strip above (Start ▸ Utilities ▸ **Codex Limit*
 
 A **Token Stats** app (Start ▸ Utilities ▸ Token Stats) — a read-only analytics dashboard with **Combined**, **Claude**, and **Codex** tabs. Claude is reconstructed from `~/.claude/projects/**/*.jsonl`; Codex is reconstructed from each `event_msg.payload.info.last_token_usage` snapshot in `~/.codex/sessions/**/*.jsonl`, using the active `turn_context.payload.model`. `GET /api/claude/stats` and `GET /api/codex/stats` return the same aggregation shape and are memoized per user for ~45s. The Combined tab adds their matching time buckets client-side. Costs are explicitly **API-equivalent estimates**, not subscription charges: each provider's public per-token pricing is applied to local input/output/cache counts. The response aggregates into `windows` (`today`/`d7`/`d30`/`all`), `byDay`, `byHour`, and `byModel`, plus sessions, active days, retained span, and cache-hit rate. The page renders concise cards, averages, cost/token charts, and a model breakdown. Purely local; no API or admin key is required.
 
-## System Monitor — wall power (`VIBETOP_POWER_PLUG`, opt-in)
+## System Monitor — wall power (Config ▸ Vibetop ▸ Wall power meter, opt-in)
 
 The Monitor's Power card shows CPU (RAPL) and GPU power from sensors inside the
-machine. Set **`VIBETOP_POWER_PLUG`** in `/etc/vibetop/manager.env` to the host
-of a **Shelly Gen2+** smart plug the machine is plugged into and it gains a
-**WALL** row above them: the whole box's draw at the socket, including PSU loss,
-drives, fans and board — which no internal sensor can see. Unset (the default),
-the card is exactly as it was and no request is ever made.
+machine. Point vibetop at a **Shelly Gen2+** smart plug the machine is plugged
+into and it gains a **WALL** row above them: the whole box's draw at the socket,
+including PSU loss, drives, fans and board — which no internal sensor can see.
+Unset (the default), the card is exactly as it was and no request is ever made.
 
-```
-VIBETOP_POWER_PLUG=192.168.1.42        # bare host, host:port, or a base URL
-sudo systemctl restart vibetop-manager # EnvironmentFile is read at start
-```
+**Set it in the Config app** (System ▸ Config ▸ Vibetop ▸ *Wall power meter*),
+which takes a bare host, `host:port` or an `http(s)://` base URL. Saving takes
+effect within ~5s — no restart — and the panel **contacts the plug once and
+reports what it saw** (`Connected — reading 14.3 W`, or why it did not answer).
+That probe is the point: a mistyped address and no address look identical on the
+Monitor, because both show no WALL row. Clearing the field turns the feature off
+and retires the row.
 
-The key is listed in `VT_ENV_PRESERVE` (`tools/lib/layout.sh`), so a deploy —
-which rewrites that file — carries it across instead of reverting it.
+The address is host-wide (it describes what *this machine* is plugged into, not
+a per-user preference) and the panel is sudo-gated like the rest of Config. It
+is stored in `/var/lib/vibetop/power.json`; `GET`/`POST /api/config/power`.
+
+For an unattended install there is still **`VIBETOP_POWER_PLUG`** in
+`/etc/vibetop/manager.env` (read at manager start; the key is in
+`VT_ENV_PRESERVE` in `tools/lib/layout.sh`, so the deploy that rewrites that
+file carries it across). It is the **default before the first save only** —
+once the Config app has written the file, the file is the sole authority, so a
+blank field genuinely means off rather than falling back to the env var.
+
+Changing the address **discards the previous plug's history**: watts from one
+socket say nothing about another, and the chart is keyed by the old device's
+clock. The status payload carries `wall_plug` (always, `true`/`false`) so the
+Monitor can tell "configured but not answering" — row stays, reading `--` —
+from "no plug" — row removed.
 
 - **Sampled at most once a second for the whole host**, from a refresh-ahead
   memo shared by every tab and every user. 1Hz is the plug's own update rate

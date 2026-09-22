@@ -66,6 +66,7 @@ function el(tag) {
 const DEFAULT_ROUTES = {
   "GET /api/config/idle": () => ({ status: 200, data: { enabled: false, hours: 2, reapTerminals: false } }),
   "GET /api/config/hints": () => ({ status: 200, data: { enabled: true } }),
+  "GET /api/config/power": () => ({ status: 200, data: { plug: "" } }),
   "GET /api/config/resources": () => ({ status: 200, data: { memMax: "", cpuCores: "", hostCores: 16 } }),
   "GET /api/config/services": () => ({ status: 200, data: { services: [] } }),
   "GET /api/config/users": () => ({ status: 200, data: { users: [] } }),
@@ -213,6 +214,101 @@ test("the three settings cards go to three different endpoints in one Save", asy
   assert.deepStrictEqual(h.bodyOf("/api/config/hints"), { enabled: false });
   assert.deepStrictEqual(h.bodyOf("/api/config/resources"), { memMax: "8G", cpuCores: "" },
     "a pasted value is trimmed, and a blank cap is sent as blank (= no cap)");
+});
+
+// ---- wall-power plug ------------------------------------------------------
+
+test("the plug address is read at startup and saved trimmed", async () => {
+  const h = load({
+    routes: {
+      "GET /api/config/power": () => ({ status: 200, data: { plug: "192.168.1.42" } }),
+      "POST /api/config/power": () => ({ status: 200, data: { plug: "10.0.0.9", reading: 14.3 } }),
+    },
+  });
+  await h.settle();
+  assert.strictEqual(h.id("pwr-plug").value, "192.168.1.42");
+  assert.strictEqual(h.id("save-all").disabled, true, "reading it back is not a change");
+  h.id("pwr-plug").value = "  10.0.0.9  ";
+  h.id("pwr-plug").fire("input");
+  assert.strictEqual(h.id("save-all").disabled, false);
+  h.id("save-all").fire("click");
+  await h.settle();
+  assert.deepStrictEqual(h.posts().map((c) => String(c.url)), ["/api/config/power"],
+    "the untouched cards must not be rewritten");
+  assert.deepStrictEqual(h.bodyOf("/api/config/power"), { plug: "10.0.0.9" });
+});
+
+test("the save reports what the plug answered — the only way to catch a typo", async () => {
+  // A wrong address and no address look identical on the Monitor: no WALL row.
+  const h = load({
+    routes: {
+      "GET /api/config/power": () => ({ status: 200, data: { plug: "" } }),
+      "POST /api/config/power": () => ({ status: 200, data: { plug: "10.0.0.9", reading: 14.3 } }),
+    },
+  });
+  await h.settle();
+  h.id("pwr-plug").value = "10.0.0.9";
+  h.id("pwr-plug").fire("input");
+  h.id("save-all").fire("click");
+  assert.match(h.id("pwr-status").textContent, /Contacting 10\.0\.0\.9/,
+    "the probe can take seconds; say which part is slow");
+  await h.settle();
+  assert.match(h.id("pwr-status").textContent, /14\.3 W/);
+  assert.strictEqual(h.id("pwr-status").className, "status ok");
+});
+
+test("a plug that did not answer still saves, and says so", async () => {
+  const h = load({
+    routes: {
+      "POST /api/config/power": () => ({
+        status: 200, data: { plug: "10.0.0.9", probe_error: "timed out" },
+      }),
+    },
+  });
+  await h.settle();
+  h.id("pwr-plug").value = "10.0.0.9";
+  h.id("pwr-plug").fire("input");
+  h.id("save-all").fire("click");
+  await h.settle();
+  assert.match(h.id("pwr-status").textContent, /did not answer.*timed out/);
+  assert.strictEqual(h.id("pwr-status").className, "status err");
+  assert.strictEqual(h.id("save-all").disabled, true,
+    "it SAVED — the field is clean, a switched-off plug is still a valid setting");
+});
+
+test("clearing the address turns the feature off without contacting anything", async () => {
+  const h = load({
+    routes: {
+      "GET /api/config/power": () => ({ status: 200, data: { plug: "192.168.1.42" } }),
+      "POST /api/config/power": () => ({ status: 200, data: { plug: "" } }),
+    },
+  });
+  await h.settle();
+  h.id("pwr-plug").value = "";
+  h.id("pwr-plug").fire("input");
+  h.id("save-all").fire("click");
+  assert.strictEqual(h.id("pwr-status").textContent, "",
+    "nothing to contact, so no 'Contacting…' line");
+  await h.settle();
+  assert.deepStrictEqual(h.bodyOf("/api/config/power"), { plug: "" });
+  assert.match(h.id("pwr-status").textContent, /off/);
+});
+
+test("a rejected address is reported on its own card, not only in the top bar", async () => {
+  const h = load({
+    routes: {
+      "POST /api/config/power": () => ({ status: 400, data: { error: "Must be a host…" } }),
+    },
+  });
+  await h.settle();
+  h.id("pwr-plug").value = "10.0.0.9/rpc/Switch.Set";
+  h.id("pwr-plug").fire("input");
+  h.id("save-all").fire("click");
+  await h.settle();
+  assert.strictEqual(h.id("pwr-status").textContent, "Must be a host…");
+  assert.strictEqual(h.id("pwr-status").className, "status err");
+  assert.strictEqual(h.id("save-all").disabled, false,
+    "a refused field stays dirty so the fix can be re-saved");
 });
 
 test("an out-of-range idle timeout is refused here — it is never POSTed", async () => {

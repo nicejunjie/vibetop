@@ -577,6 +577,40 @@ test("a real 0W draws on the floor; a plug that went quiet draws nothing", async
     "with no plug configured nothing may be plotted for wall power");
 });
 
+test("a configured plug that has never answered still shows its row", async () => {
+  // "There is a meter here and it is quiet" is information. Waiting for a first
+  // reading to admit the row exists would leave a mistyped address looking
+  // exactly like no address at all.
+  const h = load({ payloads: [fullStatus({ wall_plug: true })] });
+  await h.settle();
+  assert.strictEqual(h.id("wall-pwr-row").hidden, false);
+  assert.strictEqual(h.id("wall-pwr-text").textContent, "--");
+});
+
+test("clearing the plug in Config retires the row instead of stranding a '--'", async () => {
+  // The address is editable at runtime now, so the page must be able to go back
+  // to having no wall row — it used to reveal the row and never hide it again.
+  const h = load({ payloads: [
+    fullStatus({ wall_plug: true, wall_power_w: 240 }),
+    fullStatus({ wall_plug: true, wall_power_w: 244 }),
+    fullStatus({ wall_plug: false }),               // address cleared in Config
+  ] });
+  await h.settle();
+  h.tick(); await h.settle();
+  assert.strictEqual(h.id("wall-pwr-row").hidden, false);
+  h.tick(); await h.settle();
+  assert.strictEqual(h.id("wall-pwr-row").hidden, true,
+    "no plug configured, so no WALL row — not a row reading '--' forever");
+  assert.ok(!h.id("pwr-card").className.includes("has-wall"),
+    "and the card gives the height back to the chart");
+  assert.strictEqual(h.id("pwr-total").textContent, "185W total",
+    "the CPU+GPU sum goes back to being the total");
+  h.clearPaths();
+  h.tick(); await h.settle();
+  assert.deepStrictEqual(vertices(h.id("pwr-chart"), VIOLET).map((p) => p.y), [],
+    "and the old plug's line is gone from the chart");
+});
+
 test("a plug that drops out leaves the row in place reading '--', and the line breaks", async () => {
   // The manager withholds the key once a sample goes stale. The row must NOT
   // disappear — the card would resize under the user's eyes on a blip — and the

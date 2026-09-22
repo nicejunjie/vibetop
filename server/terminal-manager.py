@@ -1764,6 +1764,76 @@ def _write_hints_enabled(enabled):
             log.warning("hints policy write failed: %s", e)
 
 
+# Host-wide address of the smart plug behind the Monitor's WALL row. Host-wide
+# for the same reason the hints flag is: it describes THIS MACHINE (what it is
+# plugged into), not a preference of whoever happens to be looking at it.
+#
+# It shipped as VIBETOP_POWER_PLUG in /etc/vibetop/manager.env, which meant a
+# root shell, knowing the file exists, and a manager restart — and the deploy
+# rewrites that file, so the key also had to be added to VT_ENV_PRESERVE or it
+# reverted at the next Update. That is a lot of ceremony for an IP address, and
+# every step of it is invisible from the UI that shows the number.
+#
+# Precedence is deliberately one-way: once the file exists it is the ONLY
+# authority, so a blank field genuinely turns the row off. Falling back to the
+# env var on blank would make the UI unable to undo what the UI just did.
+# Before that first save, the env var still decides — so an unattended install
+# that sets it keeps working untouched, and the setting it wrote appears in the
+# panel as the current value rather than as an empty box.
+POWER_POLICY_FILE = os.environ.get("POWER_POLICY_FILE") or "/var/lib/vibetop/power.json"
+_power_lock = threading.Lock()
+
+# A hostname, optionally :port, optionally http(s)://, optionally one trailing
+# slash. Everything else is refused: this string becomes a URL that the ROOT
+# manager fetches, so a path, a query, a fragment or user:pass@ has no business
+# in it, and a scheme like file:// must never reach urlopen. (No IPv6 literal —
+# it would need brackets to be a valid authority; use a hostname.)
+# \Z, not $: Python's $ also matches just before a trailing newline, so "$" would
+# accept an address with one smuggled onto the end.
+_PLUG_RE = re.compile(
+    r"^(?:https?://)?[A-Za-z0-9](?:[A-Za-z0-9.\-]{0,251}[A-Za-z0-9])?(?::(\d{1,5}))?/?\Z")
+
+
+def _valid_plug(s):
+    """True if `s` is a safe plug address, or blank (= feature off)."""
+    s = (s or "").strip()
+    if not s:
+        return True
+    if len(s) > 255:
+        return False
+    m = _PLUG_RE.match(s)
+    if not m:
+        return False
+    return not m.group(1) or 1 <= int(m.group(1)) <= 65535
+
+
+def _read_power_plug():
+    """The configured plug address, or "" for none.
+
+    The file wins whenever it EXISTS (even holding ""), because that is an
+    operator's explicit answer; the env var is only the pre-UI default."""
+    try:
+        with open(POWER_POLICY_FILE) as f:
+            d = json.load(f)
+        if isinstance(d, dict) and isinstance(d.get("plug"), str):
+            return d["plug"].strip()
+    except (OSError, ValueError):
+        pass
+    return os.environ.get("VIBETOP_POWER_PLUG", "").strip()
+
+
+def _write_power_plug(plug):
+    with _power_lock:
+        try:
+            os.makedirs(os.path.dirname(POWER_POLICY_FILE), exist_ok=True)
+            _atomic_write(POWER_POLICY_FILE,
+                          json.dumps({"plug": (plug or "").strip()}), owner="root")
+        except OSError as e:
+            log.warning("power policy write failed: %s", e)
+    with _cache_lock:
+        _cache.pop("power_plug", None)     # so the next status poll sees it now
+
+
 def _user_presence(user):
     """(last_ts, live_devices) from a user's OWN desktop-state.json (built from
     _user_home(user), NOT _ctx_home — the reaper runs off the request path).
@@ -3021,9 +3091,31 @@ _wall_lock = threading.Lock()
 _wall_hist = {}          # device-second -> watts
 _wall_recon = set()      # which of those were reconstructed, not measured
 _wall_anchor = None      # (device_at, host_fetched) of the newest sample
+_wall_plug = ""          # the plug every one of the above belongs to ("" = none)
 
 
-def _wall_note(sample):
+def _wall_retarget(plug):
+    """Point the history at `plug`, discarding it if that is a different device.
+
+    Watts from one socket say nothing about another, so the chart cannot carry
+    across a change of address — and the history is keyed by the DEVICE's clock,
+    which the next plug has no reason to share. Keeping the plug beside the data
+    rather than clearing on write also covers the paths the Config app never
+    sees: a hand-edited file, a changed env var, a restart."""
+    global _wall_plug, _wall_anchor
+    plug = plug or ""                      # None and "" are both "no plug"
+    with _wall_lock:
+        if plug == _wall_plug:
+            return
+        _wall_hist.clear()
+        _wall_recon.clear()
+        _wall_anchor = None
+        _wall_plug = plug
+    with _bg_lock:
+        _bg.pop("wall_power", None)        # drop the last reading of the old plug
+
+
+def _wall_note(sample, plug=None):
     """Record one sample on the DEVICE's timeline, and repair what a gap ate.
 
     Placement uses the plug's clock, never ours. The reading crosses a network,
@@ -3044,6 +3136,10 @@ def _wall_note(sample):
         return sample
     with _wall_lock:
         global _wall_anchor
+        if (plug or "") != _wall_plug:
+            # In flight when the address changed: this reading is from a socket
+            # we are no longer showing, and belongs in nobody's chart.
+            return sample
         _wall_hist[at] = sample.get("w")
         _wall_recon.discard(at)          # a measured second outranks a repaired one
         if _wall_anchor is None or at >= _wall_anchor[0]:
@@ -3104,10 +3200,14 @@ def _wall_series():
 def _wall_power_w():
     """Measured wall draw in watts, or None when there is no plug configured,
     no sample has landed yet, or the last one has gone stale."""
-    if not system_status.wall_power_endpoint():
+    plug = _cached("power_plug", 5.0, _read_power_plug)
+    # Before the endpoint check, so CLEARING the setting empties the chart too
+    # rather than leaving the last plug's two minutes frozen on screen.
+    _wall_retarget(plug)
+    if not system_status.wall_power_endpoint(plug):
         return None
     sample, have = _bg_cached("wall_power", WALL_POWER_FRESH,
-                              lambda: _wall_note(system_status.read_wall_power()),
+                              lambda: _wall_note(system_status.read_wall_power(plug), plug),
                               retry_after=WALL_POWER_RETRY)
     if not have or not isinstance(sample, dict):
         return None
@@ -4936,6 +5036,18 @@ class Handler(http.server.BaseHTTPRequestHandler):
             wall = _wall_power_w()
             if wall is not None:
                 st["wall_power_w"] = wall
+            # Whether a plug is CONFIGURED, which is a different question from
+            # whether it answered. The Monitor needs both to be honest: an
+            # unreachable plug keeps its row showing '--' (there is a meter, it
+            # is quiet), while an address cleared in Config retires the row.
+            # Reading alone cannot tell those apart, and now that the address is
+            # editable at runtime the difference is one a user can create.
+            #
+            # Sent even when false, unlike every other key here. Its ABSENCE has
+            # to keep meaning "a manager too old to answer the question", or a
+            # page that outlived a deploy could not tell "no plug" from "old
+            # server" and would strand the row it can no longer explain.
+            st["wall_plug"] = bool(_cached("power_plug", 5.0, _read_power_plug))
             # The chart's series is sent even when the latest reading is stale:
             # it is placed on the device's clock, so an outage has to show as a
             # gap of the right WIDTH at the right PLACE. Withholding it would
@@ -5420,6 +5532,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
             return self._handle_config_idle_set()
         if self.path == "/api/config/hints":
             return self._handle_config_hints_set()
+        if self.path == "/api/config/power":
+            return self._handle_config_power_set()
         if self.path == "/api/config/resources":
             return self._handle_config_resources_set()
         if self.path == "/api/config/services/restart":
@@ -6088,6 +6202,36 @@ class Handler(http.server.BaseHTTPRequestHandler):
             _cache.pop("hints_enabled", None)
         log.info("config: feature hints enabled=%s (by %s)", enabled, _ctx_user())
         self._json(200, {"ok": True, "enabled": enabled})
+
+    def _handle_config_power_get(self):
+        if not self._require_sudo():
+            return
+        self._json(200, {"plug": _read_power_plug()})
+
+    def _handle_config_power_set(self):
+        if not self._require_sudo():
+            return
+        data = self._config_body()
+        if data is None:
+            return self._json(400, {"error": "invalid body"})
+        plug = (data.get("plug") or "").strip()
+        if not _valid_plug(plug):
+            return self._json(400, {"error": "Must be a host, host:port or "
+                                             "http(s):// URL — no path or credentials"})
+        _write_power_plug(plug)
+        log.info("config: wall-power plug=%r (by %s)", plug, _ctx_user())
+        resp = {"ok": True, "plug": plug}
+        # Probe it and say what came back. Without this the only feedback for a
+        # typo'd address is the WALL row silently never appearing, which looks
+        # exactly like "not configured" — the one state the operator just left.
+        # The write already happened, so an unplugged device still saves.
+        if plug:
+            try:
+                s = system_status.read_wall_power(plug)
+                resp["reading"] = (s or {}).get("w")
+            except Exception as e:
+                resp["probe_error"] = str(e) or e.__class__.__name__
+        self._json(200, resp)
 
     def _handle_config_users_get(self):
         if not self._require_sudo():
@@ -8388,6 +8532,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
             return self._handle_config_idle_get()
         if self.path == "/api/config/hints":
             return self._handle_config_hints_get()
+        if self.path == "/api/config/power":
+            return self._handle_config_power_get()
         if self.path == "/api/config/resources":
             return self._handle_config_resources_get()
         if self.path == "/api/config/disk":

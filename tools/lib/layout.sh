@@ -90,6 +90,9 @@ SESSION_SECRET_FILE=$VT_ETC/session.secret
 #       box's draw at the socket. Sampled at most once a second and shared by
 #       every viewer, so extra watchers cost the device nothing and nobody
 #       watching costs it nothing at all. Unset = the card shows CPU/GPU only.
+#       NOTE: this is the pre-UI default. Config ▸ Vibetop ▸ Wall power meter
+#       sets the same thing without a restart, and once it has been saved there
+#       (/var/lib/vibetop/power.json) that file wins and this line is ignored.
 EOF
     [ -n "$carry" ] && printf '%s' "$carry" >> "$VT_ENV_FILE"
     chmod 0644 "$VT_ENV_FILE"

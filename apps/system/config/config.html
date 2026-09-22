@@ -47,6 +47,9 @@
     border: 1px solid #2a3040; border-radius: 8px; padding: 8px 10px;
   }
   input[type=number] { width: 90px; }
+  /* The plug address is long enough to clip in a default-width box on a phone;
+     let it take the rest of the row instead of scrolling inside itself. */
+  #pwr-plug { flex: 1 1 200px; min-width: 0; }
   input.small-label { color: #8a9aaa; font-size: 12px; }
   .fld-label { font-size: 12px; color: #8a9aaa; }
   .status { font-size: 13px; min-height: 18px; margin-top: 10px;
@@ -184,6 +187,19 @@
         <div class="row">
           <label class="chk"><input type="checkbox" id="hints-enabled"> Show feature hints</label>
         </div>
+      </div>
+
+      <div class="card" id="pwr-card">
+        <h2>Wall power meter</h2>
+        <div class="hint">A smart plug this machine is plugged into, adding a <b>WALL</b>
+          row to the Monitor's Power card — the whole box's draw at the socket, next to
+          the CPU and GPU figures. Shelly Gen2+ plugs speak the protocol vibetop reads.
+          Shared by every viewer, so extra watchers cost the device nothing.
+          <b>Blank = off.</b></div>
+        <div class="row"><span class="fld-label cap-l">Plug address</span>
+          <input type="text" id="pwr-plug" spellcheck="false" autocomplete="off"
+                 autocapitalize="none" placeholder="e.g. 192.168.1.42 — blank = no WALL row"></div>
+        <div class="status" id="pwr-status"></div>
       </div>
 
       <div class="card" id="res-card">
@@ -367,17 +383,21 @@
       idleHours = document.getElementById('idle-hours'),
       idleReap = document.getElementById('idle-reapterms'),
       hintsEnabled = document.getElementById('hints-enabled'),
+      pwrPlug = document.getElementById('pwr-plug'),
+      pwrStatus = document.getElementById('pwr-status'),
       resMem = document.getElementById('res-mem'),
       resCpu = document.getElementById('res-cpu');
-  var loaded = { idle: null, hints: null, res: null };   // last-saved snapshot (null = not loaded yet)
+  var loaded = { idle: null, hints: null, pwr: null, res: null };   // last-saved snapshot (null = not loaded yet)
   function curIdle() { return { enabled: idleEnabled.checked, hours: parseInt(idleHours.value, 10) || 0, reapTerminals: idleReap.checked }; }
   function curHints() { return { enabled: hintsEnabled.checked }; }
+  function curPwr() { return { plug: pwrPlug.value.trim() }; }
   function curRes() { return { memMax: resMem.value.trim(), cpuCores: resCpu.value.trim() }; }
   function idleDirty() { var a = loaded.idle, b = curIdle(); return !!a && (a.enabled !== b.enabled || a.hours !== b.hours || a.reapTerminals !== b.reapTerminals); }
   function hintsDirty() { return !!loaded.hints && loaded.hints.enabled !== curHints().enabled; }
+  function pwrDirty() { return !!loaded.pwr && loaded.pwr.plug !== curPwr().plug; }
   function resDirty() { var a = loaded.res, b = curRes(); return !!a && (a.memMax !== b.memMax || a.cpuCores !== b.cpuCores); }
-  function refreshDirty() { saveBtn.disabled = !(idleDirty() || hintsDirty() || resDirty()); }
-  ['idle-enabled', 'idle-hours', 'idle-reapterms', 'hints-enabled', 'res-mem', 'res-cpu'].forEach(function (id) {
+  function refreshDirty() { saveBtn.disabled = !(idleDirty() || hintsDirty() || pwrDirty() || resDirty()); }
+  ['idle-enabled', 'idle-hours', 'idle-reapterms', 'hints-enabled', 'pwr-plug', 'res-mem', 'res-cpu'].forEach(function (id) {
     var el = document.getElementById(id);
     el.addEventListener('change', refreshDirty);
     el.addEventListener('input', refreshDirty);   // live for the text/number fields
@@ -389,9 +409,13 @@
     var jobs = [];
     if (idleDirty()) jobs.push(api('POST', '/api/config/idle', curIdle()).then(function (r) { return { sec: 'idle', r: r }; }));
     if (hintsDirty()) jobs.push(api('POST', '/api/config/hints', curHints()).then(function (r) { return { sec: 'hints', r: r }; }));
+    if (pwrDirty()) jobs.push(api('POST', '/api/config/power', curPwr()).then(function (r) { return { sec: 'pwr', r: r }; }));
     if (resDirty()) jobs.push(api('POST', '/api/config/resources', curRes()).then(function (r) { return { sec: 'res', r: r }; }));
     if (!jobs.length) return;
     saveBtn.disabled = true;
+    // The plug save probes the device, so this one can take a few seconds. Say
+    // which part is slow rather than letting a bare "Saving…" look like a hang.
+    if (pwrDirty() && curPwr().plug) setStatus(pwrStatus, 'Contacting ' + curPwr().plug + '…', 'run');
     setStatus(saveStatus, 'Saving…', 'run');
     Promise.all(jobs).then(function (results) {
       var err = null, denied = false;
@@ -400,8 +424,12 @@
         if (x.r.status === 200) {   // commit only the sections that succeeded (a bad field stays dirty)
           if (x.sec === 'idle') loaded.idle = curIdle();
           else if (x.sec === 'hints') loaded.hints = curHints();
+          else if (x.sec === 'pwr') { loaded.pwr = curPwr(); showPwrProbe(x.r.data); }
           else if (x.sec === 'res') loaded.res = curRes();
-        } else if (err === null) { err = (x.r.data && x.r.data.error) || 'Save failed'; }
+        } else if (err === null) {
+          err = (x.r.data && x.r.data.error) || 'Save failed';
+          if (x.sec === 'pwr') setStatus(pwrStatus, err, 'err');
+        }
       });
       if (denied) return;   // panel already replaced by the "requires sudo" view
       setStatus(saveStatus, err || 'Saved', err ? 'err' : 'ok');
@@ -431,6 +459,29 @@
       if (handle403(res)) return;
       hintsEnabled.checked = res.data && res.data.enabled !== false;   // default on
       loaded.hints = curHints(); refreshDirty();
+    });
+  }
+
+  // ---- Wall power meter (smart plug behind the Monitor's WALL row) ----------
+  // The save POSTs, then the server reads the plug once and tells us what it
+  // saw. Reporting that here is the whole point: a mistyped address is
+  // otherwise indistinguishable from "off", because both show no WALL row.
+  function showPwrProbe(d) {
+    d = d || {};
+    if (!d.plug) { setStatus(pwrStatus, 'Wall power off — no plug set.', ''); return; }
+    if (d.probe_error) {
+      setStatus(pwrStatus, 'Saved, but ' + d.plug + ' did not answer: ' + d.probe_error, 'err');
+    } else if (typeof d.reading === 'number') {
+      setStatus(pwrStatus, 'Connected — reading ' + d.reading + ' W.', 'ok');
+    } else {
+      setStatus(pwrStatus, 'Saved.', 'ok');
+    }
+  }
+  function loadPwr() {
+    api('GET', '/api/config/power').then(function (res) {
+      if (handle403(res)) return;
+      pwrPlug.value = (res.data && res.data.plug) || '';
+      loaded.pwr = curPwr(); refreshDirty();
     });
   }
 
@@ -711,6 +762,7 @@
 
   loadIdle();
   loadHints();
+  loadPwr();
   loadResources();
   loadServices();
   loadUsers();

@@ -149,15 +149,27 @@ def wall(mgr, monkeypatch):
 
 @pytest.fixture()
 def hist(mgr):
-    """A clean wall-power history, restored afterwards."""
+    """A clean wall-power history, restored afterwards.
+
+    `_wall_plug` is part of it: the history belongs to ONE device, and a sample
+    tagged with any other is discarded. These tests configure no plug, so the
+    history they build is the "" one — same value _read_power_plug() returns.
+
+    The resolved-plug memo is dropped too: it outlives a test that changed the
+    address and would otherwise retarget (i.e. erase) the next test's history."""
+    with mgr._cache_lock:
+        mgr._cache.pop("power_plug", None)
     with mgr._wall_lock:
-        keep = (dict(mgr._wall_hist), set(mgr._wall_recon), mgr._wall_anchor)
+        keep = (dict(mgr._wall_hist), set(mgr._wall_recon), mgr._wall_anchor,
+                mgr._wall_plug)
         mgr._wall_hist.clear(); mgr._wall_recon.clear(); mgr._wall_anchor = None
+        mgr._wall_plug = ""
     yield mgr
     with mgr._wall_lock:
         mgr._wall_hist.clear(); mgr._wall_hist.update(keep[0])
         mgr._wall_recon.clear(); mgr._wall_recon.update(keep[1])
         mgr._wall_anchor = keep[2]
+        mgr._wall_plug = keep[3]
 
 
 def test_wall_power_absent_without_a_plug(mgr, monkeypatch):
@@ -243,6 +255,25 @@ def test_status_payload_omits_wall_power_when_stale(mgr, wall, monkeypatch):
     import time
     wall({"w": 137.4, "at": 1790000000,
           "fetched": time.time() - (mgr.WALL_POWER_MAX_AGE + 1)})
+    assert "wall_power_w" not in _status_payload(mgr, monkeypatch)
+
+
+def test_status_payload_always_states_whether_a_plug_is_configured(mgr, home, hist,
+                                                                   monkeypatch):
+    """A stale plug and no plug are different states with the same missing key;
+    the page needs to tell a row reading '--' from a row that should not exist.
+
+    Sent as False too, on purpose: absence has to go on meaning 'this manager
+    predates the question', so a page that outlives a deploy keeps its old rule
+    instead of reading a missing key as 'no plug'."""
+    monkeypatch.delenv("VIBETOP_POWER_PLUG", raising=False)
+    assert _status_payload(mgr, monkeypatch)["wall_plug"] is False
+    mgr._write_power_plug("10.0.0.5")
+    monkeypatch.setattr(mgr.system_status, "read_wall_power",
+                        lambda p=None, **k: (_ for _ in ()).throw(OSError("down")))
+    # Configured but NEVER answering: still True. The row exists because the
+    # machine has a meter, not because the meter replied.
+    assert _status_payload(mgr, monkeypatch)["wall_plug"] is True
     assert "wall_power_w" not in _status_payload(mgr, monkeypatch)
 
 

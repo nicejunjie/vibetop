@@ -68,6 +68,129 @@ def test_hints_endpoint_gated_and_roundtrips(client, mgr, users, stubs, monkeypa
     assert client.get("/api/config/hints", cookie=ck)[1]["enabled"] is False
 
 
+# --- wall-power plug address (Config app -> the Monitor's WALL row) ----------
+
+def test_plug_address_validation_shapes(mgr):
+    for good in ("", "  ", "192.168.1.42", "192.168.1.42:8080", "plug.local",
+                 "http://192.168.1.42", "https://plug.local:8443",
+                 "http://192.168.1.42/", "a", "A-b.c",
+                 "  10.0.0.5  ", "host\n"):            # a pasted value gets trimmed
+        assert mgr._valid_plug(good) is True, good
+    for bad in ("192.168.1.42/rpc/Switch.GetStatus",  # a path is not an address
+                "file:///etc/shadow", "ftp://host",   # only http(s) reach urlopen
+                "user:pw@host",                       # credentials
+                "host?x=1", "host#f", "host:99999",   # query / fragment / bad port
+                "192.168.1.42 8080", "a b", "-lead.dash",
+                "ho\nst", "host\nevil",               # an embedded newline
+                "host:", ".", "//host", "x" * 300):
+        assert mgr._valid_plug(bad) is False, bad
+    # The pattern is anchored with \Z, not $ — Python's $ ALSO matches just
+    # before a trailing newline. _valid_plug strips first so the two behave the
+    # same through it; assert on the pattern itself, where they differ.
+    assert mgr._PLUG_RE.match("host\n") is None
+
+
+def test_plug_env_is_the_default_until_the_file_exists(mgr, home, monkeypatch):
+    monkeypatch.setenv("VIBETOP_POWER_PLUG", "10.0.0.5")
+    assert mgr._read_power_plug() == "10.0.0.5"        # no file yet -> env decides
+    mgr._write_power_plug("10.0.0.9")
+    assert mgr._read_power_plug() == "10.0.0.9"        # file now outranks it
+    # And a BLANK saved value must mean off, not "fall back to the env var" —
+    # otherwise the panel cannot undo what the panel just did.
+    mgr._write_power_plug("")
+    assert mgr._read_power_plug() == ""
+
+
+def test_plug_endpoint_gated_and_roundtrips(client, mgr, users, stubs, home, monkeypatch):
+    ck = users["alice"][1]
+    monkeypatch.setattr(mgr.system_status, "read_wall_power", lambda p=None, **k: {"w": 7.5})
+    monkeypatch.setattr(mgr, "_can_sudo", lambda u: False)
+    assert client.get("/api/config/power", cookie=ck)[0] == 403
+    assert client.post("/api/config/power", {"plug": "10.0.0.5"}, cookie=ck)[0] == 403
+    assert mgr._read_power_plug() == ""                 # the 403 wrote nothing
+    monkeypatch.setattr(mgr, "_can_sudo", lambda u: True)
+    st, body = client.post("/api/config/power", {"plug": "10.0.0.5"}, cookie=ck)
+    assert st == 200 and body["plug"] == "10.0.0.5"
+    assert client.get("/api/config/power", cookie=ck)[1]["plug"] == "10.0.0.5"
+
+
+def test_plug_endpoint_rejects_a_bad_address_without_saving(client, mgr, users, stubs,
+                                                            home, monkeypatch):
+    ck = users["alice"][1]
+    monkeypatch.setattr(mgr, "_can_sudo", lambda u: True)
+    mgr._write_power_plug("10.0.0.5")
+    st, body = client.post("/api/config/power",
+                           {"plug": "http://10.0.0.5/rpc/Switch.Set?on=true"}, cookie=ck)
+    assert st == 400 and "error" in body
+    assert mgr._read_power_plug() == "10.0.0.5"         # the good one still stands
+
+
+def test_plug_save_reports_what_the_device_said(client, mgr, users, stubs, home, monkeypatch):
+    """A typo'd address otherwise looks exactly like 'not configured' — both
+    show no WALL row. The save probes once and says which it is."""
+    ck = users["alice"][1]
+    monkeypatch.setattr(mgr, "_can_sudo", lambda u: True)
+    monkeypatch.setattr(mgr.system_status, "read_wall_power", lambda p=None, **k: {"w": 14.3})
+    body = client.post("/api/config/power", {"plug": "10.0.0.5"}, cookie=ck)[1]
+    assert body["reading"] == 14.3 and "probe_error" not in body
+
+    def boom(p=None, **k):
+        raise OSError("timed out")
+    monkeypatch.setattr(mgr.system_status, "read_wall_power", boom)
+    st, body = client.post("/api/config/power", {"plug": "10.0.0.6"}, cookie=ck)
+    # Saved anyway (a plug that is merely switched off must still be settable),
+    # but the operator is told nobody answered.
+    assert st == 200 and "timed out" in body["probe_error"]
+    assert mgr._read_power_plug() == "10.0.0.6"
+    # Blank saves without contacting anything at all.
+    assert "probe_error" not in client.post("/api/config/power", {"plug": ""}, cookie=ck)[1]
+
+
+def test_wall_power_reads_the_configured_plug_not_the_env(mgr, home, monkeypatch):
+    monkeypatch.setenv("VIBETOP_POWER_PLUG", "10.0.0.5")
+    mgr._write_power_plug("10.0.0.9")
+    seen = []
+    monkeypatch.setattr(mgr.system_status, "read_wall_power",
+                        lambda p=None, **k: seen.append(p) or {"w": 1.0, "at": 100,
+                                                               "fetched": mgr.time.time()})
+    mgr._wall_power_w()
+    for _ in range(50):                    # the memo refreshes in a daemon thread
+        if seen:
+            break
+        mgr.time.sleep(0.02)
+    assert seen and seen[0] == "10.0.0.9"
+
+
+def test_changing_the_plug_discards_the_old_ones_history(mgr, home):
+    """Watts from one socket say nothing about another, and the history is keyed
+    by the old device's clock."""
+    mgr._wall_retarget("10.0.0.5")
+    mgr._wall_note({"w": 100.0, "at": 1_790_000_000, "fetched": mgr.time.time()}, "10.0.0.5")
+    assert mgr._wall_hist and mgr._wall_series() is not None
+    mgr._wall_retarget("10.0.0.9")
+    assert mgr._wall_hist == {} and mgr._wall_anchor is None
+    assert mgr._wall_series() is None
+    assert "wall_power" not in mgr._bg          # the old plug's last reading too
+
+
+def test_clearing_the_plug_empties_the_chart(mgr, home, monkeypatch):
+    mgr._wall_retarget("10.0.0.5")
+    mgr._wall_note({"w": 100.0, "at": 1_790_000_000, "fetched": mgr.time.time()}, "10.0.0.5")
+    mgr._write_power_plug("")
+    monkeypatch.delenv("VIBETOP_POWER_PLUG", raising=False)
+    assert mgr._wall_power_w() is None
+    # Turning it off must not leave the last two minutes frozen on screen.
+    assert mgr._wall_series() is None
+
+
+def test_a_reading_from_the_old_plug_is_dropped(mgr, home):
+    """The fetch is in a daemon thread; it can land after the address changed."""
+    mgr._wall_retarget("10.0.0.5")
+    mgr._wall_retarget("10.0.0.9")
+    mgr._wall_note({"w": 100.0, "at": 1_790_000_000, "fetched": mgr.time.time()}, "10.0.0.5")
+    assert mgr._wall_hist == {}
+
+
 # --- heartbeat read (target home, not ctx home) ------------------------------
 
 def test_user_last_heartbeat_reads_target_home(mgr, home, users):
