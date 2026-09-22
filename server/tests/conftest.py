@@ -140,6 +140,17 @@ def home(mgr, monkeypatch, tmp_path):
     monkeypatch.setattr(mgr, "RESOURCE_POLICY_FILE", str(h / "vibetop-resources.json"))
     monkeypatch.setattr(mgr, "HINTS_POLICY_FILE", str(h / "vibetop-hints.json"))
     monkeypatch.setattr(mgr, "POWER_POLICY_FILE", str(h / "vibetop-power.json"))
+    # The metrics ring, and the handle the manager memoizes for it. Without the
+    # reset, whichever test first touched /var/lib/vibetop decided whether the
+    # recorder was enabled for the whole session — a real file, and an ordering
+    # dependency, in a suite that is otherwise hermetic.
+    monkeypatch.setattr(mgr, "METRICS_FILE", str(h / "vibetop-metrics.ring"))
+    if getattr(mgr, "_hist", None):
+        try:
+            mgr._hist.close()
+        except Exception:
+            pass
+    monkeypatch.setattr(mgr, "_hist", None)
     # Scheduled-terminal-message registry (normally root-owned in /var/lib/vibetop).
     monkeypatch.setattr(mgr, "SCHEDULES_FILE", str(h / "vibetop-schedules.json"))
     (h / ".local" / "share").mkdir(parents=True, exist_ok=True)

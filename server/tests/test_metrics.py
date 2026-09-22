@@ -449,3 +449,148 @@ def test_status_payload_carries_the_series_even_when_the_reading_is_stale(
     body = _status_payload(mgr, monkeypatch)
     assert "wall_power_w" not in body, "the stale scalar is withheld"
     assert body["wall_series"]["w"], "but the series still describes the window"
+
+
+class _Stop(Exception):
+    pass
+
+
+# --- the 7-day metrics recorder (manager side) -------------------------------
+
+@pytest.fixture()
+def rec(mgr, tmp_path, monkeypatch):
+    """A real ring in tmp_path, with the manager's module-level handle reset
+    around the test so nothing leaks into the next one."""
+    keep = mgr._hist
+    monkeypatch.setattr(mgr, "METRICS_FILE", str(tmp_path / "metrics.ring"))
+    mgr._hist = None
+    yield mgr._hist_open()
+    h = mgr._hist
+    if h:
+        h.close()
+    mgr._hist = keep
+
+
+def test_a_status_poll_feeds_the_recorder(mgr, rec, wall, monkeypatch):
+    """The request already paid for the collection; the recorder rides along."""
+    import time
+    wall({"w": 120.0, "at": 1790000000, "fetched": time.time()})
+    _status_payload(mgr, monkeypatch)
+    assert rec.pending() is True, "the open bucket holds the sample"
+
+
+def test_the_recorder_keeps_no_process_data(mgr, rec, monkeypatch):
+    """84% of the payload and the least useful thing to have a week later."""
+    import metrics_history
+    assert "processes" not in metrics_history.FIELDS
+    monkeypatch.setattr(mgr.system_status, "get_system_status",
+                        lambda *a, **k: {"cpu_percent": 5.0,
+                                         "processes": [{"pid": 1, "name": "secret"}]})
+    monkeypatch.setattr(mgr, "_ctx_user", lambda *a, **k: mgr.APP_USER)
+
+    class _H:
+        def _get_running_terminals(self):
+            return []
+    mgr.Handler._get_system_status(_H())
+    import time as _t
+    mgr._hist.tick(_t.time() + 4)
+    blob = open(rec.path, "rb").read()
+    assert b"secret" not in blob
+
+
+def test_a_failed_collection_is_not_recorded_as_data(mgr, rec, monkeypatch):
+    """An {"error": ...} payload must not land in the ring as a row of absent
+    sensors: that draws a gap indistinguishable from a real outage, which is a
+    different event. Asserted against _hist_note directly — the handler returns
+    before the recorder on today's code, so driving it through the handler
+    would pass whether or not the guard exists."""
+    mgr._hist_note({"error": "status unavailable: boom"})
+    assert rec.pending() is False
+    mgr._hist_note({"error": "boom", "cpu_percent": 12.0})
+    assert rec.pending() is False, "a partial payload flagged as an error is still an error"
+    mgr._hist_note({"cpu_percent": 12.0})
+    assert rec.pending() is True, "and a good one is still recorded"
+
+
+def test_the_handler_never_reaches_the_recorder_on_a_failed_collection(mgr, rec,
+                                                                       monkeypatch):
+    monkeypatch.setattr(mgr.system_status, "get_system_status",
+                        lambda *a, **k: (_ for _ in ()).throw(OSError("boom")))
+    monkeypatch.setattr(mgr, "_ctx_user", lambda *a, **k: mgr.APP_USER)
+
+    class _H:
+        def _get_running_terminals(self):
+            return []
+    assert "error" in mgr.Handler._get_system_status(_H())
+    assert rec.pending() is False
+
+
+def test_skipping_the_process_scan_really_skips_it(mgr, monkeypatch):
+    """Against the REAL collector: the scan is 11.3ms of a 12.5ms collection
+    (measured on z20), so the recorder must not merely discard the result."""
+    calls = []
+    real = mgr.system_status._collect_top_procs
+    monkeypatch.setattr(mgr.system_status, "_collect_top_procs",
+                        lambda *a: calls.append(1) or real())
+    monkeypatch.setattr(mgr.system_status, "_proc_cache", [])
+    st = mgr.system_status.get_system_status([], mgr._cached, want_procs=False)
+    assert calls == [], "the scan must not run at all"
+    assert "processes" not in st, \
+        "and the key is OMITTED — an empty list is a claim that nothing is running"
+    st2 = mgr.system_status.get_system_status([], mgr._cached)
+    assert calls and isinstance(st2.get("processes"), list), "default still collects"
+
+
+def test_the_idle_ticker_asks_for_the_cheap_collection(mgr, rec, monkeypatch):
+    """Only when nobody else has filled the bucket, and then without procs."""
+    seen = []
+    monkeypatch.setattr(mgr.system_status, "get_system_status",
+                        lambda rt, c, want_procs=True: (seen.append(want_procs),
+                                                        {"cpu_percent": 7.0})[1])
+    monkeypatch.setattr(mgr, "_wall_power_w", lambda: None)
+    n = {"sleeps": 0}
+
+    def one_pass(_s):                       # let exactly one loop body run
+        n["sleeps"] += 1
+        if n["sleeps"] > 1:
+            raise _Stop()
+    monkeypatch.setattr(mgr.time, "sleep", one_pass)
+    try:
+        mgr._hist_loop()
+    except _Stop:
+        pass
+    assert seen == [False], f"one idle collection, without the process scan; got {seen}"
+
+    # And with a bucket already open — someone IS watching — it collects nothing,
+    # because the request path already paid for that sample.
+    seen.clear()
+    mgr._hist_note({"cpu_percent": 5.0})
+    assert rec.pending() is True
+    n["sleeps"] = 0
+    try:
+        mgr._hist_loop()
+    except _Stop:
+        pass
+    assert seen == [], "a watched host must cost the recorder nothing"
+
+
+def test_the_history_endpoint_is_gated_and_bounded(client, mgr, users, stubs, rec):
+    ck = users["alice"][1]
+    from conftest import ANON
+    assert client.get("/api/system/history?span=1h", cookie=ANON)[0] in (401, 403), \
+        "history is host-wide data; it needs a session like the status poll"
+    st, body = client.get("/api/system/history?span=1h", cookie=ck)
+    assert st == 200 and body["span"] == 3600 and body["step"] >= 2
+    assert client.get("/api/system/history?span=99y", cookie=ck)[0] == 400
+    # slots is clamped, not trusted: 600 points is already more than any chart
+    # can draw, and the read walks every slot in the window.
+    body = client.get("/api/system/history?span=7d&slots=100000", cookie=ck)[1]
+    assert len(body["series"]["cpu_percent"]) <= 600
+
+
+def test_the_endpoint_answers_the_monitors_own_window_exactly(client, mgr, users,
+                                                              stubs, rec):
+    ck = users["alice"][1]
+    body = client.get("/api/system/history?span=2m&slots=60", cookie=ck)[1]
+    assert body["step"] == 2 and len(body["series"]["cpu_percent"]) == 60, \
+        "pre-filling the live chart must be exact, not an approximation"

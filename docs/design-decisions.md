@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_313 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_314 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
 - [Scheduled terminal messages ("resume when the token limit resets")](#scheduled-terminal-messages-resume-when-the-token-limit-resets)
@@ -336,6 +336,7 @@ _313 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [Wall power on the Monitor: a sensor that lives on the network](#wall-power-on-the-monitor-a-sensor-that-lives-on-the-network)
 - [The plug's address is a setting, not a deployment detail](#the-plugs-address-is-a-setting-not-a-deployment-detail)
 - [A terminal whose session daemon died flashed "reconnecting" forever (2026-09-22)](#a-terminal-whose-session-daemon-died-flashed-reconnecting-forever-2026-09-22)
+- [Seven days of metrics in 930KB, and why the process list is not in it](#seven-days-of-metrics-in-930kb-and-why-the-process-list-is-not-in-it)
 
 <!-- END TOC -->
 
@@ -14722,3 +14723,71 @@ row. A question worth asking directly is worth one boolean.
 - Tested: `server/tests/test_terminal_orphan_heal.py` (all five fail on the
   unfixed build). Sessions started before this deploy keep `OOMPolicy=stop` until
   they are restarted — the heal covers them, the policy doesn't.
+
+## Seven days of metrics in 930KB, and why the process list is not in it
+
+**Symptom.** The Monitor opened blank and took two minutes to draw a line,
+because every series was built one sample per frame from whatever arrived after
+the page loaded. Wall power was the sole exception — it reconstructs from the
+plug's own buffer — which made the asymmetry obvious: one row populated
+instantly and the rest crawled. Nothing at all was known about the hours nobody
+was looking at.
+
+**Measured first, because the obvious design is the expensive one.** A poll of
+`/api/system/status` costs **4.66ms of CPU** (4.61 in-process, 0.04 in forks —
+the `nvidia-smi`/`ip addr` memos work) and produces **4.7KB**. But it is not one
+cost, it is two:
+
+```
+_collect_top_procs    11.26 ms/call   ~330 /proc opens   3993 B   (84% of bytes)
+everything else        1.30 ms/call                       722 B
+```
+
+Recording the payload naively at 2s would be **74GB a year**, almost all of it
+process names that nobody will want a week later. Recording the sixteen scalars
+costs **68 packed bytes** a sample.
+
+**Fix.** `server/metrics_history.py`: two fixed-size rings — 2s×2h and 60s×7d —
+totalling **~930KB, allocated once and overwritten forever**. No pruning, no
+rotation, no way for it to surprise anyone in six months. Four decisions carry
+the design:
+
+- **A slot stores its own bucket timestamp.** A ring index is derived from time,
+  so the slot's identity is implied — but only if it was written for the bucket
+  being asked about. Checking the stored time on read makes four separate
+  problems fall out for free: a slot never written, a gap while the manager was
+  down, the wrap from a week ago, and a torn write. There is no "valid" flag
+  because there does not need to be one.
+- **Piggyback sampling.** Every collection a request already paid for is folded
+  into the open bucket, so while anyone is watching the recorder costs nothing.
+  Only a bucket that would otherwise close empty makes the ticker sample, and
+  then with `want_procs=False`. Idle: 0.065% of a core. This is the wall-power
+  memo's demand-driven shape, inverted — there, nobody watching meant nothing
+  happened; here it means the recorder is the only one left to do it.
+- **A bucket is a mean.** Several viewers poll at once; last-wins would make the
+  recorded number depend on who polled last.
+- **The network counters are differenced in the recorder.** They are cumulative,
+  unlike the disk figures which are already rates. Keeping our own previous
+  total is the same rule as the plug's clock: a derived value must not depend on
+  someone else's timing.
+
+**On the page**, `push()` becomes a no-op at any span but `2m`, because at that
+point the series is *wholly* the server's — only the manager knows where a
+sample belongs in time, and a page appending its own points would misplace every
+one by however long the request took. The live view is seeded from the ring at
+startup, which is the whole user-visible payoff: the chart opens full.
+
+**`wall_plug`-style key, again.** `GET /api/system/history` takes a span from a
+fixed set rather than an arbitrary number of seconds: an unbounded span asks for
+a window the rings cannot cover and returns a chart that is mostly holes, which
+reads as an outage rather than as "not kept".
+
+**Three of my own tests were worthless and mutation testing said so.** Two
+asserted on a function I had stubbed — circular by construction, they would have
+passed against any implementation. A third claimed to pin the regex anchor while
+`.strip()` ran first, making `$` and `\Z` indistinguishable through the code
+path it exercised. The harness also had two fidelity bugs that produced failures
+I nearly read as product defects: one queue answered both endpoints, so the
+history fetch ate a status payload; and one fixture object was returned for
+every fetch, so the page's own `push()` mutated it. `response.json()` yields a
+fresh object each call, and the harness now does too.

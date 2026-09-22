@@ -51,6 +51,43 @@ The Codex counterpart of the strip above (Start ▸ Utilities ▸ **Codex Limit*
 
 A **Token Stats** app (Start ▸ Utilities ▸ Token Stats) — a read-only analytics dashboard with **Combined**, **Claude**, and **Codex** tabs. Claude is reconstructed from `~/.claude/projects/**/*.jsonl`; Codex is reconstructed from each `event_msg.payload.info.last_token_usage` snapshot in `~/.codex/sessions/**/*.jsonl`, using the active `turn_context.payload.model`. `GET /api/claude/stats` and `GET /api/codex/stats` return the same aggregation shape and are memoized per user for ~45s. The Combined tab adds their matching time buckets client-side. Costs are explicitly **API-equivalent estimates**, not subscription charges: each provider's public per-token pricing is applied to local input/output/cache counts. The response aggregates into `windows` (`today`/`d7`/`d30`/`all`), `byDay`, `byHour`, and `byModel`, plus sessions, active days, retained span, and cache-hit rate. The page renders concise cards, averages, cost/token charts, and a model breakdown. Purely local; no API or admin key is required.
 
+## System Monitor — 7 days of history
+
+The Monitor used to open blank: every chart was built one sample per frame, so
+it took two minutes to draw a line and knew nothing about what happened while
+nobody was looking. The manager now keeps a **7-day ring** of the numbers beside
+those charts (`server/metrics_history.py`, `/var/lib/vibetop/metrics.ring`).
+
+A **span picker** in the header (`2m 1h 6h 24h 7d`) chooses what the charts
+cover. `2m` is the live view as before; the rest are read from the ring via
+`GET /api/system/history?span=…&slots=…&fields=…`. **The numbers beside the
+charts stay live at every span** — they are "now", not history.
+
+- **Scalars only, and that is the point.** The top-process list is 84% of the
+  status payload and ~90% of its CPU (measured on z20: 11.3ms and 4KB for the
+  scan, 1.3ms and 722B for everything else) — and a week-old snapshot of process
+  *names* is the least useful thing to keep. Sixteen numbers are kept instead.
+- **~930KB, fixed at creation, forever.** Two rings: 2s×2h and 60s×7d. Nothing
+  to prune or rotate. Appending the JSON payload every 2s would have been 74GB a
+  year.
+- **Piggyback first.** Every collection a request already paid for is folded
+  into the open bucket, so while anyone is watching the recorder costs *nothing*.
+  Only a bucket that would close empty makes the ticker collect one itself, and
+  then it asks for the cheap nine tenths (`want_procs=False`). Idle cost is
+  ~1.3ms every 2s — **0.065% of one core**.
+- **A bucket is a MEAN**, not the last sample: several viewers polling at once
+  contribute several samples, and last-wins would make the stored number depend
+  on who polled last.
+- **Gaps stay gaps.** A slot carries its own bucket timestamp and is only served
+  when it matches, so a never-written slot, a week-old wrap and a torn write all
+  read as "nothing known" rather than as data. Same contract as the wall series.
+- **Network is differenced here.** `rx_bytes`/`tx_bytes` are cumulative counters
+  (unlike the disk fields, which are already rates), so the recorder keeps its
+  own previous total — the rate never depends on another poller's timing.
+- Changing `FIELDS` bumps the format version and the old file is discarded, not
+  reinterpreted: reading yesterday's bytes with today's field order would
+  silently attribute every series to the wrong metric.
+
 ## System Monitor — wall power (Config ▸ Vibetop ▸ Wall power meter, opt-in)
 
 The Monitor's Power card shows CPU (RAPL) and GPU power from sensors inside the

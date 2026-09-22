@@ -143,6 +143,18 @@ function load(opts) {
     Date: { now: () => clock },
     fetch(url, opt) {
       calls.push({ url: String(url), method: (opt && opt.method) || "GET" });
+      // The page talks to TWO endpoints now. One shared queue answered both,
+      // so the history call silently ate a status payload and shifted every
+      // frame after it — the harness has to tell them apart.
+      if (String(url).indexOf("/api/system/history") === 0) {
+        const h = opts.history === undefined ? { unavailable: true } : opts.history;
+        if (h === null) return Promise.reject(new Error("offline"));
+        // A fresh object per call, as response.json() gives. Handing back the
+        // same one let the page's own push() mutate the fixture, so a later
+        // frame saw a window the server never sent.
+        const fresh = JSON.parse(JSON.stringify(h));
+        return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve(fresh) });
+      }
       const p = queue.length > 1 ? queue.shift() : queue[0];
       if (p === undefined) return Promise.reject(new Error("offline"));
       // opts.httpStatus lets a test answer with a real HTTP error: fetch resolves
@@ -249,8 +261,10 @@ test("a scaled bar turns amber over 70% and red over 90% — and a fixed one nev
 test("a full status payload renders the headline figures", async () => {
   const h = load({ payloads: [fullStatus()] });
   await h.settle();
-  assert.deepStrictEqual(h.calls.map((c) => c.url), ["/api/system/status"]);
-  assert.strictEqual(h.calls[0].method, "GET", "the monitor must only ever read");
+  assert.deepStrictEqual(h.calls.map((c) => c.url.split("?")[0]),
+    ["/api/system/status", "/api/system/history"],
+    "one live poll, plus the one-off seed that stops the charts opening blank");
+  assert.ok(h.calls.every((c) => c.method === "GET"), "the monitor must only ever read");
   assert.strictEqual(h.id("cpu-avg").textContent, "38.8% avg (4 cores)");
   assert.strictEqual(h.id("load-avg").textContent, "load 1.50 2.00 3.00");
   assert.strictEqual(h.id("cpu-temp").textContent, "61°");
@@ -731,4 +745,152 @@ test("a manager with no series still drives the wall line the old way", async ()
   h.tick(); await h.settle();
   const pts = vertices(h.id("pwr-chart"), VIOLET).filter((p) => p.op === "moveTo" || p.op === "lineTo");
   assert.ok(pts.length >= 3, `the fallback must still plot a line; got ${pts.length}`);
+});
+
+// ---- history: the manager's 7-day ring ------------------------------------
+
+// A click on one of the span pills. The handler reads data-span off the
+// button that e.target.closest('button') resolves to, exactly as the browser
+// delivers a click on the pill's own text node.
+function spanBtn(span) {
+  const b = el("button");
+  b.setAttribute("data-span", span);
+  b.closest = (sel) => (sel === "button" ? b : null);
+  return b;
+}
+
+function histBody(over) {
+  const n = 60;
+  const flat = (v) => new Array(n).fill(v);
+  return Object.assign({
+    t0: 1790000000, step: 2, span: 120, tier: "fine",
+    series: {
+      memory_used_gb: flat(16), gpu_percent: flat(50), gpu_vram_used_gb: flat(12),
+      cpu_temp: flat(60), gpu_temp: flat(55), cpu_power_w: flat(80),
+      gpu_power_w: flat(90), wall_power_w: flat(200),
+      net_rx_bps: flat(1000), net_tx_bps: flat(500),
+      disk_read_bytes: flat(2000), disk_write_bytes: flat(1000),
+    },
+  }, over || {});
+}
+
+test("the page opens showing history instead of a blank chart", async () => {
+  // The whole reason the recorder exists: one frame in, the chart is a full
+  // window, not a single point that takes two minutes to become a line.
+  const h = load({ payloads: [fullStatus()], history: histBody() });
+  await h.settle();
+  h.clearPaths();
+  h.tick(); await h.settle();
+  const pts = vertices(h.id("pwr-chart"), "rgb(90,173,138)");
+  assert.ok(pts.length >= 30,
+    `the seeded window must be drawn whole; got ${pts.length} vertices`);
+});
+
+test("a manager without the ring still runs the page live", async () => {
+  // Deploys are not atomic, and the feature is optional — neither is a reason
+  // for the Monitor to stop working.
+  const h = load({ payloads: [fullStatus(), fullStatus()], history: { unavailable: true } });
+  await h.settle();
+  h.tick(); await h.settle();
+  assert.strictEqual(h.id("wall-pwr-row").hidden, true);
+  assert.strictEqual(h.id("cpu-avg").textContent, "38.8% avg (4 cores)",
+    "the live numbers are unaffected");
+  h.clearPaths();
+  h.tick(); await h.settle();
+  assert.ok(vertices(h.id("pwr-chart"), "rgb(90,173,138)").length >= 3,
+    "and the live series still builds itself, exactly as before the ring existed");
+});
+
+test("at a history span the wall line comes from the ring too", async () => {
+  // The wall row has its own server-built series for the live view. At a wider
+  // span that series covers the wrong window, so the ring's column wins.
+  const h = load({
+    payloads: [fullStatus({ wall_plug: true, wall_power_w: 7,
+                            wall_series: { t0: 1790000000, step: 2, w: new Array(60).fill(7) } })],
+    history: histBody({ span: 3600, step: 60 }),
+  });
+  await h.settle();
+  h.id("span-pick").fire("click", { target: spanBtn("1h") });
+  await h.settle();
+  h.clearPaths();
+  h.tick(); await h.settle();
+  const data = vertices(h.id("pwr-chart"), VIOLET).slice(0, -2).map((p) => p.y);
+  const cpu = vertices(h.id("pwr-chart"), "rgb(90,173,138)").slice(0, -2).map((p) => p.y);
+  assert.strictEqual(data.length, 60);
+  // Flatness alone cannot tell the ring's 200W from the live series' 7W — both
+  // are flat. Height can: the ring's wall figure is ABOVE the ring's 80W CPU
+  // line, and a spliced-in 7W would sit well below it. (y grows downward.)
+  assert.ok(data[0] < cpu[0],
+    `the wall line must be the ring's 200W, above the 80W CPU line; `
+    + `got wall y=${data[0]} vs cpu y=${cpu[0]}`);
+  assert.strictEqual(h.id("wall-pwr-text").textContent, "7W",
+    "while the reading beside it stays live");
+});
+
+test("a history fetch that fails never blanks the live page", async () => {
+  const h = load({ payloads: [fullStatus(), fullStatus()], history: null });
+  await h.settle();
+  h.tick(); await h.settle();
+  assert.strictEqual(h.id("cpu-avg").textContent, "38.8% avg (4 cores)");
+});
+
+test("picking a span asks the server for it and stops pushing local points", async () => {
+  const h = load({ payloads: [fullStatus()], history: histBody({ span: 3600, step: 60 }) });
+  await h.settle();
+  const before = h.calls.length;
+  h.id("span-pick").fire("click", { target: spanBtn("1h") });
+  await h.settle();
+  const asked = h.calls.slice(before).map((c) => c.url).filter((u) => u.indexOf("history") >= 0);
+  assert.strictEqual(asked.length, 1, "exactly one fetch for the new span");
+  assert.ok(asked[0].indexOf("span=1h") >= 0, asked[0]);
+  assert.ok(asked[0].indexOf("slots=60") >= 0, "asks for the chart's own width");
+});
+
+test("at a history span the server owns the series, not the page", async () => {
+  // A page appending its own point per frame could only place it by arrival —
+  // the same mistake the wall series exists to avoid, one span wider.
+  const h = load({
+    payloads: [fullStatus({ cpu_power_w: 10 }), fullStatus({ cpu_power_w: 10 })],
+    history: histBody({ span: 3600, step: 60 }),
+  });
+  await h.settle();
+  h.id("span-pick").fire("click", { target: spanBtn("1h") });
+  await h.settle();
+  h.clearPaths();
+  h.tick(); await h.settle();          // a live frame at 10W arrives
+  const pts = vertices(h.id("pwr-chart"), "rgb(90,173,138)");
+  // The last two vertices close the fill on the baseline; the data ends before
+  // them. A locally appended 10W point would land exactly there.
+  const data = pts.slice(0, -2).map((p) => Math.round(p.y));
+  assert.strictEqual(data.length, 60, "the server's window, whole and unextended");
+  assert.strictEqual(data[0], data[data.length - 1],
+    "the server sent one flat level; a live sample appended by the page would "
+    + "show up as a step at the right-hand end");
+  assert.strictEqual(h.id("cpu-pwr-text").textContent, "10W",
+    "while the NUMBER beside the chart stays live — it is 'now', not history");
+});
+
+test("switching span clears the old window rather than mixing two scales", async () => {
+  const h = load({ payloads: [fullStatus()], history: null });
+  await h.settle();
+  h.tick(); await h.settle();
+  h.id("span-pick").fire("click", { target: spanBtn("7d") });
+  await h.settle();
+  h.clearPaths();
+  h.tick(); await h.settle();
+  assert.deepStrictEqual(vertices(h.id("pwr-chart"), "rgb(90,173,138)"), [],
+    "a failed load at the new span shows nothing, not the old span's points");
+});
+
+test("returning to 2m resumes the live push", async () => {
+  const h = load({ payloads: [fullStatus()], history: histBody() });
+  await h.settle();
+  h.id("span-pick").fire("click", { target: spanBtn("1h") });
+  await h.settle();
+  h.id("span-pick").fire("click", { target: spanBtn("2m") });
+  for (let i = 0; i < 4; i++) { h.tick(); await h.settle(); }
+  h.clearPaths();
+  h.tick(); await h.settle();
+  const pts = vertices(h.id("pwr-chart"), "rgb(90,173,138)");
+  assert.ok(pts.length >= 3, `live pushing must resume; got ${pts.length}`);
 });

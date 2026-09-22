@@ -52,6 +52,7 @@ from datetime import datetime
 from concurrent.futures import ThreadPoolExecutor
 
 import system_status  # sibling module: /api/system/status data collection
+import metrics_history  # sibling module: the 7-day system-metrics ring
 import claude_stats   # sibling module: /api/claude/stats token/cost analytics
 import codex_stats    # sibling module: /api/codex/stats token/cost analytics
 import service_discovery  # sibling module: /api/services/discover network-service scan
@@ -3263,6 +3264,69 @@ def _wall_power_w():
     return sample.get("w")
 
 
+# ---- system-metrics history --------------------------------------------------
+# Seven days of the Monitor's numbers in a fixed ~930KB ring (metrics_history.py).
+#
+# The sampling is piggyback-first, which is the same shape as the wall-power
+# memo and for the same reason: work nobody asked for should not happen. Every
+# status collection a request already paid for is folded into the open bucket,
+# so while ANYONE is watching the recorder costs nothing at all. Only when a
+# bucket would otherwise close empty does the ticker collect one itself — and
+# then it skips the top-process scan, which is 90% of the collector's cost
+# (11.3ms vs 1.3ms, measured) and the one part not worth keeping a week of.
+METRICS_FILE = os.environ.get("METRICS_HISTORY_FILE") or "/var/lib/vibetop/metrics.ring"
+METRICS_STEP = metrics_history.TIERS[0][1]      # the fine tier's 2s bucket
+
+_hist_lock = threading.Lock()
+_hist = None                                    # metrics_history.History, or None
+
+
+def _hist_open():
+    global _hist
+    with _hist_lock:
+        if _hist is None:
+            try:
+                _hist = metrics_history.History(METRICS_FILE)
+            except Exception as e:
+                log.warning("metrics history unavailable: %s", e)
+                _hist = False                   # tried and failed; don't retry per poll
+        return _hist or None
+
+
+def _hist_note(st):
+    h = _hist_open()
+    if h is None or not isinstance(st, dict) or "error" in st:
+        return
+    with _hist_lock:
+        try:
+            h.note(st, time.time())
+        except Exception as e:
+            log.warning("metrics history note failed: %s", e)
+
+
+def _hist_loop():
+    """Close each 2s bucket, sampling ourselves only if nobody else did."""
+    while True:
+        time.sleep(METRICS_STEP)
+        h = _hist_open()
+        if h is None:
+            continue
+        try:
+            with _hist_lock:
+                idle = not h.pending()
+            if idle:
+                # Nobody is watching. Collect the cheap half only.
+                st = system_status.get_system_status([], _cached, want_procs=False)
+                wall = _wall_power_w()
+                if wall is not None:
+                    st["wall_power_w"] = wall
+                _hist_note(st)
+            with _hist_lock:
+                h.tick(time.time())
+        except Exception as e:
+            log.warning("metrics history tick failed: %s", e)
+
+
 class _MultipartError(Exception):
     pass
 
@@ -5099,6 +5163,10 @@ class Handler(http.server.BaseHTTPRequestHandler):
             series = _wall_series()
             if series is not None:
                 st["wall_series"] = series
+            # Record BEFORE the per-user process filtering below: the history is
+            # host-wide and keeps no process data at all, so it must not vary
+            # with who happened to trigger this collection.
+            _hist_note(st)
         # Multi-user: the top-processes list carries every user's process names —
         # a non-admin sees only their OWN processes; an ADMIN (VIBETOP_ADMINS, e.g.
         # the human operator on a prod host where APP_USER is the no-login service
@@ -6252,6 +6320,36 @@ class Handler(http.server.BaseHTTPRequestHandler):
             _cache.pop("hints_enabled", None)
         log.info("config: feature hints enabled=%s (by %s)", enabled, _ctx_user())
         self._json(200, {"ok": True, "enabled": enabled})
+
+    # Spans the Monitor offers. Bounded on purpose: an arbitrary ?span= lets a
+    # caller ask for a window the rings cannot cover and get a chart that is
+    # mostly holes, which reads as an outage rather than as "not kept".
+    HISTORY_SPANS = {"2m": 120, "1h": 3600, "6h": 21600,
+                     "24h": 86400, "7d": 7 * 24 * 3600}
+
+    def _handle_system_history(self):
+        if not self._require_authed():
+            return
+        q = urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query)
+        span = self.HISTORY_SPANS.get((q.get("span") or ["1h"])[0])
+        if span is None:
+            return self._json(400, {"error": "span must be one of "
+                                             + ", ".join(self.HISTORY_SPANS)})
+        try:
+            slots = int((q.get("slots") or ["120"])[0])
+        except ValueError:
+            return self._json(400, {"error": "slots must be a number"})
+        slots = max(10, min(600, slots))
+        h = _hist_open()
+        if h is None:
+            return self._json(200, {"unavailable": True})
+        fields = [f for f in (q.get("fields") or [""])[0].split(",") if f] or None
+        # Read under the same lock as note/tick: a window spans thousands of
+        # slots and must not be interleaved with the writer's pwrite.
+        with _hist_lock:
+            out = h.window(time.time(), span, slots, fields)
+        out["span"] = span
+        self._json(200, out)
 
     def _handle_config_power_get(self):
         if not self._require_sudo():
@@ -8674,6 +8772,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
         if self.path == "/api/system/status":
             self._json(200, self._get_system_status())
             return
+        if self.path.split("?")[0] == "/api/system/history":
+            return self._handle_system_history()
         if self.path == "/api/claude/usage":
             if not self._require_admin():   # discloses APP_USER's plan usage
                 return
@@ -9149,4 +9249,5 @@ if __name__ == "__main__":
     threading.Thread(target=_reaper_loop, daemon=True).start()  # idle reaper (opt-in)
     threading.Thread(target=_video_cache_sweep_loop, daemon=True).start()  # bound the video cache
     threading.Thread(target=_schedule_loop, daemon=True).start()  # scheduled terminal messages
+    threading.Thread(target=_hist_loop, daemon=True).start()  # 7-day metrics ring
     server.serve_forever()
