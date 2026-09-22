@@ -609,6 +609,22 @@ test("a plug that drops out leaves the row in place reading '--', and the line b
     `the gap. Got ${starts.length}`);
 });
 
+test("the power card grows for the wall row instead of shrinking its chart", async () => {
+  // On narrow screens every metric card is a fixed 190px, so a third metric row
+  // comes straight out of the chart — already the shortest thing on that page.
+  // The class is what the stylesheet keys the extra height off; without it the
+  // change is invisible here and only shows up on a phone.
+  const none = load({ payloads: [fullStatus()] });
+  await none.settle();
+  assert.ok(!none.id("pwr-card").classList.contains("has-wall"),
+    "a host with no plug keeps the standard card height");
+
+  const h = load({ payloads: [fullStatus({ wall_power_w: 240 })] });
+  await h.settle();
+  assert.ok(h.id("pwr-card").classList.contains("has-wall"),
+    "the card must claim back the row's height once the wall row is shown");
+});
+
 test("the power chart scales to the wall reading, not just to CPU and GPU", async () => {
   // Wall power is several times either component; without it in the y-axis the
   // violet line would run off the top of the card.

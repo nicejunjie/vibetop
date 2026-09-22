@@ -176,6 +176,13 @@
       grid-template-rows: none;
     }
     .metrics .card { grid-column: auto; height: 190px; }
+    /* The Power card carries a third metric row when a smart plug is configured.
+       At a fixed 190px that row would come straight out of the chart, which is
+       already the shortest thing on the page here — so give the card back
+       exactly the row's height (16px + the 6px flex gap) and leave the chart
+       the size it is on every other card. Desktop needs no equivalent: there
+       the cards are grid-sized and 22px out of ~295 is not noticeable. */
+    .metrics .card.has-wall { height: 212px; }
     .cpu-grid { grid-template-columns: repeat(2, 1fr); }
   }
 </style>
@@ -268,7 +275,7 @@
     </div>
 
     <!-- Power -->
-    <div class="card">
+    <div class="card" id="pwr-card">
       <div class="card-title">Power <span class="avg" id="pwr-total">--</span></div>
       <!-- Wall sits above CPU/GPU because it CONTAINS them: it is the whole
            machine's draw, read from a smart plug upstream of the PSU, while the
@@ -613,7 +620,13 @@
       // Reveal on the first reading and keep the row from then on: once the
       // machine is known to have a plug, a momentarily stale sample should read
       // '--' in place, not make the row disappear and shove the card around.
-      if (haveWallW && wallRow) wallRow.hidden = false;
+      if (haveWallW && wallRow) {
+        wallRow.hidden = false;
+        // The extra row costs the chart 22px, which matters on mobile where the
+        // card height is fixed. The class buys it back there; see .has-wall.
+        var pwrCard = document.getElementById('pwr-card');
+        if (pwrCard) pwrCard.classList.add('has-wall');
+      }
       var wallShown = wallRow && !wallRow.hidden;
       if (wallShown) {
         push(wallPwrHist, haveWallW ? wallW : null);
