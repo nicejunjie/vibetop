@@ -15,7 +15,7 @@
 #   ./run-tests.sh                # all hermetic tiers (CI + pre-commit)
 #   ./run-tests.sh --live         # ALSO run the live-host smoke test (needs the
 #                                 # deployed stack — see tools/smoke-test.sh)
-#   ./run-tests.sh --live --base http://192.168.1.10
+#   ./run-tests.sh --live --base http://z20.local
 #
 # Each runner self-skips (with a warning) if its tool isn't installed, so a box
 # missing node or pytest still runs what it can. Exit 0 iff every suite passed.

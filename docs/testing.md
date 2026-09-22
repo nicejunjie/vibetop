@@ -58,7 +58,7 @@ tests.yml`) and the pre-commit hook both call it, so the suites can't drift.
 ```bash
 ./run-tests.sh                 # all hermetic tiers (what CI + pre-commit run)
 ./run-tests.sh --live          # + tools/smoke-test.sh against 127.0.0.1
-./run-tests.sh --live --base http://192.168.1.10
+./run-tests.sh --live --base http://z20.local
 ```
 
 The tiers (each independently runnable, ~5s total):

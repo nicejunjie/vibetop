@@ -55,7 +55,7 @@ Point at any reachable vibetop and supply a cookie (mint it where the session
 secret lives):
 
 ```bash
-export VIBETOP_BASE_URL=http://192.168.1.10
+export VIBETOP_BASE_URL=http://z20.local
 export VIBETOP_E2E_COOKIE="$(ssh host sudo python3 /opt/vibetop/app/tools/mint-session-cookie.py e2e --value-only)"
 cd tests/e2e && npm install && npx playwright install chromium firefox webkit && npx playwright test
 ```

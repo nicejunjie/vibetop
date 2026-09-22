@@ -12,7 +12,7 @@
 #
 #   sudo ./tools/smoke-test.sh                 # probe 127.0.0.1 on this host
 #   sudo ./tools/smoke-test.sh --no-office     # skip OnlyOffice checks
-#   ./tools/smoke-test.sh --base http://192.168.1.10 --cookie 'vt_session=…'
+#   ./tools/smoke-test.sh --base http://z20.local --cookie 'vt_session=…'
 #
 # AUTH: a multi-user host gates every surface behind `auth_request`, so an
 # unauthenticated probe gets 302/401 and EVERY check would fail on a perfectly

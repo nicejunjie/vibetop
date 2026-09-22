@@ -39,7 +39,9 @@ rather than scrolling.
 
 ## Overview
 
-Six sub-projects deliver a unified "mini-OS" desktop experience on myhost (`192.168.1.10`), exposed publicly at `https://service.example.com/` via Cloudflare Tunnel with Access auth. The root page (`/`) is a desktop-like UI launchable from a Start menu.
+Six sub-projects deliver a unified "mini-OS" desktop experience on the host (reference host `z20`, reachable on the LAN as `http://z20.local`), exposed publicly at `https://service.example.com/` via Cloudflare Tunnel with Access auth. The root page (`/`) is a desktop-like UI launchable from a Start menu.
+
+> **Don't write the LAN IP down.** It is a DHCP lease (`192.168.68.0/22` today, not the `192.168.1.x` these docs claimed until 2026-09-22) and every copy of it rots silently. Use `z20.local`, or ask the host with `ip -4 addr`.
 
 **It is multi-user** (Option B — see the identity rules below): each of the host's **real Linux users** logs in with their PAM (username+password) credentials and gets their own terminals / Files / Browser / X11 running **as themselves** in their real `$HOME`; Unix permissions are the isolation boundary (a Terminal ≡ SSH as *that* user). Prod on the reference host (`z20`) runs from `/opt/vibetop/` owned by a no-login `vibetop` service account, with the human admin(s) named in `VIBETOP_ADMINS`. The only operator-only surfaces are **Claude-usage** and **Update** (gated by `_is_admin()`); every other surface is per-user.
 

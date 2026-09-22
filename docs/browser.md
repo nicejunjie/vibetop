@@ -1,7 +1,7 @@
 # vibetop-browser (project on myhost)
 
 A persistent web browser running on myhost, viewable from any browser
-at `http://192.168.1.10/browser/` (or `https://service.example.com/browser/`
+at `http://z20.local/browser/` (or `https://service.example.com/browser/`
 via Cloudflare Tunnel). Same continuity story as the terminals: close
 the tab, reopen from any device, same browser, same tabs, same scroll
 position.

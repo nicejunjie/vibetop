@@ -1,6 +1,6 @@
 # vibetop-terminal (project: vibetop on myhost)
 
-Up to 50 browser-accessible persistent terminals at `http://192.168.1.10/tN/`,
+Up to 50 browser-accessible persistent terminals at `http://z20.local/tN/`,
 behind nginx. Close the tab, reopen from any LAN browser (or a different
 machine), and the same shell is there with its current screen state.
 
@@ -48,8 +48,8 @@ Project dir: `apps/everyday/terminal/` (the app) + `server/` (the manager) (repo
 
 ## Access
 
-- `http://192.168.1.10/terminals/` — tabbed terminal UI.
-- `http://192.168.1.10/t1/` .. `/t20/` — direct terminal URLs.
+- `http://z20.local/terminals/` — tabbed terminal UI.
+- `http://z20.local/t1/` .. `/t20/` — direct terminal URLs.
 - No auth. LAN-only. Exposed publicly via Cloudflare Tunnel at
   `https://service.example.com/` with Access auth.
 
