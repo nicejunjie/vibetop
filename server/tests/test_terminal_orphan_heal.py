@@ -10,9 +10,11 @@ from conftest import _FakeCompleted
 
 
 @pytest.fixture()
-def systemd(mgr, stubs, monkeypatch):
+def systemd(mgr, home, stubs, monkeypatch):
     """Scripted `systemctl is-active`: `state` maps unit -> active?; every other
-    command is recorded and succeeds."""
+    command is recorded and succeeds. Depends on `home`: a start can forget a
+    tab name, and without the sandbox that is the REAL user's name file (this
+    file once wiped three of the operator's live tab names that way)."""
     state = {}
     calls = []
 
