@@ -147,6 +147,19 @@ def wall(mgr, monkeypatch):
         mgr._bg.pop("wall_power", None)
 
 
+@pytest.fixture()
+def hist(mgr):
+    """A clean wall-power history, restored afterwards."""
+    with mgr._wall_lock:
+        keep = (dict(mgr._wall_hist), set(mgr._wall_recon), mgr._wall_anchor)
+        mgr._wall_hist.clear(); mgr._wall_recon.clear(); mgr._wall_anchor = None
+    yield mgr
+    with mgr._wall_lock:
+        mgr._wall_hist.clear(); mgr._wall_hist.update(keep[0])
+        mgr._wall_recon.clear(); mgr._wall_recon.update(keep[1])
+        mgr._wall_anchor = keep[2]
+
+
 def test_wall_power_absent_without_a_plug(mgr, monkeypatch):
     monkeypatch.setattr(mgr.system_status, "wall_power_endpoint",
                         lambda *a, **k: None)
@@ -155,7 +168,7 @@ def test_wall_power_absent_without_a_plug(mgr, monkeypatch):
 
 def test_wall_power_reports_a_fresh_sample(mgr, wall):
     import time
-    wall({"w": 42.5, "at": time.time()})
+    wall({"w": 42.5, "at": 1790000000, "fetched": time.time()})
     assert mgr._wall_power_w() == 42.5
 
 
@@ -163,7 +176,7 @@ def test_wall_power_reports_a_fresh_zero(mgr, wall):
     """0W is a measurement. Dropping it here would make the Monitor show '--'
     for a plug that is answering perfectly well with nothing plugged in."""
     import time
-    wall({"w": 0.0, "at": time.time()})
+    wall({"w": 0.0, "at": 1790000000, "fetched": time.time()})
     assert mgr._wall_power_w() == 0.0
 
 
@@ -172,7 +185,8 @@ def test_wall_power_withholds_a_stale_sample(mgr, wall):
     sweep, wrong here. An unplugged or rebooted plug must make the reading
     disappear, not freeze the last wattage on screen looking live."""
     import time
-    wall({"w": 42.5, "at": time.time() - (mgr.WALL_POWER_MAX_AGE + 1)})
+    wall({"w": 42.5, "at": 1790000000,
+          "fetched": time.time() - (mgr.WALL_POWER_MAX_AGE + 1)})
     assert mgr._wall_power_w() is None
 
 
@@ -181,7 +195,8 @@ def test_wall_power_survives_one_missed_refresh(mgr, wall):
     slow poll would blink the row out."""
     import time
     assert mgr.WALL_POWER_MAX_AGE > mgr.WALL_POWER_FRESH * 2
-    wall({"w": 42.5, "at": time.time() - (mgr.WALL_POWER_FRESH + 1)})
+    wall({"w": 42.5, "at": 1790000000,
+          "fetched": time.time() - (mgr.WALL_POWER_FRESH + 1)})
     assert mgr._wall_power_w() == 42.5
 
 
@@ -191,7 +206,7 @@ def test_wall_power_never_polls_the_plug_on_a_request(mgr, wall, monkeypatch):
     import time
     monkeypatch.setattr(mgr.system_status, "read_wall_power",
                         lambda *a, **k: pytest.fail("fetched on the request path"))
-    wall({"w": 42.5, "at": time.time()})
+    wall({"w": 42.5, "at": 1790000000, "fetched": time.time()})
     for _ in range(50):
         assert mgr._wall_power_w() == 42.5
 
@@ -218,7 +233,7 @@ def test_status_payload_carries_a_measured_wall_reading(mgr, wall, monkeypatch,
     (`if wall:`) would drop exactly that value, and the Monitor would show '--'
     for a plug that answered correctly."""
     import time
-    wall({"w": watts, "at": time.time()})
+    wall({"w": watts, "at": 1790000000, "fetched": time.time()})
     assert _status_payload(mgr, monkeypatch).get("wall_power_w") == watts
 
 
@@ -226,7 +241,8 @@ def test_status_payload_omits_wall_power_when_stale(mgr, wall, monkeypatch):
     """Absence is the signal the page reads as 'unknown'. Sending a stale number
     would render it as a live one."""
     import time
-    wall({"w": 137.4, "at": time.time() - (mgr.WALL_POWER_MAX_AGE + 1)})
+    wall({"w": 137.4, "at": 1790000000,
+          "fetched": time.time() - (mgr.WALL_POWER_MAX_AGE + 1)})
     assert "wall_power_w" not in _status_payload(mgr, monkeypatch)
 
 
@@ -284,3 +300,121 @@ def test_wall_power_is_not_asked_for_faster_than_the_device_updates(mgr):
     """The plug refreshes at 1Hz; asking more often returns the same number and
     spends the device's budget for nothing."""
     assert mgr.WALL_POWER_FRESH >= 1.0
+
+
+# ---- the wall-power history: device time, and repairing a gap ---------------
+# The reading crosses a network. Everything here is about the difference between
+# when a sample ARRIVED and when the plug MEASURED it.
+
+T0 = 1790000000 - (1790000000 % 60)          # minute-aligned, like minute_ts
+
+
+def _s(at, w, by_minute=(), minute_ts=None, fetched=None):
+    import time
+    return {"w": w, "at": at, "fetched": fetched if fetched is not None else time.time(),
+            "minute_ts": minute_ts, "by_minute": list(by_minute)}
+
+
+def test_history_places_samples_on_the_device_clock(mgr, hist):
+    """Not on ours. A sample that took 3s to arrive belongs where the plug says
+    it happened; stamping on arrival bakes the round-trip into the x-axis."""
+    import time
+    mgr._wall_note(_s(T0 + 5, 111.0, fetched=time.time()))
+    with mgr._wall_lock:
+        assert mgr._wall_hist.get(T0 + 5) == 111.0
+        assert not any(abs(t - time.time()) < 60 for t in mgr._wall_hist), \
+            "a sample must not land at the host's 'now'"
+
+
+def test_history_repairs_a_gap_from_the_plugs_buffer(mgr, hist):
+    """The point of fetching a buffer rather than an instant: the plug kept
+    measuring for the 90s we could not reach it, and says so afterwards."""
+    for i in range(30):
+        mgr._wall_note(_s(T0 + i, 100.0))
+    gap_end = T0 + 30 + 90
+    mts = gap_end - (gap_end % 60)
+    mgr._wall_note(_s(gap_end, 150.0, by_minute=(300.0, 200.0), minute_ts=mts))
+    with mgr._wall_lock:
+        assert mgr._wall_hist.get(mts - 60) == 300.0, "the newest completed minute"
+        # The older bucket's minute STARTS inside the measured run, so its first
+        # seconds keep their real 100.0 and only the unobserved tail is filled —
+        # assert on a second that genuinely fell in the gap.
+        assert mgr._wall_hist.get(mts - 120) == 100.0, "measured second untouched"
+        assert mgr._wall_hist.get(mts - 120 + 45) == 200.0, "unobserved tail filled"
+        assert len(mgr._wall_recon) == 90, "the whole gap was repaired"
+
+
+def test_a_repair_never_overwrites_a_measured_second(mgr, hist):
+    """A bucket is a whole minute's mean, quantised to ~7.15W. Letting one land
+    on a second we actually measured trades a reading for a reconstruction."""
+    for i in range(30):
+        mgr._wall_note(_s(T0 + i, 100.0))
+    # A bucket covering the SAME minute those 30 samples fall in.
+    mgr._wall_note(_s(T0 + 130, 150.0, by_minute=(0.0, 999.0), minute_ts=T0 + 120))
+    with mgr._wall_lock:
+        measured = [mgr._wall_hist[T0 + i] for i in range(30)]
+        assert measured == [100.0] * 30, "measured seconds are untouched"
+        assert not ({T0 + i for i in range(30)} & mgr._wall_recon)
+        # ...but the holes in that same minute DID get filled.
+        assert mgr._wall_hist.get(T0 + 45) == 999.0
+
+
+def test_history_is_bounded(mgr, hist):
+    """One dict entry per second, forever, is a leak on a 24/7 process.
+
+    Inserted at 1Hz across more than twice the span, so the unpruned count would
+    be over 1000 — a sparser feed stays under the bound whether or not anything
+    prunes, and proves nothing."""
+    span = mgr.WALL_HISTORY_SPAN
+    for i in range(span * 2 + 200):
+        mgr._wall_note(_s(T0 + i, 50.0))
+    with mgr._wall_lock:
+        assert len(mgr._wall_hist) <= span + 2, len(mgr._wall_hist)
+        assert min(mgr._wall_hist) >= T0 + span, "the oldest seconds were dropped"
+        assert len(mgr._wall_recon) <= len(mgr._wall_hist)
+
+
+def test_series_is_the_charts_window_and_marks_holes_as_holes(mgr, hist):
+    for i in range(0, 60):
+        mgr._wall_note(_s(T0 + i, 80.0))
+    ser = mgr._wall_series()
+    assert ser["step"] == mgr.WALL_SERIES_STEP
+    assert len(ser["w"]) == mgr.WALL_SERIES_SLOTS
+    assert ser["t0"] % ser["step"] == 0, "slots align to a stable grid"
+    assert any(v == 80.0 for v in ser["w"]), "the measured run is in there"
+    assert ser["w"][0] is None, "nothing known 2 minutes before the first sample"
+
+
+def test_series_keeps_scrolling_while_the_plug_is_unreachable(mgr, hist):
+    """An outage must grow a gap of the right WIDTH, not freeze the chart with
+    the last reading pinned at the right-hand edge."""
+    import time
+    mgr._wall_note(_s(T0 + 10, 90.0, fetched=time.time() - 40))
+    ser = mgr._wall_series()
+    # 40s of host time have passed since that sample; 'now' on the device
+    # timeline has advanced with it, so the reading sits ~20 slots back.
+    assert ser["w"][-1] is None, "the newest slots are unknown, not the old value"
+    assert 90.0 in ser["w"], "and the sample is still on the chart, further left"
+
+
+def test_series_uses_our_clock_only_for_elapsed_time(mgr, hist):
+    """A plug whose clock is years off must still produce a self-consistent
+    window — absolute position comes from the device, duration from us."""
+    import time
+    skewed = 1000000000                       # a decade adrift
+    mgr._wall_note(_s(skewed, 70.0, fetched=time.time()))
+    ser = mgr._wall_series()
+    assert abs(ser["t0"] - skewed) < mgr.WALL_SERIES_STEP * mgr.WALL_SERIES_SLOTS + 5
+    assert 70.0 in ser["w"]
+
+
+def test_status_payload_carries_the_series_even_when_the_reading_is_stale(
+        mgr, wall, hist, monkeypatch):
+    """The gap is the information. Withholding the series during an outage
+    hides exactly what the history exists to show."""
+    import time
+    mgr._wall_note(_s(T0 + 10, 90.0, fetched=time.time() - 40))
+    wall(_s(90.0, 90.0, fetched=time.time() - (mgr.WALL_POWER_MAX_AGE + 1)))
+    body = _status_payload(mgr, monkeypatch)
+    assert "wall_power_w" not in body, "the stale scalar is withheld"
+    assert body["wall_series"]["w"], "but the series still describes the window"

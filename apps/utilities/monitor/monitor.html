@@ -629,7 +629,20 @@
       }
       var wallShown = wallRow && !wallRow.hidden;
       if (wallShown) {
-        push(wallPwrHist, haveWallW ? wallW : null);
+        // Unlike every other series here, the wall history is built by the
+        // SERVER and taken whole. It has to be: the reading crosses a network,
+        // so the moment a sample reaches this page is not the moment the plug
+        // measured it, and only the manager knows the device's own clock. It
+        // also carries repairs — up to three minutes the plug buffered while
+        // nobody could reach it — which a client pushing one point per frame
+        // could never reconstruct. Pushing locally would place every point by
+        // arrival and draw an outage as a short gap wherever the page happened
+        // to resume, instead of a full-width one where it really was.
+        if (d.wall_series && d.wall_series.w && d.wall_series.w.length) {
+          wallPwrHist = d.wall_series.w;
+        } else {
+          push(wallPwrHist, haveWallW ? wallW : null);   // pre-series manager
+        }
         setBar('wall-pwr-bar', 'wall-pwr-text', wallW / WALL_FS * 100,
                (haveWallW ? wallW + 'W' : '--'), '#b07fd0', true);
       }

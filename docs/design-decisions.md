@@ -14554,6 +14554,33 @@ fact that this reading is the only one in the file that travels over a network:
   by whoever is watching (the Monitor's 2s tick, the heartbeat's 5s) and falls
   to zero when nobody is. **Ask the device what it can do before designing
   around a guess about it.**
+- **Two clocks, deliberately not collapsed.** `at` is the plug's own
+  `sys.unixtime` and says WHERE a reading belongs on the timeline; `fetched` is
+  ours and answers only "are we still hearing from it". Stamping on arrival —
+  which the first cut did — bakes the round-trip into the x-axis, and after an
+  outage misplaces every recovered point by the length of the outage. Liveness
+  must not depend on the device's clock being right, and placement must not
+  depend on ours.
+- **The plug's buffer is fetched, not just its instant.** `aenergy.by_minute`
+  holds three completed minutes of mean power with a real `minute_ts`. A gap —
+  slow network, Wi-Fi blip, manager restart — is repaired from it afterwards
+  instead of being lost. Repairs fill only seconds we have nothing for: a bucket
+  is a whole minute's mean quantised to ~7.15W, so letting one land on a
+  measured second would trade a reading for a reconstruction. `by_minute[0]` is
+  the minute in progress (energy-so-far, not a mean) and is discarded — read as
+  a mean it is wrong, and wrong low, drawing a dip at the chart's edge once a
+  minute.
+- **The chart series is assembled server-side.** Only the manager knows the
+  device's clock, so it resamples onto the chart's own grid (`{t0, step, w[]}`)
+  and the page takes it whole. A client pushing one point per frame can only
+  place points by arrival: it would draw a two-minute outage as a short break
+  wherever the page happened to resume, and would start every freshly-opened
+  Monitor with an empty chart while the plug had the history all along.
+- **`aenergy.total` is NOT usable as an energy delta.** It advances once a
+  minute in ~119mWh lumps, so differencing it at a 2s poll yields zero for
+  twenty-nine samples and a `208W` spike on the thirtieth. This looked like the
+  obvious RAPL-style implementation — the same file computes CPU power exactly
+  that way — and measuring is the only reason it was not shipped.
 - **The sample carries its own timestamp.** `_bg_cached` serves its last value
   however old it is — right for a disk sweep, wrong for a live wattage. A plug
   can be unplugged, rebooted, or fall off the Wi-Fi while every other sensor

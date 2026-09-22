@@ -74,9 +74,29 @@ which rewrites that file — carries it across instead of reverting it.
   demand-driven, not a schedule: the real cadence is whatever the watcher asks
   for — the Monitor's 2s tick, the desktop heartbeat's 5s — and **drops to zero
   when nobody is looking**.
+- **Samples are placed on the DEVICE's clock**, never on ours. `Shelly.GetStatus`
+  carries `sys.unixtime` alongside the meter, and that is what positions a
+  reading on the timeline — the reading crosses a network, so the moment it
+  arrives is not the moment it was measured, and after an outage the difference
+  is minutes rather than milliseconds. Our own clock is used for one thing only:
+  deciding whether we are still hearing from the plug.
+- **A gap is repaired from the plug's own buffer.** The device holds the last
+  three completed minutes as per-minute mean power (`aenergy.by_minute`, stamped
+  with `minute_ts`). When a poll lands after a delay, a Wi-Fi blip or a manager
+  restart, those buckets fill the seconds we have nothing for — at their real
+  timestamps. They never overwrite a measured second: a bucket averages a whole
+  minute and is quantised to ~7.15W, so it is a repair, not a reading.
+  `by_minute[0]` is the minute still IN PROGRESS — energy-so-far, not a mean —
+  and is dropped, or it would draw a dip at the chart's edge every minute.
+- **The chart series is built server-side** (`wall_series: {t0, step, w[]}`, 60
+  slots of 2s) because only the manager knows the device's clock. The Monitor
+  takes it whole rather than pushing a point per frame, so an outage is drawn as
+  a gap of the right width in the right place, and a freshly-opened Monitor
+  shows real history instead of an empty chart.
 - **A reading older than 10s is withheld**, not redrawn. An unplugged or
-  rebooted plug makes the row read `--` with a gap in the chart, rather than
-  freezing the last wattage on screen looking live.
+  rebooted plug makes the row read `--` rather than freezing the last wattage on
+  screen looking live. The series is still sent while that is true: the gap is
+  the information.
 - **A failed sample is retried after 3s**, not the memo's 30s default — that
   default is sized for expensive producers, and here one dropped packet would
   otherwise blank the row for fifteen Monitor frames.

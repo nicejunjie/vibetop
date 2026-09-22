@@ -634,3 +634,67 @@ test("the power chart scales to the wall reading, not just to CPU and GPU", asyn
   const top = parseInt(axis.match(/(\d+)W/)[1], 10);
   assert.ok(top >= 600, `the y-axis must cover the wall reading, got ${top}W`);
 });
+
+// The wall series is the one history this page does NOT build itself. It comes
+// from the manager already placed on the plug's own clock, because the reading
+// crosses a network: the moment a sample reaches this page is not the moment it
+// was measured, and the manager's copy also carries repairs for minutes nobody
+// could reach the device.
+
+test("the wall line is taken from the server's series, not pushed per frame", async () => {
+  const w = new Array(60).fill(null);
+  for (let i = 40; i < 60; i++) w[i] = 200;        // 40s of history, then now
+  const h = load({ payloads: [fullStatus({ wall_power_w: 200, wall_series: { t0: 1790000000, step: 2, w } })] });
+  await h.settle();
+  h.clearPaths();
+  h.tick(); await h.settle();
+  const ys = vertices(h.id("pwr-chart"), VIOLET).filter((p) => p.op === "moveTo" || p.op === "lineTo");
+  assert.ok(ys.length >= 20,
+    `one frame must draw the server's whole window, not a single new point; got ${ys.length}`);
+});
+
+test("an outage the server reports as a gap is drawn as a gap, at its real width", async () => {
+  // A 60s hole in the middle: the plug was unreachable, and the manager says so
+  // by position. A page pushing one point per frame could only ever draw that
+  // as a short break wherever it happened to resume.
+  const w = new Array(60).fill(120);
+  for (let i = 20; i < 50; i++) w[i] = null;       // 30 slots x 2s = 60s
+  const h = load({ payloads: [fullStatus({ wall_power_w: 120, wall_series: { t0: 1790000000, step: 2, w } })] });
+  await h.settle();
+  h.clearPaths();
+  h.tick(); await h.settle();
+  const starts = vertices(h.id("pwr-chart"), VIOLET).filter((p) => p.op === "moveTo");
+  assert.strictEqual(starts.length, 2, "the hole splits the line into two strokes");
+  const xs = vertices(h.id("pwr-chart"), VIOLET).map((p) => p.x);
+  const span = Math.max(...xs) - Math.min(...xs);
+  assert.ok(span > 0, "and the strokes sit either side of it");
+});
+
+test("a server series replaces the local history rather than appending to it", async () => {
+  // Two frames of the SAME window must not accumulate: the series is the whole
+  // truth each time, and pushing it would double-count every point.
+  const w = new Array(60).fill(null);
+  w[59] = 300;
+  const h = load({ payloads: [fullStatus({ wall_power_w: 300, wall_series: { t0: 1790000000, step: 2, w } })] });
+  await h.settle();
+  for (let i = 0; i < 4; i++) { h.tick(); await h.settle(); }
+  h.clearPaths();
+  h.tick(); await h.settle();
+  const pts = vertices(h.id("pwr-chart"), VIOLET);
+  assert.ok(pts.length <= 4,
+    `a single known point cannot become a line; got ${pts.length} vertices`);
+});
+
+test("a manager with no series still drives the wall line the old way", async () => {
+  // Deploys are not atomic: a page can outlive the manager that served it.
+  const h = load({ payloads: [
+    fullStatus({ wall_power_w: 100 }), fullStatus({ wall_power_w: 110 }),
+    fullStatus({ wall_power_w: 120 }),
+  ] });
+  await h.settle();
+  h.tick(); await h.settle();
+  h.clearPaths();
+  h.tick(); await h.settle();
+  const pts = vertices(h.id("pwr-chart"), VIOLET).filter((p) => p.op === "moveTo" || p.op === "lineTo");
+  assert.ok(pts.length >= 3, `the fallback must still plot a line; got ${pts.length}`);
+});

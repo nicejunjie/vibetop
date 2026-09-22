@@ -3009,17 +3009,112 @@ WALL_POWER_RETRY = 3.0
 WALL_POWER_MAX_AGE = 10.0
 
 
+# The chart's own window: 60 slots of 2s = the last two minutes, matching the
+# Monitor's tick so the wall line and the CPU/GPU lines cover the same span.
+WALL_SERIES_STEP = 2
+WALL_SERIES_SLOTS = 60
+# Raw seconds retained. Longer than the window by more than the plug's 3-minute
+# buffer, so a repair that arrives late still has somewhere to land.
+WALL_HISTORY_SPAN = WALL_SERIES_STEP * WALL_SERIES_SLOTS + 300
+
+_wall_lock = threading.Lock()
+_wall_hist = {}          # device-second -> watts
+_wall_recon = set()      # which of those were reconstructed, not measured
+_wall_anchor = None      # (device_at, host_fetched) of the newest sample
+
+
+def _wall_note(sample):
+    """Record one sample on the DEVICE's timeline, and repair what a gap ate.
+
+    Placement uses the plug's clock, never ours. The reading crosses a network,
+    so the moment it arrives is not the moment it was measured — and after an
+    outage the difference is not jitter but minutes.
+
+    The repair is the reason for fetching a buffer rather than an instant: the
+    plug kept measuring while we could not reach it, and holds three minutes of
+    completed per-minute means. Those fill ONLY seconds we have nothing for.
+    A bucket is quantised to ~7.15W and averages a whole minute, so letting one
+    overwrite a real spot reading would trade measurement for reconstruction —
+    the fill is `if t not in _wall_hist` precisely so it cannot.
+    """
+    if not isinstance(sample, dict):
+        return sample
+    at = sample.get("at")
+    if not isinstance(at, int):
+        return sample
+    with _wall_lock:
+        global _wall_anchor
+        _wall_hist[at] = sample.get("w")
+        _wall_recon.discard(at)          # a measured second outranks a repaired one
+        if _wall_anchor is None or at >= _wall_anchor[0]:
+            _wall_anchor = (at, sample.get("fetched") or time.time())
+        mts, bm = sample.get("minute_ts"), sample.get("by_minute") or []
+        if isinstance(mts, int):
+            # by_minute[0] (the minute in progress) was already dropped by the
+            # collector, so bucket i here starts at minute_ts - i*60.
+            for i, wv in enumerate(bm, start=1):
+                if wv is None:
+                    continue
+                start = mts - i * 60
+                for t in range(start, start + 60):
+                    if t not in _wall_hist:
+                        _wall_hist[t] = wv
+                        _wall_recon.add(t)
+        cutoff = at - WALL_HISTORY_SPAN
+        for t in [t for t in _wall_hist if t < cutoff]:
+            del _wall_hist[t]
+            _wall_recon.discard(t)
+    return sample
+
+
+def _wall_now_dev():
+    """Where 'now' sits on the DEVICE's timeline.
+
+    Anchored on the last device timestamp and advanced by elapsed host time.
+    Our clock is only ever asked for a DURATION here, never for a position —
+    that way a plug whose clock is off still has its samples placed
+    self-consistently, and the window keeps scrolling while it is unreachable
+    so an outage grows a visible gap instead of freezing the chart."""
+    if _wall_anchor is None:
+        return None
+    at, fetched = _wall_anchor
+    return int(at + max(0.0, time.time() - fetched))
+
+
+def _wall_series():
+    """The last WALL_SERIES_SLOTS slots as {t0, step, w[]}, w[i] None where
+    nothing is known. Resampled server-side because only the manager knows the
+    device's clock; a client stamping on arrival would misplace every point."""
+    with _wall_lock:
+        if not _wall_hist:
+            return None
+        now_dev = _wall_now_dev() or max(_wall_hist)
+        step, slots = WALL_SERIES_STEP, WALL_SERIES_SLOTS
+        t_end = (now_dev // step) * step
+        t0 = t_end - (slots - 1) * step
+        vals = []
+        for k in range(slots):
+            lo = t0 + k * step
+            xs = [_wall_hist[t] for t in range(lo, lo + step)
+                  if t in _wall_hist and _wall_hist[t] is not None]
+            vals.append(round(sum(xs) / len(xs), 1) if xs else None)
+    return {"t0": t0, "step": step, "w": vals}
+
+
 def _wall_power_w():
     """Measured wall draw in watts, or None when there is no plug configured,
     no sample has landed yet, or the last one has gone stale."""
     if not system_status.wall_power_endpoint():
         return None
     sample, have = _bg_cached("wall_power", WALL_POWER_FRESH,
-                              system_status.read_wall_power,
+                              lambda: _wall_note(system_status.read_wall_power()),
                               retry_after=WALL_POWER_RETRY)
     if not have or not isinstance(sample, dict):
         return None
-    if time.time() - sample.get("at", 0.0) > WALL_POWER_MAX_AGE:
+    # Liveness is judged on OUR clock ("are we still hearing from it"), never on
+    # the device's. A plug with a wrong clock must not be able to declare itself
+    # permanently fresh — or permanently stale.
+    if time.time() - sample.get("fetched", 0.0) > WALL_POWER_MAX_AGE:
         return None
     return sample.get("w")
 
@@ -4841,6 +4936,13 @@ class Handler(http.server.BaseHTTPRequestHandler):
             wall = _wall_power_w()
             if wall is not None:
                 st["wall_power_w"] = wall
+            # The chart's series is sent even when the latest reading is stale:
+            # it is placed on the device's clock, so an outage has to show as a
+            # gap of the right WIDTH at the right PLACE. Withholding it would
+            # hide exactly the thing the history exists to make visible.
+            series = _wall_series()
+            if series is not None:
+                st["wall_series"] = series
         # Multi-user: the top-processes list carries every user's process names —
         # a non-admin sees only their OWN processes; an ADMIN (VIBETOP_ADMINS, e.g.
         # the human operator on a prod host where APP_USER is the no-login service

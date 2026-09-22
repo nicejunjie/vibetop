@@ -749,6 +749,11 @@ def _collect(running_terminals, cached):
 # nobody here has is a liability, not a feature.
 
 WALL_POWER_TIMEOUT = 4.0
+# A Shelly energy counter ticks in ~119.094 mWh steps, so a per-minute bucket is
+# quantised to ~7.15W. Fine for a PC drawing hundreds of watts, coarse for a
+# phone charger — which is why buckets only ever FILL GAPS and never replace a
+# spot reading.
+WALL_MWH_PER_MIN_TO_W = 0.06        # mWh in one minute -> mean watts
 
 
 def wall_power_endpoint(plug=None):
@@ -758,6 +763,11 @@ def wall_power_endpoint(plug=None):
     full base URL. The path is always appended here and never taken from the
     setting: pointed at a Shelly's root this would pull its ~280KB web UI on
     every poll, which is both useless and unkind to the device.
+
+    Shelly.GetStatus rather than Switch.GetStatus (1.5KB vs 0.4KB) because it is
+    the only single call that carries the DEVICE'S OWN CLOCK alongside the
+    meter. Two calls to save a kilobyte would double the device's load and still
+    leave the clock and the reading sampled a round-trip apart.
     """
     if plug is None:
         plug = os.environ.get("VIBETOP_POWER_PLUG", "")
@@ -766,34 +776,79 @@ def wall_power_endpoint(plug=None):
         return None
     if "://" not in plug:
         plug = "http://" + plug
-    return plug.rstrip("/") + "/rpc/Switch.GetStatus?id=0"
+    return plug.rstrip("/") + "/rpc/Shelly.GetStatus"
 
 
 def read_wall_power(plug=None, timeout=WALL_POWER_TIMEOUT, opener=None):
-    """One sample from the configured smart plug.
+    """One sample from the configured smart plug, on the DEVICE's clock.
 
-    Returns {"w": watts, "at": epoch} — or None when no plug is configured.
-    RAISES when a plug IS configured but is unreachable or answers nonsense:
-    the caller's background memo owns the retry floor, and swallowing the error
-    here would let it stamp a failure as a fresh successful reading.
+    Returns None when no plug is configured; RAISES when one is configured but
+    unreachable or answering nonsense, so the caller's memo can apply its retry
+    floor rather than stamping a failure as a fresh reading.
 
-    `at` stamps the SAMPLE, not the cache entry. A refresh-ahead memo serves its
-    last value however old it is — correct for a disk sweep, wrong for a live
-    wattage — so the age has to travel with the number.
+    The returned dict separates two clocks that are easy to conflate:
+
+      "at"      the device's own unixtime — WHERE this reading belongs on the
+                timeline. The reading crosses a network, so the moment it
+                arrives is not the moment it was measured; stamping on arrival
+                bakes the round-trip into the x-axis and puts anything recovered
+                after an outage at entirely the wrong time.
+      "fetched" our clock — used ONLY to answer "are we still hearing from it".
+                Liveness must not depend on the device's clock being right.
+
+    It also carries what the plug has BUFFERED, not just the instant:
+
+      "by_minute"  mean watts for each of the last completed minutes, oldest
+                   last. The device holds three; index 0 is the minute IN
+                   PROGRESS and is energy-so-far rather than a mean, so it is
+                   dropped here — a partial bucket read as a mean is a reading
+                   that is simply wrong, and wrong low.
+      "minute_ts"  device timestamp of the minute bucket that was dropped, so a
+                   caller can place the rest: bucket i starts at minute_ts - i*60.
+
+    That buffer is the whole point of fetching often: between two polls the
+    device kept measuring, and a gap of up to three minutes — a slow network, a
+    Wi-Fi blip, a restarted manager — can be repaired from it afterwards instead
+    of being lost.
     """
     url = wall_power_endpoint(plug)
     if not url:
         return None
     get = opener or urllib.request.urlopen
     with get(url, timeout=timeout) as r:
-        # A few hundred bytes in practice. Bounded anyway: a setting that points
-        # at something large must not pull it into memory every 30s forever.
-        body = r.read(65536)
+        # Bounded: a setting pointing at something large must not be pulled into
+        # memory every second forever.
+        body = r.read(262144)
+    fetched = time.time()
     d = json.loads(body.decode("utf-8", "replace"))
-    w = d.get("apower")
+    sw = d.get("switch:0") or {}
+    w = sw.get("apower")
     # A plug reporting 0.0 is a real measurement (nothing drawing) and must stay
     # a number. Only a MISSING or non-numeric field is "unknown" — conflating
     # the two is how a monitor ends up claiming an idle machine draws nothing.
     if not isinstance(w, (int, float)) or isinstance(w, bool):
         raise ValueError("smart plug response has no numeric 'apower'")
-    return {"w": round(float(w), 1), "at": time.time()}
+    at = (d.get("sys") or {}).get("unixtime")
+    if not isinstance(at, (int, float)) or isinstance(at, bool):
+        # Without the device clock we cannot place the sample, and placing it on
+        # ours is the mistake this function exists to avoid. Fail rather than
+        # silently fall back.
+        raise ValueError("smart plug response has no numeric 'sys.unixtime'")
+
+    energy = sw.get("aenergy") or {}
+    minute_ts, by_minute = energy.get("minute_ts"), []
+    raw = energy.get("by_minute")
+    if isinstance(raw, list) and isinstance(minute_ts, (int, float)) \
+            and not isinstance(minute_ts, bool):
+        minute_ts = int(minute_ts)
+        # Drop index 0 (the minute still in progress); keep the completed ones.
+        for v in raw[1:]:
+            if isinstance(v, (int, float)) and not isinstance(v, bool):
+                by_minute.append(round(v * WALL_MWH_PER_MIN_TO_W, 1))
+            else:
+                by_minute.append(None)
+    else:
+        minute_ts = None
+
+    return {"w": round(float(w), 1), "at": int(at), "fetched": fetched,
+            "minute_ts": minute_ts, "by_minute": by_minute}
