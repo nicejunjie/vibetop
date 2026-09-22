@@ -624,10 +624,13 @@ def test_an_unwatched_host_is_sampled_slowly_not_every_bucket(mgr, rec, collecto
     assert collector["collect"] == 2, "but it does keep a slow trace going"
 
 
-def test_our_own_sample_does_not_count_as_someone_watching(mgr, rec, collector,
-                                                           monkeypatch):
-    """Otherwise the loop's first self-sample makes the host look busy forever
-    and it never drops to the idle cadence — the bug this guard exists for."""
+def test_recording_a_sample_is_never_itself_demand(mgr, rec, collector,
+                                                   monkeypatch):
+    """Two callers land in _hist_note without anyone asking for 2s data: our own
+    idle sample, and the desktop heartbeat collecting the taskbar's 5s stats
+    strip. Marking demand there kept the recorder — and through it the smart
+    plug — at the full 2s rate whenever any desktop was open, which is most of
+    the time. Only the Monitor's own route counts."""
     mgr._hist_demand = 0.0
     mgr._hist_self_at = 0.0
     clock = {"t": 20_000.0}
@@ -635,6 +638,35 @@ def test_our_own_sample_does_not_count_as_someone_watching(mgr, rec, collector,
     _run_loop(mgr, monkeypatch, passes=1)
     assert mgr._hist_watched(clock["t"]) is False, \
         "the recorder watching itself is not a viewer"
+    mgr._hist_note({"cpu_percent": 5.0})
+    assert mgr._hist_watched(clock["t"]) is False, \
+        "a heartbeat's taskbar-strip collection is not the Monitor being open"
+
+
+def test_polling_the_monitors_route_is_what_marks_demand(client, mgr, users,
+                                                         stubs, rec):
+    """Through the real HTTP route — asserting on _hist_saw_monitor() directly
+    cannot see the route stop calling it."""
+    mgr._hist_demand = 0.0
+    assert mgr._hist_watched() is False
+    assert client.get("/api/system/status", cookie=users["alice"][1])[0] == 200
+    assert mgr._hist_watched() is True, \
+        "the Monitor's own poll is the signal that 2s resolution is wanted"
+
+
+def test_the_heartbeat_feeds_the_ring_without_raising_the_cadence(mgr, rec,
+                                                                  collector,
+                                                                  monkeypatch):
+    """It is still free data — just not a reason to sample faster."""
+    mgr._hist_demand = 0.0
+    clock = {"t": 25_000.0}
+    wall = {"t": 1790000500.0}
+    monkeypatch.setattr(mgr.time, "monotonic", lambda: clock["t"])
+    monkeypatch.setattr(mgr.time, "time", lambda: wall["t"])
+    mgr._hist_note({"cpu_percent": 42.0})
+    bucket = int(wall["t"]) // mgr.METRICS_STEP * mgr.METRICS_STEP
+    assert rec.pending(bucket) is True, "the heartbeat's sample IS recorded"
+    assert mgr._hist_watched(clock["t"]) is False
 
 
 def test_a_watcher_restores_the_fine_cadence(mgr, rec, collector, monkeypatch):
@@ -647,9 +679,9 @@ def test_a_watcher_restores_the_fine_cadence(mgr, rec, collector, monkeypatch):
     assert mgr._hist_watched(clock["t"]) is False
     # Through the REAL path a status request takes — setting the global by hand
     # would not notice if _hist_note stopped recording demand at all.
-    mgr._hist_note({"cpu_percent": 3.0})
+    mgr._hist_saw_monitor()
     assert mgr._hist_watched(clock["t"]) is True, \
-        "a status request is what makes a host watched"
+        "a poll of /api/system/status is what makes a host watched"
     # Move to the NEXT bucket, which that request did not reach, while still
     # inside the grace: a poll that skipped a beat is topped up at once.
     clock["t"] += mgr.METRICS_STEP

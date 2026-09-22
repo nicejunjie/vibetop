@@ -3354,18 +3354,26 @@ def _hist_open():
         return _hist or None
 
 
-def _hist_note(st, demand=True):
-    """Fold a status payload into the open bucket.
+def _hist_saw_monitor():
+    """Someone has the Monitor open — that page, and only that page, needs 2s
+    resolution.
 
-    `demand=False` marks OUR OWN sample, which must not count as someone
-    watching — otherwise the loop's first self-sample makes the host look busy
-    forever and it never drops to the idle cadence."""
+    Marked from the /api/system/status ROUTE rather than from _hist_note,
+    because the collector is also driven by the desktop heartbeat to fill the
+    taskbar's stats strip every 5s. Treating that as demand kept the recorder —
+    and through it the smart plug — running at the full 2s rate whenever any
+    desktop was open with the toggle on, which is most of the time. A 5s strip
+    does not need 2s samples; its own collection still feeds the ring for free."""
     global _hist_demand
+    _hist_demand = time.monotonic()
+
+
+def _hist_note(st):
+    """Fold a status payload into the open bucket. Never marks demand: every
+    caller of the collector lands here, including our own idle sample."""
     h = _hist_open()
     if h is None or not isinstance(st, dict) or "error" in st:
         return
-    if demand:
-        _hist_demand = time.monotonic()
     with _hist_lock:
         try:
             h.note(st, time.time())
@@ -3374,12 +3382,11 @@ def _hist_note(st, demand=True):
 
 
 def _hist_watched(now=None):
-    """Is anything actually looking at these numbers right now?
+    """Is the Monitor open right now?
 
-    True while status requests are still arriving — the Monitor's 2s poll or a
-    desktop heartbeat with System Stats on. Both are the only ways the payload
-    reaches a screen, so when neither has happened recently there is nobody to
-    show a 2s-resolution chart to."""
+    True while its own /api/system/status polls are still arriving. Nothing
+    else asks for 2s resolution, so when they stop there is nobody to show a
+    2s-resolution chart to."""
     return (now or time.monotonic()) - _hist_demand <= METRICS_WATCH_GRACE
 
 
@@ -3429,7 +3436,7 @@ def _hist_loop():
                 wall = _wall_power_w()
                 if wall is not None:
                     st["wall_power_w"] = wall
-                _hist_note(st, demand=False)
+                _hist_note(st)
             # The flush stays on the fine cadence whatever the sampling rate:
             # it is arithmetic on an empty dict when there is nothing to write,
             # and it keeps a newly-opened Monitor from waiting for its data.
@@ -8912,6 +8919,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self._json(200, self._update_version_info())
             return
         if self.path == "/api/system/status":
+            _hist_saw_monitor()          # this route IS the Monitor polling
             self._json(200, self._get_system_status())
             return
         if self.path.split("?")[0] == "/api/system/history":

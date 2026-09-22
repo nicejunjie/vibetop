@@ -14774,6 +14774,15 @@ the design:
   second, forever, for a chart nobody had open. A background job that samples a
   shared resource inherits responsibility for that resource's cost: adding a
   tireless caller is how a demand-driven design stops being one.
+- **And "watched" means the Monitor, not any viewer.** The first attempt marked
+  demand inside `_hist_note`, which every caller of the collector reaches —
+  including the desktop heartbeat filling the taskbar's 5s stats strip. So any
+  open desktop kept the recorder at 2s, which on this host is most of the time,
+  and the measurement that was supposed to prove the fix showed the plug still
+  being polled every 2 seconds. Demand is marked from the `/api/system/status`
+  ROUTE instead: that page is the only thing that wants 2s resolution. The
+  heartbeat's own collection still feeds the ring — it is free data, just not a
+  reason to sample faster.
 - **The wake is clock-aligned, 85% into each bucket.** The first version slept a
   flat `step`, which drifts: every pass costs slightly more than the sleep, the
   sample walks forward through the bucket, and once it crosses a boundary one

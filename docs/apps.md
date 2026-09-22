@@ -75,10 +75,13 @@ charts stay live at every span** — they are "now", not history.
   into the open bucket, so while anyone is watching the recorder costs *nothing*.
   Only a bucket that would close empty makes the ticker collect one itself, and
   then it asks for the cheap nine tenths (`want_procs=False`).
-- **An unwatched host is sampled every 30s, not every 2s.** "Watched" means a
-  status request arrived within 15s — the Monitor's own poll, or a desktop
-  heartbeat with System Stats on; those are the only ways the payload reaches a
-  screen. Nobody needs 2s resolution when nobody is looking, and the first
+- **An unwatched host is sampled every 30s, not every 2s.** "Watched" means the
+  **Monitor** polled `/api/system/status` within 15s — and only that. The
+  desktop heartbeat also collects a status payload, every 5s, to fill the
+  taskbar's stats strip; that one feeds the ring for free but is NOT demand,
+  because a 5s strip does not need 2s samples. Counting it kept the recorder —
+  and through it the smart plug — at the full rate whenever any desktop was
+  open with the toggle on, which is most of the time. Nobody needs 2s resolution when nobody is looking, and the first
   version's 2s sampling quietly undid the smart plug's demand-driven design: it
   became a caller that never stops. Measured on an idle host, 11 connections to
   the plug every 20s and **1.30% of a core**, of which the collection itself is
