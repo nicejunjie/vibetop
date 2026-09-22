@@ -574,6 +574,73 @@ def test_the_idle_ticker_asks_for_the_cheap_collection(mgr, rec, monkeypatch):
     assert seen == [], "a watched host must cost the recorder nothing"
 
 
+def test_a_still_open_previous_bucket_does_not_suppress_this_one(mgr, rec,
+                                                                  monkeypatch):
+    """The loop checks, then flushes — so when it wakes, the PREVIOUS bucket is
+    usually still open. Asking "is anything open" instead of "is THIS bucket
+    covered" reads that as "someone already sampled" and skips, leaving a hole
+    every time a watcher stops polling."""
+    step = mgr.METRICS_STEP
+    now = 1790000000.0
+    prev = int(now) // step * step - step
+    with mgr._hist_lock:
+        rec._fine.setdefault(prev, {}).setdefault("cpu_percent", []).append(5.0)
+    assert rec.pending() is True, "something IS open — just not this bucket"
+    assert rec.pending(int(now) // step * step) is False
+
+    seen = []
+    monkeypatch.setattr(mgr.system_status, "get_system_status",
+                        lambda rt, c, want_procs=True: (seen.append(want_procs),
+                                                        {"cpu_percent": 7.0})[1])
+    monkeypatch.setattr(mgr, "_wall_power_w", lambda: None)
+    monkeypatch.setattr(mgr.time, "time", lambda: now)
+    n = {"s": 0}
+
+    def one_pass(_s):
+        n["s"] += 1
+        if n["s"] > 1:
+            raise _Stop()
+    monkeypatch.setattr(mgr.time, "sleep", one_pass)
+    try:
+        mgr._hist_loop()
+    except _Stop:
+        pass
+    assert seen == [False], "this bucket had nothing, so the ticker must sample it"
+
+
+def test_the_ticker_wakes_on_the_clock_and_cannot_drift(mgr):
+    """A free-running sleep(step) walks forward through the bucket and, once it
+    crosses a boundary, double-fills one and skips the next. Measured on z20
+    that plateaued at 40 of 60 slots. Each wake is re-derived from the clock,
+    so error cannot accumulate."""
+    step = mgr.METRICS_STEP
+    t = 1790000000.0
+    wakes = []
+    for _ in range(500):
+        w = mgr._hist_next_wake(t)
+        wakes.append(w)
+        t = w + 0.31                       # a pass that costs real time
+    # Exactly one wake per bucket, none skipped, none doubled.
+    buckets = [int(w) // step * step for w in wakes]
+    assert len(set(buckets)) == len(buckets), "a bucket was visited twice"
+    assert buckets == sorted(buckets)
+    gaps = {buckets[i + 1] - buckets[i] for i in range(len(buckets) - 1)}
+    assert gaps == {step}, f"every consecutive bucket must be visited; gaps={gaps}"
+
+
+def test_the_ticker_wakes_inside_the_bucket_it_samples(mgr):
+    """Late enough that a watcher's poll has usually already landed (so the
+    piggyback saving survives), but still INSIDE the bucket — a sample taken
+    after the boundary belongs to the next one."""
+    step = mgr.METRICS_STEP
+    for offset in (0.0, 0.1, 0.5, 0.9, 1.3, 1.7, 1.99):
+        now = 1790000000.0 + offset
+        w = mgr._hist_next_wake(now)
+        assert w > now
+        frac = (w % step) / step
+        assert 0.5 <= frac < 1.0, f"wake at {frac:.2f} of the bucket is too early"
+
+
 def test_the_history_endpoint_is_gated_and_bounded(client, mgr, users, stubs, rec):
     ck = users["alice"][1]
     from conftest import ANON

@@ -225,10 +225,15 @@ class History:
                 self._put("coarse", cb, means)
         return done
 
-    def pending(self):
-        """True if a bucket is open, i.e. something has been noted but not yet
-        written. Lets the ticker decide whether it needs to sample itself."""
-        return bool(self._fine)
+    def pending(self, bucket=None):
+        """Whether `bucket` has any sample yet (any open bucket if None).
+
+        The ticker asks about ONE bucket, not "is anything open": with 2s
+        buckets and a 2s poll those are different questions, and answering the
+        loose one leaves holes. See _hist_loop."""
+        if bucket is None:
+            return bool(self._fine)
+        return bucket in self._fine
 
     # ---- reading ----------------------------------------------------------
     def window(self, now, span, slots, fields=None):

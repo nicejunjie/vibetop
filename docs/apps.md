@@ -73,8 +73,12 @@ charts stay live at every span** — they are "now", not history.
 - **Piggyback first.** Every collection a request already paid for is folded
   into the open bucket, so while anyone is watching the recorder costs *nothing*.
   Only a bucket that would close empty makes the ticker collect one itself, and
-  then it asks for the cheap nine tenths (`want_procs=False`). Idle cost is
-  ~1.3ms every 2s — **0.065% of one core**.
+  then it asks for the cheap nine tenths (`want_procs=False`).
+- **The ticker wakes on the clock, 85% into each bucket** — not on a
+  free-running `sleep(2)`, which drifts until one bucket gets two samples and
+  the next gets none (measured: it plateaued at 40 of 60 slots, drawing spikes
+  instead of a line). Late in the bucket so a watcher's poll has usually landed
+  first, but still inside it, so the sample belongs where it is filed.
 - **A bucket is a MEAN**, not the last sample: several viewers polling at once
   contribute several samples, and last-wins would make the stored number depend
   on who polled last.

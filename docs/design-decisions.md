@@ -14761,9 +14761,18 @@ the design:
 - **Piggyback sampling.** Every collection a request already paid for is folded
   into the open bucket, so while anyone is watching the recorder costs nothing.
   Only a bucket that would otherwise close empty makes the ticker sample, and
-  then with `want_procs=False`. Idle: 0.065% of a core. This is the wall-power
-  memo's demand-driven shape, inverted — there, nobody watching meant nothing
-  happened; here it means the recorder is the only one left to do it.
+  then with `want_procs=False`. This is the wall-power memo's demand-driven
+  shape, inverted — there, nobody watching meant nothing happened; here it means
+  the recorder is the only one left to do it.
+- **The wake is clock-aligned, 85% into each bucket.** The first version slept a
+  flat `step`, which drifts: every pass costs slightly more than the sleep, the
+  sample walks forward through the bucket, and once it crosses a boundary one
+  bucket takes two samples and the next takes none. On z20 that settled at
+  **40 of 60 slots** — the chart drew spikes, not a line, and only looking at it
+  showed that. Re-deriving each wake from the wall clock cannot accumulate
+  error. It also has to ask whether THIS bucket is covered, not whether
+  anything is open: the loop checks before it flushes, so the previous bucket is
+  normally still open and the loose question reads as "someone already did it".
 - **A bucket is a mean.** Several viewers poll at once; last-wins would make the
   recorded number depend on who polled last.
 - **The network counters are differenced in the recorder.** They are cumulative,

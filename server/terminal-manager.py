@@ -3304,16 +3304,38 @@ def _hist_note(st):
             log.warning("metrics history note failed: %s", e)
 
 
+# Where in a bucket the ticker wakes, as a fraction of it. LATE on purpose: by
+# then a watcher's poll has almost certainly already landed in this bucket, so
+# the piggyback saving survives — but we are still INSIDE the bucket, so the
+# sample we take belongs to it.
+METRICS_WAKE = 0.85
+
+
+def _hist_next_wake(now, step=None, frac=METRICS_WAKE):
+    """The next wake instant, computed from the WALL CLOCK every time.
+
+    A free-running `sleep(step)` drifts: each pass costs a little more than the
+    sleep, so the sample walks forward through the bucket and, once it crosses a
+    boundary, one bucket gets two samples and the next gets none. Measured on
+    z20 that plateaued at ~40 of 60 slots — a chart of spikes rather than a
+    line. Re-deriving the wake from the clock cannot accumulate error."""
+    step = step or METRICS_STEP
+    t = (now // step) * step + step * frac
+    return t if t > now else t + step
+
+
 def _hist_loop():
-    """Close each 2s bucket, sampling ourselves only if nobody else did."""
+    """Close each bucket, sampling ourselves only if nobody else filled it."""
     while True:
-        time.sleep(METRICS_STEP)
+        now = time.time()
+        time.sleep(max(0.01, _hist_next_wake(now) - now))
         h = _hist_open()
         if h is None:
             continue
         try:
+            bucket = int(time.time()) // METRICS_STEP * METRICS_STEP
             with _hist_lock:
-                idle = not h.pending()
+                idle = not h.pending(bucket)
             if idle:
                 # Nobody is watching. Collect the cheap half only.
                 st = system_status.get_system_status([], _cached, want_procs=False)
