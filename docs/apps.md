@@ -75,6 +75,15 @@ charts stay live at every span** — they are "now", not history.
   into the open bucket, so while anyone is watching the recorder costs *nothing*.
   Only a bucket that would close empty makes the ticker collect one itself, and
   then it asks for the cheap nine tenths (`want_procs=False`).
+- **An unwatched host is sampled every 30s, not every 2s.** "Watched" means a
+  status request arrived within 15s — the Monitor's own poll, or a desktop
+  heartbeat with System Stats on; those are the only ways the payload reaches a
+  screen. Nobody needs 2s resolution when nobody is looking, and the first
+  version's 2s sampling quietly undid the smart plug's demand-driven design: it
+  became a caller that never stops. Measured on an idle host, 11 connections to
+  the plug every 20s and **1.30% of a core**, of which the collection itself is
+  0.07% — nearly all of it a thread plus an HTTP round-trip to the plug, twice a
+  second, for a chart nobody had open.
 - **The ticker wakes on the clock, 85% into each bucket** — not on a
   free-running `sleep(2)`, which drifts until one bucket gets two samples and
   the next gets none (measured: it plateaued at 40 of 60 slots, drawing spikes

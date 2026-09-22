@@ -574,6 +574,101 @@ def test_the_idle_ticker_asks_for_the_cheap_collection(mgr, rec, monkeypatch):
     assert seen == [], "a watched host must cost the recorder nothing"
 
 
+def _run_loop(mgr, monkeypatch, passes=1):
+    """Run the recorder loop for `passes` iterations, then stop it."""
+    n = {"s": 0}
+
+    def sleeper(_s):
+        n["s"] += 1
+        if n["s"] > passes:
+            raise _Stop()
+    monkeypatch.setattr(mgr.time, "sleep", sleeper)
+    try:
+        mgr._hist_loop()
+    except _Stop:
+        pass
+
+
+@pytest.fixture()
+def collector(mgr, monkeypatch):
+    """Counts collections and plug reads the loop performs."""
+    seen = {"collect": 0, "plug": 0}
+    monkeypatch.setattr(mgr.system_status, "get_system_status",
+                        lambda rt, c, want_procs=True: (seen.__setitem__(
+                            "collect", seen["collect"] + 1), {"cpu_percent": 7.0})[1])
+    monkeypatch.setattr(mgr, "_wall_power_w",
+                        lambda: seen.__setitem__("plug", seen["plug"] + 1) or 100.0)
+    return seen
+
+
+def test_an_unwatched_host_is_sampled_slowly_not_every_bucket(mgr, rec, collector,
+                                                              monkeypatch):
+    """The first version sampled every 2s bucket forever. On an idle host that
+    burned 1.30% of a core and opened 11 connections to the smart plug every
+    20 seconds — for a chart nobody had open."""
+    mgr._hist_demand = 0.0                    # nobody has polled
+    mgr._hist_self_at = 0.0
+    clock = {"t": 10_000.0}
+    monkeypatch.setattr(mgr.time, "monotonic", lambda: clock["t"])
+    _run_loop(mgr, monkeypatch, passes=1)
+    assert collector["collect"] == 1, "one sample when it first finds itself idle"
+    for _ in range(5):                        # five more wakes, 2s apart
+        clock["t"] += mgr.METRICS_STEP
+        _run_loop(mgr, monkeypatch, passes=1)
+    assert collector["collect"] == 1, \
+        f"an unwatched host must not sample every bucket; got {collector['collect']}"
+    assert collector["plug"] == 1, \
+        "and must not keep polling the smart plug — that was most of the cost"
+    clock["t"] += mgr.METRICS_IDLE_STEP       # past the idle cadence
+    _run_loop(mgr, monkeypatch, passes=1)
+    assert collector["collect"] == 2, "but it does keep a slow trace going"
+
+
+def test_our_own_sample_does_not_count_as_someone_watching(mgr, rec, collector,
+                                                           monkeypatch):
+    """Otherwise the loop's first self-sample makes the host look busy forever
+    and it never drops to the idle cadence — the bug this guard exists for."""
+    mgr._hist_demand = 0.0
+    mgr._hist_self_at = 0.0
+    clock = {"t": 20_000.0}
+    monkeypatch.setattr(mgr.time, "monotonic", lambda: clock["t"])
+    _run_loop(mgr, monkeypatch, passes=1)
+    assert mgr._hist_watched(clock["t"]) is False, \
+        "the recorder watching itself is not a viewer"
+
+
+def test_a_watcher_restores_the_fine_cadence(mgr, rec, collector, monkeypatch):
+    clock = {"t": 30_000.0}
+    wall = {"t": 1790000000.0}
+    monkeypatch.setattr(mgr.time, "monotonic", lambda: clock["t"])
+    monkeypatch.setattr(mgr.time, "time", lambda: wall["t"])
+    mgr._hist_demand = 0.0
+    mgr._hist_self_at = clock["t"]
+    assert mgr._hist_watched(clock["t"]) is False
+    # Through the REAL path a status request takes — setting the global by hand
+    # would not notice if _hist_note stopped recording demand at all.
+    mgr._hist_note({"cpu_percent": 3.0})
+    assert mgr._hist_watched(clock["t"]) is True, \
+        "a status request is what makes a host watched"
+    # Move to the NEXT bucket, which that request did not reach, while still
+    # inside the grace: a poll that skipped a beat is topped up at once.
+    clock["t"] += mgr.METRICS_STEP
+    wall["t"] += mgr.METRICS_STEP
+    _run_loop(mgr, monkeypatch, passes=1)
+    assert collector["collect"] == 1, \
+        "a watched bucket nobody filled is still filled at once, not in 30s"
+    # And once the watcher stops, the grace expires rather than latching.
+    clock["t"] += mgr.METRICS_WATCH_GRACE + 1
+    assert mgr._hist_watched(clock["t"]) is False
+
+
+def test_the_grace_outlasts_the_desktop_heartbeat(mgr):
+    """The heartbeat folds status in every 5s. A grace shorter than that would
+    flap between cadences while someone is looking at the desktop."""
+    assert mgr.METRICS_WATCH_GRACE > 5.0
+    assert mgr.METRICS_IDLE_STEP > mgr.METRICS_STEP
+
+
 def test_a_still_open_previous_bucket_does_not_suppress_this_one(mgr, rec,
                                                                   monkeypatch):
     """The loop checks, then flushes — so when it wakes, the PREVIOUS bucket is

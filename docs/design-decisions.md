@@ -14765,6 +14765,15 @@ the design:
   then with `want_procs=False`. This is the wall-power memo's demand-driven
   shape, inverted — there, nobody watching meant nothing happened; here it means
   the recorder is the only one left to do it.
+- **And an unwatched host drops to 30s.** The first version sampled every bucket
+  regardless, which quietly undid the thing the wall-power memo was built for:
+  `_wall_power_w()` cost nothing with nobody looking, until this loop became a
+  caller that never stops. Idle, that was **11 connections to the plug every 20
+  seconds and 1.30% of a core** — against 0.07% for the collection itself. The
+  rest was a thread and an HTTP round-trip to a small board on the LAN, twice a
+  second, forever, for a chart nobody had open. A background job that samples a
+  shared resource inherits responsibility for that resource's cost: adding a
+  tireless caller is how a demand-driven design stops being one.
 - **The wake is clock-aligned, 85% into each bucket.** The first version slept a
   flat `step`, which drifts: every pass costs slightly more than the sleep, the
   sample walks forward through the bucket, and once it crosses a boundary one

@@ -3320,8 +3320,26 @@ def _wall_power_w():
 METRICS_FILE = os.environ.get("METRICS_HISTORY_FILE") or "/var/lib/vibetop/metrics.ring"
 METRICS_STEP = metrics_history.TIERS[0][1]      # the fine tier's 2s bucket
 
+# How often we sample WHEN NOBODY IS WATCHING, and how long after the last
+# request we still count as watched.
+#
+# The first version sampled every bucket regardless, and that quietly undid the
+# thing the wall-power memo was built for. _wall_power_w() refreshes on demand,
+# so with nobody looking it cost nothing — until this loop became a caller that
+# never stops. Measured on an idle host: 11 connections to the plug in 20s, and
+# the manager burning 1.30% of a core, of which the collection itself is 0.07%.
+# Nearly all of it was a thread plus an HTTP round-trip to a small board on the
+# LAN, twice a second, forever, for a chart nobody had open.
+#
+# 30s keeps a useful overnight trace — two samples per 60s coarse bucket, which
+# is what a 7-day view reads — for 0.004% of a core.
+METRICS_IDLE_STEP = 30.0
+METRICS_WATCH_GRACE = 15.0     # > the desktop heartbeat's 5s, with slack
+
 _hist_lock = threading.Lock()
 _hist = None                                    # metrics_history.History, or None
+_hist_demand = 0.0             # monotonic of the last REQUEST-path sample
+_hist_self_at = 0.0            # monotonic of our last self-sample
 
 
 def _hist_open():
@@ -3336,15 +3354,33 @@ def _hist_open():
         return _hist or None
 
 
-def _hist_note(st):
+def _hist_note(st, demand=True):
+    """Fold a status payload into the open bucket.
+
+    `demand=False` marks OUR OWN sample, which must not count as someone
+    watching — otherwise the loop's first self-sample makes the host look busy
+    forever and it never drops to the idle cadence."""
+    global _hist_demand
     h = _hist_open()
     if h is None or not isinstance(st, dict) or "error" in st:
         return
+    if demand:
+        _hist_demand = time.monotonic()
     with _hist_lock:
         try:
             h.note(st, time.time())
         except Exception as e:
             log.warning("metrics history note failed: %s", e)
+
+
+def _hist_watched(now=None):
+    """Is anything actually looking at these numbers right now?
+
+    True while status requests are still arriving — the Monitor's 2s poll or a
+    desktop heartbeat with System Stats on. Both are the only ways the payload
+    reaches a screen, so when neither has happened recently there is nobody to
+    show a 2s-resolution chart to."""
+    return (now or time.monotonic()) - _hist_demand <= METRICS_WATCH_GRACE
 
 
 # Where in a bucket the ticker wakes, as a fraction of it. LATE on purpose: by
@@ -3376,16 +3412,27 @@ def _hist_loop():
         if h is None:
             continue
         try:
+            global _hist_self_at
+            mono = time.monotonic()
             bucket = int(time.time()) // METRICS_STEP * METRICS_STEP
             with _hist_lock:
-                idle = not h.pending(bucket)
-            if idle:
-                # Nobody is watching. Collect the cheap half only.
+                covered = h.pending(bucket)
+            # Watched: fill only the buckets a poller missed, which is normally
+            # none. Unwatched: nobody needs 2s resolution, so drop to a cadence
+            # that still describes the hours but stops paying per bucket — and
+            # stops driving the smart plug, which is most of the cost.
+            due = (not covered) if _hist_watched(mono) \
+                else (mono - _hist_self_at >= METRICS_IDLE_STEP)
+            if due:
+                _hist_self_at = mono
                 st = system_status.get_system_status([], _cached, want_procs=False)
                 wall = _wall_power_w()
                 if wall is not None:
                     st["wall_power_w"] = wall
-                _hist_note(st)
+                _hist_note(st, demand=False)
+            # The flush stays on the fine cadence whatever the sampling rate:
+            # it is arithmetic on an empty dict when there is nothing to write,
+            # and it keeps a newly-opened Monitor from waiting for its data.
             with _hist_lock:
                 h.tick(time.time())
         except Exception as e:
