@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_312 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_313 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
 - [Scheduled terminal messages ("resume when the token limit resets")](#scheduled-terminal-messages-resume-when-the-token-limit-resets)
@@ -335,6 +335,7 @@ _312 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [The terminal "jumped back to old content": a multi-client size fight (2026-09-21)](#the-terminal-jumped-back-to-old-content-a-multi-client-size-fight-2026-09-21)
 - [Wall power on the Monitor: a sensor that lives on the network](#wall-power-on-the-monitor-a-sensor-that-lives-on-the-network)
 - [The plug's address is a setting, not a deployment detail](#the-plugs-address-is-a-setting-not-a-deployment-detail)
+- [A terminal whose session daemon died flashed "reconnecting" forever (2026-09-22)](#a-terminal-whose-session-daemon-died-flashed-reconnecting-forever-2026-09-22)
 
 <!-- END TOC -->
 
@@ -14690,3 +14691,34 @@ new field. But an older manager sends readings with no series at all (a
 deliberately supported case, `a manager with no series still drives the wall line
 the old way`), and on that server a single stale sample would have hidden the
 row. A question worth asking directly is worth one boolean.
+
+## A terminal whose session daemon died flashed "reconnecting" forever (2026-09-22)
+
+- **Symptom:** one terminal tab ("localLLM") could not connect and flashed every
+  ~3s; the others were fine. Its ttyd journal: `started process` → `process exited
+  with code 1` → `WS closed`, on a loop.
+- **Cause:** a terminal is two transient units, `vibetop-uterm-<user>-<N>` (the
+  session daemon that owns the PTY) and `vibetop-uttyd-<user>-<N>` (ttyd, which
+  runs `vibetop-session attach` per connection). A ~42G local-LLM job run in that
+  shell was OOM-killed by the kernel, and systemd's default **`OOMPolicy=stop`**
+  then stopped the daemon's whole unit — shell, daemon and all. ttyd survived.
+  Every reconnect spawned an `attach` to a socket nobody served, which exited 1.
+  Nothing healed it because **"is terminal N running?" (`_list_running_terminals`)
+  only asks about ttyd**, so authcheck never restarted anything; an explicit start
+  would have failed with "already loaded" on the ttyd unit.
+- **Fix, two layers:**
+  1. The session unit is launched with **`OOMPolicy=continue`**: the kernel still
+     kills the runaway process, but the terminal survives it (the user sees
+     `Killed`, like SSH), instead of losing the shell and everything in it.
+  2. **The pair is the terminal.** `_ensure_user_terminal` also checks the session
+     unit (memoized 2s like the running set), and `_start_user_terminal` stops an
+     orphan ttyd before relaunching the pair. A healthy pair is a no-op, and starts
+     are serialized per terminal, so two cold `/tN/` requests can't both tear down
+     and relaunch (the source of the old "already loaded" log noise). The heal
+     keeps the tab's name — same slot, same label, even though the shell is new.
+- **Rejected: redefining `_list_running_terminals` as "both units alive".** It is
+  also what logout/reset and the idle reaper use to decide *what to stop*; an
+  orphan ttyd would vanish from their view and leak forever.
+- Tested: `server/tests/test_terminal_orphan_heal.py` (all five fail on the
+  unfixed build). Sessions started before this deploy keep `OOMPolicy=stop` until
+  they are restarted — the heal covers them, the policy doesn't.
