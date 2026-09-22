@@ -1835,6 +1835,47 @@ def _write_power_plug(plug):
         _cache.pop("power_plug", None)     # so the next status poll sees it now
 
 
+# Host-wide terminal history: the size of each session daemon's replay ring
+# (vibetop-session's CLAUDE_SESSION_BUFSIZE). Every (re)connect rebuilds the tab
+# from that ring alone, so it — not xterm's 50,000-line scrollback — is how far
+# back a terminal can scroll after a reload. Same one-way precedence as the plug:
+# once the Config panel has saved, the file is the only authority; before that
+# the env var (bytes) still decides, else the daemon's 2 MB default. Read at
+# terminal START, so a change reaches only terminals opened after it.
+TERMINAL_POLICY_FILE = (os.environ.get("TERMINAL_POLICY_FILE")
+                        or "/var/lib/vibetop/terminal.json")
+TERM_HISTORY_MB_DEFAULT = 2
+# 32 MB × MAX_INSTANCE terminals is the worst-case resident cost per user; a slow
+# link is already protected by the daemon's adaptive replay, which swaps an
+# un-sent backlog for the current screen after ~2.5s.
+TERM_HISTORY_MB_MAX = 32
+_terminal_policy_lock = threading.Lock()
+
+
+def _read_term_history_mb():
+    try:
+        with open(TERMINAL_POLICY_FILE) as f:
+            d = json.load(f)
+        v = d.get("historyMB") if isinstance(d, dict) else None
+        if isinstance(v, int) and not isinstance(v, bool) \
+                and 1 <= v <= TERM_HISTORY_MB_MAX:
+            return v
+    except (OSError, ValueError):
+        pass
+    try:
+        b = int(os.environ.get("CLAUDE_SESSION_BUFSIZE", ""))
+        return max(1, min(TERM_HISTORY_MB_MAX, round(b / (1024 * 1024))))
+    except ValueError:
+        return TERM_HISTORY_MB_DEFAULT
+
+
+def _write_term_history_mb(mb):
+    with _terminal_policy_lock:
+        os.makedirs(os.path.dirname(TERMINAL_POLICY_FILE), exist_ok=True)
+        _atomic_write(TERMINAL_POLICY_FILE,
+                      json.dumps({"historyMB": int(mb)}), owner="root")
+
+
 def _user_presence(user):
     """(last_ts, live_devices) from a user's OWN desktop-state.json (built from
     _user_home(user), NOT _ctx_home — the reaper runs off the request path).
@@ -2312,8 +2353,10 @@ def _user_terminal_setenvs(user):
     # loop; CLAUDE_SESSION_BUFSIZE caps the ring (less to replay). Unset -> the
     # daemon's built-in defaults (no pacing, 2 MB ring), so this is a no-op by
     # default. Only reaches sessions started AFTER a manager restart.
+    # The ring size is the Config app's "Terminal history" (which falls back to
+    # this same env var before its first save), so it is always sent.
+    envs.append("CLAUDE_SESSION_BUFSIZE=%d" % (_read_term_history_mb() * 1024 * 1024))
     for k in ("CLAUDE_SESSION_REPLAY_RATE", "CLAUDE_SESSION_REPLAY_CHUNK",
-              "CLAUDE_SESSION_BUFSIZE",
               "CLAUDE_SESSION_REPLAY_ADAPTIVE", "CLAUDE_SESSION_REPLAY_BUDGET",
               "CLAUDE_SESSION_REPLAY_SNDBUF", "CLAUDE_SESSION_REPLAY_SCREEN"):
         v = os.environ.get(k)
@@ -5674,6 +5717,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
             return self._handle_config_hints_set()
         if self.path == "/api/config/power":
             return self._handle_config_power_set()
+        if self.path == "/api/config/terminal":
+            return self._handle_config_terminal_set()
         if self.path == "/api/config/resources":
             return self._handle_config_resources_set()
         if self.path == "/api/config/services/restart":
@@ -6410,6 +6455,32 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 msg = re.sub(r"^\[Errno -?\d+\]\s*", "", msg).strip()
                 resp["probe_error"] = msg or e.__class__.__name__
         self._json(200, resp)
+
+    def _handle_config_terminal_get(self):
+        if not self._require_sudo():
+            return
+        self._json(200, {"historyMB": _read_term_history_mb(),
+                         "maxMB": TERM_HISTORY_MB_MAX})
+
+    def _handle_config_terminal_set(self):
+        if not self._require_sudo():
+            return
+        data = self._config_body()
+        if data is None:
+            return self._json(400, {"error": "invalid body"})
+        mb = data.get("historyMB")
+        if isinstance(mb, str) and mb.strip().isdigit():
+            mb = int(mb.strip())
+        if not isinstance(mb, int) or isinstance(mb, bool) \
+                or not 1 <= mb <= TERM_HISTORY_MB_MAX:
+            return self._json(400, {"error": "History must be a whole number of MB, "
+                                             "1–%d" % TERM_HISTORY_MB_MAX})
+        try:
+            _write_term_history_mb(mb)
+        except OSError as e:
+            return self._json(500, {"error": "could not save: %s" % e})
+        log.info("config: terminal history=%d MB (by %s)", mb, _ctx_user())
+        self._json(200, {"ok": True, "historyMB": mb})
 
     def _handle_config_users_get(self):
         if not self._require_sudo():
@@ -8712,6 +8783,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
             return self._handle_config_hints_get()
         if self.path == "/api/config/power":
             return self._handle_config_power_get()
+        if self.path == "/api/config/terminal":
+            return self._handle_config_terminal_get()
         if self.path == "/api/config/resources":
             return self._handle_config_resources_get()
         if self.path == "/api/config/disk":

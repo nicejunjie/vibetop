@@ -67,6 +67,7 @@ const DEFAULT_ROUTES = {
   "GET /api/config/idle": () => ({ status: 200, data: { enabled: false, hours: 2, reapTerminals: false } }),
   "GET /api/config/hints": () => ({ status: 200, data: { enabled: true } }),
   "GET /api/config/power": () => ({ status: 200, data: { plug: "" } }),
+  "GET /api/config/terminal": () => ({ status: 200, data: { historyMB: 2, maxMB: 32 } }),
   "GET /api/config/resources": () => ({ status: 200, data: { memMax: "", cpuCores: "", hostCores: 16 } }),
   "GET /api/config/services": () => ({ status: 200, data: { services: [] } }),
   "GET /api/config/users": () => ({ status: 200, data: { users: [] } }),
@@ -612,4 +613,42 @@ test("and a completed sweep is not hedged", async () => {
   await h.settle();
   assert.ok(!/incomplete|timed out/i.test(h.id("disk-body").innerHTML),
     "a complete list must read as complete — a permanent caveat is noise");
+});
+
+// ---- terminal history -----------------------------------------------------
+
+test("terminal history is read at startup and only it is saved when changed", async () => {
+  const h = load({
+    routes: {
+      "GET /api/config/terminal": () => ({ status: 200, data: { historyMB: 8, maxMB: 32 } }),
+      "POST /api/config/terminal": () => ({ status: 200, data: { ok: true, historyMB: 16 } }),
+    },
+  });
+  await h.settle();
+  assert.strictEqual(h.id("term-history").value, 8);
+  assert.strictEqual(h.id("save-all").disabled, true, "reading it back is not a change");
+  h.id("term-history").value = "16";
+  h.id("term-history").fire("input");
+  assert.strictEqual(h.id("save-all").disabled, false);
+  h.id("save-all").fire("click");
+  await h.settle();
+  assert.deepStrictEqual(h.posts().map((c) => String(c.url)), ["/api/config/terminal"],
+    "the untouched cards must not be rewritten");
+  assert.deepStrictEqual(h.bodyOf("/api/config/terminal"), { historyMB: 16 });
+  assert.strictEqual(h.id("save-all").disabled, true, "a saved value is clean again");
+});
+
+test("a rejected terminal history stays dirty and says why", async () => {
+  const h = load({
+    routes: {
+      "POST /api/config/terminal": () => ({ status: 400, data: { error: "History must be 1–32" } }),
+    },
+  });
+  await h.settle();
+  h.id("term-history").value = "99";
+  h.id("term-history").fire("input");
+  h.id("save-all").fire("click");
+  await h.settle();
+  assert.match(h.id("save-status").textContent, /History must be/);
+  assert.strictEqual(h.id("save-all").disabled, false, "the bad value is still unsaved");
 });

@@ -577,7 +577,8 @@ inherit the manager's env, so without this the knob would silently never arrive.
 Set the low-bandwidth profile once in `/etc/vibetop/manager.env` (e.g.
 `CLAUDE_SESSION_REPLAY_RATE=131072`, and optionally a smaller
 `CLAUDE_SESSION_BUFSIZE`) + restart the manager; it applies to sessions started
-after. Immediate relief with no deploy: restart the offending terminal (× then +)
+after. (Since v1.20.2 the ring size is Config ▸ Vibetop ▸ *Terminal history*;
+the env var is only its default until that panel first saves.) Immediate relief with no deploy: restart the offending terminal (× then +)
 to clear its 2 MB ring, or stop whatever is streaming in it.
 
 **Rejected:** (1) *Just lower the ring cap* — helps (less to replay) but doesn't

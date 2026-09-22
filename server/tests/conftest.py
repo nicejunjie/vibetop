@@ -140,6 +140,7 @@ def home(mgr, monkeypatch, tmp_path):
     monkeypatch.setattr(mgr, "RESOURCE_POLICY_FILE", str(h / "vibetop-resources.json"))
     monkeypatch.setattr(mgr, "HINTS_POLICY_FILE", str(h / "vibetop-hints.json"))
     monkeypatch.setattr(mgr, "POWER_POLICY_FILE", str(h / "vibetop-power.json"))
+    monkeypatch.setattr(mgr, "TERMINAL_POLICY_FILE", str(h / "vibetop-terminal.json"))
     # The metrics ring, and the handle the manager memoizes for it. Without the
     # reset, whichever test first touched /var/lib/vibetop decided whether the
     # recorder was enabled for the whole session — a real file, and an ordering
