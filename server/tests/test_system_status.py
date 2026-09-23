@@ -6,6 +6,9 @@ wiring works, and the payload shape is what the Monitor app / status bar expect
 (rather than asserting exact hardware values, which vary by host).
 """
 import pytest
+import io
+import time
+from types import SimpleNamespace
 
 
 def test_get_system_status_shape(status):
@@ -85,6 +88,40 @@ def test_top_procs_memoized_so_delta_window_is_consistent(status, monkeypatch):
     status._prev_proc_time -= status._PROC_TTL + 1
     status.get_system_status([], cb)
     assert len(calls) == 2
+
+
+def test_top_procs_resolves_metadata_only_for_displayed_rows(status, monkeypatch):
+    """Ranking needs every stat file, but cmdlines and NSS lookups need only 30."""
+    real_open = open
+    cmdlines = []
+
+    def fake_open(path, *args, **kwargs):
+        path = str(path)
+        if path.startswith("/proc/") and path.endswith("/stat"):
+            pid = int(path.split("/")[2])
+            fields = ["0"] * 22
+            fields[11] = str(41 - pid)  # stable, descending CPU rank
+            fields[21] = "1"
+            return io.StringIO(f"{pid} (worker) S " + " ".join(fields))
+        if path.startswith("/proc/") and path.endswith("/cmdline"):
+            cmdlines.append(path)
+            return io.StringIO("python3\x00worker.py\x00")
+        return real_open(path, *args, **kwargs)
+
+    monkeypatch.setattr("builtins.open", fake_open)
+    monkeypatch.setattr(status.os, "listdir", lambda path: [str(i) for i in range(1, 41)])
+    monkeypatch.setattr(status.os, "stat", lambda path: SimpleNamespace(st_uid=1000))
+    lookups = []
+    monkeypatch.setattr(status.pwd, "getpwuid",
+                        lambda uid: lookups.append(uid) or SimpleNamespace(pw_name="user"))
+    status._prev_proc_snap = {i: 0 for i in range(1, 41)}
+    status._prev_proc_time = time.monotonic() - 1
+
+    rows = status._collect_top_procs()
+    assert [row["pid"] for row in rows] == list(range(1, 31))
+    assert len(cmdlines) == 30
+    assert lookups == [1000]
+    assert all(row["name"] == "worker.py" and row["user"] == "user" for row in rows)
 
 
 def test_display_name_never_a_flag_or_inline_code(status):

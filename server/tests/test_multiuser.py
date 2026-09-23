@@ -298,7 +298,7 @@ def test_healthy_xpra_on_right_port_is_reused_not_recreated(mgr, monkeypatch):
 def test_system_status_process_list_scoped(mgr, monkeypatch):
     # The top-processes list is filtered to the requesting user (admin sees all).
     monkeypatch.setattr(mgr.system_status, "get_system_status",
-                        lambda rt, c: {"cpu": {"pct": 5}, "processes": [
+                        lambda rt, c, want_procs=True: {"cpu": {"pct": 5}, "processes": [
                             {"pid": 1, "user": "alice", "name": "a"},
                             {"pid": 2, "user": "bob", "name": "b"}]})
 

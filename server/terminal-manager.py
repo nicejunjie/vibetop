@@ -5305,14 +5305,14 @@ class Handler(http.server.BaseHTTPRequestHandler):
         return _cached("running_terminals:" + user, 2.0,
                        lambda: _list_running_terminals(user))
 
-    def _get_system_status(self, wall_fresh=WALL_POWER_FRESH):
+    def _get_system_status(self, wall_fresh=WALL_POWER_FRESH, want_procs=True):
         # Collection lives in system_status.py; inject the running-terminal
         # list and the shared _cached memoizer (terminal start/stop
         # invalidates its running_terminals entry). Guarded so an unexpected
         # /proc/sysfs hiccup degrades to a 200 with an error, not a 500.
         try:
             st = system_status.get_system_status(
-                self._get_running_terminals(), _cached)
+                self._get_running_terminals(), _cached, want_procs=want_procs)
         except Exception as e:
             log.warning("system status collection failed: %s", e)
             return {"error": "status unavailable: %s" % e}
@@ -6257,7 +6257,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
                     "claude_usage": cu,
                     "terminals_running": nterm}
         if want_sys:   # taskbar stats only when the shared toggle is on
-            resp["system"] = self._get_system_status(WALL_POWER_STRIP_FRESH)
+            resp["system"] = self._get_system_status(WALL_POWER_STRIP_FRESH, want_procs=False)
         if cu:         # Claude-Usage numbers folded on too (retires the 30s poll)
             resp["claude"] = _claude_usage_payload(cu)
         if want_codex:
@@ -9205,7 +9205,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
                     "terminals_running": nterm,
                 }
             if want_sys:   # taskbar stats folded onto the heartbeat
-                resp["system"] = self._get_system_status(WALL_POWER_STRIP_FRESH)
+                resp["system"] = self._get_system_status(WALL_POWER_STRIP_FRESH, want_procs=False)
             if cu:         # Claude-Usage numbers folded on too (retires the 30s poll)
                 resp["claude"] = _claude_usage_payload(cu)
             if want_codex:

@@ -15,6 +15,7 @@ import pwd
 import re
 import shutil
 import json
+import heapq
 import socket
 import subprocess
 import threading
@@ -297,6 +298,7 @@ def _collect_top_procs():
         now = time.monotonic()
         dt = now - _prev_proc_time if _prev_proc_time else 0
         cur_snap = {}
+        candidates = []
         for pid_s in os.listdir("/proc"):
             if not pid_s.isdigit():
                 continue
@@ -312,14 +314,6 @@ def _collect_top_procs():
                 rss = int(fields[21]) * page_size / (1024 * 1024)
                 ticks = utime + stime
                 pid = int(pid_s)
-                # Get descriptive name from cmdline
-                try:
-                    with open(f"/proc/{pid_s}/cmdline") as f:
-                        cmdline = f.read().split("\x00")
-                    cmdline = [c for c in cmdline if c]
-                    name = _display_name(cmdline, short_name)
-                except Exception:
-                    name = short_name
                 cur_snap[pid] = ticks
                 cpu_pct = 0.0
                 if dt > 0 and pid in _prev_proc_snap:
@@ -327,29 +321,35 @@ def _collect_top_procs():
                     # below the dead one's snapshot — a negative % is bogus.
                     delta_ticks = max(0, ticks - _prev_proc_snap[pid])
                     cpu_pct = (delta_ticks / clk_tck) / dt * 100
-                # Owner UID from the dir's stat (cheaper than opening+parsing
-                # /proc/PID/status just for the Uid: line).
-                try:
-                    uid = os.stat(f"/proc/{pid_s}").st_uid
-                except OSError:
-                    uid = 0
-                try:
-                    user = pwd.getpwuid(uid).pw_name
-                except KeyError:
-                    user = str(uid)
-                processes.append({
-                    "pid": pid,
-                    "name": name,
-                    "cpu": round(cpu_pct, 1),
-                    "mem_mb": round(rss, 1),
-                    "user": user,
-                })
+                candidates.append((round(cpu_pct, 1), pid, short_name, round(rss, 1)))
             except Exception:
                 continue
         _prev_proc_snap = cur_snap
         _prev_proc_time = now
-        processes.sort(key=lambda p: p["cpu"], reverse=True)
-        processes = processes[:30]
+        # The UI shows only 30 rows. Ranking needs /proc/PID/stat for every
+        # process, but resolving cmdline + uid + passwd for hundreds of rows
+        # that will be discarded doubles the work on a busy host.
+        top = heapq.nlargest(30, candidates, key=lambda p: p[0])
+        users = {}
+        for cpu_pct, pid, short_name, rss in top:
+            try:
+                with open(f"/proc/{pid}/cmdline") as f:
+                    cmdline = [c for c in f.read().split("\x00") if c]
+                name = _display_name(cmdline, short_name)
+            except Exception:
+                name = short_name
+            try:
+                uid = os.stat(f"/proc/{pid}").st_uid
+            except OSError:
+                uid = 0
+            if uid not in users:
+                try:
+                    users[uid] = pwd.getpwuid(uid).pw_name
+                except KeyError:
+                    users[uid] = str(uid)
+            processes.append({"pid": pid, "name": name,
+                              "cpu": cpu_pct, "mem_mb": rss,
+                              "user": users[uid]})
     except Exception:
         pass
     return processes

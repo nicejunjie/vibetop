@@ -503,14 +503,14 @@ def test_the_heartbeat_route_asks_for_the_relaxed_freshness(client, mgr, users,
     cannot see the heartbeat stop passing it — which is the whole change."""
     seen = []
     monkeypatch.setattr(mgr.Handler, "_get_system_status",
-                        lambda self, *a, **k: seen.append(a) or {"cpu": {}})
+                        lambda self, *a, **k: seen.append((a, k)) or {"cpu": {}})
     st, _ = client.post("/api/desktop",
                         {"instance": "i1", "open": [], "active": None,
                          "sys_stats": True}, cookie=users["alice"][1])
     assert st == 200
     assert seen, "the heartbeat collects stats when the toggle is on"
-    assert seen[0] == (mgr.WALL_POWER_STRIP_FRESH,), \
-        f"the taskbar strip must not ask for the Monitor's rate; got {seen[0]}"
+    assert seen[0] == ((mgr.WALL_POWER_STRIP_FRESH,), {"want_procs": False}), \
+        f"the taskbar should collect scalars only at the strip rate; got {seen[0]}"
 
 
 def test_both_heartbeat_paths_use_the_strip_freshness(mgr):
@@ -524,11 +524,11 @@ def test_both_heartbeat_paths_use_the_strip_freshness(mgr):
     calls = _re.findall(r"self\._get_system_status\(([^)]*)\)", src)
     assert calls, "no call sites found — has the method been renamed?"
     bare = [c for c in calls if not c.strip()]
-    strip = [c for c in calls if c.strip() == "WALL_POWER_STRIP_FRESH"]
+    strip = [c for c in calls if c.strip() == "WALL_POWER_STRIP_FRESH, want_procs=False"]
     assert len(bare) == 1, \
         f"only the Monitor's own route may take the default (1s); found {len(bare)}"
     assert len(strip) == 2, \
-        f"both heartbeat paths must ask for the relaxed value; found {len(strip)}"
+        f"both heartbeat paths must ask for cheap scalar stats; found {len(strip)}"
     assert len(bare) + len(strip) == len(calls), f"unexpected argument in {calls}"
 
 
