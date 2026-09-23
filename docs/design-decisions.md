@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_323 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_324 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
 - [Scheduled terminal messages ("resume when the token limit resets")](#scheduled-terminal-messages-resume-when-the-token-limit-resets)
@@ -346,6 +346,7 @@ _323 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [RTS game speed: movement runs ~3x fast against every timer, and the RA2 default is unsettled](#rts-game-speed-movement-runs-3x-fast-against-every-timer-and-the-ra2-default-is-unsettled)
 - [Seven days of metrics in 930KB, and why the process list is not in it](#seven-days-of-metrics-in-930kb-and-why-the-process-list-is-not-in-it)
 - [RTS game speed: one clock, RA2 at 45 FPS, by rescaling the timers (2026-09-22)](#rts-game-speed-one-clock-ra2-at-45-fps-by-rescaling-the-timers-2026-09-22)
+- [RTS War Factory: the hall runs along the long axis and the door is at its END (2026-09-22)](#rts-war-factory-the-hall-runs-along-the-long-axis-and-the-door-is-at-its-end-2026-09-22)
 
 <!-- END TOC -->
 
@@ -15138,3 +15139,27 @@ literals to raw ROF (churn in a file every builder touches, and the "× 4"
 convention is documented at every line); leaving the mining rate (`mine`
 per tick) and our own AI cadences alone was deliberate: they are not
 rules.ini quotes.
+## RTS War Factory: the hall runs along the long axis and the door is at its END (2026-09-22)
+
+**Symptom.** Next to the RA2 rip, both War Factories looked wrong in plan: the
+Allied glazed vault crossed the SHORT side of its 5x3 plot with a wide empty
+deck beside it, and the Soviet gate faced down-left off the side of the hall.
+
+**Cause.** The art had been drawn MIRRORED on purpose, because the sim emitted a
+finished vehicle past the +gy face (`cy + gh/2 + 1`, down-left) and the mouth had
+to be where the unit appears. RA2's hall runs along the footprint's long axis
+(gw, down-right) with the ramp at its END. Mirroring a 5x3 building turns it
+into a 3x5 one, and the plot stayed 5x3, so the hall ended up crossing the plot.
+
+**Fix.** The art and the sim moved together. `factory.js` maps the drawing's hall
+axis to gx, with each axis scaled to its own side of the plot. The new
+`production.js doorTile(g, b)` puts a War Factory's door past the +gx face,
+level with the hall (`cx + gw/2 + 1, cy`). Vehicle emission and `makeRally` both
+use it; Barracks and Cloning Vats keep their +gy door. `rts-factory-exit.test.js`
+went red on the old door and green on the new one. Moving the door re-rolls
+seeded AI matches, so two pinned seeds in `rts.test.js` were re-recorded, each
+after an 8-seed measurement showing the outcome rate did not drop.
+
+**Rejected.** Keeping the mirror and redrawing only the colours: it cannot reach
+RA2's plan. Swapping the footprint to 3x5 is also rejected, because RA2's
+Foundation= is 5x3 and placement would change for every player.
