@@ -15110,6 +15110,20 @@ a third of the wall-clock time (a 10-game-minute nuke is 3:20 at the default
 step), exactly as RA2's frame-counted timers do at 45 FPS; the HUD clock
 shows real seconds left.
 
+**Match pacing** (`tools/match-shape-soak.js --jobs 28`, 126 AI matches,
+30-min cap, v1.21.0 vs the rescale alone): decided by destruction 61% ->
+78%, median decided match 23.7 -> 13.2 min, Hard bank at 10:00 14.0k ->
+0.7k (a Hard AI can now spend what it earns), Hard superweapon by 20:00
+58% -> 1% (the silo gate waited for a $3000 bank a busy lane never
+reaches; the difficulty-curve commit gives Hard its own `swBank`).
+
+Then the difficulty curve (`DIFF` buildMul/noSuper/qMin/factBank/refArmy/
+swAt/swBank): destruction 67% (easy-vs-easy is the undecided third: 8 of 42
+Easy mirrors end by destruction, Normal 35/42, Hard 41/42), Easy 0%
+superweapons, Hard bank 0.4k, army at 10:00 18.0 / 23.9 / 19.9 units but
+6.9k / 8.4k / 9.9k by value (Hard buys tanks, not riflemen). Hard's
+superweapon stayed at 0% and is open.
+
 **Why timers and not movement:** the literals stay legible. Every ROF in
 `roster.js` is still "rules.ini ROF × 4" and every build time is still
 rules.ini game-seconds, next to the rules.ini line it quotes; only the use
