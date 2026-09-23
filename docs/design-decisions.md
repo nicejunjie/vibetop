@@ -15974,18 +15974,20 @@ scroll-pocket code manages the effect outside page CSS. This diagnosis comes
 from the screenshots and WebKit behavior; it still needs an iOS 27 device
 check after deployment.
 
-**Fix.** In iOS 27 standalone mode only, reserve 32 CSS pixels at the top of
-the fixed-height shell. The native effect then covers an empty dark strip
-instead of the usage strip or the active iframe's first controls. `apph.js`
-already handles standalone detection, including the post-login false-negative,
-so it also sets the clearance class. Detect Safari's `Version/27` token rather
-than `OS 27`: Safari freezes its OS token at `18_*`. The reserved area remains
-inside the measured shell height, so the bottom taskbar stays on-screen.
+**Fix under device review.** In iOS 27 standalone mode only, a fixed, full-width
+11px element sits at the top of the shell. It declares the shell background
+color but `background-clip: text` on an empty element paints no pixels over
+the app. WebKit's fixed-color extension detection can use it to replace the
+status-bar scroll pocket's blur with a solid fill. It consumes no layout space
+and ignores touches. `apph.js` already handles standalone detection, including
+the post-login false-negative, so it also sets the class. Detect Safari's
+`Version/27` token rather than `OS 27`: Safari freezes its OS token at `18_*`.
+The mechanism comes from WebKit source and an independent iOS 27 device
+experiment, but this exact Vibetop change still needs checking on the
+operator's device.
 
-**Rejected.** Changing individual app headers would miss other screens and
-leave the shared status-bar effect in place. A fixed overlay at the top may
-change the scroll-pocket tint, but WebKit's hard top-edge effect can remain
-visible even with a fixed color-extension view; it is not a reliable way to
-keep interactive text sharp. Changing the PWA status-bar style or viewport
-height would risk the separately documented iOS status-bar and bottom-band
-bugs.
+**Rejected.** The first deployed attempt reserved 32 CSS pixels above every
+screen. It hid the blur behind a blank strip, but wasted scarce phone space;
+the operator rejected it. Changing individual app headers would miss other
+screens. Changing the PWA status-bar style or viewport height would risk the
+separately documented iOS status-bar and bottom-band bugs.

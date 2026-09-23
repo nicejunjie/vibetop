@@ -158,9 +158,16 @@
     background: #0e1117; font-family: system-ui, sans-serif; color: #e0e0e0;
     display: flex; flex-direction: column; position: relative;
   }
-  /* iOS 27's native top scroll-edge effect blurs the first controls in an
-     installed web app. Reserve that strip inside the fixed-height shell. */
-  html.ios27-standalone body { padding-top: 32px; }
+  /* A fixed color-extension candidate tells iOS 27 to fill its status-bar
+     scroll pocket instead of blurring the first controls. background-clip:text
+     makes this empty element paint no pixels over the app. */
+  #ios27-top-edge { display: none; }
+  html.ios27-standalone #ios27-top-edge {
+    display: block; position: fixed; top: 0; left: 0; right: 0; height: 11px;
+    z-index: 2147483647; pointer-events: none;
+    background-color: #0e1117;
+    -webkit-background-clip: text; background-clip: text;
+  }
   #auth-expired {
     margin: auto; width: min(360px, calc(100% - 32px)); padding: 24px;
     border: 1px solid #303d50; border-radius: 16px;
@@ -1165,6 +1172,7 @@
   <script src="/apph.js"></script>
 </head>
 <body>
+  <div id="ios27-top-edge" aria-hidden="true"></div>
   <dialog id="auth-expired" aria-labelledby="auth-expired-title" aria-describedby="auth-expired-desc">
     <h2 id="auth-expired-title">Session expired</h2>
     <p id="auth-expired-desc">Sign in again to reconnect to Vibetop.</p>

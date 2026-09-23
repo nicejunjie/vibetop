@@ -6,7 +6,7 @@ const vm = require('node:vm');
 
 const source = fs.readFileSync(path.join(__dirname, 'apph.js'), 'utf8');
 
-function topClearanceClass(version, standalone) {
+function topEdgeClass(version, standalone) {
   const classes = new Set();
   const navigator = {
     userAgent: `Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 Version/${version} Mobile/15E148 Safari/604.1`,
@@ -32,8 +32,8 @@ function topClearanceClass(version, standalone) {
   return classes.has('ios27-standalone');
 }
 
-test('top blur clearance applies only to iOS 27 installed web apps', () => {
-  assert.equal(topClearanceClass('27.0', true), true);
-  assert.equal(topClearanceClass('27.0', false), false);
-  assert.equal(topClearanceClass('26.6.1', true), false);
+test('top-edge mitigation applies only to iOS 27 installed web apps', () => {
+  assert.equal(topEdgeClass('27.0', true), true);
+  assert.equal(topEdgeClass('27.0', false), false);
+  assert.equal(topEdgeClass('26.6.1', true), false);
 });

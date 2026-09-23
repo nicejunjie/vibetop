@@ -31,15 +31,15 @@
                  window.navigator.standalone === true;
   } catch (e) {}
   var root = document.documentElement;
-  // iOS 27 paints a scroll-edge blur over the first ~30px below the status bar
-  // in Home Screen web apps. Keep the shell's first controls below that region.
+  // iOS 27 paints a scroll-edge blur over the first controls in Home Screen
+  // web apps. Mark the shell for a fixed color-extension candidate at the top.
   // Safari 26+ freezes the OS part of its UA at 18_*, so use Version/27 instead.
   var ios27 = /(?:iPhone|iPad|iPod)/.test(navigator.userAgent) &&
               /\bVersion\/27(?:\.|\b)/.test(navigator.userAgent);
-  function syncTopClearance() {
+  function syncTopEdge() {
     root.classList.toggle('ios27-standalone', ios27 && standalone);
   }
-  syncTopClearance();
+  syncTopEdge();
 
   // Do NOT bail on the standalone probe alone. `svh` is the one metric iOS has been
   // caught freezing (see the header), and on the first load back from the Cloudflare
@@ -72,7 +72,7 @@
   // of checks are enough and re-running after activation costs nothing.
   function activateIfFrozen() {
     if (standalone) return;
-    if (svhFrozen()) { standalone = true; syncTopClearance(); apply(); }
+    if (svhFrozen()) { standalone = true; syncTopEdge(); apply(); }
   }
   if (!standalone && !force) {
     if (document.readyState === 'loading') {
