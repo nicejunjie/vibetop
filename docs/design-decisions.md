@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_322 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_323 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
 - [Scheduled terminal messages ("resume when the token limit resets")](#scheduled-terminal-messages-resume-when-the-token-limit-resets)
@@ -345,6 +345,7 @@ _322 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [RTS structure material pass: one post-process, and the structures it must not tone (2026-09-22)](#rts-structure-material-pass-one-post-process-and-the-structures-it-must-not-tone-2026-09-22)
 - [RTS game speed: movement runs ~3x fast against every timer, and the RA2 default is unsettled](#rts-game-speed-movement-runs-3x-fast-against-every-timer-and-the-ra2-default-is-unsettled)
 - [Seven days of metrics in 930KB, and why the process list is not in it](#seven-days-of-metrics-in-930kb-and-why-the-process-list-is-not-in-it)
+- [RTS Tesla Trooper: a value gamma matched the rip's median by crushing every material (2026-09-22)](#rts-tesla-trooper-a-value-gamma-matched-the-rips-median-by-crushing-every-material-2026-09-22)
 
 <!-- END TOC -->
 
@@ -15070,3 +15071,28 @@ I nearly read as product defects: one queue answered both endpoints, so the
 history fetch ate a status payload; and one fixture object was returned for
 every fetch, so the page's own `push()` mutated it. `response.json()` yields a
 fresh object each call, and the harness now does too.
+
+## RTS Tesla Trooper: a value gamma matched the rip's median by crushing every material (2026-09-22)
+
+**Symptom.** The Tesla Trooper read as a robot with dark legs and a big red
+chest slab, although `teslatrooper.js` paints #c0c0c0 steel greaves and a
+#d7d7d7 silver shell. Baked, the greaves came out #626262 and the thighs
+#141922, near-black.
+
+**Cause.** `INF_VALUE.teslatrooper` was 3.00, a per-kind gamma "measured onto
+the rip's median brightness". A gamma moves every material together: RA2's
+trooper is dark (a navy suit) with bright silver legs and helmet, so the only
+way one curve reaches his median is by dragging the silver down with the suit.
+The median matched and the materials were gone.
+
+**Fix.** Gamma 1.00, and the dark authored per material: a navy suit, sleeves
+and thighs from the infantry palette ramp (#252f44 / #3d495c / #65748a),
+silver knee caps and greaves with a lit edge, and the owner colour as a
+mantle over the shoulders and upper chest plus a belt, rather than a
+full-torso slab. The prone and death cloth in `infGroundCloth` had been chosen
+pale (#999999 / #d0d0d0) *because* the gamma darkened them; they follow the
+suit now. Pinned by `rts-vehicle-material.test.js`.
+
+**Rejected.** Lowering the gamma to about 2: the greaves get lighter only as
+fast as the suit does, so the figure stays one grey value. Any unit whose rip
+pairs a dark and a bright material needs materials, not a curve.
