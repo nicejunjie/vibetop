@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_331 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_332 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
 - [Scheduled terminal messages ("resume when the token limit resets")](#scheduled-terminal-messages-resume-when-the-token-limit-resets)
@@ -354,6 +354,7 @@ _331 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [RTS: the loading bar shows the page-load bake, and the test hooks wait for it](#rts-the-loading-bar-shows-the-page-load-bake-and-the-test-hooks-wait-for-it)
 - [RTS N seats: a two-seat game has no team array, and that is what keeps it identical (2026-09-22)](#rts-n-seats-a-two-seat-game-has-no-team-array-and-that-is-what-keeps-it-identical-2026-09-22)
 - [RTS cliffs: sloped faces in their own pass, chamfered corners (2026-09-22)](#rts-cliffs-sloped-faces-in-their-own-pass-chamfered-corners-2026-09-22)
+- [RTS map size is per map, drawn in 64-board design coordinates (2026-09-22)](#rts-map-size-is-per-map-drawn-in-64-board-design-coordinates-2026-09-22)
 
 <!-- END TOC -->
 
@@ -15376,3 +15377,39 @@ raised interior. The simulation is untouched (`sim-identity` diff empty).
 neighbour would need to know every cliff shape above it, multiplying the ground
 atlas); a whole-map pre-rendered cliff layer (memory per map, and it would not
 re-shade with theatre changes).
+## RTS map size is per map, drawn in 64-board design coordinates (2026-09-22)
+
+**Symptom.** Every Iron Frontier map was 64x64 (`world.js` `MAP = 64`). The
+fields were 87% mined by 20:00 and bases sat two screens apart; plan 2.1 asks
+for RA2-scale 1v1 maps and 2.4 for 4- and 6-player boards.
+
+**Cause.** `MAP` is one global read at ~150 sites (typed arrays, shroud,
+minimap, pathing, camera clamp, generators), and every generator hard-coded
+coordinates on the 64 board.
+
+**Fix.** `MAP` stays one global, but `newState` sets it from `MAPS[id].size`
+(`setMapSize`) before any array is allocated, stores it as `g.W`, and `setG()`
+restores it whenever the current match changes, because the map-picker
+thumbnails and a second lockstep client both build a `newState` while another
+match is live. Load-time caches sized by `MAP` (`SHR.near` in render, the
+minimap source canvas and `mmK`) resize lazily. `__rtsTables.MAP` is now a live
+getter. The generators keep their authored 64-board numbers and map them
+through `S(c) = (c + 0.5) * MK - 0.5` (`MK = MAP / 64`), which puts the design
+mirror centre 31.5 exactly on `(MAP-1)/2`. Radii scale, but walls, ramps and
+bridge lanes do not: a chokepoint that grows with the map stops being a
+chokepoint. Home fields are laid per start, relative to the direction that
+start faces, so corner, edge and mirrored starts open identically. Each map
+lists `starts` as MIRROR PAIRS, so a two-seat game always takes pair 0 and
+stays fair. Four-player boards set `g.sym4`, which makes every feature and ore
+write four-fold.
+
+**Sizes.** 112 for a 1v1 (3.06x the cells; start-to-start 121 cells), 96 for
+Chokepoint (it is meant to be tight), 128 for Coastal and the 4-player maps,
+144 for 6-player. Measured on this machine: A* averages 1.4-2.9 ms per call at
+112-144, against 0.7-1.3 ms at 64. Start-to-start worst case is 10 ms, and the
+path queue already spreads calls across ticks.
+
+**Rejected.** Upsampling the 64 generation by nearest neighbour: it doubles
+every cliff and ramp width and leaves the ore at the old count. Replacing
+`MAP` with `g.W` at every site: that is 150 edits across files other builders
+own, for no behaviour difference.
