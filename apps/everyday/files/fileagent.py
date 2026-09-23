@@ -52,6 +52,7 @@ import os
 import shutil
 import socket
 import stat as statmod
+import struct
 import subprocess
 import sys
 import tempfile
@@ -707,11 +708,150 @@ def op_trash_empty(_req):
     return {"ok": not errs, "removed": n, "error": errs[0] if errs else None}
 
 
+# ---- X11 window list --------------------------------------------------------
+# The desktop polls this every 4s to notice new GUI windows. It used to be
+# `wmctrl -l` forked from the MANAGER as this user, which cost 74ms a call:
+# subprocess's `user=` argument rules out posix_spawn, so Python falls back to
+# fork(), and forking the ~1GB manager copies its page tables. Measured on z20,
+# that single poll was 1.37% of a core, burnt almost entirely on process
+# creation — the X query itself is 0.4ms.
+#
+# It lives HERE, in the per-user daemon, rather than being done by root with the
+# user's cookie: window titles are user data (they carry file and document
+# names), and the rule this codebase keeps relearning is that anything reading
+# user data belongs to the process that IS the user, so Unix permissions stay
+# the fence. As a bonus there is no fork left to be expensive.
+#
+# The protocol subset needed is small: connect, authenticate with the display's
+# MIT-MAGIC-COOKIE, read _NET_CLIENT_LIST off the root window, then each
+# window's title.
+_X_MAX_WINDOWS = 256
+_X_MAX_TITLE = 512
+
+
+def _x_cookie(display):
+    """This user's MIT-MAGIC-COOKIE-1 for :<display>, or None."""
+    path = os.environ.get("XAUTHORITY") or os.path.join(
+        os.path.expanduser("~"), ".Xauthority")
+    try:
+        with open(path, "rb") as f:
+            data = f.read(1 << 20)
+    except OSError:
+        return None
+    want = str(display).encode()
+    i = 0
+    try:
+        while i + 2 <= len(data):
+            i += 2                                  # family
+            vals = []
+            for _ in range(4):                      # address, number, name, data
+                n = struct.unpack_from(">H", data, i)[0]
+                vals.append(data[i + 2:i + 2 + n])
+                i += 2 + n
+            if vals[2] == b"MIT-MAGIC-COOKIE-1" and vals[1] == want:
+                return vals[3]
+    except (struct.error, IndexError):
+        return None
+    return None
+
+
+def op_xwindows(req):
+    """{"op":"xwindows","display":N} -> {"ok":true,"windows":[{id,title}]}
+
+    An unreachable or not-yet-started display is NOT an error: it answers with
+    an empty list, exactly as the forked `wmctrl` did by failing. The desktop
+    polls this constantly and must not be taught to treat "no display yet" as a
+    fault."""
+    try:
+        display = int(req.get("display"))
+    except (TypeError, ValueError):
+        return {"ok": False, "error": "display must be a number", "code": "arg"}
+    if not 0 <= display <= 65535:
+        return {"ok": False, "error": "display out of range", "code": "arg"}
+    try:
+        return {"ok": True, "windows": _x_list(display)}
+    except Exception:
+        return {"ok": True, "windows": []}
+
+
+def _x_list(display):
+    pad = lambda b: b + b"\0" * (-len(b) % 4)
+    cookie = _x_cookie(display) or b""
+    name = b"MIT-MAGIC-COOKIE-1" if cookie else b""
+    s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    s.settimeout(3.0)
+    try:
+        s.connect("/tmp/.X11-unix/X%d" % display)
+        s.sendall(struct.pack("<BxHHHHxx", 0x6c, 11, 0, len(name), len(cookie))
+                  + pad(name) + pad(cookie))
+        head = _recv_exact(s, 8)
+        if head[0] != 1:                            # 0 = refused, 2 = auth needed
+            return []
+        body = _recv_exact(s, struct.unpack_from("<H", head, 6)[0] * 4)
+        vendor_len = struct.unpack_from("<H", body, 16)[0]
+        nformats = body[21]
+        off = 32 + (vendor_len + 3) // 4 * 4 + 8 * nformats
+        root = struct.unpack_from("<I", body, off)[0]
+
+        def reply(payload):
+            s.sendall(payload)
+            h = _recv_exact(s, 32)
+            extra = struct.unpack_from("<I", h, 4)[0] * 4
+            return h, (_recv_exact(s, extra) if extra else b"")
+
+        def atom(nm):
+            h, _ = reply(struct.pack("<BBHHxx", 16, 0, 2 + (len(nm) + 3) // 4,
+                                     len(nm)) + pad(nm))
+            return struct.unpack_from("<I", h, 8)[0]
+
+        def prop(win, a):
+            if not a:
+                return b""
+            h, b = reply(struct.pack("<BBHIIIII", 20, 0, 6, win, a, 0, 0, 1 << 16))
+            fmt = h[1]
+            n = struct.unpack_from("<I", h, 16)[0]
+            return b[:n * (fmt // 8)] if fmt else b""
+
+        raw = prop(root, atom(b"_NET_CLIENT_LIST"))
+        ids = struct.unpack("<%dI" % (len(raw) // 4), raw)[:_X_MAX_WINDOWS]
+        utf8, legacy = atom(b"_NET_WM_NAME"), atom(b"WM_NAME")
+        desktop = atom(b"_NET_WM_DESKTOP")
+        out = []
+        for w in ids:
+            # `wmctrl -l` printed a desktop column and the caller skipped -1 —
+            # the WM's own sticky/desktop pseudo-windows. _NET_CLIENT_LIST has
+            # no such column, so ask each window for it and keep the same
+            # filter rather than quietly letting those windows appear.
+            d = prop(w, desktop)
+            if len(d) >= 4 and struct.unpack_from("<I", d, 0)[0] == 0xFFFFFFFF:
+                continue
+            title = prop(w, utf8) or prop(w, legacy)
+            out.append({"id": "0x%08x" % w,
+                        "title": title[:_X_MAX_TITLE].decode("utf-8", "replace")})
+        return out
+    finally:
+        try:
+            s.close()
+        except OSError:
+            pass
+
+
+def _recv_exact(s, n):
+    buf = bytearray()
+    while len(buf) < n:
+        chunk = s.recv(n - len(buf))
+        if not chunk:
+            raise OSError("short read from X server")
+        buf.extend(chunk)
+    return bytes(buf)
+
+
 OPS = {"home": op_home, "list": op_list, "stat": op_stat, "usage": op_usage,
        "read": op_read, "mkdir": op_mkdir, "rename": op_rename, "move": op_move,
        "copy": op_copy, "delete": op_delete, "search": op_search,
        "hash": op_hash, "trash": op_trash, "trashList": op_trash_list,
-       "untrash": op_untrash, "trashEmpty": op_trash_empty}
+       "untrash": op_untrash, "trashEmpty": op_trash_empty,
+       "xwindows": op_xwindows}
 
 
 # ---- phase 2: streaming (upload / download / zip) ---------------------------

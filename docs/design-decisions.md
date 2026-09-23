@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_345 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_346 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
 - [Scheduled terminal messages ("resume when the token limit resets")](#scheduled-terminal-messages-resume-when-the-token-limit-resets)
@@ -368,6 +368,7 @@ _345 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [RTS: a thick owner-colour part erodes to steel unless seams break it up (2026-09-23)](#rts-a-thick-owner-colour-part-erodes-to-steel-unless-seams-break-it-up-2026-09-23)
 - [RTS: every splash weapon reads its warhead's PercentAtMax (2026-09-23)](#rts-every-splash-weapon-reads-its-warheads-percentatmax-2026-09-23)
 - [RTS e2e: the dock-click test walled its miner into a rock outcrop (2026-09-23)](#rts-e2e-the-dock-click-test-walled-its-miner-into-a-rock-outcrop-2026-09-23)
+- [The window poll forked a 1GB process to read one X property](#the-window-poll-forked-a-1gb-process-to-read-one-x-property)
 
 <!-- END TOC -->
 
@@ -15768,3 +15769,69 @@ and bank, against 31/37 before.
 
 **Rejected.** Retrying the test or pinning a seed: the random layout is the
 coverage, and the bug was in the fixture, not the game.
+
+## The window poll forked a 1GB process to read one X property
+
+**Symptom.** The manager burnt **1.37% of a core** with nobody doing anything.
+The whole of it was `GET /api/x/windows`, which the desktop polls every 4s to
+notice new GUI windows — **74ms a call**, and returning an empty list, because
+nobody had an X11 app open.
+
+**Five hypotheses, four of them wrong**, each killed by its own measurement:
+
+1. *X11 isn't running, so skip the call.* — It **was** running
+   (`vibetop-ux11-junjie.service` active) and still had no windows. A
+   precondition check would have said "yes, it's up" and forked anyway. This
+   was my proposal, and the user's "why do we need to confirm X11 is open at
+   all?" is what killed it.
+2. *`wmctrl` is slow.* — 1.76ms standalone, `rc=0`, on the same display.
+3. *The display number is computed wrong.* — `:340`, identical to the unit's.
+4. *Forking a 1GB process is expensive.* — measured 0.09ms. **Hypothesis dead.**
+5. Except that test was wrong: it omitted `user=`, so it took the cheap
+   `posix_spawn` path.
+
+**Cause.** `subprocess.run(..., user=...)` rules out `posix_spawn`, so CPython
+falls back to `fork()` — and the manager had grown to ~1GB, so every call copied
+its page tables. Measured, holding `user=` constant:
+
+```
+RSS ~0 MB   ->  0.20 ms        ~600 MB  ->  6.59 ms
+RSS ~200 MB ->  2.45 ms        ~950 MB  ->  9.64 ms
+```
+
+The child pays it a second time: it inherits the 1GB and tears it down at exec.
+(The 1GB itself is a separate finding: `claude_stats`/`codex_stats` parse 4.2GB
+of JSONL at ~110MB peak each, retained per-arena across concurrent request
+threads. `MALLOC_ARENA_MAX=2` was **already set** on the unit — that lever is
+spent.)
+
+**Fix.** Stop forking. `wmctrl -l` does nothing a socket cannot: connect,
+authenticate with the display's MIT-MAGIC-COOKIE, read `_NET_CLIENT_LIST` off
+the root window, then each window's title. About 60 lines of X protocol.
+
+It lives in the **per-user file agent**, not in the manager. Root *can* do it —
+verified: `/tmp/.X11-unix/X340` is world-connectable and root reads the user's
+`.Xauthority` fine — but window titles are user data (they carry file and
+document names), and the rule this codebase keeps relearning is that anything
+reading user data belongs to the process that IS the user, so Unix permissions
+stay the fence rather than a branch in root's code.
+
+```
+forked wmctrl, from the manager   74 ms      1.37% of a core
+through the agent                 ~1 ms      ~0.02%
+```
+
+The agent path's cost does not depend on the manager's size at all, so the 1GB
+stops mattering here.
+
+**Two details kept rather than dropped.** `wmctrl -l` printed a desktop column
+and the caller skipped `-1` (sticky/WM pseudo-windows); `_NET_CLIENT_LIST` has
+no such column, so the agent reads `_NET_WM_DESKTOP` per window and applies the
+same filter. And an agent that will not start answers `{"windows": []}` rather
+than an error — that is what the forked wmctrl produced by failing, and a 4s
+poll must not raise alarms for a display that simply is not up yet.
+
+**Rejected: moving activate/close too.** Those fork as well, but they run when
+someone *clicks* — a handful of times a session. The fork cost that made a 4s
+poll untenable is irrelevant there, and teaching the agent to send
+`ClientMessage`s buys nothing measurable.
