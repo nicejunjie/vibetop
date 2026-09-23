@@ -3164,7 +3164,17 @@ WALL_POWER_RETRY = 3.0
 # wattage. Ten seconds is ~2 heartbeats or 5 Monitor frames: long enough that a
 # closed-then-reopened Monitor or a single retry does not blink the row, short
 # enough that a plug which went quiet stops being drawn as though it were live.
-WALL_POWER_MAX_AGE = 10.0
+# How long PAST the freshness a caller asked for we keep serving its last
+# reading before calling it unknown. A fixed cutoff cannot work now that
+# callers ask for different rates: at 10s absolute, a consumer refreshing every
+# 60s would have a valid reading for 10 of every 60 seconds and show "--" for
+# the other 50. The honest rule is "one missed refresh, plus a little", which
+# scales with whatever that caller asked for.
+WALL_POWER_GRACE = 10.0
+
+
+def _wall_max_age(fresh):
+    return fresh + WALL_POWER_GRACE
 
 # How fresh the WALL figure has to be for a consumer that is not the Monitor.
 #
@@ -3175,10 +3185,18 @@ WALL_POWER_MAX_AGE = 10.0
 # was older than 1s and so fetched. With two desktops open that was 24 requests
 # a minute to the plug, and it scaled with the number of devices.
 #
-# Asking for 5s makes the strip cost at most one fetch per 5s NO MATTER how many
-# devices are watching, while the Monitor's own poll still gets 1s. Kept well
-# under WALL_POWER_MAX_AGE so a strip-only host never withholds the row.
-WALL_POWER_STRIP_FRESH = 5.0
+# Asking for 60s makes the strip cost at most one fetch per MINUTE no matter how
+# many devices are watching, while the Monitor's own poll still gets 1s.
+#
+# 60s is safe because of what the plug keeps: every reply carries the last three
+# per-minute means, of which two are complete (measured: `by_minute` has 3
+# entries covering 120s back from `minute_ts`). So a once-a-minute poll still
+# reconstructs every completed minute — twice over — and the history has no hole
+# in it. What is lost is the 1Hz detail between polls, which nobody is watching.
+#
+# The visible cost: the taskbar's wattage now updates once a minute rather than
+# every five seconds.
+WALL_POWER_STRIP_FRESH = 60.0
 
 
 # The chart's own window: 60 slots of 2s = the last two minutes, matching the
@@ -3321,7 +3339,7 @@ def _wall_power_w(fresh=WALL_POWER_FRESH):
     # Liveness is judged on OUR clock ("are we still hearing from it"), never on
     # the device's. A plug with a wrong clock must not be able to declare itself
     # permanently fresh — or permanently stale.
-    if time.time() - sample.get("fetched", 0.0) > WALL_POWER_MAX_AGE:
+    if time.time() - sample.get("fetched", 0.0) > _wall_max_age(fresh):
         return None
     return sample.get("w")
 
@@ -3350,9 +3368,11 @@ METRICS_STEP = metrics_history.TIERS[0][1]      # the fine tier's 2s bucket
 # Nearly all of it was a thread plus an HTTP round-trip to a small board on the
 # LAN, twice a second, forever, for a chart nobody had open.
 #
-# 30s keeps a useful overnight trace — two samples per 60s coarse bucket, which
-# is what a 7-day view reads — for 0.004% of a core.
-METRICS_IDLE_STEP = 30.0
+# 60s matches the coarse tier exactly: one sample per 60s bucket, which is the
+# resolution a 7-day view reads anyway, so nothing a week-old chart can show is
+# lost. It also matches what the plug itself keeps (two complete per-minute
+# means per reply), so the wall figure has no hole either.
+METRICS_IDLE_STEP = 60.0
 METRICS_WATCH_GRACE = 15.0     # > the desktop heartbeat's 5s, with slack
 
 _hist_lock = threading.Lock()

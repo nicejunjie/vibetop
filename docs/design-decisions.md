@@ -15037,6 +15037,20 @@ the design:
   two desktops, and it scaled with the device count. `WALL_POWER_STRIP_FRESH`
   caps that at one fetch per 5s no matter how many people are watching. When
   several consumers share a memo, freshness belongs to the CALLER, not the key.
+- **Both idle rates are 60s, and the ceiling is the device's memory.** Every
+  plug reply carries the last three per-minute means, two complete — 120s of
+  reconstructable history. A once-a-minute poll recovers every completed minute
+  twice over, so slowing down costs 1Hz detail nobody is watching and costs the
+  record nothing. Past 120s the buffer can no longer reach what we missed and
+  gaps become permanent, so that number is pinned in a test. 60s also matches
+  the coarse tier exactly: one sample per bucket, which is the resolution a
+  7-day chart reads anyway.
+- **A staleness cutoff must scale with the freshness its caller asked for.** The
+  fixed 10s became wrong the moment callers differed: a 60s consumer would hold
+  a valid reading for 10 seconds in every 60 and blank the row for the other 50.
+  `_wall_max_age(fresh) = fresh + WALL_POWER_GRACE` — "one missed refresh, plus
+  a little" — which is the same figure for the Monitor as before and the right
+  one for everybody else.
 
 **One rendering change falls out of the slower idle sampling.** `drawChart`
 skipped runs of length one, because a line needs two points. With the recorder

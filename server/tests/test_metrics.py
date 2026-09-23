@@ -198,7 +198,7 @@ def test_wall_power_withholds_a_stale_sample(mgr, wall):
     disappear, not freeze the last wattage on screen looking live."""
     import time
     wall({"w": 42.5, "at": 1790000000,
-          "fetched": time.time() - (mgr.WALL_POWER_MAX_AGE + 1)})
+          "fetched": time.time() - (mgr._wall_max_age(mgr.WALL_POWER_FRESH) + 1)})
     assert mgr._wall_power_w() is None
 
 
@@ -206,7 +206,7 @@ def test_wall_power_survives_one_missed_refresh(mgr, wall):
     """The staleness cut must sit clear of the refresh interval, or a single
     slow poll would blink the row out."""
     import time
-    assert mgr.WALL_POWER_MAX_AGE > mgr.WALL_POWER_FRESH * 2
+    assert mgr._wall_max_age(mgr.WALL_POWER_FRESH) > mgr.WALL_POWER_FRESH * 2
     wall({"w": 42.5, "at": 1790000000,
           "fetched": time.time() - (mgr.WALL_POWER_FRESH + 1)})
     assert mgr._wall_power_w() == 42.5
@@ -254,7 +254,7 @@ def test_status_payload_omits_wall_power_when_stale(mgr, wall, monkeypatch):
     would render it as a live one."""
     import time
     wall({"w": 137.4, "at": 1790000000,
-          "fetched": time.time() - (mgr.WALL_POWER_MAX_AGE + 1)})
+          "fetched": time.time() - (mgr._wall_max_age(mgr.WALL_POWER_FRESH) + 1)})
     assert "wall_power_w" not in _status_payload(mgr, monkeypatch)
 
 
@@ -321,9 +321,9 @@ def test_wall_power_retry_floor_is_short_enough_to_recover_within_max_age(mgr):
     """The three constants have to agree, or a single failed sample ages the
     reading past MAX_AGE before the retry floor even lifts — and the row blanks
     for the whole difference. Sized so a blip costs at most one retry."""
-    assert mgr.WALL_POWER_RETRY < mgr.WALL_POWER_MAX_AGE
+    assert mgr.WALL_POWER_RETRY < mgr._wall_max_age(mgr.WALL_POWER_FRESH)
     assert mgr.WALL_POWER_FRESH <= mgr.WALL_POWER_RETRY
-    assert mgr.WALL_POWER_RETRY * 2 < mgr.WALL_POWER_MAX_AGE, \
+    assert mgr.WALL_POWER_RETRY * 2 < mgr._wall_max_age(mgr.WALL_POWER_FRESH), \
         "two consecutive failures must still fall inside the staleness window"
 
 
@@ -445,7 +445,8 @@ def test_status_payload_carries_the_series_even_when_the_reading_is_stale(
     hides exactly what the history exists to show."""
     import time
     mgr._wall_note(_s(T0 + 10, 90.0, fetched=time.time() - 40))
-    wall(_s(90.0, 90.0, fetched=time.time() - (mgr.WALL_POWER_MAX_AGE + 1)))
+    wall(_s(90.0, 90.0,
+              fetched=time.time() - (mgr._wall_max_age(mgr.WALL_POWER_FRESH) + 1)))
     body = _status_payload(mgr, monkeypatch)
     assert "wall_power_w" not in body, "the stale scalar is withheld"
     assert body["wall_series"]["w"], "but the series still describes the window"
@@ -483,15 +484,15 @@ def test_the_taskbar_strip_does_not_set_the_plugs_rate(mgr, wall, hist, monkeypa
                 "started": 0.0}
         started.clear()
 
-    age(3.0)
+    age(30.0)
     assert mgr._wall_power_w(mgr.WALL_POWER_STRIP_FRESH) == 12.0
-    assert started == [], "a 3s-old reading is fine for a 5s strip — no fetch"
+    assert started == [], "a 30s-old reading is fine for a once-a-minute strip"
 
-    age(3.0)
+    age(30.0)
     assert mgr._wall_power_w() == 12.0
     assert len(started) == 1, "but the Monitor's own poll still refreshes at 1s"
 
-    age(6.0)
+    age(mgr.WALL_POWER_STRIP_FRESH + 1)
     mgr._wall_power_w(mgr.WALL_POWER_STRIP_FRESH)
     assert len(started) == 1, "past its own freshness the strip does refresh"
 
@@ -531,11 +532,36 @@ def test_both_heartbeat_paths_use_the_strip_freshness(mgr):
     assert len(bare) + len(strip) == len(calls), f"unexpected argument in {calls}"
 
 
-def test_the_strip_freshness_still_serves_a_live_row(mgr):
-    """A host where ONLY the strip is watching must never withhold the reading
-    for being stale — that would blank the WALL row on an idle desktop."""
-    assert mgr.WALL_POWER_STRIP_FRESH < mgr.WALL_POWER_MAX_AGE
+def test_the_idle_rate_never_outruns_what_the_plug_remembers(mgr):
+    """Polling once a minute is only safe because the plug hands back the last
+    three per-minute means, two of them complete — 120s of reconstructable
+    history, measured against the real device. Slow the idle cadence past that
+    and every gap becomes permanent: the buffer can no longer reach back far
+    enough to fill what we did not watch."""
+    PLUG_BUFFER_SECONDS = 120          # by_minute: 3 entries, index 0 in progress
+    assert mgr.METRICS_IDLE_STEP <= PLUG_BUFFER_SECONDS
+    assert mgr.WALL_POWER_STRIP_FRESH <= PLUG_BUFFER_SECONDS
+    # And the idle sample must line up with the tier a week-long view reads, or
+    # the coarse buckets are built from fewer samples than they could be.
+    import metrics_history
+    coarse_step = [t for t in metrics_history.TIERS if t[0] == "coarse"][0][1]
+    assert mgr.METRICS_IDLE_STEP <= coarse_step, \
+        "a coarse bucket must get at least one sample"
+
+
+def test_a_slow_consumer_still_gets_a_live_row(mgr):
+    """The staleness cutoff has to scale with what the caller asked for. At a
+    fixed 10s, a consumer refreshing once a minute would hold a valid reading
+    for 10 seconds of every 60 and show "--" for the other 50 — the WALL row
+    blinking out on an idle desktop for no reason."""
+    for fresh in (mgr.WALL_POWER_FRESH, mgr.WALL_POWER_STRIP_FRESH):
+        assert mgr._wall_max_age(fresh) > fresh, \
+            f"a reading must outlive the interval it was fetched on ({fresh}s)"
     assert mgr.WALL_POWER_STRIP_FRESH > mgr.WALL_POWER_FRESH
+    # And the grace must still be short enough that a plug which went quiet
+    # stops being drawn as live within a sensible time of its own cadence.
+    assert mgr._wall_max_age(mgr.WALL_POWER_STRIP_FRESH) < \
+        mgr.WALL_POWER_STRIP_FRESH * 2
 
 
 # --- the 7-day metrics recorder (manager side) -------------------------------

@@ -81,13 +81,16 @@ charts stay live at every span** — they are "now", not history.
   into the open bucket, so while anyone is watching the recorder costs *nothing*.
   Only a bucket that would close empty makes the ticker collect one itself, and
   then it asks for the cheap nine tenths (`want_procs=False`).
-- **An unwatched host is sampled every 30s, not every 2s.** "Watched" means the
+- **An unwatched host is sampled every 60s, not every 2s.** "Watched" means the
   **Monitor** polled `/api/system/status` within 15s — and only that. The
   desktop heartbeat also collects a status payload, every 5s, to fill the
   taskbar's stats strip; that one feeds the ring for free but is NOT demand,
   because a 5s strip does not need 2s samples. Counting it kept the recorder —
   and through it the smart plug — at the full rate whenever any desktop was
-  open with the toggle on, which is most of the time. Nobody needs 2s resolution when nobody is looking, and the first
+  open with the toggle on, which is most of the time. **Pausing the Monitor
+  counts as closing it** — the page stops polling, so within
+  `METRICS_WATCH_GRACE` the host is unwatched again (measured: 21.6 plug
+  reads/min with it open, 6/min paused). Nobody needs 2s resolution when nobody is looking, and the first
   version's 2s sampling quietly undid the smart plug's demand-driven design: it
   became a caller that never stops. Measured on an idle host, 11 connections to
   the plug every 20s and **1.30% of a core**, of which the collection itself is
@@ -98,9 +101,20 @@ charts stay live at every span** — they are "now", not history.
   The strip rides a 5s heartbeat and shows a rounded wattage, but at the
   Monitor's 1s freshness every heartbeat was older than that and so fetched —
   24 requests a minute with two desktops open, **scaling with the number of
-  devices**. It now asks for `WALL_POWER_STRIP_FRESH` (5s), so the strip costs
-  at most one fetch per 5s however many people are looking, while the Monitor's
-  own poll still gets 1s.
+  devices**. It now asks for `WALL_POWER_STRIP_FRESH` (60s), so the strip costs
+  at most one fetch per MINUTE however many people are looking, while the
+  Monitor's own poll still gets 1s. The visible cost is that the taskbar's
+  wattage updates once a minute instead of every five seconds.
+- **60s is bounded by what the plug remembers, not by taste.** Every reply
+  carries the last three per-minute means, two of them complete — 120s of
+  reconstructable history (measured). A once-a-minute poll therefore still
+  recovers every completed minute, twice over, so the record has no hole; what
+  is lost is the 1Hz detail between polls, which nobody is watching. Slow it
+  past 120s and gaps become permanent.
+- **The staleness cutoff scales with the freshness each caller asked for**
+  (`_wall_max_age` = `fresh + WALL_POWER_GRACE`). A fixed 10s cannot work once
+  callers ask for different rates: a consumer refreshing every 60s would hold a
+  valid reading for 10 seconds of every 60 and show `--` for the other 50.
 - **The ticker wakes on the clock, 85% into each bucket** — not on a
   free-running `sleep(2)`, which drifts until one bucket gets two samples and
   the next gets none (measured: it plateaued at 40 of 60 slots, drawing spikes
