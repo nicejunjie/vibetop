@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_313 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_314 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
 - [Scheduled terminal messages ("resume when the token limit resets")](#scheduled-terminal-messages-resume-when-the-token-limit-resets)
@@ -336,6 +336,7 @@ _313 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [Wall power on the Monitor: a sensor that lives on the network](#wall-power-on-the-monitor-a-sensor-that-lives-on-the-network)
 - [The plug's address is a setting, not a deployment detail](#the-plugs-address-is-a-setting-not-a-deployment-detail)
 - [A terminal whose session daemon died flashed "reconnecting" forever (2026-09-22)](#a-terminal-whose-session-daemon-died-flashed-reconnecting-forever-2026-09-22)
+- [RTS game speed: movement runs ~3x fast against every timer, and the RA2 default is unsettled](#rts-game-speed-movement-runs-3x-fast-against-every-timer-and-the-ra2-default-is-unsettled)
 
 <!-- END TOC -->
 
@@ -14722,3 +14723,68 @@ row. A question worth asking directly is worth one boolean.
 - Tested: `server/tests/test_terminal_orphan_heal.py` (all five fail on the
   unfixed build). Sessions started before this deploy keep `OOMPolicy=stop` until
   they are restarted — the heal covers them, the policy doesn't.
+
+---
+
+## RTS game speed: movement runs ~3x fast against every timer, and the RA2 default is unsettled
+
+**Symptom:** at the default slider step (Fast, 60 ticks/s) a Grizzly crosses
+5 cells a second, and the improvement plan (1.4) suspected that was about twice
+RA2's speed.
+
+**Cause:** measured 2026-09-22 in the vm sandbox on flat ground, over 180 ticks
+after a 60-tick run-up (`.scratch/speed.js` pattern). Per-tick distance ×
+ticks/s (`ui/loop.js`: `opt.speed / 4` × 60 = 15 × step):
+
+| cells/s | step 1 (15 t/s) | 2 (30) | 3 (45) | **4 (60, default)** | 5 (75) | 6 (90) |
+|---|---|---|---|---|---|---|
+| Grizzly (0.0834/tick) | 1.25 | 2.50 | 3.75 | **5.00** | 6.26 | 7.51 |
+| GI (0.0494) | 0.74 | 1.48 | 2.22 | **2.96** | 3.71 | 4.45 |
+| Rhino (0.0724) | 1.09 | 2.17 | 3.26 | **4.34** | 5.43 | 6.51 |
+| Harrier (0.182) | 2.73 | 5.46 | 8.19 | **10.92** | 13.65 | 16.38 |
+| Chrono Miner (0.0497) | 0.75 | 1.49 | 2.24 | **2.98** | 3.73 | 4.47 |
+
+The RA2 figures below come from the sources plus some inference:
+- `rules.ini` Speed: `[MTNK]` 7, `[E1]` 4, `[HTNK]` 6, `[ORCA]` 14, `[CMIN]`
+  and `[HARV]` 4.
+- ModEnc *Speed*: internal speed = `min(min(Speed,100)*256/100, 255)`, in
+  leptons per frame, with 256 leptons to a cell.
+- `[General] GameSpeedBias=1.6` ("multiplier to overall game object movement
+  speed"). **Assumed** to multiply that value; no source states where it
+  applies.
+- ModEnc *Game Speed*: the frame caps for settings 6…0 are uncapped / 60 / 30 /
+  20 / 15 / 12 / 10 in single player, and 60 / 45 / 30 / 20 / 15 / 12 / 10 in
+  multiplayer.
+
+| cells/s | RA2 @30 FPS (setting 4) | @45 (MP 5) | @60 |
+|---|---|---|---|
+| Grizzly (17 lep × 1.6) | 3.19 | 4.78 | 6.38 |
+| GI (10 × 1.6) | 1.88 | 2.81 | 3.75 |
+| Rhino (15 × 1.6) | 2.81 | 4.22 | 5.63 |
+| Harrier (35 × 1.6) | 6.56 | 9.84 | 13.1 |
+| Miner (10 × 1.6) | 1.88 | 2.81 | 3.75 |
+
+Movement is internally consistent: every unit moves about 0.79 RA2-frames' worth
+per tick. So our default equals RA2 at about 47 FPS, close to the 45 FPS
+multiplayer "Fast". **Every timer is on a different base.** Weapon ROF is RA2
+frames × 4 (`[105mm] ROF=60` → 240 ticks, `[M60] 20` → 80), and build and
+reload times are in game-seconds (`BuildSpeed=.7`, `ReloadRate=.3`) at 60
+ticks each. Both correspond to RA2 at **15 FPS**. At the default step, then,
+units cover about 3.1× the ground per shot fired and per unit built that they
+would in RA2 at any single setting.
+
+**Fix:** none yet, on purpose. The brief says to change nothing when the sources
+conflict, and here they conflict twice:
+1. RA2's *default* skirmish speed: PCGamingWiki and Steam posts give 30 FPS
+   ("Normal"), while CnCNet players call 45 FPS "stock RA2 speed".
+2. Where `GameSpeedBias` applies is inferred.
+
+The honest fix is also bigger than a slider remap. Making movement and timers
+agree means either dividing every `spd` by about 3 (units crawl at today's
+60 t/s) or multiplying ticks/s by 2 to 3 and rescaling every ROF and build
+time. Both change balance everywhere and need the 126-match soak gate. Speed
+stays a fixed 60 Hz tick either way (determinism).
+
+**Rejected:** retuning only the default step's ticks/s. That moves movement and
+timers together, so it cannot fix a ratio that is wrong between them. Scaling
+`spd` alone without the soak is rejected too.
