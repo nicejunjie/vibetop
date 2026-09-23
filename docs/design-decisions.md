@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_343 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_345 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
 - [Scheduled terminal messages ("resume when the token limit resets")](#scheduled-terminal-messages-resume-when-the-token-limit-resets)
@@ -366,6 +366,8 @@ _343 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [RTS: Hard saved for its silo with no army standing (2026-09-23)](#rts-hard-saved-for-its-silo-with-no-army-standing-2026-09-23)
 - [RTS: the Soviet Construction Yard's centre block is a wedge, and its plate is chamfered (2026-09-23)](#rts-the-soviet-construction-yards-centre-block-is-a-wedge-and-its-plate-is-chamfered-2026-09-23)
 - [RTS: a thick owner-colour part erodes to steel unless seams break it up (2026-09-23)](#rts-a-thick-owner-colour-part-erodes-to-steel-unless-seams-break-it-up-2026-09-23)
+- [RTS: every splash weapon reads its warhead's PercentAtMax (2026-09-23)](#rts-every-splash-weapon-reads-its-warheads-percentatmax-2026-09-23)
+- [RTS e2e: the dock-click test walled its miner into a rock outcrop (2026-09-23)](#rts-e2e-the-dock-click-test-walled-its-miner-into-a-rock-outcrop-2026-09-23)
 
 <!-- END TOC -->
 
@@ -15711,3 +15713,58 @@ own quad in dark mortar.
 for both Construction Yards, including the Allied flukes and slots the rule
 was written for. Thinning the arm below the trim width: it then reads as the
 lattice boom it replaced.
+## RTS: every splash weapon reads its warhead's PercentAtMax (2026-09-23)
+
+**Symptom.** Wave 3 made the Demolition Truck and Terrorist blasts fall
+off to `PercentAtMax` at the rim of `CellSpread`. Every other area weapon
+(tank shells, V3, Kirov bombs, flak, the Dreadnought, the Grand Cannon)
+still dealt `0.45 * (1 - d / (splash + 0.4))` to anything beside the target,
+a curve that is in no rules.ini section. A Harrier's ORCAAP (`PercentAtMax=1`)
+did 45% or less to a neighbour instead of 100%, and a V3 did more at the rim
+than its `PercentAtMax=.25` allows. Several weapons also carried a radius
+that was not their warhead's `CellSpread` (flak AA 0.6 vs 1.0, the Mammoth's
+Tusk 0.2 vs 0.5, the Destroyer's ARTYHE 0.5 vs 1.0, the Dreadnought 1.2 vs
+[DMISLWH]'s 1.5, the IFV's Ivan charge 1.5 vs [CRNUKEWH]'s 5).
+
+**Cause.** The splash loop in `fire()` predated the rules pass, and the two
+other area paths (`fireGround`, `crashBoom`) copied it with their own
+constants.
+
+**Fix.** `WH_PAM` in `combat-tables.js` holds each warhead's `PercentAtMax`
+with its rules.ini line; `splashPam(spec)` reads it (a weapon's own `pam`
+wins, for the V3 whose Verses row is [HE] but whose warhead is [V3WH]);
+`splashAt(amt, pam, d, r)` is RA2's `1 - (1 - PercentAtMax) * d / CellSpread`.
+`fire()`, `fireGround()` and `crashBoom()` all use it, and every weapon's
+`splash` is its warhead's `CellSpread`. Test: `rts-splash.test.js` (a
+rules.ini table of 36 weapons, plus falloff ratios on the real `fire()`,
+`fireGround()` and `crashBoom()`), red on v1.23.0. Match-shape soak (126
+cells) before/after: decided by destruction 69% -> 74%, Hard nuke/storm by
+20:00 46% -> 38%, everything else within a few points.
+
+**Rejected.** Keying the radius off a warhead table instead of the weapon's
+`splash`: the V3 and the IFV modes borrow another warhead's Verses row, so
+the warhead name alone cannot say how far the blast reaches. A point
+weapon force-fired at the ground (splash 0) keeps its old 0.7-cell spot;
+RA2 has no falloff to copy there.
+
+## RTS e2e: the dock-click test walled its miner into a rock outcrop (2026-09-23)
+
+**Symptom.** `rts.spec.js` "clicking the dock a refinery DRAWS docks a
+part-loaded miner at THAT refinery" failed about one run in six ("miner
+reached a loaded, stale-clock mining stint" false, or "the miner never
+unloaded"), and passed 3/3 when run alone.
+
+**Cause.** Not load and not a sleep: every boot is a new seed, and the test
+spawned its War Miner at `ore + (1, 1)` without checking the tile. On about
+one seed in six that tile is inside the blocked outcrop beside the start
+seam, so the miner never moved (seed 777 reproduces it headless). The far
+refinery search also only looked up-left, and on some seeds every up-left
+seat is outside the build radius.
+
+**Fix.** The miner goes on the nearest unblocked tile by the seam, and the
+far-refinery search tries all four diagonals (up-left first, so the old
+layouts are unchanged). A 60-seed headless replay of the fixture: 60/60 stage
+and bank, against 31/37 before.
+
+**Rejected.** Retrying the test or pinning a seed: the random layout is the
+coverage, and the bug was in the fixture, not the game.
