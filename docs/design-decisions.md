@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_314 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_315 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
 - [Scheduled terminal messages ("resume when the token limit resets")](#scheduled-terminal-messages-resume-when-the-token-limit-resets)
@@ -337,6 +337,7 @@ _314 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [The plug's address is a setting, not a deployment detail](#the-plugs-address-is-a-setting-not-a-deployment-detail)
 - [A terminal whose session daemon died flashed "reconnecting" forever (2026-09-22)](#a-terminal-whose-session-daemon-died-flashed-reconnecting-forever-2026-09-22)
 - [RTS soak harnesses re-read the tree for every cell — snapshot before you edit (2026-09-22)](#rts-soak-harnesses-re-read-the-tree-for-every-cell-snapshot-before-you-edit-2026-09-22)
+- [RTS: a levelled structure lingers as a cosmetic ghost, not a delayed death (2026-09-22)](#rts-a-levelled-structure-lingers-as-a-cosmetic-ghost-not-a-delayed-death-2026-09-22)
 
 <!-- END TOC -->
 
@@ -14740,3 +14741,22 @@ row. A question worth asking directly is worth one boolean.
 - **Rejected: bundling once in the parent and passing the source to the
   children.** It would fix this, but it changes the harness shape that
   `sim-identity.js` shares. A snapshot costs one command.
+## RTS: a levelled structure lingers as a cosmetic ghost, not a delayed death (2026-09-22)
+
+- **Symptom:** a killed building vanished on the death tick; a 200 ms fireball
+  sat over a round bowl. RA2 keeps the sprite up for 1-2 s under a volley.
+- **Cause:** `killBld` both removes the building from the sim and starts the
+  effects, so the picture had no way to outlive the logical death.
+- **Fix:** the logical removal stays on the death tick; `killBld` (live only,
+  never headless) pushes a `ghost` fx holding the building and queues the
+  volley, the centre blast and the rubble (`t: -BLD_LINGER`) behind it. The
+  depth pass draws the ghost with the damaged art, shaking, charring and
+  burning. `sim-identity --quick` is byte-identical, and
+  `rts-effects.test.js` pins that a live kill and a headless kill hash the same.
+- **Rejected: delaying `b.dead`.** It would change the sim (targeting, power,
+  victory, score timing) and every pinned hash, for a purely visual need.
+- **Also:** effects (fire, smoke, blasts, craters, rubble, nuke, radiation) are
+  baked with `fxRaw` at one bitmap pixel per game pixel and snapped by
+  `fxQuant` to the 0x33 palette with three alpha steps, then drawn with
+  `imageSmoothingEnabled = false`. Baking through `mkCanvas` (DPR-scaled) and
+  drawing smoothed is what made them read as airbrush.
