@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_334 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_336 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
 - [Scheduled terminal messages ("resume when the token limit resets")](#scheduled-terminal-messages-resume-when-the-token-limit-resets)
@@ -357,6 +357,8 @@ _334 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [RTS map size is per map, drawn in 64-board design coordinates (2026-09-22)](#rts-map-size-is-per-map-drawn-in-64-board-design-coordinates-2026-09-22)
 - [RTS: an AI radius in cells silently died when the boards grew (2026-09-23)](#rts-an-ai-radius-in-cells-silently-died-when-the-boards-grew-2026-09-23)
 - [RTS: Hard never saved for its superweapon because it asked with the bank (2026-09-23)](#rts-hard-never-saved-for-its-superweapon-because-it-asked-with-the-bank-2026-09-23)
+- [RTS seats: an attack order outlived a mind-controlled target (2026-09-23)](#rts-seats-an-attack-order-outlived-a-mind-controlled-target-2026-09-23)
+- [RTS seats: a starved house held its army forever (2026-09-23)](#rts-seats-a-starved-house-held-its-army-forever-2026-09-23)
 
 <!-- END TOC -->
 
@@ -15470,3 +15472,42 @@ settling for the cheaper one. Tests: the three new cases in
 affordability rule is the human's too, and an AI that queues a $5000 silo on
 $2000 stalls the defence lane on hold for minutes. Lowering `swBank`: it was
 never read on the path that mattered.
+
+## RTS seats: an attack order outlived a mind-controlled target (2026-09-23)
+
+**Symptom.** The Six Oases 2v2v2 seat soak logged 15 friendly-fire hits
+(v1.22.0, seed 20276760): riflemen of seat 4 shooting a Rhino of seat 1, its
+ally.
+
+**Cause.** An ally's Yuri mind-controlled the enemy Rhino the squad was
+shooting. `mindControl()` clears the VICTIM's orders, but the squad's
+`order = { t: 'attack', id }` still named the hull, and `move.js` re-checked
+only `canHit`, not whose hull it now was.
+
+**Fix.** An attack order drops its target when that target is mind-controlled
+and is now ours or an ally's (`ordered.mcBy && allied(...)`). Test:
+`rts-seats-mc.test.js`, red on v1.22.0.
+
+**Rejected.** Dropping every order whose target is allied: a player's own
+force-fire on a friendly structure is legal and must keep working.
+
+## RTS seats: a starved house held its army forever (2026-09-23)
+
+**Symptom.** On the 4- and 6-seat boards, 7 of 30 seat-soak matches were
+unresolved at 45 minutes (v1.22.0). Metropolis FFA resolved 0 of 3. The
+survivors held 20-47 buildings and 4-26 units.
+
+**Cause.** Six houses mine a 144 board out by about minute 18 (probe:
+Metropolis ore 299k at 3:00, 31k from 21:00 on). After that, no side banks
+anything. Its miners and refineries still stand, so neither the `ruined` rule
+nor the no-economy concession (which needs no armed unit) applies. An army
+of about 20 never out-values the enemy's towers (`dv * 0.6`), so each house
+sat in `build` until the cap.
+
+**Fix.** `starved`: miners and a refinery standing, nothing banked for three
+minutes, and under $1500. The house then attacks with an army of
+`min(group, 6)` or more, like the `ruined` case. Test:
+`rts-ai-starved.test.js`, red on v1.22.0.
+
+**Rejected.** Lowering the concession to count armed units: that ends a match
+by rule rather than by destruction, which is the opposite of plan 1.1.
