@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_325 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_326 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
 - [Scheduled terminal messages ("resume when the token limit resets")](#scheduled-terminal-messages-resume-when-the-token-limit-resets)
@@ -348,6 +348,7 @@ _325 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [RTS game speed: one clock, RA2 at 45 FPS, by rescaling the timers (2026-09-22)](#rts-game-speed-one-clock-ra2-at-45-fps-by-rescaling-the-timers-2026-09-22)
 - [RTS War Factory: the hall runs along the long axis and the door is at its END (2026-09-22)](#rts-war-factory-the-hall-runs-along-the-long-axis-and-the-door-is-at-its-end-2026-09-22)
 - [RTS: `P` is RA2's CombatantSelect again; Pause moved to the Pause key](#rts-p-is-ra2s-combatantselect-again-pause-moved-to-the-pause-key)
+- [RTS countries: a side with no country keeps the pre-country game (2026-09-22)](#rts-countries-a-side-with-no-country-keeps-the-pre-country-game-2026-09-22)
 
 <!-- END TOC -->
 
@@ -15188,3 +15189,32 @@ pressed `p` to pause now press `Pause`.
   goes to `P`.
 - Selecting only the units on screen. That is `T` (TypeSelect) scoped to types.
   "The whole army" means the whole map.
+## RTS countries: a side with no country keeps the pre-country game (2026-09-22)
+
+**Symptom.** Gating Grand Cannon, Tesla Tank and Desolator by country (RA2's
+`RequiredHouses=`) changes what every recorded AI match builds, so every pinned
+simulation expectation in `rts.test.js` and the `sim-identity` gate would move
+at once — for a change that is about the setup screen.
+
+**Cause.** Dozens of harnesses (`__rtsSim`, `H.match`, `H.begin`, the balance
+tools) build a match with `newState` + a faction and never heard of countries.
+
+**Fix.** `g.side[p].country` is `null` unless something assigns it, and `null`
+means *unassigned*: every country unit stays open and no country power
+(America's `amerpara`) charges. Only the real entry points assign one —
+`startMatch` (the picker, or a seeded pick), `startNetMatch` (resolved on the
+host and carried in the match record as `cty`), and the hooks when asked
+(`__rtsSim` arguments[9], `match` `cfg.cty`). rts.test.js stayed 211/211 with
+nothing re-pinned. `tools/country-soak.js` is the gate that plays all nine.
+
+**Also.** The default country is `pickCountry(fac, seed, p)`, a hash of the
+match seed, not a draw from the match's rng — a draw would shift every later
+random number and desync a replay against a recording made without countries.
+New units borrow art through `rts/units/standins.js` (a typeof-guarded kind
+map read by `standinKind()` in `bake.js`) and voices through roster `voxAs`, so
+the real sprites and recorded lines can land without touching the rules.
+
+**Rejected.** Defaulting `null` to "no country units at all": correct for a
+real match, but it silently re-pins every recorded sim for no player-visible
+gain. Assigning a random country inside `newState`: consumes a random draw and
+would still change every harness's builds.
