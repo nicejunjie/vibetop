@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_335 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_338 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
 - [Scheduled terminal messages ("resume when the token limit resets")](#scheduled-terminal-messages-resume-when-the-token-limit-resets)
@@ -358,6 +358,9 @@ _335 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [RTS: the country layer must be read from RA2's rules.ini, not YR's rulesmd.ini (2026-09-23)](#rts-the-country-layer-must-be-read-from-ra2s-rulesini-not-yrs-rulesmdini-2026-09-23)
 - [RTS: the Soviet Construction Yard was drawn from its own destruction animation (2026-09-23)](#rts-the-soviet-construction-yard-was-drawn-from-its-own-destruction-animation-2026-09-23)
 - [RTS: desert cliffs were a recoloured lawn; urban cliffs were rock (2026-09-23)](#rts-desert-cliffs-were-a-recoloured-lawn-urban-cliffs-were-rock-2026-09-23)
+- [RTS: an AI radius in cells silently died when the boards grew (2026-09-23)](#rts-an-ai-radius-in-cells-silently-died-when-the-boards-grew-2026-09-23)
+- [RTS: Hard never saved for its superweapon because it asked with the bank (2026-09-23)](#rts-hard-never-saved-for-its-superweapon-because-it-asked-with-the-bank-2026-09-23)
+- [RTS seats: an attack order outlived a mind-controlled target (2026-09-23)](#rts-seats-an-attack-order-outlived-a-mind-controlled-target-2026-09-23)
 
 <!-- END TOC -->
 
@@ -15506,3 +15509,79 @@ no strata, gullies, talus or scree.
 
 **Rejected.** A second tint pass for the crown alone: the crown and the face
 share one canvas, and the recolour cannot tell them apart.
+## RTS: an AI radius in cells silently died when the boards grew (2026-09-23)
+
+**Symptom.** The wave-2 soak (v1.22.0) showed 0% of AI sides garrisoning a
+civilian building; wave 1 had 100%. Nothing in the garrison code had changed.
+
+**Cause.** Bisected with a probe on each first-parent commit: good through
+`5661c92`, bad from `b46807f` ("per-map board size"). The generators map their
+authored 64-board coordinates through `S(c)`, so the city's nearest block moved
+from 24 cells to 38-53 cells from each start (frontier 45, coastal 53, choke
+38, river 27). `aiNeutrals` still asked for a block within a fixed 26 cells of
+the yard (18 when defending) and a rifleman within 22 cells of the block, so
+no block ever qualified. The board scale reached every map feature but not the
+AI's distances.
+
+**Fix.** The reach is a share of the front, the distance to the nearest
+hostile start (`aiFrontDist`): 0.42 of it in peacetime, 0.29 defending, and a
+walk of 0.35, each floored at the old cell count, so the 64 board behaves as
+before. A block must also sit nearer our start than every hostile start
+(`aiOnOurHalf`), so the larger radius never sends riflemen into the enemy's
+half. Test: `rts-ai-garrison.test.js`, red on v1.22.0.
+
+**Rejected.** Raising 26 to 55: it would also reach blocks past the midline
+on the 96 board and in 4-seat games, and the next board size would break it
+again.
+
+## RTS: Hard never saved for its superweapon because it asked with the bank (2026-09-23)
+
+**Symptom.** After wave 2, 2% of Hard sides had a nuke or storm by 20:00
+(58% before the clock change). The lab stood by 12:00 in 77% of them.
+
+**Cause.** Three things stacked. (1) `canBuild()` and `enqueue()` want the
+whole price on hand; progressive charging starts only once an item is queued.
+So the `swBank: 2000` comment ("progressive charging pays the rest") never
+held. (2) Saving was gated on `aiSwWant(g, me)`, and `aiSwWant` calls
+`canBuild`, so it returned null whenever the bank was short. The AI only
+learned the silo was on its list once it could already afford it, and the
+$2500 reserve could never start. Wave 2 taught Hard to spend (bank at 10:00
+14k -> 1k), which removed the accidental savings that had built silos
+before. (3) `aiSwWant` offered the cheap support weapon first (Chronosphere,
+Iron Curtain), so the $5000 silo queued behind it through the one defence
+lane.
+
+**Fix.** `canBuild(..., noCash)` answers "is it on my list" without the bank.
+Hard (`swEarly`) reserves the silo's whole price in the unit lanes from
+`swAt` on. Its structure ladder holds at the silo once the lab stands, and
+it queues the silo when the bank covers it. `swMajorFirst` orders the
+nuke/storm before the Curtain/Chronosphere and waits for it rather than
+settling for the cheaper one. Tests: the three new cases in
+`rts-ai-curve.test.js`, red on v1.22.0.
+
+**Rejected.** Letting the AI enqueue without the full price: `enqueue`'s
+affordability rule is the human's too, and an AI that queues a $5000 silo on
+$2000 stalls the defence lane on hold for minutes. Lowering `swBank`: it was
+never read on the path that mattered.
+
+## RTS seats: an attack order outlived a mind-controlled target (2026-09-23)
+
+**Symptom.** Found while chasing the Six Oases 2v2v2 seat-soak friendly fire
+(v1.22.0, seed 20276760: 15 hits, riflemen of seat 4 on a Rhino of seat 1, an
+ally). A squad ordered onto an enemy tank kept shooting it after an ally's
+Yuri had taken it.
+
+**Cause.** `mindControl()` clears the VICTIM's orders, but the squad's
+`order = { t: 'attack', id }` still named the hull, and `move.js` re-checked
+only `canHit`, not whose hull it now was.
+
+**Fix.** An attack order drops its target when that target is mind-controlled
+and is now ours or an ally's (`ordered.mcBy && allied(...)`). Test:
+`rts-seats-mc.test.js`, red on v1.22.0.
+
+**Still open.** The soak's own 15 hits recur at the same tick (78022) with
+this fix, so that case takes another path (auto-target or guard, not the
+attack order). Not yet found.
+
+**Rejected.** Dropping every order whose target is allied: a player's own
+force-fire on a friendly structure is legal and must keep working.
