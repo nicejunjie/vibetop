@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_327 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_328 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
 - [Scheduled terminal messages ("resume when the token limit resets")](#scheduled-terminal-messages-resume-when-the-token-limit-resets)
@@ -350,6 +350,7 @@ _327 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [RTS: `P` is RA2's CombatantSelect again; Pause moved to the Pause key](#rts-p-is-ra2s-combatantselect-again-pause-moved-to-the-pause-key)
 - [RTS countries: a side with no country keeps the pre-country game (2026-09-22)](#rts-countries-a-side-with-no-country-keeps-the-pre-country-game-2026-09-22)
 - [RTS: new-unit ART lands before its RULES — `rts/newunit-stubs.js` (2026-09-22)](#rts-new-unit-art-lands-before-its-rules-rtsnewunit-stubsjs-2026-09-22)
+- [RTS Tesla Trooper: a value gamma matched the rip's median by crushing every material (2026-09-22)](#rts-tesla-trooper-a-value-gamma-matched-the-rips-median-by-crushing-every-material-2026-09-22)
 
 <!-- END TOC -->
 
@@ -15244,3 +15245,27 @@ others), and art-metrics requires a `SPIKES` entry per kind.
 `rts-modules.test.js` requires every file there to declare exactly one
 `draw*`/`bake*` entry point. Giving stubs a real faction: the AI and the build
 bar would field units that have no weapons.
+## RTS Tesla Trooper: a value gamma matched the rip's median by crushing every material (2026-09-22)
+
+**Symptom.** The Tesla Trooper read as a robot with dark legs and a big red
+chest slab, although `teslatrooper.js` paints #c0c0c0 steel greaves and a
+#d7d7d7 silver shell. Baked, the greaves came out #626262 and the thighs
+#141922, near-black.
+
+**Cause.** `INF_VALUE.teslatrooper` was 3.00, a per-kind gamma "measured onto
+the rip's median brightness". A gamma moves every material together: RA2's
+trooper is dark (a navy suit) with bright silver legs and helmet, so the only
+way one curve reaches his median is by dragging the silver down with the suit.
+The median matched and the materials were gone.
+
+**Fix.** Gamma 1.00, and the dark authored per material: a navy suit, sleeves
+and thighs from the infantry palette ramp (#252f44 / #3d495c / #65748a),
+silver knee caps and greaves with a lit edge, and the owner colour as a
+mantle over the shoulders and upper chest plus a belt, rather than a
+full-torso slab. The prone and death cloth in `infGroundCloth` had been chosen
+pale (#999999 / #d0d0d0) *because* the gamma darkened them; they follow the
+suit now. Pinned by `rts-vehicle-material.test.js`.
+
+**Rejected.** Lowering the gamma to about 2: the greaves get lighter only as
+fast as the suit does, so the figure stays one grey value. Any unit whose rip
+pairs a dark and a bright material needs materials, not a curve.
