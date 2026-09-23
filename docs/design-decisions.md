@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_315 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_316 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
 - [Scheduled terminal messages ("resume when the token limit resets")](#scheduled-terminal-messages-resume-when-the-token-limit-resets)
@@ -338,6 +338,7 @@ _315 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [A terminal whose session daemon died flashed "reconnecting" forever (2026-09-22)](#a-terminal-whose-session-daemon-died-flashed-reconnecting-forever-2026-09-22)
 - [RTS soak harnesses re-read the tree for every cell — snapshot before you edit (2026-09-22)](#rts-soak-harnesses-re-read-the-tree-for-every-cell-snapshot-before-you-edit-2026-09-22)
 - [RTS: a levelled structure lingers as a cosmetic ghost, not a delayed death (2026-09-22)](#rts-a-levelled-structure-lingers-as-a-cosmetic-ghost-not-a-delayed-death-2026-09-22)
+- [RTS terrain: ruled lines at every seam came from the tile pad, not the art (2026-09-22)](#rts-terrain-ruled-lines-at-every-seam-came-from-the-tile-pad-not-the-art-2026-09-22)
 
 <!-- END TOC -->
 
@@ -14760,3 +14761,30 @@ row. A question worth asking directly is worth one boolean.
   `fxQuant` to the 0x33 palette with three alpha steps, then drawn with
   `imageSmoothingEnabled = false`. Baking through `mkCanvas` (DPR-scaled) and
   drawing smoothed is what made them read as airbrush.
+## RTS terrain: ruled lines at every seam came from the tile pad, not the art (2026-09-22)
+
+- **Symptom:** Iron Frontier's ground showed its grid: pale ruled chevrons where
+  snow met dirt on Frozen Front, dark lines along grass/dirt seams, a dark line
+  along every waterline, a faint diamond grid over the apron, and a black
+  sawtooth shroud edge.
+- **Cause:** every terrain tile is baked `TPAD` (3 px) larger than its diamond so
+  no antialiased hairline opens between tiles. An overlay drawn on a cell (a LAT
+  band, a shallow-water band) is clipped to that padded diamond but its band
+  polygon starts ON the diamond edge, so (a) the cell's own pad beyond that edge
+  is left untinted, and whenever the neighbour was drawn first the pad shows as a
+  ruled line of the wrong material; (b) the band's pad past the OTHER edges spills
+  onto neighbours with a straight clip line. The apron grid was the same thing in
+  another form: 32 per-cell banded diamond fills overlapping by a pixel.
+- **Fix:** LAT bands may overhang only their own edge (exact diamond with edge e
+  pushed out) and repaint the strip just outside it; shallow bands start 3.5 px
+  outside the edge (`edgeBand(..., out)`); band wobble tapers to zero at the tile
+  ends so adjacent bands meet. The shroud and the apron dusk are one per-pixel
+  alpha field (`shroudAlpha`, 3 px per cell, blurred + noise + soft threshold)
+  drawn through the iso matrix, so neither has any cell-aligned edge.
+- **Rejected:** drawing LAT by compositing the registered alt tile through a mask
+  at render time (exact, but three draws and two composite switches per seam cell
+  every frame); per-position LAT bakes (1024 canvases per theatre, the reason
+  bakeLat cuts from the seamless sheet in the first place).
+- **Still open:** short dark steps across the shallow band at some tile joins on
+  straight coasts (present before this change), and one-cell cliff "blocks" on
+  Lake Divide still read as cubes.
