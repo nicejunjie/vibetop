@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_345 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_346 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
 - [Scheduled terminal messages ("resume when the token limit resets")](#scheduled-terminal-messages-resume-when-the-token-limit-resets)
@@ -368,6 +368,7 @@ _345 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [RTS: a thick owner-colour part erodes to steel unless seams break it up (2026-09-23)](#rts-a-thick-owner-colour-part-erodes-to-steel-unless-seams-break-it-up-2026-09-23)
 - [RTS: every splash weapon reads its warhead's PercentAtMax (2026-09-23)](#rts-every-splash-weapon-reads-its-warheads-percentatmax-2026-09-23)
 - [RTS e2e: the dock-click test walled its miner into a rock outcrop (2026-09-23)](#rts-e2e-the-dock-click-test-walled-its-miner-into-a-rock-outcrop-2026-09-23)
+- [RTS: the Soviet yard's machinery goes black, not the rip's navy (2026-09-23)](#rts-the-soviet-yards-machinery-goes-black-not-the-rips-navy-2026-09-23)
 
 <!-- END TOC -->
 
@@ -15768,3 +15769,25 @@ and bank, against 31/37 before.
 
 **Rejected.** Retrying the test or pinning a seed: the random layout is the
 coverage, and the bug was in the fixture, not the game.
+
+## RTS: the Soviet yard's machinery goes black, not the rip's navy (2026-09-23)
+
+**Symptom.** Next to the idle rip, the Soviet Construction Yard still read
+light: its machine blocks were mid grey (`#333333` walls, `#666666` lit faces)
+and its deck a pale grey. The rip's two dominant colours are `#000033`
+(navy-black machinery, 26% of its pixels) and `#333333`; its deck is khaki
+tile (`#cccc99`/`#999966`/`#666633`).
+
+**Cause.** The machine walls were written `#4c4c58`-ish greys, which the
+6-level snap takes to `#333333`/`#666666`, and the deck `#b4b4ac`.
+
+**Fix.** The deck takes the rip's khaki (`#bcbc96` / `#a6a68c`); the machine
+walls go near-black (`#161618`-`#2a2a2c`, snapping to `#000000`/`#333333`),
+with their grey roofs and panels kept so the blocks keep their planes. The
+wedge's front stays the one navy (`#000033`) face, as before.
+
+**Rejected.** Writing the walls as the rip's own navy (`#161630`, snaps to
+`#000033`). It looks right, but `clause-checks` counts every `#000033` pixel
+of the BLUE owner's bake as house colour: the `[col] house fraction` clause
+went 15.3% -> 24.1% and failed. That blue is not remappable in RA2 either,
+but our census cannot tell the two apart, so the walls stay neutral black.
