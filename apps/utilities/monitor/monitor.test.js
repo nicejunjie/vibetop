@@ -30,6 +30,9 @@ function ctx2d() {
     ops,
     setTransform: noop, clearRect: noop, closePath: noop, stroke: noop, fill: noop,
     beginPath() { ops.push({ op: "beginPath", color: c.strokeStyle }); },
+    // Isolated samples are drawn as dots. Recorded under the FILL colour, since
+    // that is what a dot is painted with.
+    arc(x, y, r) { ops.push({ op: "arc", x, y, r, color: c.fillStyle }); },
     moveTo(x, y) { ops.push({ op: "moveTo", x, y, color: c.strokeStyle }); },
     lineTo(x, y) { ops.push({ op: "lineTo", x, y, color: c.strokeStyle }); },
     strokeStyle: "", fillStyle: "", lineWidth: 0, lineJoin: "",
@@ -41,6 +44,11 @@ function ctx2d() {
 function vertices(canvasEl, color) {
   const ctx = canvasEl._ctx || {ops: []};
   return ctx.ops.filter((o) => (o.op === "moveTo" || o.op === "lineTo") && o.color === color);
+}
+// Dots drawn for samples with no neighbour to join to.
+function dots(canvasEl, color) {
+  const ctx = canvasEl._ctx || {ops: []};
+  return ctx.ops.filter((o) => o.op === "arc" && o.color === color);
 }
 
 function el(tag) {
@@ -893,4 +901,63 @@ test("returning to 2m resumes the live push", async () => {
   h.tick(); await h.settle();
   const pts = vertices(h.id("pwr-chart"), "rgb(90,173,138)");
   assert.ok(pts.length >= 3, `live pushing must resume; got ${pts.length}`);
+});
+
+test("a sample with no neighbour is drawn as a dot, not discarded", async () => {
+  // What an idle night looks like in the 2m window: the recorder sampled every
+  // 30s, so one slot in fifteen is known. A line needs two points, so this used
+  // to draw an entirely empty card over real data.
+  const w = new Array(60).fill(null);
+  [5, 20, 35, 50].forEach((i) => { w[i] = 120; });
+  const h = load({
+    payloads: [fullStatus({ wall_plug: true, wall_power_w: 120 })],
+    history: histBody({ series: Object.assign(histBody().series, { cpu_power_w: w }) }),
+  });
+  await h.settle();
+  // At a history span the page stops appending live points; without this the
+  // last two live samples form a run and draw a line at the right-hand edge.
+  h.id("span-pick").fire("click", { target: spanBtn("1h") });
+  await h.settle();
+  h.clearPaths();
+  h.tick(); await h.settle();
+  const green = "rgb(90,173,138)";
+  assert.strictEqual(vertices(h.id("pwr-chart"), green).length, 0,
+    "there is nothing to join, so no line may be drawn");
+  assert.strictEqual(dots(h.id("pwr-chart"), green).length, 4,
+    "but every measured sample must still appear");
+});
+
+test("a dot marks the sample's own value, not the floor", async () => {
+  const w = new Array(60).fill(null);
+  w[10] = 0; w[30] = 300;            // a real zero and a big draw
+  const h = load({
+    payloads: [fullStatus()],
+    history: histBody({ series: Object.assign(histBody().series, { cpu_power_w: w }) }),
+  });
+  await h.settle();
+  h.id("span-pick").fire("click", { target: spanBtn("1h") });
+  await h.settle();
+  h.clearPaths();
+  h.tick(); await h.settle();
+  const d = dots(h.id("pwr-chart"), "rgb(90,173,138)").sort((a, b) => a.x - b.x);
+  assert.strictEqual(d.length, 2);
+  assert.ok(d[0].y > d[1].y,
+    `0W belongs below 300W on the card (y grows downward); got ${d[0].y} and ${d[1].y}`);
+});
+
+test("a run of two or more is still a line, not a row of dots", async () => {
+  const w = new Array(60).fill(null);
+  for (let i = 20; i < 40; i++) w[i] = 150;
+  const h = load({
+    payloads: [fullStatus()],
+    history: histBody({ series: Object.assign(histBody().series, { cpu_power_w: w }) }),
+  });
+  await h.settle();
+  h.id("span-pick").fire("click", { target: spanBtn("1h") });
+  await h.settle();
+  h.clearPaths();
+  h.tick(); await h.settle();
+  const green = "rgb(90,173,138)";
+  assert.ok(vertices(h.id("pwr-chart"), green).length >= 20, "drawn as a line");
+  assert.strictEqual(dots(h.id("pwr-chart"), green).length, 0, "and no dots");
 });

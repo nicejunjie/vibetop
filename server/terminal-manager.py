@@ -3166,6 +3166,20 @@ WALL_POWER_RETRY = 3.0
 # enough that a plug which went quiet stops being drawn as though it were live.
 WALL_POWER_MAX_AGE = 10.0
 
+# How fresh the WALL figure has to be for a consumer that is not the Monitor.
+#
+# The memo refreshes whenever a caller finds the value older than the freshness
+# IT asks for, so the fastest caller sets the plug's rate. The taskbar's stats
+# strip rides the desktop heartbeat every 5s and shows a rounded wattage — it
+# has no use for a sub-second reading, but at WALL_POWER_FRESH every heartbeat
+# was older than 1s and so fetched. With two desktops open that was 24 requests
+# a minute to the plug, and it scaled with the number of devices.
+#
+# Asking for 5s makes the strip cost at most one fetch per 5s NO MATTER how many
+# devices are watching, while the Monitor's own poll still gets 1s. Kept well
+# under WALL_POWER_MAX_AGE so a strip-only host never withholds the row.
+WALL_POWER_STRIP_FRESH = 5.0
+
 
 # The chart's own window: 60 slots of 2s = the last two minutes, matching the
 # Monitor's tick so the wall line and the CPU/GPU lines cover the same span.
@@ -3285,16 +3299,21 @@ def _wall_series():
     return {"t0": t0, "step": step, "w": vals}
 
 
-def _wall_power_w():
+def _wall_power_w(fresh=WALL_POWER_FRESH):
     """Measured wall draw in watts, or None when there is no plug configured,
-    no sample has landed yet, or the last one has gone stale."""
+    no sample has landed yet, or the last one has gone stale.
+
+    `fresh` is how old a reading may be before THIS caller wants a new one.
+    The memo is shared, so the most demanding caller sets the plug's actual
+    rate — which is the point: the Monitor gets 1s, everything else settles for
+    less and costs the device nothing extra."""
     plug = _cached("power_plug", 5.0, _read_power_plug)
     # Before the endpoint check, so CLEARING the setting empties the chart too
     # rather than leaving the last plug's two minutes frozen on screen.
     _wall_retarget(plug)
     if not system_status.wall_power_endpoint(plug):
         return None
-    sample, have = _bg_cached("wall_power", WALL_POWER_FRESH,
+    sample, have = _bg_cached("wall_power", fresh,
                               lambda: _wall_note(system_status.read_wall_power(plug), plug),
                               retry_after=WALL_POWER_RETRY)
     if not have or not isinstance(sample, dict):
@@ -3433,7 +3452,7 @@ def _hist_loop():
             if due:
                 _hist_self_at = mono
                 st = system_status.get_system_status([], _cached, want_procs=False)
-                wall = _wall_power_w()
+                wall = _wall_power_w(WALL_POWER_STRIP_FRESH)
                 if wall is not None:
                     st["wall_power_w"] = wall
                 _hist_note(st)
@@ -5243,7 +5262,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
         return _cached("running_terminals:" + user, 2.0,
                        lambda: _list_running_terminals(user))
 
-    def _get_system_status(self):
+    def _get_system_status(self, wall_fresh=WALL_POWER_FRESH):
         # Collection lives in system_status.py; inject the running-terminal
         # list and the shared _cached memoizer (terminal start/stop
         # invalidates its running_terminals entry). Guarded so an unexpected
@@ -5260,7 +5279,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
         # refresh-ahead memo here. Omitted entirely when unconfigured or stale —
         # the key's ABSENCE is what makes the Monitor say "--" rather than 0W.
         if isinstance(st, dict):
-            wall = _wall_power_w()
+            wall = _wall_power_w(wall_fresh)
             if wall is not None:
                 st["wall_power_w"] = wall
             # Whether a plug is CONFIGURED, which is a different question from
@@ -6195,7 +6214,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
                     "claude_usage": cu,
                     "terminals_running": nterm}
         if want_sys:   # taskbar stats only when the shared toggle is on
-            resp["system"] = self._get_system_status()
+            resp["system"] = self._get_system_status(WALL_POWER_STRIP_FRESH)
         if cu:         # Claude-Usage numbers folded on too (retires the 30s poll)
             resp["claude"] = _claude_usage_payload(cu)
         if want_codex:
@@ -9047,7 +9066,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
                     "terminals_running": nterm,
                 }
             if want_sys:   # taskbar stats folded onto the heartbeat
-                resp["system"] = self._get_system_status()
+                resp["system"] = self._get_system_status(WALL_POWER_STRIP_FRESH)
             if cu:         # Claude-Usage numbers folded on too (retires the 30s poll)
                 resp["claude"] = _claude_usage_payload(cu)
             if want_codex:

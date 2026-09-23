@@ -499,6 +499,18 @@
           ctx.closePath();
           ctx.fillStyle = ds.color.replace(')', ',0.08)').replace('rgb', 'rgba');
           ctx.fill();
+        } else if (run.length === 1) {
+          // One sample with nothing either side of it. A line needs two points,
+          // so this used to draw NOTHING — real data rendering as an empty
+          // card. That is what an hour sampled every 30s looks like in a window
+          // that is 2s per slot: the host was idle, so the recorder sampled
+          // slowly, and there is genuinely no neighbour to join to. A dot says
+          // "measured here, and not next door", which is the truth; a line
+          // would invent the span between them.
+          ctx.beginPath();
+          ctx.fillStyle = ds.color;
+          ctx.arc(run[0].x, run[0].y, 1.6, 0, Math.PI * 2);
+          ctx.fill();
         }
         run = [];
       }

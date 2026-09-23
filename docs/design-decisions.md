@@ -14783,6 +14783,20 @@ the design:
   ROUTE instead: that page is the only thing that wants 2s resolution. The
   heartbeat's own collection still feeds the ring — it is free data, just not a
   reason to sample faster.
+- **And the strip asks for a staler reading than the Monitor.** The memo is
+  shared, so whichever caller wants the freshest value sets the device's real
+  rate. The strip shows a rounded wattage every 5s but was asking at the
+  Monitor's 1s freshness, so every heartbeat fetched — 24 requests a minute with
+  two desktops, and it scaled with the device count. `WALL_POWER_STRIP_FRESH`
+  caps that at one fetch per 5s no matter how many people are watching. When
+  several consumers share a memo, freshness belongs to the CALLER, not the key.
+
+**One rendering change falls out of the slower idle sampling.** `drawChart`
+skipped runs of length one, because a line needs two points. With the recorder
+sampling every 30s, an idle night puts one sample in every fifteenth slot of
+the 2m window — so a card full of real measurements drew as empty. Isolated
+samples are now dots: "measured here, and not next door", which is what the
+data says. Joining them with a line would claim the span between them.
 - **The wake is clock-aligned, 85% into each bucket.** The first version slept a
   flat `step`, which drifts: every pass costs slightly more than the sleep, the
   sample walks forward through the bucket, and once it crosses a boundary one

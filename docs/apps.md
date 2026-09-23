@@ -59,6 +59,12 @@ it took two minutes to draw a line and knew nothing about what happened while
 nobody was looking. The manager now keeps a **7-day ring** of the numbers beside
 those charts (`server/metrics_history.py`, `/var/lib/vibetop/metrics.ring`).
 
+A sample with no neighbour is drawn as a **dot**. A line needs two points, so
+an isolated one used to draw nothing at all — which is what an idle night looks
+like in the 2m window, where the recorder's 30s samples land one slot in
+fifteen. A dot says "measured here, and not next door"; a line would invent the
+span between them.
+
 A **span picker** in the header (`2m 1h 6h 24h 7d`) chooses what the charts
 cover. `2m` is the live view as before; the rest are read from the ring via
 `GET /api/system/history?span=…&slots=…&fields=…`. **The numbers beside the
@@ -87,6 +93,14 @@ charts stay live at every span** — they are "now", not history.
   the plug every 20s and **1.30% of a core**, of which the collection itself is
   0.07% — nearly all of it a thread plus an HTTP round-trip to the plug, twice a
   second, for a chart nobody had open.
+- **The taskbar strip asks for a staler plug reading than the Monitor does.**
+  The memo is shared, so the most demanding caller sets the plug's real rate.
+  The strip rides a 5s heartbeat and shows a rounded wattage, but at the
+  Monitor's 1s freshness every heartbeat was older than that and so fetched —
+  24 requests a minute with two desktops open, **scaling with the number of
+  devices**. It now asks for `WALL_POWER_STRIP_FRESH` (5s), so the strip costs
+  at most one fetch per 5s however many people are looking, while the Monitor's
+  own poll still gets 1s.
 - **The ticker wakes on the clock, 85% into each bucket** — not on a
   free-running `sleep(2)`, which drifts until one bucket gets two samples and
   the next gets none (measured: it plateaued at 40 of 60 slots, drawing spikes

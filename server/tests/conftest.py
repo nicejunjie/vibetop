@@ -245,8 +245,10 @@ def stubs(mgr, monkeypatch):
     monkeypatch.setattr(mgr, "_wait_path", lambda *a, **k: True)
     # No real terminals / heavy /proc scans in the endpoint tests.
     monkeypatch.setattr(mgr.Handler, "_get_running_terminals", lambda self: [])
+    # Takes the wall-freshness argument the heartbeat paths pass, so a stub that
+    # is too narrow cannot make a caller look broken.
     monkeypatch.setattr(mgr.Handler, "_get_system_status",
-                        lambda self: {"cpu": {"pct": 0}, "mem": {}})
+                        lambda self, *a, **k: {"cpu": {"pct": 0}, "mem": {}})
     monkeypatch.setattr(mgr, "_system_warnings", lambda: [])
     return rec
 

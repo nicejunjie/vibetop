@@ -455,6 +455,89 @@ class _Stop(Exception):
     pass
 
 
+def test_the_taskbar_strip_does_not_set_the_plugs_rate(mgr, wall, hist, monkeypatch):
+    """The memo is shared, so the most demanding caller decides how often the
+    plug is actually read. The strip rides a 5s heartbeat and shows a rounded
+    wattage; at the Monitor's 1s freshness every heartbeat was older than that
+    and so fetched — 24 requests a minute with two desktops open, scaling with
+    the number of devices."""
+    import time as _t
+    started = []
+    # `hist` pins _wall_plug, so _wall_retarget is a no-op here. Without it a
+    # leftover plug from another test makes retarget DROP the memo entry this
+    # test seeds, and the first assertion fails for an unrelated reason.
+
+    class _FakeThread:                       # record the refresh, never run it
+        def __init__(self, target=None, args=(), **kw):
+            started.append(args)
+
+        def start(self):
+            pass
+    monkeypatch.setattr(mgr.threading, "Thread", _FakeThread)
+
+    def age(seconds):
+        with mgr._bg_lock:
+            mgr._bg["wall_power"] = {
+                "val": {"w": 12.0, "at": 1790000000, "fetched": _t.time()},
+                "at": mgr.time.monotonic() - seconds, "inflight": False,
+                "started": 0.0}
+        started.clear()
+
+    age(3.0)
+    assert mgr._wall_power_w(mgr.WALL_POWER_STRIP_FRESH) == 12.0
+    assert started == [], "a 3s-old reading is fine for a 5s strip — no fetch"
+
+    age(3.0)
+    assert mgr._wall_power_w() == 12.0
+    assert len(started) == 1, "but the Monitor's own poll still refreshes at 1s"
+
+    age(6.0)
+    mgr._wall_power_w(mgr.WALL_POWER_STRIP_FRESH)
+    assert len(started) == 1, "past its own freshness the strip does refresh"
+
+
+def test_the_heartbeat_route_asks_for_the_relaxed_freshness(client, mgr, users,
+                                                            stubs, monkeypatch):
+    """Through the real route. Asserting on _wall_power_w(STRIP_FRESH) directly
+    cannot see the heartbeat stop passing it — which is the whole change."""
+    seen = []
+    monkeypatch.setattr(mgr.Handler, "_get_system_status",
+                        lambda self, *a, **k: seen.append(a) or {"cpu": {}})
+    st, _ = client.post("/api/desktop",
+                        {"instance": "i1", "open": [], "active": None,
+                         "sys_stats": True}, cookie=users["alice"][1])
+    assert st == 200
+    assert seen, "the heartbeat collects stats when the toggle is on"
+    assert seen[0] == (mgr.WALL_POWER_STRIP_FRESH,), \
+        f"the taskbar strip must not ask for the Monitor's rate; got {seen[0]}"
+
+
+def test_both_heartbeat_paths_use_the_strip_freshness(mgr):
+    """The taskbar stats are folded onto a heartbeat in TWO places — the POST
+    and the SSE stream — and the SSE one cannot be driven from a test without
+    opening a stream that never returns. They must not drift: either of them
+    asking for the Monitor's rate puts the plug back on a 1s cadence for every
+    open desktop, which is the bug this whole change removes."""
+    import re as _re
+    src = open(mgr.__file__).read()
+    calls = _re.findall(r"self\._get_system_status\(([^)]*)\)", src)
+    assert calls, "no call sites found — has the method been renamed?"
+    bare = [c for c in calls if not c.strip()]
+    strip = [c for c in calls if c.strip() == "WALL_POWER_STRIP_FRESH"]
+    assert len(bare) == 1, \
+        f"only the Monitor's own route may take the default (1s); found {len(bare)}"
+    assert len(strip) == 2, \
+        f"both heartbeat paths must ask for the relaxed value; found {len(strip)}"
+    assert len(bare) + len(strip) == len(calls), f"unexpected argument in {calls}"
+
+
+def test_the_strip_freshness_still_serves_a_live_row(mgr):
+    """A host where ONLY the strip is watching must never withhold the reading
+    for being stale — that would blank the WALL row on an idle desktop."""
+    assert mgr.WALL_POWER_STRIP_FRESH < mgr.WALL_POWER_MAX_AGE
+    assert mgr.WALL_POWER_STRIP_FRESH > mgr.WALL_POWER_FRESH
+
+
 # --- the 7-day metrics recorder (manager side) -------------------------------
 
 @pytest.fixture()
@@ -597,7 +680,7 @@ def collector(mgr, monkeypatch):
                         lambda rt, c, want_procs=True: (seen.__setitem__(
                             "collect", seen["collect"] + 1), {"cpu_percent": 7.0})[1])
     monkeypatch.setattr(mgr, "_wall_power_w",
-                        lambda: seen.__setitem__("plug", seen["plug"] + 1) or 100.0)
+                        lambda *a, **k: seen.__setitem__("plug", seen["plug"] + 1) or 100.0)
     return seen
 
 
