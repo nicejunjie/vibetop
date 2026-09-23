@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_322 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_323 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
 - [Scheduled terminal messages ("resume when the token limit resets")](#scheduled-terminal-messages-resume-when-the-token-limit-resets)
@@ -345,6 +345,7 @@ _322 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [RTS structure material pass: one post-process, and the structures it must not tone (2026-09-22)](#rts-structure-material-pass-one-post-process-and-the-structures-it-must-not-tone-2026-09-22)
 - [RTS game speed: movement runs ~3x fast against every timer, and the RA2 default is unsettled](#rts-game-speed-movement-runs-3x-fast-against-every-timer-and-the-ra2-default-is-unsettled)
 - [Seven days of metrics in 930KB, and why the process list is not in it](#seven-days-of-metrics-in-930kb-and-why-the-process-list-is-not-in-it)
+- [RTS: the loading bar shows the page-load bake, and the test hooks wait for it](#rts-the-loading-bar-shows-the-page-load-bake-and-the-test-hooks-wait-for-it)
 
 <!-- END TOC -->
 
@@ -15070,3 +15071,36 @@ I nearly read as product defects: one queue answered both endpoints, so the
 history fetch ate a status payload; and one fixture object was returned for
 every fetch, so the page's own `push()` mutated it. `response.json()` yields a
 fresh object each call, and the harness now does too.
+
+## RTS: the loading bar shows the page-load bake, and the test hooks wait for it
+
+**Symptom.** Wave 1's loading screen was a 0.65 s timed veil between Start Game
+and the match. Its bar measured nothing. The game's real load, ~5 s of
+`bakeAll()` (37 s in WebKit on a loaded host), ran synchronously at page load
+behind a blank page.
+
+**Cause.** Delaying match construction until after a painted frame broke
+`rts.spec.js`'s start-up helper, which reads the world straight after clicking
+Start. The expensive work was never at match start, though. It was the
+page-load bake, and that was one blocking call.
+
+**Fix.** `bakeAll` became `function* bakeSteps()`, with a `yield` after each
+terrain family and after every owned unit and structure sheet (347 steps).
+`bakeStepCount()` gives the total. `bakeAll()` and `bakeOwned()` still drain
+the generator synchronously, so the colour re-bake and the vm sandbox are
+unchanged. In a real page, `main.js` drives the generator in 40 ms slices per
+frame behind `#loadv.boot`, and the bar shows `done/total`. Every harness
+already waits for `window.__rts` or `window.__rtsTest` (41 of 42 tools, and
+both e2e helpers). So the loader holds those two hooks back and publishes them
+only when the art exists. No helper changed, and nothing can start a match on
+a half-baked `SPR`. The sandbox is detected by its frozen `performance.now()`
+(0). `window.__rtsSyncBake` forces the old path.
+
+**Rejected.**
+- Deferring `newState()` after Start: this is what broke the helper in wave 1.
+- A timed bar: it is the thing being replaced.
+- Moving the whole bake to Start Game: the setup screen draws baked lineups,
+  and the house colour re-bake already exists for that case.
+- Weighting the bar by per-step time from a previous run: the per-sheet steps
+  are fine-grained enough that step counting is smooth (see the bar values in
+  `rts-player.spec.js`'s loading contract).
