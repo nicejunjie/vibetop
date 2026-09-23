@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_322 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_323 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
 - [Scheduled terminal messages ("resume when the token limit resets")](#scheduled-terminal-messages-resume-when-the-token-limit-resets)
@@ -345,6 +345,7 @@ _322 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [RTS structure material pass: one post-process, and the structures it must not tone (2026-09-22)](#rts-structure-material-pass-one-post-process-and-the-structures-it-must-not-tone-2026-09-22)
 - [RTS game speed: movement runs ~3x fast against every timer, and the RA2 default is unsettled](#rts-game-speed-movement-runs-3x-fast-against-every-timer-and-the-ra2-default-is-unsettled)
 - [Seven days of metrics in 930KB, and why the process list is not in it](#seven-days-of-metrics-in-930kb-and-why-the-process-list-is-not-in-it)
+- [RTS game speed: one clock, RA2 at 45 FPS, by rescaling the timers (2026-09-22)](#rts-game-speed-one-clock-ra2-at-45-fps-by-rescaling-the-timers-2026-09-22)
 
 <!-- END TOC -->
 
@@ -15070,3 +15071,56 @@ I nearly read as product defects: one queue answered both endpoints, so the
 history fetch ate a status payload; and one fixture object was returned for
 every fetch, so the page's own `push()` mutated it. `response.json()` yields a
 fresh object each call, and the harness now does too.
+
+## RTS game speed: one clock, RA2 at 45 FPS, by rescaling the timers (2026-09-22)
+
+**Symptom:** the entry "RTS game speed: movement runs ~3x fast against every
+timer" measured that at the default step a unit drove ~3x RA2's ground per
+shot fired and per unit built (movement ≈ RA2 at 47 FPS, every rules.ini
+timer ≈ RA2 at 15 FPS).
+
+**Cause:** two conventions. Unit `spd` was fitted to how fast things *look*;
+every timer was converted with rules.ini's own "900 frames is a minute for
+15fps" (ROF × 4, game-seconds × 60, frames × 4) while the sim runs 60 ticks/s.
+
+**Fix:** one constant pair at the top of `rts/blds.js` (the first script):
+`RA2_FPS = 45` and `T15 = 15 / RA2_FPS` (= 1/3). Every 15-FPS tick count is
+multiplied by `T15` **where it is used** — weapon cooldown (the three fire
+paths, garrisons, the IFV repair gun), build progress, aircraft rearm,
+Hornet respawn, superweapon charge, Iron Curtain / storm duration and bolt
+cadence, Tesla/Prism wind-up and support delay, Terror Drone gnaw, Ivan fuse,
+spy blackout, Chrono delay, structure repair step, ore growth, derrick cash,
+radiation application. A `g.tick % n` cadence uses `t15i(n)` (a whole tick,
+never 0). Unit `spd` is untouched: it already equals RA2 at 45–50 FPS (every
+unit within ±6% of 45). Measured by `rts-pace.test.js` in the real sim:
+
+| cells per … | before | after | RA2 @45 FPS |
+|---|---|---|---|
+| Grizzly, per shot | 20.0 | 6.67 | 6.72 |
+| GI, per shot | 3.95 | 1.32 | 1.28 |
+| Grizzly, per build | 147 | 50.3 | 49.4 |
+| GI, per build | 24.8 | 9.0 | 8.1 |
+| Harrier, per build | 546 | 182 | 169 |
+| Harrier, per missile rearmed | 197 | 65.5 | 60.5 |
+
+The default step (60 ticks/s) now plays as RA2's 45 FPS multiplayer "Fast"
+(what CnCNet calls stock speed), and the slider's other steps are 11/22/34/
+56/67 FPS. The sim is still a fixed 60 Hz tick. Superweapons now charge in
+a third of the wall-clock time (a 10-game-minute nuke is 3:20 at the default
+step), exactly as RA2's frame-counted timers do at 45 FPS; the HUD clock
+shows real seconds left.
+
+**Why timers and not movement:** the literals stay legible. Every ROF in
+`roster.js` is still "rules.ini ROF × 4" and every build time is still
+rules.ini game-seconds, next to the rules.ini line it quotes; only the use
+site knows the frame rate. Dividing every `spd` (and projectile, turret and
+aircraft speed) by ~3 instead would have left the default step at RA2's
+15 FPS: units crawling at 1.6 cells/s, with the slider's top step (90 t/s)
+still only RA2's 22 FPS, and a higher tick rate costs CPU on every step.
+
+**Rejected:** retuning the slider's ticks/s (moves movement and timers
+together, so it cannot fix their ratio); rewriting the 300-odd roster
+literals to raw ROF (churn in a file every builder touches, and the "× 4"
+convention is documented at every line); leaving the mining rate (`mine`
+per tick) and our own AI cadences alone was deliberate: they are not
+rules.ini quotes.
