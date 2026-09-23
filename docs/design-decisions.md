@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_316 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_317 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
 - [Scheduled terminal messages ("resume when the token limit resets")](#scheduled-terminal-messages-resume-when-the-token-limit-resets)
@@ -339,6 +339,7 @@ _316 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [RTS soak harnesses re-read the tree for every cell — snapshot before you edit (2026-09-22)](#rts-soak-harnesses-re-read-the-tree-for-every-cell-snapshot-before-you-edit-2026-09-22)
 - [RTS: a levelled structure lingers as a cosmetic ghost, not a delayed death (2026-09-22)](#rts-a-levelled-structure-lingers-as-a-cosmetic-ghost-not-a-delayed-death-2026-09-22)
 - [RTS terrain: ruled lines at every seam came from the tile pad, not the art (2026-09-22)](#rts-terrain-ruled-lines-at-every-seam-came-from-the-tile-pad-not-the-art-2026-09-22)
+- [RTS: the HUD font ships as a data: URI in a script, and the loading screen is a veil (2026-09-22)](#rts-the-hud-font-ships-as-a-data-uri-in-a-script-and-the-loading-screen-is-a-veil-2026-09-22)
 
 <!-- END TOC -->
 
@@ -14788,3 +14789,26 @@ row. A question worth asking directly is worth one boolean.
 - **Still open:** short dark steps across the shallow band at some tile joins on
   straight coasts (present before this change), and one-cell cliff "blocks" on
   Lake Divide still read as cubes.
+## RTS: the HUD font ships as a data: URI in a script, and the loading screen is a veil (2026-09-22)
+
+- **Symptom:** two front-end choices for Iron Frontier (plan 5.1/5.3) looked
+  obvious and were wrong. (1) A bundled `.woff2` referenced by `url()` in the
+  stylesheet works when served and silently falls back to the system face when
+  `rts.html` is opened from disk. (2) A loading screen that paints first and
+  builds the match a frame later broke most of `rts.spec.js`'s boots:
+  `window.__rts()` returns `null` while `G` is unset, and `expect.poll` treats
+  the thrown `.state` read as a failure, not a retry.
+- **Cause:** (1) a font fetched from a `file://` page is a cross-origin request
+  in Chrome and Firefox and is refused. (2) Everything that reads the game right
+  after Start Game — the test hooks included — relies on the world existing in
+  the same task as the click.
+- **Fix:** (1) `rts/ui/font.js` injects `@font-face` with a `data:` URI (DejaVu
+  Sans Condensed, subset and renamed "IF Condensed" per the Vera licence); a
+  data URI is same-origin everywhere. (2) `loadThen()` raises the screen and
+  builds the match synchronously in the click, then runs the bar out and lifts
+  the screen over the first ~0.65 s; the screen is `pointer-events: none`, a
+  veil rather than a wall.
+- **Rejected:** inlining the base64 in `rts.html` (20 KB burying the CSS);
+  Google Fonts (network, and not on `file://`); deferring the build behind a
+  painted frame (breaks every caller that reads the world after the click);
+  a UFL-licensed Ubuntu Sans subset (modification terms less clear than Vera's).
