@@ -158,6 +158,9 @@
     background: #0e1117; font-family: system-ui, sans-serif; color: #e0e0e0;
     display: flex; flex-direction: column; position: relative;
   }
+  /* iOS 27's native top scroll-edge effect blurs the first controls in an
+     installed web app. Reserve that strip inside the fixed-height shell. */
+  html.ios27-standalone body { padding-top: 32px; }
   #auth-expired {
     margin: auto; width: min(360px, calc(100% - 32px)); padding: 24px;
     border: 1px solid #303d50; border-radius: 16px;

@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_351 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_352 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
 - [Scheduled terminal messages ("resume when the token limit resets")](#scheduled-terminal-messages-resume-when-the-token-limit-resets)
@@ -374,6 +374,7 @@ _351 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [The window poll forked a 1GB process to read one X property](#the-window-poll-forked-a-1gb-process-to-read-one-x-property)
 - [Transcript analytics leave the manager's heap](#transcript-analytics-leave-the-managers-heap)
 - [Public shares open under the owner's credentials](#public-shares-open-under-the-owners-credentials)
+- [iOS 27 blurs the first row of every installed-app screen](#ios-27-blurs-the-first-row-of-every-installed-app-screen)
 
 <!-- END TOC -->
 
@@ -15958,3 +15959,33 @@ root and hidden-path rule, then streams from that descriptor. Root only
 proxies bytes and applies HTTP headers. A race can make a share disappear or
 change to something else the owner can read; it cannot make root disclose a
 file the owner cannot read.
+
+## iOS 27 blurs the first row of every installed-app screen
+
+**Symptom.** After upgrading to iOS 27, screenshots of both Terminal and Files
+show their first row blurred immediately below the system status bar, while
+lower rows are sharp. The effect follows the screen edge rather than either
+app's own content. Neither app applies a blur to that area.
+
+**Cause.** The strongest explanation is the native WebKit scroll-edge effect
+over the top of a Home Screen web app. Apple documents that this effect blurs
+content near bars, and iOS 27 changed its automatic appearance. WebKit's own
+scroll-pocket code manages the effect outside page CSS. This diagnosis comes
+from the screenshots and WebKit behavior; it still needs an iOS 27 device
+check after deployment.
+
+**Fix.** In iOS 27 standalone mode only, reserve 32 CSS pixels at the top of
+the fixed-height shell. The native effect then covers an empty dark strip
+instead of the usage strip or the active iframe's first controls. `apph.js`
+already handles standalone detection, including the post-login false-negative,
+so it also sets the clearance class. Detect Safari's `Version/27` token rather
+than `OS 27`: Safari freezes its OS token at `18_*`. The reserved area remains
+inside the measured shell height, so the bottom taskbar stays on-screen.
+
+**Rejected.** Changing individual app headers would miss other screens and
+leave the shared status-bar effect in place. A fixed overlay at the top may
+change the scroll-pocket tint, but WebKit's hard top-edge effect can remain
+visible even with a fixed color-extension view; it is not a reliable way to
+keep interactive text sharp. Changing the PWA status-bar style or viewport
+height would risk the separately documented iOS status-bar and bottom-band
+bugs.
