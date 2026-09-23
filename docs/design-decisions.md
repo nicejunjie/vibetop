@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_317 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_318 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
 - [Scheduled terminal messages ("resume when the token limit resets")](#scheduled-terminal-messages-resume-when-the-token-limit-resets)
@@ -340,6 +340,7 @@ _317 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [RTS: a levelled structure lingers as a cosmetic ghost, not a delayed death (2026-09-22)](#rts-a-levelled-structure-lingers-as-a-cosmetic-ghost-not-a-delayed-death-2026-09-22)
 - [RTS terrain: ruled lines at every seam came from the tile pad, not the art (2026-09-22)](#rts-terrain-ruled-lines-at-every-seam-came-from-the-tile-pad-not-the-art-2026-09-22)
 - [RTS: the HUD font ships as a data: URI in a script, and the loading screen is a veil (2026-09-22)](#rts-the-hud-font-ships-as-a-data-uri-in-a-script-and-the-loading-screen-is-a-veil-2026-09-22)
+- [RTS audio ships as lazily injected JS data, not .mp3 files](#rts-audio-ships-as-lazily-injected-js-data-not-mp3-files)
 
 <!-- END TOC -->
 
@@ -14812,3 +14813,39 @@ row. A question worth asking directly is worth one boolean.
   Google Fonts (network, and not on `file://`); deferring the build behind a
   painted frame (breaks every caller that reads the world after the click);
   a UFL-licensed Ubuntu Sans subset (modification terms less clear than Vera's).
+## RTS audio ships as lazily injected JS data, not .mp3 files
+
+**Symptom.** Iron Frontier needed real spoken lines: unit replies and two
+faction EVAs. The obvious shape, `.mp3` files that the page fetches, fails
+twice. First, `shell/install.sh` deploys only `.html`, `.js` and `.json`, so
+an `.mp3` never reaches prod. Second, the game must play when `rts.html` is
+opened from `file://`, where `fetch` and XHR of a sibling file fail.
+
+**Cause.** Both limits come from the deploy walk and from the double-click
+promise (see "RTS is plain scripts"). Neither limit applies to a `<script
+src>`: it deploys as `.js`, and it loads from `file://`.
+
+**Fix.** `apps/games/rts/tools/audio-gen.py` turns `tools/audio/voices.txt`
+into `rts/audio/{eva,vox}-{dir,col}.js`. It speaks original lines with
+offline piper TTS models whose licences allow redistribution (see
+`rts/audio/LICENSES.md`). ffmpeg shapes the audio (a field radio for units,
+a clean console for EVA) and encodes it as MP3, the codec Safari decodes. Each
+bank file holds base64 MP3 inside one `rtsAudioBank()` call. `ui/audio.js`
+`audioLoad()` injects the banks when a match starts (own faction first), and
+decodes each clip with `decodeAudioData` on first use. Until then, the synth
+radio and the chime-plus-text EVA play instead. The four banks total about
+2.8 MB. They are deliberately **not** listed in `rts.html`, because listing
+them would block page load on data the menu never uses.
+`rts-modules.test.js` excludes `rts/audio/` from its "every file listed
+once" rule. A separate test holds that directory to the loader's
+`AUDIO_FILES` list.
+
+**Rejected.** (1) Adding `.mp3` to the install walk: it still breaks
+`file://`. (2) Listing the banks in `rts.html`: that adds ~2.8 MB of blocking
+parse before the menu appears. (3) Browser speechSynthesis for everything:
+the voice differs on every OS, it is empty on a cold Chromium, and it cannot
+be routed through the mixer. (4) Opus: Safari's WebAudio support for it is
+uneven, while MP3 decodes everywhere. (5) A Russian TTS voice reading
+Cyrillic-transliterated English, for a Soviet accent: whisper transcribed it
+as nonsense ("I am Regum"). Only the short Russian words ("Да", "Ура") use
+that voice.
