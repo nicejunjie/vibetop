@@ -61,6 +61,7 @@ if ! id "$SVC" >/dev/null 2>&1; then
   useradd --system --home-dir "$OPT" --shell /usr/sbin/nologin "$SVC"
 fi
 install -d -m 0755 -o "$SVC" -g "$SVC" "$OPT"
+install -d -m 0755 -o "$SVC" -g "$SVC" "$OPT/.local" "$OPT/.local/share"
 
 # 2) prod checkout (HTTPS, public repo — read-only, no key)
 if [ ! -d "$APP/.git" ]; then

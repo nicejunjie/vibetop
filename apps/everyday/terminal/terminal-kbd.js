@@ -71,7 +71,6 @@
     followLatestTimer = null;
   }
   function armLatest(requestId) {
-    try { window.__vtjMark && window.__vtjMark('armLatest#' + requestId); } catch (_) {}
     // showLatest retries one activation while a new iframe/replay comes up. Once
     // the user scrolls, ignore the remaining retries from THAT activation; a
     // later tab/app activation gets a new id and may reveal latest normally.
@@ -108,105 +107,19 @@
   }, true);
   window.__vibetopShowLatest = armLatest;
 
-  // ---- field diagnostic: "the view jumps back to old content" --------------
-  // Reported while READING HISTORY in Claude Code / Codex on desktop Safari.
-  // Four hypotheses were tested against this host and eliminated: a WS flap from
-  // the dual-homed LAN (WS held 45s on both loopback and LAN, zero closes), a
-  // keepalive-tripped reconnect under load (4002 lines streamed, one WS, zero
-  // closes), and reflow drift (not isolated — the follow loop moved the viewport
-  // before it could be measured). Chromium here is also not Safari, and this
-  // project has already shipped a "fix" for a Safari bug that Linux WebKit never
-  // reproduced. So: measure it in the real session instead of guessing a fifth
-  // time. Every viewport move the USER did not make is reported with whatever
-  // marked itself as the most recent cause.
-  //
-  // Bounded on purpose: at most VTJ_MAX reports per page, and the endpoint is
-  // per-user rate-limited server-side. Remove this block once the cause is known.
-  // Was the user following the live bottom? Updated only on a scroll the USER
-  // performed, so a buffer wipe cannot flip it — a wipe moves the viewport
-  // without the user having chosen anything.
+  // Preserve whether the user was reading history across a reconnect.
   var vtFollowOnReconnect = true;
-  var vtjCause = 'none', vtjCauseAt = 0, vtjUserAt = 0, vtjSent = 0, vtjLastY = null;
-  var VTJ_MAX = 25;
-  function vtjMark(c) { vtjCause = c; vtjCauseAt = Date.now(); }
-  window.__vtjMark = vtjMark;
-  function vtjUser() { vtjUserAt = Date.now(); }
+  var vtScrollUserAt = 0;
   ['wheel', 'mousedown', 'touchstart', 'keydown'].forEach(function (ev) {
-    try { window.addEventListener(ev, vtjUser, { capture: true, passive: true }); } catch (_) {}
+    window.addEventListener(ev, function () { vtScrollUserAt = Date.now(); },
+                            { capture: true, passive: true });
   });
-  (function vtjWatch() {
+  (function watchUserScroll() {
     var t = window.term;
-    if (!t || !t.buffer || !t.onScroll) { setTimeout(vtjWatch, 500); return; }
-    // Name the thing that actually wipes the buffer. Every field record so far
-    // shows baseY collapsing to 0 with a STALE cause marker (28s, 91s, 131s) —
-    // so it is neither a reconnect nor any resize we trigger. That leaves the
-    // application's own output. Watch for the sequences that clear scrollback,
-    // and for a PTY resize (SIGWINCH), which is what makes a TUI redraw.
-    try {
-      t.onResize(function (sz) {
-        vtjMark('pty-resize:' + sz.cols + 'x' + sz.rows);
-      });
-    } catch (_) {}
-    try {
-      var _origWrite = t.write.bind(t);
-      t.write = function (data) {
-        try {
-          var str = (typeof data === 'string') ? data : '';
-          if (str) {
-            // ESC c = RIS (full reset); ESC[3J = clear scrollback. Either wipes
-            // the history the user is reading.
-            if (str.indexOf('\x1bc') >= 0) vtjMark('app-RIS');
-            else if (str.indexOf('\x1b[3J') >= 0) vtjMark('app-clear-scrollback');
-            // The alternate screen has NO scrollback by design, so baseY is 0
-            // there — which reads exactly like a wipe from the outside. The
-            // field data shows baseY returning (0 -> 1014 -> 0 -> 1109), and a
-            // destroyed scrollback cannot come back, so a buffer SWITCH is the
-            // only thing that fits. Mark both directions to prove it.
-            else if (str.indexOf('\x1b[?1049h') >= 0 || str.indexOf('\x1b[?47h') >= 0) vtjMark('alt-screen-ENTER');
-            else if (str.indexOf('\x1b[?1049l') >= 0 || str.indexOf('\x1b[?47l') >= 0) vtjMark('alt-screen-EXIT');
-          }
-        } catch (_) {}
-        return _origWrite.apply(null, arguments);
-      };
-    } catch (_) {}
-    try {
-      t.onScroll(function (y) {
-        var prev = vtjLastY; vtjLastY = y;
-        if (prev == null || vtjSent >= VTJ_MAX) return;
-        var delta = y - prev;
-        // Ignore the user's own scrolling, and ordinary following of new output
-        // (a move DOWN while the buffer is growing is just the terminal working).
-        if (Date.now() - vtjUserAt < 500) {
-          // The user moved: this is their intent, so record it for a reconnect.
-          try { vtFollowOnReconnect = atLatest(); } catch (_) {}
-          return;
-        }
-        if (Math.abs(delta) < 3) return;
-        var b = t.buffer.active;
-        if (delta > 0 && b.baseY - y <= 1) return;      // snapped to the live bottom
-        // Report ONLY the pathological signature: the scrollback collapsing.
-        // A move within an intact buffer (from=5725 to=5703 baseY=5703) is the
-        // terminal working normally, and logging those buried the real events
-        // and burned the endpoint's rate limit. The bug always looked the same —
-        // baseY falling to ~0 with a large prior position.
-        var wiped = (b.baseY <= 1 && prev > 50);
-        if (!wiped) return;
-        vtjSent++;
-        try {
-          fetch('/api/client-debug', {
-            method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              tag: 'vpjump', src: location.pathname,
-              from: prev, to: y, delta: delta, baseY: b.baseY,
-              cols: t.cols, rows: t.rows,
-              cause: vtjCause, causeAgeMs: Date.now() - vtjCauseAt, wiped: wiped ? 1 : 0,
-              buf: (function () { try { return t.buffer.active.type; } catch (_) { return '?'; } })(),
-              following: Date.now() < followLatestUntil ? 1 : 0
-            })
-          }).catch(function () {});
-        } catch (_) {}
-      });
-    } catch (_) {}
+    if (!t || !t.onScroll) { setTimeout(watchUserScroll, 500); return; }
+    t.onScroll(function () {
+      if (Date.now() - vtScrollUserAt < 500) vtFollowOnReconnect = atLatest();
+    });
   })();
   // Shared by desktop and touch. This must stay ABOVE the desktop early return
   // below; putting it with the touch-only message handlers made desktop tab
@@ -218,7 +131,6 @@
   // nudge. Ignore synthetic resize events (used by reFit itself) to avoid a
   // feedback loop. Preserve history when the user was already scrolled up.
   window.addEventListener('resize', function (e) {
-    try { window.__vtjMark && window.__vtjMark(e.isTrusted ? 'resize' : 'resize-synthetic'); } catch (_) {}
     if (e.isTrusted && atLatest()) armLatest();
   });
   function loadingBar(ws) {
@@ -256,7 +168,6 @@
   // Mobile keeps its own keyboard/caret-aware resize path (two-finger claim), so
   // this is desktop-only. (function declarations → hoisted, usable below.)
   function reFit() {
-    try { window.__vtjMark && window.__vtjMark('reFit'); } catch (_) {}
     try {
       var t = window.term;
       if (t && t.element && t.element.clientWidth > 0) {
@@ -281,7 +192,6 @@
         ttydWS = ws; loadingBar(ws);
         try {
           ws.addEventListener('open', function () {
-            window.__vtjMark && window.__vtjMark('ws-open');
             // FOLLOW THE REPLAY WHEN THE USER WAS AT THE BOTTOM.
             //
             // A reconnect replays the ring buffer, and the replay begins by
@@ -304,7 +214,6 @@
             // definition at the bottom, which is exactly when following is right.
             try { if (vtFollowOnReconnect) armLatest(); } catch (_) {}
           });
-          ws.addEventListener('close', function () { window.__vtjMark && window.__vtjMark('ws-close'); });
         } catch (_) {}
         // Re-fit after a (re)connect's replay settles so the buffer isn't left
         // rendered at a stale width. Desktop only.
@@ -324,12 +233,6 @@
   // sees mis-shaped (too-narrow / too-wide) output until it re-claims.
   function claimSize() {
     var t = window.term; if (!t) return;
-    // Distinguish THIS from the generic resize path. Every field record so far
-    // reads `armLatest#undefined`, which both claimSize and the window resize
-    // listener produce — and on a phone (the reporter's device) claimSize is the
-    // one that also NUDGES THE COLUMN, forcing two SIGWINCHes and therefore two
-    // full TUI repaints. If the jumps are ours, this marker names it.
-    try { window.__vtjMark && window.__vtjMark('claimSize:' + t.cols + 'x' + t.rows); } catch (_) {}
     // The SIGWINCH redraw triggered by a two-finger/mobile or double-click/
     // desktop claim can restore an old viewport row. This is the resize action
     // itself, so arm bottom-following here rather than relying on outer layout

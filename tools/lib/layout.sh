@@ -44,7 +44,8 @@ vt_ensure_service_account() {
 
 # vt_ensure_dirs — the tree itself. Idempotent.
 vt_ensure_dirs() {
-    install -d -m 0755 -o "$VT_SVC" -g "$VT_SVC" "$VT_OPT" "$VT_WWW" "$VT_VAR"
+    install -d -m 0755 -o "$VT_SVC" -g "$VT_SVC" "$VT_OPT" "$VT_WWW" "$VT_VAR" \
+        "$VT_OPT/.local" "$VT_OPT/.local/share"
     install -d -m 0700 -o root      -g root      "$VT_ETC"
     install -d -m 0755 /etc/vibetop
 }

@@ -10,6 +10,7 @@ pattern shared with the terminal units; what tests can and do pin here is
 that the ops never answer for a path the PROCESS cannot read."""
 
 import json
+import io
 import os
 import pwd
 import shutil
@@ -18,6 +19,7 @@ import socket
 import subprocess
 import sys
 import time
+import zipfile
 
 import pytest
 
@@ -62,6 +64,69 @@ def call(mgr, sock, req):
         return mgr._fs_call(ME, req)
     finally:
         mgr._fileagent_sock = mgr_sock
+
+
+def stream_call(mgr, sock, req):
+    s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    with s:
+        s.connect(sock)
+        s.sendall((json.dumps(req) + "\n").encode())
+        head, rest = mgr._fs_read_header(s)
+        body = bytearray(rest)
+        if head.get("ok"):
+            while len(body) < head["size"]:
+                chunk = s.recv(65536)
+                if not chunk:
+                    break
+                body.extend(chunk)
+        return head, bytes(body)
+
+
+def test_share_stream_opens_as_owner_and_fences_opened_file(mgr, agent, tmp_path):
+    root = tmp_path / "shared"
+    root.mkdir()
+    public = root / "public.txt"
+    public.write_bytes(b"0123456789")
+    req = {"op": "share-download", "path": str(public), "root": str(root),
+           "range": "bytes=2-5"}
+    head, body = stream_call(mgr, agent, req)
+    assert head["ok"] and head["partial"] and body == b"2345"
+
+    secret = tmp_path / "secret.txt"
+    secret.write_bytes(b"secret")
+    link = root / "link.txt"
+    link.symlink_to(secret)
+    head, body = stream_call(mgr, agent, {**req, "path": str(link), "range": ""})
+    assert head["ok"] is False and body == b""
+
+    if os.geteuid() != 0:
+        public.chmod(0o000)
+        try:
+            head, body = stream_call(mgr, agent, req)
+            assert head["ok"] is False and body == b""
+        finally:
+            public.chmod(0o600)
+
+
+def test_share_archive_skips_hidden_and_escaped_files(mgr, agent, tmp_path):
+    root = tmp_path / "shared"
+    root.mkdir()
+    folder = root / "docs"
+    folder.mkdir()
+    (folder / "good.txt").write_text("good")
+    (folder / ".hidden").write_text("hidden")
+    secret = tmp_path / "secret.txt"
+    secret.write_text("secret")
+    (folder / "escape.txt").symlink_to(secret)
+    req = {"op": "share-zip", "path": str(folder), "root": str(root),
+           "max_files": 10, "max_bytes": 1000}
+    head, body = stream_call(mgr, agent, req)
+    assert head["ok"] and head["size"] == len(body)
+    with zipfile.ZipFile(io.BytesIO(body)) as z:
+        assert z.namelist() == ["docs/good.txt"]
+        assert z.read("docs/good.txt") == b"good"
+    head, _ = stream_call(mgr, agent, {**req, "max_files": 0})
+    assert head["code"] == "etoobig"
 
 
 def test_home_answers_the_process_home(mgr, agent):

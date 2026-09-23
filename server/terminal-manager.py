@@ -27,6 +27,7 @@ import json
 import logging
 import logging.handlers
 import mimetypes
+import multiprocessing
 import grp
 import os
 import pwd
@@ -49,12 +50,11 @@ import urllib.parse
 import zipfile
 import glob
 from datetime import datetime
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
 
 import system_status  # sibling module: /api/system/status data collection
 import metrics_history  # sibling module: the 7-day system-metrics ring
-import claude_stats   # sibling module: /api/claude/stats token/cost analytics
-import codex_stats    # sibling module: /api/codex/stats token/cost analytics
+import stats_worker   # transcript analytics run in separate spawned processes
 import service_discovery  # sibling module: /api/services/discover network-service scan
 
 # ---- logging -----------------------------------------------------------------
@@ -171,6 +171,29 @@ def _recent_failure(key):
 # polling during a slow refresh start ONE producer between them.
 _bg_lock = threading.Lock()
 _bg = {}            # key -> {"val":…, "at":…, "inflight":bool, "started":…}
+
+# A dedicated spawned worker per provider keeps each module's per-file cache
+# warm without retaining its parse allocations in the HTTP manager. `spawn`
+# avoids inheriting the manager's large heap when the worker starts.
+_stats_pool_lock = threading.Lock()
+_stats_pools = {}
+
+
+def _stats_from_worker(provider, home):
+    with _stats_pool_lock:
+        pool = _stats_pools.get(provider)
+        if pool is None:
+            pool = ProcessPoolExecutor(max_workers=1,
+                                       mp_context=multiprocessing.get_context("spawn"))
+            _stats_pools[provider] = pool
+    try:
+        return pool.submit(stats_worker.compute, provider, home).result(timeout=180)
+    except Exception:
+        with _stats_pool_lock:
+            if _stats_pools.get(provider) is pool:
+                _stats_pools.pop(provider)
+                pool.shutdown(wait=False, cancel_futures=True)
+        raise
 
 
 def _bg_cached(key, fresh, producer, block_first=False, retry_after=30.0):
@@ -8376,10 +8399,6 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 p = line.split("\x1f")
                 if len(p) == 2:
                     commits.append({"commit": p[0], "subject": p[1]})
-        _append_update_history({"time": int(time.time()), "event": "updated",
-                                "from": (before or "")[:7], "to": (after or "")[:7],
-                                "commits": commits})
-
         def deploy(name, argv, env_extra):
             env = dict(os.environ)
             env.update(env_extra)
@@ -8390,51 +8409,55 @@ class Handler(http.server.BaseHTTPRequestHandler):
             except Exception as e:
                 add(name, False, str(e))
 
-        touched = lambda prefix: any(c.startswith(prefix) for c in changed)
-        # The web root is fed by shell/ + shared/ + apps/ (see shell/install.sh,
-        # which WALKS exactly these). Every one of them must trigger the redeploy:
-        # miss one and an Update pulls the code but never installs it, leaving the
-        # served page stale with nothing reporting it. WEB_SOURCE_DIRS is asserted
-        # against shell/install.sh's own walk in test_api_update.py — keep them in
-        # step rather than trusting this list.
-        WEB_SOURCE_DIRS = ("shell/", "shared/", "apps/")
-        # Run as APP_USER ($HOME must be the user's, set by sudo -H). No login
-        # shell, so no MOTD banner in the output.
-        if any(touched(d) for d in WEB_SOURCE_DIRS):
-            try:
-                p = subprocess.run(
-                    ["sudo", "-n", "-u", APP_USER, "-H",
-                     os.path.join(REPO_DIR, "shell", "install.sh")],
-                    cwd=REPO_DIR, capture_output=True, text=True, timeout=120)
-                add("deploy desktop & apps", p.returncode == 0, p.stdout + p.stderr)
-            except Exception as e:
-                add("deploy desktop & apps", False, str(e))
-        # browser/ and terminal/ touch nginx → run as root (manager is root) with
-        # APP_USER passed in; skip apt/systemd, just redeploy files + reload nginx.
-        base_env = {"APP_USER": APP_USER, "INSTALL_DEPS": "0", "INSTALL_SYSTEMD": "0"}
-        if touched("apps/everyday/browser/"):
-            deploy("deploy browser", ["./apps/everyday/browser/install.sh"], base_env)
-        if touched("server/") or touched("apps/everyday/terminal/"):
-            deploy("deploy terminal & nginx", ["./server/install.sh"], base_env)
-        # office/ → just re-render the /onlyoffice/ nginx snippet. INSTALL_CONTAINER=0
-        # keeps the live OnlyOffice container (an in-app update must not tear it down
-        # — that drops open editors + ~1-2 min downtime); container/image changes
-        # need a full deploy, same as systemd-unit changes for browser/terminal. The
-        # bundled new-doc templates (office/templates/) need no step — the manager
-        # reads them straight from the checkout.
-        if touched("apps/everyday/office/"):
-            deploy("deploy office (nginx)", ["./apps/everyday/office/install.sh"],
-                   {**base_env, "INSTALL_CONTAINER": "0"})
-        # files/ — re-render the /fileview/ nginx snippet and restart any running
-        # per-user file agents so new fileagent.py code takes effect at once.
-        # INSTALL_DEPS/SYSTEMD=0 keeps it to config (idempotent) + nginx.
-        if touched("apps/everyday/files/"):
-            deploy("deploy files & nginx", ["./apps/everyday/files/install.sh"], base_env)
-        # claude-usage/ — the opt-in usage proxy runs in-place from the checkout,
-        # so install.sh (INSTALL_SYSTEMD=0) just re-renders nothing and try-restarts
-        # the proxy IF it's running (feature on), picking up new proxy code.
-        if touched("apps/utilities/claude-usage/"):
-            deploy("deploy claude-usage", ["./apps/utilities/claude-usage/install.sh"], base_env)
+        def deploy_changed():
+            touched = lambda prefix: any(c.startswith(prefix) for c in changed)
+            # The web root is fed by shell/ + shared/ + apps/ (see shell/install.sh,
+            # which WALKS exactly these). Every one of them must trigger the redeploy:
+            # miss one and an Update pulls the code but never installs it, leaving the
+            # served page stale with nothing reporting it. WEB_SOURCE_DIRS is asserted
+            # against shell/install.sh's own walk in test_api_update.py — keep them in
+            # step rather than trusting this list.
+            WEB_SOURCE_DIRS = ("shell/", "shared/", "apps/")
+            # Run as APP_USER ($HOME must be the user's, set by sudo -H). No login
+            # shell, so no MOTD banner in the output.
+            if any(touched(d) for d in WEB_SOURCE_DIRS):
+                try:
+                    p = subprocess.run(
+                        ["sudo", "-n", "-u", APP_USER, "-H",
+                         os.path.join(REPO_DIR, "shell", "install.sh")],
+                        cwd=REPO_DIR, capture_output=True, text=True, timeout=120)
+                    add("deploy desktop & apps", p.returncode == 0, p.stdout + p.stderr)
+                except Exception as e:
+                    add("deploy desktop & apps", False, str(e))
+            # browser/ and terminal/ touch nginx → run as root (manager is root) with
+            # APP_USER passed in; skip apt/systemd, just redeploy files + reload nginx.
+            base_env = {"APP_USER": APP_USER, "INSTALL_DEPS": "0", "INSTALL_SYSTEMD": "0"}
+            if touched("apps/everyday/browser/"):
+                deploy("deploy browser", ["./apps/everyday/browser/install.sh"], base_env)
+            if touched("server/") or touched("apps/everyday/terminal/"):
+                deploy("deploy terminal & nginx", ["./server/install.sh"], base_env)
+            # office/ → just re-render the /onlyoffice/ nginx snippet. INSTALL_CONTAINER=0
+            # keeps the live OnlyOffice container (an in-app update must not tear it down
+            # — that drops open editors + ~1-2 min downtime); container/image changes
+            # need a full deploy, same as systemd-unit changes for browser/terminal. The
+            # bundled new-doc templates (office/templates/) need no step — the manager
+            # reads them straight from the checkout.
+            if touched("apps/everyday/office/"):
+                deploy("deploy office (nginx)", ["./apps/everyday/office/install.sh"],
+                       {**base_env, "INSTALL_CONTAINER": "0"})
+            # files/ — re-render the /fileview/ nginx snippet and restart any running
+            # per-user file agents so new fileagent.py code takes effect at once.
+            # INSTALL_DEPS/SYSTEMD=0 keeps it to config (idempotent) + nginx.
+            if touched("apps/everyday/files/"):
+                deploy("deploy files & nginx", ["./apps/everyday/files/install.sh"], base_env)
+            # claude-usage/ — the opt-in usage proxy runs in-place from the checkout,
+            # so install.sh (INSTALL_SYSTEMD=0) just re-renders nothing and try-restarts
+            # the proxy IF it's running (feature on), picking up new proxy code.
+            if touched("apps/utilities/claude-usage/"):
+                deploy("deploy claude-usage", ["./apps/utilities/claude-usage/install.sh"], base_env)
+
+
+        deploy_changed()
 
         # Restart the manager out-of-band (via a transient timer so it survives
         # our own death) only if its code changed — after the response is sent.
@@ -8459,8 +8482,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
         #
         # py_compile is cheap and catches the whole class that makes the process
         # unstartable. It is not a test suite and does not pretend to be: a
-        # runtime bug still gets through, and there is still no rollback. But a
-        # file that cannot even be parsed must never become the running manager.
+        # runtime bug can still get through; the restart watchdog checks that.
+        # A file that cannot be parsed must never become the running manager.
         if restart and not failed:
             bad = _uncompilable_sources()
             if bad:
@@ -8470,9 +8493,27 @@ class Handler(http.server.BaseHTTPRequestHandler):
                           "compile: %s", bad)
         deploy_ok = not failed
         if not deploy_ok:
+            # The old manager is still running. Restore BOTH the source and
+            # anything already deployed from it before releasing the reload
+            # hold; otherwise a failed update strands a mixed-version product.
+            rollback_ok = False
+            if before:
+                rok, rout = self._git_as_user(["reset", "--hard", before])
+                add("rollback source to previous commit", rok, rout)
+                if rok:
+                    first_restore_step = len(steps)
+                    deploy_changed()
+                    rollback_ok = all(s["ok"] for s in steps[first_restore_step:])
+            add("rollback deployment", rollback_ok,
+                "previous version restored" if rollback_ok else
+                "automatic restore failed; inspect the update log on the host")
             _append_update_history({"time": int(time.time()), "event": "failed",
-                                    "message": "redeploy step(s) failed: "
-                                               + ", ".join(failed)[:200]})
+                                    "message": ("rolled back: " if rollback_ok else
+                                                "ROLLBACK FAILED: ") + ", ".join(failed)[:180]})
+        else:
+            _append_update_history({"time": int(time.time()), "event": "updated",
+                                    "from": (before or "")[:7], "to": (after or "")[:7],
+                                    "commits": commits})
         log.info("update: %s..%s applied (%d file(s) changed, restart=%s, deploy_ok=%s)",
                  (before or "")[:7], (after or "")[:7], len(changed), restart, deploy_ok)
         self._json(200, {"ok": deploy_ok, "log": steps, "changed": changed,
@@ -8480,15 +8521,19 @@ class Handler(http.server.BaseHTTPRequestHandler):
                          "failed": failed,
                          "message": (("Updated. Restarting the API to apply manager "
                                       "changes…" if restart else "Updated.") if deploy_ok
-                                     else "Pulled new code, but a redeploy step failed — "
-                                          "check the log and resolve on the host.")})
+                                     else ("Update failed and the previous version was restored."
+                                           if rollback_ok else
+                                           "Update failed and automatic rollback failed — "
+                                           "check the log and resolve on the host."))})
         # Only restart the manager if the redeploy actually succeeded — restarting
         # onto a half-deployed tree would compound the failure.
         if restart and deploy_ok:
             try:
                 subprocess.Popen(
                     ["systemd-run", "--on-active=3",
-                     "systemctl", "restart", "vibetop-manager.service"],
+                     "/usr/bin/python3", os.path.join(REPO_DIR, "server", "update-watchdog.py"),
+                     REPO_DIR, APP_USER, before, after,
+                     str(self.server.server_address[1])],
                     stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             except Exception:
                 pass
@@ -8645,9 +8690,74 @@ class Handler(http.server.BaseHTTPRequestHandler):
                                          token=token)
         return self._serve_share_file(target, ent.get("name") or os.path.basename(target),
                                       force_dl, self.headers.get("Range"),
-                                      base=os.path.realpath(_share_root(owner)))
+                                      base=os.path.realpath(_share_root(owner)), owner=owner)
 
-    def _serve_share_file(self, path, name, force_dl, range_hdr, base=None):
+    def _serve_share_agent(self, path, name, owner, kind, force_dl=False, range_hdr=None,
+                           base=None):
+        """Stream a public share from the owner's agent, where OS permissions apply."""
+        ok, _err = _ensure_fileagent(owner)
+        if not ok:
+            return self.send_error(503)
+        req = {"op": "share-download" if kind == "file" else "share-zip",
+               "path": path, "root": base or os.path.realpath(_share_root(owner)),
+               "head": self.command == "HEAD"}
+        if kind == "file":
+            req["range"] = range_hdr or ""
+        else:
+            req.update(max_files=SHARE_ZIP_MAX_FILES, max_bytes=SHARE_ZIP_MAX_BYTES)
+        s = _fs_connect(owner, req)
+        if not s:
+            return self.send_error(503)
+        try:
+            head, rest = _fs_read_header(s)
+            if not head.get("ok"):
+                if head.get("code") == "erange":
+                    self.send_response(416)
+                    self.send_header("Content-Range", "bytes */%d" % head.get("total", 0))
+                    self.end_headers()
+                    return
+                return self.send_error(413 if head.get("code") == "etoobig" else 404)
+            if kind == "dir":
+                ctype, inline = "application/zip", False
+                name = (name or "share") + ".zip"
+            else:
+                ctype = mimetypes.guess_type(name)[0] or "application/octet-stream"
+                inline = (not force_dl) and any(
+                    ctype == t or (t.endswith("/") and ctype.startswith(t))
+                    for t in SHARE_INLINE_TYPES)
+            partial = bool(head.get("partial"))
+            self.send_response(206 if partial else 200)
+            self.send_header("Content-Type", ctype if inline or kind == "dir"
+                             else "application/octet-stream")
+            self.send_header("Content-Length", str(head["size"]))
+            self.send_header("Accept-Ranges", "bytes" if kind == "file" else "none")
+            if partial:
+                self.send_header("Content-Range", "bytes %d-%d/%d" %
+                                 (head["start"], head["end"], head["total"]))
+            self.send_header("Content-Disposition", _content_disposition(name, inline))
+            self._share_safety_headers()
+            self.end_headers()
+            if self.command == "HEAD":
+                return
+            remaining = head["size"]
+            if rest:
+                self.wfile.write(rest[:remaining])
+                remaining -= len(rest[:remaining])
+            while remaining > 0:
+                chunk = s.recv(min(65536, remaining))
+                if not chunk:
+                    break
+                self.wfile.write(chunk)
+                remaining -= len(chunk)
+        except (OSError, BrokenPipeError, ConnectionError):
+            pass
+        finally:
+            s.close()
+
+    def _serve_share_file(self, path, name, force_dl, range_hdr, base=None, owner=None):
+        if owner and os.geteuid() == 0:
+            return self._serve_share_agent(path, name, owner, "file", force_dl,
+                                           range_hdr, base)
         # OPEN ONCE, THEN VALIDATE THE DESCRIPTOR. `_safe_share_target` fences the
         # path correctly, but it returns a PATH — and this then resolved that path
         # twice more (getsize, open), as root, with every component under the
@@ -8749,6 +8859,16 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self._share_safety_headers()
             self.end_headers()
             return
+        if owner and os.geteuid() == 0:
+            try:
+                with _zip_slot(token):
+                    return self._serve_share_agent(absdir, name, owner, "dir",
+                                                   base=os.path.realpath(_share_root(owner)))
+            except _ZipBusy:
+                self.send_response(503)
+                self.send_header("Retry-After", "10")
+                self.end_headers()
+                return
         base = os.path.realpath(_share_root(owner))
         tmpdir = _office_cache_dir(owner)
         try:
@@ -8981,34 +9101,20 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 return
             self._json(200, _claude_usage_payload())
             return
-        # Both of these parse the user's WHOLE transcript corpus (measured: 2.12s
-        # over 607 files / 2.6GB for Claude, 0.68s / 1.1GB for Codex). Their own
-        # module TTL is 45s and the Token Stats page polls every 45s -- and the
-        # timestamp is stamped AFTER the compute, so the poll misses the cache by
-        # construction and the user pays a full reparse roughly every other tick.
-        # Two devices missed together meant two concurrent reparses, because the
-        # compute runs outside the module lock.
-        #
-        # Refresh-ahead fixes all of it: the page always gets the last reading
-        # instantly, one producer runs no matter how many clients ask, and the
-        # cost grows with corpus size without ever reaching a request thread.
+        # Unchanged transcript files are cached by each stats module. A cold
+        # start still reads the entire corpus, which can take many seconds, so
+        # let the already-supported pending UI wait without holding a request.
         if self.path in ("/api/claude/stats", "/api/codex/stats"):
-            mod = claude_stats if "claude" in self.path else codex_stats
+            provider = "claude" if "claude" in self.path else "codex"
             home = _office_home()
-            # block_first: the very first parse after a manager restart is paid
-            # inline (2.1s, once per process), exactly as before. Every later
-            # request — which is all of them — is served instantly from the last
-            # reading while a refresh runs behind it. Keeping the first call
-            # synchronous means the payload shape never changes, so nothing
-            # downstream needs a "pending" branch.
             try:
-                val, have = _bg_cached(f"{mod.__name__}:{home}", 45.0,
-                                       lambda: mod.get_stats(home), block_first=True)
+                val, have = _bg_cached(f"{provider}_stats:{home}", 45.0,
+                                       lambda: _stats_from_worker(provider, home))
             except Exception as e:
-                log.warning("%s failed: %s", mod.__name__, e)
+                log.warning("%s stats failed: %s", provider, e)
                 self._json(500, {"error": str(e)})
                 return
-            self._json(200, val if have else {})
+            self._json(200, val if have else {"pending": True})
             return
         if self.path == "/api/share/list":
             return self._handle_share_list()

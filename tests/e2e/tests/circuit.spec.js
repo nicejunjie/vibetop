@@ -185,6 +185,13 @@ test.describe('circuit', () => {
       // silently dropped by the builder — the pipe then leads nowhere)
       for (const k of Object.keys(L.warps)) {
         const t = L.warps[k];
+        if (t.level !== undefined) {
+          expect(t.level, `${L.name} warp ${k} targets a missing level`)
+            .toBeGreaterThanOrEqual(0);
+          expect(t.level, `${L.name} warp ${k} targets a missing level`)
+            .toBeLessThan(count);
+          continue;
+        }
         expect(t.x, `${L.name} warp ${k} leaves the level`).toBeLessThan(L.w);
         expect(enter[t.x], `${L.name} warp ${k} lands in the void`).not.toBeNull();
       }

@@ -86,6 +86,8 @@ Two items that queue does **not** carry, found in the gap audits:
 
 A peer session edits the same working tree. On 2026-09-04, `terminals.html` and
 `ttyd-run.sh` went from clean to modified between two `git status` calls minutes
-apart. Therefore: **release from a worktree**, run `git diff --cached
---name-only` immediately before every commit, never assume a fast-forward, and
-never bump `VERSION`/`sw.js` while prod is dirty.
+apart. Start each task with `tools/new-worktree.sh NAME`; commit only inside that
+worktree, then run `tools/publish-worktree.sh` there. The publish command rejects
+a dirty tree or a remote that moved since the task branched, so a second session
+cannot silently publish the same release number. If the remote moved, rebase and
+bump `VERSION`/`sw.js` again before publishing. Do not stage the shared checkout.

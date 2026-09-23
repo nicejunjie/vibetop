@@ -422,10 +422,8 @@ function load(){
   Promise.all([fetch('/api/claude/stats', {cache:'no-store'}),fetch('/api/codex/stats', {cache:'no-store'})])
     .then(function(rs){ return Promise.all(rs.map(function(r){ if(!r.ok) throw Error(r.status); return r.json(); })); })
     .then(function(ds){
-      // The stats now refresh BEHIND the request (parsing the whole transcript
-      // corpus never belonged on a request thread), so the first call after a
-      // manager restart has no reading yet. Drawing that as real zeros would
-      // report "you used nothing", so wait for the refresh instead.
+      // A cold worker needs time to read the transcripts. Wait for that first
+      // result instead of drawing the pending response as real zeros.
       if (ds.some(function(d){ return d && d.pending; })) {
         document.getElementById('sub').textContent = 'Reading transcripts…';
         clearTimeout(load._pendT);

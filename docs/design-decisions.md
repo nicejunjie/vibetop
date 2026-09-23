@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_349 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_351 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
 - [Scheduled terminal messages ("resume when the token limit resets")](#scheduled-terminal-messages-resume-when-the-token-limit-resets)
@@ -372,6 +372,8 @@ _349 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [RTS: the Soviet yard's machinery goes black, not the rip's navy (2026-09-23)](#rts-the-soviet-yards-machinery-goes-black-not-the-rips-navy-2026-09-23)
 - [RTS: Hard's short matches were not the opening (2026-09-23)](#rts-hards-short-matches-were-not-the-opening-2026-09-23)
 - [The window poll forked a 1GB process to read one X property](#the-window-poll-forked-a-1gb-process-to-read-one-x-property)
+- [Transcript analytics leave the manager's heap](#transcript-analytics-leave-the-managers-heap)
+- [Public shares open under the owner's credentials](#public-shares-open-under-the-owners-credentials)
 
 <!-- END TOC -->
 
@@ -15916,3 +15918,34 @@ poll must not raise alarms for a display that simply is not up yet.
 someone *clicks* — a handful of times a session. The fork cost that made a 4s
 poll untenable is irrelevant there, and teaching the agent to send
 `ClientMessage`s buys nothing measurable.
+## Transcript analytics leave the manager's heap
+
+**Symptom.** A cold Token Stats request blocked its HTTP thread while reading
+several gigabytes of transcripts, and the root manager held roughly 1 GB RSS.
+The existing per-file caches already avoided rereading unchanged JSONL on each
+refresh; a byte-offset checkpoint would have duplicated that protection and
+would not, by itself, explain the manager's memory.
+
+**Fix.** The route now returns `pending` on the first request, which the page
+already knows how to render. Two spawned worker processes run the Claude and
+Codex parsers and keep their per-file caches warm across refreshes. Spawning
+avoids copying the manager's heap into a worker; the manager holds only the
+small aggregate payloads. A standalone first parse on this host used about
+116 MB RSS for both providers in one process. The root manager's remaining
+RSS must be measured after deployment before attributing all of its old 1 GB
+to transcript parsing.
+
+## Public shares open under the owner's credentials
+
+**Symptom.** The share path checked the owner's read permission, then root
+opened the path. Checking the opened descriptor's location closed an escape
+outside the share root, but a swap to a different file *inside* that root
+could still pass the location check after the earlier permission check.
+Folder ZIPs had the same check-then-reopen pattern at each member.
+
+**Fix.** The per-user file agent now opens public share files and archive
+members as the owner. It validates the opened descriptor against the share
+root and hidden-path rule, then streams from that descriptor. Root only
+proxies bytes and applies HTTP headers. A race can make a share disappear or
+change to something else the owner can read; it cannot make root disclose a
+file the owner cannot read.

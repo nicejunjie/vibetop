@@ -6,8 +6,8 @@ There is no billing/usage API for Claude subscription usage, so this
 reconstructs it from the per-message `usage` the CLI records in its transcripts
 (input/output/cache-creation/cache-read tokens, model, timestamp) and ESTIMATES
 cost from a public per-MTok price table. Pure stdlib — a sibling module the
-manager imports, like system_status.py. A full parse of ~600 files / ~50k usage
-entries is ~1.5s, so results are cached with a short TTL.
+manager's stats worker imports. Unchanged files are cached after the first
+parse, and the manager serves the last result while a refresh runs.
 
 Dedup: the same API response can be written to more than one transcript (session
 resume/fork), so entries are de-duplicated by (message.id, requestId) — the same

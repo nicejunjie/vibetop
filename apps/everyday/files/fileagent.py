@@ -955,6 +955,109 @@ def stream_download(conn, req):
             pass
 
 
+def _share_fd_inside(fd, root):
+    """Validate the opened inode, including hidden path components."""
+    base = os.path.realpath(root)
+    real = os.readlink(f"/proc/self/fd/{fd}")
+    if real != base and not real.startswith(base + os.sep):
+        return False
+    return not any(p.startswith(".") for p in real[len(base):].split(os.sep) if p)
+
+
+def stream_share_download(conn, req):
+    """Public share bytes, opened under this user's own Unix credentials."""
+    path, err = _abs_or_err(req.get("path"))
+    if err:
+        return _send_json(conn, err)
+    try:
+        fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW)
+        with os.fdopen(fd, "rb") as f:
+            st = os.fstat(f.fileno())
+            if not statmod.S_ISREG(st.st_mode) or not _share_fd_inside(f.fileno(), req["root"]):
+                return _send_json(conn, {"ok": False, "code": "eperm"})
+            size = st.st_size
+            start, end, partial = 0, size - 1, False
+            value = (req.get("range") or "").strip()
+            if value:
+                import re
+                m = re.fullmatch(r"bytes=(\d*)-(\d*)", value)
+                if m and (m.group(1) or m.group(2)):
+                    if not m.group(1):
+                        start = max(0, size - int(m.group(2)))
+                    else:
+                        start = int(m.group(1))
+                        end = int(m.group(2)) if m.group(2) else size - 1
+                    if start > end or start >= max(size, 1):
+                        return _send_json(conn, {"ok": False, "code": "erange", "total": size})
+                    end = min(end, size - 1)
+                    partial = True
+            length = max(0, end - start + 1)
+            _send_json(conn, {"ok": True, "size": length, "total": size,
+                              "start": start, "end": end, "partial": partial})
+            if req.get("head"):
+                return
+            f.seek(start)
+            remaining = length
+            while remaining:
+                chunk = f.read(min(65536, remaining))
+                if not chunk:
+                    break
+                conn.sendall(chunk)
+                remaining -= len(chunk)
+    except (OSError, KeyError, ValueError):
+        return _send_json(conn, {"ok": False, "code": "enoent"})
+
+
+def stream_share_zip(conn, req):
+    """Build a bounded public archive as the owner, opening each member once."""
+    path, err = _abs_or_err(req.get("path"))
+    if err:
+        return _send_json(conn, err)
+    try:
+        dirfd = os.open(path, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+        try:
+            inside = _share_fd_inside(dirfd, req["root"])
+        finally:
+            os.close(dirfd)
+        if not inside:
+            return _send_json(conn, {"ok": False, "code": "eperm"})
+        count = total = 0
+        top = os.path.basename(path.rstrip("/")) or "share"
+        with tempfile.TemporaryFile() as tmp:
+            with zipfile.ZipFile(tmp, "w", zipfile.ZIP_DEFLATED, allowZip64=True) as z:
+                for root, dirs, files in os.walk(path):
+                    dirs[:] = [d for d in dirs if not d.startswith(".")]
+                    for name in files:
+                        if name.startswith("."):
+                            continue
+                        member = os.path.join(root, name)
+                        try:
+                            fd = os.open(member, os.O_RDONLY | os.O_NOFOLLOW)
+                            with os.fdopen(fd, "rb") as f:
+                                st = os.fstat(f.fileno())
+                                if not statmod.S_ISREG(st.st_mode) or not _share_fd_inside(f.fileno(), req["root"]):
+                                    continue
+                                count += 1
+                                total += st.st_size
+                                if count > int(req["max_files"]) or total > int(req["max_bytes"]):
+                                    return _send_json(conn, {"ok": False, "code": "etoobig"})
+                                arcname = os.path.join(top, os.path.relpath(member, path))
+                                with z.open(arcname, "w") as out:
+                                    shutil.copyfileobj(f, out, 65536)
+                        except OSError:
+                            continue
+            size = tmp.tell()
+            tmp.seek(0)
+            _send_json(conn, {"ok": True, "size": size})
+            while True:
+                chunk = tmp.read(65536)
+                if not chunk:
+                    break
+                conn.sendall(chunk)
+    except (OSError, KeyError, ValueError):
+        return _send_json(conn, {"ok": False, "code": "enoent"})
+
+
 def stream_zip(conn, req):
     paths = req.get("paths") or []
     if not isinstance(paths, list) or not paths:
@@ -1019,6 +1122,10 @@ def handle(conn):
             return stream_upload(conn, req, rest)
         if op == "download":
             return stream_download(conn, req)
+        if op == "share-download":
+            return stream_share_download(conn, req)
+        if op == "share-zip":
+            return stream_share_zip(conn, req)
         if op == "zip":
             return stream_zip(conn, req)
         fn = OPS.get(op)

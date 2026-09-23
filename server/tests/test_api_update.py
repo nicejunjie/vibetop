@@ -35,7 +35,7 @@ class GitFake:
         if cmd == "diff" and "--name-only" in a:
             return True, "\n".join(self.changed)
         if cmd in ("reset", "stash", "merge"):
-            self.head = self.remote       # these advance HEAD to origin/main
+            self.head = a[-1] if cmd == "reset" and a[-1] != "origin/main" else self.remote
             return True, ""
         if cmd == "log":
             fmt = next((x for x in a if x.startswith("--format")), "")
@@ -138,6 +138,28 @@ def test_update_fetch_failure_reports_cleanly(client, mgr, stubs, monkeypatch, o
     status, body = client.post("/api/update", {}, cookie=op_cookie)
     assert status == 200 and body["ok"] is False
     assert "fetch" in body["message"].lower()
+
+
+def test_failed_deploy_restores_source_and_prior_web_build(client, mgr, stubs,
+                                                            monkeypatch, op_cookie):
+    from types import SimpleNamespace
+    g = GitFake()
+    monkeypatch.setattr(mgr, "_git", g)
+    deploys = []
+
+    def run(argv, **_kw):
+        deploys.append(argv)
+        return SimpleNamespace(returncode=1 if len(deploys) == 1 else 0,
+                               stdout="", stderr="deploy failed" if len(deploys) == 1 else "")
+
+    monkeypatch.setattr(mgr.subprocess, "run", run)
+    status, body = client.post("/api/update", {}, cookie=op_cookie)
+    assert status == 200 and body["ok"] is False
+    assert "previous version was restored" in body["message"]
+    assert g.head == "aaaaaaa"
+    assert len(deploys) == 2
+    assert _step(body["log"], "rollback source")["ok"]
+    assert _step(body["log"], "rollback deployment")["ok"]
 
 
 def test_update_check_reports_behind(client, mgr, monkeypatch, op_cookie):

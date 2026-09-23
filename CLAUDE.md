@@ -12,6 +12,7 @@ re-derive it here, and put new detail in the area doc rather than growing this f
 | Task | Read |
 |---|---|
 | Deploy / install / uninstall, prod `/opt/vibetop` layout, installer conventions | `docs/deploy.md` |
+| Start or publish a release from a shared host | `tools/new-worktree.sh NAME`, then `tools/publish-worktree.sh` from that worktree; see `docs/open-work.md` |
 | Run or add tests (`./run-tests.sh`, tiers, e2e VM, install matrix) | `docs/testing.md` |
 | A host is misbehaving | `sudo ./tools/doctor.sh` first, then `docs/operations.md` |
 | Desktop shell: Start menu, taskbar, window mode, heartbeat, PWA/sw, mobile | `docs/desktop.md` |

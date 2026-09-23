@@ -50,8 +50,13 @@ def test_disable_removes_only_our_key(client, mgr, stubs, op_cookie):
 
 
 def test_stats_shape(client):
-    # No transcripts in the tmp HOME -> zeroed but well-formed windows.
-    status, body = client.get("/api/claude/stats")
+    # First request starts the parse; later ones receive its result.
+    import threading
+    for _ in range(100):
+        status, body = client.get("/api/claude/stats")
+        if not body.get("pending"):
+            break
+        threading.Event().wait(0.02)
     assert status == 200
     assert "windows" in body and "all" in body["windows"]
     for k in ("in", "out", "tokens", "cost", "req"):
@@ -59,6 +64,11 @@ def test_stats_shape(client):
 
 
 def test_codex_stats_shape(client):
-    status, body = client.get("/api/codex/stats")
+    import threading
+    for _ in range(100):
+        status, body = client.get("/api/codex/stats")
+        if not body.get("pending"):
+            break
+        threading.Event().wait(0.02)
     assert status == 200 and body["provider"] == "codex"
     assert len(body["byDay"]) == 30 and len(body["byHour"]) == 48
