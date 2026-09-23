@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_313 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_314 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
 - [Scheduled terminal messages ("resume when the token limit resets")](#scheduled-terminal-messages-resume-when-the-token-limit-resets)
@@ -336,6 +336,7 @@ _313 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [Wall power on the Monitor: a sensor that lives on the network](#wall-power-on-the-monitor-a-sensor-that-lives-on-the-network)
 - [The plug's address is a setting, not a deployment detail](#the-plugs-address-is-a-setting-not-a-deployment-detail)
 - [A terminal whose session daemon died flashed "reconnecting" forever (2026-09-22)](#a-terminal-whose-session-daemon-died-flashed-reconnecting-forever-2026-09-22)
+- [RTS soak harnesses re-read the tree for every cell — snapshot before you edit (2026-09-22)](#rts-soak-harnesses-re-read-the-tree-for-every-cell-snapshot-before-you-edit-2026-09-22)
 
 <!-- END TOC -->
 
@@ -14722,3 +14723,20 @@ row. A question worth asking directly is worth one boolean.
 - Tested: `server/tests/test_terminal_orphan_heal.py` (all five fail on the
   unfixed build). Sessions started before this deploy keep `OOMPolicy=stop` until
   they are restarted — the heal covers them, the policy doesn't.
+
+## RTS soak harnesses re-read the tree for every cell — snapshot before you edit (2026-09-22)
+
+- **Symptom:** the first "before" run of `apps/games/rts/tools/match-shape-soak.js`
+  printed a win-rule table that mixed the old concession rule with the new one.
+- **Cause:** like `sim-identity.js`, the harness spawns one `node` process per
+  cell (`--jobs`), and each child re-reads `rts.html` and every `rts/*.js`
+  when it starts. A 189-cell soak takes 10-15 minutes on a loaded host. Any
+  edit made in that time reaches every cell that has not started yet, so a
+  run silently measures two builds.
+- **Fix:** run each soak from a snapshot, never the live checkout: `git archive
+  <commit> apps/games/rts | tar -x -C .scratch/base` for the before-number, and an
+  `rsync` of the working tree for each after-number. Both keep the edit loop
+  running while the soak runs.
+- **Rejected: bundling once in the parent and passing the source to the
+  children.** It would fix this, but it changes the harness shape that
+  `sim-identity.js` shares. A snapshot costs one command.
