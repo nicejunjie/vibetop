@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_332 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_333 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
 - [Scheduled terminal messages ("resume when the token limit resets")](#scheduled-terminal-messages-resume-when-the-token-limit-resets)
@@ -355,6 +355,7 @@ _332 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [RTS N seats: a two-seat game has no team array, and that is what keeps it identical (2026-09-22)](#rts-n-seats-a-two-seat-game-has-no-team-array-and-that-is-what-keeps-it-identical-2026-09-22)
 - [RTS cliffs: sloped faces in their own pass, chamfered corners (2026-09-22)](#rts-cliffs-sloped-faces-in-their-own-pass-chamfered-corners-2026-09-22)
 - [RTS map size is per map, drawn in 64-board design coordinates (2026-09-22)](#rts-map-size-is-per-map-drawn-in-64-board-design-coordinates-2026-09-22)
+- [RTS: the country layer must be read from RA2's rules.ini, not YR's rulesmd.ini (2026-09-23)](#rts-the-country-layer-must-be-read-from-ra2s-rulesini-not-yrs-rulesmdini-2026-09-23)
 
 <!-- END TOC -->
 
@@ -15413,3 +15414,29 @@ path queue already spreads calls across ticks.
 every cliff and ramp width and leaves the ore at the old count. Replacing
 `MAP` with `g.W` at every site: that is 150 edits across files other builders
 own, for no behaviour difference.
+
+## RTS: the country layer must be read from RA2's rules.ini, not YR's rulesmd.ini (2026-09-23)
+
+**Symptom.** Wave 2's specialists (Sniper, Terrorist, Tank Destroyer,
+Demolition Truck, Black Eagle, Navy SEAL, America's paradrop) all looked
+right against their cited `rules.ini` lines, yet the Navy SEAL was trainable
+in every Allied skirmish, which RA2 never allowed.
+
+**Cause.** The copy they were read from was Yuri's Revenge's `rulesmd.ini`
+(its `[General] Name=` says so; its line numbers run ~3,000 higher). Almost
+every value is shared, so a spot check passes. The differences that matter
+hide in flags: `[GHOST] TechLevel=9` in YR against `-1` in RA2 (SEALs became
+trainable in YR 1.000), and `[Maverick2] Burst` 1 against 2. The same pass
+had also left `[SABOTE]`'s own warhead `UltraAPE` and `[TERROR]
+DeathWeapon=TerrorBomb` untranscribed, and dropped the `* T15` factor from
+the American paradrop's charge.
+
+**Fix.** Diff every key of each unit and weapon section in both files
+(`python3` over the two INIs), and cite RA2's retail file
+(github.com/hzhangxyz/rulesmd.ini `rules.ini`, `Name=Red Alert 2 -- Official
+Rules of Engagement`). `rts-ra2-rules.test.js` pins each number with its
+RA2 line. The SEAL keeps its unit, art and hooks but carries
+`campaign: true`, which `canBuild` and both panel lists skip.
+
+**Rejected.** Keeping the SEAL buildable because wave 2 shipped it: the
+standing requirement is RA2, and RA2's Allied commando is Tanya.
