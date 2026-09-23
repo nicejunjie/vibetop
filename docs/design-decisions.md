@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_332 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_334 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
 - [Scheduled terminal messages ("resume when the token limit resets")](#scheduled-terminal-messages-resume-when-the-token-limit-resets)
@@ -355,6 +355,8 @@ _332 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [RTS N seats: a two-seat game has no team array, and that is what keeps it identical (2026-09-22)](#rts-n-seats-a-two-seat-game-has-no-team-array-and-that-is-what-keeps-it-identical-2026-09-22)
 - [RTS cliffs: sloped faces in their own pass, chamfered corners (2026-09-22)](#rts-cliffs-sloped-faces-in-their-own-pass-chamfered-corners-2026-09-22)
 - [RTS map size is per map, drawn in 64-board design coordinates (2026-09-22)](#rts-map-size-is-per-map-drawn-in-64-board-design-coordinates-2026-09-22)
+- [RTS: the Soviet Construction Yard was drawn from its own destruction animation (2026-09-23)](#rts-the-soviet-construction-yard-was-drawn-from-its-own-destruction-animation-2026-09-23)
+- [RTS: desert cliffs were a recoloured lawn; urban cliffs were rock (2026-09-23)](#rts-desert-cliffs-were-a-recoloured-lawn-urban-cliffs-were-rock-2026-09-23)
 
 <!-- END TOC -->
 
@@ -15413,3 +15415,54 @@ path queue already spreads calls across ticks.
 every cliff and ramp width and leaves the ore at the old count. Replacing
 `MAP` with `g.W` at every site: that is 150 edits across files other builders
 own, for no behaviour difference.
+
+## RTS: the Soviet Construction Yard was drawn from its own destruction animation (2026-09-23)
+
+**Symptom.** Next to the real idle rip, the Soviet Construction Yard came out
+mirrored: its crane stood on the left and the red grilles on the right, and the
+machinery was a mid grey. The yard had passed three art rounds.
+
+**Cause.** The reference file, `soviet-construction-yard.gif`, is the wiki's
+`Soviet Construction Yard animation 2.gif`. That file is the DESTRUCTION
+sequence. Its frame 0 is the intact yard, but already lit by the first
+explosion and seen with the wreck in progress. Every round measured against it.
+The wiki also has `C&C-RA2-ngcnstdm.gif`, the same animation under another name.
+It has no Soviet yard idle file.
+
+**Fix.** The idle yard is the LAST frame of `Soviet MCV animation.gif`, the
+deploy SHP, which ends on the unfolded yard (red owner, magenta shadow). That
+frame now IS `sprites/buildings/soviet-construction-yard.gif`: a single frame,
+203x164 opaque, with the manifest, catalog, sprite README and the
+`art-metrics.js` `base:col` row updated. The art keeps its accepted parts. The
+Soviet branch of `units/structures/base.js` draws under a horizontal mirror
+about the yard's centre. `prismS` then repaints each block's two walls with the
+lit and shaded factors swapped, so the light stays top-left as RA2 has it. The
+hammer-and-sickle stencil negates its own wall coordinate, so it is not
+mirrored. The machinery went dark navy-grey and the limestone portal went
+brick, as in the rip.
+
+**Rejected.** Moving each component to the other side by hand: that means
+~40 hand-placed anchors, and it risks the accepted geometry. Mirroring without
+relighting: every wall's light would come from the right. Keeping the
+destruction frame as the reference: it is the wrong object.
+
+## RTS: desert cliffs were a recoloured lawn; urban cliffs were rock (2026-09-23)
+
+**Symptom.** The desert theatre's cliff crowns read as dark brown tiles with
+grid seams against the sand. Urban maps would draw natural rock faces in a
+city.
+
+**Cause.** `SPR.cliff.desert` was the temperate (`grass`) bank passed through
+`recolour(..., '#b48a58', 0.9)`. That tinted the green crown brown, but a
+tinted lawn is not sand. `bakeCliff` had no urban branch beyond a greyer rock
+palette.
+
+**Fix.** Desert now bakes its own bank (`cliffBank(k, 'desert', v)`). The crown
+is the desert `dune` ground colour with wind ripples, over sandstone faces.
+Urban faces are poured-concrete retaining walls (`urbanWall` in `bakeCliff`):
+a straight crest (the per-vertex jitter is zeroed), a pale coping, form-tie
+lift lines, two panel joints, rain streaks, weep holes and a footing kerb, with
+no strata, gullies, talus or scree.
+
+**Rejected.** A second tint pass for the crown alone: the crown and the face
+share one canvas, and the recolour cannot tell them apart.
