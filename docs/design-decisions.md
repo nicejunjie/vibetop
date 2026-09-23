@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_338 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_341 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
 - [Scheduled terminal messages ("resume when the token limit resets")](#scheduled-terminal-messages-resume-when-the-token-limit-resets)
@@ -361,6 +361,9 @@ _338 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [RTS: an AI radius in cells silently died when the boards grew (2026-09-23)](#rts-an-ai-radius-in-cells-silently-died-when-the-boards-grew-2026-09-23)
 - [RTS: Hard never saved for its superweapon because it asked with the bank (2026-09-23)](#rts-hard-never-saved-for-its-superweapon-because-it-asked-with-the-bank-2026-09-23)
 - [RTS seats: an attack order outlived a mind-controlled target (2026-09-23)](#rts-seats-an-attack-order-outlived-a-mind-controlled-target-2026-09-23)
+- [RTS seats: a mind-control RELEASE also changes whose hull an order names (2026-09-23)](#rts-seats-a-mind-control-release-also-changes-whose-hull-an-order-names-2026-09-23)
+- [RTS seats: multi-seat boards split one map's worth of ore six ways (2026-09-23)](#rts-seats-multi-seat-boards-split-one-maps-worth-of-ore-six-ways-2026-09-23)
+- [RTS: Hard saved for its silo with no army standing (2026-09-23)](#rts-hard-saved-for-its-silo-with-no-army-standing-2026-09-23)
 
 <!-- END TOC -->
 
@@ -15585,3 +15588,66 @@ attack order). Not yet found.
 
 **Rejected.** Dropping every order whose target is allied: a player's own
 force-fire on a friendly structure is legal and must keep working.
+
+## RTS seats: a mind-control RELEASE also changes whose hull an order names (2026-09-23)
+
+**Symptom.** Wave 3's fix for an ally's freshly mind-controlled target left
+the Six Oases 2v2v2 seat soak (seed 20276760) at the same 15 friendly hits,
+at the same tick.
+
+**Cause.** Instrumented `damage()` with the attacker's order and the
+target's `mcBy`: every hit was a squad's `attack` order on unit 1122 with
+`mcBy: 0`. An ENEMY Yuri had taken seat 2's Rhino, seat 0's squad was
+rightly ordered onto it, then the Yuri let go. `releaseMind()` returns the
+hull to `mcHome` and zeroes `mcBy`, so wave 3's `ordered.mcBy && allied(...)`
+test was false exactly when the hull came home. The check asked "is it
+captured" when the question is "whose is it now".
+
+**Fix.** `move.js` drops an attack order's target whenever it is ours or an
+ally's, unless the order is a player's force-fire (`order.force`).
+`rts-seats-mc.test.js` (the release case, red on v1.23.0, plus a force-fire
+case that must keep shooting). Seat soak: 15 → 0.
+
+**Rejected.** Clearing attackers' orders inside `releaseMind()`: it would
+need a scan of every unit, and it misses any other path that hands a hull
+over (a re-capture, a future Chronosphere swap).
+
+## RTS seats: multi-seat boards split one map's worth of ore six ways (2026-09-23)
+
+**Symptom.** Six seats mined a 144 board out by 18:00, then the survivors
+stood off: the seat soak resolved 20 of 30 4/6-player matches by 45:00;
+every Metropolis and Glacier Bay FFA timed out.
+
+**Cause.** `genCore` lays the home fields per start, but the contested
+fields and per-map pockets once per map. Per seat: Metropolis 60k, Glacier
+Bay 80k, Twin Rivers 94k, Six Oases 100k, against 139-224k on every 1v1 map.
+
+**Fix.** `oreBudget` in `genMap` thickens a multi-seat board cell for cell
+to 150k a seat (at most 2.5x). The layout and the mirror are untouched and
+two-seat maps never reach it. `rts-ore-seats.test.js`, red on v1.23.0.
+Seat soak: 28/30 resolved by 45:00, median 21 min.
+
+**Rejected.** More fields per start: new patches on authored boards land on
+roads, cliffs and chokepoints. Faster regrowth: that changes every 1v1 map.
+
+## RTS: Hard saved for its silo with no army standing (2026-09-23)
+
+**Symptom.** Hard-vs-Hard ended at a median 12.8 min (RA2 Brutal: 20-30).
+Hard's army at 10:00 was the smallest of the three difficulties.
+
+**Cause.** A probe (Iron Frontier, seed 20260831) showed a 45-man brawl at
+4:00. The Soviet Hard lost its army by 6:30, then sat on $4000 with empty
+lanes for four minutes, reserving the $5000 silo price (wave 3's `swEarly`
+reserve), and was razed at 10:30. Hard also ran one barracks behind three
+War Factories: its second came only from the "full lane and fat bank"
+escape, which a house that spends never reaches.
+
+**Fix.** The silo reserve waits until half a `group` stands. Hard builds to
+`bar: 3` barracks on a $1500 bank (`barBank`) once the lab stands, before
+the silo hold. Placed before the lab, the huts cut the silo by 20:00 to 32%.
+Match-shape soak: Hard army at 10:00 17.2 → 18.8, Hard median match
+12.8 → 13.5 min, silo by 20:00 46% → 42% (within noise).
+
+**Still open.** Hard's army count is still below Normal's (25). The silo
+target of 60% is not met. In the soak, Hard-vs-Hard matches are decided by
+an early infantry brawl near the 4:00 mark, not by a silo race.
