@@ -99,6 +99,59 @@ def test_codex_usage_keeps_limit_snapshot_after_large_error_output(mgr, tmp_path
     assert blocked["session"]["reset"] == 2000000000
 
 
+def test_large_rollout_is_streamed_with_bounded_reads(mgr, tmp_path, monkeypatch):
+    """A tool record can be megabytes; it must never slurp the whole rollout."""
+    sessions = tmp_path / ".codex/sessions"
+    sessions.mkdir(parents=True)
+    rollout = sessions / "large.jsonl"
+    first = json.dumps(_event("2026-09-02T10:00:00Z", 20, 30)).encode() + b"\n"
+    last = json.dumps(_event("2026-09-02T11:00:00Z", 45, 50)).encode() + b"\n"
+    rollout.write_bytes(first + b'{"type":"response_item","body":"' +
+                        b"x" * (2 * mgr._CODEX_RATE_LINE_MAX) + b'"}\n' + last)
+    real_open = open
+    reads = []
+
+    class BoundedFile:
+        def __init__(self, inner):
+            self.inner = inner
+        def __enter__(self):
+            return self
+        def __exit__(self, *args):
+            return self.inner.__exit__(*args)
+        def seek(self, *args):
+            return self.inner.seek(*args)
+        def tell(self):
+            return self.inner.tell()
+        def readline(self, n=-1):
+            reads.append(n)
+            assert 0 < n <= mgr._CODEX_RATE_LINE_MAX + 1
+            return self.inner.readline(n)
+        def read(self, *args):
+            raise AssertionError("whole-rollout read returned")
+
+    def spy_open(path, *args, **kwargs):
+        inner = real_open(path, *args, **kwargs)
+        return BoundedFile(inner) if str(path) == str(rollout) else inner
+
+    monkeypatch.setattr("builtins.open", spy_open)
+    state = mgr._last_codex_rate_limit(str(rollout))
+    assert state["primary"][2] == 45
+    assert state["secondary"][2] == 50
+    assert reads and max(reads) <= mgr._CODEX_RATE_LINE_MAX + 1
+
+
+def test_partial_rate_limit_line_is_read_after_append(mgr, tmp_path):
+    rollout = tmp_path / "growing.jsonl"
+    first = json.dumps(_event("2026-09-02T10:00:00Z", 20, 30)).encode() + b"\n"
+    second = json.dumps(_event("2026-09-02T11:00:00Z", 45, 50)).encode() + b"\n"
+    cut = len(second) // 2
+    rollout.write_bytes(first + second[:cut])
+    assert mgr._last_codex_rate_limit(str(rollout))["primary"][2] == 20
+    with rollout.open("ab") as f:
+        f.write(second[cut:])
+    assert mgr._last_codex_rate_limit(str(rollout))["primary"][2] == 45
+
+
 # --- the real rollout carries more than one limit FAMILY ------------------- #
 # Measured over 1225 real token_count events in ~/.codex/sessions:
 #   limit_id=codex                 1220   primary 300 min + secondary 10080 min

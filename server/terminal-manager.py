@@ -879,6 +879,9 @@ def _set_claude_usage(on):
 CODEX_USAGE_STALE_SEC = 15 * 60
 _codex_rate_cache = {}
 _codex_rate_cache_lock = threading.Lock()
+# Rollouts may contain multi-megabyte tool/image events. Rate-limit records are
+# small; never let one unrelated JSONL line become an unbounded Python object.
+_CODEX_RATE_LINE_MAX = 1 << 20
 
 # THE ACCOUNT, NOT THE LOGS. The rollout scan below only ever sees requests made
 # from THIS machine, so it cannot see time passing (a window that rolled while
@@ -1090,47 +1093,64 @@ def _last_codex_rate_limit(path):
     tool records appended enough text after the final successful response.
     Cache by byte offset instead: new calls inspect only appended records, but
     keep returning the last valid limit while Codex is blocked. On a manager
-    restart the first call scans the complete rollout once.
+    restart the first call streams the complete rollout once. Reading the whole
+    file into `raw` and then `raw.splitlines()` retained roughly 1 GB in the
+    manager after a single 980 MB rollout was scanned.
 
     A window whose value is null contributes NOTHING and is simply passed over —
     it is an event that carried no reading, not a signal about quota. Only
     `limit_id: codex` records are considered at all (`_is_codex_limit`).
     """
-    try:
-        size = os.path.getsize(path)
-        with _codex_rate_cache_lock:
-            cached = _codex_rate_cache.get(path)
-        if cached and cached[0] == size:
-            return cached[1]
-        start = cached[0] if cached and cached[0] < size else 0
-        with open(path, "rb") as f:
-            f.seek(start)
-            raw = f.read()
-    except OSError:
-        return None
-    state = cached[1] if cached and start else {
-        "newest": None, "primary": None, "secondary": None}
-    for line in raw.splitlines():
-        if b'"rate_limits"' not in line or b'"token_count"' not in line:
-            continue
-        try:
-            event = json.loads(line)
-            payload = event.get("payload") or {}
-            limits = payload.get("rate_limits")
-            if payload.get("type") != "token_count" or not isinstance(limits, dict):
-                continue
-            if not _is_codex_limit(limits):
-                continue
-            stamp = event.get("timestamp")
-            updated = int(datetime.fromisoformat(stamp.replace("Z", "+00:00")).timestamp())
-            state["newest"] = (updated, limits)
-            for key in ("primary", "secondary"):
-                state[key] = _codex_better(state[key], limits.get(key))
-        except (ValueError, TypeError, AttributeError):
-            continue
     with _codex_rate_cache_lock:
-        _codex_rate_cache[path] = (size, state)
-    return state
+        try:
+            size = os.path.getsize(path)
+            cached = _codex_rate_cache.get(path)
+            if cached and cached[0] == size:
+                return cached[1]
+            start = cached[0] if cached and cached[0] < size else 0
+            state = dict(cached[1]) if cached and start else {
+                "newest": None, "primary": None, "secondary": None}
+            with open(path, "rb") as f:
+                f.seek(start)
+                complete = start
+                while f.tell() < size:
+                    line_start = f.tell()
+                    line = f.readline(min(_CODEX_RATE_LINE_MAX + 1, size - line_start))
+                    if not line:
+                        break
+                    if len(line) > _CODEX_RATE_LINE_MAX and not line.endswith(b"\n"):
+                        # Discard an oversized non-limit event in bounded chunks.
+                        # Keep an incomplete final line for the next append.
+                        while f.tell() < size and not line.endswith(b"\n"):
+                            line = f.readline(min(65536, size - f.tell()))
+                        if line.endswith(b"\n"):
+                            complete = f.tell()
+                        continue
+                    if not line.endswith(b"\n"):
+                        break
+                    complete = f.tell()
+                    if len(line) > _CODEX_RATE_LINE_MAX or b'"rate_limits"' not in line \
+                            or b'"token_count"' not in line:
+                        continue
+                    try:
+                        event = json.loads(line)
+                        payload = event.get("payload") or {}
+                        limits = payload.get("rate_limits")
+                        if payload.get("type") != "token_count" or not isinstance(limits, dict):
+                            continue
+                        if not _is_codex_limit(limits):
+                            continue
+                        stamp = event.get("timestamp")
+                        updated = int(datetime.fromisoformat(stamp.replace("Z", "+00:00")).timestamp())
+                        state["newest"] = (updated, limits)
+                        for key in ("primary", "secondary"):
+                            state[key] = _codex_better(state[key], limits.get(key))
+                    except (ValueError, TypeError, AttributeError):
+                        continue
+        except OSError:
+            return None
+        _codex_rate_cache[path] = (complete, state)
+        return state
 
 
 def _codex_usage_payload(home=None, enabled=True):

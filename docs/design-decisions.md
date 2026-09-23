@@ -15935,6 +15935,15 @@ small aggregate payloads. A standalone first parse on this host used about
 RSS must be measured after deployment before attributing all of its old 1 GB
 to transcript parsing.
 
+**Post-deploy finding (v1.25.1).** The manager still reached ~1 GB RSS. A
+separate Codex *usage-strip fallback* in `terminal-manager.py` read an entire
+980 MB rollout with `f.read()` and then copied it again with `splitlines()`.
+It was unrelated to the Token Stats worker. The fallback now streams complete
+JSONL lines with a 1 MiB line cap, discards oversized tool records in 64 KiB
+chunks, and remembers the last complete byte offset so a partial append is
+revisited. Scanning that real rollout in isolation took 0.45 s with a 26 MB
+process peak. The deployed manager's RSS still needs measuring after restart.
+
 ## Public shares open under the owner's credentials
 
 **Symptom.** The share path checked the owner's read permission, then root
