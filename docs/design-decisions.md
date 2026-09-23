@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_313 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_314 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
 - [Scheduled terminal messages ("resume when the token limit resets")](#scheduled-terminal-messages-resume-when-the-token-limit-resets)
@@ -336,6 +336,7 @@ _313 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [Wall power on the Monitor: a sensor that lives on the network](#wall-power-on-the-monitor-a-sensor-that-lives-on-the-network)
 - [The plug's address is a setting, not a deployment detail](#the-plugs-address-is-a-setting-not-a-deployment-detail)
 - [A terminal whose session daemon died flashed "reconnecting" forever (2026-09-22)](#a-terminal-whose-session-daemon-died-flashed-reconnecting-forever-2026-09-22)
+- [RTS structure material pass: one post-process, and the structures it must not tone (2026-09-22)](#rts-structure-material-pass-one-post-process-and-the-structures-it-must-not-tone-2026-09-22)
 
 <!-- END TOC -->
 
@@ -14722,3 +14723,28 @@ row. A question worth asking directly is worth one boolean.
 - Tested: `server/tests/test_terminal_orphan_heal.py` (all five fail on the
   unfixed build). Sessions started before this deploy keep `OOMPolicy=stop` until
   they are restarted — the heal covers them, the policy doesn't.
+
+## RTS structure material pass: one post-process, and the structures it must not tone (2026-09-22)
+
+- **Symptom:** the first version of the shared structure material pass
+  (`materialPass` in `apps/games/rts/rts/bake/buildings.js`: steel tone, top-left
+  key light, grain, grime, small fittings, owner colour cut back to trim) looked
+  right on the sheets and failed 7 accepted structure clauses in
+  `art-metrics.js` (`clause.unmetStructures` 0 -> 7).
+- **Cause:** the clause checks read palette steps relative to each sprite's own
+  median. Darkening pale metal moved the Patriot's dome into a lower step (4 ->
+  11 "tube mouths"), snapped the Gap Generator's pale-blue spheres into a third
+  house-coloured blob, dropped the Service Depot's apron below the pad cut
+  (v >= 0.37), and eroding house panels split the Iron Curtain's one ring into
+  two and took the Tesla Coil / Prism Tower below their RA2 house share. A cool
+  bias on greys (b = r + 8) also snapped into blue speckle the census counts as
+  house colour.
+- **Fix:** greys stay dead neutral; lamps are pale, never a second saturated
+  colour; lone defences, domes and pads (`MAT_BARE`) get only the house-panel
+  rule; `MAT_KEEP_HOUSE` exempts the three structures RA2 itself paints mostly
+  in house colour; the lower-right dark rim was dropped (it doubled the draw
+  code's outlines). All clauses back to their pre-pass state, no metric moved.
+- **Rejected:** per-structure token edits in all 29 draw files (29 chances to
+  disagree, and the plan asks for one shared pass); loosening the clause rows.
+- Tested: `apps/games/rts/rts-structure-material.test.js` (4 tests, all red on
+  the unfixed `buildings.js` via `RTS_BUILDINGS_SRC`).
