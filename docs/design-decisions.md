@@ -15413,3 +15413,28 @@ path queue already spreads calls across ticks.
 every cliff and ramp width and leaves the ore at the old count. Replacing
 `MAP` with `g.W` at every site: that is 150 edits across files other builders
 own, for no behaviour difference.
+
+### RTS: an AI radius in cells silently died when the boards grew (garrisons 100% -> 0%)
+
+**Symptom.** The wave-2 soak (v1.22.0) showed 0% of AI sides garrisoning a
+civilian building; wave 1 had 100%. Nothing in the garrison code had changed.
+
+**Cause.** Bisected with a probe on each first-parent commit: good through
+`5661c92`, bad from `b46807f` ("per-map board size"). The generators map their
+authored 64-board coordinates through `S(c)`, so the city's nearest block moved
+from 24 cells to 38-53 cells from each start (frontier 45, coastal 53, choke
+38, river 27). `aiNeutrals` still asked for a block within a fixed 26 cells of
+the yard (18 when defending) and a rifleman within 22 cells of the block, so
+no block ever qualified. The board scale reached every map feature but not the
+AI's distances.
+
+**Fix.** The reach is a share of the front, the distance to the nearest
+hostile start (`aiFrontDist`): 0.42 of it in peacetime, 0.29 defending, and a
+walk of 0.35, each floored at the old cell count, so the 64 board behaves as
+before. A block must also sit nearer our start than every hostile start
+(`aiOnOurHalf`), so the larger radius never sends riflemen into the enemy's
+half. Test: `rts-ai-garrison.test.js`, red on v1.22.0.
+
+**Rejected.** Raising 26 to 55: it would also reach blocks past the midline
+on the 96 board and in 4-seat games, and the next board size would break it
+again.
