@@ -35,6 +35,24 @@
   }
   #poll-stale[hidden] { display: none; }
   #poll-stale + #pause-btn { margin-left: 8px; }
+  /* Chart span picker. Takes the margin-left:auto so it and Pause sit together
+     at the right; without this the two would fight over who gets pushed. */
+  .h-span { margin-left: auto; display: inline-flex; border: 1px solid #2a3040;
+    border-radius: 6px; overflow: hidden; }
+  .h-span + #pause-btn { margin-left: 8px; }
+  .h-span button {
+    cursor: pointer; font: 13px system-ui, sans-serif; padding: 4px 10px;
+    border: 0; border-left: 1px solid #2a3040; background: rgba(255,255,255,0.05);
+    color: #ccc;
+  }
+  .h-span button:first-child { border-left: 0; }
+  .h-span button:hover { background: rgba(255,255,255,0.12); color: #fff; }
+  .h-span button.on { background: rgba(90,138,176,0.28); color: #cfe6ff; }
+  /* On a phone the header is already tight; the picker keeps its own row. */
+  @media (max-width: 736px) {
+    .h-span { margin-left: 0; }
+    .h-span button { padding: 4px 8px; font-size: 12px; }
+  }
 
   .layout {
     display: grid;
@@ -197,6 +215,14 @@
     <span><span class="h-label">UP </span><span class="h-up" id="h-up">--</span></span>
     <span><span class="h-label">TERMS </span><span class="h-val" id="h-terms">--</span></span>
     <span id="poll-stale" hidden></span>
+    <!-- Chart span. "2m" is the live view the page has always had; the rest are
+         read from the manager's 7-day ring. The numbers beside the charts stay
+         live at every span — they are "now", not history. -->
+    <span class="h-span" id="span-pick">
+      <button data-span="2m" class="on">2m</button><button data-span="1h">1h</button
+      ><button data-span="6h">6h</button><button data-span="24h">24h</button
+      ><button data-span="7d">7d</button>
+    </span>
     <span id="pause-btn" title="Pause/Resume">⏸ Pause</span>
   </div>
 
@@ -346,7 +372,16 @@
   // and the chart's own auto-scale do not, so an off guess misleads nobody.
   var WALL_FS = CPU_TDP + GPU_TDP + 140;
 
-  function push(arr, val) { arr.push(val); if (arr.length > HISTORY_LEN) arr.shift(); }
+  // '' = the live 2-minute view, built one sample per frame as it always was.
+  // Anything else names a span served by the manager's ring, and then the
+  // charts are WHOLLY the server's: it alone knows where a sample belongs in
+  // time, so a page appending its own points would misplace every one of them
+  // by however long the request took. Same rule as the wall series.
+  var histSpan = '';
+  function push(arr, val) {
+    if (histSpan) return;                 // the server owns the series now
+    arr.push(val); if (arr.length > HISTORY_LEN) arr.shift();
+  }
 
   function coreColor(pct) {
     if (pct >= 90) return 'crit';
@@ -464,6 +499,18 @@
           ctx.closePath();
           ctx.fillStyle = ds.color.replace(')', ',0.08)').replace('rgb', 'rgba');
           ctx.fill();
+        } else if (run.length === 1) {
+          // One sample with nothing either side of it. A line needs two points,
+          // so this used to draw NOTHING — real data rendering as an empty
+          // card. That is what an hour sampled every 30s looks like in a window
+          // that is 2s per slot: the host was idle, so the recorder sampled
+          // slowly, and there is genuinely no neighbour to join to. A dot says
+          // "measured here, and not next door", which is the truth; a line
+          // would invent the span between them.
+          ctx.beginPath();
+          ctx.fillStyle = ds.color;
+          ctx.arc(run[0].x, run[0].y, 1.6, 0, Math.PI * 2);
+          ctx.fill();
         }
         run = [];
       }
@@ -576,6 +623,10 @@
       showStale();
       if (d.cpu_cores && d.cpu_cores.length) updateCores(d.cpu_cores);  // [] is truthy → avoid 0/0=NaN avg
       renderLoadAvg(d.load_avg);
+      // Remembered for the history view, which stores raw GB and needs a
+      // denominator; totals do not change, so the live payload always has it.
+      lastTotals.mem = d.memory_total_gb || lastTotals.mem;
+      lastTotals.vram = d.gpu_vram_total_gb || lastTotals.vram;
       var memPct = d.memory_total_gb > 0 ? (d.memory_used_gb / d.memory_total_gb * 100) : 0;
       var gpuPct = d.gpu_percent != null ? d.gpu_percent : 0;
       var vramPct = d.gpu_vram_total_gb > 0 ? (d.gpu_vram_used_gb / d.gpu_vram_total_gb * 100) : 0;
@@ -648,7 +699,9 @@
         // could never reconstruct. Pushing locally would place every point by
         // arrival and draw an outage as a short gap wherever the page happened
         // to resume, instead of a full-width one where it really was.
-        if (d.wall_series && d.wall_series.w && d.wall_series.w.length) {
+        if (histSpan) {
+          /* the ring owns every series at this span, wall included */
+        } else if (d.wall_series && d.wall_series.w && d.wall_series.w.length) {
           wallPwrHist = d.wall_series.w;
         } else {
           push(wallPwrHist, haveWallW ? wallW : null);   // pre-series manager
@@ -709,6 +762,55 @@
     }).catch(function() { missed++; showStale(); });
   }
 
+  // ---- history: the manager's 7-day ring ------------------------------------
+  // Percentages are not stored (the ring keeps raw figures, and a total that
+  // never changes is not worth a week of disk), so the two that need one take
+  // their denominator from the live payload beside them.
+  var lastTotals = { mem: 0, vram: 0 };
+  function pct(used, total) {
+    return (used == null || !total) ? null : Math.min(100, used / total * 100);
+  }
+  function loadHistory(span, then) {
+    var fields = ['memory_used_gb', 'gpu_percent', 'gpu_vram_used_gb', 'cpu_temp',
+                  'gpu_temp', 'cpu_power_w', 'gpu_power_w', 'wall_power_w',
+                  'net_rx_bps', 'net_tx_bps', 'disk_read_bytes', 'disk_write_bytes'];
+    return fetch('/api/system/history?span=' + encodeURIComponent(span) +
+                 '&slots=' + HISTORY_LEN + '&fields=' + fields.join(','),
+                 { cache: 'no-store' })
+      .then(function(r) { return r.json(); })
+      .then(function(h) {
+        if (!h || h.unavailable || !h.series) return false;
+        var s = h.series;
+        memHist = s.memory_used_gb.map(function(v) { return pct(v, lastTotals.mem); });
+        vramHist = s.gpu_vram_used_gb.map(function(v) { return pct(v, lastTotals.vram); });
+        gpuHist = s.gpu_percent;
+        cpuTempHist = s.cpu_temp; gpuTempHist = s.gpu_temp;
+        cpuPwrHist = s.cpu_power_w; gpuPwrHist = s.gpu_power_w;
+        wallPwrHist = s.wall_power_w;
+        netRxHist = s.net_rx_bps; netTxHist = s.net_tx_bps;
+        diskRdHist = s.disk_read_bytes; diskWrHist = s.disk_write_bytes;
+        if (then) then(h);
+        return true;
+      })
+      .catch(function() { return false; });
+  }
+
+  document.getElementById('span-pick').addEventListener('click', function(e) {
+    var b = e.target.closest ? e.target.closest('button') : null;
+    if (!b || !b.getAttribute('data-span')) return;
+    var span = b.getAttribute('data-span');
+    var btns = this.querySelectorAll('button');
+    for (var i = 0; i < btns.length; i++) btns[i].classList.toggle('on', btns[i] === b);
+    histSpan = (span === '2m') ? '' : span;
+    // Clear first: the old span's points are at the wrong scale entirely, and
+    // leaving them up while the fetch lands shows a chart that means nothing.
+    memHist = []; gpuHist = []; vramHist = []; cpuTempHist = []; gpuTempHist = [];
+    cpuPwrHist = []; gpuPwrHist = []; wallPwrHist = [];
+    netRxHist = []; netTxHist = []; diskRdHist = []; diskWrHist = [];
+    if (histSpan) loadHistory(histSpan).then(function() { if (shouldRun()) update(); });
+    else if (shouldRun()) update();
+  });
+
   var paused = false;
   // appActive: are we the foreground app inside the desktop shell? The shell
   // keeps the Monitor iframe mounted (display:none) when you switch away, so
@@ -718,8 +820,26 @@
   var appActive = true;
   var timer = null;
   function shouldRun() { return !paused && appActive && !document.hidden; }
-  function tick() { if (shouldRun()) update(); }
+  // A history span moves far slower than the 2s scalars beside it: a 7-day
+  // chart gains one point a minute. Re-reading the whole window every frame
+  // would walk thousands of ring slots to redraw the same picture.
+  var HIST_REFRESH_MS = 30000;
+  var lastHistLoad = 0;
+  function tick() {
+    if (!shouldRun()) return;
+    update();
+    if (histSpan && Date.now() - lastHistLoad >= HIST_REFRESH_MS) {
+      lastHistLoad = Date.now();
+      loadHistory(histSpan);
+    }
+  }
+  // Seed the live chart from the ring before the first frame, so the page opens
+  // showing the last two minutes instead of a blank card that fills in over the
+  // next two. This is the whole reason the recorder exists.
   update();
+  loadHistory('2m').then(function(ok) {
+    if (ok && !histSpan && shouldRun()) update();
+  });
   timer = setInterval(tick, 2000);
 
   // The shell broadcasts which app is active; pause when it isn't us, and do an

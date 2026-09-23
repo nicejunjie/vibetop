@@ -190,6 +190,18 @@
         </div>
       </div>
 
+      <div class="card" id="term-card">
+        <h2>Terminal history</h2>
+        <div class="hint">How much output each terminal keeps on the server. Reloading a tab,
+          switching devices or a network blip rebuilds the terminal from this, so it is how
+          far back you can scroll after any reconnect (about 10,000 lines of plain shell output
+          per MB; far fewer for full-screen apps). Costs up to this much memory per open
+          terminal. <b>Applies to terminals opened after saving.</b> <b>Default: 2 MB.</b></div>
+        <div class="row"><span class="fld-label cap-l">History / terminal</span>
+          <input type="number" id="term-history" min="1" max="32" step="1" value="2">
+          <span class="fld-label">MB</span></div>
+      </div>
+
       <div class="card" id="pwr-card">
         <h2>Wall power meter</h2>
         <div class="hint">A smart plug this machine is plugged into, adding a <b>WALL</b>
@@ -383,21 +395,24 @@
       idleHours = document.getElementById('idle-hours'),
       idleReap = document.getElementById('idle-reapterms'),
       hintsEnabled = document.getElementById('hints-enabled'),
+      termHistory = document.getElementById('term-history'),
       pwrPlug = document.getElementById('pwr-plug'),
       pwrStatus = document.getElementById('pwr-status'),
       resMem = document.getElementById('res-mem'),
       resCpu = document.getElementById('res-cpu');
-  var loaded = { idle: null, hints: null, pwr: null, res: null };   // last-saved snapshot (null = not loaded yet)
+  var loaded = { idle: null, hints: null, term: null, pwr: null, res: null };   // last-saved snapshot (null = not loaded yet)
   function curIdle() { return { enabled: idleEnabled.checked, hours: parseInt(idleHours.value, 10) || 0, reapTerminals: idleReap.checked }; }
   function curHints() { return { enabled: hintsEnabled.checked }; }
+  function curTerm() { return { historyMB: parseInt(termHistory.value, 10) || 0 }; }
   function curPwr() { return { plug: pwrPlug.value.trim() }; }
   function curRes() { return { memMax: resMem.value.trim(), cpuCores: resCpu.value.trim() }; }
   function idleDirty() { var a = loaded.idle, b = curIdle(); return !!a && (a.enabled !== b.enabled || a.hours !== b.hours || a.reapTerminals !== b.reapTerminals); }
   function hintsDirty() { return !!loaded.hints && loaded.hints.enabled !== curHints().enabled; }
+  function termDirty() { return !!loaded.term && loaded.term.historyMB !== curTerm().historyMB; }
   function pwrDirty() { return !!loaded.pwr && loaded.pwr.plug !== curPwr().plug; }
   function resDirty() { var a = loaded.res, b = curRes(); return !!a && (a.memMax !== b.memMax || a.cpuCores !== b.cpuCores); }
-  function refreshDirty() { saveBtn.disabled = !(idleDirty() || hintsDirty() || pwrDirty() || resDirty()); }
-  ['idle-enabled', 'idle-hours', 'idle-reapterms', 'hints-enabled', 'pwr-plug', 'res-mem', 'res-cpu'].forEach(function (id) {
+  function refreshDirty() { saveBtn.disabled = !(idleDirty() || hintsDirty() || termDirty() || pwrDirty() || resDirty()); }
+  ['idle-enabled', 'idle-hours', 'idle-reapterms', 'hints-enabled', 'term-history', 'pwr-plug', 'res-mem', 'res-cpu'].forEach(function (id) {
     var el = document.getElementById(id);
     el.addEventListener('change', refreshDirty);
     el.addEventListener('input', refreshDirty);   // live for the text/number fields
@@ -409,6 +424,7 @@
     var jobs = [];
     if (idleDirty()) jobs.push(api('POST', '/api/config/idle', curIdle()).then(function (r) { return { sec: 'idle', r: r }; }));
     if (hintsDirty()) jobs.push(api('POST', '/api/config/hints', curHints()).then(function (r) { return { sec: 'hints', r: r }; }));
+    if (termDirty()) jobs.push(api('POST', '/api/config/terminal', curTerm()).then(function (r) { return { sec: 'term', r: r }; }));
     if (pwrDirty()) jobs.push(api('POST', '/api/config/power', curPwr()).then(function (r) { return { sec: 'pwr', r: r }; }));
     if (resDirty()) jobs.push(api('POST', '/api/config/resources', curRes()).then(function (r) { return { sec: 'res', r: r }; }));
     if (!jobs.length) return;
@@ -424,6 +440,7 @@
         if (x.r.status === 200) {   // commit only the sections that succeeded (a bad field stays dirty)
           if (x.sec === 'idle') loaded.idle = curIdle();
           else if (x.sec === 'hints') loaded.hints = curHints();
+          else if (x.sec === 'term') loaded.term = curTerm();
           else if (x.sec === 'pwr') { loaded.pwr = curPwr(); showPwrProbe(x.r.data); }
           else if (x.sec === 'res') loaded.res = curRes();
         } else if (err === null) {
@@ -459,6 +476,16 @@
       if (handle403(res)) return;
       hintsEnabled.checked = res.data && res.data.enabled !== false;   // default on
       loaded.hints = curHints(); refreshDirty();
+    });
+  }
+
+  function loadTerm() {
+    api('GET', '/api/config/terminal').then(function (res) {
+      if (handle403(res)) return;
+      var d = res.data || {};
+      if (d.maxMB) termHistory.max = d.maxMB;
+      termHistory.value = d.historyMB || 2;
+      loaded.term = curTerm(); refreshDirty();
     });
   }
 
@@ -762,6 +789,7 @@
 
   loadIdle();
   loadHints();
+  loadTerm();
   loadPwr();
   loadResources();
   loadServices();

@@ -34,6 +34,7 @@ A **Config** admin app in the Start menu's **System** section, shown **only to u
 - **Idle reaper (opt-in, default OFF).** Per-user services start on demand but were only stopped by explicit Logout, so a user who just closes the tab leaves a full stack (ttyd + two xpra displays = Xorg+Chromium each) resident forever. A 60s background thread (`_reaper_loop` → `_reap_idle_users`) stops the services of any user idle (no desktop-state heartbeat `ts` within the threshold) longer than the admin-set **hours**. **Non-destructive** — `_reap_user` only issues `systemctl stop` (Browser xpra + X11 xpra **always**; terminals **only** when the opt-in `reapTerminals` sub-flag is set, since a terminal is cheap and may hold a job whose tab was merely closed) and leaves desktop-state/notes/office/browser-profile intact, so windows restore on next login. (The per-user file agent isn't in this list — it idle-exits on its own after `FILEAGENT_IDLE`.) Policy `{enabled, hours(1–168), reapTerminals}` at **`/var/lib/vibetop/idle.json`** (root-owned; missing/corrupt ⇒ disabled), via `GET/POST /api/config/idle`. Candidates are enumerated from the users registry (cheap, no per-tick subprocess); every pass/user/subprocess is wrapped so one bad user can't kill the loop. The reaper does **not** exempt the operator (idle = reclaimable; it's non-destructive).
 - **User management** (System tab). `GET /api/config/users` lists real login users (uid∈[1000,65533] + real shell) with a sudo badge, web-online state (heartbeat within `DESKTOP_TTL`), and **`lastActive`** (newest heartbeat `ts`, or null). `POST /api/config/users/add|passwd|remove` shell out to `useradd -m -s /bin/bash` / `chpasswd` / `userdel [-r]`. **Guards:** strict `_USERNAME_RE` before any shell-out; refuse `root`/`APP_USER`/named admins (and **self** on remove); `_is_real_login_user` on passwd/remove (never a system account); **password via `chpasswd` STDIN, never argv** (rejects CR/LF/NUL); add rolls back (`userdel -r`) if the password step fails; remove reaps + bumps the token epoch (revoke sessions) before `userdel`, then drops the registry slot. A small `vtPrompt` does the typed-username confirm on remove. No self-service password change for non-sudo users (deferred). **Account deletion is deliberately hard to reach:** the row's button is labelled **`Delete account`** (not "Remove" — it runs `userdel`, it is not a logout) and is rendered **only when the card's `Advanced: allow deleting accounts` checkbox is ticked; that flag is never persisted, so a reload re-locks it**. Its confirm defaults to **keeping** the home directory (untick to purge) and points the admin at Sign out for the common case.
 - **Active sessions** (Vibetop tab). `GET /api/config/sessions` → `[{user, devices, lastActive, sudo}]`, sudo-gated + memoized 5s. Sessions are **stateless signed cookies and cannot be enumerated**, so presence is inferred from each open desktop's 5s heartbeat: `_user_presence(user)` reads that user's own `desktop-state.json` once and returns `(newest ts, live-instance count)` where "live" = within `DESKTOP_TTL`. `_user_last_heartbeat` is now a thin wrapper on it, so the two can't drift. A user with a heartbeat but **0 live devices** is still listed (signed in at some point ⇒ still revocable). **`POST /api/config/sessions/signout {username, stopApps}`** bumps that user's token epoch, so every device signed in as them fails its next `_verify_session` (within ~5s, the epoch cache TTL). **Non-destructive by default** — their terminals/Browser/X11 keep running and restore on next login, mirroring the idle reaper; `stopApps:true` opts into `_reap_user(..., reap_terminals=True)` as well, wrapped so a reap failure can't turn a completed revocation into a 500. Same guard order as remove (`_require_sudo` → `_valid_target_user`, which refuses `root`/`APP_USER`/named admins → `getpwnam` 404 → `_is_real_login_user`), minus the `userdel`. This is the surface to reach for when you want to boot someone; before it existed the only lever was resetting their password.
+- **Terminal history** (Vibetop tab). The size, in MB (1–32, default **2**), of each terminal's server-side replay ring — `vibetop-session`'s `CLAUDE_SESSION_BUFSIZE`. Every (re)connect rebuilds the tab from that ring alone, so it, not xterm's 50,000-line client scrollback, is how far back a terminal scrolls after a reload, device switch or blip. Stored at **`/var/lib/vibetop/terminal.json`** (`{"historyMB": N}`) via `GET/POST /api/config/terminal`; same one-way precedence as the plug: once saved, the file is the only authority, before that `CLAUDE_SESSION_BUFSIZE` in `manager.env` (bytes) is the default. `_user_terminal_setenvs` always sends it, so it reaches **terminals started after the save** — a running daemon sized its ring at start. The 32 MB ceiling bounds the per-terminal memory; a slow link is covered by the daemon's adaptive replay, which swaps an un-sent backlog for the current screen after ~2.5s.
 - **Feature hints toggle** (Vibetop tab). A host-wide on/off for the blue coach-tip banners (`coach.js`/`vibeCoach`), default **on**, at **`/var/lib/vibetop/hints.json`** via `GET/POST /api/config/hints`. It rides the desktop heartbeat as **`hints`** (bool, always present like `warnings`, memoized ~5s); `desktop.html` mirrors it into `localStorage['vibetop:hints']` (`'0'` = off), and `vibeCoach` early-returns on that flag — the single choke-point every surface's tips flow through (terminal `/tN/` iframes see it too since localStorage is same-origin). So one admin toggle silences hints on **every user + device** within ~5s (and yanks any live banner on the desktop shell). Turning it back on re-shows the still-unretired tips (per-tip max-3/versioned-key state is untouched).
 - **Per-user resource caps** (Vibetop tab). Admin-editable `MemoryMax`/`CPUQuota`/`TasksMax` applied to each user's `systemd-run` sessions (the noisy-neighbor guard), at **`/var/lib/vibetop/resources.json`** via `GET/POST /api/config/resources`; `_resource_props()` reads it (env vars are the fallback default), so it applies to **newly-started** sessions. Each value is **`fullmatch`-validated** against a strict regex (`_TASKS_RE`/`_MEM_RE`/`_CPU_RE` — nonzero, no trailing junk) on **both** write and read, so a value can only ever be a well-formed systemd property (blank = uncapped); an invalid/corrupt field falls back to the env default.
 - **Disk usage** (System tab). `GET /api/config/disk` (memoized 30s) — df-style `statvfs` for `/` (+ `/home` if a separate fs) reusing the disk-warning math, plus the largest real-user homes via `du -sx` (per-home `timeout` + an overall ~20s wall-clock budget → `truncated`). Home paths come from `pwd`, never user input.
@@ -50,6 +51,73 @@ The Codex counterpart of the strip above (Start ▸ Utilities ▸ **Codex Limit*
 ## Token consumption stats (`apps/utilities/tokenstats/token-stats.html`, `server/claude_stats.py`, `server/codex_stats.py`)
 
 A **Token Stats** app (Start ▸ Utilities ▸ Token Stats) — a read-only analytics dashboard with **Combined**, **Claude**, and **Codex** tabs. Claude is reconstructed from `~/.claude/projects/**/*.jsonl`; Codex is reconstructed from each `event_msg.payload.info.last_token_usage` snapshot in `~/.codex/sessions/**/*.jsonl`, using the active `turn_context.payload.model`. `GET /api/claude/stats` and `GET /api/codex/stats` return the same aggregation shape and are memoized per user for ~45s. The Combined tab adds their matching time buckets client-side. Costs are explicitly **API-equivalent estimates**, not subscription charges: each provider's public per-token pricing is applied to local input/output/cache counts. The response aggregates into `windows` (`today`/`d7`/`d30`/`all`), `byDay`, `byHour`, and `byModel`, plus sessions, active days, retained span, and cache-hit rate. The page renders concise cards, averages, cost/token charts, and a model breakdown. Purely local; no API or admin key is required.
+
+## System Monitor — 7 days of history
+
+The Monitor used to open blank: every chart was built one sample per frame, so
+it took two minutes to draw a line and knew nothing about what happened while
+nobody was looking. The manager now keeps a **7-day ring** of the numbers beside
+those charts (`server/metrics_history.py`, `/var/lib/vibetop/metrics.ring`).
+
+A sample with no neighbour is drawn as a **dot**. A line needs two points, so
+an isolated one used to draw nothing at all — which is what an idle night looks
+like in the 2m window, where the recorder's 30s samples land one slot in
+fifteen. A dot says "measured here, and not next door"; a line would invent the
+span between them.
+
+A **span picker** in the header (`2m 1h 6h 24h 7d`) chooses what the charts
+cover. `2m` is the live view as before; the rest are read from the ring via
+`GET /api/system/history?span=…&slots=…&fields=…`. **The numbers beside the
+charts stay live at every span** — they are "now", not history.
+
+- **Scalars only, and that is the point.** The top-process list is 84% of the
+  status payload and ~90% of its CPU (measured on z20: 11.3ms and 4KB for the
+  scan, 1.3ms and 722B for everything else) — and a week-old snapshot of process
+  *names* is the least useful thing to keep. Sixteen numbers are kept instead.
+- **~930KB, fixed at creation, forever.** Two rings: 2s×2h and 60s×7d. Nothing
+  to prune or rotate. Appending the JSON payload every 2s would have been 74GB a
+  year.
+- **Piggyback first.** Every collection a request already paid for is folded
+  into the open bucket, so while anyone is watching the recorder costs *nothing*.
+  Only a bucket that would close empty makes the ticker collect one itself, and
+  then it asks for the cheap nine tenths (`want_procs=False`).
+- **An unwatched host is sampled every 30s, not every 2s.** "Watched" means the
+  **Monitor** polled `/api/system/status` within 15s — and only that. The
+  desktop heartbeat also collects a status payload, every 5s, to fill the
+  taskbar's stats strip; that one feeds the ring for free but is NOT demand,
+  because a 5s strip does not need 2s samples. Counting it kept the recorder —
+  and through it the smart plug — at the full rate whenever any desktop was
+  open with the toggle on, which is most of the time. Nobody needs 2s resolution when nobody is looking, and the first
+  version's 2s sampling quietly undid the smart plug's demand-driven design: it
+  became a caller that never stops. Measured on an idle host, 11 connections to
+  the plug every 20s and **1.30% of a core**, of which the collection itself is
+  0.07% — nearly all of it a thread plus an HTTP round-trip to the plug, twice a
+  second, for a chart nobody had open.
+- **The taskbar strip asks for a staler plug reading than the Monitor does.**
+  The memo is shared, so the most demanding caller sets the plug's real rate.
+  The strip rides a 5s heartbeat and shows a rounded wattage, but at the
+  Monitor's 1s freshness every heartbeat was older than that and so fetched —
+  24 requests a minute with two desktops open, **scaling with the number of
+  devices**. It now asks for `WALL_POWER_STRIP_FRESH` (5s), so the strip costs
+  at most one fetch per 5s however many people are looking, while the Monitor's
+  own poll still gets 1s.
+- **The ticker wakes on the clock, 85% into each bucket** — not on a
+  free-running `sleep(2)`, which drifts until one bucket gets two samples and
+  the next gets none (measured: it plateaued at 40 of 60 slots, drawing spikes
+  instead of a line). Late in the bucket so a watcher's poll has usually landed
+  first, but still inside it, so the sample belongs where it is filed.
+- **A bucket is a MEAN**, not the last sample: several viewers polling at once
+  contribute several samples, and last-wins would make the stored number depend
+  on who polled last.
+- **Gaps stay gaps.** A slot carries its own bucket timestamp and is only served
+  when it matches, so a never-written slot, a week-old wrap and a torn write all
+  read as "nothing known" rather than as data. Same contract as the wall series.
+- **Network is differenced here.** `rx_bytes`/`tx_bytes` are cumulative counters
+  (unlike the disk fields, which are already rates), so the recorder keeps its
+  own previous total — the rate never depends on another poller's timing.
+- Changing `FIELDS` bumps the format version and the old file is discarded, not
+  reinterpreted: reading yesterday's bytes with today's field order would
+  silently attribute every series to the wrong metric.
 
 ## System Monitor — wall power (Config ▸ Vibetop ▸ Wall power meter, opt-in)
 

@@ -7,6 +7,7 @@ tmp HOME by the `home` fixture, so nothing touches /var/lib/vibetop.
 """
 import json
 import types
+import pytest
 
 
 def _write_state(home, instances):
@@ -574,3 +575,48 @@ def test_browser_focus_signal_counter(mgr, home):
     mgr._signal_browser_focus(u)
     assert mgr._browser_focus_count(u) == base + 1
     assert mgr._browser_focus_count("bob") == 0     # per-user, isolated
+
+
+# ---- terminal history (the session daemon's replay ring) ---------------------
+
+def test_terminal_history_defaults_then_env_then_file(mgr, home, monkeypatch):
+    monkeypatch.delenv("CLAUDE_SESSION_BUFSIZE", raising=False)
+    assert mgr._read_term_history_mb() == 2                     # the daemon's own default
+    monkeypatch.setenv("CLAUDE_SESSION_BUFSIZE", str(8 * 1024 * 1024))
+    assert mgr._read_term_history_mb() == 8                     # pre-UI: env decides
+    mgr._write_term_history_mb(16)
+    assert mgr._read_term_history_mb() == 16                    # after a save: the file
+
+
+def test_terminal_history_reaches_every_new_terminal(mgr, home, monkeypatch):
+    """The setting only matters if it lands in the daemon's env at start."""
+    monkeypatch.setattr(mgr, "_ensure_user_x11_dbus", lambda *a: None)
+    monkeypatch.setattr(mgr, "_write_browser_token", lambda u: None)
+    mgr._write_term_history_mb(12)
+    envs = mgr._user_terminal_setenvs(mgr.APP_USER)
+    assert "CLAUDE_SESSION_BUFSIZE=%d" % (12 * 1024 * 1024) in envs
+    assert sum(e.startswith("CLAUDE_SESSION_BUFSIZE=") for e in envs) == 1
+
+
+def test_terminal_history_endpoint_gated_and_roundtrips(client, mgr, users, stubs, home,
+                                                        monkeypatch):
+    ck = users["alice"][1]
+    monkeypatch.setattr(mgr, "_can_sudo", lambda u: False)
+    assert client.get("/api/config/terminal", cookie=ck)[0] == 403
+    assert client.post("/api/config/terminal", {"historyMB": 8}, cookie=ck)[0] == 403
+    monkeypatch.setattr(mgr, "_can_sudo", lambda u: True)
+    st, body = client.post("/api/config/terminal", {"historyMB": 8}, cookie=ck)
+    assert st == 200 and body["historyMB"] == 8
+    st, body = client.get("/api/config/terminal", cookie=ck)
+    assert body == {"historyMB": 8, "maxMB": mgr.TERM_HISTORY_MB_MAX}
+
+
+@pytest.mark.parametrize("bad", [0, -1, 33, 2.5, True, "lots", None, "8MB"])
+def test_terminal_history_rejects_out_of_range_without_saving(client, mgr, users, stubs,
+                                                              home, monkeypatch, bad):
+    ck = users["alice"][1]
+    monkeypatch.setattr(mgr, "_can_sudo", lambda u: True)
+    mgr._write_term_history_mb(4)
+    st, body = client.post("/api/config/terminal", {"historyMB": bad}, cookie=ck)
+    assert st == 400 and "error" in body
+    assert mgr._read_term_history_mb() == 4

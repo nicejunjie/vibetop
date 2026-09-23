@@ -355,22 +355,29 @@ def _collect_top_procs():
     return processes
 
 
-def get_system_status(running_terminals, cached):
+def get_system_status(running_terminals, cached, want_procs=True):
     """Collect the full system-status payload for /api/system/status.
 
     `running_terminals` is the list of running terminal numbers (the manager
     owns that lifecycle); `cached(key, ttl, producer)` is the manager's generic
     memoizer (used to throttle the `ip addr` fork). Serialized via `_collect_lock`
-    so concurrent pollers don't corrupt the shared delta snapshots."""
+    so concurrent pollers don't corrupt the shared delta snapshots.
+
+    `want_procs=False` omits the top-process list. That scan is ~330 /proc file
+    opens costing 11.3ms against 1.3ms for everything else (measured on z20), so
+    the metrics recorder — which samples every 2s forever but stores only
+    scalars — asks for the cheap nine tenths and leaves the rest alone. The key
+    is OMITTED rather than sent empty, because an empty list is a claim that
+    nothing is running."""
     with _collect_lock:
-        return _collect(running_terminals, cached)
+        return _collect(running_terminals, cached, want_procs)
 
 
 class _CpuTooSoon(Exception):
     """Two polls landed inside the 0.5s sampling window — serve the last reading."""
 
 
-def _collect(running_terminals, cached):
+def _collect(running_terminals, cached, want_procs=True):
     # CPU: delta against the snapshot from the previous status call
     # (clients poll every few seconds, so the window is meaningful).
     # Only the very first call — or one arriving <0.5s after another —
@@ -676,9 +683,11 @@ def _collect(running_terminals, cached):
     # Top processes by CPU — memoized so the delta window is a consistent ~_PROC_TTL
     # no matter how many pollers call us (see _collect_top_procs / _proc_cache).
     global _proc_cache
-    if not _proc_cache or (time.monotonic() - _prev_proc_time) >= _PROC_TTL:
-        _proc_cache = _collect_top_procs()
-    processes = _proc_cache
+    processes = None
+    if want_procs:
+        if not _proc_cache or (time.monotonic() - _prev_proc_time) >= _PROC_TTL:
+            _proc_cache = _collect_top_procs()
+        processes = _proc_cache
 
     # IPs change rarely; cache for 10s to avoid forking `ip` every poll.
     ips = cached("ips", 10.0, _list_ips)
@@ -698,8 +707,11 @@ def _collect(running_terminals, cached):
         "uptime": uptime,
         "terminals_running": len(running),
         "network": net,
-        "processes": processes,
     }
+    # Omitted, not empty, when the caller didn't ask: an empty list is a claim
+    # that nothing is running, and the desktop renders it as exactly that.
+    if processes is not None:
+        result["processes"] = processes
     if gpu_percent is not None:
         result["gpu_percent"] = gpu_percent
     if gpu_vram_used_gb is not None:

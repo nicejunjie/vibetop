@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_321 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_322 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
 - [Scheduled terminal messages ("resume when the token limit resets")](#scheduled-terminal-messages-resume-when-the-token-limit-resets)
@@ -344,6 +344,7 @@ _321 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [RTS infantry: a narrower unit made OTHER units fail the size gate (2026-09-22)](#rts-infantry-a-narrower-unit-made-other-units-fail-the-size-gate-2026-09-22)
 - [RTS structure material pass: one post-process, and the structures it must not tone (2026-09-22)](#rts-structure-material-pass-one-post-process-and-the-structures-it-must-not-tone-2026-09-22)
 - [RTS game speed: movement runs ~3x fast against every timer, and the RA2 default is unsettled](#rts-game-speed-movement-runs-3x-fast-against-every-timer-and-the-ra2-default-is-unsettled)
+- [Seven days of metrics in 930KB, and why the process list is not in it](#seven-days-of-metrics-in-930kb-and-why-the-process-list-is-not-in-it)
 
 <!-- END TOC -->
 
@@ -584,7 +585,8 @@ inherit the manager's env, so without this the knob would silently never arrive.
 Set the low-bandwidth profile once in `/etc/vibetop/manager.env` (e.g.
 `CLAUDE_SESSION_REPLAY_RATE=131072`, and optionally a smaller
 `CLAUDE_SESSION_BUFSIZE`) + restart the manager; it applies to sessions started
-after. Immediate relief with no deploy: restart the offending terminal (× then +)
+after. (Since v1.20.2 the ring size is Config ▸ Vibetop ▸ *Terminal history*;
+the env var is only its default until that panel first saves.) Immediate relief with no deploy: restart the offending terminal (× then +)
 to clear its 2 MB ring, or stop whatever is streaming in it.
 
 **Rejected:** (1) *Just lower the ring cap* — helps (less to replay) but doesn't
@@ -14960,3 +14962,111 @@ stays a fixed 60 Hz tick either way (determinism).
 **Rejected:** retuning only the default step's ticks/s. That moves movement and
 timers together, so it cannot fix a ratio that is wrong between them. Scaling
 `spd` alone without the soak is rejected too.
+## Seven days of metrics in 930KB, and why the process list is not in it
+
+**Symptom.** The Monitor opened blank and took two minutes to draw a line,
+because every series was built one sample per frame from whatever arrived after
+the page loaded. Wall power was the sole exception — it reconstructs from the
+plug's own buffer — which made the asymmetry obvious: one row populated
+instantly and the rest crawled. Nothing at all was known about the hours nobody
+was looking at.
+
+**Measured first, because the obvious design is the expensive one.** A poll of
+`/api/system/status` costs **4.66ms of CPU** (4.61 in-process, 0.04 in forks —
+the `nvidia-smi`/`ip addr` memos work) and produces **4.7KB**. But it is not one
+cost, it is two:
+
+```
+_collect_top_procs    11.26 ms/call   ~330 /proc opens   3993 B   (84% of bytes)
+everything else        1.30 ms/call                       722 B
+```
+
+Recording the payload naively at 2s would be **74GB a year**, almost all of it
+process names that nobody will want a week later. Recording the sixteen scalars
+costs **68 packed bytes** a sample.
+
+**Fix.** `server/metrics_history.py`: two fixed-size rings — 2s×2h and 60s×7d —
+totalling **~930KB, allocated once and overwritten forever**. No pruning, no
+rotation, no way for it to surprise anyone in six months. Four decisions carry
+the design:
+
+- **A slot stores its own bucket timestamp.** A ring index is derived from time,
+  so the slot's identity is implied — but only if it was written for the bucket
+  being asked about. Checking the stored time on read makes four separate
+  problems fall out for free: a slot never written, a gap while the manager was
+  down, the wrap from a week ago, and a torn write. There is no "valid" flag
+  because there does not need to be one.
+- **Piggyback sampling.** Every collection a request already paid for is folded
+  into the open bucket, so while anyone is watching the recorder costs nothing.
+  Only a bucket that would otherwise close empty makes the ticker sample, and
+  then with `want_procs=False`. This is the wall-power memo's demand-driven
+  shape, inverted — there, nobody watching meant nothing happened; here it means
+  the recorder is the only one left to do it.
+- **And an unwatched host drops to 30s.** The first version sampled every bucket
+  regardless, which quietly undid the thing the wall-power memo was built for:
+  `_wall_power_w()` cost nothing with nobody looking, until this loop became a
+  caller that never stops. Idle, that was **11 connections to the plug every 20
+  seconds and 1.30% of a core** — against 0.07% for the collection itself. The
+  rest was a thread and an HTTP round-trip to a small board on the LAN, twice a
+  second, forever, for a chart nobody had open. A background job that samples a
+  shared resource inherits responsibility for that resource's cost: adding a
+  tireless caller is how a demand-driven design stops being one.
+- **And "watched" means the Monitor, not any viewer.** The first attempt marked
+  demand inside `_hist_note`, which every caller of the collector reaches —
+  including the desktop heartbeat filling the taskbar's 5s stats strip. So any
+  open desktop kept the recorder at 2s, which on this host is most of the time,
+  and the measurement that was supposed to prove the fix showed the plug still
+  being polled every 2 seconds. Demand is marked from the `/api/system/status`
+  ROUTE instead: that page is the only thing that wants 2s resolution. The
+  heartbeat's own collection still feeds the ring — it is free data, just not a
+  reason to sample faster.
+- **And the strip asks for a staler reading than the Monitor.** The memo is
+  shared, so whichever caller wants the freshest value sets the device's real
+  rate. The strip shows a rounded wattage every 5s but was asking at the
+  Monitor's 1s freshness, so every heartbeat fetched — 24 requests a minute with
+  two desktops, and it scaled with the device count. `WALL_POWER_STRIP_FRESH`
+  caps that at one fetch per 5s no matter how many people are watching. When
+  several consumers share a memo, freshness belongs to the CALLER, not the key.
+
+**One rendering change falls out of the slower idle sampling.** `drawChart`
+skipped runs of length one, because a line needs two points. With the recorder
+sampling every 30s, an idle night puts one sample in every fifteenth slot of
+the 2m window — so a card full of real measurements drew as empty. Isolated
+samples are now dots: "measured here, and not next door", which is what the
+data says. Joining them with a line would claim the span between them.
+- **The wake is clock-aligned, 85% into each bucket.** The first version slept a
+  flat `step`, which drifts: every pass costs slightly more than the sleep, the
+  sample walks forward through the bucket, and once it crosses a boundary one
+  bucket takes two samples and the next takes none. On z20 that settled at
+  **40 of 60 slots** — the chart drew spikes, not a line, and only looking at it
+  showed that. Re-deriving each wake from the wall clock cannot accumulate
+  error. It also has to ask whether THIS bucket is covered, not whether
+  anything is open: the loop checks before it flushes, so the previous bucket is
+  normally still open and the loose question reads as "someone already did it".
+- **A bucket is a mean.** Several viewers poll at once; last-wins would make the
+  recorded number depend on who polled last.
+- **The network counters are differenced in the recorder.** They are cumulative,
+  unlike the disk figures which are already rates. Keeping our own previous
+  total is the same rule as the plug's clock: a derived value must not depend on
+  someone else's timing.
+
+**On the page**, `push()` becomes a no-op at any span but `2m`, because at that
+point the series is *wholly* the server's — only the manager knows where a
+sample belongs in time, and a page appending its own points would misplace every
+one by however long the request took. The live view is seeded from the ring at
+startup, which is the whole user-visible payoff: the chart opens full.
+
+**`wall_plug`-style key, again.** `GET /api/system/history` takes a span from a
+fixed set rather than an arbitrary number of seconds: an unbounded span asks for
+a window the rings cannot cover and returns a chart that is mostly holes, which
+reads as an outage rather than as "not kept".
+
+**Three of my own tests were worthless and mutation testing said so.** Two
+asserted on a function I had stubbed — circular by construction, they would have
+passed against any implementation. A third claimed to pin the regex anchor while
+`.strip()` ran first, making `$` and `\Z` indistinguishable through the code
+path it exercised. The harness also had two fidelity bugs that produced failures
+I nearly read as product defects: one queue answered both endpoints, so the
+history fetch ate a status payload; and one fixture object was returned for
+every fetch, so the page's own `push()` mutated it. `response.json()` yields a
+fresh object each call, and the harness now does too.

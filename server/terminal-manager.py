@@ -52,6 +52,7 @@ from datetime import datetime
 from concurrent.futures import ThreadPoolExecutor
 
 import system_status  # sibling module: /api/system/status data collection
+import metrics_history  # sibling module: the 7-day system-metrics ring
 import claude_stats   # sibling module: /api/claude/stats token/cost analytics
 import codex_stats    # sibling module: /api/codex/stats token/cost analytics
 import service_discovery  # sibling module: /api/services/discover network-service scan
@@ -1834,6 +1835,47 @@ def _write_power_plug(plug):
         _cache.pop("power_plug", None)     # so the next status poll sees it now
 
 
+# Host-wide terminal history: the size of each session daemon's replay ring
+# (vibetop-session's CLAUDE_SESSION_BUFSIZE). Every (re)connect rebuilds the tab
+# from that ring alone, so it — not xterm's 50,000-line scrollback — is how far
+# back a terminal can scroll after a reload. Same one-way precedence as the plug:
+# once the Config panel has saved, the file is the only authority; before that
+# the env var (bytes) still decides, else the daemon's 2 MB default. Read at
+# terminal START, so a change reaches only terminals opened after it.
+TERMINAL_POLICY_FILE = (os.environ.get("TERMINAL_POLICY_FILE")
+                        or "/var/lib/vibetop/terminal.json")
+TERM_HISTORY_MB_DEFAULT = 2
+# 32 MB × MAX_INSTANCE terminals is the worst-case resident cost per user; a slow
+# link is already protected by the daemon's adaptive replay, which swaps an
+# un-sent backlog for the current screen after ~2.5s.
+TERM_HISTORY_MB_MAX = 32
+_terminal_policy_lock = threading.Lock()
+
+
+def _read_term_history_mb():
+    try:
+        with open(TERMINAL_POLICY_FILE) as f:
+            d = json.load(f)
+        v = d.get("historyMB") if isinstance(d, dict) else None
+        if isinstance(v, int) and not isinstance(v, bool) \
+                and 1 <= v <= TERM_HISTORY_MB_MAX:
+            return v
+    except (OSError, ValueError):
+        pass
+    try:
+        b = int(os.environ.get("CLAUDE_SESSION_BUFSIZE", ""))
+        return max(1, min(TERM_HISTORY_MB_MAX, round(b / (1024 * 1024))))
+    except ValueError:
+        return TERM_HISTORY_MB_DEFAULT
+
+
+def _write_term_history_mb(mb):
+    with _terminal_policy_lock:
+        os.makedirs(os.path.dirname(TERMINAL_POLICY_FILE), exist_ok=True)
+        _atomic_write(TERMINAL_POLICY_FILE,
+                      json.dumps({"historyMB": int(mb)}), owner="root")
+
+
 def _user_presence(user):
     """(last_ts, live_devices) from a user's OWN desktop-state.json (built from
     _user_home(user), NOT _ctx_home — the reaper runs off the request path).
@@ -2311,8 +2353,10 @@ def _user_terminal_setenvs(user):
     # loop; CLAUDE_SESSION_BUFSIZE caps the ring (less to replay). Unset -> the
     # daemon's built-in defaults (no pacing, 2 MB ring), so this is a no-op by
     # default. Only reaches sessions started AFTER a manager restart.
+    # The ring size is the Config app's "Terminal history" (which falls back to
+    # this same env var before its first save), so it is always sent.
+    envs.append("CLAUDE_SESSION_BUFSIZE=%d" % (_read_term_history_mb() * 1024 * 1024))
     for k in ("CLAUDE_SESSION_REPLAY_RATE", "CLAUDE_SESSION_REPLAY_CHUNK",
-              "CLAUDE_SESSION_BUFSIZE",
               "CLAUDE_SESSION_REPLAY_ADAPTIVE", "CLAUDE_SESSION_REPLAY_BUDGET",
               "CLAUDE_SESSION_REPLAY_SNDBUF", "CLAUDE_SESSION_REPLAY_SCREEN"):
         v = os.environ.get(k)
@@ -3122,6 +3166,20 @@ WALL_POWER_RETRY = 3.0
 # enough that a plug which went quiet stops being drawn as though it were live.
 WALL_POWER_MAX_AGE = 10.0
 
+# How fresh the WALL figure has to be for a consumer that is not the Monitor.
+#
+# The memo refreshes whenever a caller finds the value older than the freshness
+# IT asks for, so the fastest caller sets the plug's rate. The taskbar's stats
+# strip rides the desktop heartbeat every 5s and shows a rounded wattage — it
+# has no use for a sub-second reading, but at WALL_POWER_FRESH every heartbeat
+# was older than 1s and so fetched. With two desktops open that was 24 requests
+# a minute to the plug, and it scaled with the number of devices.
+#
+# Asking for 5s makes the strip cost at most one fetch per 5s NO MATTER how many
+# devices are watching, while the Monitor's own poll still gets 1s. Kept well
+# under WALL_POWER_MAX_AGE so a strip-only host never withholds the row.
+WALL_POWER_STRIP_FRESH = 5.0
+
 
 # The chart's own window: 60 slots of 2s = the last two minutes, matching the
 # Monitor's tick so the wall line and the CPU/GPU lines cover the same span.
@@ -3241,16 +3299,21 @@ def _wall_series():
     return {"t0": t0, "step": step, "w": vals}
 
 
-def _wall_power_w():
+def _wall_power_w(fresh=WALL_POWER_FRESH):
     """Measured wall draw in watts, or None when there is no plug configured,
-    no sample has landed yet, or the last one has gone stale."""
+    no sample has landed yet, or the last one has gone stale.
+
+    `fresh` is how old a reading may be before THIS caller wants a new one.
+    The memo is shared, so the most demanding caller sets the plug's actual
+    rate — which is the point: the Monitor gets 1s, everything else settles for
+    less and costs the device nothing extra."""
     plug = _cached("power_plug", 5.0, _read_power_plug)
     # Before the endpoint check, so CLEARING the setting empties the chart too
     # rather than leaving the last plug's two minutes frozen on screen.
     _wall_retarget(plug)
     if not system_status.wall_power_endpoint(plug):
         return None
-    sample, have = _bg_cached("wall_power", WALL_POWER_FRESH,
+    sample, have = _bg_cached("wall_power", fresh,
                               lambda: _wall_note(system_status.read_wall_power(plug), plug),
                               retry_after=WALL_POWER_RETRY)
     if not have or not isinstance(sample, dict):
@@ -3261,6 +3324,145 @@ def _wall_power_w():
     if time.time() - sample.get("fetched", 0.0) > WALL_POWER_MAX_AGE:
         return None
     return sample.get("w")
+
+
+# ---- system-metrics history --------------------------------------------------
+# Seven days of the Monitor's numbers in a fixed ~930KB ring (metrics_history.py).
+#
+# The sampling is piggyback-first, which is the same shape as the wall-power
+# memo and for the same reason: work nobody asked for should not happen. Every
+# status collection a request already paid for is folded into the open bucket,
+# so while ANYONE is watching the recorder costs nothing at all. Only when a
+# bucket would otherwise close empty does the ticker collect one itself — and
+# then it skips the top-process scan, which is 90% of the collector's cost
+# (11.3ms vs 1.3ms, measured) and the one part not worth keeping a week of.
+METRICS_FILE = os.environ.get("METRICS_HISTORY_FILE") or "/var/lib/vibetop/metrics.ring"
+METRICS_STEP = metrics_history.TIERS[0][1]      # the fine tier's 2s bucket
+
+# How often we sample WHEN NOBODY IS WATCHING, and how long after the last
+# request we still count as watched.
+#
+# The first version sampled every bucket regardless, and that quietly undid the
+# thing the wall-power memo was built for. _wall_power_w() refreshes on demand,
+# so with nobody looking it cost nothing — until this loop became a caller that
+# never stops. Measured on an idle host: 11 connections to the plug in 20s, and
+# the manager burning 1.30% of a core, of which the collection itself is 0.07%.
+# Nearly all of it was a thread plus an HTTP round-trip to a small board on the
+# LAN, twice a second, forever, for a chart nobody had open.
+#
+# 30s keeps a useful overnight trace — two samples per 60s coarse bucket, which
+# is what a 7-day view reads — for 0.004% of a core.
+METRICS_IDLE_STEP = 30.0
+METRICS_WATCH_GRACE = 15.0     # > the desktop heartbeat's 5s, with slack
+
+_hist_lock = threading.Lock()
+_hist = None                                    # metrics_history.History, or None
+_hist_demand = 0.0             # monotonic of the last REQUEST-path sample
+_hist_self_at = 0.0            # monotonic of our last self-sample
+
+
+def _hist_open():
+    global _hist
+    with _hist_lock:
+        if _hist is None:
+            try:
+                _hist = metrics_history.History(METRICS_FILE)
+            except Exception as e:
+                log.warning("metrics history unavailable: %s", e)
+                _hist = False                   # tried and failed; don't retry per poll
+        return _hist or None
+
+
+def _hist_saw_monitor():
+    """Someone has the Monitor open — that page, and only that page, needs 2s
+    resolution.
+
+    Marked from the /api/system/status ROUTE rather than from _hist_note,
+    because the collector is also driven by the desktop heartbeat to fill the
+    taskbar's stats strip every 5s. Treating that as demand kept the recorder —
+    and through it the smart plug — running at the full 2s rate whenever any
+    desktop was open with the toggle on, which is most of the time. A 5s strip
+    does not need 2s samples; its own collection still feeds the ring for free."""
+    global _hist_demand
+    _hist_demand = time.monotonic()
+
+
+def _hist_note(st):
+    """Fold a status payload into the open bucket. Never marks demand: every
+    caller of the collector lands here, including our own idle sample."""
+    h = _hist_open()
+    if h is None or not isinstance(st, dict) or "error" in st:
+        return
+    with _hist_lock:
+        try:
+            h.note(st, time.time())
+        except Exception as e:
+            log.warning("metrics history note failed: %s", e)
+
+
+def _hist_watched(now=None):
+    """Is the Monitor open right now?
+
+    True while its own /api/system/status polls are still arriving. Nothing
+    else asks for 2s resolution, so when they stop there is nobody to show a
+    2s-resolution chart to."""
+    return (now or time.monotonic()) - _hist_demand <= METRICS_WATCH_GRACE
+
+
+# Where in a bucket the ticker wakes, as a fraction of it. LATE on purpose: by
+# then a watcher's poll has almost certainly already landed in this bucket, so
+# the piggyback saving survives — but we are still INSIDE the bucket, so the
+# sample we take belongs to it.
+METRICS_WAKE = 0.85
+
+
+def _hist_next_wake(now, step=None, frac=METRICS_WAKE):
+    """The next wake instant, computed from the WALL CLOCK every time.
+
+    A free-running `sleep(step)` drifts: each pass costs a little more than the
+    sleep, so the sample walks forward through the bucket and, once it crosses a
+    boundary, one bucket gets two samples and the next gets none. Measured on
+    z20 that plateaued at ~40 of 60 slots — a chart of spikes rather than a
+    line. Re-deriving the wake from the clock cannot accumulate error."""
+    step = step or METRICS_STEP
+    t = (now // step) * step + step * frac
+    return t if t > now else t + step
+
+
+def _hist_loop():
+    """Close each bucket, sampling ourselves only if nobody else filled it."""
+    while True:
+        now = time.time()
+        time.sleep(max(0.01, _hist_next_wake(now) - now))
+        h = _hist_open()
+        if h is None:
+            continue
+        try:
+            global _hist_self_at
+            mono = time.monotonic()
+            bucket = int(time.time()) // METRICS_STEP * METRICS_STEP
+            with _hist_lock:
+                covered = h.pending(bucket)
+            # Watched: fill only the buckets a poller missed, which is normally
+            # none. Unwatched: nobody needs 2s resolution, so drop to a cadence
+            # that still describes the hours but stops paying per bucket — and
+            # stops driving the smart plug, which is most of the cost.
+            due = (not covered) if _hist_watched(mono) \
+                else (mono - _hist_self_at >= METRICS_IDLE_STEP)
+            if due:
+                _hist_self_at = mono
+                st = system_status.get_system_status([], _cached, want_procs=False)
+                wall = _wall_power_w(WALL_POWER_STRIP_FRESH)
+                if wall is not None:
+                    st["wall_power_w"] = wall
+                _hist_note(st)
+            # The flush stays on the fine cadence whatever the sampling rate:
+            # it is arithmetic on an empty dict when there is nothing to write,
+            # and it keeps a newly-opened Monitor from waiting for its data.
+            with _hist_lock:
+                h.tick(time.time())
+        except Exception as e:
+            log.warning("metrics history tick failed: %s", e)
 
 
 class _MultipartError(Exception):
@@ -5060,7 +5262,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
         return _cached("running_terminals:" + user, 2.0,
                        lambda: _list_running_terminals(user))
 
-    def _get_system_status(self):
+    def _get_system_status(self, wall_fresh=WALL_POWER_FRESH):
         # Collection lives in system_status.py; inject the running-terminal
         # list and the shared _cached memoizer (terminal start/stop
         # invalidates its running_terminals entry). Guarded so an unexpected
@@ -5077,7 +5279,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
         # refresh-ahead memo here. Omitted entirely when unconfigured or stale —
         # the key's ABSENCE is what makes the Monitor say "--" rather than 0W.
         if isinstance(st, dict):
-            wall = _wall_power_w()
+            wall = _wall_power_w(wall_fresh)
             if wall is not None:
                 st["wall_power_w"] = wall
             # Whether a plug is CONFIGURED, which is a different question from
@@ -5099,6 +5301,10 @@ class Handler(http.server.BaseHTTPRequestHandler):
             series = _wall_series()
             if series is not None:
                 st["wall_series"] = series
+            # Record BEFORE the per-user process filtering below: the history is
+            # host-wide and keeps no process data at all, so it must not vary
+            # with who happened to trigger this collection.
+            _hist_note(st)
         # Multi-user: the top-processes list carries every user's process names —
         # a non-admin sees only their OWN processes; an ADMIN (VIBETOP_ADMINS, e.g.
         # the human operator on a prod host where APP_USER is the no-login service
@@ -5584,6 +5790,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
             return self._handle_config_hints_set()
         if self.path == "/api/config/power":
             return self._handle_config_power_set()
+        if self.path == "/api/config/terminal":
+            return self._handle_config_terminal_set()
         if self.path == "/api/config/resources":
             return self._handle_config_resources_set()
         if self.path == "/api/config/services/restart":
@@ -6006,7 +6214,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
                     "claude_usage": cu,
                     "terminals_running": nterm}
         if want_sys:   # taskbar stats only when the shared toggle is on
-            resp["system"] = self._get_system_status()
+            resp["system"] = self._get_system_status(WALL_POWER_STRIP_FRESH)
         if cu:         # Claude-Usage numbers folded on too (retires the 30s poll)
             resp["claude"] = _claude_usage_payload(cu)
         if want_codex:
@@ -6253,6 +6461,36 @@ class Handler(http.server.BaseHTTPRequestHandler):
         log.info("config: feature hints enabled=%s (by %s)", enabled, _ctx_user())
         self._json(200, {"ok": True, "enabled": enabled})
 
+    # Spans the Monitor offers. Bounded on purpose: an arbitrary ?span= lets a
+    # caller ask for a window the rings cannot cover and get a chart that is
+    # mostly holes, which reads as an outage rather than as "not kept".
+    HISTORY_SPANS = {"2m": 120, "1h": 3600, "6h": 21600,
+                     "24h": 86400, "7d": 7 * 24 * 3600}
+
+    def _handle_system_history(self):
+        if not self._require_authed():
+            return
+        q = urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query)
+        span = self.HISTORY_SPANS.get((q.get("span") or ["1h"])[0])
+        if span is None:
+            return self._json(400, {"error": "span must be one of "
+                                             + ", ".join(self.HISTORY_SPANS)})
+        try:
+            slots = int((q.get("slots") or ["120"])[0])
+        except ValueError:
+            return self._json(400, {"error": "slots must be a number"})
+        slots = max(10, min(600, slots))
+        h = _hist_open()
+        if h is None:
+            return self._json(200, {"unavailable": True})
+        fields = [f for f in (q.get("fields") or [""])[0].split(",") if f] or None
+        # Read under the same lock as note/tick: a window spans thousands of
+        # slots and must not be interleaved with the writer's pwrite.
+        with _hist_lock:
+            out = h.window(time.time(), span, slots, fields)
+        out["span"] = span
+        self._json(200, out)
+
     def _handle_config_power_get(self):
         if not self._require_sudo():
             return
@@ -6290,6 +6528,32 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 msg = re.sub(r"^\[Errno -?\d+\]\s*", "", msg).strip()
                 resp["probe_error"] = msg or e.__class__.__name__
         self._json(200, resp)
+
+    def _handle_config_terminal_get(self):
+        if not self._require_sudo():
+            return
+        self._json(200, {"historyMB": _read_term_history_mb(),
+                         "maxMB": TERM_HISTORY_MB_MAX})
+
+    def _handle_config_terminal_set(self):
+        if not self._require_sudo():
+            return
+        data = self._config_body()
+        if data is None:
+            return self._json(400, {"error": "invalid body"})
+        mb = data.get("historyMB")
+        if isinstance(mb, str) and mb.strip().isdigit():
+            mb = int(mb.strip())
+        if not isinstance(mb, int) or isinstance(mb, bool) \
+                or not 1 <= mb <= TERM_HISTORY_MB_MAX:
+            return self._json(400, {"error": "History must be a whole number of MB, "
+                                             "1–%d" % TERM_HISTORY_MB_MAX})
+        try:
+            _write_term_history_mb(mb)
+        except OSError as e:
+            return self._json(500, {"error": "could not save: %s" % e})
+        log.info("config: terminal history=%d MB (by %s)", mb, _ctx_user())
+        self._json(200, {"ok": True, "historyMB": mb})
 
     def _handle_config_users_get(self):
         if not self._require_sudo():
@@ -8592,6 +8856,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
             return self._handle_config_hints_get()
         if self.path == "/api/config/power":
             return self._handle_config_power_get()
+        if self.path == "/api/config/terminal":
+            return self._handle_config_terminal_get()
         if self.path == "/api/config/resources":
             return self._handle_config_resources_get()
         if self.path == "/api/config/disk":
@@ -8672,8 +8938,11 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self._json(200, self._update_version_info())
             return
         if self.path == "/api/system/status":
+            _hist_saw_monitor()          # this route IS the Monitor polling
             self._json(200, self._get_system_status())
             return
+        if self.path.split("?")[0] == "/api/system/history":
+            return self._handle_system_history()
         if self.path == "/api/claude/usage":
             if not self._require_admin():   # discloses APP_USER's plan usage
                 return
@@ -8797,7 +9066,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
                     "terminals_running": nterm,
                 }
             if want_sys:   # taskbar stats folded onto the heartbeat
-                resp["system"] = self._get_system_status()
+                resp["system"] = self._get_system_status(WALL_POWER_STRIP_FRESH)
             if cu:         # Claude-Usage numbers folded on too (retires the 30s poll)
                 resp["claude"] = _claude_usage_payload(cu)
             if want_codex:
@@ -9149,4 +9418,5 @@ if __name__ == "__main__":
     threading.Thread(target=_reaper_loop, daemon=True).start()  # idle reaper (opt-in)
     threading.Thread(target=_video_cache_sweep_loop, daemon=True).start()  # bound the video cache
     threading.Thread(target=_schedule_loop, daemon=True).start()  # scheduled terminal messages
+    threading.Thread(target=_hist_loop, daemon=True).start()  # 7-day metrics ring
     server.serve_forever()
