@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_322 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_323 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
 - [Scheduled terminal messages ("resume when the token limit resets")](#scheduled-terminal-messages-resume-when-the-token-limit-resets)
@@ -345,6 +345,7 @@ _322 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [RTS structure material pass: one post-process, and the structures it must not tone (2026-09-22)](#rts-structure-material-pass-one-post-process-and-the-structures-it-must-not-tone-2026-09-22)
 - [RTS game speed: movement runs ~3x fast against every timer, and the RA2 default is unsettled](#rts-game-speed-movement-runs-3x-fast-against-every-timer-and-the-ra2-default-is-unsettled)
 - [Seven days of metrics in 930KB, and why the process list is not in it](#seven-days-of-metrics-in-930kb-and-why-the-process-list-is-not-in-it)
+- [RTS: new-unit ART lands before its RULES — `rts/newunit-stubs.js` (2026-09-22)](#rts-new-unit-art-lands-before-its-rules-rtsnewunit-stubsjs-2026-09-22)
 
 <!-- END TOC -->
 
@@ -15070,3 +15071,29 @@ I nearly read as product defects: one queue answered both endpoints, so the
 history fetch ate a status payload; and one fixture object was returned for
 every fetch, so the page's own `push()` mutated it. `response.json()` yields a
 fresh object each call, and the harness now does too.
+
+## RTS: new-unit ART lands before its RULES — `rts/newunit-stubs.js` (2026-09-22)
+
+**Symptom.** Wave 2 split six new RA2 units (Sniper, Terrorist, Navy SEAL, Tank
+Destroyer, Demolition Truck, Black Eagle) across two parallel branches: one
+writes the rules, one the art. `bakeOwned()` bakes art only for keys in `UNITS`,
+so art with no rules cannot be baked, rendered or reviewed.
+
+**Cause.** The bakers are driven by the rules table, not by the art files.
+
+**Fix.** `rts/newunit-stubs.js`, loaded right after `roster.js`, adds a minimal
+entry per kind only if none exists, with `fac: 'none'` and `artStub: true`.
+`ownedBy()` is false for both sides, so nothing can build, count or field a stub
+and the simulation is untouched. Three consumers that enumerate every `UNITS`
+key skip `artStub`: the two voice tests (`rts.test.js`, `rts-voices.test.js`)
+and `tools/art-metrics.js`, whose roster-wide rows would otherwise move before
+the units are in the roster. When the real rules land, the integrator drops the
+file and its `rts.html` tag, and the six units join art-metrics for the first
+time. Measured with them included, they add debt to aggregate rows
+(`peerVsSelf`, `hue.infantryBelowBudget` +3, `colour.vehicleAchromatic` +2, and
+others), and art-metrics requires a `SPIKES` entry per kind.
+
+**Rejected.** Putting the stub under `rts/units/`, as first planned:
+`rts-modules.test.js` requires every file there to declare exactly one
+`draw*`/`bake*` entry point. Giving stubs a real faction: the AI and the build
+bar would field units that have no weapons.
