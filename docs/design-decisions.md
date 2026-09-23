@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_347 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_348 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
 - [Scheduled terminal messages ("resume when the token limit resets")](#scheduled-terminal-messages-resume-when-the-token-limit-resets)
@@ -370,6 +370,7 @@ _347 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [RTS e2e: the dock-click test walled its miner into a rock outcrop (2026-09-23)](#rts-e2e-the-dock-click-test-walled-its-miner-into-a-rock-outcrop-2026-09-23)
 - [RTS seat countries: an absent `cty` is not a Random one (2026-09-23)](#rts-seat-countries-an-absent-cty-is-not-a-random-one-2026-09-23)
 - [RTS: the Soviet yard's machinery goes black, not the rip's navy (2026-09-23)](#rts-the-soviet-yards-machinery-goes-black-not-the-rips-navy-2026-09-23)
+- [RTS: Hard's short matches were not the opening (2026-09-23)](#rts-hards-short-matches-were-not-the-opening-2026-09-23)
 
 <!-- END TOC -->
 
@@ -15814,3 +15815,38 @@ wedge's front stays the one navy (`#000033`) face, as before.
 of the BLUE owner's bake as house colour: the `[col] house fraction` clause
 went 15.3% -> 24.1% and failed. That blue is not remappable in RA2 either,
 but our census cannot tell the two apart, so the walls stay neutral black.
+## RTS: Hard's short matches were not the opening (2026-09-23)
+
+**Symptom.** Hard-vs-Hard ended at a median 14.1 min, with the silo built
+by 20:00 on 42% of Hard sides and Hard's army at 10:00 (16.5 units) below
+Normal's (23.8). Wave 4 blamed an infantry brawl at ~4:00.
+
+**Cause.** The soak now measures the opening (first engagement: 6+ combat
+deaths within 45 s and 12 cells, losses on both sides). Hard's first clash
+comes at a median 3:30, 87% infantry, at a base 88% of the time, and the
+DEFENDER wins it about 70% of the time. Its winner then won only 55% of
+matches, so the clash does not decide them. Moving the first attack to
+RA2's 5-7 min (estimate; no source gives a Brutal timing) made it worse:
+the armies grew to ~45 units before they met, the clash became lopsided,
+its winner won 73%, and matches got shorter (13.2 min). What did decide
+matches was later: a launched Hard team fought on to 45% of its launch
+strength (`give 0.45`), so every failed push cost the whole army. The house
+then sat under 20 units with a thin base and was razed before its silo.
+
+**Fix.** Hard `give` 0.45 → 0.75: a push pulls out and regroups after
+losing a quarter of its launch strength. Easy (0.30) and Normal (0.40) are
+unchanged. 126-match soak: Hard median 14.1 → 16.5 min; army at 10:00
+16.5 → 24.4 (Easy 18.1 < Normal 23.8 < Hard 24.4 by count); nuke/storm by
+20:00 42% → 61%. Test: `rts-ai-opening.test.js`, red on v1.24.0.
+
+**Rejected.** A later first attack (`openMin` 2:30 → 5:00, with or without
+a `wave: 16` cap): shorter matches, as above. Holding the silo reserve
+until 15 units stand, and making the defence lane respect it: army up to
+26, but the seat split went to 28/9. A stricter attack posture for Hard
+(needs 1.3× the enemy army plus the full defence value): shorter matches.
+`give 0.8`: within noise of 0.75 and a lower silo rate.
+
+**Still open.** Seats 52/35 (60% seat 0) over all 126 matches (before:
+50/43). Collective wins ~70% of decided Hard-vs-Hard matches before and
+after. Hard median is 16.5 min, not 18. With a 30-min cap, 69% of matches
+end by destruction, mostly because Easy-vs-Easy times out.
