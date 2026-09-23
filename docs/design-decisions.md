@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_330 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_331 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
 - [Scheduled terminal messages ("resume when the token limit resets")](#scheduled-terminal-messages-resume-when-the-token-limit-resets)
@@ -353,6 +353,7 @@ _330 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [RTS Tesla Trooper: a value gamma matched the rip's median by crushing every material (2026-09-22)](#rts-tesla-trooper-a-value-gamma-matched-the-rips-median-by-crushing-every-material-2026-09-22)
 - [RTS: the loading bar shows the page-load bake, and the test hooks wait for it](#rts-the-loading-bar-shows-the-page-load-bake-and-the-test-hooks-wait-for-it)
 - [RTS N seats: a two-seat game has no team array, and that is what keeps it identical (2026-09-22)](#rts-n-seats-a-two-seat-game-has-no-team-array-and-that-is-what-keeps-it-identical-2026-09-22)
+- [RTS cliffs: sloped faces in their own pass, chamfered corners (2026-09-22)](#rts-cliffs-sloped-faces-in-their-own-pass-chamfered-corners-2026-09-22)
 
 <!-- END TOC -->
 
@@ -15345,3 +15346,33 @@ defence answers ANY hostile side, not only the current target.
 - *Baking art for all eight seats up front.* Owner art is cached by COLOUR
   (`OWNED_ART`), so a seat whose colour did not change keeps its sprites and a
   colour nobody wears is dropped.
+## RTS cliffs: sloped faces in their own pass, chamfered corners (2026-09-22)
+
+**Symptom.** Chokepoint Pass's wall read as a picket fence of V-shaped panels,
+Lake Divide's short ridges as boxes, and the wave-1 talus could only live on the
+lower third of the face: anything a cliff sprite drew below its own foot was
+painted over by the lower cells in front, which the ground loop draws later.
+
+**Cause.** Two things. (1) The cliff sprite was drawn INSIDE the row-major
+ground loop, so its foot was a hard clip line. (2) Every cell's crest followed
+its own diamond's front edges; a ridge lying across the screen is a staircase
+of cells, so its crest was a sawtooth with a period of one cell, and each
+face ended in a ruled vertical edge where the run stopped.
+
+**Fix.** The ground loop now lays plain lower ground under a cliff cell and
+QUEUES the cliff sprite; a cliff pass draws the queue in the same back-to-front
+order after the ground and the ore, before the shroud. The sprite (`bakeCliff`)
+is taller (`CLIFF_SL` slope + spill margin), so the foot sits further out than
+a sheer drop and its talus spills onto the cells in front. The front (and back)
+corner is chamfered by how many diagonal neighbours continue the run
+(`cliffSeams(x, y, mask, diag)`): both → cut to the east-west line, so a
+cross-screen ridge is one straight face. Strata depths and band tones are keyed
+to the shared grid vertex, so layers run across cell joins; a face whose run
+stops rolls its crest down and flares its foot. `cliffDrop` gives a face only
+toward LOWER ground, so a plateau's ring no longer draws faces into its own
+raised interior. The simulation is untouched (`sim-identity` diff empty).
+
+**Rejected.** Baking the talus into the lower neighbour's ground tile (the
+neighbour would need to know every cliff shape above it, multiplying the ground
+atlas); a whole-map pre-rendered cliff layer (memory per map, and it would not
+re-shade with theatre changes).
