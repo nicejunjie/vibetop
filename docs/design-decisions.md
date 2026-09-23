@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_329 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_330 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
 - [Scheduled terminal messages ("resume when the token limit resets")](#scheduled-terminal-messages-resume-when-the-token-limit-resets)
@@ -352,6 +352,7 @@ _329 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [RTS: new-unit ART lands before its RULES — `rts/newunit-stubs.js` (2026-09-22)](#rts-new-unit-art-lands-before-its-rules-rtsnewunit-stubsjs-2026-09-22)
 - [RTS Tesla Trooper: a value gamma matched the rip's median by crushing every material (2026-09-22)](#rts-tesla-trooper-a-value-gamma-matched-the-rips-median-by-crushing-every-material-2026-09-22)
 - [RTS: the loading bar shows the page-load bake, and the test hooks wait for it](#rts-the-loading-bar-shows-the-page-load-bake-and-the-test-hooks-wait-for-it)
+- [RTS N seats: a two-seat game has no team array, and that is what keeps it identical (2026-09-22)](#rts-n-seats-a-two-seat-game-has-no-team-array-and-that-is-what-keeps-it-identical-2026-09-22)
 
 <!-- END TOC -->
 
@@ -15302,3 +15303,45 @@ a half-baked `SPR`. The sandbox is detected by its frozen `performance.now()`
 - Weighting the bar by per-step time from a previous run: the per-sheet steps
   are fine-grained enough that step counting is smooth (see the bar values in
   `rts-player.spec.js`'s loading contract).
+## RTS N seats: a two-seat game has no team array, and that is what keeps it identical (2026-09-22)
+
+**Symptom.** Iron Frontier was a two-sided world in ~40 places: `g.side` built
+as `[newSide(0), newSide(1)]`, `simStep` stepping `P_HUMAN` then `P_AI`, the
+AI called as `stepAI(g, g.ai, P_AI, P_HUMAN)`, the gap generator hiding from
+`1 - b.p`, a structure kill credited to `b.p ? P_HUMAN : P_AI`, and every
+"may this shoot that" written `o.p === u.p`. A 2v2 needs all of those to mean
+"same team" / "an enemy", and plan 2.3 also requires a 1v1 to hash
+byte-for-byte as before.
+
+**Cause.** The two meanings of `o.p === u.p` — ownership (whose barracks is
+this) and alliance (may this rifleman be shot) — agreed only because every
+side was its own team.
+
+**Fix.** `allied(g,p,q)` / `hostile(g,p,q)` / `foesOf` / `alliesOf` in
+`world.js` answer through `teamOf(g,p) = g.team ? g.team[p] : p`, and a
+two-seat game **never gets a `g.team`**, so each helper reduces to exactly the
+old compare (neutral is on nobody's team, as before). Only the alliance-sense
+sites were changed; ownership sites (`b.p === p` for production, power,
+transports, pads) still compare seats. Order-sensitive loops kept their order:
+seat 1's AI still steps before seat 0's, the stalemate backstop still judges
+seat 1 first, and the state hash mixes seats 2.. only when they exist.
+`sim-identity --jobs 16` before/after: empty diff.
+
+**Whom the AI fights.** Every "the foe's refinery / army / staging" question
+in `ai.js` is about ONE side, so the AI keeps a single `foe`, chosen by
+`aiFoe`: with one enemy it is returned untouched (two seats unchanged); with
+more, a choice among nearest / weakest / most threatening, drawn from
+`hash3(seed, seat, minute)` — never `rnd()`, whose stream the simulation
+owns — and re-made once a game-minute or when that enemy is out. Base
+defence answers ANY hostile side, not only the current target.
+
+**Rejected.**
+- *A `g.team` of `[0, 1]` for every game.* Correct, but every helper would then
+  go through the array for the 1v1 too, and the identity gate's value is that
+  the 1v1 path is literally the old one.
+- *An AI that weighs every enemy's units at once.* It rewrites the build logic
+  another builder owns (`pace`) and splits waves across fronts; RA2's AI picks
+  a target house too.
+- *Baking art for all eight seats up front.* Owner art is cached by COLOUR
+  (`OWNED_ART`), so a seat whose colour did not change keeps its sprites and a
+  colour nobody wears is dropped.
