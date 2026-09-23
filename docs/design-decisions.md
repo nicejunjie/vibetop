@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_318 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_319 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
 - [Scheduled terminal messages ("resume when the token limit resets")](#scheduled-terminal-messages-resume-when-the-token-limit-resets)
@@ -341,6 +341,7 @@ _318 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [RTS terrain: ruled lines at every seam came from the tile pad, not the art (2026-09-22)](#rts-terrain-ruled-lines-at-every-seam-came-from-the-tile-pad-not-the-art-2026-09-22)
 - [RTS: the HUD font ships as a data: URI in a script, and the loading screen is a veil (2026-09-22)](#rts-the-hud-font-ships-as-a-data-uri-in-a-script-and-the-loading-screen-is-a-veil-2026-09-22)
 - [RTS audio ships as lazily injected JS data, not .mp3 files](#rts-audio-ships-as-lazily-injected-js-data-not-mp3-files)
+- [RTS infantry: a narrower unit made OTHER units fail the size gate (2026-09-22)](#rts-infantry-a-narrower-unit-made-other-units-fail-the-size-gate-2026-09-22)
 
 <!-- END TOC -->
 
@@ -14849,3 +14850,23 @@ uneven, while MP3 decodes everywhere. (5) A Russian TTS voice reading
 Cyrillic-transliterated English, for a Soviet accent: whisper transcribed it
 as nonsense ("I am Regum"). Only the short Russian words ("Да", "Ура") use
 that voice.
+## RTS infantry: a narrower unit made OTHER units fail the size gate (2026-09-22)
+
+- **Symptom:** shrinking only the Tesla Trooper, Crazy Ivan and Chrono
+  Legionnaire toward their RA2 rips moved `size.infantryOutsideRA2Band` from 2 to
+  3, and the new offenders were the GI and the Conscript, whose art had not changed.
+- **Cause:** `art-metrics.js` judges each unit against the GROUP's median
+  ours/RA2 scale, not an absolute size. The three over-wide figures were holding
+  the median up (1.44); pull them in and the median drops (1.22), which exposes
+  that every rifleman was also too wide (19-20 px against RA2's 12-13).
+- **Fix:** narrow the shared figure first (`INF_SHOULDER` 0.90 -> 0.82 in
+  `bake/infantry.js`), then size the outliers with a per-kind `INF_FORM` scale.
+  Kinds whose spike or value-ladder rows depend on their width (Guardian GI,
+  Engineer, Chrono Legionnaire) get a compensating `INF_FORM` x of 1.10.
+- **Rejected:** editing `STATURE` in `bake/kit.js` (shared with other builders
+  and its comment records the IoU/legibility balance it was solved for), and
+  rewriting `art-baseline.json`.
+- **Also:** the crawl stroke was `sin(ph*pi/3)`, which gives only four distinct
+  values over six frames (1=2, 4=5), so a "six-frame" crawl held poses and read
+  as sliding. `sin(ph*pi/3 - pi/2 + 0.35)` gives six. Any 6-frame cycle keyed on
+  `sin(k*pi/3)` has the same trap.
