@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_345 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_346 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
 - [Scheduled terminal messages ("resume when the token limit resets")](#scheduled-terminal-messages-resume-when-the-token-limit-resets)
@@ -368,6 +368,7 @@ _345 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [RTS: a thick owner-colour part erodes to steel unless seams break it up (2026-09-23)](#rts-a-thick-owner-colour-part-erodes-to-steel-unless-seams-break-it-up-2026-09-23)
 - [RTS: every splash weapon reads its warhead's PercentAtMax (2026-09-23)](#rts-every-splash-weapon-reads-its-warheads-percentatmax-2026-09-23)
 - [RTS e2e: the dock-click test walled its miner into a rock outcrop (2026-09-23)](#rts-e2e-the-dock-click-test-walled-its-miner-into-a-rock-outcrop-2026-09-23)
+- [RTS seat countries: an absent `cty` is not a Random one (2026-09-23)](#rts-seat-countries-an-absent-cty-is-not-a-random-one-2026-09-23)
 
 <!-- END TOC -->
 
@@ -15768,3 +15769,26 @@ and bank, against 31/37 before.
 
 **Rejected.** Retrying the test or pinning a seed: the random layout is the
 coverage, and the bug was in the fixture, not the game.
+
+## RTS seat countries: an absent `cty` is not a Random one (2026-09-23)
+
+**Symptom.** 4-8 seat skirmishes gave no side a country, so `countryAllows`
+opened every specialist to every side. The obvious fix — `setupSeats`
+always resolves a country — would silently change every N-seat headless
+harness (`beginSeats`, `__rtsSimN`, the seat soak) and any pinned seat hash.
+
+**Cause.** `null` country already means "the pre-country game" (every
+specialist open, no country power): it is the compatibility contract the
+headless harnesses rely on, not a missing feature.
+
+**Fix.** A seat entry's `cty` has three states: absent (the harness: no
+country, unchanged), `''`/`'random'` (the seeded `pickCountry`) and a key.
+`normSeats` keeps the distinction; the Players table always sends one, so
+every real match has countries, and the seat soak opts in (`--no-countries`
+restores the old run). N-seat matches are now recorded with `rec.seats`
+(fac + resolved country per seat) and `replayBuild` rebuilds them through
+`setupSeats`; before this they were not recorded at all.
+
+**Rejected.** Always assigning a country in `setupSeats` (moves every
+recorded seat run for no player benefit); a single combined "Side/Country"
+dropdown per row (RA2 has two, and the country list must follow the side).
