@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_338 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_339 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
 - [Scheduled terminal messages ("resume when the token limit resets")](#scheduled-terminal-messages-resume-when-the-token-limit-resets)
@@ -361,6 +361,7 @@ _338 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [RTS: an AI radius in cells silently died when the boards grew (2026-09-23)](#rts-an-ai-radius-in-cells-silently-died-when-the-boards-grew-2026-09-23)
 - [RTS: Hard never saved for its superweapon because it asked with the bank (2026-09-23)](#rts-hard-never-saved-for-its-superweapon-because-it-asked-with-the-bank-2026-09-23)
 - [RTS seats: an attack order outlived a mind-controlled target (2026-09-23)](#rts-seats-an-attack-order-outlived-a-mind-controlled-target-2026-09-23)
+- [RTS: the Soviet Construction Yard's centre block is a wedge, and its plate is chamfered (2026-09-23)](#rts-the-soviet-construction-yards-centre-block-is-a-wedge-and-its-plate-is-chamfered-2026-09-23)
 
 <!-- END TOC -->
 
@@ -15585,3 +15586,40 @@ attack order). Not yet found.
 
 **Rejected.** Dropping every order whose target is allied: a player's own
 force-fire on a friendly structure is legal and must keep working.
+
+## RTS: the Soviet Construction Yard's centre block is a wedge, and its plate is chamfered (2026-09-23)
+
+**Symptom.** After wave 3 moved the reference to the idle rip (the last
+frame of the Soviet MCV deploy SHP), the Soviet yard still read wrong next to
+it at 1:1: its centre was a square brick portal round a navy box, and the
+sprite was 259x193 (aspect 1.34) against the rip's 203x164 (1.24).
+
+**Cause.** Two things. The centre block had been drawn as a box with pillars
+and a lintel, but the rip's is a WEDGE: a brick mass whose roof climbs steeply
+from a near-flat steel plate over the navy front to a ridge at the back, so
+its lit west end face is a five-sided profile, not a rectangle. And the rip's
+plate is an OCTAGON: the W and E corners are cut square and the front corner
+flattened, so the yard is ~0.85 of its footprint wide. Ours filled the whole
+diamond, and the shared skirt and platform in `bake/buildings.js` put a full
+diamond under it even when the yard's own plate was cut.
+
+**Fix.** `units/structures/base.js` draws the wedge in screen coordinates
+(mirrored back through the yard's layout mirror, so the light and the
+hammer-and-sickle keep their orientation): brick west end with a sloped top,
+brick slope, grey plate, black-navy front (r == g, so the blue owner's house
+remap never claims it; the rip's true `#000033` was repainted by it), and a
+proper hammer-and-sickle. The plate is clipped to an octagon with its own
+slab edge, and `bake/buildings.js` skips the shared skirt and platform for
+`base:col` (`ownPlate`, as for the depot). The onion dome grew to the rip's
+bulb-and-spike. Result 227x183 = 1.240. The `[col] w/h >= 1.30` clause had
+been read off the destruction frame (204x153 = 1.33); RA2's own idle yard
+fails it, so the col row now holds the art within 8% of 1.238 (the old box
+yard at 1.342 fails it). `rts-conyard-shape.test.js` checks aspect, chamfer
+and wedge on the real draw code with a recording canvas.
+
+**Rejected.** Narrowing the whole drawing with a horizontal scale: that
+distorts the accepted geometry the way the depot's anamorphic scales did.
+Keeping the >= 1.30 floor for col: RA2's own sprite fails it. Drawing the
+brick with the rip's saturated `#663333` via a local colour only: done, but
+the navy front could not follow, because any blue-leaning dark is remapped
+for the blue owner.
