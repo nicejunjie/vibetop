@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_341 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_343 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
 - [Scheduled terminal messages ("resume when the token limit resets")](#scheduled-terminal-messages-resume-when-the-token-limit-resets)
@@ -364,6 +364,8 @@ _341 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [RTS seats: a mind-control RELEASE also changes whose hull an order names (2026-09-23)](#rts-seats-a-mind-control-release-also-changes-whose-hull-an-order-names-2026-09-23)
 - [RTS seats: multi-seat boards split one map's worth of ore six ways (2026-09-23)](#rts-seats-multi-seat-boards-split-one-maps-worth-of-ore-six-ways-2026-09-23)
 - [RTS: Hard saved for its silo with no army standing (2026-09-23)](#rts-hard-saved-for-its-silo-with-no-army-standing-2026-09-23)
+- [RTS: the Soviet Construction Yard's centre block is a wedge, and its plate is chamfered (2026-09-23)](#rts-the-soviet-construction-yards-centre-block-is-a-wedge-and-its-plate-is-chamfered-2026-09-23)
+- [RTS: a thick owner-colour part erodes to steel unless seams break it up (2026-09-23)](#rts-a-thick-owner-colour-part-erodes-to-steel-unless-seams-break-it-up-2026-09-23)
 
 <!-- END TOC -->
 
@@ -15651,3 +15653,61 @@ Match-shape soak: Hard army at 10:00 17.2 → 18.8, Hard median match
 **Still open.** Hard's army count is still below Normal's (25). The silo
 target of 60% is not met. In the soak, Hard-vs-Hard matches are decided by
 an early infantry brawl near the 4:00 mark, not by a silo race.
+## RTS: the Soviet Construction Yard's centre block is a wedge, and its plate is chamfered (2026-09-23)
+
+**Symptom.** After wave 3 moved the reference to the idle rip (the last
+frame of the Soviet MCV deploy SHP), the Soviet yard still read wrong next to
+it at 1:1: its centre was a square brick portal round a navy box, and the
+sprite was 259x193 (aspect 1.34) against the rip's 203x164 (1.24).
+
+**Cause.** Two things. The centre block had been drawn as a box with pillars
+and a lintel, but the rip's is a WEDGE: a brick mass whose roof climbs steeply
+from a near-flat steel plate over the navy front to a ridge at the back, so
+its lit west end face is a five-sided profile, not a rectangle. And the rip's
+plate is an OCTAGON: the W and E corners are cut square and the front corner
+flattened, so the yard is ~0.85 of its footprint wide. Ours filled the whole
+diamond, and the shared skirt and platform in `bake/buildings.js` put a full
+diamond under it even when the yard's own plate was cut.
+
+**Fix.** `units/structures/base.js` draws the wedge in screen coordinates
+(mirrored back through the yard's layout mirror, so the light and the
+hammer-and-sickle keep their orientation): brick west end with a sloped top,
+brick slope, grey plate, black-navy front (r == g, so the blue owner's house
+remap never claims it; the rip's true `#000033` was repainted by it), and a
+proper hammer-and-sickle. The plate is clipped to an octagon with its own
+slab edge, and `bake/buildings.js` skips the shared skirt and platform for
+`base:col` (`ownPlate`, as for the depot). The onion dome grew to the rip's
+bulb-and-spike. Result 227x183 = 1.240. The `[col] w/h >= 1.30` clause had
+been read off the destruction frame (204x153 = 1.33); RA2's own idle yard
+fails it, so the col row now holds the art within 8% of 1.238 (the old box
+yard at 1.342 fails it). `rts-conyard-shape.test.js` checks aspect, chamfer
+and wedge on the real draw code with a recording canvas.
+
+**Rejected.** Narrowing the whole drawing with a horizontal scale: that
+distorts the accepted geometry the way the depot's anamorphic scales did.
+Keeping the >= 1.30 floor for col: RA2's own sprite fails it. Drawing the
+brick with the rip's saturated `#663333` via a local colour only: done, but
+the navy front could not follow, because any blue-leaning dark is remapped
+for the blue owner.
+
+## RTS: a thick owner-colour part erodes to steel unless seams break it up (2026-09-23)
+
+**Symptom.** The Soviet Construction Yard's new red claw arm came out of the
+bake as a grey arm with a thin red outline, on both owners.
+
+**Cause.** `materialPass` in `bake/buildings.js` keeps the house colour as
+TRIM: any owner-colour component larger than `PANEL` has every pixel more
+than `TRIM` (3 px per bake scale) from a non-owner pixel repainted to steel.
+A solid arm 14-18 px thick is exactly such a panel. The old plated boom
+survived only because a black channel ran down its middle.
+
+**Fix.** The arm's box section carries two dark weld seams at 36% of its
+half-width either side of the centre line, so no owner strip is wider than
+the trim band; the rip's arm shows such seams anyway. The pass itself is
+unchanged. Bricks in the same yard avoid it the same way: each brick is its
+own quad in dark mortar.
+
+**Rejected.** Adding `base` to `MAT_KEEP_HOUSE`: that disables the trim rule
+for both Construction Yards, including the Allied flukes and slots the rule
+was written for. Thinning the arm below the trim width: it then reads as the
+lattice boom it replaced.
