@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_326 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_327 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
 - [Scheduled terminal messages ("resume when the token limit resets")](#scheduled-terminal-messages-resume-when-the-token-limit-resets)
@@ -349,6 +349,7 @@ _326 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [RTS War Factory: the hall runs along the long axis and the door is at its END (2026-09-22)](#rts-war-factory-the-hall-runs-along-the-long-axis-and-the-door-is-at-its-end-2026-09-22)
 - [RTS: `P` is RA2's CombatantSelect again; Pause moved to the Pause key](#rts-p-is-ra2s-combatantselect-again-pause-moved-to-the-pause-key)
 - [RTS countries: a side with no country keeps the pre-country game (2026-09-22)](#rts-countries-a-side-with-no-country-keeps-the-pre-country-game-2026-09-22)
+- [RTS: new-unit ART lands before its RULES — `rts/newunit-stubs.js` (2026-09-22)](#rts-new-unit-art-lands-before-its-rules-rtsnewunit-stubsjs-2026-09-22)
 
 <!-- END TOC -->
 
@@ -15218,3 +15219,28 @@ the real sprites and recorded lines can land without touching the rules.
 real match, but it silently re-pins every recorded sim for no player-visible
 gain. Assigning a random country inside `newState`: consumes a random draw and
 would still change every harness's builds.
+## RTS: new-unit ART lands before its RULES — `rts/newunit-stubs.js` (2026-09-22)
+
+**Symptom.** Wave 2 split six new RA2 units (Sniper, Terrorist, Navy SEAL, Tank
+Destroyer, Demolition Truck, Black Eagle) across two parallel branches: one
+writes the rules, one the art. `bakeOwned()` bakes art only for keys in `UNITS`,
+so art with no rules cannot be baked, rendered or reviewed.
+
+**Cause.** The bakers are driven by the rules table, not by the art files.
+
+**Fix.** `rts/newunit-stubs.js`, loaded right after `roster.js`, adds a minimal
+entry per kind only if none exists, with `fac: 'none'` and `artStub: true`.
+`ownedBy()` is false for both sides, so nothing can build, count or field a stub
+and the simulation is untouched. Three consumers that enumerate every `UNITS`
+key skip `artStub`: the two voice tests (`rts.test.js`, `rts-voices.test.js`)
+and `tools/art-metrics.js`, whose roster-wide rows would otherwise move before
+the units are in the roster. When the real rules land, the integrator drops the
+file and its `rts.html` tag, and the six units join art-metrics for the first
+time. Measured with them included, they add debt to aggregate rows
+(`peerVsSelf`, `hue.infantryBelowBudget` +3, `colour.vehicleAchromatic` +2, and
+others), and art-metrics requires a `SPIKES` entry per kind.
+
+**Rejected.** Putting the stub under `rts/units/`, as first planned:
+`rts-modules.test.js` requires every file there to declare exactly one
+`draw*`/`bake*` entry point. Giving stubs a real faction: the AI and the build
+bar would field units that have no weapons.
