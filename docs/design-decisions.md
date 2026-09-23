@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_328 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_329 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
 - [Scheduled terminal messages ("resume when the token limit resets")](#scheduled-terminal-messages-resume-when-the-token-limit-resets)
@@ -351,6 +351,7 @@ _328 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [RTS countries: a side with no country keeps the pre-country game (2026-09-22)](#rts-countries-a-side-with-no-country-keeps-the-pre-country-game-2026-09-22)
 - [RTS: new-unit ART lands before its RULES — `rts/newunit-stubs.js` (2026-09-22)](#rts-new-unit-art-lands-before-its-rules-rtsnewunit-stubsjs-2026-09-22)
 - [RTS Tesla Trooper: a value gamma matched the rip's median by crushing every material (2026-09-22)](#rts-tesla-trooper-a-value-gamma-matched-the-rips-median-by-crushing-every-material-2026-09-22)
+- [RTS: the loading bar shows the page-load bake, and the test hooks wait for it](#rts-the-loading-bar-shows-the-page-load-bake-and-the-test-hooks-wait-for-it)
 
 <!-- END TOC -->
 
@@ -15269,3 +15270,35 @@ suit now. Pinned by `rts-vehicle-material.test.js`.
 **Rejected.** Lowering the gamma to about 2: the greaves get lighter only as
 fast as the suit does, so the figure stays one grey value. Any unit whose rip
 pairs a dark and a bright material needs materials, not a curve.
+## RTS: the loading bar shows the page-load bake, and the test hooks wait for it
+
+**Symptom.** Wave 1's loading screen was a 0.65 s timed veil between Start Game
+and the match. Its bar measured nothing. The game's real load, ~5 s of
+`bakeAll()` (37 s in WebKit on a loaded host), ran synchronously at page load
+behind a blank page.
+
+**Cause.** Delaying match construction until after a painted frame broke
+`rts.spec.js`'s start-up helper, which reads the world straight after clicking
+Start. The expensive work was never at match start, though. It was the
+page-load bake, and that was one blocking call.
+
+**Fix.** `bakeAll` became `function* bakeSteps()`, with a `yield` after each
+terrain family and after every owned unit and structure sheet (347 steps).
+`bakeStepCount()` gives the total. `bakeAll()` and `bakeOwned()` still drain
+the generator synchronously, so the colour re-bake and the vm sandbox are
+unchanged. In a real page, `main.js` drives the generator in 40 ms slices per
+frame behind `#loadv.boot`, and the bar shows `done/total`. Every harness
+already waits for `window.__rts` or `window.__rtsTest` (41 of 42 tools, and
+both e2e helpers). So the loader holds those two hooks back and publishes them
+only when the art exists. No helper changed, and nothing can start a match on
+a half-baked `SPR`. The sandbox is detected by its frozen `performance.now()`
+(0). `window.__rtsSyncBake` forces the old path.
+
+**Rejected.**
+- Deferring `newState()` after Start: this is what broke the helper in wave 1.
+- A timed bar: it is the thing being replaced.
+- Moving the whole bake to Start Game: the setup screen draws baked lineups,
+  and the house colour re-bake already exists for that case.
+- Weighting the bar by per-step time from a previous run: the per-sheet steps
+  are fine-grained enough that step counting is smooth (see the bar values in
+  `rts-player.spec.js`'s loading contract).
