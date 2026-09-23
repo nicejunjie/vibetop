@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_313 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_314 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
 - [Scheduled terminal messages ("resume when the token limit resets")](#scheduled-terminal-messages-resume-when-the-token-limit-resets)
@@ -336,6 +336,7 @@ _313 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [Wall power on the Monitor: a sensor that lives on the network](#wall-power-on-the-monitor-a-sensor-that-lives-on-the-network)
 - [The plug's address is a setting, not a deployment detail](#the-plugs-address-is-a-setting-not-a-deployment-detail)
 - [A terminal whose session daemon died flashed "reconnecting" forever (2026-09-22)](#a-terminal-whose-session-daemon-died-flashed-reconnecting-forever-2026-09-22)
+- [RTS infantry: a narrower unit made OTHER units fail the size gate (2026-09-22)](#rts-infantry-a-narrower-unit-made-other-units-fail-the-size-gate-2026-09-22)
 
 <!-- END TOC -->
 
@@ -14722,3 +14723,24 @@ row. A question worth asking directly is worth one boolean.
 - Tested: `server/tests/test_terminal_orphan_heal.py` (all five fail on the
   unfixed build). Sessions started before this deploy keep `OOMPolicy=stop` until
   they are restarted — the heal covers them, the policy doesn't.
+
+## RTS infantry: a narrower unit made OTHER units fail the size gate (2026-09-22)
+
+- **Symptom:** shrinking only the Tesla Trooper, Crazy Ivan and Chrono
+  Legionnaire toward their RA2 rips moved `size.infantryOutsideRA2Band` from 2 to
+  3, and the new offenders were the GI and the Conscript, whose art had not changed.
+- **Cause:** `art-metrics.js` judges each unit against the GROUP's median
+  ours/RA2 scale, not an absolute size. The three over-wide figures were holding
+  the median up (1.44); pull them in and the median drops (1.22), which exposes
+  that every rifleman was also too wide (19-20 px against RA2's 12-13).
+- **Fix:** narrow the shared figure first (`INF_SHOULDER` 0.90 -> 0.82 in
+  `bake/infantry.js`), then size the outliers with a per-kind `INF_FORM` scale.
+  Kinds whose spike or value-ladder rows depend on their width (Guardian GI,
+  Engineer, Chrono Legionnaire) get a compensating `INF_FORM` x of 1.10.
+- **Rejected:** editing `STATURE` in `bake/kit.js` (shared with other builders
+  and its comment records the IoU/legibility balance it was solved for), and
+  rewriting `art-baseline.json`.
+- **Also:** the crawl stroke was `sin(ph*pi/3)`, which gives only four distinct
+  values over six frames (1=2, 4=5), so a "six-frame" crawl held poses and read
+  as sliding. `sin(ph*pi/3 - pi/2 + 0.35)` gives six. Any 6-frame cycle keyed on
+  `sin(k*pi/3)` has the same trap.
