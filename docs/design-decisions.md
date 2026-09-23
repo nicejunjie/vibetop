@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_332 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_334 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
 - [Scheduled terminal messages ("resume when the token limit resets")](#scheduled-terminal-messages-resume-when-the-token-limit-resets)
@@ -355,6 +355,8 @@ _332 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [RTS N seats: a two-seat game has no team array, and that is what keeps it identical (2026-09-22)](#rts-n-seats-a-two-seat-game-has-no-team-array-and-that-is-what-keeps-it-identical-2026-09-22)
 - [RTS cliffs: sloped faces in their own pass, chamfered corners (2026-09-22)](#rts-cliffs-sloped-faces-in-their-own-pass-chamfered-corners-2026-09-22)
 - [RTS map size is per map, drawn in 64-board design coordinates (2026-09-22)](#rts-map-size-is-per-map-drawn-in-64-board-design-coordinates-2026-09-22)
+- [RTS: an AI radius in cells silently died when the boards grew (2026-09-23)](#rts-an-ai-radius-in-cells-silently-died-when-the-boards-grew-2026-09-23)
+- [RTS: Hard never saved for its superweapon because it asked with the bank (2026-09-23)](#rts-hard-never-saved-for-its-superweapon-because-it-asked-with-the-bank-2026-09-23)
 
 <!-- END TOC -->
 
@@ -15414,7 +15416,7 @@ every cliff and ramp width and leaves the ore at the old count. Replacing
 `MAP` with `g.W` at every site: that is 150 edits across files other builders
 own, for no behaviour difference.
 
-### RTS: an AI radius in cells silently died when the boards grew (garrisons 100% -> 0%)
+## RTS: an AI radius in cells silently died when the boards grew (2026-09-23)
 
 **Symptom.** The wave-2 soak (v1.22.0) showed 0% of AI sides garrisoning a
 civilian building; wave 1 had 100%. Nothing in the garrison code had changed.
@@ -15438,3 +15440,33 @@ half. Test: `rts-ai-garrison.test.js`, red on v1.22.0.
 **Rejected.** Raising 26 to 55: it would also reach blocks past the midline
 on the 96 board and in 4-seat games, and the next board size would break it
 again.
+
+## RTS: Hard never saved for its superweapon because it asked with the bank (2026-09-23)
+
+**Symptom.** After wave 2, 2% of Hard sides had a nuke or storm by 20:00
+(58% before the clock change). The lab stood by 12:00 in 77% of them.
+
+**Cause.** Three things stacked. (1) `canBuild()` and `enqueue()` want the
+whole price on hand; progressive charging starts only once an item is queued.
+So the `swBank: 2000` comment ("progressive charging pays the rest") never
+held. (2) Saving was gated on `aiSwWant(g, me)`, and `aiSwWant` calls
+`canBuild`, so it returned null whenever the bank was short. The AI only
+learned the silo was on its list once it could already afford it, and the
+$2500 reserve could never start. Wave 2 taught Hard to spend (bank at 10:00
+14k -> 1k), which removed the accidental savings that had built silos
+before. (3) `aiSwWant` offered the cheap support weapon first (Chronosphere,
+Iron Curtain), so the $5000 silo queued behind it through the one defence
+lane.
+
+**Fix.** `canBuild(..., noCash)` answers "is it on my list" without the bank.
+Hard (`swEarly`) reserves the silo's whole price in the unit lanes from
+`swAt` on. Its structure ladder holds at the silo once the lab stands, and
+it queues the silo when the bank covers it. `swMajorFirst` orders the
+nuke/storm before the Curtain/Chronosphere and waits for it rather than
+settling for the cheaper one. Tests: the three new cases in
+`rts-ai-curve.test.js`, red on v1.22.0.
+
+**Rejected.** Letting the AI enqueue without the full price: `enqueue`'s
+affordability rule is the human's too, and an AI that queues a $5000 silo on
+$2000 stalls the defence lane on hold for minutes. Lowering `swBank`: it was
+never read on the path that mattered.
