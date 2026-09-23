@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_339 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_340 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
 - [Scheduled terminal messages ("resume when the token limit resets")](#scheduled-terminal-messages-resume-when-the-token-limit-resets)
@@ -362,6 +362,7 @@ _339 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [RTS: Hard never saved for its superweapon because it asked with the bank (2026-09-23)](#rts-hard-never-saved-for-its-superweapon-because-it-asked-with-the-bank-2026-09-23)
 - [RTS seats: an attack order outlived a mind-controlled target (2026-09-23)](#rts-seats-an-attack-order-outlived-a-mind-controlled-target-2026-09-23)
 - [RTS: the Soviet Construction Yard's centre block is a wedge, and its plate is chamfered (2026-09-23)](#rts-the-soviet-construction-yards-centre-block-is-a-wedge-and-its-plate-is-chamfered-2026-09-23)
+- [RTS: a thick owner-colour part erodes to steel unless seams break it up (2026-09-23)](#rts-a-thick-owner-colour-part-erodes-to-steel-unless-seams-break-it-up-2026-09-23)
 
 <!-- END TOC -->
 
@@ -15623,3 +15624,25 @@ Keeping the >= 1.30 floor for col: RA2's own sprite fails it. Drawing the
 brick with the rip's saturated `#663333` via a local colour only: done, but
 the navy front could not follow, because any blue-leaning dark is remapped
 for the blue owner.
+
+## RTS: a thick owner-colour part erodes to steel unless seams break it up (2026-09-23)
+
+**Symptom.** The Soviet Construction Yard's new red claw arm came out of the
+bake as a grey arm with a thin red outline, on both owners.
+
+**Cause.** `materialPass` in `bake/buildings.js` keeps the house colour as
+TRIM: any owner-colour component larger than `PANEL` has every pixel more
+than `TRIM` (3 px per bake scale) from a non-owner pixel repainted to steel.
+A solid arm 14-18 px thick is exactly such a panel. The old plated boom
+survived only because a black channel ran down its middle.
+
+**Fix.** The arm's box section carries two dark weld seams at 36% of its
+half-width either side of the centre line, so no owner strip is wider than
+the trim band; the rip's arm shows such seams anyway. The pass itself is
+unchanged. Bricks in the same yard avoid it the same way: each brick is its
+own quad in dark mortar.
+
+**Rejected.** Adding `base` to `MAT_KEEP_HOUSE`: that disables the trim rule
+for both Construction Yards, including the Allied flukes and slots the rule
+was written for. Thinning the arm below the trim width: it then reads as the
+lattice boom it replaced.
