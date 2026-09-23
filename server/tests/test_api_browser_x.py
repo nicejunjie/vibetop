@@ -175,17 +175,44 @@ def test_x_launch_reports_command_not_found(client, mgr, monkeypatch, op_cookie)
 
 # ---- /api/x/windows + activate/close --------------------------------------
 
-def test_x_windows_parses_wmctrl(client, mgr, monkeypatch):
-    out = ("0x01400003  0 host  Firefox\n"
-           "0x01400009 -1 host  DESKTOP\n"           # desktop sentinel -> skipped
-           "0x0140000a  0 host  Text Editor\n")
-    monkeypatch.setattr(mgr.Handler, "_run_wmctrl",
-                        lambda self, args: _wmctrl_result(0, out))
+def test_x_windows_comes_from_the_users_own_agent(client, mgr, monkeypatch):
+    """Not from a forked wmctrl. Window titles are user data, so the read
+    belongs to the process that IS the user — and the fork was 74ms a call on a
+    4s poll (1.37% of a core) because `user=` rules out posix_spawn and forking
+    the ~1GB manager copies its page tables."""
+    seen = {}
+
+    def fake_agent(user, req, timeout=10.0):
+        seen.update(req)
+        return {"ok": True, "windows": [
+            {"id": "0x01400003", "title": "Firefox"},
+            {"id": "not-an-id", "title": "junk"},       # must be rejected
+            {"id": "0x0140000a", "title": "Text Editor"},
+        ]}
+    monkeypatch.setattr(mgr, "_ensure_fileagent", lambda u: (True, None))
+    monkeypatch.setattr(mgr, "_fs_call", fake_agent)
+    monkeypatch.setattr(mgr.Handler, "_run_wmctrl", lambda self, args: (_ for _ in ()).throw(
+        AssertionError("the poll must not fork wmctrl any more")))
     status, body = client.get("/api/x/windows")
     assert status == 200
-    ids = [w["id"] for w in body["windows"]]
-    assert ids == ["0x01400003", "0x0140000a"]       # sentinel filtered
+    assert seen.get("op") == "xwindows" and isinstance(seen.get("display"), int)
+    assert [w["id"] for w in body["windows"]] == ["0x01400003", "0x0140000a"]
     assert body["windows"][0]["title"] == "Firefox"
+
+
+def test_x_windows_is_a_poll_so_a_dead_agent_is_not_an_error(client, mgr, monkeypatch):
+    """The desktop asks every 4s. A display that is not up yet, or an agent
+    that will not start, must read as "no windows" — exactly what the forked
+    wmctrl produced by failing — not as a fault the page has to handle."""
+    monkeypatch.setattr(mgr, "_ensure_fileagent", lambda u: (False, "nope"))
+    status, body = client.get("/api/x/windows")
+    assert status == 200 and body["windows"] == []
+
+    monkeypatch.setattr(mgr, "_ensure_fileagent", lambda u: (True, None))
+    monkeypatch.setattr(mgr, "_fs_call",
+                        lambda u, r, timeout=10.0: {"ok": False, "code": "agent"})
+    status, body = client.get("/api/x/windows")
+    assert status == 200 and body["windows"] == []
 
 
 def test_x_activate_valid_id(client, mgr, monkeypatch, op_cookie):

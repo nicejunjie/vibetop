@@ -7083,27 +7083,40 @@ class Handler(http.server.BaseHTTPRequestHandler):
             return None
 
     def _handle_x_windows(self):
-        # GET -> {"windows": [{"id", "title"}]} from `wmctrl -l` on THIS user's own
-        # X11 display. Returns [] if their display isn't up yet (wmctrl fails).
-        p = self._run_wmctrl(["-l"])
+        """GET -> {"windows": [{"id", "title"}]} on THIS user's X11 display.
+
+        Answered by the user's own file agent (`xwindows`), not by forking
+        `wmctrl`. The desktop polls this every 4s forever, and the fork was the
+        single most expensive thing the manager did: subprocess's `user=`
+        argument rules out posix_spawn, so Python falls back to fork(), and
+        forking the ~1GB manager copies its page tables. Measured on z20:
+        **74ms a call, 1.37% of a core**, of which the X query itself was 0.4ms.
+        Through the agent it is ~1ms and does not depend on the manager's size
+        at all.
+
+        An agent that will not start is not an error here: the row answers with
+        an empty list, which is what the forked wmctrl did by failing. This
+        endpoint is a poll, and a poll must not raise alarms for a display that
+        simply is not up yet."""
+        user = _ctx_user()
+        ok, _err = _ensure_fileagent(user)
+        if not ok:
+            return self._json(200, {"windows": []})
+        r = _fs_call(user, {"op": "xwindows",
+                            "display": _user_xpra_display(user, "x11")}, timeout=5)
         wins = []
-        if p and p.returncode == 0:
-            for line in p.stdout.splitlines():
-                parts = line.split(None, 3)
-                if len(parts) < 3:
-                    continue
-                wid = parts[0]
-                if not _valid_x_window_id(wid):
-                    continue
-                # Skip sticky WM/desktop pseudo-windows (desktop id -1).
-                if parts[1] == "-1":
-                    continue
-                title = parts[3] if len(parts) == 4 else ""
-                wins.append({"id": wid, "title": title})
+        for w in (r.get("windows") or []) if isinstance(r, dict) else []:
+            wid = w.get("id") if isinstance(w, dict) else None
+            if isinstance(wid, str) and _valid_x_window_id(wid):
+                wins.append({"id": wid, "title": str(w.get("title") or "")})
         self._json(200, {"windows": wins})
 
     def _x_window_action(self, flag):
         # Raise/close a window on THIS user's own X11 display (per-user).
+        # Still forks wmctrl, deliberately: this runs when someone CLICKS, a
+        # handful of times a session, so the fork cost that made the 4s poll
+        # untenable is irrelevant here. Moving it would mean teaching the agent
+        # to send ClientMessages for no measurable gain.
         body = self._read_body(4096)
         if body is None:
             return self._json(400, {"error": "invalid or too-large body"})
