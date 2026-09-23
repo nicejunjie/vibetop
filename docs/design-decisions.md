@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_322 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_323 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
 - [Scheduled terminal messages ("resume when the token limit resets")](#scheduled-terminal-messages-resume-when-the-token-limit-resets)
@@ -345,6 +345,7 @@ _322 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [RTS structure material pass: one post-process, and the structures it must not tone (2026-09-22)](#rts-structure-material-pass-one-post-process-and-the-structures-it-must-not-tone-2026-09-22)
 - [RTS game speed: movement runs ~3x fast against every timer, and the RA2 default is unsettled](#rts-game-speed-movement-runs-3x-fast-against-every-timer-and-the-ra2-default-is-unsettled)
 - [Seven days of metrics in 930KB, and why the process list is not in it](#seven-days-of-metrics-in-930kb-and-why-the-process-list-is-not-in-it)
+- [RTS: `P` is RA2's CombatantSelect again; Pause moved to the Pause key](#rts-p-is-ra2s-combatantselect-again-pause-moved-to-the-pause-key)
 
 <!-- END TOC -->
 
@@ -15070,3 +15071,28 @@ I nearly read as product defects: one queue answered both endpoints, so the
 history fetch ate a status payload; and one fixture object was returned for
 every fetch, so the page's own `push()` mutated it. `response.json()` yields a
 fresh object each call, and the harness now does too.
+
+## RTS: `P` is RA2's CombatantSelect again; Pause moved to the Pause key
+
+**Symptom.** Iron Frontier had no way to select the whole army. RA2's
+`keyboard.ini` binds `CombatantSelect=80` (`P`), but `P` had been bound to
+Pause, and the gap audits recorded "`P` is Pause" as a standing decision.
+
+**Cause.** RA2 binds no letter to pause at all. A skirmish pauses behind the
+options screen, which here is `Esc` and the pause button. Binding `P` to Pause
+was a convenience that took RA2's army key. Phase 6.2 of the improvement plan
+names select-whole-army as a missing control.
+
+**Fix.** `P` calls `selectArmy()`. It selects every unit of ours that carries a
+weapon, anywhere on the map, and leaves out harvesters, MCVs, Engineers, Spies
+and unarmed transports. Pause moved to the keyboard's own **Pause/Break** key
+(VK 19). `Esc` (the options card pauses the match) and the HUD pause button
+still work. The help card, the two Playwright specs and two review tools that
+pressed `p` to pause now press `Pause`.
+
+**Rejected.**
+- Keeping `P` as Pause and putting CombatantSelect on another letter. Every
+  free letter is already bound in `keyboard.ini`, and an RA2 player's hand
+  goes to `P`.
+- Selecting only the units on screen. That is `T` (TypeSelect) scoped to types.
+  "The whole army" means the whole map.
