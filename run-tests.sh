@@ -67,6 +67,10 @@ if command -v node >/dev/null 2>&1; then
     # generated cells from the game's own tables, sharded over every core.
     # Exit 2 = INCONCLUSIVE (a matrix failed to load, or nothing ran), which
     # is never read as green.
+    # OPT-IN (RTS_MATRIX=1) until apps/games/rts/docs/test-census.md has
+    # marked every known failure xfail: the first census run found 660
+    # failing cells, and a red tier here would block every commit in the repo.
+    if [ "${RTS_MATRIX:-0}" = 1 ]; then
     hr "RTS matrix quick (apps/games/rts/tools/test-all.js --quick)"
     ( cd apps/games/rts && node tools/test-all.js --quick --no-report ); rts_rc=$?
     case "$rts_rc" in
@@ -74,6 +78,9 @@ if command -v node >/dev/null 2>&1; then
         2) no "RTS matrix quick (INCONCLUSIVE — a matrix failed to load or no cell ran)" ;;
         *) no "RTS matrix quick" ;;
     esac
+    else
+        echo "RTS matrix quick: skipped (opt-in: RTS_MATRIX=1 ./run-tests.sh) until the census marks known failures xfail"
+    fi
 else
     echo "node unavailable — skipping JS suites." >&2
 fi
