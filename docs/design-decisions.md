@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_356 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_357 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
 - [Scheduled terminal messages ("resume when the token limit resets")](#scheduled-terminal-messages-resume-when-the-token-limit-resets)
@@ -379,6 +379,7 @@ _356 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [RTS wave 6: Easy-vs-Easy timeouts and Hard match length — two rejected levers (2026-09-24)](#rts-wave-6-easy-vs-easy-timeouts-and-hard-match-length-two-rejected-levers-2026-09-24)
 - [RTS: seat bias was step order plus a non-mirrored opening (2026-09-24)](#rts-seat-bias-was-step-order-plus-a-non-mirrored-opening-2026-09-24)
 - [RTS: why the Collective wins — diagnosis, not yet fixed (2026-09-24)](#rts-why-the-collective-wins-diagnosis-not-yet-fixed-2026-09-24)
+- [RTS testkit: one game per worker, no bake, and an isolation hash (2026-09-24)](#rts-testkit-one-game-per-worker-no-bake-and-an-isolation-hash-2026-09-24)
 
 <!-- END TOC -->
 
@@ -16134,3 +16135,37 @@ instantly (`fire()`), so Patriots never get a shot. Swapping the V3s out of
 the Soviet Bombard team moved the Collective's Normal+Hard share from 76% to
 64% (CIs overlap; indicative). Fix: fly the rocket as an entity with 50 hp
 that SAMWH weapons can target during its V3RocketTiltFrames + flight.
+
+## RTS testkit: one game per worker, no bake, and an isolation hash (2026-09-24)
+
+**Symptom.** The generated test matrix (apps/games/rts/docs/test-plan.md) comes
+to thousands of cells, and a fresh vm sandbox per cell cost 7-10 s each under
+load: the full run could not fit its 20-minute budget.
+
+**Cause.** Most of a `load()` is the sprite bake (`bakeAll()` in main.js's
+synchronous boot path), which the simulation never reads; and a fresh process
+per cell pays it every time.
+
+**Fix.** `tools/testkit/lib/core.js`: a worker loads the game ONCE and runs up
+to `recycle` cells (`ctx.begin(seed)` per cell). T1/T2 load WITHOUT the bake
+through a harness-side source transform (`bakeAll();` becomes conditional on
+`window.__rtsNoBake`; the testkit throws if main.js stops matching), ~3 s
+instead of ~10 s. A two-minute AI-vs-AI match hashes identically either way.
+Isolation is checked instead of assumed: after every cell, `begin(1)`'s
+`saveBlob()` is hashed and compared with the hash taken right after load; a
+mismatch records `isolation/after=<cell>` as a failure and recycles the worker.
+The blob's `at` field is `Date.now()` and is dropped from the hash, since it
+differs on every call.
+
+**Rejected.** A fresh process per cell (correct but 3x over budget). Reusing a
+sandbox without the guard: a cell that leaks global state would silently
+poison every later cell in that worker. A game-side `?nobake` flag: the test
+harness should not need a game edit to skip work the game already skips
+nowhere else.
+
+**Noticed on the way (not fixed here).** Projectile ids are allocated inside
+`if (!headless)` (combat.js `fire()`, neutral.js garrison fire, move.js prism
+support), so `g.nextId` advances differently in a headless run than in a live
+one, and `stateHash` mixes unit ids. A headless replay of a live match can
+therefore hash differently. This is the pattern the `crate-id-inside-not-headless`
+mutant plants.
