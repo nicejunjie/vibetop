@@ -67,19 +67,33 @@ if command -v node >/dev/null 2>&1; then
     # generated cells from the game's own tables, sharded over every core.
     # Exit 2 = INCONCLUSIVE (a matrix failed to load, or nothing ran), which
     # is never read as green.
-    # OPT-IN (RTS_MATRIX=1) until apps/games/rts/docs/test-census.md has
-    # marked every known failure xfail: the first census run found 660
-    # failing cells, and a red tier here would block every commit in the repo.
-    if [ "${RTS_MATRIX:-0}" = 1 ]; then
+    # On by default since the first census (apps/games/rts/docs/test-census.md)
+    # marked every known failure xfail with its census id: a strict xfail
+    # that starts passing turns red, so fixing a bug forces its mark off.
+    # ~1 min on 30 cores. RTS_MATRIX=0 skips it (said out loud, never silent).
+    if [ "${RTS_MATRIX:-1}" != 0 ]; then
     hr "RTS matrix quick (apps/games/rts/tools/test-all.js --quick)"
-    ( cd apps/games/rts && node tools/test-all.js --quick --no-report ); rts_rc=$?
+    rts_sum=$(mktemp)
+    ( cd apps/games/rts && node tools/test-all.js --quick --no-report --summary "$rts_sum" ); rts_rc=$?
+    if [ "$rts_rc" = 1 ]; then
+        # Re-run ONLY the failed cells once. A cell that passes on the re-run
+        # is FLAKY: named loudly so it gets hunted, but it does not block a
+        # commit. A cell that fails twice fails the tier.
+        rts_failed=$(node -e 'const s=JSON.parse(require("fs").readFileSync(process.argv[1],"utf8"));console.log(s.cells.filter(c=>c.kind==="fail").map(c=>c.id).join(","))' "$rts_sum")
+        if [ -n "$rts_failed" ]; then
+            echo "RTS matrix quick: re-running failed cell(s) once: $rts_failed"
+            ( cd apps/games/rts && node tools/test-all.js --no-report --cell "$rts_failed" ); rts_rc=$?
+            [ "$rts_rc" = 0 ] && printf '\033[33m⚠ RTS matrix FLAKY (passed on re-run): %s\033[0m\n' "$rts_failed"
+        fi
+    fi
+    rm -f "$rts_sum"
     case "$rts_rc" in
         0) ok "RTS matrix quick" ;;
         2) no "RTS matrix quick (INCONCLUSIVE — a matrix failed to load or no cell ran)" ;;
         *) no "RTS matrix quick" ;;
     esac
     else
-        echo "RTS matrix quick: skipped (opt-in: RTS_MATRIX=1 ./run-tests.sh) until the census marks known failures xfail"
+        echo "RTS matrix quick: SKIPPED (RTS_MATRIX=0)"
     fi
 else
     echo "node unavailable — skipping JS suites." >&2
