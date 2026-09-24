@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_354 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_356 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
 - [Scheduled terminal messages ("resume when the token limit resets")](#scheduled-terminal-messages-resume-when-the-token-limit-resets)
@@ -377,6 +377,8 @@ _354 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [iOS 27 blurs the first row of every installed-app screen](#ios-27-blurs-the-first-row-of-every-installed-app-screen)
 - [RTS art: a red-owner rip made two units' house colour a literal red, and eight clauses failed RA2's own sprite](#rts-art-a-red-owner-rip-made-two-units-house-colour-a-literal-red-and-eight-clauses-failed-ra2s-own-sprite)
 - [RTS wave 6: Easy-vs-Easy timeouts and Hard match length — two rejected levers (2026-09-24)](#rts-wave-6-easy-vs-easy-timeouts-and-hard-match-length-two-rejected-levers-2026-09-24)
+- [RTS: seat bias was step order plus a non-mirrored opening (2026-09-24)](#rts-seat-bias-was-step-order-plus-a-non-mirrored-opening-2026-09-24)
+- [RTS: why the Collective wins — diagnosis, not yet fixed (2026-09-24)](#rts-why-the-collective-wins-diagnosis-not-yet-fixed-2026-09-24)
 
 <!-- END TOC -->
 
@@ -16059,3 +16061,76 @@ bigger Easy teams later in the match (the `wave`/`armyCap` pair growing
 after ~15:00) rather than more permission to attack. For Hard, rebuilding
 lost production (not repairing) is the untested lever. The patch of both
 rejected experiments is kept out of the tree.
+
+## RTS: seat bias was step order plus a non-mirrored opening (2026-09-24)
+
+**Symptom.** Seat 0 (`g.ai2`, the top-left start) won ~60% of decided
+AI-vs-AI matches in `tools/match-shape-soak.js`, on maps whose terrain and ore
+are exact 180-degree mirrors (checked cell by cell: 0 differing cells, 21 of 21
+map×seed boards). Same-faction mirror matches (dir-vs-dir, col-vs-col) showed
+it too: 61/105, 58%.
+
+**Cause.** Nothing in the sim branches on `P_HUMAN`/`ME` except presentation
+(EVA, sfx, `g.seen`), and the seat's own code paths were clean. The bias came
+from two mechanical sources of about equal size, found by A/B:
+- *Order.* `simStep` stepped the unit and building lists in creation order
+  (seat 0's opening force is created first), the build queues seat 0 first and
+  the AIs seat 1 first, every tick. In a mirrored rifle duel the first-created
+  man won 8 of 8 whatever tick it started on.
+- *Position.* The 4x4 opening yard used `floor` of its half-width for both
+  seats, so the two yards stood one cell out of mirror; the opening guard's
+  rank grew +x on both seats; and `aiPlace` scores a plot by its top-left
+  corner and breaks ties in top-left scan order, so both seats put a tied
+  building on the same compass side (behind the yard for one seat, in front
+  of it for the other).
+Evidence (Wilson 95% CIs, seat-0 wins of decided): baseline 158/261 = 61%;
+swapping the two starts (position now favours seat 1) 94/186 = 51%; reversing
+AI/queue/opening order 50/90 = 56%. Each knob cancels about half.
+
+**Fix.** Odd ticks run every per-tick pass back to front (units, buildings,
+queues, AIs); the opening yard rounds its half-cell toward the map centre and
+the guard's rank grows away from the yard on both seats.
+`rts-seat-fairness.test.js` pins both (red on the old code). Normal+Hard,
+seat-0 wins of decided: 91/141 = 65% [56-72] before, 85/151 = 56% [48-64]
+after; Hard alone 70/103 = 68% [58-76] -> 64/113 = 57% [47-65].
+
+**Rejected / deferred: the aiPlace mirror fix.** Scoring plots by their centre,
+breaking ties away from the enemy then by a centre-facing offset, and searching
+one footprint further makes the two seats' plots exact reflections (verified
+for power, barracks, refinery and factory), and took Normal+Hard to 81/152 =
+53% [45-61] — no clear gain over the order fix alone — but in the soak it cut Normal's
+expansion from 63% to 42% of sides and moved `rts-ai-expansion.test.js`'s far
+refinery from 0.5 to 3.4 min after the second yard. The base's layout feeds the
+build ladder; that needs its own pass. `freeTileNear` and every other
+top-left-first scan remain a smaller position bias.
+
+## RTS: why the Collective wins — diagnosis, not yet fixed (2026-09-24)
+
+**Symptom.** The Collective wins ~70% of decided Normal/Hard AI-vs-AI matches
+(after the seat fix, Normal+Hard 120/151 = 79% [72-85]); on Easy it wins 0-19%.
+
+**Ruled out.** Economy: an AI-free mining probe (one refinery, two miners, 10
+min, exactly mirrored plots) banks War Miner 10% ahead of Chrono Miner near
+home, and in real matches the Directorate banks MORE (Hard ore by 20:00: 167k
+vs 128k). Unit and structure stats: GI/Conscript, Grizzly/Rhino, Harrier, V3,
+Flak weapons, Pillbox/Sentry, Prism/Tesla and both miners match rules.ini
+(Speed, Storage, Strength, Cost, Damage, ROF, Range, Verses), and Prism
+support and Tesla charging both exist. The Harrier lane-filler: removing it
+made the Directorate worse (col 87%), not better.
+
+**What the exchange shows** (Hard, 28 sides per faction, 15 min, value killed
+÷ value lost per unit type, `kvA` credited on each kill):
+- Harrier: lost 550k, killed 92k (0.17) — the Directorate's air budget
+  (~20k per side) dies to the Collective's flak (Flak Trooper 3.6, Flak
+  Cannon 8.7).
+- V3 Launcher: lost 6k, killed 266k (41x).
+- GI 0.32, Grizzly 0.83 against Rhino 1.86, Flak Track 1.80.
+
+**Leading cause: the V3 rocket cannot be shot down.** RA2 spawns it as
+[V3ROCKET] Strength=50 Armor=special_2 (rules.ini:8180), and [SAMWH] does
+100% to special_2 — Patriots (and SAM-armed Allied units) intercept V3s,
+which is THE Allied answer to Soviet artillery. Ours resolves the V3 hit
+instantly (`fire()`), so Patriots never get a shot. Swapping the V3s out of
+the Soviet Bombard team moved the Collective's Normal+Hard share from 76% to
+64% (CIs overlap; indicative). Fix: fly the rocket as an entity with 50 hp
+that SAMWH weapons can target during its V3RocketTiltFrames + flight.
