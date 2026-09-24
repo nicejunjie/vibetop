@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_358 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_359 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
 - [Scheduled terminal messages ("resume when the token limit resets")](#scheduled-terminal-messages-resume-when-the-token-limit-resets)
@@ -381,6 +381,7 @@ _358 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [RTS: why the Collective wins — diagnosis, not yet fixed (2026-09-24)](#rts-why-the-collective-wins-diagnosis-not-yet-fixed-2026-09-24)
 - [RTS testkit: one game per worker, no bake, and an isolation hash (2026-09-24)](#rts-testkit-one-game-per-worker-no-bake-and-an-isolation-hash-2026-09-24)
 - [RTS testkit T2: compare worlds by the save blob, and a thrown command is not "nondeterminism" (2026-09-24)](#rts-testkit-t2-compare-worlds-by-the-save-blob-and-a-thrown-command-is-not-nondeterminism-2026-09-24)
+- [RTS wave 7: mirrored placement, late Easy, and a Hard rebuild that measured neutral (2026-09-24)](#rts-wave-7-mirrored-placement-late-easy-and-a-hard-rebuild-that-measured-neutral-2026-09-24)
 
 <!-- END TOC -->
 
@@ -16204,3 +16205,66 @@ crashing command types from the determinism monkey (hides which command
 crashed; keeping them in the monkey matrix reports it with a minimal repro).
 Exporting internals from the game for tests (a game edit for the harness's
 sake; the probe is a harness-side transform like the no-bake switch).
+## RTS wave 7: mirrored placement, late Easy, and a Hard rebuild that measured neutral (2026-09-24)
+
+**Soak.** `tools/match-shape-soak.js --minutes 45 --no-idle`, 7 maps x 5 seeds
+(20260831, 4242, 1234, 7, 8) x 3 difficulties x 2 faction orders = 210
+matches per run. Wilson 95% CIs. "Before" is v1.26.0; "after" has all three
+changes below applied (the Hard rebuild was then taken out again).
+
+| cells | decided by 45:00 | median min (decided) | seat 0 wins of decided | Collective wins of decided | sides expanded |
+|---|---|---|---|---|---|
+| easy, before | 25/70 = 36% [26-47] | 20.4 | 12/25 = 48% [30-67] | 0/25 = 0% [0-13] | 38/140 = 27% |
+| easy, after | 49/70 = 70% [58-79] | 19.5 | 24/49 = 49% [36-63] | 10/49 = 20% [11-34] | 54/140 = 39% |
+| normal, before | 68/70 = 97% | 16.3 | 38/68 = 56% [44-67] | 61/68 = 90% [80-95] | 71/140 = 51% [43-59] |
+| normal, after | 66/70 = 94% | 15.7 | 39/66 = 59% [47-70] | 51/66 = 77% [66-86] | 86/140 = 61% [53-69] |
+| hard, before | 68/70 = 97% | 14.5 | 40/68 = 59% [47-70] | 55/68 = 81% [70-88] | 130/140 = 93% |
+| hard, after | 68/70 = 97% | 15.4 | 39/68 = 57% [46-68] | 55/68 = 81% [70-88] | 128/140 = 91% |
+| normal+hard, before | 136/140 | 15.5 | 78/136 = 57% [49-65] | 116/136 = 85% [78-90] | 72% |
+| normal+hard, after | 134/140 | 15.6 | 78/134 = 58% [50-66] | 106/134 = 79% [71-85] | 76% |
+
+**1. Mirrored placement (shipped).** Wave 6's mirror (score by the plot's
+centre, tie-break away from the enemy, search one footprint further) cut
+Normal's expansion 63% -> 42% and slowed the far refinery 0.5 -> 3.4 min.
+Going by that description (its patch was not kept), it was not a reflection
+of the old search: it changed seat 0's
+layout too (centre scoring moves every plot half a footprint, the away-
+from-enemy tie-break packs buildings toward the map corner, and the wider
+ring changes which plot wins), so it was a new layout policy for both
+seats, and the new policy built worse bases. This time `aiPlace` walks its
+ring in each seat's OWN frame: `fx`/`fy` point toward the enemy, the plot is
+anchored by its own-side corner and the scan is reflected. For the top-left
+seat it is the old search, bit for bit; the other seat gets its exact
+reflection (`rts-ai-mirror-place.test.js`, red on v1.26.0). Expansion kept:
+the far-refinery probe from `rts-ai-expansion.test.js` still places it 0.48
+min after the second yard, and Normal's expansion went 51% -> 61%.
+**But the seat split did not move** (Normal+Hard 57% -> 58%, CIs overlap).
+The remaining seat bias is not aiPlace's tie order. Candidates not yet
+tested: buildings are not mirrorable (a refinery's dock and a factory's
+door always face south/east, so seat 0's face the enemy and seat 1's face
+its own corner), and `freeTileNear` / `findOre` (production.js, ore.js:
+shared sim, outside the AI's scope) still scan top-left first.
+
+**2. Late Easy (shipped).** `DIFF.easy.late` is merged over the AI's own cfg
+at 15:00: `armyCap` 14 -> 24 (so the count fallback `group * 2.5` = 15 can
+fire), `wave` 6 -> 16, and a line attack team (`tgt: 'any'`) aims at the
+nearest enemy miner or refinery (`soft`) instead of the War Factory behind
+the towers. Easy-vs-Easy decided by 45:00: 36% -> 70% (target 60%). Easy
+stays the weakest: in 27 cross-difficulty matches (7 maps, seed 4242, both
+seats and faction orders) Easy beat Normal 2/14 and Hard 0/13.
+`rts-ai-late-easy-rebuild.test.js`, red on v1.26.0.
+
+**3. Hard rebuilding lost production (rejected, measured neutral).**
+`aiRebuild`: every War Factory, Barracks or Refinery lost since the last
+2-s pass is owed and jumps the structure lane (index 1) the moment it can
+be bought. Hard median match length 14.5 -> 15.4 min of decided; counting
+timeouts as 45, median 15.0 [13.3-16.7] -> 15.5 [13.5-16.5] (bootstrap
+95%), mean 17.2 -> 16.9: no measurable effect, target 18 not met. A Hard
+base that loses its factory has usually lost the army that defended it,
+and the rebuilt factory falls with the rest. Kept out of the tree (the
+patch is small; it had a unit test that passed).
+
+**Still open.** Hard length (15-16 min vs 18): neither repairing (wave 6)
+nor rebuilding moves it; the next place to look is how much of the army a
+Hard house keeps home once its push has failed. Seat bias ~57% on
+Normal+Hard: see item 1's candidates.
