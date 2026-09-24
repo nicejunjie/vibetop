@@ -2945,8 +2945,9 @@ falsely PASSed, `755` falsely WARNed).
   so the bottom rows render off-screen. The running MAX — meant only to stop the soft
   keyboard from shrinking the shell — was the trap.
 - **Fix:** the running MAX now applies **only while the keyboard is actually up**
-  (detected by `clientHeight - visualViewport.height > 100`, since the keyboard
-  shrinks the visual viewport but not the layout viewport). Keyboard **down** →
+  (detected by `max(clientHeight, previous shell height) - visualViewport.height
+  > 150`; the previous height also catches iOS's shell-scrolled keyboard mode,
+  where `clientHeight` shrinks). Keyboard **down** →
   `maxH = current height` (follow DOWN), so a stale too-tall value from a reopen
   transient is discarded within ~1 render instead of sticking until rotation. Keyboard
   up → only grow (original anti-jump behavior preserved).

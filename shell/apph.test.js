@@ -37,3 +37,45 @@ test('top-edge mitigation applies only to iOS 27 installed web apps', () => {
   assert.equal(topEdgeClass('27.0', false), false);
   assert.equal(topEdgeClass('26.6.1', true), false);
 });
+
+test('standalone height releases a transient oversize after the keyboard closes', () => {
+  const listeners = {};
+  const values = {};
+  const root = {
+    clientHeight: 894,
+    classList: { toggle() {} },
+    style: { setProperty(name, value) { values[name] = value; } },
+  };
+  const vv = { height: 894, addEventListener() {} };
+  const navigator = { userAgent: 'iPhone Version/27.0', standalone: true };
+  const win = { navigator, visualViewport: vv, innerWidth: 440,
+    matchMedia() { return { matches: true }; }, addEventListener() {} };
+  const doc = { readyState: 'loading', documentElement: root,
+    addEventListener(name, fn) { listeners[name] = fn; } };
+  const context = { window: win, navigator, document: doc,
+    matchMedia: win.matchMedia, visualViewport: vv, screen: { height: 956 },
+    location: { hash: '' }, localStorage: { getItem() { return null; } },
+    addEventListener() {}, setTimeout() {},
+  };
+  vm.runInNewContext(source, context, { filename: 'apph.js' });
+  listeners.DOMContentLoaded();
+  assert.equal(values['--app-h'], '894px');
+
+  // On resume, iOS can briefly include the 62px opaque status-bar strip.
+  root.clientHeight = vv.height = 956;
+  listeners.DOMContentLoaded();
+  assert.equal(values['--app-h'], '956px');
+  root.clientHeight = vv.height = 894;
+  listeners.DOMContentLoaded();
+  assert.equal(values['--app-h'], '894px');
+
+  vv.height = 480; // keyboard only shrinks the visual viewport
+  listeners.DOMContentLoaded();
+  assert.equal(values['--app-h'], '894px');
+
+  // iOS also has a shell-scrolled keyboard mode where clientHeight shrinks.
+  root.clientHeight = 655;
+  vv.height = 508;
+  listeners.DOMContentLoaded();
+  assert.equal(values['--app-h'], '894px');
+});

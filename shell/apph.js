@@ -10,10 +10,10 @@
  *
  * The fix: in standalone, drive `--app-h` from the CORRECT metrics instead of `svh`.
  * We use max(visualViewport.height, documentElement.clientHeight) — both measure the
- * content area BELOW the opaque status bar, so they can never overshoot into the
- * status-bar strip the way `100vh`/`lvh` (956) do. We keep the running MAX (reset on
- * a width change = rotation) so the soft keyboard — which only shrinks the visual
- * viewport — can never shrink the shell. In regular Safari the module is inert and
+ * content area BELOW the opaque status bar. iOS can briefly report a full-screen
+ * height while resuming, though, so only keep the running MAX while the keyboard
+ * is up; otherwise follow the current measurement back down. In regular Safari
+ * the module is inert and
  * `body` keeps its `100svh` default (correct there).
  *
  * Diagnostic overlay (metrics + a colored line at each candidate height): enable with
@@ -82,8 +82,8 @@
   }
 
   // Content-area height: the visual viewport and the layout viewport (clientHeight)
-  // both exclude the opaque status bar and are NOT frozen (only `svh` is), so their
-  // max is the true usable height and can never exceed it (no status-bar overshoot).
+  // normally exclude the opaque status bar. A resume animation can briefly make
+  // either one too tall, so apply() must not latch an old maximum indefinitely.
   function contentH() {
     var vv = window.visualViewport;
     var vvh = vv ? vv.height : 0;
@@ -100,7 +100,14 @@
     var w = window.innerWidth;
     if (w !== lastW) { lastW = w; maxH = 0; }   // rotation / Split View: re-baseline
     var h = contentH();
-    if (h > maxH) maxH = h;                       // keyboard only shrinks vv -> ignored by max
+    // The keyboard shrinks the visual viewport. Usually clientHeight stays at
+    // the no-keyboard height, but iOS's shell-scrolled mode can shrink it too.
+    // Compare with our prior shell height in that mode. A resume oversize is
+    // only about a status-bar strip, far below the keyboard threshold.
+    var vv = window.visualViewport;
+    var keyboardUp = vv && (Math.max(root.clientHeight || 0, maxH) - vv.height > 150);
+    if (keyboardUp) { if (h > maxH) maxH = h; }
+    else maxH = h;
     if (maxH > 0) root.style.setProperty('--app-h', maxH + 'px');
     if (force) diag();
   }
