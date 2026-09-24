@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_352 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_353 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
 - [Scheduled terminal messages ("resume when the token limit resets")](#scheduled-terminal-messages-resume-when-the-token-limit-resets)
@@ -375,6 +375,7 @@ _352 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [Transcript analytics leave the manager's heap](#transcript-analytics-leave-the-managers-heap)
 - [Public shares open under the owner's credentials](#public-shares-open-under-the-owners-credentials)
 - [iOS 27 blurs the first row of every installed-app screen](#ios-27-blurs-the-first-row-of-every-installed-app-screen)
+- [RTS art: a red-owner rip made two units' house colour a literal red, and eight clauses failed RA2's own sprite](#rts-art-a-red-owner-rip-made-two-units-house-colour-a-literal-red-and-eight-clauses-failed-ra2s-own-sprite)
 
 <!-- END TOC -->
 
@@ -15992,3 +15993,33 @@ screen. It hid the blur behind a blank strip, but wasted scarce phone space;
 the operator rejected it. Changing individual app headers would miss other
 screens. Changing the PWA status-bar style or viewport height would risk the
 separately documented iOS status-bar and bottom-band bugs.
+
+## RTS art: a red-owner rip made two units' house colour a literal red, and eight clauses failed RA2's own sprite
+
+**Symptom.** Wave 5 left eleven RTS unit identity clauses red as "(b)*": moved
+by the 2026-09-15 user-reviewed art pass and accepted on trust, never compared
+against their RA2 rips.
+
+**Cause.** Two different things. (1) The Soviet rips are red-owner, so red on
+them IS the remap; the art pass copied that red as a literal (`#c7342e` on the
+V3's nose and fins, `#c52b35` on the Terror Drone's collar), and every blue or
+green Soviet player got Soviet-red rockets and drones. (2) Eight clauses asked
+for something RA2 itself does not draw, or measured the wrong object: run on
+the rip with the shipped rule, RA2's own Mirage, Tesla Tank, Terror Drone,
+Nighthawk, Desolator and Tesla Trooper fail them (e.g. the Tesla Trooper's
+"silver carapace across 40% of the torso": RA2's torso is 0-4.5% silver and
+24-42% red breastplate).
+
+**Fix.** The art went back to `panel`/`plit`/`pdark` (same shapes); each broken
+clause was re-derived from the rip and rewritten in §2, with a reproducible
+probe: `apps/games/rts/tools/ra2-clause-probe/unit-rips.sh`. Row by row in
+`apps/games/rts/docs/debt-ledger.md`, "The eleven (b)* identity clauses".
+
+**Rejected.** Drawing the art toward the clause (a fatter muzzle than RA2's, a
+silver torso the user had just had removed): the rule is to run a clause on the
+rip first, and a clause RA2 fails is the checker's bug. Also rejected at first:
+scaling the Kirov up to meet its size row, because `VSC` 1.03 flipped
+`spike.belowFloor`. That turned out to be the spike METER, not the art:
+`spikeOf` takes the longest protrusion, and at the larger bake the 2 px tail-prop
+blade outreached the gondola by a pixel. Shipped as `VSC` 1.03 with the blade
+radius 4.8 -> 4.3, so the gondola stays the thing measured.
