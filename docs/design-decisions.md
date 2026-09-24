@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_364 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_365 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
 - [Scheduled terminal messages ("resume when the token limit resets")](#scheduled-terminal-messages-resume-when-the-token-limit-resets)
@@ -387,6 +387,7 @@ _364 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [RTS: a save carries what looks derived — the spatial index, dead references, orders in flight (2026-09-24)](#rts-a-save-carries-what-looks-derived-the-spatial-index-dead-references-orders-in-flight-2026-09-24)
 - [RTS: the pointer over a cliff reads the tile drawn there, not the ground behind it (2026-09-24)](#rts-the-pointer-over-a-cliff-reads-the-tile-drawn-there-not-the-ground-behind-it-2026-09-24)
 - [RTS: a player's order and the AI's share enqueue(), so the one-at-a-time rule sits in the command (2026-09-24)](#rts-a-players-order-and-the-ais-share-enqueue-so-the-one-at-a-time-rule-sits-in-the-command-2026-09-24)
+- [RTS wave 8 (group E): Burst rounds are separate hits, and RA2's nuke does not flatten a Power Plant (2026-09-24)](#rts-wave-8-group-e-burst-rounds-are-separate-hits-and-ra2s-nuke-does-not-flatten-a-power-plant-2026-09-24)
 
 <!-- END TOC -->
 
@@ -16424,3 +16425,40 @@ and every pinned simulation stay as they were.
 
 **Rejected.** Changing the AI planner in the same fix: out of scope for
 an input bug, and it would move the balance soaks.
+## RTS wave 8 (group E): Burst rounds are separate hits, and RA2's nuke does not flatten a Power Plant (2026-09-24)
+
+**Symptom.** Census W01: every `Burst=N` weapon landed its volley as ONE hit
+of Damage x N (observed first hit = oracle x 2.000 or x 4.000 in 37 cells).
+Census R17: the nuke summed 500 x (1 - d/4) over every footprint cell, so a
+2x2 Power Plant at ground zero took ~750 and died, and nothing four cells
+out was touched.
+
+**Cause.** `fire()` multiplied by `spec.burst` before a single `impact()`;
+`stepNuke` was an invented model, never read off `[NukePayload]`/`[NUKE]`.
+
+**Fix.** W01: the first round resolves on the trigger pull; rounds 2..N go
+on `g.proj` (already saved and hashed) `BURST_GAP` = 4 rules frames apart,
+each its own `impact()` with its own splash, and each draws its own tracer
+(view only, no `g.nextId` draw). modenc:BurstDelay gives RA2's default as a
+random 3-5 frames; the midpoint keeps the sim from drawing an extra random
+number. R17: one hit per object of `[NukePayload] Damage=600` x
+`(1 - .98 d/10)` x the `[NUKE]` Verses row (60% vs wood, 8% vs concrete)
+inside `CellSpread=10`. A full-health Power Plant at ground zero now loses
+~335 and survives, as in RA2. That surprised the test that pinned the old
+"flattens what it lands on" behaviour. The fallout and the radiation are
+unchanged.
+
+**Rejected.** Random 3-5 frame gaps: they would add an rnd() draw per
+round, which shifts every later random number in a match. Keeping
+Damage x Burst and marking W01 a deviation: the total damage is the same,
+but a 2x single hit kills where RA2 needs two rounds, and the splash landed
+once instead of N times.
+
+**Balance, measured** (`match-shape-soak.js --jobs 20 --no-idle`, 126
+cells; Collective wins of decided matches, Wilson 95%). Before (c64afe2) and
+after (38b01c5, all group-E fixes except R13/R14/R03, which are range and
+splash transcriptions): Normal+Hard 59/75 = 79% [68-86] -> 58/76 = 76%
+[66-84]; Normal 81% -> 81%, Hard 76% -> 73%, Easy 8% -> 5% (26 and 22 of 42
+decided). Seat 0 51% [40-62] -> 54% [43-65]. Everything is inside the
+noise: the V3 hitting armour twice as hard (W08) is offset by the weaker
+nuke and the Dreadnought's [DMISLWH] row.
