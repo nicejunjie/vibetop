@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_357 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_358 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
 - [Scheduled terminal messages ("resume when the token limit resets")](#scheduled-terminal-messages-resume-when-the-token-limit-resets)
@@ -380,6 +380,7 @@ _357 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [RTS: seat bias was step order plus a non-mirrored opening (2026-09-24)](#rts-seat-bias-was-step-order-plus-a-non-mirrored-opening-2026-09-24)
 - [RTS: why the Collective wins — diagnosis, not yet fixed (2026-09-24)](#rts-why-the-collective-wins-diagnosis-not-yet-fixed-2026-09-24)
 - [RTS: the V3 rocket is a unit, not a projectile list (2026-09-24)](#rts-the-v3-rocket-is-a-unit-not-a-projectile-list-2026-09-24)
+- [RTS: every RA2 missile flies, and the Destroyer's Osprey is an aircraft (2026-09-24)](#rts-every-ra2-missile-flies-and-the-destroyers-osprey-is-an-aircraft-2026-09-24)
 
 <!-- END TOC -->
 
@@ -16165,3 +16166,46 @@ shoots an aircraft" would have been a claim instead of the same code.
 Also rejected: switching the V3's Verses row from `[HE]` to `[V3WH]` in the
 same change: V3WH hits medium/heavy armour and structures harder, which
 would have hidden the interception's effect on balance.
+
+## RTS: every RA2 missile flies, and the Destroyer's Osprey is an aircraft (2026-09-24)
+
+**Symptom.** User report: "Russia's missile launcher doesn't launch
+missiles, it only shoots like a rifle", then "all missile launchers
+including the V3 and the ship", and the Carrier and Destroyer "if it
+launches its anti-submarine aircraft at all".
+
+**Cause.** Every weapon resolved its damage on the trigger pull and drew
+a 7-30 tick `g.shots` tracer. Enumerated from rules.ini (every weapon
+whose `Projectile=` is a missile, plus every `Spawns=`): [V3ROCKET] and
+[DMISL] are spawned aircraft (see the entry above); [RedEye2] (Patriot,
+Speed 100), [Medusa] (Aegis, 120), [Maverick]/[Maverick2] (Harrier,
+Black Eagle, 70), [HoverMissile] (IFV, 40) and [MammothTusk] (Apocalypse,
+20) are projectiles with a flight time; [DEST] Spawns=ASW launches an
+Osprey that we modelled as an instant depth charge. The Guardian GI's
+missile is Yuri's Revenge, not in the v1.006 file. [CARRIER] and [DRED]
+are `CanPassiveAquire=no`: they never pick their own targets, so "they
+never auto-acquire" is RA2's behaviour, not a bug; ordered, both fire.
+
+**Fix.** Weapons carry `proj: <rules Speed>`; `fire()` hands them to
+`flyShot`, which queues the hit on `g.proj` (sim state: saved, hashed)
+for `dist / (Speed/256 leptons per frame)` ticks; a target gone by then
+is missed. They are bullets in RA2, so nothing shoots them down. The
+render draws a pixel DRAGON with its trail for the flight. The Destroyer's
+ASW weapon carries `spawns: 'osprey'`, and `spawnKind()` lets the
+Carrier's spawn cycle (launch, attack, return, re-arm) drive it.
+
+**Rejected.** Presentation-only travel (a long tracer, damage still
+instant): an Apocalypse's tusk missiles take ~2 s to reach a Kirov, and
+the Kirov would have been hit before the player saw them leave.
+Interceptable heat-seekers: RA2 only exposes the spawned rockets.
+**Open.** The Osprey borrows the Nighthawk's sprite (too big).
+
+**Balance, measured** (`match-shape-soak.js --no-idle`, 7 maps x 6 seeds
+for Normal/Hard, 3 for Easy, both faction orders; Collective wins of
+decided matches, Wilson 95%): Normal+Hard 124/148 = 84% [77-89] before,
+102/133 = 77% [69-83] with the flying V3/DMisl, 99/135 = 73% [65-80]
+with every missile flying and the Osprey. Normal 92% -> 83%, Hard 75% ->
+64%, Easy unchanged (0-6%, 15-16 of 42 decided). Seat 0 55% [47-63] ->
+59% [51-67], inside the noise. Only ~16% of V3 rockets were shot down
+in a 12-match probe (Patriot 12-cell reach, one shot per 73 ticks): the
+interception is RA2's, and it is not the whole faction gap.
