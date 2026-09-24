@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_353 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_354 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
 - [Scheduled terminal messages ("resume when the token limit resets")](#scheduled-terminal-messages-resume-when-the-token-limit-resets)
@@ -376,6 +376,7 @@ _353 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [Public shares open under the owner's credentials](#public-shares-open-under-the-owners-credentials)
 - [iOS 27 blurs the first row of every installed-app screen](#ios-27-blurs-the-first-row-of-every-installed-app-screen)
 - [RTS art: a red-owner rip made two units' house colour a literal red, and eight clauses failed RA2's own sprite](#rts-art-a-red-owner-rip-made-two-units-house-colour-a-literal-red-and-eight-clauses-failed-ra2s-own-sprite)
+- [RTS wave 6: Easy-vs-Easy timeouts and Hard match length — two rejected levers (2026-09-24)](#rts-wave-6-easy-vs-easy-timeouts-and-hard-match-length-two-rejected-levers-2026-09-24)
 
 <!-- END TOC -->
 
@@ -16023,3 +16024,38 @@ scaling the Kirov up to meet its size row, because `VSC` 1.03 flipped
 `spikeOf` takes the longest protrusion, and at the larger bake the 2 px tail-prop
 blade outreached the gondola by a pixel. Shipped as `VSC` 1.03 with the blade
 radius 4.8 -> 4.3, so the gondola stays the thing measured.
+## RTS wave 6: Easy-vs-Easy timeouts and Hard match length — two rejected levers (2026-09-24)
+
+**Symptom.** 45-minute soak (126 matches, v1.25.0 + the Grand Cannon fix):
+Easy-vs-Easy decided in 15/42 by 30:00 and 23/42 by 45:00 (target 60%
+by 45); Hard median 17.0 min (target 18).
+
+**Cause (Easy, measured with a per-team probe, 14 Easy-vs-Easy matches).**
+Easy does attack: its first team launches at ~8:45 on every map. But
+every team is five or six men (`group 6`, one attack team), and by 10:00
+the defending Easy house stands behind ~$10k of defences (six towers,
+mostly Prism Towers / Tesla Coils). Each wave came back with one survivor
+and killed no structure (enemy building count unchanged across the wave).
+After that the posture ladder locks Easy out of attacking: the value rule
+needs `myArmy > theirArmy*0.95 + dv*0.6` (~$6k over the field army), and
+the count fallback needs `army >= group*2.5` = 15 units while Easy's
+`armyCap` is 14, so it can never fire. Both armies then park at the cap;
+matches end only when one economy starves.
+
+**Tried and rejected (one soak each).**
+1. The count fallback capped at the house's `armyCap`, plus Easy limited
+   to two tier-2 towers (`t2Max: 2`). Easy-vs-Easy by 45:00 went 23 -> 19
+   of 42 (timeouts 19 -> 23): a 14-unit Easy push into even a thinner
+   line still loses, and it now loses its army doing so. Easy stayed the
+   weakest (0 wins in 14 Easy-vs-Normal/Hard probes, before and after).
+2. The AI repairing its damaged structures (Normal/Hard, `b.repair` with
+   a $300 floor), aimed at Hard length. Hard median 17.0 -> 15.5, decided
+   by 45:00 36 -> 34: repair drains the credits that would have rebuilt the
+   army, so the base holds a moment longer and then falls with nothing
+   behind it.
+
+**Still open / next lever.** For Easy, the waves must be worth sending:
+bigger Easy teams later in the match (the `wave`/`armyCap` pair growing
+after ~15:00) rather than more permission to attack. For Hard, rebuilding
+lost production (not repairing) is the untested lever. The patch of both
+rejected experiments is kept out of the tree.
