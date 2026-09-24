@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_349 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_350 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
 - [Scheduled terminal messages ("resume when the token limit resets")](#scheduled-terminal-messages-resume-when-the-token-limit-resets)
@@ -372,6 +372,7 @@ _349 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [RTS: the Soviet yard's machinery goes black, not the rip's navy (2026-09-23)](#rts-the-soviet-yards-machinery-goes-black-not-the-rips-navy-2026-09-23)
 - [RTS: Hard's short matches were not the opening (2026-09-23)](#rts-hards-short-matches-were-not-the-opening-2026-09-23)
 - [The window poll forked a 1GB process to read one X property](#the-window-poll-forked-a-1gb-process-to-read-one-x-property)
+- [RTS: seat bias was step order plus a non-mirrored opening (2026-09-24)](#rts-seat-bias-was-step-order-plus-a-non-mirrored-opening-2026-09-24)
 
 <!-- END TOC -->
 
@@ -15916,3 +15917,45 @@ poll must not raise alarms for a display that simply is not up yet.
 someone *clicks* — a handful of times a session. The fork cost that made a 4s
 poll untenable is irrelevant there, and teaching the agent to send
 `ClientMessage`s buys nothing measurable.
+
+## RTS: seat bias was step order plus a non-mirrored opening (2026-09-24)
+
+**Symptom.** Seat 0 (`g.ai2`, the top-left start) won ~60% of decided
+AI-vs-AI matches in `tools/match-shape-soak.js`, on maps whose terrain and ore
+are exact 180-degree mirrors (checked cell by cell: 0 differing cells, 21 of 21
+map×seed boards). Same-faction mirror matches (dir-vs-dir, col-vs-col) showed
+it too: 61/105, 58%.
+
+**Cause.** Nothing in the sim branches on `P_HUMAN`/`ME` except presentation
+(EVA, sfx, `g.seen`), and the seat's own code paths were clean. The bias came
+from two mechanical sources of about equal size, found by A/B:
+- *Order.* `simStep` stepped the unit and building lists in creation order
+  (seat 0's opening force is created first), the build queues seat 0 first and
+  the AIs seat 1 first, every tick. In a mirrored rifle duel the first-created
+  man won 8 of 8 whatever tick it started on.
+- *Position.* The 4x4 opening yard used `floor` of its half-width for both
+  seats, so the two yards stood one cell out of mirror; the opening guard's
+  rank grew +x on both seats; and `aiPlace` scores a plot by its top-left
+  corner and breaks ties in top-left scan order, so both seats put a tied
+  building on the same compass side (behind the yard for one seat, in front
+  of it for the other).
+Evidence (Wilson 95% CIs, seat-0 wins of decided): baseline 158/261 = 61%;
+swapping the two starts (position now favours seat 1) 94/186 = 51%; reversing
+AI/queue/opening order 50/90 = 56%. Each knob cancels about half.
+
+**Fix.** Odd ticks run every per-tick pass back to front (units, buildings,
+queues, AIs); the opening yard rounds its half-cell toward the map centre and
+the guard's rank grows away from the yard on both seats.
+`rts-seat-fairness.test.js` pins both (red on the old code). Normal+Hard,
+seat-0 wins of decided: 91/141 = 65% [56-72] before, 85/151 = 56% [48-64]
+after; Hard alone 70/103 = 68% [58-76] -> 64/113 = 57% [47-65].
+
+**Rejected / deferred: the aiPlace mirror fix.** Scoring plots by their centre,
+breaking ties away from the enemy then by a centre-facing offset, and searching
+one footprint further makes the two seats' plots exact reflections (verified
+for power, barracks, refinery and factory), and took Normal+Hard to 81/152 =
+53% [45-61] — no clear gain over the order fix alone — but in the soak it cut Normal's
+expansion from 63% to 42% of sides and moved `rts-ai-expansion.test.js`'s far
+refinery from 0.5 to 3.4 min after the second yard. The base's layout feeds the
+build ladder; that needs its own pass. `freeTileNear` and every other
+top-left-first scan remain a smaller position bias.
