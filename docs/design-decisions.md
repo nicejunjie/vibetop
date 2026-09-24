@@ -15941,7 +15941,9 @@ probe: `apps/games/rts/tools/ra2-clause-probe/unit-rips.sh`. Row by row in
 
 **Rejected.** Drawing the art toward the clause (a fatter muzzle than RA2's, a
 silver torso the user had just had removed): the rule is to run a clause on the
-rip first, and a clause RA2 fails is the checker's bug. Also rejected: scaling
-the Kirov up to meet its size row (`VSC` 1.03-1.06 closes it) because each step
-turns its tail-prop shaft into a 2 px spike; the row stays open with that lever
-named.
+rip first, and a clause RA2 fails is the checker's bug. Also rejected at first:
+scaling the Kirov up to meet its size row, because `VSC` 1.03 flipped
+`spike.belowFloor`. That turned out to be the spike METER, not the art:
+`spikeOf` takes the longest protrusion, and at the larger bake the 2 px tail-prop
+blade outreached the gondola by a pixel. Shipped as `VSC` 1.03 with the blade
+radius 4.8 -> 4.3, so the gondola stays the thing measured.
