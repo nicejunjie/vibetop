@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_361 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_362 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
 - [Scheduled terminal messages ("resume when the token limit resets")](#scheduled-terminal-messages-resume-when-the-token-limit-resets)
@@ -384,6 +384,7 @@ _361 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [RTS wave 7: mirrored placement, late Easy, and a Hard rebuild that measured neutral (2026-09-24)](#rts-wave-7-mirrored-placement-late-easy-and-a-hard-rebuild-that-measured-neutral-2026-09-24)
 - [RTS: the V3 rocket is a unit, not a projectile list (2026-09-24)](#rts-the-v3-rocket-is-a-unit-not-a-projectile-list-2026-09-24)
 - [RTS: every RA2 missile flies, and the Destroyer's Osprey is an aircraft (2026-09-24)](#rts-every-ra2-missile-flies-and-the-destroyers-osprey-is-an-aircraft-2026-09-24)
+- [RTS: a save carries what looks derived — the spatial index, dead references, orders in flight (2026-09-24)](#rts-a-save-carries-what-looks-derived-the-spatial-index-dead-references-orders-in-flight-2026-09-24)
 
 <!-- END TOC -->
 
@@ -16342,3 +16343,35 @@ with every missile flying and the Osprey. Normal 92% -> 83%, Hard 75% ->
 59% [51-67], inside the noise. Only ~16% of V3 rockets were shot down
 in a 12-match probe (Patriot 12-cell reach, one shot per 73 ticks): the
 interception is RA2's, and it is not the whole faction gap.
+
+## RTS: a save carries what looks derived — the spatial index, dead references, orders in flight (2026-09-24)
+
+**Symptom.** Save → load → continue drifted from the unsaved match within
+600 ticks (census D02, D08, D10: 46 determinism cells), with no single
+field to blame: unit x/y, ore, occupancy, and once the AI's own lists
+(`ai.garrison[0]: {$r:12} != null`).
+
+**Cause.** Three pieces of state were treated as "derived, rebuilt on
+load", and none of them is:
+1. The spatial hash is rebuilt every THIRD tick, so `near()` answers from
+   positions up to two ticks old. Restore rebuilt it from the current
+   positions, and separation/targeting answered differently for two ticks.
+2. A reference to an entity reaped from the board (a dead unit still in
+   `ai.army`/`ai.garrison`/a team/a hash bucket/the path queue) was written
+   `{$r:id}` and restored as `null`; the path queue dropped dead requesters,
+   and `runPathQueue` counts them against its per-tick budget, so the next
+   request ran a tick early.
+3. Commands issued in the last LOCKSTEP_DELAY ticks lived only in the fresh
+   client's schedule, which restore threw away, and the seq counter restarted.
+
+**Fix.** `ui/save.js` writes the hash buckets (as refs) and `hashAt`
+(`sh`), every referenced off-board entity once in full (`gh`, "ghosts",
+resolved as the same object everywhere and never put back in `g.byId`),
+and the single-player schedule plus seq (`nq`). Restore puts all three
+back. The determinism matrix's save/load cells all pass.
+
+**Rejected.** Pruning dead units out of `ai.army` every tick: it fixes the
+null but changes the AI's arithmetic (`army.length` gates posture and tech),
+moving every pinned simulation, and leaves the hash and queue forks.
+Forcing both worlds to rebuild the hash at the checkpoint (the census's
+RTS_DX_HASH diagnostic): it equalises a test, not a player's resumed match.
