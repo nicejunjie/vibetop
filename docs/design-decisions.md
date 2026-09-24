@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_357 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_358 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
 - [Scheduled terminal messages ("resume when the token limit resets")](#scheduled-terminal-messages-resume-when-the-token-limit-resets)
@@ -380,6 +380,7 @@ _357 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [RTS: seat bias was step order plus a non-mirrored opening (2026-09-24)](#rts-seat-bias-was-step-order-plus-a-non-mirrored-opening-2026-09-24)
 - [RTS: why the Collective wins — diagnosis, not yet fixed (2026-09-24)](#rts-why-the-collective-wins-diagnosis-not-yet-fixed-2026-09-24)
 - [RTS testkit: one game per worker, no bake, and an isolation hash (2026-09-24)](#rts-testkit-one-game-per-worker-no-bake-and-an-isolation-hash-2026-09-24)
+- [RTS testkit T2: compare worlds by the save blob, and a thrown command is not "nondeterminism" (2026-09-24)](#rts-testkit-t2-compare-worlds-by-the-save-blob-and-a-thrown-command-is-not-nondeterminism-2026-09-24)
 
 <!-- END TOC -->
 
@@ -16169,3 +16170,37 @@ support), so `g.nextId` advances differently in a headless run than in a live
 one, and `stateHash` mixes unit ids. A headless replay of a live match can
 therefore hash differently. This is the pattern the `crate-id-inside-not-headless`
 mutant plants.
+
+## RTS testkit T2: compare worlds by the save blob, and a thrown command is not "nondeterminism" (2026-09-24)
+
+**Symptom.** The first save→load and replay determinism cells went red with
+`ai.t 1923 != 1919` and a replay hash mismatch — while the same cells in a
+headless sandbox were green, and `stateHash` agreed on worlds that differed
+in orders and queues.
+
+**Cause.** Two separate things. (1) `stateHash` is a lockstep fingerprint:
+id, position, hp, facing, target, credits, every 7th ore cell. It never sees
+orders, queues, rallies, veterancy, ammo, passengers, AI memory or the RNG
+position, so equal hashes prove nothing about a save. (2) The monkey sent a
+`follow` onto a building; `applyCmd` accepted it and then threw in the
+LOCAL-player message (`UNITS[tgt.type].name` of a structure). A throw inside
+`simStep` aborts the rest of that tick; `cmdLocal()` is false in a replay and
+headless, so one world skipped the tail of a tick and the other did not.
+
+**Fix.** `tools/testkit/lib/canon.js` compares the game's own
+`serialiseGame` output field by field (wall clock, session UI and the
+seed's sign removed), with a meta-test that perturbs or deletes every saved
+field and must see a diff. The determinism cells run headless with a SANE
+monkey (own units, on-map points) so they ask only "same inputs, same
+world"; the crash is the monkey matrix's finding, and the same crash is why
+`parity/kind=lockstep` and `parity/kind=headless` go red (a local-only throw
+forks the issuing peer from the other one). The testkit reaches the game's
+closure through one probe line appended inside the bundle IIFE
+(`window.__rtsX.get/set`, `lib/sandbox.js`), so `fire()`/`damage()` can be
+observed without editing the game.
+
+**Rejected.** Comparing `stateHash` (blind to most of a save). Excluding the
+crashing command types from the determinism monkey (hides which command
+crashed; keeping them in the monkey matrix reports it with a minimal repro).
+Exporting internals from the game for tests (a game edit for the harness's
+sake; the probe is a harness-side transform like the no-bake switch).
