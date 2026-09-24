@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_359 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_361 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
 - [Scheduled terminal messages ("resume when the token limit resets")](#scheduled-terminal-messages-resume-when-the-token-limit-resets)
@@ -382,6 +382,8 @@ _359 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [RTS testkit: one game per worker, no bake, and an isolation hash (2026-09-24)](#rts-testkit-one-game-per-worker-no-bake-and-an-isolation-hash-2026-09-24)
 - [RTS testkit T2: compare worlds by the save blob, and a thrown command is not "nondeterminism" (2026-09-24)](#rts-testkit-t2-compare-worlds-by-the-save-blob-and-a-thrown-command-is-not-nondeterminism-2026-09-24)
 - [RTS wave 7: mirrored placement, late Easy, and a Hard rebuild that measured neutral (2026-09-24)](#rts-wave-7-mirrored-placement-late-easy-and-a-hard-rebuild-that-measured-neutral-2026-09-24)
+- [RTS: the V3 rocket is a unit, not a projectile list (2026-09-24)](#rts-the-v3-rocket-is-a-unit-not-a-projectile-list-2026-09-24)
+- [RTS: every RA2 missile flies, and the Destroyer's Osprey is an aircraft (2026-09-24)](#rts-every-ra2-missile-flies-and-the-destroyers-osprey-is-an-aircraft-2026-09-24)
 
 <!-- END TOC -->
 
@@ -16268,3 +16270,75 @@ patch is small; it had a unit test that passed).
 nor rebuilding moves it; the next place to look is how much of the army a
 Hard house keeps home once its push has failed. Seat bias ~57% on
 Normal+Hard: see item 1's candidates.
+## RTS: the V3 rocket is a unit, not a projectile list (2026-09-24)
+
+**Symptom.** The Collective won ~86% of decided Normal+Hard AI matches
+(wave-7 baseline soak); the V3 traded 41:1 because its hit resolved on the
+trigger pull, so no Patriot ever had a shot at it.
+
+**Cause.** RA2 v1.006 `[V3] Spawns=V3ROCKET` / `[DRED] Spawns=DMISL`: the
+launcher's weapon only puts an aircraft in the sky (`Strength=50`,
+`Armor=special_2`, Speed 15/20, rules.ini:8093, 8180), and `[SAMWH]` /
+`[FlakWH]` do 100% to special_2. `[DMISL]` is the only other such entity
+(the Kirov drops bombs; the carrier's Hornets were already units).
+
+**Fix.** `v3rocket` and `dmisl` are UNITS entries (`air`, `special_2`,
+`missile`, `spawned`), spawned by `launchMissile` from `fire()` and
+`fireGround()` and stepped by `stepMissile`: Pause+Tilt frames on the rail
+(riding, and dying with, the launcher), then accelerating by the rules'
+`Acceleration` to `Speed`, homing on a live mark, an arc of `mPeak` px, and
+`impact()` with the launcher's warhead on landing. Shot down, `damage()`
+hands it to `missileDowned` (air burst, no ground damage, not a unit lost).
+`u.msl` keeps it off selection, `countUnit`/`countCls`, the AI's scouting
+and `made`.
+
+**Rejected.** A separate `g.missiles` list with its own targeting: every
+anti-air path (`findTarget`, `canHit`, `rngVs`, flak splash in `impact`,
+`damage`) would have needed a parallel branch, and "shoots it exactly as it
+shoots an aircraft" would have been a claim instead of the same code.
+Also rejected: switching the V3's Verses row from `[HE]` to `[V3WH]` in the
+same change: V3WH hits medium/heavy armour and structures harder, which
+would have hidden the interception's effect on balance.
+
+## RTS: every RA2 missile flies, and the Destroyer's Osprey is an aircraft (2026-09-24)
+
+**Symptom.** User report: "Russia's missile launcher doesn't launch
+missiles, it only shoots like a rifle", then "all missile launchers
+including the V3 and the ship", and the Carrier and Destroyer "if it
+launches its anti-submarine aircraft at all".
+
+**Cause.** Every weapon resolved its damage on the trigger pull and drew
+a 7-30 tick `g.shots` tracer. Enumerated from rules.ini (every weapon
+whose `Projectile=` is a missile, plus every `Spawns=`): [V3ROCKET] and
+[DMISL] are spawned aircraft (see the entry above); [RedEye2] (Patriot,
+Speed 100), [Medusa] (Aegis, 120), [Maverick]/[Maverick2] (Harrier,
+Black Eagle, 70), [HoverMissile] (IFV, 40) and [MammothTusk] (Apocalypse,
+20) are projectiles with a flight time; [DEST] Spawns=ASW launches an
+Osprey that we modelled as an instant depth charge. The Guardian GI's
+missile is Yuri's Revenge, not in the v1.006 file. [CARRIER] and [DRED]
+are `CanPassiveAquire=no`: they never pick their own targets, so "they
+never auto-acquire" is RA2's behaviour, not a bug; ordered, both fire.
+
+**Fix.** Weapons carry `proj: <rules Speed>`; `fire()` hands them to
+`flyShot`, which queues the hit on `g.proj` (sim state: saved, hashed)
+for `dist / (Speed/256 leptons per frame)` ticks; a target gone by then
+is missed. They are bullets in RA2, so nothing shoots them down. The
+render draws a pixel DRAGON with its trail for the flight. The Destroyer's
+ASW weapon carries `spawns: 'osprey'`, and `spawnKind()` lets the
+Carrier's spawn cycle (launch, attack, return, re-arm) drive it.
+
+**Rejected.** Presentation-only travel (a long tracer, damage still
+instant): an Apocalypse's tusk missiles take ~2 s to reach a Kirov, and
+the Kirov would have been hit before the player saw them leave.
+Interceptable heat-seekers: RA2 only exposes the spawned rockets.
+**Open.** The Osprey borrows the Nighthawk's sprite (too big).
+
+**Balance, measured** (`match-shape-soak.js --no-idle`, 7 maps x 6 seeds
+for Normal/Hard, 3 for Easy, both faction orders; Collective wins of
+decided matches, Wilson 95%): Normal+Hard 124/148 = 84% [77-89] before,
+102/133 = 77% [69-83] with the flying V3/DMisl, 99/135 = 73% [65-80]
+with every missile flying and the Osprey. Normal 92% -> 83%, Hard 75% ->
+64%, Easy unchanged (0-6%, 15-16 of 42 decided). Seat 0 55% [47-63] ->
+59% [51-67], inside the noise. Only ~16% of V3 rockets were shot down
+in a 12-match probe (Patriot 12-cell reach, one shot per 73 ticks): the
+interception is RA2's, and it is not the whole faction gap.
