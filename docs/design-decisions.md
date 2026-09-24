@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_356 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_357 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
 - [Scheduled terminal messages ("resume when the token limit resets")](#scheduled-terminal-messages-resume-when-the-token-limit-resets)
@@ -379,6 +379,7 @@ _356 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [RTS wave 6: Easy-vs-Easy timeouts and Hard match length — two rejected levers (2026-09-24)](#rts-wave-6-easy-vs-easy-timeouts-and-hard-match-length-two-rejected-levers-2026-09-24)
 - [RTS: seat bias was step order plus a non-mirrored opening (2026-09-24)](#rts-seat-bias-was-step-order-plus-a-non-mirrored-opening-2026-09-24)
 - [RTS: why the Collective wins — diagnosis, not yet fixed (2026-09-24)](#rts-why-the-collective-wins-diagnosis-not-yet-fixed-2026-09-24)
+- [RTS: the V3 rocket is a unit, not a projectile list (2026-09-24)](#rts-the-v3-rocket-is-a-unit-not-a-projectile-list-2026-09-24)
 
 <!-- END TOC -->
 
@@ -16134,3 +16135,33 @@ instantly (`fire()`), so Patriots never get a shot. Swapping the V3s out of
 the Soviet Bombard team moved the Collective's Normal+Hard share from 76% to
 64% (CIs overlap; indicative). Fix: fly the rocket as an entity with 50 hp
 that SAMWH weapons can target during its V3RocketTiltFrames + flight.
+
+## RTS: the V3 rocket is a unit, not a projectile list (2026-09-24)
+
+**Symptom.** The Collective won ~86% of decided Normal+Hard AI matches
+(wave-7 baseline soak); the V3 traded 41:1 because its hit resolved on the
+trigger pull, so no Patriot ever had a shot at it.
+
+**Cause.** RA2 v1.006 `[V3] Spawns=V3ROCKET` / `[DRED] Spawns=DMISL`: the
+launcher's weapon only puts an aircraft in the sky (`Strength=50`,
+`Armor=special_2`, Speed 15/20, rules.ini:8093, 8180), and `[SAMWH]` /
+`[FlakWH]` do 100% to special_2. `[DMISL]` is the only other such entity
+(the Kirov drops bombs; the carrier's Hornets were already units).
+
+**Fix.** `v3rocket` and `dmisl` are UNITS entries (`air`, `special_2`,
+`missile`, `spawned`), spawned by `launchMissile` from `fire()` and
+`fireGround()` and stepped by `stepMissile`: Pause+Tilt frames on the rail
+(riding, and dying with, the launcher), then accelerating by the rules'
+`Acceleration` to `Speed`, homing on a live mark, an arc of `mPeak` px, and
+`impact()` with the launcher's warhead on landing. Shot down, `damage()`
+hands it to `missileDowned` (air burst, no ground damage, not a unit lost).
+`u.msl` keeps it off selection, `countUnit`/`countCls`, the AI's scouting
+and `made`.
+
+**Rejected.** A separate `g.missiles` list with its own targeting: every
+anti-air path (`findTarget`, `canHit`, `rngVs`, flak splash in `impact`,
+`damage`) would have needed a parallel branch, and "shoots it exactly as it
+shoots an aircraft" would have been a claim instead of the same code.
+Also rejected: switching the V3's Verses row from `[HE]` to `[V3WH]` in the
+same change: V3WH hits medium/heavy armour and structures harder, which
+would have hidden the interception's effect on balance.
