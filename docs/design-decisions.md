@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_349 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_350 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
 - [Scheduled terminal messages ("resume when the token limit resets")](#scheduled-terminal-messages-resume-when-the-token-limit-resets)
@@ -372,6 +372,7 @@ _349 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [RTS: the Soviet yard's machinery goes black, not the rip's navy (2026-09-23)](#rts-the-soviet-yards-machinery-goes-black-not-the-rips-navy-2026-09-23)
 - [RTS: Hard's short matches were not the opening (2026-09-23)](#rts-hards-short-matches-were-not-the-opening-2026-09-23)
 - [The window poll forked a 1GB process to read one X property](#the-window-poll-forked-a-1gb-process-to-read-one-x-property)
+- [RTS wave 6: Easy-vs-Easy timeouts and Hard match length — two rejected levers (2026-09-24)](#rts-wave-6-easy-vs-easy-timeouts-and-hard-match-length-two-rejected-levers-2026-09-24)
 
 <!-- END TOC -->
 
@@ -15916,3 +15917,38 @@ poll must not raise alarms for a display that simply is not up yet.
 someone *clicks* — a handful of times a session. The fork cost that made a 4s
 poll untenable is irrelevant there, and teaching the agent to send
 `ClientMessage`s buys nothing measurable.
+## RTS wave 6: Easy-vs-Easy timeouts and Hard match length — two rejected levers (2026-09-24)
+
+**Symptom.** 45-minute soak (126 matches, v1.25.0 + the Grand Cannon fix):
+Easy-vs-Easy decided in 15/42 by 30:00 and 23/42 by 45:00 (target 60%
+by 45); Hard median 17.0 min (target 18).
+
+**Cause (Easy, measured with a per-team probe, 14 Easy-vs-Easy matches).**
+Easy does attack: its first team launches at ~8:45 on every map. But
+every team is five or six men (`group 6`, one attack team), and by 10:00
+the defending Easy house stands behind ~$10k of defences (six towers,
+mostly Prism Towers / Tesla Coils). Each wave came back with one survivor
+and killed no structure (enemy building count unchanged across the wave).
+After that the posture ladder locks Easy out of attacking: the value rule
+needs `myArmy > theirArmy*0.95 + dv*0.6` (~$6k over the field army), and
+the count fallback needs `army >= group*2.5` = 15 units while Easy's
+`armyCap` is 14, so it can never fire. Both armies then park at the cap;
+matches end only when one economy starves.
+
+**Tried and rejected (one soak each).**
+1. The count fallback capped at the house's `armyCap`, plus Easy limited
+   to two tier-2 towers (`t2Max: 2`). Easy-vs-Easy by 45:00 went 23 -> 19
+   of 42 (timeouts 19 -> 23): a 14-unit Easy push into even a thinner
+   line still loses, and it now loses its army doing so. Easy stayed the
+   weakest (0 wins in 14 Easy-vs-Normal/Hard probes, before and after).
+2. The AI repairing its damaged structures (Normal/Hard, `b.repair` with
+   a $300 floor), aimed at Hard length. Hard median 17.0 -> 15.5, decided
+   by 45:00 36 -> 34: repair drains the credits that would have rebuilt the
+   army, so the base holds a moment longer and then falls with nothing
+   behind it.
+
+**Still open / next lever.** For Easy, the waves must be worth sending:
+bigger Easy teams later in the match (the `wave`/`armyCap` pair growing
+after ~15:00) rather than more permission to attack. For Hard, rebuilding
+lost production (not repairing) is the untested lever. The patch of both
+rejected experiments is kept out of the tree.
