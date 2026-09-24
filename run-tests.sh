@@ -63,6 +63,17 @@ if command -v node >/dev/null 2>&1; then
     if [ "${#JS_TESTS[@]}" -eq 0 ]; then
         no "no JS test files found"
     elif node --test "${JS_TESTS[@]}"; then ok "JS units"; else no "JS units"; fi
+    # The RTS test matrix, --quick subset (apps/games/rts/docs/test-plan.md):
+    # generated cells from the game's own tables, sharded over every core.
+    # Exit 2 = INCONCLUSIVE (a matrix failed to load, or nothing ran), which
+    # is never read as green.
+    hr "RTS matrix quick (apps/games/rts/tools/test-all.js --quick)"
+    ( cd apps/games/rts && node tools/test-all.js --quick --no-report ); rts_rc=$?
+    case "$rts_rc" in
+        0) ok "RTS matrix quick" ;;
+        2) no "RTS matrix quick (INCONCLUSIVE — a matrix failed to load or no cell ran)" ;;
+        *) no "RTS matrix quick" ;;
+    esac
 else
     echo "node unavailable — skipping JS suites." >&2
 fi
