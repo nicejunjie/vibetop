@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_350 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_351 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
 - [Scheduled terminal messages ("resume when the token limit resets")](#scheduled-terminal-messages-resume-when-the-token-limit-resets)
@@ -373,6 +373,7 @@ _350 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [RTS: Hard's short matches were not the opening (2026-09-23)](#rts-hards-short-matches-were-not-the-opening-2026-09-23)
 - [The window poll forked a 1GB process to read one X property](#the-window-poll-forked-a-1gb-process-to-read-one-x-property)
 - [RTS: seat bias was step order plus a non-mirrored opening (2026-09-24)](#rts-seat-bias-was-step-order-plus-a-non-mirrored-opening-2026-09-24)
+- [RTS: why the Collective wins — diagnosis, not yet fixed (2026-09-24)](#rts-why-the-collective-wins-diagnosis-not-yet-fixed-2026-09-24)
 
 <!-- END TOC -->
 
@@ -15959,3 +15960,34 @@ expansion from 63% to 42% of sides and moved `rts-ai-expansion.test.js`'s far
 refinery from 0.5 to 3.4 min after the second yard. The base's layout feeds the
 build ladder; that needs its own pass. `freeTileNear` and every other
 top-left-first scan remain a smaller position bias.
+
+## RTS: why the Collective wins — diagnosis, not yet fixed (2026-09-24)
+
+**Symptom.** The Collective wins ~70% of decided Normal/Hard AI-vs-AI matches
+(after the seat fix, Normal+Hard 120/151 = 79% [72-85]); on Easy it wins 0-19%.
+
+**Ruled out.** Economy: an AI-free mining probe (one refinery, two miners, 10
+min, exactly mirrored plots) banks War Miner 10% ahead of Chrono Miner near
+home, and in real matches the Directorate banks MORE (Hard ore by 20:00: 167k
+vs 128k). Unit and structure stats: GI/Conscript, Grizzly/Rhino, Harrier, V3,
+Flak weapons, Pillbox/Sentry, Prism/Tesla and both miners match rules.ini
+(Speed, Storage, Strength, Cost, Damage, ROF, Range, Verses), and Prism
+support and Tesla charging both exist. The Harrier lane-filler: removing it
+made the Directorate worse (col 87%), not better.
+
+**What the exchange shows** (Hard, 28 sides per faction, 15 min, value killed
+÷ value lost per unit type, `kvA` credited on each kill):
+- Harrier: lost 550k, killed 92k (0.17) — the Directorate's air budget
+  (~20k per side) dies to the Collective's flak (Flak Trooper 3.6, Flak
+  Cannon 8.7).
+- V3 Launcher: lost 6k, killed 266k (41x).
+- GI 0.32, Grizzly 0.83 against Rhino 1.86, Flak Track 1.80.
+
+**Leading cause: the V3 rocket cannot be shot down.** RA2 spawns it as
+[V3ROCKET] Strength=50 Armor=special_2 (rules.ini:8180), and [SAMWH] does
+100% to special_2 — Patriots (and SAM-armed Allied units) intercept V3s,
+which is THE Allied answer to Soviet artillery. Ours resolves the V3 hit
+instantly (`fire()`), so Patriots never get a shot. Swapping the V3s out of
+the Soviet Bombard team moved the Collective's Normal+Hard share from 76% to
+64% (CIs overlap; indicative). Fix: fly the rocket as an entity with 50 hp
+that SAMWH weapons can target during its V3RocketTiltFrames + flight.
