@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_362 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_364 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
 - [Scheduled terminal messages ("resume when the token limit resets")](#scheduled-terminal-messages-resume-when-the-token-limit-resets)
@@ -385,6 +385,8 @@ _362 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [RTS: the V3 rocket is a unit, not a projectile list (2026-09-24)](#rts-the-v3-rocket-is-a-unit-not-a-projectile-list-2026-09-24)
 - [RTS: every RA2 missile flies, and the Destroyer's Osprey is an aircraft (2026-09-24)](#rts-every-ra2-missile-flies-and-the-destroyers-osprey-is-an-aircraft-2026-09-24)
 - [RTS: a save carries what looks derived — the spatial index, dead references, orders in flight (2026-09-24)](#rts-a-save-carries-what-looks-derived-the-spatial-index-dead-references-orders-in-flight-2026-09-24)
+- [RTS: the pointer over a cliff reads the tile drawn there, not the ground behind it (2026-09-24)](#rts-the-pointer-over-a-cliff-reads-the-tile-drawn-there-not-the-ground-behind-it-2026-09-24)
+- [RTS: a player's order and the AI's share enqueue(), so the one-at-a-time rule sits in the command (2026-09-24)](#rts-a-players-order-and-the-ais-share-enqueue-so-the-one-at-a-time-rule-sits-in-the-command-2026-09-24)
 
 <!-- END TOC -->
 
@@ -16375,3 +16377,50 @@ null but changes the AI's arithmetic (`army.length` gates posture and tech),
 moving every pinned simulation, and leaves the hash and queue forks.
 Forcing both worlds to rebuild the hash at the checkpoint (the census's
 RTS_DX_HASH diagnostic): it equalises a test, not a player's resumed match.
+## RTS: the pointer over a cliff reads the tile drawn there, not the ground behind it (2026-09-24)
+
+**Symptom.** Census U03: with a tank selected, the cursor over a raised
+cliff said MOVE, and a click on a ridge set a rally or move two tiles
+back. `toScreen(77,48)` (a cliff, hf 1) inverted to (75.25,46.25), the
+flat ground behind the ridge.
+
+**Cause.** `gridFromW` (rts/ui/screen.js) inverted height with a
+two-pass fixed point, `p = gridAt(wx, wy + hPx(p))`, starting from the
+FLAT inverse. For a pixel on a raised tile's far half, the flat inverse
+lands on lower ground behind the ridge, whose height is 0, so the
+iteration never leaves it.
+
+**Fix.** Search the ray from the top down: at height h it meets the
+ground point `gridAt(wx, wy + h)`, and the first point whose own surface
+stands at least h high (`hPx >= h - 2`) is the nearest surface drawn
+under the pixel, which is painter's order. The top is the map's highest
+hf plus one step (for a slope's rise), cached per match and tick. When
+nothing raised covers the pixel, the old flat inverse (with its two
+settling passes) stands. Proof: `rts-pointer-cliff.test.js` inverts
+every tile of a height-1 and height-2 plateau and the ground round it,
+and the ui-input cells `cursor=*/target=cliff` pass.
+
+**Rejected.** More fixed-point passes: a flat start has height 0, so the
+iteration has no way off the far ground. Starting the fixed point from
+the highest height instead finds a surface, but not always the NEAREST
+one when two plateaus overlap on screen.
+
+## RTS: a player's order and the AI's share enqueue(), so the one-at-a-time rule sits in the command (2026-09-24)
+
+**Symptom.** Census U01: a second click on a structure cameo queued a
+second structure. Putting "one per structure tab" into `enqueue()` fixed
+the click, but `rts-ai-curve.test.js` ('a Hard house past swAt ... buys
+the silo') went red.
+
+**Cause.** The AI's structure planner hands a superweapon (a defence-tab
+item) to the defence lane without checking that lane, so it used to wait
+behind a Sentry Gun in the same queue. With the rule in `enqueue()` the
+silo order was refused and retried later, which shifted the Hard
+schedule.
+
+**Fix.** The rule sits in the lockstep `queue` command (net.js), which
+only players send, and the sidebar refuses before sending. AI behaviour
+and every pinned simulation stay as they were.
+
+**Rejected.** Changing the AI planner in the same fix: out of scope for
+an input bug, and it would move the balance soaks.
