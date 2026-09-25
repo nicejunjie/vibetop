@@ -16462,3 +16462,20 @@ splash transcriptions): Normal+Hard 59/75 = 79% [68-86] -> 58/76 = 76%
 decided). Seat 0 51% [40-62] -> 54% [43-65]. Everything is inside the
 noise: the V3 hitting armour twice as hard (W08) is offset by the weaker
 nuke and the Dreadnought's [DMISLWH] row.
+
+### RTS: the WebKit lane dies in the sprite bake, not in audio
+
+**Symptom:** every Iron Frontier cell under Playwright's WebKit fails with
+`Target page, context or browser has been closed` / `Page crashed`; the title
+card never paints.
+**Cause:** Linux WebKit (WPE) kills its web process at ~2 GB, and the sprite
+bake keeps ~9,000 canvases (~480 MB of RGBA measured in Chromium) alive, which
+WPE's software canvases hold at several times that. RSS climbs ~50 MB/s from
+load to the kill. The hooks alone take 20-50 s to appear (Chromium ~2 s).
+**Fix:** the plumbing (`test-all --browser webkit`, `ipad-webkit` lane) is in;
+the lane is INCONCLUSIVE under census B01 until the bake packs frames into
+shared atlases or bakes per kind lazily.
+**Rejected:** blaming audio (a bare `AudioContext` on a blank page lives);
+`WEBKIT_DISABLE_MEMORY_PRESSURE_MONITOR=1` (no effect); treating the lane as
+Safari — it is WPE, with a different canvas backend and memory limit, so a
+green WebKit lane would still not prove Safari 26.
