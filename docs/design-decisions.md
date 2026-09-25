@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_365 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_366 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
 - [Scheduled terminal messages ("resume when the token limit resets")](#scheduled-terminal-messages-resume-when-the-token-limit-resets)
@@ -388,6 +388,7 @@ _365 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [RTS: the pointer over a cliff reads the tile drawn there, not the ground behind it (2026-09-24)](#rts-the-pointer-over-a-cliff-reads-the-tile-drawn-there-not-the-ground-behind-it-2026-09-24)
 - [RTS: a player's order and the AI's share enqueue(), so the one-at-a-time rule sits in the command (2026-09-24)](#rts-a-players-order-and-the-ais-share-enqueue-so-the-one-at-a-time-rule-sits-in-the-command-2026-09-24)
 - [RTS wave 8 (group E): Burst rounds are separate hits, and RA2's nuke does not flatten a Power Plant (2026-09-24)](#rts-wave-8-group-e-burst-rounds-are-separate-hits-and-ra2s-nuke-does-not-flatten-a-power-plant-2026-09-24)
+- [RTS: a city district needs mirrored BLOCKS, not just mirrored lots, and a garrison cap (2026-09-24)](#rts-a-city-district-needs-mirrored-blocks-not-just-mirrored-lots-and-a-garrison-cap-2026-09-24)
 
 <!-- END TOC -->
 
@@ -16462,3 +16463,32 @@ splash transcriptions): Normal+Hard 59/75 = 79% [68-86] -> 58/76 = 76%
 decided). Seat 0 51% [40-62] -> 54% [43-65]. Everything is inside the
 noise: the V3 hitting armour twice as hard (W08) is offset by the weaker
 nuke and the Dreadnought's [DMISLWH] row.
+
+## RTS: a city district needs mirrored BLOCKS, not just mirrored lots, and a garrison cap (2026-09-24)
+
+**Symptom.** River Crossing and Metropolis carried 10 and 4 civilian
+buildings: isolated pairs that read as a suburb, not RA2's house-to-house
+cities. The first street-grid generator then produced solid walls of
+buildings with no alleys on Metropolis (1246 blocks), and after that was
+fixed the Normal AI's match shape collapsed on the urban maps (army at 10:00
+23 -> 15, radar by 8:00 100% -> 46%).
+
+**Cause.** (1) `mapDistrict` walked EVERY block and pushed each lot with its
+180-degree mirror. A block's mirror is walked from its opposite corner, so
+its every-other-cell rim landed on the other parity, and the union of the
+two filled every alley in. (2) `aiNeutrals` fills every block in reach, two
+men apiece; on the old maps that was at most five blocks a side, in a city it
+was 40+, and the Normal AI walked every rifleman it built into a house.
+
+**Fix.** Walk only the canonical half's blocks and let `lot()` write the
+mirror; a block's own decisions (built or vacant, plaza, mix) hash BOTH its
+corners, so it and its mirror decide alike. The AI holds at most
+`AI_GARRISON_BLOCKS` (6) blocks or men walking to one. Soak (river+metro, 3
+seeds, normal+hard, 30 min): decided 79% (was 75% on v1.28.0), Normal radar
+by 8:00 100%, army at 10:00 20.5, every side garrisons. Tests:
+`rts-city.test.js` (red on v1.28.0).
+
+**Rejected.** Thinning the city with a low per-lot density: a sparse rim of
+lone houses reads as scattered, not as a street. Fewer blocks, each lined
+properly, with vacant lots between them, reads as a city and costs fewer
+entities (Metropolis 342 blocks, sim +8% per game-minute).
