@@ -17287,7 +17287,15 @@ orders, rotated countries) and 56 Normal-vs-Hard cells (2 seeds), 30-min cap:
 | Hard beats Normal (decided) | 56/56 = 100% [94-100] | 56/56 = 100% [94-100] (identical) |
 
 Mirrored cells (252: 7 maps x 6 seeds x Easy/Normal/Hard x both seat
-orders): @@MIRROR@@
+orders): Normal and Hard are
+bit-identical (0 of 168 cells differ: `harvPer` is 2 there, the old value).
+Easy's faction balance moved inside the noise: Collective wins of decided
+23/38 = 61% [45-74] -> 23/31 = 74% [57-86]; undecided 46 -> 53 of 84;
+match length median of decided 23.0 -> 22.2 min. (HEAD itself re-run for
+the "before": Normal 28/45 = 62% [48-75], Hard 33/70 = 47% [36-59]. Wave
+12's recorded 66% / 49% came from a slightly earlier build; 13 of its
+Normal/Hard cells differ from HEAD.) Watch the Easy Collective figure: it
+is the one number that moved the wrong way.
 
 Easy is poorer, so it techs less: sides fielding any tier-3 unit 70% ->
 27%, a superweapon built 11% -> 3% (median 20.8 -> 24.7 min). Every unit
