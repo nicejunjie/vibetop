@@ -17511,3 +17511,12 @@ was **not measured**, so nothing here shows it has none either.
 - `stepAircraft0`: a pad plane whose airfield is LOST, with no other Airforce Command left, crashes. The trigger is the loss. A plane that never had a pad (a test fixture) is left alone.
 **Tests:** `rts-landed-aircraft.test.js` (6 of 7 fail on the old code; the airborne control passes on both). `rts-airfield-recovery.test.js` was rewritten, because two of its tests pinned the old "circle forever" behaviour. Weapons matrix: a new `landed-air` target class, 180 cells (62 fail on the old code). The Playwright contract "a tank clicks an enemy Airforce Command with planes parked on it…" failed on the old code with cursor `nomove`.
 **Rejected:** giving buildings priority over units in `pickAtW`. That would make an own parked plane unselectable, and in RA2 the plane under the pointer is a legal pick.
+
+### RTS: hulls at a Naval Yard rally stacked inside one cell (census X06 / M10, 2026-09-25)
+
+**Symptom:** six ships sent to one Naval Yard rally ended within about one cell. An Aegis and a Landing Craft were 0.07 cells apart and drew as one ship.
+**Cause:** every unit is sent to exactly `rally.x/y`. Land units then spread out because `stepSettle` (net.js) pushes idle units apart. `stepSettle` skipped anything with `d.nav` ("hulls keep station by their own rules"), and no such rule existed. The amphibious Soviet APC stacked for the same reason.
+**RA2:** one unit per cell, a vessel included.
+**Fix:** hulls take the same settle push, with `moverOf` keeping them on water. Firing, landed and deployed units are still exempt.
+**Tests:** `rts-naval-rally-spread.test.js` (closest pair 0.00 on the old code, 0.85 now). Producers matrix: `spread=4` cells, 4 of each land or naval unit to one reachable rally (38 cells, 10 red on the old code). The rally matrix had only checked that ONE unit arrives. Playwright contract "four ships built to a Naval Yard rally set by click…": 0.04 on the old code.
+**Rejected:** fanning the rally target per unit at emit time. RA2 does not re-aim the order, and the settle push already gives land units their spread; one mechanism for both media is simpler.
