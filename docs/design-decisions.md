@@ -17491,3 +17491,9 @@ was **not measured**, so nothing here shows it has none either.
 - Allied Barracks, 0.41-0.48;
 - War Factory glass, about 0.40;
 - Cloning Vats, 0.47 at DPR 2.
+
+### RTS: a Naval Yard's dock opened onto a corner pocket, so its rally was refused on almost the whole pond
+
+**Symptom:** on Lake (map 2) the user's Naval Yard "still can't set its rally point to water": a left click on the pond said "Cannot set a rally point there". Chromium and WebKit contracts passed because they placed the yard mid-lake and clicked cells on the open side.
+**Cause:** `dockSpot` took the first clear water cell out from the slipway corner. With the yard on the pond's west shore, that cell (27,35) touched the pond only diagonally, between the yard and a rock. astar never cuts such a corner, so `makeRally` found no path to 95 of the 99 pond cells, and census M03 (correctly) refuses a rally with no path. New hulls also launched into that pocket.
+**Fix:** every clear water cell within three of the footprint is scored by a 4-connected flood of the water it opens onto (exactly what astar can reach, capped at 200), and the most open cell wins, nearest the slipway corner on a tie. The rally is now taken on 99 of 99 pond cells. The four refused cells are a diagonal-only pocket no hull can enter. `rts-naval-dock.test.js` fails 2/2 on the old code.
