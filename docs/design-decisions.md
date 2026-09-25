@@ -17502,12 +17502,23 @@ was **not measured**, so nothing here shows it has none either.
 
 **Symptom:** the W14 exploratory pass sent units and rallies onto rock and got "Cannot move there" with no visible reason. `T_ROCK` is impassable, but it was a flat grey-brown scree sheet with a few painted boulders, about the same value as the ground beside it.
 **Cause:** rock was just another ground tile. It had no height, no shadow side and no cast shadow, so nothing marked it as an obstacle. RA2's impassable rock stands up: boulder clusters and cliff stone with a lit crown and a dark side.
-**Fix:** each rock cell carries an outcrop (`bakeOutcrop` in `rts/bake/terrain.js`, 8 variants per theatre). It is 4-6 faceted boulders, each with a cast shadow, a shadow-side body, a lit face and a two-tone crown. It is queued in the cliff pass (`CLIFFQ`), after the ground, so its shadow lands on the cells in front of it. The colours are written on the 6-level grid (`outcropPalette`). The cliff palette's browns snapped to olive and pink under `pixelate()`, and the greys keep r == g == b, so nothing bakes teal. The facets are flat, with no grain. The bake restores the art RNG (`_bseed`) when it finishes, so every later unseeded bake draws exactly what it drew before.
-**The gate:** `rts-terrain-legibility.test.js` measures one cell's footprint on the baked atlas at DPR 1, per theatre, over all 64 sheet positions. The rock cell's luminance stdev must exceed the ground's by at least 15, and the mean step plus the stdev step must be at least 30. The old bake scored a stdev step of -0.7 to 7.9 in every theatre, and fails. The outcrops score 24-41.
+**Fix (revised the same day):** the first pass put one near-identical boulder clump on every rock cell. That read as impassable, but it tiled into a cartoon carpet. RA2's rock (`docs/ra2-ref/terrain/`: DEFCON 6 temperate cliff stone, Montana DMZ snow outcrops and rubble) is a few large, irregular MASSES over rocky ground.
+- **Placement is per REGION** (`rockDepths` / `rockMassAt` in `rts/ui/render.js`). A rock cell's depth in its patch is its 4-connected distance to open ground, capped at 3 and computed once per terrain array. The depth decides the largest mass the cell may carry: a lone rock at the edge, a crag, or a big ridge deep inside. The cell hash decides whether it carries one at all (about 1 cell in 4) and jitters its position, so no pattern repeats.
+- **The masses** (`bakeRockMass` in `rts/bake/terrain.js`) come in three sizes with six shapes each, per theatre. Each is a ridge of 1-5 lobes on a random axis, flatter than it is tall. The lobes share one shadow flank, so the gaps between crags read as clefts in one outcrop. Each lobe has a mid face and a lit face left of jagged ridges, a few 1-px vertical crevices spaced wide apart (RA2's striated faces), a crown, and a cast shadow down and to the right.
+- **Stone colour** comes from the rips and is written on the 6-level grid (`rockMassPalette`): temperate is DEFCON 6's orange-brown sandstone (face mean rgb 180,118,50) under a dry grassy crown. Snow granite is grey, because its brown cast only lands on the grid as pink. Snow lies on a slanted streak, never an oval, because two pale ovals on a dark mass read as eyes.
+- **The scree sheet** under and between the masses stays rocky. The snow scree is a value step darker. The existing scree overlay blends the region's edge into the ground.
+- The bake restores the art RNG (`_bseed`) when it finishes, so every later unseeded bake draws exactly what it drew before. No visual golden changed.
+
+**The gate:** `rts-terrain-legibility.test.js` measures the game's own renderer. For each theatre it lays a 12x12 rock patch and a 12x12 ground patch side by side on that theatre's map, renders a live frame at DPR 1, and reads back the inner 8x8 cells.
+- The rock's luminance stdev (relief) must be at least 22. It is absolute, because the snow ground is itself a patchwork with stdev 43.
+- Its mean must differ from the ground's by at least 14.
+- The old flat bake measures relief 8.4-16.7 and fails. The masses measure 26.6-40.0, with a value step of 17-63.
+
 **Rejected:**
-- Darkening the rock sheet alone. A value step with no relief still reads as a different ground, not an obstacle.
-- Reusing the cliff sprite. It is a face with a drop, and a rock patch has no "lower side".
-- Per-pixel texture. It would bring back the speckle the structure pass just lost.
+- One clump per cell (the first pass): the carpet.
+- Darkening the rock sheet alone: a value step with no relief reads as a different ground, not an obstacle.
+- Reusing the cliff sprite: it is a face with a drop, and a rock patch has no "lower side".
+- Per-pixel texture: speckle.
 
 ### RTS: trackpad zoom jumped 1x -> 2x on one flick and never returned to exactly 1:1 (census X07)
 
