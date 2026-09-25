@@ -16479,3 +16479,37 @@ shared atlases or bakes per kind lazily.
 `WEBKIT_DISABLE_MEMORY_PRESSURE_MONITOR=1` (no effect); treating the lane as
 Safari — it is WPE, with a different canvas backend and memory limit, so a
 green WebKit lane would still not prove Safari 26.
+
+### RTS: sprite art bakes on first read, and the golden matrix does not gate terrain
+
+**Symptom:** the page held 2,777 sprite canvases (640 MB of RGBA at DPR 2)
+before the title card, took 4-12 s to get there in Chromium, and Linux
+WebKit's web process was killed during the bake (census B01).
+**Cause:** `bakeOwnedSteps` baked every structure for every owner x BOTH
+factions (six phases for 26 animated ones) — 692 canvases, 132 Mpx at DPR 2 —
+and `bakeSteps` baked all four theatres' terrain although a match is played
+in one.
+**Fix:** each structure (`SPR.bld[p][fac][key]`) and each theatre-keyed
+terrain set (`perTheatre`) is a self-replacing getter (`lazyKey`), the trick
+the unit facings and cliffs already used. The bakes are pure functions of
+their seeds, so baking late or in another order gives the same pixels.
+`artPrewarm` (render loop only) bakes a structure a seat has STARTED building
+one sheet per frame, so a first-drawn Nuclear Reactor no longer costs its
+~380 ms in one frame; a read mid-job finishes the same job (`BLD_JOBS`).
+After: ~510 canvases / ~106 MB at the title card, boot < 1 s in Chromium.
+**Proof, and a trap:** the visual golden matrix hash-gates unit and
+structure crops but judges `map/*` cells with a STRUCTURAL oracle, so a
+changed ground seed passes it (tried: temperate ground seed 41 -> 42, 13/13
+map cells green). Terrain identity was proved separately: sha256 of all
+2,704 terrain + structure canvases, old vs new tree, at DPR 1 and DPR 2,
+zero differences.
+**The WebKit kill was not memory.** With the bake cut to ~0.9 GB RSS the WPE
+page still died, at a random point; the kernel log showed `llvmpipe-N:
+segfault` — Mesa's software GL under WPE's GPU canvas. Every WebKit launch
+in the testkit now sets `WEBKIT_SKIA_ENABLE_CPU_RENDERING=1` (3/3 boots and
+matches live; `LP_NUM_THREADS=0` and `WEBKIT_DISABLE_COMPOSITING_MODE=1`
+did not help). Safari on a Mac never takes that path.
+**Rejected:** atlas packing (same bytes, and every draw path would change
+its source rect); dropping the lineup's animated phases (the lineup crops by
+the union bbox, so it would not be pixel-identical); trimming structure
+canvases to their bbox (every draw path reads ax/ay against the full sheet).
