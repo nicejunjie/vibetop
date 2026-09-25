@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_365 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_366 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
 - [Scheduled terminal messages ("resume when the token limit resets")](#scheduled-terminal-messages-resume-when-the-token-limit-resets)
@@ -388,6 +388,7 @@ _365 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [RTS: the pointer over a cliff reads the tile drawn there, not the ground behind it (2026-09-24)](#rts-the-pointer-over-a-cliff-reads-the-tile-drawn-there-not-the-ground-behind-it-2026-09-24)
 - [RTS: a player's order and the AI's share enqueue(), so the one-at-a-time rule sits in the command (2026-09-24)](#rts-a-players-order-and-the-ais-share-enqueue-so-the-one-at-a-time-rule-sits-in-the-command-2026-09-24)
 - [RTS wave 8 (group E): Burst rounds are separate hits, and RA2's nuke does not flatten a Power Plant (2026-09-24)](#rts-wave-8-group-e-burst-rounds-are-separate-hits-and-ra2s-nuke-does-not-flatten-a-power-plant-2026-09-24)
+- [RTS testkit: the full run is bound by its longest cell, so it schedules longest-first — and a soak is not split into windows (2026-09-24)](#rts-testkit-the-full-run-is-bound-by-its-longest-cell-so-it-schedules-longest-first-and-a-soak-is-not-split-into-windows-2026-09-24)
 
 <!-- END TOC -->
 
@@ -16462,3 +16463,35 @@ splash transcriptions): Normal+Hard 59/75 = 79% [68-86] -> 58/76 = 76%
 decided). Seat 0 51% [40-62] -> 54% [43-65]. Everything is inside the
 noise: the V3 hitting armour twice as hard (W08) is offset by the weaker
 nuke and the Dreadnought's [DMISLWH] row.
+
+## RTS testkit: the full run is bound by its longest cell, so it schedules longest-first — and a soak is not split into windows (2026-09-24)
+
+**Symptom.** On an idle 16-core/32-thread 9950X the T1 tier took ~155 s
+at 16, 24 and 32 jobs alike, and T2 ~240 s. More cores bought nothing.
+
+**Cause.** The pool started jobs by `weight x timeout`, so every default
+shard ranked equal and the long cells started wherever enumeration left
+them. Default shards were 40 cells in a row, which put all nine countries
+AI matches (~140 s each on the idle host) into ONE process. The tier's
+critical path was that shard, not the core count.
+
+**Fix.** Every run records each cell's wall time in
+`<report>/durations.json`; the committed seed is
+`tools/testkit/data/durations.json` (`--save-durations` refreshes it).
+`plan()` packs default shards by estimated work (<= 30 s, <= `recycle`
+cells), and starts jobs longest-first (LPT). `test-all.js --plan` prints
+the predicted wall time from the pool's own greedy rule (`simulate()`).
+The countries AI cell stops at the first minute its monotone oracle
+("fields X within 15 min") holds: 140 s -> 12-47 s. Default `--jobs` is
+16; the browser pool's is 12 (`pw-pool.js BROWSER_JOBS`).
+
+**Rejected.** Splitting a soak into time windows with the saved state
+handed between them. Window k starts from window k-1's end state, so the
+chain is exactly as long as the soak: the critical path does not move.
+Starting windows in parallel needs the minute-10 state before the
+minute-0 window has produced it — i.e. a state cached from an earlier
+BUILD, which tests a trajectory this build never plays. A fast-forward
+without checks costs the same simulation (the invariant checks are about
+a third of a soak's time, measured: 3.3 s of 9.1 s over 8 game-minutes).
+Windows only help packing when a run is work-bound, and at 16 jobs an
+idle run is critical-path-bound.
