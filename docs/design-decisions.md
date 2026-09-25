@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_370 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_371 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
 - [Scheduled terminal messages ("resume when the token limit resets")](#scheduled-terminal-messages-resume-when-the-token-limit-resets)
@@ -393,6 +393,7 @@ _370 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [RTS: with countries measured fairly, the Directorate's edge is Britain's Sniper (2026-09-24)](#rts-with-countries-measured-fairly-the-directorates-edge-is-britains-sniper-2026-09-24)
 - [RTS: red-brown brick vanished on a red owner's Soviet Construction Yard (2026-09-24)](#rts-red-brown-brick-vanished-on-a-red-owners-soviet-construction-yard-2026-09-24)
 - [RTS: vm tests had never baked an infantry frame (2026-09-24)](#rts-vm-tests-had-never-baked-an-infantry-frame-2026-09-24)
+- [RTS: a city district needs mirrored BLOCKS, not just mirrored lots, and a garrison cap (2026-09-24)](#rts-a-city-district-needs-mirrored-blocks-not-just-mirrored-lots-and-a-garrison-cap-2026-09-24)
 
 <!-- END TOC -->
 
@@ -16703,3 +16704,32 @@ Infantry frames bake lazily, so no earlier vm test had ever reached it.
 **Rejected.** Recording the Tesla Trooper through a Playwright bake instead:
 the rule is a hermetic test on the real source, and the stub was simply
 incomplete.
+
+## RTS: a city district needs mirrored BLOCKS, not just mirrored lots, and a garrison cap (2026-09-24)
+
+**Symptom.** River Crossing and Metropolis carried 10 and 4 civilian
+buildings: isolated pairs that read as a suburb, not RA2's house-to-house
+cities. The first street-grid generator then produced solid walls of
+buildings with no alleys on Metropolis (1246 blocks), and after that was
+fixed the Normal AI's match shape collapsed on the urban maps (army at 10:00
+23 -> 15, radar by 8:00 100% -> 46%).
+
+**Cause.** (1) `mapDistrict` walked EVERY block and pushed each lot with its
+180-degree mirror. A block's mirror is walked from its opposite corner, so
+its every-other-cell rim landed on the other parity, and the union of the
+two filled every alley in. (2) `aiNeutrals` fills every block in reach, two
+men apiece; on the old maps that was at most five blocks a side, in a city it
+was 40+, and the Normal AI walked every rifleman it built into a house.
+
+**Fix.** Walk only the canonical half's blocks and let `lot()` write the
+mirror; a block's own decisions (built or vacant, plaza, mix) hash BOTH its
+corners, so it and its mirror decide alike. The AI holds at most
+`AI_GARRISON_BLOCKS` (6) blocks or men walking to one. Soak (river+metro, 3
+seeds, normal+hard, 30 min): decided 79% (was 75% on v1.28.0), Normal radar
+by 8:00 100%, army at 10:00 20.5, every side garrisons. Tests:
+`rts-city.test.js` (red on v1.28.0).
+
+**Rejected.** Thinning the city with a low per-lot density: a sparse rim of
+lone houses reads as scattered, not as a street. Fewer blocks, each lined
+properly, with vacant lots between them, reads as a city and costs fewer
+entities (Metropolis 342 blocks, sim +8% per game-minute).
