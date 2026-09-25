@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_365 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_366 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
 - [Scheduled terminal messages ("resume when the token limit resets")](#scheduled-terminal-messages-resume-when-the-token-limit-resets)
@@ -388,6 +388,7 @@ _365 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [RTS: the pointer over a cliff reads the tile drawn there, not the ground behind it (2026-09-24)](#rts-the-pointer-over-a-cliff-reads-the-tile-drawn-there-not-the-ground-behind-it-2026-09-24)
 - [RTS: a player's order and the AI's share enqueue(), so the one-at-a-time rule sits in the command (2026-09-24)](#rts-a-players-order-and-the-ais-share-enqueue-so-the-one-at-a-time-rule-sits-in-the-command-2026-09-24)
 - [RTS wave 8 (group E): Burst rounds are separate hits, and RA2's nuke does not flatten a Power Plant (2026-09-24)](#rts-wave-8-group-e-burst-rounds-are-separate-hits-and-ra2s-nuke-does-not-flatten-a-power-plant-2026-09-24)
+- [RTS: a factory rally off its units' zone is refused with NoMove — the engine's source, not the manual, settled it (2026-09-24)](#rts-a-factory-rally-off-its-units-zone-is-refused-with-nomove-the-engines-source-not-the-manual-settled-it-2026-09-24)
 
 <!-- END TOC -->
 
@@ -16462,3 +16463,31 @@ splash transcriptions): Normal+Hard 59/75 = 79% [68-86] -> 58/76 = 76%
 decided). Seat 0 51% [40-62] -> 54% [43-65]. Everything is inside the
 noise: the V3 hitting armour twice as hard (W08) is offset by the weaker
 nuke and the Dreadnought's [DMISLWH] row.
+
+## RTS: a factory rally off its units' zone is refused with NoMove — the engine's source, not the manual, settled it (2026-09-24)
+
+**Symptom.** Census M03 had flipped twice: the ui-input matrix wanted NoMove
+for a Barracks rally on water, the producers matrix wanted it accepted, and
+wave 8 sided with "accepted anywhere, the unit goes as close as it can",
+at moderate confidence, because the RA2 manual and ModEnc describe a rally
+as "click a location on the map" and name no restriction.
+
+**Cause.** Absence of a stated rule was read as permission. The rule is in
+the code: Tiberian Sun's `BuildingClass::What_Action` (EA's released source,
+kept by OpenTS, `code/building.cpp`), the engine RA2/YR is built on, turns
+`ACTION_RALLY_TO_POINT` into `ACTION_NOMOVE` when `!Is_In_Same_Zone(cell)`
+or the cell is not land-passable, for every factory but an aircraft one.
+YR's `SetRallyPoint` has a naval branch (Phobos hook 0x4438B4), so the Naval
+Yard judges its water zone the same way.
+
+**Fix.** `makeRally` returns `ok` (the producer's medium stands on the cell
+and astar reaches it). The input layer refuses with a HUD line and the "no"
+sound, `applyCmd('rally')` keeps the old rally and records the refusal, and
+the rally cursor is `nomove` there (one A* per hovered cell, memoised).
+Both oracles follow. Tests: `rts-rally-m03.test.js`, the U02/M03 cursor
+test, the contract "a selected Barracks shows NoMove over water".
+
+**Rejected.** Keeping "accepted anywhere" because M02's nearest-reachable
+astar already made off-medium rallies behave: that was a mechanism built
+for the reading, not evidence for it. OpenRA's ra2 mod (no terrain limit)
+as the authority: it is a reimplementation, not the original engine.
