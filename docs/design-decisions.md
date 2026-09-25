@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_374 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_375 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
 - [Scheduled terminal messages ("resume when the token limit resets")](#scheduled-terminal-messages-resume-when-the-token-limit-resets)
@@ -397,6 +397,7 @@ _374 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [RTS: superweapon presentation is drawn from sim state, and tested through the real render() (2026-09-24)](#rts-superweapon-presentation-is-drawn-from-sim-state-and-tested-through-the-real-render-2026-09-24)
 - [RTS testkit: the full run is bound by its longest cell, so it schedules longest-first — and a soak is not split into windows (2026-09-24)](#rts-testkit-the-full-run-is-bound-by-its-longest-cell-so-it-schedules-longest-first-and-a-soak-is-not-split-into-windows-2026-09-24)
 - [RTS testkit: the AI ladder runs two AIs in ONE game by renaming the frozen one (2026-09-24)](#rts-testkit-the-ai-ladder-runs-two-ais-in-one-game-by-renaming-the-frozen-one-2026-09-24)
+- [RTS e2e: the Alt+click crush contract "failed only in WebKit" because the scene was never still (2026-09-24)](#rts-e2e-the-altclick-crush-contract-failed-only-in-webkit-because-the-scene-was-never-still-2026-09-24)
 
 <!-- END TOC -->
 
@@ -16828,3 +16829,42 @@ combat would differ between the seats, so a rules fix would read as an AI
 regression. Setting the baseline flag on the AI object from the first
 `every` callback: the baseline seat ran the candidate for the first 120
 ticks.
+
+## RTS e2e: the Alt+click crush contract "failed only in WebKit" because the scene was never still (2026-09-24)
+
+**Symptom.** `rts-player.spec.js` "Alt+click on an enemy rifleman
+force-moves the tank onto him and crushes him" failed under Playwright's
+WebKit (2 of 6 repeats, `TypeError: Cannot read properties of null
+(reading 'x')` on the rifleman) and passed under Chromium. The user plays
+on Safari, so it looked like a Safari modifier/pointer bug.
+
+**Cause.** A harness race, in both engines; nothing Alt- or
+WebKit-specific. The contract staged the tank 4 cells from the enemy
+rifleman in one `page.evaluate` and silenced both guns in a SECOND one.
+Instrumented (tick, positions, hp every 100 ms, 8 WebKit + 2 Chromium
+runs): in the gap between the two round-trips the idle tank had already
+fired (rifleman 125 -> 108.75 hp, tank `cool` 79), and even with
+`cool = 1e9` the idle Grizzly then drove through him on its own
+(rts/move.js: an idle crusher closes on infantry in reach, "A tank drives
+THROUGH the infantry") at tick ~140-160, ~80 ticks after staging. The
+enemy AI also commands every seat-1 unit and walked him 0.5-1.4 cells
+off even when Stop'd (census U11's cause). So the rifleman was dead
+before the Alt+click in EVERY run if the harness was slow enough;
+WebKit's slower select-then-read path (CPU rasteriser) crossed that line
+in 2 of 6, Chromium did not. A Chromium pass was no proof either: the
+crush it saw could be the tank's own, not the one the Alt+click ordered
+(the `order.t === 'move'` assert was the only thing tying it to Alt).
+
+**Fix.** `stage()` takes an optional sixth spawn field `hold`: the unit is
+silenced (`cool = 1e9`) and Stop'd (`stopped = true`, no guard/order/path)
+inside the SAME evaluate that spawns it, so no tick runs in between; any
+player order clears `stopped` (net.js), so the Alt+click still acts. The
+contract nulls the enemy AI first (as U11's does), and asserts the scene
+held (rifleman alive, within 0.5 cells of his spawn) before clicking.
+After: 8/8 WebKit, 6/6 Chromium repeats; full spec 44/44 in WebKit.
+
+**Rejected.** Treating it as a Safari Alt-key bug: the failure is before
+the Alt key is pressed (the rifleman is already gone when his position is
+read). Keeping the second evaluate and just re-reading the position: the
+tank still kills him first on a slow run. Making idle tanks stop crushing
+nearby infantry: that is RA2 behaviour and the game's intended rule.
