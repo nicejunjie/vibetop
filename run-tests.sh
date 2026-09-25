@@ -58,8 +58,11 @@ fi
 if command -v node >/dev/null 2>&1; then
     hr "node --test — JS units (sw / tab-sync / coach / kbd / syntax)"
     # Discover every *.test.js outside .claude/ (worktrees carry stale copies).
+    # Not under art/out/ either: the RTS mutant runner builds whole patched
+    # copies of the game there (each with its own *.test.js, deliberately
+    # broken), and running those reported the planted bugs as real failures.
     mapfile -t JS_TESTS < <(find shell shared apps server -name '*.test.js' \
-        -not -path '*/.claude/*' -not -path '*/node_modules/*' 2>/dev/null | sort)
+        -not -path '*/.claude/*' -not -path '*/node_modules/*' -not -path '*/art/out/*' 2>/dev/null | sort)
     if [ "${#JS_TESTS[@]}" -eq 0 ]; then
         no "no JS test files found"
     elif node --test "${JS_TESTS[@]}"; then ok "JS units"; else no "JS units"; fi
