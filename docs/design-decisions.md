@@ -17270,3 +17270,9 @@ was **not measured**, so nothing here shows it has none either.
   symbols won't help.
 - Faults per frame is a load-independent proxy: 14k is recycling, 28k is
   not. Frame counts on a shared host swung 2x between runs.
+
+### RTS: the rally-point spec clicked rock on some random maps (a test defect exposed by M03)
+
+**Symptom:** `rts.spec.js` "a rally point is visible, routed, and actually used" failed 2-3 runs in 10 with `rally = null`, on v1.30.0 as well as later. It passed alone often enough to look like a timing flake.
+**Cause:** the test clicked a fixed offset (8, 6) from the Barracks. On random maps that cell is sometimes impassable (terrain 1), and since census M03 (v1.29.0) a rally there is refused in `input.js` before any command is sent, correctly, as RA2's NoMove. The diagnosis ruled out the load veil (pointer-events: none; the hooks appear only after the bake), the camera and the lockstep delay by instrumenting the click. A first fix aimed at `x + 0.5`, but cells are centred on integer coordinates, so that could round into the neighbouring rock cell.
+**Fix:** the test searches outward from (8, 6) for open ground (ground/ore/gem/road, unoccupied, on the map) and clicks that cell's integer centre. It passed 30/30 repeats, and the whole spec 21/21.
