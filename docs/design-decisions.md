@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_380 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_381 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
 - [Scheduled terminal messages ("resume when the token limit resets")](#scheduled-terminal-messages-resume-when-the-token-limit-resets)
@@ -403,6 +403,7 @@ _380 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [RTS: the Collective lost every Easy match to a Harrier pass that hunted War Miners (2026-09-25)](#rts-the-collective-lost-every-easy-match-to-a-harrier-pass-that-hunted-war-miners-2026-09-25)
 - [RTS: Britain beat the Collective with three Snipers where RA2's AI fields one (2026-09-25)](#rts-britain-beat-the-collective-with-three-snipers-where-ra2s-ai-fields-one-2026-09-25)
 - [RTS: Easy's armyCap blocked its own teams, and RA2 has no army cap (2026-09-25)](#rts-easys-armycap-blocked-its-own-teams-and-ra2-has-no-army-cap-2026-09-25)
+- [RTS: freeing canvas memory costs Playwright WebKit frames, so the structure frame-pack is not shipped (2026-09-25)](#rts-freeing-canvas-memory-costs-playwright-webkit-frames-so-the-structure-frame-pack-is-not-shipped-2026-09-25)
 
 <!-- END TOC -->
 
@@ -17161,3 +17162,111 @@ at Easy).
 **Cause:** builders and ad-hoc checks start `tools/lib/serve-rts.js --port 184xx` and leave it running when they end. On 2026-09-25 z20 had 20 such servers, some over two days old, three of them inside the runner's 18480-18495 range. A shard handed a squatted port could not start its own webServer and ran nothing.
 **Fix:** `freePorts()` in `tools/testkit/lib/core.js` test-binds every port of the range before the pool starts, drops busy ones and names them on stderr. `rts-testkit-ports.test.js` holds a port and checks it is skipped.
 **Rejected:** killing leftovers from the runner. They can be another checkout's live run, and the runner has no business killing processes it did not start.
+
+## RTS: freeing canvas memory costs Playwright WebKit frames, so the structure frame-pack is not shipped (2026-09-25)
+
+**Symptom.** Wave 10 built a frame-pack: an animated structure's six idle
+phases share one sheet, and each phase keeps only the rectangle where it
+differs from phase 0 (commits `7dfc440` and `427ed6f`, never merged). It
+cut worst-case sprite canvas memory at DPR 2 from 298 to 128 MB and was
+pixel-identical. But in Playwright's Linux WebKit, a live match with eleven
+animated structures drew about 15% fewer frames. Chromium was unchanged,
+and render() JS time was the same in both trees.
+
+**Cause.** The cost comes from WPE's canvas backend, not from the
+frame-pack's drawing. Playwright's WebKit is WPE. `WEBKIT_SKIA_ENABLE_CPU_RENDERING=1`
+only moves layer painting to the CPU. Every 2D canvas is still a Skia
+Ganesh GL surface, run on Mesa **llvmpipe** (software GL: no `/dev/dri`,
+libLLVM loaded) with **8x MSAA** (`WEBKIT_SKIA_MSAA_SAMPLE_COUNT`). For
+each displayed frame, WebKit needs a new surface the size of the visible
+canvas. At 2344x1506 that is an 8-sample RGBA render target (113 MB) plus
+a 14 MB resolve texture. Skia's `GrResourceCache` recycles the released
+surface into the next frame only while its budget has room for it. Any
+GPU canvas memory the page frees becomes budgeted scratch in that cache
+and fills the room. From then on, the surface is freed every frame and
+created again: llvmpipe `align_malloc` + `memset` of 113 MB, about 28k
+page faults, on the web process's main thread. Nothing observed purges
+it: the cost was unchanged 25 s after the free. The frame-pack exists to
+free five of every six phase sheets, so it moves the page from "recycled
+every other frame" to "never recycled".
+
+**Evidence** (z20, Playwright webkit-2311, DPR 2, 1400x900, same-load pairs):
+- `perf record -e page-faults -d` on the WPEWebProcess main thread: 98-99% of
+  faults are in libc `memset` called from `libgallium`. They land in contiguous
+  runs of 27,710 pages (113 MB) at one or two recurring addresses: 27 runs in
+  3 s for old vs 44 for new (0.44 vs 0.86 per frame), with 61 vs 51 frames.
+- `GALLIUM_TRACE` over a marked 3 s window: `resource_create`
+  `R8G8B8A8_UNORM 2344x1506 nr_samples=8` plus the matching `nr_samples=0`
+  texture, 10 times in 22 frames for old and 18 in 18 for new. Upload and
+  draw counts per frame are about equal (1,262 vs 1,328 draws, 1,004 vs 1,051 uploads).
+- **The frame-pack is not needed to reproduce it.** The OLD tree, plus 30
+  GPU canvases (600x600) that were drawn once and then freed (`width = 0`),
+  gave 64 → 52 frames and 0.45 → 0.87 re-creations per frame. The same 30
+  canvases **held** gave 63 frames and 0.44. A 40-line standalone page
+  (a 2344x1506 canvas, 1,500 sprite blits a frame) shows the same:
+  14k → 28k faults a frame and 32 → 29 frames per 4 s once 30 canvases are
+  freed. Alternating two visible canvases does not help.
+- Bisecting the frame-pack by the same fault metric. Slow: any build that
+  frees the phase canvases (with or without compose, spills, or the
+  source-rectangle copies); a build that draws the six whole phases as
+  before but makes the GPU patch canvases; composing into a GPU phase 0
+  every frame. Old-like: patches made `willReadFrequently` (CPU) with phases
+  held; phase canvases recycled through a pool + CPU patches + phase 0
+  copied to a CPU canvas (the GPU original pooled) — 27 vs 27 frames, 0.42
+  vs 0.44 re-creations. That build keeps a GPU sheet per structure alive,
+  which gives back most of the saving (and the Chromium gate counts only
+  what a walk over SPR reaches). Baking phases 1-5 on CPU canvases instead
+  changes ~1% of bytes in WebKit: GPU MSAA and raster antialias
+  differently.
+- Size and DPR decide how bad it is. At a 1000x700 viewport there are no
+  113 MB runs. At DPR 1 the new tree was *faster* than the old one (90 vs 73
+  frames in 2 s, one pair). With 4x MSAA the surface halves but the 1-vs-0.5
+  re-creation pattern stays. With `WEBKIT_SKIA_MSAA_SAMPLE_COUNT=0` both
+  trees halve their frame rate.
+- w10's "keeping the six phase canvases alive restores speed" did not
+  reproduce as the whole story. Phases held while the GPU patches still
+  existed was slow (0.86). The GPU patches trip it too, roughly in
+  proportion to their area: 1/16-sheet patches did not, 9/64-sheet patches
+  did.
+
+**Not fixed, and why.** Within the frame-pack, the only builds that avoid
+the cost keep the freed GPU memory alive somewhere. That is the saving the
+frame-pack exists for, so the cost is the price of freeing canvas memory
+in this engine and not a defect of the pack. The old tree already pays it
+on half its frames.
+The mechanism belongs to WPE's Skia-on-GL canvas. **Safari on macOS draws 2D
+canvases with CoreGraphics into IOSurfaces, with no Skia, no
+GrResourceCache and no llvmpipe.** Nothing here shows a Safari cost. Safari
+was **not measured**, so nothing here shows it has none either.
+
+**What would settle or fix it.**
+1. Measure the two builds in real Safari on the user's Mac: a frame counter
+   over a fixed base, A/B, paired. This is the only measurement that decides
+   shipping.
+2. Stop treating Playwright WebKit frame counts as Safari's for canvas-memory
+   changes. When a WebKit frame gate is needed, pick the viewport and DPR so
+   the visible canvas's 8x surface stays small (1000x700 at DPR 2 showed no
+   re-creation).
+3. In WPE itself, WebKit would have to keep the per-frame display surface
+   out of the purgeable budget, or purge stale scratch. The page cannot
+   trigger either.
+
+**Rejected (tried).**
+- No source rectangle in patch copies: slow.
+- Pooling the phase canvases alone: slow while compose writes into a GPU
+  phase 0.
+- CPU (`willReadFrequently`) patches alone: slow while phases are freed.
+- A "spill" for every drawn phase: fast, but it keeps a whole sheet per drawn
+  phase, which is the old memory.
+- CPU-baked phases: not pixel-identical in WebKit.
+- A second visible canvas: the micro page shows no gain.
+
+**Tooling for the next attempt.**
+- `GALLIUM_TRACE=<file.xml>` in the webkit launch env logs every Mesa
+  resource with its size and sample count. Bracket the window with canvases
+  of odd widths so the window can be found in the log.
+- `perf record -e page-faults -c 1 -d -p <WPEWebProcess>`, then group the
+  fault addresses into contiguous runs. `libWPEWebKit` is stripped, so
+  symbols won't help.
+- Faults per frame is a load-independent proxy: 14k is recycling, 28k is
+  not. Frame counts on a shared host swung 2x between runs.
