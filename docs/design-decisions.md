@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_381 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_382 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
 - [Scheduled terminal messages ("resume when the token limit resets")](#scheduled-terminal-messages-resume-when-the-token-limit-resets)
@@ -403,6 +403,7 @@ _381 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [RTS: the Collective lost every Easy match to a Harrier pass that hunted War Miners (2026-09-25)](#rts-the-collective-lost-every-easy-match-to-a-harrier-pass-that-hunted-war-miners-2026-09-25)
 - [RTS: Britain beat the Collective with three Snipers where RA2's AI fields one (2026-09-25)](#rts-britain-beat-the-collective-with-three-snipers-where-ra2s-ai-fields-one-2026-09-25)
 - [RTS: Easy's armyCap blocked its own teams, and RA2 has no army cap (2026-09-25)](#rts-easys-armycap-blocked-its-own-teams-and-ra2-has-no-army-cap-2026-09-25)
+- [RTS: every unit at every difficulty — Easy is weaker by behaviour, never by a locked roster (2026-09-25)](#rts-every-unit-at-every-difficulty-easy-is-weaker-by-behaviour-never-by-a-locked-roster-2026-09-25)
 - [RTS: freeing canvas memory costs Playwright WebKit frames, so the structure frame-pack is not shipped (2026-09-25)](#rts-freeing-canvas-memory-costs-playwright-webkit-frames-so-the-structure-frame-pack-is-not-shipped-2026-09-25)
 
 <!-- END TOC -->
@@ -17155,6 +17156,80 @@ Because the source order is disputed, it stays as it is. Exempting the late
 Easy AI (ours uses `buildMul 1.25` instead); ai.ini's nation triggers are
 Easy-disabled for Korea, Cuba, Libya and Russia (ours buys every specialist
 at Easy).
+
+## RTS: every unit at every difficulty — Easy is weaker by behaviour, never by a locked roster (2026-09-25)
+
+**User rule (2026-09-25, binding):** "all units should be same and accessible
+for all levels of difficulties." Every unit, structure and superweapon has the
+same stats and is available at every difficulty, to the AI as well as the
+player. A difficulty may tune only HOW the AI plays: build speed and delays,
+army size and caps, aggression, attack timing, harass, economy, how often it
+picks a team. It is an explicit exception to RA2 fidelity: RA2 flags its
+specialist `[AITriggerTypes]` off on Easy and multiplies stats in
+`[Easy]/[Normal]/[Difficult]`, and we adopt neither.
+
+**Symptom.** In 84 Easy-vs-Easy soak matches no Easy side ever fielded Tanya,
+a Kirov, a Carrier or a Dreadnought, and none built a superweapon (0/168).
+
+**Cause — everything that broke the rule on v1.31.0:**
+1. `AI_TEAMS` weights of 0. Easy: `dirMir`, `dirPrism`, `dirRckt`, `dirTanya`,
+   `dirMech`, `dirHawk`, `dirCV`, `dirLand`, `colApoc`, `colTtnk`, `colV3`,
+   `colKirov`, `colDrone`, `colIvan`, `colDeso`, `colMech`, `colDred`,
+   `colLand` (18 team types). Normal: `dirTanya`, `dirHawk`, `dirLand`,
+   `colLand`. `aiTeamPass` skips a weight of 0 outright.
+2. `DIFF.easy.noSuper: true`: `aiSwWant` returned null for Easy, so it never
+   built, saved for or fired a superweapon.
+
+Checked and left alone, because each is behaviour, not availability:
+`ai.siege = … && ai.diff !== 'easy'` (the siege POSTURE: +20 re-weighting and
+launching a siege team outside an attack; Easy still builds and fields its
+siege teams and sends them in with a regular attack), `buildMul` (build
+speed), `EXP_YARDS`/expansion reach (economy), `aiDefencePlan` level (how many
+defences), `AI_CTY_KEEP_DIFF` (how many Snipers, never 0), `techBank` (when it
+techs). No difficulty gates the Radar, Battle Lab, Airforce Command or
+Shipyard, and no stat is read per difficulty.
+
+**Fix.** Every team type now weighs at least 1 at every difficulty (a
+weight is floored at 1 by the track-record rule anyway, so 1 is "rare").
+`noSuper` is gone. Easy's superweapon is late and slow instead: `swMin` (no
+silo before 20:00, gated in `aiSwWant`) and `swHold` (a charged weapon waits
+two minutes before `aiSuper` fires it). `rts-difficulty-parity.test.js`
+holds the rule on the real source: every team `w > 0` at every DIFF key,
+no `noSuper`, every DIFF key on an allowlist of behaviour knobs (a new key
+must be listed on purpose), `swMin`/`swHold` bounded so they stay delays,
+every `ai.diff` branch in ai.js on a reviewed list, and a behaviour test that
+an Easy AI with a lab and money fields tier-3 and builds and fires a
+superweapon. It fails 6 of 7 on 590cc68.
+
+**A/B** (252 mirrored cells: 7 maps x 6 seeds x Easy/Normal/Hard x both seat
+orders, 30-min cap, rotated countries; plus 112 cross-difficulty cells). Hard
+is identical before and after (it had no zero weight).
+
+| per side | Easy before | Easy after | Normal before | Normal after | Hard |
+|---|---|---|---|---|---|
+| distinct combat types fielded | 7.5 | 8.8 | 7.9 | 8.2 | 10.6 |
+| sides fielding tier-3 | 51% | 70% | 20% | 21% | 83% |
+| first tier-3 (median of sides that did) | 16.1 min | 15.2 | 13.3 | 15.8 | 9.4 |
+| built a superweapon / median time | 0% / - | 11% / 20.8 min | 1% / 19.0 | 4% / 19.0 | 60% / 11.5 |
+| fired a superweapon / median time | 0% / - | 8% / 26.2 min | 1% / 20.5 | 4% / 21.4 | 51% / 14.4 |
+
+Faction balance of decided matches did not move: Collective 61% -> 61%
+(Easy), 65% -> 66% (Normal), 49% (Hard). Match length median of decided:
+Easy 23.9 -> 23.0, Normal 19.1 -> 18.9. Normal had 8 more timeouts (29 -> 37
+of 84). Easy's opening is unchanged: on the idle-seat matrix (42 cells) its
+first strike is min 7.7 / median 9.0 min before and after.
+
+**Rejected.** `swMin` 12:00 with a one-minute hold. 34% of Easy sides built a
+superweapon then (median 12:48) against Normal's 4%, because an Easy bank is
+rich when the clock opens. That inverts the curve. Fractional weights (0.5)
+were not tried either: `aiTeamPass` floors every weight at 1.
+
+**Found, not fixed (it predates this change).** In the cross-difficulty
+cells Easy BEATS Normal: Normal won 9 of 29 decided before and 10 of 31
+after. Easy playing the Collective wins most of them (13-4 before, 14-3
+after). Hard beats Normal 56/56. The Easy < Normal curve needs its own pass.
+The previous entry's "Open" items, `[Difficult]` ROF/Armor for an Easy AI
+and Easy-disabled nation triggers, are now settled by this rule: never.
 
 ### RTS test runner: leftover static servers squatted the Playwright ports ("0 tests")
 
