@@ -17520,3 +17520,12 @@ was **not measured**, so nothing here shows it has none either.
 **Fix:** hulls take the same settle push, with `moverOf` keeping them on water. Firing, landed and deployed units are still exempt.
 **Tests:** `rts-naval-rally-spread.test.js` (closest pair 0.00 on the old code, 0.85 now). Producers matrix: `spread=4` cells, 4 of each land or naval unit to one reachable rally (38 cells, 10 red on the old code). The rally matrix had only checked that ONE unit arrives. Playwright contract "four ships built to a Naval Yard rally set by click…": 0.04 on the old code.
 **Rejected:** fanning the rally target per unit at emit time. RA2 does not re-aim the order, and the settle push already gives land units their spread; one mechanism for both media is simpler.
+
+### RTS: a rider left his Ctrl+N team after a transport ride (census X08, 2026-09-25)
+
+**Symptom:** a GI was put in team 3, rode an IFV and was unloaded. Pressing 3 then selected nothing.
+**Cause:** a passenger is stored as plain data (`{type, hp, rank, kv}`). Boarding kills the unit object and unloading spawns a new one with a new id. `groups` hold object references, so the team kept the dead body. A garrison (enter a civilian block, then leave it) had the same shape.
+**RA2:** the passenger is the same unit and keeps its team number.
+**Fix:** the pax/occ record carries `root`, the rider's first id, and the new body inherits it. `relinkRider` (ui/screen.js) is called from `unloadTransport` / `ejectGarrison`, the same way the sim already calls `dropFromSel`. It swaps the dead member of every team for the new body. If the rider boarded out of the selection and his transport is selected when it unloads, he rejoins the selection. That is local UI state only: `root` is not in `stateHash`, and teams/selection never reach the lockstep layer.
+**Rejected:** re-using the old id for the new body. The dead object is still in `g.units` until it is swept, and two live `byId` entries for one id is a desync and save hazard.
+**Tests:** `rts-rider-team.test.js` (3 of 3 fail on the old code). Commands matrix: `team=roundtrip` cells for every transport x rider class, plus the garrison (8 of 8 red on the old code). Playwright contract with real Ctrl+3 / D / 3 (the selection was empty on the old code).
