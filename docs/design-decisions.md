@@ -17028,3 +17028,10 @@ cap is ours, not RA2's.
 (rules.ini-faithful). Exempting team fills from `armyCap`: it measured
 weaker, and it changes Easy for both factions rather than removing a
 one-faction harassment.
+
+### RTS test runner: leftover static servers squatted the Playwright ports ("0 tests")
+
+**Symptom:** `playwright/spec=rts-player.spec.js` in a full `test-all` run intermittently failed with "exit 1; 0 tests, 0 failed, 0 skipped; port 18481, 0s", and the same spec run alone passed 44/44. It came back release after release.
+**Cause:** builders and ad-hoc checks start `tools/lib/serve-rts.js --port 184xx` and leave it running when they end. On 2026-09-25 z20 had 20 such servers, some over two days old, three of them inside the runner's 18480-18495 range. A shard handed a squatted port could not start its own webServer and ran nothing.
+**Fix:** `freePorts()` in `tools/testkit/lib/core.js` test-binds every port of the range before the pool starts, drops busy ones and names them on stderr. `rts-testkit-ports.test.js` holds a port and checks it is skipped.
+**Rejected:** killing leftovers from the runner. They can be another checkout's live run, and the runner has no business killing processes it did not start.
