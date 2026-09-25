@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_366 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_368 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
 - [Scheduled terminal messages ("resume when the token limit resets")](#scheduled-terminal-messages-resume-when-the-token-limit-resets)
@@ -389,6 +389,8 @@ _366 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [RTS: a player's order and the AI's share enqueue(), so the one-at-a-time rule sits in the command (2026-09-24)](#rts-a-players-order-and-the-ais-share-enqueue-so-the-one-at-a-time-rule-sits-in-the-command-2026-09-24)
 - [RTS wave 8 (group E): Burst rounds are separate hits, and RA2's nuke does not flatten a Power Plant (2026-09-24)](#rts-wave-8-group-e-burst-rounds-are-separate-hits-and-ra2s-nuke-does-not-flatten-a-power-plant-2026-09-24)
 - [RTS: a factory rally off its units' zone is refused with NoMove — the engine's source, not the manual, settled it (2026-09-24)](#rts-a-factory-rally-off-its-units-zone-is-refused-with-nomove-the-engines-source-not-the-manual-settled-it-2026-09-24)
+- [RTS: the "Collective wins 76%" soak measured a game nobody plays — no countries (2026-09-24)](#rts-the-collective-wins-76-soak-measured-a-game-nobody-plays-no-countries-2026-09-24)
+- [RTS: with countries measured fairly, the Directorate's edge is Britain's Sniper (2026-09-24)](#rts-with-countries-measured-fairly-the-directorates-edge-is-britains-sniper-2026-09-24)
 
 <!-- END TOC -->
 
@@ -16542,3 +16544,126 @@ test, the contract "a selected Barracks shows NoMove over water".
 astar already made off-medium rallies behave: that was a mechanism built
 for the reading, not evidence for it. OpenRA's ra2 mod (no terrain limit)
 as the authority: it is a reimplementation, not the original engine.
+
+## RTS: the "Collective wins 76%" soak measured a game nobody plays — no countries (2026-09-24)
+
+**Symptom.** `tools/match-shape-soak.js` had the Collective winning ~60-80% of
+decided Normal+Hard AI-vs-AI matches across waves 3-8, and every fix aimed at
+it (V3 interception, flying missiles, burst rounds, the seat order) moved it
+inside the noise. Economy and unit stats were already ruled out.
+
+**Cause.** The soak builds a match with `newState` and never assigns a
+country, and `countryAllows()` lets a side with NO country build every
+country's specialist. Every real match gives both sides one (`resolveCountry`:
+menu, lobby, replay, watch; a seeded pick when nobody chose). So the soak's
+Collective fielded Russia's Tesla Tanks (`colTtnk`, the vehicle lane's
+`teslatank` pick) AND Iraq's Desolators (`colDeso`) in one army, while
+`aiCountry` returned early and the Directorate bought none of its own
+(Sniper, Tank Destroyer, Black Eagle, Grand Cannon, American paradrop).
+The Directorate AI has no country-gated team rows, so null cost it nothing
+it would otherwise have fielded; the Collective gained two countries.
+
+**Evidence** (7 maps x 6 seeds 20260831,4242,1234,7,8,99 x Normal/Hard x both
+faction orders = 168 matches, 30-min cap, per-cell exchange instrument that
+replays bit-identically with the soak: same ticks, winner and countries on
+tundra/1234/hard). Collective wins of decided, Wilson 95%:
+
+| | no country (old soak) | seeded countries (a real skirmish) |
+|---|---|---|
+| normal | 28/53 = 53% [40-66] | 11/46 = 24% [14-38] |
+| hard | 46/70 = 66% [54-76] | 28/72 = 39% [28-50] |
+| normal+hard | 74/123 = 60% [51-68] | 39/118 = 33% [25-42] |
+| hard median length (decided) | 16.1 min | 17.4 min |
+
+Without countries the Desolator traded 3.7:1 and appeared in every
+Collective army (4.6 per match); with countries it is Iraq-only (0.9).
+By country (with countries, wins of decided): USA 34/44, Britain 18/22,
+France 10/10, Korea 8/12, Germany 9/30; Russia 23/51, Iraq 11/22,
+Libya 5/37, Cuba 0/8. Pairings are fixed by seed and seat (12 per run), so
+a country's row is confounded with its opponent.
+
+**Fix.** The soak assigns the seeded country a skirmish would
+(`resolveCountry(fac, null, seed, p)`), prints the Collective's Wilson share
+per difficulty and wins by country, and carries `cty` in every row;
+`--no-country` reproduces the old harness. `rts-soak-country.test.js` (red on
+the old soak). No game code changed: the bias was the instrument's.
+
+**Still open — the picture has flipped.** With countries the Directorate wins
+~67% of decided Normal+Hard, although the Collective wins the exchange (value
+dealt 18.6M vs 14.2M over 168 matches; Flak Trooper 3.6:1, Harrier 0.39:1,
+GI 0.55:1). Next suspects, not yet tested: America's paradrop (8 free GIs
+every 4 min, +32 GIs per match; the AI drops them at its staging point),
+France's Grand Cannon (10/10), Libya's and Cuba's AI use of the Demolition
+Truck and Terrorists (1:1 trades), and how the Directorate converts a losing
+exchange into a win: it does 4.4M to structures against the Collective's
+2.7M, half of it from Prism Tanks (1.4M) and the Weather Storm (0.8M),
+while the Collective's structure damage leans on the nuke (0.9M). `__rtsSim` (hooks.js) and `balance-paired-review.js`
+still build country-less matches.
+
+**Rejected.** Tuning any unit or AI weight toward 50% on the old soak: it
+would have "fixed" a bias that only the harness had.
+
+## RTS: with countries measured fairly, the Directorate's edge is Britain's Sniper (2026-09-24)
+
+**Symptom.** Once the soak gave both sides a country (entry above), the
+Directorate won ~67% of decided Normal+Hard matches. The seeded pick ties a
+country to its seed and seat, so each seed played one pairing and a
+country's record was its opponent's (Libya met the USA in 11 of 37 games).
+
+**Measurement fix.** `match-shape-soak.js` rotates all 20 Directorate x
+Collective pairings across its AI cells, independent of the seed, with
+both faction orders of a map/seed on the same pairing (`--countries seed`
+keeps the skirmish pick). `--shard i/n` splits one run across machines
+after the rotation; `--only-cty X` runs the cells with X; `--patch
+'old=>new'` rewrites one literal for an A/B. `balance-paired-review.js`
+passes the same rotation to `__rtsSim`; `__rtsSim`'s own default stays
+country-less because `rts.test.js` pins sims recorded that way.
+
+**Evidence** (168 cells: 7 maps x seeds 20260831,4242,1234,7,8,99 x
+Normal/Hard x both orders, rotated pairings; Collective wins of decided,
+Wilson 95%):
+
+| subset | Collective wins |
+|---|---|
+| all, normal | 12/52 = 23% [14-36] |
+| all, hard | 29/69 = 42% [31-54] |
+| all, normal+hard | 41/121 = 34% [26-43] |
+| Directorate = Britain | 2/26 = 8% [2-24] |
+| Directorate = Korea | 7/28 = 25% [13-43] |
+| Directorate = USA/France/Germany | 32/67 = 48% [36-60] |
+
+Directorate wins by country: Britain 24/26, Korea 21/28, France 12/23,
+Germany 12/23, USA 11/21. Without Britain and Korea the factions are even.
+A/B, Britain's cells only, the AI buying no Snipers (`--patch 'sniper:
+3,=>sniper: 0,'`): Collective 2/26 = 8% [2-24] -> 9/26 = 35% [19-54].
+The whole 168-cell run with no British Snipers (sharded across two
+hosts, the same cells): Collective 41/121 = 34% [26-43] -> 48/121 = 40%
+[31-49] (normal 23% -> 32%, hard 42% -> 45%). Snipers are part of the
+edge, not all of it: Korea stays 21/28 either way, and Russia (8/32) and
+Cuba (9/32) are the weakest Collective houses.
+In the exchange instrument the Sniper (10 bought per British match, the
+AI keeps 3) kills Flak Troopers and Conscripts, and the Collective's
+Flak Trooper, its best trader everywhere else (3.6:1), deals 17.9k per
+match against Britain against 33.2k against USA/France/Germany.
+
+**Checked against rules.ini v1.006 and found faithful** (no change):
+[SNIPE]/[AWP]/[AWPE] (125 dmg, ROF 150/60, Range 14, HollowPoint 200%
+vs none, ProneDamage 100%); [BEAG]/[Maverick2]; American paradrop
+(AmerParaDropInf=E1 x8, RechargeTime=4, IsPowered=false); Prism Tank
+[Comet]/CometWH and the Prism Tower's support (PrismSupportModifier 150%,
+Max 8, Delay 60); Lightning Storm (LightningDamage 250, Duration 180,
+HitDelay 10, ScatterDelay 5, CellSpread 10); Grand Cannon (150 dmg, ROF 120,
+Range 15, MinimumRange 3). The storm is if anything WEAKER than RA2's:
+[IonWH] CellSpread=2.0 PercentAtMax=.5, ours hits within 1.1 cells, and
+LightningDeferment=250 is not modelled. The Collective AI does order its
+Terrorists and Demolition Trucks (aiCountry), though Terrorists wait at home
+until 9:00 or an attack posture, in packs of three.
+
+**Not fixed, and why.** Every Sniper number is RA2's; Britain beating a
+Conscript-and-Flak-Trooper army is the RA2 matchup. What is not RA2 is
+the Collective AI's answer: it keeps massing infantry (93 Conscripts and 32
+Flak Troopers a match, 9.5 Rhinos) into a 14-cell rifle. The next lever is
+the Collective AI's unit mix against a Sniper house (RA2's AI rebalances
+its TaskForces by what it has seen; ours has infHeavy/vehHeavy/airThreat
+but no "snipers seen"), and it needs its own soak. The Sniper's garrison
+right is a recorded departure from rules.ini (neutral.js OCCUPIER).
