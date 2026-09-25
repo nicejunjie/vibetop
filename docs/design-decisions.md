@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_368 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_370 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
 - [Scheduled terminal messages ("resume when the token limit resets")](#scheduled-terminal-messages-resume-when-the-token-limit-resets)
@@ -391,6 +391,8 @@ _368 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [RTS: a factory rally off its units' zone is refused with NoMove — the engine's source, not the manual, settled it (2026-09-24)](#rts-a-factory-rally-off-its-units-zone-is-refused-with-nomove-the-engines-source-not-the-manual-settled-it-2026-09-24)
 - [RTS: the "Collective wins 76%" soak measured a game nobody plays — no countries (2026-09-24)](#rts-the-collective-wins-76-soak-measured-a-game-nobody-plays-no-countries-2026-09-24)
 - [RTS: with countries measured fairly, the Directorate's edge is Britain's Sniper (2026-09-24)](#rts-with-countries-measured-fairly-the-directorates-edge-is-britains-sniper-2026-09-24)
+- [RTS: red-brown brick vanished on a red owner's Soviet Construction Yard (2026-09-24)](#rts-red-brown-brick-vanished-on-a-red-owners-soviet-construction-yard-2026-09-24)
+- [RTS: vm tests had never baked an infantry frame (2026-09-24)](#rts-vm-tests-had-never-baked-an-infantry-frame-2026-09-24)
 
 <!-- END TOC -->
 
@@ -16667,3 +16669,37 @@ the Collective AI's unit mix against a Sniper house (RA2's AI rebalances
 its TaskForces by what it has seen; ours has infHeavy/vehHeavy/airThreat
 but no "snipers seen"), and it needs its own soak. The Sniper's garrison
 right is a recorded departure from rules.ini (neutral.js OCCUPIER).
+
+## RTS: red-brown brick vanished on a red owner's Soviet Construction Yard (2026-09-24)
+
+**Symptom.** Enlarging the wedge's bricks and darkening the mortar made the
+slope read as coursed brickwork on the BLUE owner's yard, while the red
+owner's slope stayed one dark brown smear, at 3x and at 1x.
+
+**Cause.** The bricks were hue ~12, a few degrees off the red house colour.
+The structure finish pass treats pixels near the owner's hue as house colour
+and shades them as such, so on a red owner every brick was pulled toward the
+owner ramp and the course/mortar contrast collapsed. A blue owner is 200+
+degrees away and never touched them.
+
+**Fix.** Warm BROWN bricks (hue ~22: `#80503a` `#74462f` `#8c5a3c` `#663c29`
+`#a06a40`) in near-black mortar `#2a1612`. Check any red-leaning neutral
+material on BOTH owners before blaming the geometry.
+
+**Rejected.** Lightening the mortar or adding more courses: the problem was
+never the pattern, it was the owner pass claiming the colour.
+
+## RTS: vm tests had never baked an infantry frame (2026-09-24)
+
+**Symptom.** A new test calling `unit.fr('stand', b, 0)` for the Tesla
+Trooper in the vm sandbox threw `g.transform is not a function`.
+
+**Cause.** The standing-figure lean is a shear (`g.transform`) and the
+sandbox's canvas stub listed every other transform method but not that one.
+Infantry frames bake lazily, so no earlier vm test had ever reached it.
+
+**Fix.** `transform: noop` in `tools/lib/vm-sandbox.js`'s `stubCtx`.
+
+**Rejected.** Recording the Tesla Trooper through a Playwright bake instead:
+the rule is a hermetic test on the real source, and the stub was simply
+incomplete.
