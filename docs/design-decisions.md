@@ -17351,3 +17351,15 @@ was **not measured**, so nothing here shows it has none either.
 **Symptom:** `rts.spec.js` "a rally point is visible, routed, and actually used" failed 2-3 runs in 10 with `rally = null`, on v1.30.0 as well as later. It passed alone often enough to look like a timing flake.
 **Cause:** the test clicked a fixed offset (8, 6) from the Barracks. On random maps that cell is sometimes impassable (terrain 1), and since census M03 (v1.29.0) a rally there is refused in `input.js` before any command is sent, correctly, as RA2's NoMove. The diagnosis ruled out the load veil (pointer-events: none; the hooks appear only after the bake), the camera and the lockstep delay by instrumenting the click. A first fix aimed at `x + 0.5`, but cells are centred on integer coordinates, so that could round into the neighbouring rock cell.
 **Fix:** the test searches outward from (8, 6) for open ground (ground/ore/gem/road, unoccupied, on the map) and clicks that cell's integer centre. It passed 30/30 repeats, and the whole spec 21/21.
+
+### RTS: a man waited forever beside a Nighthawk that would never land
+
+**Symptom:** after wave 12 let Normal field the Nighthawk team, `soak-invariants/map=metro/seats=4/seed=2` flagged a rifleman idle for 30 s with `order enter:<nighthawk>`. The Nighthawk hovered 1.3 cells away with no order and `landReq = 0`.
+**Cause:** `aiTeam`'s mount-up step marks a mech team loaded after its dissolve window and clears every aircraft's `landReq` ("whoever missed the ride simply marches with it"), but it left the stragglers' Enter orders in place. In `move.js` a boarder beside an airborne hull waits for it to touch down, without checking whether it still means to. The player path has the same hole: order men aboard, then move the Nighthawk, and `landReq` is cleared.
+**Fix:** a boarder beside an airborne hull whose `landReq` is withdrawn drops the order (as the comment above that code already promised), and the AI's loaded step cancels the stragglers' Enter orders. `rts-nighthawk-board.test.js` fails on the old code.
+
+### RTS test runner: the perf cells are timed alone
+
+**Symptom:** `perf/map=metro` failed its 0.6 x baseline floor in every full gate (383-492 ticks/CPU-s vs 831) and passed alone.
+**Cause:** perf already counts CPU time, not wall time, but on 16 cores / 32 SMT threads at --jobs 24, sibling threads share a core and its caches, so CPU time per tick itself about doubles.
+**Fix:** a matrix may declare `exclusive: true`. `core.js splitExclusive` runs those jobs one at a time after the shared pool drains, and perf declares it.
