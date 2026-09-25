@@ -17497,3 +17497,45 @@ was **not measured**, so nothing here shows it has none either.
 **Symptom:** on Lake (map 2) the user's Naval Yard "still can't set its rally point to water": a left click on the pond said "Cannot set a rally point there". Chromium and WebKit contracts passed because they placed the yard mid-lake and clicked cells on the open side.
 **Cause:** `dockSpot` took the first clear water cell out from the slipway corner. With the yard on the pond's west shore, that cell (27,35) touched the pond only diagonally, between the yard and a rock. astar never cuts such a corner, so `makeRally` found no path to 95 of the 99 pond cells, and census M03 (correctly) refuses a rally with no path. New hulls also launched into that pocket.
 **Fix:** every clear water cell within three of the footprint is scored by a 4-connected flood of the water it opens onto (exactly what astar can reach, capped at 200), and the most open cell wins, nearest the slipway corner on a tie. The rally is now taken on 99 of 99 pond cells. The four refused cells are a diagonal-only pocket no hull can enter. `rts-naval-dock.test.js` fails 2/2 on the old code.
+
+### RTS: impassable rock read as walkable ground, so refused orders had no visible reason (census X05)
+
+**Symptom:** the W14 exploratory pass sent units and rallies onto rock and got "Cannot move there" with no visible reason. `T_ROCK` is impassable, but it was a flat grey-brown scree sheet with a few painted boulders, about the same value as the ground beside it.
+**Cause:** rock was just another ground tile. It had no height, no shadow side and no cast shadow, so nothing marked it as an obstacle. RA2's impassable rock stands up: boulder clusters and cliff stone with a lit crown and a dark side.
+**Fix:** each rock cell carries an outcrop (`bakeOutcrop` in `rts/bake/terrain.js`, 8 variants per theatre). It is 4-6 faceted boulders, each with a cast shadow, a shadow-side body, a lit face and a two-tone crown. It is queued in the cliff pass (`CLIFFQ`), after the ground, so its shadow lands on the cells in front of it. The colours are written on the 6-level grid (`outcropPalette`). The cliff palette's browns snapped to olive and pink under `pixelate()`, and the greys keep r == g == b, so nothing bakes teal. The facets are flat, with no grain. The bake restores the art RNG (`_bseed`) when it finishes, so every later unseeded bake draws exactly what it drew before.
+**The gate:** `rts-terrain-legibility.test.js` measures one cell's footprint on the baked atlas at DPR 1, per theatre, over all 64 sheet positions. The rock cell's luminance stdev must exceed the ground's by at least 15, and the mean step plus the stdev step must be at least 30. The old bake scored a stdev step of -0.7 to 7.9 in every theatre, and fails. The outcrops score 24-41.
+**Rejected:**
+- Darkening the rock sheet alone. A value step with no relief still reads as a different ground, not an obstacle.
+- Reusing the cliff sprite. It is a face with a drop, and a rock patch has no "lower side".
+- Per-pixel texture. It would bring back the speckle the structure pass just lost.
+
+### RTS: trackpad zoom jumped 1x -> 2x on one flick and never returned to exactly 1:1 (census X07)
+
+**Symptom:** on a MacBook trackpad, one light flick zoomed from 1.0 to the 2.0 maximum. After zooming in and back out, the view sat at 0.905 or 1.03, so the pixel art stayed resampled.
+**Cause:** the wheel handler multiplied the zoom by 1.12 per EVENT whatever its `deltaY`. A mouse sends a few 100 px notches. A trackpad sends dozens of 2-10 px events per flick. Powers of 1.12 never land on 1.0 again.
+**Fix:** `wheelZoom` / `onWheel` in `rts/ui/input.js`:
+- A mouse NOTCH (deltaMode line or page, or a pixel event whose legacy `wheelDeltaY` is a multiple of 120) is one 1.12 step, as before.
+- Other wheel input is trackpad scroll. The zoom moves by `exp(-deltaY * ln(1.12) / 100)`, so 100 px of scroll equals one notch.
+- A `ctrlKey` event is a pinch (Chrome and Firefox synthesize it), and it gets its own larger gain.
+- No single event moves the zoom more than about 1.3x.
+- Integer levels (1x and 2x) are detents. A zoom that crosses one, or lands within 0.02 of it while heading toward it, stops exactly on it. A zoom leaving a detent moves freely.
+- Safari does not send ctrl+wheel for a pinch. It sends `gesturestart` / `gesturechange`, and zooms the whole page unless they are cancelled, so those events drive the same zoom with the same detents.
+- A sideways swipe (deltaY 0) still never zooms (X03).
+
+**Tests:** `rts-wheel-zoom.test.js` drives the real handler through `__rtsTest.wheel`. Four of its tests fail on the old handler. The contract in `rts-player.spec.js` ("trackpad-sized wheel zoom…") uses real `page.mouse.wheel` and fails on the old handler (a light flick reached 2).
+**Rejected:** accumulating deltas up to a threshold and then taking a fixed step. It feels steppy on a trackpad, unlike a native Mac map, and a pinch would still jump.
+
+### RTS: an unpowered structure went nearly black instead of dimming
+
+**Symptom:** an unpowered Airforce Command was a near-black silhouette in the W14 pass. RA2 dims an unpowered structure and puts its lights out.
+**Cause:** `bakeUnpowered` desaturated the sprite completely and then laid a 50% navy wash over it. An already dark steel structure kept only 0.55-0.65 of its luminance.
+**Fix:** the wash is now 22%. The desaturation stays, because it is what kills a lit amber window. The AFC keeps 0.83 of its value, and every structure keeps 0.80-0.85. `rts-unpowered-dim.test.js` holds all 86 structure sprites between 0.7 and 0.9, with a floor of 42 on mean luminance. The old bake fails it. The structure visual goldens were re-recorded, because the staging match has no power plant.
+
+### RTS: setup and Options card nits in Safari (census X12)
+
+- **The country select's "Random" was nearly invisible.** WebKit paints a native WHITE select under the page's pale `#cdd5e1` text (contrast 1.34, measured on the pixels). The fix is `appearance: none` with a drawn arrow, `color-scheme: dark` and styled options (contrast 15.9).
+- **Map names were cut off** ("Iron Fron…"): 13 maps on one row left about 90 px per name. Names now wrap to two lines, and Start Game stays above the fold at 1440x900.
+- **The Options card's Resume button was web purple.** The plain cards' primary button is now a plate of the HUD cabinet's `--m*` ramp (steel, or rusted iron for the Soviet side). `.card.menu` still overrides it with the faction accent.
+- **The jukebox had an empty chip.** The desert theme had no `name`. It is now "Sandstorm".
+
+`rts-menu-nits.test.js` checks all four in WebKit at 1440x900 and DPR 2. It fails on each of the four on the old build.
