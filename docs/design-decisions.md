@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_376 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_378 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
 - [Scheduled terminal messages ("resume when the token limit resets")](#scheduled-terminal-messages-resume-when-the-token-limit-resets)
@@ -399,6 +399,8 @@ _376 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [RTS testkit: the AI ladder runs two AIs in ONE game by renaming the frozen one (2026-09-24)](#rts-testkit-the-ai-ladder-runs-two-ais-in-one-game-by-renaming-the-frozen-one-2026-09-24)
 - [RTS e2e: the Alt+click crush contract "failed only in WebKit" because the scene was never still (2026-09-24)](#rts-e2e-the-altclick-crush-contract-failed-only-in-webkit-because-the-scene-was-never-still-2026-09-24)
 - [RTS e2e: the Naval Yard waypoint contract pointed off the map on some random maps (2026-09-24)](#rts-e2e-the-naval-yard-waypoint-contract-pointed-off-the-map-on-some-random-maps-2026-09-24)
+- [RTS: the Collective AI answers Snipers it has seen, and that is NOT what loses it Britain (2026-09-24)](#rts-the-collective-ai-answers-snipers-it-has-seen-and-that-is-not-what-loses-it-britain-2026-09-24)
+- [RTS: the Collective lost every Easy match to a Harrier pass that hunted War Miners (2026-09-25)](#rts-the-collective-lost-every-easy-match-to-a-harrier-pass-that-hunted-war-miners-2026-09-25)
 
 <!-- END TOC -->
 
@@ -16904,3 +16906,125 @@ falls back to radius 5 and 4 when no radius-6 area exists, so the target
 could still be off the map by one. Treating the off-map `select` as a
 game bug: over the black beyond the map edge there is no cell to rally
 to, and `select` is the right cursor.
+
+## RTS: the Collective AI answers Snipers it has seen, and that is NOT what loses it Britain (2026-09-24)
+
+**Symptom.** Wave 9's rotated-country soak had the Collective winning 8%
+[2-24] of decided Normal+Hard matches against Britain while its AI massed
+~93 Conscripts and ~32 Flak Troopers a match into a 14-cell Sniper rifle.
+The entry above named "the Collective AI's unit mix against a Sniper house"
+as the next lever.
+
+**Harness checked first.** No `P_HUMAN` branch in ai.js or the soak; the
+only sim one is `production.js`'s debug instant-build (off in soaks). Both
+faction orders of a map/seed play the same pairing, so seat cancels.
+
+**Change (kept).** RA2's AI answers what the enemy owns through
+[AITriggerTypes] condition 0, "enemy house owns N of <type>" (Project
+Perfect Mod's AITriggerTypes reference). Ours is shroud-honest:
+`ai.snipeAt` is set only by a Sniper `scoutEnemy` has SEEN or a Sniper
+round the house has been HIT by (combat.js `damage()`, like `airAt`: the
+rifle reaches 14 cells, its sight 8). For four minutes after that the
+Collective (ai.js `aiSnipeThreat`): drops every infantry-majority task
+force's trigger weight to 1 and disbands such teams while unfilled; gives
+armour attack/siege rows +3; reads a new `vs: 'snipe'` row "Soviet Armour
+vs Snipers" (4 Rhino, 3 Flak Track); and stops training surplus
+Conscripts, keeping Flak Troopers only under an air threat. No unit stat
+changed. Test: `rts-ai-snipers.test.js` (3 of 5 red on the old ai.js; the
+other 2 are controls). Matches with no Sniper in them are bit-identical.
+
+**Evidence** (252 cells: 7 maps x seeds 20260831,4242,1234,7,8,99 x
+Easy/Normal/Hard x both orders, rotated pairings; Collective wins of
+decided, Wilson 95%):
+
+| subset | before | after |
+|---|---|---|
+| normal+hard | 45/122 = 37% [29-46] | 44/122 = 36% [28-45] |
+| vs Britain (N+H) | 4/29 = 14% [5-31] | 3/29 = 10% [4-26] |
+| vs USA/France/Germany (N+H) | 34/72 = 47% [36-59] | 34/72 (identical) |
+| vs Korea (N+H) | 7/21 = 33% [17-55] | 7/21 (identical) |
+| easy | 0/44 = 0% [0-8] | 0/43 = 0% [0-8] |
+
+A first version without the disband or the Flak exception scored 2/23 vs
+Britain. In a traced match (gems/7/hard, Russia vs Britain) the change did
+cut Flak Troopers 78 -> 22 and Conscripts 101 -> 66, and the Collective's
+losses were mostly to Rocketeers/GIs, Guardian GIs, Mirages and Harriers,
+with the Sniper 4th-5th by value killed. Against Britain the Directorate
+out-produces the Collective (148-161 GIs a match in two traces).
+
+**Why keep it.** It is RA2's behaviour, it only touches matches with a
+Sniper in them, and it is neutral inside the noise. It does not fix the
+deficit: **the unit mix is not the lever.** Open: why the British
+Directorate out-produces the Collective when the Sniper is removed from
+its roster only partly closes it (wave 9: 8% -> 35%); Korea (33%, the same
+before and after); and a pre-existing **Easy-vs-Easy Collective 0/44 of
+decided**, which neither run touched.
+
+**Rejected.** Changing any Sniper number (rules.ini-faithful). An
+omniscient "enemy owns" read, as RA2 has: the AI must not see through its
+own shroud.
+
+## RTS: the Collective lost every Easy match to a Harrier pass that hunted War Miners (2026-09-25)
+
+**Symptom.** Easy vs Easy, the Collective won 0 of 43 decided matches (84
+cells: 7 maps x 6 seeds x both orders, rotated countries), against every
+Directorate country. Normal+Hard it won 36%.
+
+**Harness checked first.** Both faction orders of a cell play the same
+pairing, and the loss held in both orders. No `P_HUMAN` branch is involved.
+
+**Evidence** (per-side timelines, 84 Easy cells, averages over live sides):
+
+| minute | Collective miners / refineries / ore banked | Directorate miners / refineries / ore banked |
+|---|---|---|
+| 8 | 3.8 / 2.0 / 29k | 4.0 / 2.0 / 28k |
+| 10 | 2.9 / 2.0 / 37k | 4.0 / 2.0 / 38k |
+| 12 | 2.1 / 1.8 / 41k | 4.0 / 2.0 / 49k |
+| 15 | 1.7 / 1.5 / 46k | 4.0 / 2.0 / 64k |
+| 20 | 0.9 / 1.0 / 52k | 3.7 / 2.0 / 84k |
+
+The Collective's biggest killer by value was the Harrier ($17.5k a match),
+and $13.4k of that was War Miners (11.7 miners built per match against the
+Directorate's 4.3). The Collective won the fights: in a traced match
+(frontier/4242, Iraq vs Germany) it killed $117k and lost $42k, and still
+lost the match once its economy was gone.
+
+**Cause.** ai.js `aiTactics`, the Harrier strike: every ready flight, at every
+difficulty, went to *the first enemy harvester on the map*, then a refinery,
+and only then to `aiPickTarget(..., 'production')`. It never read the task
+force it belongs to. `AI_TEAMS` has ai.ini's "Allied Harrier Attack" as
+`tgt: 'production'`, and it gives the economy raids (Allied Rocketeer Raid,
+Soviet Terror Drone Attack) weight 0 on Easy. So Easy had an economy
+harassment that only one faction owned. A Chrono Miner jumps home and was
+never hit (Directorate miners 4.0 to 15:00). A War Miner works in the open.
+
+**Fix.** The strike flies at the Harrier Attack's `tgt`. Hunting harvesters
+and then refineries is kept for `cfg.harass`, Hard's knob, which already
+sends Hard's `any` teams at miners. No unit stat changed. Test:
+`rts-ai-harrier.test.js` (2 of 4 red on the old ai.js; the table check and
+the Hard control pass on both).
+
+**Diagnostics** (Easy, 84 cells, Collective wins of decided): no harvester
+hunt at all: 22/32. Letting team fills bypass Easy's `armyCap` of 14: 10/33.
+
+**A/B** (252 cells, the wave-10 design; Wilson 95%):
+
+| subset | before | after |
+|---|---|---|
+| easy | 0/43 = 0% [0-8] | 22/35 = 63% [46-77] |
+| normal | 15/49 = 31% [20-45] | 26/46 = 57% [42-70] |
+| hard | 29/73 = 40% [29-51] | 29/73 (all 84 cells identical) |
+| normal+hard | 44/122 = 36% [28-45] | 55/119 = 46% [38-55] |
+| N+H vs Britain | 3/29 = 10% [4-26] | 4/26 = 15% [6-34] |
+| N+H vs Korea | 7/21 = 33% [17-55] | 14/25 = 56% [37-73] |
+
+**Open.** Britain is still ~15%, and the Harrier was not its lever. Hard
+still hunts miners with Harriers and wins 40%, the same as before. With its
+miners alive, the Easy Collective now banks $13-19k from 10:00 to 15:00
+because `armyCap` 14 blocks its 10-man Conscript Flood from filling. That
+cap is ours, not RA2's.
+
+**Rejected.** Changing any Harrier, War Miner or flak number
+(rules.ini-faithful). Exempting team fills from `armyCap`: it measured
+weaker, and it changes Easy for both factions rather than removing a
+one-faction harassment.
