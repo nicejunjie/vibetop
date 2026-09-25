@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_374 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_375 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
 - [Scheduled terminal messages ("resume when the token limit resets")](#scheduled-terminal-messages-resume-when-the-token-limit-resets)
@@ -397,6 +397,7 @@ _374 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [RTS: superweapon presentation is drawn from sim state, and tested through the real render() (2026-09-24)](#rts-superweapon-presentation-is-drawn-from-sim-state-and-tested-through-the-real-render-2026-09-24)
 - [RTS testkit: the full run is bound by its longest cell, so it schedules longest-first — and a soak is not split into windows (2026-09-24)](#rts-testkit-the-full-run-is-bound-by-its-longest-cell-so-it-schedules-longest-first-and-a-soak-is-not-split-into-windows-2026-09-24)
 - [RTS testkit: the AI ladder runs two AIs in ONE game by renaming the frozen one (2026-09-24)](#rts-testkit-the-ai-ladder-runs-two-ais-in-one-game-by-renaming-the-frozen-one-2026-09-24)
+- [RTS: the Collective AI answers Snipers it has seen, and that is NOT what loses it Britain (2026-09-24)](#rts-the-collective-ai-answers-snipers-it-has-seen-and-that-is-not-what-loses-it-britain-2026-09-24)
 
 <!-- END TOC -->
 
@@ -16828,3 +16829,60 @@ combat would differ between the seats, so a rules fix would read as an AI
 regression. Setting the baseline flag on the AI object from the first
 `every` callback: the baseline seat ran the candidate for the first 120
 ticks.
+
+## RTS: the Collective AI answers Snipers it has seen, and that is NOT what loses it Britain (2026-09-24)
+
+**Symptom.** Wave 9's rotated-country soak had the Collective winning 8%
+[2-24] of decided Normal+Hard matches against Britain while its AI massed
+~93 Conscripts and ~32 Flak Troopers a match into a 14-cell Sniper rifle.
+The entry above named "the Collective AI's unit mix against a Sniper house"
+as the next lever.
+
+**Harness checked first.** No `P_HUMAN` branch in ai.js or the soak; the
+only sim one is `production.js`'s debug instant-build (off in soaks). Both
+faction orders of a map/seed play the same pairing, so seat cancels.
+
+**Change (kept).** RA2's AI answers what the enemy owns through
+[AITriggerTypes] condition 0, "enemy house owns N of <type>" (Project
+Perfect Mod's AITriggerTypes reference). Ours is shroud-honest:
+`ai.snipeAt` is set only by a Sniper `scoutEnemy` has SEEN or a Sniper
+round the house has been HIT by (combat.js `damage()`, like `airAt`: the
+rifle reaches 14 cells, its sight 8). For four minutes after that the
+Collective (ai.js `aiSnipeThreat`): drops every infantry-majority task
+force's trigger weight to 1 and disbands such teams while unfilled; gives
+armour attack/siege rows +3; reads a new `vs: 'snipe'` row "Soviet Armour
+vs Snipers" (4 Rhino, 3 Flak Track); and stops training surplus
+Conscripts, keeping Flak Troopers only under an air threat. No unit stat
+changed. Test: `rts-ai-snipers.test.js` (3 of 5 red on the old ai.js; the
+other 2 are controls). Matches with no Sniper in them are bit-identical.
+
+**Evidence** (252 cells: 7 maps x seeds 20260831,4242,1234,7,8,99 x
+Easy/Normal/Hard x both orders, rotated pairings; Collective wins of
+decided, Wilson 95%):
+
+| subset | before | after |
+|---|---|---|
+| normal+hard | 45/122 = 37% [29-46] | 44/122 = 36% [28-45] |
+| vs Britain (N+H) | 4/29 = 14% [5-31] | 3/29 = 10% [4-26] |
+| vs USA/France/Germany (N+H) | 34/72 = 47% [36-59] | 34/72 (identical) |
+| vs Korea (N+H) | 7/21 = 33% [17-55] | 7/21 (identical) |
+| easy | 0/44 = 0% [0-8] | 0/43 = 0% [0-8] |
+
+A first version without the disband or the Flak exception scored 2/23 vs
+Britain. In a traced match (gems/7/hard, Russia vs Britain) the change did
+cut Flak Troopers 78 -> 22 and Conscripts 101 -> 66, and the Collective's
+losses were mostly to Rocketeers/GIs, Guardian GIs, Mirages and Harriers,
+with the Sniper 4th-5th by value killed. Against Britain the Directorate
+out-produces the Collective (148-161 GIs a match in two traces).
+
+**Why keep it.** It is RA2's behaviour, it only touches matches with a
+Sniper in them, and it is neutral inside the noise. It does not fix the
+deficit: **the unit mix is not the lever.** Open: why the British
+Directorate out-produces the Collective when the Sniper is removed from
+its roster only partly closes it (wave 9: 8% -> 35%); Korea (33%, the same
+before and after); and a pre-existing **Easy-vs-Easy Collective 0/44 of
+decided**, which neither run touched.
+
+**Rejected.** Changing any Sniper number (rules.ini-faithful). An
+omniscient "enemy owns" read, as RA2 has: the AI must not see through its
+own shroud.
