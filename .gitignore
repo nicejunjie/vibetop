@@ -28,6 +28,7 @@ services.json
 !apps/games/rts/docs/ra2-ref/manifest.json
 # the RTS testkit's goldens, baselines and pinned repros are data the tests read
 !apps/games/rts/tools/testkit/golden/*.json
+!apps/games/rts/rts/diag/*.json
 !apps/games/rts/tools/testkit/data/*.json
 
 # Python bytecode cache
