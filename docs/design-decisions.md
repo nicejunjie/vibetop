@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_378 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_380 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
 - [Scheduled terminal messages ("resume when the token limit resets")](#scheduled-terminal-messages-resume-when-the-token-limit-resets)
@@ -401,6 +401,8 @@ _378 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [RTS e2e: the Naval Yard waypoint contract pointed off the map on some random maps (2026-09-24)](#rts-e2e-the-naval-yard-waypoint-contract-pointed-off-the-map-on-some-random-maps-2026-09-24)
 - [RTS: the Collective AI answers Snipers it has seen, and that is NOT what loses it Britain (2026-09-24)](#rts-the-collective-ai-answers-snipers-it-has-seen-and-that-is-not-what-loses-it-britain-2026-09-24)
 - [RTS: the Collective lost every Easy match to a Harrier pass that hunted War Miners (2026-09-25)](#rts-the-collective-lost-every-easy-match-to-a-harrier-pass-that-hunted-war-miners-2026-09-25)
+- [RTS: Britain beat the Collective with three Snipers where RA2's AI fields one (2026-09-25)](#rts-britain-beat-the-collective-with-three-snipers-where-ra2s-ai-fields-one-2026-09-25)
+- [RTS: Easy's armyCap blocked its own teams, and RA2 has no army cap (2026-09-25)](#rts-easys-armycap-blocked-its-own-teams-and-ra2-has-no-army-cap-2026-09-25)
 
 <!-- END TOC -->
 
@@ -17028,6 +17030,130 @@ cap is ours, not RA2's.
 (rules.ini-faithful). Exempting team fills from `armyCap`: it measured
 weaker, and it changes Easy for both factions rather than removing a
 one-faction harassment.
+
+## RTS: Britain beat the Collective with three Snipers where RA2's AI fields one (2026-09-25)
+
+**Symptom.** After wave 10 the Collective won 4/26 = 15% [6-34] of decided
+Normal+Hard matches against Britain, against 54% against USA/France/Germany.
+Wave 10 had refuted the Collective's unit mix as the lever.
+
+**Harness checked first.** Nothing in ai.js or the soak branches on
+`P_HUMAN`; both faction orders play each pairing. What branches on country:
+`aiCountry` (buys the specialist), `aiWantsCannon` (France), and
+`neutral.js`'s `OCCUPIER` (the Sniper garrisons, a recorded departure).
+Garrisoned Sniper fire turned out small (0.6 kills a match before, 2.4 after).
+
+**Evidence** (per-side timelines, 34 Normal+Hard cells against Britain,
+kill log with the shooter's rank and range; 252-cell rotated design):
+
+| | vs Britain | vs Britain, AI buys no Sniper | vs USA |
+|---|---|---|---|
+| Collective army 8 / 12 / 15 min | 25.9 / 22.2 / 14.1 | 26.3 / 26.1 / 26.7 | 30.4 / 33.2 / 27.7 |
+| Collective lost to Snipers, $ a match | 10.8k (55.7 men) | 0 | 0 |
+| Collective wins of decided N+H | 4/26 = 15% | 12/25 = 48% [30-67] | 10/25 = 40% |
+
+The Sniper is the lever after all, through its kill count rather than
+through the Collective's mix: 30 Conscripts and 21 Flak Troopers a match,
+all at 11-14 cells, about 40 of the 56 between 5:00 and 15:00. In one traced
+match three Snipers dropped 30 men in 24 seconds. The economy is not it:
+miners and harvest track the other pairings until the army is gone.
+
+**Cause.** Two departures from RA2, both in the British AI's Snipers:
+1. `AI_CTY_KEEP.sniper` kept THREE on hand at every difficulty (9.7 built a
+   match). RA2's ai.ini has one British Sniper team type, "Nation British
+   Sniper 1" (TaskForce `1,SNIPE`, `Max=1`, weight 70; the Easy and Medium
+   triggers field it alone), and "Nation British - Hard" adds "Nation
+   British Sniper - 2" (`1,FV` + `1,SNIPE`, `Max=1`) as its Team2. That is
+   one Sniper, two on Hard. (Stock RA2 ai.ini, as shipped in
+   otherdeniz/CnC_RulesEditor `Resources/RA2ai.ini`.)
+2. `[SNIPE] VeteranAbilities=STRONGER,FIREPOWER,SIGHT,FASTER`: the only
+   infantry with no ROF at rank 1 (it comes with `EliteAbilities`). Ours
+   had no `rofAt`, so a veteran Sniper fired at x0.6, and 15 of 63 kills in
+   the traced match came from a veteran.
+
+**Fix.** `AI_CTY_KEEP_DIFF` / `aiCtyKeep` (ai.js): Sniper 1/1/2 by
+difficulty; `rofAt: 2` on the Sniper (roster.js). No damage, range, ROF or
+cost changed. Test: `rts-ai-britain.test.js` (5 of 7 red on the old code;
+the control and the re-form check pass on both).
+
+**A/B** (252 cells, wave-10 design; Collective wins of decided, Wilson 95%;
+"sniper only" is the keep + rofAt change alone, on the 50 Britain cells):
+
+| subset | before | sniper only | wave 11 (both fixes) |
+|---|---|---|---|
+| N+H vs Britain | 4/26 = 15% [6-34] | 8/24 = 33% [18-53] | 11/26 = 42% [26-61] |
+| N+H vs USA/France/Germany | 37/68 = 54% [43-66] | (untouched) | 38/69 = 55% [43-66] |
+| N+H vs Korea | 14/25 = 56% [37-73] | (untouched) | 16/27 = 59% [41-75] |
+| Normal | 26/46 = 57% [42-70] | | 34/50 = 68% [54-79] |
+| Hard | 29/73 = 40% [29-51] | | 31/72 = 43% [32-55] |
+| N+H | 55/119 = 46% [38-55] | | 65/122 = 53% [44-62] |
+| Easy | 22/35 = 63% [46-77] | | 25/36 = 69% [53-82] |
+
+Snipers built against the Collective (N+H) 9.7 -> 6.0 a match, men lost to
+them 55.7 -> 33.6. Britain now sits inside the other Directorate countries'
+interval. What remains is a legitimate RA2 asymmetry: a 14-cell
+HollowPoint rifle against the faction whose line is infantry.
+
+**Rejected.** Any Sniper number (rules.ini's). Taking the Sniper away from
+the AI (48%): RA2's AI does field one. Garrison changes: not where it kills.
+
+## RTS: Easy's armyCap blocked its own teams, and RA2 has no army cap (2026-09-25)
+
+**Symptom.** With its miners alive after wave 10, the Easy Collective
+banked $13.3k at 10:00 and $19.3k at 15:00 (84 Easy cells): `armyCap: 14`
+stopped the 10-man Conscript Flood from ever filling.
+
+**What RA2's Easy AI limits** (sources: YR rules.ini `[General]`/`[AI]` and
+`[Easy]/[Normal]/[Difficult]`; ModEnc "Difficulty Settings", "TeamDelays",
+"TotalAITeamCap"). There is no army size limit at any difficulty. The AI
+builds what its TeamTypes ask for, bounded by each TeamType's `Max=` and
+`TotalAITeamCap=30,30,30`. An Easy AI reads the `[Difficult]` section (ROF
+1.2, Armor .8, BuildTime 1.0, RepairDelay .05, BuildDelay .1), and the per-
+difficulty lists: `AIVirtualPurifiers=4,2,0`, `MultiplayerAICM=400,0,0`,
+`HarvestersPerRefinery=2,2,1`, `AIExtraRefineries=2,1,0`,
+`AISlaveMinerNumber=4,3,2`, the base-defence counts, and each
+`[AITriggerTypes]` row's Easy flag.
+
+**Fix.** `armyCap` now caps only the SURPLUS lane (ai.js `aiProduce`).
+Once over it, the infantry and vehicle lanes still train whatever a formed
+team is short of (`teamI`/`teamV`). Under the cap nothing changed, and Hard
+(no cap) is untouched by this part. Test: `rts-ai-britain.test.js`, "easy
+over its armyCap: a formed Conscript Flood still fills" (red on the old
+code), and a control that nothing surplus is bought over the cap.
+
+**A/B** (84 Easy cells; "cap only" is this change alone):
+
+| Easy | before | cap only | wave 11 |
+|---|---|---|---|
+| Collective wins of decided | 22/35 = 63% [46-77] | 26/38 = 68% [53-81] | 25/36 = 69% [53-82] |
+| undecided at 30:00 | 49 | 46 | 48 |
+| Collective bank 10:00 / 15:00 | $13.3k / $19.3k | $6.2k / $7.8k | $6.3k / $7.9k |
+| Collective army 10:00 | 16.6 | 25.3 | 25.7 |
+| Directorate army 10:00 | 21.7 | 27.1 | 26.8 |
+| first enemy structure killed (median, Col / Dir) | 18.2 / 8.8 min | 18.9 / 9.4 | 19.4 / 9.3 |
+
+Easy's opening is no more aggressive: `openMin`, `wave` and `attackTeams`
+are unchanged, and the first structure kill came slightly later. Easy vs
+Easy stays inside the noise across factions.
+
+**Cost, stated plainly.** In AI-vs-AI Easy now stands ~26 units at 10:00,
+more than Normal's ~20. Normal fights earlier and bleeds, so the counts are
+not like for like, but Easy's standing army is no longer the smallest. A
+human playtest against Easy was NOT run.
+
+**Rejected.** RA2's `TeamDelays` read hardest-first (ModEnc and the ModDB
+campaign-AI fix say Hard, Medium, Easy; YR's own comment says easy, medium,
+hard, and ours follows the comment). Swapping to Easy 3500 / Hard 2000 was
+measured on 252 cells. Easy's army at 10:00 did not shrink (24.4 / 27.6),
+undecided Easy rose 48 -> 53, and Hard moved to the Collective (43% -> 52%).
+Because the source order is disputed, it stays as it is. Exempting the late
+`armyCap` 24: not needed, since the same surplus-only rule covers it.
+
+**Open (RA2 Easy limits not yet followed).** `HarvestersPerRefinery=…,1`
+(ours runs 2 a refinery at Easy); `[Difficult]` ROF 1.2 / Armor .8 for the
+Easy AI (ours uses `buildMul 1.25` instead); ai.ini's nation triggers are
+Easy-disabled for Korea, Cuba, Libya and Russia (ours buys every specialist
+at Easy).
 
 ### RTS test runner: leftover static servers squatted the Playwright ports ("0 tests")
 
