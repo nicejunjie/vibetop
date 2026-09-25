@@ -16556,6 +16556,11 @@ Directorate wins by country: Britain 24/26, Korea 21/28, France 12/23,
 Germany 12/23, USA 11/21. Without Britain and Korea the factions are even.
 A/B, Britain's cells only, the AI buying no Snipers (`--patch 'sniper:
 3,=>sniper: 0,'`): Collective 2/26 = 8% [2-24] -> 9/26 = 35% [19-54].
+The whole 168-cell run with no British Snipers (sharded across two
+hosts, the same cells): Collective 41/121 = 34% [26-43] -> 48/121 = 40%
+[31-49] (normal 23% -> 32%, hard 42% -> 45%). Snipers are part of the
+edge, not all of it: Korea stays 21/28 either way, and Russia (8/32) and
+Cuba (9/32) are the weakest Collective houses.
 In the exchange instrument the Sniper (10 bought per British match, the
 AI keeps 3) kills Flak Troopers and Conscripts, and the Collective's
 Flak Trooper, its best trader everywhere else (3.6:1), deals 17.9k per
