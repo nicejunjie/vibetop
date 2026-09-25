@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_375 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_376 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
 - [Scheduled terminal messages ("resume when the token limit resets")](#scheduled-terminal-messages-resume-when-the-token-limit-resets)
@@ -398,6 +398,7 @@ _375 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [RTS testkit: the full run is bound by its longest cell, so it schedules longest-first — and a soak is not split into windows (2026-09-24)](#rts-testkit-the-full-run-is-bound-by-its-longest-cell-so-it-schedules-longest-first-and-a-soak-is-not-split-into-windows-2026-09-24)
 - [RTS testkit: the AI ladder runs two AIs in ONE game by renaming the frozen one (2026-09-24)](#rts-testkit-the-ai-ladder-runs-two-ais-in-one-game-by-renaming-the-frozen-one-2026-09-24)
 - [RTS: the Collective AI answers Snipers it has seen, and that is NOT what loses it Britain (2026-09-24)](#rts-the-collective-ai-answers-snipers-it-has-seen-and-that-is-not-what-loses-it-britain-2026-09-24)
+- [RTS: the Collective lost every Easy match to a Harrier pass that hunted War Miners (2026-09-25)](#rts-the-collective-lost-every-easy-match-to-a-harrier-pass-that-hunted-war-miners-2026-09-25)
 
 <!-- END TOC -->
 
@@ -16886,3 +16887,68 @@ decided**, which neither run touched.
 **Rejected.** Changing any Sniper number (rules.ini-faithful). An
 omniscient "enemy owns" read, as RA2 has: the AI must not see through its
 own shroud.
+
+## RTS: the Collective lost every Easy match to a Harrier pass that hunted War Miners (2026-09-25)
+
+**Symptom.** Easy vs Easy, the Collective won 0 of 43 decided matches (84
+cells: 7 maps x 6 seeds x both orders, rotated countries), against every
+Directorate country. Normal+Hard it won 36%.
+
+**Harness checked first.** Both faction orders of a cell play the same
+pairing, and the loss held in both orders. No `P_HUMAN` branch is involved.
+
+**Evidence** (per-side timelines, 84 Easy cells, averages over live sides):
+
+| minute | Collective miners / refineries / ore banked | Directorate miners / refineries / ore banked |
+|---|---|---|
+| 8 | 3.8 / 2.0 / 29k | 4.0 / 2.0 / 28k |
+| 10 | 2.9 / 2.0 / 37k | 4.0 / 2.0 / 38k |
+| 12 | 2.1 / 1.8 / 41k | 4.0 / 2.0 / 49k |
+| 15 | 1.7 / 1.5 / 46k | 4.0 / 2.0 / 64k |
+| 20 | 0.9 / 1.0 / 52k | 3.7 / 2.0 / 84k |
+
+The Collective's biggest killer by value was the Harrier ($17.5k a match),
+and $13.4k of that was War Miners (11.7 miners built per match against the
+Directorate's 4.3). The Collective won the fights: in a traced match
+(frontier/4242, Iraq vs Germany) it killed $117k and lost $42k, and still
+lost the match once its economy was gone.
+
+**Cause.** ai.js `aiTactics`, the Harrier strike: every ready flight, at every
+difficulty, went to *the first enemy harvester on the map*, then a refinery,
+and only then to `aiPickTarget(..., 'production')`. It never read the task
+force it belongs to. `AI_TEAMS` has ai.ini's "Allied Harrier Attack" as
+`tgt: 'production'`, and it gives the economy raids (Allied Rocketeer Raid,
+Soviet Terror Drone Attack) weight 0 on Easy. So Easy had an economy
+harassment that only one faction owned. A Chrono Miner jumps home and was
+never hit (Directorate miners 4.0 to 15:00). A War Miner works in the open.
+
+**Fix.** The strike flies at the Harrier Attack's `tgt`. Hunting harvesters
+and then refineries is kept for `cfg.harass`, Hard's knob, which already
+sends Hard's `any` teams at miners. No unit stat changed. Test:
+`rts-ai-harrier.test.js` (2 of 4 red on the old ai.js; the table check and
+the Hard control pass on both).
+
+**Diagnostics** (Easy, 84 cells, Collective wins of decided): no harvester
+hunt at all: 22/32. Letting team fills bypass Easy's `armyCap` of 14: 10/33.
+
+**A/B** (252 cells, the wave-10 design; Wilson 95%):
+
+| subset | before | after |
+|---|---|---|
+| easy | 0/43 = 0% [0-8] | 22/35 = 63% [46-77] |
+| normal | 15/49 = 31% [20-45] | 26/46 = 57% [42-70] |
+| hard | 29/73 = 40% [29-51] | 29/73 (all 84 cells identical) |
+| normal+hard | 44/122 = 36% [28-45] | 55/119 = 46% [38-55] |
+| N+H vs Britain | 3/29 = 10% [4-26] | 4/26 = 15% [6-34] |
+| N+H vs Korea | 7/21 = 33% [17-55] | 14/25 = 56% [37-73] |
+
+**Open.** Britain is still ~15%, and the Harrier was not its lever. Hard
+still hunts miners with Harriers and wins 40%, the same as before. With its
+miners alive, the Easy Collective now banks $13-19k from 10:00 to 15:00
+because `armyCap` 14 blocks its 10-man Conscript Flood from filling. That
+cap is ours, not RA2's.
+
+**Rejected.** Changing any Harrier, War Miner or flak number
+(rules.ini-faithful). Exempting team fills from `armyCap`: it measured
+weaker, and it changes Easy for both factions rather than removing a
+one-faction harassment.
