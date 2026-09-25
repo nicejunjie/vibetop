@@ -17544,3 +17544,56 @@ was **not measured**, so nothing here shows it has none either.
 - **X11, "click where the storm should form" outlived the storm.** `unsay(msg)` (hud.js) takes a line back off the stack. `swClickMap` removes the hint when it fires, removes `hint` when the Chronosphere goes to stage 2, and `swCancel` removes both.
 - **X12, debug mode persisted in localStorage.** Debug is a cheat (instant build, bottomless bank, no shroud, not scored). A player who ticked it once played every later match unscored. It is now chosen per page load, and the old key is overwritten with `'0'`. A saved or resumed match keeps its own `G.debug`. **Not changed:** the "WEATHER MACHINE" cameo caption. It is RA2's own plate lettering (`apps/games/rts/docs/ra2-ref/cameos/weather.png`), and the sidebar deliberately copies RA2's plates (panel.js `CAMEO_CAPTION`).
 - **X13, `credits` read 4930.999999998956.** Progressive charging subtracted `cost * dp` per tick, and repair subtracted `cost * 0.15 * step / maxhp`. Both now charge whole credits and carry the fraction (`q.owe`, `b.repOwe`). Production settles the remainder on its last tick, so an item still costs exactly its price. The soak `hp` invariant now asserts whole credits (13/13 red on the old code).
+
+### RTS: impassable rock read as walkable ground, so refused orders had no visible reason (census X05)
+
+**Symptom:** the W14 exploratory pass sent units and rallies onto rock and got "Cannot move there" with no visible reason. `T_ROCK` is impassable, but it was a flat grey-brown scree sheet with a few painted boulders, about the same value as the ground beside it.
+**Cause:** rock was just another ground tile. It had no height, no shadow side and no cast shadow, so nothing marked it as an obstacle. RA2's impassable rock stands up: boulder clusters and cliff stone with a lit crown and a dark side.
+**Fix (revised the same day):** the first pass put one near-identical boulder clump on every rock cell. That read as impassable, but it tiled into a cartoon carpet. RA2's rock (`docs/ra2-ref/terrain/`: DEFCON 6 temperate cliff stone, Montana DMZ snow outcrops and rubble) is a few large, irregular MASSES over rocky ground.
+- **Placement is per REGION** (`rockDepths` / `rockMassAt` in `rts/ui/render.js`). A rock cell's depth in its patch is its 4-connected distance to open ground, capped at 3 and computed once per terrain array. The depth decides the largest mass the cell may carry: a lone rock at the edge, a crag, or a big ridge deep inside. The cell hash decides whether it carries one at all (about 1 cell in 4) and jitters its position, so no pattern repeats.
+- **The masses** (`bakeRockMass` in `rts/bake/terrain.js`) come in three sizes with six shapes each, per theatre. Each is a ridge of 1-5 lobes on a random axis, flatter than it is tall. The lobes share one shadow flank, so the gaps between crags read as clefts in one outcrop. Each lobe has a mid face and a lit face left of jagged ridges, a few 1-px vertical crevices spaced wide apart (RA2's striated faces), a crown, and a cast shadow down and to the right.
+- **Stone colour** comes from the rips and is written on the 6-level grid (`rockMassPalette`): temperate is DEFCON 6's orange-brown sandstone (face mean rgb 180,118,50) under a dry grassy crown. Snow granite is grey, because its brown cast only lands on the grid as pink. Snow lies on a slanted streak, never an oval, because two pale ovals on a dark mass read as eyes.
+- **The scree sheet** under and between the masses stays rocky. The snow scree is a value step darker. The existing scree overlay blends the region's edge into the ground.
+- The bake restores the art RNG (`_bseed`) when it finishes, so every later unseeded bake draws exactly what it drew before. No visual golden changed.
+
+**The gate:** `rts-terrain-legibility.test.js` measures the game's own renderer. For each theatre it lays a 12x12 rock patch and a 12x12 ground patch side by side on that theatre's map, renders a live frame at DPR 1, and reads back the inner 8x8 cells.
+- The rock's luminance stdev (relief) must be at least 22. It is absolute, because the snow ground is itself a patchwork with stdev 43.
+- Its mean must differ from the ground's by at least 14.
+- The old flat bake measures relief 8.4-16.7 and fails. The masses measure 26.6-40.0, with a value step of 17-63.
+
+**Rejected:**
+- One clump per cell (the first pass): the carpet.
+- Darkening the rock sheet alone: a value step with no relief reads as a different ground, not an obstacle.
+- Reusing the cliff sprite: it is a face with a drop, and a rock patch has no "lower side".
+- Per-pixel texture: speckle.
+
+### RTS: trackpad zoom jumped 1x -> 2x on one flick and never returned to exactly 1:1 (census X07)
+
+**Symptom:** on a MacBook trackpad, one light flick zoomed from 1.0 to the 2.0 maximum. After zooming in and back out, the view sat at 0.905 or 1.03, so the pixel art stayed resampled.
+**Cause:** the wheel handler multiplied the zoom by 1.12 per EVENT whatever its `deltaY`. A mouse sends a few 100 px notches. A trackpad sends dozens of 2-10 px events per flick. Powers of 1.12 never land on 1.0 again.
+**Fix:** `wheelZoom` / `onWheel` in `rts/ui/input.js`:
+- A mouse NOTCH (deltaMode line or page, or a pixel event whose legacy `wheelDeltaY` is a multiple of 120) is one 1.12 step, as before.
+- Other wheel input is trackpad scroll. The zoom moves by `exp(-deltaY * ln(1.12) / 100)`, so 100 px of scroll equals one notch.
+- A `ctrlKey` event is a pinch (Chrome and Firefox synthesize it), and it gets its own larger gain.
+- No single event moves the zoom more than about 1.3x.
+- Integer levels (1x and 2x) are detents. A zoom that crosses one, or lands within 0.02 of it while heading toward it, stops exactly on it. A zoom leaving a detent moves freely.
+- Safari does not send ctrl+wheel for a pinch. It sends `gesturestart` / `gesturechange`, and zooms the whole page unless they are cancelled, so those events drive the same zoom with the same detents.
+- A sideways swipe (deltaY 0) still never zooms (X03).
+
+**Tests:** `rts-wheel-zoom.test.js` drives the real handler through `__rtsTest.wheel`. Four of its tests fail on the old handler. The contract in `rts-player.spec.js` ("trackpad-sized wheel zoom…") uses real `page.mouse.wheel` and fails on the old handler (a light flick reached 2).
+**Rejected:** accumulating deltas up to a threshold and then taking a fixed step. It feels steppy on a trackpad, unlike a native Mac map, and a pinch would still jump.
+
+### RTS: an unpowered structure went nearly black instead of dimming
+
+**Symptom:** an unpowered Airforce Command was a near-black silhouette in the W14 pass. RA2 dims an unpowered structure and puts its lights out.
+**Cause:** `bakeUnpowered` desaturated the sprite completely and then laid a 50% navy wash over it. An already dark steel structure kept only 0.55-0.65 of its luminance.
+**Fix:** the wash is now 22%. The desaturation stays, because it is what kills a lit amber window. The AFC keeps 0.83 of its value, and every structure keeps 0.80-0.85. `rts-unpowered-dim.test.js` holds all 86 structure sprites between 0.7 and 0.9, with a floor of 42 on mean luminance. The old bake fails it. The structure visual goldens were re-recorded, because the staging match has no power plant.
+
+### RTS: setup and Options card nits in Safari (census X12)
+
+- **The country select's "Random" was nearly invisible.** WebKit paints a native WHITE select under the page's pale `#cdd5e1` text (contrast 1.34, measured on the pixels). The fix is `appearance: none` with a drawn arrow, `color-scheme: dark` and styled options (contrast 15.9).
+- **Map names were cut off** ("Iron Fron…"): 13 maps on one row left about 90 px per name. Names now wrap to two lines, and Start Game stays above the fold at 1440x900.
+- **The Options card's Resume button was web purple.** The plain cards' primary button is now a plate of the HUD cabinet's `--m*` ramp (steel, or rusted iron for the Soviet side). `.card.menu` still overrides it with the faction accent.
+- **The jukebox had an empty chip.** The desert theme had no `name`. It is now "Sandstorm".
+
+`rts-menu-nits.test.js` checks all four in WebKit at 1440x900 and DPR 2. It fails on each of the four on the old build.
