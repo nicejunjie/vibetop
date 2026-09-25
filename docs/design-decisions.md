@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_365 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_366 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
 - [Scheduled terminal messages ("resume when the token limit resets")](#scheduled-terminal-messages-resume-when-the-token-limit-resets)
@@ -388,6 +388,7 @@ _365 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [RTS: the pointer over a cliff reads the tile drawn there, not the ground behind it (2026-09-24)](#rts-the-pointer-over-a-cliff-reads-the-tile-drawn-there-not-the-ground-behind-it-2026-09-24)
 - [RTS: a player's order and the AI's share enqueue(), so the one-at-a-time rule sits in the command (2026-09-24)](#rts-a-players-order-and-the-ais-share-enqueue-so-the-one-at-a-time-rule-sits-in-the-command-2026-09-24)
 - [RTS wave 8 (group E): Burst rounds are separate hits, and RA2's nuke does not flatten a Power Plant (2026-09-24)](#rts-wave-8-group-e-burst-rounds-are-separate-hits-and-ra2s-nuke-does-not-flatten-a-power-plant-2026-09-24)
+- [RTS: superweapon presentation is drawn from sim state, and tested through the real render() (2026-09-24)](#rts-superweapon-presentation-is-drawn-from-sim-state-and-tested-through-the-real-render-2026-09-24)
 
 <!-- END TOC -->
 
@@ -16462,3 +16463,36 @@ splash transcriptions): Normal+Hard 59/75 = 79% [68-86] -> 58/76 = 76%
 decided). Seat 0 51% [40-62] -> 54% [43-65]. Everything is inside the
 noise: the V3 hitting armour twice as hard (W08) is offset by the weaker
 nuke and the Dreadnought's [DMISLWH] row.
+
+## RTS: superweapon presentation is drawn from sim state, and tested through the real render() (2026-09-24)
+
+**Symptom.** The user asked whether the superweapons "look right". Staged
+frames showed: the nuke silo did nothing at launch and the incoming warhead
+was a 5 px streak; the Chronosphere showed a thin diamond for 0.4 s at each
+end and nothing else; the paradrop had no plane at all; the storm deck was
+nine flat ellipses; Yuri's wave was a faint pink diamond for one frame.
+None of it was caught because every existing test is headless: the vm
+sandbox's canvas stub cannot run a full `render()` (no `createImageData`,
+no `transform`), so no test had ever looked at a frame.
+
+**Cause.** Presentation was bolted on as single `g.fx` flags with one
+drawing branch each, never staged and never looked at over time.
+
+**Fix.** `rts/ui/swfx.js` draws the launch, flight, activation and arrival
+of each weapon FROM STATE THAT ALREADY EXISTS (`g.nukes[i].t`, `u.warp`,
+`g.storms`, `g.drops[i].t`, `u.deployed`/`u.depAt`); the only new sim-side
+code is `swFxFire()` pushing `g.fx` entries under `!headless`. Every jitter
+is an index hash (`swHash`), never `rnd()`. `rts-swfx.test.js` wraps every
+sandbox canvas in a Proxy that answers any missing method, runs the REAL
+`render()` onto a recording context, and asserts the paint that matters
+(the missile's #cccccc flank, the beam's #99ccff, the plane's canopy) —
+red on the base build — plus a rendered-vs-headless `stateHash` identity
+after all six weapons.
+
+**Rejected.** Timing the paradrop plane to the men by changing the sim's
+40-tick run-in: that is sim behaviour and would change every replay; the
+plane instead decelerates over the zone (fast in, 3 px/tick overhead, fast
+out) so it enters from off-screen within the fixed run-in. Drawing the
+storm deck from baked puffs at their own size: `PUFF_R` tops out at 30 px,
+so seventy of them read as beads; `puffBig` scales the largest one on
+whole pixels instead.
