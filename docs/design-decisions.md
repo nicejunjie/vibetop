@@ -17366,8 +17366,33 @@ was **not measured**, so nothing here shows it has none either.
 
 ### RTS: the structures' "fuzzy black dots" were a per-pixel grain snapped to the palette grid (2026-09-25)
 
-**Symptom:** "the buildings are full of fuzzy black dots" (user, Safari at DPR 2, game zoom 2). Every structure from v1.21 to v1.32 showed grainy grey noise and lone dark and light dots on flat roofs and walls; v1.20 was flat colour.
-**Cause:** 734a9d4's shared structure material pass (`materialPass`, `rts/bake/buildings.js`) added a per-pixel hash grain (+-2.5%) and a 4-px blotch (+-4.5%), rivet seams whose heads were single lit pixels, and a one-px silhouette rim that lit an isometric staircase every other pixel. `pixelate()` then snaps each channel to RGB's 51-step grid, so a few percent of wobble near a step became a whole step on ISOLATED pixels. The MCV's mesh rasterizer carried the same kind of per-texel grain. Nothing caught it: every visual golden was re-recorded over it, and no art metric measured noise.
-**Fix:** grain, blotch and rivets removed; the rim is two logical px deep; grime streaks are two px wide at one strength; the MCV grain is gone. What stays is RA2-like: the smooth key light, the lit rim, trim-only house colour, and fittings of 2 px or more. The gate is `tools/lib/speckle.js`: a LONE pixel is one whose whole 8-ring is uniform (within 20) and differs from it by more than 40 on some channel, measured on the logical grid (k = device px per logical px). `tools/testkit/matrices/speckle.js` (T4) runs it on every sprite from `__rtsTables` at DPR 1 and 2 (units over 8 bearings, structures idle and damaged, civilian buildings). The allowance comes from the RA2 rips (`tools/speckle-rips.py`; 33 structure rips: pooled 0.160 per 100 px, max 0.386). The per-sprite cap is 0.40, and there is a pooled cap per class (structures 0.12). The roster-pooled structure density was 0.197 / 0.243 (DPR 1 / 2) at v1.32, 0.088 / 0.078 at v1.20, and is 0.094 / 0.088 after the fix. The gate fails 54 cells on v1.32. `rts-structure-material.test.js` pins the smooth pass: no lone pixel on a flat face after the snap, and no rivets.
-**Rejected:** a counted "any-speckle" metric (a pixel off 3 of its 4 neighbours). RA2's own dithered texture scores 2.9 per 100 px on it, the same as our noise, so it cannot tell texture from grain. The lone-on-a-flat-ring test does: rips median 0.125, grain 0.2-0.6 per sprite. Also rejected: despeckling after `pixelate()`. It would erase deliberate texture (the reference forbids it) and hide the cause.
-**Not fixed here:** the remaining lone pixels come from DRAWN art or deterministic tone over antialiased strokes. These are the Sentry Gun's mound stipple, 2.19 and unchanged since v1.20; the Spy; the Allied Barracks' plate stripe, 0.41-0.43; and the Cloning Vats at DPR 2, 0.40. Each has a written ceiling in `tools/testkit/data/speckle-allow.json`.
+**Symptom:** "the buildings are full of fuzzy black dots" (user, Safari at DPR 2, game zoom 2). Every structure from v1.21 to v1.32 showed grainy grey noise, lone dark and light dots and short black dashes on flat roofs and walls; v1.20 was flat colour.
+**Cause:** 734a9d4's shared structure material pass (`materialPass`, `rts/bake/buildings.js`) added four things:
+- a per-pixel hash grain (+-2.5%) and a 4-px blotch (+-4.5%);
+- grime streaks down from every lighter lip;
+- scattered "small parts": vents, ladders, pipes, rivet seams and lamps, all built from 1-px dark marks;
+- a 1-px silhouette rim, which lit an isometric staircase every other pixel.
+
+`pixelate()` then snaps each channel to RGB's 51-step grid, so a few percent of wobble near a step became a whole step on isolated pixels. The grime and fittings were black dashes by construction. The MCV's mesh rasterizer had the same kind of per-texel grain. Nothing caught it: every visual golden was re-recorded over it, and no art metric measured noise.
+**Fix:** the pass now adds tone, light and trim only. Grain, blotch, grime and every scattered fitting are gone; real fittings belong in a structure's own draw file, at 2 px or more. The rim is two logical px deep, and the ground plate takes no light. The MCV grain is gone. The target is v1.20's cleanliness with wave 1's steel tone.
+**The gate:** `tools/lib/speckle.js` defines a LONE pixel: its whole 8-ring is uniform (within 20) and it differs from that ring by more than 40 on some channel. It is measured on the logical grid (k = device px per logical px).
+- `tools/testkit/matrices/speckle.js` (T4) runs it on every sprite from `__rtsTables`, at DPR 1 and 2. That covers units over 8 bearings, structures idle and damaged, and civilian buildings: 706 cells.
+- The allowance comes from the RA2 rips (`tools/speckle-rips.py`). The 33 structure rips give pooled 0.160 per 100 px and max 0.386.
+- The per-sprite cap is 0.40. Pooled caps: structures 0.11, damaged structures 0.09 (`tools/testkit/data/speckle-allow.json`).
+- Roster-pooled structure density (DPR 1 / 2): 0.197 / 0.243 at v1.32, 0.088 / 0.078 at v1.20, and 0.086 / 0.088 now. The median is back at v1.20's 0.035.
+- The gate fails 54 cells on v1.32.
+- `rts-structure-material.test.js` pins the pass: after the snap, a flat face has no lone pixel and no 1-px dark mark, and the pass places no fittings.
+
+**The Soviet Power Plant clause:** "exactly one orb between two masses" failed once grime went. The detector found a second "orb": the flat pale landing pad on the footprint, whose centre sits at 86% of the sprite's rows. Grime and fittings had only been breaking the pad's pale area up. The detector was reading ground as structure, so it was fixed: an orb is held up, and its centre must sit in the upper 60% of the opaque rows (`tools/clause-checks/structures.js`). The art was not changed.
+**Rejected:**
+- A counted "any-speckle" metric (a pixel off 3 of its 4 neighbours). RA2's own dithered texture scores 2.9 on it, the same as our noise.
+- Despeckling after `pixelate()`. It would erase deliberate texture and hide the cause.
+- Keeping 2-px grime. It still read as black dashes in the live frame.
+- Snapping to the grid before the tone. The idea was to keep antialiased strokes on one level, but it made the roster worse (0.086 to 0.106).
+
+**Not fixed here:** the remaining lone pixels come from drawn art or from the deterministic tone over antialiased strokes. Each has a written ceiling in `speckle-allow.json`:
+- Sentry Gun mound stipple, 2.19, unchanged since v1.20;
+- the Spy;
+- Allied Barracks, 0.41-0.48;
+- War Factory glass, about 0.40;
+- Cloning Vats, 0.47 at DPR 2.
