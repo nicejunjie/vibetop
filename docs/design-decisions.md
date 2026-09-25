@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_375 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_376 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
 - [Scheduled terminal messages ("resume when the token limit resets")](#scheduled-terminal-messages-resume-when-the-token-limit-resets)
@@ -398,6 +398,7 @@ _375 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [RTS testkit: the full run is bound by its longest cell, so it schedules longest-first — and a soak is not split into windows (2026-09-24)](#rts-testkit-the-full-run-is-bound-by-its-longest-cell-so-it-schedules-longest-first-and-a-soak-is-not-split-into-windows-2026-09-24)
 - [RTS testkit: the AI ladder runs two AIs in ONE game by renaming the frozen one (2026-09-24)](#rts-testkit-the-ai-ladder-runs-two-ais-in-one-game-by-renaming-the-frozen-one-2026-09-24)
 - [RTS e2e: the Alt+click crush contract "failed only in WebKit" because the scene was never still (2026-09-24)](#rts-e2e-the-altclick-crush-contract-failed-only-in-webkit-because-the-scene-was-never-still-2026-09-24)
+- [RTS e2e: the Naval Yard waypoint contract pointed off the map on some random maps (2026-09-24)](#rts-e2e-the-naval-yard-waypoint-contract-pointed-off-the-map-on-some-random-maps-2026-09-24)
 
 <!-- END TOC -->
 
@@ -16863,8 +16864,43 @@ contract nulls the enemy AI first (as U11's does), and asserts the scene
 held (rifleman alive, within 0.5 cells of his spawn) before clicking.
 After: 8/8 WebKit, 6/6 Chromium repeats; full spec 44/44 in WebKit.
 
+The same Chromium failure (`null .x`) is on record in an earlier census
+run's report (wt/fB, 18:29, `desktop-chromium`), which is the proof it
+was never engine-specific.
+
 **Rejected.** Treating it as a Safari Alt-key bug: the failure is before
 the Alt key is pressed (the rifleman is already gone when his position is
 read). Keeping the second evaluate and just re-reading the position: the
 tank still kills him first on a slow run. Making idle tanks stop crushing
 nearby infantry: that is RA2 behaviour and the game's intended rule.
+
+## RTS e2e: the Naval Yard waypoint contract pointed off the map on some random maps (2026-09-24)
+
+**Symptom.** `rts-player.spec.js` "a selected Naval Yard shows the waypoint
+cursor and a click sets its rally" was reported failing under WebKit
+only: the cursor stayed `select` instead of `waypoint`.
+
+**Cause.** A harness defect, map-dependent, in both engines. `stage(page,
+[], 6)` finds a radius-6 clear area on the random map; the contract then
+points at `(c.x+7, c.y+5)`, OUTSIDE that radius, without checking it is on
+the map. When the centre falls within 7 cells of the east edge (measured:
+`c = (105, 41)` and `(105, 7)` on a 112 map, 2 of 16 Chromium matches)
+the target is off the map, `pickCursor`'s rally branch fails
+`inMap(hoverTile)` and the cursor is correctly `select`. The unfixed
+contract failed 1 of 24 Chromium repeats with exactly `Expected
+"waypoint", Received "select"`; it passed 37/37 WebKit repeats on this
+build, so "WebKit-only" was sampling luck. The Barracks NoMove contract
+beside it (`c.x+7`) and the V3 rocket contract (a Power Plant built at
+`c.x+9`) share the hazard.
+
+**Fix.** `stage()` takes a fourth argument `reach`: extra `[dx, dy]`
+cells a scenario will point at or build on. The clear-area search only
+accepts a centre whose reach cells are on the map and unoccupied. The
+three contracts pass their far cells. After: 8/8 WebKit and 8/8 Chromium
+repeats of each; full spec green in both engines.
+
+**Rejected.** Moving the target inside the radius (`c.x+5`): `stage()`
+falls back to radius 5 and 4 when no radius-6 area exists, so the target
+could still be off the map by one. Treating the off-map `select` as a
+game bug: over the black beyond the map edge there is no cell to rally
+to, and `select` is the right cursor.
