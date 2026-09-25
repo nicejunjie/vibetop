@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_382 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_383 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
 - [Scheduled terminal messages ("resume when the token limit resets")](#scheduled-terminal-messages-resume-when-the-token-limit-resets)
@@ -404,6 +404,7 @@ _382 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [RTS: Britain beat the Collective with three Snipers where RA2's AI fields one (2026-09-25)](#rts-britain-beat-the-collective-with-three-snipers-where-ra2s-ai-fields-one-2026-09-25)
 - [RTS: Easy's armyCap blocked its own teams, and RA2 has no army cap (2026-09-25)](#rts-easys-armycap-blocked-its-own-teams-and-ra2-has-no-army-cap-2026-09-25)
 - [RTS: every unit at every difficulty — Easy is weaker by behaviour, never by a locked roster (2026-09-25)](#rts-every-unit-at-every-difficulty-easy-is-weaker-by-behaviour-never-by-a-locked-roster-2026-09-25)
+- [RTS: the Easy/Normal ladder was inverted because Easy mined as much as Normal (2026-09-25)](#rts-the-easynormal-ladder-was-inverted-because-easy-mined-as-much-as-normal-2026-09-25)
 - [RTS: freeing canvas memory costs Playwright WebKit frames, so the structure frame-pack is not shipped (2026-09-25)](#rts-freeing-canvas-memory-costs-playwright-webkit-frames-so-the-structure-frame-pack-is-not-shipped-2026-09-25)
 
 <!-- END TOC -->
@@ -17230,6 +17231,92 @@ after. Easy playing the Collective wins most of them (13-4 before, 14-3
 after). Hard beats Normal 56/56. The Easy < Normal curve needs its own pass.
 The previous entry's "Open" items, `[Difficult]` ROF/Armor for an Easy AI
 and Easy-disabled nation triggers, are now settled by this rule: never.
+
+## RTS: the Easy/Normal ladder was inverted because Easy mined as much as Normal (2026-09-25)
+
+**Symptom.** In AI-vs-AI cross-difficulty matches Easy beat Normal. On
+v1.32.0, 112 cells (7 maps x 4 seeds x both factions x both seat orders,
+rotated countries, 30-min cap): Normal won 17 of 61 decided = 28% [18-40],
+51 undecided. Hard beat Normal 56/56. Normal won 38% in seat 0 and 19% in
+seat 1, and 24% when it played the Directorate against an Easy Collective.
+
+**Cause: Easy's economy was Normal's economy.** Per-side timelines (a
+per-minute sample of both sides of every cell, plus every death tagged with
+where it happened, what killed it and which team the unit belonged to):
+
+| mean over 112 cells | Easy 10:00 | Normal 10:00 | Easy 15:00 | Normal 15:00 |
+|---|---|---|---|---|
+| miners / refineries | 3.9 / 2.0 | 4.3 / 2.2 | 3.9 / 2.0 | 4.3 / 2.2 |
+| bank | $1.3-3.8k | $0.5-0.7k | $1.1-6.1k | $0.7-1.3k |
+| defence value | $4.3-7.6k | $2.9-7.6k | $4.6-8.1k | $3.8-10.3k |
+| units lost before 15:00 | | | 101 | 137 |
+
+(ranges are the two faction pairings). Both sides mined the same, because
+the AI ran `HarvestersPerRefinery=2` at every difficulty and Normal's
+`expand` appetite is capped by the reachable ore at two refineries on most
+maps. Easy's slower lanes (`buildMul`, one factory) could not spend that
+income, so it banked it and the bank went into towers. Normal spent
+everything on units and attacked from ~6:00 with task forces of five topped
+up to twelve. 102 of Normal's losses per match before 15:00 were at Easy's
+base (77 of them in attack teams, 17 scouts), against Easy's 42 at Normal's.
+The exchange was about 2.3:1 for the defender either way, so the side that
+attacked more lost, and with equal income nothing made up for it.
+
+**Fix.** RA2's own row: `[General] HarvestersPerRefinery=2,2,1` (hardest
+first) — the Easy AI runs one miner a refinery. `DIFF.easy.harvPer: 1`;
+ai.js `aiProduce` wants `harvPer x refineries`, and the two "a dying
+economy" floors (`harv < 2`: the eco posture, and the credit hold for a
+miner) read `min(2, harvPer)` so an Easy base on one refinery and its one
+miner is not stuck in 'eco'. An economy knob, so the user rule holds: no
+unit, structure or superweapon is locked or re-statted
+(`rts-difficulty-parity.test.js` lists `harvPer` as a behaviour key). Test:
+`rts-ai-curve.test.js` "Easy runs one miner a refinery, Normal two" — two
+refineries and money: Easy 2 miners, Normal 4. Red on 8be9fbf (Easy built
+4), green after.
+
+**A/B.** 112 Easy-vs-Normal cells (7 maps x 4 seeds x both factions x both seat
+orders, rotated countries) and 56 Normal-vs-Hard cells (2 seeds), 30-min cap:
+
+| cross-difficulty | before (v1.32.0) | after |
+|---|---|---|
+| Normal beats Easy (decided) | 17/61 = 28% [18-40], 51 undecided | 46/64 = 72% [60-81], 48 undecided |
+| ... Normal as the Directorate | 8/34 = 24% [12-40] | 19/32 = 59% [42-74] |
+| ... Normal as the Collective | 9/27 = 33% [19-52] | 27/32 = 84% [68-93] |
+| ... Normal in seat 0 / seat 1 | 38% / 19% | 81% / 59% |
+| Normal vs Easy, match length median of decided | 21.4 min | 13.8 min |
+| Hard beats Normal (decided) | 56/56 = 100% [94-100] | 56/56 = 100% [94-100] (identical) |
+
+Mirrored cells (252: 7 maps x 6 seeds x Easy/Normal/Hard x both seat
+orders): @@MIRROR@@
+
+Easy is poorer, so it techs less: sides fielding any tier-3 unit 70% ->
+27%, a superweapon built 11% -> 3% (median 20.8 -> 24.7 min). Every unit
+and superweapon stays available to it (the parity test is green); it
+reaches them later because it has half the miners, which is the RA2 row.
+Easy's opening knobs (`openMin`/`openJit`/`wave`/`attackTeams`) are
+unchanged and it is strictly poorer, so it is no more aggressive; the
+idle-seat opening matrix and a human playtest were NOT run.
+
+**Rejected (each run on the same 112 Easy-vs-Normal cells, Normal's decided
+win rate against 28% [18-40] before):**
+- Reinforce only a siege team under the siege posture, and count every
+  joiner into `n0` so the `give` retreat can trip on a topped-up spearhead:
+  27% and 24%. The reinforcement stream is real but is not the lever.
+- Normal `wave: 999` (mass like Hard): 40% [29-53]. Normal `give: 0.75`:
+  22%. The count fallback weighing the defence line (`+ dv * 0.3`): 27%.
+- Normal `focus: false`: 22%. Normal at Easy's `react`/`apm`: 23%.
+- Scouts turn back once they see a structure or are hit: 22%. It removed
+  the 17 scout deaths a match and changed nothing else.
+- Normal's first attack floor 5:00 -> 9:00: 34% [24-46]. A stricter attack
+  edge for Normal (1.3x their army + their whole defence line): 37% [26-50].
+- A third refinery for Normal (RA2 `AIExtraRefineries=2,1,0`) on top of the
+  fix: 71%, the same as the fix alone, so it is not shipped.
+
+**Also checked: the harness.** `dr.js`/`__rtsSim` give each seat its own
+`newAI(diff)`; `g.diff` is read only by save/replay/hooks; no `P_HUMAN`/`ME`
+branch touches AI play (debug-only bank, cosmetic EVA lines, crate reveal).
+The seat-0 edge in these cells (Normal 38% vs 19% by seat) is inside what
+the mirrored cells show for every difficulty (seat 0 wins 53-63%).
 
 ### RTS test runner: leftover static servers squatted the Playwright ports ("0 tests")
 
