@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_366 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_367 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
 - [Scheduled terminal messages ("resume when the token limit resets")](#scheduled-terminal-messages-resume-when-the-token-limit-resets)
@@ -389,6 +389,7 @@ _366 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [RTS: a player's order and the AI's share enqueue(), so the one-at-a-time rule sits in the command (2026-09-24)](#rts-a-players-order-and-the-ais-share-enqueue-so-the-one-at-a-time-rule-sits-in-the-command-2026-09-24)
 - [RTS wave 8 (group E): Burst rounds are separate hits, and RA2's nuke does not flatten a Power Plant (2026-09-24)](#rts-wave-8-group-e-burst-rounds-are-separate-hits-and-ra2s-nuke-does-not-flatten-a-power-plant-2026-09-24)
 - [RTS testkit: the full run is bound by its longest cell, so it schedules longest-first — and a soak is not split into windows (2026-09-24)](#rts-testkit-the-full-run-is-bound-by-its-longest-cell-so-it-schedules-longest-first-and-a-soak-is-not-split-into-windows-2026-09-24)
+- [RTS testkit: the AI ladder runs two AIs in ONE game by renaming the frozen one (2026-09-24)](#rts-testkit-the-ai-ladder-runs-two-ais-in-one-game-by-renaming-the-frozen-one-2026-09-24)
 
 <!-- END TOC -->
 
@@ -16495,3 +16496,30 @@ without checks costs the same simulation (the invariant checks are about
 a third of a soak's time, measured: 3.3 s of 9.1 s over 8 game-minutes).
 Windows only help packing when a run is work-bound, and at 16 jobs an
 idle run is critical-path-bound.
+
+## RTS testkit: the AI ladder runs two AIs in ONE game by renaming the frozen one (2026-09-24)
+
+**Symptom.** An AI change was judged by AI-vs-AI soaks of the NEW AI
+against itself, which cannot say whether it got worse: both seats move
+together.
+
+**Cause.** The game is 117 classic scripts in one scope; there is exactly
+one `stepAI`, so a match cannot hold two versions of the AI.
+
+**Fix.** `tools/testkit/lib/ai-ladder.js` takes rts/ai.js at a pinned
+commit (`BASELINE`, v1.28.0's c0d2e68), suffixes every top-level name it
+declares with `__B` (declarations and whole-word uses, not `.prop`
+accesses), inserts it after the candidate's ai.js in the bundle, and
+rewrites net.js's single call site so the seat in
+`window.__ladderBaseSeat` calls `stepAI__B` / `aiFoe__B` from tick 0.
+Each seed plays twice with the seats swapped, which also proves the
+wiring: with an unchanged AI every pair scores exactly 1 + 0. The gate is
+an SPRT (H0 p=0.42, H1 p=0.5, alpha=beta=0.05) with a Wilson-interval
+fallback. The ladder has cells only when asked for (~400 games).
+
+**Rejected.** Pinning the whole bundle at the baseline commit and playing
+the two builds against each other over LoopbackNet: the rules, pathing and
+combat would differ between the seats, so a rules fix would read as an AI
+regression. Setting the baseline flag on the AI object from the first
+`every` callback: the baseline seat ran the candidate for the first 120
+ticks.
