@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_372 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_374 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
 - [Scheduled terminal messages ("resume when the token limit resets")](#scheduled-terminal-messages-resume-when-the-token-limit-resets)
@@ -395,6 +395,8 @@ _372 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [RTS: vm tests had never baked an infantry frame (2026-09-24)](#rts-vm-tests-had-never-baked-an-infantry-frame-2026-09-24)
 - [RTS: a city district needs mirrored BLOCKS, not just mirrored lots, and a garrison cap (2026-09-24)](#rts-a-city-district-needs-mirrored-blocks-not-just-mirrored-lots-and-a-garrison-cap-2026-09-24)
 - [RTS: superweapon presentation is drawn from sim state, and tested through the real render() (2026-09-24)](#rts-superweapon-presentation-is-drawn-from-sim-state-and-tested-through-the-real-render-2026-09-24)
+- [RTS testkit: the full run is bound by its longest cell, so it schedules longest-first — and a soak is not split into windows (2026-09-24)](#rts-testkit-the-full-run-is-bound-by-its-longest-cell-so-it-schedules-longest-first-and-a-soak-is-not-split-into-windows-2026-09-24)
+- [RTS testkit: the AI ladder runs two AIs in ONE game by renaming the frozen one (2026-09-24)](#rts-testkit-the-ai-ladder-runs-two-ais-in-one-game-by-renaming-the-frozen-one-2026-09-24)
 
 <!-- END TOC -->
 
@@ -16767,3 +16769,62 @@ out) so it enters from off-screen within the fixed run-in. Drawing the
 storm deck from baked puffs at their own size: `PUFF_R` tops out at 30 px,
 so seventy of them read as beads; `puffBig` scales the largest one on
 whole pixels instead.
+
+## RTS testkit: the full run is bound by its longest cell, so it schedules longest-first — and a soak is not split into windows (2026-09-24)
+
+**Symptom.** On an idle 16-core/32-thread 9950X the T1 tier took ~155 s
+at 16, 24 and 32 jobs alike, and T2 ~240 s. More cores bought nothing.
+
+**Cause.** The pool started jobs by `weight x timeout`, so every default
+shard ranked equal and the long cells started wherever enumeration left
+them. Default shards were 40 cells in a row, which put all nine countries
+AI matches (~140 s each on the idle host) into ONE process. The tier's
+critical path was that shard, not the core count.
+
+**Fix.** Every run records each cell's wall time in
+`<report>/durations.json`; the committed seed is
+`tools/testkit/data/durations.json` (`--save-durations` refreshes it).
+`plan()` packs default shards by estimated work (<= 30 s, <= `recycle`
+cells), and starts jobs longest-first (LPT). `test-all.js --plan` prints
+the predicted wall time from the pool's own greedy rule (`simulate()`).
+The countries AI cell stops at the first minute its monotone oracle
+("fields X within 15 min") holds: 140 s -> 12-47 s. Default `--jobs` is
+16; the browser pool's is 12 (`pw-pool.js BROWSER_JOBS`).
+
+**Rejected.** Splitting a soak into time windows with the saved state
+handed between them. Window k starts from window k-1's end state, so the
+chain is exactly as long as the soak: the critical path does not move.
+Starting windows in parallel needs the minute-10 state before the
+minute-0 window has produced it — i.e. a state cached from an earlier
+BUILD, which tests a trajectory this build never plays. A fast-forward
+without checks costs the same simulation (the invariant checks are about
+a third of a soak's time, measured: 3.3 s of 9.1 s over 8 game-minutes).
+Windows only help packing when a run is work-bound, and at 16 jobs an
+idle run is critical-path-bound.
+
+## RTS testkit: the AI ladder runs two AIs in ONE game by renaming the frozen one (2026-09-24)
+
+**Symptom.** An AI change was judged by AI-vs-AI soaks of the NEW AI
+against itself, which cannot say whether it got worse: both seats move
+together.
+
+**Cause.** The game is 117 classic scripts in one scope; there is exactly
+one `stepAI`, so a match cannot hold two versions of the AI.
+
+**Fix.** `tools/testkit/lib/ai-ladder.js` takes rts/ai.js at a pinned
+commit (`BASELINE`, v1.28.0's c0d2e68), suffixes every top-level name it
+declares with `__B` (declarations and whole-word uses, not `.prop`
+accesses), inserts it after the candidate's ai.js in the bundle, and
+rewrites net.js's single call site so the seat in
+`window.__ladderBaseSeat` calls `stepAI__B` / `aiFoe__B` from tick 0.
+Each seed plays twice with the seats swapped, which also proves the
+wiring: with an unchanged AI every pair scores exactly 1 + 0. The gate is
+an SPRT (H0 p=0.42, H1 p=0.5, alpha=beta=0.05) with a Wilson-interval
+fallback. The ladder has cells only when asked for (~400 games).
+
+**Rejected.** Pinning the whole bundle at the baseline commit and playing
+the two builds against each other over LoopbackNet: the rules, pathing and
+combat would differ between the seats, so a rules fix would read as an AI
+regression. Setting the baseline flag on the AI object from the first
+`every` callback: the baseline seat ran the candidate for the first 120
+ticks.
