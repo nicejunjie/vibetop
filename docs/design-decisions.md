@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_383 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_384 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
 - [Scheduled terminal messages ("resume when the token limit resets")](#scheduled-terminal-messages-resume-when-the-token-limit-resets)
@@ -406,6 +406,7 @@ _383 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [RTS: every unit at every difficulty — Easy is weaker by behaviour, never by a locked roster (2026-09-25)](#rts-every-unit-at-every-difficulty-easy-is-weaker-by-behaviour-never-by-a-locked-roster-2026-09-25)
 - [RTS: the Easy/Normal ladder was inverted because Easy mined as much as Normal (2026-09-25)](#rts-the-easynormal-ladder-was-inverted-because-easy-mined-as-much-as-normal-2026-09-25)
 - [RTS: freeing canvas memory costs Playwright WebKit frames, so the structure frame-pack is not shipped (2026-09-25)](#rts-freeing-canvas-memory-costs-playwright-webkit-frames-so-the-structure-frame-pack-is-not-shipped-2026-09-25)
+- [RTS: the Gap Generator was drawn from a pre-release alpha screenshot, and its snow caps became white balloons (2026-09-25)](#rts-the-gap-generator-was-drawn-from-a-pre-release-alpha-screenshot-and-its-snow-caps-became-white-balloons-2026-09-25)
 
 <!-- END TOC -->
 
@@ -17607,3 +17608,11 @@ was **not measured**, so nothing here shows it has none either.
 **Not done:** the attack dog. A 2x bake fixed it visually, but its un-snapped blended fur raised art-metrics `hue.maxImpostor` from 0.2488 to 0.3079 (a ratchet regression), so it is a recorded exception (census P05) until the downsample can stay on the palette.
 **Rejected:** an absolute stipple bar against the RA2 rips, because RA2's dithered rips score 0.2-2.2, above the broken bakes. Lowering `pixelate()`'s alpha cut would make the whole silhouette soft at every DPR. Letting the browser downsample at draw time would still need hi canvases held permanently (4x the memory), and the main canvas draws unsmoothed, which drops half the thin lines. 2x-and-downsample for the never-pixelated ore, civilian and tree sheets changed nothing visible (ore 0.209 -> 0.186), so it was reverted, and their 19 sprites are recorded exceptions.
 
+
+## RTS: the Gap Generator was drawn from a pre-release alpha screenshot, and its snow caps became white balloons (2026-09-25)
+
+**Symptom:** the user: "I hate the gap generator's shape, not match ra2, those white balloons look stupid." The tower was 75x86 (h/w 1.15), with a ring of five big white spheres round its foot, a waisted column, two house collars and four black talons.
+**Cause:** the art, its comment and its two clause rows (`[dir] exactly 4 talons…`, `[dir] exactly 2 house collar rings and nothing else remapped`) were all written from `CNCRA2 Gap Generator alpha.png` on the C&C wiki. That file is a PRE-RELEASE build standing on snow; its base lobes carry snow caps. The unit-identity row even said the plate and the rip "agree independently", but both came from the same alpha image. The retail sprite (`Gapgenerator2.jpg`, already in `docs/ra2-ref/sprites/library/gapgen-dir.jpg`, and `Gap generator in Snow Theater.jpg`) is a different design: a squat drum of barrel tanks in vertical house staves, a slim braced column, ONE house collar, and a crown of black-framed prongs with AMBER faces, h/w about 2.43.
+**Fix:** `rts/units/structures/gapgen.js` was redrawn from the two retail rips. Every cylinder is drawn as lit vertical facets, so no face is flat grey. Three pods carry alternating house and dark staves. There is one house collar, and two amber blades pulse as the idle animation. The clause rows in `tools/clause-checks/structures.js` and the §2.7 row in `unit-identity-reference.md` now describe the retail tower: amber crown, staves plus one collar, no pale foot. All three fail on the old art and pass on the new. `rts-gapgen-shape.test.js` pins "no round near-white fills", h/w within 8% of 2.43, and house colour both low and high, using a recording canvas on the real draw code.
+**Rejected:** keeping the alpha design and only darkening the spheres. The retail silhouette is a different object, not the same one repainted. Also rejected: counting the retail crown's dark prongs the way the old talon row did. The amber faces are the tell both retail rips agree on, while the black frames merge with the mast and the collar shadow.
+**Note:** the visual goldens stage a bare match with no power, so the golden crops and the look sheet show every power consumer desaturated as UNPOWERED. A grey gap generator there is the harness state, not the art.
