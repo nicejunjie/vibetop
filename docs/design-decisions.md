@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_386 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_387 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
 - [Scheduled terminal messages ("resume when the token limit resets")](#scheduled-terminal-messages-resume-when-the-token-limit-resets)
@@ -409,6 +409,7 @@ _386 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [RTS: the Gap Generator was drawn from a pre-release alpha screenshot, and its snow caps became white balloons (2026-09-25)](#rts-the-gap-generator-was-drawn-from-a-pre-release-alpha-screenshot-and-its-snow-caps-became-white-balloons-2026-09-25)
 - [RTS: the Prism Tower's head was drawn as an umbrella, from a doc row, not the rip (2026-09-25)](#rts-the-prism-towers-head-was-drawn-as-an-umbrella-from-a-doc-row-not-the-rip-2026-09-25)
 - [RTS: the Grand Cannon's gun was too short and it fired like a rifle (2026-09-25)](#rts-the-grand-cannons-gun-was-too-short-and-it-fired-like-a-rifle-2026-09-25)
+- [RTS: the Prism Tower was drawn from a DAMAGED frame (w26, 2026-09-26)](#rts-the-prism-tower-was-drawn-from-a-damaged-frame-w26-2026-09-26)
 
 <!-- END TOC -->
 
@@ -17721,3 +17722,11 @@ Exception keys are exact unless they end in '/'. The ore / gem / rock-mass prefi
 **Rejected:**
 - A baked recoil frame per bearing: 32 more bakes for a 10-tick effect.
 - Offsetting the whole sprite: that moves the star and its pads too, so the emplacement slides instead of the gun recoiling.
+
+
+## RTS: the Prism Tower was drawn from a DAMAGED frame (w26, 2026-09-26)
+
+**Symptom:** the user: "you chose a broken prism tower as reference, use this one" (MO2-Allprismtower.png, four intact towers on grass). Our tower wore a leaning (then a centred but still fan-shaped) plate cluster over two stacked banded rings, an olive ground ring and a round silver drum.
+**Cause:** `docs/ra2-ref/sprites/prism-tower.png` is `C&C-RA2-ggprisdm.gif` — `dm` = damaged. Its head is knocked over, which is where the w18 lean, the fan shape and the house figure of 31% (the animated gif's build-up and damage frames) all came from. Nobody asked what the file name meant.
+**Fix:** `rts/units/structures/prism.js` completely redrawn from the intact tower, saved as `docs/ra2-ref/sprites/prism-dir-ingame.png` (tower ~44x102, h/w 2.32), with a part-by-part reading in its comment block: octagonal steel plinth, four house buttress wedges, a house door panel, a pale deck ring, four silver struts round a dark conduit, a dark collar with gold bolt-lamps, a grey capital with a house band, copper supports, and an UPRIGHT symmetric crown of vertical mirror plates round a dark interior. No outlines (planes by value), every mark opaque. `PRISM_HEAD_DY` 86 -> 80 (the crown's middle) and the matching `oz` literals in `combat.js`. `prism-tower.png` is marked DAMAGED in the sprites README, not deleted. `rts-prism-art.test.js` and the prism clause rows re-derived from the intact tower (house ~19%, crown >= 0.26 Sh, a near-black ceiling); `art-metrics.js`'s `prism:dir` bbox row is now 44x102.
+**Rejected:** re-picking a "better" frame from the same gif — every frame of `ggprisdm` is a damage frame.
