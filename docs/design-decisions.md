@@ -17607,3 +17607,52 @@ was **not measured**, so nothing here shows it has none either.
 **Not done:** the attack dog. A 2x bake fixed it visually, but its un-snapped blended fur raised art-metrics `hue.maxImpostor` from 0.2488 to 0.3079 (a ratchet regression), so it is a recorded exception (census P05) until the downsample can stay on the palette.
 **Rejected:** an absolute stipple bar against the RA2 rips, because RA2's dithered rips score 0.2-2.2, above the broken bakes. Lowering `pixelate()`'s alpha cut would make the whole silhouette soft at every DPR. Letting the browser downsample at draw time would still need hi canvases held permanently (4x the memory), and the main canvas draws unsmoothed, which drops half the thin lines. 2x-and-downsample for the never-pixelated ore, civilian and tree sheets changed nothing visible (ore 0.209 -> 0.186), so it was reverted, and their 19 sprites are recorded exceptions.
 
+
+### RTS: sidebar cameos soft at devicePixelRatio 1 (census P06, 2026-09-25)
+
+**Symptom:** on the user's DPR-1 Safari the sidebar plates were soft. The Tesla Coil's arc, the Shipyard crane and the Patriot's rails went to mush, and the APC, the gates and the ships were blurry (w16 audit, finding 2).
+**Cause:** `cameoFor()` always built a 120x96 bitmap for a 60x48 box, from the atlas frame. Below DPR 2 that frame is the 1x copy box-filtered from the 2x bake, so the plate was resampled three times: the box filter to 1x, a nearest enlargement into the 120x96 plate, and the browser's own 2:1 shrink on screen.
+**Fix:** `rts/ui/panel.js`:
+- The plate bitmap is display-sized (`cameoK()` = min(2, DPR)), and so is the caption layer.
+- Below DPR 2, `cameoHiSrc()` rebakes the one frame with the downsample held (`BAKE_HOLD` in `bake/terrain.js`). That is the same baker on the same inputs, so the source is the DPR-2 art. The art RNG is saved and restored. The crop box still comes from the atlas frame, so the framing does not move.
+- `cameoAreaDraw()` resamples the crop ONCE onto the plate's own pixels, area-weighted with exact fractional coverage. Crisp 1x infantry and vehicles grow as hard blocks with one blended seam, which is exactly the DPR-2 plate seen on a DPR-1 screen.
+- DPR 2 takes the old `drawImage` path and is byte-identical (screenshot compared).
+**Gate:** the new T4 matrix `cameo` (`tools/cameo-sharp.js`) screenshots every census plate at its CSS size in WebKit. The census is generated from `__rtsTables` (both factions, every structure and unit), and a coverage cell proves it holds every plate `panelListFor` can show. Each plate gets a cell at DPR 1 and at DPR 2. The oracle is a display-sized bitmap plus sharpness (mean luminance gradient at 60x48) of at least 0.87 x the DPR-2 plate's (DPR 2: 1 +- 0.01). On the old code all 91 DPR-1 cells are red: 17 are under the sharpness floor as well (APC 0.69, gates 0.75, walls 0.75-0.78, Pillbox 0.77, ships 0.82-0.84, MCVs 0.84). After the fix all 183 cells are green, and the lowest ratio is 0.896. Mutants `cameo-plate-2x` (91 red) and `cameo-1x-source` (6 red) are killed.
+**Rejected:**
+- `drawImage` of the 2x source with smoothing. At a 0.6 scale bilinear samples 2x2 taps and skips the other pixels, so it aliased: 1.24-1.41x the DPR-2 plate's gradient, with a fidelity error up to 11.
+- Snapping the destination rect to whole pixels. It shifted crisp sprites by half a pixel.
+- An unsharp mask. It would put detail on the plate that the art does not have.
+The Tesla arc and the crane lattice are 1-px strokes at 2x, so at 0.6x they are half-tone at best. RA2 paints its plates AT 60x48, and that is the limit of drawing the plate from the sprite.
+
+### RTS: the stipple census left whole classes ungated (census P07, 2026-09-25)
+
+**Symptom:** the w16 audit found that the speckle/stipple census measured only the stand pose, only 2 of the 8 house colours, no civilian lit frames, no cliffs, cursors, HUD icons, cameos or minimap, and waved whole ore / gem / rock-mass prefixes through.
+**Cause:** the census had been written around the atlas walk. A cliff bank is a seam-keyed baker (`cliffBank().get`), not a sprite, so the walk skipped it: the audit's "cliffs pooled into effect" was wrong, because cliffs were not measured at all. Exception keys matched by `startsWith`, so `spr=road/urban/1` silently excused roads 10 and 11 too.
+**Fix:** `tools/speckle.js --all` now:
+- bakes all 8 HOUSE colours the way an N-seat match does (`applyHouse`), with owners 0 and 1 unchanged;
+- measures every infantry and dog sequence (INF_SEQ, INF_DIE_SEQ, DOG_SEQ) x 8 bearings x every phase, as class `infantry-pose`;
+- measures every civilian `lit` frame;
+- measures cliffs as class `cliff`: every theatre x mask x variant, with the seam the game's own `cliffSeams()` gives a cell;
+- measures cursors (every kind x frame), HUD icons (tab glyphs and the paradrop canopy), every census cameo, and a live `drawMini()` frame.
+Exception keys are exact unless they end in '/'. The ore / gem / rock-mass prefixes became 11 named sprites, each with its measured value and reason. The rows over parity that the wider census found are recorded by name with reasons: 5 cameos (looked at 1:1 and 3x), 3 snow cliffs, and 18 owner-2..7 gate rows (the same bars as the owner-0/1 exceptions). The cliffs and the recoloured gates were NOT looked at in this pass. New coverage cells `speckle/stipple=coverage/axis=owners|poses` check the census's own axes. The existing classes cell (extra OR missing class) now lists the six new classes, so dropping any of them is red.
+**Proof:** before its exception, each of those rows was red (listed in the w17 report). Three coverage mutants are killed: `speckle-census-two-colours`, `speckle-census-no-cursors` and `speckle-census-one-pose`.
+**Not done:** HUD power and credit bars (drawn per frame, not baked).
+
+### RTS: the attack dog muddy with a dark rim at DPR 1 (census P05, 2026-09-25)
+
+**Symptom:** at DPR 1 the dog had a dark rim and a muddy coat against its DPR-2 look.
+**Cause:** it was the one pixelated sprite still baked at native DPR. A 2x bake with a plain box downsample fixed the look, but the unsnapped 2x2 means invented fur tones and made it the game's worst hue impostor (art-metrics `hue.maxImpostor` 0.2488 -> 0.3079).
+**Fix:**
+- `bakeDownsample(s, true)` snaps each opaque 1x pixel to one of the colours the 2x bake put UNDER it. The colour covering most of the pixel wins, a tie goes to the more saturated colour, and a strongly coloured part covering a quarter of the pixel keeps it. Alpha is left exactly as the box filter set it.
+- The dog bakes on `unitCanvas(true)`.
+- The ear tip moved from -5.0 to -4.5, because at 2x the last half-pixel of the tip survived and made the dog 28x26 against RA2's [ADOG] 21x15.
+**Result:**
+- The dog left the impostor list (0.2488 -> 0.139), and `hue.maxImpostor` fell to 0.2422 (the Conscript).
+- The aspect band stays at 3.
+- `hue.infantryOwnerMean` 0.1722 -> 0.1707: the dog's owner share went 0.084 -> 0.059, because the local snap no longer smears harness blue into the coat.
+- `iou.infantry.mean` 0.4682 -> 0.4698 and `colour.infantry.meanDist` 1.0343 -> 1.0342, both re-recorded.
+- The stipple exception `unit=dog/` narrowed from 3.5 to 1.55. The worst is the walk pose at 1.37. Stand is now 1.08 (Chromium); the w16 audit measured 1.24 (WebKit).
+**Rejected:**
+- A GLOBAL nearest-palette snap: it turned the legs maroon.
+- Nearest-to-mean among the local colours: it thinned the harness.
+- The unsnapped box: the impostor problem above.
