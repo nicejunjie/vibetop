@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_385 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_386 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
 - [Scheduled terminal messages ("resume when the token limit resets")](#scheduled-terminal-messages-resume-when-the-token-limit-resets)
@@ -408,6 +408,7 @@ _385 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [RTS: freeing canvas memory costs Playwright WebKit frames, so the structure frame-pack is not shipped (2026-09-25)](#rts-freeing-canvas-memory-costs-playwright-webkit-frames-so-the-structure-frame-pack-is-not-shipped-2026-09-25)
 - [RTS: the Gap Generator was drawn from a pre-release alpha screenshot, and its snow caps became white balloons (2026-09-25)](#rts-the-gap-generator-was-drawn-from-a-pre-release-alpha-screenshot-and-its-snow-caps-became-white-balloons-2026-09-25)
 - [RTS: the Prism Tower's head was drawn as an umbrella, from a doc row, not the rip (2026-09-25)](#rts-the-prism-towers-head-was-drawn-as-an-umbrella-from-a-doc-row-not-the-rip-2026-09-25)
+- [RTS: the Grand Cannon's gun was too short and it fired like a rifle (2026-09-25)](#rts-the-grand-cannons-gun-was-too-short-and-it-fired-like-a-rifle-2026-09-25)
 
 <!-- END TOC -->
 
@@ -17707,3 +17708,16 @@ Exception keys are exact unless they end in '/'. The ore / gem / rock-mass prefi
 **Fix:** `rts/units/structures/prism.js` redrawn from the rip, as lit vertical facets (the drum in two bands so the 6-level snap cannot flatten it to one grey, r == g == b so it cannot tint lavender), every mark opaque and >= 1.5 px (DPR-1 speckle on the idle sprite 2 -> 0). The head's offset is `PRISM_HEAD_DX/DY` (-14, 86), and `render.js` now fires the beam, the support link and the charge glow from it instead of the footprint centre. The clause row that compared crown WIDTH to the Tesla Coil was replaced by a LEAN row (head centre <= -0.12 `Sw` from the foot; rip -0.246, ours -0.204): the rip itself failed the width row under the clause code's own blob read (0.75 vs 0.82). `rts-prism-art.test.js` pins the shape on the real draw code (h/w within 8% of 1.82, >= 3 near-white plates in the top third, a wide left-leaning head, a neutral silver drum, house low and high, nothing translucent but the shadow): 16 of 24 red on the old art, 24/24 on the new.
 **Rejected:** keeping the width-vs-Tesla row and widening the head to pass it. That would make the head wider than RA2's to satisfy a row written for the wrong shape.
 
+
+## RTS: the Grand Cannon's gun was too short and it fired like a rifle (2026-09-25)
+
+**Symptom:** the user, on v1.35.0: "grandcanon的炮管不够长" (the barrel is not long enough) and "它打炮时的动画做了么？之前就是枪的动画一样" (is its firing animation done? it looks like a gun's). The shot was a small grey ellipse on an arc and one faint grey puff; the muzzle stopped level with the right-hand arm pad.
+**Cause:** the previous redraw held the gun to the rip's proportion (`grand-cannon.png`, 113x74 = 1.53) because of the aspect clause row, and the firing path had no muzzle blast, no recoil and no tracer. The impact was the family-2 blast (size 26). The sound was already the heavy `gcannon` synth (`REPORT.grandcannon`), not small arms.
+**Fix:**
+- **User decision 2026-09-25: barrel longer than the rip's.** `GC_TIP` 1.60 -> 1.98 (~1.45x the exposed length past the mantlet), with a thicker jacket, tube and muzzle brake and a heavier mantlet. `grandcannonMuzzle()` follows automatically. `bakeBuilding` gives the Grand Cannon `pad = 40` so no bearing touches the canvas edge (0 of 32).
+- The clause rows in `tools/clause-checks/structures.js` now state OUR intent: w/h within 8% of 1.72 (153x89) and "the gun overhangs the right-hand pad by >= 0.12 Sw" (0.19). The grandcannon detail rows in `docs/art-baseline.json` were re-recorded with that reason; no headline metric moved.
+- `combat.js` (render-only, under `!headless`): a `gcflash` fx at the muzzle for 4 ticks, oriented along the barrel; a four-puff plume that drifts for ~1 s; `src.gcFireT` for the recoil; at the impact the biggest blast family (size 36), a `gcring` dust ring, seven debris chunks, a smoke column and the crater.
+- `render.js`: the shell gets a hot tracer and a flash-sprite glow; `drawBuilding` redraws the turret half (above the turret floor) shifted back along the gun for ~10 ticks. Two clipped blits, no baked recoil frames. All of it is baked sprites (SPR.flash, puffs, expl families), with no per-frame gradients, and it goes through `tileSeen` like every other fx.
+**Rejected:**
+- A baked recoil frame per bearing: 32 more bakes for a 10-tick effect.
+- Offsetting the whole sprite: that moves the star and its pads too, so the emplacement slides instead of the gun recoiling.
