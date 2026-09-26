@@ -3,6 +3,8 @@ from conftest import ANON
 POST /api/browser/open, /api/x/launch, /api/x/activate, /api/x/close,
 GET /api/x/windows. su/chromium/wmctrl are stubbed."""
 import types
+import os
+import subprocess
 
 
 def _wmctrl_result(returncode=0, stdout=""):
@@ -16,6 +18,42 @@ def test_browser_open_valid_url(client, stubs, op_cookie):
                                cookie=op_cookie)
     assert status == 200 and body["url"] == "https://example.com/x"
     assert stubs["popen"]                      # a chromium su -c was launched
+
+
+def test_browser_open_waits_for_chromium_window(mgr, tmp_path):
+    """A cold xpra display must not give the URL to Chromium before it is ready."""
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    attempts = tmp_path / "attempts"
+    opened = tmp_path / "opened"
+    xdotool = bin_dir / "xdotool"
+    xdotool.write_text(
+        f'#!/bin/sh\nn=$(cat "{attempts}" 2>/dev/null || echo 0)\n'
+        f'n=$((n+1)); echo "$n" > "{attempts}"\n'
+        '[ "$n" -ge 3 ]\n'
+    )
+    xdotool.chmod(0o755)
+    chrome = bin_dir / "chromium"
+    chrome.write_text(f'#!/bin/sh\nprintf "%s\\n" "$@" > "{opened}"\n')
+    chrome.chmod(0o755)
+    cmd = mgr._browser_url_command(1000, 200, str(chrome), str(tmp_path / "profile"),
+                                   "https://example.com/cold-start")
+    result = subprocess.run(["sh", "-c", cmd],
+                            env={**os.environ, "PATH": str(bin_dir) + ":" + os.environ["PATH"]},
+                            capture_output=True, text=True, timeout=5)
+    assert result.returncode == 0, result.stderr
+    assert attempts.read_text().strip() == "3"
+    assert opened.read_text().splitlines()[-1] == "https://example.com/cold-start"
+
+
+def test_browser_open_reports_display_start_failure(client, mgr, monkeypatch, stubs,
+                                                    op_cookie):
+    monkeypatch.setattr(mgr.Handler, "_ensure_user_xpra", lambda self, user, kind: None)
+    status, body = client.post("/api/browser/open", {"url": "https://example.com"},
+                               cookie=op_cookie)
+    assert status == 503
+    assert body["error"] == "browser display could not start"
+    assert not stubs["popen"]
 
 
 def test_browser_open_requires_session(client, stubs):

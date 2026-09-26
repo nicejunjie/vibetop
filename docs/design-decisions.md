@@ -21,8 +21,9 @@ and why it lost).
 
 ## Contents
 
-_387 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_388 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
+- [Terminal link opened a closed Browser app but lost the URL](#terminal-link-opened-a-closed-browser-app-but-lost-the-url)
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
 - [Scheduled terminal messages ("resume when the token limit resets")](#scheduled-terminal-messages-resume-when-the-token-limit-resets)
 - [A terminal loops "loading / disconnect / reconnect" forever on a thin link (in-flight WiFi)](#a-terminal-loops-loading-disconnect-reconnect-forever-on-a-thin-link-in-flight-wifi)
@@ -412,6 +413,25 @@ _387 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [RTS: the Prism Tower was drawn from a DAMAGED frame (w26, 2026-09-26)](#rts-the-prism-tower-was-drawn-from-a-damaged-frame-w26-2026-09-26)
 
 <!-- END TOC -->
+
+## Terminal link opened a closed Browser app but lost the URL
+
+*Symptom:* Clicking a terminal URL while Browser was closed opened the Browser
+app, but Chromium showed its previous page or start page. The same link worked
+once Browser was already open.
+
+*Cause:* xpra's HTTP port can start answering before its `browser-loop.sh` child
+has launched Chromium. `/api/browser/open` used that port readiness as permission
+to run a second `chromium <url>` against the same profile. The handoff could run
+before Chromium's singleton and profile lock were ready, leaving the URL behind.
+
+*Fix:* The handoff child waits for a visible Chromium window on the user's xpra
+display before invoking `chromium <url>`. The HTTP handler can still return while
+the wait runs. The child logs a failure if no window appears within 30 seconds.
+
+*Rejected:* A fixed delay after xpra starts. Startup duration varies by host and
+profile, so a delay would either waste time on warm starts or still race on slow
+cold starts.
 
 ## The Claude-usage strip froze for a day: a config value with two resolvers
 

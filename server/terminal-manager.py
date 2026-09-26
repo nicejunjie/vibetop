@@ -2950,6 +2950,25 @@ def _chromium_for_user(user):
     return binary, os.path.join(home, ".config", "vibetop", "chromium-profile")
 
 
+def _browser_url_command(uid, disp, chrome, profile, url):
+    """Wait for the Browser's main Chromium window before forwarding a URL.
+
+    xpra binds its HTTP port before browser-loop.sh has finished launching
+    Chromium. A second Chromium invocation during that gap can take the profile
+    lock first, then exit when the loop starts; the URL is lost. The window is a
+    useful readiness signal because Chromium's singleton is already listening
+    by the time it maps one. Run this wait in the short-lived su child, not in
+    the manager's HTTP handler.
+    """
+    env = (f"DISPLAY=:{disp} "
+           f"DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/{uid}/bus")
+    return ("i=0; while [ \"$i\" -lt 120 ]; do "
+            f"if {env} xdotool search --onlyvisible --class '[Cc]hrom(e|ium)' "
+            ">/dev/null 2>&1; then "
+            f'exec env {env} {chrome} --user-data-dir={profile} "{url}"; '
+            "fi; sleep 0.25; i=$((i+1)); done; exit 75")
+
+
 def _x11dbus_unit(user):
     return f"vibetop-ux11dbus-{_sanitize_unit(user)}.service"
 
@@ -6852,7 +6871,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
         except KeyError:
             self._json(500, {"error": f"unknown user: {user}"})
             return
-        self._ensure_user_xpra(user, "browser")     # make sure their display exists
+        if self._ensure_user_xpra(user, "browser") is None:
+            self._json(503, {"error": "browser display could not start"})
+            return
         disp = _user_xpra_display(user, "browser")
         _chrome, profile = _chromium_for_user(user)
         if not _chrome:
@@ -6863,15 +6884,18 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self._json(500, {"error": "no chromium installed on this host"})
             return
         # The URL is already validated (http(s) + no shell metacharacters incl.
-        # backslash) before it reaches this `su -c` shell string. Reap the child in
-        # a daemon thread so short-lived `chromium <url>` hand-offs don't pile up.
+        # backslash) before it reaches this `su -c` shell string. The child waits
+        # for the main Chromium window on a cold start, then forwards the URL.
+        # Reap it in a daemon thread so hand-offs don't pile up.
         proc = subprocess.Popen(
-            ["su", "-", user, "-c",
-             f'DISPLAY=:{disp} DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/{uid}/bus'
-             f' {_chrome} --user-data-dir={profile} "{url}"'],
+            ["su", "-", user, "-c", _browser_url_command(uid, disp, _chrome, profile, url)],
             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
         )
-        threading.Thread(target=proc.wait, daemon=True).start()
+        def _reap():
+            rc = proc.wait()
+            if rc:
+                log.warning("browser/open: URL handoff for %s failed (exit %s)", user, rc)
+        threading.Thread(target=_reap, daemon=True).start()
         _signal_browser_focus(user)     # nudge the user's desktop to switch to the Browser app
         self._json(200, {"ok": True, "url": url})
 
