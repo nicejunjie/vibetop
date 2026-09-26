@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_384 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_385 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
 - [Scheduled terminal messages ("resume when the token limit resets")](#scheduled-terminal-messages-resume-when-the-token-limit-resets)
@@ -407,6 +407,7 @@ _384 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [RTS: the Easy/Normal ladder was inverted because Easy mined as much as Normal (2026-09-25)](#rts-the-easynormal-ladder-was-inverted-because-easy-mined-as-much-as-normal-2026-09-25)
 - [RTS: freeing canvas memory costs Playwright WebKit frames, so the structure frame-pack is not shipped (2026-09-25)](#rts-freeing-canvas-memory-costs-playwright-webkit-frames-so-the-structure-frame-pack-is-not-shipped-2026-09-25)
 - [RTS: the Gap Generator was drawn from a pre-release alpha screenshot, and its snow caps became white balloons (2026-09-25)](#rts-the-gap-generator-was-drawn-from-a-pre-release-alpha-screenshot-and-its-snow-caps-became-white-balloons-2026-09-25)
+- [RTS: the Prism Tower's head was drawn as an umbrella, from a doc row, not the rip (2026-09-25)](#rts-the-prism-towers-head-was-drawn-as-an-umbrella-from-a-doc-row-not-the-rip-2026-09-25)
 
 <!-- END TOC -->
 
@@ -17616,3 +17617,12 @@ was **not measured**, so nothing here shows it has none either.
 **Fix:** `rts/units/structures/gapgen.js` was redrawn from the two retail rips. Every cylinder is drawn as lit vertical facets, so no face is flat grey. Three pods carry alternating house and dark staves. There is one house collar, and two amber blades pulse as the idle animation. The clause rows in `tools/clause-checks/structures.js` and the §2.7 row in `unit-identity-reference.md` now describe the retail tower: amber crown, staves plus one collar, no pale foot. All three fail on the old art and pass on the new. `rts-gapgen-shape.test.js` pins "no round near-white fills", h/w within 8% of 2.43, and house colour both low and high, using a recording canvas on the real draw code.
 **Rejected:** keeping the alpha design and only darkening the spheres. The retail silhouette is a different object, not the same one repainted. Also rejected: counting the retail crown's dark prongs the way the old talon row did. The amber faces are the tell both retail rips agree on, while the black frames merge with the mast and the collar shadow.
 **Note:** the visual goldens stage a bare match with no power, so the golden crops and the look sheet show every power consumer desaturated as UNPOWERED. A grey gap generator there is the harness state, not the art.
+
+
+## RTS: the Prism Tower's head was drawn as an umbrella, from a doc row, not the rip (2026-09-25)
+
+**Symptom:** the user: "prism need to be redrawn, matching ra2". The tower wore a navy drum under one big flat house panel, and on top a flat nine-bladed navy umbrella with a white X at its hub.
+**Cause:** `unit-identity-reference.md` §2.7 described the head as "a wide flat crown of blades ... an umbrella", and the art and its clause rows (`crown >= 1.25x the Tesla Coil's sphere fraction`) were built to that sentence. The in-game rip (`docs/ra2-ref/sprites/prism-tower.png`, 57x104, and the 20-frame `library/prism-dir.gif`) shows something else: an olive ground ring, a lit SILVER domed drum with house buttress feet left and right and a house door box in front, a slim dark column laced with single pale struts on amber bolts, a dark collar with a house band, a second smaller banded ring, and a head of big bright silver-white MIRROR PLATES that leans up and to the LEFT.
+**Fix:** `rts/units/structures/prism.js` redrawn from the rip, as lit vertical facets (the drum in two bands so the 6-level snap cannot flatten it to one grey, r == g == b so it cannot tint lavender), every mark opaque and >= 1.5 px (DPR-1 speckle on the idle sprite 2 -> 0). The head's offset is `PRISM_HEAD_DX/DY` (-14, 86), and `render.js` now fires the beam, the support link and the charge glow from it instead of the footprint centre. The clause row that compared crown WIDTH to the Tesla Coil was replaced by a LEAN row (head centre <= -0.12 `Sw` from the foot; rip -0.246, ours -0.204): the rip itself failed the width row under the clause code's own blob read (0.75 vs 0.82). `rts-prism-art.test.js` pins the shape on the real draw code (h/w within 8% of 1.82, >= 3 near-white plates in the top third, a wide left-leaning head, a neutral silver drum, house low and high, nothing translucent but the shadow): 16 of 24 red on the old art, 24/24 on the new.
+**Rejected:** keeping the width-vs-Tesla row and widening the head to pass it. That would make the head wider than RA2's to satisfy a row written for the wrong shape.
+
