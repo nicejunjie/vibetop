@@ -17616,4 +17616,13 @@ was **not measured**, so nothing here shows it has none either.
 - A tone at a HALF step of the 0x33 grid (0x1a, 0x4d, 0x80, 0xb3) snaps up or down pixel by pixel as its coverage varies, so a #1a1a1a weld on a #333333 plate became a row of black dots.
 **Fix:** `rts/units/structures/grandcannon.js` builds the turret as a real 3D object: lofted armour plates, back-face culled, one Lambert tone per plate from ramps that sit exactly on the grid. The gun has a mantlet, a house jacket, a band and a boxy muzzle brake, and `aimOf` bakes it through all 32 bearings. The emplacement skips the shared plate (`ownPlate` in `bake/buildings.js`). Edges are #2b2b2b, not black, and a weld is only drawn on a plate of #666 or lighter.
 **Tests:** `rts-grandcannon-art.test.js` (5 tests, all red on v1.34.6) pins the missing slab, the gun's reach, the flat plates, the grid-aligned greys and the bore's visibility. The structure clause rows for `grandcannon` (tools/clause-checks/structures.js) were rewritten from the rip; three fail on the old art.
+**Second pass (review, same day):** the first redraw was still a mid-grey bell. The fix was:
+- The steel is now dark gunmetal. Most plates are #333, lit ones #666, and the roof #999.
+- The contrast is in the plate edges, which glint up to the rip's blue-white #ccccff.
+- The casemate is lower and 1.36x wider, and hunches over the ring, with taller trunnion cheeks.
+- The gun is thicker and longer, with a heavier mantlet.
+- The Grand Cannon's shell (`ui/render.js`) now leaves from `grandcannonMuzzle()`, the art's own gun geometry at the baked bearing. It used to leave from a point 10 px over the centre.
+
+The navy body the rip shows was NOT copied. #333366 is 18 degrees off the blue owner's hue (221.8), inside the house census's 20-degree gap, so on the blue player's cannon the whole body would read as house colour. Only the highlight takes the cool cast (#ccccff, saturation 0.2).
+
 **Rejected:** keeping the old "the gun contributes <= 0.30 Sw beyond the dome" row as the discriminator. The new gun also overhangs the turret by only about 0.25 Sw, as the rip's does. What made the old one a toy was the tube's thinness and the egg, not the overhang.
