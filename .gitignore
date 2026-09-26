@@ -43,3 +43,12 @@ tests/matrix/logs/
 tests/matrix/.vagrant-*/
 logs/*.result
 apps/games/rts/art/out/
+
+# RA2 reference images (ripped sprites, wiki captures, voxel renders) are
+# EA/Westwood's copyrighted art: they are NEVER committed. They live in a
+# private store on z20 and are linked in by apps/games/rts/tools/ra2-ref-link.sh.
+# The #artgallery page's RA2 column (rts/diag/gallery-refs.json) embeds them,
+# so it is generated locally and never committed either.
+apps/games/rts/docs/ra2-ref
+docs/ra2-ref
+apps/games/rts/rts/diag/gallery-refs.json
