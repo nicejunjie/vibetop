@@ -97,12 +97,37 @@
     solitaire:   { label: 'Solitaire',   icon: '🃏', src: '/solitaire.html',   desc: 'Klondike patience',  section: 'games' },
     game2048:    { label: '2048',        icon: '🔢', src: '/game2048.html',    desc: 'Slide & merge tiles', section: 'games' },
     circuit:     { label: 'Circuit Runner', icon: '🤖', src: '/circuit.html', desc: 'Side-scrolling platformer', section: 'games' },
-    rts:         { label: 'Iron Frontier', icon: '⚔️', src: '/rts.html', desc: 'Isometric real-time strategy', section: 'games' }
+    // `optional` = the page is NOT in this repo. Iron Frontier lives in its own
+    // project (rts-war) that shell/install.sh deploys only when a sibling
+    // checkout exists, so the row starts hidden and probeOptionalApps() reveals
+    // it once /rts.html answers. The value names the project that provides it.
+    rts:         { label: 'Iron Frontier', icon: '⚔️', src: '/rts.html', desc: 'Isometric real-time strategy', section: 'games', optional: 'rts-war' }
   };
   // Attach the matching SVG icon to each app (fallback stays the `icon` emoji).
   Object.keys(APPS).forEach(function(id) { if (ICON[id]) APPS[id].svg = ICON[id]; });
 
-  var api = { APPS: APPS, ICON: ICON };
+  // Is each `optional` app actually deployed on this host? One HEAD per optional
+  // app, once per desktop load. Asking the web root is the only answer that
+  // cannot drift: a deploy-time flag would go stale the moment the sibling
+  // project is (un)deployed on its own. `present` is undefined while pending,
+  // then true/false; onFound(id) runs for each one that is there. A redirect is
+  // an auth hop (Cloudflare Access), not the page, so it counts as absent.
+  // The service worker ignores non-GET, so the HEAD always reaches nginx.
+  function probeOptionalApps(apps, fetchFn, onFound) {
+    var ids = Object.keys(apps).filter(function(id) { return apps[id].optional && apps[id].src; });
+    return Promise.all(ids.map(function(id) {
+      var a = apps[id];
+      return Promise.resolve().then(function() {
+        return fetchFn(a.src, { method: 'HEAD', cache: 'no-store', credentials: 'same-origin' });
+      }).then(function(r) {
+        a.present = !!(r && r.ok && !r.redirected);
+      }, function() { a.present = false; }).then(function() {
+        if (a.present && onFound) onFound(id);
+      });
+    }));
+  }
+
+  var api = { APPS: APPS, ICON: ICON, probeOptionalApps: probeOptionalApps };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.VibeApps = api;
 })(typeof self !== 'undefined' ? self : this);

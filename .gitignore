@@ -22,15 +22,6 @@ credentials.json
 services.json
 !apps/utilities/services/services.example.json
 
-# The RTS art gate's recorded measurements — a tracked baseline, written by
-# apps/games/rts/tools/art-metrics.js and ratcheted by apps/games/rts/rts-art.test.js.
-!apps/games/rts/docs/art-baseline.json
-!apps/games/rts/docs/ra2-ref/manifest.json
-# the RTS testkit's goldens, baselines and pinned repros are data the tests read
-!apps/games/rts/tools/testkit/golden/*.json
-!apps/games/rts/rts/diag/*.json
-!apps/games/rts/tools/testkit/data/*.json
-
 # Python bytecode cache
 __pycache__/
 *.pyc
@@ -42,13 +33,11 @@ __pycache__/
 tests/matrix/logs/
 tests/matrix/.vagrant-*/
 logs/*.result
-apps/games/rts/art/out/
 
-# RA2 reference images (ripped sprites, wiki captures, voxel renders) are
-# EA/Westwood's copyrighted art: they are NEVER committed. They live in a
-# private store on z20 and are linked in by apps/games/rts/tools/ra2-ref-link.sh.
-# The #artgallery page's RA2 column (rts/diag/gallery-refs.json) embeds them,
-# so it is generated locally and never committed either.
-apps/games/rts/docs/ra2-ref
+# The RTS game (Iron Frontier) moved to its own project, rts-war, linked as an
+# optional sibling checkout (shell/install.sh). An old checkout keeps ignored
+# leftovers under apps/games/rts/ (rendered art, the link to the private RA2
+# reference store) after pulling the removal; never let them be re-added. RA2
+# reference images are EA/Westwood's copyrighted art and never belong here.
+apps/games/rts/
 docs/ra2-ref
-apps/games/rts/rts/diag/gallery-refs.json

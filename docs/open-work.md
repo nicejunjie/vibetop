@@ -50,17 +50,9 @@ Both are scoped-down verdicts, deliberately. Do not widen them on execution.
 
 ## 3. RTS
 
-The full queue is `apps/games/rts/docs/open-defects-plan.md` (two confirmed
-defects, one unresolved, three unestablished, ElitePrimary parked, art pending).
-Two items that queue does **not** carry, found in the gap audits:
-
-- **Cliff seams** — `gap-audit-art.md` #26 records what was explicitly NOT
-  closed: *"a cliff run still reads as one panel per tile"*, because each cell
-  bakes its columns with independent juts so the two sides of a shared vertex do
-  not match. Needs seam-matched construction, **not more texture**.
-- **Two keyboard nits** — `CenterView` (numpad 5) and `AllToCheer=67`. Both
-  recorded as nits; `INF_SEQ` already has the cheer animation, only the key and
-  the ordering are absent.
+Moved out. The game (Iron Frontier) and its whole backlog now live in the
+separate `rts-war` project (`~/vibe-coding/rts-war`), linked into vibetop as an
+optional sibling checkout (see `docs/desktop.md`).
 
 ---
 

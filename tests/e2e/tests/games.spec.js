@@ -26,9 +26,15 @@ test.describe('games', () => {
     // hidden until the parent row opens it (click = open on mouse, toggle on
     // touch — a first click opens in both models).
     await page.locator('#sm-games-parent').click();
-    for (const id of ['minesweeper', 'solitaire', 'game2048', 'circuit', 'rts']) {
+    for (const id of ['minesweeper', 'solitaire', 'game2048', 'circuit']) {
       await expect(page.locator(`#sm-games .sm-item[data-id="${id}"]`)).toBeVisible();
     }
+    // Iron Frontier (the RTS) is the optional rts-war sibling project: its row
+    // shows exactly when the host deployed the game, and is hidden otherwise.
+    const rtsDeployed = (await page.request.head('/rts.html')).ok();
+    const rts = page.locator('#sm-games .sm-item[data-id="rts"]');
+    if (rtsDeployed) await expect(rts).toBeVisible();
+    else await expect(rts).toBeHidden();
   });
 
   test('minesweeper: first click reveals safely and starts the game', async ({ page }) => {

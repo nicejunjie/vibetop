@@ -85,9 +85,52 @@ test('every app src corresponds to a page the installer actually deploys', () =>
   for (const id of ids) {
     const src = APPS[id].src;
     if (!src || src.endsWith('/')) continue;          // directory-served apps (ttyd, xpra…)
+    if (APPS[id].optional) continue;                  // shipped by a sibling project (below)
     const base = src.split('?')[0].split('#')[0].replace(/^\//, '');
     if (!base.endsWith('.html')) continue;
     assert.ok(found.has(base) || base === 'index.html',
       `${id}: src ${src} has no source page anywhere under shell/ or apps/`);
+  }
+});
+
+// Iron Frontier moved to its own project (rts-war), deployed only when a sibling
+// checkout exists. Its row must never promise a page the host does not serve.
+test('optional apps name their project and have no page in this repo', () => {
+  const opt = ids.filter((id) => APPS[id].optional);
+  assert.ok(opt.includes('rts'), 'the RTS entry must be marked optional');
+  const root = path.join(__dirname, '..');
+  for (const id of opt) {
+    assert.equal(typeof APPS[id].optional, 'string', `${id}: optional names the providing project`);
+    assert.ok(!fs.existsSync(path.join(root, 'apps', 'games', 'rts')), 'apps/games/rts must stay out of vibetop');
+  }
+});
+
+const { probeOptionalApps } = require('./appreg.js');
+const fresh = () => ({
+  rts: { src: '/rts.html', optional: 'rts-war' },
+  notes: { src: '/notes.html' },
+});
+
+test('probe: a 200 reveals the optional app, and only it is asked', async () => {
+  const apps = fresh(), asked = [], found = [];
+  await probeOptionalApps(apps, async (u, o) => { asked.push([u, o.method]); return { ok: true, redirected: false }; },
+    (id) => found.push(id));
+  assert.deepEqual(asked, [['/rts.html', 'HEAD']]);
+  assert.deepEqual(found, ['rts']);
+  assert.equal(apps.rts.present, true);
+  assert.equal(apps.notes.present, undefined);
+});
+
+test('probe: 404, a redirect (auth hop) and a network error all keep it hidden', async () => {
+  for (const reply of [
+    async () => ({ ok: false, status: 404, redirected: false }),
+    async () => ({ ok: true, redirected: true }),
+    async () => { throw new TypeError('offline'); },
+    () => { throw new Error('sync throw'); },
+  ]) {
+    const apps = fresh(), found = [];
+    await probeOptionalApps(apps, reply, (id) => found.push(id));
+    assert.equal(apps.rts.present, false);
+    assert.deepEqual(found, []);
   }
 });

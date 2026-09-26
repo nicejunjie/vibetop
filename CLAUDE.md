@@ -21,7 +21,7 @@ re-derive it here, and put new detail in the area doc rather than growing this f
 | Files, Notes, Upload, Update, Config, Claude-usage, Token Stats, Services, Tunnel | `docs/apps.md` |
 | Multi-user / identity (`APP_USER` vs `OPERATOR` vs the request user) | `docs/multi-user.md` |
 | Files app internals (the native engine, the file agent, the security invariant) | `docs/files-native.md` |
-| **RTS game (`apps/games/rts/rts.html`): the standing "true RA2 experience" requirement + roadmap** | `apps/games/rts/docs/roadmap.md` (then `docs/ra2-art-plan.md`); the game is 117 plain scripts — `apps/games/rts/rts/**`, served at `/rts/**`, unit art at `rts/units/<class>/<kind>.js` — listed in load order in `rts.html`, **no build step**, playable by double-clicking `rts.html`: `apps/games/rts/rts/README.md` |
+| **RTS game (Iron Frontier)** — not in this repo | It is its own project, **`~/vibe-coding/rts-war`** (prod `/opt/vibetop/rts-war`), linked as an **optional sibling checkout**: `shell/install.sh` deploys it to `/rts.html` + `/rts/**` when the sibling exists (`RTS_WAR_DIR` overrides the path) and the Start menu hides its row when `/rts.html` is absent (`appreg.js` `probeOptionalApps`). Its code, tests, roadmap and art docs live there |
 | Non-obvious traps that bite on real hosts | `docs/gotchas.md` |
 | Planned-but-not-started work (verdict + ordered steps, one file per effort) | `docs/plans/` |
 | **Why** something odd is the way it is (Symptom→Cause→Fix→Rejected) | `docs/design-decisions.md` |
@@ -62,7 +62,7 @@ Six sub-projects deliver a unified "mini-OS" desktop experience on the host (ref
 | Start-menu section | Apps |
 |---|---|
 | Everyday (un-sectioned) | Terminal, Browser, X11 Launcher, Files, Office, Notes, Upload |
-| **Games** flyout | Minesweeper, Solitaire, 2048, Circuit Runner (self-contained pages, `apps/games/<item>/`) |
+| **Games** flyout | Minesweeper, Solitaire, 2048, Circuit Runner (self-contained pages, `apps/games/<item>/`) + **Iron Frontier** (RTS) only when the optional `rts-war` sibling is deployed |
 | **Utilities** flyout | Services (`home`), Monitor, Token Stats + the Claude-Usage / System-Stats **toggles** |
 | **System** | Update, Config (sudo-gated) |
 | *(not in the menu)* | **Floating windows** — a 🗔 toggle in the **taskbar**, its only surface (no menu row); | **Video player** (`video`, `hidden:true`) — opened by Files on a video double-click, registered only so the taskbar/title can render it |
@@ -95,12 +95,13 @@ more centralized than that suggests. Four facts explain most of the layout:
   `server/install.sh`** (not a checked-in file); sub-projects ship their own
   fragments in `*/nginx/*.conf`.
 - **No build step.** There is no bundler, no root `package.json`, no transpile;
-  installers `cp` HTML/JS verbatim. The RTS game used to be the one exception —
-  it no longer is: `apps/games/rts/rts.html` is a tracked HTML+CSS page that
-  lists the game's 117 plain `<script src="rts/….js">` files **in load order**,
-  under `apps/games/rts/rts/**` and deployed to `/rts/**`. Nothing assembles it;
-  they share one global scope and the browser just runs them top to bottom, so
-  **double-clicking `rts.html` from disk plays the game**. Each frontend is one self-contained file
+  installers `cp` HTML/JS verbatim. The RTS game (Iron Frontier) is **not in
+  this repo**: it is the separate `rts-war` project, an **optional sibling
+  checkout** (`~/vibe-coding/rts-war`, prod `/opt/vibetop/rts-war`, override
+  `RTS_WAR_DIR`) that `shell/install.sh` deploys to `/rts.html` + `/rts/**`
+  only if it is there — via its own `deploy.sh --www <webroot>`, else by copying
+  `rts.html` + `rts/**`. Absent, the installer removes a stale copy and the
+  Start menu hides the row. Each frontend is one self-contained file
   (`shell/desktop.html` ~4k lines is the entire shell, `APPS` map included;
   `apps/everyday/files/filesx.html` the Files app). Enhancements to third-party UIs are injected
   by nginx `sub_filter` (`xpra-patches.js`, `terminal-kbd.js`) — which is why
@@ -109,7 +110,7 @@ more centralized than that suggests. Four facts explain most of the layout:
   `shared/` the modules many pages use, and `apps/<section>/<item>/` mirrors the
   Start menu's own sections (everyday, games, utilities, system) — but every page
   still deploys to the URL it always had —
-  `/notes.html`, `/rts.html`. Only `shell/install.sh` knows the mapping, and it
+  `/notes.html`, `/circuit.html`. Only `shell/install.sh` knows the mapping, and it
   deploys by **walking** the tree rather than from a hand-written list, so adding
   or deleting a page needs no install edit. Move sources freely; **never change
   what a page deploys to** — the `sw.js` PRECACHE list, the `APPS` map, nginx

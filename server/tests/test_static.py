@@ -281,8 +281,9 @@ def test_doctor_proxied_prefixes_cover_the_sw_bypass_list():
 
     # reauth.html is the sign-in hop: bypassed by sw.js so the browser follows
     # Cloudflare's redirect natively, but a real file in the web root.
-    # /rts/** is the RTS game's ES-module tree: bypassed by sw.js so a deploy can
-    # never serve a stale module under a fresh page, but real files in the web root.
+    # /rts/** is the RTS game's script tree (the optional rts-war sibling project,
+    # deployed by shell/install.sh only when present): bypassed by sw.js so a
+    # deploy can never serve a stale script under a fresh page, but real files.
     served_from_disk = {"services.json", "reauth.html", "rts"}
     missing = sw_prefixes - doc_prefixes - served_from_disk
     assert not missing, (
@@ -309,8 +310,6 @@ def _web_sources():
         if os.path.splitext(f)[1] not in (".html", ".js", ".json", ".png", ".ico"):
             continue
         if f.endswith(".test.js") or "/art/" in f or "/node_modules/" in f:
-            continue
-        if "/apps/games/rts/rts/" in f:       # the module tree deploys under /rts/, not flat
             continue
         out.setdefault(os.path.basename(f), f)
     return out
@@ -672,7 +671,8 @@ def test_static_js_and_css_are_gzipped_by_the_generated_site_config():
     `gzip_types` COMMENTED OUT. So the desktop's HTML was compressed while every
     .js and .css beside it went over the wire raw: ~300KB per cold desktop load
     (the shared modules, xpra-patches.js, terminal-kbd.js) and 2.2MB for the RTS
-    game's 117 plain scripts, all of which compress about 3x.
+    game's 117 plain scripts (now the optional rts-war sibling), all of which
+    compress about 3x.
 
     Nothing on the LAN shows this. It is paid in full by every phone on the
     Cloudflare tunnel, which is the connection the product is actually used on.

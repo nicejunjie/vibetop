@@ -1350,6 +1350,9 @@
       // them with a class so the /api/me handler (a separate IIFE, no APPS scope)
       // can reveal them without referencing APPS.
       if (a.sudo) { item.classList.add('sm-sudo'); if (!window.canSudo) item.style.display = 'none'; }
+      // Optional apps (Iron Frontier, from the rts-war sibling) stay hidden until
+      // the probe below finds their page deployed on this host.
+      if (a.optional && a.present !== true) item.style.display = 'none';
       var target = a.section === 'utilities' ? util
                  : a.section === 'system' ? sys
                  : a.section === 'games' ? document.getElementById('sm-games') : apps;
@@ -1364,6 +1367,10 @@
   var scrimEl   = document.getElementById('menu-scrim');
   var hintEl    = document.getElementById('wp-hint');   // "Click Start" line inside the wallpaper
   buildStartMenu();   // populate the Start-menu items from APPS
+  window.VibeApps.probeOptionalApps(APPS, fetch.bind(window), function(id) {
+    var row = document.querySelector('.sm-item[data-id="' + id + '"]');
+    if (row) row.style.display = '';
+  });
 
   var openApps = [];   // ids, in taskbar order
   var active   = null;
@@ -2996,6 +3003,7 @@
   function launch(id) {
     if (!APPS[id]) return;
     if (APPS[id].sudo && !window.canSudo) return;   // sudo-only app; real gate is the 403
+    if (APPS[id].present === false) return;          // optional app not deployed here (404)
     var isNew = openApps.indexOf(id) === -1;
     if (isNew) { openApps.push(id); ensureFrame(id); }
     setActive(id);            // relays status itself when id === 'home'
@@ -4130,7 +4138,7 @@
     saved.forEach(function(id) {
       // Never auto-restore a sudo-only app (Config): its endpoints 403 for a
       // demoted user, and it dodges the /api/me-vs-restore load race. Open on demand.
-      if (APPS[id] && !APPS[id].sudo && openApps.indexOf(id) === -1) { openApps.push(id); ensureFrame(id); }
+      if (APPS[id] && !APPS[id].sudo && APPS[id].present !== false && openApps.indexOf(id) === -1) { openApps.push(id); ensureFrame(id); }
     });
     runningGlobal = (state && Array.isArray(state.running)) ? state.running : [];
     lastResetEpoch = (state && typeof state.reset_epoch === 'number') ? state.reset_epoch : 0;

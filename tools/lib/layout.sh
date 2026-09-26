@@ -126,6 +126,9 @@ vt_installer_env_array() {
         SECRET_FILE="$VT_ETC/onlyoffice.secret"
         ONLYOFFICE_SECRET_FILE="$VT_ETC/onlyoffice.secret"
         SESSION_SECRET_FILE="$VT_ETC/session.secret"
+        # The optional RTS sibling (shell/install.sh). Empty = the default,
+        # $VT_OPT/rts-war beside $VT_APP; carried so `sudo -u` does not drop it.
+        RTS_WAR_DIR="${RTS_WAR_DIR:-}"
     )
 }
 

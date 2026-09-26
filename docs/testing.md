@@ -32,8 +32,8 @@ So, in order of preference:
      `shell/coach.js`, …) — `require()` it and assert the contract. When a page's
      logic is worth testing, **extract it into a `.js` beside the page** rather
      than leaving it inline; the page then loads it with a `<script src>`.
-   - *vm sandbox on the shipped file* (`apps/everyday/browser/xpra-patches.test.js`,
-     `apps/games/rts/*.test.js`) — load the REAL file into a `vm` sandbox with
+   - *vm sandbox on the shipped file* (`apps/everyday/browser/xpra-patches.test.js`)
+     — load the REAL file into a `vm` sandbox with
      the few DOM/host APIs it touches stubbed, and drive the handlers it installs.
      Prefer this to re-implementing the logic in the test, which keeps passing
      after the shipped code drifts.
@@ -76,20 +76,12 @@ The tiers (each independently runnable, ~5s total):
 - **JavaScript** (`node --test`) — service-worker routing (`sw.test.js`), tab-set
   reconcile (`tab-sync.test.js`), coach-tip state machine (`coach.test.js`), the
   terminal-kbd key-byte map (`terminal-kbd.test.js`), window-mode geometry
-  (`winmgr.test.js` — clamp/resize/cascade/snap/`tileGrid`), the Iron Frontier
-  rules + balance audit (`rts.test.js`), and a syntax guard that
+  (`winmgr.test.js` — clamp/resize/cascade/snap/`tileGrid`), and a syntax guard that
   `vm.Script`-compiles every injected/deployed script (`js-syntax.test.js`).
 
-  **`rts.test.js` has an opt-in slow tier.** Its five match-playing tests (seed
-  determinism, economy growth, decisiveness, the difficulty ladder, stuck-unit
-  sampling) each run a full headless AI-vs-AI game and are skipped unless
-  `RTS_SLOW=1` is set — they took the default run to 4m40s, which every commit
-  in the repo would have paid for (see `docs/design-decisions.md`). Run them
-  before shipping a change to the AI, the pathing or the unit tables:
-
-  ```bash
-  RTS_SLOW=1 node --test apps/games/rts/rts.test.js       # the full tier, minutes
-  ```
+  The RTS game's suites (rules, balance, the generated test matrix, its
+  Playwright player contracts) moved with the game to the `rts-war` project;
+  vibetop's hermetic suite runs with no game present.
 
 **Live-host smoke test** — `tools/smoke-test.sh` is the ONE tier needing the
 running stack; it turns the Health-check curls below into asserting checks with a
@@ -263,35 +255,9 @@ Bypass a single commit with `git commit --no-verify` or `SKIP_TESTS=1 git commit
 each runner self-skips if its tool isn't installed.
 
 
-> **Nothing is built.** `run-tests.sh` runs no generator of any kind; the RTS
-> game is 117 plain scripts (`apps/games/rts/rts/**`) that the browser loads
-> directly, in the order `apps/games/rts/rts.html` lists them, so every RTS test
-> file runs standalone from a clean checkout.
-> `rts.test.js` loads the tree through `apps/games/rts/tools/lib/bundle-for-vm.js`,
-> which reads that script order out of `rts.html` and concatenates those files
-> into one source for node's `vm` — the lobby tests need two independent game
-> instances in a single process, which one shared global scope cannot give.
-> `rts-modules.test.js` is the **load-order gate**: classic scripts hoist per
-> file, so a statement that runs at load time may only call functions declared in
-> an earlier file (`forwardCalls()` in `bundle-for-vm.js` finds the violations).
-> It also checks that `rts.html` lists every file exactly once, that no file
-> contains `import`/`export`, that no two files declare the same top-level name,
-> and that no top-level name shadows a browser global (`name`, `status`, `open`).
->
-> **Proving a refactor of the game changed no behaviour** is `tools/sim-identity.js`:
-> 24 headless simulation cells (6 seeds x both faction orders x two difficulties x
-> 30 game minutes) hashed per game-minute. Record a baseline from the old tree, run
-> it again on the new one, and diff:
->
-> ```bash
-> node apps/games/rts/tools/sim-identity.js --jobs 8 > /tmp/sim-before.txt   # on the old tree
-> node apps/games/rts/tools/sim-identity.js --jobs 8 > /tmp/sim-after.txt    # on the new one
-> diff /tmp/sim-before.txt /tmp/sim-after.txt                                # must be empty
-> ```
->
-> `--jobs` defaults to every core. The simulation gate is blind to anything a
-> headless run never executes — draw code, in particular — so pair it with the
-> art sheets (`apps/games/rts/art/README.md`) and compare those PNGs byte for byte.
+> **Nothing is built.** `run-tests.sh` runs no generator of any kind. (The RTS
+> game, which used to carry its own load-order gate, simulation-identity gate and
+> test matrix here, is now the separate `rts-war` project.)
 
 ## Mobile key-bar / prompt-occlusion repro (`tests/kbd/keybar-occlusion.mjs`)
 

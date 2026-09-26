@@ -305,6 +305,7 @@ The following identifiers have no reference beyond their definition in the track
 - `apps/games/rts/rts.html:10801` — `stackR`.
 - `apps/games/rts/rts.html:23903-23909` — `aiInTeam`.
 - `apps/games/rts/rts.html:27096` — `noiseBurst`.
+  (The three `apps/games/rts/` rows are historical: the game has since moved to its own project, `rts-war`.)
 - `apps/utilities/monitor/monitor.html:324-329` — `tempColor`.
 
 In addition, `server/install.sh:342-352,493-496` still generates a `$term_port` nginx map explicitly described as unused after identity-based terminal routing. Confirm no rollback path consumes these candidates, then remove them. For `tryPipeSide`, first decide whether the intended side-pipe gameplay was accidentally disconnected; deletion could otherwise hide an unfinished feature.

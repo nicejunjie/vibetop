@@ -46,7 +46,7 @@ SW_VERSION="${SW_VERSION:-?}"
 # ---------------------------------------------------------------------------
 # Source tree is GROUPED (shell/ shared/ apps/<item>/ games/<item>/), but the web
 # root stays FLAT: every page keeps the URL it has always had (/notes.html,
-# /rts.html, ...). Nothing outside this script knows where a file lives in the
+# /circuit.html, ...). Nothing outside this script knows where a file lives in the
 # repo, which is exactly why the tree could be reorganised without touching a
 # single URL, the sw.js PRECACHE list, the APPS map or an nginx location.
 #
@@ -66,7 +66,6 @@ shell/diagnostics/rzdbg.html|rzdbg.html|version
 apps/utilities/services/index.html|landing.html|copy
 apps/everyday/files/filesx.html|filesx.html|fsxver
 apps/everyday/files/files.html|files.html|apphome
-apps/games/rts/rts.html|rts.html|shared
 "
 
 stamp_version() {   # $1=src $2=dst — release + service-worker build for the build tag
@@ -93,18 +92,6 @@ stamp_apphome() {   # $1=src $2=dst
   chmod 644 "$2"
 }
 
-stamp_shared() {    # $1=src $2=dst — the RTS page's path to shared/
-  # The RTS is playable straight off the disk (double-click rts.html), so it
-  # refers to the two shared scripts by their REPO path. The web root is flat:
-  # there they sit beside the page, so drop the prefix on the way out. Both
-  # files must exist or the page would ship pointing at nothing.
-  for f in gamescore.js vibe-modal.js; do
-    [ -f "$REPO/shared/$f" ] || { echo "shell/install.sh: missing $REPO/shared/$f (rts.html needs it)" >&2; exit 1; }
-  done
-  sed -e 's|\.\./\.\./\.\./shared/||g' "$1" > "$2"
-  chmod 644 "$2"
-}
-
 # Build src->dst for every deployable file: the special cases above, then a walk
 # of the grouped tree for everything else. Tests, docs and the art pipeline are
 # source-only and never reach the web root.
@@ -121,15 +108,7 @@ while IFS= read -r src; do
   [ -z "$src" ] && continue
   rel="${src#"$REPO"/}"
   case "$PLAN" in *"$rel|"*) continue ;; esac      # already handled above
-  # The RTS game is a MODULE TREE: `import './bake/kit.js'` only resolves if the
-  # directory survives the deploy, so apps/games/rts/rts/** lands at /rts/**
-  # instead of being flattened to its basename. The page's URL (/rts.html) is
-  # unchanged, and the duplicate check below still applies — a destination is
-  # a path instead of a name there, and paths are unique by construction.
-  case "$rel" in
-    apps/games/rts/rts/*) dst="rts/${rel#apps/games/rts/rts/}" ;;
-    *)                    dst="$(basename "$src")" ;;
-  esac
+  dst="$(basename "$src")"
   PLAN="$PLAN$rel|$dst|copy
 "
 done <<EOF
@@ -163,11 +142,57 @@ printf '%s' "$PLAN" | while IFS='|' read -r src dst mode; do
              else stamp_fsxver "$REPO/$src" "$DST_DIR/$dst"; fi ;;
     apphome) if [ "$DRY_RUN" = 1 ]; then printf '+ render %s -> %s (@APP_HOME@ -> empty)\n' "$src" "$dst"
              else stamp_apphome "$REPO/$src" "$DST_DIR/$dst"; fi ;;
-    shared)  if [ "$DRY_RUN" = 1 ]; then printf '+ render %s -> %s (../../../shared/ -> flat)\n' "$src" "$dst"
-             else stamp_shared "$REPO/$src" "$DST_DIR/$dst"; fi ;;
     *)       run install -D -m 644 "$REPO/$src" "$DST_DIR/$dst" ;;
   esac
 done
+
+# ---------------------------------------------------------------------------
+# Iron Frontier, the RTS game, is its OWN project (rts-war), linked as an
+# OPTIONAL SIBLING CHECKOUT: deployed if it is there, absent otherwise. It still
+# lands at the URLs it always had (/rts.html + /rts/**), and the Start menu shows
+# its row only when /rts.html answers (shell/appreg.js probeOptionalApps).
+#
+# Where the sibling is: $RTS_WAR_DIR if set, else next to this checkout —
+# ~/vibe-coding/rts-war beside ~/vibe-coding/vibetop on a dev box, and
+# /opt/vibetop/rts-war beside /opt/vibetop/app on the system layout
+# (tools/lib/layout.sh), with no extra configuration either way.
+#
+# Prefer the game's own deploy script (it knows its file list); fall back to the
+# layout it has always had — rts.html beside an rts/ tree of .html/.js/.json.
+# ---------------------------------------------------------------------------
+RTS_WAR_DIR="${RTS_WAR_DIR:-$(dirname "$REPO")/rts-war}"
+if [ -f "$RTS_WAR_DIR/rts.html" ]; then
+  if [ -x "$RTS_WAR_DIR/deploy.sh" ]; then
+    echo "RTS: deploying the rts-war sibling via $RTS_WAR_DIR/deploy.sh --www $DST_DIR"
+    run "$RTS_WAR_DIR/deploy.sh" --www "$DST_DIR"
+  else
+    echo "RTS: deploying the rts-war sibling from $RTS_WAR_DIR (no deploy.sh: copying rts.html + rts/**)"
+    # A replaced tree must not keep serving a script the game no longer has.
+    run rm -rf "$DST_DIR/rts"
+    # The page names the two shared scripts by their old in-repo path
+    # (../../../shared/); in the flat web root they sit beside it.
+    if [ "$DRY_RUN" = 1 ]; then printf '+ render %s -> %s (../../../shared/ -> flat)\n' "$RTS_WAR_DIR/rts.html" "$DST_DIR/rts.html"
+    else sed -e 's|\.\./\.\./\.\./shared/||g' "$RTS_WAR_DIR/rts.html" > "$DST_DIR/rts.html"; chmod 644 "$DST_DIR/rts.html"; fi
+    if [ -d "$RTS_WAR_DIR/rts" ]; then
+      while IFS= read -r f; do
+        [ -z "$f" ] && continue
+        run install -D -m 644 "$f" "$DST_DIR/rts/${f#"$RTS_WAR_DIR/rts/"}"
+      done <<RTSEOF
+$(find "$RTS_WAR_DIR/rts" -type f \( -name '*.html' -o -name '*.js' -o -name '*.json' \) \
+        ! -name '*.test.js' ! -path '*/node_modules/*' | sort)
+RTSEOF
+    fi
+  fi
+else
+  # Absent: take down a copy an earlier deploy left, so the Start menu's probe
+  # (and a bookmarked /rts.html) sees the truth instead of a stale game.
+  if [ -e "$DST_DIR/rts.html" ] || [ -e "$DST_DIR/rts" ]; then
+    run rm -rf "$DST_DIR/rts.html" "$DST_DIR/rts"
+    echo "RTS: no rts-war sibling at $RTS_WAR_DIR — removed the stale /rts.html + /rts/ (Start menu hides Iron Frontier)"
+  else
+    echo "RTS: no rts-war sibling at $RTS_WAR_DIR — game not deployed (Start menu hides Iron Frontier)"
+  fi
+fi
 
 # PWA icons + the favicon the browser probes for automatically at the web root.
 run install -d -m 755 "$DST_DIR/icons"

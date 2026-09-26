@@ -58,46 +58,12 @@ fi
 if command -v node >/dev/null 2>&1; then
     hr "node --test — JS units (sw / tab-sync / coach / kbd / syntax)"
     # Discover every *.test.js outside .claude/ (worktrees carry stale copies).
-    # Not under art/out/ either: the RTS mutant runner builds whole patched
-    # copies of the game there (each with its own *.test.js, deliberately
-    # broken), and running those reported the planted bugs as real failures.
+    # (The RTS game and its test matrix moved to the rts-war project.)
     mapfile -t JS_TESTS < <(find shell shared apps server -name '*.test.js' \
-        -not -path '*/.claude/*' -not -path '*/node_modules/*' -not -path '*/art/out/*' 2>/dev/null | sort)
+        -not -path '*/.claude/*' -not -path '*/node_modules/*' 2>/dev/null | sort)
     if [ "${#JS_TESTS[@]}" -eq 0 ]; then
         no "no JS test files found"
     elif node --test "${JS_TESTS[@]}"; then ok "JS units"; else no "JS units"; fi
-    # The RTS test matrix, --quick subset (apps/games/rts/docs/test-plan.md):
-    # generated cells from the game's own tables, sharded over every core.
-    # Exit 2 = INCONCLUSIVE (a matrix failed to load, or nothing ran), which
-    # is never read as green.
-    # On by default since the first census (apps/games/rts/docs/test-census.md)
-    # marked every known failure xfail with its census id: a strict xfail
-    # that starts passing turns red, so fixing a bug forces its mark off.
-    # ~1 min on 30 cores. RTS_MATRIX=0 skips it (said out loud, never silent).
-    if [ "${RTS_MATRIX:-1}" != 0 ]; then
-    hr "RTS matrix quick (apps/games/rts/tools/test-all.js --quick)"
-    rts_sum=$(mktemp)
-    ( cd apps/games/rts && node tools/test-all.js --quick --no-report --summary "$rts_sum" ); rts_rc=$?
-    if [ "$rts_rc" = 1 ]; then
-        # Re-run ONLY the failed cells once. A cell that passes on the re-run
-        # is FLAKY: named loudly so it gets hunted, but it does not block a
-        # commit. A cell that fails twice fails the tier.
-        rts_failed=$(node -e 'const s=JSON.parse(require("fs").readFileSync(process.argv[1],"utf8"));console.log(s.cells.filter(c=>c.kind==="fail").map(c=>c.id).join(","))' "$rts_sum")
-        if [ -n "$rts_failed" ]; then
-            echo "RTS matrix quick: re-running failed cell(s) once: $rts_failed"
-            ( cd apps/games/rts && node tools/test-all.js --no-report --cell "$rts_failed" ); rts_rc=$?
-            [ "$rts_rc" = 0 ] && printf '\033[33m⚠ RTS matrix FLAKY (passed on re-run): %s\033[0m\n' "$rts_failed"
-        fi
-    fi
-    rm -f "$rts_sum"
-    case "$rts_rc" in
-        0) ok "RTS matrix quick" ;;
-        2) no "RTS matrix quick (INCONCLUSIVE — a matrix failed to load or no cell ran)" ;;
-        *) no "RTS matrix quick" ;;
-    esac
-    else
-        echo "RTS matrix quick: SKIPPED (RTS_MATRIX=0)"
-    fi
 else
     echo "node unavailable — skipping JS suites." >&2
 fi

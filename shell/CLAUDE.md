@@ -8,7 +8,7 @@ The desktop itself, and the installer that deploys the whole static web root
 `apps/<section>/<item>/` mirrors the Start menu's **own sections** — the
 categories are not invented here, they are the `section:` values in the `APPS`
 map in `shell/desktop.html`. The **source tree is grouped; the web root stays
-FLAT** — every page keeps the URL it always had (`/notes.html`, `/rts.html`,
+FLAT** — every page keeps the URL it always had (`/notes.html`, `/circuit.html`,
 `/landing.html`). Nothing outside `install.sh` knows where a file lives in the
 repo. **Keep it that way:** move a file freely, but never change what it deploys to.
 
@@ -27,7 +27,7 @@ shell/        the desktop itself — NOT an app
 shared/       used by MANY pages — vibe-modal.js (11), gamescore.js (5)
 apps/
   everyday/   notes upload x11launcher files office video imageview
-  games/      minesweeper solitaire game2048 circuit rts (game + art/ + docs/)
+  games/      minesweeper solitaire game2048 circuit   (the RTS is the optional rts-war sibling)
   utilities/  services monitor tokenstats
   system/     update config
 ```
@@ -49,12 +49,15 @@ a different destination name (`shell/desktop.html` → `index.html`,
 `apps/utilities/services/index.html` → `landing.html`) or a `@TOKEN@` to stamp
 (`@VERSION@`/`@SW_VERSION@`, `@APP_HOME@`).
 
-Nothing is built — the installer only copies. One page brings a **subtree**
-with it: the RTS game is 117 plain scripts, so `apps/games/rts/rts/**` deploys
-to `/rts/**` (with `install -D`, because `rts.html` addresses them by relative
-path — `rts/ui/loop.js` — and the flat web root would otherwise lose the
-nesting). `*.src.html` no longer exists anywhere. `shell/sw.js` BYPASSes
-`/rts/`, so a deploy can never serve a stale script under a freshly cached page.
+Nothing is built — the installer only copies. The RTS game (Iron Frontier) is
+**not in this repo**: it is the `rts-war` project, an optional sibling checkout
+(`$RTS_WAR_DIR`, default `$(dirname repo)/rts-war` — `~/vibe-coding/rts-war` on a
+dev box, `/opt/vibetop/rts-war` on prod). When it exists `install.sh` deploys it
+to `/rts.html` + `/rts/**` (its own `deploy.sh --www <webroot>` if present, else
+a copy of `rts.html` + `rts/**`); when it does not, it removes a stale copy, and
+the Start menu keeps the row hidden (`appreg.js` `probeOptionalApps`, one HEAD
+of `/rts.html`). `shell/sw.js` still BYPASSes `/rts/`, so a deploy can never
+serve a stale script under a freshly cached page.
 
 Because the web root is flat, two grouped sources **can** collide on one URL —
 something the old list made impossible by construction. `install.sh` checks for
