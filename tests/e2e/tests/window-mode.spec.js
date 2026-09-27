@@ -204,9 +204,11 @@ test.describe('window mode', () => {
         const buttons = ['.wt-min', '.wt-max', '.wt-close'].map((selector) => {
           const el = bar.querySelector(selector);
           const r = el.getBoundingClientRect();
+          const face = getComputedStyle(el, '::before');
           return { left: r.left, right: r.right, top: r.top, width: r.width, height: r.height,
                    hit: document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2) === el,
-                   background: getComputedStyle(el).backgroundColor };
+                   faceWidth: parseFloat(face.width), faceHeight: parseFloat(face.height),
+                   background: face.backgroundColor };
         });
         return { buttons, barRight: bar.getBoundingClientRect().right,
                  touch: document.body.classList.contains('is-touch') };
@@ -216,6 +218,8 @@ test.describe('window mode', () => {
         expect(button.width).toBeGreaterThanOrEqual(controls.touch ? 40 : 36);
         expect(button.height).toBeGreaterThanOrEqual(controls.touch ? 36 : 28);
         expect(button.hit).toBe(true);
+        expect(button.faceWidth / button.width).toBeCloseTo(0.7, 1);
+        expect(button.faceHeight / button.height).toBeCloseTo(0.7, 1);
       }
       expect(max.left - min.right).toBeGreaterThanOrEqual(7);
       expect(close.left - max.right).toBeGreaterThanOrEqual(7);

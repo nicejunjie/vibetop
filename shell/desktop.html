@@ -751,22 +751,30 @@
   .win-titlebar .wt-min, .win-titlebar .wt-max, .win-titlebar .wt-close {
     box-sizing: border-box; width: 38px; height: 30px;
     display: inline-flex; align-items: center; justify-content: center;
-    border: 1px solid #60758e; border-radius: 6px; background: #34465c;
     cursor: pointer; color: #f3f7fc; flex: 0 0 auto; line-height: 1;
     /* Above the resize handles (z-index 3–4): the × sits at the right edge under
        .win-rz-e / .win-rz-ne, which otherwise stole the tap (min/max, further
        left, were unaffected — the tell). */
     position: relative; z-index: 5;
   }
-  .win-titlebar .wt-min svg, .win-titlebar .wt-max svg, .win-titlebar .wt-close svg {
-    width: 18px; height: 18px; fill: none; stroke: currentColor;
-    stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; pointer-events: none;
+  /* Keep the proven click targets and 8px gaps, but draw each button face at
+     70% of that size. The controls look lighter without becoming harder to tap. */
+  .win-titlebar .wt-min::before, .win-titlebar .wt-max::before, .win-titlebar .wt-close::before {
+    content: ''; position: absolute; top: 50%; left: 50%;
+    box-sizing: border-box; width: 70%; height: 70%;
+    transform: translate(-50%, -50%); pointer-events: none;
+    border: 1px solid #60758e; border-radius: 5px; background: #34465c;
   }
-  .win-titlebar .wt-close { background: #963a42; border-color: #c7656b; color: #fff; }
-  .win-titlebar .wt-min:hover, .win-titlebar .wt-max:hover { background: #506b8a; border-color: #91b1d1; }
-  .win-titlebar .wt-close:hover { background: #c34149; border-color: #ed858b; }
-  .win-titlebar .wt-min:active, .win-titlebar .wt-max:active { background: #26384d; }
-  .win-titlebar .wt-close:active { background: #77282f; }
+  .win-titlebar .wt-min svg, .win-titlebar .wt-max svg, .win-titlebar .wt-close svg {
+    position: relative; width: 13px; height: 13px; fill: none; stroke: currentColor;
+    stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; pointer-events: none;
+  }
+  .win-titlebar .wt-close { color: #fff; }
+  .win-titlebar .wt-close::before { background: #963a42; border-color: #c7656b; }
+  .win-titlebar .wt-min:hover::before, .win-titlebar .wt-max:hover::before { background: #506b8a; border-color: #91b1d1; }
+  .win-titlebar .wt-close:hover::before { background: #c34149; border-color: #ed858b; }
+  .win-titlebar .wt-min:active::before, .win-titlebar .wt-max:active::before { background: #26384d; }
+  .win-titlebar .wt-close:active::before { background: #77282f; }
   /* Visible keyboard focus — the controls are reachable by Tab now, so they must
      show where focus is. */
   .win-titlebar .wt-min:focus-visible, .win-titlebar .wt-max:focus-visible,
