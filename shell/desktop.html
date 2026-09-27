@@ -757,8 +757,11 @@
        left, were unaffected — the tell). */
     position: relative; z-index: 5;
   }
-  /* Keep the proven click targets and 8px gaps, but draw each button face at
-     70% of that size. The controls look lighter without becoming harder to tap. */
+  /* The title bar's 8px gap also separates the controls from the app name.
+     Cancel it between controls so their visible faces sit closer together,
+     while their click targets remain full-size and never overlap. */
+  .win-titlebar .wt-max, .win-titlebar .wt-close { margin-left: -8px; }
+  /* Draw each button face at 70% of its click target. */
   .win-titlebar .wt-min::before, .win-titlebar .wt-max::before, .win-titlebar .wt-close::before {
     content: ''; position: absolute; top: 50%; left: 50%;
     box-sizing: border-box; width: 70%; height: 70%;

@@ -221,8 +221,14 @@ test.describe('window mode', () => {
         expect(button.faceWidth / button.width).toBeCloseTo(0.7, 1);
         expect(button.faceHeight / button.height).toBeCloseTo(0.7, 1);
       }
-      expect(max.left - min.right).toBeGreaterThanOrEqual(7);
-      expect(close.left - max.right).toBeGreaterThanOrEqual(7);
+      const faceGap = (a, b) => b.left - a.right +
+        (a.width - a.faceWidth + b.width - b.faceWidth) / 2;
+      expect(max.left - min.right).toBeCloseTo(0, 0);
+      expect(close.left - max.right).toBeCloseTo(0, 0);
+      expect(faceGap(min, max)).toBeGreaterThanOrEqual(10);
+      expect(faceGap(min, max)).toBeLessThanOrEqual(14);
+      expect(faceGap(max, close)).toBeGreaterThanOrEqual(10);
+      expect(faceGap(max, close)).toBeLessThanOrEqual(14);
       expect(controls.barRight - close.right).toBeGreaterThanOrEqual(18);
       expect(close.background).not.toBe(min.background);
     });
