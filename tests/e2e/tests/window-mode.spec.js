@@ -199,6 +199,30 @@ test.describe('window mode', () => {
       await expect(btn).toHaveAttribute('aria-label', 'Maximize');
     });
 
+    test('window controls have separate, visible targets at the top right', async ({ page }) => {
+      const controls = await page.locator('#win-upload .win-titlebar').evaluate((bar) => {
+        const buttons = ['.wt-min', '.wt-max', '.wt-close'].map((selector) => {
+          const el = bar.querySelector(selector);
+          const r = el.getBoundingClientRect();
+          return { left: r.left, right: r.right, top: r.top, width: r.width, height: r.height,
+                   hit: document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2) === el,
+                   background: getComputedStyle(el).backgroundColor };
+        });
+        return { buttons, barRight: bar.getBoundingClientRect().right,
+                 touch: document.body.classList.contains('is-touch') };
+      });
+      const [min, max, close] = controls.buttons;
+      for (const button of controls.buttons) {
+        expect(button.width).toBeGreaterThanOrEqual(controls.touch ? 40 : 36);
+        expect(button.height).toBeGreaterThanOrEqual(controls.touch ? 36 : 28);
+        expect(button.hit).toBe(true);
+      }
+      expect(max.left - min.right).toBeGreaterThanOrEqual(7);
+      expect(close.left - max.right).toBeGreaterThanOrEqual(7);
+      expect(controls.barRight - close.right).toBeGreaterThanOrEqual(18);
+      expect(close.background).not.toBe(min.background);
+    });
+
     test('a minimized window is marked in the taskbar, and its button restores it', async ({ page }) => {
       const tb = page.locator('#task-apps .task-app[data-id="notes"]');
       await page.locator('#win-upload .win-titlebar .wt-name').click();   // focus upload

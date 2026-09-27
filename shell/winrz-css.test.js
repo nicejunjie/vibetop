@@ -69,7 +69,7 @@ const SETS = (() => {
   const base = {};
   for (const k of ['n','s','e','w','ne','nw','se','sw']) base[k] = rule(desk, '.win-rz-' + k);
   return [
-    { name: 'desktop.html (mouse)', ring: ring(desk, '.win-rz-'), pad: 18 },
+    { name: 'desktop.html (mouse)', ring: ring(desk, '.win-rz-'), pad: 20 },
     { name: 'desktop.html (touch)', ring: ring(desk, 'body.is-touch .win-rz-', base), pad: 28 },
     { name: 'rzdbg.html replica', ring: ring(dbg, '.rz-'), pad: 18 },
   ];

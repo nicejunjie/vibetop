@@ -734,13 +734,13 @@
      a normal-looking window — keep its border, radius and shadow (they used to be
      stripped for the old edge-to-edge full-bleed maximize). */
   body.wm .win.floating > .win-titlebar {
-    display: flex; align-items: center; gap: 8px; flex: 0 0 32px; height: 32px;
+    display: flex; align-items: center; gap: 8px; flex: 0 0 40px; height: 40px;
     border-radius: 7px 7px 0 0;   /* was inherited from the window's overflow clip */
-    /* padding-right (18) > the corner grab zone (16) so the × can never sit in the
+    /* padding-right (20) > the corner grab zone (16) so the × can never sit in the
        resize ring: that overlap is why the NE corner was the one dead corner —
        the × is z-index 5, the handles 3-4, so it won the 9x9 they shared. Every
        real window frame insets its controls from the edge for exactly this. */
-    padding: 0 18px 0 10px; background: #171d28; color: #93a4b6;
+    padding: 0 20px 0 10px; background: #171d28; color: #93a4b6;
     cursor: move; user-select: none; font-size: 13px;
     touch-action: none;   /* dragging the title bar moves the window, never scrolls */
   }
@@ -749,15 +749,24 @@
   .win-titlebar .wt-ico svg { width: 16px; height: 16px; }
   .win-titlebar .wt-name { flex: 1 1 auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .win-titlebar .wt-min, .win-titlebar .wt-max, .win-titlebar .wt-close {
-    width: 26px; height: 24px; display: inline-flex; align-items: center; justify-content: center;
-    border-radius: 5px; cursor: pointer; color: #7a8a9c; flex: 0 0 auto; font-size: 15px; line-height: 1;
+    box-sizing: border-box; width: 38px; height: 30px;
+    display: inline-flex; align-items: center; justify-content: center;
+    border: 1px solid #60758e; border-radius: 6px; background: #34465c;
+    cursor: pointer; color: #f3f7fc; flex: 0 0 auto; line-height: 1;
     /* Above the resize handles (z-index 3–4): the × sits at the right edge under
        .win-rz-e / .win-rz-ne, which otherwise stole the tap (min/max, further
        left, were unaffected — the tell). */
     position: relative; z-index: 5;
   }
-  .win-titlebar .wt-min:hover, .win-titlebar .wt-max:hover { background: rgba(255,255,255,0.12); color: #cfe0f0; }
-  .win-titlebar .wt-close:hover { background: #aa3333; color: #fff; }
+  .win-titlebar .wt-min svg, .win-titlebar .wt-max svg, .win-titlebar .wt-close svg {
+    width: 18px; height: 18px; fill: none; stroke: currentColor;
+    stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; pointer-events: none;
+  }
+  .win-titlebar .wt-close { background: #963a42; border-color: #c7656b; color: #fff; }
+  .win-titlebar .wt-min:hover, .win-titlebar .wt-max:hover { background: #506b8a; border-color: #91b1d1; }
+  .win-titlebar .wt-close:hover { background: #c34149; border-color: #ed858b; }
+  .win-titlebar .wt-min:active, .win-titlebar .wt-max:active { background: #26384d; }
+  .win-titlebar .wt-close:active { background: #77282f; }
   /* Visible keyboard focus — the controls are reachable by Tab now, so they must
      show where focus is. */
   .win-titlebar .wt-min:focus-visible, .win-titlebar .wt-max:focus-visible,
@@ -878,7 +887,7 @@
 
      INVARIANT: the corner's INSIDE reach (size - outside) must stay below the
      title bar's padding-right, or the × falls inside the corner grab zone again:
-     desktop 20-4=16 < 18, touch 22-4=18 < 28. */
+     desktop 20-4=16 < 20, touch 22-4=18 < 28. */
   .win-rz-n { top: -3px; left: -3px; right: -4px; height: 11px; cursor: ns-resize; }
   .win-rz-s { bottom: -4px; left: -3px; right: -4px; height: 12px; cursor: ns-resize; }
   .win-rz-e { right: -4px; top: -3px; bottom: -4px; width: 12px; cursor: ew-resize; }
@@ -921,10 +930,10 @@
   .win-rz-n, .win-rz-s { cursor: row-resize; }
   /* Touch (iPad): fingers need bigger targets than a 5px edge — enlarge the
      grab zones and the title-bar buttons, and give the bar a taller drag area. */
-  body.is-touch.wm .win.floating > .win-titlebar { flex-basis: 40px; height: 40px; padding-right: 28px; }
+  body.is-touch.wm .win.floating > .win-titlebar { flex-basis: 48px; height: 48px; padding-right: 28px; }
   /* Touch: keep the 12px OUTSIDE reach (that is what makes the tile gutter
      grabbable) but cut the INSIDE reach to 12px — it was 24px, and the touch title
-     bar is only 40px tall, so the north grip covered its top 60% INCLUDING THE
+     bar was only 40px tall, so the north grip covered its top 60% INCLUDING THE
      CENTRE. Measured on ipad-pro-11: title bar y 56..96, .win-rz-n y 44..80,
      elementFromPoint at the bar's centre returned `win-rz win-rz-n`. Double-tap to
      maximize, tap-to-focus through a nested iframe, and restoring a minimized
@@ -945,7 +954,7 @@
   body.is-touch .win-rz-se { bottom: -4px; right: -4px; width: 22px; height: 22px; }
   body.is-touch .win-rz-sw { bottom: -4px; left: -3px; width: 21px; height: 22px; }
   body.is-touch .win-titlebar .wt-min, body.is-touch .win-titlebar .wt-max,
-  body.is-touch .win-titlebar .wt-close { width: 34px; height: 32px; font-size: 17px; }
+  body.is-touch .win-titlebar .wt-close { width: 42px; height: 38px; }
   /* The SE corner used to draw a visible diagonal-lines grip as a "this window
      is resizable" affordance where the cursor can't say it (touch, and macOS
      Safari's missing diagonal cursor — see the mapping note above). Removed at
@@ -1984,11 +1993,11 @@
       if (wm) {
         var g = winGeom(id), vis = !g.min;
         w.classList.add('floating');
-        // The maximize control has to say which way it goes — it was a fixed ▢
-        // labelled "Maximize" even while the window WAS maximized.
+        // The maximize control shows the corresponding restore icon and label
+        // while the window is maximized.
         var mx = w.querySelector('.wt-max');
         if (mx) {
-          mx.textContent = g.max ? '❐' : '▢';
+          mx.innerHTML = g.max ? winControlIcons.restore : winControlIcons.max;
           mx.setAttribute('title', g.max ? 'Restore' : 'Maximize');
           mx.setAttribute('aria-label', g.max ? 'Restore' : 'Maximize');
         }
@@ -2770,6 +2779,12 @@
 
   function frameOf(id) { return document.getElementById('frame-' + id); }
   function winOf(id) { return document.getElementById('win-' + id); }
+  var winControlIcons = {
+    min: '<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 15h12"/></svg>',
+    max: '<svg viewBox="0 0 20 20" aria-hidden="true"><rect x="4" y="4" width="12" height="12" rx="1"/></svg>',
+    restore: '<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M7 4h9v9M4 7h9v9H4z"/></svg>',
+    close: '<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M5 5l10 10M15 5L5 15"/></svg>'
+  };
 
   function ensureFrame(id) {
     var f = frameOf(id);
@@ -2787,15 +2802,15 @@
       // The controls are real buttons: focusable, labelled, Enter/Space-activated.
       // They were bare <span>s, so nothing about a window was reachable without a
       // pointer. role+tabindex keeps the existing CSS/hit-testing untouched.
-      var ctl = function(cls, label, glyph) {
+      var ctl = function(cls, label, icon) {
         return '<span class="' + cls + '" role="button" tabindex="0" aria-label="' + label +
-               '" title="' + label + '">' + glyph + '</span>';
+               '" title="' + label + '">' + icon + '</span>';
       };
       bar.innerHTML = '<span class="wt-ico">' + (APPS[id].svg || APPS[id].icon) + '</span>' +
                       '<span class="wt-name">' + APPS[id].label + '</span>' +
-                      ctl('wt-min', 'Minimize', '–') +
-                      ctl('wt-max', 'Maximize', '▢') +
-                      ctl('wt-close', 'Close', '&times;');
+                      ctl('wt-min', 'Minimize', winControlIcons.min) +
+                      ctl('wt-max', 'Maximize', winControlIcons.max) +
+                      ctl('wt-close', 'Close', winControlIcons.close);
       var body = document.createElement('div');
       body.className = 'win-body';
       f = document.createElement('iframe');
