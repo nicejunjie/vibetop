@@ -72,6 +72,15 @@ The tiers (each independently runnable, ~5s total):
 - **Static/integrity** (`test_static.py`) — `py_compile` every `.py`, `bash -n` +
   `shellcheck -S error` every `.sh`, the `@PLACEHOLDER@`-stamping invariant, sw.js
   PRECACHE-source existence, and HTML asset-ref resolution.
+- **Browser dependencies and runtime** (`test_browser_runtime.py`) — execute the
+  shipped installer's dependency/picker block and the complete browser loop in
+  an isolated filesystem. Cover Firefox-only hosts, snap and distro binaries,
+  disabled dependencies, package failures, dry runs, profile paths with spaces,
+  crash restarts, and mobile-to-desktop reshaping. Test the live window probe
+  against empty displays, another user's Chromium, renderer-only processes,
+  wrong profiles, X authorization failures, and snap's separate scope/HOME.
+  Execute the smoke script with HTTP 200 plus failed Browser health and require
+  a nonzero result; the authenticated cookie selects the user being checked.
 - **claude-usage proxy** (`apps/utilities/claude-usage/tests/`) — header capture (`_record`),
   fail-open relay, atomic write; importlib-loads the hyphenated proxy.
 - **JavaScript** (`node --test`) — service-worker routing (`sw.test.js`), tab-set
@@ -89,6 +98,14 @@ running stack; it turns the Health-check curls below into asserting checks with 
 pass/fail summary + non-zero exit (systemd units active, `/`/`/tN/`/`/browser/`/
 `/files.html` 200, `/api/ping`, SSE `retry:`, OnlyOffice). Run it post-deploy; **not**
 in CI. `--no-office` / `--base URL` / `--cookie` / `--user`.
+
+Local Browser smoke checks also run `tools/browser-health.py`: require a main
+Chromium process descended from the probed user's Browser unit, the expected
+persistent profile, and a visible, nonzero-size managed Chromium window on its X display.
+Allow up to 30 seconds for a cold launch. An HTTP 200 or another user's Chromium
+cannot satisfy this check. Remote HTTP probes explicitly skip the local window
+check; run smoke on the target host to verify it. The full install matrix uses
+the same window probe and seeds Firefox on Ubuntu before installing vibetop.
 
 > **Run it with `sudo`.** On a multi-user host every surface is behind
 > `auth_request`, so an unauthenticated probe gets 302/401 and *every* check fails

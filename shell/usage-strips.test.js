@@ -62,9 +62,10 @@ const code = src.replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/^\s*\/\/.*$/gm, ' ')
 
 function el(id) {
   const node = {
-    id, innerHTML: '', style: {}, onclick: null, dataset: {},
+    id, innerHTML: '', style: { setProperty(name, value) { this[name] = value; } }, onclick: null, dataset: {},
     _classes: new Set(),
     get className() { return [...node._classes].join(' '); },
+    set className(value) { node._classes = new Set(String(value).split(/\s+/)); },
     // Start-menu rows carry a `.sm-desc` line ("On — plan usage strip" / "Off");
     // it is the only place either strip can say anything to the user, so the
     // stub has to hand one back rather than null.
@@ -448,6 +449,8 @@ function shellSandbox(parts, opts = {}) {
     set(v) { if (v === '') nodes['sys-warn'].children.length = 0; }, get() { return ''; },
   });
   const stats = el('tb-stats');
+  stats.querySelectorAll = () => [];
+  stats.appendChild = (node) => { nodes[node.id] = node; };
   const rows = { sysstats: el('row-sysstats') };
   let stored = opts.sysStats === undefined ? '1' : opts.sysStats;
   const document = {
@@ -475,6 +478,7 @@ function shellSandbox(parts, opts = {}) {
                           closeTargetsFor: function () { return []; } };
   `;
   const sandbox = {
+    VibeSystemTray: require('./system-tray.js'),
     document, console, Date, Math, JSON, String, Number, Object, Array, Promise,
     setTimeout, clearTimeout, Error,
     localStorage: { getItem: () => stored, setItem: (k, v) => { stored = v; }, removeItem() {} },

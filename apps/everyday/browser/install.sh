@@ -92,12 +92,12 @@ nginx_write() {
     rm -f "$tmp"; return 1
 }
 
-# Auto-install Chromium (snap) when nothing is present and we're allowed to —
-# the manager's /api/browser/open expects the snap-confined xpra-profile path,
-# so snap chromium is the supported browser. (Gated by INSTALL_DEPS.)
+# The per-user browser-loop and /api/browser/open require Chromium. Firefox or
+# Epiphany being installed does not satisfy that runtime dependency.
+# Prefer an existing distro Chromium, otherwise install snap when available.
 if [ -z "${BROWSER_CMD:-}" ] && [ "${INSTALL_DEPS}" = 1 ] \
-   && ! [ -x /snap/bin/chromium ] && ! [ -x /snap/bin/firefox ] \
-   && ! command -v firefox-esr >/dev/null 2>&1 && ! command -v epiphany >/dev/null 2>&1 \
+   && ! [ -x /snap/bin/chromium ] && ! [ -x /usr/bin/chrome ] \
+   && ! command -v chromium >/dev/null 2>&1 && ! command -v chromium-browser >/dev/null 2>&1 \
    && command -v snap >/dev/null 2>&1; then
     echo "== installing chromium (snap) =="
     run sudo snap install chromium
@@ -111,9 +111,8 @@ fi
 # "no browser found" at step 2/6 — even though Debian packages `chromium`. Only
 # Ubuntu reliably has snap, which is what masked this.
 if (( INSTALL_DEPS )) && [ -z "${BROWSER_CMD:-}" ] \
-   && ! [ -x /snap/bin/chromium ] && ! [ -x /snap/bin/firefox ] \
-   && ! command -v chromium >/dev/null 2>&1 && ! command -v chromium-browser >/dev/null 2>&1 \
-   && ! command -v firefox-esr >/dev/null 2>&1 && ! command -v epiphany >/dev/null 2>&1; then
+   && ! [ -x /snap/bin/chromium ] && ! [ -x /usr/bin/chrome ] \
+   && ! command -v chromium >/dev/null 2>&1 && ! command -v chromium-browser >/dev/null 2>&1; then
     echo "== installing chromium (distro package; no snap on this host) =="
     run vt_enable_epel                   # no-op off EL
     run vt_pkg_refresh
@@ -135,16 +134,12 @@ if [ -z "${BROWSER_CMD:-}" ]; then
         # class of bug as the snap-profile mismatch documented in docs/gotchas.md.
         CHROME_BIN="$(command -v chromium 2>/dev/null || command -v chromium-browser)"
         BROWSER_CMD="$CHROME_BIN --no-first-run --no-default-browser-check --restore-last-session --start-maximized --disable-smooth-scrolling --user-data-dir=$APP_HOME/.config/vibetop/chromium-profile"
-    elif [ -x /snap/bin/firefox ]; then
-        BROWSER_CMD="/snap/bin/firefox --no-remote"
-    elif command -v firefox-esr >/dev/null 2>&1; then
-        BROWSER_CMD="$(command -v firefox-esr) --no-remote"
-    elif command -v epiphany >/dev/null 2>&1; then
-        BROWSER_CMD="$(command -v epiphany)"
+    elif [ -x /usr/bin/chrome ]; then
+        BROWSER_CMD="/usr/bin/chrome --no-first-run --no-default-browser-check --restore-last-session --start-maximized --disable-smooth-scrolling --user-data-dir=$APP_HOME/.config/vibetop/chromium-profile"
     elif (( DRY_RUN )); then
         BROWSER_CMD=chromium
     else
-        echo "no browser found; set BROWSER_CMD or install chromium/firefox/epiphany" >&2
+        echo "Chromium is required by the per-user Browser; enable INSTALL_DEPS or install chromium" >&2
         exit 1
     fi
 fi

@@ -7,10 +7,15 @@ calls `get_system_status(running_terminals, cached)`, injecting the list of
 running terminals and the manager's generic `_cached` memoizer (which lives in
 the main module because terminal start/stop invalidates its `running_terminals`
 entry). Reads sysfs/procfs/debugfs; designed for AMD (sysfs + debugfs fallback)
-with an nvidia-smi fallback. Best-effort throughout: any unreadable source is
+with optional AMD-SMI and NVIDIA-SMI inventory/metrics. Best-effort throughout: any unreadable source is
 omitted from the result rather than failing the whole poll.
 """
 import os
+import csv
+import ctypes
+import fcntl
+import struct
+import math
 import pwd
 import re
 import shutil
@@ -21,6 +26,10 @@ import subprocess
 import threading
 import time
 import urllib.request
+
+_gpu_device_flags = {}
+_gpu_sample = None
+_gpu_sample_at = 0.0
 
 # The collector keeps per-call delta snapshots (CPU/RAPL/disk/process) in module
 # globals; the manager is a ThreadingHTTPServer, so concurrent polls (taskbar +
@@ -128,7 +137,7 @@ def _read_loadavg():
         return [None, None, None]
 
 
-def _read_amdgpu_pm_info(card_n):
+def _read_amdgpu_pm_info(card_n, pci_id=None):
     """Best-effort parse of /sys/kernel/debug/dri/N/amdgpu_pm_info — used as
     a fallback when sysfs gpu_busy_percent / hwmon temp read EBUSY under
     heavy compute. Returns {"load": int|None, "temp": int|None,
@@ -136,13 +145,10 @@ def _read_amdgpu_pm_info(card_n):
     out = {"load": None, "temp": None, "power_w": None}
     if card_n is None:
         return out
-    paths = [f"/sys/kernel/debug/dri/{card_n}/amdgpu_pm_info"]
-    # Some kernels expose the file under a PCI-address-based dri index that
-    # doesn't match the cardN number. Probe several indices defensively.
-    for i in range(8):
-        p = f"/sys/kernel/debug/dri/{i}/amdgpu_pm_info"
-        if p not in paths:
-            paths.append(p)
+    # The PCI alias follows the device even when cardN/DRI indices differ.
+    # Never scan other devices: that can splice GPU2's temperature into GPU1.
+    paths = ([f"/sys/kernel/debug/dri/{pci_id}/amdgpu_pm_info"] if pci_id else
+             [f"/sys/kernel/debug/dri/{card_n}/amdgpu_pm_info"])
     for path in paths:
         try:
             with open(path) as f:
@@ -166,47 +172,209 @@ def _read_amdgpu_pm_info(card_n):
     return out
 
 
-def _read_nvidia_gpu():
-    """Best-effort NVIDIA GPU stats via nvidia-smi, used when no AMD card is
-    found (portability for NVIDIA hosts). Returns a dict with the same keys the
-    AMD path fills — percent/temp/vram_used_gb/vram_total_gb/power_w — or {}."""
-    smi = shutil.which("nvidia-smi")
-    if not smi:
-        return {}
+def _gpu_number(value):
+    """AMD-SMI has both scalar (older) and {value, unit} (newer) JSON metrics."""
+    if isinstance(value, dict):
+        value = value.get("value")
     try:
-        p = subprocess.run(
-            [smi, "--query-gpu=utilization.gpu,temperature.gpu,memory.used,"
-                  "memory.total,power.draw",
-             "--format=csv,noheader,nounits"],
-            capture_output=True, text=True, timeout=2)
-    except Exception:
-        return {}
-    rows = (p.stdout or "").strip().splitlines()
-    if not rows:
-        return {}
-    parts = [x.strip() for x in rows[0].split(",")]   # first GPU
-    if len(parts) < 5:
-        return {}
+        number = float(value)
+        return number if math.isfinite(number) else None
+    except (TypeError, ValueError):
+        return None
 
-    def num(x):
+
+def _smi_rows(binary, args):
+    try:
+        result = subprocess.run([binary, *args, "--json"], capture_output=True,
+                                text=True, timeout=2)
+        if result.returncode:
+            return []
+        data = json.loads(result.stdout)
+        if isinstance(data, dict):
+            data = data.get("gpu_data", [data] if "gpu" in data else [])
+        return [row for row in data if isinstance(row, dict)] if isinstance(data, list) else []
+    except (OSError, subprocess.SubprocessError, ValueError):
+        return []
+
+
+def _amd_smi_binary():
+    return shutil.which("amd-smi") or next((path for path in (
+        "/opt/soft/rocm/bin/amd-smi", "/opt/rocm/bin/amd-smi"
+    ) if os.path.isfile(path) and os.access(path, os.X_OK)), None)
+
+
+def _amdgpu_integrated(card, pci):
+    """Query stable amdgpu_drm.h DEV_INFO flags, independently of ROCm."""
+    if pci in _gpu_device_flags:
+        return _gpu_device_flags[pci]
+    try:
+        # Linux DRM_IOCTL_AMDGPU_INFO: _IOW('d', 0x45, 32-byte request).
+        # DEV_INFO's fixed UAPI prefix has ids_flags at byte 136 (u64).
+        # Request only that prefix; the kernel may append fields in later ABIs.
+        result = ctypes.create_string_buffer(144)
+        request = struct.pack('=QII16x', ctypes.addressof(result), len(result), 0x16)
+        fd = os.open('/dev/dri/' + card, os.O_RDONLY | os.O_CLOEXEC)
         try:
-            return float(x)
-        except (ValueError, TypeError):
-            return None
-    util, temp, mu, mt, pw = (num(parts[0]), num(parts[1]), num(parts[2]),
-                              num(parts[3]), num(parts[4]))
-    out = {}
-    if util is not None:
-        out["percent"] = int(util)
-    if temp is not None:
-        out["temp"] = int(temp)
-    if mu is not None:
-        out["vram_used_gb"] = round(mu / 1024, 1)    # nvidia-smi reports MiB
-    if mt is not None:
-        out["vram_total_gb"] = round(mt / 1024, 1)
-    if pw is not None:
-        out["power_w"] = round(pw)
+            fcntl.ioctl(fd, 0x40206445, request)
+        finally:
+            os.close(fd)
+        integrated = bool(struct.unpack_from('=Q', result.raw, 136)[0] & 1)
+        _gpu_device_flags[pci] = integrated
+        return integrated
+    except OSError:
+        return None
+
+
+def _read_amd_smi_gpus(cached):
+    binary = _amd_smi_binary()
+    if not binary:
+        return []
+    # Sample activity before inventory/sensor queries, which wake idle Radeon
+    # devices and otherwise contaminate the utilization we are measuring.
+    usage = {row.get("gpu"): row for row in
+             _smi_rows(binary, ["metric", "--usage"])}
+    static = cached("gpu_amd_inventory", 30.0,
+                    lambda: _smi_rows(binary, ["static", "--asic", "--bus", "--vram"]))
+    metrics = {row.get("gpu"): row for row in
+               _smi_rows(binary, ["metric", "--temperature", "--mem-usage", "--power"])}
+    out = []
+    for info in static:
+        bus = info.get("bus") or {}
+        asic = info.get("asic") or {}
+        if not isinstance(bus, dict) or not isinstance(asic, dict):
+            continue
+        pci = bus.get("bdf")
+        if not isinstance(pci, str) or not re.fullmatch(r"[0-9a-fA-F]{4}:[0-9a-fA-F]{2}:[0-9a-fA-F]{2}\.[0-7]", pci):
+            continue
+        flags = _gpu_number(asic.get("flags"))
+        gpu = {"id": pci.lower(), "name": asic.get("market_name") or "AMD GPU"}
+        # AMDGPU_IDS_FLAGS_FUSION in Linux's amdgpu_drm.h (UAPI) is bit 0.
+        # https://github.com/torvalds/linux/blob/master/include/uapi/drm/amdgpu_drm.h
+        # Use the flag AMD-SMI exposes, not a model-name or VRAM-size heuristic.
+        if flags is not None:
+            gpu["integrated"] = bool(int(flags) & 1)
+        metric = dict(metrics.get(info.get("gpu"), {}))
+        metric["usage"] = usage.get(info.get("gpu"), {}).get("usage")
+        for section, field, key, scale in (
+            ("usage", "gfx_activity", "percent", 1),
+            ("temperature", "edge", "temp", 1),
+            ("power", "socket_power", "power_w", 1),
+            ("mem_usage", "used_vram", "vram_used_gb", 1024),
+            ("mem_usage", "total_vram", "vram_total_gb", 1024),
+        ):
+            values = metric.get(section)
+            n = _gpu_number(values.get(field)) if isinstance(values, dict) else None
+            if n is not None:
+                gpu[key] = round(n / scale, 1) if scale != 1 else round(n)
+        out.append(gpu)
     return out
+
+
+def _read_sysfs_gpus():
+    out = []
+    try:
+        cards = os.listdir("/sys/class/drm")
+    except OSError:
+        return out
+    for card in cards:
+        match = re.fullmatch(r"card(\d+)", card)
+        if not match:
+            continue
+        dev = f"/sys/class/drm/{card}/device"
+        if os.path.basename(os.path.realpath(dev + "/driver")) != "amdgpu":
+            continue
+        pci = os.path.basename(os.path.realpath(dev))
+        gpu = {"id": pci, "name": "AMD GPU"}
+        integrated = _amdgpu_integrated(card, pci)
+        if integrated is not None:
+            gpu["integrated"] = integrated
+        for filename, key, scale in (
+            ("gpu_busy_percent", "percent", 1),
+            ("mem_info_vram_used", "vram_used_gb", 1024**3),
+            ("mem_info_vram_total", "vram_total_gb", 1024**3),
+        ):
+            try:
+                with open(f"{dev}/{filename}") as stream:
+                    n = int(stream.read().strip())
+                gpu[key] = round(n / scale, 1) if scale != 1 else n
+            except (OSError, ValueError):
+                pass
+        try:
+            hwmons = os.listdir(dev + "/hwmon")
+        except OSError:
+            hwmons = []
+        for hwmon in hwmons:
+            path = f"{dev}/hwmon/{hwmon}"
+            for filenames, key, scale in (
+                (("temp1_input",), "temp", 1000),
+                (("power1_average", "power1_input"), "power_w", 1000000),
+            ):
+                for filename in filenames:
+                    try:
+                        with open(path + "/" + filename) as stream:
+                            gpu[key] = round(int(stream.read().strip()) / scale)
+                        break
+                    except (OSError, ValueError):
+                        continue
+        if any(key not in gpu for key in ("percent", "temp", "power_w")):
+            pm = _read_amdgpu_pm_info(int(match.group(1)), pci)
+            for key, pm_key in (("percent", "load"), ("temp", "temp"), ("power_w", "power_w")):
+                if key not in gpu and pm.get(pm_key) is not None:
+                    gpu[key] = pm[pm_key]
+        out.append(gpu)
+    return out
+
+
+def _read_nvidia_gpus():
+    binary = shutil.which("nvidia-smi")
+    if not binary:
+        return []
+    try:
+        result = subprocess.run(
+            [binary, "--query-gpu=pci.bus_id,name,utilization.gpu,temperature.gpu,memory.used,memory.total,power.draw",
+             "--format=csv,noheader,nounits"], capture_output=True, text=True, timeout=2)
+        if result.returncode:
+            return []
+    except (OSError, subprocess.SubprocessError):
+        return []
+    out = []
+    for row in csv.reader(result.stdout.splitlines()):
+        if len(row) != 7:
+            continue
+        pci, name, *values = [v.strip() for v in row]
+        # NVIDIA prints an eight-digit PCI domain; normalize to Linux's BDF.
+        if not re.fullmatch(r"[0-9a-fA-F]{4,8}:[0-9a-fA-F]{2}:[0-9a-fA-F]{2}\.[0-7]", pci):
+            continue
+        gpu = {"id": pci[-12:].lower(), "name": name, "integrated": False}
+        for key, value in zip(("percent", "temp", "vram_used_gb", "vram_total_gb", "power_w"), values):
+            n = _gpu_number(value)
+            if n is not None:
+                gpu[key] = round(n / 1024, 1) if key.startswith("vram_") else round(n)
+        out.append(gpu)
+    return out
+
+
+def _read_gpus(cached):
+    # Monitor, history, and desktop heartbeats share one sample; do not spawn
+    # another management CLI for every client poll. Like the process snapshot,
+    # own this sampling interval independently of the injected general memoizer.
+    # The enclosing collector lock serializes production calls.
+    global _gpu_sample, _gpu_sample_at
+    if _gpu_sample is None or time.monotonic() - _gpu_sample_at >= 2.0:
+        _gpu_sample = _collect_gpus(cached)
+        _gpu_sample_at = time.monotonic()
+    return _gpu_sample
+
+
+def _collect_gpus(cached):
+    # Preserve device identity when a sensor is temporarily unreadable. SMI
+    # values take precedence; sysfs fills gaps on installations without ROCm.
+    # Read SMI activity before sysfs hwmon/debugfs wakes the cards.
+    smi = _read_amd_smi_gpus(cached) + _read_nvidia_gpus()
+    gpus = {gpu["id"]: gpu for gpu in _read_sysfs_gpus()}
+    for gpu in smi:
+        gpus[gpu["id"]] = {**gpus.get(gpu["id"], {}), **gpu}
+    return sorted(gpus.values(), key=lambda gpu: gpu["id"])
 
 
 def _root_disk():
@@ -377,6 +545,17 @@ class _CpuTooSoon(Exception):
     """Two polls landed inside the 0.5s sampling window — serve the last reading."""
 
 
+def _cpu_usage_percent(a, b):
+    # /proc/stat: guest/guest_nice are already included in user/nice. Counting
+    # them again inflates utilization. I/O wait is idle time, not CPU execution.
+    total_d = sum(b[:8]) - sum(a[:8])
+    if total_d <= 0:
+        return 0.0
+    idle_d = sum(b[3:5]) - sum(a[3:5])
+    pct = 100.0 * (1.0 - idle_d / total_d)
+    return round(min(100.0, max(0.0, pct)), 1)
+
+
 def _collect(running_terminals, cached, want_procs=True):
     # CPU: delta against the snapshot from the previous status call
     # (clients poll every few seconds, so the window is meaningful).
@@ -423,19 +602,13 @@ def _collect(running_terminals, cached, want_procs=True):
             snap2 = read_proc_stat()
         _prev_cpu_snap = (snap2, time.monotonic())
 
-        def calc_pct(a, b):
-            total_d = sum(b) - sum(a)
-            if total_d <= 0:        # no elapsed time / counter reset → no data
-                return 0.0
-            pct = 100.0 * (1.0 - (b[3] - a[3]) / total_d)
-            return round(min(100.0, max(0.0, pct)), 1)   # clamp; deltas can go out of range
-        cpu = calc_pct(snap1["cpu"], snap2["cpu"])
+        cpu = _cpu_usage_percent(snap1["cpu"], snap2["cpu"])
         i = 0
         # Require the core in BOTH snapshots — a CPU offlined/hotplugged between
         # the two /proc/stat reads (slow path) would otherwise KeyError the poll.
         while f"cpu{i}" in snap1:
             if f"cpu{i}" in snap2:
-                cpu_cores.append(calc_pct(snap1[f"cpu{i}"], snap2[f"cpu{i}"]))
+                cpu_cores.append(_cpu_usage_percent(snap1[f"cpu{i}"], snap2[f"cpu{i}"]))
             i += 1
         _prev_cpu_result = (cpu, cpu_cores)
     except _CpuTooSoon:
@@ -468,47 +641,16 @@ def _collect(running_terminals, cached, want_procs=True):
     except (OSError, ValueError, IndexError):
         pass
 
-    # GPU (AMD via sysfs — find discrete card by largest VRAM)
-    gpu_percent = None
-    gpu_vram_used_gb = None
-    gpu_vram_total_gb = None
-    best_card_n = None      # remember card index for the debugfs fallback
-    best_card_dev = None    # the selected card's device dir (for hwmon matching)
-    try:
-        best_card = None
-        best_vram = 0
-        for entry in os.listdir("/sys/class/drm"):
-            m = re.match(r"card(\d+)$", entry)
-            if not m:
-                continue
-            dev = f"/sys/class/drm/{entry}/device"
-            vram_path = f"{dev}/mem_info_vram_total"
-            if not os.path.exists(vram_path):
-                continue
-            try:
-                with open(vram_path) as f:
-                    vram = int(f.read().strip())
-                if vram > best_vram:
-                    best_vram = vram
-                    best_card = dev
-                    best_card_dev = dev
-                    best_card_n = int(m.group(1))
-            except Exception:
-                continue
-        if best_card:
-            gpu_vram_total_gb = round(best_vram / (1024**3), 1)
-            try:
-                with open(f"{best_card}/mem_info_vram_used") as f:
-                    gpu_vram_used_gb = round(int(f.read().strip()) / (1024**3), 1)
-            except Exception:
-                pass
-            try:
-                with open(f"{best_card}/gpu_busy_percent") as f:
-                    gpu_percent = int(f.read().strip())
-            except Exception:
-                pass
-    except Exception:
-        pass
+    gpus = _read_gpus(cached)
+    discrete = [gpu for gpu in gpus if not gpu.get("integrated", False)]
+    primary = max(discrete or gpus, key=lambda gpu: gpu.get("vram_total_gb", 0), default={})
+    # Scalar fields stay compatible with Monitor/history consumers. The tray
+    # uses the inventory, so it never conflates readings from different cards.
+    gpu_percent = primary.get("percent")
+    gpu_temp = primary.get("temp")
+    gpu_power_w = primary.get("power_w")
+    gpu_vram_used_gb = primary.get("vram_used_gb")
+    gpu_vram_total_gb = primary.get("vram_total_gb")
 
     # CPU temperature (k10temp Tctl)
     cpu_temp = None
@@ -522,80 +664,6 @@ def _collect(running_terminals, cached, want_procs=True):
                     break
     except Exception:
         pass
-
-    # GPU temperature and power (amdgpu — discrete card only, skip integrated)
-    gpu_temp = None
-    gpu_power_w = None
-    # On a hybrid system (iGPU + dGPU both amdgpu) more than one hwmon reports
-    # name "amdgpu"; reading the first one can return the integrated GPU's
-    # sensor instead of the discrete card we selected by VRAM above. Bind the
-    # hwmon to the chosen card by comparing the resolved device path.
-    best_card_real = None
-    if best_card_dev:
-        try:
-            best_card_real = os.path.realpath(best_card_dev)
-        except OSError:
-            best_card_real = None
-    try:
-        for hwmon in sorted(os.listdir("/sys/class/hwmon")):
-            p = f"/sys/class/hwmon/{hwmon}"
-            with open(f"{p}/name") as f:
-                if f.read().strip() != "amdgpu":
-                    continue
-            # Skip hwmons that don't belong to the selected card (when known).
-            if best_card_real is not None:
-                try:
-                    if os.path.realpath(f"{p}/device") != best_card_real:
-                        continue
-                except OSError:
-                    pass
-            label_path = f"{p}/temp1_label"
-            if os.path.exists(label_path):
-                with open(label_path) as f:
-                    if f.read().strip() == "edge":
-                        try:
-                            with open(f"{p}/temp1_input") as f2:
-                                gpu_temp = round(int(f2.read().strip()) / 1000)
-                        except Exception:
-                            pass
-                        for pwr in ("power1_average", "power1_input"):
-                            pwr_path = f"{p}/{pwr}"
-                            if os.path.exists(pwr_path):
-                                try:
-                                    with open(pwr_path) as f2:
-                                        gpu_power_w = round(int(f2.read().strip()) / 1000000)
-                                except Exception:
-                                    pass
-                                break
-                        break
-    except Exception:
-        pass
-
-    # Fallback: under heavy compute the amdgpu driver locks sysfs files (EBUSY),
-    # so gpu_busy_percent and the hwmon temp/power vanish. The debugfs
-    # `amdgpu_pm_info` file is published from a different path and stays
-    # readable. Read it ONLY when sysfs actually left a gap (not on every poll —
-    # debugfs is 0700 and the read is comparatively expensive). Requires root
-    # (manager already runs as root) and debugfs mounted.
-    if best_card_n is not None and (gpu_percent is None or gpu_temp is None
-                                    or gpu_power_w is None):
-        pm_info = _read_amdgpu_pm_info(best_card_n)
-        if gpu_percent is None and pm_info.get("load") is not None:
-            gpu_percent = pm_info["load"]
-        if gpu_temp is None and pm_info.get("temp") is not None:
-            gpu_temp = pm_info["temp"]
-        if gpu_power_w is None and pm_info.get("power_w") is not None:
-            gpu_power_w = pm_info["power_w"]
-
-    # NVIDIA portability: if no AMD card was found, fill the same GPU fields
-    # from nvidia-smi (no-op on AMD hosts, where the card was found above).
-    if gpu_vram_total_gb is None and gpu_percent is None:
-        nv = _read_nvidia_gpu()
-        if gpu_percent is None:       gpu_percent = nv.get("percent")
-        if gpu_temp is None:          gpu_temp = nv.get("temp")
-        if gpu_vram_used_gb is None:  gpu_vram_used_gb = nv.get("vram_used_gb")
-        if gpu_vram_total_gb is None: gpu_vram_total_gb = nv.get("vram_total_gb")
-        if gpu_power_w is None:        gpu_power_w = nv.get("power_w")
 
     # CPU package power (RAPL — delta between calls)
     cpu_power_w = None
@@ -712,6 +780,7 @@ def _collect(running_terminals, cached, want_procs=True):
     # that nothing is running, and the desktop renders it as exactly that.
     if processes is not None:
         result["processes"] = processes
+    result["gpus"] = gpus
     if gpu_percent is not None:
         result["gpu_percent"] = gpu_percent
     if gpu_vram_used_gb is not None:

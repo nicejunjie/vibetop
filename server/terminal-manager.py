@@ -2921,7 +2921,7 @@ def _chromium_for_user(user):
     profile under ~/.config/vibetop to keep the two from colliding on a host
     that somehow has both."""
     home = _user_home(user)
-    binary = next((c for c in _CHROMIUM_CANDIDATES if os.path.exists(c)), None)
+    binary = next((c for c in _CHROMIUM_CANDIDATES if os.access(c, os.X_OK)), None)
     if binary is None:
         return None, None
     if binary.startswith("/snap/"):

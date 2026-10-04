@@ -417,9 +417,10 @@
       3ch  auto    /* %  number + unit (integer 0..100) */
       2ch  auto    /* °  number + unit (CPU/GPU temps are 2 digits) */
       auto         /* MEM/VRAM label */
-      5ch  auto;   /* used/total + G */
+      var(--tray-memory-width, 5ch) auto; /* reserve enough digits for used/total */
     column-gap: 0; row-gap: 1px; align-content: center; flex-shrink: 0;
-    font-size: 12px; line-height: 1.35;
+    height: 38px;
+    font-size: 11px; line-height: 1.35;
     font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
     font-variant-numeric: tabular-nums;
     color: #6a7a8a; white-space: nowrap;
@@ -443,13 +444,13 @@
   }
   .tb-clock .t { display: block; color: #9ab; }
   .tb-clock .d { display: block; color: #556; }
-  .tb-stats .label { color: #556; padding-right: 4px; }
+  .tb-stats .label { color: #7e8b99; padding-right: 4px; }
   .tb-stats .n     { color: #9ab; text-align: right; }
   .tb-stats .u     { color: #9ab; text-align: left; }
   /* Gap between util % and the temperature on the CPU/GPU block. */
   .tb-stats .u:nth-child(8n+3) { padding-right: 6px; }
   /* Gap between ° and the MEM/VRAM label */
-  .tb-stats .u:nth-child(8n+5) { padding-right: 12px; }
+  .tb-stats .u:nth-child(8n+5) { padding-right: 8px; }
   /* Heartbeat lost: the numbers are frozen, so stop presenting them as live.
      Dimmed rather than hidden or blanked — the last known reading is still worth
      something, it just must not look current. The wallpaper host line says HOW
@@ -1184,6 +1185,7 @@
 </style>
   <!-- appreg.js FIRST: buildStartMenu() reads APPS at parse time. -->
   <script src="/appreg.js"></script>
+  <script src="/system-tray.js"></script>
   <script src="/deskstate.js"></script>
   <script src="/vibe-modal.js"></script>
   <script src="/coach.js"></script>
@@ -1293,11 +1295,6 @@
       <span class="label">MEM</span>
       <span class="n"  id="mem-ut">--</span><span class="u">G</span>
 
-      <span class="label">GPU</span>
-      <span class="n"  id="gpu-n">--</span><span class="u" id="gpu-u">%</span>
-      <span class="n"  id="gpu-tn">--</span><span class="u" id="gpu-tu">°</span>
-      <span class="label">VRAM</span>
-      <span class="n"  id="vram-ut">--</span><span class="u">G</span>
     </div>
     <div class="tb-sep" id="tb-clock-sep"></div>
     <!-- Clock: trailing edge next to ⏻, the corner Windows/ChromeOS/Linux panels
@@ -3977,31 +3974,7 @@
   // folded onto that 5s channel. `d` is the system-status object.
   function renderSysStats(d) {
     if (!d) return;
-    var set = function(id, v, unit) {
-      var el = document.getElementById(id);
-      if (!el) return;
-      if (v == null) {
-        el.textContent = '--';
-        if (unit) document.getElementById(unit).style.visibility = 'hidden';
-      } else {
-        el.textContent = v;
-        if (unit) document.getElementById(unit).style.visibility = '';
-      }
-    };
-    // Round util to integer for the taskbar — 3-char max keeps the grid
-    // tight; the Monitor app shows the precise value when needed.
-    var ri = function(v) { return v != null ? Math.round(v) : null; };
-    set('cpu-n',  ri(d.cpu_percent), 'cpu-u');
-    set('cpu-tn', d.cpu_temp,        'cpu-tu');
-    set('gpu-n',  ri(d.gpu_percent), 'gpu-u');
-    set('gpu-tn', d.gpu_temp,        'gpu-tu');
-    // Combine used/total into one cell so there's no whitespace around "/".
-    var mem = (d.memory_used_gb != null && d.memory_total_gb != null)
-      ? (Math.round(d.memory_used_gb) + '/' + Math.round(d.memory_total_gb)) : null;
-    var vram = (d.gpu_vram_used_gb != null && d.gpu_vram_total_gb != null)
-      ? (Math.round(d.gpu_vram_used_gb) + '/' + Math.round(d.gpu_vram_total_gb)) : null;
-    set('mem-ut',  mem);
-    set('vram-ut', vram);
+    VibeSystemTray.render(d, document);
     // Wallpaper host line — which machine this desktop IS, at a glance (this
     // matters once you run vibetop on more than one host) + how long it's been
     // up. Rides the heartbeat that delivered `d`; textContent, never HTML.

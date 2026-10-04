@@ -149,11 +149,11 @@ if [ "${VT_FULL:-0}" = "1" ]; then
     # spinning on a missing /snap/bin/chromium forever and this row was still
     # "green" while the Browser app was a blank desktop. So assert the actual
     # Chromium process, with the profile the manager expects.
-    if pgrep -af 'chromium.*--user-data-dir' >/dev/null 2>&1; then
-        _cprof="$(pgrep -af 'chromium.*--user-data-dir' | head -1 | grep -o '\-\-user-data-dir=[^ ]*' | head -1)"
-        check full-chromium PASS "chromium running (${_cprof:-profile?})"
+    _browser_health="$(python3 "$SRC/tools/browser-health.py" --unit "vibetop-ubrowser-${VT_U1}.service" 2>&1)"
+    if [ "$?" = 0 ]; then
+        check full-chromium PASS "$_browser_health"
     else
-        check full-chromium FAIL "no chromium process — browser-loop failed to launch it (xpra serves 200 regardless)"
+        check full-chromium FAIL "$_browser_health"
     fi
 
     # xpra VERSION, not just "a display serves". 6.5.x carries the Browser

@@ -16,7 +16,7 @@
  * caches. sw.js itself is served no-store (nginx `location /`), so the browser
  * re-checks it on navigation and picks up the new VERSION.
  */
-const VERSION = 'v722';
+const VERSION = 'v727';
 const CACHE = 'shell-' + VERSION;
 // A ring of the last navigations this worker answered (path, how it was
 // served, status, elapsed). It outlives VERSION so the shell can read it after
@@ -74,7 +74,7 @@ const PRECACHE = [
   '/',
   '/vibe-modal.js',
   '/coach.js',
-  '/appreg.js', '/deskstate.js', '/usage-strips.js', '/winmgr.js',
+  '/system-tray.js', '/appreg.js', '/deskstate.js', '/usage-strips.js', '/winmgr.js',
   '/keybar.js',
   '/apph.js',
   '/landing.html',

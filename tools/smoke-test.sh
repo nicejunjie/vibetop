@@ -156,6 +156,10 @@ if [ -n "$COOKIE" ]; then
     if [ "$ac" != "200" ]; then
         COOKIE_USER_NOTE="session cookie rejected by the server (/api/authcheck -> $ac)"
         COOKIE=""
+    else
+        # The cookie's identity is authoritative, even when --user was supplied.
+        PROBE_USER="$(fetch -D - -o /dev/null "$BASE/api/authcheck" 2>/dev/null \
+            | tr -d '\r' | awk 'tolower($1)=="x-vibetop-user:" {print $2; exit}')"
     fi
 fi
 
@@ -250,6 +254,18 @@ else
         grey "browser xpra + x11 display (browser stack not deployed)"
     else
         http_is "browser xpra"  "/browser/" 200
+        case "$BASE" in
+            http://127.0.0.1|http://127.0.0.1:*|http://localhost|http://localhost:*)
+                if [ "$AUTH_GATE" = 1 ] && [ -z "$PROBE_USER" ]; then
+                    red "Browser window (authenticated user could not be determined)"
+                else
+                    browser_unit="vibetop-browser-xpra.service"
+                    [ "$AUTH_GATE" = 0 ] || browser_unit="vibetop-ubrowser-${PROBE_USER}.service"
+                    browser_health="$(python3 "$REPO/tools/browser-health.py" --unit "$browser_unit" 2>&1)"
+                    if [ "$?" = 0 ]; then green "$browser_health"; else red "$browser_health"; fi
+                fi ;;
+            *) grey "Browser window (remote HTTP probe cannot inspect the host's X display)" ;;
+        esac
         http_is "x11 display"   "/x11-display/" 200
     fi
     # The Files app is a static page in the web root (no per-user upstream since

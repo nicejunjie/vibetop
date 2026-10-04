@@ -36,6 +36,15 @@ loginctl enable-linger "$U2" 2>/dev/null || true
 # looked.
 if [ "${VIBETOP_MATRIX_FULL:-0}" = "1" ]; then
     FLAGS=""
+    # Reproduce an ordinary Ubuntu desktop: Firefox is present before vibetop,
+    # but it cannot satisfy the per-user Chromium launcher. Keep this in the
+    # real install matrix as well as the hermetic dependency-selection tests.
+    if [ "${ID:-}" = ubuntu ] && command -v snap >/dev/null 2>&1; then
+        echo "=== seed Firefox before the Browser dependency installer ==="
+        if ! snap list firefox >/dev/null 2>&1; then
+            snap install firefox || exit 1
+        fi
+    fi
 else
     FLAGS="--no-browser --no-office"
 fi
