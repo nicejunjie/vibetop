@@ -161,13 +161,13 @@ def main():
     COLOR = args.color == 'always' or (args.color == 'auto' and sys.stdout.isatty() and 'NO_COLOR' not in os.environ)
     host = socket.gethostname().split('.')[0]
     print()
-    if host == 'moon-1':
+    if host in ('moon-1', 'moon-01'):
         print(paint(r'''  __  __  ___   ___  _   _       _
  |  \/  |/ _ \ / _ \| \ | |     / |
  | |\/| | | | | | | |  \| |_____| |
  | |  | | |_| | |_| | |\  |_____| |
  |_|  |_|\___/ \___/|_| \_|     |_|''', 'cyan'))
-        print(paint("  Junjie's moon-1 server", 'muted'))
+        print(paint(f"  Junjie's {host} server", 'muted'))
     else:
         print(paint(f'  {host.upper()}', 'cyan') + paint("  ·  Junjie's server", 'muted'))
     cpu = next((line.split(':', 1)[1].strip() for line in read('/proc/cpuinfo').splitlines()
