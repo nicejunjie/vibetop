@@ -49,6 +49,7 @@ APP_UID="$(id -u "$APP_USER" 2>/dev/null || true)"
 X11_DISPLAY="${X11_DISPLAY:-:98}"
 LANDING_DIR="${LANDING_DIR:-$APP_HOME/vibetop-www}"
 INSTALL_DEPS="${INSTALL_DEPS:-1}"
+DEPS_ONLY=0
 INSTALL_SYSTEMD="${INSTALL_SYSTEMD:-1}"
 INSTALL_NGINX="${INSTALL_NGINX:-1}"
 SCROLLBACK="${SCROLLBACK:-50000}"
@@ -74,6 +75,7 @@ TLS_KEY="${TLS_KEY:-$TLS_DIR/key.pem}"
 
 for arg in "$@"; do
     case "$arg" in
+        --deps-only) DEPS_ONLY=1; INSTALL_DEPS=1 ;;
         --dry-run|-n) DRY_RUN=1 ;;
         --help|-h)
             sed -n '2,22p' "$0" | sed 's/^# \{0,1\}//'
@@ -210,18 +212,22 @@ if (( INSTALL_DEPS )); then
     echo "== installing packages ($VT_FAMILY: ${VT_OS_ID:-unknown} ${VT_OS_VER:-}) =="
     run vt_pkg_refresh
     run vt_enable_epel
-    run vt_pkg_install nginx acl
+    run vt_pkg_install nginx acl python3 openssl
     if command -v ttyd >/dev/null 2>&1; then
         echo "== ttyd already present ($(command -v ttyd)) =="
-    elif (( DRY_RUN )) || vt_pkg_install ttyd >/dev/null 2>&1; then
+    elif (( DRY_RUN )) || vt_pkg_available ttyd; then
+        run vt_pkg_install ttyd
         echo "== installed ttyd from the distro repo =="
     else
         # Debian has no ttyd package at all; EL has it only via EPEL. Falling
         # back keeps the install working wherever the repos come up short.
         echo "== no ttyd package here; installing upstream $TTYD_VERSION binary =="
-        install_ttyd_binary || echo "WARN: ttyd install failed — terminals will not start"
+        install_ttyd_binary
     fi
 fi
+
+if (( ! DRY_RUN )); then vt_require_commands nginx setfacl python3 openssl ttyd; fi
+if (( DEPS_ONLY )); then exit 0; fi
 
 # 2. ttyd-run.sh executable bit ---------------------------------------------
 run chmod +x "$TERM_APP_DIR/ttyd-run.sh" "$TERM_APP_DIR/vibetop-session"

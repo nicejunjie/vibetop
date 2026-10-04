@@ -75,10 +75,18 @@ if [ -n "$REMOTE" ]; then
 fi
 
 # --- Local mode -------------------------------------------------------------
-vt_require_root "$0" "$@"          # no-op when already root; re-execs otherwise
+vt_require_root "$0" "${ORIG_ARGS[@]}" # preserve flags when re-executing under sudo
 export DEBIAN_FRONTEND=noninteractive
 DRYFLAG=(); (( DRY )) && DRYFLAG=(--dry-run)
 step() { echo; echo "### $*"; }
+
+# Resolve and install the whole enabled stack before touching the live layout.
+# The staging re-exec is part of this same run; it must not repeat transactions.
+if [ "${VIBETOP_DEPS_READY:-0}" != 1 ]; then
+    step "Dependencies — preflight for all enabled components"
+    . "$REPO_DIR/tools/lib/dependencies.sh"
+    vt_install_dependencies "$DRY"
+fi
 
 # Under `sudo`, seed the admin list with the invoking human so the operator-only
 # surfaces (Update, Claude-usage) aren't locked out on a normal interactive
@@ -128,7 +136,7 @@ else
             chown -R "$VT_SVC:$VT_SVC" "$VT_APP"
             sudo -u "$VT_SVC" git config --global --add safe.directory "$VT_APP" 2>/dev/null || true
             echo "==> continuing from $VT_APP"
-            exec env VIBETOP_STAGED=1 "$VT_APP/deploy.sh" "${ORIG_ARGS[@]+"${ORIG_ARGS[@]}"}"
+            exec env VIBETOP_STAGED=1 VIBETOP_DEPS_READY=1 "$VT_APP/deploy.sh" "${ORIG_ARGS[@]+"${ORIG_ARGS[@]}"}"
         fi
     fi
     # Every sub-installer runs with the service identity + system paths, so
@@ -139,6 +147,7 @@ fi
 # Installers inherit the layout env when we set one up (empty on a legacy host,
 # where their own defaults still resolve to the existing home install).
 INST_ENV=(); [ -n "$LEGACY_WWW" ] || INST_ENV=("${VT_ENV_ARRAY[@]}")
+INST_ENV+=(INSTALL_DEPS=0)
 
 step "1/6  Terminal — nginx site + manager + ttyd"
 env "${INST_ENV[@]}" "$REPO_DIR/server/install.sh" "${DRYFLAG[@]}"
@@ -211,7 +220,7 @@ fi
 # manual ./deploy.sh.
 if (( ! DRY )); then
     step "restart manager (load new code)"
-    sudo systemctl try-restart vibetop-manager || echo "  (manager restart failed — check: systemctl status vibetop-manager)"
+    sudo systemctl restart vibetop-manager
 fi
 
 if (( ! DRY )); then
@@ -220,10 +229,15 @@ if (( ! DRY )); then
     # location goes through auth_request -> the manager, so probing during its
     # restart made all seven paths print ERR on a perfectly healthy deploy —
     # a false alarm on every single run.
+    ready=0
     for _ in $(seq 1 30); do
-        curl -sf -o /dev/null --max-time 2 http://127.0.0.1/api/ping && break
+        if curl -sf -o /dev/null --max-time 2 http://127.0.0.1/api/ping; then ready=1; break; fi
         sleep 1
     done
+    if [ "$ready" = 0 ]; then
+        echo "Deployment failed: /api/ping did not become ready. Check nginx and vibetop-manager logs." >&2
+        exit 1
+    fi
     # Prefer the real gate: smoke-test authenticates, so it reports the actual
     # state instead of the 302s an unauthenticated probe gets on a gated host.
     if [ -x "$REPO_DIR/tools/smoke-test.sh" ]; then
@@ -232,11 +246,16 @@ if (( ! DRY )); then
         # permanent, meaningless "2 failed" (OnlyOffice container + healthcheck) —
         # which is exactly the noise that made the e2e VM look like a broken image.
         smoke_args=(); [ "$DO_OFFICE" = "0" ] && smoke_args+=(--no-office)
-        "$REPO_DIR/tools/smoke-test.sh" "${smoke_args[@]}" || echo "  (see failures above)"
+        [ "$DO_BROWSER" = "0" ] && smoke_args+=(--no-browser)
+        "$REPO_DIR/tools/smoke-test.sh" "${smoke_args[@]}" || {
+            smoke_rc=$?
+            echo "Deployment verification failed (smoke exit $smoke_rc); see failures above." >&2
+            exit "$smoke_rc"
+        }
     else
         for p in /api/ping / /t1/ /files/; do
             printf "  %-24s " "$p"
-            curl -s -o /dev/null -w "%{http_code}\n" --max-time 5 "http://127.0.0.1$p" || echo "ERR"
+            curl -fs -o /dev/null -w "%{http_code}\n" --max-time 5 "http://127.0.0.1$p"
         done
     fi
 fi

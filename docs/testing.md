@@ -2,6 +2,7 @@
 
 > Every tier, from `./run-tests.sh` to the e2e VM and the install matrix.
 > The binding QA scope is `docs/qa-charter.md`.
+> For a full real-phone release pass, use [the mobile functional test plan](mobile-functional-test-plan.md); mobile WebKit automation alone is not its sign-off lane.
 
 
 > **QA scope is TWO pillars — read `docs/qa-charter.md` before any QA / review /

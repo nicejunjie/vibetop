@@ -50,12 +50,14 @@ XPRA_PORT="${XPRA_PORT:-14500}"
 X11_DISPLAY_NUM="${X11_DISPLAY_NUM:-98}"
 X11_XPRA_PORT="${X11_XPRA_PORT:-14501}"
 INSTALL_DEPS="${INSTALL_DEPS:-1}"
+DEPS_ONLY=0
 INSTALL_SYSTEMD="${INSTALL_SYSTEMD:-1}"
 INSTALL_NGINX="${INSTALL_NGINX:-1}"
 DRY_RUN="${DRY_RUN:-0}"
 
 for arg in "$@"; do
     case "$arg" in
+        --deps-only) DEPS_ONLY=1; INSTALL_DEPS=1 ;;
         --dry-run|-n) DRY_RUN=1 ;;
         --help|-h) sed -n '2,20p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
         *) echo "unknown flag: $arg" >&2; exit 2 ;;
@@ -113,9 +115,9 @@ if (( INSTALL_DEPS )) && [ -z "${BROWSER_CMD:-}" ] \
    && ! command -v chromium >/dev/null 2>&1 && ! command -v chromium-browser >/dev/null 2>&1 \
    && ! command -v firefox-esr >/dev/null 2>&1 && ! command -v epiphany >/dev/null 2>&1; then
     echo "== installing chromium (distro package; no snap on this host) =="
-    vt_enable_epel                       # no-op off EL
+    run vt_enable_epel                   # no-op off EL
     run vt_pkg_refresh
-    run vt_pkg_install chromium || echo "WARN: no chromium package — set BROWSER_CMD"
+    run vt_pkg_install chromium
 fi
 
 # Pick a browser if not overridden.
@@ -139,6 +141,8 @@ if [ -z "${BROWSER_CMD:-}" ]; then
         BROWSER_CMD="$(command -v firefox-esr) --no-remote"
     elif command -v epiphany >/dev/null 2>&1; then
         BROWSER_CMD="$(command -v epiphany)"
+    elif (( DRY_RUN )); then
+        BROWSER_CMD=chromium
     else
         echo "no browser found; set BROWSER_CMD or install chromium/firefox/epiphany" >&2
         exit 1
@@ -190,7 +194,7 @@ vt_xpra_repo_rpm() {
 }
 
 if (( INSTALL_DEPS )) && [ "$VT_FAMILY" = rhel ]; then
-    vt_enable_epel
+    run vt_enable_epel
     vt_xpra_repo_rpm
     echo "== installing xpra + X11 helpers (dnf) =="
     run vt_pkg_refresh
@@ -226,23 +230,7 @@ if (( INSTALL_DEPS )) && [ "$VT_FAMILY" = rhel ]; then
     if ! command -v soffice >/dev/null 2>&1; then
         echo "== installing libreoffice (office view/edit) =="
         run vt_pkg_install libreoffice-writer libreoffice-calc libreoffice-impress \
-            fonts-liberation || echo "WARN: libreoffice install incomplete (office View may not render)"
-    fi
-    # Without this the per-user displays cannot start at all under SELinux —
-    # and it reports no AVC, so it looks like a plain permission bug.
-    run vt_selinux_allow_xpra
-    # Disable xpra's own socket activation under BOTH packaging names: Debian
-    # ships xpra-server.socket, the RPM ships xpra.socket. Checking only the
-    # Debian name left the RPM unit enabled and LISTENING ON *:14500 — vibetop's
-    # own XPRA_PORT, and a non-loopback listener on a host that binds everything
-    # else to 127.0.0.1.
-    for _sock in xpra-server.socket xpra.socket; do
-        if systemctl is-enabled "$_sock" >/dev/null 2>&1; then
-            run sudo systemctl disable --now "$_sock"
-        fi
-    done
-    if [ ! -f /etc/udev/rules.d/99-uinput.rules ]; then
-        echo 'KERNEL=="uinput", MODE="0666"' | write_root /etc/udev/rules.d/99-uinput.rules
+            fonts-liberation
     fi
     INSTALL_DEPS=0      # the Debian block below is apt-only; we're done here
 fi
@@ -298,26 +286,6 @@ PIN_EOF
     run sudo DEBIAN_FRONTEND=noninteractive apt-get install -y \
         -o Dpkg::Options::=--force-confold \
         xpra xserver-xorg-video-dummy matchbox-window-manager wmctrl x11-xserver-utils xdotool dbus
-    # Disable xpra's built-in socket activation (conflicts with our own unit)
-    # Disable xpra's own socket activation under BOTH packaging names: Debian
-    # ships xpra-server.socket, the RPM ships xpra.socket. Checking only the
-    # Debian name left the RPM unit enabled and LISTENING ON *:14500 — vibetop's
-    # own XPRA_PORT, and a non-loopback listener on a host that binds everything
-    # else to 127.0.0.1.
-    for _sock in xpra-server.socket xpra.socket; do
-        if systemctl is-enabled "$_sock" >/dev/null 2>&1; then
-            run sudo systemctl disable --now "$_sock"
-        fi
-    done
-    # Allow non-console users to run Xorg (needed for the dummy video driver)
-    if grep -q 'allowed_users=console' /etc/X11/Xwrapper.config 2>/dev/null; then
-        run sudo sed -i 's/allowed_users=console/allowed_users=anybody/' /etc/X11/Xwrapper.config
-    fi
-    # Allow uinput access for precise wheel scrolling
-    if [ ! -f /etc/udev/rules.d/99-uinput.rules ]; then
-        echo 'KERNEL=="uinput", MODE="0666"' | write_root /etc/udev/rules.d/99-uinput.rules
-    fi
-
     # LibreOffice — powers the Files app's office support: "View" renders the
     # doc to PDF headlessly, "Edit" opens it on this xpra desktop. Slim set
     # (Writer/Calc/Impress) + Liberation fonts for faithful Arial/Times layout.
@@ -328,6 +296,34 @@ PIN_EOF
             libreoffice-gtk3 fonts-liberation
     fi
 fi
+
+if (( ! DRY_RUN )); then
+    vt_require_commands xpra Xorg matchbox-window-manager wmctrl xhost xdotool dbus-daemon soffice
+    vt_require_commands "${BROWSER_CMD%% *}"
+fi
+if (( DEPS_ONLY )); then exit 0; fi
+
+run vt_selinux_allow_xpra
+# Disable xpra's built-in socket activation (conflicts with our own unit)
+# Disable xpra's own socket activation under BOTH packaging names: Debian
+# ships xpra-server.socket, the RPM ships xpra.socket. Checking only the
+# Debian name left the RPM unit enabled and LISTENING ON *:14500 — vibetop's
+# own XPRA_PORT, and a non-loopback listener on a host that binds everything
+# else to 127.0.0.1.
+for _sock in xpra-server.socket xpra.socket; do
+    if systemctl is-enabled "$_sock" >/dev/null 2>&1; then
+        run sudo systemctl disable --now "$_sock"
+    fi
+done
+# Allow non-console users to run Xorg (needed for the dummy video driver)
+if grep -q 'allowed_users=console' /etc/X11/Xwrapper.config 2>/dev/null; then
+    run sudo sed -i 's/allowed_users=console/allowed_users=anybody/' /etc/X11/Xwrapper.config
+fi
+# Allow uinput access for precise wheel scrolling
+if [ ! -f /etc/udev/rules.d/99-uinput.rules ]; then
+    echo 'KERNEL=="uinput", MODE="0666"' | write_root /etc/udev/rules.d/99-uinput.rules
+fi
+
 
 # 2. Stop legacy VNC services if present -------------------------------------
 echo "== cleaning up legacy VNC services (if any) =="

@@ -127,6 +127,84 @@ test('loading the module defines all four shell callbacks and throws nothing', (
   }
 });
 
+test('Claude discards expired cached percentages and recovers on a new reading', () => {
+  const { sandbox, nodes } = load(src);
+  const now = Math.floor(Date.now() / 1000);
+  sandbox.applyServerClaudeUsage(true, {
+    enabled: true, stale: true, ageSec: 400000,
+    session: { pct: 0, reset: now - 300000 },
+    weekly: { pct: 0.81, reset: now - 1 },
+  });
+  assert.equal(nodes['cu-strip'].hidden, false);
+  assert.doesNotMatch(nodes['cu-strip'].innerHTML, /cu-pct|cu-bar|resets/);
+  assert.match(nodes['cu-strip'].innerHTML, /usage unavailable/);
+  sandbox.applyServerClaudeUsage(true, {
+    enabled: true, session: { pct: 0.12, reset: now + 3600 },
+  });
+  assert.match(nodes['cu-strip'].innerHTML, /12%/);
+  assert.doesNotMatch(nodes['cu-strip'].innerHTML, /usage unavailable/);
+});
+
+test('Claude can show a current weekly reading after the session expires', () => {
+  const { sandbox, nodes } = load(src);
+  const now = Math.floor(Date.now() / 1000);
+  sandbox.applyServerClaudeUsage(true, {
+    enabled: true, stale: true,
+    session: { pct: 0.42, reset: now },
+    weekly: { pct: 0.81, reset: now + 86400 },
+  });
+  assert.doesNotMatch(nodes['cu-strip'].innerHTML, /42%/);
+  assert.match(nodes['cu-strip'].innerHTML, /81%/);
+});
+
+test('Claude hides stale readings with no reset time', () => {
+  const { sandbox, nodes } = load(src);
+  sandbox.applyServerClaudeUsage(true, {
+    enabled: true, stale: true, session: { pct: 0.42 },
+  });
+  assert.doesNotMatch(nodes['cu-strip'].innerHTML, /cu-pct/);
+  assert.match(nodes['cu-strip'].innerHTML, /usage unavailable/);
+});
+
+test('Codex discards expired cached percentages and recovers on a new reading', () => {
+  const { sandbox, nodes } = load(src);
+  const now = Math.floor(Date.now() / 1000);
+  sandbox.applyServerCodexUsage(true, {
+    enabled: true, stale: true, ageSec: 400000,
+    session: { pct: 0, reset: now - 300000 },
+    weekly: { pct: 0.81, reset: now - 1 },
+  });
+  assert.equal(nodes['cx-strip'].hidden, false);
+  assert.doesNotMatch(nodes['cx-strip'].innerHTML, /cu-pct|cu-bar|resets/);
+  assert.match(nodes['cx-strip'].innerHTML, /usage unavailable/);
+  sandbox.applyServerCodexUsage(true, {
+    enabled: true, session: { pct: 0.12, reset: now + 3600 },
+  });
+  assert.match(nodes['cx-strip'].innerHTML, /12%/);
+  assert.doesNotMatch(nodes['cx-strip'].innerHTML, /usage unavailable/);
+});
+
+test('Codex can show a current weekly reading after the session expires', () => {
+  const { sandbox, nodes } = load(src);
+  const now = Math.floor(Date.now() / 1000);
+  sandbox.applyServerCodexUsage(true, {
+    enabled: true, stale: true,
+    session: { pct: 0.42, reset: now },
+    weekly: { pct: 0.81, reset: now + 86400 },
+  });
+  assert.doesNotMatch(nodes['cx-strip'].innerHTML, /42%/);
+  assert.match(nodes['cx-strip'].innerHTML, /81%/);
+});
+
+test('Codex hides stale readings with no reset time', () => {
+  const { sandbox, nodes } = load(src);
+  sandbox.applyServerCodexUsage(true, {
+    enabled: true, stale: true, session: { pct: 0.42 },
+  });
+  assert.doesNotMatch(nodes['cx-strip'].innerHTML, /cu-pct/);
+  assert.match(nodes['cx-strip'].innerHTML, /usage unavailable/);
+});
+
 test('the server state drives the strip and the Start-menu row accent', () => {
   const { sandbox, nodes, rows } = load(src);
   const now = Math.floor(Date.now() / 1000);

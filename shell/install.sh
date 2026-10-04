@@ -161,7 +161,18 @@ done
 # layout it has always had — rts.html beside an rts/ tree of .html/.js/.json.
 # ---------------------------------------------------------------------------
 RTS_WAR_DIR="${RTS_WAR_DIR:-$(dirname "$REPO")/rts-war}"
-if [ -f "$RTS_WAR_DIR/rts.html" ]; then
+RTS_SPLIT_UNINSTALLED=0
+if [ ! -f "$RTS_WAR_DIR/rts.html" ] && [ -f "$RTS_WAR_DIR/ra2-replica/rts.html" ]; then
+  RTS_WORKSPACE_DIR="$RTS_WAR_DIR"
+  RTS_WAR_DIR="$RTS_WORKSPACE_DIR/install/ra2-replica"
+  if [ ! -f "$RTS_WAR_DIR/rts.html" ]; then
+    RTS_SPLIT_UNINSTALLED=1
+    echo "RTS: split workspace found; run $RTS_WORKSPACE_DIR/install.sh first. Existing deployed game left untouched."
+  fi
+fi
+if [ "$RTS_SPLIT_UNINSTALLED" = 1 ]; then
+  :
+elif [ -f "$RTS_WAR_DIR/rts.html" ]; then
   if [ -x "$RTS_WAR_DIR/deploy.sh" ]; then
     echo "RTS: deploying the rts-war sibling via $RTS_WAR_DIR/deploy.sh --www $DST_DIR"
     run "$RTS_WAR_DIR/deploy.sh" --www "$DST_DIR"

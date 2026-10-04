@@ -45,12 +45,14 @@ ONLYOFFICE_IMAGE="${ONLYOFFICE_IMAGE:-docker.io/onlyoffice/documentserver:latest
 CONTAINER="vibetop-onlyoffice"
 SECRET_FILE="${SECRET_FILE:-$APP_HOME/.config/vibetop/onlyoffice.secret}"
 INSTALL_DEPS="${INSTALL_DEPS:-1}"
+DEPS_ONLY=0
 INSTALL_CONTAINER="${INSTALL_CONTAINER:-1}"
 INSTALL_NGINX="${INSTALL_NGINX:-1}"
 DRY_RUN="${DRY_RUN:-0}"
 
 for arg in "$@"; do
     case "$arg" in
+        --deps-only) DEPS_ONLY=1; INSTALL_DEPS=1 ;;
         --dry-run) DRY_RUN=1 ;;
         --no-container) INSTALL_CONTAINER=0 ;;
         --no-nginx) INSTALL_NGINX=0 ;;
@@ -91,13 +93,15 @@ if [ -z "$OCI" ]; then
     if (( INSTALL_DEPS )); then
         if [ "$VT_FAMILY" = rhel ]; then
             echo "== installing podman (dnf; no docker package on RPM) =="
-            run vt_pkg_install podman && OCI=podman
+            run vt_pkg_install podman
+            OCI=podman
             # podman honours --restart policies only via this unit; without it
             # the container would not come back after a reboot.
         else
             echo "== installing docker (apt: docker.io) =="
             run vt_pkg_refresh
-            run vt_pkg_install docker.io && OCI=docker
+            run vt_pkg_install docker.io
+            OCI=docker
             run sudo systemctl enable --now docker
         fi
     else
@@ -111,13 +115,24 @@ echo "   container cli : $OCI"
 # the install branch meant a host that already had podman (most cloud images)
 # silently lost restart-on-boot — the exact failure the unit exists to prevent.
 if [ "$OCI" = podman ]; then
-    run sudo systemctl enable --now podman-restart.service 2>/dev/null || true
+    run sudo systemctl enable --now podman-restart.service
 fi
 # Make sure the daemon is up (freshly installed, or stopped). podman is daemonless.
-[ "$OCI" = docker ] && run sudo systemctl start docker 2>/dev/null || true
+if [ "$OCI" = docker ]; then run sudo systemctl start docker; fi
 
 echo "== vibetop-office (OnlyOffice Document Server) =="
 echo "   user: $APP_USER   port: $ONLYOFFICE_PORT   image: $ONLYOFFICE_IMAGE"
+
+# Fetch every dependency before creating secrets or replacing the container.
+if (( INSTALL_DEPS )); then
+    echo "== pulling image (large, ~2GB first time) =="
+    run "$OCI" pull "$ONLYOFFICE_IMAGE"
+fi
+if (( ! DRY_RUN )); then
+    vt_require_commands "$OCI" openssl
+    "$OCI" image inspect "$ONLYOFFICE_IMAGE" >/dev/null
+fi
+if (( DEPS_ONLY )); then exit 0; fi
 
 # 1. JWT secret — shared between the container and the manager. Generated once.
 # Written as ROOT, into whatever directory SECRET_FILE names: on the system
@@ -144,34 +159,6 @@ else
     if [ -z "$SECRET" ]; then
         echo "ERROR: OnlyOffice JWT secret missing/empty at $SECRET_FILE" >&2
         exit 1
-    fi
-fi
-
-# 2. Image
-if (( INSTALL_DEPS )); then
-    echo "== pulling image (large, ~2GB first time) =="
-    # Retry with backoff. The image is ~2GB from Docker Hub, and a transient
-    # TLS-handshake / network timeout (observed in the full-stack VM matrix when
-    # several hosts pull concurrently, and easy to hit on a slow or rate-limited
-    # link) would otherwise abort the WHOLE deploy with exit 1 — landing never
-    # installs, so `/` 404s. A blip should self-heal, not sink the install.
-    if (( DRY_RUN )); then
-        printf '+ %s\n' "$OCI pull $ONLYOFFICE_IMAGE (up to 4 attempts, backoff)"
-    else
-        pull_ok=0
-        for attempt in 1 2 3 4; do
-            if $OCI pull "$ONLYOFFICE_IMAGE"; then pull_ok=1; break; fi
-            if (( attempt < 4 )); then
-                delay=$(( attempt * 10 ))
-                echo "   image pull failed (attempt $attempt/4) — retrying in ${delay}s…" >&2
-                sleep "$delay"
-            fi
-        done
-        if (( ! pull_ok )); then
-            echo "ERROR: could not pull $ONLYOFFICE_IMAGE after 4 attempts" \
-                 "(network/registry issue?). Re-run apps/everyday/office/install.sh to retry." >&2
-            exit 1
-        fi
     fi
 fi
 

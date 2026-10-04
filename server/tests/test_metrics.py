@@ -588,6 +588,82 @@ def test_a_status_poll_feeds_the_recorder(mgr, rec, wall, monkeypatch):
     assert rec.pending() is True, "the open bucket holds the sample"
 
 
+def test_strip_keeps_its_wall_reading_out_of_the_history(mgr, monkeypatch):
+    """The 60s taskbar memo must not be paired with a GPU read from now."""
+    monkeypatch.setattr(mgr.system_status, "get_system_status",
+                        lambda *a, **k: {"gpu_power_w": 250.0})
+    monkeypatch.setattr(mgr, "_wall_power_w", lambda *a: 100.0)
+    monkeypatch.setattr(mgr, "_wall_series", lambda: None)
+    monkeypatch.setattr(mgr, "_ctx_user", lambda *a: mgr.APP_USER)
+    recorded = []
+    monkeypatch.setattr(mgr, "_hist_note", lambda st: recorded.append(st))
+
+    class _H:
+        def _get_running_terminals(self):
+            return []
+
+    response = mgr.Handler._get_system_status(
+        _H(), mgr.WALL_POWER_STRIP_FRESH, want_procs=False)
+    assert response["wall_power_w"] == 100.0  # the taskbar can still display it
+    assert recorded[0]["gpu_power_w"] == 250.0
+    assert "wall_power_w" not in recorded[0]
+
+
+def test_background_power_pair_reads_the_plug_instead_of_the_minute_cache(
+        mgr, monkeypatch):
+    """A fresh meter value, including zero, is the only wall value recorded."""
+    monkeypatch.setattr(mgr, "_cached", lambda *a: "plug.lan")
+    monkeypatch.setattr(mgr.system_status, "wall_power_endpoint",
+                        lambda p: "http://plug.lan/rpc/Shelly.GetStatus")
+    monkeypatch.setattr(mgr, "_wall_retarget", lambda p: None)
+    monkeypatch.setattr(mgr, "_wall_note", lambda s, p: s)
+    monkeypatch.setattr(mgr, "_wall_plug", "plug.lan")
+    clock = {"t": 10.0}
+    monkeypatch.setattr(mgr.time, "monotonic", lambda: clock["t"])
+    seen = []
+
+    def read(plug, timeout):
+        seen.append((plug, timeout))
+        clock["t"] += 0.05
+        return {"w": 0.0, "at": 1790000000, "fetched": 0.0}
+
+    monkeypatch.setattr(mgr.system_status, "read_wall_power", read)
+    assert mgr._hist_wall_power_w() == 0.0
+    assert seen == [("plug.lan", mgr.METRICS_POWER_PAIR_MAX_DELAY)]
+
+    clock["t"] += 2.0
+    monkeypatch.setattr(mgr.system_status, "read_wall_power",
+                        lambda *a, **k: (clock.__setitem__("t", clock["t"] + 1.1),
+                                         {"w": 12.0})[1])
+    assert mgr._hist_wall_power_w() is None, "a slow reply cannot be paired"
+
+
+def test_background_sample_stays_in_the_gpu_collection_bucket(mgr, rec,
+                                                               monkeypatch):
+    """Waiting for the plug must not move an earlier GPU read to the next slot."""
+    clock = {"t": 1790000001.6}
+    monkeypatch.setattr(mgr.time, "time", lambda: clock["t"])
+    monkeypatch.setattr(mgr.time, "monotonic", lambda: 1000.0)
+    monkeypatch.setattr(mgr.system_status, "get_system_status",
+                        lambda *a, **k: {"gpu_power_w": 250.0})
+
+    def wall():
+        clock["t"] += 0.6  # the reply arrives in the following 2s bucket
+        return 300.0
+
+    monkeypatch.setattr(mgr, "_hist_wall_power_w", wall)
+    mgr._hist_demand = 0.0
+    mgr._hist_self_at = 0.0
+    _run_loop(mgr, monkeypatch)
+    # The loop flushes the closed collection bucket after the plug returns.
+    row = rec._get("fine", 1790000000)
+    assert row is not None
+    import metrics_history
+    assert row[metrics_history.FIELDS.index("gpu_power_w")] == 250.0
+    assert row[metrics_history.FIELDS.index("wall_power_w")] == 300.0
+    assert rec.pending(1790000002) is False
+
+
 def test_the_recorder_keeps_no_process_data(mgr, rec, monkeypatch):
     """84% of the payload and the least useful thing to have a week later."""
     import metrics_history
@@ -656,7 +732,7 @@ def test_the_idle_ticker_asks_for_the_cheap_collection(mgr, rec, monkeypatch):
     monkeypatch.setattr(mgr.system_status, "get_system_status",
                         lambda rt, c, want_procs=True: (seen.append(want_procs),
                                                         {"cpu_percent": 7.0})[1])
-    monkeypatch.setattr(mgr, "_wall_power_w", lambda: None)
+    monkeypatch.setattr(mgr, "_hist_wall_power_w", lambda: None)
     n = {"sleeps": 0}
 
     def one_pass(_s):                       # let exactly one loop body run
@@ -705,7 +781,7 @@ def collector(mgr, monkeypatch):
     monkeypatch.setattr(mgr.system_status, "get_system_status",
                         lambda rt, c, want_procs=True: (seen.__setitem__(
                             "collect", seen["collect"] + 1), {"cpu_percent": 7.0})[1])
-    monkeypatch.setattr(mgr, "_wall_power_w",
+    monkeypatch.setattr(mgr, "_hist_wall_power_w",
                         lambda *a, **k: seen.__setitem__("plug", seen["plug"] + 1) or 100.0)
     return seen
 

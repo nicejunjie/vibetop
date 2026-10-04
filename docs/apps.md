@@ -198,6 +198,12 @@ from "no plug" — row removed.
 - **A failed sample is retried after 3s**, not the memo's 30s default — that
   default is sized for expensive producers, and here one dropped packet would
   otherwise blank the row for fifteen Monitor frames.
+- **Background history pairs power readings in time.** The taskbar may display
+  its cached wall value for up to a minute, but that old value is not recorded
+  beside a new GPU reading. The idle history sampler reads the plug itself after
+  collecting the GPU sensors, with a one-second deadline; a late or failed plug
+  response leaves wall power unknown for that point. Both values stay in the
+  GPU collection's chart bucket even if the network reply crosses a boundary.
 - **`0W` is a real reading** (nothing drawing) and renders as a number. Only the
   *absence* of `wall_power_w` in `/api/system/status` means unknown.
 - With a plug present, **wall is the total** and the CPU+GPU figure relabels

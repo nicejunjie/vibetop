@@ -128,12 +128,22 @@ function ageText(sec) {
         ageText(d.ageSec) + ' ago</span>' : '<span class="cu-asof is-empty" aria-hidden="true">0m ago</span>';
     var html = '<span class="cu-who"><span class="cu-brand">Claude</span>' + asof + '</span>' +
                '<span class="cu-metrics">';
-    if (d.session && d.session.pct != null) {
-      html += seg('session', d.session.pct, d.session.reset);
-      if (d.weekly && d.weekly.pct != null)
-        html += seg('week', d.weekly.pct, d.weekly.reset);
+    // The proxy retains its last reading even after a subscription ends. A
+    // percentage only describes the window it was captured in; after reset it
+    // is unknown, not zero. The heartbeat rechecks this against the clock.
+    var now = Math.floor(Date.now() / 1000);
+    function current(w) {
+      return w && w.pct != null && (w.reset ? w.reset > now : !d.stale);
+    }
+    var hasSession = current(d.session), hasWeekly = current(d.weekly);
+    if (hasSession || hasWeekly) {
+      if (hasSession) html += seg('session', d.session.pct, d.session.reset);
+      if (hasWeekly) html += seg('week', d.weekly.pct, d.weekly.reset);
     } else {
-      html += '<span class="cu-dim">waiting for first API call…</span>';
+      var hadReading = d.updated || d.session || d.weekly;
+      html += '<span class="cu-dim">' + (hadReading
+        ? 'usage unavailable — waiting for a new reading'
+        : 'waiting for first API call…') + '</span>';
     }
     html += '</span><span class="cu-x" id="cu-x" title="Turn off Claude Limit (all devices)">✕</span>';
     strip.innerHTML = html;
@@ -312,13 +322,19 @@ function ageText(sec) {
     var asof = age >= 1 ? '<span class="cu-asof">' + ageText(data.ageSec) + ' ago</span>' :
       '<span class="cu-asof is-empty" aria-hidden="true">0m ago</span>';
     var html = '<span class="cu-who"><span class="cu-brand">Codex</span>' + asof + '</span><span class="cu-metrics">';
-    var hasSession = data && data.session && data.session.pct != null;
-    var hasWeekly = data && data.weekly && data.weekly.pct != null;
+    var now = Math.floor(Date.now() / 1000);
+    function current(w) {
+      return w && w.pct != null && (w.reset ? w.reset > now : !data.stale);
+    }
+    var hasSession = current(data.session), hasWeekly = current(data.weekly);
     if (hasSession || hasWeekly) {
-      html += segment('session', data.session);
+      html += segment('session', hasSession ? data.session : null);
       if (hasWeekly) html += segment('week', data.weekly);
     } else {
-      html += '<span class="cu-dim">' + (data && data.note ? data.note : 'waiting for first Codex response…') + '</span>';
+      var hadReading = data.updated || data.session || data.weekly;
+      html += '<span class="cu-dim">' + (data.note || (hadReading
+        ? 'usage unavailable — waiting for a new reading'
+        : 'waiting for first Codex response…')) + '</span>';
     }
     if (data && data.note && (hasSession || hasWeekly)) {
       html += '<span class="cu-dim" title="showing the last reading from this machine\'s Codex logs">· ' + data.note + '</span>';

@@ -7,8 +7,8 @@
 # check" section of docs/operations.md into asserting checks with a pass/fail summary and
 # a non-zero exit on any failure — so a deploy can be gated on it.
 #
-# It is a DEV/OPS tool only: no installer runs it, and it deploys nothing. Run it
-# by hand on the host after ./deploy.sh or an in-app Update:
+# deploy.sh runs this as its final verification gate. It can also be run
+# by hand on the host after an in-app Update:
 #
 #   sudo ./tools/smoke-test.sh                 # probe 127.0.0.1 on this host
 #   sudo ./tools/smoke-test.sh --no-office     # skip OnlyOffice checks
@@ -59,6 +59,11 @@ while [ $# -gt 0 ]; do
 done
 BASE="${BASE%/}"
 
+if ! command -v curl >/dev/null 2>&1; then
+    echo "smoke: required command 'curl' is missing; rerun deploy.sh to install prerequisites." >&2
+    exit 2
+fi
+
 pass=0
 fail=0
 skip=0
@@ -88,7 +93,7 @@ fetch() {
 # mode this script exists to avoid.
 root_code="$(curl -s -o /dev/null -w '%{http_code}' --max-time 8 \
              --retry 5 --retry-delay 1 --retry-connrefused --retry-all-errors \
-             "$BASE/" 2>/dev/null || echo 000)"
+             "$BASE/" 2>/dev/null)" || root_code=000
 AUTH_GATE=0
 case "$root_code" in 301|302|303|307|308|401|403) AUTH_GATE=1 ;; esac
 NOTHING_LISTENING=0
@@ -227,8 +232,10 @@ fi
 
 echo "── systemd units ─────────────────────────────"
 unit_active vibetop-manager.service
-shared_unit vibetop-browser-xpra.service 'vibetop-ubrowser-*' "Browser displays"
-shared_unit vibetop-x11-xpra.service     'vibetop-ux11-*'     "X11 displays"
+if [ "$CHECK_BROWSER" = 1 ]; then
+    shared_unit vibetop-browser-xpra.service 'vibetop-ubrowser-*' "Browser displays"
+    shared_unit vibetop-x11-xpra.service     'vibetop-ux11-*'     "X11 displays"
+fi
 
 echo "── HTTP endpoints ────────────────────────────"
 if [ "$AUTH_GATE" = 1 ] && [ -z "$COOKIE" ]; then

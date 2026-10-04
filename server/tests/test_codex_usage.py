@@ -268,12 +268,8 @@ def test_a_window_never_seen_stays_absent(mgr, tmp_path):
     assert got["weekly"] is None
 
 
-def test_codex_usage_a_rolled_window_reads_zero_not_the_stale_number(mgr, tmp_path):
-    """Usage never falls DURING a window, so a stale number is a valid lower
-    bound — until `resets_at` passes. Then the window has emptied and the old
-    number is just wrong. Real trace: 98% at 17:35 with resets_at ~18:24:39,
-    Codex silent for fifty minutes, next record 0%. Between the reset and that
-    record the strip showed 98% of a window that no longer existed."""
+def test_codex_usage_a_rolled_window_is_unavailable(mgr, tmp_path):
+    """Expired logs cannot tell us usage in the new window or on other devices."""
     import time as _t
     sessions = tmp_path / ".codex/sessions/2026/09/04"
     sessions.mkdir(parents=True)
@@ -287,12 +283,7 @@ def test_codex_usage_a_rolled_window_reads_zero_not_the_stale_number(mgr, tmp_pa
                                  {"used_percent": 77, "window_minutes": 10080,
                                   "resets_at": weekly_future})) + "\n")
     got = mgr._codex_usage_payload(str(tmp_path), True)
-    assert got["session"]["pct"] == 0.0, "the 5-hour window rolled — it is empty, not 98%"
-    assert got["session"]["reset"] is None, (
-        "and it reports NO next reset: the window is anchored to the first use "
-        "after the old one expired, so until that request there is nothing to "
-        "count down to. Projecting reset+span was measurably wrong by exactly "
-        "the length of the idle gap (+18 min on 2026-09-04)")
+    assert got["session"] is None, "expired usage is unknown, not zero"
     assert got["weekly"]["pct"] == .77, "the weekly window has NOT rolled: keep its value"
     assert got["weekly"]["reset"] == weekly_future
 
@@ -346,7 +337,7 @@ def test_a_new_generation_wins_however_low_its_number(mgr, tmp_path):
 
 
 def test_the_max_rule_does_not_defeat_the_rollover(mgr, tmp_path):
-    """A generation whose resets_at has passed still reads 0 — the max is only
+    """A generation whose resets_at has passed is unavailable — the max is only
     the best reading FOR that window, and `rolled` retires the window itself."""
     import time as _t
     sessions = tmp_path / ".codex/sessions/2026/09/04"
@@ -357,8 +348,7 @@ def test_the_max_rule_does_not_defeat_the_rollover(mgr, tmp_path):
     ev["payload"]["rate_limits"]["secondary"]["resets_at"] = now + 3 * 86400
     (sessions / "r.jsonl").write_text(json.dumps(ev) + "\n")
     got = mgr._codex_usage_payload(str(tmp_path), True)
-    assert got["session"]["pct"] == 0.0
-    assert got["session"]["reset"] is None, "a window that has not started has no reset"
+    assert got["session"] is None, "a new window needs a new reading"
     assert got["weekly"]["pct"] == .40, "only the rolled window resets"
 
 

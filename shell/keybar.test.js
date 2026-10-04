@@ -116,3 +116,37 @@ test("URL-bar collapse (~60px) is not a keyboard", () => {
   const r = compute({ ...BASE, vvTop: 0, vvH: 834, frameBottom: 806, contentBottom: 798 });
   assert.equal(r.kbUp, false);
 });
+
+test("iOS 27 iPhone 18 Pro (baseH 714): closed, open-sparse, open-dense", () => {
+  // Geometry (CSS px, portrait, measured on the real simulator):
+  //   no-keyboard baseline baseH = 714; keyboard up shrinks vvH to 411
+  //   (the keyboard occupies 714 - 411 = 303px). barH = 50.
+  //   The bar sits flush above the keyboard: barTop = vvTop + vvH - barH
+  //   = 0 + 411 - 50 = 361.
+  //   Terminal frame bottom = 660. Sparse shell prompt content bottom = 172;
+  //   dense terminal (200 lines) content bottom = 648.
+  //   kbUp requires vvH < baseH - KB_GAP = 714 - 150 = 564.
+  const D = { innerH: 714, baseH: 714, barH: BAR_H, vvTop: 0, frameBottom: 660 };
+
+  // closed: vvH == baseH, not below the 564 threshold -> no bar, no lift
+  const closed = compute({ ...D, vvH: 714, contentBottom: 648 });
+  assert.equal(closed.kbUp, false);
+  assert.equal(closed.barTop, 664);   // 714 - 50
+  assert.equal(closed.lift, 0);
+
+  // open sparse: keyboard up (411 < 564), bar at 361; the prompt (bottom 172)
+  // is already well above the bar -> nothing to lift
+  const sparse = compute({ ...D, vvH: 411, contentBottom: 172 });
+  assert.equal(sparse.kbUp, true);
+  assert.equal(sparse.barTop, 361);   // 411 - 50
+  assert.equal(sparse.lift, 0);       // 172 + 4 = 176 < 361 -> no lift
+
+  // open dense: content bottom 648 is below the bar (361); lift it so the last
+  // row ends PAD above the bar's top: lift = (648 + 4) - 361 = 291
+  const dense = compute({ ...D, vvH: 411, contentBottom: 648 });
+  assert.equal(dense.kbUp, true);
+  assert.equal(dense.barTop, 361);
+  assert.equal(dense.lift, 291);      // (648 + PAD) - 361
+  // and the post-lift content really leaves PAD clearance above the bar:
+  assert.equal(648 - dense.lift + PAD, dense.barTop);
+});

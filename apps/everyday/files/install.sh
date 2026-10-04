@@ -7,7 +7,7 @@
 # manager straight from the checkout). So this installer only owns the three
 # things around it:
 #
-#   1. ffmpeg        — powers the in-Files video player (optional).
+#   1. ffmpeg        — powers the in-Files video player.
 #   2. the /fileview/ nginx snippet — raw-file serving for "Open in Browser".
 #   3. cleanup       — retire FileBrowser, which used to BE this app (its
 #                      binary, its legacy service, its per-user transient units
@@ -49,12 +49,14 @@ fi
 APP_HOME="$(getent passwd "$APP_USER" | cut -d: -f6)"
 NGINX_EXTRAS="/etc/nginx/snippets/vibetop-extras.d"
 INSTALL_DEPS="${INSTALL_DEPS:-1}"
+DEPS_ONLY=0
 INSTALL_SYSTEMD="${INSTALL_SYSTEMD:-1}"
 INSTALL_NGINX="${INSTALL_NGINX:-1}"
 DRY_RUN="${DRY_RUN:-0}"
 
 for arg in "$@"; do
     case "$arg" in
+        --deps-only) DEPS_ONLY=1; INSTALL_DEPS=1 ;;
         --dry-run|-n) DRY_RUN=1 ;;
         --help|-h) sed -n '2,28p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
         *) echo "unknown flag: $arg" >&2; exit 2 ;;
@@ -84,24 +86,14 @@ files install
 EOF
 echo
 
-# 1. ffmpeg — powers the in-Files video player (probe tracks, remux per audio
-# track to a browser-playable MP4, extract subtitles to WebVTT). The manager
-# degrades gracefully if it's absent (the player shows "ffmpeg not installed").
-if (( INSTALL_DEPS )) && ! command -v ffprobe >/dev/null 2>&1; then
+# 1. ffmpeg — required for the enabled Files video player.
+if (( INSTALL_DEPS )) && { ! command -v ffprobe >/dev/null 2>&1 || ! command -v ffmpeg >/dev/null 2>&1; }; then
     echo "== installing ffmpeg (in-Files video player) =="
-    # ffmpeg is OPTIONAL, so a failure must not abort the deploy — but it must
-    # also not be silent. The previous form was
-    #     run sudo apt-get update -qq && run sudo apt-get install -y ffmpeg
-    # where, as a non-final element of an `&&` list, the failure was exempt from
-    # `set -e`: on any distro without an ffmpeg package the installer sailed on
-    # reporting success while the video player was quietly degraded.
-    if vt_pkg_refresh && vt_pkg_install ffmpeg; then
-        :
-    else
-        echo "   NOTE: ffmpeg not installed (no package on ${VT_OS_ID:-this distro}?)." >&2
-        echo "   The in-Files video player will show 'ffmpeg not installed'; everything else works." >&2
-    fi
+    run vt_pkg_refresh
+    run vt_pkg_install ffmpeg
 fi
+if (( ! DRY_RUN )); then vt_require_commands ffmpeg ffprobe; fi
+if (( DEPS_ONLY )); then exit 0; fi
 
 # 2. Retire FileBrowser -----------------------------------------------------
 # FileBrowser WAS this app until the native Files app replaced it. A host that

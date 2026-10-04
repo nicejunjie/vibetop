@@ -23,6 +23,21 @@ curl -fsSL .../bootstrap.sh | bash -s -- --no-office   # forward deploy.sh flags
 
 **One command, whole stack** — `deploy.sh` orchestrates everything (deps + all
 sub-installers in the right order + a health check), locally or to a remote host.
+Before staging the checkout or configuring the application, it runs a dependency
+phase for **every enabled component**: base tools (including `curl`, Python,
+OpenSSL, Git and CA certificates), terminal/nginx, Browser/X11/LibreOffice,
+Files/ffmpeg, Office's container runtime and image, and cloudflared when requested.
+The component installers expose `--deps-only` so this phase uses the same package
+lists as standalone installs. Configuration then runs with `INSTALL_DEPS=0`.
+`--no-browser`, `--no-files`, and `--no-office` skip those dependencies too.
+
+Any required package, download, or image-pull failure stops the run immediately
+with a nonzero exit. Missing commands after installation also fail. No application
+files, secrets, or service units are deployed until the dependency phase succeeds;
+package managers may still configure or start the services they install. Failed
+or inconclusive health checks never report deployment success. Standalone
+`tools/smoke-test.sh` exits immediately if `curl` is missing.
+
 It also **auto-detects a dual-homed LAN** (2+ NICs on one subnet) and applies the
 "reply via the incoming NIC" routing (`tools/setup-samesubnet-routing.sh`) so such
 hosts work with no manual network tweaking — a no-op on single-homed hosts (see the
@@ -70,6 +85,15 @@ SELinux and the container runtime (docker vs podman) all differ by family and ar
 resolved in one place — `tools/lib/osdeps.sh`. Validated on AMD+NVIDIA and AMD+AMD hosts (GPU stats use
 sysfs/amdgpu with an `nvidia-smi` fallback).
 
+## Optional hardware login banner
+
+`sudo tools/install-login-banner.sh` installs the compact, colored SSH login
+banner. On AMD hosts it requires `amd-smi` and takes one snapshot to wake idle
+GPUs before collecting all available temperatures. It detects hardware sensors
+and active LAN IPv4 addresses dynamically. Ubuntu's generic greeting/help/news
+are disabled, while update and reboot notices remain enabled; previous MOTD
+scripts are backed up under `/var/backups/vibetop-motd/`.
+
 ## Shared nginx
 
 One nginx site at `/etc/nginx/sites-available/vibetop` (`listen 80 default_server`). The terminal project owns this file. A `map $uri $term_port` directive (generated for 1..50) routes `/tN/` to port `7680+N` via a single regex location block. Sibling projects extend via `include /etc/nginx/snippets/vibetop-extras.d/*.conf`.
@@ -103,4 +127,3 @@ All `install.sh` scripts share the same patterns:
 - Env vars override defaults (e.g. `MAX_INSTANCES=50`, `XPRA_PORT=14500`). See the header comment in each script for the full list.
 - Systemd unit files under `*/systemd/` are templates with `@PLACEHOLDER@` tokens (e.g. `@APP_USER@`, `@DISPLAY_NUM@`). install.sh renders them via `sed` and writes to `/etc/systemd/system/`.
 - nginx configs under `*/nginx/` follow the same pattern.
-

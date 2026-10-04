@@ -24,6 +24,31 @@ case " $VT_OS_ID $VT_OS_LIKE " in
        esac ;;
 esac
 
+# Bootstrap even on a minimal image where sudo itself is not installed.
+vt_as_root() {
+    if [ "$(id -u)" -eq 0 ]; then "$@"; else sudo "$@"; fi
+}
+
+vt_require_commands() {
+    local tool
+    for tool in "$@"; do
+        command -v "$tool" >/dev/null 2>&1 || {
+            echo "Missing required command: $tool" >&2
+            return 1
+        }
+    done
+}
+
+# Resolve alternative providers BEFORE attempting an install. Once a package
+# transaction starts, any failure is fatal to the caller.
+vt_pkg_available() {
+    case "$VT_FAMILY" in
+        debian) apt-cache policy "$1" | grep -Eq 'Candidate: [^ (]' ;;
+        rhel) dnf -q list --available "$1" >/dev/null 2>&1 ;;
+        *) return 1 ;;
+    esac
+}
+
 # vt_pkg_name <generic> — the package name on THIS family, or "" if the generic
 # name has no equivalent here. Only names that actually DIFFER are listed; the
 # fallback is the generic name unchanged.
@@ -44,6 +69,10 @@ vt_pkg_name() {
             # Fedora split the umbrella package; EL9 still ships it.
             if [ "$VT_OS_ID" = fedora ]; then printf 'xhost'; else printf 'xorg-x11-server-utils'; fi ;;
         fonts-liberation)  printf 'liberation-fonts' ;;
+        passwd)          printf 'shadow-utils' ;;
+        iproute2)         printf 'iproute' ;;
+        procps)           printf 'procps-ng' ;;
+        ffmpeg)           printf 'ffmpeg-free' ;;
         dbus-daemon)       printf 'dbus-daemon' ;;
         docker.io)         printf '' ;;          # no docker package in any enabled EL/Fedora repo
         *) printf '%s' "$g" ;;
@@ -59,8 +88,8 @@ vt_pkg_name() {
 # "Setting up keyboard-configuration" for 5h19m at zero host load.
 vt_pkg_refresh() {
     case "$VT_FAMILY" in
-        debian) sudo DEBIAN_FRONTEND=noninteractive apt-get update -qq ;;
-        rhel)   sudo dnf -q makecache 2>/dev/null || true ;;
+        debian) vt_as_root env DEBIAN_FRONTEND=noninteractive apt-get update -qq ;;
+        rhel)   vt_as_root dnf -q makecache ;;
     esac
 }
 
@@ -71,13 +100,12 @@ vt_enable_epel() {
     [ "$VT_OS_ID" = fedora ] && return 0
     rpm -q epel-release >/dev/null 2>&1 && return 0
     echo "== enabling EPEL (ttyd/wmctrl/xdotool live there on EL) =="
-    sudo dnf install -y epel-release >/dev/null 2>&1 \
-        || echo "WARN: could not enable EPEL — some packages may be unavailable" >&2
+    vt_as_root dnf install -y epel-release
 }
 
 # vt_pkg_install <generic…> — install, translating names. Returns non-zero if any
-# package failed, but never aborts the caller: an optional package (ffmpeg) must
-# not take the whole install down, and the caller decides what is fatal.
+# package failed. Installers call this as a standalone command under set -e
+# so a failed transaction stops deployment immediately.
 vt_pkg_install() {
     local g n missing=0 pkgs=()
     for g in "$@"; do
@@ -87,9 +115,9 @@ vt_pkg_install() {
     done
     [ ${#pkgs[@]} -gt 0 ] || return "$missing"
     case "$VT_FAMILY" in
-        debian) sudo DEBIAN_FRONTEND=noninteractive apt-get install -y \
+        debian) vt_as_root env DEBIAN_FRONTEND=noninteractive apt-get install -y \
                     -o Dpkg::Options::=--force-confold "${pkgs[@]}" || return 1 ;;
-        rhel)   sudo dnf install -y "${pkgs[@]}" || return 1 ;;
+        rhel)   vt_as_root dnf install -y "${pkgs[@]}" || return 1 ;;
         *) echo "unsupported distro '${VT_OS_ID:-unknown}' — install manually: ${pkgs[*]}" >&2; return 1 ;;
     esac
     return "$missing"
@@ -173,9 +201,7 @@ vt_selinux_allow_xpra() {
     command -v semodule >/dev/null 2>&1 && semodule -l 2>/dev/null | grep -qx xpra || return 0
     if ! command -v semanage >/dev/null 2>&1; then
         echo "== installing policycoreutils-python-utils (for semanage) =="
-        sudo dnf install -y policycoreutils-python-utils >/dev/null 2>&1 || {
-            echo "WARN: semanage unavailable; xpra displays will fail to start under SELinux" >&2
-            return 0; }
+        sudo dnf install -y policycoreutils-python-utils || return 1
     fi
     if semanage permissive -l 2>/dev/null | grep -qx xpra_t; then
         echo "   SELinux: xpra_t already permissive"
@@ -203,7 +229,7 @@ vt_selinux_label_helpers() {
     command -v getenforce >/dev/null 2>&1 || return 0
     [ "$(getenforce 2>/dev/null || echo Disabled)" = Disabled ] && return 0
     command -v semanage >/dev/null 2>&1 || {
-        sudo dnf install -y policycoreutils-python-utils >/dev/null 2>&1 || return 0; }
+        sudo dnf install -y policycoreutils-python-utils || return 1; }
     command -v semanage >/dev/null 2>&1 || return 0
     echo "== SELinux: labelling $dir as bin_t (executables) =="
     sudo semanage fcontext -a -t bin_t "${dir}(/.*)?" >/dev/null 2>&1 \

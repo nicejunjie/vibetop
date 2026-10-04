@@ -1162,7 +1162,7 @@ def _codex_usage_payload(home=None, enabled=True):
     `note` saying why. Only `limit_id: codex`
     records are consulted (`_is_codex_limit`); each window reports the best
     reading for its current generation (`_codex_better`); and a window whose
-    `resets_at` has passed reads 0% (`rolled`).
+    `resets_at` has passed is unavailable (`rolled`).
 
     A NULL WINDOW MEANS "NO READING", NOT 100%. This used to infer exhaustion
     from a null `used_percent` -- Codex was believed to stop reporting a number
@@ -1220,35 +1220,14 @@ def _codex_usage_payload(home=None, enabled=True):
                 "minutes": mins}
 
     def rolled(w):
-        """A stale reading is only true until its window turns over.
+        """Expired local readings cannot establish usage in the next window.
 
-        Within a generation usage never falls, so a last-known number stays a
-        valid lower bound however old it gets -- but the moment `resets_at`
-        passes, the window has rolled and that number is simply wrong. Measured
-        on the real trace: 98% at 17:35 with resets_at ~18:24:39, then Codex
-        silent for fifty minutes; the next record at 18:25:13 reads 0%. On a
-        quieter day the strip would show 98% until the user next ran Codex.
-
-        `resets_at` is the answer: past the reset, the window is empty, so report
-        0%.
-
-        AND REPORT NO RESET. This used to project the next one as
-        `reset + n*span`, which assumes the windows tile a fixed grid. They do
-        not — measured on 2026-09-04, the 5-hour window is anchored to the first
-        use AFTER the previous one expired. The old window ended at 1788564315;
-        the projection said the next would end at 1788582315; Codex actually
-        said 1788583393, because the first request came 1078s into the gap. The
-        error is exactly the length of the idle gap, so an overnight pause would
-        have the strip counting down to resets that were never scheduled.
-
-        Until the next request there IS no next window, and the strip renders a
-        window with no reset as a bare percentage (`seg()` in usage-strips.js)."""
-        if not w or not w.get("reset") or not w.get("minutes"):
-            return w
-        now = int(time.time())
-        if now < w["reset"]:
-            return w
-        return {"pct": 0.0, "reset": None, "minutes": w["minutes"]}
+        Other devices may have used it, or the subscription may have ended.
+        Wait for a new reading instead of inventing a zero or a reset time.
+        """
+        if w and w.get("reset") and int(time.time()) >= w["reset"]:
+            return None
+        return w
 
     session = rolled(window(best["primary"]))
     weekly = rolled(window(best["secondary"]))
@@ -3436,6 +3415,10 @@ METRICS_STEP = metrics_history.TIERS[0][1]      # the fine tier's 2s bucket
 # means per reply), so the wall figure has no hole either.
 METRICS_IDLE_STEP = 60.0
 METRICS_WATCH_GRACE = 15.0     # > the desktop heartbeat's 5s, with slack
+# A GPU reading and a plug reading only describe the same instant if the plug
+# answers promptly. The plug itself updates at 1Hz, so a longer round trip is
+# too imprecise to pair with the just-collected GPU sensor value.
+METRICS_POWER_PAIR_MAX_DELAY = 1.0
 
 _hist_lock = threading.Lock()
 _hist = None                                    # metrics_history.History, or None
@@ -3469,7 +3452,7 @@ def _hist_saw_monitor():
     _hist_demand = time.monotonic()
 
 
-def _hist_note(st):
+def _hist_note(st, sampled_at=None):
     """Fold a status payload into the open bucket. Never marks demand: every
     caller of the collector lands here, including our own idle sample."""
     h = _hist_open()
@@ -3477,7 +3460,7 @@ def _hist_note(st):
         return
     with _hist_lock:
         try:
-            h.note(st, time.time())
+            h.note(st, time.time() if sampled_at is None else sampled_at)
         except Exception as e:
             log.warning("metrics history note failed: %s", e)
 
@@ -3489,6 +3472,38 @@ def _hist_watched(now=None):
     else asks for 2s resolution, so when they stop there is nobody to show a
     2s-resolution chart to."""
     return (now or time.monotonic()) - _hist_demand <= METRICS_WATCH_GRACE
+
+
+def _hist_wall_power_w():
+    """Read the plug for a background metrics point, without a cached wattage.
+
+    The taskbar intentionally accepts a reading up to 60s old. Reusing that
+    number beside a GPU sensor read *now* creates impossible power pairs in the
+    history. This runs only on the recorder thread, at most once per idle minute
+    (or to fill a missed watched bucket), never on a request thread.
+    """
+    plug = _cached("power_plug", 5.0, _read_power_plug)
+    _wall_retarget(plug)
+    if not system_status.wall_power_endpoint(plug):
+        return None
+    started = time.monotonic()
+    try:
+        sample = system_status.read_wall_power(
+            plug, timeout=METRICS_POWER_PAIR_MAX_DELAY)
+    except Exception:
+        return None
+    if not isinstance(sample, dict):
+        return None
+    # Even a server that ignores our timeout must not turn a late answer into
+    # a purportedly simultaneous GPU/wall point. It can still repair the plug's
+    # own clock-based series.
+    _wall_note(sample, plug)
+    if time.monotonic() - started > METRICS_POWER_PAIR_MAX_DELAY:
+        return None
+    with _wall_lock:
+        if plug != _wall_plug:
+            return None
+    return sample.get("w")
 
 
 # Where in a bucket the ticker wakes, as a fraction of it. LATE on purpose: by
@@ -3534,10 +3549,11 @@ def _hist_loop():
             if due:
                 _hist_self_at = mono
                 st = system_status.get_system_status([], _cached, want_procs=False)
-                wall = _wall_power_w(WALL_POWER_STRIP_FRESH)
+                sampled_at = time.time()
+                wall = _hist_wall_power_w()
                 if wall is not None:
                     st["wall_power_w"] = wall
-                _hist_note(st)
+                _hist_note(st, sampled_at)
             # The flush stays on the fine cadence whatever the sampling rate:
             # it is arithmetic on an empty dict when there is nothing to write,
             # and it keeps a newly-opened Monitor from waiting for its data.
@@ -5386,7 +5402,15 @@ class Handler(http.server.BaseHTTPRequestHandler):
             # Record BEFORE the per-user process filtering below: the history is
             # host-wide and keeps no process data at all, so it must not vary
             # with who happened to trigger this collection.
-            _hist_note(st)
+            # The taskbar may display a cached wall reading up to a minute old.
+            # Do not pair it with a fresh GPU reading in the persisted history;
+            # the recorder's own background sample uses a fresh plug fetch.
+            if wall_fresh > METRICS_POWER_PAIR_MAX_DELAY and "wall_power_w" in st:
+                record_st = dict(st)
+                record_st.pop("wall_power_w")
+                _hist_note(record_st)
+            else:
+                _hist_note(st)
         # Multi-user: the top-processes list carries every user's process names —
         # a non-admin sees only their OWN processes; an ADMIN (VIBETOP_ADMINS, e.g.
         # the human operator on a prod host where APP_USER is the no-login service
