@@ -392,6 +392,7 @@ def test_subfilter_injected_scripts_exist():
     # 404 for injected JS (broken terminal keyboard / xpra UI).
     for rel in ("apps/everyday/browser/xpra-patches.js",
                 "apps/everyday/terminal/terminal-kbd.js", "shell/coach.js",
+                "apps/everyday/terminal/terminal-connection.js",
                 "apps/everyday/terminal/lib/tab-sync.js"):
         assert os.path.isfile(os.path.join(_REPO, rel)), f"missing {rel}"
 

@@ -3,7 +3,7 @@
 // assert the xterm surface appears inside the nested /tN/ iframe (proof the whole
 // chain works: authcheck -> per-user ttyd port -> nginx route -> ttyd -> xterm),
 // and that the manager reports a running terminal for the user. xterm renders to a
-// canvas, so we don't read cell text — the surface + API status is the signal.
+// canvas: inspect xterm's buffer too, because a blank canvas does not prove a live PTY.
 const { test, expect } = require('@playwright/test');
 const { openAppFrame, backendOnly } = require('../helpers');
 
@@ -16,6 +16,14 @@ test.describe('terminal app (backend)', () => {
     // desktop -> #frame-terminal -> terminals.html -> the active /tN/ iframe.
     const term = page.frameLocator('#frame-terminal').frameLocator('iframe').first();
     await expect(term.locator('.xterm')).toBeVisible({ timeout: 25_000 });
+    await expect.poll(() => term.locator('.xterm').evaluate(() => {
+      const b = window.term && window.term.buffer.active;
+      if (!b) return false;
+      for (let i = 0; i < b.length; i++) {
+        if (b.getLine(i).translateToString().trim()) return true;
+      }
+      return false;
+    }), { timeout: 15000 }).toBe(true);
 
     // The manager should now report a running terminal for this user.
     await expect.poll(async () => {
