@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_391 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_392 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [Terminal link opened a closed Browser app but lost the URL](#terminal-link-opened-a-closed-browser-app-but-lost-the-url)
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
@@ -414,6 +414,7 @@ _391 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [Monitor showed an idle GPU while the second card was fully occupied (2026-10-06)](#monitor-showed-an-idle-gpu-while-the-second-card-was-fully-occupied-2026-10-06)
 - [Monitor ignored data disks and mixed filesystem space with parent-drive I/O (2026-10-06)](#monitor-ignored-data-disks-and-mixed-filesystem-space-with-parent-drive-io-2026-10-06)
 - [Monitor hid other GPU temperatures behind a dropdown and wasted rows on watts (2026-10-06)](#monitor-hid-other-gpu-temperatures-behind-a-dropdown-and-wasted-rows-on-watts-2026-10-06)
+- [Monitor chart axes used arbitrary sampled values as tick bounds (2026-10-06)](#monitor-chart-axes-used-arbitrary-sampled-values-as-tick-bounds-2026-10-06)
 
 <!-- END TOC -->
 
@@ -17823,3 +17824,20 @@ stack all GPU sections on phones and allow scrolling for larger inventories.
 **Rejected:** a GPU button switch would still hide the other device. Counting
 Intel core sensors as CPUs would inflate package counts. Squeezing arbitrarily
 many cards into a fixed height would collapse their charts.
+
+
+## Monitor chart axes used arbitrary sampled values as tick bounds (2026-10-06)
+
+**Symptom:** chart ticks followed raw sample peaks, producing awkward labels such
+as 12.0 MB/s or an arbitrary watt count rather than clean reference values.
+
+**Cause:** power and rate domains were the peak times 1.2. Labels formatted those
+raw bounds, and temperature was fixed at 0/55/110°C.
+
+**Fix:** round chart domains upward to a 1/2/5-based bound before drawing and
+labeling. Use one shared unit for both rate ticks, clean numeric formatting,
+and a default temperature domain of 0/50/100°C that expands for hotter samples.
+Keep live readings precise.
+
+**Rejected:** rounding only labels would place a reading against an axis whose
+numbers do not describe its plotted position. Rounding down could clip peaks.

@@ -96,6 +96,12 @@ it took two minutes to draw a line and knew nothing about what happened while
 nobody was looking. The manager now keeps a **7-day ring** of the numbers beside
 those charts (`server/metrics_history.py`, `/var/lib/vibetop/metrics.ring`).
 
+Chart axes use round 1/2/5-based bounds. Percentages stay at 0/50/100;
+temperature defaults to 0/50/100°C and expands when needed. Power and I/O scales
+round their actual chart domains upward, so the plotted values match the ticks.
+Both rate ticks share a unit (for example 1 and 2 MB/s). Live readings keep their
+original precision.
+
 A sample with no neighbour is drawn as a **dot**. A line needs two points, so
 an isolated one used to draw nothing at all — which is what an idle night looks
 like in the 2m window, where the recorder's 30s samples land one slot in

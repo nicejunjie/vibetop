@@ -317,7 +317,7 @@
       <div class="card-title">Temperature</div>
       <div id="temp-readings"><span style="color:#5aad8a">CPU <span id="cpu-temp">--</span></span><span style="color:#5a8ab0">GPU <span id="gpu-temp">--</span></span></div>
       <div class="chart-box">
-        <div class="chart-yaxis"><span>110°C</span><span>55°C</span><span>0°C</span></div>
+        <div class="chart-yaxis" id="temp-yaxis"><span>100°C</span><span>50°C</span><span>0°C</span></div>
         <div class="chart-wrap"><canvas id="temp-chart"></canvas></div>
       </div>
     </div>
@@ -513,7 +513,13 @@
     }
     cpus.forEach(function(cpu, i) { add('cpu', cpu, i, cpuInventory === null ? cpuTempHist : cpuSeries[cpu.id]); });
     gpus.forEach(function(gpu, i) { add('gpu', gpu, i, gpuInventory === null ? gpuTempHist : (gpuSeries[gpu.id] || {}).temp); });
-    drawChart('temp-chart', datasets, 110);
+    var temperatures = [];
+    datasets.forEach(function(ds) { temperatures = temperatures.concat(ds.data); });
+    cpus.concat(gpus).forEach(function(device) { temperatures.push(device.temp); });
+    var known = temperatures.filter(function(value) { return value != null && value > 0; });
+    var scale = chartScale(known.length ? Math.max.apply(null, known) : 0, 100, '°C');
+    renderAxis('temp-yaxis', scale);
+    drawChart('temp-chart', datasets, scale.max);
   }
 
   function selectDiskData(d, sample) {
@@ -580,8 +586,8 @@
       '<span class="net-tx">W ' + (haveWr ? fmtRate(wrRate) : '--') + '</span>';
     var allDisk = diskRdHist.concat(diskWrHist).filter(function(v) { return v != null && v > 0; });
     diskMaxRate = allDisk.length ? Math.max(Math.max.apply(null, allDisk) * 1.2, 1024 * 1024) : 1024 * 1024;
-    var dya = document.getElementById('disk-yaxis');
-    if (dya) dya.innerHTML = '<span>' + fmtRate(diskMaxRate) + '</span><span>' + fmtRate(diskMaxRate/2) + '</span><span>0</span>';
+    var diskScale = chartScale(diskMaxRate, 1024 * 1024, 'rate');
+    diskMaxRate = diskScale.max; renderAxis('disk-yaxis', diskScale);
     drawChart('disk-chart', [{data: diskRdHist, color: 'rgb(90,173,138)'}, {data: diskWrHist, color: 'rgb(90,138,176)'}], diskMaxRate);
   }
 
@@ -623,6 +629,32 @@
     if (b >= 1048576) return (b / 1048576).toFixed(1) + ' MB/s';
     if (b >= 1024) return (b / 1024).toFixed(0) + ' KB/s';
     return b.toFixed(0) + ' B/s';
+  }
+
+  function niceCeiling(value) {
+    var magnitude = Math.pow(10, Math.floor(Math.log10(value)));
+    var scaled = value / magnitude;
+    return (scaled <= 1 + 1e-12 ? 1 : scaled <= 2 + 1e-12 ? 2 : scaled <= 5 + 1e-12 ? 5 : 10) * magnitude;
+  }
+  function chartScale(value, minimum, kind) {
+    var target = Math.max(value || 0, minimum), unit = kind, factor = 1;
+    if (kind === 'rate') {
+      var units = [[1073741824, 'GB/s'], [1048576, 'MB/s'], [1024, 'KB/s'], [1, 'B/s']];
+      for (var i = 0; i < units.length; i++) {
+        if (target >= units[i][0]) { factor = units[i][0]; unit = units[i][1]; break; }
+      }
+    }
+    var top = niceCeiling(target / factor);
+    function label(v) {
+      // Strip insignificant zeros and floating-point noise. Both ticks share
+      // one unit so a midpoint never turns into an arbitrary 512 KB/s label.
+      return Number(v.toPrecision(12)) + (kind === 'rate' ? ' ' : '') + unit;
+    }
+    return {max: top * factor, top: label(top), middle: label(top / 2)};
+  }
+  function renderAxis(id, scale) {
+    var axis = document.getElementById(id);
+    if (axis) axis.innerHTML = '<span>' + scale.top + '</span><span>' + scale.middle + '</span><span>0</span>';
   }
 
   function buildCoreGrid(n) {
@@ -798,8 +830,8 @@
     var allVals = netRxHist.concat(netTxHist).filter(function(v) { return v != null && v > 0; });
     if (allVals.length > 0) netMaxRate = Math.max.apply(null, allVals) * 1.2;
     if (netMaxRate < 1024) netMaxRate = 1024;
-    var ya = document.getElementById('net-yaxis');
-    if (ya) ya.innerHTML = '<span>' + fmtRate(netMaxRate) + '</span><span>' + fmtRate(netMaxRate/2) + '</span><span>0</span>';
+    var netScale = chartScale(netMaxRate, 1024, 'rate');
+    netMaxRate = netScale.max; renderAxis('net-yaxis', netScale);
     drawChart('net-chart', [
       {data: netRxHist, color: 'rgb(90,173,138)'},
       {data: netTxHist, color: 'rgb(90,138,176)'}
@@ -951,8 +983,8 @@
       document.getElementById('pwr-total').textContent = totalW;
       var allPwr = cpuPwrHist.concat(gpuPwrHist, wallPwrHist).filter(function(v) { return v > 0; });
       if (allPwr.length > 0) pwrMax = Math.max(Math.max.apply(null, allPwr) * 1.2, 50);
-      var pya = document.getElementById('pwr-yaxis');
-      if (pya) pya.innerHTML = '<span>' + Math.round(pwrMax) + 'W</span><span>' + Math.round(pwrMax/2) + 'W</span><span>0</span>';
+      var powerScale = chartScale(pwrMax, 50, 'W');
+      pwrMax = powerScale.max; renderAxis('pwr-yaxis', powerScale);
 
       drawChart('mem-chart', [{data: memHist, color: 'rgb(90,173,138)'}], 100);
       renderGpu(d); renderTemperatures(d);

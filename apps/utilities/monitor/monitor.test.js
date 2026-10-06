@@ -1095,7 +1095,7 @@ test('disk history is taken by identity and never copies root history onto data'
   const h = load({payloads: [fullStatus({disks: [DISK_ROOT, DISK_DATA]})], history});
   await h.settle();
   h.clearPaths(); chooseDisk(h, DISK_DATA.id);
-  assert.ok(h.id('disk-yaxis').innerHTML.includes('12.0 MB/s'));
+  assert.ok(h.id('disk-yaxis').innerHTML.includes('20 MB/s'));
   assert.ok(vertices(h.id('disk-chart'), GREEN).length >= 60);
   const old = load({payloads: [fullStatus({disks: [DISK_ROOT, DISK_DATA]})], history: {series}});
   await old.settle(); old.clearPaths();
@@ -1112,4 +1112,42 @@ test('integrated-only hosts have no GPU temperature or power readings', async ()
   assert.strictEqual(h.id('gpu-pwr-text').textContent, '--');
   assert.strictEqual(h.id('gpu-power-list').hidden, true);
   assert.strictEqual(h.id('temp-readings').children.length, 1);
+});
+
+
+function axisLabels(h, id) { return [...h.id(id).innerHTML.matchAll(/<span>(.*?)<\/span>/g)].map(match => match[1]); }
+
+test('power ticks use round bounds and chart geometry matches those ticks', async () => {
+  const h = load({payloads: [fullStatus({gpu_power_w: 50.13, cpu_power_w: 0})]});
+  await h.settle(); h.tick(); await h.settle();
+  assert.deepStrictEqual(axisLabels(h, 'pwr-yaxis'), ['100W', '50W', '0']);
+  assert.strictEqual(h.id('gpu-pwr-text').textContent, '50.13W', 'actual readings retain their precision');
+  const points = vertices(h.id('pwr-chart'), BLUE);
+  assert.ok(Math.abs(points[0].y - 49.87) < 0.001, '50.13W must use a genuine 100W domain');
+});
+
+test('disk tick labels use natural values in one shared rate unit', async () => {
+  for (const [rate, top, middle] of [[1.37 * 1024**2, '2 MB/s', '1 MB/s'],
+                                    [37.23 * 1024**2, '50 MB/s', '25 MB/s'],
+                                    [0, '1 MB/s', '0.5 MB/s']]) {
+    const h = load({payloads: [fullStatus({disk_read_bytes: rate, disk_write_bytes: 0})]});
+    await h.settle();
+    assert.deepStrictEqual(axisLabels(h, 'disk-yaxis'), [top, middle, '0']);
+  }
+});
+
+test('network ticks round the rate domain rather than just the displayed text', async () => {
+  const rate = 50.13 * 1024;
+  const h = load({now: 1000000, payloads: [fullStatus({network: {eth0: {rx_bytes: 0, tx_bytes: 0}}}),
+    fullStatus({network: {eth0: {rx_bytes: rate * 2, tx_bytes: 0}}})]});
+  await h.settle(); h.setClock(1002000); h.tick(); await h.settle();
+  assert.deepStrictEqual(axisLabels(h, 'net-yaxis'), ['100 KB/s', '50 KB/s', '0']);
+});
+
+test('temperature ticks start at 0/50/100 and expand to round bounds for hotter history', async () => {
+  const h = load({payloads: [fullStatus(), fullStatus({cpu_temp: 101})]});
+  await h.settle();
+  assert.deepStrictEqual(axisLabels(h, 'temp-yaxis'), ['100°C', '50°C', '0']);
+  h.tick(); await h.settle();
+  assert.deepStrictEqual(axisLabels(h, 'temp-yaxis'), ['200°C', '100°C', '0']);
 });
