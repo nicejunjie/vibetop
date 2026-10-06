@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_396 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_397 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [Terminal link opened a closed Browser app but lost the URL](#terminal-link-opened-a-closed-browser-app-but-lost-the-url)
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
@@ -419,6 +419,7 @@ _396 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [Mobile terminal resume waited twelve seconds at the reconnect overlay (2026-10-06)](#mobile-terminal-resume-waited-twelve-seconds-at-the-reconnect-overlay-2026-10-06)
 - [Mobile reconnect still hit the startup timeout for non-clean closes (2026-10-06)](#mobile-reconnect-still-hit-the-startup-timeout-for-non-clean-closes-2026-10-06)
 - [Mobile history reading jumped to older content on repaint (2026-10-06)](#mobile-history-reading-jumped-to-older-content-on-repaint-2026-10-06)
+- [Multi-photo downloads could not save into iPhone Photos (2026-10-06)](#multi-photo-downloads-could-not-save-into-iphone-photos-2026-10-06)
 
 <!-- END TOC -->
 
@@ -17932,3 +17933,22 @@ the bottom clears the anchor. Preserve already deployed keyboard/size helpers.
 **Rejected:** forcing the bottom would interrupt the history the user wanted to
 read. Saving only viewportY or a distance from the bottom would select different
 text when a replay trims old lines or new output extends the buffer.
+
+## Multi-photo downloads could not save into iPhone Photos (2026-10-06)
+
+**Symptom:** selecting multiple photos and choosing Download on an iPhone did
+not offer saving them into Photos.
+
+**Cause:** multi-selection Download intentionally creates one ZIP archive.
+The iPhone share sheet receives an archive, not individual images. Fetching
+large files before calling share also risks exhausting transient activation.
+
+**Fix:** offer Save to Photos for an iOS selection consisting entirely of
+supported image files. Fetch the original files separately with explicit image
+MIME types, then enable a fresh button that synchronously calls native Web Share
+with the File array. Explain the Save Image/Save Images choice in the system
+sheet. Preparation can be cancelled, and incomplete or unsupported selections
+never share. Keep Download available for intentional ZIP exports.
+
+**Rejected:** a website cannot silently write to the iPhone photo library;
+renaming a ZIP or giving it an image MIME type does not make it importable.

@@ -897,6 +897,7 @@
     <button id="a-copy" title="Copy (Ctrl+C)"><span class="abi">⧉</span><span class="abl">Copy</span></button>
     <button id="a-cut" title="Cut (Ctrl+X)"><span class="abi">✂</span><span class="abl">Cut</span></button>
     <span class="dv" id="a-dv2"></span>
+    <button id="a-photos" hidden title="Save selected images to iPhone Photos"><span class="abi">▧</span><span class="abl">Save to Photos</span></button>
     <button id="a-download" title="Download (folders and multi-selections come as a .zip)"><span class="abi">⭳</span><span class="abl">Download</span></button>
     <button id="a-delete" class="danger" title="Delete (Del)"><span class="abi">🗑</span><span class="abl">Delete</span></button>
   </div>
@@ -1368,6 +1369,7 @@
       show('a-open', oneSel);
       show('a-info', any);
       show('a-share', oneSel);
+      show('a-photos', canSavePhotos());
       show('a-browser', !!(e1 && !e1.isDir));
       show('a-office', !!(e1 && OFF_RE.test(e1.name)));
       show('a-rename', oneSel);
@@ -2283,6 +2285,87 @@
     }).catch(function(e) {
       if (e && e.name === 'AbortError') return;   // user closed the sheet
       try { window.open(url); } catch (_) {}
+    });
+  }
+
+  // Share original photos separately: ZIP archives cannot be imported into Photos.
+  // Prepare first, then invoke share synchronously from a fresh tap. Large
+  // downloads can outlive Safari's transient user activation.
+  var PHOTO_TYPES = { jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png',
+    gif: 'image/gif', webp: 'image/webp', avif: 'image/avif',
+    heic: 'image/heic', heif: 'image/heif', tif: 'image/tiff', tiff: 'image/tiff', bmp: 'image/bmp' };
+  function photoType(name) { return PHOTO_TYPES[name.split('.').pop().toLowerCase()] || ''; }
+  function canSavePhotos() {
+    return !!(IS_IOS && navigator.share && navigator.canShare && selCount &&
+      selNames().every(function(n) {
+        return photoType(n) && rows.some(function(r) { return r.name === n && !r.isDir; });
+      }));
+  }
+  function doSavePhotos() {
+    if (!canSavePhotos() || modalOpen) return;
+    var names = selNames(), paths = selPaths(), files = [];
+    var controller = new AbortController(), closed = false;
+    modalOpen = true;
+    var ov = el('div', 'mov'), card = el('div', 'mcard');
+    card.setAttribute('role', 'dialog'); card.setAttribute('aria-modal', 'true');
+    var heading = el('h3', null, 'Save to Photos');
+    heading.id = 'photos-title'; card.setAttribute('aria-labelledby', heading.id);
+    card.appendChild(heading);
+    var msg = el('p', null, 'Preparing 0 of ' + names.length + ' photos…');
+    msg.setAttribute('role', 'status'); card.appendChild(msg);
+    var btns = el('div', 'mbtns');
+    var cancel = el('button', 'mcancel', 'Cancel');
+    var share = el('button', 'mok', 'Open iPhone share sheet');
+    share.disabled = true;
+    btns.appendChild(cancel); btns.appendChild(share);
+    card.appendChild(btns); ov.appendChild(card); document.body.appendChild(ov);
+    function close() {
+      if (closed) return;
+      closed = true; controller.abort(); files = []; modalOpen = false;
+      untrap(); ov.remove(); document.getElementById('a-photos').focus();
+    }
+    var untrap = trapFocus(card, function(e) {
+      if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); close(); }
+    });
+    cancel.addEventListener('click', close);
+    ov.addEventListener('click', function(e) { if (e.target === ov) close(); });
+    share.addEventListener('click', function() {
+      // No await/fetch before share: this call owns the button's user gesture.
+      try {
+        var result = navigator.share({ files: files });
+        share.disabled = true;
+        Promise.resolve(result).then(close).catch(function(e) {
+          if (e && e.name === 'AbortError') { close(); return; }
+          if (!closed) { share.disabled = false; msg.textContent = 'Could not open the share sheet. Try again.'; }
+        });
+      } catch (e) {
+        msg.textContent = 'Could not open the share sheet. Try again.';
+      }
+    });
+    cancel.focus();
+    var chain = Promise.resolve();
+    paths.forEach(function(p, i) {
+      chain = chain.then(function() {
+        if (closed) return;
+        return fetch('/api/fs/download?path=' + encodeURIComponent(p), { signal: controller.signal })
+          .then(function(r) { if (!r.ok) throw new Error('Download failed'); return r.blob(); })
+          .then(function(b) {
+            if (closed) return;
+            files.push(new File([b], names[i], { type: photoType(names[i]) }));
+            msg.textContent = 'Preparing ' + files.length + ' of ' + names.length + ' photos…';
+          });
+      });
+    });
+    chain.then(function() {
+      if (closed) return;
+      if (!navigator.canShare({ files: files })) {
+        msg.textContent = 'iPhone cannot share this selection. Try fewer photos or another image format.';
+        return;
+      }
+      msg.textContent = 'In the iPhone share sheet, choose Save Image or Save Images to add these photos to Photos.';
+      share.disabled = false; share.focus();
+    }).catch(function() {
+      if (!closed) msg.textContent = 'Could not prepare the photos. Close this dialog and try again.';
     });
   }
 
@@ -4194,6 +4277,7 @@
       items.push({ sep: true });
       items.push({ label: 'Get Info', run: showInfo });
       if (one) items.push({ label: 'Share…', run: shareStart });
+      if (canSavePhotos()) items.push({ label: 'Save to Photos', run: doSavePhotos });
       items.push({ label: 'Download', run: doDownload });
       items.push({ sep: true });
       if (one) items.push({ label: 'Rename', run: startRename });
@@ -4301,6 +4385,7 @@
   document.getElementById('a-browser').addEventListener('click', openInBrowserAct);
   document.getElementById('a-office').addEventListener('click', officeEditAct);
   document.getElementById('a-rename').addEventListener('click', startRename);
+  document.getElementById('a-photos').addEventListener('click', doSavePhotos);
   document.getElementById('a-download').addEventListener('click', doDownload);
   document.getElementById('a-copy').addEventListener('click', function() { doCopyCut('copy'); });
   document.getElementById('a-cut').addEventListener('click', function() { doCopyCut('cut'); });
