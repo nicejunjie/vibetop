@@ -62,7 +62,7 @@ CPU package temperatures support AMD k10temp/zenpower and Intel coretemp;
 per-core Intel sensors are not mistaken for extra physical CPUs. The Power card
 sums discrete GPUs and places their individual watt readings horizontally.
 The GPU power bar stacks one proportional segment per discrete GPU, using
-blue shades matched to the horizontal per-GPU watt labels. Above nominal power,
+closely spaced blue shades matched to the horizontal per-GPU watt labels. Above nominal power,
 all segments scale together so their proportions remain correct. Known segments
 remain visible if another sensor is missing, while the total stays unknown.
 Missing sensors remain unknown rather than counting as zero.
@@ -80,20 +80,25 @@ Existing host history is preserved. Old primary-card history is never assigned
 to a different device; GPU power history sums device rings and stays blank where
 any component is unknown. Device histories begin recording with this change.
 
-The Disk card uses compact buttons to select local block filesystems by stable identity (filesystem UUID
-when available), with independent space and read/write rates. It discovers all
-local volumes, including device-mapper/LVM and RAID volumes, and deduplicates
-bind mounts and subvolumes sharing the same block filesystem. Snap loop devices,
-tmpfs and network mounts are excluded. Unmounted whole devices remain selectable
-for I/O with unknown used space. Filesystem space and I/O refer to the same block
-device; the old root-only scalars remain available for the desktop tray.
+The Disk card uses compact buttons for physical drives (for example `nvme0n1`
+and `sda`), rather than partitions or mount points. Kernel topology groups
+partitions under their drive and follows device-mapper/LVM and RAID slaves back
+to physical members. Loop, RAM, optical and virtual devices are not drive buttons.
+The detail line shows physical capacity and grouped mount points; the usage bar
+sums unique mounted filesystems on that drive, deduplicating bind mounts and
+subvolumes. Unmounted drives retain I/O with unknown used space. Shared/spanning
+filesystem space is unknown at the drive level because it cannot be attributed
+to individual members. I/O reads the whole-drive counters without also summing
+partition counters. Root-only scalars remain available for the desktop tray.
 
-Per-volume history uses `metrics.ring.disks/<disk-identity>`, one fixed ~930KB ring
+Per-drive history uses `metrics.ring.disks/<disk-identity>`, one fixed ~930KB ring
 per identity with no device-count ceiling. The history endpoint adds
 `disks: {identity: {disk_used_gb: [...], disk_read_bytes: [...],
 disk_write_bytes: [...]}}` on the same timestamps as the host and GPU histories.
-Removing a volume or losing a counter leaves a gap; old root-drive history is
-never copied onto another volume. UUID identity survives device renumbering.
+Hardware WWID/serial provides identity, with the sysfs hardware path as fallback.
+Physical drive identities are distinct from old filesystem identities, so old
+partition history cannot be mistaken for whole-drive traffic. Removing a drive
+or losing a counter leaves a gap.
 
 The Monitor used to open blank: every chart was built one sample per frame, so
 it took two minutes to draw a line and knew nothing about what happened while

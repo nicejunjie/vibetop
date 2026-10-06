@@ -428,20 +428,62 @@ def _mount_path(value):
 
 
 def _disk_inventory():
-    """Local block filesystems, deduplicated across bind mounts/subvolumes.
+    """Physical drives, resolving partitions and dm/RAID slaves to their parents."""
+    def read(path):
+        try:
+            with open(path) as stream:
+                return stream.read().strip()
+        except OSError:
+            return ''
 
-    Space belongs to a filesystem, not to a whole disk with several partitions.
-    I/O belongs to that same block device (including dm/RAID logical devices),
-    avoiding the old mixture of root-partition space and whole-drive traffic.
-    Unmounted whole devices remain visible with I/O and unknown used space.
-    """
-    uuids = {}
     try:
-        for uuid in sorted(os.listdir('/dev/disk/by-uuid')):
-            uuids[os.path.basename(os.path.realpath('/dev/disk/by-uuid/' + uuid))] = uuid
+        names = sorted(os.listdir('/sys/class/block'))
     except OSError:
-        pass
-    mounts = {}
+        return []
+    drives = {}
+    for name in names:
+        block = '/sys/class/block/' + name
+        real = os.path.realpath(block)
+        if (name.startswith(('loop', 'ram', 'zram', 'sr', 'dm-', 'md')) or
+                '/virtual/' in real or os.path.exists(block + '/partition')):
+            continue
+        devno = read(block + '/dev')
+        if not devno:
+            continue
+        hardware = read(block + '/wwid') or read(block + '/device/wwid') or read(block + '/device/serial')
+        identity = 'physical:' + (hardware or real)
+        entry = {'id': 'disk-' + hashlib.sha256(identity.encode()).hexdigest(),
+                 'kind': 'physical', 'name': name, 'device': '/dev/' + name,
+                 'mount': None, 'mounts': [], '_devno': devno, '_filesystems': []}
+        model = read(block + '/device/model')
+        if model:
+            entry['model'] = model
+        try:
+            entry['capacity_gb'] = round(int(read(block + '/size')) * 512 / 1024**3, 1)
+        except ValueError:
+            pass
+        drives[name] = entry
+
+    def parents(name, visited=None):
+        visited = set() if visited is None else visited
+        if name in visited:
+            return set()
+        visited.add(name)
+        if name in drives:
+            return {name}
+        block = '/sys/class/block/' + name
+        if os.path.exists(block + '/partition'):
+            return parents(os.path.basename(os.path.dirname(os.path.realpath(block))), visited)
+        try:
+            slaves = os.listdir(block + '/slaves')
+        except OSError:
+            return set()
+        result = set()
+        for slave in slaves:
+            result.update(parents(slave, visited))
+        return result
+
+    filesystems = {}
     try:
         with open('/proc/self/mountinfo') as stream:
             for line in stream:
@@ -449,66 +491,34 @@ def _disk_inventory():
                 try:
                     sep = parts.index('-')
                     devno, root, mount = parts[2], _mount_path(parts[3]), _mount_path(parts[4])
-                    source = _mount_path(parts[sep + 2])
-                    block = '/sys/dev/block/' + devno
-                    if not os.path.exists(block):
+                    if not os.path.exists('/sys/dev/block/' + devno):
                         continue
-                    name = os.path.basename(os.path.realpath(block))
-                    if name.startswith(('loop', 'ram', 'zram', 'sr')):
+                    name = os.path.basename(os.path.realpath('/sys/dev/block/' + devno))
+                    backing = parents(name)
+                    if not backing:
                         continue
-                    entry = mounts.setdefault(devno, {'name': name, 'device': source, 'mounts': [], '_roots': []})
-                    entry['mounts'].append(mount)
-                    entry['_roots'].append((root != '/', mount != '/', len(mount), mount))
+                    fs = filesystems.setdefault(devno, {'_devno': devno, 'backing': backing, 'mounts': [], 'roots': []})
+                    fs['mounts'].append(mount)
+                    fs['roots'].append((root != '/', mount != '/', len(mount), mount))
                 except (ValueError, IndexError):
                     continue
     except OSError:
         pass
-    out = []
-    for devno, entry in mounts.items():
-        entry['mount'] = min(entry.pop('_roots'))[-1]
-        entry['mounts'] = sorted(set(entry['mounts']))
-        entry['_devno'] = devno
-        identity = 'uuid:' + uuids[entry['name']] if entry['name'] in uuids else 'block:' + os.path.realpath('/sys/dev/block/' + devno)
-        entry['id'] = 'disk-' + hashlib.sha256(identity.encode()).hexdigest()
-        out.append(entry)
-    # Include whole disks that have no mounted partition. Showing both a parent
-    # and its mounted partitions as separate usage pools would double-count it.
-    try:
-        for name in sorted(os.listdir('/sys/class/block')):
-            block = '/sys/class/block/' + name
-            if name.startswith(('loop', 'ram', 'zram', 'sr')) or os.path.exists(block + '/partition'):
-                continue
-            real = os.path.realpath(block)
-            if any(os.path.realpath('/sys/dev/block/' + entry['_devno']).startswith(real + '/') or
-                   os.path.realpath('/sys/dev/block/' + entry['_devno']) == real for entry in out):
-                continue
-            # Device-mapper/RAID backing devices are already represented by
-            # their mounted logical volume. Don't expose them as unused disks.
-            try:
-                if os.listdir(block + '/holders'):
-                    continue
-            except OSError:
-                continue
-            try:
-                with open(block + '/dev') as stream:
-                    devno = stream.read().strip()
-            except OSError:
-                continue
-            identity = real
-            for field in ('wwid', 'device/serial'):
-                try:
-                    with open(block + '/' + field) as stream:
-                        value = stream.read().strip()
-                    if value:
-                        identity = value
-                        break
-                except OSError:
-                    pass
-            out.append({'id': 'disk-' + hashlib.sha256(identity.encode()).hexdigest(),
-                        'name': name, 'device': '/dev/' + name, 'mount': None, 'mounts': [], '_devno': devno})
-    except OSError:
-        pass
-    return sorted(out, key=lambda disk: (disk['mount'] != '/', disk['mount'] or '', disk['name']))
+    for fs in filesystems.values():
+        mount = min(fs['roots'])[-1]
+        for name in fs['backing']:
+            drive = drives[name]
+            drive['mounts'].extend(fs['mounts'])
+            # A spanning filesystem's space cannot be assigned to each drive.
+            if len(fs['backing']) == 1:
+                drive['_filesystems'].append({'mount': mount, '_devno': fs['_devno']})
+            else:
+                drive['_shared_space'] = True
+    for drive in drives.values():
+        drive['mounts'] = sorted(set(drive['mounts']))
+        if drive['mounts']:
+            drive['mount'] = min(drive['mounts'], key=lambda m: (m != '/', len(m), m))
+    return sorted(drives.values(), key=lambda d: (d['mount'] != '/', d['name']))
 
 
 def _read_disks(cached):
@@ -533,21 +543,24 @@ def _read_disks(cached):
     out, next_prev = [], {}
     for entry in inventory:
         disk = {k: v for k, v in entry.items() if not k.startswith('_')}
-        mount = disk['mount']
-        if mount:
+        filesystems = entry['_filesystems']
+        if filesystems and not entry.get('_shared_space'):
+            totals = [0, 0, 0]
             try:
-                mounted_dev = os.stat(mount).st_dev
-                if f'{os.major(mounted_dev)}:{os.minor(mounted_dev)}' != entry['_devno']:
-                    # A cached mount disappeared: statvfs now sees the parent
-                    # filesystem, whose space must never be attributed here.
-                    raise OSError('mount device changed')
-                st = os.statvfs(mount)
-                used = st.f_blocks - st.f_bfree
-                disk.update(total_gb=round(st.f_frsize * st.f_blocks / 1024**3, 1),
-                            used_gb=round(st.f_frsize * used / 1024**3, 1),
-                            free_gb=round(st.f_frsize * st.f_bavail / 1024**3, 1))
-                if used + st.f_bavail > 0:
-                    disk['pct'] = round(100 * used / (used + st.f_bavail))
+                for fs in filesystems:
+                    mount = fs['mount']
+                    mounted_dev = os.stat(mount).st_dev
+                    if f'{os.major(mounted_dev)}:{os.minor(mounted_dev)}' != fs['_devno']:
+                        raise OSError('mount device changed')
+                    st = os.statvfs(mount)
+                    totals[0] += st.f_frsize * st.f_blocks
+                    totals[1] += st.f_frsize * (st.f_blocks - st.f_bfree)
+                    totals[2] += st.f_frsize * st.f_bavail
+                disk.update(total_gb=round(totals[0] / 1024**3, 1),
+                            used_gb=round(totals[1] / 1024**3, 1),
+                            free_gb=round(totals[2] / 1024**3, 1))
+                if totals[1] + totals[2] > 0:
+                    disk['pct'] = round(100 * totals[1] / (totals[1] + totals[2]))
             except OSError:
                 pass
         counts = counters.get(entry['_devno'])

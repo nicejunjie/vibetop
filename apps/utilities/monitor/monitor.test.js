@@ -1186,3 +1186,17 @@ test('missing GPU power keeps known segments visible and total unknown', async (
   assert.strictEqual(h.id('gpu-pwr-bar').children[1].title, 'GPU2: --');
   assert.strictEqual(h.id('gpu-pwr-text').textContent, '--');
 });
+
+
+test('physical disk buttons group all partition mounts under drive names', async () => {
+  const root = {...DISK_ROOT, kind: 'physical', name: 'nvme0n1', device: '/dev/nvme0n1', capacity_gb: 3726, mounts: ['/', '/boot/efi']};
+  const data = {...DISK_DATA, kind: 'physical', name: 'sda', device: '/dev/sda', capacity_gb: 7452};
+  const h = load({payloads: [fullStatus({disks: [data, root]})]});
+  await h.settle();
+  assert.deepStrictEqual(h.id('disk-pick').children.map(b => b.textContent), ['nvme0n1', 'sda']);
+  assert.ok(h.id('disk-detail').textContent.includes('/, /boot/efi'));
+  assert.ok(h.id('disk-detail').textContent.includes('3726 GB'));
+  assert.ok(h.id('disk-bar-text').title.includes('mounted filesystems'));
+  chooseDisk(h, data.id);
+  assert.ok(h.id('disk-detail').textContent.includes('/dev/sda'));
+});

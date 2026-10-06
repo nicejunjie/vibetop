@@ -597,11 +597,11 @@ def test_gpu_power_sums_discrete_cards_without_double_counting_integrated(status
     assert 'gpu_power_w' not in result
 
 
-def test_disk_inventory_deduplicates_bind_mounts_and_discovers_all_local_volumes(status, monkeypatch, tmp_path):
+def test_disk_inventory_groups_partitions_and_discovers_physical_drives(status, monkeypatch, tmp_path):
     import builtins
     import os
     root = tmp_path / 'disk-fixture'
-    for name, devno, partition in [('nvme0n1', '259:0', False), ('nvme0n1p2', '259:2', True),
+    for name, devno, partition in [('nvme0n1', '259:0', False), ('nvme0n1p1', '259:1', True), ('nvme0n1p2', '259:2', True),
                                     ('sda', '8:0', False), ('sda1', '8:1', True),
                                     ('sdb', '8:16', False), ('loop0', '7:0', False)]:
         # Real parent/partition paths, like the kernel's sysfs links.
@@ -612,6 +612,11 @@ def test_disk_inventory_deduplicates_bind_mounts_and_discovers_all_local_volumes
         block.mkdir(parents=True, exist_ok=True)
         (block / 'holders').mkdir(exist_ok=True)
         (block / 'dev').write_text(devno)
+        if not partition:
+            (block / 'device').mkdir(exist_ok=True)
+            (block / 'device/serial').write_text(name + '-serial')
+            (block / 'device/model').write_text(name + '-model')
+            (block / 'size').write_text(str(1024**3 * 100 // 512))
         if partition:
             (block / 'partition').write_text('2')
         for directory, ident in [('sys/class/block', name), ('sys/dev/block', devno)]:
@@ -629,6 +634,7 @@ def test_disk_inventory_deduplicates_bind_mounts_and_discovers_all_local_volumes
 3 1 8:1 /folder /alias\\040space rw - ext4 /dev/sda1 rw
 4 1 7:0 / /snap/pkg rw - squashfs /dev/loop0 ro
 5 1 0:1 / /run rw - tmpfs tmpfs rw
+6 1 259:1 / /boot/efi rw - vfat /dev/nvme0n1p1 rw
 ''')
     original_open, original_exists = builtins.open, os.path.exists
     original_realpath, original_listdir = os.path.realpath, os.listdir
@@ -642,30 +648,57 @@ def test_disk_inventory_deduplicates_bind_mounts_and_discovers_all_local_volumes
     monkeypatch.setattr(os.path, 'realpath', lambda path: original_realpath(mapped(path)))
     monkeypatch.setattr(os, 'listdir', lambda path: original_listdir(mapped(path)))
     disks = status._disk_inventory()
-    assert [disk['mount'] for disk in disks] == ['/', None, '/data']
+    assert [disk['name'] for disk in disks] == ['nvme0n1', 'sda', 'sdb']
+    assert disks[0]['mounts'] == ['/', '/boot/efi']
+    assert disks[0]['_devno'] == '259:0'
+    assert len(disks[0]['_filesystems']) == 2
+    assert disks[0]['capacity_gb'] == 100
+    assert all(disk['kind'] == 'physical' for disk in disks)
     data = next(disk for disk in disks if disk['mount'] == '/data')
     assert data['mounts'] == ['/alias space', '/data']
     assert len({disk['id'] for disk in disks}) == 3
     assert all(disk['id'].startswith('disk-') for disk in disks)
     assert [disk['name'] for disk in disks if disk['mount'] is None] == ['sdb']
-    # Renumbering a filesystem's device does not change UUID-based identity.
-    (uuiddir / 'data-uuid').unlink()
-    (uuiddir / 'data-uuid').symlink_to('/dev/sdc1')
-    diskpath = root / 'sys/devices/sdc/sdc1'
-    diskpath.mkdir(parents=True)
-    (root / 'sys/dev/block/8:1').unlink()
-    (root / 'sys/dev/block/8:1').symlink_to(diskpath)
-    (diskpath / 'holders').mkdir()
+    # Renumbering a drive keeps its hardware identity, regardless of FS UUID.
+    old = root / 'sys/devices/sda'
+    newpath = root / 'sys/devices/sdc'
+    old.rename(newpath)
+    (newpath / 'sda1').rename(newpath / 'sdc1')
+    for directory, oldname, newname, target in [
+            ('sys/class/block', 'sda', 'sdc', newpath),
+            ('sys/class/block', 'sda1', 'sdc1', newpath / 'sdc1'),
+            ('sys/dev/block', '8:0', '8:0', newpath),
+            ('sys/dev/block', '8:1', '8:1', newpath / 'sdc1')]:
+        (root / directory / oldname).unlink()
+        (root / directory / newname).symlink_to(target)
     new = next(disk for disk in status._disk_inventory() if disk['mount'] == '/data')
     assert new['id'] == data['id']
+    assert new['name'] == 'sdc'
+
+    # dm/RAID volumes resolve through slaves, never appear as extra drives or
+    # attribute a spanning filesystem's whole capacity to every member.
+    virtual = root / 'sys/devices/virtual/block/dm-0'
+    (virtual / 'slaves').mkdir(parents=True)
+    (virtual / 'slaves/sdc1').symlink_to(newpath / 'sdc1')
+    (virtual / 'slaves/sdb').symlink_to(root / 'sys/devices/sdb')
+    (root / 'sys/class/block/dm-0').symlink_to(virtual)
+    (root / 'sys/dev/block/253:0').symlink_to(virtual)
+    with original_open(mountinfo, 'a') as stream:
+        stream.write('7 1 253:0 / /pool rw - ext4 /dev/mapper/pool rw\n')
+    pooled = status._disk_inventory()
+    assert len(pooled) == 3
+    assert all(disk['name'] != 'dm-0' for disk in pooled)
+    members = [disk for disk in pooled if '/pool' in disk['mounts']]
+    assert len(members) == 2
+    assert all(disk['_shared_space'] for disk in members)
 
 
 def test_disks_keep_independent_delta_windows_and_share_samples(status, monkeypatch):
     import builtins
     clock = [10.0]
-    counts = ['8 1 sda1 0 0 100 0 0 0 200 0 0 0 0\n259 2 nvme0n1p2 0 0 500 0 0 0 800 0 0 0 0\n']
-    inventory = [dict(id='disk-' + 'a' * 64, name='sda1', device='/dev/sda1', mount='/data', mounts=['/data'], _devno='8:1'),
-                 dict(id='disk-' + 'b' * 64, name='nvme0n1p2', device='/dev/nvme0n1p2', mount='/', mounts=['/'], _devno='259:2')]
+    counts = ['8 0 sda 0 0 100 0 0 0 200 0 0 0 0\n259 0 nvme0n1 0 0 500 0 0 0 800 0 0 0 0\n']
+    inventory = [dict(id='disk-' + 'a' * 64, name='sda', device='/dev/sda', mount='/data', mounts=['/data'], _devno='8:0', _filesystems=[{'mount': '/data', '_devno': '8:1'}]),
+                 dict(id='disk-' + 'b' * 64, name='nvme0n1', device='/dev/nvme0n1', mount='/', mounts=['/'], _devno='259:0', _filesystems=[{'mount': '/', '_devno': '259:2'}, {'mount': '/boot/efi', '_devno': '259:1'}])]
     monkeypatch.setattr(status, '_disk_sample', None)
     monkeypatch.setattr(status, '_disk_prev', {})
     monkeypatch.setattr(status.time, 'monotonic', lambda: clock[0])
@@ -674,8 +707,8 @@ def test_disks_keep_independent_delta_windows_and_share_samples(status, monkeypa
     monkeypatch.setattr(status.os, 'statvfs', lambda path: SimpleNamespace(f_frsize=1024**3, f_blocks=100, f_bfree=30, f_bavail=20))
     original_stat = status.os.stat
     def mounted_stat(path, *args, **kw):
-        if path in ('/', '/data'):
-            dev = status.os.makedev(8, 1) if path == '/data' and clock[0] < 14 else status.os.makedev(259, 2)
+        if path in ('/', '/data', '/boot/efi'):
+            dev = status.os.makedev(259, 1) if path == '/boot/efi' else (status.os.makedev(8, 1) if path == '/data' and clock[0] < 14 else status.os.makedev(259, 2))
             return SimpleNamespace(st_dev=dev)
         return original_stat(path, *args, **kw)
     monkeypatch.setattr(status.os, 'stat', mounted_stat)
@@ -683,17 +716,23 @@ def test_disks_keep_independent_delta_windows_and_share_samples(status, monkeypa
     first = status._read_disks(cached)
     assert all('read_bytes' not in disk for disk in first)
     assert first[0]['used_gb'] == 70 and first[0]['free_gb'] == 20 and first[0]['pct'] == 78
+    assert first[1]['total_gb'] == 200 and first[1]['used_gb'] == 140, 'sum unique mounted partitions once'
     clock[0] = 10.5
     assert status._read_disks(cached) is first
-    counts[0] = '8 1 sda1 0 0 104 0 0 0 202 0 0 0 0\n259 2 nvme0n1p2 0 0 520 0 0 0 810 0 0 0 0\n'
+    counts[0] = '8 0 sda 0 0 104 0 0 0 202 0 0 0 0\n259 0 nvme0n1 0 0 520 0 0 0 810 0 0 0 0\n'
     clock[0] = 12
     second = status._read_disks(cached)
     assert [(disk['read_bytes'], disk['write_bytes']) for disk in second] == [(1024, 512), (5120, 2560)]
-    counts[0] = '8 1 sda1 0 0 1 0 0 0 2 0 0 0 0\n'
+    counts[0] = '8 0 sda 0 0 1 0 0 0 2 0 0 0 0\n'
     clock[0] = 14
     third = status._read_disks(cached)
     assert all('read_bytes' not in disk for disk in third), 'reset and missing counters are unknown'
     assert 'used_gb' not in third[0], 'an unmounted volume must not inherit parent filesystem space'
+    inventory[1]['_shared_space'] = True
+    clock[0] = 16
+    counts[0] = '259 0 nvme0n1 0 0 530 0 0 0 820 0 0 0 0\n'
+    shared = status._read_disks(cached)
+    assert 'used_gb' not in shared[1], 'shared pool space must not be assigned to each drive'
 
 
 def test_cpu_package_temperatures_include_amd_and_intel_and_keep_missing_sensors(status, monkeypatch, tmp_path):

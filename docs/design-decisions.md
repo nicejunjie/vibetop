@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_392 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_393 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [Terminal link opened a closed Browser app but lost the URL](#terminal-link-opened-a-closed-browser-app-but-lost-the-url)
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
@@ -415,6 +415,7 @@ _392 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [Monitor ignored data disks and mixed filesystem space with parent-drive I/O (2026-10-06)](#monitor-ignored-data-disks-and-mixed-filesystem-space-with-parent-drive-io-2026-10-06)
 - [Monitor hid other GPU temperatures behind a dropdown and wasted rows on watts (2026-10-06)](#monitor-hid-other-gpu-temperatures-behind-a-dropdown-and-wasted-rows-on-watts-2026-10-06)
 - [Monitor chart axes used arbitrary sampled values as tick bounds (2026-10-06)](#monitor-chart-axes-used-arbitrary-sampled-values-as-tick-bounds-2026-10-06)
+- [Monitor treated partitions as separate physical disks (2026-10-06)](#monitor-treated-partitions-as-separate-physical-disks-2026-10-06)
 
 <!-- END TOC -->
 
@@ -17841,3 +17842,23 @@ Keep live readings precise.
 
 **Rejected:** rounding only labels would place a reading against an axis whose
 numbers do not describe its plotted position. Rounding down could clip peaks.
+
+
+## Monitor treated partitions as separate physical disks (2026-10-06)
+
+**Symptom:** the Disk buttons listed `/`, `/boot/efi` and `/data`, although the
+first two occupy the same NVMe drive. Users wanted one entry per physical disk.
+
+**Cause:** the inventory described mounted block filesystems, with UUID identity
+and partition I/O. This was useful for volume space but obscured drive topology.
+
+**Fix:** discover physical drives through sysfs, map partitions to parents and
+resolve dm/RAID slaves recursively. Group mount points under drive-name buttons,
+show physical capacity separately from summed mounted-filesystem usage and read
+whole-drive counters. Deduplicate filesystem aliases and leave shared filesystem
+space unknown rather than attributing the entire pool to each member. Use WWID
+or serial identities in a distinct physical namespace for new histories.
+
+**Rejected:** hiding only `/boot/efi` would leave every other partition duplicated.
+Summing whole-drive and partition counters double-counts traffic. Reusing old
+partition ring identities would silently label their past as whole-drive I/O.
