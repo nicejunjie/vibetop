@@ -75,7 +75,10 @@ Two systemd template units, instantiated for each terminal:
    close (code 1000 — what iOS sends when it suspends a backgrounded
    tab) instead shows ttyd's "Press ⏎ to Reconnect" overlay. The injected
    `terminal-connection.js` guard reloads only the disconnected terminal frame
-   on its next 500ms tick while visible, or immediately on foreground return.
+   on its next 500ms tick while visible. A no-status close is handled the same way;
+   any closed socket recovers immediately on foreground return, even before its
+   delayed close event arrives. Abnormal closes get the native three-second retry
+   and fall back to frame reload at four seconds if no new socket is opened.
    Recovery never synthesizes terminal input. Failed startup/handshakes retain
    a 12-second deadline; retries are bounded to three before a manual retry.
    Background pages pause recovery. Successful PTY output clears status and
@@ -309,7 +312,9 @@ nginx proxies `/tN/` to the corresponding loopback port via the `map`-based rege
 common on iOS suspension) waits for Enter in ttyd itself; our injected connection
 guard promptly reloads that terminal frame when visible, without sending a
 keypress. The persistent shell and daemon ring remain intact. Startup/token or
-handshake stalls still use the bounded 12-second deadline, while attached quiet
+handshake stalls still use the bounded 12-second deadline. No-status closes also
+recover promptly; foreground return checks the actual socket state, and abnormal
+closes with no native reconnect fall back at four seconds. Attached quiet
 shells never time out.
 
 A tabbed UI at `/terminals/` (`apps/everyday/terminal/terminals.html`) manages terminal tabs with add (+), close (×, stops the service), drag-reorder, and double-click-to-rename.

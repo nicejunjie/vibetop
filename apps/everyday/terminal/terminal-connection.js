@@ -9,7 +9,7 @@
   'use strict';
   var key = 'vt-terminal-retries:' + w.location.pathname;
   var socket = null, ready = false, stopped = false, exhausted = false, panel = null;
-  var closeCode = null;
+  var closeCode = null, closedAt = 0, resumeClosed = false;
   var since = Date.now(), phase = 'startup', retries = 0, timer;
   try { retries = Math.min(3, Math.max(0, +w.sessionStorage.getItem(key) || 0)); } catch (_) {}
   function log(event) {
@@ -20,7 +20,7 @@
         body: JSON.stringify({ ua: w.navigator.userAgent, guard: [{
           k: 'terminal-connection', event: event, path: w.location.pathname,
           phase: phase, elapsed: Date.now() - since, retries: retries,
-          state: socket ? socket.readyState : null
+          state: socket ? socket.readyState : null, close_code: closeCode
         }] }) }).catch(function () {});
     } catch (_) {}
   }
@@ -50,15 +50,19 @@
     // "Press Enter to Reconnect". iOS suspension takes this path. A closed
     // socket cannot deliver output, so waiting for the startup deadline adds
     // twelve seconds to every resume. Reload just this frame without input.
-    var cleanClosed = phase === 'closed' && closeCode === 1000;
-    if (!cleanClosed && elapsed < 3000) return;
-    if (!cleanClosed && elapsed < 12000) { show('Connecting to terminal…'); return; }
+    var cleanClosed = phase === 'closed' && (closeCode === 1000 || closeCode === 1005);
+    var closedFallback = phase === 'closed' && Date.now() - closedAt >= 4000;
+    var recoverClosed = cleanClosed || resumeClosed || closedFallback;
+    // Abnormal closes get ttyd's native 3-second retry first. If it never
+    // opens another socket, fall back at four seconds instead of twelve.
+    if (!recoverClosed && elapsed < 3000) return;
+    if (!recoverClosed && elapsed < 12000) { show('Connecting to terminal…'); return; }
     if (retries >= 3) {
       show('Terminal connection failed. Retry to reconnect.', true);
       log('retry-limit'); exhausted = true; return;
     }
     show('Terminal connection stalled. Reconnecting…');
-    log(cleanClosed ? 'clean-close' : 'timeout'); stopped = true; w.clearInterval(timer);
+    log(resumeClosed ? 'resume-closed' : cleanClosed ? 'clean-close' : closedFallback ? 'closed-fallback' : 'timeout'); stopped = true; w.clearInterval(timer);
     // With no persistent storage we cannot bound a cross-reload loop. Offer a
     // manual retry instead of automatically reloading forever.
     try { w.sessionStorage.setItem(key, String(retries + 1)); }
@@ -68,7 +72,7 @@
   var Native = w.WebSocket;
   function WS(url, protocols) {
     var ws = protocols === undefined ? new Native(url) : new Native(url, protocols);
-    socket = ws; closeCode = null; ready = false; phase = 'connecting';
+    socket = ws; closeCode = null; resumeClosed = false; ready = false; phase = 'connecting';
     // Do not reset the deadline on repeated failed socket attempts.
     ws.addEventListener('open', function () { if (ws === socket) phase = 'awaiting-output'; });
     ws.addEventListener('message', function (event) {
@@ -88,7 +92,8 @@
     ws.addEventListener('close', function (event) {
       if (ws !== socket || stopped) return;
       if (ready) since = Date.now();
-      ready = false; phase = 'closed'; closeCode = event.code;
+      ready = false; phase = 'closed'; closeCode = event.code; closedAt = Date.now();
+      log('socket-close');
     });
     ws.addEventListener('error', function () { if (ws === socket) phase = 'error'; });
     return ws;
@@ -99,10 +104,19 @@
     w.WebSocket = WS;
   }
   timer = w.setInterval(tick, 500);
-  w.document.addEventListener('visibilitychange', tick);
-  w.addEventListener('focus', tick);
+  function resume() {
+    if (w.document.hidden || stopped || exhausted) return;
+    // WebKit can report CLOSED before dispatching its queued close event.
+    // Read the actual socket state rather than waiting for that event/code.
+    if (socket && socket.readyState === 3) {
+      ready = false; phase = 'closed'; resumeClosed = true;
+    }
+    tick();
+  }
+  w.document.addEventListener('visibilitychange', resume);
+  w.addEventListener('focus', resume);
   w.addEventListener('pagehide', function () { stopped = true; w.clearInterval(timer); });
   w.addEventListener('pageshow', function (e) {
-    if (e.persisted) { stopped = false; since = Date.now(); timer = w.setInterval(tick, 500); tick(); }
+    if (e.persisted) { stopped = false; since = Date.now(); timer = w.setInterval(tick, 500); resume(); }
   });
 });

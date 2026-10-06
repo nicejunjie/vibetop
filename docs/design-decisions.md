@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_394 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_395 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [Terminal link opened a closed Browser app but lost the URL](#terminal-link-opened-a-closed-browser-app-but-lost-the-url)
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
@@ -417,6 +417,7 @@ _394 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [Monitor chart axes used arbitrary sampled values as tick bounds (2026-10-06)](#monitor-chart-axes-used-arbitrary-sampled-values-as-tick-bounds-2026-10-06)
 - [Monitor treated partitions as separate physical disks (2026-10-06)](#monitor-treated-partitions-as-separate-physical-disks-2026-10-06)
 - [Mobile terminal resume waited twelve seconds at the reconnect overlay (2026-10-06)](#mobile-terminal-resume-waited-twelve-seconds-at-the-reconnect-overlay-2026-10-06)
+- [Mobile reconnect still hit the startup timeout for non-clean closes (2026-10-06)](#mobile-reconnect-still-hit-the-startup-timeout-for-non-clean-closes-2026-10-06)
 
 <!-- END TOC -->
 
@@ -17884,3 +17885,25 @@ real PTY output. Never time out a quiet established connection.
 **Rejected:** synthesizing Enter could submit terminal input. Lowering every
 startup timeout would interrupt valid slow handshakes. Restarting the shell would
 lose the user's session rather than repairing its browser connection.
+
+
+## Mobile reconnect still hit the startup timeout for non-clean closes (2026-10-06)
+
+**Symptom:** after the clean-close fix, phone logs still showed 12-second waits
+with an already closed socket, followed by first output in 0.8–0.9 seconds.
+The phone had fetched the new guard, ruling out stale assets for those frames.
+
+**Cause:** the fast path covered code 1000 alone. WebKit can close without a
+status or report an abnormal close after suspension; its close event can also
+arrive later than the foreground event. Native reconnect is not guaranteed.
+
+**Fix:** promptly recover no-status closes, check actual CLOSED state on foreground
+return instead of relying on event delivery, and allow native abnormal-close
+reconnect for three seconds before a four-second fallback. Keep the 12-second
+startup deadline. Record close codes without terminal content so future incidents
+can distinguish close paths. Preserve bounded retries and never send Enter.
+
+**Rejected:** assuming all mobile closes use code 1000 left an observed failure
+untouched. Blaming bandwidth would not explain the closed-state wait followed by
+sub-second first output. Immediate reload on every abnormal close would race
+healthy native reconnects, so that path retains a short grace period.

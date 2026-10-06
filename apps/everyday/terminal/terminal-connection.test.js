@@ -88,8 +88,9 @@ test('cleanly closed mobile terminal recovers promptly without waiting twelve se
   ws.emit('open'); ws.emit('message', '0prompt');
   ws.emit('close', undefined, 1000); b.advance(500);
   assert.equal(b.reloads, 1);
-  assert.equal(b.logs[0].guard[0].event, 'clean-close');
-  assert.equal(b.logs[0].guard[0].elapsed, 500);
+  const recovery = b.logs.find(log => log.guard[0].event === 'clean-close');
+  assert.equal(recovery.guard[0].elapsed, 500);
+  assert.equal(b.logs[0].guard[0].close_code, 1000);
 });
 
 test('clean close while backgrounded waits until visible, then recovers immediately', () => {
@@ -120,4 +121,34 @@ test('failed clean-close recovery obeys the same retry limit', () => {
   const b = browser(saved), ws = new b.w.WebSocket('ws://test/t1/ws');
   ws.emit('open'); ws.emit('close', undefined, 1000); b.advance(500);
   assert.equal(b.reloads, 0); assert.match(b.elements[0].textContent, /failed/);
+});
+
+
+test('foreground return immediately recovers an abnormally closed mobile socket', () => {
+  const b = browser(), ws = new b.w.WebSocket('ws://test/t1/ws');
+  ws.emit('open'); ws.emit('message', '0prompt');
+  b.w.document.hidden = true; ws.emit('close', undefined, 1006);
+  b.advance(1000); assert.equal(b.reloads, 0);
+  b.w.document.hidden = false; b.documentEvents.visibilitychange();
+  assert.equal(b.reloads, 1);
+});
+
+test('foreground recovery catches a closed socket before its delayed close event', () => {
+  const b = browser(), ws = new b.w.WebSocket('ws://test/t1/ws');
+  ws.emit('open'); ws.emit('message', '0prompt');
+  ws.readyState = 3; b.events.focus();
+  assert.equal(b.reloads, 1);
+});
+
+test('abnormal close with no native reconnect uses four-second fallback', () => {
+  const b = browser(), ws = new b.w.WebSocket('ws://test/t1/ws');
+  ws.emit('open'); ws.emit('message', '0prompt'); ws.emit('close', undefined, 1006);
+  b.advance(3500); assert.equal(b.reloads, 0);
+  b.advance(500); assert.equal(b.reloads, 1);
+});
+
+test('mobile no-status close recovers promptly rather than using startup timeout', () => {
+  const b = browser(), ws = new b.w.WebSocket('ws://test/t1/ws');
+  ws.emit('open'); ws.emit('message', '0prompt'); ws.emit('close', undefined, 1005);
+  b.advance(500); assert.equal(b.reloads, 1);
 });
