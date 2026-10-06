@@ -277,3 +277,42 @@ def test_the_slot_layout_matches_the_declared_fields(mh):
     """The struct and FIELDS are one format; a mismatch corrupts every read."""
     assert mh._SLOT.size == 4 + 4 * len(mh.FIELDS)
     assert len(set(mh.FIELDS)) == len(mh.FIELDS)
+
+
+def test_device_rings_keep_identity_across_reordering_restart_and_removal(mh, tmp_path):
+    path = str(tmp_path / 'metrics.ring')
+    a, b = '0000:03:00.0', '0000:07:00.0'
+    cards = [{'id': a, 'percent': 0, 'power_w': 23},
+             {'id': b, 'percent': 100, 'power_w': 300}]
+    h = mh.History(path)
+    h.note(_st(gpus=cards), T0)
+    h.note(_st(gpus=list(reversed(cards))), T0 + 1)
+    h.tick(T0 + 2)
+    h.note(_st(gpus=[cards[0]]), T0 + 2)
+    h.tick(T0 + 4)
+    h.close()
+    reopened = mh.History(path)
+    try:
+        out = reopened.window(T0 + 4, 10, 5, ['gpu_percent', 'gpu_power_w'])['gpus']
+        assert out[a]['gpu_percent'][-3:] == [0, 0, None]
+        assert out[b]['gpu_percent'][-3:] == [100, None, None]
+        assert out[b]['gpu_power_w'][-3:] == [300, None, None]
+        assert os.path.getsize(path + '.gpus/' + a) == mh.FILE_SIZE
+        assert os.path.getsize(path + '.gpus/' + b) == mh.FILE_SIZE
+    finally:
+        reopened.close()
+
+
+def test_device_history_missing_sensor_is_gap_and_coarse_tier_is_recorded(hist):
+    ident = '0000:07:00.0'
+    hist.note(_st(gpus=[{'id': ident, 'percent': 0}]), T0)
+    hist.tick(T0 + 60)
+    out = hist.window(T0 + 60, 7 * 86400, 200, ['gpu_percent', 'gpu_power_w'])
+    assert out['tier'] == 'coarse'
+    assert 0 in out['gpus'][ident]['gpu_percent']
+    assert all(v is None for v in out['gpus'][ident]['gpu_power_w'])
+
+
+def test_device_ring_paths_accept_only_pci_identity(hist):
+    hist.note(_st(gpus=[{'id': '../../outside', 'percent': 99}]), T0)
+    assert hist._devices == {}

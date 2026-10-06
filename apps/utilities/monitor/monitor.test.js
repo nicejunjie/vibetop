@@ -961,3 +961,83 @@ test("a run of two or more is still a line, not a row of dots", async () => {
   assert.ok(vertices(h.id("pwr-chart"), green).length >= 20, "drawn as a line");
   assert.strictEqual(dots(h.id("pwr-chart"), green).length, 0, "and no dots");
 });
+
+const GPU_A = {id: '0000:03:00.0', name: 'Radeon A', integrated: false,
+  percent: 0, temp: 46, power_w: 23, vram_used_gb: 0, vram_total_gb: 24};
+const GPU_B = {id: '0000:07:00.0', name: 'Radeon B', integrated: false,
+  percent: 100, temp: 64, power_w: 300, vram_used_gb: 23, vram_total_gb: 24};
+
+test('both GPUs contribute power and selecting the busy card changes all device readings', async () => {
+  const h = load({payloads: [fullStatus({gpus: [GPU_B, GPU_A]})]});
+  await h.settle();
+  assert.strictEqual(h.id('gpu-bar-text').textContent, '0%');
+  assert.strictEqual(h.id('gpu-pwr-text').textContent, '323W');
+  assert.strictEqual(h.id('pwr-total').textContent, '408W total');
+  assert.deepStrictEqual(h.id('gpu-power-list').children.map(e => e.textContent), ['GPU1: 23W', 'GPU2: 300W']);
+  const pick = h.id('gpu-pick');
+  assert.strictEqual(pick.hidden, false);
+  pick.value = GPU_B.id; pick.fire('change');
+  assert.strictEqual(h.id('gpu-bar-text').textContent, '100%');
+  assert.strictEqual(h.id('vram-bar-text').textContent, '23 / 24 GB');
+  assert.strictEqual(h.id('gpu-temp').textContent, '64°');
+  assert.strictEqual(h.id('gpu-temp-label').textContent, 'GPU2');
+  assert.ok(h.id('gpu-detail').textContent.includes('300W'));
+  assert.strictEqual(h.id('gpu-pwr-text').textContent, '323W');
+});
+
+test('selection follows PCI identity through reordered inventory and missing sensors stay unknown', async () => {
+  const missing = {...GPU_B, power_w: null, percent: null, temp: null, vram_used_gb: null};
+  const h = load({payloads: [fullStatus({gpus: [GPU_A, GPU_B]}), fullStatus({gpus: [missing, GPU_A]})]});
+  await h.settle();
+  h.id('gpu-pick').value = GPU_B.id; h.id('gpu-pick').fire('change');
+  h.tick(); await h.settle();
+  assert.strictEqual(h.id('gpu-pick').value, GPU_B.id);
+  assert.strictEqual(h.id('gpu-bar-text').textContent, '--');
+  assert.strictEqual(h.id('vram-bar-text').textContent, '--');
+  assert.strictEqual(h.id('gpu-temp').textContent, '--');
+  assert.strictEqual(h.id('gpu-pwr-text').textContent, '--');
+  assert.strictEqual(h.id('pwr-total').textContent, '85W CPU only');
+});
+
+test('integrated graphics remain selectable and are excluded from discrete GPU power', async () => {
+  const igpu = {...GPU_A, id: '0000:00:01.0', integrated: true, power_w: 50};
+  const h = load({payloads: [fullStatus({gpus: [igpu, GPU_A, GPU_B]})]});
+  await h.settle();
+  assert.strictEqual(h.id('gpu-pick').value, GPU_A.id);
+  assert.strictEqual(h.id('gpu-pwr-text').textContent, '323W');
+  assert.strictEqual(h.id('gpu-pick').children.length, 3);
+});
+
+test('an empty GPU inventory overrides stale legacy scalars', async () => {
+  const h = load({payloads: [fullStatus({gpus: []})]});
+  await h.settle();
+  for (const id of ['gpu-bar-text', 'vram-bar-text', 'gpu-temp', 'gpu-pwr-text'])
+    assert.strictEqual(h.id(id).textContent, '--');
+  assert.strictEqual(h.id('gpu-pick').hidden, true);
+});
+
+test('device histories never inherit the primary GPU history and power history sums both devices', async () => {
+  const flat = value => Array(60).fill(value);
+  const series = Object.fromEntries(['memory_used_gb', 'gpu_percent', 'gpu_vram_used_gb', 'cpu_temp',
+    'gpu_temp', 'cpu_power_w', 'gpu_power_w', 'wall_power_w', 'net_rx_bps', 'net_tx_bps',
+    'disk_read_bytes', 'disk_write_bytes'].map(key => [key, flat(1)]));
+  const history = {series, gpus: {
+    [GPU_A.id]: {gpu_percent: flat(0), gpu_temp: flat(46), gpu_vram_used_gb: flat(0), gpu_power_w: flat(23)},
+    [GPU_B.id]: {gpu_percent: flat(100), gpu_temp: flat(64), gpu_vram_used_gb: flat(23), gpu_power_w: flat(300)}
+  }};
+  const h = load({payloads: [fullStatus({gpus: [GPU_A, GPU_B]})], history});
+  await h.settle();
+  h.clearPaths(); h.id('gpu-pick').value = GPU_B.id; h.id('gpu-pick').fire('change');
+  const util = vertices(h.id('gpu-chart'), GREEN);
+  assert.ok(util.length >= 60);
+  assert.ok(util.slice(0, 60).every(p => p.y === 0), 'busy-card history must not contain idle-card points');
+  h.tick(); await h.settle();
+  assert.ok(Number(h.id('pwr-yaxis').innerHTML.match(/<span>(\d+)W/)[1]) >= 387,
+    'historical power scale includes the sum of both cards');
+
+  const old = load({payloads: [fullStatus({gpus: [GPU_A, GPU_B]})], history: {series}});
+  await old.settle(); old.clearPaths();
+  old.id('gpu-pick').value = GPU_B.id; old.id('gpu-pick').fire('change');
+  assert.strictEqual(vertices(old.id('gpu-chart'), GREEN).length, 0,
+    'old primary-device history cannot be assigned to GPU2');
+});

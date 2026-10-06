@@ -137,6 +137,13 @@
     color: #ccc; text-shadow: 0 1px 2px rgba(0,0,0,0.8);
   }
 
+  #gpu-pick { width: 100%; min-width: 0; background: #0d1117; color: #ccc;
+    border: 1px solid #2a3040; border-radius: 4px; font-size: 11px; padding: 3px; }
+  #gpu-pick[hidden], #gpu-detail[hidden], #gpu-power-list[hidden] { display: none; }
+  #gpu-detail, #gpu-power-list { font: 10px ui-monospace, monospace; color: #9ab; }
+  #gpu-power-list { max-height: 44px; overflow-y: auto; flex-shrink: 0; }
+  #gpu-detail { flex-shrink: 0; }
+
   /* Charts */
   .chart-box { display: flex; flex: 1; min-height: 0; }
   .chart-yaxis {
@@ -201,6 +208,9 @@
        the size it is on every other card. Desktop needs no equivalent: there
        the cards are grid-sized and 22px out of ~295 is not noticeable. */
     .metrics .card.has-wall { height: 212px; }
+    .metrics .card:has(#gpu-pick:not([hidden])) { height: 234px; }
+    .metrics .card:has(#gpu-power-list:not([hidden])) { height: 234px; }
+    .metrics .card.has-wall:has(#gpu-power-list:not([hidden])) { height: 256px; }
     .cpu-grid { grid-template-columns: repeat(2, 1fr); }
   }
 </style>
@@ -261,7 +271,9 @@
 
     <!-- GPU -->
     <div class="card">
-      <div class="card-title">GPU</div>
+      <div class="card-title" id="gpu-title">GPU</div>
+      <select id="gpu-pick" aria-label="GPU device" hidden></select>
+      <div id="gpu-detail" hidden></div>
       <div class="metric-row">
         <div class="metric-label" style="color:#5aad8a">Util</div>
         <div class="metric-bar-wrap">
@@ -284,7 +296,7 @@
 
     <!-- Temperature -->
     <div class="card">
-      <div class="card-title">Temperature <span class="avg"><span id="cpu-temp" style="color:#5aad8a">--</span> CPU <span id="gpu-temp" style="color:#5a8ab0">--</span> GPU</span></div>
+      <div class="card-title">Temperature <span class="avg"><span id="cpu-temp" style="color:#5aad8a">--</span> CPU <span id="gpu-temp" style="color:#5a8ab0">--</span> <span id="gpu-temp-label">GPU</span></span></div>
       <div class="chart-box">
         <div class="chart-yaxis"><span>110°C</span><span>55°C</span><span>0°C</span></div>
         <div class="chart-wrap"><canvas id="temp-chart"></canvas></div>
@@ -323,12 +335,13 @@
         </div>
       </div>
       <div class="metric-row">
-        <div class="metric-label" style="color:#5a8ab0">GPU</div>
+        <div class="metric-label" id="gpu-pwr-label" style="color:#5a8ab0">GPU</div>
         <div class="metric-bar-wrap">
           <div class="metric-bar" id="gpu-pwr-bar" style="width:0%;background:#5a8ab0"></div>
           <div class="metric-bar-text" id="gpu-pwr-text">--</div>
         </div>
       </div>
+      <div id="gpu-power-list" hidden></div>
       <div class="chart-box">
         <div class="chart-yaxis" id="pwr-yaxis"><span>--</span><span>--</span><span>0</span></div>
         <div class="chart-wrap"><canvas id="pwr-chart"></canvas></div>
@@ -361,6 +374,86 @@
   var cpuPwrHist = [], gpuPwrHist = [], wallPwrHist = [];
   var diskRdHist = [], diskWrHist = [];
   var coreRows = [];
+  var selectedGpu = null, gpuInventory = null, gpuSeries = {}, lastStatus = null;
+  var gpuSignature = '', historyGeneration = 0;
+
+  function selectGpuData(d, sample) {
+    // Old managers still supply scalar fields. An explicit empty inventory is
+    // authoritative and must never resurrect their primary-card fallback.
+    if (!Array.isArray(d.gpus)) { gpuInventory = null; return d; }
+    gpuInventory = d.gpus.slice().sort(function(a, b) { return a.id.localeCompare(b.id); });
+    if (!gpuInventory.some(function(g) { return g.id === selectedGpu; }))
+      selectedGpu = (gpuInventory.filter(function(g) { return !g.integrated; })[0] || gpuInventory[0] || {}).id || null;
+    var signature = JSON.stringify(gpuInventory.map(function(g) { return [g.id, g.name]; }));
+    var pick = document.getElementById('gpu-pick');
+    if (signature !== gpuSignature) {
+      gpuSignature = signature; pick.innerHTML = '';
+      gpuInventory.forEach(function(g, i) {
+        var option = document.createElement('option');
+        option.value = g.id;
+        option.textContent = 'GPU' + (i + 1) + ' · ' + g.name + ' · ' + g.id;
+        pick.appendChild(option);
+      });
+    }
+    pick.hidden = gpuInventory.length < 2; pick.value = selectedGpu || '';
+    var chosen = gpuInventory.filter(function(g) { return g.id === selectedGpu; })[0] || {};
+    var index = gpuInventory.indexOf(chosen);
+    var label = gpuInventory.length > 1 ? 'GPU' + (index + 1) : 'GPU';
+    document.getElementById('gpu-title').textContent = label + (chosen.name ? ' · ' + chosen.name : '');
+    document.getElementById('gpu-temp-label').textContent = label;
+    var detail = document.getElementById('gpu-detail');
+    detail.hidden = !selectedGpu;
+    detail.textContent = (chosen.temp != null ? chosen.temp + '°C' : '-- °C') + ' · ' +
+                         (chosen.power_w != null ? chosen.power_w + 'W' : '-- W') +
+                         (chosen.integrated ? ' · integrated' : '');
+    if (sample) {
+      Object.keys(gpuSeries).forEach(function(id) {
+        if (!gpuInventory.some(function(g) { return g.id === id; })) {
+          push(gpuSeries[id].util, null); push(gpuSeries[id].vram, null); push(gpuSeries[id].temp, null);
+        }
+      });
+      gpuInventory.forEach(function(g) {
+        var series = gpuSeries[g.id] || (gpuSeries[g.id] = {util: [], vram: [], temp: []});
+        push(series.util, g.percent == null ? null : g.percent);
+        push(series.vram, pct(g.vram_used_gb, g.vram_total_gb));
+        push(series.temp, g.temp == null ? null : g.temp);
+      });
+    }
+    var series = gpuSeries[selectedGpu] || {util: [], vram: [], temp: []};
+    gpuHist = series.util; vramHist = series.vram; gpuTempHist = series.temp;
+    d = Object.assign({}, d);
+    ['percent', 'temp', 'vram_used_gb', 'vram_total_gb'].forEach(function(k) { d['gpu_' + k] = chosen[k]; });
+    var powerCards = gpuInventory.filter(function(g) { return !g.integrated; });
+    if (!powerCards.length) powerCards = gpuInventory;
+    GPU_TDP = 290 * Math.max(1, powerCards.length);
+    WALL_FS = CPU_TDP + GPU_TDP + 140;
+    d.gpu_power_w = powerCards.length && powerCards.every(function(g) { return g.power_w != null; })
+      ? powerCards.reduce(function(sum, g) { return sum + g.power_w; }, 0) : null;
+    document.getElementById('gpu-pwr-label').textContent = powerCards.length > 1 ? 'GPUs' : 'GPU';
+    var list = document.getElementById('gpu-power-list');
+    list.hidden = gpuInventory.length < 2; list.innerHTML = '';
+    gpuInventory.forEach(function(g, i) {
+      var row = document.createElement('div');
+      row.textContent = 'GPU' + (i + 1) + ': ' + (g.power_w != null ? g.power_w + 'W' : '--') +
+                        (g.integrated ? ' (integrated)' : '');
+      list.appendChild(row);
+    });
+    return d;
+  }
+
+  function renderGpu(d) {
+    var gp = d.gpu_percent, vp = pct(d.gpu_vram_used_gb, d.gpu_vram_total_gb);
+    setBar('gpu-bar', 'gpu-bar-text', gp || 0, gp != null ? gp + '%' : '--', '#5aad8a', true);
+    setBar('vram-bar', 'vram-bar-text', vp || 0, vp != null ? d.gpu_vram_used_gb + ' / ' + d.gpu_vram_total_gb + ' GB' : '--', '#5a8ab0', true);
+    document.getElementById('gpu-temp').textContent = d.gpu_temp != null ? d.gpu_temp + '°' : '--';
+    drawChart('gpu-chart', [{data: gpuHist, color: 'rgb(90,173,138)'}, {data: vramHist, color: 'rgb(90,138,176)'}], 100);
+    drawChart('temp-chart', [{data: cpuTempHist, color: 'rgb(90,173,138)'}, {data: gpuTempHist, color: 'rgb(90,138,176)'}], 110);
+  }
+
+  document.getElementById('gpu-pick').addEventListener('change', function() {
+    selectedGpu = this.value;
+    if (lastStatus) renderGpu(selectGpuData(lastStatus, false));
+  });
   var lastNet = null, lastNetTime = 0;
   var netMaxRate = 1024 * 1024;
   var pwrMax = 300;
@@ -615,10 +708,11 @@
     el.title = 'The 2s poll of /api/system/status is failing; these figures are frozen.';
   }
   function update() {
-    fetch('/api/system/status').then(function(r) {
+    return fetch('/api/system/status').then(function(r) {
       if (!r.ok) throw new Error('status ' + r.status);
       return r.json();
     }).then(function(d) {
+      lastStatus = d; d = selectGpuData(d, true);
       missed = 0; lastOkAt = Date.now();
       showStale();
       if (d.cpu_cores && d.cpu_cores.length) updateCores(d.cpu_cores);  // [] is truthy → avoid 0/0=NaN avg
@@ -629,22 +723,20 @@
       lastTotals.vram = d.gpu_vram_total_gb || lastTotals.vram;
       var memPct = d.memory_total_gb > 0 ? (d.memory_used_gb / d.memory_total_gb * 100) : 0;
       var gpuPct = d.gpu_percent != null ? d.gpu_percent : 0;
-      var vramPct = d.gpu_vram_total_gb > 0 ? (d.gpu_vram_used_gb / d.gpu_vram_total_gb * 100) : 0;
       push(memHist, memPct);
       // The bars need a number to size themselves, the SERIES must not be given
       // one: `gpuPct`/`vramPct` fall back to 0 for a host with no GPU, and a 0 in
       // the history is indistinguishable from a real idle reading. Push the
       // absence instead — drawChart breaks the line on a null.
-      push(gpuHist, d.gpu_percent != null ? gpuPct : null);
-      push(vramHist, d.gpu_vram_total_gb > 0 ? vramPct : null);
+      if (gpuInventory === null) {
+        push(gpuHist, d.gpu_percent != null ? gpuPct : null);
+        push(vramHist, pct(d.gpu_vram_used_gb, d.gpu_vram_total_gb));
+        push(gpuTempHist, d.gpu_temp);
+      }
       push(cpuTempHist, d.cpu_temp);
-      push(gpuTempHist, d.gpu_temp);
       setBar('mem-bar', 'mem-bar-text', memPct, (d.memory_total_gb != null ? d.memory_used_gb + ' / ' + d.memory_total_gb + ' GB' : '--'), '#5aad8a', false);
-      setBar('gpu-bar', 'gpu-bar-text', gpuPct, (d.gpu_percent != null ? d.gpu_percent + '%' : '--'), '#5aad8a', true);
-      setBar('vram-bar', 'vram-bar-text', vramPct, (d.gpu_vram_used_gb != null ? d.gpu_vram_used_gb + ' / ' + d.gpu_vram_total_gb + ' GB' : '--'), '#5a8ab0', true);
-      var ct = d.cpu_temp, gt = d.gpu_temp;
+      var ct = d.cpu_temp;
       document.getElementById('cpu-temp').textContent = ct != null ? ct + '°' : '--';
-      document.getElementById('gpu-temp').textContent = gt != null ? gt + '°' : '--';
       document.getElementById('h-host').textContent = d.hostname || '--';
       document.getElementById('h-up').textContent = d.uptime || '--';
       document.getElementById('h-terms').textContent = d.terminals_running != null ? d.terminals_running : '--';
@@ -734,8 +826,7 @@
       if (pya) pya.innerHTML = '<span>' + Math.round(pwrMax) + 'W</span><span>' + Math.round(pwrMax/2) + 'W</span><span>0</span>';
 
       drawChart('mem-chart', [{data: memHist, color: 'rgb(90,173,138)'}], 100);
-      drawChart('gpu-chart', [{data: gpuHist, color: 'rgb(90,173,138)'}, {data: vramHist, color: 'rgb(90,138,176)'}], 100);
-      drawChart('temp-chart', [{data: cpuTempHist, color: 'rgb(90,173,138)'}, {data: gpuTempHist, color: 'rgb(90,138,176)'}], 110);
+      renderGpu(d);
       drawChart('pwr-chart', [{data: cpuPwrHist, color: 'rgb(90,173,138)'}, {data: gpuPwrHist, color: 'rgb(90,138,176)'}, {data: wallPwrHist, color: 'rgb(176,127,208)'}], pwrMax);
 
       if (d.disk_total_gb != null) {
@@ -771,6 +862,7 @@
     return (used == null || !total) ? null : Math.min(100, used / total * 100);
   }
   function loadHistory(span, then) {
+    var generation = historyGeneration;
     var fields = ['memory_used_gb', 'gpu_percent', 'gpu_vram_used_gb', 'cpu_temp',
                   'gpu_temp', 'cpu_power_w', 'gpu_power_w', 'wall_power_w',
                   'net_rx_bps', 'net_tx_bps', 'disk_read_bytes', 'disk_write_bytes'];
@@ -779,16 +871,43 @@
                  { cache: 'no-store' })
       .then(function(r) { return r.json(); })
       .then(function(h) {
-        if (!h || h.unavailable || !h.series) return false;
+        if (generation !== historyGeneration || !h || h.unavailable || !h.series) return false;
         var s = h.series;
         memHist = s.memory_used_gb.map(function(v) { return pct(v, lastTotals.mem); });
         vramHist = s.gpu_vram_used_gb.map(function(v) { return pct(v, lastTotals.vram); });
         gpuHist = s.gpu_percent;
+        if (gpuInventory !== null) {
+          // Never attach the old primary-card scalar history to another PCI
+          // device. Missing per-device history remains an honest blank chart.
+          gpuInventory.forEach(function(g) {
+            var gs = (h.gpus || {})[g.id] || {};
+            gpuSeries[g.id] = {
+              util: gs.gpu_percent || [],
+              vram: (gs.gpu_vram_used_gb || []).map(function(v) { return pct(v, g.vram_total_gb); }),
+              temp: gs.gpu_temp || []
+            };
+          });
+        }
         cpuTempHist = s.cpu_temp; gpuTempHist = s.gpu_temp;
         cpuPwrHist = s.cpu_power_w; gpuPwrHist = s.gpu_power_w;
+        if (gpuInventory !== null) {
+          var powerCards = gpuInventory.filter(function(g) { return !g.integrated; });
+          if (!powerCards.length) powerCards = gpuInventory;
+          // The historical host scalar used to mean only the primary card.
+          // Sum device rings instead so old samples cannot claim a GPU total.
+          gpuPwrHist = s.gpu_power_w.map(function(_, i) {
+            var watts = powerCards.map(function(g) {
+              var series = (h.gpus || {})[g.id];
+              return series && series.gpu_power_w ? series.gpu_power_w[i] : null;
+            });
+            return watts.length && watts.every(function(w) { return w != null; })
+              ? watts.reduce(function(sum, w) { return sum + w; }, 0) : null;
+          });
+        }
         wallPwrHist = s.wall_power_w;
         netRxHist = s.net_rx_bps; netTxHist = s.net_tx_bps;
         diskRdHist = s.disk_read_bytes; diskWrHist = s.disk_write_bytes;
+        if (gpuInventory !== null && lastStatus) renderGpu(selectGpuData(lastStatus, false));
         if (then) then(h);
         return true;
       })
@@ -801,6 +920,7 @@
     var span = b.getAttribute('data-span');
     var btns = this.querySelectorAll('button');
     for (var i = 0; i < btns.length; i++) btns[i].classList.toggle('on', btns[i] === b);
+    historyGeneration++; gpuSeries = {};
     histSpan = (span === '2m') ? '' : span;
     // Clear first: the old span's points are at the wrong scale entirely, and
     // leaving them up while the fetch lands shows a chart that means nothing.
@@ -836,8 +956,12 @@
   // Seed the live chart from the ring before the first frame, so the page opens
   // showing the last two minutes instead of a blank card that fills in over the
   // next two. This is the whole reason the recorder exists.
-  update();
-  loadHistory('2m').then(function(ok) {
+  var initialGeneration = historyGeneration;
+  update().then(function() {
+    // Device identity and VRAM denominators must arrive before the history.
+    // Do not let this initial request overwrite a span picked while loading.
+    return historyGeneration === initialGeneration ? loadHistory('2m') : false;
+  }).then(function(ok) {
     if (ok && !histSpan && shouldRun()) update();
   });
   timer = setInterval(tick, 2000);

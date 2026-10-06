@@ -38,6 +38,7 @@ DURABILITY
     today's field order is worse than losing them.
 """
 import os
+import re
 import struct
 
 # Ordered, and the order is part of the on-disk format — see _FORMAT. Append
@@ -84,13 +85,27 @@ class History:
     Not thread-safe on its own; the manager holds one lock around note()/tick()
     because note() is called from request threads and tick() from a timer."""
 
-    def __init__(self, path):
+    def __init__(self, path, *, device=False):
         self.path = path
         self._fd = None
         self._fine = {}        # bucket start -> {field: [values]}
         self._coarse = {}      # bucket start -> {field: [values]}
         self._prev_net = None  # (t, rx_total, tx_total) for the rate we derive
+        self._devices = {} if not device else None
         self._open()
+        # Separate fixed-size rings retain PCI identity without changing or
+        # discarding the existing host history. No process data is recorded.
+        if self._devices is not None:
+            directory = self.path + ".gpus"
+            try:
+                names = os.listdir(directory)
+            except OSError:
+                names = []
+            for name in sorted(names):
+                if re.fullmatch(r"[0-9a-f]{4}:[0-9a-f]{2}:[0-9a-f]{2}\.[0-7]", name):
+                    if len(self._devices) >= 16:
+                        break
+                    self._devices[name] = History(os.path.join(directory, name), device=True)
 
     # ---- file -------------------------------------------------------------
     def _open(self):
@@ -120,6 +135,8 @@ class History:
         self._fd = fd
 
     def close(self):
+        for history in (self._devices or {}).values():
+            history.close()
         if self._fd is not None:
             try:
                 os.close(self._fd)
@@ -166,6 +183,21 @@ class History:
         poll last."""
         if not isinstance(status, dict):
             return
+        if self._devices is not None:
+            for gpu in status.get("gpus", []):
+                ident = gpu.get("id", "")
+                if not re.fullmatch(r"[0-9a-f]{4}:[0-9a-f]{2}:[0-9a-f]{2}\.[0-7]", ident):
+                    continue
+                if ident not in self._devices:
+                    # Hardware inventory is small; bound disk use even if a
+                    # host repeatedly swaps cards to new PCI addresses.
+                    if len(self._devices) >= 16:
+                        continue
+                    self._devices[ident] = History(
+                        os.path.join(self.path + ".gpus", ident), device=True)
+                self._devices[ident].note({
+                    "gpu_" + field: gpu.get(field) for field in
+                    ("percent", "temp", "power_w", "vram_used_gb")}, now)
         vals = {}
         for f in FIELDS:
             v = status.get(f)
@@ -203,6 +235,8 @@ class History:
 
     def tick(self, now):
         """Flush every bucket that has closed. Returns the buckets written."""
+        for history in (self._devices or {}).values():
+            history.tick(now)
         fine_step = TIERS[0][1]
         coarse_step = TIERS[1][1]
         cur = int(now) // fine_step * fine_step
@@ -270,7 +304,12 @@ class History:
             for f in want:
                 i = idx[f]
                 out[f].append(_round(_mean([r[i] for r in rows])))
-        return {"t0": t0, "step": step, "tier": tier, "series": out}
+        result = {"t0": t0, "step": step, "tier": tier, "series": out}
+        if self._devices is not None:
+            gpu_fields = [f for f in want if f.startswith("gpu_")]
+            result["gpus"] = {ident: history.window(now, span, slots, gpu_fields)["series"]
+                              for ident, history in self._devices.items()} if gpu_fields else {}
+        return result
 
 
 def _round(v):

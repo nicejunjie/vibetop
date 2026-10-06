@@ -583,3 +583,15 @@ def test_amd_smi_discovery_outside_service_path(status, monkeypatch):
     monkeypatch.setattr(status.os.path, 'isfile', lambda path: path == '/opt/soft/rocm/bin/amd-smi')
     monkeypatch.setattr(status.os, 'access', lambda path, mode: True)
     assert status._amd_smi_binary() == '/opt/soft/rocm/bin/amd-smi'
+
+
+def test_gpu_power_sums_discrete_cards_without_double_counting_integrated(status, monkeypatch):
+    cards = [{'id': 'a', 'integrated': False, 'power_w': 23},
+             {'id': 'b', 'integrated': False, 'power_w': 300},
+             {'id': 'c', 'integrated': True, 'power_w': 50}]
+    monkeypatch.setattr(status, '_read_gpus', lambda cached: cards)
+    result = status.get_system_status([], lambda k, t, p: p(), want_procs=False)
+    assert result['gpu_power_w'] == 323
+    del cards[1]['power_w']
+    result = status.get_system_status([], lambda k, t, p: p(), want_procs=False)
+    assert 'gpu_power_w' not in result

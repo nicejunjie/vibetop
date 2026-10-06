@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_388 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_389 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [Terminal link opened a closed Browser app but lost the URL](#terminal-link-opened-a-closed-browser-app-but-lost-the-url)
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
@@ -411,6 +411,7 @@ _388 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [RTS: the Prism Tower's head was drawn as an umbrella, from a doc row, not the rip (2026-09-25)](#rts-the-prism-towers-head-was-drawn-as-an-umbrella-from-a-doc-row-not-the-rip-2026-09-25)
 - [RTS: the Grand Cannon's gun was too short and it fired like a rifle (2026-09-25)](#rts-the-grand-cannons-gun-was-too-short-and-it-fired-like-a-rifle-2026-09-25)
 - [RTS: the Prism Tower was drawn from a DAMAGED frame (w26, 2026-09-26)](#rts-the-prism-tower-was-drawn-from-a-damaged-frame-w26-2026-09-26)
+- [Monitor showed an idle GPU while the second card was fully occupied (2026-10-06)](#monitor-showed-an-idle-gpu-while-the-second-card-was-fully-occupied-2026-10-06)
 
 <!-- END TOC -->
 
@@ -17750,3 +17751,27 @@ Exception keys are exact unless they end in '/'. The ore / gem / rock-mass prefi
 **Cause:** `docs/ra2-ref/sprites/prism-tower.png` is `C&C-RA2-ggprisdm.gif` — `dm` = damaged. Its head is knocked over, which is where the w18 lean, the fan shape and the house figure of 31% (the animated gif's build-up and damage frames) all came from. Nobody asked what the file name meant.
 **Fix:** `rts/units/structures/prism.js` completely redrawn from the intact tower, saved as `docs/ra2-ref/sprites/prism-dir-ingame.png` (tower ~44x102, h/w 2.32), with a part-by-part reading in its comment block: octagonal steel plinth, four house buttress wedges, a house door panel, a pale deck ring, four silver struts round a dark conduit, a dark collar with gold bolt-lamps, a grey capital with a house band, copper supports, and an UPRIGHT symmetric crown of vertical mirror plates round a dark interior. No outlines (planes by value), every mark opaque. `PRISM_HEAD_DY` 86 -> 80 (the crown's middle) and the matching `oz` literals in `combat.js`. `prism-tower.png` is marked DAMAGED in the sprites README, not deleted. `rts-prism-art.test.js` and the prism clause rows re-derived from the intact tower (house ~19%, crown >= 0.26 Sh, a near-black ceiling); `art-metrics.js`'s `prism:dir` bbox row is now 44x102.
 **Rejected:** re-picking a "better" frame from the same gif — every frame of `ggprisdm` is a damage frame.
+
+
+## Monitor showed an idle GPU while the second card was fully occupied (2026-10-06)
+
+**Symptom:** on a dual RX 7900 XTX host, one card read 0% and the other 100%
+with ~23GB occupied. Monitor showed the idle card, and power omitted the busy
+card. The desktop tray already showed the separate devices.
+
+**Cause:** the collector supplied a PCI-keyed inventory, but Monitor consumed
+only the legacy primary-device scalars. The persisted ring also recorded only
+those scalars. Equal-size cards selected the first PCI address every time.
+
+**Fix:** select a GPU by stable PCI identity for utilization, VRAM and temperature,
+with separate live series and persisted rings. Sum discrete GPU power and list
+individual readings; any absent sensor makes the sum unknown. Preserve the host
+ring and store bounded per-device rings alongside it, exposing their series on
+the same history timestamps. Historical power sums those device rings, so old
+primary-card samples cannot masquerade as totals. Load initial status before
+history to establish device identity, and reject responses from an earlier span.
+
+**Rejected:** averaging utilization or pooling VRAM hides which card is saturated
+and suggests that separate VRAM pools are interchangeable. Adding positional
+GPU1/GPU2 fields would swap identities when enumeration changes. Reformatting the
+host ring would discard unrelated CPU, disk, network and wall-power history.

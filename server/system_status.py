@@ -648,7 +648,13 @@ def _collect(running_terminals, cached, want_procs=True):
     # uses the inventory, so it never conflates readings from different cards.
     gpu_percent = primary.get("percent")
     gpu_temp = primary.get("temp")
-    gpu_power_w = primary.get("power_w")
+    # Power is a component total, unlike the primary-device compatibility
+    # fields. Integrated GPU power can overlap CPU package power, so use
+    # discrete cards when present. A missing card sensor makes the sum unknown.
+    power_gpus = discrete or gpus
+    gpu_power_w = (sum(gpu["power_w"] for gpu in power_gpus)
+                   if power_gpus and all(gpu.get("power_w") is not None for gpu in power_gpus)
+                   else None)
     gpu_vram_used_gb = primary.get("vram_used_gb")
     gpu_vram_total_gb = primary.get("vram_total_gb")
 
