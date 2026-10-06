@@ -1151,3 +1151,38 @@ test('temperature ticks start at 0/50/100 and expand to round bounds for hotter 
   h.tick(); await h.settle();
   assert.deepStrictEqual(axisLabels(h, 'temp-yaxis'), ['200°C', '100°C', '0']);
 });
+
+
+test('GPU power segments keep watt proportions and match their blue legend shades', async () => {
+  const cards = [GPU_A, GPU_B, {...GPU_A, id: '0000:08:00.0', power_w: 126}, {...GPU_A, id: '0000:09:00.0', power_w: 41}];
+  const h = load({payloads: [fullStatus({gpus: cards.slice().reverse()})]});
+  await h.settle();
+  const segments = h.id('gpu-pwr-bar').children;
+  assert.strictEqual(segments.length, 4);
+  segments.forEach((segment, i) => {
+    assert.strictEqual(segment.dataset.gpuId, cards[i].id);
+    assert.ok(Math.abs(parseFloat(segment.style.width) - cards[i].power_w / 1160 * 100) < 1e-9);
+    assert.strictEqual(segment.style.background, h.id('gpu-power-list').children[i].style.color);
+    assert.ok(segment.style.background.startsWith('hsl(207, 42%,'));
+    assert.strictEqual(segment.title, `GPU${i + 1}: ${cards[i].power_w}W`);
+  });
+  assert.strictEqual(new Set(segments.map(s => s.style.background)).size, 4);
+});
+
+test('GPU power above nominal TDP scales all segments together without clipping later GPUs', async () => {
+  const h = load({payloads: [fullStatus({gpus: [{...GPU_A, power_w: 400}, {...GPU_B, power_w: 800}]})]});
+  await h.settle();
+  const segments = h.id('gpu-pwr-bar').children;
+  assert.ok(Math.abs(parseFloat(segments[0].style.width) - 100 / 3) < 1e-9);
+  assert.ok(Math.abs(parseFloat(segments[1].style.width) - 200 / 3) < 1e-9);
+  assert.strictEqual(h.id('gpu-pwr-text').textContent, '1200W');
+});
+
+test('missing GPU power keeps known segments visible and total unknown', async () => {
+  const h = load({payloads: [fullStatus({gpus: [GPU_A, {...GPU_B, power_w: null}]})]});
+  await h.settle();
+  assert.ok(parseFloat(h.id('gpu-pwr-bar').children[0].style.width) > 0);
+  assert.strictEqual(h.id('gpu-pwr-bar').children[1].style.width, '0%');
+  assert.strictEqual(h.id('gpu-pwr-bar').children[1].title, 'GPU2: --');
+  assert.strictEqual(h.id('gpu-pwr-text').textContent, '--');
+});

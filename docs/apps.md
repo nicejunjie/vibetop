@@ -61,6 +61,10 @@ all discrete GPUs together, with compact readings and separate colored lines.
 CPU package temperatures support AMD k10temp/zenpower and Intel coretemp;
 per-core Intel sensors are not mistaken for extra physical CPUs. The Power card
 sums discrete GPUs and places their individual watt readings horizontally.
+The GPU power bar stacks one proportional segment per discrete GPU, using
+blue shades matched to the horizontal per-GPU watt labels. Above nominal power,
+all segments scale together so their proportions remain correct. Known segments
+remain visible if another sensor is missing, while the total stays unknown.
 Missing sensors remain unknown rather than counting as zero.
 
 CPU temperature history uses `metrics.ring.cpus/<cpu-identity>` and the history
