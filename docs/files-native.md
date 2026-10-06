@@ -101,7 +101,7 @@ plus a Select mode on touch, Select all. Verbs: Open, Get Info (with volume
 usage and lazy checksums), Share, Open in Browser, Edit in Office, Rename,
 Move to… (destination picker), Copy / Cut / Paste (with progress), Download
 (original files individually; iPhone uses the native share sheet, with Save Images
-for photo selections), Delete, New Folder, New File. Upload by button,
+for photo selections; files prepare on selection so Download opens the sheet directly), Delete, New Folder, New File. Upload by button,
 folder picker or OS drag-drop, with a conflict dialog. Search by name and by
 content. A text editor with a line-number gutter, find/replace, mtime-conflict
 handling and save-on-close. Audio plays in place. A Settings card

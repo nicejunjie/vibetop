@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_398 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_399 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [Terminal link opened a closed Browser app but lost the URL](#terminal-link-opened-a-closed-browser-app-but-lost-the-url)
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
@@ -421,6 +421,7 @@ _398 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [Mobile history reading jumped to older content on repaint (2026-10-06)](#mobile-history-reading-jumped-to-older-content-on-repaint-2026-10-06)
 - [Multi-photo downloads could not save into iPhone Photos (2026-10-06)](#multi-photo-downloads-could-not-save-into-iphone-photos-2026-10-06)
 - [Download keeps selected files in their original form (2026-10-06)](#download-keeps-selected-files-in-their-original-form-2026-10-06)
+- [iPhone Download opens the native share sheet in one tap (2026-10-06)](#iphone-download-opens-the-native-share-sheet-in-one-tap-2026-10-06)
 
 <!-- END TOC -->
 
@@ -17968,3 +17969,23 @@ so folders cannot accidentally request an archive or fail as file downloads.
 **Rejected:** automatically bundling multiple files changes their usable format.
 Invoking iPhone share after an arbitrary download wait still risks losing the
 required user gesture; the ready button retains a fresh tap.
+
+## iPhone Download opens the native share sheet in one tap (2026-10-06)
+
+**Symptom:** the intermediate Download dialog and Open iPhone share sheet button
+added an unwanted extra step.
+
+**Cause:** fetching original bytes after the Download tap can outlive Safari's
+transient activation. The previous flow solved that by requiring a second tap.
+
+**Fix:** prepare original File objects as the iPhone selection changes. Download
+shows Preparing… and is disabled until all selected files are ready; its click
+then invokes navigator.share synchronously, with no fetch or intermediate modal.
+Abort and discard stale preparation on selection or file metadata changes, reuse
+unchanged prepared files, release them when selection clears, and allow retries
+following fetch failures. Cancelling the system sheet leaves Download ready.
+Desktop browsers keep downloading original files without prefetching.
+
+**Rejected:** invoking share after an arbitrary network wait is unreliable.
+Adding another confirmation preserves the technical requirement but conflicts
+with the requested one-tap interaction.

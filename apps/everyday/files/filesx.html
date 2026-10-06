@@ -1383,6 +1383,7 @@
       // (a single selection hides the pill's own count because the status bar
       // below already says "1 selected" — but the bar must therefore exist)
     }
+    syncDownloadPreparation();
   }
   function clearSel(quiet) {
     selected = nameMap(); selCount = 0; anchor = -1;
@@ -2288,7 +2289,7 @@
   }
 
   // Share original photos separately: ZIP archives cannot be imported into Photos.
-  // Prepare first, then invoke share synchronously from a fresh tap. Large
+  // Prepare on selection, then invoke share directly from Download. Large
   // downloads can outlive Safari's transient user activation.
   var PHOTO_TYPES = { jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png',
     gif: 'image/gif', webp: 'image/webp', avif: 'image/avif',
@@ -2299,74 +2300,81 @@
       return rows.some(function(r) { return r.name === n && !r.isDir; });
     }));
   }
-  function shareDownloads() {
-    if (!canDownloadSelection() || modalOpen) return;
-    var names = selNames(), paths = selPaths(), files = [];
-    var controller = new AbortController(), closed = false;
-    modalOpen = true;
-    var ov = el('div', 'mov'), card = el('div', 'mcard');
-    card.setAttribute('role', 'dialog'); card.setAttribute('aria-modal', 'true');
-    var heading = el('h3', null, 'Download');
-    heading.id = 'download-title'; card.setAttribute('aria-labelledby', heading.id);
-    card.appendChild(heading);
-    var msg = el('p', null, 'Preparing 0 of ' + names.length + ' files…');
-    msg.setAttribute('role', 'status'); card.appendChild(msg);
-    var btns = el('div', 'mbtns');
-    var cancel = el('button', 'mcancel', 'Cancel');
-    var share = el('button', 'mok', 'Open iPhone share sheet');
-    share.disabled = true;
-    btns.appendChild(cancel); btns.appendChild(share);
-    card.appendChild(btns); ov.appendChild(card); document.body.appendChild(ov);
-    function close() {
-      if (closed) return;
-      closed = true; controller.abort(); files = []; modalOpen = false;
-      untrap(); ov.remove(); document.getElementById('a-download').focus();
+  var preparedDownload = null, downloadSharing = false;
+  function usesNativeFileShare() { return !!(IS_IOS && navigator.share && navigator.canShare); }
+  function downloadSelectionKey() {
+    if (!canDownloadSelection()) return '';
+    return JSON.stringify(selPaths().map(function(p, i) {
+      var name = selNames()[i];
+      var entry = rows.filter(function(r) { return r.name === name; })[0];
+      return [p, entry.size, entry.mtime];
+    }));
+  }
+  // Safari's share call must happen during the Download tap. Fetch the originals
+  // when selection changes, so that tap needs neither a fetch nor another dialog.
+  function syncDownloadPreparation() {
+    var key = usesNativeFileShare() ? downloadSelectionKey() : '';
+    if (preparedDownload && preparedDownload.key !== key) {
+      preparedDownload.controller.abort();
+      preparedDownload.files = []; preparedDownload = null;
     }
-    var untrap = trapFocus(card, function(e) {
-      if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); close(); }
-    });
-    cancel.addEventListener('click', close);
-    ov.addEventListener('click', function(e) { if (e.target === ov) close(); });
-    share.addEventListener('click', function() {
-      // No await/fetch before share: this call owns the button's user gesture.
-      try {
-        var result = navigator.share({ files: files });
-        share.disabled = true;
-        Promise.resolve(result).then(close).catch(function(e) {
-          if (e && e.name === 'AbortError') { close(); return; }
-          if (!closed) { share.disabled = false; msg.textContent = 'Could not open the share sheet. Try again.'; }
+    if (key && !preparedDownload) {
+      var state = { key: key, controller: new AbortController(), files: [], status: 'loading', error: '' };
+      preparedDownload = state;
+      var names = selNames(), paths = selPaths(), chain = Promise.resolve();
+      paths.forEach(function(p, i) {
+        chain = chain.then(function() {
+          if (preparedDownload !== state) return;
+          return fetch('/api/fs/download?path=' + encodeURIComponent(p), { signal: state.controller.signal })
+            .then(function(r) { if (!r.ok) throw new Error('Download failed'); return r.blob(); })
+            .then(function(b) {
+              if (preparedDownload !== state) return;
+              state.files.push(new File([b], names[i], { type: photoType(names[i]) || b.type || 'application/octet-stream' }));
+            });
         });
-      } catch (e) {
-        msg.textContent = 'Could not open the share sheet. Try again.';
-      }
-    });
-    cancel.focus();
-    var chain = Promise.resolve();
-    paths.forEach(function(p, i) {
-      chain = chain.then(function() {
-        if (closed) return;
-        return fetch('/api/fs/download?path=' + encodeURIComponent(p), { signal: controller.signal })
-          .then(function(r) { if (!r.ok) throw new Error('Download failed'); return r.blob(); })
-          .then(function(b) {
-            if (closed) return;
-            files.push(new File([b], names[i], { type: photoType(names[i]) || b.type || 'application/octet-stream' }));
-            msg.textContent = 'Preparing ' + files.length + ' of ' + names.length + ' files…';
-          });
       });
-    });
-    chain.then(function() {
-      if (closed) return;
-      if (!navigator.canShare({ files: files })) {
-        msg.textContent = 'iPhone cannot share this selection. Try fewer files or another file format.';
-        return;
-      }
-      msg.textContent = names.every(photoType)
-        ? 'Choose Save Image or Save Images in the iPhone share sheet to save to Photos.'
-        : 'Choose Save to Files in the iPhone share sheet to save the original files.';
-      share.disabled = false; share.focus();
-    }).catch(function() {
-      if (!closed) msg.textContent = 'Could not prepare the files. Close this dialog and try again.';
-    });
+      chain.then(function() {
+        if (preparedDownload !== state) return;
+        state.status = navigator.canShare({ files: state.files }) ? 'ready' : 'unsupported';
+        if (state.status === 'unsupported') {
+          state.error = 'iPhone cannot share this selection. Try fewer files or another file format.';
+          state.files = [];
+        }
+        renderActions();
+      }).catch(function() {
+        if (preparedDownload !== state) return;
+        state.status = 'failed'; state.files = [];
+        state.error = 'Could not prepare the files. Tap Download to retry.';
+        renderActions(); toast(state.error, true);
+      });
+    }
+    var button = document.getElementById('a-download');
+    var loading = preparedDownload && preparedDownload.status === 'loading';
+    button.disabled = !canDownloadSelection() || !!loading || downloadSharing;
+    button.setAttribute('aria-busy', loading ? 'true' : 'false');
+    button.querySelector('.abl').textContent = loading ? 'Preparing…' : 'Download';
+    button.title = loading ? 'Preparing selected files for download' : 'Download original files';
+  }
+  function shareDownloads() {
+    // Recheck the fingerprint: never share a stale selection, even if invoked
+    // through a context menu while the directory refreshes.
+    syncDownloadPreparation();
+    var state = preparedDownload;
+    if (!state || state.status === 'loading' || downloadSharing) return;
+    if (state.status === 'failed') {
+      preparedDownload = null; syncDownloadPreparation(); return;
+    }
+    if (state.status !== 'ready') { toast(state.error, true); return; }
+    try {
+      // Call synchronously in the click, before any await or network operation.
+      var result = navigator.share({ files: state.files });
+      downloadSharing = true; syncDownloadPreparation();
+      Promise.resolve(result).catch(function(e) {
+        if (!e || e.name !== 'AbortError') toast('Could not open the share sheet. Tap Download to try again.', true);
+      }).then(function() { downloadSharing = false; syncDownloadPreparation(); });
+    } catch (e) {
+      toast('Could not open the share sheet. Tap Download to try again.', true);
+    }
   }
 
   // Download each original file; never turn a selection into an archive.
