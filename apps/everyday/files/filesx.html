@@ -897,8 +897,7 @@
     <button id="a-copy" title="Copy (Ctrl+C)"><span class="abi">⧉</span><span class="abl">Copy</span></button>
     <button id="a-cut" title="Cut (Ctrl+X)"><span class="abi">✂</span><span class="abl">Cut</span></button>
     <span class="dv" id="a-dv2"></span>
-    <button id="a-photos" hidden title="Save selected images to iPhone Photos"><span class="abi">▧</span><span class="abl">Save to Photos</span></button>
-    <button id="a-download" title="Download (folders and multi-selections come as a .zip)"><span class="abi">⭳</span><span class="abl">Download</span></button>
+    <button id="a-download" title="Download original files"><span class="abi">⭳</span><span class="abl">Download</span></button>
     <button id="a-delete" class="danger" title="Delete (Del)"><span class="abi">🗑</span><span class="abl">Delete</span></button>
   </div>
   <div class="aud" id="aud" hidden>
@@ -1368,12 +1367,12 @@
       }
       show('a-open', oneSel);
       show('a-info', any);
+      show('a-download', canDownloadSelection());
       show('a-share', oneSel);
-      show('a-photos', canSavePhotos());
       show('a-browser', !!(e1 && !e1.isDir));
       show('a-office', !!(e1 && OFF_RE.test(e1.name)));
       show('a-rename', oneSel);
-      ['a-copy', 'a-cut', 'a-download', 'a-delete', 'a-move'].forEach(function(id) { show(id, any); });
+      ['a-copy', 'a-cut', 'a-delete', 'a-move'].forEach(function(id) { show(id, any); });
       document.getElementById('a-dv1').hidden = !any;
       document.getElementById('a-dv2').hidden = !any;
       // Mobile keeps every verb visible (wrapped over two rows); only the one
@@ -2295,23 +2294,22 @@
     gif: 'image/gif', webp: 'image/webp', avif: 'image/avif',
     heic: 'image/heic', heif: 'image/heif', tif: 'image/tiff', tiff: 'image/tiff', bmp: 'image/bmp' };
   function photoType(name) { return PHOTO_TYPES[name.split('.').pop().toLowerCase()] || ''; }
-  function canSavePhotos() {
-    return !!(IS_IOS && navigator.share && navigator.canShare && selCount &&
-      selNames().every(function(n) {
-        return photoType(n) && rows.some(function(r) { return r.name === n && !r.isDir; });
-      }));
+  function canDownloadSelection() {
+    return !!(selCount && selNames().every(function(n) {
+      return rows.some(function(r) { return r.name === n && !r.isDir; });
+    }));
   }
-  function doSavePhotos() {
-    if (!canSavePhotos() || modalOpen) return;
+  function shareDownloads() {
+    if (!canDownloadSelection() || modalOpen) return;
     var names = selNames(), paths = selPaths(), files = [];
     var controller = new AbortController(), closed = false;
     modalOpen = true;
     var ov = el('div', 'mov'), card = el('div', 'mcard');
     card.setAttribute('role', 'dialog'); card.setAttribute('aria-modal', 'true');
-    var heading = el('h3', null, 'Save to Photos');
-    heading.id = 'photos-title'; card.setAttribute('aria-labelledby', heading.id);
+    var heading = el('h3', null, 'Download');
+    heading.id = 'download-title'; card.setAttribute('aria-labelledby', heading.id);
     card.appendChild(heading);
-    var msg = el('p', null, 'Preparing 0 of ' + names.length + ' photos…');
+    var msg = el('p', null, 'Preparing 0 of ' + names.length + ' files…');
     msg.setAttribute('role', 'status'); card.appendChild(msg);
     var btns = el('div', 'mbtns');
     var cancel = el('button', 'mcancel', 'Cancel');
@@ -2322,7 +2320,7 @@
     function close() {
       if (closed) return;
       closed = true; controller.abort(); files = []; modalOpen = false;
-      untrap(); ov.remove(); document.getElementById('a-photos').focus();
+      untrap(); ov.remove(); document.getElementById('a-download').focus();
     }
     var untrap = trapFocus(card, function(e) {
       if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); close(); }
@@ -2351,34 +2349,37 @@
           .then(function(r) { if (!r.ok) throw new Error('Download failed'); return r.blob(); })
           .then(function(b) {
             if (closed) return;
-            files.push(new File([b], names[i], { type: photoType(names[i]) }));
-            msg.textContent = 'Preparing ' + files.length + ' of ' + names.length + ' photos…';
+            files.push(new File([b], names[i], { type: photoType(names[i]) || b.type || 'application/octet-stream' }));
+            msg.textContent = 'Preparing ' + files.length + ' of ' + names.length + ' files…';
           });
       });
     });
     chain.then(function() {
       if (closed) return;
       if (!navigator.canShare({ files: files })) {
-        msg.textContent = 'iPhone cannot share this selection. Try fewer photos or another image format.';
+        msg.textContent = 'iPhone cannot share this selection. Try fewer files or another file format.';
         return;
       }
-      msg.textContent = 'In the iPhone share sheet, choose Save Image or Save Images to add these photos to Photos.';
+      msg.textContent = names.every(photoType)
+        ? 'Choose Save Image or Save Images in the iPhone share sheet to save to Photos.'
+        : 'Choose Save to Files in the iPhone share sheet to save the original files.';
       share.disabled = false; share.focus();
     }).catch(function() {
-      if (!closed) msg.textContent = 'Could not prepare the photos. Close this dialog and try again.';
+      if (!closed) msg.textContent = 'Could not prepare the files. Close this dialog and try again.';
     });
   }
 
-  // -- download: single file direct; folders / multi-selections as a zip --
+  // Download each original file; never turn a selection into an archive.
   function doDownload() {
-    if (!selCount) return;
+    if (!canDownloadSelection()) return;
+    if (IS_IOS && navigator.share && navigator.canShare) {
+      shareDownloads();
+      return;
+    }
     var names = selNames();
-    var single = names.length === 1 ? rows.filter(function(e) { return e.name === names[0]; })[0] : null;
-    var url = (single && !single.isDir)
-      ? '/api/fs/download?path=' + encodeURIComponent(joinPath(path, single.name))
-      : '/api/fs/zip?' + selPaths().map(function(p) { return 'path=' + encodeURIComponent(p); }).join('&');
-    nativeDownload(url, (single && !single.isDir) ? single.name
-                        : (names.length === 1 ? names[0] : 'files') + '.zip');
+    selPaths().forEach(function(p, i) {
+      nativeDownload('/api/fs/download?path=' + encodeURIComponent(p), names[i]);
+    });
   }
 
   // -- inline editors: new folder + rename --
@@ -4277,8 +4278,7 @@
       items.push({ sep: true });
       items.push({ label: 'Get Info', run: showInfo });
       if (one) items.push({ label: 'Share…', run: shareStart });
-      if (canSavePhotos()) items.push({ label: 'Save to Photos', run: doSavePhotos });
-      items.push({ label: 'Download', run: doDownload });
+      if (canDownloadSelection()) items.push({ label: 'Download', run: doDownload });
       items.push({ sep: true });
       if (one) items.push({ label: 'Rename', run: startRename });
       items.push({ label: 'Move to…', run: moveToPicker });
@@ -4385,7 +4385,6 @@
   document.getElementById('a-browser').addEventListener('click', openInBrowserAct);
   document.getElementById('a-office').addEventListener('click', officeEditAct);
   document.getElementById('a-rename').addEventListener('click', startRename);
-  document.getElementById('a-photos').addEventListener('click', doSavePhotos);
   document.getElementById('a-download').addEventListener('click', doDownload);
   document.getElementById('a-copy').addEventListener('click', function() { doCopyCut('copy'); });
   document.getElementById('a-cut').addEventListener('click', function() { doCopyCut('cut'); });

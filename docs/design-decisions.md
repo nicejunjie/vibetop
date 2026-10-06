@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_397 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_398 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [Terminal link opened a closed Browser app but lost the URL](#terminal-link-opened-a-closed-browser-app-but-lost-the-url)
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
@@ -420,6 +420,7 @@ _397 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [Mobile reconnect still hit the startup timeout for non-clean closes (2026-10-06)](#mobile-reconnect-still-hit-the-startup-timeout-for-non-clean-closes-2026-10-06)
 - [Mobile history reading jumped to older content on repaint (2026-10-06)](#mobile-history-reading-jumped-to-older-content-on-repaint-2026-10-06)
 - [Multi-photo downloads could not save into iPhone Photos (2026-10-06)](#multi-photo-downloads-could-not-save-into-iphone-photos-2026-10-06)
+- [Download keeps selected files in their original form (2026-10-06)](#download-keeps-selected-files-in-their-original-form-2026-10-06)
 
 <!-- END TOC -->
 
@@ -17952,3 +17953,18 @@ never share. Keep Download available for intentional ZIP exports.
 
 **Rejected:** a website cannot silently write to the iPhone photo library;
 renaming a ZIP or giving it an image MIME type does not make it importable.
+
+## Download keeps selected files in their original form (2026-10-06)
+
+**Symptom:** the additional Save to Photos action was unwanted, and the user
+wanted Download itself to preserve originals instead of creating a ZIP.
+
+**Fix:** remove the Photos action and route iPhone Download through the same
+preparation and native File-array share flow for any file selection. Photo-only
+selections explain Save Images; other selections explain Save to Files. Other
+browsers download each original separately. Download is offered for files only,
+so folders cannot accidentally request an archive or fail as file downloads.
+
+**Rejected:** automatically bundling multiple files changes their usable format.
+Invoking iPhone share after an arbitrary download wait still risks losing the
+required user gesture; the ready button retains a fresh tap.
