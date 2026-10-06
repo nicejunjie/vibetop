@@ -381,6 +381,48 @@ def _collect_gpus(cached):
     return sorted(gpus.values(), key=lambda gpu: gpu["id"])
 
 
+def _read_cpu_temperatures():
+    """One temperature per physical CPU package, never per logical core."""
+    out = {}
+    try:
+        hwmons = sorted(os.listdir('/sys/class/hwmon'))
+    except OSError:
+        return []
+    for hwmon in hwmons:
+        path = '/sys/class/hwmon/' + hwmon
+        try:
+            with open(path + '/name') as stream:
+                driver = stream.read().strip()
+            if driver not in ('k10temp', 'coretemp', 'zenpower'):
+                continue
+            sensors = []
+            if driver == 'coretemp':
+                for filename in sorted(os.listdir(path)):
+                    if re.fullmatch(r'temp[0-9]+_label', filename):
+                        try:
+                            with open(path + '/' + filename) as stream:
+                                label = stream.read().strip()
+                            if label.lower().startswith('package'):
+                                sensors.append((filename.replace('_label', '_input'), label))
+                        except OSError:
+                            continue
+            else:
+                sensors = [('temp1_input', 'package')]
+            for sensor, label in sensors:
+                identity = os.path.realpath(path + '/device') + ':' + label
+                ident = 'cpu-' + hashlib.sha256(identity.encode()).hexdigest()
+                cpu = {'id': ident}
+                try:
+                    with open(path + '/' + sensor) as stream:
+                        cpu['temp'] = round(int(stream.read().strip()) / 1000)
+                except (OSError, ValueError):
+                    pass
+                out[ident] = cpu
+        except OSError:
+            continue
+    return [dict(cpu, name='CPU' + str(i + 1)) for i, cpu in enumerate(sorted(out.values(), key=lambda cpu: cpu['id']))]
+
+
 def _mount_path(value):
     return re.sub(r"\\([0-7]{3})", lambda m: chr(int(m.group(1), 8)), value)
 
@@ -807,18 +849,8 @@ def _collect(running_terminals, cached, want_procs=True):
     gpu_vram_used_gb = primary.get("vram_used_gb")
     gpu_vram_total_gb = primary.get("vram_total_gb")
 
-    # CPU temperature (k10temp Tctl)
-    cpu_temp = None
-    try:
-        for hwmon in os.listdir("/sys/class/hwmon"):
-            p = f"/sys/class/hwmon/{hwmon}"
-            with open(f"{p}/name") as f:
-                if f.read().strip() == "k10temp":
-                    with open(f"{p}/temp1_input") as f2:
-                        cpu_temp = round(int(f2.read().strip()) / 1000)
-                    break
-    except Exception:
-        pass
+    cpus = _read_cpu_temperatures()
+    cpu_temp = max((cpu['temp'] for cpu in cpus if cpu.get('temp') is not None), default=None)
 
     # CPU package power (RAPL — delta between calls)
     cpu_power_w = None
@@ -937,6 +969,7 @@ def _collect(running_terminals, cached, want_procs=True):
     # that nothing is running, and the desktop renders it as exactly that.
     if processes is not None:
         result["processes"] = processes
+    result["cpus"] = cpus
     result["gpus"] = gpus
     result["disks"] = disks
     if gpu_percent is not None:

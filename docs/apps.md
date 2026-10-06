@@ -54,12 +54,19 @@ A **Token Stats** app (Start ▸ Utilities ▸ Token Stats) — a read-only anal
 
 ## System Monitor — 7 days of history
 
-The GPU card selects discrete devices by PCI address, with each device's own usage,
-VRAM, temperature, and history. Identical model names remain distinguishable.
-The Power card lists individual readings and sums all discrete GPUs. Integrated
-GPUs are excluded from Monitor's selector, temperature charts and power rows; an
-integrated-only host shows no GPU readings. A missing power sensor
-makes the GPU sum unknown, rather than silently treating one card as idle.
+The GPU card shows all discrete devices together, each with labeled usage and
+VRAM bars and its own chart. No GPU selector or dropdown is needed. Integrated
+GPUs are excluded. The Temperature card shows every exposed CPU package and
+all discrete GPUs together, with compact readings and separate colored lines.
+CPU package temperatures support AMD k10temp/zenpower and Intel coretemp;
+per-core Intel sensors are not mistaken for extra physical CPUs. The Power card
+sums discrete GPUs and places their individual watt readings horizontally.
+Missing sensors remain unknown rather than counting as zero.
+
+CPU temperature history uses `metrics.ring.cpus/<cpu-identity>` and the history
+endpoint adds `cpus: {identity: {cpu_temp: [...]}}`. Identity follows the package's
+hardware device and label, so hwmon renumbering does not mix CPU histories.
+The legacy scalar CPU temperature is the hottest available package, for the tray.
 
 Per-device history lives in `/var/lib/vibetop/metrics.ring.gpus/<PCI-address>`:
 one fixed ~930KB ring per device, with a maximum of 16 identities. The history
@@ -69,7 +76,7 @@ Existing host history is preserved. Old primary-card history is never assigned
 to a different device; GPU power history sums device rings and stays blank where
 any component is unknown. Device histories begin recording with this change.
 
-The Disk card selects local block filesystems by stable identity (filesystem UUID
+The Disk card uses compact buttons to select local block filesystems by stable identity (filesystem UUID
 when available), with independent space and read/write rates. It discovers all
 local volumes, including device-mapper/LVM and RAID volumes, and deduplicates
 bind mounts and subvolumes sharing the same block filesystem. Snap loop devices,

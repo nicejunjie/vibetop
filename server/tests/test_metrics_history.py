@@ -349,3 +349,21 @@ def test_disk_history_has_no_two_device_or_gpu_identity_limit(hist):
     assert len(out) == 20
     for i, disk in enumerate(disks):
         assert i in out[disk['id']]['disk_read_bytes']
+
+
+def test_cpu_temperature_histories_keep_package_identity_after_restart(mh, tmp_path):
+    path = str(tmp_path / 'metrics.ring')
+    a, b = 'cpu-' + 'a' * 64, 'cpu-' + 'b' * 64
+    h = mh.History(path)
+    h.note(_st(cpus=[{'id': a, 'temp': 55}, {'id': b, 'temp': 67}]), T0)
+    h.tick(T0 + 2)
+    h.note(_st(cpus=[{'id': b}, {'id': a, 'temp': 56}]), T0 + 2)
+    h.tick(T0 + 4)
+    h.close()
+    reopened = mh.History(path)
+    try:
+        cpus = reopened.window(T0 + 4, 10, 5, ['cpu_temp'])['cpus']
+        assert cpus[a]['cpu_temp'][-3:] == [55, 56, None]
+        assert cpus[b]['cpu_temp'][-3:] == [67, None, None]
+    finally:
+        reopened.close()

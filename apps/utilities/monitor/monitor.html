@@ -72,10 +72,10 @@
     grid-column: 1; grid-row: 3;
     display: grid;
     grid-template-columns: repeat(6, 1fr);
-    grid-template-rows: 1fr 1fr;
+    grid-template-rows: minmax(260px, 1fr) minmax(220px, 1fr);
     gap: 10px;
     min-height: 0;
-    overflow: hidden;
+    overflow: auto;
   }
   .metrics .card { grid-column: span 2; }
 
@@ -137,12 +137,28 @@
     color: #ccc; text-shadow: 0 1px 2px rgba(0,0,0,0.8);
   }
 
-  #gpu-pick, #disk-pick { width: 100%; min-width: 0; background: #0d1117; color: #ccc;
-    border: 1px solid #2a3040; border-radius: 4px; font-size: 11px; padding: 3px; }
-  #gpu-pick[hidden], #disk-pick[hidden], #gpu-detail[hidden], #disk-detail[hidden], #gpu-power-list[hidden] { display: none; }
-  #gpu-detail, #disk-detail, #gpu-power-list { font: 10px ui-monospace, monospace; color: #9ab; }
-  #gpu-power-list { max-height: 44px; overflow-y: auto; flex-shrink: 0; }
-  #gpu-detail, #disk-detail { flex-shrink: 0; overflow-wrap: anywhere; }
+  #disk-pick { display: flex; flex-wrap: wrap; gap: 4px; flex-shrink: 0; }
+  #disk-pick button { cursor: pointer; font: 11px system-ui; padding: 3px 7px;
+    border: 1px solid #2a3040; border-radius: 4px; background: #0d1117; color: #9ab;
+    max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  #disk-pick button.on { color: #cfe6ff; border-color: #5a8ab0; background: #203449; }
+  #disk-pick[hidden], #disk-detail[hidden], #gpu-power-list[hidden] { display: none; }
+  #disk-detail, #gpu-power-list { font: 10px ui-monospace, monospace; color: #9ab; }
+  #gpu-power-list { display: flex; flex-wrap: wrap; gap: 4px 12px; flex-shrink: 0; }
+  #gpu-power-list > div { white-space: nowrap; }
+  #disk-detail { flex-shrink: 0; overflow-wrap: anywhere; }
+  #gpu-devices { display: flex; flex-direction: column; flex: 1; min-height: 0; gap: 8px; overflow: auto; }
+  .gpu-device { display: flex; flex-direction: column; flex: 1; min-height: 100px; gap: 4px; }
+  .gpu-device + .gpu-device { border-top: 1px solid #2a3040; padding-top: 6px; }
+  .gpu-name { font: 11px ui-monospace, monospace; color: #9ab;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex-shrink: 0; }
+  .gpu-bars { display: flex; gap: 8px; flex-shrink: 0; }
+  .gpu-bars .metric-row { flex: 1; min-width: 0; gap: 4px; }
+  .gpu-bars .metric-label { min-width: 0; font-size: 9px; }
+  .gpu-device .chart-box { min-height: 45px; }
+  #temp-readings { display: flex; flex-wrap: wrap; gap: 4px 12px; flex-shrink: 0;
+    max-height: 76px; overflow: auto; font: 11px ui-monospace, monospace; }
+  #temp-readings > span { white-space: nowrap; }
 
   /* Charts */
   .chart-box { display: flex; flex: 1; min-height: 0; }
@@ -180,6 +196,15 @@
   .proc-cpu.hot { color: #b85c5c; }
   .proc-cpu.warm { color: #c0935a; }
 
+  @media (min-width: 737px) and (max-width: 1000px) {
+    .layout { grid-template-columns: 1fr 260px; }
+    .metrics { grid-template-columns: repeat(4, 1fr); grid-template-rows: repeat(3, minmax(240px, 1fr)); }
+  }
+  @media (min-width: 737px) and (max-height: 650px) {
+    html, body { height: auto; overflow-y: auto; overflow-x: hidden; }
+    .layout { height: auto; min-height: 100vh; }
+    .metrics { overflow: visible; grid-template-rows: none; grid-auto-rows: 260px; }
+  }
   /* === Narrow screens: stack into one scrollable column === */
   @media (max-width: 736px) {
     html, body { overflow-y: auto; overflow-x: hidden; height: auto; }
@@ -208,9 +233,12 @@
        the size it is on every other card. Desktop needs no equivalent: there
        the cards are grid-sized and 22px out of ~295 is not noticeable. */
     .metrics .card.has-wall { height: 212px; }
-    .metrics .card:has(#gpu-pick:not([hidden])), .metrics .card:has(#disk-pick:not([hidden])) { height: 234px; }
-    .metrics .card:has(#gpu-power-list:not([hidden])) { height: 234px; }
-    .metrics .card.has-wall:has(#gpu-power-list:not([hidden])) { height: 256px; }
+    .metrics .card:has(#disk-pick:not([hidden])) { height: 234px; }
+    .metrics .gpu-card { height: auto; }
+    .gpu-device { flex: none; height: 125px; }
+    #gpu-devices { flex: none; overflow: visible; }
+    .metrics .card:has(#gpu-power-list:not([hidden])) { height: 212px; }
+    .metrics .card.has-wall:has(#gpu-power-list:not([hidden])) { height: 234px; }
     .cpu-grid { grid-template-columns: repeat(2, 1fr); }
   }
 </style>
@@ -269,34 +297,25 @@
       </div>
     </div>
 
-    <!-- GPU -->
-    <div class="card">
+    <!-- Every discrete GPU is visible together. -->
+    <div class="card gpu-card">
       <div class="card-title" id="gpu-title">GPU</div>
-      <select id="gpu-pick" aria-label="GPU device" hidden></select>
-      <div id="gpu-detail" hidden></div>
-      <div class="metric-row">
-        <div class="metric-label" style="color:#5aad8a">Util</div>
-        <div class="metric-bar-wrap">
-          <div class="metric-bar" id="gpu-bar" style="width:0%;background:#5aad8a"></div>
-          <div class="metric-bar-text" id="gpu-bar-text">--</div>
+      <div id="gpu-devices">
+        <div class="gpu-device">
+          <div class="gpu-name">GPU</div>
+          <div class="gpu-bars">
+            <div class="metric-row"><div class="metric-label" style="color:#5aad8a">Util</div><div class="metric-bar-wrap"><div class="metric-bar" id="gpu-bar"></div><div class="metric-bar-text" id="gpu-bar-text">--</div></div></div>
+            <div class="metric-row"><div class="metric-label" style="color:#5a8ab0">VRAM</div><div class="metric-bar-wrap"><div class="metric-bar" id="vram-bar"></div><div class="metric-bar-text" id="vram-bar-text">--</div></div></div>
+          </div>
+          <div class="chart-box"><div class="chart-yaxis"><span>100%</span><span>50%</span><span>0%</span></div><div class="chart-wrap"><canvas id="gpu-chart"></canvas></div></div>
         </div>
-      </div>
-      <div class="metric-row">
-        <div class="metric-label" style="color:#5a8ab0">VRAM</div>
-        <div class="metric-bar-wrap">
-          <div class="metric-bar" id="vram-bar" style="width:0%;background:#5a8ab0"></div>
-          <div class="metric-bar-text" id="vram-bar-text">--</div>
-        </div>
-      </div>
-      <div class="chart-box">
-        <div class="chart-yaxis"><span>100%</span><span>50%</span><span>0%</span></div>
-        <div class="chart-wrap"><canvas id="gpu-chart"></canvas></div>
       </div>
     </div>
 
-    <!-- Temperature -->
+    <!-- All CPU packages and discrete GPUs share the same temperature chart. -->
     <div class="card">
-      <div class="card-title">Temperature <span class="avg"><span id="cpu-temp" style="color:#5aad8a">--</span> CPU <span id="gpu-temp" style="color:#5a8ab0">--</span> <span id="gpu-temp-label">GPU</span></span></div>
+      <div class="card-title">Temperature</div>
+      <div id="temp-readings"><span style="color:#5aad8a">CPU <span id="cpu-temp">--</span></span><span style="color:#5a8ab0">GPU <span id="gpu-temp">--</span></span></div>
       <div class="chart-box">
         <div class="chart-yaxis"><span>110°C</span><span>55°C</span><span>0°C</span></div>
         <div class="chart-wrap"><canvas id="temp-chart"></canvas></div>
@@ -351,7 +370,7 @@
     <!-- Disk -->
     <div class="card">
       <div class="card-title">Disk <span class="avg" id="disk-stats"><span class="net-rx">R --</span> <span class="net-tx">W --</span></span></div>
-      <select id="disk-pick" aria-label="Disk filesystem or device" hidden></select>
+      <div id="disk-pick" role="group" aria-label="Disk filesystem or device" hidden></div>
       <div id="disk-detail" hidden></div>
       <div class="metric-row">
         <div class="metric-bar-wrap">
@@ -376,7 +395,8 @@
   var cpuPwrHist = [], gpuPwrHist = [], wallPwrHist = [];
   var diskRdHist = [], diskWrHist = [];
   var coreRows = [];
-  var selectedGpu = null, gpuInventory = null, gpuSeries = {}, lastStatus = null;
+  var gpuInventory = null, gpuSeries = {}, lastStatus = null;
+  var cpuInventory = null, cpuSeries = {};
   var gpuSignature = '', historyGeneration = 0;
   var selectedDisk = null, diskInventory = null, diskSeries = {}, diskSignature = '';
 
@@ -386,29 +406,6 @@
     // authoritative and must never resurrect their primary-card fallback.
     if (!Array.isArray(d.gpus)) { gpuInventory = null; return d; }
     gpuInventory = d.gpus.filter(function(g) { return !g.integrated; }).sort(function(a, b) { return a.id.localeCompare(b.id); });
-    if (!gpuInventory.some(function(g) { return g.id === selectedGpu; }))
-      selectedGpu = (gpuInventory[0] || {}).id || null;
-    var signature = JSON.stringify(gpuInventory.map(function(g) { return [g.id, g.name]; }));
-    var pick = document.getElementById('gpu-pick');
-    if (signature !== gpuSignature) {
-      gpuSignature = signature; pick.innerHTML = '';
-      gpuInventory.forEach(function(g, i) {
-        var option = document.createElement('option');
-        option.value = g.id;
-        option.textContent = 'GPU' + (i + 1) + ' · ' + g.name + ' · ' + g.id;
-        pick.appendChild(option);
-      });
-    }
-    pick.hidden = gpuInventory.length < 2; pick.value = selectedGpu || '';
-    var chosen = gpuInventory.filter(function(g) { return g.id === selectedGpu; })[0] || {};
-    var index = gpuInventory.indexOf(chosen);
-    var label = gpuInventory.length > 1 ? 'GPU' + (index + 1) : 'GPU';
-    document.getElementById('gpu-title').textContent = label + (chosen.name ? ' · ' + chosen.name : '');
-    document.getElementById('gpu-temp-label').textContent = label;
-    var detail = document.getElementById('gpu-detail');
-    detail.hidden = !selectedGpu;
-    detail.textContent = (chosen.temp != null ? chosen.temp + '°C' : '-- °C') + ' · ' +
-                         (chosen.power_w != null ? chosen.power_w + 'W' : '-- W');
     if (sample) {
       Object.keys(gpuSeries).forEach(function(id) {
         if (!gpuInventory.some(function(g) { return g.id === id; })) {
@@ -422,10 +419,9 @@
         push(series.temp, g.temp == null ? null : g.temp);
       });
     }
-    var series = gpuSeries[selectedGpu] || {util: [], vram: [], temp: []};
+    var series = gpuSeries[(gpuInventory[0] || {}).id] || {util: [], vram: [], temp: []};
     gpuHist = series.util; vramHist = series.vram; gpuTempHist = series.temp;
     d = Object.assign({}, d);
-    ['percent', 'temp', 'vram_used_gb', 'vram_total_gb'].forEach(function(k) { d['gpu_' + k] = chosen[k]; });
     var powerCards = gpuInventory;
     GPU_TDP = 290 * Math.max(1, powerCards.length);
     WALL_FS = CPU_TDP + GPU_TDP + 140;
@@ -442,19 +438,83 @@
     return d;
   }
 
-  function renderGpu(d) {
-    var gp = d.gpu_percent, vp = pct(d.gpu_vram_used_gb, d.gpu_vram_total_gb);
-    setBar('gpu-bar', 'gpu-bar-text', gp || 0, gp != null ? gp + '%' : '--', '#5aad8a', true);
-    setBar('vram-bar', 'vram-bar-text', vp || 0, vp != null ? d.gpu_vram_used_gb + ' / ' + d.gpu_vram_total_gb + ' GB' : '--', '#5a8ab0', true);
-    document.getElementById('gpu-temp').textContent = d.gpu_temp != null ? d.gpu_temp + '°' : '--';
-    drawChart('gpu-chart', [{data: gpuHist, color: 'rgb(90,173,138)'}, {data: vramHist, color: 'rgb(90,138,176)'}], 100);
-    drawChart('temp-chart', [{data: cpuTempHist, color: 'rgb(90,173,138)'}, {data: gpuTempHist, color: 'rgb(90,138,176)'}], 110);
-  }
 
-  document.getElementById('gpu-pick').addEventListener('change', function() {
-    selectedGpu = this.value;
-    if (lastStatus) renderGpu(selectGpuData(lastStatus, false));
-  });
+  function node(tag, cls, id, text) {
+    var el = document.createElement(tag);
+    if (cls) el.className = cls;
+    if (id) el.id = id;
+    if (text != null) el.textContent = text;
+    return el;
+  }
+  function gpuId(index, part) { return index === 0 ? part : 'gpu-' + index + '-' + part; }
+  function buildGpuRows() {
+    var signature = JSON.stringify(gpuInventory.map(function(g) { return [g.id, g.name]; }));
+    if (signature === gpuSignature) return;
+    gpuSignature = signature;
+    var list = document.getElementById('gpu-devices'); list.innerHTML = '';
+    (gpuInventory.length ? gpuInventory : [{}]).forEach(function(g, i) {
+      var block = node('div', 'gpu-device'); block.dataset.gpuId = g.id || '';
+      var heading = node('div', 'gpu-name', null, g.id ? 'GPU' + (i + 1) + ' · ' + g.name : 'No discrete GPUs');
+      heading.title = g.id ? g.name + ' · ' + g.id : ''; block.appendChild(heading);
+      var bars = node('div', 'gpu-bars');
+      [['Util', 'gpu', '#5aad8a'], ['VRAM', 'vram', '#5a8ab0']].forEach(function(metric) {
+        var row = node('div', 'metric-row');
+        var label = node('div', 'metric-label', null, metric[0]); label.style.color = metric[2]; row.appendChild(label);
+        var wrap = node('div', 'metric-bar-wrap');
+        wrap.appendChild(node('div', 'metric-bar', gpuId(i, metric[1] + '-bar')));
+        wrap.appendChild(node('div', 'metric-bar-text', gpuId(i, metric[1] + '-bar-text'), '--'));
+        row.appendChild(wrap); bars.appendChild(row);
+      });
+      block.appendChild(bars);
+      var chart = node('div', 'chart-box'), axis = node('div', 'chart-yaxis');
+      ['100%', '50%', '0%'].forEach(function(text) { axis.appendChild(node('span', null, null, text)); });
+      chart.appendChild(axis);
+      var wrap = node('div', 'chart-wrap'); wrap.appendChild(node('canvas', null, gpuId(i, 'gpu-chart')));
+      chart.appendChild(wrap); block.appendChild(chart); list.appendChild(block);
+    });
+    document.getElementById('gpu-title').textContent = gpuInventory.length > 1 ? 'GPUs' : 'GPU';
+  }
+  function renderGpu(d) {
+    if (gpuInventory !== null) buildGpuRows();
+    var cards = gpuInventory === null ? [{percent: d.gpu_percent, vram_used_gb: d.gpu_vram_used_gb, vram_total_gb: d.gpu_vram_total_gb}] : (gpuInventory.length ? gpuInventory : [{}]);
+    cards.forEach(function(g, i) {
+      var vp = pct(g.vram_used_gb, g.vram_total_gb);
+      setBar(gpuId(i, 'gpu-bar'), gpuId(i, 'gpu-bar-text'), g.percent || 0, g.percent != null ? g.percent + '%' : '--', '#5aad8a', true);
+      setBar(gpuId(i, 'vram-bar'), gpuId(i, 'vram-bar-text'), vp || 0, vp != null ? g.vram_used_gb + ' / ' + g.vram_total_gb + ' GB' : '--', '#5a8ab0', true);
+      var series = gpuInventory === null ? {util: gpuHist, vram: vramHist} : (gpuSeries[g.id] || {util: [], vram: []});
+      drawChart(gpuId(i, 'gpu-chart'), [{data: series.util, color: 'rgb(90,173,138)'}, {data: series.vram, color: 'rgb(90,138,176)'}], 100);
+    });
+  }
+  function temperatureColor(kind, index) {
+    if (kind === 'cpu' && index === 0) return 'rgb(90,173,138)';
+    var palette = ['rgb(90,138,176)', 'rgb(192,147,90)', 'rgb(176,127,208)', 'rgb(184,92,92)', 'rgb(97,190,190)', 'rgb(183,190,97)'];
+    return palette[(index + (kind === 'cpu' ? 3 : 0)) % palette.length];
+  }
+  function sampleCpus(d) {
+    cpuInventory = Array.isArray(d.cpus) ? d.cpus.slice().sort(function(a,b) { return a.id.localeCompare(b.id); }) : null;
+    if (cpuInventory === null) return;
+    Object.keys(cpuSeries).forEach(function(id) {
+      if (!cpuInventory.some(function(cpu) { return cpu.id === id; })) push(cpuSeries[id], null);
+    });
+    cpuInventory.forEach(function(cpu) { push(cpuSeries[cpu.id] || (cpuSeries[cpu.id] = []), cpu.temp == null ? null : cpu.temp); });
+  }
+  function renderTemperatures(d) {
+    var readings = document.getElementById('temp-readings'); readings.innerHTML = '';
+    var datasets = [];
+    var cpus = cpuInventory === null ? [{temp: d.cpu_temp, name: 'CPU'}] : (cpuInventory.length ? cpuInventory : [{name: 'CPU'}]);
+    var gpus = gpuInventory === null ? [{temp: d.gpu_temp}] : gpuInventory;
+    function add(kind, device, i, data) {
+      var color = temperatureColor(kind, i);
+      var label = kind === 'cpu' ? (device.name || 'CPU' + (i + 1)) : 'GPU' + (i + 1);
+      var row = node('span'); row.style.color = color;
+      row.appendChild(node('span', null, null, label + ' '));
+      row.appendChild(node('span', null, i === 0 ? kind + '-temp' : kind + '-' + i + '-temp', device.temp != null ? device.temp + '°' : '--'));
+      readings.appendChild(row); datasets.push({data: data || [], color: color});
+    }
+    cpus.forEach(function(cpu, i) { add('cpu', cpu, i, cpuInventory === null ? cpuTempHist : cpuSeries[cpu.id]); });
+    gpus.forEach(function(gpu, i) { add('gpu', gpu, i, gpuInventory === null ? gpuTempHist : (gpuSeries[gpu.id] || {}).temp); });
+    drawChart('temp-chart', datasets, 110);
+  }
 
   function selectDiskData(d, sample) {
     if (!Array.isArray(d.disks)) { diskInventory = null; return d; }
@@ -469,13 +529,21 @@
     if (signature !== diskSignature) {
       diskSignature = signature; pick.innerHTML = '';
       diskInventory.forEach(function(disk) {
-        var option = document.createElement('option');
-        option.value = disk.id;
-        option.textContent = (disk.mount || 'Unmounted') + ' · ' + disk.device;
-        pick.appendChild(option);
+        var button = node('button', null, null, disk.mount || disk.name);
+        button.type = 'button'; button.dataset.diskId = disk.id;
+        button.title = (disk.mount || 'Unmounted') + ' · ' + disk.device;
+        button.addEventListener('click', function() {
+          selectedDisk = disk.id;
+          if (lastStatus) renderDisk(selectDiskData(lastStatus, false));
+        });
+        pick.appendChild(button);
       });
     }
-    pick.hidden = diskInventory.length < 2; pick.value = selectedDisk || '';
+    pick.hidden = diskInventory.length < 2;
+    Array.prototype.forEach.call(pick.children, function(button) {
+      var active = button.dataset.diskId === selectedDisk;
+      button.classList.toggle('on', active); button.setAttribute('aria-pressed', String(active));
+    });
     var chosen = diskInventory.filter(function(disk) { return disk.id === selectedDisk; })[0] || {};
     var detail = document.getElementById('disk-detail');
     detail.hidden = !selectedDisk;
@@ -516,11 +584,6 @@
     if (dya) dya.innerHTML = '<span>' + fmtRate(diskMaxRate) + '</span><span>' + fmtRate(diskMaxRate/2) + '</span><span>0</span>';
     drawChart('disk-chart', [{data: diskRdHist, color: 'rgb(90,173,138)'}, {data: diskWrHist, color: 'rgb(90,138,176)'}], diskMaxRate);
   }
-
-  document.getElementById('disk-pick').addEventListener('change', function() {
-    selectedDisk = this.value;
-    if (lastStatus) renderDisk(selectDiskData(lastStatus, false));
-  });
 
   var lastNet = null, lastNetTime = 0;
   var netMaxRate = 1024 * 1024;
@@ -780,7 +843,7 @@
       if (!r.ok) throw new Error('status ' + r.status);
       return r.json();
     }).then(function(d) {
-      lastStatus = d; d = selectGpuData(d, true); d = selectDiskData(d, true);
+      lastStatus = d; sampleCpus(d); d = selectGpuData(d, true); d = selectDiskData(d, true);
       missed = 0; lastOkAt = Date.now();
       showStale();
       if (d.cpu_cores && d.cpu_cores.length) updateCores(d.cpu_cores);  // [] is truthy → avoid 0/0=NaN avg
@@ -803,8 +866,6 @@
       }
       push(cpuTempHist, d.cpu_temp);
       setBar('mem-bar', 'mem-bar-text', memPct, (d.memory_total_gb != null ? d.memory_used_gb + ' / ' + d.memory_total_gb + ' GB' : '--'), '#5aad8a', false);
-      var ct = d.cpu_temp;
-      document.getElementById('cpu-temp').textContent = ct != null ? ct + '°' : '--';
       document.getElementById('h-host').textContent = d.hostname || '--';
       document.getElementById('h-up').textContent = d.uptime || '--';
       document.getElementById('h-terms').textContent = d.terminals_running != null ? d.terminals_running : '--';
@@ -894,7 +955,7 @@
       if (pya) pya.innerHTML = '<span>' + Math.round(pwrMax) + 'W</span><span>' + Math.round(pwrMax/2) + 'W</span><span>0</span>';
 
       drawChart('mem-chart', [{data: memHist, color: 'rgb(90,173,138)'}], 100);
-      renderGpu(d);
+      renderGpu(d); renderTemperatures(d);
       drawChart('pwr-chart', [{data: cpuPwrHist, color: 'rgb(90,173,138)'}, {data: gpuPwrHist, color: 'rgb(90,138,176)'}, {data: wallPwrHist, color: 'rgb(176,127,208)'}], pwrMax);
 
       if (diskInventory === null) {
@@ -941,6 +1002,9 @@
           });
         }
         cpuTempHist = s.cpu_temp; gpuTempHist = s.gpu_temp;
+        if (cpuInventory !== null) cpuInventory.forEach(function(cpu) {
+          cpuSeries[cpu.id] = ((h.cpus || {})[cpu.id] || {}).cpu_temp || [];
+        });
         cpuPwrHist = s.cpu_power_w; gpuPwrHist = s.gpu_power_w;
         if (gpuInventory !== null) {
           var powerCards = gpuInventory;
@@ -966,6 +1030,7 @@
           if (lastStatus) renderDisk(selectDiskData(lastStatus, false));
         }
         if (gpuInventory !== null && lastStatus) renderGpu(selectGpuData(lastStatus, false));
+        if (lastStatus) renderTemperatures(lastStatus);
         if (then) then(h);
         return true;
       })
@@ -978,7 +1043,7 @@
     var span = b.getAttribute('data-span');
     var btns = this.querySelectorAll('button');
     for (var i = 0; i < btns.length; i++) btns[i].classList.toggle('on', btns[i] === b);
-    historyGeneration++; gpuSeries = {}; diskSeries = {};
+    historyGeneration++; gpuSeries = {}; diskSeries = {}; cpuSeries = {};
     histSpan = (span === '2m') ? '' : span;
     // Clear first: the old span's points are at the wrong scale entirely, and
     // leaving them up while the fetch lands shows a chart that means nothing.

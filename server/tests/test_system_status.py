@@ -694,3 +694,37 @@ def test_disks_keep_independent_delta_windows_and_share_samples(status, monkeypa
     third = status._read_disks(cached)
     assert all('read_bytes' not in disk for disk in third), 'reset and missing counters are unknown'
     assert 'used_gb' not in third[0], 'an unmounted volume must not inherit parent filesystem space'
+
+
+def test_cpu_package_temperatures_include_amd_and_intel_and_keep_missing_sensors(status, monkeypatch, tmp_path):
+    import builtins
+    import os
+    hwmons = tmp_path / 'hwmon'
+    hwmons.mkdir()
+    for name, driver, label, value in [('hwmon1', 'coretemp', 'Package id 0', '55000'),
+                                        ('hwmon2', 'coretemp', 'Package id 1', '67000'),
+                                        ('hwmon3', 'k10temp', 'Tctl', 'unreadable')]:
+        hw = hwmons / name
+        hw.mkdir()
+        device = tmp_path / ('device-' + name)
+        device.mkdir()
+        (hw / 'device').symlink_to(device)
+        (hw / 'name').write_text(driver)
+        (hw / 'temp1_label').write_text(label)
+        (hw / 'temp1_input').write_text(value)
+        (hw / 'temp2_label').write_text('Core 0')
+        (hw / 'temp2_input').write_text('99000')
+    original_open, original_listdir, original_realpath = builtins.open, os.listdir, os.path.realpath
+    def mapped(path):
+        path = os.fspath(path)
+        return str(hwmons) + path[len('/sys/class/hwmon'):] if path.startswith('/sys/class/hwmon') else path
+    monkeypatch.setattr(builtins, 'open', lambda path, *a, **kw: original_open(mapped(path), *a, **kw))
+    monkeypatch.setattr(os, 'listdir', lambda path: original_listdir(mapped(path)))
+    monkeypatch.setattr(os.path, 'realpath', lambda path: original_realpath(mapped(path)))
+    cpus = status._read_cpu_temperatures()
+    assert len(cpus) == 3
+    assert sorted(cpu['temp'] for cpu in cpus if 'temp' in cpu) == [55, 67]
+    assert len([cpu for cpu in cpus if 'temp' not in cpu]) == 1
+    assert len({cpu['id'] for cpu in cpus}) == 3
+    (hwmons / 'hwmon1').rename(hwmons / 'hwmon99')
+    assert status._read_cpu_temperatures() == cpus, 'hwmon enumeration does not change CPU identity'

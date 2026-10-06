@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_390 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_391 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [Terminal link opened a closed Browser app but lost the URL](#terminal-link-opened-a-closed-browser-app-but-lost-the-url)
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
@@ -413,6 +413,7 @@ _390 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [RTS: the Prism Tower was drawn from a DAMAGED frame (w26, 2026-09-26)](#rts-the-prism-tower-was-drawn-from-a-damaged-frame-w26-2026-09-26)
 - [Monitor showed an idle GPU while the second card was fully occupied (2026-10-06)](#monitor-showed-an-idle-gpu-while-the-second-card-was-fully-occupied-2026-10-06)
 - [Monitor ignored data disks and mixed filesystem space with parent-drive I/O (2026-10-06)](#monitor-ignored-data-disks-and-mixed-filesystem-space-with-parent-drive-io-2026-10-06)
+- [Monitor hid other GPU temperatures behind a dropdown and wasted rows on watts (2026-10-06)](#monitor-hid-other-gpu-temperatures-behind-a-dropdown-and-wasted-rows-on-watts-2026-10-06)
 
 <!-- END TOC -->
 
@@ -17800,3 +17801,25 @@ and capacity. Adding `/data` as a special case would fail on the next host.
 Using enumeration indices for history assigns one drive's readings to another
 when disks are added or renamed. Reusing the old root history for every volume
 would fabricate each new disk's past.
+
+
+## Monitor hid other GPU temperatures behind a dropdown and wasted rows on watts (2026-10-06)
+
+**Symptom:** viewing GPU2 required a dropdown; Temperature showed only the chosen
+GPU. Each GPU's watt reading occupied its own row, wasting chart space.
+
+**Cause:** the layout reused one set of bars/chart/readings for the selected GPU,
+even though separate per-device histories were already available. CPU temperature
+collection stopped at the first AMD k10temp sensor and never enumerated Intel
+packages or additional sockets.
+
+**Fix:** show each discrete GPU's bars and miniature chart together, without any
+GPU switching. Temperature plots every CPU package and discrete GPU, with a
+matching compact colored legend. Discover AMD and Intel package sensors and
+record CPU histories by device identity. Put GPU watt readings horizontally and
+replace disk dropdowns with buttons. Reserve chart heights on desktop/tablet;
+stack all GPU sections on phones and allow scrolling for larger inventories.
+
+**Rejected:** a GPU button switch would still hide the other device. Counting
+Intel core sensors as CPUs would inflate package counts. Squeezing arbitrarily
+many cards into a fixed height would collapse their charts.
