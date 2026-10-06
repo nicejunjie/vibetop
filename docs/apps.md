@@ -54,11 +54,11 @@ A **Token Stats** app (Start ▸ Utilities ▸ Token Stats) — a read-only anal
 
 ## System Monitor — 7 days of history
 
-The GPU card selects devices by PCI address, with each device's own usage,
+The GPU card selects discrete devices by PCI address, with each device's own usage,
 VRAM, temperature, and history. Identical model names remain distinguishable.
-The Power card lists individual readings and sums all discrete GPUs; integrated
-GPU readings stay selectable but are excluded from that sum when discrete cards
-are present, because they can overlap CPU package power. A missing power sensor
+The Power card lists individual readings and sums all discrete GPUs. Integrated
+GPUs are excluded from Monitor's selector, temperature charts and power rows; an
+integrated-only host shows no GPU readings. A missing power sensor
 makes the GPU sum unknown, rather than silently treating one card as idle.
 
 Per-device history lives in `/var/lib/vibetop/metrics.ring.gpus/<PCI-address>`:

@@ -385,9 +385,9 @@
     // Old managers still supply scalar fields. An explicit empty inventory is
     // authoritative and must never resurrect their primary-card fallback.
     if (!Array.isArray(d.gpus)) { gpuInventory = null; return d; }
-    gpuInventory = d.gpus.slice().sort(function(a, b) { return a.id.localeCompare(b.id); });
+    gpuInventory = d.gpus.filter(function(g) { return !g.integrated; }).sort(function(a, b) { return a.id.localeCompare(b.id); });
     if (!gpuInventory.some(function(g) { return g.id === selectedGpu; }))
-      selectedGpu = (gpuInventory.filter(function(g) { return !g.integrated; })[0] || gpuInventory[0] || {}).id || null;
+      selectedGpu = (gpuInventory[0] || {}).id || null;
     var signature = JSON.stringify(gpuInventory.map(function(g) { return [g.id, g.name]; }));
     var pick = document.getElementById('gpu-pick');
     if (signature !== gpuSignature) {
@@ -408,8 +408,7 @@
     var detail = document.getElementById('gpu-detail');
     detail.hidden = !selectedGpu;
     detail.textContent = (chosen.temp != null ? chosen.temp + '°C' : '-- °C') + ' · ' +
-                         (chosen.power_w != null ? chosen.power_w + 'W' : '-- W') +
-                         (chosen.integrated ? ' · integrated' : '');
+                         (chosen.power_w != null ? chosen.power_w + 'W' : '-- W');
     if (sample) {
       Object.keys(gpuSeries).forEach(function(id) {
         if (!gpuInventory.some(function(g) { return g.id === id; })) {
@@ -427,8 +426,7 @@
     gpuHist = series.util; vramHist = series.vram; gpuTempHist = series.temp;
     d = Object.assign({}, d);
     ['percent', 'temp', 'vram_used_gb', 'vram_total_gb'].forEach(function(k) { d['gpu_' + k] = chosen[k]; });
-    var powerCards = gpuInventory.filter(function(g) { return !g.integrated; });
-    if (!powerCards.length) powerCards = gpuInventory;
+    var powerCards = gpuInventory;
     GPU_TDP = 290 * Math.max(1, powerCards.length);
     WALL_FS = CPU_TDP + GPU_TDP + 140;
     d.gpu_power_w = powerCards.length && powerCards.every(function(g) { return g.power_w != null; })
@@ -438,8 +436,7 @@
     list.hidden = gpuInventory.length < 2; list.innerHTML = '';
     gpuInventory.forEach(function(g, i) {
       var row = document.createElement('div');
-      row.textContent = 'GPU' + (i + 1) + ': ' + (g.power_w != null ? g.power_w + 'W' : '--') +
-                        (g.integrated ? ' (integrated)' : '');
+      row.textContent = 'GPU' + (i + 1) + ': ' + (g.power_w != null ? g.power_w + 'W' : '--');
       list.appendChild(row);
     });
     return d;
@@ -946,8 +943,7 @@
         cpuTempHist = s.cpu_temp; gpuTempHist = s.gpu_temp;
         cpuPwrHist = s.cpu_power_w; gpuPwrHist = s.gpu_power_w;
         if (gpuInventory !== null) {
-          var powerCards = gpuInventory.filter(function(g) { return !g.integrated; });
-          if (!powerCards.length) powerCards = gpuInventory;
+          var powerCards = gpuInventory;
           // The historical host scalar used to mean only the primary card.
           // Sum device rings instead so old samples cannot claim a GPU total.
           gpuPwrHist = s.gpu_power_w.map(function(_, i) {

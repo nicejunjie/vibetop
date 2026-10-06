@@ -999,13 +999,15 @@ test('selection follows PCI identity through reordered inventory and missing sen
   assert.strictEqual(h.id('pwr-total').textContent, '85W CPU only');
 });
 
-test('integrated graphics remain selectable and are excluded from discrete GPU power', async () => {
+test('integrated graphics are excluded from the selector and power rows', async () => {
   const igpu = {...GPU_A, id: '0000:00:01.0', integrated: true, power_w: 50};
   const h = load({payloads: [fullStatus({gpus: [igpu, GPU_A, GPU_B]})]});
   await h.settle();
   assert.strictEqual(h.id('gpu-pick').value, GPU_A.id);
   assert.strictEqual(h.id('gpu-pwr-text').textContent, '323W');
-  assert.strictEqual(h.id('gpu-pick').children.length, 3);
+  assert.strictEqual(h.id('gpu-pick').children.length, 2);
+  assert.deepStrictEqual(h.id('gpu-pick').children.map(e => e.value), [GPU_A.id, GPU_B.id]);
+  assert.strictEqual(h.id('gpu-power-list').children.length, 2);
 });
 
 test('an empty GPU inventory overrides stale legacy scalars', async () => {
@@ -1107,4 +1109,29 @@ test('disk history is taken by identity and never copies root history onto data'
   await old.settle(); old.clearPaths();
   old.id('disk-pick').value = DISK_DATA.id; old.id('disk-pick').fire('change');
   assert.strictEqual(vertices(old.id('disk-chart'), GREEN).length, 0);
+});
+
+
+test('an integrated-only host shows no GPU readings or selectable fallback', async () => {
+  const igpu = {...GPU_A, integrated: true};
+  const h = load({payloads: [fullStatus({gpus: [igpu]})]});
+  await h.settle();
+  assert.strictEqual(h.id('gpu-pick').children.length, 0);
+  assert.strictEqual(h.id('gpu-pick').hidden, true);
+  assert.strictEqual(h.id('gpu-detail').hidden, true);
+  assert.strictEqual(h.id('gpu-power-list').hidden, true);
+  for (const id of ['gpu-bar-text', 'vram-bar-text', 'gpu-temp', 'gpu-pwr-text'])
+    assert.strictEqual(h.id(id).textContent, '--');
+});
+
+test('removing discrete GPUs clears the selection rather than exposing integrated graphics', async () => {
+  const igpu = {...GPU_A, id: '0000:76:00.0', integrated: true};
+  const h = load({payloads: [fullStatus({gpus: [GPU_A, GPU_B, igpu]}), fullStatus({gpus: [igpu]})]});
+  await h.settle();
+  h.id('gpu-pick').value = GPU_B.id; h.id('gpu-pick').fire('change');
+  h.tick(); await h.settle();
+  assert.strictEqual(h.id('gpu-pick').value, '');
+  assert.strictEqual(h.id('gpu-pick').children.length, 0);
+  assert.strictEqual(h.id('gpu-bar-text').textContent, '--');
+  assert.strictEqual(h.id('gpu-temp').textContent, '--');
 });
