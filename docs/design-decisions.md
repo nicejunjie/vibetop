@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_393 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_394 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [Terminal link opened a closed Browser app but lost the URL](#terminal-link-opened-a-closed-browser-app-but-lost-the-url)
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
@@ -416,6 +416,7 @@ _393 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [Monitor hid other GPU temperatures behind a dropdown and wasted rows on watts (2026-10-06)](#monitor-hid-other-gpu-temperatures-behind-a-dropdown-and-wasted-rows-on-watts-2026-10-06)
 - [Monitor chart axes used arbitrary sampled values as tick bounds (2026-10-06)](#monitor-chart-axes-used-arbitrary-sampled-values-as-tick-bounds-2026-10-06)
 - [Monitor treated partitions as separate physical disks (2026-10-06)](#monitor-treated-partitions-as-separate-physical-disks-2026-10-06)
+- [Mobile terminal resume waited twelve seconds at the reconnect overlay (2026-10-06)](#mobile-terminal-resume-waited-twelve-seconds-at-the-reconnect-overlay-2026-10-06)
 
 <!-- END TOC -->
 
@@ -17862,3 +17863,24 @@ or serial identities in a distinct physical namespace for new histories.
 **Rejected:** hiding only `/boot/efi` would leave every other partition duplicated.
 Summing whole-drive and partition counters double-counts traffic. Reusing old
 partition ring identities would silently label their past as whole-drive I/O.
+
+
+## Mobile terminal resume waited twelve seconds at the reconnect overlay (2026-10-06)
+
+**Symptom:** an iPhone screenshot showed both “Connecting to terminal…” and
+“Press Enter to Reconnect”. Logs showed closed connections waiting 12 seconds,
+then recovering in roughly 0.5–1.7 seconds after the frame reloaded.
+
+**Cause:** ttyd automatically retries abnormal disconnects, but a clean code-1000
+close waits for user input. The guard applied its startup timeout to that already
+closed socket, adding the full timeout to the common mobile suspend/resume path.
+
+**Fix:** record close codes and promptly reload only a cleanly closed terminal
+frame while visible, on the next 500ms tick or foreground event. Keep the
+12-second startup/handshake deadline and allow abnormal-close native reconnects.
+Pause background recovery, retain the three-attempt limit and clear it only after
+real PTY output. Never time out a quiet established connection.
+
+**Rejected:** synthesizing Enter could submit terminal input. Lowering every
+startup timeout would interrupt valid slow handshakes. Restarting the shell would
+lose the user's session rather than repairing its browser connection.

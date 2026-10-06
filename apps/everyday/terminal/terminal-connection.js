@@ -9,6 +9,7 @@
   'use strict';
   var key = 'vt-terminal-retries:' + w.location.pathname;
   var socket = null, ready = false, stopped = false, exhausted = false, panel = null;
+  var closeCode = null;
   var since = Date.now(), phase = 'startup', retries = 0, timer;
   try { retries = Math.min(3, Math.max(0, +w.sessionStorage.getItem(key) || 0)); } catch (_) {}
   function log(event) {
@@ -43,16 +44,21 @@
     }
   }
   function tick() {
-    if (stopped || ready || exhausted) return;
+    if (stopped || ready || exhausted || w.document.hidden) return;
     var elapsed = Date.now() - since;
-    if (elapsed < 3000) return;
-    if (elapsed < 12000) { show('Connecting to terminal…'); return; }
+    // ttyd deliberately does not auto-reconnect a clean close: it displays
+    // "Press Enter to Reconnect". iOS suspension takes this path. A closed
+    // socket cannot deliver output, so waiting for the startup deadline adds
+    // twelve seconds to every resume. Reload just this frame without input.
+    var cleanClosed = phase === 'closed' && closeCode === 1000;
+    if (!cleanClosed && elapsed < 3000) return;
+    if (!cleanClosed && elapsed < 12000) { show('Connecting to terminal…'); return; }
     if (retries >= 3) {
       show('Terminal connection failed. Retry to reconnect.', true);
       log('retry-limit'); exhausted = true; return;
     }
     show('Terminal connection stalled. Reconnecting…');
-    log('timeout'); stopped = true; w.clearInterval(timer);
+    log(cleanClosed ? 'clean-close' : 'timeout'); stopped = true; w.clearInterval(timer);
     // With no persistent storage we cannot bound a cross-reload loop. Offer a
     // manual retry instead of automatically reloading forever.
     try { w.sessionStorage.setItem(key, String(retries + 1)); }
@@ -62,7 +68,7 @@
   var Native = w.WebSocket;
   function WS(url, protocols) {
     var ws = protocols === undefined ? new Native(url) : new Native(url, protocols);
-    socket = ws; ready = false; phase = 'connecting';
+    socket = ws; closeCode = null; ready = false; phase = 'connecting';
     // Do not reset the deadline on repeated failed socket attempts.
     ws.addEventListener('open', function () { if (ws === socket) phase = 'awaiting-output'; });
     ws.addEventListener('message', function (event) {
@@ -79,10 +85,10 @@
       retries = 0;
       try { w.sessionStorage.removeItem(key); } catch (_) {}
     });
-    ws.addEventListener('close', function () {
+    ws.addEventListener('close', function (event) {
       if (ws !== socket || stopped) return;
       if (ready) since = Date.now();
-      ready = false; phase = 'closed';
+      ready = false; phase = 'closed'; closeCode = event.code;
     });
     ws.addEventListener('error', function () { if (ws === socket) phase = 'error'; });
     return ws;
@@ -93,8 +99,10 @@
     w.WebSocket = WS;
   }
   timer = w.setInterval(tick, 500);
+  w.document.addEventListener('visibilitychange', tick);
+  w.addEventListener('focus', tick);
   w.addEventListener('pagehide', function () { stopped = true; w.clearInterval(timer); });
   w.addEventListener('pageshow', function (e) {
-    if (e.persisted) { stopped = false; since = Date.now(); timer = w.setInterval(tick, 500); }
+    if (e.persisted) { stopped = false; since = Date.now(); timer = w.setInterval(tick, 500); tick(); }
   });
 });

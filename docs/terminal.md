@@ -73,11 +73,14 @@ Two systemd template units, instantiated for each terminal:
    process; the daemon multiplexes them. `-t reconnect=3` makes the
    browser auto-reconnect 3 s after an *abnormal* WS drop. A *clean*
    close (code 1000 — what iOS sends when it suspends a backgrounded
-   tab) instead shows ttyd's "Press ⏎ to Reconnect" overlay; a guard
-   injected by the nginx `sub_filter` watches for it and synthesizes the
-   Enter keypress so the terminal reconnects on its own (see the cross-
-   project CLAUDE.md). `Requires=` + `After=` make the ttyd unit depend
-   on its matching session unit.
+   tab) instead shows ttyd's "Press ⏎ to Reconnect" overlay. The injected
+   `terminal-connection.js` guard reloads only the disconnected terminal frame
+   on its next 500ms tick while visible, or immediately on foreground return.
+   Recovery never synthesizes terminal input. Failed startup/handshakes retain
+   a 12-second deadline; retries are bounded to three before a manual retry.
+   Background pages pause recovery. Successful PTY output clears status and
+   resets the retry budget; quiet attached terminals are never timed out.
+
 
 Window resize: the attach process writes `rows cols` to
 `/tmp/vibetop-session-N.size` and sends `SIGUSR1` to the daemon PID
@@ -302,7 +305,12 @@ Services:
 
 nginx proxies `/tN/` to the corresponding loopback port via the `map`-based regex location. `sub_filter` injects scrollback config, clipboard polyfill, and a `window.open` override that sends URL clicks to the embedded Chromium browser via `/api/browser/open`.
 
-`vibetop-session` is a custom lightweight replacement for tmux that passes terminal output through transparently (no screen repainting), enabling xterm.js's 50k-line scrollback buffer. It records output in a 2MB ring buffer and replays it on reconnect so the screen state is preserved. Typing `exit` respawns a fresh shell within ~1s; ttyd's `reconnect=3` auto-reconnects the browser tab. ttyd only auto-reconnects on an **abnormal** WS close; a *clean* close (code 1000, which iOS produces when it suspends a backgrounded tab) instead shows a **"Press ⏎ to Reconnect"** overlay and waits for a keypress. A guard injected into every `/tN/` page (the `sub_filter` in `server/install.sh`) watches for that overlay via `MutationObserver` and synthesizes the Enter keypress ttyd's `onKey` handler is waiting for, so the terminal reconnects on its own like the other apps — riding ttyd's in-place reconnect (xterm scrollback preserved; `vibetop-session` replays its ring buffer). The observer is attached only once `document.body` exists (the script runs in `<head>`, so it retries via `startObs`) and also checks for an already-present overlay on load. If the overlay persists, the guard **keeps retrying the in-place reconnect with exponential backoff + jitter** (≈0.7s → cap 8s, plus up to 1s random) rather than reloading — so a transient outage (an nginx reload during a deploy/Update, or a network blip) recovers in place, and simultaneous drops across tabs don't synchronize into a thundering herd. Only after **20 s of continuous failure** (the in-place reconnect is genuinely stuck — e.g. a socket `error` set `doReconnect=false`, where only a fresh page helps) does it fall back to a single `location.reload()`, guarded to **once per 30 s** via `sessionStorage`. This is the key fix for the old "had to refresh many times" pain: the previous version reloaded the whole page after just 1.2 s (every 8 s), which during a reconnect storm threw the page away mid-load and reload-looped. The observer is attached only once `document.body` exists (the script runs in `<head>`, so it retries via `startObs`) and also checks for an already-present overlay on load.
+`vibetop-session` is a custom lightweight replacement for tmux that passes terminal output through transparently (no screen repainting), enabling xterm.js's 50k-line scrollback buffer. It records output in a 2MB ring buffer and replays it on reconnect so the screen state is preserved. Typing `exit` respawns a fresh shell within ~1s; ttyd's `reconnect=3` auto-reconnects the browser tab. ttyd auto-reconnects after an **abnormal** WS close. A **clean** close (code 1000,
+common on iOS suspension) waits for Enter in ttyd itself; our injected connection
+guard promptly reloads that terminal frame when visible, without sending a
+keypress. The persistent shell and daemon ring remain intact. Startup/token or
+handshake stalls still use the bounded 12-second deadline, while attached quiet
+shells never time out.
 
 A tabbed UI at `/terminals/` (`apps/everyday/terminal/terminals.html`) manages terminal tabs with add (+), close (×, stops the service), drag-reorder, and double-click-to-rename.
 

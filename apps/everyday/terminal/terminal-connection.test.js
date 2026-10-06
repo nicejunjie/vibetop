@@ -5,24 +5,24 @@ const fs = require('node:fs');
 const source = fs.readFileSync(require('node:path').join(__dirname, 'terminal-connection.js'), 'utf8');
 function browser(saved = new Map()) {
   let now = 0, reloads = 0, interval;
-  const elements = [], events = {}, logs = [];
+  const elements = [], events = {}, documentEvents = {}, logs = [];
   function element() { return { style: {}, setAttribute() {}, appendChild(e) { this.child = e; }, remove() { elements.splice(elements.indexOf(this), 1); } }; }
   class Socket {
     constructor() { this.readyState = 0; this.events = {}; }
     addEventListener(k, cb) { this.events[k] = cb; }
-    emit(k, data) { if (k === 'open') this.readyState = 1; if (k === 'close') this.readyState = 3; this.events[k]?.({ data }); }
+    emit(k, data, code) { if (k === 'open') this.readyState = 1; if (k === 'close') this.readyState = 3; this.events[k]?.({ data, code }); }
   }
   Object.assign(Socket, { CONNECTING: 0, OPEN: 1, CLOSING: 2, CLOSED: 3 });
   const w = { WebSocket: Socket, ArrayBuffer, Uint8Array, navigator: { userAgent: 'test' },
     location: { pathname: '/t1/', reload() { reloads++; } },
     sessionStorage: { getItem: k => saved.get(k), setItem: (k,v) => saved.set(k,v), removeItem: k => saved.delete(k) },
-    document: { createElement: element, body: { appendChild(e) { elements.push(e); } } },
+    document: { hidden: false, addEventListener: (k, cb) => { documentEvents[k] = cb; }, createElement: element, body: { appendChild(e) { elements.push(e); } } },
     fetch: (_, o) => { logs.push(JSON.parse(o.body)); return Promise.resolve(); },
     setInterval: cb => { interval = cb; return 1; }, clearInterval: () => { interval = null; },
     addEventListener: (k, cb) => { events[k] = cb; }
   };
   vm.runInNewContext(source, { window: w, Date: { now: () => now } });
-  return { w, elements, logs, saved, events, advance(ms) { now += ms; interval?.(); }, get reloads() { return reloads; } };
+  return { w, elements, logs, saved, events, documentEvents, advance(ms) { now += ms; interval?.(); }, get reloads() { return reloads; } };
 }
 test('stalled token fetch before any socket gets a visible status and bounded reload', () => {
   const b = browser(); b.advance(3000);
@@ -80,4 +80,44 @@ test('installer deploys the guard before keyboard script and removes synthetic E
   assert.match(installer, /\$TERM_APP_DIR\/terminal-connection\.js" "\$LANDING_DIR\/terminal-connection\.js/);
   assert.ok(installer.indexOf('/terminal-connection.js?v=') < installer.indexOf('/terminal-kbd.js?v='));
   assert.doesNotMatch(installer, /function fireEnter/);
+});
+
+
+test('cleanly closed mobile terminal recovers promptly without waiting twelve seconds', () => {
+  const b = browser(), ws = new b.w.WebSocket('ws://test/t1/ws');
+  ws.emit('open'); ws.emit('message', '0prompt');
+  ws.emit('close', undefined, 1000); b.advance(500);
+  assert.equal(b.reloads, 1);
+  assert.equal(b.logs[0].guard[0].event, 'clean-close');
+  assert.equal(b.logs[0].guard[0].elapsed, 500);
+});
+
+test('clean close while backgrounded waits until visible, then recovers immediately', () => {
+  const b = browser(), ws = new b.w.WebSocket('ws://test/t1/ws');
+  ws.emit('open'); ws.emit('message', '0prompt');
+  b.w.document.hidden = true; ws.emit('close', undefined, 1000);
+  b.advance(60000); assert.equal(b.reloads, 0);
+  b.w.document.hidden = false; b.documentEvents.visibilitychange();
+  assert.equal(b.reloads, 1);
+});
+
+test('abnormal close leaves time for ttyd native reconnect and accepts its replacement', () => {
+  const b = browser(), ws = new b.w.WebSocket('ws://test/t1/ws');
+  ws.emit('open'); ws.emit('message', '0prompt'); ws.emit('close', undefined, 1006);
+  b.advance(3000); assert.equal(b.reloads, 0);
+  const next = new b.w.WebSocket('ws://test/t1/ws');
+  next.emit('open'); next.emit('message', '0prompt'); b.advance(12000);
+  assert.equal(b.reloads, 0);
+});
+
+test('failed clean-close recovery obeys the same retry limit', () => {
+  const saved = new Map();
+  for (let i = 0; i < 3; i++) {
+    const b = browser(saved), ws = new b.w.WebSocket('ws://test/t1/ws');
+    ws.emit('open'); ws.emit('close', undefined, 1000); b.advance(500);
+    assert.equal(b.reloads, 1);
+  }
+  const b = browser(saved), ws = new b.w.WebSocket('ws://test/t1/ws');
+  ws.emit('open'); ws.emit('close', undefined, 1000); b.advance(500);
+  assert.equal(b.reloads, 0); assert.match(b.elements[0].textContent, /failed/);
 });
