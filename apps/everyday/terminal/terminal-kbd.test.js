@@ -89,3 +89,71 @@ test("the terminal's own resize paths follow the live bottom", () => {
   assert.doesNotMatch(SRC, /t\.onResize\(function \(\) \{\s*armLatest\(\);/,
     'a late resize event must not yank an already-scrolled viewport to the bottom');
 });
+
+function readerHarness(source = SRC, saved = new Map()) {
+  let now = 5000;
+  const listeners = {}, scrolls = [], parsed = [], frames = [], timers = [], markers = [];
+  const lines = Array.from({length: 500}, (_, i) => 'history passage ' + i);
+  const buffer = {type: 'normal', baseY: 470, viewportY: 470, cursorY: 29,
+    getLine(i) { return lines[i] == null ? null : {translateToString() { return lines[i]; }}; }};
+  const term = {rows:30, cols:54, element: {clientWidth:400}, buffer: {active:buffer},
+    onScroll(fn) { scrolls.push(fn); }, onWriteParsed(fn) { parsed.push(fn); },
+    scrollToLine(row) { buffer.viewportY = Math.min(buffer.baseY, row); scrolls.forEach(fn => fn()); },
+    scrollToBottom() { this.scrollToLine(buffer.baseY); },
+    registerMarker(offset) { const marker = {line:buffer.baseY + buffer.cursorY + offset, isDisposed:false, dispose() { this.isDisposed = true; }}; markers.push(marker); return marker; }};
+  class Socket {
+    constructor() { this.events = {}; }
+    addEventListener(k, fn) { (this.events[k] ||= []).push(fn); }
+    removeEventListener() {}
+    emit(k) { (this.events[k] || []).forEach(fn => fn()); }
+  }
+  const window = {term, WebSocket:Socket, location:{pathname:'/t2/'}, matchMedia:() => ({matches:false}),
+    addEventListener(k, fn) { (listeners[k] ||= []).push(fn); }};
+  const document = {hidden:false, querySelector:() => null};
+  const prefix = source.slice(0, source.indexOf('  // Re-claim the shared PTY')) + '\n})();';
+  vm.runInNewContext(prefix, {window, document, Date:{now:() => now},
+    sessionStorage:{getItem:k => saved.get(k), setItem:(k,v) => saved.set(k,v), removeItem:k => saved.delete(k)},
+    setTimeout(fn, delay) { const t = {fn, delay, cancelled:false}; timers.push(t); return t; }, clearTimeout(t) { if(t) t.cancelled=true; },
+    setInterval() { return 1; }, clearInterval() {}, requestAnimationFrame(fn) { frames.push(fn); }});
+  return {buffer, term, lines, saved, window, markers,
+    emit(k, extra={}) { (listeners[k] || []).forEach(fn => fn({type:k,...extra})); },
+    scroll(row) { term.scrollToLine(row); },
+    output() { parsed.forEach(fn => fn()); },
+    settle() { for (const t of timers.splice(0)) { if(!t.cancelled && t.delay===0) t.fn(); } for(let i=0; frames.length && i<30; i++) frames.shift()(); },
+    advance(ms) { now+=ms; }};
+}
+
+test('history reading stays at its passage when output resets the viewport to older content', () => {
+  const h=readerHarness(); h.emit('wheel'); h.scroll(100); h.settle(); h.advance(1000);
+  h.scroll(0); h.output(); h.settle(); assert.equal(h.buffer.viewportY,100);
+});
+
+test('ordinary typing does not replace a history anchor with the repaint position', () => {
+  const h=readerHarness(); h.emit('wheel'); h.scroll(100); h.settle(); h.advance(1000);
+  h.emit('keydown',{key:'a'}); h.scroll(0); h.output(); h.settle();
+  assert.equal(h.buffer.viewportY,100);
+});
+
+test('same-frame reconnect restores the passage after the replay shifts buffer rows', () => {
+  const h=readerHarness(); h.emit('wheel'); h.scroll(100); h.settle();
+  const ws=new h.window.WebSocket('ws://test/t2/ws'); ws.emit('open');
+  h.lines.splice(0,20); h.buffer.baseY-=20; h.buffer.viewportY=0;
+  h.output(); h.settle(); assert.equal(h.buffer.viewportY,80);
+});
+
+test('frame reload restores the passage and ignores retries of its initial activation', () => {
+  const saved=new Map(), old=readerHarness(SRC,saved);
+  old.emit('wheel'); old.scroll(100); old.settle();
+  const h=readerHarness(SRC,saved); h.window.__vibetopShowLatest(1);
+  h.buffer.viewportY=0; h.output(); h.settle();
+  assert.equal(h.buffer.viewportY,100);
+  h.window.__vibetopShowLatest(1); assert.equal(h.buffer.viewportY,100);
+  h.window.__vibetopShowLatest(2); assert.equal(h.buffer.viewportY,470);
+});
+
+test('new navigation replaces the saved history anchor and returning to bottom clears it', () => {
+  const h=readerHarness(); h.emit('wheel'); h.scroll(100); h.settle();
+  h.emit('wheel'); h.scroll(70); h.settle(); h.advance(1000);
+  h.scroll(0); h.output(); h.settle(); assert.equal(h.buffer.viewportY,70);
+  h.emit('wheel'); h.scroll(470); h.settle(); assert.equal(h.saved.size,0);
+});

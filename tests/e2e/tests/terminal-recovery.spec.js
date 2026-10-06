@@ -82,3 +82,41 @@ test.describe('terminal startup recovery (backend)', () => {
     });
   }
 });
+
+// Real xterm with synthetic PTY output: avoids resizing any live user shell.
+test.describe('terminal history reading anchor (backend)', () => {
+  backendOnly(test);
+  test('keeps the same passage through repaint and reload with trimmed replay', async ({ page }) => {
+    const start = await page.request.post('/api/terminals/1/start');
+    expect(start.ok()).toBeTruthy();
+    let connections = 0;
+    await page.routeWebSocket('**/t1/ws*', ws => {
+      const first = connections++ === 0 ? 0 : 20;
+      let sent = false;
+      ws.onMessage(() => {
+        if (sent) return;
+        sent = true;
+        const lines = Array.from({length:500 - first}, (_, i) => 'history passage ' + (i + first));
+        ws.send(Buffer.from('2{}'));
+        ws.send(Buffer.from('0\x1b[3J\x1b[2J\x1b[H' + lines.join('\r\n') + '\r\n'));
+      });
+    });
+    await page.goto('/t1/');
+    await page.waitForFunction(() => window.term && window.term.buffer.active.baseY > 200);
+    await page.waitForTimeout(600);
+    await page.evaluate(() => {
+      window.dispatchEvent(new WheelEvent('wheel'));
+      window.term.scrollToLine(120);
+    });
+    await page.waitForTimeout(100);
+    await page.evaluate(() => window.term.scrollToLine(0));
+    const topLine = () => page.evaluate(() => {
+      const b = window.term.buffer.active;
+      return b.getLine(b.viewportY).translateToString(true);
+    });
+    await expect.poll(topLine).toBe('history passage 120');
+    await page.reload();
+    await page.waitForFunction(() => window.term && window.term.buffer.active.baseY > 200);
+    await expect.poll(topLine).toBe('history passage 120');
+  });
+});

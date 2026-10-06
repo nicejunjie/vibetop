@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_395 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_396 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [Terminal link opened a closed Browser app but lost the URL](#terminal-link-opened-a-closed-browser-app-but-lost-the-url)
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
@@ -418,6 +418,7 @@ _395 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [Monitor treated partitions as separate physical disks (2026-10-06)](#monitor-treated-partitions-as-separate-physical-disks-2026-10-06)
 - [Mobile terminal resume waited twelve seconds at the reconnect overlay (2026-10-06)](#mobile-terminal-resume-waited-twelve-seconds-at-the-reconnect-overlay-2026-10-06)
 - [Mobile reconnect still hit the startup timeout for non-clean closes (2026-10-06)](#mobile-reconnect-still-hit-the-startup-timeout-for-non-clean-closes-2026-10-06)
+- [Mobile history reading jumped to older content on repaint (2026-10-06)](#mobile-history-reading-jumped-to-older-content-on-repaint-2026-10-06)
 
 <!-- END TOC -->
 
@@ -17907,3 +17908,27 @@ can distinguish close paths. Preserve bounded retries and never send Enter.
 untouched. Blaming bandwidth would not explain the closed-state wait followed by
 sub-second first output. Immediate reload on every abnormal close would race
 healthy native reconnects, so that path retains a short grace period.
+
+
+## Mobile history reading jumped to older content on repaint (2026-10-06)
+
+**Symptom:** while browsing terminal history on a phone, the Codex conversation
+periodically jumped to an older passage. This was deliberate history reading,
+not a request to keep following the newest output.
+
+**Cause:** the helper remembered only whether the viewport was at the bottom.
+A replay or repaint could replace the buffer and reset its viewport row; leaving
+a non-following viewport alone then displayed older content. Generic key/touch
+activity also misclassified automatic viewport changes as history navigation.
+
+**Fix:** capture the passage on actual wheel/key/drag navigation. Use xterm
+markers to preserve it during live writes and nearby-line fingerprints to find
+it after replay or frame reload, including a trimmed history prefix. Persist
+only a small reading anchor locally in sessionStorage, never in server logs.
+Replay retries of an initial activation preserve the restored passage; a later
+explicit activation retains the existing latest-output behavior. Returning to
+the bottom clears the anchor. Preserve already deployed keyboard/size helpers.
+
+**Rejected:** forcing the bottom would interrupt the history the user wanted to
+read. Saving only viewportY or a distance from the bottom would select different
+text when a replay trims old lines or new output extends the buffer.
