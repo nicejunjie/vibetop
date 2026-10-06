@@ -137,12 +137,12 @@
     color: #ccc; text-shadow: 0 1px 2px rgba(0,0,0,0.8);
   }
 
-  #gpu-pick { width: 100%; min-width: 0; background: #0d1117; color: #ccc;
+  #gpu-pick, #disk-pick { width: 100%; min-width: 0; background: #0d1117; color: #ccc;
     border: 1px solid #2a3040; border-radius: 4px; font-size: 11px; padding: 3px; }
-  #gpu-pick[hidden], #gpu-detail[hidden], #gpu-power-list[hidden] { display: none; }
-  #gpu-detail, #gpu-power-list { font: 10px ui-monospace, monospace; color: #9ab; }
+  #gpu-pick[hidden], #disk-pick[hidden], #gpu-detail[hidden], #disk-detail[hidden], #gpu-power-list[hidden] { display: none; }
+  #gpu-detail, #disk-detail, #gpu-power-list { font: 10px ui-monospace, monospace; color: #9ab; }
   #gpu-power-list { max-height: 44px; overflow-y: auto; flex-shrink: 0; }
-  #gpu-detail { flex-shrink: 0; }
+  #gpu-detail, #disk-detail { flex-shrink: 0; overflow-wrap: anywhere; }
 
   /* Charts */
   .chart-box { display: flex; flex: 1; min-height: 0; }
@@ -208,7 +208,7 @@
        the size it is on every other card. Desktop needs no equivalent: there
        the cards are grid-sized and 22px out of ~295 is not noticeable. */
     .metrics .card.has-wall { height: 212px; }
-    .metrics .card:has(#gpu-pick:not([hidden])) { height: 234px; }
+    .metrics .card:has(#gpu-pick:not([hidden])), .metrics .card:has(#disk-pick:not([hidden])) { height: 234px; }
     .metrics .card:has(#gpu-power-list:not([hidden])) { height: 234px; }
     .metrics .card.has-wall:has(#gpu-power-list:not([hidden])) { height: 256px; }
     .cpu-grid { grid-template-columns: repeat(2, 1fr); }
@@ -351,6 +351,8 @@
     <!-- Disk -->
     <div class="card">
       <div class="card-title">Disk <span class="avg" id="disk-stats"><span class="net-rx">R --</span> <span class="net-tx">W --</span></span></div>
+      <select id="disk-pick" aria-label="Disk filesystem or device" hidden></select>
+      <div id="disk-detail" hidden></div>
       <div class="metric-row">
         <div class="metric-bar-wrap">
           <div class="metric-bar" id="disk-bar" style="width:0%;background:#5aad8a"></div>
@@ -376,6 +378,8 @@
   var coreRows = [];
   var selectedGpu = null, gpuInventory = null, gpuSeries = {}, lastStatus = null;
   var gpuSignature = '', historyGeneration = 0;
+  var selectedDisk = null, diskInventory = null, diskSeries = {}, diskSignature = '';
+
 
   function selectGpuData(d, sample) {
     // Old managers still supply scalar fields. An explicit empty inventory is
@@ -454,6 +458,73 @@
     selectedGpu = this.value;
     if (lastStatus) renderGpu(selectGpuData(lastStatus, false));
   });
+
+  function selectDiskData(d, sample) {
+    if (!Array.isArray(d.disks)) { diskInventory = null; return d; }
+    diskInventory = d.disks.slice().sort(function(a, b) {
+      return (a.mount === '/' ? 0 : 1) - (b.mount === '/' ? 0 : 1) ||
+             (a.mount || a.name).localeCompare(b.mount || b.name);
+    });
+    if (!diskInventory.some(function(disk) { return disk.id === selectedDisk; }))
+      selectedDisk = (diskInventory[0] || {}).id || null;
+    var pick = document.getElementById('disk-pick');
+    var signature = JSON.stringify(diskInventory.map(function(disk) { return [disk.id, disk.device, disk.mounts]; }));
+    if (signature !== diskSignature) {
+      diskSignature = signature; pick.innerHTML = '';
+      diskInventory.forEach(function(disk) {
+        var option = document.createElement('option');
+        option.value = disk.id;
+        option.textContent = (disk.mount || 'Unmounted') + ' · ' + disk.device;
+        pick.appendChild(option);
+      });
+    }
+    pick.hidden = diskInventory.length < 2; pick.value = selectedDisk || '';
+    var chosen = diskInventory.filter(function(disk) { return disk.id === selectedDisk; })[0] || {};
+    var detail = document.getElementById('disk-detail');
+    detail.hidden = !selectedDisk;
+    detail.textContent = chosen.mount ? chosen.mount + ' · ' + chosen.device : (chosen.device || '') + ' · unmounted';
+    detail.title = (chosen.mounts || []).join(', ');
+    if (sample) {
+      Object.keys(diskSeries).forEach(function(id) {
+        if (!diskInventory.some(function(disk) { return disk.id === id; })) {
+          push(diskSeries[id].read, null); push(diskSeries[id].write, null);
+        }
+      });
+      diskInventory.forEach(function(disk) {
+        var series = diskSeries[disk.id] || (diskSeries[disk.id] = {read: [], write: []});
+        push(series.read, disk.read_bytes == null ? null : disk.read_bytes);
+        push(series.write, disk.write_bytes == null ? null : disk.write_bytes);
+      });
+    }
+    var series = diskSeries[selectedDisk] || {read: [], write: []};
+    diskRdHist = series.read; diskWrHist = series.write;
+    d = Object.assign({}, d);
+    ['used_gb', 'total_gb', 'free_gb', 'pct', 'read_bytes', 'write_bytes'].forEach(function(key) { d['disk_' + key] = chosen[key]; });
+    return d;
+  }
+
+  function renderDisk(d) {
+    var haveSpace = d.disk_total_gb > 0 && d.disk_used_gb != null;
+    var diskPct = haveSpace ? (d.disk_pct != null ? d.disk_pct : d.disk_used_gb / d.disk_total_gb * 100) : 0;
+    setBar('disk-bar', 'disk-bar-text', diskPct,
+           haveSpace ? d.disk_used_gb + ' / ' + d.disk_total_gb + ' GB' : '--', '#5aad8a', false);
+    var haveRd = d.disk_read_bytes != null, haveWr = d.disk_write_bytes != null;
+    var rdRate = haveRd ? d.disk_read_bytes : 0, wrRate = haveWr ? d.disk_write_bytes : 0;
+    document.getElementById('disk-stats').innerHTML =
+      '<span class="net-rx">R ' + (haveRd ? fmtRate(rdRate) : '--') + '</span> ' +
+      '<span class="net-tx">W ' + (haveWr ? fmtRate(wrRate) : '--') + '</span>';
+    var allDisk = diskRdHist.concat(diskWrHist).filter(function(v) { return v != null && v > 0; });
+    diskMaxRate = allDisk.length ? Math.max(Math.max.apply(null, allDisk) * 1.2, 1024 * 1024) : 1024 * 1024;
+    var dya = document.getElementById('disk-yaxis');
+    if (dya) dya.innerHTML = '<span>' + fmtRate(diskMaxRate) + '</span><span>' + fmtRate(diskMaxRate/2) + '</span><span>0</span>';
+    drawChart('disk-chart', [{data: diskRdHist, color: 'rgb(90,173,138)'}, {data: diskWrHist, color: 'rgb(90,138,176)'}], diskMaxRate);
+  }
+
+  document.getElementById('disk-pick').addEventListener('change', function() {
+    selectedDisk = this.value;
+    if (lastStatus) renderDisk(selectDiskData(lastStatus, false));
+  });
+
   var lastNet = null, lastNetTime = 0;
   var netMaxRate = 1024 * 1024;
   var pwrMax = 300;
@@ -712,7 +783,7 @@
       if (!r.ok) throw new Error('status ' + r.status);
       return r.json();
     }).then(function(d) {
-      lastStatus = d; d = selectGpuData(d, true);
+      lastStatus = d; d = selectGpuData(d, true); d = selectDiskData(d, true);
       missed = 0; lastOkAt = Date.now();
       showStale();
       if (d.cpu_cores && d.cpu_cores.length) updateCores(d.cpu_cores);  // [] is truthy → avoid 0/0=NaN avg
@@ -829,27 +900,11 @@
       renderGpu(d);
       drawChart('pwr-chart', [{data: cpuPwrHist, color: 'rgb(90,173,138)'}, {data: gpuPwrHist, color: 'rgb(90,138,176)'}, {data: wallPwrHist, color: 'rgb(176,127,208)'}], pwrMax);
 
-      if (d.disk_total_gb != null) {
-        var diskPct = d.disk_total_gb > 0 ? (d.disk_used_gb / d.disk_total_gb * 100) : 0;
-        setBar('disk-bar', 'disk-bar-text', diskPct, d.disk_used_gb + ' / ' + d.disk_total_gb + ' GB', '#5aad8a', false);
+      if (diskInventory === null) {
+        push(diskRdHist, d.disk_read_bytes == null ? null : d.disk_read_bytes);
+        push(diskWrHist, d.disk_write_bytes == null ? null : d.disk_write_bytes);
       }
-      // Same rule as the GPU series: an absent counter breaks the line rather
-      // than drawing a real 0, and the text says '--' instead of "0 B/s" — which
-      // claims the disk was idle when nothing was measured at all.
-      var haveRd = d.disk_read_bytes != null, haveWr = d.disk_write_bytes != null;
-      var rdRate = haveRd ? d.disk_read_bytes : 0;
-      var wrRate = haveWr ? d.disk_write_bytes : 0;
-      push(diskRdHist, haveRd ? rdRate : null);
-      push(diskWrHist, haveWr ? wrRate : null);
-      document.getElementById('disk-stats').innerHTML =
-        '<span class="net-rx">R ' + (haveRd ? fmtRate(rdRate) : '--') + '</span> ' +
-        '<span class="net-tx">W ' + (haveWr ? fmtRate(wrRate) : '--') + '</span>';
-      var allDisk = diskRdHist.concat(diskWrHist).filter(function(v) { return v != null && v > 0; });
-      if (allDisk.length > 0) diskMaxRate = Math.max(Math.max.apply(null, allDisk) * 1.2, 1024 * 1024);
-      else diskMaxRate = 1024 * 1024;
-      var dya = document.getElementById('disk-yaxis');
-      if (dya) dya.innerHTML = '<span>' + fmtRate(diskMaxRate) + '</span><span>' + fmtRate(diskMaxRate/2) + '</span><span>0</span>';
-      drawChart('disk-chart', [{data: diskRdHist, color: 'rgb(90,173,138)'}, {data: diskWrHist, color: 'rgb(90,138,176)'}], diskMaxRate);
+      renderDisk(d);
     }).catch(function() { missed++; showStale(); });
   }
 
@@ -907,6 +962,13 @@
         wallPwrHist = s.wall_power_w;
         netRxHist = s.net_rx_bps; netTxHist = s.net_tx_bps;
         diskRdHist = s.disk_read_bytes; diskWrHist = s.disk_write_bytes;
+        if (diskInventory !== null) {
+          diskInventory.forEach(function(disk) {
+            var ds = (h.disks || {})[disk.id] || {};
+            diskSeries[disk.id] = {read: ds.disk_read_bytes || [], write: ds.disk_write_bytes || []};
+          });
+          if (lastStatus) renderDisk(selectDiskData(lastStatus, false));
+        }
         if (gpuInventory !== null && lastStatus) renderGpu(selectGpuData(lastStatus, false));
         if (then) then(h);
         return true;
@@ -920,7 +982,7 @@
     var span = b.getAttribute('data-span');
     var btns = this.querySelectorAll('button');
     for (var i = 0; i < btns.length; i++) btns[i].classList.toggle('on', btns[i] === b);
-    historyGeneration++; gpuSeries = {};
+    historyGeneration++; gpuSeries = {}; diskSeries = {};
     histSpan = (span === '2m') ? '' : span;
     // Clear first: the old span's points are at the wrong scale entirely, and
     // leaving them up while the fetch lands shows a chart that means nothing.

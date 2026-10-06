@@ -595,3 +595,102 @@ def test_gpu_power_sums_discrete_cards_without_double_counting_integrated(status
     del cards[1]['power_w']
     result = status.get_system_status([], lambda k, t, p: p(), want_procs=False)
     assert 'gpu_power_w' not in result
+
+
+def test_disk_inventory_deduplicates_bind_mounts_and_discovers_all_local_volumes(status, monkeypatch, tmp_path):
+    import builtins
+    import os
+    root = tmp_path / 'disk-fixture'
+    for name, devno, partition in [('nvme0n1', '259:0', False), ('nvme0n1p2', '259:2', True),
+                                    ('sda', '8:0', False), ('sda1', '8:1', True),
+                                    ('sdb', '8:16', False), ('loop0', '7:0', False)]:
+        # Real parent/partition paths, like the kernel's sysfs links.
+        parent = 'nvme0n1' if name.startswith('nvme') else 'sda' if name.startswith('sda') else name
+        block = root / 'sys/devices' / parent
+        if partition:
+            block /= name
+        block.mkdir(parents=True, exist_ok=True)
+        (block / 'holders').mkdir(exist_ok=True)
+        (block / 'dev').write_text(devno)
+        if partition:
+            (block / 'partition').write_text('2')
+        for directory, ident in [('sys/class/block', name), ('sys/dev/block', devno)]:
+            dest = root / directory / ident
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            dest.symlink_to(block)
+    uuiddir = root / 'dev/disk/by-uuid'
+    uuiddir.mkdir(parents=True)
+    (uuiddir / 'root-uuid').symlink_to('/dev/nvme0n1p2')
+    (uuiddir / 'data-uuid').symlink_to('/dev/sda1')
+    mountinfo = root / 'proc/self/mountinfo'
+    mountinfo.parent.mkdir(parents=True)
+    mountinfo.write_text('''1 0 259:2 / / rw - ext4 /dev/nvme0n1p2 rw
+2 1 8:1 / /data rw - ext4 /dev/sda1 rw
+3 1 8:1 /folder /alias\\040space rw - ext4 /dev/sda1 rw
+4 1 7:0 / /snap/pkg rw - squashfs /dev/loop0 ro
+5 1 0:1 / /run rw - tmpfs tmpfs rw
+''')
+    original_open, original_exists = builtins.open, os.path.exists
+    original_realpath, original_listdir = os.path.realpath, os.listdir
+    def mapped(path):
+        path = os.fspath(path)
+        if path.startswith(('/sys/', '/dev/disk/', '/proc/self/')):
+            return str(root / path.lstrip('/'))
+        return path
+    monkeypatch.setattr(builtins, 'open', lambda path, *args, **kw: original_open(mapped(path), *args, **kw))
+    monkeypatch.setattr(os.path, 'exists', lambda path: original_exists(mapped(path)))
+    monkeypatch.setattr(os.path, 'realpath', lambda path: original_realpath(mapped(path)))
+    monkeypatch.setattr(os, 'listdir', lambda path: original_listdir(mapped(path)))
+    disks = status._disk_inventory()
+    assert [disk['mount'] for disk in disks] == ['/', None, '/data']
+    data = next(disk for disk in disks if disk['mount'] == '/data')
+    assert data['mounts'] == ['/alias space', '/data']
+    assert len({disk['id'] for disk in disks}) == 3
+    assert all(disk['id'].startswith('disk-') for disk in disks)
+    assert [disk['name'] for disk in disks if disk['mount'] is None] == ['sdb']
+    # Renumbering a filesystem's device does not change UUID-based identity.
+    (uuiddir / 'data-uuid').unlink()
+    (uuiddir / 'data-uuid').symlink_to('/dev/sdc1')
+    diskpath = root / 'sys/devices/sdc/sdc1'
+    diskpath.mkdir(parents=True)
+    (root / 'sys/dev/block/8:1').unlink()
+    (root / 'sys/dev/block/8:1').symlink_to(diskpath)
+    (diskpath / 'holders').mkdir()
+    new = next(disk for disk in status._disk_inventory() if disk['mount'] == '/data')
+    assert new['id'] == data['id']
+
+
+def test_disks_keep_independent_delta_windows_and_share_samples(status, monkeypatch):
+    import builtins
+    clock = [10.0]
+    counts = ['8 1 sda1 0 0 100 0 0 0 200 0 0 0 0\n259 2 nvme0n1p2 0 0 500 0 0 0 800 0 0 0 0\n']
+    inventory = [dict(id='disk-' + 'a' * 64, name='sda1', device='/dev/sda1', mount='/data', mounts=['/data'], _devno='8:1'),
+                 dict(id='disk-' + 'b' * 64, name='nvme0n1p2', device='/dev/nvme0n1p2', mount='/', mounts=['/'], _devno='259:2')]
+    monkeypatch.setattr(status, '_disk_sample', None)
+    monkeypatch.setattr(status, '_disk_prev', {})
+    monkeypatch.setattr(status.time, 'monotonic', lambda: clock[0])
+    original_open = builtins.open
+    monkeypatch.setattr(builtins, 'open', lambda path, *a, **kw: io.StringIO(counts[0]) if path == '/proc/diskstats' else original_open(path, *a, **kw))
+    monkeypatch.setattr(status.os, 'statvfs', lambda path: SimpleNamespace(f_frsize=1024**3, f_blocks=100, f_bfree=30, f_bavail=20))
+    original_stat = status.os.stat
+    def mounted_stat(path, *args, **kw):
+        if path in ('/', '/data'):
+            dev = status.os.makedev(8, 1) if path == '/data' and clock[0] < 14 else status.os.makedev(259, 2)
+            return SimpleNamespace(st_dev=dev)
+        return original_stat(path, *args, **kw)
+    monkeypatch.setattr(status.os, 'stat', mounted_stat)
+    cached = lambda key, ttl, producer: inventory
+    first = status._read_disks(cached)
+    assert all('read_bytes' not in disk for disk in first)
+    assert first[0]['used_gb'] == 70 and first[0]['free_gb'] == 20 and first[0]['pct'] == 78
+    clock[0] = 10.5
+    assert status._read_disks(cached) is first
+    counts[0] = '8 1 sda1 0 0 104 0 0 0 202 0 0 0 0\n259 2 nvme0n1p2 0 0 520 0 0 0 810 0 0 0 0\n'
+    clock[0] = 12
+    second = status._read_disks(cached)
+    assert [(disk['read_bytes'], disk['write_bytes']) for disk in second] == [(1024, 512), (5120, 2560)]
+    counts[0] = '8 1 sda1 0 0 1 0 0 0 2 0 0 0 0\n'
+    clock[0] = 14
+    third = status._read_disks(cached)
+    assert all('read_bytes' not in disk for disk in third), 'reset and missing counters are unknown'
+    assert 'used_gb' not in third[0], 'an unmounted volume must not inherit parent filesystem space'

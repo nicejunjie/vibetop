@@ -21,6 +21,7 @@ import re
 import shutil
 import json
 import heapq
+import hashlib
 import socket
 import subprocess
 import threading
@@ -46,6 +47,9 @@ _prev_rapl_time = 0.0
 # Disk I/O snapshot for rate calculation
 _prev_disk_sectors = (0, 0)
 _prev_disk_time = 0.0
+_disk_sample = None
+_disk_sample_at = 0.0
+_disk_prev = {}
 
 # Per-process CPU snapshot for delta-based calculation
 _prev_proc_snap = {}  # pid -> ticks
@@ -375,6 +379,151 @@ def _collect_gpus(cached):
     for gpu in smi:
         gpus[gpu["id"]] = {**gpus.get(gpu["id"], {}), **gpu}
     return sorted(gpus.values(), key=lambda gpu: gpu["id"])
+
+
+def _mount_path(value):
+    return re.sub(r"\\([0-7]{3})", lambda m: chr(int(m.group(1), 8)), value)
+
+
+def _disk_inventory():
+    """Local block filesystems, deduplicated across bind mounts/subvolumes.
+
+    Space belongs to a filesystem, not to a whole disk with several partitions.
+    I/O belongs to that same block device (including dm/RAID logical devices),
+    avoiding the old mixture of root-partition space and whole-drive traffic.
+    Unmounted whole devices remain visible with I/O and unknown used space.
+    """
+    uuids = {}
+    try:
+        for uuid in sorted(os.listdir('/dev/disk/by-uuid')):
+            uuids[os.path.basename(os.path.realpath('/dev/disk/by-uuid/' + uuid))] = uuid
+    except OSError:
+        pass
+    mounts = {}
+    try:
+        with open('/proc/self/mountinfo') as stream:
+            for line in stream:
+                parts = line.split()
+                try:
+                    sep = parts.index('-')
+                    devno, root, mount = parts[2], _mount_path(parts[3]), _mount_path(parts[4])
+                    source = _mount_path(parts[sep + 2])
+                    block = '/sys/dev/block/' + devno
+                    if not os.path.exists(block):
+                        continue
+                    name = os.path.basename(os.path.realpath(block))
+                    if name.startswith(('loop', 'ram', 'zram', 'sr')):
+                        continue
+                    entry = mounts.setdefault(devno, {'name': name, 'device': source, 'mounts': [], '_roots': []})
+                    entry['mounts'].append(mount)
+                    entry['_roots'].append((root != '/', mount != '/', len(mount), mount))
+                except (ValueError, IndexError):
+                    continue
+    except OSError:
+        pass
+    out = []
+    for devno, entry in mounts.items():
+        entry['mount'] = min(entry.pop('_roots'))[-1]
+        entry['mounts'] = sorted(set(entry['mounts']))
+        entry['_devno'] = devno
+        identity = 'uuid:' + uuids[entry['name']] if entry['name'] in uuids else 'block:' + os.path.realpath('/sys/dev/block/' + devno)
+        entry['id'] = 'disk-' + hashlib.sha256(identity.encode()).hexdigest()
+        out.append(entry)
+    # Include whole disks that have no mounted partition. Showing both a parent
+    # and its mounted partitions as separate usage pools would double-count it.
+    try:
+        for name in sorted(os.listdir('/sys/class/block')):
+            block = '/sys/class/block/' + name
+            if name.startswith(('loop', 'ram', 'zram', 'sr')) or os.path.exists(block + '/partition'):
+                continue
+            real = os.path.realpath(block)
+            if any(os.path.realpath('/sys/dev/block/' + entry['_devno']).startswith(real + '/') or
+                   os.path.realpath('/sys/dev/block/' + entry['_devno']) == real for entry in out):
+                continue
+            # Device-mapper/RAID backing devices are already represented by
+            # their mounted logical volume. Don't expose them as unused disks.
+            try:
+                if os.listdir(block + '/holders'):
+                    continue
+            except OSError:
+                continue
+            try:
+                with open(block + '/dev') as stream:
+                    devno = stream.read().strip()
+            except OSError:
+                continue
+            identity = real
+            for field in ('wwid', 'device/serial'):
+                try:
+                    with open(block + '/' + field) as stream:
+                        value = stream.read().strip()
+                    if value:
+                        identity = value
+                        break
+                except OSError:
+                    pass
+            out.append({'id': 'disk-' + hashlib.sha256(identity.encode()).hexdigest(),
+                        'name': name, 'device': '/dev/' + name, 'mount': None, 'mounts': [], '_devno': devno})
+    except OSError:
+        pass
+    return sorted(out, key=lambda disk: (disk['mount'] != '/', disk['mount'] or '', disk['name']))
+
+
+def _read_disks(cached):
+    """Share a delta window across taskbar, Monitor and concurrent viewers."""
+    global _disk_sample, _disk_sample_at, _disk_prev
+    now = time.monotonic()
+    if _disk_sample is not None and now - _disk_sample_at < 1.8:
+        return _disk_sample
+    inventory = cached('disk_inventory', 10.0, _disk_inventory)
+    counters = {}
+    try:
+        with open('/proc/diskstats') as stream:
+            for line in stream:
+                parts = line.split()
+                if len(parts) >= 14:
+                    try:
+                        counters[parts[0] + ':' + parts[1]] = (int(parts[5]), int(parts[9]))
+                    except ValueError:
+                        continue
+    except OSError:
+        pass
+    out, next_prev = [], {}
+    for entry in inventory:
+        disk = {k: v for k, v in entry.items() if not k.startswith('_')}
+        mount = disk['mount']
+        if mount:
+            try:
+                mounted_dev = os.stat(mount).st_dev
+                if f'{os.major(mounted_dev)}:{os.minor(mounted_dev)}' != entry['_devno']:
+                    # A cached mount disappeared: statvfs now sees the parent
+                    # filesystem, whose space must never be attributed here.
+                    raise OSError('mount device changed')
+                st = os.statvfs(mount)
+                used = st.f_blocks - st.f_bfree
+                disk.update(total_gb=round(st.f_frsize * st.f_blocks / 1024**3, 1),
+                            used_gb=round(st.f_frsize * used / 1024**3, 1),
+                            free_gb=round(st.f_frsize * st.f_bavail / 1024**3, 1))
+                if used + st.f_bavail > 0:
+                    disk['pct'] = round(100 * used / (used + st.f_bavail))
+            except OSError:
+                pass
+        counts = counters.get(entry['_devno'])
+        if counts is not None:
+            prev = _disk_prev.get(disk['id'])
+            if prev:
+                stamp, old_rd, old_wr = prev
+                dt = now - stamp
+                # Device replacement/counter reset is an unknown interval, not
+                # a negative rate or a fabricated idle sample.
+                if 0 < dt <= 600 and counts[0] >= old_rd and counts[1] >= old_wr:
+                    disk['read_bytes'] = int((counts[0] - old_rd) * 512 / dt)
+                    disk['write_bytes'] = int((counts[1] - old_wr) * 512 / dt)
+            next_prev[disk['id']] = (now, *counts)
+        out.append(disk)
+    _disk_prev = next_prev
+    _disk_sample, _disk_sample_at = out, now
+    return out
 
 
 def _root_disk():
@@ -707,7 +856,9 @@ def _collect(running_terminals, cached, want_procs=True):
     except Exception:
         pass
 
-    # Disk usage and I/O
+    disks = _read_disks(cached)
+
+    # Legacy root disk usage and I/O
     disk_used_gb = None
     disk_total_gb = None
     disk_free_gb = None
@@ -787,6 +938,7 @@ def _collect(running_terminals, cached, want_procs=True):
     if processes is not None:
         result["processes"] = processes
     result["gpus"] = gpus
+    result["disks"] = disks
     if gpu_percent is not None:
         result["gpu_percent"] = gpu_percent
     if gpu_vram_used_gb is not None:

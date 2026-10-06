@@ -69,6 +69,21 @@ Existing host history is preserved. Old primary-card history is never assigned
 to a different device; GPU power history sums device rings and stays blank where
 any component is unknown. Device histories begin recording with this change.
 
+The Disk card selects local block filesystems by stable identity (filesystem UUID
+when available), with independent space and read/write rates. It discovers all
+local volumes, including device-mapper/LVM and RAID volumes, and deduplicates
+bind mounts and subvolumes sharing the same block filesystem. Snap loop devices,
+tmpfs and network mounts are excluded. Unmounted whole devices remain selectable
+for I/O with unknown used space. Filesystem space and I/O refer to the same block
+device; the old root-only scalars remain available for the desktop tray.
+
+Per-volume history uses `metrics.ring.disks/<disk-identity>`, one fixed ~930KB ring
+per identity with no device-count ceiling. The history endpoint adds
+`disks: {identity: {disk_used_gb: [...], disk_read_bytes: [...],
+disk_write_bytes: [...]}}` on the same timestamps as the host and GPU histories.
+Removing a volume or losing a counter leaves a gap; old root-drive history is
+never copied onto another volume. UUID identity survives device renumbering.
+
 The Monitor used to open blank: every chart was built one sample per frame, so
 it took two minutes to draw a line and knew nothing about what happened while
 nobody was looking. The manager now keeps a **7-day ring** of the numbers beside

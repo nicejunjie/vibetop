@@ -316,3 +316,36 @@ def test_device_history_missing_sensor_is_gap_and_coarse_tier_is_recorded(hist):
 def test_device_ring_paths_accept_only_pci_identity(hist):
     hist.note(_st(gpus=[{'id': '../../outside', 'percent': 99}]), T0)
     assert hist._devices == {}
+
+
+def test_disk_rings_keep_all_volume_histories_separate_across_restart(mh, tmp_path):
+    path = str(tmp_path / 'metrics.ring')
+    a, b = 'disk-' + 'a' * 64, 'disk-' + 'b' * 64
+    h = mh.History(path)
+    cards = [{'id': a, 'read_bytes': 0, 'write_bytes': 100},
+             {'id': b, 'read_bytes': 5000, 'write_bytes': 2000}]
+    h.note(_st(disks=cards), T0)
+    h.note(_st(disks=list(reversed(cards))), T0 + 1)
+    h.tick(T0 + 2)
+    h.note(_st(disks=[cards[0]]), T0 + 2)
+    h.tick(T0 + 4)
+    h.close()
+    reopened = mh.History(path)
+    try:
+        out = reopened.window(T0 + 4, 10, 5, ['disk_read_bytes', 'disk_write_bytes'])['disks']
+        assert out[a]['disk_read_bytes'][-3:] == [0, 0, None]
+        assert out[b]['disk_read_bytes'][-3:] == [5000, None, None]
+        assert out[b]['disk_write_bytes'][-3:] == [2000, None, None]
+        assert os.path.getsize(path + '.disks/' + a) == mh.FILE_SIZE
+    finally:
+        reopened.close()
+
+
+def test_disk_history_has_no_two_device_or_gpu_identity_limit(hist):
+    disks = [{'id': 'disk-' + format(i, '064x'), 'read_bytes': i} for i in range(20)]
+    hist.note(_st(disks=disks + [{'id': '../../outside', 'read_bytes': 99}]), T0)
+    hist.tick(T0 + 2)
+    out = hist.window(T0 + 2, 10, 5, ['disk_read_bytes'])['disks']
+    assert len(out) == 20
+    for i, disk in enumerate(disks):
+        assert i in out[disk['id']]['disk_read_bytes']

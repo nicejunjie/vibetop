@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_389 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_390 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [Terminal link opened a closed Browser app but lost the URL](#terminal-link-opened-a-closed-browser-app-but-lost-the-url)
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
@@ -412,6 +412,7 @@ _389 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [RTS: the Grand Cannon's gun was too short and it fired like a rifle (2026-09-25)](#rts-the-grand-cannons-gun-was-too-short-and-it-fired-like-a-rifle-2026-09-25)
 - [RTS: the Prism Tower was drawn from a DAMAGED frame (w26, 2026-09-26)](#rts-the-prism-tower-was-drawn-from-a-damaged-frame-w26-2026-09-26)
 - [Monitor showed an idle GPU while the second card was fully occupied (2026-10-06)](#monitor-showed-an-idle-gpu-while-the-second-card-was-fully-occupied-2026-10-06)
+- [Monitor ignored data disks and mixed filesystem space with parent-drive I/O (2026-10-06)](#monitor-ignored-data-disks-and-mixed-filesystem-space-with-parent-drive-io-2026-10-06)
 
 <!-- END TOC -->
 
@@ -17775,3 +17776,27 @@ history to establish device identity, and reject responses from an earlier span.
 and suggests that separate VRAM pools are interchangeable. Adding positional
 GPU1/GPU2 fields would swap identities when enumeration changes. Reformatting the
 host ring would discard unrelated CPU, disk, network and wall-power history.
+
+
+## Monitor ignored data disks and mixed filesystem space with parent-drive I/O (2026-10-06)
+
+**Symptom:** Monitor only showed the root filesystem, although the host also had
+a separate 7.3TB disk mounted at `/data`.
+
+**Cause:** space always came from `statvfs('/')`; I/O matched only the parent
+of the root partition in `/proc/diskstats`. Neither collection nor history had
+an inventory or a per-device delta window.
+
+**Fix:** discover local block filesystems via mountinfo and sysfs, using UUIDs
+for persistent identity when available. Deduplicate bind mounts and subvolumes
+sharing a block device, filter pseudo/loop mounts, and expose unmounted whole
+devices for I/O without inventing used space. Read each selected filesystem's
+own block-device I/O, with separate cached delta windows and gaps for missing or
+reset counters. Add a disk selector and per-volume live/persisted histories,
+with no device-count ceiling. Preserve legacy root scalars for the desktop tray.
+
+**Rejected:** summing physical disks and their partitions double-counts traffic
+and capacity. Adding `/data` as a special case would fail on the next host.
+Using enumeration indices for history assigns one drive's readings to another
+when disks are added or renamed. Reusing the old root history for every volume
+would fabricate each new disk's past.

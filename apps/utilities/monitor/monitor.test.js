@@ -1041,3 +1041,70 @@ test('device histories never inherit the primary GPU history and power history s
   assert.strictEqual(vertices(old.id('gpu-chart'), GREEN).length, 0,
     'old primary-device history cannot be assigned to GPU2');
 });
+
+const DISK_ROOT = {id: 'disk-' + 'a'.repeat(64), name: 'nvme0n1p2', device: '/dev/nvme0n1p2',
+  mount: '/', mounts: ['/'], used_gb: 100, total_gb: 1000, pct: 11, read_bytes: 1024, write_bytes: 0};
+const DISK_DATA = {id: 'disk-' + 'b'.repeat(64), name: 'sda1', device: '/dev/sda1',
+  mount: '/data', mounts: ['/data'], used_gb: 600, total_gb: 8000, pct: 8, read_bytes: 1048576, write_bytes: 2048};
+
+test('disk selection changes space, I/O and history without assuming a disk count', async () => {
+  const unmounted = {id: 'disk-' + 'c'.repeat(64), name: 'sdb', device: '/dev/sdb', mount: null, mounts: [], read_bytes: 0, write_bytes: 0};
+  const extra = {...DISK_DATA, id: 'disk-' + 'd'.repeat(64), device: '/dev/sdc1', mount: '/backup', mounts: ['/backup']};
+  const h = load({payloads: [fullStatus({disks: [DISK_DATA, unmounted, extra, DISK_ROOT]})]});
+  await h.settle();
+  assert.strictEqual(h.id('disk-pick').children.length, 4);
+  assert.strictEqual(h.id('disk-pick').value, DISK_ROOT.id);
+  assert.strictEqual(h.id('disk-bar-text').textContent, '100 / 1000 GB');
+  assert.strictEqual(h.id('disk-bar').style.width, '11%');
+  h.id('disk-pick').value = DISK_DATA.id; h.id('disk-pick').fire('change');
+  assert.strictEqual(h.id('disk-bar-text').textContent, '600 / 8000 GB');
+  assert.ok(h.id('disk-stats').innerHTML.includes('1.0 MB/s'));
+  assert.ok(h.id('disk-detail').textContent.includes('/data'));
+  h.id('disk-pick').value = unmounted.id; h.id('disk-pick').fire('change');
+  assert.strictEqual(h.id('disk-bar-text').textContent, '--');
+  assert.ok(h.id('disk-stats').innerHTML.includes('0 B/s'));
+});
+
+test('disk identity survives reordering and missing readings do not retain stale space', async () => {
+  const absent = {...DISK_DATA, used_gb: null, total_gb: null, read_bytes: null, write_bytes: null};
+  const h = load({payloads: [fullStatus({disks: [DISK_ROOT, DISK_DATA]}), fullStatus({disks: [absent, DISK_ROOT]})]});
+  await h.settle();
+  h.id('disk-pick').value = DISK_DATA.id; h.id('disk-pick').fire('change');
+  h.tick(); await h.settle();
+  assert.strictEqual(h.id('disk-pick').value, DISK_DATA.id);
+  assert.strictEqual(h.id('disk-bar-text').textContent, '--');
+  assert.ok(h.id('disk-stats').innerHTML.includes('R --'));
+  assert.ok(h.id('disk-stats').innerHTML.includes('W --'));
+});
+
+test('empty disk inventory clears root scalars and removed selection falls back safely', async () => {
+  const h = load({payloads: [fullStatus({disks: [DISK_ROOT, DISK_DATA]}), fullStatus({disks: [DISK_ROOT]}), fullStatus({disks: []})]});
+  await h.settle();
+  h.id('disk-pick').value = DISK_DATA.id; h.id('disk-pick').fire('change');
+  h.tick(); await h.settle();
+  assert.strictEqual(h.id('disk-pick').value, DISK_ROOT.id);
+  assert.strictEqual(h.id('disk-pick').hidden, true);
+  h.tick(); await h.settle();
+  assert.strictEqual(h.id('disk-bar-text').textContent, '--');
+  assert.ok(h.id('disk-stats').innerHTML.includes('R --'));
+});
+
+test('disk history is taken by identity and never copies root history onto data', async () => {
+  const flat = value => Array(60).fill(value);
+  const series = Object.fromEntries(['memory_used_gb', 'gpu_percent', 'gpu_vram_used_gb', 'cpu_temp',
+    'gpu_temp', 'cpu_power_w', 'gpu_power_w', 'wall_power_w', 'net_rx_bps', 'net_tx_bps',
+    'disk_read_bytes', 'disk_write_bytes'].map(key => [key, flat(1)]));
+  const history = {series, disks: {
+    [DISK_ROOT.id]: {disk_read_bytes: flat(0), disk_write_bytes: flat(0)},
+    [DISK_DATA.id]: {disk_read_bytes: flat(10485760), disk_write_bytes: flat(2048)}
+  }};
+  const h = load({payloads: [fullStatus({disks: [DISK_ROOT, DISK_DATA]})], history});
+  await h.settle();
+  h.clearPaths(); h.id('disk-pick').value = DISK_DATA.id; h.id('disk-pick').fire('change');
+  assert.ok(h.id('disk-yaxis').innerHTML.includes('12.0 MB/s'));
+  assert.ok(vertices(h.id('disk-chart'), GREEN).length >= 60);
+  const old = load({payloads: [fullStatus({disks: [DISK_ROOT, DISK_DATA]})], history: {series}});
+  await old.settle(); old.clearPaths();
+  old.id('disk-pick').value = DISK_DATA.id; old.id('disk-pick').fire('change');
+  assert.strictEqual(vertices(old.id('disk-chart'), GREEN).length, 0);
+});
