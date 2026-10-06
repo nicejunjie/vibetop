@@ -103,7 +103,7 @@ those charts (`server/metrics_history.py`, `/var/lib/vibetop/metrics.ring`).
 Chart axes use round 1/2/5-based bounds. Percentages stay at 0/50/100;
 temperature defaults to 0/50/100°C and expands when needed. Power and I/O scales
 round their actual chart domains upward, so the plotted values match the ticks.
-All Y-axis labels use 12px text with stronger contrast and stay on one line.
+All Y-axis labels use 10px text with stronger contrast and stay on one line.
 Both rate ticks share a unit (for example 1 and 2 MB/s). Live readings keep their
 original precision.
 
