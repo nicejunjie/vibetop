@@ -99,3 +99,15 @@ test('repaint retains the age of a size claim even if intervening scroll events 
   ws.emit('open');ws.emit('message',{data:'0\x1b[2J'});b.parse();b.advance(5000);
   assert.equal(b.rows().find(r=>r.event==='screen-repaint').size_claim_age_ms,50);
 });
+
+
+test('reading redraw outcomes identify the deployed anchor revision without capturing content', () => {
+  const b = browser();
+  b.w.__vibetopTerminalReading = () => ({reader_revision: 2, following: false, anchored: true, marker_row: 40});
+  b.w.__vibetopTraceTerminalScroll('reader-redraw-hold');
+  b.w.__vibetopTraceTerminalScroll('reader-redraw-resume');
+  b.advance(5000);
+  const rows = b.rows().filter(r => r.event === 'reader-redraw');
+  assert.equal(rows.length, 2);
+  assert(rows.every(r => r.reader_revision === 2 && r.anchored));
+});

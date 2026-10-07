@@ -60,11 +60,51 @@
   }
   var reader = null, readerMarker = null, readerRestoring = false, readerQueued = false;
   var readerNavigating = false, readerNavigationTimer = null, readerDragging = false;
+  var readerSnapshot = null, readerSnapshotTimer = null, readerImage = null, readerSnapshotEpoch = 0;
   var readerKey = 'vt-terminal-reader:' + (window.location && window.location.pathname || '');
   // A new frame/connection starts at latest. Reading anchors are live-only;
   // remove any anchor saved by an older client rather than restoring it.
   try { sessionStorage.removeItem(readerKey); } catch (_) {}
+  function releaseReaderSnapshot() {
+    if (readerSnapshotTimer) clearTimeout(readerSnapshotTimer);
+    readerSnapshotTimer = null;
+    if (readerSnapshot) readerSnapshot.remove();
+    readerSnapshot = null;
+  }
+  function copyReaderScreen(t) {
+    var screen = t.element && t.element.querySelector('.xterm-screen');
+    if (!screen) return null;
+    var snapshot = screen.cloneNode(true);
+    snapshot.className = '';
+    snapshot.setAttribute('aria-hidden', 'true');
+    snapshot.setAttribute('data-vt-reader-snapshot', '');
+    snapshot.style.cssText = 'position:absolute;inset:0;z-index:20;pointer-events:none;overflow:hidden;background:' +
+      getComputedStyle(screen).backgroundColor;
+    var original = screen.querySelectorAll('canvas'), copies = snapshot.querySelectorAll('canvas');
+    for (var i = 0; i < original.length; i++) copies[i].getContext('2d').drawImage(original[i], 0, 0);
+    return snapshot;
+  }
+  function holdReaderSnapshot(t) {
+    if (!reader || document.hidden || !t.element) return;
+    readerSnapshotEpoch++;
+    if (readerSnapshot) return;
+    var screen = t.element.querySelector('.xterm-screen');
+    if (!screen) return;
+    try {
+      // WebGL drawing buffers may be discarded after a frame. Keep a copy at
+      // onRender time, while its pixels are available, rather than reading it
+      // later when an erase command arrives.
+      var snapshot = readerImage || copyReaderScreen(t);
+      if (!snapshot) return;
+      screen.appendChild(snapshot); readerSnapshot = snapshot; readerImage = null;
+      traceScroll('reader-redraw-hold');
+      readerSnapshotTimer = setTimeout(function () {
+        traceScroll('reader-redraw-timeout'); releaseReaderSnapshot();
+      }, 2000);
+    } catch (_) { releaseReaderSnapshot(); }
+  }
   function clearReader() {
+    releaseReaderSnapshot(); readerImage = null;
     if (readerMarker) readerMarker.dispose();
     readerMarker = null; reader = null;
   }
@@ -76,15 +116,17 @@
     var t = window.term, b = t && t.buffer && t.buffer.active;
     if (!b || b.type === 'alternate' || atLatest()) { clearReader(); return; }
     var samples = [];
-    for (var i = 0; i < Math.min(8, t.rows); i++) {
+    for (var i = 0; i < Math.min(32, t.rows); i++) {
       var line = b.getLine(b.viewportY + i), text = line && line.translateToString(true);
       if (text) samples.push({offset: i, text: text});
-      if (samples.length === 3) break;
+      if (samples.length === 12) break;
     }
+    readerImage = null;
     reader = {distance: b.baseY - b.viewportY, cols: t.cols, samples: samples};
     markReader(t, b.viewportY);
   }
   function readerNavigation() {
+    releaseReaderSnapshot();
     readerNavigating = true;
     if (readerNavigationTimer) clearTimeout(readerNavigationTimer);
     // Native xterm wheel/key handlers run after this capture handler. Capture
@@ -97,7 +139,7 @@
     try { if (window.__vibetopTraceTerminalScroll) window.__vibetopTraceTerminalScroll(reason, data); } catch (_) {}
   }
   window.__vibetopTerminalReading = function () {
-    return {following: !!vtFollowOnReconnect, anchored: !!reader, navigating: readerNavigating,
+    return {reader_revision: 2, following: !!vtFollowOnReconnect, anchored: !!reader, navigating: readerNavigating,
       dragging: readerDragging, restoring: readerRestoring,
       marker_row: readerMarker && !readerMarker.isDisposed ? readerMarker.line : null,
       anchor_distance: reader ? reader.distance : null};
@@ -106,13 +148,21 @@
     var t = window.term, b = t && t.buffer && t.buffer.active;
     if (!reader || !b || b.type === 'alternate' || document.hidden || !t.element || t.element.clientWidth <= 0) return;
     var row = readerMarker && !readerMarker.isDisposed ? readerMarker.line : null;
+    function matches(row) {
+      return reader.samples.length && reader.samples.every(function (sample) {
+        var line = b.getLine(row + sample.offset);
+        return line && line.translateToString(true) === sample.text;
+      });
+    }
+    // An application may overwrite rows without disposing xterm's marker.
+    // A surviving row number alone does not identify the same passage.
+    if (row != null && reader.samples.length && !matches(row)) {
+      readerMarker.dispose(); readerMarker = null; row = null;
+    }
     if (row == null && reader.samples.length) {
       var expected = Math.max(0, b.baseY - reader.distance), best = Infinity;
       for (var i = 0; i <= b.baseY; i++) {
-        var match = reader.samples.every(function (sample) {
-          var line = b.getLine(i + sample.offset);
-          return line && line.translateToString(true) === sample.text;
-        });
+        var match = matches(i);
         if (match && Math.abs(i - expected) < best) { row = i; best = Math.abs(i - expected); }
       }
     }
@@ -126,6 +176,15 @@
       }
       if (!readerMarker || readerMarker.isDisposed) markReader(t, row);
       reader.distance = b.baseY - row;
+      if (readerSnapshot) {
+        var snapshot = readerSnapshot, epoch = readerSnapshotEpoch;
+        t.refresh(0, t.rows - 1);
+        requestAnimationFrame(function () { requestAnimationFrame(function () {
+          if (readerSnapshot === snapshot && readerSnapshotEpoch === epoch) {
+            traceScroll('reader-redraw-resume'); releaseReaderSnapshot();
+          }
+        }); });
+      }
     } finally { readerRestoring = false; }
   }
   function restoreReaderSoon() {
@@ -215,6 +274,22 @@
         vtFollowOnReconnect = atLatest(); captureReader();
       } else restoreReaderSoon();
     });
+    if (t.onRender) t.onRender(function () {
+      if (!reader || readerSnapshot || document.hidden || readerNavigating || readerDragging) return;
+      var b = t.buffer.active;
+      if (b.type !== 'normal' || !readerMarker || readerMarker.isDisposed || b.viewportY !== readerMarker.line) return;
+      if (!reader.samples.every(function (sample) {
+        var line = b.getLine(b.viewportY + sample.offset);
+        return line && line.translateToString(true) === sample.text;
+      })) return;
+      try { readerImage = copyReaderScreen(t); } catch (_) { readerImage = null; }
+    });
+    if (t.parser && t.parser.registerCsiHandler) {
+      t.parser.registerCsiHandler({final: 'J'}, function (params) {
+        if (params[0] === 3 && t.buffer.active.type === 'normal') holdReaderSnapshot(t);
+        return false;  // preserve xterm's normal erase semantics
+      });
+    }
     if (t.onWriteParsed) t.onWriteParsed(restoreReaderSoon);
     if (t.onResize) t.onResize(restoreReaderSoon);
   })();

@@ -181,3 +181,27 @@ test('a queued live-follow callback yields to history navigation before it runs'
   h.buffer.viewportY=0; h.output(); h.settle();
   assert.equal(h.buffer.viewportY,100);
 });
+
+
+test('split redraw waits for the actual passage rather than an earlier repeated heading', () => {
+  const h = readerHarness();
+  for (const row of [80, 380]) h.lines.splice(row, 3, 'assistant', 'Response', '----------------');
+  h.emit('wheel'); h.scroll(380); h.settle();
+  const complete = h.lines.slice();
+  h.markers.forEach(m => m.dispose());
+  h.lines.splice(200); h.buffer.baseY = 170; h.buffer.viewportY = 0;
+  h.output(); h.settle();
+  assert.equal(h.buffer.viewportY, 0, 'do not lock onto the earlier repeated heading');
+  h.lines.splice(0, h.lines.length, ...complete); h.buffer.baseY = 470;
+  h.output(); h.settle();
+  assert.equal(h.buffer.viewportY, 380, 'recover the original passage once it arrives');
+});
+
+test('a marker surviving an in-place rewrite must still match the saved passage', () => {
+  const h = readerHarness(); h.emit('wheel'); h.scroll(100); h.settle();
+  const passage = h.lines.slice(100, 130);
+  h.lines.splice(100, 30, ...Array(30).fill('rewritten content'));
+  h.lines.splice(200, 30, ...passage);
+  h.buffer.viewportY = 0; h.output(); h.settle();
+  assert.equal(h.buffer.viewportY, 200, 'a valid row number is not proof of matching content');
+});

@@ -108,8 +108,13 @@
     var viewport = w.term.element && w.term.element.querySelector('.xterm-viewport');
     var geometry = {ms: Math.round(stamp()), reason: reason, base: b.baseY, viewport: b.viewportY,
       distance: b.baseY - b.viewportY, mode: b.type, scroll_top: viewport ? Math.round(viewport.scrollTop) : null,
-      cursor_row: b.cursorY, rows: w.term.rows, cols: w.term.cols, following: reading.following, anchored: reading.anchored,
+      cursor_row: b.cursorY, rows: w.term.rows, cols: w.term.cols, reader_revision: reading.reader_revision, following: reading.following, anchored: reading.anchored,
       navigating: reading.navigating, target: data && data.target};
+    if (/^reader-redraw-(hold|resume|timeout)$/.test(reason)) {
+      emit('reader-redraw', {reason: reason, reader_revision: reading.reader_revision,
+        base: b.baseY, viewport: b.viewportY, following: reading.following, anchored: reading.anchored,
+        marker_row: reading.marker_row, rows: w.term.rows, cols: w.term.cols});
+    }
     var previous = lastGeometry;
     var shifted = previous && (geometry.distance - previous.distance > 5 ||
       (reason === 'reader-restore' && Math.abs((data.target || 0) - b.viewportY) > 5));
@@ -124,7 +129,7 @@
         Object.keys(reportedControls).some(function (k) { return controls[k] !== reportedControls[k]; })) {
       lastRepaint = stamp();
       emit('screen-repaint', {base: b.baseY, viewport: b.viewportY, mode: b.type,
-        rows: w.term.rows, cols: w.term.cols, following: reading.following, anchored: reading.anchored,
+        rows: w.term.rows, cols: w.term.cols, reader_revision: reading.reader_revision, following: reading.following, anchored: reading.anchored,
         controls: Object.assign({}, controls),
         size_claim_age_ms: Number.isFinite(lastSizeClaim) ? Math.round(stamp() - lastSizeClaim) : null,
         fit_age_ms: Number.isFinite(lastFit) ? Math.round(stamp() - lastFit) : null, observations: observations.slice(-6)});
@@ -135,7 +140,7 @@
       emit('viewport-shift', {reason: reason, from_base: previous.base, from_viewport: previous.viewport,
         base: b.baseY, viewport: b.viewportY, distance: geometry.distance, mode: b.type,
         scroll_top: geometry.scroll_top, rows: w.term.rows, cols: w.term.cols, navigation_age_ms: Number.isFinite(lastNavigation) ? Math.round(stamp() - lastNavigation) : null,
-        following: reading.following, anchored: reading.anchored, navigating: reading.navigating,
+        reader_revision: reading.reader_revision, following: reading.following, anchored: reading.anchored, navigating: reading.navigating,
         marker_row: reading.marker_row, anchor_distance: reading.anchor_distance,
         target: data && data.target, controls: Object.assign({}, controls),
         size_claim_age_ms: Number.isFinite(lastSizeClaim) ? Math.round(stamp() - lastSizeClaim) : null,

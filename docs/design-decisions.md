@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_404 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_405 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [Terminal link opened a closed Browser app but lost the URL](#terminal-link-opened-a-closed-browser-app-but-lost-the-url)
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
@@ -427,6 +427,7 @@ _404 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [Following latest survives redraws after connection settling (2026-10-07)](#following-latest-survives-redraws-after-connection-settling-2026-10-07)
 - [Capture actual scroll shifts before declaring terminal jumping resolved (2026-10-07)](#capture-actual-scroll-shifts-before-declaring-terminal-jumping-resolved-2026-10-07)
 - [Trace application redraws even when browser scroll stays latest (2026-10-07)](#trace-application-redraws-even-when-browser-scroll-stays-latest-2026-10-07)
+- [Do not match repeated headings during a split history redraw (2026-10-07)](#do-not-match-repeated-headings-during-a-split-history-redraw-2026-10-07)
 
 <!-- END TOC -->
 
@@ -18083,3 +18084,38 @@ numeric control counts and geometry only. This permits comparing application
 redraws against browser/anchor shifts without saving conversation text. Samples
 are limited to one per 15 seconds per frame, within the existing diagnostics
 budget; absence of a sampled event is not proof that no redraw occurred.
+
+
+## Do not match repeated headings during a split history redraw (2026-10-07)
+
+**Evidence:** real iPhone/localLLM diagnostics captured screen and scrollback
+clears while a reading anchor was active. Later desktop samples captured the
+same clears well after a resize, ruling out resize as a sufficient explanation.
+A browser reproduction replayed two passages with identical three-line headings
+in separate output chunks. Mobile WebKit restored row 80 instead of the original
+row 380 and retained the wrong anchor after the correct passage arrived.
+
+**Cause:** the reading fingerprint stopped after three nonempty lines. A partial
+redraw could match an older repeated heading before reaching the intended passage.
+The new marker then made the wrong location permanent. A marker could also survive
+an in-place content rewrite, despite no longer pointing to the original passage.
+
+**Fix:** sample up to twelve nonempty lines across thirty-two visible rows and
+verify marker contents before using its row. Wait for the saved passage rather
+than binding to a short repeated prefix. During normal-buffer scrollback erasure,
+keep a local copy of the reading screen until matching content has rendered. Copy
+at onRender time because Chromium may discard its WebGL drawing buffer afterwards.
+Release after the restored render, immediately on navigation/reconnect, or after
+a bounded two-second wait when the application does not reprint the passage.
+These images and text fingerprints stay in frame memory and are never logged.
+
+**Validation:** regressions cover split redraws and a surviving overwritten marker.
+A mocked-WebSocket run against the real deployed ttyd page checks mobile Chromium
+and WebKit, identical screenshots during a partial redraw, restoration of the
+original passage, navigation yielding, and bounded snapshot expiry. No connections
+or input go to a user's real PTY. Live diagnostics remain necessary: this reproduces
+one concrete failure, not proof that every reported episode shares its cause.
+
+**Rejected:** pinning a row number does not survive content replacement. A longer
+bottom-follow timer interrupts history reading. Suppressing terminal clear commands
+would corrupt application redraws; snapshotting pixels preserves normal parsing.

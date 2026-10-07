@@ -52,3 +52,15 @@ def test_restarting_collector_preserves_collected_events_and_original_start(tmp_
     assert summary['complete'] and summary['started_utc']=='original-start'
     assert summary['devices']['iphone']['metrics']['handshake_ms']['median']==123
     assert len((tmp_path/'events.jsonl').read_text().splitlines())==1
+
+
+def test_report_counts_redraw_outcomes_for_the_deployed_anchor_revision():
+    rows = [m.decode(line({'k': 'terminal-profile', 'event': 'reader-redraw',
+                           'path': '/t4/', 'reason': 'reader-redraw-' + phase,
+                           'reader_revision': 2, 'terminal_text': 'PRIVATE'}), 'junjie')[0]
+            for phase in ('hold', 'resume', 'hold', 'timeout')]
+    summary, markdown = m.report(rows, 'start', 'end', False)
+    assert summary['reading_redraws'] == {'hold': 2, 'resume': 1, 'timeout': 1}
+    assert 'timed out: 1' in markdown
+    assert 'PRIVATE' not in markdown
+    assert all(r['reader_revision'] == 2 for r in rows)

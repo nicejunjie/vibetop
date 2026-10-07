@@ -139,3 +139,12 @@ extracted logic where possible.
   human-style walkthrough every pass — automation supplements it, never replaces it.
 - Any review that reports only correctness findings is **incomplete** and must be
   sent back for the experience pass.
+
+
+Terminal history redraw regression: run `tests/e2e/terminal-history-redraw.py`
+against authenticated local ttyd with mocked WebSockets (no user's PTY is touched).
+Verify repeated response headings do not change the selected passage across a
+split clear/reprint, the partial redraw has identical visible pixels, new history
+navigation takes precedence, and a missing passage cannot leave a stale screen.
+Continue checking real-session reader revision/outcome traces after deployment;
+passing synthetic browser checks alone does not close a user-reported jump.

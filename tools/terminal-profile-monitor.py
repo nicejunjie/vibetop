@@ -18,7 +18,7 @@ FIELDS = {'k', 'event', 'id', 'seq', 'path', 'at', 'ms', 'hidden', 'online',
           'window_ms', 'viewport', 'bottom', 'code', 'lifetime_ms', 'state',
           'persisted', 'phase', 'elapsed', 'retries', 'close_code', 'reason', 'from_base', 'from_viewport',
           'base', 'distance', 'mode', 'scroll_top', 'navigation_age_ms', 'following',
-          'anchored', 'navigating', 'marker_row', 'anchor_distance', 'target', 'cursor_row', 'rows', 'cols', 'size_claim_age_ms', 'fit_age_ms'}
+          'anchored', 'navigating', 'marker_row', 'anchor_distance', 'target', 'cursor_row', 'rows', 'cols', 'size_claim_age_ms', 'fit_age_ms', 'reader_revision'}
 NAV_FIELDS = {'type', 'dns_ms', 'connect_ms', 'ttfb_ms', 'transfer_ms',
               'encoded_bytes', 'wire_bytes', 'dom_ms', 'response_end_ms'}
 RESOURCE_FIELDS = {'path', 'start_ms', 'duration_ms', 'ttfb_ms', 'wire_bytes', 'encoded_bytes'}
@@ -109,6 +109,15 @@ def report(rows, start, end, complete):
         if phases:
             stage, stat = max(phases, key=lambda item: item[1]['p95'])
             lines += [f'Largest measured connection stage at P95: {stage} ({stat["p95"]} ms).', '']
+    redraws = [r for r in rows if r.get('event') == 'reader-redraw']
+    counts = {phase: sum(r.get('reason') == 'reader-redraw-' + phase for r in redraws)
+              for phase in ('hold', 'resume', 'timeout')}
+    result['reading_redraws'] = counts
+    lines += ['## Reading redraw verification', '',
+              f"Held: {counts['hold']}; resumed: {counts['resume']}; timed out: {counts['timeout']}.",
+              'Timeouts mean the saved passage did not become renderable within two seconds; investigate them rather than treating missing jumps as success.', '']
+    lines += ['- ' + json.dumps(r, sort_keys=True) for r in redraws[-20:]]
+    lines.append('')
     failures = [r for r in rows if r.get('event') in ('timeout', 'closed-fallback', 'resume-closed', 'socket-error', 'retry-limit')]
     repaints = [r for r in rows if r.get('event') == 'screen-repaint']
     lines += [f'Application screen/history reset samples: {len(repaints)}.', '', '## Recent application screen resets', '']
