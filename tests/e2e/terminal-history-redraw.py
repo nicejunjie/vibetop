@@ -33,6 +33,8 @@ with sync_playwright() as p:
   def phone_html(route):
    response=route.fetch();route.fulfill(response=response,body=response.text().replace('</head>', '<meta name=viewport content="width=device-width,initial-scale=1"></head>'))
   page.route(args.base+'/t4/',phone_html)
+  # Disable profiling: unload keepalive requests can bypass Playwright routing.
+  page.route('**/terminal-profile.js*',lambda r:r.fulfill(body='',content_type='text/javascript'))
   page.route('**/api/clientlog',lambda r:r.fulfill(json={}))
   page.route('**/terminal-kbd.js*',lambda r:r.fulfill(body=source,content_type='text/javascript'))
   def socket(route):
