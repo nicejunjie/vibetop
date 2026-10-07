@@ -380,3 +380,16 @@ Clicking a URL in a terminal (Cmd+click / Ctrl+click) or using the "Open in Brow
 - Files' "Open in Browser" verb serves raw files to Chromium via the `/fileview/` nginx location (alias to `~`)
 
 **Server-side "open a browser" (CLI/OAuth logins, e.g. Claude Code).** The click path above needs the front-end; a CLI that shells out to `xdg-open`/`$BROWSER` (an OAuth login) has no front-end. So every terminal exports **`BROWSER=/usr/local/bin/xdg-open`** (a shim, `apps/everyday/terminal/xdg-open-shim.sh`, installed by `server/install.sh` ahead of `/usr/bin` on PATH) plus **`VIBETOP_SESSION`** (a long-lived per-user session token, `_sign_session(user, BROWSER_TOKEN_TTL)`) and `VIBETOP_MGR_PORT` (`_user_terminal_setenvs`). The shim POSTs the URL to the manager's `POST /api/browser/open` on loopback with `Cookie: vt_session=$VIBETOP_SESSION`, so the manager resolves the **right user** from the cookie (loopback TCP can't carry peer creds) and opens it in **that user's** Browser (starting their xpra display if needed). Outside a vibetop terminal (no `VIBETOP_SESSION`) the shim `exec`s the real `/usr/bin/xdg-open`, so system behaviour is unchanged; a non-http(s) target also defers. OAuth URLs pass `_valid_browser_url` because the URL is double-quoted in the `su -c` string, so only quote-breaking chars (`"` `` ` `` `$` `(` `)` `\`) are rejected — `&`/`?`/`=` are fine. There's **no auto-switch** to the Browser app (server-side, no front-end), so the shim prints "switch to Browser to continue" and falls back to printing the URL if the manager is unreachable. Env only lands on **new** terminals (open a fresh one after a deploy).
+
+## Temporary connection timing profiling
+
+`terminal-profile.js` is disabled by default. A script URL with `until=<epoch-ms>`
+activates a window of at most 26 hours. It records timing and state only, never
+terminal text or keystrokes, and changes no connection or resize behavior.
+`tools/terminal-profile-monitor.py --user USER --output DIRECTORY --seconds 86400`
+follows the manager log, including rotations, and writes private `events.jsonl`,
+`summary.json` and `report.md`. Reports update each minute and finalize when the
+collector stops. Preserve the expiry parameter during a targeted profile deploy;
+a normal installer deploy removes the activation and leaves profiling disabled.
+Clientlog is rate limited, so the report states possible omissions. The collector
+runs as the monitored user and should be started as a bounded systemd service.

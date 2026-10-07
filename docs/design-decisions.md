@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_400 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_401 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [Terminal link opened a closed Browser app but lost the URL](#terminal-link-opened-a-closed-browser-app-but-lost-the-url)
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
@@ -423,6 +423,7 @@ _400 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [Download keeps selected files in their original form (2026-10-06)](#download-keeps-selected-files-in-their-original-form-2026-10-06)
 - [iPhone Download opens the native share sheet in one tap (2026-10-06)](#iphone-download-opens-the-native-share-sheet-in-one-tap-2026-10-06)
 - [Terminal reconnect returns to latest rather than a saved reading location (2026-10-06)](#terminal-reconnect-returns-to-latest-rather-than-a-saved-reading-location-2026-10-06)
+- [Profile real terminal connection cases for one day (2026-10-06)](#profile-real-terminal-connection-cases-for-one-day-2026-10-06)
 
 <!-- END TOC -->
 
@@ -18007,3 +18008,24 @@ size ownership and repaint helpers while changing only the reconnect policy.
 **Rejected:** preserving a pre-disconnect location conflicts with the desired
 landing position. Continuously forcing the bottom during deliberate navigation
 would reintroduce the history-browsing problem.
+
+## Profile real terminal connection cases for one day (2026-10-06)
+
+**Request:** investigate persistently slow terminal connections using a full day
+of actual phone/desktop usage, rather than tuning timeouts from isolated tests.
+
+**Fix:** add an opt-in profiler, disabled without a bounded expiry in its script
+URL. Record navigation/resource timings, socket creation/open/first output,
+xterm parse and two-frame paint estimates, replay byte counts, close codes and
+foreground/background/network transitions. Batch small metadata events through
+the existing authenticated, rate-limited clientlog path. Never decode output,
+read buffer text, retain typed keys, expose token query strings or send PTY input.
+A bounded server-side collector follows rotated logs, whitelists timing fields,
+and writes private JSONL plus percentile reports, refreshed each minute and
+finalized automatically after 24 hours. Connection behavior stays unchanged.
+
+**Rejected:** reducing another timeout without measuring real connection stages
+could mask network, transfer or rendering stalls. Logging terminal content or
+keystrokes is unnecessary to distinguish these stages. Paint timing is labelled
+as an estimate; background time is not automatically classified as reconnect
+latency, and clientlog rate limiting can omit events.
