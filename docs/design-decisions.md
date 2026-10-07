@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_399 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_400 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [Terminal link opened a closed Browser app but lost the URL](#terminal-link-opened-a-closed-browser-app-but-lost-the-url)
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
@@ -422,6 +422,7 @@ _399 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [Multi-photo downloads could not save into iPhone Photos (2026-10-06)](#multi-photo-downloads-could-not-save-into-iphone-photos-2026-10-06)
 - [Download keeps selected files in their original form (2026-10-06)](#download-keeps-selected-files-in-their-original-form-2026-10-06)
 - [iPhone Download opens the native share sheet in one tap (2026-10-06)](#iphone-download-opens-the-native-share-sheet-in-one-tap-2026-10-06)
+- [Terminal reconnect returns to latest rather than a saved reading location (2026-10-06)](#terminal-reconnect-returns-to-latest-rather-than-a-saved-reading-location-2026-10-06)
 
 <!-- END TOC -->
 
@@ -17989,3 +17990,20 @@ Desktop browsers keep downloading original files without prefetching.
 **Rejected:** invoking share after an arbitrary network wait is unreliable.
 Adding another confirmation preserves the technical requirement but conflicts
 with the requested one-tap interaction.
+
+## Terminal reconnect returns to latest rather than a saved reading location (2026-10-06)
+
+**Symptom:** reconnecting restored an old history position, requiring a long
+scroll to reach the latest terminal output.
+
+**Fix:** reading anchors now exist only during the current connection. Remove
+legacy sessionStorage anchors on frame load, clear the live anchor on every
+WebSocket open, and follow the replay to the bottom. Manual history navigation
+still cancels following immediately and stays anchored during normal repaint.
+This updates the earlier cross-reconnect preservation behavior to the user's
+explicit preference for latest on reconnect. Preserve the deployed keyboard,
+size ownership and repaint helpers while changing only the reconnect policy.
+
+**Rejected:** preserving a pre-disconnect location conflicts with the desired
+landing position. Continuously forcing the bottom during deliberate navigation
+would reintroduce the history-browsing problem.

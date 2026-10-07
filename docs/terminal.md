@@ -181,12 +181,12 @@ went stale when iOS flipped viewport regimes). Two parking rules remain:
 Net: typing always keeps the line you're typing visible (the desktop's lift);
 manual scrollback stays where you left it. While reading history, the terminal
 anchors the top visible row with an xterm marker instead of assuming its numeric
-viewport row will survive repaint/reflow. For reconnect or frame reload, a small
-per-terminal sessionStorage record of nearby lines restores the same passage
-from the replay, even when older ring content has been trimmed. Ordinary typing
-does not count as scrolling. A new gesture updates the anchor, returning to the
-bottom clears it, and a later explicit tab/app activation can request latest.
-Replay restoration does not send terminal input.
+viewport row will survive repaint/reflow. Reading anchors last only for the
+current connection. Every reconnect or frame reload starts at the latest output
+and follows the replay to the bottom; legacy sessionStorage anchors are removed.
+Ordinary typing does not count as scrolling. A new gesture updates the live
+anchor and immediately cancels bottom following; returning to the bottom clears
+it. Replay following does not send terminal input.
 
 **Gesture routing.** The overlay covers xterm and would otherwise eat every touch,
 so gestures are dispatched explicitly:

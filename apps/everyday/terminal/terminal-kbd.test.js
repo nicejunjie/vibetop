@@ -134,24 +134,33 @@ test('ordinary typing does not replace a history anchor with the repaint positio
   assert.equal(h.buffer.viewportY,100);
 });
 
-test('same-frame reconnect restores the passage after the replay shifts buffer rows', () => {
+test('same-frame reconnect opens latest even when previously reading history', () => {
   const h=readerHarness(); h.emit('wheel'); h.scroll(100); h.settle();
   const ws=new h.window.WebSocket('ws://test/t2/ws'); ws.emit('open');
+  assert.equal(h.buffer.viewportY,h.buffer.baseY);
   h.lines.splice(0,20); h.buffer.baseY-=20; h.buffer.viewportY=0;
-  h.output(); h.settle(); assert.equal(h.buffer.viewportY,80);
+  ws.emit('message'); h.output(); h.settle();
+  assert.equal(h.buffer.viewportY,h.buffer.baseY);
 });
 
-test('frame reload restores the passage and ignores retries of its initial activation', () => {
-  const saved=new Map(), old=readerHarness(SRC,saved);
-  old.emit('wheel'); old.scroll(100); old.settle();
+test('frame reload discards an older saved location and opens latest', () => {
+  const saved=new Map([['vt-terminal-reader:/t2/', JSON.stringify({distance:370,cols:54,samples:[{offset:0,text:'history passage 100'}]})]]);
   const h=readerHarness(SRC,saved); h.window.__vibetopShowLatest(1);
-  h.buffer.viewportY=0; h.output(); h.settle();
-  assert.equal(h.buffer.viewportY,100);
-  h.window.__vibetopShowLatest(1); assert.equal(h.buffer.viewportY,100);
-  h.window.__vibetopShowLatest(2); assert.equal(h.buffer.viewportY,470);
+  assert.equal(saved.size,0);
+  h.buffer.viewportY=0;
+  const ws=new h.window.WebSocket('ws://test/t2/ws'); ws.emit('open'); ws.emit('message');
+  h.output(); h.settle(); assert.equal(h.buffer.viewportY,470);
+  h.window.__vibetopShowLatest(1); assert.equal(h.buffer.viewportY,470);
 });
 
-test('new navigation replaces the saved history anchor and returning to bottom clears it', () => {
+test('manual history navigation after reconnect immediately cancels latest following', () => {
+  const h=readerHarness(); const ws=new h.window.WebSocket('ws://test/t2/ws'); ws.emit('open');
+  h.emit('wheel'); h.scroll(80); h.settle();
+  h.buffer.viewportY=0; ws.emit('message'); h.output(); h.settle();
+  assert.equal(h.buffer.viewportY,80);
+});
+
+test('new navigation replaces the live history anchor and returning to bottom clears it', () => {
   const h=readerHarness(); h.emit('wheel'); h.scroll(100); h.settle();
   h.emit('wheel'); h.scroll(70); h.settle(); h.advance(1000);
   h.scroll(0); h.output(); h.settle(); assert.equal(h.buffer.viewportY,70);

@@ -60,20 +60,13 @@
   }
   var reader = null, readerMarker = null, readerRestoring = false, readerQueued = false;
   var readerNavigating = false, readerNavigationTimer = null, readerDragging = false;
-  var readerReplay = false, readerRestoreRequest = null;
   var readerKey = 'vt-terminal-reader:' + (window.location && window.location.pathname || '');
-  try { reader = JSON.parse(sessionStorage.getItem(readerKey)); } catch (_) {}
-  if (reader && (!Array.isArray(reader.samples) || !Number.isFinite(reader.distance))) reader = null;
-  var readerFromStorage = !!reader;
-  function saveReader() {
-    try {
-      if (reader) sessionStorage.setItem(readerKey, JSON.stringify(reader));
-      else sessionStorage.removeItem(readerKey);
-    } catch (_) {}
-  }
+  // A new frame/connection starts at latest. Reading anchors are live-only;
+  // remove any anchor saved by an older client rather than restoring it.
+  try { sessionStorage.removeItem(readerKey); } catch (_) {}
   function clearReader() {
     if (readerMarker) readerMarker.dispose();
-    readerMarker = null; reader = null; readerRestoreRequest = null; readerFromStorage = false; saveReader();
+    readerMarker = null; reader = null;
   }
   function markReader(t, row) {
     if (readerMarker) readerMarker.dispose();
@@ -88,12 +81,11 @@
       if (text) samples.push({offset: i, text: text});
       if (samples.length === 3) break;
     }
-    readerFromStorage = false;
     reader = {distance: b.baseY - b.viewportY, cols: t.cols, samples: samples};
-    markReader(t, b.viewportY); saveReader();
+    markReader(t, b.viewportY);
   }
   function readerNavigation() {
-    readerNavigating = true; readerReplay = false;
+    readerNavigating = true;
     if (readerNavigationTimer) clearTimeout(readerNavigationTimer);
     // Native xterm wheel/key handlers run after this capture handler. Capture
     // their resulting viewport, not the position before the gesture.
@@ -121,7 +113,7 @@
     try {
       if (b.viewportY !== row) t.scrollToLine(row);
       if (!readerMarker || readerMarker.isDisposed) markReader(t, row);
-      if (!readerReplay) { reader.distance = b.baseY - row; saveReader(); }
+      reader.distance = b.baseY - row;
     } finally { readerRestoring = false; }
   }
   function restoreReaderSoon() {
@@ -143,15 +135,9 @@
     followLatestTimer = null;
   }
   function armLatest(requestId) {
-    // A frame reload gets a fresh activation id; preserve its saved reading
-    // position through retries of that activation. A later activation may
-    // explicitly request latest, as before.
+    // A same-connection resize preserves deliberate reading. Reconnect clears
+    // the live anchor before arming latest; new frames never restore old anchors.
     if (reader && requestId == null) return;
-    if (reader && readerFromStorage && requestId != null) {
-      highestLatestRequest = Math.max(highestLatestRequest, +requestId);
-      if (readerRestoreRequest == null) readerRestoreRequest = +requestId;
-      if (+requestId === readerRestoreRequest) return;
-    }
     // showLatest retries one activation while a new iframe/replay comes up. Once
     // the user scrolls, ignore the remaining retries from THAT activation; a
     // later tab/app activation gets a new id and may reveal latest normally.
@@ -191,7 +177,7 @@
   window.addEventListener('pointerup', function () { if (readerDragging) { readerDragging = false; readerNavigation(); } }, true);
   window.__vibetopShowLatest = armLatest;
 
-  // Preserve whether the user was reading history across a reconnect.
+  // Live reading stays anchored; each new connection explicitly resets latest.
   var vtFollowOnReconnect = !reader;
   (function watchUserScroll() {
     var t = window.term;
@@ -224,7 +210,6 @@
       if (done) return; done = true;
       clearTimeout(show); if (idle) clearTimeout(idle); if (cap) clearTimeout(cap);
       _barHide();
-      if (readerReplay) { restoreReader(true); readerReplay = false; restoreReader(false); saveReader(); }
       if (Date.now() < followLatestUntil) revealLatest();
       try { ws.removeEventListener('message', onmsg); } catch (_) {}
     }
@@ -277,31 +262,12 @@
         ttydWS = ws; loadingBar(ws);
         try {
           ws.addEventListener('open', function () {
-            if (reader) {
-              if (readerMarker) readerMarker.dispose();
-              readerMarker = null; readerReplay = true;
-            }
-            // FOLLOW THE REPLAY WHEN THE USER WAS AT THE BOTTOM.
-            //
-            // A reconnect replays the ring buffer, and the replay begins by
-            // clearing — so the buffer is WIPED (baseY 0, viewport 0) and then
-            // refilled underneath a viewport still pinned at row 0. The user ends
-            // up staring at the OLDEST line in the buffer while ~1000 rows of
-            // their actual session fill in below.
-            //
-            // loadingBar() already knows how to follow a replay, but every one of
-            // its reveal calls is gated on `followLatestUntil` — a window only tab
-            // or app ACTIVATION opens. A spontaneous reconnect opens nothing, so
-            // the follow machinery sat there doing nothing. Measured in the field:
-            //   from=986 to=0 baseY=0    cause=ws-open   following=0   (wiped)
-            //   from=979 to=0 baseY=980  cause=ws-open   following=0   (refilled,
-            //                                              viewport still at 0)
-            //
-            // Gated on where the user WAS, so this cannot hijack deliberate
-            // history reading: if they had scrolled up before the drop, they are
-            // left alone. The reported trigger — type a reply, press Enter — is by
-            // definition at the bottom, which is exactly when following is right.
-            try { if (vtFollowOnReconnect) armLatest(); } catch (_) {}
+            // Reconnect is an explicit return to latest, even when the previous
+            // connection was scrolled into history. Follow the ring-buffer replay
+            // as it fills; manual scrolling can cancel following immediately.
+            clearReader();
+            vtFollowOnReconnect = true;
+            try { armLatest(); } catch (_) {}
           });
         } catch (_) {}
         // Re-fit after a (re)connect's replay settles so the buffer isn't left
