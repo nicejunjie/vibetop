@@ -61,6 +61,79 @@
     });
     return result;
   }
+  var watchedTerm = null, lastGeometry = null, observations = [], lastShift = -Infinity;
+  var lastNavigation = -Infinity;
+  var controls = {erase_screen: 0, erase_scrollback: 0, cursor_home: 0, delete_lines: 0,
+    insert_lines: 0, scroll_up: 0, scroll_down: 0, alternate_enter: 0, alternate_exit: 0};
+  var ansiState = 0, ansiParam = 0, ansiFirst = null, ansiPrivate = false;
+  function countControls(data, binary) {
+    // Inspect control bytes only. Never decode or retain printable output.
+    var bytes = binary ? new w.Uint8Array(data) : data;
+    for (var i = 1; i < bytes.length; i++) {
+      if (ansiState === 0) {
+        var next = bytes.indexOf(binary ? 27 : '\x1b', i);
+        if (next < 0) break;
+        i = next; ansiState = 1; continue;
+      }
+      var c = binary ? bytes[i] : bytes.charCodeAt(i);
+      if (ansiState === 1) {
+        ansiState = c === 91 ? 2 : 0; ansiParam = 0; ansiFirst = null; ansiPrivate = false; continue;
+      }
+      if (c === 63) { ansiPrivate = true; continue; }
+      if (c >= 48 && c <= 57) { ansiParam = Math.min(65535, ansiParam * 10 + c - 48); continue; }
+      if (c === 59) { if (ansiFirst == null) ansiFirst = ansiParam; ansiParam = 0; continue; }
+      var first = ansiFirst == null ? ansiParam : ansiFirst;
+      if (c === 74 && first === 2) controls.erase_screen++;
+      if (c === 74 && first === 3) controls.erase_scrollback++;
+      if ((c === 72 || c === 102) && first <= 1 && ansiParam <= 1) controls.cursor_home++;
+      if (c === 77) controls.delete_lines++;
+      if (c === 76) controls.insert_lines++;
+      if (c === 83) controls.scroll_up++;
+      if (c === 84) controls.scroll_down++;
+      if (ansiPrivate && (first === 1049 || first === 1047 || first === 47)) {
+        if (c === 104) controls.alternate_enter++;
+        if (c === 108) controls.alternate_exit++;
+      }
+      ansiState = c === 27 ? 1 : 0;
+    }
+  }
+  function observeScroll(reason, data) {
+    if (Date.now() >= until || !w.term || !w.term.buffer) return;
+    if (reason === 'navigation') lastNavigation = stamp();
+    var b = w.term.buffer.active, reading = {};
+    try { if (w.__vibetopTerminalReading) reading = w.__vibetopTerminalReading(); } catch (_) {}
+    var viewport = w.term.element && w.term.element.querySelector('.xterm-viewport');
+    var geometry = {ms: Math.round(stamp()), reason: reason, base: b.baseY, viewport: b.viewportY,
+      distance: b.baseY - b.viewportY, mode: b.type, scroll_top: viewport ? Math.round(viewport.scrollTop) : null,
+      cursor_row: b.cursorY, rows: w.term.rows, cols: w.term.cols, following: reading.following, anchored: reading.anchored,
+      navigating: reading.navigating, target: data && data.target};
+    var previous = lastGeometry;
+    var shifted = previous && (geometry.distance - previous.distance > 5 ||
+      (reason === 'reader-restore' && Math.abs((data.target || 0) - b.viewportY) > 5));
+    if (!previous || previous.base !== geometry.base || previous.viewport !== geometry.viewport ||
+        previous.mode !== geometry.mode || reason !== 'parsed-write') {
+      observations.push(geometry); if (observations.length > 8) observations.shift();
+    }
+    lastGeometry = geometry;
+    if (shifted && stamp() - lastShift > 1000) {
+      lastShift = stamp();
+      emit('viewport-shift', {reason: reason, from_base: previous.base, from_viewport: previous.viewport,
+        base: b.baseY, viewport: b.viewportY, distance: geometry.distance, mode: b.type,
+        scroll_top: geometry.scroll_top, rows: w.term.rows, cols: w.term.cols, navigation_age_ms: Number.isFinite(lastNavigation) ? Math.round(stamp() - lastNavigation) : null,
+        following: reading.following, anchored: reading.anchored, navigating: reading.navigating,
+        marker_row: reading.marker_row, anchor_distance: reading.anchor_distance,
+        target: data && data.target, controls: Object.assign({}, controls), observations: observations.slice(-6)});
+    }
+  }
+  w.__vibetopTraceTerminalScroll = observeScroll;
+  function watchScroll(t) {
+    if (!t || t === watchedTerm) return;
+    watchedTerm = t;
+    if (t.onScroll) t.onScroll(function () { observeScroll('xterm-scroll'); });
+    if (t.onResize) t.onResize(function () { observeScroll('resize'); });
+    if (t.onWriteParsed) t.onWriteParsed(function () { observeScroll('parsed-write'); });
+    observeScroll('attach');
+  }
   var Native = w.WebSocket;
   function WS(url, protocols) {
     if (Date.now() >= until) return protocols === undefined ? new Native(url) : new Native(url, protocols);
@@ -79,6 +152,8 @@
       var output = binary ? data.byteLength > 1 && new w.Uint8Array(data)[0] === 48 :
         typeof data === 'string' && data.length > 1 && data[0] === '0';
       if (!output) return;
+      countControls(data, binary);
+      watchScroll(w.term);
       state.frames++; state.bytes += binary ? data.byteLength - 1 : data.length - 1;
       if (state.output != null) return;
       state.output = stamp();

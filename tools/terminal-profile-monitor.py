@@ -16,7 +16,9 @@ FIELDS = {'k', 'event', 'id', 'seq', 'path', 'at', 'ms', 'hidden', 'online',
           'socket_to_output_ms', 'open_to_output_ms', 'output_to_parse_ms',
           'output_to_paint_ms', 'boot_to_paint_ms', 'output_bytes', 'output_frames',
           'window_ms', 'viewport', 'bottom', 'code', 'lifetime_ms', 'state',
-          'persisted', 'phase', 'elapsed', 'retries', 'close_code'}
+          'persisted', 'phase', 'elapsed', 'retries', 'close_code', 'reason', 'from_base', 'from_viewport',
+          'base', 'distance', 'mode', 'scroll_top', 'navigation_age_ms', 'following',
+          'anchored', 'navigating', 'marker_row', 'anchor_distance', 'target', 'cursor_row', 'rows', 'cols'}
 NAV_FIELDS = {'type', 'dns_ms', 'connect_ms', 'ttfb_ms', 'transfer_ms',
               'encoded_bytes', 'wire_bytes', 'dom_ms', 'response_end_ms'}
 RESOURCE_FIELDS = {'path', 'start_ms', 'duration_ms', 'ttfb_ms', 'wire_bytes', 'encoded_bytes'}
@@ -52,6 +54,15 @@ def decode(line, user):
         if isinstance(resources, list):
             row['resources'] = [{k: v for k, v in r.items() if k in RESOURCE_FIELDS and isinstance(v, (str, int, float))}
                                 for r in resources[:8] if isinstance(r, dict) and SAFE_RESOURCE.fullmatch(str(r.get('path', '')))]
+        controls = e.get('controls', {})
+        allowed_controls = {'erase_screen', 'erase_scrollback', 'cursor_home', 'delete_lines', 'insert_lines',
+                            'scroll_up', 'scroll_down', 'alternate_enter', 'alternate_exit'}
+        if isinstance(controls, dict):
+            row['controls'] = {k: v for k, v in controls.items() if k in allowed_controls and isinstance(v, int)}
+        observations = e.get('observations', [])
+        if isinstance(observations, list):
+            row['observations'] = [{k: v for k, v in r.items() if k in FIELDS and (v is None or isinstance(v, (str, int, float, bool)))}
+                                   for r in observations[-6:] if isinstance(r, dict)]
         out.append(row)
     return out
 
@@ -99,7 +110,10 @@ def report(rows, start, end, complete):
             stage, stat = max(phases, key=lambda item: item[1]['p95'])
             lines += [f'Largest measured connection stage at P95: {stage} ({stat["p95"]} ms).', '']
     failures = [r for r in rows if r.get('event') in ('timeout', 'closed-fallback', 'resume-closed', 'socket-error', 'retry-limit')]
-    lines += [f'Recovery/error events: {len(failures)}.', '',
+    shifts = [r for r in rows if r.get('event') == 'viewport-shift']
+    lines += [f'Viewport shift events: {len(shifts)}.', '', '## Recent viewport shifts', '']
+    lines += ['- ' + json.dumps(r, sort_keys=True) for r in shifts[-20:]]
+    lines += ['', f'Recovery/error events: {len(failures)}.', '', 
               '## Slowest observed connection/render events', '']
     slow = sorted([r for r in rows if r.get('event') in ('first-render', 'first-output', 'socket-created')],
                   key=lambda r: max(r.get('boot_to_paint_ms', 0) or 0, r.get('socket_to_output_ms', 0) or 0,
@@ -127,6 +141,7 @@ def main():
     p.add_argument('--output', required=True)
     p.add_argument('--user', required=True)
     p.add_argument('--seconds', type=int, default=86400)
+    p.add_argument('--until', type=float, help='absolute epoch deadline when resuming a monitor')
     args = p.parse_args()
     if not 1 <= args.seconds <= 93600:
         p.error('duration must be between 1 second and 26 hours')
@@ -134,8 +149,17 @@ def main():
     output.mkdir(parents=True, mode=0o700, exist_ok=True)
     output.chmod(0o700)
     started = dt.datetime.now(dt.timezone.utc)
-    start, end = started.isoformat(), (started + dt.timedelta(seconds=args.seconds)).isoformat()
-    rows, deadline, last_report = [], time.monotonic() + args.seconds, 0
+    end_time = dt.datetime.fromtimestamp(args.until, dt.timezone.utc) if args.until else started + dt.timedelta(seconds=args.seconds)
+    start, end = started.isoformat(), end_time.isoformat()
+    if (output / 'summary.json').exists():
+        start = json.loads((output / 'summary.json').read_text()).get('started_utc', start)
+    rows = []
+    if (output / 'events.jsonl').exists():
+        for line in (output / 'events.jsonl').read_text().splitlines():
+            try: rows.append(json.loads(line))
+            except ValueError: continue
+    deadline = time.monotonic() + max(0, min(93600, (end_time - started).total_seconds()))
+    last_report = 0
     follower = subprocess.Popen(['tail', '-n', '0', '-F', args.log], stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
     selector = selectors.DefaultSelector()
     selector.register(follower.stdout, selectors.EVENT_READ)

@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_402 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_403 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [Terminal link opened a closed Browser app but lost the URL](#terminal-link-opened-a-closed-browser-app-but-lost-the-url)
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
@@ -425,6 +425,7 @@ _402 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [Terminal reconnect returns to latest rather than a saved reading location (2026-10-06)](#terminal-reconnect-returns-to-latest-rather-than-a-saved-reading-location-2026-10-06)
 - [Profile real terminal connection cases for one day (2026-10-06)](#profile-real-terminal-connection-cases-for-one-day-2026-10-06)
 - [Following latest survives redraws after connection settling (2026-10-07)](#following-latest-survives-redraws-after-connection-settling-2026-10-07)
+- [Capture actual scroll shifts before declaring terminal jumping resolved (2026-10-07)](#capture-actual-scroll-shifts-before-declaring-terminal-jumping-resolved-2026-10-07)
 
 <!-- END TOC -->
 
@@ -18051,3 +18052,23 @@ its original expiry while deploying this frontend correction.
 
 **Rejected:** extending the settle timer only postpones the gap. Forcing latest
 regardless of user navigation would again interrupt deliberate history reading.
+
+## Capture actual scroll shifts before declaring terminal jumping resolved (2026-10-07)
+
+**Problem:** multiple narrow fixes passed simulated tests, but the user continued
+to observe older-content jumps, including in a newly opened localLLM terminal.
+Those tests did not establish the cause of the actual user-visible episodes.
+
+**Fix:** extend the active, account-scoped timing profiler with event-driven
+viewport shift traces. Include before/after viewport and base rows, reading vs
+following intent, navigation age, marker geometry, dimensions, and a short
+geometry-only event trail. Count ANSI screen erasure, scrolling and alternate
+screen controls without decoding or retaining printable output. Trace helper
+initiated restores too, so our own scroll actions can be distinguished from
+xterm scroll/resize/write events. Keep the original monitoring deadline and
+existing event file when refreshing the collector. Do not call the user issue
+resolved based only on the synthetic viewport reset case.
+
+**Rejected:** another guessed timeout or forcing the bottom regardless of user
+intent cannot establish whether the jump is browser scroll, anchor restoration,
+resize/reflow, reconnect replay or the application repainting its own history.

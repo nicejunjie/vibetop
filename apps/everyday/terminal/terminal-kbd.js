@@ -93,6 +93,15 @@
       readerNavigating = false; vtFollowOnReconnect = atLatest(); captureReader();
     }, 0);
   }
+  function traceScroll(reason, data) {
+    try { if (window.__vibetopTraceTerminalScroll) window.__vibetopTraceTerminalScroll(reason, data); } catch (_) {}
+  }
+  window.__vibetopTerminalReading = function () {
+    return {following: !!vtFollowOnReconnect, anchored: !!reader, navigating: readerNavigating,
+      dragging: readerDragging, restoring: readerRestoring,
+      marker_row: readerMarker && !readerMarker.isDisposed ? readerMarker.line : null,
+      anchor_distance: reader ? reader.distance : null};
+  };
   function restoreReader(fallback) {
     var t = window.term, b = t && t.buffer && t.buffer.active;
     if (!reader || !b || b.type === 'alternate' || document.hidden || !t.element || t.element.clientWidth <= 0) return;
@@ -111,7 +120,10 @@
     if (row == null) return;  // replay has not reached the saved passage yet
     readerRestoring = true;
     try {
-      if (b.viewportY !== row) t.scrollToLine(row);
+      if (b.viewportY !== row) {
+        traceScroll('reader-restore', {target: row});
+        t.scrollToLine(row);
+      }
       if (!readerMarker || readerMarker.isDisposed) markReader(t, row);
       reader.distance = b.baseY - row;
     } finally { readerRestoring = false; }
@@ -130,9 +142,15 @@
     });
   }
   function revealLatest() {
-    try { if (window.term) window.term.scrollToBottom(); } catch (_) {}
+    try {
+      if (window.term) {
+        if (!atLatest()) traceScroll('latest-reveal');
+        window.term.scrollToBottom();
+      }
+    } catch (_) {}
   }
   function cancelLatest() {
+    traceScroll('navigation');
     vtFollowOnReconnect = false;
     readerNavigation();
     followLatestUntil = 0;
