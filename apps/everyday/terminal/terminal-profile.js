@@ -62,7 +62,7 @@
     return result;
   }
   var watchedTerm = null, lastGeometry = null, observations = [], lastShift = -Infinity;
-  var lastNavigation = -Infinity, lastRepaint = -Infinity;
+  var lastNavigation = -Infinity, lastRepaint = -Infinity, lastSizeClaim = -Infinity, lastFit = -Infinity;
   var reportedControls = {erase_screen: 0, erase_scrollback: 0, alternate_enter: 0, alternate_exit: 0};
   var controls = {erase_screen: 0, erase_scrollback: 0, cursor_home: 0, delete_lines: 0,
     insert_lines: 0, scroll_up: 0, scroll_down: 0, alternate_enter: 0, alternate_exit: 0};
@@ -101,6 +101,8 @@
   function observeScroll(reason, data) {
     if (Date.now() >= until || !w.term || !w.term.buffer) return;
     if (reason === 'navigation') lastNavigation = stamp();
+    if (reason === 'claim-size') lastSizeClaim = stamp();
+    if (reason === 'fit') lastFit = stamp();
     var b = w.term.buffer.active, reading = {};
     try { if (w.__vibetopTerminalReading) reading = w.__vibetopTerminalReading(); } catch (_) {}
     var viewport = w.term.element && w.term.element.querySelector('.xterm-viewport');
@@ -123,7 +125,9 @@
       lastRepaint = stamp();
       emit('screen-repaint', {base: b.baseY, viewport: b.viewportY, mode: b.type,
         rows: w.term.rows, cols: w.term.cols, following: reading.following, anchored: reading.anchored,
-        controls: Object.assign({}, controls), observations: observations.slice(-6)});
+        controls: Object.assign({}, controls),
+        size_claim_age_ms: Number.isFinite(lastSizeClaim) ? Math.round(stamp() - lastSizeClaim) : null,
+        fit_age_ms: Number.isFinite(lastFit) ? Math.round(stamp() - lastFit) : null, observations: observations.slice(-6)});
       Object.keys(reportedControls).forEach(function (k) { reportedControls[k] = controls[k]; });
     }
     if (shifted && stamp() - lastShift > 1000) {
@@ -133,7 +137,9 @@
         scroll_top: geometry.scroll_top, rows: w.term.rows, cols: w.term.cols, navigation_age_ms: Number.isFinite(lastNavigation) ? Math.round(stamp() - lastNavigation) : null,
         following: reading.following, anchored: reading.anchored, navigating: reading.navigating,
         marker_row: reading.marker_row, anchor_distance: reading.anchor_distance,
-        target: data && data.target, controls: Object.assign({}, controls), observations: observations.slice(-6)});
+        target: data && data.target, controls: Object.assign({}, controls),
+        size_claim_age_ms: Number.isFinite(lastSizeClaim) ? Math.round(stamp() - lastSizeClaim) : null,
+        fit_age_ms: Number.isFinite(lastFit) ? Math.round(stamp() - lastFit) : null, observations: observations.slice(-6)});
     }
   }
   w.__vibetopTraceTerminalScroll = observeScroll;

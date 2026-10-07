@@ -92,3 +92,10 @@ test('application screen resets are traced even when the viewport stays at lates
   assert.equal(repaint.controls.erase_scrollback,1);
   assert(!JSON.stringify(b.logs).includes('PRIVATE_APPLICATION_CONTENT'));
 });
+
+test('repaint retains the age of a size claim even if intervening scroll events fill the trail', () => {
+  const b=browser(), ws=new b.w.WebSocket('ws://host');
+  b.w.__vibetopTraceTerminalScroll('claim-size');b.advance(50);
+  ws.emit('open');ws.emit('message',{data:'0\x1b[2J'});b.parse();b.advance(5000);
+  assert.equal(b.rows().find(r=>r.event==='screen-repaint').size_claim_age_ms,50);
+});

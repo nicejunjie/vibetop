@@ -18,7 +18,7 @@ FIELDS = {'k', 'event', 'id', 'seq', 'path', 'at', 'ms', 'hidden', 'online',
           'window_ms', 'viewport', 'bottom', 'code', 'lifetime_ms', 'state',
           'persisted', 'phase', 'elapsed', 'retries', 'close_code', 'reason', 'from_base', 'from_viewport',
           'base', 'distance', 'mode', 'scroll_top', 'navigation_age_ms', 'following',
-          'anchored', 'navigating', 'marker_row', 'anchor_distance', 'target', 'cursor_row', 'rows', 'cols'}
+          'anchored', 'navigating', 'marker_row', 'anchor_distance', 'target', 'cursor_row', 'rows', 'cols', 'size_claim_age_ms', 'fit_age_ms'}
 NAV_FIELDS = {'type', 'dns_ms', 'connect_ms', 'ttfb_ms', 'transfer_ms',
               'encoded_bytes', 'wire_bytes', 'dom_ms', 'response_end_ms'}
 RESOURCE_FIELDS = {'path', 'start_ms', 'duration_ms', 'ttfb_ms', 'wire_bytes', 'encoded_bytes'}
