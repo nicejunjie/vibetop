@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_403 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_404 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [Terminal link opened a closed Browser app but lost the URL](#terminal-link-opened-a-closed-browser-app-but-lost-the-url)
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
@@ -426,6 +426,7 @@ _403 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [Profile real terminal connection cases for one day (2026-10-06)](#profile-real-terminal-connection-cases-for-one-day-2026-10-06)
 - [Following latest survives redraws after connection settling (2026-10-07)](#following-latest-survives-redraws-after-connection-settling-2026-10-07)
 - [Capture actual scroll shifts before declaring terminal jumping resolved (2026-10-07)](#capture-actual-scroll-shifts-before-declaring-terminal-jumping-resolved-2026-10-07)
+- [Trace application redraws even when browser scroll stays latest (2026-10-07)](#trace-application-redraws-even-when-browser-scroll-stays-latest-2026-10-07)
 
 <!-- END TOC -->
 
@@ -18072,3 +18073,13 @@ resolved based only on the synthetic viewport reset case.
 **Rejected:** another guessed timeout or forcing the bottom regardless of user
 intent cannot establish whether the jump is browser scroll, anchor restoration,
 resize/reflow, reconnect replay or the application repainting its own history.
+
+## Trace application redraws even when browser scroll stays latest (2026-10-07)
+
+A terminal application can erase/reprint its visible conversation while xterm's
+viewport remains at baseY. Viewport-shift traces alone cannot observe that case.
+Record bounded screen/history reset samples on parse completion as well, with
+numeric control counts and geometry only. This permits comparing application
+redraws against browser/anchor shifts without saving conversation text. Samples
+are limited to one per 15 seconds per frame, within the existing diagnostics
+budget; absence of a sampled event is not proof that no redraw occurred.

@@ -62,7 +62,8 @@
     return result;
   }
   var watchedTerm = null, lastGeometry = null, observations = [], lastShift = -Infinity;
-  var lastNavigation = -Infinity;
+  var lastNavigation = -Infinity, lastRepaint = -Infinity;
+  var reportedControls = {erase_screen: 0, erase_scrollback: 0, alternate_enter: 0, alternate_exit: 0};
   var controls = {erase_screen: 0, erase_scrollback: 0, cursor_home: 0, delete_lines: 0,
     insert_lines: 0, scroll_up: 0, scroll_down: 0, alternate_enter: 0, alternate_exit: 0};
   var ansiState = 0, ansiParam = 0, ansiFirst = null, ansiPrivate = false;
@@ -115,6 +116,16 @@
       observations.push(geometry); if (observations.length > 8) observations.shift();
     }
     lastGeometry = geometry;
+    // An application can replace visible content without moving viewportY.
+    // Capture screen/history resets too, independently of viewport shifts.
+    if (reason === 'parsed-write' && stamp() - lastRepaint >= 15000 &&
+        Object.keys(reportedControls).some(function (k) { return controls[k] !== reportedControls[k]; })) {
+      lastRepaint = stamp();
+      emit('screen-repaint', {base: b.baseY, viewport: b.viewportY, mode: b.type,
+        rows: w.term.rows, cols: w.term.cols, following: reading.following, anchored: reading.anchored,
+        controls: Object.assign({}, controls), observations: observations.slice(-6)});
+      Object.keys(reportedControls).forEach(function (k) { reportedControls[k] = controls[k]; });
+    }
     if (shifted && stamp() - lastShift > 1000) {
       lastShift = stamp();
       emit('viewport-shift', {reason: reason, from_base: previous.base, from_viewport: previous.viewport,

@@ -265,6 +265,7 @@
   // Mobile keeps its own keyboard/caret-aware resize path (two-finger claim), so
   // this is desktop-only. (function declarations → hoisted, usable below.)
   function reFit() {
+    traceScroll('fit');
     try {
       var t = window.term;
       if (t && t.element && t.element.clientWidth > 0) {
@@ -314,6 +315,7 @@
   // rows×cols are owned by whichever device resized last — the other device then
   // sees mis-shaped (too-narrow / too-wide) output until it re-claims.
   function claimSize() {
+    traceScroll('claim-size');
     var t = window.term; if (!t) return;
     // The SIGWINCH redraw triggered by a two-finger/mobile or double-click/
     // desktop claim can restore an old viewport row. This is the resize action

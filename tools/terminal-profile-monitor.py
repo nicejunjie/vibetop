@@ -110,6 +110,10 @@ def report(rows, start, end, complete):
             stage, stat = max(phases, key=lambda item: item[1]['p95'])
             lines += [f'Largest measured connection stage at P95: {stage} ({stat["p95"]} ms).', '']
     failures = [r for r in rows if r.get('event') in ('timeout', 'closed-fallback', 'resume-closed', 'socket-error', 'retry-limit')]
+    repaints = [r for r in rows if r.get('event') == 'screen-repaint']
+    lines += [f'Application screen/history reset samples: {len(repaints)}.', '', '## Recent application screen resets', '']
+    lines += ['- ' + json.dumps(r, sort_keys=True) for r in repaints[-20:]]
+    lines.append('')
     shifts = [r for r in rows if r.get('event') == 'viewport-shift']
     lines += [f'Viewport shift events: {len(shifts)}.', '', '## Recent viewport shifts', '']
     lines += ['- ' + json.dumps(r, sort_keys=True) for r in shifts[-20:]]

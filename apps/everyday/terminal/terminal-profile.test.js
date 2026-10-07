@@ -81,3 +81,14 @@ test('manual navigation is distinguished from an automatic backward viewport shi
   b.w.__vibetopTraceTerminalScroll('xterm-scroll');b.advance(5000);
   assert.equal(b.rows().find(r=>r.event==='viewport-shift').navigation_age_ms,0);
 });
+
+
+test('application screen resets are traced even when the viewport stays at latest', () => {
+  const b=browser(), ws=new b.w.WebSocket('ws://host');
+  const buffer=b.w.term.buffer.active;buffer.type='normal';
+  ws.emit('open');ws.emit('message',{data:'0\x1b[2J\x1b[3J\x1b[HPRIVATE_APPLICATION_CONTENT'});b.parse();b.advance(5000);
+  const repaint=b.rows().find(r=>r.event==='screen-repaint');
+  assert(repaint);assert.equal(repaint.base,repaint.viewport);
+  assert.equal(repaint.controls.erase_scrollback,1);
+  assert(!JSON.stringify(b.logs).includes('PRIVATE_APPLICATION_CONTENT'));
+});
