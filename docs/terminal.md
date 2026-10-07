@@ -184,6 +184,7 @@ anchors the top visible row with an xterm marker instead of assuming its numeric
 viewport row will survive repaint/reflow. Reading anchors last only for the
 current connection. Every reconnect or frame reload starts at the latest output
 and follows the replay to the bottom; legacy sessionStorage anchors are removed.
+Following latest survives later redraws after the connection settle timer ends.
 Ordinary typing does not count as scrolling. A new gesture updates the live
 anchor and immediately cancels bottom following; returning to the bottom clears
 it. Replay following does not send terminal input.

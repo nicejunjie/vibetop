@@ -117,14 +117,23 @@
     } finally { readerRestoring = false; }
   }
   function restoreReaderSoon() {
-    if (!reader || readerQueued || readerNavigating || readerDragging) return;
+    if (readerQueued || readerNavigating || readerDragging) return;
     readerQueued = true;
-    requestAnimationFrame(function () { readerQueued = false; restoreReader(false); });
+    requestAnimationFrame(function () {
+      readerQueued = false;
+      // Recheck after the frame: a user gesture may have cancelled following
+      // since this callback was queued. Live redraws can reset viewportY even
+      // long after the connection's short settle interval has ended.
+      if (readerNavigating || readerDragging) return;
+      if (reader) restoreReader(false);
+      else if (vtFollowOnReconnect && !document.hidden && !atLatest()) revealLatest();
+    });
   }
   function revealLatest() {
     try { if (window.term) window.term.scrollToBottom(); } catch (_) {}
   }
   function cancelLatest() {
+    vtFollowOnReconnect = false;
     readerNavigation();
     followLatestUntil = 0;
     // More than one reveal request can overlap (tab activation + outer app

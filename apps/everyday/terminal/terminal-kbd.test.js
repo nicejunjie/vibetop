@@ -166,3 +166,18 @@ test('new navigation replaces the live history anchor and returning to bottom cl
   h.scroll(0); h.output(); h.settle(); assert.equal(h.buffer.viewportY,70);
   h.emit('wheel'); h.scroll(470); h.settle(); assert.equal(h.saved.size,0);
 });
+
+
+test('live output returns latest after a redraw beyond the reconnect settle period', () => {
+  const h=readerHarness(); h.window.__vibetopShowLatest(1); h.advance(15000);
+  h.buffer.viewportY=0; h.output(); h.settle();
+  assert.equal(h.buffer.viewportY,h.buffer.baseY);
+});
+
+test('a queued live-follow callback yields to history navigation before it runs', () => {
+  const h=readerHarness(); h.output();
+  h.emit('wheel'); h.scroll(100); h.settle();
+  assert.equal(h.buffer.viewportY,100);
+  h.buffer.viewportY=0; h.output(); h.settle();
+  assert.equal(h.buffer.viewportY,100);
+});

@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_401 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_402 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [Terminal link opened a closed Browser app but lost the URL](#terminal-link-opened-a-closed-browser-app-but-lost-the-url)
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
@@ -424,6 +424,7 @@ _401 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [iPhone Download opens the native share sheet in one tap (2026-10-06)](#iphone-download-opens-the-native-share-sheet-in-one-tap-2026-10-06)
 - [Terminal reconnect returns to latest rather than a saved reading location (2026-10-06)](#terminal-reconnect-returns-to-latest-rather-than-a-saved-reading-location-2026-10-06)
 - [Profile real terminal connection cases for one day (2026-10-06)](#profile-real-terminal-connection-cases-for-one-day-2026-10-06)
+- [Following latest survives redraws after connection settling (2026-10-07)](#following-latest-survives-redraws-after-connection-settling-2026-10-07)
 
 <!-- END TOC -->
 
@@ -18029,3 +18030,24 @@ could mask network, transfer or rendering stalls. Logging terminal content or
 keystrokes is unnecessary to distinguish these stages. Paint timing is labelled
 as an estimate; background time is not automatically classified as reconnect
 latency, and clientlog rate limiting can omit events.
+
+## Following latest survives redraws after connection settling (2026-10-07)
+
+**Symptom:** even a newly opened terminal could jump back to older content during
+normal use, without reconnecting.
+
+**Cause:** latest following was enforced only during a ten-second activation/
+reconnect settle interval. The write/scroll/resize watcher restored deliberate
+history anchors, but did nothing when following latest with no reading anchor.
+A later redraw resetting viewportY therefore remained at an older row.
+
+**Fix:** the same animation-frame watcher now restores either the deliberate
+reading anchor or the latest viewport according to the live following state.
+Keep following after the short settle interval ends. User navigation disables
+following before deferred capture, and queued callbacks recheck that state so
+scrolling into history always wins. Avoid redundant scrolls when already latest.
+Reconnect still returns to latest. Preserve the existing timing monitor and
+its original expiry while deploying this frontend correction.
+
+**Rejected:** extending the settle timer only postpones the gap. Forcing latest
+regardless of user navigation would again interrupt deliberate history reading.
