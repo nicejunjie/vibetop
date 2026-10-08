@@ -111,11 +111,11 @@ def report(rows, start, end, complete):
             lines += [f'Largest measured connection stage at P95: {stage} ({stat["p95"]} ms).', '']
     redraws = [r for r in rows if r.get('event') == 'reader-redraw']
     counts = {phase: sum(r.get('reason') == 'reader-redraw-' + phase for r in redraws)
-              for phase in ('hold', 'resume', 'timeout')}
+              for phase in ('hold', 'resume', 'timeout', 'fallback')}
     result['reading_redraws'] = counts
     lines += ['## Reading redraw verification', '',
-              f"Held: {counts['hold']}; resumed: {counts['resume']}; timed out: {counts['timeout']}.",
-              'Timeouts mean the saved passage did not become renderable within two seconds; investigate them rather than treating missing jumps as success.', '']
+              f"Held: {counts['hold']}; resumed: {counts['resume']}; timed out: {counts['timeout']}; distance fallback: {counts['fallback']}.",
+              'Timeouts mean exact passage matching exceeded two seconds. A distance fallback should restore a nearby position before exposing the replacement screen. Investigate timeouts without recovery; missing samples are not proof of success.', '']
     lines += ['- ' + json.dumps(r, sort_keys=True) for r in redraws[-20:]]
     lines.append('')
     failures = [r for r in rows if r.get('event') in ('timeout', 'closed-fallback', 'resume-closed', 'socket-error', 'retry-limit')]

@@ -110,7 +110,7 @@
       distance: b.baseY - b.viewportY, mode: b.type, scroll_top: viewport ? Math.round(viewport.scrollTop) : null,
       cursor_row: b.cursorY, rows: w.term.rows, cols: w.term.cols, reader_revision: reading.reader_revision, following: reading.following, anchored: reading.anchored,
       navigating: reading.navigating, target: data && data.target};
-    if (/^reader-redraw-(hold|resume|timeout)$/.test(reason)) {
+    if (/^reader-redraw-(hold|resume|timeout|fallback)$/.test(reason)) {
       emit('reader-redraw', {reason: reason, reader_revision: reading.reader_revision,
         base: b.baseY, viewport: b.viewportY, following: reading.following, anchored: reading.anchored,
         marker_row: reading.marker_row, rows: w.term.rows, cols: w.term.cols});

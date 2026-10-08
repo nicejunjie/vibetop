@@ -92,11 +92,14 @@ test("the terminal's own resize paths follow the live bottom", () => {
 
 function readerHarness(source = SRC, saved = new Map()) {
   let now = 5000;
-  const listeners = {}, scrolls = [], parsed = [], frames = [], timers = [], markers = [];
+  const listeners = {}, scrolls = [], parsed = [], frames = [], timers = [], markers = [], erasers = [];
+  let snapshotVisible = false;
+  const screen = {querySelectorAll: () => [], appendChild() {snapshotVisible = true;},
+    cloneNode() { return {style: {}, setAttribute() {}, querySelectorAll: () => [], remove() {snapshotVisible = false;}}; }};
   const lines = Array.from({length: 500}, (_, i) => 'history passage ' + i);
   const buffer = {type: 'normal', baseY: 470, viewportY: 470, cursorY: 29,
     getLine(i) { return lines[i] == null ? null : {translateToString() { return lines[i]; }}; }};
-  const term = {rows:30, cols:54, element: {clientWidth:400}, buffer: {active:buffer},
+  const term = {rows:30, cols:54, element: {clientWidth:400, querySelector: () => screen}, parser: {registerCsiHandler(_, fn) {erasers.push(fn);}}, refresh() {}, buffer: {active:buffer},
     onScroll(fn) { scrolls.push(fn); }, onWriteParsed(fn) { parsed.push(fn); },
     scrollToLine(row) { buffer.viewportY = Math.min(buffer.baseY, row); scrolls.forEach(fn => fn()); },
     scrollToBottom() { this.scrollToLine(buffer.baseY); },
@@ -109,17 +112,22 @@ function readerHarness(source = SRC, saved = new Map()) {
   }
   const window = {term, WebSocket:Socket, location:{pathname:'/t2/'}, matchMedia:() => ({matches:false}),
     addEventListener(k, fn) { (listeners[k] ||= []).push(fn); }};
-  const document = {hidden:false, querySelector:() => null};
+  const document = {hidden:false, querySelector:() => null,
+    addEventListener(k, fn) { (listeners[k] ||= []).push(fn); }};
   const prefix = source.slice(0, source.indexOf('  // Re-claim the shared PTY')) + '\n})();';
-  vm.runInNewContext(prefix, {window, document, Date:{now:() => now},
+  vm.runInNewContext(prefix, {window, document, getComputedStyle: () => ({backgroundColor:'#222'}), Date:{now:() => now},
     sessionStorage:{getItem:k => saved.get(k), setItem:(k,v) => saved.set(k,v), removeItem:k => saved.delete(k)},
-    setTimeout(fn, delay) { const t = {fn, delay, cancelled:false}; timers.push(t); return t; }, clearTimeout(t) { if(t) t.cancelled=true; },
+    setTimeout(fn, delay) { const t = {fn, delay, at:now+delay, cancelled:false}; timers.push(t); return t; }, clearTimeout(t) { if(t) t.cancelled=true; },
     setInterval() { return 1; }, clearInterval() {}, requestAnimationFrame(fn) { frames.push(fn); }});
-  return {buffer, term, lines, saved, window, markers,
+  return {buffer, term, lines, saved, window, markers, document,
+    snapshotVisible: () => snapshotVisible,
+    erase(replacement) { erasers.forEach(fn => fn([3])); markers.forEach(m => m.dispose());
+      lines.splice(0, lines.length, ...replacement); buffer.baseY = Math.max(0, lines.length-term.rows);
+      term.scrollToLine(0); parsed.forEach(fn => fn()); },
     emit(k, extra={}) { (listeners[k] || []).forEach(fn => fn({type:k,...extra})); },
     scroll(row) { term.scrollToLine(row); },
     output() { parsed.forEach(fn => fn()); },
-    settle() { for (const t of timers.splice(0)) { if(!t.cancelled && t.delay===0) t.fn(); } for(let i=0; frames.length && i<30; i++) frames.shift()(); },
+    settle() { for (const t of timers.splice(0)) { if (!t.cancelled) { if(t.at<=now) t.fn(); else timers.push(t); } } for(let i=0; frames.length && i<30; i++) frames.shift()(); },
     advance(ms) { now+=ms; }};
 }
 
@@ -128,10 +136,12 @@ test('history reading stays at its passage when output resets the viewport to ol
   h.scroll(0); h.output(); h.settle(); assert.equal(h.buffer.viewportY,100);
 });
 
-test('ordinary typing does not replace a history anchor with the repaint position', () => {
+test('ordinary typing leaves history and returns to the active input line', () => {
   const h=readerHarness(); h.emit('wheel'); h.scroll(100); h.settle(); h.advance(1000);
-  h.emit('keydown',{key:'a'}); h.scroll(0); h.output(); h.settle();
-  assert.equal(h.buffer.viewportY,100);
+  h.emit('keydown',{key:'a'}); assert.equal(h.buffer.viewportY,h.buffer.baseY);
+  assert.equal(h.window.__vibetopTerminalReading().anchored,false);
+  h.scroll(0); h.output(); h.settle();
+  assert.equal(h.buffer.viewportY,h.buffer.baseY);
 });
 
 test('same-frame reconnect opens latest even when previously reading history', () => {
@@ -204,4 +214,56 @@ test('a marker surviving an in-place rewrite must still match the saved passage'
   h.lines.splice(200, 30, ...passage);
   h.buffer.viewportY = 0; h.output(); h.settle();
   assert.equal(h.buffer.viewportY, 200, 'a valid row number is not proof of matching content');
+});
+
+
+test('missing passage at redraw timeout preserves distance instead of exposing oldest content', () => {
+  const h = readerHarness(); h.emit('wheel'); h.scroll(442); h.settle();
+  h.erase(Array.from({length: 500}, (_, i) => 'replacement passage ' + i)); h.settle();
+  assert.equal(h.buffer.viewportY, 0);
+  assert.equal(h.snapshotVisible(), true);
+  h.advance(2100); h.settle();
+  assert.equal(h.buffer.viewportY, 442, 'retain the 28-line distance from the new bottom');
+  assert.equal(h.snapshotVisible(), false, 'uncover only after the fallback render');
+  assert.equal(h.window.__vibetopTerminalReading().marker_row, 442);
+  h.buffer.viewportY = 0; h.output(); h.settle();
+  assert.equal(h.buffer.viewportY, 442, 'subsequent writes use the new passage anchor');
+});
+
+test('background redraw with a missing passage recovers on foreground before new output', () => {
+  const h = readerHarness(); h.emit('wheel'); h.scroll(442); h.settle();
+  h.document.hidden = true;
+  h.erase(Array.from({length: 460}, (_, i) => 'replacement passage ' + i)); h.settle();
+  h.advance(2100); h.settle();
+  assert.equal(h.buffer.viewportY, 0);
+  h.document.hidden = false; h.emit('visibilitychange'); h.settle();
+  assert.equal(h.buffer.viewportY, 402, 'retain 28-line distance from the shorter replacement buffer');
+});
+
+test('history navigation cancels a pending missing-passage fallback', () => {
+  const h = readerHarness(); h.emit('wheel'); h.scroll(442); h.settle();
+  h.erase(Array.from({length: 500}, (_, i) => 'replacement passage ' + i)); h.settle();
+  h.emit('wheel'); h.scroll(80); h.settle();
+  h.advance(2100); h.settle();
+  assert.equal(h.buffer.viewportY, 80);
+  assert.equal(h.snapshotVisible(), false);
+});
+
+
+test('copy shortcuts and history keys keep the current reading position', () => {
+  const h = readerHarness(); h.emit('wheel'); h.scroll(100); h.settle();
+  h.emit('keydown', {key:'c', metaKey:true});
+  h.emit('keydown', {key:'c', ctrlKey:true, shiftKey:true});
+  h.emit('keydown', {key:'PageUp'}); h.settle();
+  assert.equal(h.buffer.viewportY,100);
+});
+
+test('native committed text or paste returns to latest without synthesizing input', () => {
+  const h = readerHarness(); const target = {};
+  h.term.element.contains = node => node === target;
+  for (const type of ['input','compositionend','paste']) {
+    h.emit('wheel'); h.scroll(100); h.settle();
+    h.emit(type, {target}); h.settle();
+    assert.equal(h.buffer.viewportY,h.buffer.baseY);
+  }
 });

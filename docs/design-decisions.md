@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_405 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_407 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [Terminal link opened a closed Browser app but lost the URL](#terminal-link-opened-a-closed-browser-app-but-lost-the-url)
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
@@ -428,6 +428,8 @@ _405 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [Capture actual scroll shifts before declaring terminal jumping resolved (2026-10-07)](#capture-actual-scroll-shifts-before-declaring-terminal-jumping-resolved-2026-10-07)
 - [Trace application redraws even when browser scroll stays latest (2026-10-07)](#trace-application-redraws-even-when-browser-scroll-stays-latest-2026-10-07)
 - [Do not match repeated headings during a split history redraw (2026-10-07)](#do-not-match-repeated-headings-during-a-split-history-redraw-2026-10-07)
+- [Redraw timeout must recover the reading position before uncovering it (2026-10-07)](#redraw-timeout-must-recover-the-reading-position-before-uncovering-it-2026-10-07)
+- [Typing explicitly leaves terminal history reading (2026-10-07)](#typing-explicitly-leaves-terminal-history-reading-2026-10-07)
 
 <!-- END TOC -->
 
@@ -18119,3 +18121,48 @@ one concrete failure, not proof that every reported episode shares its cause.
 **Rejected:** pinning a row number does not survive content replacement. A longer
 bottom-follow timer interrupts history reading. Suppressing terminal clear commands
 would corrupt application redraws; snapshotting pixels preserves normal parsing.
+
+
+## Redraw timeout must recover the reading position before uncovering it (2026-10-07)
+
+**Evidence:** desktop WebKit/localLLM revision-2 tracing at 19:40:29 Chicago
+captured a scrollback erase with base 999, viewport/marker 971 and distance 28.
+After the replacement buffer reached base 971, matching had not found the saved
+passage. The two-second snapshot timeout uncovered viewport zero. The user
+reported another older-content jump. A background redraw earlier in the same
+session likewise required foreground recovery after its passage changed.
+
+**Cause:** the snapshot expiry only removed the covering image. It did not call
+the existing distance fallback, so a redraw that replaced transient prompt/status
+text left the underlying view at the oldest row. Exact text matching cannot
+restore content that an application no longer prints.
+
+**Fix:** preserve exact matching first. On timeout, restore the saved distance
+from the new bottom, capture the replacement passage, render it, then uncover.
+Record a distinct fallback outcome. Schedule recovery even when the erase arrives
+in a hidden tab or pixel copying fails; defer the position change until foreground
+visibility/focus and recheck through the write/scroll watcher. New navigation and
+reconnect cancel old recovery state. When no history remains, follow the live view.
+
+**Validation:** regressions reproduce timeout exposing row zero, recover a shorter
+background buffer before any new output, and verify deliberate navigation wins.
+The browser regression additionally checks completed redraws where all passage
+text has changed. Distance restoration is approximate when content was removed;
+it preserves proximity to current output rather than claiming the deleted passage
+still exists. Production deployment and actual-session verification remain required.
+
+**Rejected:** extending the hold timer would only postpone this failure when the
+saved text is absent permanently. Forcing latest would abandon intentional history
+reading. Uncovering before the fallback render still flashes the oldest content.
+
+
+## Typing explicitly leaves terminal history reading (2026-10-07)
+
+The user expects typing to reveal the current input line. Earlier anchoring
+changes preserved history even when the user resumed editing, requiring a long
+manual scroll back to the prompt. Printable/editing keydowns, native committed
+input/IME/paste, mobile forwarded input and the system key bar now clear the
+reading anchor and resume latest following. Page navigation, wheel/touch history
+reading, modifier/copy shortcuts and output alone do not count as typing. No
+terminal input is synthesized or changed. Tests check both sides of this intent
+boundary, including a redraw after typing and paste without a keydown.

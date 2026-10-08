@@ -60,7 +60,7 @@ def test_report_counts_redraw_outcomes_for_the_deployed_anchor_revision():
                            'reader_revision': 2, 'terminal_text': 'PRIVATE'}), 'junjie')[0]
             for phase in ('hold', 'resume', 'hold', 'timeout')]
     summary, markdown = m.report(rows, 'start', 'end', False)
-    assert summary['reading_redraws'] == {'hold': 2, 'resume': 1, 'timeout': 1}
+    assert summary['reading_redraws'] == {'hold': 2, 'resume': 1, 'timeout': 1, 'fallback': 0}
     assert 'timed out: 1' in markdown
     assert 'PRIVATE' not in markdown
     assert all(r['reader_revision'] == 2 for r in rows)

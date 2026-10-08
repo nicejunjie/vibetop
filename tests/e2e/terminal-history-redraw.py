@@ -15,6 +15,7 @@ parser.add_argument('--user', default='junjie')
 parser.add_argument('--chromium', required=True)
 parser.add_argument('--webkit', required=True)
 parser.add_argument('--expect-broken', action='store_true')
+parser.add_argument('--desktop', action='store_true')
 args = parser.parse_args()
 import json,subprocess,os
 from playwright.sync_api import sync_playwright
@@ -27,7 +28,7 @@ for start in [80,380]:
 with sync_playwright() as p:
  for engine,exe in [(p.chromium,args.chromium),(p.webkit,args.webkit)]:
   browser=engine.launch(executable_path=exe,headless=True)
-  ctx=browser.new_context(viewport={'width':393,'height':852},is_mobile=True,has_touch=True)
+  ctx=browser.new_context(viewport={'width':1400,'height':900} if args.desktop else {'width':393,'height':852},is_mobile=not args.desktop,has_touch=not args.desktop)
   ctx.add_cookies([{'name':name,'value':value,'url':args.base}])
   page=ctx.new_page();sockets=[];errors=[];page.on('pageerror',lambda e:errors.append(str(e)))
   def phone_html(route):
@@ -77,6 +78,18 @@ with sync_playwright() as p:
    assert page.evaluate("!!document.querySelector('[data-vt-reader-snapshot]')")
    page.wait_for_timeout(2200)
    assert not page.evaluate("!!document.querySelector('[data-vt-reader-snapshot]')")
+   # Exact text can disappear during a completed redraw (for example a transient
+   # prompt/status region). Timeout must retain proximity to the latest history.
+   sockets[-1].send(b'0\x1b[3J\x1b[2J\x1b[H'+('\r\n'.join(lines)+'\r\n').encode());page.wait_for_timeout(150)
+   page.evaluate("window.dispatchEvent(new WheelEvent('wheel'));term.scrollToLine(term.buffer.active.baseY-28)");page.wait_for_timeout(100)
+   replacement=['replacement passage '+str(i) for i in range(600)]
+   sockets[-1].send(b'0\x1b[3J\x1b[2J\x1b[H'+('\r\n'.join(replacement)+'\r\n').encode());page.wait_for_timeout(2300)
+   assert page.evaluate('term.buffer.active.baseY-term.buffer.active.viewportY')==28
+   assert not page.evaluate("!!document.querySelector('[data-vt-reader-snapshot]')")
+   page.keyboard.type('x')
+   page.wait_for_timeout(100)
+   assert page.evaluate('term.buffer.active.viewportY===term.buffer.active.baseY'), 'typing must reveal the active line'
+   assert not page.evaluate('window.__vibetopTerminalReading().anchored')
    assert not errors,errors
    print(json.dumps({'browser':engine.name,'pixels_preserved':True,'navigation_yields':True,'snapshot_expiry':True,'real_pty_connections':0}),flush=True)
   ctx.close();browser.close()

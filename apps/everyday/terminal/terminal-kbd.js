@@ -60,7 +60,7 @@
   }
   var reader = null, readerMarker = null, readerRestoring = false, readerQueued = false;
   var readerNavigating = false, readerNavigationTimer = null, readerDragging = false;
-  var readerSnapshot = null, readerSnapshotTimer = null, readerImage = null, readerSnapshotEpoch = 0;
+  var readerSnapshot = null, readerSnapshotTimer = null, readerImage = null, readerSnapshotEpoch = 0, readerFallbackPending = false;
   var readerKey = 'vt-terminal-reader:' + (window.location && window.location.pathname || '');
   // A new frame/connection starts at latest. Reading anchors are live-only;
   // remove any anchor saved by an older client rather than restoring it.
@@ -85,9 +85,18 @@
     return snapshot;
   }
   function holdReaderSnapshot(t) {
-    if (!reader || document.hidden || !t.element) return;
+    if (!reader || !t.element) return;
     readerSnapshotEpoch++;
-    if (readerSnapshot) return;
+    if (!readerSnapshotTimer) readerSnapshotTimer = setTimeout(function () {
+      readerSnapshotTimer = null;
+      readerFallbackPending = true;
+      traceScroll('reader-redraw-timeout');
+      // A redraw may replace transient status/prompt text entirely. Exposing
+      // viewport zero is not a recovery: preserve distance from the new bottom
+      // when the saved text is gone, then render before uncovering the screen.
+      if (!restoreReader(true)) releaseReaderSnapshot();
+    }, 2000);
+    if (readerSnapshot || document.hidden) return;
     var screen = t.element.querySelector('.xterm-screen');
     if (!screen) return;
     try {
@@ -98,13 +107,14 @@
       if (!snapshot) return;
       screen.appendChild(snapshot); readerSnapshot = snapshot; readerImage = null;
       traceScroll('reader-redraw-hold');
-      readerSnapshotTimer = setTimeout(function () {
-        traceScroll('reader-redraw-timeout'); releaseReaderSnapshot();
-      }, 2000);
-    } catch (_) { releaseReaderSnapshot(); }
+    } catch (_) {
+      // Screen copying is optional; the reading-position recovery is not.
+      if (readerSnapshot) readerSnapshot.remove();
+      readerSnapshot = null;
+    }
   }
   function clearReader() {
-    releaseReaderSnapshot(); readerImage = null;
+    releaseReaderSnapshot(); readerImage = null; readerFallbackPending = false;
     if (readerMarker) readerMarker.dispose();
     readerMarker = null; reader = null;
   }
@@ -126,7 +136,7 @@
     markReader(t, b.viewportY);
   }
   function readerNavigation() {
-    releaseReaderSnapshot();
+    releaseReaderSnapshot(); readerFallbackPending = false;
     readerNavigating = true;
     if (readerNavigationTimer) clearTimeout(readerNavigationTimer);
     // Native xterm wheel/key handlers run after this capture handler. Capture
@@ -139,7 +149,7 @@
     try { if (window.__vibetopTraceTerminalScroll) window.__vibetopTraceTerminalScroll(reason, data); } catch (_) {}
   }
   window.__vibetopTerminalReading = function () {
-    return {reader_revision: 2, following: !!vtFollowOnReconnect, anchored: !!reader, navigating: readerNavigating,
+    return {reader_revision: 3, following: !!vtFollowOnReconnect, anchored: !!reader, navigating: readerNavigating,
       dragging: readerDragging, restoring: readerRestoring,
       marker_row: readerMarker && !readerMarker.isDisposed ? readerMarker.line : null,
       anchor_distance: reader ? reader.distance : null};
@@ -166,7 +176,8 @@
         if (match && Math.abs(i - expected) < best) { row = i; best = Math.abs(i - expected); }
       }
     }
-    if (row == null && fallback) row = Math.max(0, b.baseY - reader.distance);
+    var distanceFallback = row == null && fallback;
+    if (distanceFallback) row = Math.max(0, b.baseY - reader.distance);
     if (row == null) return;  // replay has not reached the saved passage yet
     readerRestoring = true;
     try {
@@ -176,6 +187,14 @@
       }
       if (!readerMarker || readerMarker.isDisposed) markReader(t, row);
       reader.distance = b.baseY - row;
+      if (distanceFallback) {
+        traceScroll('reader-redraw-fallback', {target: row});
+        // The previous fingerprint no longer exists. Anchor the replacement
+        // passage so subsequent writes do not repeatedly search for stale text.
+        captureReader();
+        if (!reader) vtFollowOnReconnect = true;
+      }
+      readerFallbackPending = false;
       if (readerSnapshot) {
         var snapshot = readerSnapshot, epoch = readerSnapshotEpoch;
         t.refresh(0, t.rows - 1);
@@ -184,7 +203,10 @@
             traceScroll('reader-redraw-resume'); releaseReaderSnapshot();
           }
         }); });
+      } else if (readerSnapshotTimer) {
+        clearTimeout(readerSnapshotTimer); readerSnapshotTimer = null;
       }
+      return true;
     } finally { readerRestoring = false; }
   }
   function restoreReaderSoon() {
@@ -196,7 +218,7 @@
       // since this callback was queued. Live redraws can reset viewportY even
       // long after the connection's short settle interval has ended.
       if (readerNavigating || readerDragging) return;
-      if (reader) restoreReader(false);
+      if (reader) restoreReader(readerFallbackPending);
       else if (vtFollowOnReconnect && !document.hidden && !atLatest()) revealLatest();
     });
   }
@@ -249,6 +271,30 @@
   // Yield to deliberate history navigation immediately. Without this, the
   // short post-resize/replay settle loop wins every 100ms and makes scrollback
   // unusable while a TUI such as Claude Code is actively repainting.
+  function returnToTypingLine() {
+    if (!document.hidden && (reader || !vtFollowOnReconnect || !atLatest())) {
+      if (readerNavigationTimer) clearTimeout(readerNavigationTimer);
+      readerNavigating = false; readerDragging = false;
+      clearReader();
+      armLatest();
+    }
+  }
+  window.addEventListener('keydown', function (e) {
+    if (e.isComposing || e.ctrlKey || e.metaKey || e.altKey) return;
+    if (typeof e.key === 'string' && (e.key.length === 1 ||
+        /^(Enter|Backspace|Delete|Tab|Escape|ArrowUp|ArrowDown|ArrowLeft|ArrowRight)$/.test(e.key))) {
+      returnToTypingLine();
+    }
+  }, true);
+  // Native desktop input/paste can arrive without a printable keydown (IME,
+  // dictation, context-menu paste). Mobile committed bytes use the fwd hook below.
+  function nativeTyping(e) {
+    var t = window.term;
+    if (!e.isComposing && t && t.element && t.element.contains && t.element.contains(e.target)) returnToTypingLine();
+  }
+  window.addEventListener('input', nativeTyping, true);
+  window.addEventListener('compositionend', nativeTyping, true);
+  window.addEventListener('paste', nativeTyping, true);
   window.addEventListener('wheel', cancelLatest, { capture: true, passive: true });
   window.addEventListener('keydown', function (e) {
     if (e.key === 'PageUp' || e.key === 'PageDown' || e.key === 'Home' || e.key === 'End') cancelLatest();
@@ -293,6 +339,15 @@
     if (t.onWriteParsed) t.onWriteParsed(restoreReaderSoon);
     if (t.onResize) t.onResize(restoreReaderSoon);
   })();
+  function resumeReader() {
+    if (document.hidden) return;
+    restoreReader(readerFallbackPending);
+    restoreReaderSoon();
+  }
+  // Redraws also arrive in background tabs. Recover before showing a buffer
+  // whose saved passage disappeared while frame callbacks were suspended.
+  if (document.addEventListener) document.addEventListener('visibilitychange', resumeReader);
+  window.addEventListener('focus', resumeReader);
   // Shared by desktop and touch. This must stay ABOVE the desktop early return
   // below; putting it with the touch-only message handlers made desktop tab
   // activation silently ignore the request.
@@ -721,6 +776,7 @@
     // emits to the PTY; dbg mirrors each byte into the debug overlay when enabled.
     var fwd = (window.TerminalKbdInput && window.TerminalKbdInput.create)
       ? window.TerminalKbdInput.create(function (b) {
+          returnToTypingLine();
           sendRaw(b);
           if (dbgEl) dbg(b === String.fromCharCode(127) ? '<BS>' : b);
         })
@@ -793,6 +849,7 @@
     window.addEventListener('message', function (e) {
       var d = e.data;
       if (d && d.type === 'kbd-key' && KBD_KEY_BYTES[d.key]) {
+        returnToTypingLine();
         sendRaw(KBD_KEY_BYTES[d.key]); dbg(' <' + d.key + '> ');
         // The system key bar / arrow-key trackpad just moved the shell cursor or
         // reshaped the line (Ctrl+F/B, arrows, ^C, Esc, Tab) — the overlay's mirror

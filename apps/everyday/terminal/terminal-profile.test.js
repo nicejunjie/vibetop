@@ -103,11 +103,21 @@ test('repaint retains the age of a size claim even if intervening scroll events 
 
 test('reading redraw outcomes identify the deployed anchor revision without capturing content', () => {
   const b = browser();
-  b.w.__vibetopTerminalReading = () => ({reader_revision: 2, following: false, anchored: true, marker_row: 40});
+  b.w.__vibetopTerminalReading = () => ({reader_revision: 3, following: false, anchored: true, marker_row: 40});
   b.w.__vibetopTraceTerminalScroll('reader-redraw-hold');
   b.w.__vibetopTraceTerminalScroll('reader-redraw-resume');
   b.advance(5000);
   const rows = b.rows().filter(r => r.event === 'reader-redraw');
   assert.equal(rows.length, 2);
-  assert(rows.every(r => r.reader_revision === 2 && r.anchored));
+  assert(rows.every(r => r.reader_revision === 3 && r.anchored));
+});
+
+
+test('missing-passage fallback is recorded as a redraw recovery outcome', () => {
+  const b = browser();
+  b.w.__vibetopTerminalReading = () => ({reader_revision: 3, following: false, anchored: true, marker_row: 943});
+  b.w.__vibetopTraceTerminalScroll('reader-redraw-fallback', {target: 943}); b.advance(5000);
+  const row = b.rows().find(r => r.event === 'reader-redraw');
+  assert.equal(row.reason, 'reader-redraw-fallback');
+  assert.equal(row.reader_revision, 3);
 });
