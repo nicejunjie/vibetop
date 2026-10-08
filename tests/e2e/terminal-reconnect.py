@@ -16,12 +16,20 @@ with sync_playwright() as pw:
   ctx = browser.new_context(viewport={'width':393,'height':852},is_mobile=True,has_touch=True)
   ctx.add_cookies([{'name':name,'value':value,'url':'http://127.0.0.1'}])
   ctx.add_init_script("""const fetchOriginal=window.fetch;window.fetch=function(url,...args){if(String(url).includes('/api/clientlog'))return Promise.resolve(new Response('{}'));return fetchOriginal.call(this,url,...args)};window.testHidden=false;Object.defineProperty(document,'hidden',{get:()=>window.testHidden});const originalNow=Date.now;window.clockOffset=0;Date.now=()=>originalNow()+window.clockOffset;""")
-  page=ctx.new_page(); sockets=[]; delay=[False]
+  page=ctx.new_page(); sockets=[]; delay=[False]; inputs=[]
   page.route('**/terminal-profile.js*',lambda r:r.fulfill(body='',content_type='text/javascript'))
   page.route('**/terminal-connection.js*',lambda r:r.fulfill(body=source,content_type='text/javascript'))
+  def html(route):
+   response=route.fetch();text=response.text()
+   if 'window.__vibetopTtyd=this' not in text:
+    assert text.count('this.terminal=new')==1
+    text=text.replace('this.terminal=new','(window.__vibetopTtyd=this),this.terminal=new')
+   route.fulfill(response=response,body=text)
+  page.route('http://127.0.0.1/t4/',html)
   def socket(route):
    sockets.append(route); sent=[False]
-   def message(_):
+   def message(data):
+    if isinstance(data, bytes) and data[:1]==b'0': inputs.append(data[1:])
     if not sent[0]:
      sent[0]=True;route.send(b'2{}')
      if not delay[0]: route.send(b'0ready\r\n')
@@ -36,6 +44,7 @@ with sync_playwright() as pw:
    assert len(sockets)==1, 'healthy browser switch rebuilt transport'
   page.evaluate('clockOffset=0')
   import time
+  page.evaluate('window.testTerm=term;window.testDocument=document')
   start=time.monotonic();sockets[-1].close(code=1011)
   page.wait_for_function("window.term && term.buffer.active.getLine(0).translateToString().includes('ready')")
   page.wait_for_timeout(100)
@@ -44,6 +53,13 @@ with sync_playwright() as pw:
    assert time.monotonic()-start<2
   recovery=(time.monotonic()-start)*1000
   assert recovery<2000
+  assert page.evaluate('term===testTerm && document===testDocument'), 'recovery reloaded document'
+  page.wait_for_timeout(700)
+  assert len(sockets)==2, 'duplicate native retry'
+  page.evaluate("term.input('x')")
+  page.wait_for_timeout(100)
+  assert inputs==[b'x'], 'input listeners missing or duplicated after recovery'
+  assert page.evaluate('term===testTerm')
   delay[0]=True;page.reload();page.wait_for_function('window.term');page.wait_for_timeout(300)
   count=len(sockets)
   page.evaluate('clockOffset=25000');page.wait_for_timeout(650)

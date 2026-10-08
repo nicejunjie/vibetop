@@ -49,7 +49,7 @@
     if (stopped || exhausted || w.document.hidden) return;
     // WebKit can expose CLOSED before delivering its close event. Recover a
     // dead transport, never mistake an open, silent shell for a dead one.
-    if (socket && socket.readyState === 3 && phase !== 'closed') {
+    if (socket && socket.readyState === 3 && phase !== 'closed' && phase !== 'reconnecting') {
       if (ready) since = Date.now();
       ready = false; phase = 'closed'; closedAt = Date.now();
     }
@@ -70,11 +70,31 @@
     if (!recoverClosed && elapsed < 3000) return;
     if (!recoverClosed && elapsed < 30000) { show('Connecting to terminal…'); return; }
     if (retries >= 3) {
+      var exhaustedOwner = w.__vibetopTtyd;
+      if (exhaustedOwner && exhaustedOwner.socket === socket && typeof exhaustedOwner.dispose === 'function') exhaustedOwner.dispose();
       show('Terminal connection failed. Retry to reconnect.', true);
       log('retry-limit'); exhausted = true; return;
     }
     show('Terminal connection stalled. Reconnecting…');
-    log(resumeClosed ? 'resume-closed' : cleanClosed ? 'clean-close' : recoverClosed ? 'closed-reconnect' : 'timeout'); stopped = true; w.clearInterval(timer);
+    var event = resumeClosed ? 'resume-closed' : cleanClosed ? 'clean-close' : recoverClosed ? 'closed-reconnect' : 'timeout';
+    var owner = w.__vibetopTtyd;
+    // The installer exposes ttyd's controller. Its normal connect path resets
+    // the view and restores listeners; avoid downloading / parsing HTML again.
+    // Dispose before the native close listener runs, so only one retry owns it.
+    if (recoverClosed && owner && owner.socket === socket &&
+        typeof owner.dispose === 'function' && typeof owner.refreshToken === 'function' &&
+        typeof owner.connect === 'function') {
+      log(event); owner.dispose();
+      try { w.sessionStorage.setItem(key, String(retries + 1)); }
+      catch (_) { stopped = true; show('Terminal connection failed.', true); return; }
+      retries++; since = Date.now(); phase = 'reconnecting'; resumeClosed = false;
+      log('inplace-reconnect');
+      Promise.resolve().then(function () { return owner.refreshToken(); }).then(function () {
+        if (!stopped && !exhausted && phase === 'reconnecting') owner.connect();
+      }).catch(function () { log('socket-error'); });
+      return;
+    }
+    log(event); stopped = true; w.clearInterval(timer);
     // With no persistent storage we cannot bound a cross-reload loop. Offer a
     // manual retry instead of automatically reloading forever.
     try { w.sessionStorage.setItem(key, String(retries + 1)); }
@@ -126,7 +146,7 @@
     if (stopped || exhausted) return;
     // WebKit can report CLOSED before dispatching its queued close event.
     // Read the actual socket state rather than waiting for that event/code.
-    if (socket && socket.readyState === 3) {
+    if (socket && socket.readyState === 3 && phase !== 'reconnecting') {
       if (phase !== 'closed') closedAt = Date.now();
       ready = false; phase = 'closed'; resumeClosed = true;
     }

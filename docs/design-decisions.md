@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_408 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_409 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [Terminal link opened a closed Browser app but lost the URL](#terminal-link-opened-a-closed-browser-app-but-lost-the-url)
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
@@ -431,6 +431,7 @@ _408 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [Redraw timeout must recover the reading position before uncovering it (2026-10-07)](#redraw-timeout-must-recover-the-reading-position-before-uncovering-it-2026-10-07)
 - [Typing explicitly leaves terminal history reading (2026-10-07)](#typing-explicitly-leaves-terminal-history-reading-2026-10-07)
 - [Terminal closed transport recovery and mobile foreground reuse (2026-10-07)](#terminal-closed-transport-recovery-and-mobile-foreground-reuse-2026-10-07)
+- [Recover the ttyd transport without rebuilding its page (2026-10-08)](#recover-the-ttyd-transport-without-rebuilding-its-page-2026-10-08)
 
 <!-- END TOC -->
 
@@ -18191,3 +18192,33 @@ and still supports older events. Unit coverage includes offline recovery, retry
 limits, slow first output, background startup and healthy browser switches.
 The browser regression uses actual ttyd HTML and synthetic sockets in Chromium
 and WebKit; it validates client behavior rather than claiming real-network speed.
+
+
+## Recover the ttyd transport without rebuilding its page (2026-10-08)
+
+After removing the four-second closed-socket grace, real iPhone reconnects still
+needed roughly 1.7–2.8 seconds. Their page stage alone took about 0.7–1.1 seconds,
+followed by 0.6–1.4 seconds of WebSocket handshake. Multiple sockets closed with
+1006 when returning from background. Reloading the entire terminal HTML repeats
+its download, token retrieval and initialization on every such recovery.
+
+Expose ttyd's controller through a targeted nginx substitution of its terminal
+construction statement. The guard disposes the controller's old subscriptions
+before its native close callback can launch a competing retry, refreshes the token,
+and invokes ttyd's own connect method. Its open callback resets the view and
+restores input/resize subscriptions. The keyboard helper's existing new-socket
+listener follows latest output. No PTY is restarted and no input is synthesized.
+
+Retain foreground-only thirty-second pending deadlines, offline waiting, retry
+backoff and the three-attempt ceiling, including disposal of native listeners at
+exhaustion. While token refresh is pending, the old CLOSED socket must not trigger
+another attempt. If the controller hook is unavailable, use the bounded frame
+reload fallback. If a pending token request hangs, its eventual completion must
+not connect after the watchdog has already reloaded the page.
+
+Browser regressions use actual ttyd HTML in Chromium and mobile WebKit with every
+socket mocked. They assert document and terminal identity survive recovery, one
+new socket appears, input is forwarded exactly once, healthy visibility switches
+reuse transport, and slow first output does not expire prematurely. Unit tests
+also cover hanging refresh and exhaustion. Real-network results remain monitored;
+this removes page overhead rather than eliminating variable network latency.

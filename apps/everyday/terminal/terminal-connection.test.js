@@ -208,3 +208,41 @@ test('close delivered during background suspension keeps recovery elapsed nonneg
   assert.equal(recovery.elapsed, 0);
   assert.equal(recovery.closed_wait_ms, 2000);
 });
+
+test('closed controller reconnects in place, disposes old listeners, and resets budget on output', async () => {
+  const b = browser(), ws = new b.w.WebSocket('ws://test/t1/ws');
+  ws.emit('open'); ws.emit('message', '0ready');
+  let disposed = 0, tokens = 0, connects = 0, current;
+  b.w.__vibetopTtyd = {socket:ws, dispose(){disposed++;}, refreshToken(){tokens++;},
+    connect(){connects++; current = new b.w.WebSocket('ws://test/t1/ws'); this.socket=current;}};
+  ws.emit('close', undefined, 1006);
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(disposed, 1); assert.equal(tokens, 1); assert.equal(connects, 1);
+  assert.equal(b.reloads, 0); assert.equal(b.saved.get('vt-terminal-retries:/t1/'), '1');
+  current.emit('open'); current.emit('message', '0recovered');
+  assert.equal(b.saved.size, 0); b.advance(60000); assert.equal(b.reloads, 0);
+});
+
+test('hanging in-place token refresh still has a bounded foreground deadline', async () => {
+  const b = browser(), ws = new b.w.WebSocket('ws://test/t1/ws');
+  ws.emit('open'); ws.emit('message','0ready');
+  let connects=0;
+  b.w.__vibetopTtyd = {socket:ws, dispose(){}, refreshToken(){return new Promise(()=>{});},connect(){connects++;}};
+  ws.emit('close',undefined,1006); await new Promise(resolve=>setImmediate(resolve));
+  b.advance(25000); assert.equal(b.reloads,0);
+  b.advance(5000); assert.equal(b.reloads,1); assert.equal(connects,0);
+});
+
+test('in-place failures retain backoff and stop both guard and native retries at the limit', async () => {
+ const b=browser();let current=new b.w.WebSocket('ws://test/t1/ws'), disposed=0, connects=0;
+ b.w.__vibetopTtyd={socket:current, dispose(){disposed++;}, refreshToken(){},connect(){connects++;current=new b.w.WebSocket('ws://test/t1/ws');this.socket=current;}};
+ for(let i=0;i<3;i++){
+  current.emit('close',undefined,1011);
+  if(i>0){assert.equal(connects,i);b.advance(i===1?1000:4000);}
+  await new Promise(resolve=>setImmediate(resolve));
+  assert.equal(connects,i+1);
+ }
+ current.emit('close',undefined,1011);await new Promise(resolve=>setImmediate(resolve));
+ assert.equal(connects,3);assert.equal(disposed,4);assert.equal(b.reloads,0);
+ assert.match(b.elements[0].textContent,/failed/);b.advance(60000);assert.equal(connects,3);
+});

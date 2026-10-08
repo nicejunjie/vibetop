@@ -75,3 +75,12 @@ def test_closed_recovery_wait_uses_close_clock_and_supports_legacy_events():
     summary, markdown = m.report(rows, 'start', 'end', False)
     assert summary['devices']['iphone']['metrics']['retry_wait_ms']['median'] == 500
     assert 'Recovery/error events: 3' in markdown
+
+
+def test_inplace_recovery_reports_socket_duration_instead_of_page_age():
+    rows=[{'device':'iphone','id':'page','seq':2,'event':'socket-created','ms':60000},
+          {'device':'iphone','id':'page','seq':2,'event':'first-render','ms':61000,'boot_to_paint_ms':61000}]
+    summary, _ = m.report(rows, 'start', 'end', False)
+    metrics=summary['devices']['iphone']['metrics']
+    assert metrics['socket_to_paint_ms']['median']==1000
+    assert 'boot_to_paint_ms' not in metrics

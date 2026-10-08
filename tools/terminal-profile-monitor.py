@@ -72,7 +72,16 @@ def percentile(values, q):
 
 def report(rows, start, end, complete):
     rows = [dict(r) for r in rows]
+    created = {(r.get('id'), r.get('seq')): r.get('ms') for r in rows
+               if r.get('event') == 'socket-created' and r.get('id')}
     for row in rows:
+        if row.get('event') == 'first-render':
+            begin = created.get((row.get('id'), row.get('seq')))
+            if isinstance(begin, (int, float)) and isinstance(row.get('ms'), (int, float)) and row['ms'] >= begin:
+                row['socket_to_paint_ms'] = row['ms'] - begin
+            # Page age is not reconnect duration when the document is reused.
+            if isinstance(row.get('seq'), int) and row['seq'] > 1:
+                row.pop('boot_to_paint_ms', None)
         nav = row.get('navigation', {})
         for src, dest in [('ttfb_ms', 'page_ttfb_ms'), ('transfer_ms', 'page_transfer_ms'), ('response_end_ms', 'page_ready_ms')]:
             if isinstance(nav.get(src), (int, float)):
@@ -82,7 +91,7 @@ def report(rows, start, end, complete):
             if isinstance(wait, (int, float)) and 0 <= wait <= 60000:
                 row['retry_wait_ms'] = wait
     metrics = ['page_ttfb_ms', 'page_transfer_ms', 'page_ready_ms', 'retry_wait_ms', 'handshake_ms', 'socket_to_output_ms', 'open_to_output_ms',
-               'output_to_parse_ms', 'output_to_paint_ms', 'boot_to_paint_ms',
+               'output_to_parse_ms', 'output_to_paint_ms', 'boot_to_paint_ms', 'socket_to_paint_ms',
                'since_resume_ms', 'since_close_ms']
     groups = {}
     for device in ('iphone', 'ipad', 'desktop'):
