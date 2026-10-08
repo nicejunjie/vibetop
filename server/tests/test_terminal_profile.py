@@ -64,3 +64,14 @@ def test_report_counts_redraw_outcomes_for_the_deployed_anchor_revision():
     assert 'timed out: 1' in markdown
     assert 'PRIVATE' not in markdown
     assert all(r['reader_revision'] == 2 for r in rows)
+
+
+def test_closed_recovery_wait_uses_close_clock_and_supports_legacy_events():
+    rows = [m.decode(line({'k':'terminal-connection', 'event':event,
+                          'path':'/t4/', 'elapsed':elapsed, **extra}), 'junjie')[0]
+            for event, elapsed, extra in [('closed-reconnect', 20000, {'closed_wait_ms':0}),
+                                         ('resume-closed', 60000, {'closed_wait_ms':500}),
+                                         ('closed-fallback', 4500, {})]]
+    summary, markdown = m.report(rows, 'start', 'end', False)
+    assert summary['devices']['iphone']['metrics']['retry_wait_ms']['median'] == 500
+    assert 'Recovery/error events: 3' in markdown

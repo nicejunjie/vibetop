@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_407 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_408 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [Terminal link opened a closed Browser app but lost the URL](#terminal-link-opened-a-closed-browser-app-but-lost-the-url)
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
@@ -430,6 +430,7 @@ _407 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [Do not match repeated headings during a split history redraw (2026-10-07)](#do-not-match-repeated-headings-during-a-split-history-redraw-2026-10-07)
 - [Redraw timeout must recover the reading position before uncovering it (2026-10-07)](#redraw-timeout-must-recover-the-reading-position-before-uncovering-it-2026-10-07)
 - [Typing explicitly leaves terminal history reading (2026-10-07)](#typing-explicitly-leaves-terminal-history-reading-2026-10-07)
+- [Terminal closed transport recovery and mobile foreground reuse (2026-10-07)](#terminal-closed-transport-recovery-and-mobile-foreground-reuse-2026-10-07)
 
 <!-- END TOC -->
 
@@ -18166,3 +18167,27 @@ reading anchor and resume latest following. Page navigation, wheel/touch history
 reading, modifier/copy shortcuts and output alone do not count as typing. No
 terminal input is synthesized or changed. Tests check both sides of this intent
 boundary, including a redraw after typing and paste without a keydown.
+
+
+## Terminal closed transport recovery and mobile foreground reuse (2026-10-07)
+
+The connection monitor measured sixteen iPhone abnormal-close recoveries waiting
+roughly 4.45 seconds before reloading the terminal frame. The four-second grace
+allowed ttyd's native three-second retry; it was not a handshake allowance for
+airplane WiFi. Recover the first confirmed CLOSED transport immediately, with
+one-second then four-second backoff for repeated failures and the existing
+three-attempt ceiling. Wait while offline instead of consuming retry attempts.
+
+Keep slow pending handshakes and first PTY output alive for thirty seconds of
+foreground time, excluding background suspension. Never expire an established
+quiet shell. A visibility/focus event reuses an OPEN connection; only CLOSED
+transport triggers recovery. If iOS closes a transport while suspended it must
+be reopened, but browser switching alone does not rebuild a healthy connection.
+The airplane replay pacing, replay budget, native reconnect setting, and server
+keepalive timeouts remain intact. Recovery never sends synthetic terminal input.
+
+The monitor records actual time since close separately from startup elapsed time
+and still supports older events. Unit coverage includes offline recovery, retry
+limits, slow first output, background startup and healthy browser switches.
+The browser regression uses actual ttyd HTML and synthetic sockets in Chromium
+and WebKit; it validates client behavior rather than claiming real-network speed.

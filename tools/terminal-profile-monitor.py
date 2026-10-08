@@ -18,7 +18,7 @@ FIELDS = {'k', 'event', 'id', 'seq', 'path', 'at', 'ms', 'hidden', 'online',
           'window_ms', 'viewport', 'bottom', 'code', 'lifetime_ms', 'state',
           'persisted', 'phase', 'elapsed', 'retries', 'close_code', 'reason', 'from_base', 'from_viewport',
           'base', 'distance', 'mode', 'scroll_top', 'navigation_age_ms', 'following',
-          'anchored', 'navigating', 'marker_row', 'anchor_distance', 'target', 'cursor_row', 'rows', 'cols', 'size_claim_age_ms', 'fit_age_ms', 'reader_revision'}
+          'anchored', 'navigating', 'marker_row', 'anchor_distance', 'target', 'cursor_row', 'rows', 'cols', 'size_claim_age_ms', 'fit_age_ms', 'reader_revision', 'closed_wait_ms'}
 NAV_FIELDS = {'type', 'dns_ms', 'connect_ms', 'ttfb_ms', 'transfer_ms',
               'encoded_bytes', 'wire_bytes', 'dom_ms', 'response_end_ms'}
 RESOURCE_FIELDS = {'path', 'start_ms', 'duration_ms', 'ttfb_ms', 'wire_bytes', 'encoded_bytes'}
@@ -77,8 +77,10 @@ def report(rows, start, end, complete):
         for src, dest in [('ttfb_ms', 'page_ttfb_ms'), ('transfer_ms', 'page_transfer_ms'), ('response_end_ms', 'page_ready_ms')]:
             if isinstance(nav.get(src), (int, float)):
                 row[dest] = nav[src]
-        if row.get('event') == 'closed-fallback' and 0 <= row.get('elapsed', -1) <= 60000:
-            row['retry_wait_ms'] = row['elapsed']
+        if row.get('event') in ('closed-fallback', 'closed-reconnect', 'resume-closed', 'clean-close'):
+            wait = row.get('closed_wait_ms', row.get('elapsed', -1))
+            if isinstance(wait, (int, float)) and 0 <= wait <= 60000:
+                row['retry_wait_ms'] = wait
     metrics = ['page_ttfb_ms', 'page_transfer_ms', 'page_ready_ms', 'retry_wait_ms', 'handshake_ms', 'socket_to_output_ms', 'open_to_output_ms',
                'output_to_parse_ms', 'output_to_paint_ms', 'boot_to_paint_ms',
                'since_resume_ms', 'since_close_ms']
@@ -118,7 +120,7 @@ def report(rows, start, end, complete):
               'Timeouts mean exact passage matching exceeded two seconds. A distance fallback should restore a nearby position before exposing the replacement screen. Investigate timeouts without recovery; missing samples are not proof of success.', '']
     lines += ['- ' + json.dumps(r, sort_keys=True) for r in redraws[-20:]]
     lines.append('')
-    failures = [r for r in rows if r.get('event') in ('timeout', 'closed-fallback', 'resume-closed', 'socket-error', 'retry-limit')]
+    failures = [r for r in rows if r.get('event') in ('timeout', 'closed-fallback', 'closed-reconnect', 'resume-closed', 'socket-error', 'retry-limit')]
     repaints = [r for r in rows if r.get('event') == 'screen-repaint']
     lines += [f'Application screen/history reset samples: {len(repaints)}.', '', '## Recent application screen resets', '']
     lines += ['- ' + json.dumps(r, sort_keys=True) for r in repaints[-20:]]

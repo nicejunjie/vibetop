@@ -9,8 +9,9 @@
   'use strict';
   var key = 'vt-terminal-retries:' + w.location.pathname;
   var socket = null, ready = false, stopped = false, exhausted = false, panel = null;
-  var closeCode = null, closedAt = 0, resumeClosed = false;
+  var closeCode = null, closedAt = 0, resumeClosed = false, wasOffline = false;
   var since = Date.now(), phase = 'startup', retries = 0, timer;
+  var hiddenAt = w.document.hidden ? Date.now() : null;
   try { retries = Math.min(3, Math.max(0, +w.sessionStorage.getItem(key) || 0)); } catch (_) {}
   function log(event) {
     // No terminal output, typed input, token, query string, or socket URL.
@@ -20,7 +21,8 @@
         body: JSON.stringify({ ua: w.navigator.userAgent, guard: [{
           k: 'terminal-connection', event: event, path: w.location.pathname,
           phase: phase, elapsed: Date.now() - since, retries: retries,
-          state: socket ? socket.readyState : null, close_code: closeCode
+          state: socket ? socket.readyState : null, close_code: closeCode,
+          closed_wait_ms: phase === 'closed' ? Date.now() - closedAt : null
         }] }) }).catch(function () {});
     } catch (_) {}
   }
@@ -44,25 +46,35 @@
     }
   }
   function tick() {
-    if (stopped || ready || exhausted || w.document.hidden) return;
+    if (stopped || exhausted || w.document.hidden) return;
+    // WebKit can expose CLOSED before delivering its close event. Recover a
+    // dead transport, never mistake an open, silent shell for a dead one.
+    if (socket && socket.readyState === 3 && phase !== 'closed') {
+      if (ready) since = Date.now();
+      ready = false; phase = 'closed'; closedAt = Date.now();
+    }
+    if (ready) return;
+    if (w.navigator.onLine === false) {
+      wasOffline = true; show('Waiting for network…'); return;
+    }
+    if (wasOffline) { wasOffline = false; since = Date.now(); }
     var elapsed = Date.now() - since;
-    // ttyd deliberately does not auto-reconnect a clean close: it displays
-    // "Press Enter to Reconnect". iOS suspension takes this path. A closed
-    // socket cannot deliver output, so waiting for the startup deadline adds
-    // twelve seconds to every resume. Reload just this frame without input.
     var cleanClosed = phase === 'closed' && (closeCode === 1000 || closeCode === 1005);
-    var closedFallback = phase === 'closed' && Date.now() - closedAt >= 4000;
-    var recoverClosed = cleanClosed || resumeClosed || closedFallback;
-    // Abnormal closes get ttyd's native 3-second retry first. If it never
-    // opens another socket, fall back at four seconds instead of twelve.
+    var recoverClosed = phase === 'closed';
+    // Normal recovery starts immediately. Repeated connection failures back
+    // off without imposing the same delay on every healthy mobile reconnect.
+    var retryDelay = retries === 0 ? 0 : retries === 1 ? 1000 : 4000;
+    if (recoverClosed && retries < 3 && Date.now() - closedAt < retryDelay) return;
+    // A slow handshake / first output can still succeed on airplane WiFi.
+    // This generous deadline applies only while transport is not yet closed.
     if (!recoverClosed && elapsed < 3000) return;
-    if (!recoverClosed && elapsed < 12000) { show('Connecting to terminal…'); return; }
+    if (!recoverClosed && elapsed < 30000) { show('Connecting to terminal…'); return; }
     if (retries >= 3) {
       show('Terminal connection failed. Retry to reconnect.', true);
       log('retry-limit'); exhausted = true; return;
     }
     show('Terminal connection stalled. Reconnecting…');
-    log(resumeClosed ? 'resume-closed' : cleanClosed ? 'clean-close' : closedFallback ? 'closed-fallback' : 'timeout'); stopped = true; w.clearInterval(timer);
+    log(resumeClosed ? 'resume-closed' : cleanClosed ? 'clean-close' : recoverClosed ? 'closed-reconnect' : 'timeout'); stopped = true; w.clearInterval(timer);
     // With no persistent storage we cannot bound a cross-reload loop. Offer a
     // manual retry instead of automatically reloading forever.
     try { w.sessionStorage.setItem(key, String(retries + 1)); }
@@ -94,6 +106,7 @@
       if (ready) since = Date.now();
       ready = false; phase = 'closed'; closeCode = event.code; closedAt = Date.now();
       log('socket-close');
+      tick();
     });
     ws.addEventListener('error', function () { if (ws === socket) phase = 'error'; });
     return ws;
@@ -105,18 +118,25 @@
   }
   timer = w.setInterval(tick, 500);
   function resume() {
-    if (w.document.hidden || stopped || exhausted) return;
+    if (w.document.hidden) {
+      if (hiddenAt == null) hiddenAt = Date.now();
+      return;
+    }
+    if (hiddenAt != null) { since += Date.now() - Math.max(hiddenAt, since); hiddenAt = null; }
+    if (stopped || exhausted) return;
     // WebKit can report CLOSED before dispatching its queued close event.
     // Read the actual socket state rather than waiting for that event/code.
     if (socket && socket.readyState === 3) {
+      if (phase !== 'closed') closedAt = Date.now();
       ready = false; phase = 'closed'; resumeClosed = true;
     }
     tick();
   }
   w.document.addEventListener('visibilitychange', resume);
   w.addEventListener('focus', resume);
+  w.addEventListener('online', resume);
   w.addEventListener('pagehide', function () { stopped = true; w.clearInterval(timer); });
   w.addEventListener('pageshow', function (e) {
-    if (e.persisted) { stopped = false; since = Date.now(); timer = w.setInterval(tick, 500); resume(); }
+    if (e.persisted) { stopped = false; since = Date.now(); hiddenAt = w.document.hidden ? Date.now() : null; timer = w.setInterval(tick, 500); resume(); }
   });
 });
