@@ -367,6 +367,15 @@
       if (done) return; done = true;
       clearTimeout(show); if (idle) clearTimeout(idle); if (cap) clearTimeout(cap);
       _barHide();
+      // A reconnect is passive on the shared PTY. Replay can therefore contain
+      // another device's geometry until this visible mobile client claims it.
+      // Do this after replay, not on the first touch; never let an old socket,
+      // hidden tab, or deliberate history reader take ownership here.
+      if (isTouch && ws === ttydWS && ws.readyState === 1 && !document.hidden &&
+          vtFollowOnReconnect && !reader && window.term && window.term.element &&
+          window.term.element.clientWidth > 0) {
+        try { claimSize(); } catch (_) {}
+      }
       if (Date.now() < followLatestUntil) revealLatest();
       try { ws.removeEventListener('message', onmsg); } catch (_) {}
     }

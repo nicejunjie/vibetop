@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_409 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_410 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [Terminal link opened a closed Browser app but lost the URL](#terminal-link-opened-a-closed-browser-app-but-lost-the-url)
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
@@ -432,6 +432,7 @@ _409 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [Typing explicitly leaves terminal history reading (2026-10-07)](#typing-explicitly-leaves-terminal-history-reading-2026-10-07)
 - [Terminal closed transport recovery and mobile foreground reuse (2026-10-07)](#terminal-closed-transport-recovery-and-mobile-foreground-reuse-2026-10-07)
 - [Recover the ttyd transport without rebuilding its page (2026-10-08)](#recover-the-ttyd-transport-without-rebuilding-its-page-2026-10-08)
+- [Mobile reconnect redraws at the visible client's geometry (2026-10-08)](#mobile-reconnect-redraws-at-the-visible-clients-geometry-2026-10-08)
 
 <!-- END TOC -->
 
@@ -18222,3 +18223,26 @@ new socket appears, input is forwarded exactly once, healthy visibility switches
 reuse transport, and slow first output does not expire prematurely. Unit tests
 also cover hanging refresh and exhaustion. Real-network results remain monitored;
 this removes page overhead rather than eliminating variable network latency.
+
+
+## Mobile reconnect redraws at the visible client's geometry (2026-10-08)
+
+After in-place recovery, the mobile terminal could show a stale layout until the
+first swipe/pointer interaction. Shared-session clients connect passively, so
+replay may reflect another device's PTY shape. Mobile foreground/pageshow claims
+can run before the replacement socket exists; socket open followed latest but
+did not reclaim geometry. The first pointer event then nudged size and caused
+the application to redraw, explaining why interaction appeared to activate it.
+
+At replay completion, reclaim the visible mobile client's size through the
+existing resize-only nudge, then keep following latest. Require the current OPEN
+socket, foreground visibility, positive terminal width and continued latest
+following with no reading anchor. Old-socket close/error callbacks, hidden tabs
+and deliberate history reading must not claim here. Existing foreground recovery
+handles a replay completed while hidden. No keystrokes are synthesized.
+
+The browser negative control reproduces missing size claims after in-place
+reconnect in Chromium and mobile WebKit. The fixed path requests one resize pair
+without a gesture, keeps the same terminal, follows the fresh prompt and preserves
+intentional history navigation. All transports are mocked; tests verify the
+resize protocol and UI behavior, while actual-session monitoring remains active.
