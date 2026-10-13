@@ -5,6 +5,7 @@ import http.client
 import html
 import hashlib
 import json
+import logging
 import os
 import re
 import stat
@@ -292,7 +293,11 @@ class Bridge:
                 else:
                     raise
             return self.reply(handler, status, result, headers=self.cookies(claims["lease"]))
-        except (ValueError, KeyError, TypeError):
+        except (ValueError, KeyError, TypeError) as error:
+            # Every credential failure reads "signed out" to the client; keep the
+            # real reason, or an unrelated bug is indistinguishable from expiry.
+            logging.info("browser-lite %s %s denied: %s: %s", handler.command, handler.headers.get("X-Original-URI", handler.path)[:120],
+                         type(error).__name__, str(error)[:200])
             return self.reply(handler, 401, {"message": "Browser Lite sign-in has ended. Reopen it from Vibetop."})
         except (BrokenPipeError, ConnectionResetError):
             return
