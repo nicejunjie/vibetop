@@ -16,4 +16,10 @@ function navigationFetchSite(navigation,source,target) {
  if(!sameSite(source,target))return 'cross-site';
  return source===target && navigation?.originTaint!=='same-site'?'same-origin':'same-site';
 }
-module.exports={redirectTaint,navigationFetchSite};
+// A tab's main page is a top-level document to the site even though Browser Lite
+// renders it in an iframe. Sign-in pages (Google) refuse Sec-Fetch-Dest: iframe
+// as clickjacking defence. Real nested frames carry the engine's iframe marker.
+function mainFrameFetchDest(dest,mode,isNestedFrame) {
+ return dest==='iframe' && mode==='navigate' && !isNestedFrame ? 'document' : dest;
+}
+module.exports={redirectTaint,navigationFetchSite,mainFrameFetchDest};

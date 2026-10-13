@@ -23,7 +23,7 @@ const {WorkerStore} = require('./worker-store.cjs');
 const {NavigationTransactions} = require('./navigation.cjs');
 const {BodyBudget} = require('./body-budget.cjs');
 const {CookieStore} = require('./cookie-store.cjs');
-const {redirectTaint,navigationFetchSite} = require('./redirect-policy.cjs');
+const {redirectTaint,navigationFetchSite,mainFrameFetchDest} = require('./redirect-policy.cjs');
 const {ControlLedger} = require('./control-ledger.cjs');
 const clientSource = fs.readFileSync(path.join(__dirname, 'client-bridge.js'), 'utf8');
 const documentHistorySource=fs.readFileSync(path.join(__dirname,'document-history.js'),'utf8');
@@ -401,6 +401,8 @@ class BrowserGateway {
     transforms.forcedRequestTransforms.cookie = (_value,ctx) => ctx.session.cookies.getHeader(ctx.dest) || undefined;
     transforms.forcedRequestTransforms['sec-fetch-site'] = (_value,ctx) =>
       navigationFetchSite(ctx.req.vtNavigation,ctx.dest.reqOrigin,ctx.dest.domain);
+    transforms.requestTransforms['sec-fetch-dest'] = (value,ctx) =>
+      mainFrameFetchDest(value,ctx.req.headers['sec-fetch-mode'],ctx.dest.isIframe);
     transforms.requestTransforms['proxy-authorization'] = () => undefined;
     transforms.forcedRequestTransforms.origin = (_value,ctx) =>
       ctx.req.headers.origin || (ctx.req.vtNavigation && ctx.req.method==='POST') ? (ctx.req.vtNavigation?.originTaint && ctx.req.vtNavigation.originTaint!=='same-origin'?'null':ctx.dest.reqOrigin) : undefined;
