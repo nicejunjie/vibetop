@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_447 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_448 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [Terminal link opened a closed Browser app but lost the URL](#terminal-link-opened-a-closed-browser-app-but-lost-the-url)
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
@@ -470,6 +470,7 @@ _447 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [Browser Lite srcdoc iframes must bootstrap from the native parent](#browser-lite-srcdoc-iframes-must-bootstrap-from-the-native-parent)
 - [Browser Lite rewrites HLS playlists for native players](#browser-lite-rewrites-hls-playlists-for-native-players)
 - [Browser Lite follows same-frame links by replacement](#browser-lite-follows-same-frame-links-by-replacement)
+- [Browser Lite realm hosts use 64k nginx header buffers](#browser-lite-realm-hosts-use-64k-nginx-header-buffers)
 
 <!-- END TOC -->
 
@@ -19119,3 +19120,22 @@ fixtures and do not provision external infrastructure.
   replace.
 - **Rejected:** Blocking the swipe in the game. iOS gives pages no way to
   disable the edge-swipe gesture, and the stray entries would remain anyway.
+
+## Browser Lite realm hosts use 64k nginx header buffers
+
+- **Symptom:** NYTimes never loaded in Browser Lite: the tab stayed on
+  "Loading…" (desktop and iPhone). CNN showed "Unknown Error", and Taobao and
+  eBay lost requests. The realm iframe got a Cloudflare 502 page, which its
+  `X-Frame-Options: SAMEORIGIN` then blocked.
+- **Cause:** nginx logged `upstream sent too big header`. Two upstreams overflow
+  the default 4k/8k `proxy_buffer_size`. One is the `/__browser_auth` reply,
+  whose `X-VT-Browser-Cookie` echoes every engine sync cookie the site set. The
+  other is the rewriter's response, where Hammerhead re-encodes each upstream
+  `Set-Cookie` into a longer sync cookie. The sites' own headers are only
+  1.5–3.6 KB.
+- **Fix:** The generated realm server block sets `proxy_buffer_size 64k` (with
+  `proxy_buffers 4 64k` and `proxy_busy_buffers_size 128k`, which `nginx -t`
+  requires alongside it). The realm location has buffering off, so only the
+  header buffer is allocated per request.
+- **Rejected:** Dropping or truncating sync cookies to fit. That would silently
+  sign users out of sites and break consent and anti-bot cookies.

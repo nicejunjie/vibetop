@@ -82,3 +82,11 @@ def test_renderer_rejects_trusted_host_in_realm_namespace():
     rendered = render("example.com", "https://lite.example.com", ["https://main.example.com"])
     assert "server_name lite.example.com;" in rendered
     assert r"-[a-f0-9]{32}\.example\.com$" in rendered
+
+
+def test_realm_server_buffers_cookie_heavy_headers():
+    from browser_proxy_nginx import render
+    rendered = render("example.com", "https://lite.example.com", ["https://main.example.com"])
+    realm = rendered.split(r"-[a-f0-9]{32}\.example\.com$", 1)[1]
+    # Both the auth reply and the rewritten upstream headers carry site cookies.
+    assert realm.index("proxy_buffer_size 64k;") < realm.index("location = /__browser_auth")
