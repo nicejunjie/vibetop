@@ -24,6 +24,8 @@ from browser_proxy_runtime import directory
 CONFIG_PATH = Path('/etc/vibetop/browser-proxy.json')
 RELEASE_ROOT = Path('/opt/vibetop-browser-proxy')
 DEPLOY_ROOT = Path('/var/lib/vibetop/browser-proxy-deploy')
+# Root-only identity store (master key + leases); IdentityStore requires 0700.
+IDENTITY_ROOT = Path('/var/lib/vibetop/browser-proxy')
 GUARD_USER = 'vibetop-browser-egress'
 
 
@@ -110,6 +112,8 @@ def main():
     for path in (base, base / 'releases', DEPLOY_ROOT):
         directory(path, 0, 0, 0o755)
         validate_ancestors(path)
+    directory(IDENTITY_ROOT, 0, 0, 0o700)
+    validate_ancestors(IDENTITY_ROOT)
     activation = production_activation()
     lock_fd = os.open(DEPLOY_ROOT / 'install.lock', os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW, 0o600)
     with os.fdopen(lock_fd, 'w') as installation_lock:
