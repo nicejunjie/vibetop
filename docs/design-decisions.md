@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_411 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_412 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [Terminal link opened a closed Browser app but lost the URL](#terminal-link-opened-a-closed-browser-app-but-lost-the-url)
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
@@ -434,6 +434,7 @@ _411 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [Recover the ttyd transport without rebuilding its page (2026-10-08)](#recover-the-ttyd-transport-without-rebuilding-its-page-2026-10-08)
 - [Mobile reconnect redraws at the visible client's geometry (2026-10-08)](#mobile-reconnect-redraws-at-the-visible-clients-geometry-2026-10-08)
 - [Terminal HTTPS fallback when WebSocket establishment stalls](#terminal-https-fallback-when-websocket-establishment-stalls)
+- [Check the served desktop stamp against the deployed update signal](#check-the-served-desktop-stamp-against-the-deployed-update-signal)
 
 <!-- END TOC -->
 
@@ -18271,3 +18272,18 @@ resize protocol and UI behavior, while actual-session monitoring remains active.
   fragmented frames/ping, and input deduplication tests; browser adapter tests;
   real ttyd/xterm with a permanently pending native WebSocket, lost input response,
   and reconnect replay (`tests/e2e/terminal-http.py`).
+
+## Check the served desktop stamp against the deployed update signal
+
+- **Symptom:** A partial deployment leaves clients repeatedly refreshing, then
+  unable to receive subsequent automatic updates.
+- **Cause:** `STAMPED_SHELL_VER` in served HTML differs from deployed `sw.js`.
+  Reloading cannot reconcile those files; the shell's three-reload circuit
+  breaker eventually stops automatic refresh. Comparing checkout and deployed
+  sw.js alone misses this inconsistent pair.
+- **Fix:** Keep both deployed stamps aligned, and make doctor report a mismatch
+  as a failure. The Oct 13 investigation and attribution limits are recorded in
+  `docs/operations.md`.
+- **Rejected:** Removing the circuit breaker would permit endless reloads.
+  Treating the mismatch as proof of the separate native WebSocket stall would
+  exceed the evidence.
