@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_446 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_447 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [Terminal link opened a closed Browser app but lost the URL](#terminal-link-opened-a-closed-browser-app-but-lost-the-url)
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
@@ -469,6 +469,7 @@ _446 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [Do not add ttyd --check-origin while the HTTPS fallback bridges ttyd](#do-not-add-ttyd---check-origin-while-the-https-fallback-bridges-ttyd)
 - [Browser Lite srcdoc iframes must bootstrap from the native parent](#browser-lite-srcdoc-iframes-must-bootstrap-from-the-native-parent)
 - [Browser Lite rewrites HLS playlists for native players](#browser-lite-rewrites-hls-playlists-for-native-players)
+- [Browser Lite follows same-frame links by replacement](#browser-lite-follows-same-frame-links-by-replacement)
 
 <!-- END TOC -->
 
@@ -19102,3 +19103,19 @@ fixtures and do not provision external infrastructure.
   activation.
 - **Rejected:** Redirecting stray realm-root requests using the Referer. Native
   media requests carry no reliable Referer, and it would let unproxied paths in.
+
+## Browser Lite follows same-frame links by replacement
+
+- **Symptom:** On iPhone, swiping in 2048 briefly showed half of an old Browser
+  Lite page, which then disappeared.
+- **Cause:** A link click inside a Browser Lite tab navigates the realm iframe
+  natively, which appends to the Vibetop tab's joint session history. The
+  entries outlive the Browser Lite window. Safari's edge swipe previews them,
+  then finds nothing to navigate to.
+- **Fix:** In a tab's main frame, `client-bridge.js` handles unmodified,
+  same-frame, same-realm link clicks with `location.replace`. This runs in the
+  window bubble phase, so page routers still cancel first. Browser Lite already
+  keeps the tab's own back/forward journal, and controller navigations already
+  replace.
+- **Rejected:** Blocking the swipe in the game. iOS gives pages no way to
+  disable the edge-swipe gesture, and the stray entries would remain anyway.

@@ -186,6 +186,21 @@
     if(config.navigation && !config.nested) {
       journal=installHistory({native,originalUrl,changed:kind=>{lastKind=kind;update();},
         navigate:delta=>{if(!nonce){if(queuedHistory.length<8)queuedHistory.push(delta);}else send({action:'history',nonce,documentId:journal.documentId,delta});}});
+      // A same-frame link would append to the HOST page's joint session history.
+      // Safari's edge swipe then previews that entry even after Browser Lite has
+      // closed. The tab keeps its own journal, so follow such links by replacement.
+      // Bubble phase on window: page handlers (routers) see and cancel it first.
+      native.addEventListener.call(window,'click',event=>{
+        if(event.defaultPrevented||event.button!==0||event.altKey||event.shiftKey||event.ctrlKey||event.metaKey)return;
+        const link=event.target.closest&&event.target.closest('a[href],area[href]');
+        if(!link||link.hasAttribute('download'))return;
+        const target=link.target||document.querySelector('base[target]')?.target||'';
+        if(target&&target.toLowerCase()!=='_self')return;
+        const physical=(link.tagName==='AREA'?native.areaHrefGetter:native.anchorHrefGetter).call(link);
+        let url;try{url=new URL(physical);}catch{return;}
+        if(url.origin!==new URL(window.location.href).origin)return;
+        event.preventDefault();window.location.replace(url.href);
+      });
       native.addEventListener.call(window,'message',event=>{
         if(event.source!==window.parent || native.messageEventOriginGetter.call(event)!==config.parentOrigin)return;
         const data=event.data;
