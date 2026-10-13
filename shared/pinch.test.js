@@ -85,7 +85,7 @@ test('both zoomable picture surfaces actually wire the pinch up', () => {
   const viewer = fs.readFileSync(
     path.join(__dirname, '..', 'apps', 'everyday', 'imageview', 'imageview.html'), 'utf8');
   for (const [name, src] of [['filesx.html', files], ['imageview.html', viewer]]) {
-    assert.match(src, /src="\/pinch\.js"/, `${name} must load the shared module`);
+    assert.match(src, /src="\/pinch\.js(?:\?v=[^" ]+)?"/, `${name} must load the shared module`);
     assert.match(src, /VibePinch\.pinchMetrics\(/, `${name} must measure the two fingers`);
     assert.match(src, /VibePinch\.pinchStep\(/, `${name} must drive the zoom from it`);
     // A second finger cannot be seen at all unless the page tracks pointers by
@@ -96,4 +96,19 @@ test('both zoomable picture surfaces actually wire the pinch up', () => {
   assert.match(files, /\.ql-body img \{[^}]*touch-action: none/,
     'the Quick Look image must claim the gesture from the browser');
   assert.match(viewer, /\.stage \{[^}]*touch-action: none/);
+});
+
+test('trackpad pinch uses proportional deltas and cannot jump to the limit in one event', () => {
+  const { wheelFactor } = require('./pinch.js');
+  assert.ok(wheelFactor(-1, true) > 1 && wheelFactor(-1, true) < 1.02);
+  assert.ok(wheelFactor(1, true) < 1 && wheelFactor(1, true) > 0.98);
+  assert.equal(wheelFactor(0, true), 1);
+  assert.ok(wheelFactor(-1000, true) < 1.23);
+  assert.ok(wheelFactor(1000, true) > 0.81);
+  assert.ok(Math.abs(wheelFactor(-2, true) * wheelFactor(2, true) - 1) < 1e-12);
+});
+
+test('panning keeps the image covering its viewport and centers short axes', () => {
+  assert.deepEqual(P.clampPan(999,-999,400,200,400,300,2),{px:200,py:-50});
+  assert.deepEqual(P.clampPan(50,50,100,100,400,300,2),{px:0,py:0});
 });

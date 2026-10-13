@@ -979,7 +979,7 @@
 <!-- The pure half (paths, formatting, type tables): see filesx-core.js. -->
 <script src="/filesx-core.js?v=@FSX_VER@"></script>
 <!-- Two-finger pinch maths, shared with the Image viewer: shared/pinch.js. -->
-<script src="/pinch.js"></script>
+<script src="/pinch.js?v=@PINCH_VER@"></script>
 <script>
   // Path/format/type helpers live in filesx-core.js (pure, tested). Bound to the
   // same local names so the call sites below read exactly as they always did.
@@ -1566,6 +1566,8 @@
   // compared, and thrown away — which also delayed the refresh by a round trip.
   function load(p, keepScroll, have) {
     var my = ++seq;
+    clearTimeout(lpTimer); lpTimer = null; lpStart = null; lpFired = false; dragCand = null;
+    if (drag) endDrag(null, true);
     var st = keepScroll ? mainEl.scrollTop : 0;
     if (p !== path) {
       qlClose();                            // a Quick Look belongs to one folder
@@ -1601,11 +1603,12 @@
         var parent = p.slice(0, p.lastIndexOf('/')) || '/';
         var fname = baseOf(p);
         api('/api/fs/stat?path=' + encodeURIComponent(p)).then(function(sd) {
+          if (seq !== my || path !== p) return;
           go(parent);
           if (sd && sd.ok && sd.stat && !sd.stat.isDir) {
-            setTimeout(function() { openEntry(sd.stat, p); }, 150);
+            setTimeout(function() { if (path === parent && seq === my + 1) openEntry(sd.stat, p); }, 150);
           }
-        });
+        }).catch(function() { if (seq === my && path === p) renderError({ code: 'net' }); });
         return;
       }
       if (!d || !d.ok) { renderError(d || {}); return; }
@@ -1637,7 +1640,7 @@
     return list.map(function(e) { return e.name + '\u0001' + e.size + '\u0001' + e.mtime + '\u0001' + (e.isDir ? 1 : 0); }).join('\n');
   }
   function pollQuiet() {
-    return inFront && !!path && !searchActive && !uploading && !modalOpen && !drag && !dragCand &&
+    return inFront && !document.hidden && (!window.frameElement || window.frameElement.classList.contains('active')) && !!path && !lpTimer && !searchActive && !uploading && !modalOpen && !drag && !dragCand &&
            !mainEl.querySelector('input.edit') && !edEl.classList.contains('open') && !qlIsOpen() &&
            !pvEl.classList.contains('open') && !pdfovEl.classList.contains('open');
   }
@@ -1683,6 +1686,8 @@
   setInterval(retick, RETICK_MS);
   document.addEventListener('visibilitychange', function() { setFront(!document.hidden); });
   window.addEventListener('message', function(e) {
+    if (e.origin !== location.origin || !e.data) return;
+    if (e.data.type === 'files-tab-active') { setFront(e.data.active && !document.hidden); if (e.data.active) pollOnce(); }
     if (e.data && e.data.type === 'vibetop:active') setFront(e.data.active === 'files' && !document.hidden);
   });
 
@@ -1776,6 +1781,7 @@
   }
   document.addEventListener('pointerup', function(ev) { endPointer(ev, false); });
   document.addEventListener('pointercancel', function(ev) { endPointer(ev, true); });
+  window.addEventListener('blur', function() { endPointer(null, true); });
   mainEl.addEventListener('contextmenu', function(ev) {
     if (lastPtrType === 'touch') { ev.preventDefault(); return; }   // long-press is select mode
     ev.preventDefault();
@@ -3076,10 +3082,19 @@
   // ---- Quick Look image zoom: wheel (anchored under the cursor), drag, double-click ----
   var qlZ = 1, qlPX = 0, qlPY = 0, qlDrag = null;
   function qlImg() { var im = qlBodyEl.querySelector('img'); return im && qlBodyEl.contains(im) ? im : null; }
-  function qlZoomReset() { qlZ = 1; qlPX = qlPY = 0; qlDrag = null; qlBodyEl.classList.remove('zoomed'); }
+  function qlGestureReset() {
+    var ids = Object.keys(qlPts || {});
+    qlPts = Object.create(null); qlPinch = null; qlDrag = null;
+    var im = qlImg(); if (im) im.classList.remove('dragging');
+    ids.forEach(function(id) { try { qlBodyEl.releasePointerCapture(+id); } catch (_) {} });
+  }
+  function qlZoomReset() { qlGestureReset(); qlZ = 1; qlPX = qlPY = 0; qlBodyEl.classList.remove('zoomed'); }
   function qlZoomApply() {
     var im = qlImg(); if (!im) return;
     if (qlZ === 1) { qlPX = qlPY = 0; im.style.transform = ''; im.classList.remove('zoomed'); qlBodyEl.classList.remove('zoomed'); return; }
+    var box = qlBodyEl.getBoundingClientRect();
+    var pan = VibePinch.clampPan(qlPX, qlPY, im.offsetWidth, im.offsetHeight, box.width, box.height, qlZ);
+    qlPX = pan.px; qlPY = pan.py;
     im.style.transform = 'translate(' + qlPX + 'px, ' + qlPY + 'px) scale(' + qlZ + ')';
     im.classList.add('zoomed'); qlBodyEl.classList.add('zoomed');
   }
@@ -3095,7 +3110,7 @@
   qlBodyEl.addEventListener('wheel', function(e) {
     if (!qlImg()) return;
     e.preventDefault();
-    qlZoomTo(qlZ * (e.deltaY < 0 ? 1.2 : 1 / 1.2), e.clientX, e.clientY);
+    qlZoomTo(qlZ * VibePinch.wheelFactor(e.deltaY, e.ctrlKey), e.clientX, e.clientY);
   }, { passive: false });
   qlBodyEl.addEventListener('dblclick', function(e) {
     if (!qlImg()) return;
@@ -3120,7 +3135,7 @@
     qlDrag = null;                                 // a pinch is not a drag
   }
   qlBodyEl.addEventListener('pointerdown', function(e) {
-    var im = qlImg(); if (!im) return;
+    var im = qlImg(); if (!im || (e.button != null && e.button !== 0)) return;
     qlPts[e.pointerId] = { x: e.clientX, y: e.clientY };
     try { qlBodyEl.setPointerCapture(e.pointerId); } catch (err) {}
     if (qlPtIds().length >= 2) { qlPinchStart(); e.preventDefault(); return; }
@@ -3130,6 +3145,7 @@
     e.preventDefault();
   });
   qlBodyEl.addEventListener('pointermove', function(e) {
+    if (!qlPts[e.pointerId]) return;
     if (qlPts[e.pointerId]) { qlPts[e.pointerId].x = e.clientX; qlPts[e.pointerId].y = e.clientY; }
     if (qlPinch) {
       var a = qlPts[qlPinch.ids[0]], b = qlPts[qlPinch.ids[1]];
@@ -3147,12 +3163,14 @@
   });
   function qlDragEnd() { if (!qlDrag) return; qlDrag = null; var im = qlImg(); if (im) im.classList.remove('dragging'); }
   function qlPtEnd(e) {
+    if (!qlPts[e.pointerId]) return;
     delete qlPts[e.pointerId];
     // Lifting one of two fingers must not leave a half-pinch running against a
     // pointer that is gone; the finger still down becomes a plain drag.
     if (qlPinch && qlPinch.ids.indexOf(String(e.pointerId)) !== -1) {
       qlPinch = null;
       var ids = qlPtIds();
+      if (ids.length >= 2) { qlPinchStart(); return; }
       if (ids.length === 1 && qlZ > 1) {
         var p = qlPts[ids[0]];
         qlDrag = { x: p.x, y: p.y, px: qlPX, py: qlPY };
@@ -3161,10 +3179,13 @@
     if (!qlPtIds().length) qlDragEnd();
   }
   qlBodyEl.addEventListener('pointerup', qlPtEnd);
-  qlBodyEl.addEventListener('pointercancel', qlPtEnd);
+  qlBodyEl.addEventListener('pointercancel', function(e) { if (qlPts[e.pointerId]) qlGestureReset(); });
+  qlBodyEl.addEventListener('lostpointercapture', function(e) { if (qlPts[e.pointerId]) qlGestureReset(); });
+  window.addEventListener('blur', function() { if (qlIsOpen()) qlGestureReset(); });
+  window.addEventListener('resize', function() { if (qlIsOpen()) { qlGestureReset(); qlZoomApply(); } });
   function qlClose() {
     if (!qlIsOpen()) return;
-    pvwDisarm();
+    pvwDisarm(); ++qlSeq;
     qlEl.classList.remove('open');
     qlStop();
     qlIdx = -1;

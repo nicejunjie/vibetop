@@ -122,6 +122,7 @@
   var _suppress = false;       // true while reconciling to the server (don't echo back)
   var _pushStreak = 0;         // consecutive ticks that pushed instead of reading
   var _rev = null;             // revision of the stored tab set we are editing
+  var _saving = false;         // serialize writes and hold reads until they finish
 
   // The native listing (filesx.html#/abs/path) is the ONLY engine — FileBrowser
   // and the Native/Classic toggle were retired (docs/files-native.md, phase 4b).
@@ -177,12 +178,13 @@
   // Push the local tab set to the server now (deduped; suppressed while we're
   // reconciling TO the server so we don't echo a change back).
   function persist() {
-    if (_suppress || !_loaded || _rev === null) return;
+    if (_suppress || !_loaded || _rev === null || _saving) return;
     var s = stateStr();
     if (s === _lastSaved) return;
     _lastSaved = s;
     var body = JSON.parse(s);
     body.rev = _rev;                       // compare-and-swap: the rev we edited
+    _saving = true;
     fetch('/api/files/tabs', {
       method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body)
     }).then(function(r) {
@@ -192,11 +194,16 @@
         // Someone else moved the state on. Adopt theirs rather than retrying
         // ours — this is the brake that stops two devices fighting.
         _rev = res.d.rev;
-        reconcile(res.d);
-      } else if (res.d && typeof res.d.rev === 'number') {
+        // A newer local navigation belongs to the next save, not this reply.
+        if (stateStr() === s) reconcile(res.d);
+        else _lastSaved = null;
+      } else if (res.status >= 200 && res.status < 300 && res.d && typeof res.d.rev === 'number') {
         _rev = res.d.rev;
-      }
-    }).catch(function() {});
+      } else _lastSaved = null;
+    }).catch(function() { _lastSaved = null; }).then(function() {
+      _saving = false;
+      if (_lastSaved !== null) persist();   // flush navigation during the write
+    });
   }
 
   function renderTabs() {
@@ -219,9 +226,9 @@
     var f = document.createElement('iframe');
     f.name = 'fstab';                          // one named frame per folder tab
     f.setAttribute('allow', 'clipboard-read; clipboard-write');
-    f.src = tabUrl(path || HOME);
+    // Load only the selected tab; hidden tabs must not compete on a slow link.
     framesEl.appendChild(f);
-    return { id: ++seq, frame: f, path: path || HOME };
+    return { id: ++seq, frame: f, path: path || HOME, loaded: false };
   }
 
   // Wake repaint nudge: after a long background/sleep, WebKit (iOS PWA) can bring
@@ -278,7 +285,11 @@
 
   function show(t) {
     if (!t) return;
-    tabs.forEach(function(o) { o.frame.classList.toggle('active', o === t); });
+    if (!t.loaded) { t.frame.src = tabUrl(t.path); t.loaded = true; }
+    tabs.forEach(function(o) {
+      o.frame.classList.toggle('active', o === t);
+      try { o.frame.contentWindow.postMessage({ type: 'files-tab-active', active: o === t }, location.origin); } catch (_) {}
+    });
     active = t;
     renderTabs();
     persist();
@@ -309,6 +320,7 @@
   // real load only when the frame cannot be steered (not same-origin yet).
   function navigateTab(t, path) {
     t.path = path;
+    if (!t.loaded) return;
     try {
       var w = t.frame.contentWindow;
       if (w && w.location.pathname === '/filesx.html') { w.location.hash = encPath(path); return; }
@@ -499,15 +511,20 @@
   function tick() {
     renderTabs();                     // refresh labels from live folder paths
     if (!_loaded) return;
+    if (_saving) return;
     var local = stateStr();
     // Push our change and skip the read this round — but never for ever. A
     // client whose local state will not settle used to push on every single
     // tick and never read, which is how one device held the whole account
     // hostage; after 5 pushes in a row we read regardless, so a disagreement
     // always converges instead of ping-ponging.
-    if (local !== _lastSaved && _pushStreak < 5) { _pushStreak++; persist(); return; }
+    if (local !== _lastSaved && (_lastSaved === null || _pushStreak < 5)) { _pushStreak++; persist(); return; }
     _pushStreak = 0;
+    var readRev = _rev;
     fetch('/api/files/tabs?v=2').then(function(r) { return r.json(); }).then(function(s) {
+      // The user may have opened a folder while this read was in flight.
+      // Never let that old snapshot add a navigation back to the parent.
+      if (_saving || stateStr() !== local || _rev !== readRev) return;
       if (!s || !Array.isArray(s.paths)) return;
       if (typeof s.rev === 'number') _rev = s.rev;
       var serverStr = JSON.stringify({ paths: s.paths.map(norm), active: (typeof s.active === 'number' ? s.active : 0) });

@@ -242,35 +242,284 @@ def _session_source():
                              "vibetop-session")).read()
 
 
-def test_the_smallest_attached_client_wins(tmp_path):
-    """MULTI-CLIENT SIZE FIGHT — the cause of "the terminal jumps to old content",
-    reported as happening ONLY when a phone is also attached.
+def test_active_client_size_uses_latest_interaction_not_smallest(csession, tmp_path):
+    import os
+    import subprocess
+    import sys
+    other = subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(30)'])
+    prefix = str(tmp_path / 'size')
+    try:
+        (tmp_path / f'size.{os.getpid()}.view').write_text('69 257 100')
+        peer = tmp_path / f'size.{other.pid}.view'
+        peer.write_text('37 53 0')
+        assert csession.active_client_size(prefix) == (69, 257), 'passive phone must not shrink desktop'
+        peer.write_text('37 53 200')
+        assert csession.active_client_size(prefix) == (37, 53)
+        (tmp_path / f'size.{os.getpid()}.view').write_text('69 257 300')
+        assert csession.active_client_size(prefix) == (69, 257), 'desktop interaction must reclaim full size'
+        peer.write_text('37 53 400')
+        other.terminate(); other.wait(timeout=5)
+        assert csession.active_client_size(prefix) == (69, 257)
+        assert not peer.exists(), 'dead clients cannot retain ownership'
+    finally:
+        if other.poll() is None:
+            other.kill(); other.wait(timeout=5)
 
-    Every attach client wrote `rows cols` into ONE shared file and signalled the
-    daemon, which applied whatever arrived last. Measured on the reference host:
-    three clients on one terminal, at 53 and 54 columns. Each claim reshaped the
-    PTY, each reshape fired SIGWINCH, and every attached TUI repainted — which is
-    what the user saw. It only happened with a phone attached because that is the
-    only time two DIFFERENT widths exist.
 
-    Smallest-wins is what tmux does, for the same reason: one PTY cannot be two
-    shapes, and a minimum does not depend on arrival order, so it cannot flap.
-    """
-    src = _session_source()
-    assert "smallest attached client" in src.lower() or "SMALLEST ATTACHED" in src, \
-        "the arbitration rule should say what it is"
-    # the per-client publish must not replace the shared write: a long-lived
-    # daemon from an older build only knows that path.
-    assert "os.replace(tmp, size_path)" in src, \
-        "dropping the shared write freezes an old daemon's terminal at 24x80"
-    assert ".client" in src and "os.kill(pid, 0)" in src, \
-        "a dead client's size must not pin the terminal small forever"
+@pytest.mark.parametrize('disconnect_signal', ['SIGTERM', 'SIGKILL', 'PTY_CLOSED'])
+def test_disconnecting_small_client_restores_remaining_pty_size(tmp_path, disconnect_signal):
+    """Run the real daemon and attach processes; text checks missed this bug."""
+    import fcntl
+    import os
+    import pathlib
+    import signal
+    import struct
+    import subprocess
+    import sys
+    import termios
+    import time
+    import uuid
+
+    script = pathlib.Path(__file__).resolve().parents[2] / 'apps/everyday/terminal/vibetop-session'
+    instance = 'test-size-' + uuid.uuid4().hex
+    prefix = pathlib.Path('/tmp') / ('vibetop-session-' + instance)
+    env = dict(os.environ, HOME=str(tmp_path), TERM='xterm-256color')
+    daemon = subprocess.Popen([sys.executable, str(script), 'serve', instance],
+                              env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    attachments, masters = [], []
+
+    def eventually(fn):
+        deadline = time.monotonic() + 5
+        while time.monotonic() < deadline:
+            if fn():
+                return
+            time.sleep(.025)
+        assert fn()
+
+    def attach(rows, cols):
+        master, slave = os.openpty()
+        fcntl.ioctl(slave, termios.TIOCSWINSZ, struct.pack('HHHH', rows, cols, 0, 0))
+        proc = subprocess.Popen([sys.executable, str(script), 'attach', instance],
+                                stdin=slave, stdout=slave, stderr=subprocess.DEVNULL, env=env)
+        os.close(slave)
+        attachments.append(proc)
+        masters.append(master)
+        return proc
+
+    try:
+        eventually(lambda: pathlib.Path(str(prefix) + '.sock').exists())
+        child_file = pathlib.Path(f'/proc/{daemon.pid}/task/{daemon.pid}/children')
+        eventually(lambda: bool(child_file.read_text().strip()))
+        shell_pid = int(child_file.read_text().split()[0])
+
+        def size_is(rows, cols):
+            fd = os.open(f'/proc/{shell_pid}/fd/0', os.O_RDONLY | os.O_NOCTTY)
+            try:
+                return struct.unpack('HHHH', fcntl.ioctl(fd, termios.TIOCGWINSZ, b'\0' * 8))[:2] == (rows, cols)
+            finally:
+                os.close(fd)
+
+        desktop = attach(60, 200)
+        eventually(lambda: size_is(60, 200))
+        phone = attach(37, 53)
+        eventually(lambda: pathlib.Path(str(prefix) + f'.size.{phone.pid}.view').exists())
+        assert size_is(60, 200), 'a passive connection cannot steal ownership'
+        phone.send_signal(signal.SIGWINCH)
+        eventually(lambda: size_is(37, 53))
+        desktop.send_signal(signal.SIGWINCH)
+        eventually(lambda: size_is(60, 200))
+        phone.send_signal(signal.SIGWINCH)
+        eventually(lambda: size_is(37, 53))
+        if disconnect_signal == 'PTY_CLOSED':
+            os.close(masters.pop())
+        else:
+            phone.send_signal(getattr(signal, disconnect_signal))
+        phone.wait(timeout=5)
+        eventually(lambda: size_is(60, 200))
+        assert daemon.poll() is None
+        assert pathlib.Path(f'/proc/{shell_pid}').exists(), 'resizing must preserve the running shell'
+    finally:
+        for proc in attachments:
+            if proc.poll() is None:
+                proc.kill()
+            proc.wait(timeout=5)
+        daemon.terminate()
+        daemon.wait(timeout=5)
+        for fd in masters:
+            os.close(fd)
+        for path in prefix.parent.glob(prefix.name + '.*'):
+            path.unlink(missing_ok=True)
 
 
-def test_a_stale_client_size_cannot_pin_the_terminal(tmp_path):
-    """The failure mode of smallest-wins: a client that dies without cleaning up
-    would hold every other client at its width forever. Liveness is the guard."""
-    src = _session_source()
-    i = src.index("os.kill(pid, 0)")
-    window = src[i:i + 400]
-    assert "unlink" in window, "a stale per-client size file must be reaped"
+@pytest.mark.parametrize('chunk', [1, 2, 7, 64, 4096])
+def test_replay_restores_modes_after_ring_wrap(csession, chunk):
+    data = b'\x1b[?1049h\x1b[?1003h\x1b[?1006h\x1b[?2004h' + b'frame\r\n' * 100
+    ring = csession.RingBuffer(80)
+    for i in range(0, len(data), chunk):
+        ring.write(data[i:i + chunk])
+    assert ring.read_all() == data[-80:]
+    state = csession.ReplayModes()
+    state.feed(ring.replay())
+    assert all(state.modes[m] for m in (1049, 1003, 1006, 2004))
+
+
+def test_replay_boundary_inside_escape_sequence(csession):
+    for cut in range(1, len(b'\x1b[?1049h')):
+        ring = csession.RingBuffer(16)
+        prefix = b'\x1b[?1049h'
+        data = prefix + b'x' * (16 - len(prefix) + cut)
+        ring.write(data)
+        state = csession.ReplayModes()
+        state.feed(ring.replay())
+        assert state.modes[1049]
+        assert not state.pending
+
+
+def test_replay_tracks_exit_reset_and_ignores_opaque_strings(csession):
+    ring = csession.RingBuffer(16)
+    ring.write(b'\x1b[?1049h\x1b[?1003h\x1b[?1049l\x1b[?1003l' + b'x' * 32)
+    state = csession.ReplayModes()
+    state.feed(ring.replay())
+    assert state.modes[1049] is False
+    assert state.modes[1003] is False
+    ring.write(b'\x1bc\x1b]0;title \x1b[?1049h\x07' + b'x' * 32)
+    state = csession.ReplayModes()
+    state.feed(ring.replay())
+    assert not state.modes
+    ring.clear()
+    assert ring.replay() == b''
+
+
+def test_slow_replay_truncation_preserves_evicted_mode_setters(csession):
+    pending = b'\x1b[?1049h\x1b[?1003h' + b'x' * 100
+    state = csession.ReplayModes()
+    state.feed(csession.truncate_replay(pending, 16))
+    assert state.modes[1049] and state.modes[1003]
+
+
+def test_replay_redraw_restores_size_and_respects_new_owner(csession):
+    import os
+    import pty
+    import tempfile
+    master, slave = pty.openpty()
+    try:
+        csession.set_pty_size(slave, 24, 79)
+        lock = tempfile.TemporaryFile()
+        csession.finish_replay_redraw((os.dup(slave), os.dup(lock.fileno()), (24, 80), (24, 79)))
+        assert csession.get_pty_size(slave) == (24, 80)
+        csession.set_pty_size(slave, 40, 120)
+        csession.finish_replay_redraw((os.dup(slave), os.dup(lock.fileno()), (24, 80), (24, 79)))
+        assert csession.get_pty_size(slave) == (40, 120)
+        lock.close()
+    finally:
+        os.close(master)
+        os.close(slave)
+
+
+def test_replay_parser_bounds_unterminated_escape_data(csession):
+    state = csession.ReplayModes()
+    state.feed(b'\x1b[?' + b'9' * 100000)
+    assert len(state.pending) < 257
+    state.feed(b'h\x1b[?1049h')
+    assert state.modes == {1049: True}
+    state.feed(b'\x1b]0;' + b'x' * 100000)
+    assert len(state.pending) <= 4096
+    state.feed(b'\x07\x1b[?1049l')
+    assert state.modes == {1049: False}
+
+
+def resume_frames(csession, wire):
+    import json
+    import base64
+    prefix = b'\x1b]777;vt-resume;'
+    frames = [json.loads(frame) for frame in wire.split(prefix)[1:]
+              for frame in [frame.rstrip(b'\x07')]]
+    return frames, b''.join(base64.b64decode(f['data']) for f in frames)
+
+
+def test_resume_sends_only_missing_output(csession):
+    ring = csession.RingBuffer(100)
+    ring.write(b'old history')
+    offset = ring.offset
+    ring.write(b'new output')
+    frames, data = resume_frames(csession, ring.resume(ring.epoch, offset))
+    assert data == b'new output'
+    assert frames[-1]['offset'] == 21
+    assert frames[0]['reset'] is False
+
+
+def test_resume_no_missing_bytes_still_acknowledges_cursor(csession):
+    ring = csession.RingBuffer(100)
+    ring.write(b'hello')
+    frames, data = resume_frames(csession, ring.resume(ring.epoch, ring.offset))
+    assert data == b''
+    assert frames[-1]['offset'] == 5
+    assert not frames[0]['reset']
+
+
+@pytest.mark.parametrize('offset', [-1, 999, None, True, '3'])
+def test_resume_invalid_cursor_falls_back(csession, offset):
+    ring = csession.RingBuffer(100)
+    ring.write(b'hello')
+    frames, data = resume_frames(csession, ring.resume(ring.epoch, offset))
+    assert data == b'hello'
+    assert frames[0]['reset']
+
+
+def test_resume_expired_cursor_and_reset_epoch_fall_back(csession):
+    ring = csession.RingBuffer(5)
+    ring.write(b'old history')
+    frames, data = resume_frames(csession, ring.resume(ring.epoch, 2))
+    assert data == b'story'
+    assert frames[0]['reset']
+    old_epoch = ring.epoch
+    ring.clear()
+    ring.write(b'new')
+    frames, data = resume_frames(csession, ring.resume(old_epoch, 2))
+    assert data == b'new'
+    assert frames[0]['reset']
+    assert ring.epoch != old_epoch
+
+
+def test_resume_wrapped_ring_can_continue_at_oldest_retained_byte(csession):
+    ring = csession.RingBuffer(5)
+    ring.write(b'0123456789')
+    frames, data = resume_frames(csession, ring.resume(ring.epoch, 5))
+    assert data == b'56789'
+    assert not frames[0]['reset']
+
+
+def test_resume_chunks_only_acknowledge_complete_replay(csession):
+    ring = csession.RingBuffer(40000)
+    ring.write(b'x' * 35000)
+    frames, data = resume_frames(csession, ring.resume(None, None))
+    assert data == b'x' * 35000
+    assert len(frames) == 3
+    assert [f['offset'] for f in frames] == [None, None, 35000]
+    assert [f['reset'] for f in frames] == [True, False, False]
+
+
+def test_resume_query_filter_keeps_raw_byte_cursor(csession):
+    ring = csession.RingBuffer(100)
+    ring.write(b'ok\x1b[6nnext')
+    frames, data = resume_frames(csession, ring.resume(None, None))
+    assert data == b'oknext'
+    assert frames[-1]['offset'] == len(b'ok\x1b[6nnext')
+
+
+def test_resume_framing_preserves_full_screen_redraw_detection(csession):
+    ring = csession.RingBuffer(100)
+    ring.write(b'\x1b[?1049hhello')
+    wire = ring.resume(None, None)
+    parser = csession.ResumeReplayParser()
+    modes = csession.ReplayModes()
+    for byte in wire:
+        modes.feed(parser.feed(bytes([byte])))
+    assert modes.modes[1049]
+
+
+def test_resume_parser_recovers_after_adaptive_queue_truncation(csession):
+    parser = csession.ResumeReplayParser()
+    assert parser.feed(b'\x1b]777;vt-resume;{"data":"incomplete') == b''
+    frame = csession.resume_frame('epoch', 10000, b'\x1b[?1049hlatest', True)
+    assert parser.feed(frame) == b'\x1b[?1049hlatest'

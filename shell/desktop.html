@@ -1067,7 +1067,7 @@
     display: flex; flex-direction: column; align-items: flex-end; gap: 12px;
     text-align: right;
   }
-  .wp-clock .t {
+  .wp-clock .t, .wp-host {
     font-size: clamp(34px, 5vmin, 46px); font-weight: 200; letter-spacing: 1px;
     color: #c3ccd6; line-height: 1.1; font-variant-numeric: tabular-nums;
   }
@@ -1093,8 +1093,9 @@
   .wp-cal td { width: 26px; height: 26px; line-height: 26px; padding: 0; font-size: 12px; }
   .wp-cal td.today { background: #8a4adb; color: #fff; border-radius: 50%; font-weight: 600; }
   .wp-host {
-    font: 500 11px ui-monospace, SFMono-Regular, Menlo, monospace;
-    color: #5b6879; letter-spacing: 0.3px;
+    font-size: 18px; line-height: 1.4; letter-spacing: 0.3px;
+    white-space: pre-line;
+    max-width: min(360px, calc(100vw - 52px)); overflow-wrap: anywhere;
   }
   .wp-host:empty { display: none; }
   /* Narrow screens: the centered brand block already fills a phone — skip the
@@ -1189,9 +1190,9 @@
   <script src="/deskstate.js"></script>
   <script src="/vibe-modal.js"></script>
   <script src="/coach.js"></script>
-  <script src="/winmgr.js"></script>
+  <script src="/winmgr.js?v=@SW_VERSION@"></script>
   <script src="/keybar.js"></script>
-  <script src="/apph.js"></script>
+  <script src="/apph.js?v=@APPH_VER@"></script>
 </head>
 <body>
   <div id="ios27-top-edge" aria-hidden="true"></div>
@@ -3980,7 +3981,8 @@
     // up. Rides the heartbeat that delivered `d`; textContent, never HTML.
     // Kept in a variable rather than written straight out, because the staleness
     // suffix below has to be able to re-render it without a fresh payload.
-    hbHostLine = (d.hostname || '') + (d.uptime ? '  ·  up ' + d.uptime : '');
+    hbHostLine = (d.hostname ? 'host: ' + d.hostname : '') +
+      (d.uptime ? (d.hostname ? '\n' : '') + 'up ' + d.uptime : '');
     renderHeartbeatAge();
   }
 
@@ -4182,6 +4184,7 @@
   // (xpra-patches.js asks the server for a buffer refresh; files.html nudges
   // its nested listing iframe).
   function wakeNudgeFrames() {
+    window.dispatchEvent(new Event('vibetop:wake'));
     openApps.forEach(function(id) {
       var f = frameOf(id);
       if (!f || !f.src) return;

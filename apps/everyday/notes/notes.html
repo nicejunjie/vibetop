@@ -67,6 +67,7 @@
   var cache = {};              // id -> content (loaded)
   var ready = false;           // active note's content is loaded → safe to autosave
   var saveTimer = null, scanTimer = null;
+  var pendingSaves = Object.create(null), noteSaving = Object.create(null), saveRetries = Object.create(null);
   var savingInFlight = false;  // a save POST is in flight — treat as "busy" like a pending edit
   var unsaved = false;         // local edits not yet CONFIRMED saved (stays true if a save fails)
   var initDone = false;        // don't live-sync before the first load lands
@@ -109,31 +110,53 @@
     });
   }
 
+  var editEpoch = 0, noteLoadEpoch = Object.create(null), noteSyncing = Object.create(null);
+  var draftKey = null, drafts = Object.create(null);
+  function initDrafts() {
+    return fetch('/api/me').then(function(r) { if (!r.ok) throw new Error('identity unavailable'); return r.json(); }).then(function(me) {
+      if (!me.user) return;
+      draftKey = 'vibetop:notes-drafts:' + me.user;
+      try { var saved = JSON.parse(localStorage.getItem(draftKey) || '{}'); if (saved && typeof saved === 'object' && !Array.isArray(saved)) drafts = saved; } catch (_) {}
+    }).catch(function() {});
+  }
+  function storeDraft(id, content) {
+    drafts[id] = content;
+    if (draftKey) { try { localStorage.setItem(draftKey, JSON.stringify(drafts)); } catch (_) {} }
+  }
+  function clearDraft(id, content) {
+    if (content !== undefined && drafts[id] !== content) return;
+    delete drafts[id];
+    if (draftKey) { try { localStorage.setItem(draftKey, JSON.stringify(drafts)); } catch (_) {} }
+  }
+
   function loadContent(id) {
     // Returns a promise resolving when cache[id] is populated.
     if (cache.hasOwnProperty(id)) return Promise.resolve();
+    var epoch = noteLoadEpoch[id] = (noteLoadEpoch[id] || 0) + 1;
     return api('/api/notes?id=' + encodeURIComponent(id))
       .then(function(r) { if (!r.ok) throw new Error('http ' + r.status); return r.json(); })
-      .then(function(d) { cache[id] = d.content || ''; });
+      .then(function(d) { if (noteLoadEpoch[id] === epoch) cache[id] = typeof drafts[id] === 'string' ? drafts[id] : (d.content || ''); });
   }
 
   function switchTo(id) {
     if (id === active && ready) return;
     flushSave();
+    var viewEpoch = ++editEpoch;
     active = id;
     ready = false;
-    unsaved = false;             // fresh note starts clean (don't inherit prior dirty state)
+    unsaved = Object.prototype.hasOwnProperty.call(pendingSaves, id) || !!noteSaving[id];
     editor.disabled = true; editor.value = '';
     setStatus('loading…');
     renderTabs();
     loadContent(id).then(function() {
-      if (active !== id) return;            // user switched again meanwhile
+      if (active !== id || editEpoch !== viewEpoch) return;            // user switched again meanwhile
       editor.value = cache[id]; editor.disabled = false; ready = true;
       setStatus('');
+      if (typeof drafts[id] === 'string') { unsaved = true; doSave(id, editor.value); }
       scanLinks();
       editor.focus();
     }).catch(function() {
-      if (active !== id) return;
+      if (active !== id || editEpoch !== viewEpoch) return;
       setStatus('load failed — reload', 'err');
       editor.placeholder = 'Could not load this note. Reload before editing (your saved note is intact).';
     });
@@ -145,44 +168,34 @@
     if (ready && active != null) doSave(active, editor.value);
   }
   function doSave(id, content) {
-    cache[id] = content;
-    savingInFlight = true;
-    setStatus('saving…');
-    api('/api/notes', { id: id, content: content })
-      .then(function(r) {
-        // `fetch` REJECTS ONLY ON A NETWORK-LAYER FAILURE. A 400, 401 or 500 is
-        // a perfectly successful fetch, so without this check every one of them
-        // landed in the branch below: `unsaved` was cleared, the green "saved"
-        // badge appeared, and the note was never written. Clearing `unsaved`
-        // then unblocks syncContent, which on the next 2s tick pulls the
-        // server's OLDER body, assigns it into the editor and reports "synced"
-        // — also green. The user watched their paragraph disappear after being
-        // told twice that it was safe.
-        //
-        // Two ways to hit it with no network trouble at all: a note crossing the
-        // manager's 1 MiB body cap (400), which makes the note stop persisting
-        // PERMANENTLY, and an expired session (401).
-        //
-        // Throwing here routes it into the .catch below, which already keeps
-        // `unsaved` true and re-arms the autosave — the retry this needed all
-        // along. The sibling loadContent has always checked r.ok, so this was an
-        // omission rather than the file's style.
-        if (!r.ok) throw new Error('save failed: HTTP ' + r.status);
-        // Only a CONFIRMED save clears `unsaved` — and only if the editor still
-        // holds exactly what we saved (the user may have typed more meanwhile).
-        if (active === id && editor.value === content) unsaved = false;
-        if (active === id) setStatus('saved', 'saved');
-      })
-      .catch(function() {
-        if (active === id) setStatus('save failed — retrying', 'err');
-        // Keep `unsaved` true (guards syncContent from clobbering the user's text)
-        // and re-arm the autosave so a transient network blip self-heals instead
-        // of silently losing the edit on the next background sync.
-        if (active === id && saveTimer === null) {
-          saveTimer = setTimeout(function() { saveTimer = null; doSave(active, editor.value); }, 3000);
-        }
-      })
-      .then(function() { savingInFlight = false; });   // clear busy either way (no .finally on old Safari)
+    cache[id] = content; storeDraft(id, content);
+    pendingSaves[id] = content;
+    if (saveRetries[id]) { clearTimeout(saveRetries[id]); delete saveRetries[id]; }
+    pumpSave(id);
+  }
+  function pumpSave(id) {
+    if (noteSaving[id] || !Object.prototype.hasOwnProperty.call(pendingSaves, id)) return;
+    if (!tabs.some(function(t) { return t.id === id; })) { delete pendingSaves[id]; return; }
+    var content = pendingSaves[id];
+    delete pendingSaves[id]; noteSaving[id] = true; savingInFlight = true;
+    var failed = false;
+    if (active === id) setStatus('saving…');
+    api('/api/notes', { id: id, content: content }).then(function(r) {
+      if (!r.ok) throw new Error('save failed: HTTP ' + r.status);
+      clearDraft(id, content);
+      if (active === id && editor.value === content && !Object.prototype.hasOwnProperty.call(pendingSaves, id)) {
+        unsaved = false; setStatus('saved', 'saved');
+      }
+    }).catch(function() {
+      failed = true;
+      if (!Object.prototype.hasOwnProperty.call(pendingSaves, id)) pendingSaves[id] = cache[id];
+      if (active === id) { unsaved = true; setStatus('save failed — retrying', 'err'); }
+    }).then(function() {
+      delete noteSaving[id]; savingInFlight = Object.keys(noteSaving).length > 0;
+      if (failed) {
+        saveRetries[id] = setTimeout(function() { delete saveRetries[id]; pumpSave(id); }, 3000);
+      } else pumpSave(id);
+    });
   }
 
   function addNote() {
@@ -200,7 +213,8 @@
       var i = tabs.findIndex(function(t) { return t.id === id; });
       if (i === -1) return;
       tabs.splice(i, 1);
-      delete cache[id];
+      delete cache[id]; delete pendingSaves[id]; clearDraft(id);
+      if (saveRetries[id]) { clearTimeout(saveRetries[id]); delete saveRetries[id]; }
       if (!tabs.length) {                         // never zero notes
         var nid = genId(); tabs.push({ id: nid, name: 'Notes' }); cache[nid] = '';
       }
@@ -213,7 +227,7 @@
         vibeConfirm('Delete this note? This can’t be undone.', { okText: 'Delete', danger: true }).then(function(ok) { if (ok) doClose(); });
       } else { doClose(); }
     }
-    var content = cache[id];
+    var content = id === active && ready ? editor.value : cache[id];
     if (content !== undefined) { decide(content); return; }
     // Not loaded THIS session — tabs are shared across devices, so many tabs were
     // never opened here. Fetch the body before deciding, so we never silently
@@ -290,7 +304,9 @@
   // --- editor autosave ---
   editor.addEventListener('input', function() {
     if (!ready) return;
+    ++editEpoch;
     unsaved = true;              // dirty until a save confirms
+    if (ready && active != null) { cache[active] = editor.value; storeDraft(active, editor.value); }
     clearTimeout(saveTimer); setStatus('editing…');
     saveTimer = setTimeout(function() { saveTimer = null; doSave(active, editor.value); }, 800);
     clearTimeout(scanTimer); scanTimer = setTimeout(scanLinks, 300);
@@ -372,13 +388,15 @@
   // best-effort so a background refresh doesn't jump the cursor.
   function syncContent() {
     if (!ready || active == null) return;
-    if (unsaved || saveTimer !== null || savingInFlight) return;  // local edit unsaved/in progress → skip
-    var id = active;
+    if (unsaved || saveTimer !== null || savingInFlight || Object.prototype.hasOwnProperty.call(pendingSaves, active)) return;  // local edit unsaved/in progress → skip
+    var id = active, epoch = editEpoch;
+    if (noteSyncing[id]) return;
+    noteSyncing[id] = true;
     api('/api/notes?id=' + encodeURIComponent(id))
       .then(function(r) { return r.ok ? r.json() : null; })
       .then(function(d) {
-        if (!d || active !== id) return;                   // switched away while awaiting
-        if (unsaved || saveTimer !== null || savingInFlight) return;  // started editing while awaiting
+        if (!d || active !== id || editEpoch !== epoch) return;                   // switched away while awaiting
+        if (unsaved || saveTimer !== null || savingInFlight || Object.prototype.hasOwnProperty.call(pendingSaves, active)) return;  // started editing while awaiting
         var remote = d.content || '';
         cache[id] = remote;
         if (remote === editor.value) return;               // already in sync
@@ -387,7 +405,7 @@
         try { editor.selectionStart = Math.min(s, remote.length); editor.selectionEnd = Math.min(e, remote.length); } catch (_) {}
         scanLinks();
         setStatus('synced', 'saved');
-      }).catch(function() {});
+      }).catch(function() {}).then(function() { delete noteSyncing[id]; });
   }
 
   function tick() {
@@ -396,7 +414,7 @@
     // Don't clobber an in-progress rename or drag.
     if (dragId != null || tabsEl.querySelector('.lbl[contenteditable="true"]')) return;
     if (tabsSig() !== _lastTabsSig) { persistTabs(); return; }   // we changed it → push, win this round
-    api('/api/notes').then(function(r) { return r.json(); }).then(function(idx) {
+      api('/api/notes').then(function(r) { if (!r.ok) throw new Error('notes index: HTTP ' + r.status); return r.json(); }).then(function(idx) {
       if (!idx || !Array.isArray(idx.tabs) || !idx.tabs.length) return;
       var ssig = JSON.stringify(idx.tabs.map(function(t) { return [t.id, t.name]; }));
       if (ssig !== _lastTabsSig) reconcile(idx);
@@ -433,7 +451,9 @@
   });
 
   // --- init ---
-  api('/api/notes').then(function(r) { return r.json(); }).then(function(idx) {
+  Promise.all([initDrafts(), api('/api/notes')]).then(function(results) {
+    var r = results[1]; if (!r.ok) throw new Error('notes index: HTTP ' + r.status); return r.json();
+  }).then(function(idx) {
     tabs = (idx && Array.isArray(idx.tabs) && idx.tabs.length) ? idx.tabs : [{ id: '1', name: 'Notes' }];
     var act = (idx && idx.active && tabs.some(function(t) { return t.id === idx.active; })) ? idx.active : tabs[0].id;
     _lastTabsSig = tabsSig();

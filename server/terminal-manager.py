@@ -3359,8 +3359,8 @@ def _wall_series():
     return {"t0": t0, "step": step, "w": vals}
 
 
-def _wall_power_w(fresh=WALL_POWER_FRESH):
-    """Measured wall draw in watts, or None when there is no plug configured,
+def _wall_power_sample(fresh=WALL_POWER_FRESH):
+    """Wall sample with measurement/fetch timestamps, or None when unconfigured,
     no sample has landed yet, or the last one has gone stale.
 
     `fresh` is how old a reading may be before THIS caller wants a new one.
@@ -3383,7 +3383,12 @@ def _wall_power_w(fresh=WALL_POWER_FRESH):
     # permanently fresh — or permanently stale.
     if time.time() - sample.get("fetched", 0.0) > _wall_max_age(fresh):
         return None
-    return sample.get("w")
+    return sample
+
+
+def _wall_power_w(fresh=WALL_POWER_FRESH):
+    sample = _wall_power_sample(fresh)
+    return sample.get("w") if sample is not None else None
 
 
 # ---- system-metrics history --------------------------------------------------
@@ -5378,9 +5383,12 @@ class Handler(http.server.BaseHTTPRequestHandler):
         # refresh-ahead memo here. Omitted entirely when unconfigured or stale —
         # the key's ABSENCE is what makes the Monitor say "--" rather than 0W.
         if isinstance(st, dict):
-            wall = _wall_power_w(wall_fresh)
+            wall_sample = _wall_power_sample(wall_fresh)
+            wall = wall_sample.get("w") if wall_sample else None
+            wall_age = max(0, time.time() - wall_sample.get("fetched", 0)) if wall_sample else None
             if wall is not None:
                 st["wall_power_w"] = wall
+                st.setdefault("power_sample_age_s", {})["wall"] = round(wall_age, 1)
             # Whether a plug is CONFIGURED, which is a different question from
             # whether it answered. The Monitor needs both to be honest: an
             # unreachable plug keeps its row showing '--' (there is a meter, it
@@ -5406,12 +5414,20 @@ class Handler(http.server.BaseHTTPRequestHandler):
             # The taskbar may display a cached wall reading up to a minute old.
             # Do not pair it with a fresh GPU reading in the persisted history;
             # the recorder's own background sample uses a fresh plug fetch.
-            if wall_fresh > METRICS_POWER_PAIR_MAX_DELAY and "wall_power_w" in st:
+            if (wall_age is not None and wall_age > METRICS_POWER_PAIR_MAX_DELAY) and "wall_power_w" in st:
                 record_st = dict(st)
                 record_st.pop("wall_power_w")
                 _hist_note(record_st)
             else:
                 _hist_note(st)
+            # One host-time window for all power lines. Client poll arrival and
+            # the plug's device-clock series must never share an index axis.
+            if want_procs:
+                h = _hist_open()
+                if h is not None:
+                    with _hist_lock:
+                        st["power_series"] = h.window(time.time(), 120, 60,
+                            ["cpu_power_w", "gpu_power_w", "wall_power_w"])
         # Multi-user: the top-processes list carries every user's process names —
         # a non-admin sees only their OWN processes; an ADMIN (VIBETOP_ADMINS, e.g.
         # the human operator on a prod host where APP_USER is the no-login service

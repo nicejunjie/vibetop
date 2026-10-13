@@ -81,7 +81,7 @@
           font-size: 20px; line-height: 1; padding: 4px; width: 30px; }
   .cbtn:hover { color: #cfe3ff; }
   #seek { flex: 1 1 auto; height: 16px; position: relative; cursor: pointer;
-          display: flex; align-items: center; }
+          display: flex; align-items: center; touch-action: none; }
   #seek .track { position: absolute; left: 0; right: 0; height: 4px;
                  background: rgba(255,255,255,0.25); border-radius: 3px; }
   #buf  { position: absolute; left: 0; height: 4px; width: 0;
@@ -167,6 +167,7 @@
   }
 
   var path = new URLSearchParams(location.search).get("path") || "";
+  var closed = false, mediaEpoch = 0;
   var v = document.getElementById("v");
   var stage = document.getElementById("stage");
   var msgEl = document.getElementById("msg");
@@ -242,7 +243,7 @@
   function seekTo(clientX) {
     var r = seek.getBoundingClientRect();
     var f = Math.max(0, Math.min(1, (clientX - r.left) / r.width));
-    if (v.duration) v.currentTime = f * v.duration;
+    if (Number.isFinite(v.duration) && v.duration > 0 && Number.isFinite(f)) v.currentTime = f * v.duration;
   }
   var scrubbing = false;
   seek.addEventListener("pointerdown", function (e) {
@@ -262,14 +263,18 @@
   // Click the video toggles play; DOUBLE-click toggles fullscreen. The single-click
   // action is deferred briefly so a double-click doesn't also fire play/pause (the
   // 2nd click cancels the pending single). Clicks on the control bar don't hit here.
-  var _clickT = null;
-  v.addEventListener("click", function () {
+  var _clickT = null, _clickPaused = true, _clickApplied = false;
+  v.addEventListener("click", function (e) {
+    if (e && e.detail > 1) { if (_clickT) clearTimeout(_clickT); _clickT = null; return; }
+    _clickPaused = v.paused; _clickApplied = false;
     if (_clickT) { clearTimeout(_clickT); _clickT = null; return; }  // part of a dblclick
-    _clickT = setTimeout(function () { _clickT = null; togglePlay(); }, 250);
+    _clickT = setTimeout(function () { _clickT = null; _clickApplied = true; togglePlay(); }, 250);
   });
   v.addEventListener("dblclick", function (e) {
     e.preventDefault();
     if (_clickT) { clearTimeout(_clickT); _clickT = null; }
+    if (_clickApplied && v.paused !== _clickPaused) togglePlay();
+    _clickApplied = false;
     toggleFullscreen();
   });
 
@@ -352,16 +357,20 @@
   });
 
   document.getElementById("close-btn").addEventListener("click", function () {
+    closed = true; ++mediaEpoch;
+    if (_clickT) clearTimeout(_clickT); _clickT = null; _clickApplied = false;
     try { v.pause(); } catch (e) {}
     try { window.parent.postMessage({ type: "close-app", app: "video" }, "*"); } catch (e) {}
   });
 
   // ---- audio / subtitle switching ------------------------------------------
   function setAudio(aidx) {
+    var epoch = ++mediaEpoch;
     var t = v.currentTime, wasPlaying = !v.paused && !v.ended;
     v.src = mediaUrl(aidx); v.load();
     v.addEventListener("loadedmetadata", function once() {
       v.removeEventListener("loadedmetadata", once);
+      if (closed || epoch !== mediaEpoch) return;
       try { if (t) v.currentTime = t; } catch (e) {}
       if (wasPlaying) { var p = v.play(); if (p && p.catch) p.catch(function(){}); }
       applySub();
@@ -404,6 +413,7 @@
   fetch("/api/video/info?path=" + enc(path))
     .then(function (r) { return r.json(); })
     .then(function (info) {
+      if (closed) return;
       if (!info || info.ffmpeg === false) {
         showMsg("<b>ffmpeg is not installed</b><br><br>The video player needs " +
                 "ffmpeg to play this file.<br>Install it with " +

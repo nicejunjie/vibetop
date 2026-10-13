@@ -44,7 +44,7 @@
     transform: translate(-50%, -50%);
     user-select: none; -webkit-user-select: none; -webkit-user-drag: none;
   }
-  .stage img.zoomed { max-width: none; max-height: none; cursor: grab; }
+  .stage img.zoomed { cursor: grab; }
   .stage img.dragging { cursor: grabbing; transition: none !important; }
   /* edge nav — visible affordance on hover-capable devices, tap zones on touch */
   .nav {
@@ -77,7 +77,7 @@
     <button class="nav next" id="next" aria-label="Next image">›</button>
   </div>
 <!-- Two-finger pinch maths, shared with Files' Quick Look: shared/pinch.js. -->
-<script src="/pinch.js"></script>
+<script src="/pinch.js?v=@PINCH_VER@"></script>
 <script>
 (function() {
   // Native image viewer — replaced FileBrowser's previewer (its patched mobile
@@ -115,6 +115,9 @@
       img.style.transform = 'translate(-50%, -50%)';
       panX = panY = 0;
     } else {
+      var box = stage.getBoundingClientRect();
+      var pan = VibePinch.clampPan(panX, panY, img.offsetWidth, img.offsetHeight, box.width, box.height, zoom);
+      panX = pan.px; panY = pan.py;
       img.classList.add('zoomed');
       img.style.transform = 'translate(calc(-50% + ' + panX + 'px), calc(-50% + ' + panY + 'px)) scale(' + zoom + ')';
     }
@@ -131,7 +134,7 @@
   }
   stage.addEventListener('wheel', function(e) {
     e.preventDefault();
-    zoomAt(zoom * (e.deltaY < 0 ? 1.2 : 1 / 1.2), e.clientX, e.clientY);
+    zoomAt(zoom * VibePinch.wheelFactor(e.deltaY, e.ctrlKey), e.clientX, e.clientY);
   }, { passive: false });
 
   var lastTapT = 0, lastTapX = 0, lastTapY = 0;
@@ -158,11 +161,12 @@
     if (img) img.classList.remove('dragging');
   }
   stage.addEventListener('pointerdown', function(e) {
-    if (e.target.closest('.nav')) return;
+    if (e.target.closest('.nav') || (e.button != null && e.button !== 0)) return;
+    try { stage.setPointerCapture(e.pointerId); } catch (_) {}
     pts[e.pointerId] = { x: e.clientX, y: e.clientY };
     if (ptIds().length >= 2) { pinchStart(); e.preventDefault(); return; }
     var now = e.timeStamp;
-    if (now - lastTapT < 350 && Math.abs(e.clientX - lastTapX) < 24 && Math.abs(e.clientY - lastTapY) < 24) {
+    if (lastTapT > 0 && now - lastTapT < 350 && Math.abs(e.clientX - lastTapX) < 24 && Math.abs(e.clientY - lastTapY) < 24) {
       setZoom(zoom === 1 ? 2.5 : 1);           // double-tap / double-click toggles
       lastTapT = 0;
       return;
@@ -172,6 +176,7 @@
     if (img) img.classList.add('dragging');
   });
   window.addEventListener('pointermove', function(e) {
+    if (!pts[e.pointerId]) return;
     if (pts[e.pointerId]) { pts[e.pointerId].x = e.clientX; pts[e.pointerId].y = e.clientY; }
     if (pinch) {
       var pa = pts[pinch.ids[0]], pb = pts[pinch.ids[1]];
@@ -185,7 +190,7 @@
     }
     if (!drag) return;
     var dx = e.clientX - drag.x, dy = e.clientY - drag.y;
-    if (Math.abs(dx) + Math.abs(dy) > 8) drag.moved = true;
+    if (Math.abs(dx) + Math.abs(dy) > 8) { drag.moved = true; lastTapT = 0; }
     if (zoom > 1) { panX = drag.px + dx; panY = drag.py + dy; applyZoom(); }
   });
   // A cancelled touch, or a finger that lifts outside this frame, used to leave
@@ -196,8 +201,15 @@
     drag = null;
     if (img) img.classList.remove('dragging');
   }
-  window.addEventListener('pointercancel', function(e) { forgetPt(e); abortPan(); });
-  window.addEventListener('blur', function() { pts = Object.create(null); pinch = null; abortPan(); });
+  function resetGesture() {
+    var ids = ptIds();
+    pts = Object.create(null); pinch = null; lastTapT = 0; abortPan();
+    ids.forEach(function(id) { try { stage.releasePointerCapture(+id); } catch (_) {} });
+  }
+  window.addEventListener('pointercancel', function(e) { if (pts[e.pointerId]) resetGesture(); });
+  stage.addEventListener('lostpointercapture', function(e) { if (pts[e.pointerId]) resetGesture(); });
+  window.addEventListener('blur', resetGesture);
+  window.addEventListener('resize', function() { resetGesture(); applyZoom(); });
   // Lifting one of two fingers ends the pinch; the finger still down becomes a
   // plain pan rather than a stray swipe to the next picture.
   function forgetPt(e) {
@@ -205,6 +217,7 @@
     if (!pinch || pinch.ids.indexOf(String(e.pointerId)) === -1) return false;
     pinch = null;
     var ids = ptIds();
+    if (ids.length >= 2) { pinchStart(); return true; }
     if (ids.length === 1 && zoom > 1) {
       var p = pts[ids[0]];
       drag = { x: p.x, y: p.y, px: panX, py: panY, moved: true };
@@ -226,6 +239,7 @@
 
   // ---- navigation ----
   function render() {
+    resetGesture();
     stage.querySelectorAll('img, .msg').forEach(function(n) { n.remove(); });
     zoom = 1; panX = panY = 0;
     nameEl.textContent = baseOf(path);
@@ -233,7 +247,12 @@
     img = document.createElement('img');
     img.alt = baseOf(path);
     img.src = rawUrl(path);
-    img.onerror = function() { img.remove(); img = null; showMsg('Could not load ' + baseOf(path)); };
+    var currentImg = img, currentPath = path;
+    img.onerror = function() {
+      if (img !== currentImg) return;
+      currentImg.remove(); img = null; resetGesture();
+      showMsg('Could not load ' + baseOf(currentPath));
+    };
     stage.appendChild(img);
     if (list) {
       cntEl.textContent = (idx + 1) + ' / ' + list.length;

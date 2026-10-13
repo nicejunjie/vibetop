@@ -983,6 +983,11 @@ def _collect(running_terminals, cached, want_procs=True):
     if processes is not None:
         result["processes"] = processes
     result["cpus"] = cpus
+    result["power_sample_age_s"] = {}
+    if cpu_power_w is not None:
+        result["power_sample_age_s"]["cpu"] = round(max(0, time.monotonic() - _prev_rapl_time), 1)
+    if gpu_power_w is not None:
+        result["power_sample_age_s"]["gpu"] = round(max(0, time.monotonic() - _gpu_sample_at), 1)
     result["gpus"] = gpus
     result["disks"] = disks
     if gpu_percent is not None:

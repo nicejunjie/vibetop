@@ -1200,3 +1200,38 @@ test('physical disk buttons group all partition mounts under drive names', async
   chooseDisk(h, data.id);
   assert.ok(h.id('disk-detail').textContent.includes('/dev/sda'));
 });
+
+
+test('power curves share the server time window instead of browser poll positions', async () => {
+  const one = v => new Array(59).fill(null).concat(v);
+  const h = load({payloads:[fullStatus({wall_power_w:900,
+    wall_series:{t0:100,step:2,w:[900].concat(new Array(59).fill(null))},
+    power_series:{t0:200,step:2,series:{cpu_power_w:one(85),gpu_power_w:one(100),wall_power_w:one(900)}},
+    power_sample_age_s:{wall:5.2,cpu:0.1,gpu:1.5}})]});
+  await h.settle(); h.clearPaths(); h.tick(); await h.settle();
+  const x = color => dots(h.id('pwr-chart'),color).map(p=>p.x);
+  assert.deepStrictEqual(x('rgb(90,173,138)'),x('rgb(90,138,176)'));
+  assert.deepStrictEqual(x('rgb(90,173,138)'),x(VIOLET));
+  assert.ok(x(VIOLET).length > 0);
+  assert.match(h.id('power-sources').textContent,/Wall 5\.2s.*CPU 0\.1s.*GPU 1\.5s/);
+});
+
+test('slow monitor polls never overlap and cannot overwrite newer frames', async () => {
+  const h=load({payloads:[fullStatus()]}); await h.settle();
+  let resolve, requests=0;
+  h.S.fetch=()=>{requests++; return new Promise(r=>resolve=r);};
+  h.tick(); h.tick(); h.tick(); assert.strictEqual(requests,1);
+  resolve({ok:true,json:()=>Promise.resolve(fullStatus())}); await h.settle();
+  h.tick(); assert.strictEqual(requests,2);
+});
+
+test('a hung status request times out and the next poll can recover', async () => {
+  const h=load({payloads:[fullStatus()]});await h.settle();let expire;
+  h.S.fetch=()=>new Promise(()=>{});
+  h.S.setTimeout=(fn,ms)=>{if(ms===15000)expire=fn;return 1;};
+  h.tick();h.setClock(1e9+9000);h.tick();
+  assert.match(h.id('poll-stale').textContent,/not updating/);
+  expire();await h.settle();
+  let recovered=0;h.S.fetch=()=>{recovered++;return Promise.resolve({ok:true,json:()=>Promise.resolve(fullStatus())});};
+  h.tick();await h.settle();assert.equal(recovered,1);assert.equal(h.id('poll-stale').hidden,true);
+});

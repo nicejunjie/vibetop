@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_413 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_414 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [Terminal link opened a closed Browser app but lost the URL](#terminal-link-opened-a-closed-browser-app-but-lost-the-url)
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
@@ -436,6 +436,7 @@ _413 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [Terminal HTTPS fallback when WebSocket establishment stalls](#terminal-https-fallback-when-websocket-establishment-stalls)
 - [Check the served desktop stamp against the deployed update signal](#check-the-served-desktop-stamp-against-the-deployed-update-signal)
 - [Stream fallback output and batch queued terminal input](#stream-fallback-output-and-batch-queued-terminal-input)
+- [Install the attach SIGWINCH handler before publishing its view](#install-the-attach-sigwinch-handler-before-publishing-its-view)
 
 <!-- END TOC -->
 
@@ -16067,6 +16068,24 @@ The mechanism comes from WebKit source and an independent iOS 27 device
 experiment, but this exact Vibetop change still needs checking on the
 operator's device.
 
+**Intermittent recurrence (2026-10-12, reviewed with Claude Code).** The operator
+reports that the blur can return until reload. Standalone detection is now
+re-probed on lifecycle events, and the fixed candidate is removed/restored across
+two animation frames after viewport events settle. This is an experimental native
+WebKit recovery path, not a proven diagnosis or an iOS-device-validated fix.
+Claude's independent review identified missing restoration protection and repeated
+candidate toggles. Restoration now has a 250ms fallback and runs synchronously on
+visibility loss/pagehide; stale callbacks cannot affect a newer refresh. Lifecycle
+and viewport events share a 120ms debounce, while height-settling retries no longer
+toggle the candidate. Regression tests exercise missing animation frames, hiding
+mid-refresh and repeated lifecycle events. The gated `#vhdbg` overlay now includes
+UA, standalone probes, edge class and computed display to distinguish missing
+protection from a native scroll-pocket issue on the device. Chromium tests verify
+DOM restoration and clickability only. The helper URL uses its content hash; the
+targeted deployment changes only `apph.js` and the existing shell page; it does
+not deploy the separate working-tree service-worker changes or restart terminal
+sessions.
+
 **Rejected.** The first deployed attempt reserved 32 CSS pixels above every
 screen. It hid the blur behind a blank strip, but wasted scarce phone space;
 the operator rejected it. Changing individual app headers would miss other
@@ -18304,3 +18323,14 @@ resize protocol and UI behavior, while actual-session monitoring remains active.
   Local character echo would be wrong for passwords, full-screen apps and editing.
 - **Validation:** Delayed-response typing batches, control ordering, duplicate
   retry suppression, incremental chunk delivery, stream replay and real ttyd e2e.
+
+## Install the attach SIGWINCH handler before publishing its view
+
+- **Symptom:** `test_disconnecting_small_client_restores_remaining_pty_size`
+  failed about 40% of runs: a client's resize claim never reached the PTY.
+- **Cause:** `cmd_attach` wrote its `.view` file, then installed the SIGWINCH
+  handler. A resize arriving in between hit SIGWINCH's default disposition
+  (ignore) and was lost, so that device never claimed the shared size.
+- **Fix:** Install the handler first, then publish the passive view. An early
+  claim and the following passive write record the same activity timestamp.
+- **Rejected:** Adding sleeps to the test hides a real, if narrow, product race.

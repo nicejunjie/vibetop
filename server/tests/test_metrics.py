@@ -592,7 +592,8 @@ def test_strip_keeps_its_wall_reading_out_of_the_history(mgr, monkeypatch):
     """The 60s taskbar memo must not be paired with a GPU read from now."""
     monkeypatch.setattr(mgr.system_status, "get_system_status",
                         lambda *a, **k: {"gpu_power_w": 250.0})
-    monkeypatch.setattr(mgr, "_wall_power_w", lambda *a: 100.0)
+    monkeypatch.setattr(mgr, "_wall_power_sample",
+                        lambda *a: {"w": 100.0, "fetched": mgr.time.time() - 30})
     monkeypatch.setattr(mgr, "_wall_series", lambda: None)
     monkeypatch.setattr(mgr, "_ctx_user", lambda *a: mgr.APP_USER)
     recorded = []
@@ -973,3 +974,26 @@ def test_the_endpoint_answers_the_monitors_own_window_exactly(client, mgr, users
     body = client.get("/api/system/history?span=2m&slots=60", cookie=ck)[1]
     assert body["step"] == 2 and len(body["series"]["cpu_percent"]) == 60, \
         "pre-filling the live chart must be exact, not an approximation"
+
+
+def test_monitor_wall_age_prevents_pairing_old_plug_reading_with_fresh_gpu(mgr, wall, monkeypatch):
+    wall({"w": 900, "at": 1790000000, "fetched": mgr.time.time() - 5})
+    recorded = []
+    monkeypatch.setattr(mgr, "_hist_note", lambda st: recorded.append(st))
+    response = _status_payload(mgr, monkeypatch)
+    assert response["wall_power_w"] == 900
+    assert response["power_sample_age_s"]["wall"] >= 5
+    assert "wall_power_w" not in recorded[-1]
+
+
+def test_monitor_power_history_is_one_shared_host_time_window(mgr, monkeypatch):
+    class History:
+        def window(self, now, span, slots, fields):
+            assert span == 120 and slots == 60
+            assert fields == ["cpu_power_w", "gpu_power_w", "wall_power_w"]
+            return {"t0": 100, "step": 2, "series": {f: [None] * 60 for f in fields}}
+    monkeypatch.setattr(mgr, "_hist_open", lambda: History())
+    monkeypatch.setattr(mgr, "_hist_note", lambda st: None)
+    response = _status_payload(mgr, monkeypatch)
+    assert response["power_series"]["t0"] == 100
+    assert response["power_series"]["step"] == 2

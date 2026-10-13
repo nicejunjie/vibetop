@@ -12,6 +12,7 @@
   var closeCode = null, closedAt = 0, resumeClosed = false, wasOffline = false;
   var since = Date.now(), phase = 'startup', retries = 0, timer;
   var hiddenAt = w.document.hidden ? Date.now() : null;
+  var foreground = true;
   try { retries = Math.min(3, Math.max(0, +w.sessionStorage.getItem(key) || 0)); } catch (_) {}
   function log(event) {
     // No terminal output, typed input, token, query string, or socket URL.
@@ -45,8 +46,18 @@
       panel.appendChild(button);
     }
   }
+  function isForeground() {
+    if (w.document.hidden) return false;
+    try {
+      var frame = w.frameElement;
+      if (frame && (!frame.classList.contains('active') || !frame.getBoundingClientRect().width)) return false;
+    } catch (_) {}
+    return true;
+  }
   function tick() {
-    if (stopped || exhausted || w.document.hidden) return;
+    if (!isForeground()) { foreground = false; return; }
+    if (!foreground) { foreground = true; since = Date.now(); }
+    if (stopped || exhausted) return;
     // WebKit can expose CLOSED before delivering its close event. Recover a
     // dead transport, never mistake an open, silent shell for a dead one.
     if (socket && socket.readyState === 3 && phase !== 'closed' && phase !== 'reconnecting') {
@@ -68,7 +79,7 @@
     // A slow handshake / first output can still succeed on airplane WiFi.
     // This generous deadline applies only while transport is not yet closed.
     if (!recoverClosed && elapsed < 3000) return;
-    if (!recoverClosed && elapsed < 30000) { show('Connecting to terminal…'); return; }
+    if (!recoverClosed && elapsed < 45000) { show('Connecting to terminal…'); return; }
     if (retries >= 3) {
       var exhaustedOwner = w.__vibetopTtyd;
       if (exhaustedOwner && exhaustedOwner.socket === socket && typeof exhaustedOwner.dispose === 'function') exhaustedOwner.dispose();
@@ -152,11 +163,16 @@
     }
     tick();
   }
+  w.__vibetopConnectionActivate = function () {
+    resume();
+    if (stopped || ready) return;
+    show(exhausted ? 'Terminal connection failed. Retry to reconnect.' : 'Connecting to terminal…', exhausted);
+  };
   w.document.addEventListener('visibilitychange', resume);
   w.addEventListener('focus', resume);
   w.addEventListener('online', resume);
   w.addEventListener('pagehide', function () { stopped = true; w.clearInterval(timer); });
   w.addEventListener('pageshow', function (e) {
-    if (e.persisted) { stopped = false; since = Date.now(); hiddenAt = w.document.hidden ? Date.now() : null; timer = w.setInterval(tick, 500); resume(); }
+    if (e.persisted) { stopped = false; since = Date.now(); hiddenAt = w.document.hidden ? Date.now() : null; foreground = isForeground(); timer = w.setInterval(tick, 500); resume(); }
   });
 });

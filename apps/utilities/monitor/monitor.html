@@ -365,6 +365,7 @@
         </div>
       </div>
       <div id="gpu-power-list" hidden></div>
+      <div id="power-sources" style="font:10px/1.3 ui-monospace,monospace;color:#9ab;flex-shrink:0" title="Wall power includes the entire system and power-supply losses; CPU/GPU sensors cover components. Ages are measured when the host creates this snapshot; sensors can differ."></div>
       <div class="chart-box">
         <div class="chart-yaxis" id="pwr-yaxis"><span>--</span><span>--</span><span>0</span></div>
         <div class="chart-wrap"><canvas id="pwr-chart"></canvas></div>
@@ -909,11 +910,19 @@
       : '⚠ no data from the host yet';
     el.title = 'The 2s poll of /api/system/status is failing; these figures are frozen.';
   }
+  var updateInFlight = null, updateStarted = 0;
   function update() {
-    return fetch('/api/system/status').then(function(r) {
+    if (updateInFlight) return updateInFlight;
+    updateStarted = Date.now();
+    var controller = typeof AbortController === 'function' ? new AbortController() : null;
+    var timeout;
+    var request = fetch('/api/system/status', controller ? { signal: controller.signal } : {}).then(function(r) {
       if (!r.ok) throw new Error('status ' + r.status);
       return r.json();
-    }).then(function(d) {
+    });
+    updateInFlight = Promise.race([request, new Promise(function(resolve, reject) {
+      timeout = setTimeout(function() { if (controller) controller.abort(); reject(new Error('status timeout')); }, 15000);
+    })]).then(function(d) {
       lastStatus = d; sampleCpus(d); d = selectGpuData(d, true); d = selectDiskData(d, true);
       missed = 0; lastOkAt = Date.now();
       showStale();
@@ -1020,6 +1029,32 @@
                  ? (haveWallW ? wallW + 'W wall' : '-- wall') + (sumW ? ' · ' + sumW : '')
                  : (sumW || '--');
       document.getElementById('pwr-total').textContent = totalW;
+      if (!histSpan && d.power_series && d.power_series.series) {
+        var ps = d.power_series.series;
+        cpuPwrHist = ps.cpu_power_w.slice();
+        gpuPwrHist = ps.gpu_power_w.slice();
+        wallPwrHist = haveWall ? ps.wall_power_w.slice() : [];
+        // Use the same device identities as the live GPU total.
+        if (gpuInventory !== null) {
+          var cards = gpuInventory.filter(function(g) { return !g.integrated; });
+          if (!cards.length) cards = gpuInventory;
+          gpuPwrHist = ps.gpu_power_w.map(function(_, i) {
+            var values = cards.map(function(g) {
+              var series = (d.power_series.gpus || {})[g.id];
+              return series && series.gpu_power_w ? series.gpu_power_w[i] : null;
+            });
+            return values.length && values.every(function(v) { return v != null; })
+              ? values.reduce(function(sum, v) { return sum + v; }, 0) : null;
+          });
+        }
+      }
+      var ages = d.power_sample_age_s || {};
+      var ageParts = [];
+      [['wall', 'Wall'], ['cpu', 'CPU'], ['gpu', 'GPU']].forEach(function(pair) {
+        if (ages[pair[0]] != null) ageParts.push(pair[1] + ' ' + ages[pair[0]].toFixed(1) + 's');
+      });
+      document.getElementById('power-sources').textContent = ageParts.length
+        ? 'Sample ages: ' + ageParts.join(' · ') : '';
       var allPwr = cpuPwrHist.concat(gpuPwrHist, wallPwrHist).filter(function(v) { return v > 0; });
       if (allPwr.length > 0) pwrMax = Math.max(Math.max.apply(null, allPwr) * 1.2, 50);
       var powerScale = chartScale(pwrMax, 50, 'W');
@@ -1034,7 +1069,8 @@
         push(diskWrHist, d.disk_write_bytes == null ? null : d.disk_write_bytes);
       }
       renderDisk(d);
-    }).catch(function() { missed++; showStale(); });
+    }).catch(function() { missed++; showStale(); }).then(function() { clearTimeout(timeout); updateInFlight = null; });
+    return updateInFlight;
   }
 
   // ---- history: the manager's 7-day ring ------------------------------------
@@ -1141,6 +1177,7 @@
   var lastHistLoad = 0;
   function tick() {
     if (!shouldRun()) return;
+    if (updateInFlight && Date.now() - updateStarted > 8000) { missed = Math.max(missed, 2); showStale(); }
     update();
     if (histSpan && Date.now() - lastHistLoad >= HIST_REFRESH_MS) {
       lastHistLoad = Date.now();

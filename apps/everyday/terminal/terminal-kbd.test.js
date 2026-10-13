@@ -68,7 +68,7 @@ test("manual history navigation cancels activation's bottom-follow settle window
   assert.match(SRC, /function cancelLatest\(\) \{[\s\S]*?clearInterval\(followLatestTimer\)/);
   assert.match(SRC, /addEventListener\('wheel', cancelLatest/,
     'mouse-wheel scrollback must immediately stop bottom-following');
-  assert.match(SRC, /while \(acc > 18\) \{ cancelLatest\(\); t\.scrollLines\(-1\)/,
+  assert.match(SRC, /while \(acc > 18\) \{ cancelLatest\(\); scrollGesture\(t, -1, c\.clientX, y\)/,
     'touch scrollback must immediately stop bottom-following');
   assert.match(SRC, /requestId <= cancelledLatestThrough\) return/,
     'late retries from any already-started activation must not re-arm after a user scroll');
@@ -88,6 +88,82 @@ test("the terminal's own resize paths follow the live bottom", () => {
     'two-finger and double-click resize should follow only a live viewport');
   assert.doesNotMatch(SRC, /t\.onResize\(function \(\) \{\s*armLatest\(\);/,
     'a late resize event must not yank an already-scrolled viewport to the bottom');
+});
+
+function interactionHarness() {
+  let now = 5000;
+  const listeners = {}, sent = [], input = [];
+  const term = { rows: 69, cols: 257, element: { clientWidth: 1800 },
+    buffer: { active: { type: 'normal', baseY: 0, viewportY: 0 } }, input(s) { input.push(s); }, onScroll() {}, scrollToBottom() {} };
+  class Socket {
+    constructor() { this.readyState = 1; }
+    addEventListener() {}
+    removeEventListener() {}
+    send(bytes) { sent.push(new TextDecoder().decode(bytes)); }
+  }
+  Object.assign(Socket, { CONNECTING: 0, OPEN: 1, CLOSING: 2, CLOSED: 3 });
+  const document = { hidden: false, querySelector: () => null, hasFocus: () => true };
+  const window = { term, WebSocket: Socket, matchMedia: () => ({ matches: false }),
+    addEventListener: (name, fn) => (listeners[name] ||= []).push(fn) };
+  vm.runInNewContext(SRC, { window, document, navigator: {}, Date: { now: () => now },
+    TextEncoder, setTimeout: () => 1, clearTimeout() {}, setInterval: () => 1,
+    clearInterval() {}, requestAnimationFrame() {} });
+  new window.WebSocket('ws://test/t1/ws');
+  return { document, sent, input, term, geometry: () => window.__vibetopTerminalGeometry(), advance(ms) { now += ms; },
+    emit(type, extra = {}) { for (const fn of listeners[type] || []) fn({ type, ...extra }); } };
+}
+
+test('click and typing reclaim desktop geometry without inserting terminal input', () => {
+  const h = interactionHarness(); h.emit('pointerdown', { clientX: 0 });
+  assert.deepEqual(h.sent, ['1{"columns":256,"rows":69}', '1{"columns":257,"rows":69}']);
+  h.emit('keydown', { key: 'a' });
+  assert.equal(h.sent.length, 2, 'continuous interaction is throttled');
+  h.advance(1001); h.emit('keydown', { key: 'b' });
+  assert.equal(h.sent.length, 4);
+  assert.ok(h.sent.every(s => s.startsWith('1')), 'ownership sends only ttyd resize frames, never PTY input');
+});
+
+test('hidden desktop and deliberate history navigation do not claim ownership', () => {
+  const h = interactionHarness();
+  h.document.hidden = true; h.emit('pointerdown', { clientX: 0 });
+  h.document.hidden = false; h.emit('keydown', { key: 'PageUp' });
+  assert.equal(h.sent.length, 0);
+});
+
+for (const key of ['PageUp', 'PageDown']) {
+  test(key + ' reaches the application instead of scrolling the browser', () => {
+    const h = interactionHarness(); h.term.buffer.active.type = 'alternate';
+    let prevented = false, stopped = false;
+    h.emit('keydown', { key, preventDefault() { prevented = true; },
+      stopImmediatePropagation() { stopped = true; } });
+    assert.deepEqual(h.input, [key === 'PageUp' ? '\x1b[5~' : '\x1b[6~']);
+    assert.ok(prevented && stopped, 'prevent browser scroll and duplicate xterm input');
+    assert.equal(h.sent.length, 0, 'history navigation does not resize the session');
+  });
+}
+test('normal scrollback and modified page keys keep native behavior', () => {
+  const h = interactionHarness();
+  h.emit('keydown', { key: 'PageUp' });
+  h.term.buffer.active.type = 'alternate';
+  h.emit('keydown', { key: 'PageUp', shiftKey: true });
+  assert.deepEqual(h.input, []);
+});
+
+test('terminal geometry diagnostics never read the live rendering canvas', () => {
+  const h = interactionHarness();
+  let contextReads = 0;
+  const canvas = { width: 1799, height: 1035,
+    getContext() { contextReads++; return { getImageData() {
+      return { data: new Uint8ClampedArray([0, 0, 0, 255]) };
+    } }; } };
+  h.term.buffer.active.getLine = () => ({ translateToString: () => 'visible output' });
+  h.term.element.getBoundingClientRect = () => ({ width: 1800, height: 1040 });
+  h.term.element.querySelector = selector => selector === '.xterm-text-layer' ? canvas : null;
+  const snapshot = h.geometry();
+  assert.equal(snapshot.canvasWidth, 1799);
+  assert.equal(snapshot.canvasHeight, 1035);
+  assert.equal(snapshot.visibleLines, h.term.rows);
+  assert.equal(contextReads, 0, 'pixel readback can change Chrome canvas acceleration');
 });
 
 function readerHarness(source = SRC, saved = new Map()) {

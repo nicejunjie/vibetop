@@ -110,8 +110,9 @@ function makeHarness(opts = {}) {
     index: opts.index === undefined ? { tabs: [{ id: "a", name: "Alpha" }, { id: "b", name: "Beta" }], active: "a" } : opts.index,
     notes: Object.assign({ a: "alpha body", b: "beta body" }, opts.notes),
   };
+  const storage = opts.storage || new Map();
   const calls = [];
-  const h = { state, calls, onFetch: null, confirms: [], confirmAnswer: true };
+  const h = { state, calls, storage, onFetch: opts.onFetch || null, confirms: [], confirmAnswer: true };
 
   // virtual clock
   let now = 0, seq = 1;
@@ -122,6 +123,7 @@ function makeHarness(opts = {}) {
     clearTimeout(id) { const i = timers.findIndex((t) => t.id === id); if (i >= 0) timers.splice(i, 1); },
     setInterval(fn, ms) { const id = seq++; timers.push({ id, fn, at: now + (ms || 0), every: ms || 1 }); return id; },
     clearInterval(id) { const i = timers.findIndex((t) => t.id === id); if (i >= 0) timers.splice(i, 1); },
+    localStorage: { getItem:k=>storage.get(k), setItem:(k,v)=>storage.set(k,String(v)) },
     JSON, Math, Date, Object, Array, String, Number, Error, RegExp, Promise, URL, encodeURIComponent,
     CSS: { escape: (s) => String(s).replace(/["\\]/g, "\\$&") },
     fetch(url, init) {
@@ -137,6 +139,7 @@ function makeHarness(opts = {}) {
         state.index = { tabs: body.tabs.map((t) => ({ id: t.id, name: t.name })), active: body.active };
         return json({ ok: true });
       }
+      if (url === "/api/me") return json({user:opts.user || "test"});
       if (rec.method === "POST" && url === "/api/notes") { state.notes[body.id] = body.content; return json({ ok: true }); }
       if (url === "/api/notes") return json(state.index);
       if (url.startsWith("/api/notes?id=")) {
@@ -527,4 +530,61 @@ test("a refused save keeps the text, and the background sync cannot clobber it",
   h.advance(2000); await flush();         // and another
   assert.equal(h.editor.value, mine,
     "the unsaved text must survive every background sync after a refused save");
+});
+
+test('saving the same note is serialized so an old request cannot win last', async () => {
+  const h=await boot(); let finish, posts=0;
+  h.onFetch=c=>{
+    if(c.url==='/api/notes' && c.method==='POST' && ++posts===1) return new Promise(resolve=>{
+      finish=()=>{h.state.notes.a=c.body.content;resolve({ok:true,status:200});};
+    });
+  };
+  h.type('first version'); h.advance(800); await flush();
+  h.type('latest version'); h.advance(800); await flush();
+  assert.equal(posts,1);
+  finish(); await flush();
+  assert.equal(posts,2); assert.equal(h.state.notes.a,'latest version');
+});
+
+test('an inactive note retries a failed save without losing its draft', async () => {
+  const h=await boot();let failed=false;
+  h.onFetch=c=>{if(c.url==='/api/notes' && c.method==='POST' && c.body.id==='a' && !failed){failed=true;return {ok:false,status:500};}};
+  h.type('keep this');h.clickTab('b');await flush();
+  assert.equal(h.editor.value,'beta body');
+  h.advance(3000);await flush();
+  assert.equal(h.state.notes.a,'keep this');
+});
+
+test('a draft survives refresh before autosave has even started', async () => {
+  const h=await boot();h.type('typed just before refresh');
+  assert.equal(h.posts('/api/notes').length,0);
+  const reloaded=await boot({storage:h.storage});
+  assert.equal(reloaded.editor.value,'typed just before refresh');
+  assert.equal(reloaded.state.notes.a,'typed just before refresh');
+});
+
+test('drafts from another authenticated user are not loaded', async () => {
+  const storage=new Map([['vibetop:notes-drafts:alice',JSON.stringify({a:'private draft'})]]);
+  const h=await boot({storage,user:'bob'});
+  assert.equal(h.editor.value,'alpha body');
+});
+
+test('closing a newly typed note asks before deleting unsaved text', async () => {
+  const h=await boot({notes:{a:''}});h.type('unsaved text');h.confirmAnswer=false;
+  h.closeTab('a');await flush();
+  assert.equal(h.confirms.length,1);assert.ok(h.tabIds().includes('a'));
+});
+
+test('a refused initial index never replaces the shared tab set with a fallback', async () => {
+  const h=await boot({onFetch:c=>c.url==='/api/notes' && c.method==='GET'?{ok:false,status:500,json:()=>Promise.resolve({error:'offline'})}:undefined});
+  assert.equal(h.posts('/api/notes/tabs').length,0);assert.equal(h.editor.disabled,true);
+});
+
+test('an old sync response cannot overwrite a newer edit even after save succeeds', async () => {
+  const h=await boot();let respond;
+  h.onFetch=c=>c.url==='/api/notes?id=a'?new Promise(r=>respond=r):undefined;
+  h.advance(2000);await flush();
+  h.type('new edit');h.advance(800);await flush();
+  respond({ok:true,json:()=>Promise.resolve({content:'old snapshot'})});await flush();
+  assert.equal(h.editor.value,'new edit');
 });

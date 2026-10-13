@@ -33,6 +33,36 @@ Project dir: `apps/everyday/terminal/` (the app) + `server/` (the manager) (repo
 - **Select + copy**: native browser drag-select, auto-copies to clipboard.
   On HTTP origins uses `document.execCommand('copy')` fallback.
 
+## Incremental scrollback recovery
+
+`terminal-resume.js` keeps output in IndexedDB, keyed by the authenticated user
+and terminal path. On each connection, `vibetop-session attach --resume` asks
+for the cached session epoch and last received byte offset before attaching to
+the daemon's private `.sock.resume` listener. The daemon sends only newer output
+when that offset is still retained; a changed epoch or an expired offset sends
+a full replay. The browser reconstructs cached output locally before appending
+the delta. A new shell receives a new epoch even if its terminal number is reused.
+
+Frames acknowledge raw output offsets, including bytes removed by the replay
+query filter. Intermediate replay chunks have no acknowledged cursor, so a
+connection interrupted during replay cannot save an incomplete checkpoint.
+Cached query requests are filtered again during local reconstruction. User input
+waits until the handshake finishes, and handshake bytes never reach the shell.
+
+The cache holds up to 64 MiB of output per terminal and prunes to eight entries
+and 128 MiB when opening history. If storage fails or output exceeds the per-tab
+limit, the next connection uses a full replay. The existing adaptive replay
+budget also applies to uncached or large deltas on slow links: it replaces the
+remaining backlog with a reset and the latest screen, then acknowledges that
+snapshot as a fresh cache base. Existing session daemons keep
+running their original code after deployment and use the legacy replay path;
+new session daemons support resume. Deploying this feature must not restart
+session daemons and terminate their shells.
+
+Validation: `node --test apps/everyday/terminal/terminal-resume.test.js`,
+`pytest server/tests/test_vibetop_session.py`, and
+`python tests/e2e/terminal-resume.py` (real browser + disposable ttyd session).
+
 ## Tabbed UI
 
 `/terminals/` serves `terminals.html` — a single page with iframes:
