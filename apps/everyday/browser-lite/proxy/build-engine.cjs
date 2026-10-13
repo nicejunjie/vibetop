@@ -102,6 +102,7 @@ require('./worker-module-patch.cjs').patchWorkerModuleKind(engineRequire);
 require('./modern-script-patch.cjs').patchModernScripts(engineRequire);
 require('./optional-chain-patch.cjs').patchOptionalChains(engineRequire);
 require('./worker-origin-patch.cjs').patchWorkerOrigins(engineRequire);
+require('./hls-patch.cjs').patchHlsPlaylists(engineRequire);
 const {patchCookieWire,hardenCookieWire} = require('./cookie-wire-patch.cjs');
 for (const [file, isClient] of [['client/hammerhead.js',true],['utils/cookie.js',false]]) {
   const target = engineRequire.resolve('testcafe-hammerhead/lib/' + file);

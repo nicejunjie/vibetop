@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_445 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_446 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [Terminal link opened a closed Browser app but lost the URL](#terminal-link-opened-a-closed-browser-app-but-lost-the-url)
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
@@ -468,6 +468,7 @@ _445 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [Browser Lite realm wildcard must exclude trusted sibling services](#browser-lite-realm-wildcard-must-exclude-trusted-sibling-services)
 - [Do not add ttyd --check-origin while the HTTPS fallback bridges ttyd](#do-not-add-ttyd---check-origin-while-the-https-fallback-bridges-ttyd)
 - [Browser Lite srcdoc iframes must bootstrap from the native parent](#browser-lite-srcdoc-iframes-must-bootstrap-from-the-native-parent)
+- [Browser Lite rewrites HLS playlists for native players](#browser-lite-rewrites-hls-playlists-for-native-players)
 
 <!-- END TOC -->
 
@@ -19084,3 +19085,20 @@ fixtures and do not provision external infrastructure.
 - **Diagnosis tip:** The hang showed up only with a mobile UA. CDP
   `Debugger.pause` plus `Page.getFrameTree` located the spinning script's frame;
   in-frame `evaluateOnCallFrame` fails there ("Cannot find context").
+
+## Browser Lite rewrites HLS playlists for native players
+
+- **Symptom:** x.com videos on iPhone never played. Every variant playlist
+  request (`/amplify_video/…/720x720/….m3u8`) got 403 at the realm root.
+- **Cause:** Safari plays HLS natively (`<video src=….m3u8>`). The player
+  resolves playlist URIs itself, so a path-absolute URI drops the proxy prefix.
+  Hammerhead only processes page, CSS, script and appcache resources.
+  Chromium and Linux WebKit use hls.js over XHR, which the client engine
+  already proxies, so desktop tests never showed this.
+- **Fix:** `hls-patch.cjs` marks non-XHR responses with an HLS MIME type for
+  processing. Every URI line and `URI="…"` attribute goes through the engine's
+  URL replacer. The code is inlined into the patched engine files: the build
+  runs in a staging directory, so an absolute `require` would break after
+  activation.
+- **Rejected:** Redirecting stray realm-root requests using the Referer. Native
+  media requests carry no reliable Referer, and it would let unproxied paths in.
