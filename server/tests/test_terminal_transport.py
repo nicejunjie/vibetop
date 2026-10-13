@@ -121,3 +121,21 @@ def test_route_uses_authenticated_users_port_and_isolates_ids(client, mgr, monke
     body['terminal'] = 0
     assert client.post('/api/terminal-transport', body)[0] == 400
     assert client.post('/api/terminal-transport', [1])[0] == 400
+
+
+def test_stream_cursor_does_not_ack_undelivered_output(upstream):
+    port, peers, _, ready = upstream
+    relay = transport.Relay(port, 1)
+    try:
+        assert ready.wait(1)
+        peers[0].sendall(b'\x82\x03one')
+        first = relay.poll(0, wait=1, acknowledge=False)
+        assert first['frames'][0]['seq'] == 1
+        assert relay.poll(1, wait=0, acknowledge=False)['frames'] == []
+        assert relay.acked == 0 and relay.size == 3
+        # Stream was written, but response never reached client: replay survives.
+        assert relay.poll(0, wait=0) == first
+        relay.poll(1, wait=0)
+        assert relay.size == 0
+    finally:
+        relay.close()

@@ -66,3 +66,60 @@ test('stalled handshake switches to HTTP; lost input response retries same seque
   assert.equal(ws.bufferedAmount,0);
   ws.close();
 });
+
+test('slow input response batches typing without crossing resize or duplicating retries', async () => {
+  const accepted = new Map(), requests = []; let lose = true;
+  const {w} = browser(async (url, options) => {
+    if(url === '/api/clientlog') return {ok:true,json:async()=>({})};
+    const body = JSON.parse(options.body);
+    if(body.op === 'poll') return new Promise((resolve,reject)=>options.signal.addEventListener('abort',()=>reject(Error('aborted'))));
+    if(body.op === 'send') {
+      requests.push(body);
+      accepted.set(body.seq, atob(body.data));
+      await delay(30);
+      if(body.seq === 2 && lose) { lose = false; throw Error('lost response'); }
+    }
+    return {ok:true,json:async()=>({ok:true})};
+  });
+  const ws = new w.WebSocket('wss://test/t1/ws','tty');
+  ws.onopen = () => {
+    for(const key of 'abcdefghijkl') ws.send('0' + key);
+    ws.send('1{"cols":80,"rows":24}');
+    ws.send('0m'); ws.send('0n');
+  };
+  await delay(250);
+  assert.deepEqual([...accepted.values()], ['0a','0bcdefghijkl','1{"cols":80,"rows":24}','0mn']);
+  assert.equal(requests.length,5);
+  assert.deepEqual(requests[1],requests[2]);
+  assert.equal(ws.bufferedAmount,0);
+  ws.close();
+});
+
+test('stream delivers split chunks immediately and deduplicates replay after disconnect', async () => {
+  let streams = 0, push;
+  const {w} = browser(async (url, options) => {
+    if(url === '/api/clientlog') return {ok:true,json:async()=>({})};
+    const body = JSON.parse(options.body);
+    if(body.op === 'open') return {ok:true,json:async()=>({streaming:true})};
+    if(body.op === 'stream') {
+      streams++;
+      const payload = JSON.stringify({frames:[{seq:1,binary:true,data:btoa('0hello')}],closed:false})+'\n';
+      return {ok:true,body:new ReadableStream({start(controller) {
+        controller.enqueue(new TextEncoder().encode(payload.slice(0,20)));
+        controller.enqueue(new TextEncoder().encode(payload.slice(20)));
+        push=controller;
+        options.signal.addEventListener('abort',()=>{try{controller.error(Error('aborted'));}catch{}});
+      }})};
+    }
+    return {ok:true,json:async()=>({ok:true})};
+  });
+  const ws = new w.WebSocket('wss://test/t1/ws','tty'); ws.binaryType='arraybuffer';
+  const output=[]; ws.onmessage=e=>output.push(new TextDecoder().decode(e.data));
+  await delay(45);
+  assert.deepEqual(output,['0hello']); // before the HTTP response ends
+  push.error(Error('lost stream'));
+  await delay(35);
+  assert.equal(streams,2);
+  assert.deepEqual(output,['0hello']);
+  ws.close();
+});

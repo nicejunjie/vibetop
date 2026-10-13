@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_412 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_413 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [Terminal link opened a closed Browser app but lost the URL](#terminal-link-opened-a-closed-browser-app-but-lost-the-url)
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
@@ -435,6 +435,7 @@ _412 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [Mobile reconnect redraws at the visible client's geometry (2026-10-08)](#mobile-reconnect-redraws-at-the-visible-clients-geometry-2026-10-08)
 - [Terminal HTTPS fallback when WebSocket establishment stalls](#terminal-https-fallback-when-websocket-establishment-stalls)
 - [Check the served desktop stamp against the deployed update signal](#check-the-served-desktop-stamp-against-the-deployed-update-signal)
+- [Stream fallback output and batch queued terminal input](#stream-fallback-output-and-batch-queued-terminal-input)
 
 <!-- END TOC -->
 
@@ -18287,3 +18288,19 @@ resize protocol and UI behavior, while actual-session monitoring remains active.
 - **Rejected:** Removing the circuit breaker would permit endless reloads.
   Treating the mismatch as proof of the separate native WebSocket stall would
   exceed the evidence.
+
+## Stream fallback output and batch queued terminal input
+
+- **Symptom:** The HTTPS fallback restores access, but typing and output lag on
+  high-latency paths.
+- **Cause:** One completed HTTP request per input frame serializes keystrokes
+  behind round trips. Repeated output polls add a round-trip gap after each batch.
+- **Fix:** Concatenate only adjacent queued ttyd input frames, preserving control
+  boundaries and retry sequence IDs. Stream output with nginx buffering disabled;
+  release retained output only after explicit client acknowledgement. Renew the
+  bounded response periodically and retry from the client's received cursor.
+- **Rejected:** Concurrent independent input sends can reorder commands. Releasing
+  streamed frames merely after a server write loses data on a broken connection.
+  Local character echo would be wrong for passwords, full-screen apps and editing.
+- **Validation:** Delayed-response typing batches, control ordering, duplicate
+  retry suppression, incremental chunk delivery, stream replay and real ttyd e2e.

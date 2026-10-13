@@ -127,26 +127,29 @@ class Relay:
             self.close()
             self.reader.close()
 
-    def poll(self, after, wait=8):
+    def poll(self, after, wait=8, *, acknowledge=True):
         with self.cv:
             if type(after) is not int or not self.acked <= after <= self.sequence:
                 raise TransportError(409, 'invalid output acknowledgement')
             self.touched = time.monotonic()
-            self.acked = after
-            while self.frames and self.frames[0][0] <= after:
-                self.size -= len(self.frames.popleft()[2])
+            if acknowledge:
+                self.acked = after
+                while self.frames and self.frames[0][0] <= after:
+                    self.size -= len(self.frames.popleft()[2])
             self.cv.notify_all()
-            if not self.frames and not self.closed:
-                self.cv.wait_for(lambda: self.frames or self.closed, timeout=wait)
+            if self.sequence <= after and not self.closed:
+                self.cv.wait_for(lambda: self.sequence > after or self.closed, timeout=wait)
             batch, size = [], 0
             for seq, opcode, data in self.frames:
+                if seq <= after:
+                    continue
                 batch.append({'seq': seq, 'binary': opcode == 2,
                               'data': base64.b64encode(data).decode()})
                 size += len(data)
                 if size >= MAX_FRAME or len(batch) >= 128:
                     break
             # A lost response can be retried with the same cursor. Retain until ACK.
-            return {'frames': batch, 'closed': self.closed and len(batch) == len(self.frames)}
+            return {'frames': batch, 'closed': self.closed and (batch[-1]['seq'] if batch else after) == self.sequence}
 
     def send(self, sequence, opcode, data):
         with self.write_lock:
@@ -176,6 +179,34 @@ class Relay:
         except OSError:
             pass
         self.sock.close()
+
+
+def stream_output(handler, relay, after):
+    """Stream retained frames; only explicit client ACKs release their memory."""
+    import json
+    first = relay.poll(after, wait=0)
+    handler.send_response(200)
+    handler.send_header('Content-Type', 'application/x-ndjson')
+    handler.send_header('Cache-Control', 'no-store, no-transform')
+    handler.send_header('X-Accel-Buffering', 'no')
+    handler.send_header('Connection', 'close')
+    handler.end_headers()
+    handler.close_connection = True
+    deadline = time.monotonic() + 10
+    result = first
+    try:
+        while True:
+            handler.wfile.write((json.dumps(result, separators=(',', ':')) + '\n').encode())
+            handler.wfile.flush()
+            if result['frames']:
+                after = result['frames'][-1]['seq']
+            remaining = deadline - time.monotonic()
+            if result['closed'] or remaining <= 0:
+                return
+            result = relay.poll(after, wait=min(8, remaining), acknowledge=False)
+    except (OSError, TransportError):
+        # Client retries from its last received cursor; retain unacknowledged data.
+        return
 
 
 class Registry:
@@ -246,10 +277,19 @@ def handle(handler, max_instance):
                 raise TransportError(400, 'invalid terminal')
             port = handler._ensure_user_terminal(user, number)
             registry.open(user, ident, port, number)
-            result = {'ok': True}
+            result = {'ok': True, 'streaming': True}
         else:
             relay = registry.get(user, ident)
-            if op == 'poll':
+            if op == 'stream':
+                return stream_output(handler, relay, data.get('after'))
+            elif op == 'ack':
+                after = data.get('after')
+                with relay.cv:
+                    if type(after) is not int or not 0 <= after <= relay.sequence:
+                        raise TransportError(409, 'invalid output acknowledgement')
+                    relay.poll(max(after, relay.acked), wait=0)
+                result = {'ok': True}
+            elif op == 'poll':
                 result = relay.poll(data.get('after'))
             elif op == 'send':
                 if type(data.get('binary')) is not bool or not isinstance(data.get('data'), str):

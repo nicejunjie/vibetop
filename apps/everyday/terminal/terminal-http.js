@@ -62,7 +62,7 @@
     }
     get readyState() { return this._state; }
     _emit(type, event) { this.dispatchEvent(event); }
-    async _request(data, retries) {
+    async _request(data, retries, consume) {
       data.id = this._id;
       for (var attempt = 0; ; attempt++) {
         if (this._state === 3) throw new Error('closed');
@@ -79,7 +79,7 @@
             failure.permanent = response.status >= 400 && response.status < 500;
             throw failure;
           }
-          return await response.json();
+          return consume ? await consume(response) : await response.json();
         } catch (error) {
           if (error.permanent || attempt >= retries || this._state === 3) throw error;
           await new Promise(function (resolve) { w.setTimeout(resolve, 500 * (attempt + 1)); });
@@ -93,7 +93,8 @@
       this._http = true; rememberHTTP(); w.clearTimeout(this._timer);
       if (this._native) this._native.close();
       try {
-        await this._request({op: 'open', terminal: this._number}, 1);
+        var opened = await this._request({op: 'open', terminal: this._number}, 1);
+        this._streaming = !!opened.streaming;
         if (this._state === 3) return;
         this._state = 1; this.protocol = 'tty';
         this._emit('open', new w.Event('open'));
@@ -107,18 +108,58 @@
     async _poll() {
       try {
         while (this._state === 1) {
+          if (this._streaming) {
+            var self = this;
+            try { await this._request({op: 'stream', after: this._after}, 0, async function (response) {
+              var reader = response.body.getReader(), decoder = new w.TextDecoder(), pending = '';
+              try {
+                while (self._state === 1) {
+                  var chunk = await reader.read();
+                  if (chunk.done) break;
+                  self._streamFailures = 0;
+                  pending += decoder.decode(chunk.value, {stream: true});
+                  var newline;
+                  while ((newline = pending.indexOf('\n')) >= 0) {
+                    self._deliver(JSON.parse(pending.slice(0, newline)));
+                    pending = pending.slice(newline + 1);
+                  }
+                }
+              } finally { await reader.cancel().catch(function () {}); }
+            }); } catch (error) {
+              if (error.permanent || this._state === 3 || (this._streamFailures = (this._streamFailures || 0) + 1) > 2) throw error;
+              await new Promise(function (resolve) { w.setTimeout(resolve, 500); });
+            }
+            continue;
+          }
           var response = await this._request({op: 'poll', after: this._after}, 2);
           if (this._state !== 1) return;
-          for (var frame of response.frames) {
-            if (frame.seq <= this._after) continue;
-            var bytes = Uint8Array.from(w.atob(frame.data), function (c) { return c.charCodeAt(0); });
-            var data = frame.binary ? (this.binaryType === 'arraybuffer' ? bytes.buffer : new w.Blob([bytes])) : new w.TextDecoder().decode(bytes);
-            this._emit('message', new w.MessageEvent('message', {data: data}));
-            this._after = frame.seq;
-          }
-          if (response.closed) { this._finish(1000, '', true); return; }
+          this._deliver(response);
         }
       } catch (_) { this._fail(); }
+    }
+    _deliver(response) {
+      if (this._state !== 1) return;
+      for (var frame of response.frames) {
+        if (frame.seq <= this._after) continue;
+        var bytes = Uint8Array.from(w.atob(frame.data), function (c) { return c.charCodeAt(0); });
+        var data = frame.binary ? (this.binaryType === 'arraybuffer' ? bytes.buffer : new w.Blob([bytes])) : new w.TextDecoder().decode(bytes);
+        this._emit('message', new w.MessageEvent('message', {data: data}));
+        this._after = frame.seq;
+      }
+      if (response.closed) { this._finish(1000, '', true); return; }
+      if (this._streaming && (response.frames.length || response.ack) && !this._ackPending) {
+        this._ackPending = true;
+        var self = this;
+        this._ackTimer = w.setTimeout(async function () {
+          var after = self._after;
+          try { await self._request({op: 'ack', after: after}, 2); }
+          catch (_) { if (self._state !== 3) self._fail(); }
+          finally {
+            self._ackPending = false;
+            if (self._after > after) self._deliver({frames: [], closed: false, ack: true});
+          }
+        }, 500);
+      }
     }
     send(data) {
       if (this._state === 0) throw new w.DOMException('WebSocket is connecting', 'InvalidStateError');
@@ -129,7 +170,7 @@
         ArrayBuffer.isView(data) ? new Uint8Array(data.buffer, data.byteOffset, data.byteLength) : null;
       if (!bytes) throw new TypeError('unsupported terminal frame');
       if (bytes.length > 256 * 1024 || this.bufferedAmount + bytes.length > 1024 * 1024) { this._fail(); return; }
-      this._queue.push({op: 'send', seq: ++this._seq, binary: typeof data !== 'string', data: base64(bytes), size: bytes.length});
+      this._queue.push({bytes: bytes.slice(), binary: typeof data !== 'string', size: bytes.length});
       this.bufferedAmount += bytes.length;
       this._flush();
     }
@@ -138,10 +179,23 @@
       this._sending = true;
       try {
         while (this._queue.length && this._state === 1) {
-          var item = this._queue[0];
+          var first = this._queue.shift(), parts = [first.bytes], size = first.size;
+          // Only ttyd input ('0') can be concatenated. Keep resize, auth and
+          // flow-control frames in their original order and protocol boundaries.
+          if (first.bytes[0] === 48) {
+            while (this._queue.length) {
+              var next = this._queue[0];
+              if (next.binary !== first.binary || next.bytes[0] !== 48 || size + next.size > 256 * 1024) break;
+              this._queue.shift(); parts.push(next.bytes.subarray(1)); size += next.size;
+            }
+          }
+          var length = parts.reduce(function (n, p) { return n + p.length; }, 0);
+          var joined = new Uint8Array(length), offset = 0;
+          parts.forEach(function (p) { joined.set(p, offset); offset += p.length; });
+          var item = {op: 'send', seq: ++this._seq, binary: first.binary, data: base64(joined)};
           await this._request(item, 2);
           if (this._state !== 1) return;
-          this.bufferedAmount -= item.size; this._queue.shift();
+          this.bufferedAmount -= size;
         }
       } catch (_) { this._fail(); }
       finally { this._sending = false; }
@@ -153,7 +207,7 @@
     }
     _finish(code, reason, clean) {
       if (this._state === 3) return;
-      this._state = 3; w.clearTimeout(this._timer);
+      this._state = 3; w.clearTimeout(this._timer); w.clearTimeout(this._ackTimer);
       w.removeEventListener('pagehide', this._pagehide);
       this._controllers.forEach(function (c) { c.abort(); });
       this._controllers.clear(); this._queue = []; this.bufferedAmount = 0;

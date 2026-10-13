@@ -409,3 +409,14 @@ CSRF gate. The backend resolves the user's allocated ttyd port itself; clients
 cannot choose an upstream address. Output stays in bounded memory until acknowledged,
 and sequenced input retries are deduplicated. Relays expire after 90 seconds
 without requests, with a maximum of 16 per user and 128 globally.
+
+### HTTPS fallback latency
+
+The fallback streams newline-delimited output over authenticated POST responses,
+with proxy buffering disabled. Responses renew every ten seconds; received output
+is acknowledged separately, so a broken stream can replay unacknowledged frames.
+Older clients retain the long-poll operation. Servers advertise streaming support
+when opening the relay, allowing the new client to work with an older backend.
+Queued ttyd input frames are combined while an earlier input request is pending;
+auth, resize and flow-control frames retain their order and frame boundaries.
+Sequence numbers belong to transmitted batches and are reused on retries.
