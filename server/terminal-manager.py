@@ -17,7 +17,10 @@ Endpoints:
 
 import base64
 import browser_lite
+from browser_proxy_deploy import production_activation
+import browser_proxy
 import collections
+import contextlib
 import ctypes
 import ctypes.util
 import hashlib
@@ -4552,6 +4555,7 @@ def _jwt_verify(token, secret):
 # (Phase 1); per-user runtime routing lands in later phases.
 
 SESSION_COOKIE = "vt_session"
+SECURE_SESSION_COOKIE = "__Host-vt_session"
 SESSION_TTL = 7 * 24 * 3600                      # "remember me" for 7 days
 SESSION_SECRET_FILE = os.environ.get("SESSION_SECRET_FILE") or "/etc/vibetop/session.secret"
 PAM_SERVICE = os.environ.get("VIBETOP_PAM_SERVICE", "vibetop")
@@ -5499,16 +5503,58 @@ class Handler(http.server.BaseHTTPRequestHandler):
         origin = self.headers.get("Origin")
         if not origin:
             return True
-        host = self.headers.get("Host", "")
+        return self._same_external_origin(origin)
+
+    def _same_external_origin(self, value):
         try:
-            return urllib.parse.urlparse(origin).netloc == host
-        except Exception:
+            origin = urllib.parse.urlsplit(value)
+            external = urllib.parse.urlsplit(
+                ("https" if self._req_is_https() else "http") + "://" + self.headers.get("Host", ""))
+            def key(url):
+                return (url.scheme, url.hostname, url.port or (443 if url.scheme == "https" else 80))
+            return (origin.scheme in ("http", "https") and not origin.username
+                    and not origin.password and key(origin) == key(external))
+        except ValueError:
             return False
+
+    def _browser_request_ok(self, path, method=None):
+        """Siblings are same-site but cannot use the authenticated control plane.
+
+        Allow inbound top-level GET documents so links/bookmarks still work. API
+        reads can mutate state, so they do not receive that navigation exception.
+        Explicit server callbacks remain in the existing public-path allowlist.
+        """
+        method = method or self.command
+        upgrade = self.headers.get("X-Original-Upgrade", self.headers.get("Upgrade", ""))
+        if upgrade.lower() == "websocket":
+            return (self._csrf_ok() and self.headers.get("Sec-Fetch-Site")
+                    not in ("same-site", "cross-site"))
+        top_navigation = (method in ("GET", "HEAD") and not path.startswith("/api/")
+                          and self.headers.get("Sec-Fetch-Mode") == "navigate"
+                          and self.headers.get("Sec-Fetch-Dest") == "document")
+        site = self.headers.get("Sec-Fetch-Site", "")
+        if site in ("same-site", "cross-site"):
+            return top_navigation
+        if not self._csrf_ok():
+            return top_navigation
+        if site in ("same-origin", "none"):
+            return True
+        referer = self.headers.get("Referer")
+        if referer:
+            return self._same_external_origin(referer) or top_navigation
+        # Modern HTTPS browsers supply Fetch Metadata; fail closed when a
+        # sibling deliberately suppresses Referer. Local HTTP operational clients
+        # retain the normal signed-cookie authentication path.
+        return bool(self.headers.get("Origin")) or not self._req_is_https()
 
     # ---- Auth (Phase 1): PAM login + session cookie ------------------------
     def _cookie_value(self, name):
         raw = self.headers.get("Cookie")
         if not raw:
+            return None
+        # Duplicate names can be planted by a sibling Domain cookie. Never
+        # let parser ordering choose an authenticated identity.
+        if sum(part.strip().split("=", 1)[0] == name for part in raw.split(";")) != 1:
             return None
         try:
             jar = http.cookies.SimpleCookie(raw)
@@ -5519,7 +5565,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
 
     def _session_user(self):
         """The authenticated Linux username for this request, or None."""
-        tok = self._cookie_value(SESSION_COOKIE)
+        tok = self._cookie_value(SECURE_SESSION_COOKIE if self._req_is_https() else SESSION_COOKIE)
         return _verify_session(tok) if tok else None
 
     def _bind_request_user(self):
@@ -5632,7 +5678,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
             return self._json(401, {"error": "invalid credentials"})
         _login_clear(user, src)                   # reset on success
         tok = _sign_session(user)
-        cookie = (f"{SESSION_COOKIE}={tok}; Path=/; HttpOnly; SameSite=Lax; "
+        cookie_name = SECURE_SESSION_COOKIE if self._req_is_https() else SESSION_COOKIE
+        cookie = (f"{cookie_name}={tok}; Path=/; HttpOnly; SameSite=Lax; "
                   f"Max-Age={SESSION_TTL}")
         if self._req_is_https():
             cookie += "; Secure"
@@ -5651,6 +5698,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
         self.send_header("Content-Type", "application/json")
         self.send_header("Set-Cookie",
                          f"{SESSION_COOKIE}=; Path=/; HttpOnly; Max-Age=0")
+        if self._req_is_https():
+            self.send_header("Set-Cookie",
+                             f"{SECURE_SESSION_COOKIE}=; Path=/; HttpOnly; Secure; Max-Age=0")
         self.send_header("Content-Length", str(len(payload)))
         self.send_header("Cache-Control", "no-store")
         self.end_headers()
@@ -5659,7 +5709,60 @@ class Handler(http.server.BaseHTTPRequestHandler):
     def _handle_logout(self):
         # This device only: clear the vt_session cookie. Other devices/tokens for
         # the same user stay valid until they expire (stateless-cookie auth).
-        self._clear_session_cookie()
+        if not self._browser_request_ok("/api/logout"):
+            return self._json(403, {"error": "cross-origin request rejected"})
+        token = self._cookie_value(SECURE_SESSION_COOKIE if self._req_is_https() else SESSION_COOKIE)
+        user = _verify_session(token) if token else None
+        try:
+            if user:
+                bridge = browser_proxy.configured(_user_token_epoch)
+                if bridge:
+                    claims = _jwt_verify(token, _session_secret())
+                    bridge.runtime.revoke_device(token, expires=claims["exp"])
+        except Exception:
+            # A broken optional runtime must never prevent desktop sign-out.
+            # Invalidate the user's old credentials if durable device revocation
+            # could not be recorded, then close any remaining browser streams.
+            log.exception("Browser Lite device revocation failed for %s", user)
+            if user:
+                _bump_token_epoch(user)
+                try:
+                    uid = pwd.getpwnam(user).pw_uid
+                except KeyError:
+                    return  # Deleted Linux account; finally still clears cookie.
+                for suffix in ("socket", "service"):
+                    with contextlib.suppress(OSError, subprocess.SubprocessError):
+                        units = [f"vibetop-browser-proxy-{uid}-{kind}.{suffix}" for kind in ("rewrite", "egress")]
+                        subprocess.run(["systemctl", "stop", *units], capture_output=True, timeout=30)
+        finally:
+            self._clear_session_cookie()
+
+    def _revoke_browser_user(self, user, invalidate_main=False):
+        bumped = False
+        def invalidate():
+            nonlocal bumped
+            if not bumped:
+                _bump_token_epoch(user)
+                bumped = True
+        try:
+            bridge = browser_proxy.configured(_user_token_epoch)
+            if bridge:
+                bridge.runtime.revoke(pwd.getpwnam(user).pw_uid, invalidate if invalidate_main else lambda: None)
+            elif invalidate_main:
+                invalidate()
+        except Exception:
+            log.exception("Browser Lite user revocation failed for %s", user)
+            invalidate()
+            try:
+                uid = pwd.getpwnam(user).pw_uid
+            except KeyError:
+                return  # Deleted Linux account: main credentials are revoked.
+            # A broken optional installation cannot retain active streams or
+            # prevent main-session revocation. Close activation listeners first.
+            for suffix in ("socket", "service"):
+                with contextlib.suppress(OSError, subprocess.SubprocessError):
+                    units = [f"vibetop-browser-proxy-{uid}-{kind}.{suffix}" for kind in ("rewrite", "egress")]
+                    subprocess.run(["systemctl", "stop", *units], capture_output=True, timeout=30)
 
     def _handle_logout_all(self):
         # Everywhere: bump the user's token epoch so EVERY issued session for them
@@ -5669,7 +5772,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
         user = self._session_user()
         if not user:
             return self._json(401, {"error": "not signed in"})
-        _bump_token_epoch(user)
+        self._revoke_browser_user(user, invalidate_main=True)
         browser_lite.stop(user)
         log.info("logout-all: %s (all sessions invalidated)", user)
         self._clear_session_cookie()
@@ -5714,6 +5817,12 @@ class Handler(http.server.BaseHTTPRequestHandler):
         orig = self.headers.get("X-Original-URI", "")
         if _is_public_path(orig):
             self.send_response(200)
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+            return
+        if not self._browser_request_ok(orig.split("?", 1)[0],
+                                        self.headers.get("X-Original-Method", "GET")):
+            self.send_response(403)
             self.send_header("Content-Length", "0")
             self.end_headers()
             return
@@ -5806,9 +5915,18 @@ class Handler(http.server.BaseHTTPRequestHandler):
             return True
         if _is_public_path(p):
             return True
+        if not self._browser_request_ok(p):
+            self._json(403, {"error": "cross-origin request rejected"})
+            return False
         return bool(self._require_authed())
 
     def do_POST(self):
+        if self.path.startswith("/__browser_proxy/"):
+            try:
+                bridge = browser_proxy.configured(_user_token_epoch)
+            except Exception:
+                return self._json(503, {"error": "Browser Lite is unavailable. Retry shortly."})
+            return bridge.handle(self) if bridge else self._json(404, {"error": "not installed"})
         self._bind_request_user()
         if not self._api_gate():
             return
@@ -5825,6 +5943,23 @@ class Handler(http.server.BaseHTTPRequestHandler):
             return terminal_transport.handle(self, MAX_INSTANCE)
         if self.path == "/api/login":
             return self._handle_login()
+        if self.path == "/api/browser-lite/bootstrap":
+            user = self._session_user()
+            if not user or not self._req_is_https():
+                return self._json(401, {"error": "Open Browser Lite from your HTTPS Vibetop session."})
+            try:
+                bridge = browser_proxy.configured(_user_token_epoch)
+            except Exception:
+                return self._json(503, {"error": "Browser Lite is unavailable. Retry shortly."})
+            if not bridge:
+                return self._json(503, {"error": "Browser Lite runtime is not installed."})
+            token = self._cookie_value(SECURE_SESSION_COOKIE)
+            try:
+                claims = _jwt_verify(token, _session_secret())
+                result = bridge.bootstrap(pwd.getpwnam(user).pw_uid, user, token, claims, self.headers.get("Origin"))
+            except (ValueError, KeyError, TypeError):
+                return self._json(401, {"error": "Browser Lite sign-in has ended."})
+            return self._json(200, result)
         if self.path.startswith("/api/browser-lite/"):
             return browser_lite.handle(self, _ctx_user(), _resource_props() + _selinux_props())
         if self.path == "/api/logout":
@@ -6494,6 +6629,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
             pass
 
         browser_lite.stop(user)  # Lite pages close; website profile persists.
+        self._revoke_browser_user(user)
 
         # 4. Reset THIS user's Browser xpra to a blank Chromium: stop it, wipe
         #    their session-restore files, and let it re-start on demand fresh.
@@ -8378,9 +8514,14 @@ class Handler(http.server.BaseHTTPRequestHandler):
             _update_quiet_until = 0.0
 
     def _handle_update_locked(self):
-        """Pull the latest from GitHub and redeploy whatever changed. Each step's
-        output is returned as a log. The manager restarts itself (out-of-band) at
-        the end only if its own file changed, so the new code takes effect."""
+        """Deploy changes and refresh the manager after code or Lite activation."""
+        # Resolve a previous watchdog before pulling code or creating a new
+        # transaction. Never roll back another Update's pending snapshot.
+        if os.path.isfile("/var/lib/vibetop/browser-proxy-deploy/pending.json"):
+            try:
+                production_activation().recover_pending()
+            except Exception as error:
+                return self._json(409, {"ok": False, "error": str(error), "message": "A previous Browser Lite activation needs to finish or be recovered."})
         steps = []          # not `log`: that name is the module-level logger
 
         def add(name, ok, out):
@@ -8496,13 +8637,15 @@ class Handler(http.server.BaseHTTPRequestHandler):
             env = dict(os.environ)
             env.update(env_extra)
             try:
-                p = subprocess.run(argv, cwd=REPO_DIR, env=env,
-                                   capture_output=True, text=True, timeout=300)
+                lite = name == "deploy optional Browser Lite"
+                command = ["timeout", "--signal=TERM", "--kill-after=5s", "540s", *argv] if lite else argv
+                p = subprocess.run(command, cwd=REPO_DIR, env=env,
+                                   capture_output=True, text=True, timeout=550 if lite else 300)
                 add(name, p.returncode == 0, p.stdout + p.stderr)
             except Exception as e:
                 add(name, False, str(e))
 
-        def deploy_changed():
+        def deploy_changed(restoring=False):
             touched = lambda prefix: any(c.startswith(prefix) for c in changed)
             # The web root is fed by shell/ + shared/ + apps/ (see shell/install.sh,
             # which WALKS exactly these). Every one of them must trigger the redeploy:
@@ -8525,9 +8668,6 @@ class Handler(http.server.BaseHTTPRequestHandler):
             # browser/ and terminal/ touch nginx → run as root (manager is root) with
             # APP_USER passed in; skip apt/systemd, just redeploy files + reload nginx.
             base_env = {"APP_USER": APP_USER, "INSTALL_DEPS": "0", "INSTALL_SYSTEMD": "0"}
-            if touched("apps/everyday/browser-lite/"):
-                deploy("deploy optional Browser Lite", ["./apps/everyday/browser-lite/install.sh"],
-                       {**base_env, "RESTART_LITE": "1" if touched("apps/everyday/browser-lite/backend/") else "0"})
             if touched("apps/everyday/browser/"):
                 deploy("deploy browser", ["./apps/everyday/browser/install.sh"], base_env)
             if touched("server/") or touched("apps/everyday/terminal/"):
@@ -8553,6 +8693,12 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 deploy("deploy claude-usage", ["./apps/utilities/claude-usage/install.sh"], base_env)
 
 
+            # Stage Lite last: no later main-site writer may overwrite its
+            # pending rollback snapshot while the restart watchdog takes over.
+            if not restoring and touched("apps/everyday/browser-lite/"):
+                deploy("deploy optional Browser Lite", ["./apps/everyday/browser-lite/install.sh"],
+                       {**base_env, "DEFER_MANAGER_RESTART": "1"})
+
         deploy_changed()
 
         # Restart the manager out-of-band (via a transient timer so it survives
@@ -8560,7 +8706,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
         # Any .py directly under server/ is a manager module (terminal-manager.py
         # and its siblings like system_status.py); tests/ is excluded by the
         # no-slash check, and the Terminal app's own runtime is a separate app.
-        restart = any(c.startswith("server/") and c.endswith(".py")
+        browser_pending = os.path.isfile("/var/lib/vibetop/browser-proxy-deploy/pending.json")
+        restart = browser_pending or any(c.startswith("server/") and c.endswith(".py")
                       and "/" not in c[len("server/"):] for c in changed)
         # A redeploy step (install.sh) can fail after the pull succeeded — the
         # code is on disk but not actually deployed (nginx not reloaded, units
@@ -8588,17 +8735,27 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 log.error("update: refusing to restart onto code that does not "
                           "compile: %s", bad)
         deploy_ok = not failed
+        recovery_restart = False
         if not deploy_ok:
             # The old manager is still running. Restore BOTH the source and
             # anything already deployed from it before releasing the reload
             # hold; otherwise a failed update strands a mixed-version product.
             rollback_ok = False
+            if browser_pending:
+                try:
+                    production_activation().rollback(refresh_manager=False)
+                    # The old manager may have lazily loaded the candidate in
+                    # this window. Refresh it after restoring code and replying.
+                    recovery_restart = True
+                    add("rollback Browser Lite configuration", True, "previous configuration restored")
+                except Exception as error:
+                    add("rollback Browser Lite configuration", False, str(error))
             if before:
                 rok, rout = self._git_as_user(["reset", "--hard", before])
                 add("rollback source to previous commit", rok, rout)
                 if rok:
                     first_restore_step = len(steps)
-                    deploy_changed()
+                    deploy_changed(restoring=True)
                     rollback_ok = all(s["ok"] for s in steps[first_restore_step:])
             add("rollback deployment", rollback_ok,
                 "previous version restored" if rollback_ok else
@@ -8614,6 +8771,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
                  (before or "")[:7], (after or "")[:7], len(changed), restart, deploy_ok)
         self._json(200, {"ok": deploy_ok, "log": steps, "changed": changed,
                          "restart": restart and deploy_ok,
+                         "recoveryRestart": recovery_restart and rollback_ok,
                          "failed": failed,
                          "message": (("Updated. Restarting the API to apply manager "
                                       "changes…" if restart else "Updated.") if deploy_ok
@@ -8623,12 +8781,13 @@ class Handler(http.server.BaseHTTPRequestHandler):
                                            "check the log and resolve on the host."))})
         # Only restart the manager if the redeploy actually succeeded — restarting
         # onto a half-deployed tree would compound the failure.
-        if restart and deploy_ok:
+        if (restart and deploy_ok) or (recovery_restart and rollback_ok):
+            target = after if deploy_ok else before
             try:
                 subprocess.Popen(
                     ["systemd-run", "--on-active=3",
                      "/usr/bin/python3", os.path.join(REPO_DIR, "server", "update-watchdog.py"),
-                     REPO_DIR, APP_USER, before, after,
+                     REPO_DIR, APP_USER, before, target,
                      str(self.server.server_address[1])],
                     stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             except Exception:
@@ -9068,6 +9227,12 @@ class Handler(http.server.BaseHTTPRequestHandler):
         self.send_error(404)
 
     def do_GET(self):
+        if self.path.startswith("/__browser_proxy/"):
+            try:
+                bridge = browser_proxy.configured(_user_token_epoch)
+            except Exception:
+                return self._json(503, {"error": "Browser Lite is unavailable. Retry shortly."})
+            return bridge.handle(self) if bridge else self._json(404, {"error": "not installed"})
         self._bind_request_user()
         if not self._api_gate():
             return

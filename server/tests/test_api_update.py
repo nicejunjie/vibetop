@@ -292,3 +292,57 @@ def test_the_quiet_window_is_a_deadline_not_a_flag(mgr):
     i_lock = src.index("with _update_run_lock")
     assert i_try < i_lock < i_finally, \
         "the release must cover the locked body, so an exception inside it still frees clients"
+
+
+def test_lite_only_update_restarts_manager_when_activation_is_pending(client, mgr, stubs, monkeypatch, op_cookie):
+    g = GitFake()
+    g.changed = ['apps/everyday/browser-lite/proxy/wrapper.js']
+    monkeypatch.setattr(mgr, '_git', g)
+    isfile = mgr.os.path.isfile
+    probes = []
+    def pending_after_deploy(path):
+        if path == '/var/lib/vibetop/browser-proxy-deploy/pending.json':
+            probes.append(path)
+            return len(probes) > 1
+        return isfile(path)
+    monkeypatch.setattr(mgr.os.path, 'isfile', pending_after_deploy)
+    status, body = client.post('/api/update', {}, cookie=op_cookie)
+    assert status == 200 and body['ok'] and body['restart']
+    assert _step(body['log'], 'deploy optional Browser Lite')['ok']
+
+
+def test_failed_update_does_not_stage_lite_again_during_source_rollback(client, mgr, stubs, monkeypatch, op_cookie):
+    from types import SimpleNamespace
+    g = GitFake()
+    g.changed = ['server/system_status.py', 'apps/everyday/browser-lite/proxy/wrapper.js']
+    monkeypatch.setattr(mgr, '_git', g)
+    monkeypatch.setattr(mgr, '_uncompilable_sources', lambda: ['injected-bad.py'])
+    isfile = mgr.os.path.isfile
+    checks = []
+    def pending(path):
+        if path == '/var/lib/vibetop/browser-proxy-deploy/pending.json':
+            checks.append(path)
+            return len(checks) > 1
+        return isfile(path)
+    monkeypatch.setattr(mgr.os.path, 'isfile', pending)
+    restored = []
+    monkeypatch.setattr(mgr, 'production_activation', lambda: SimpleNamespace(rollback=lambda **kw: restored.append(kw)))
+    status, body = client.post('/api/update', {}, cookie=op_cookie)
+    assert status == 200 and not body['ok'] and not body['restart']
+    assert body['recoveryRestart'] is True
+    assert restored == [{'refresh_manager': False}]
+    assert len([step for step in body['log'] if step['name'] == 'deploy optional Browser Lite']) == 1
+
+
+def test_previous_pending_update_is_not_rolled_back_by_new_update(client, mgr, stubs, monkeypatch, op_cookie):
+    from types import SimpleNamespace
+    g = GitFake()
+    monkeypatch.setattr(mgr, '_git', g)
+    isfile = mgr.os.path.isfile
+    monkeypatch.setattr(mgr.os.path, 'isfile', lambda path: True if path == '/var/lib/vibetop/browser-proxy-deploy/pending.json' else isfile(path))
+    def unfinished():
+        raise RuntimeError('previous watchdog is still pending')
+    monkeypatch.setattr(mgr, 'production_activation', lambda: SimpleNamespace(recover_pending=unfinished))
+    status, body = client.post('/api/update', {}, cookie=op_cookie)
+    assert status == 409 and not body['ok']
+    assert not g.calls and not stubs['run']

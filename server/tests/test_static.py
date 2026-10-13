@@ -309,7 +309,7 @@ def _web_sources():
     for f in _walk(["shell/**/*.*", "shared/**/*.*", "apps/**/*.*"]):
         if os.path.splitext(f)[1] not in (".html", ".js", ".json", ".png", ".ico"):
             continue
-        if f.endswith((".test.js", ".src.html")) or "/backend/" in f or "/art/" in f or "/node_modules/" in f:
+        if f.endswith((".test.js", ".src.html")) or "/backend/" in f or "/browser-lite/proxy/" in f or "/art/" in f or "/node_modules/" in f:
             continue
         out.setdefault(os.path.basename(f), f)
     return out

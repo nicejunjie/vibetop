@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_415 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_443 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [Terminal link opened a closed Browser app but lost the URL](#terminal-link-opened-a-closed-browser-app-but-lost-the-url)
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
@@ -438,6 +438,34 @@ _415 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [Stream fallback output and batch queued terminal input](#stream-fallback-output-and-batch-queued-terminal-input)
 - [Install the attach SIGWINCH handler before publishing its view](#install-the-attach-sigwinch-handler-before-publishing-its-view)
 - [Browser Lite: remote execution with client DOM rendering](#browser-lite-remote-execution-with-client-dom-rendering)
+- [Browser Lite client rendering requires real origin boundaries](#browser-lite-client-rendering-requires-real-origin-boundaries)
+- [Browser rewriting must test modern scripts and nested frames as executable code](#browser-rewriting-must-test-modern-scripts-and-nested-frames-as-executable-code)
+- [Browser WebSocket upgrades need native Origin proof and one authorization pass](#browser-websocket-upgrades-need-native-origin-proof-and-one-authorization-pass)
+- [Embedded sign-in renewal must preserve the existing page](#embedded-sign-in-renewal-must-preserve-the-existing-page)
+- [Browser message target mapping must not probe other origins](#browser-message-target-mapping-must-not-probe-other-origins)
+- [Browser releases must switch runtime and UI assets deliberately](#browser-releases-must-switch-runtime-and-ui-assets-deliberately)
+- [Browser Lite activation must preserve the installed main site and prove adoption](#browser-lite-activation-must-preserve-the-installed-main-site-and-prove-adoption)
+- [Browser Lite SPA Back discarded unsaved state (2026-10-13)](#browser-lite-spa-back-discarded-unsaved-state-2026-10-13)
+- [Browser Lite regeneration invented optional-chain guards (2026-10-13)](#browser-lite-regeneration-invented-optional-chain-guards-2026-10-13)
+- [Browser Lite optional calls lost short-circuiting and routing (2026-10-13)](#browser-lite-optional-calls-lost-short-circuiting-and-routing-2026-10-13)
+- [Browser Lite extracted postMessage changed its target (2026-10-13)](#browser-lite-extracted-postmessage-changed-its-target-2026-10-13)
+- [Browser Lite classic-worker dynamic imports bypassed rewriting (2026-10-13)](#browser-lite-classic-worker-dynamic-imports-bypassed-rewriting-2026-10-13)
+- [Browser Lite Worker URL conversion accepted Symbols (2026-10-13)](#browser-lite-worker-url-conversion-accepted-symbols-2026-10-13)
+- [Browser Lite Worker preparation must follow argument conversion (2026-10-13)](#browser-lite-worker-preparation-must-follow-argument-conversion-2026-10-13)
+- [Browser Lite Blob scheme spelling bypassed preparation (2026-10-13)](#browser-lite-blob-scheme-spelling-bypassed-preparation-2026-10-13)
+- [Browser Lite processed-script cache omitted tab identity (2026-10-13)](#browser-lite-processed-script-cache-omitted-tab-identity-2026-10-13)
+- [Browser Lite slow-network harness was Chromium-only (2026-10-13)](#browser-lite-slow-network-harness-was-chromium-only-2026-10-13)
+- [Browser Lite module redirects lost processing metadata (2026-10-13)](#browser-lite-module-redirects-lost-processing-metadata-2026-10-13)
+- [Browser Lite module workers need a graph-wide runtime (2026-10-13)](#browser-lite-module-workers-need-a-graph-wide-runtime-2026-10-13)
+- [Module-worker dependencies carry worker/cors Fetch Metadata (2026-10-13)](#module-worker-dependencies-carry-workercors-fetch-metadata-2026-10-13)
+- [Browser Lite module preparation must reject unsupported syntax (2026-10-13)](#browser-lite-module-preparation-must-reject-unsupported-syntax-2026-10-13)
+- [Browser Lite dynamic import helpers must preserve native rejection (2026-10-13)](#browser-lite-dynamic-import-helpers-must-preserve-native-rejection-2026-10-13)
+- [Browser Lite strict module parsing must guard the actual parser result](#browser-lite-strict-module-parsing-must-guard-the-actual-parser-result)
+- [Browser Lite module URL classification must use native URL parsing](#browser-lite-module-url-classification-must-use-native-url-parsing)
+- [Browser Lite module processing must preserve module grammar and source text](#browser-lite-module-processing-must-preserve-module-grammar-and-source-text)
+- [Browser Lite worker containment must cover classic descendants too](#browser-lite-worker-containment-must-cover-classic-descendants-too)
+- [Browser Lite worker WebSockets need their own native constructor routing](#browser-lite-worker-websockets-need-their-own-native-constructor-routing)
+- [Browser Lite realm wildcard must exclude trusted sibling services](#browser-lite-realm-wildcard-must-exclude-trusted-sibling-services)
 
 <!-- END TOC -->
 
@@ -18367,3 +18395,657 @@ CDP ports, a root website fetcher, disabling sandbox, or rendering website scrip
 in the trusted desktop would cross security boundaries. Full browser compatibility
 is outside this first experiment: ordinary DOM/forms work, while Canvas, media,
 complex editors, frames and shadow DOM explicitly degrade. See `docs/browser-lite.md`.
+
+
+## Browser Lite client rendering requires real origin boundaries
+
+**Symptom:** The DOM-mirror experiment omitted browser capabilities and could not
+meet the user's requirement for full interactive browsing inside Vibetop.
+
+**Cause:** Replaying selected DOM elements is not equivalent to executing the
+original page. Rewriting proxies preserve JavaScript but their stock single-origin
+setup merges otherwise distinct website permissions. Same-site subdomains also
+carry Vibetop cookies on requests, despite being unreadable through SOP.
+
+**Fix in progress:** Evaluate a pinned server-rewriting engine with separate real
+proxy origins per original origin/profile and a server Cookie jar. Keep this behind
+release gates. The manager auth subrequest now forwards the external Host, Origin
+and Upgrade metadata and denies mismatched-origin WebSockets before starting user
+daemons. Future ttyds use check-origin; preserve Host ports through nginx. Broader
+sibling-request and cookie-injection hardening remain gates before proxy deployment.
+
+**Rejected:** Calling the DOM mirror a complete browser; putting arbitrary website
+JavaScript on the Vibetop API origin; treating one host per site as sufficient SOP
+isolation; requiring a newly purchased domain when sibling origins can be hardened.
+
+## Browser rewriting must test modern scripts and nested frames as executable code
+
+**Symptom:** GitHub rendered its server HTML but replaced it with “Unable to load
+page” during hydration. CodeMirror displayed its editor shell with an empty
+preview. Neither a homepage screenshot nor only uncaught-error monitoring caught
+all failures.
+
+**Cause:** The pinned Hammerhead transformer rewrote private field reads as public
+property reads. Its generator also omitted `#` when re-emitting private member
+access inside transformed destructured functions; GitHub caught that failure in
+its React route boundary. Class-field keys and uninitialized fields exposed two
+other generator bugs. Rammerhead's global parent/top replacements rewrote its own
+bootstrap, reading a nested frame's parent variable before assignment and counting
+ancestor origins from the wrong window. The old message API wrapper discarded
+transferables passed in the modern postMessage options dictionary.
+
+**Fix:** Checked, reproducible engine patches retain private members and field
+syntax, preserve bare module specifiers/import maps, initialize native parent/top
+before wrapper substitutions, and normalize message options with transfers.
+Regression tests execute transformed functions and click a same-origin child
+frame in Chromium and WebKit. Real-world acceptance searches Wikipedia, opens a
+GitHub file, types in CodeMirror, and submits Google search. A CAPTCHA or failed
+interaction remains a failed acceptance case. Proxy work remains unreleased.
+
+**Rejected:** Treating a syntax check or screenshot as proof of usable interaction;
+ignoring caught framework failures; suppressing unexpected browser errors to make
+a test green; hand-editing installed engine artifacts without reproducible patches.
+
+## Browser WebSocket upgrades need native Origin proof and one authorization pass
+
+**Symptom:** Ordinary pages worked, but a real browser WebSocket failed before
+reaching an owned echo server. The earlier nginx upgrade test did not exercise
+the rewrite engine and therefore missed the failure.
+
+**Cause:** Chromium's WebSocket handshake carries Origin without ordinary Fetch
+Metadata. The resource gate incorrectly required those metadata headers. After
+that was fixed, Hammerhead dispatched the same upgrade through its HTTP pipeline
+again, misclassifying it as HTTP and, in production mode, rereading root identity
+headers that the first pass had already removed.
+
+**Fix:** Only the server's actual upgrade path accepts the native Origin as
+source proof, and still requires an exact authorized document context and a
+WebSocket descriptor. A WeakSet of successfully authorized request objects
+prevents the second dispatch from reauthorizing or relabeling the request.
+Chromium and WebKit now round-trip text and binary frames through the complete
+rewriter and egress guard. A separate actual root-mode socket test verifies
+per-device logout and expiry terminate existing connections while another device
+continues, and rejects missing/wrong source and identity before upstream access.
+
+**Rejected:** Disabling source checks for all requests; trusting an Upgrade
+header as proof of a server upgrade event; treating an nginx-only echo as proof
+that website WebSocket APIs work through the rewriting engine.
+
+## Embedded sign-in renewal must preserve the existing page
+
+**Symptom:** Form handoff could open a top-level context instead of its iframe;
+renewal could fail with an illegal native fetch invocation. A synthetic WebKit
+domain also dropped sibling host-only cookies and made a valid flow look broken.
+
+**Cause:** Renaming an already-inserted iframe did not reliably update its named
+form target. Fetch had been detached from Window. The initial test's unknown
+public suffix did not reproduce the production sibling-domain cookie behavior.
+
+**Fix:** Name the iframe before insertion, bind native fetch to Window, and renew
+with an exact parent WindowProxy/origin handoff without replacing the UI Document.
+Use private CONNECT resolution of reserved example.com siblings for TLS tests.
+Both Chromium and WebKit verify default image loading, in-place renewal,
+manager/daemon restarts and independent device logout through actual nginx and
+isolated systemd processes. An unknown-suffix failure is recorded as a test
+environment difference, not as a general claim about Safari cookie support.
+
+**Rejected:** Reloading all tabs on every renewal; passing login credentials in
+URLs; weakening cookie flags to make a nonrepresentative test domain pass.
+
+## Browser message target mapping must not probe other origins
+
+**Symptom:** Automatic origin probe/reply messages let an unrelated website learn
+whether a target Window was browsing another origin, even when native
+postMessage would silently discard the message.
+
+**Cause:** Resolving a logical target through an unsolicited cross-window
+handshake added an observable response that the native API does not provide.
+
+**Fix:** Remove probes entirely. Map known direct child, parent, sibling and
+previously observed event-source relationships, then make exactly one native
+postMessage call. Unknown targets use an unreachable origin while preserving
+native clone errors and transfer detachment. Compute hypothetical target hosts
+without writing realm records. Both browser engines test first-contact delivery,
+sibling delivery, MessagePort transfer, dropped-message detachment, clone errors
+and silence after the former probe payload. Grandparent first contact and some
+child self-navigation contexts remain explicit compatibility gaps.
+
+**Rejected:** Replying only to selected probe origins; asynchronous message queues
+that change transfer/error semantics; claiming complete cross-window support from
+parent/child-only tests.
+
+## Browser releases must switch runtime and UI assets deliberately
+
+**Symptom:** Replacing files beneath a running rewriter can mix engine versions;
+a slow client's old wrapper may fetch new scripts after a manager upgrade.
+
+**Cause:** Mutable shared code paths and unversioned UI assets do not identify the
+code that a process or document actually uses.
+
+**Fix:** Build frozen dependencies as a nonroot account with scripts disabled and
+a private copy-mode store. Root copies entries through no-follow directory FDs,
+checks the copied tree and manifest, and publishes a content-addressed directory.
+Systemd executes that literal directory. A resource request may adopt an existing
+authorized listener read-only; an authenticated UI heartbeat switches a changed
+revision under the UID lifecycle lock, sockets first. Wrapper asset URLs pin the
+revision, and old assets come from validated retained releases. Actual disposable
+systemd upgrade and rollback tests preserve profile identity and expire old
+control lanes without replaying their operations. Installer activation and nginx
+rollback remain separate release gates.
+
+**Rejected:** Binding through a mutable current symlink; trusting only the
+builder's staging-tree hash; recursively copying builder-controlled links as
+root; restarting all Vibetop sessions during a Browser Lite update.
+
+## Browser Lite activation must preserve the installed main site and prove adoption
+
+**Symptom:** A syntactically valid regenerated nginx site can change a host's
+custom root, ports or TLS settings. A strict sibling-host guard can also block
+OnlyOffice's host.docker.internal save callback. A generic manager ping can pass
+while the process still caches the previous Browser Lite configuration.
+
+**Cause:** Rendering from installer defaults is not proof that unrelated host
+settings stayed unchanged; nginx configuration syntax does not validate those
+semantics. Deferred restart and interrupted activation also need distinct states.
+
+**Fix:** Browser-only activation patches the actual installed nginx file, adding
+its host map, guard and separately authorized vhosts, and asserts that removing
+managed additions yields identical unrelated bytes. Permit the default and
+configured OnlyOffice callback hostname. Keep a durable staged/pending-restart
+journal for the config/site pair. The restart watchdog checks the exact config
+hash cached by the live manager before confirming activation. A second installer
+leaves an unadopted pending transaction intact. Main-site installation shares the
+deployment lock and refuses to overwrite a pending snapshot. Recovery never
+restores identity keys, lease state or website profiles. Uninstall retains the
+main-host guard and stops only numeric-UID Lite socket/service names.
+
+**Rejected:** Treating nginx -t as proof the desktop still points at the right
+files; rolling back every pending journal before giving the watchdog a chance;
+using /api/ping as proof a new Browser Lite revision was selected; touching
+terminal/xpra services as part of Lite activation.
+
+## Browser Lite SPA Back discarded unsaved state (2026-10-13)
+
+**Symptom.** The toolbar's Back/Forward test passed by checking page headings,
+but a single-page application's unsaved draft disappeared after Back. replaceState
+also appeared as an extra history entry, and same-URL pushes were lost.
+
+**Cause.** The wrapper inferred history from a URL poll and reopened each target
+with a new GET. Calling native iframe history.go instead is unsafe: all embedded
+tabs participate in the host's joint session history.
+
+**Fix.** Keep a bounded same-Document journal with private structured-cloned
+application state, entry IDs and scroll offsets. Validate push/replace using the
+browser's rewritten replaceState first, keep native history.state unwrapped, and
+replay the exact validated physical URL. Toolbar and site history methods send
+serialized, acknowledged commands to the current document; traversal dispatches
+a scoped synthetic popstate and respects auto/manual scroll restoration. Fragment
+changes reconcile into the journal. A controller attach nonce filters queued old
+messages even when same-origin document replacement retains the server epoch.
+WindowProxy/origin/tab/epoch/document/sequence checks validate state snapshots;
+this UI protocol does not grant network or cookie authority.
+
+**Rejected.** URL equality as entry identity, JSON-cloning application state,
+wrapping metadata inside history.state, or blindly calling native history.go.
+The Navigation API is hidden in these documents so routers use the implemented
+History API. This compatibility layer is not a security boundary: raw traversal
+from another realm, nested iframe joint history and hardware Back remain release
+gates. Cross-document history still reopens URLs; it does not preserve the old
+Document or POST state. Full browser readiness must not be inferred from the SPA
+regression passing. Synthetic popstate has isTrusted=false.
+
+**Evidence.** Owned-site Chromium and mobile WebKit tests reproduce draft loss
+before the change and cover drafts/document identity, push/replace, same-URL state,
+Map/Date/BigInt/cycles, mutation isolation, clone/origin errors, rapid traversal,
+interleaved tabs, auto/manual scroll and fragment reconciliation afterward.
+Delayed HTML and dropped successful control responses additionally exercise
+Back/Reload Retry. Preserve the intended slot and URL while a control operation
+is unresolved, including after session expiry; recover a pending operation before
+deciding whether an old-page navigation challenge still matches the server epoch.
+
+## Browser Lite regeneration invented optional-chain guards (2026-10-13)
+
+**Symptom.** Regenerating `obj.replace(a?.b.c)` emitted
+`__call$(obj,"replace",[a?.b?.c])`. With `a={}`, the original throws TypeError,
+while the rewritten expression silently returns undefined.
+
+**Cause.** The pinned acorn-hammerhead parser propagates an earlier member's
+optional flag into later members. esotope-hammerhead prints that propagated flag
+as if each member had its own `?.` token.
+
+**Fix.** Retain the member's own optional token separately in both server and
+client parsers. Both generators prefer this marker, with a fallback for nodes
+created by existing transformers. Checked, repeatable build patches preserve
+private-field printing. Differential regressions cover required versus optional
+intermediate accesses in regenerated method and constructor arguments.
+
+**Rejected.** Changing only the emitted method-call helper's optional argument.
+This would neither restore the original syntax nor fix the separate loss of
+short-circuiting across instrumented calls. The broader carrier transformation
+and its website/routing tests are described in the following decision.
+
+## Browser Lite optional calls lost short-circuiting and routing (2026-10-13)
+
+**Symptom.** GitHub's mobile file-list action threw while evaluating a missing
+footer element. `element?.classList.replace(...)` became an unconditional helper
+call. Merely carrying an optional flag also evaluated arguments too early and
+read method getters repeatedly. Grouped optional method calls could bypass
+Location/postMessage routing.
+
+**Fix.** Lower instrumented chains to immutable reference carriers with native
+optional links. Capture each callable and receiver before arguments, preserve
+the original prefix and lexical scope, normalize computed keys once, and invoke
+the captured function through a dedicated route that shares the existing host
+method wrappers. Adapt eval and postMessage call/apply/bind effects without
+breaking the guarded chain. Grouped calls and tags retain references; terminal
+delete members remain native references, while delete of a call remains a value
+operation. Super reads retain lexical access and evaluate their key once.
+Server/client factories share code; generated spines are protected on repeated
+processing. Headers inspect top-level bindings and choose an unshadowed Window
+alias, avoiding module-local temporal dead zones without imposing a new
+`globalThis` dependency on every script. Tagged eval.call/apply process the
+substitution while preserving the original template object; already wrapped
+bare eval references do not process their arguments twice.
+
+**Rejected.** Passing only a callee optional flag to the old call helper, moving
+arguments into closures, shared/hoisted temporary receivers, or calling captured
+Location methods directly. Those approaches lose laziness, lexical scope,
+reentrancy, or proxy routing. Passing a generated replacement with the upstream
+transformer's `nodeReplacementRequireTransform:false` is also wrong here: it
+walks the old node rather than the new argument tree.
+
+**Evidence.** Native/server/client/worker differential cases and real cross-origin
+message/navigation tests run in Chromium and mobile WebKit. The pinned WebKit's
+three native grouped-call/tag deviations are reported, not copied into the
+rewriter. This does not certify untested web APIs or physical iOS.
+
+## Browser Lite extracted postMessage changed its target (2026-10-13)
+
+**Symptom.** `const send=child.postMessage; send(message,origin)` stopped delivering
+to the child. Direct calls and explicit call/apply/bind tests had passed.
+
+**Cause.** The inherited wrapper used its call-time `this` even for an unbound
+call. A first fix's local strict directive was then removed by the pinned Uglify
+default, silently substituting the caller's Window again.
+
+**Fix.** Keep a strict wrapper and fall back to the captured source Window when
+the call-time receiver is not a Window. Configure directive compression off so
+the minified build retains strict semantics. Real native-browser probes verify
+unbound, null and non-Window receivers; cross-origin gateway tests verify the
+actual minified output's delivery.
+
+**Rejected.** Binding every extracted function permanently to the source Window:
+an explicit valid Window receiver must still work. Testing only the unminified
+source would miss the build-induced behavior change.
+
+
+## Browser Lite classic-worker dynamic imports bypassed rewriting (2026-10-13)
+
+**Symptom.** A dedicated classic worker could fetch APIs and run importScripts,
+while `await import('/one/module.js')` requested a bare path on the proxy host
+and received 403. Modern editor components that load modules in workers failed.
+
+**Cause.** The inherited worker script header supplied a no-op dynamic-import
+URL helper. The existing worker origin mapper handled fetch/XHR/importScripts,
+but was never reached by the generated import expression. Imported ESM also has
+its own lexical helper declarations, so overwriting one worker-global variable
+would not repair every module.
+
+**Fix.** The worker bootstrap exports a script-URL resolver using the existing
+origin mapping and supplied original module base. Both server and client header
+fallbacks delegate to it when running in a worker. The patch is repeatable and
+uses functional string replacement so helper names containing `$` stay literal.
+
+**Evidence.** Chromium and mobile WebKit pass relative, cross-origin, nested and
+binary-Blob-worker dynamic imports, denied CORS imports, credentialed/omitted
+fetch, XHR and transferable binary messages. Module workers remain a separate
+failing gate: the existing bootstrap calls importScripts, forbidden in modules.
+Separate generated-code and WorkerLocation probes also fail; this repair does
+not establish complete worker code rewriting or backend-only networking.
+
+**Rejected.** Removing the gateway's denial of raw unrewritten paths, disabling
+CORS, or treating module-worker startup failures as a passing classic-worker
+result. None repairs module URL resolution or preserves network isolation.
+
+
+## Browser Lite Worker URL conversion accepted Symbols (2026-10-13)
+
+**Symptom.** `new Worker(Symbol('worker'))` returned a Worker through the proxy,
+where both native engines synchronously throw TypeError. The eventual network
+failure was observably different and could trigger application retry paths.
+
+**Cause.** The inherited constructor wrapper used `String(scriptURL)` before
+calling the native constructor. JavaScript's String function accepts Symbols;
+the native constructor's URL conversion does not.
+
+**Fix.** Reject a Symbol URL before coercion or option evaluation, preserving the
+native error timing. Keep ordinary object-to-string conversion unchanged.
+
+**Evidence.** Native and proxied Chromium/mobile WebKit constructor checks cover
+Symbol URL/name, invalid type/credentials, missing URL, missing new, null options,
+and URL/options getter order. URL then credentials/name/type are each read once.
+
+**Rejected.** Replacing all string coercion with concatenation: it changes the
+conversion hint for user-defined URL objects. Waiting for a failed worker load
+also cannot reproduce a synchronous constructor exception.
+
+## Browser Lite Worker preparation must follow argument conversion (2026-10-13)
+
+**Symptom.** Invalid Worker options uploaded Blob source before throwing, and
+revoked Blobs or upload failures threw synchronously instead of notifying the
+application's error handlers. Applications could miss their recovery path.
+
+**Cause.** The inherited wrapper rewrote/read/uploaded the URL before the native
+constructor converted its options. Preparation exceptions escaped that wrapper.
+
+**Fix.** In bridged documents, convert URL and the credentials/name/type dictionary
+once in native order, validate URL syntax, then prepare the source. Catch only
+preparation failures and construct the native Worker with an empty, already
+revoked native Blob URL. This preserves native error events and termination
+without executing the original unprocessed source. Final native constructor
+errors remain synchronous. Diagnostics contain the stage, scheme and initiating document origin,
+never Blob source or physical routing capabilities. Documents without the bridge
+retain the previous constructor path; about:blank/srcdoc coverage is a separate
+gate, not claimed fixed by this increment.
+
+**Evidence.** Both Chromium and mobile-emulated WebKit compare against unrewritten
+owned fixtures: getter ordering/abort, invalid-option zero upload/map, malformed
+URL, revoked Blob, forced upload 503, both error-handler APIs, and cancellation.
+WebKit returns from a cross-origin Worker constructor where Chromium throws
+SecurityError; preserve each engine's native behavior. Inject upload failure at
+the fixture server: Playwright WebKit routing did not intercept synchronous XHR.
+
+**Rejected.** Catching the whole constructor, re-reading getters, manually firing
+an error event, or falling back to an executable unprocessed Blob. Each changes
+observable behavior or bypasses rewriting. These tests do not close the module,
+generated-code, location, or CSP compatibility gates.
+
+
+## Browser Lite Blob scheme spelling bypassed preparation (2026-10-13)
+
+**Symptom.** An uppercase `BLOB:` scheme or leading whitespace could execute
+unprocessed binary Blob source rather than uploading it for rewriting.
+
+**Cause.** Preparation tested a raw mapped string with `startsWith('blob:')`,
+while the native Worker normalizes scheme case and surrounding whitespace.
+
+**Fix.** Use the already parsed destination protocol to classify a Blob and its
+canonical href to read it. Keep argument coercion and syntax validation before
+preparation. Log the initiating original document origin, avoiding physical
+origin disclosure even if a caller supplies a physical proxy URL.
+
+**Evidence.** Actual Claude implementation review identified the bypass. In both
+engines, forced upload failures for uppercase and whitespace variants now each
+reach the fixture server exactly once and produce native errors without running
+source. Server-side counts have positive successful-upload controls; Playwright
+request interception alone did not prove synchronous XHR activity in WebKit.
+Classic and module revoked/preparation/mapping/termination paths pass separately.
+
+**Rejected.** Only lowercasing the prefix or counting browser automation request
+events. Native URL parsing covers more normalization, and the fixture server is
+the reliable observer of preparation traffic. Data-URL worker rewriting remains
+a separate unresolved release gate.
+
+## Browser Lite processed-script cache omitted tab identity (2026-10-13)
+
+**Symptom.** A cached rewrite could embed another tab's routing descriptor when
+both tabs loaded identical script text at the same upstream URL and physical
+origin. Module/classic mode and declared URL charset were also absent from the
+explicit cache context.
+
+**Cause.** The active Rammerhead cache keyed source by physical host, session,
+relay and original URL, but rewrites embed the complete window descriptor,
+including the tab. The stock Hammerhead cache is not the active implementation.
+
+**Fix.** Key processed source with a versioned JSON tuple containing physical
+origin, session, complete window descriptor, resource flags, URL charset,
+original URL and relay. This separates every routing-sensitive variant without
+ambiguous delimiter concatenation. Register the proposed module-graph flag in
+all three resource tables as a prerequisite; this alone does not enable module
+workers or fix redirect/content-type reconstruction.
+
+**Evidence.** Tests exercise the actual Rammerhead cache override with identical
+source in two tabs: each result contains only its own tab's descriptor, and a
+repeat within one tab hits cache without rewriting. Server/client/worker table
+round trips retain script plus module flags, full window identity, UTF-8 and
+query/fragment. The new native dependency-cycle, redirect, importScripts-error
+and hashbang cases pass Chromium and WebKit; proxy module startup still fails.
+
+**Rejected.** Patching the unused stock cache, omitting tab identity because
+physical hosts match, or claiming parser registration constitutes working
+module support. Frozen graph tuples and runtime/header integration remain next.
+
+## Browser Lite slow-network harness was Chromium-only (2026-10-13)
+
+**Symptom.** Running UI recovery tests with `--slow` in WebKit failed before
+opening the app: Playwright cannot create a CDP session for WebKit.
+
+**Cause.** The harness unconditionally used Chromium's network emulation API.
+Browser request interception is also unreliable for WebKit synchronous XHR.
+
+**Fix.** Keep latency/bandwidth emulation in Chromium. For WebKit, delay the
+owned fixture's HTTPS ingress and control responses by 250 ms, covering sync
+requests too. Report fixture latency separately from bandwidth simulation.
+
+**Evidence.** Both slow UI runs pass with deliberately lost open/approve
+responses, retained tab state, history, expiry/retry and form recovery. Desktop
+and mobile screenshots show the toolbar and status within the viewport. The
+fixture's long diagnostic text overflows inside its page; it is not evidence of
+responsive third-party website compatibility.
+
+**Rejected.** Silently disabling the slow option in WebKit or claiming equal
+bandwidth emulation. The test now states exactly which impairment it applied.
+
+## Browser Lite module redirects lost processing metadata (2026-10-13)
+
+**Symptom.** Recognizing a module resource flag in URL parsing was insufficient:
+Context reconstruction discarded it, and the Location serializer omitted its
+charset. A redirected module could consequently use the classic bootstrap.
+
+**Cause.** The pinned pipeline rebuilds response resource flags from explicit
+fields, and its normal redirect call passes no charset. Response charset/BOM
+selection also follows classic-script rules instead of module UTF-8 rules.
+
+**Fix.** Carry the worker-module field through Context and content-type token
+reconstruction; serialize module redirects with UTF-8. Lock module decoding to
+UTF-8 even when a response label or BOM contradicts it. Preserve the entire
+incoming context/tab/relay tuple in module origin mapping after validating the
+signed context and field shape. Authentication remains the gateway's separate
+responsibility; preserving a descriptive relay does not grant access.
+
+**Evidence.** Real browser fetch probes in Chromium and mobile WebKit follow a
+307 module redirect with a misleading windows-1252 header: module flag, session,
+window tuple and UTF-8 survive, including Chinese/emoji source text. Pipeline
+unit tests cover 200/302/307 and both UTF-8 and conflicting labels, BOM precedence,
+classic-script behavior, concurrent relay renewal, and mismatched contexts.
+
+**Trap.** Charset.set ignores an equal-value assignment, so setting UTF-8 with a
+higher priority alone does not lock an already UTF-8 response. Explicitly lock
+the pinned priority as well. Module runtime/header and import-edge integration
+are still pending; this redirect probe fetches source and does not execute it
+as a module worker.
+
+**Rejected.** Only adding a parser flag, regenerating graph identities during
+relay renewal, or treating a successful redirected fetch as working module
+startup. These are distinct acceptance gates.
+
+## Browser Lite module workers need a graph-wide runtime (2026-10-13)
+
+**Symptom.** Module workers failed before app code because the inherited header
+called importScripts, which native module workers reject. Entry-only metadata
+would also create a second module identity when the entry imports itself.
+
+**Fix.** Emit canonical graph descriptors for module constructors, static imports
+and worker dynamic imports. Every graph module imports one revisioned trusted
+runtime on the initiating worker's physical origin before site dependencies.
+Instruction helpers are hoisted delegates; the optional-chain helper uses an
+imported runtime binding so cyclic early calls work before a module body runs.
+The runtime leaves module importScripts native and reuses an initialized classic
+worker, including uploaded Blob workers, using captured routing settings. Module
+source uses the active Rammerhead cache, keyed with frozen routing metadata and
+runtime revision. Parsing failures reject rather than returning raw source.
+Hashbangs and repeat processing preserve one header/binding set.
+
+**Evidence.** Differential Chromium/WebKit fixtures cover cycles, early optional
+calls and imports, static/dynamic redirects, self imports, dependency fetch before
+entry execution, credential modes, CORS allow/deny and immediate binary transfer.
+Classic Blob dynamic imports initially regressed because the uploaded entry URL
+contains no proxy descriptor; validating captured worker routing repaired that
+path. Generated-code imports and WorkerLocation remain independently failing.
+
+**Rejected.** Entry-only flags, entry-body initialization, wrapping importScripts
+in module workers, or treating successful source fetching as runtime acceptance.
+Blob module preparation, CSP fidelity and generated-code/location remain gates.
+
+## Module-worker dependencies carry worker/cors Fetch Metadata (2026-10-13)
+
+**Symptom.** A CORS-authorized CDN module imported by a module worker was denied
+because the gateway classified every `Sec-Fetch-Dest: worker` request as a new
+worker entry on a resource-only host.
+
+**Evidence.** Captured native browser-set metadata in both Chromium and WebKit:
+module entry uses worker/same-origin; its cross-origin dependency uses
+worker/cors. Classic-worker dynamic imports did not expose the same denial.
+
+**Fix.** For an admitted canonical module graph only, allow worker/cors requests
+through the existing context/resource authorization. Worker/same-origin entries,
+shared/service workers and foreign/null contexts retain their rejection paths.
+The flag conveys processing mode and never grants a new execution context.
+
+**Rejected.** Allowing all worker destinations on CDN hosts, ignoring CORS, or
+using the resource flag as authorization. Browser metadata and validated source
+context must agree as well.
+
+## Browser Lite module preparation must reject unsupported syntax (2026-10-13)
+
+**Symptom.** The inherited script processor returns its input on parse failure.
+Adding a trusted runtime header afterward could make unsupported but natively
+valid module syntax execute without import rewriting.
+
+**Fix.** Parse graph source explicitly with the pinned shared parser first and
+reject failures. Test import attributes, two-argument import, regexp v, decorators
+and using declarations. These syntax forms remain unsupported compatibility
+gates rather than silently escaping processing. Strip hashbangs using all four
+JavaScript line terminators. Catch malformed graph metadata at admission and
+return 403 instead of letting an exception escape the async request hook.
+
+**Evidence.** Negative parser tests pass; a real browser sends a malformed tuple,
+gets 403, then successfully loads a valid redirected module in the same process.
+Classic/legacy paths do not emit graph metadata without a realm context. The
+legacy full gateway's child-first-message failure reproduces in the older
+published bundle too and is recorded separately.
+
+**Rejected.** Treating an injected header as proof that source was parsed, or
+allowing malformed descriptors to reach an unguarded mapper.
+
+## Browser Lite dynamic import helpers must preserve native rejection (2026-10-13)
+
+**Symptom.** Mapping or string-coercion errors could throw synchronously before
+native import created its promise. Reprocessing could also wrap the URL helper
+again, and a CDN's already-proxied URL could be nested inside another proxy URL.
+
+**Fix.** Unwrap same-session proxy URLs before routing; skip an already-wrapped
+import in both transformer copies. On coercion/mapping failure, return a value
+whose native import coercion throws, so native import returns a rejected promise.
+Mapping failures become TypeError; user coercion exceptions keep their type.
+Use the containing module file as the dynamic base. Bare query specifiers remain
+bare: both native engines reject import('?leaf'), contrary to an initial review
+assumption. Imported runtime dispatch keeps hoisted helpers independent of a
+site's self/Reflect bindings and avoids dispatch-name collisions.
+
+**Evidence.** Native/proxy tests compare Symbol and throwing-toString imports;
+forced map 503 yields promise/reject:TypeError. CDN imports constructed from
+import.meta.url, cyclic optional calls, shadowed globals, all hashbang endings,
+and byte-identical repeated processing pass. Generated eval/Function imports and
+WorkerLocation remain separate failures; this does not virtualize import.meta.
+
+
+## Browser Lite strict module parsing must guard the actual parser result
+
+**Symptom:** A valid template containing source-map or HTML-comment-like text
+passed preflight parsing but could be returned as unprocessed executable source.
+**Cause:** Hammerhead applies regex preprocessing before its own parser; that
+text differs from the preflight input. Its legacy parse-failure fallback returns
+raw source.
+**Fix:** Graph resolvers set a strict flag checked at the actual processor's
+failed-parser branch. Both template payloads must throw before response/cache.
+**Rejected:** A duplicate preflight parser as the only guard; it cannot protect
+against changes introduced later in the pipeline. Template-content fidelity is
+still a separate compatibility concern.
+
+## Browser Lite module URL classification must use native URL parsing
+
+**Symptom:** Whitespace-prefixed or embedded-newline absolute import URLs could
+be treated as bare names and escape rewriting; `.foo` was wrongly treated as a
+relative path.
+**Cause:** A scheme-prefix regex does not implement the browser URL parser's
+normalization rules.
+**Fix:** Only `/`, `./` and `../` prefixes are relative. Otherwise attempt
+absolute URL parsing and use its normalized href; failures remain bare names.
+Apply the same function to server/client static and window/worker dynamic paths.
+**Rejected:** Trimming only spaces or expanding the scheme regex; neither
+captures all URL parser normalization. This does not solve unsupported-scheme
+imports or generated code, which remain explicit blockers.
+
+
+## Browser Lite module processing must preserve module grammar and source text
+
+**Symptom:** Throwing on parser failure alone still missed imports after an
+HTML-comment-shaped expression. Regex comment stripping also changed template
+contents even when parsing succeeded.
+**Cause:** The inherited engine parsed scripts, whose Annex B comment grammar
+differs from modules, and emitted text different from the parser input.
+**Fix:** Strict graph processing bypasses regex preprocessing, parses with
+`sourceType: module`, and transforms/emits the same source. Syntax errors throw;
+comment-like template values survive. Reserved helper bindings are rejected so
+site declarations cannot intercept inserted calls. Worker responses carry a
+proxy-only CSP; generated code and unsupported graph schemes fail closed until
+supported. This policy is containment, not a claim of full website CSP fidelity.
+**Rejected:** Treating a successful script parse or adding a runtime header as
+proof of complete module rewriting. Keep native engine comparisons for grammar
+edge cases; engine disagreement must not be silently suppressed.
+
+
+## Browser Lite worker containment must cover classic descendants too
+
+**Symptom:** A protected module worker could start a classic worker without its
+script/connect restrictions. A policy only on module responses was incomplete.
+**Cause:** Network worker policies come from their own entry responses; child
+classic and uploaded Blob responses followed another route. Helpers can also be
+reassigned by site code and cannot enforce the network boundary.
+**Fix:** Apply proxy-only script/connect/worker policy to all dedicated worker
+entry routes. Verify nested classic children and deliberate helper tampering.
+Count browser-reported CSP failures separately from unblocked direct requests.
+**Rejected:** `worker-src none`: actual WebKit also applied it to ordinary module
+dependencies. Allow proxy worker hosts, with the same policy on every child.
+Generated code still fails explicitly until a reviewed implementation supports it.
+
+## Browser Lite worker WebSockets need their own native constructor routing
+
+**Symptom:** Module worker socket tests attempted the original socket address,
+while ordinary page sockets already worked.
+**Cause:** The engine installs its WebSocket sandbox only in window contexts;
+workers also need a wss connect source and WebSocket-aware physical URL mapping.
+**Fix:** Wrap the worker native constructor, map its network URL/resource kind,
+retain native prototype/statics and validate URL getter receivers before exposing
+the original URL. Permit only proxy wss hosts in connect-src. Native/proxy browser
+probes cover binary/text echo and constructor/getter failures.
+**Rejected:** Merely widening CSP to original socket hosts; that would route
+traffic directly from the client. A passing text echo alone misses binary,
+fragment, conversion and receiver semantics.
+
+
+## Browser Lite realm wildcard must exclude trusted sibling services
+
+**Symptom:** A proxy-only wildcard at the registrable domain also admitted the
+trusted Vibetop/UI hosts and arbitrary sibling services, including WebSockets.
+**Cause:** CSP host matching cannot express only the `bl-u…` hostname prefix.
+**Fix:** Reserve a dedicated realm sub-zone under the existing domain, with UI
+and main origins outside it. Authority and gateway initialization reject trusted
+origin overlap. Keep explicit server-egress denial for UI/main hosts after
+narrowing the realm domain. A deliberately bypassed import to a trusted UI test
+endpoint must reject with zero requests observed at that server.
+**Rejected:** Claiming a wildcard over the shared service domain is a complete
+boundary, or requiring a new domain purchase. The reserved sub-zone still needs
+its own wildcard HTTPS/DNS routing before production activation; tests use owned
+fixtures and do not provision external infrastructure.

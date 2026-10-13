@@ -99,9 +99,14 @@ def test_root_proxy_enforces_longpoll_limit_even_with_malicious_client():
 def test_worker_backend_not_published_and_update_paths_are_specific():
     installer=(ROOT/'shell/install.sh').read_text()
     assert "! -path '*/backend/*'" in installer
+    assert "! -path '*/browser-lite/proxy/*'" in installer
     for path in ('server/terminal-manager.py','server/update-watchdog.py'):
         src=(ROOT/path).read_text()
-        assert 'touched("apps/everyday/browser-lite/")' in src
+        if path.endswith('terminal-manager.py'):
+            assert 'touched("apps/everyday/browser-lite/")' in src
+        else:
+            assert 'activation.rollback(refresh_manager=False)' in src
+            assert 'apps/everyday/browser-lite/install.sh' not in src
         assert 'touched("apps/everyday/browser/")' in src
         assert 'INSTALL_DEPS' in src
 

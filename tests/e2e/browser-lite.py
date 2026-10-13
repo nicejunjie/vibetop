@@ -81,7 +81,7 @@ async def check():
                 await network.send('Network.emulateNetworkConditions',{'offline':False,'latency':400,'downloadThroughput':50000,'uploadThroughput':20000})
             started=time.monotonic()
             try:
-                await page.goto(base+'/browser-lite.html');await page.locator('#address').fill(base+'/fixture');await page.locator('#address').press('Enter')
+                await page.goto(base+'/browser-lite.html');await page.locator('#images').uncheck();await page.locator('#address').fill(base+'/fixture');await page.locator('#address').press('Enter')
                 frame=page.frame_locator('#page');await frame.locator('#dynamic').filter(has_text='Remote JavaScript ran').wait_for(timeout=20000)
                 assert await frame.locator('h1').evaluate('(n)=>getComputedStyle(n).color')=='rgb(10, 60, 100)'
                 if args.throttle:

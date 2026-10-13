@@ -1,133 +1,153 @@
-# Browser Lite (experimental)
+# Browser Lite rewrite experiment
 
-Browser Lite runs a separate Chromium on the server and sends a structured
-DOM, styles and subsequent changes to the client. Text selection, typing and
-scrolling use native browser controls. The website's JavaScript runs remotely;
-it does not execute in the Vibetop desktop. This is separate from the existing
-xpra Browser and uses a separate website profile, so first use requires signing
-into websites again.
+Browser Lite loads websites through a per-user backend and renders rewritten
+HTML, CSS and JavaScript in the browser running Vibetop. Images are enabled by
+default. The UI stays inside Vibetop. It uses sibling HTTPS hosts on an existing
+domain; website code never runs on the main Vibetop origin.
 
-Open **Browser Lite** from Start, or `/browser-lite.html`. Enter an HTTP/HTTPS
-address or search. Images are off initially; **Show images** loads nearby images.
-Images over 256 KiB require **Load image**, with an 8 MiB hard resource limit.
-The footer counts decoded page data, not compressed on-the-wire traffic.
+**This implementation is not yet a released, fully compatible browser.** Public
+site tests cover Wikipedia, GitHub and CodeMirror. Google search currently hits a
+network CAPTCHA also reproduced by direct Chromium. Popup login, full native
+history and broader worker/window relationships remain release gates. Network module workers now pass controlled startup and graph checks.
+Eval/Function-created imports and virtual worker URLs still fail; generated imports can attempt direct client requests.
+Data-URL workers also remain unrewritten; cross-realm Blob error timing and
+workers created in unbridged blank/srcdoc documents need dedicated fixes.
+Do not rely on complete backend routing yet. Mobile
+WebKit testing uses emulation, not a physical iOS device.
 
-## Supported experiment
+## Latest worker regression results (2026-10-13)
 
-Ordinary text pages, links/buttons, remote dynamic DOM, plain forms, text/password
-inputs, checkbox/radio and select, back/forward/reload and local scrolling.
-Client reload attaches to the existing remote page. After a cold device restart,
-the last device page can be resumed; an active page requires explicit takeover. A copied tab takes over that
-page; the old view stops sending input and shows a Take over / New page choice.
-It never automatically fights the new owner. Each device has its own page and
-viewport. The account's Lite pages share website cookies but not DOM state.
+The constructor prerequisite now matches native Chromium and mobile-emulated
+WebKit for argument conversion/order/early abort, invalid options without source
+upload or origin mapping, malformed URLs, revoked Blobs, failed preparation and
+termination. Upload/map counts come from the fixture server with positive
+controls. Uppercase/whitespace Blob URLs, UTF-8 binary/string Blobs, and classic
+and module failure paths are covered. The classic-worker network subset passes in both engines. Gateway
+interaction/image/upload/download/navigation checks and 47 optional-chain cases
+also pass in both. The repository suite passes 1292 manager tests (one skip),
+7 usage tests and 719 JavaScript tests; the latest proxy suite passes 181 tests; the latest packaged suite passes 183 tests. Slow/lost-response UI checks
+pass in desktop Chromium (latency and bandwidth limits) and mobile-emulated
+WebKit (fixture latency); tab state and session retry recover in both.
 
-Canvas, media, WebGL, rich contenteditable editors, nested frames, shadow DOM,
-inline SVG, uploads/downloads and complex drag/gesture interaction are not
-supported. They show placeholders. OAuth flows relying on popups may fail:
-ordinary target=_blank opens in the current Lite page. **Open in Browser** opens
-only the URL in the original Browser; it does not copy Lite cookies or form data.
-Unsupported pages are not silently switched to another app.
+The latest source worker matrix has 40 cases and passes 37 through the proxy
+in both engines. Native Chromium passes all 40. Native WebKit produces all 40
+expected values but intermittently reports an access-control page error for the
+deliberately denied cross-origin entry redirect (also seen through the proxy).
+The earlier immutable package passed 34 of its 37 worker cases. The remaining
+three failures are eval imports, Function imports and WorkerLocation. Chromium
+records two direct-origin request attempts from generated imports. Network
+module coverage includes cycles, early cyclic exports, dependency-first fetch,
+redirect identity, cross-origin CORS, credentials, UTF-8, transferables,
+import.meta-derived URLs and native rejected-promise behavior. The packaged TLS
+frontdoor passes real-page loading, in-place sign-in renewal, manager/daemon
+restarts and per-device logout in both engines. The legacy non-realm gateway
+still fails child-first messaging in both engines, also reproduced with the old
+bundle; this is a known existing failure, not a passing suite.
 
-Three server pages per Linux user are allowed. **Sessions** lists and closes
-pages, including pages from other devices. Pages expire after an hour without
-client requests; the empty agent exits after 15 minutes. Ordinary logout preserves
-server pages just like Browser, but all API access requires logging in again.
-Logout everywhere and Reset stop Lite pages; website cookies/profile remain.
-Browser/daemon crash does not preserve unfinished form state. Reconnect restores
-only the last address and persistent website profile.
+Astra and actual Claude Code agreed the bounded network-module design. Claude's
+implementation follow-up **does not approve the increment**: preprocessing can
+fail after a successful preflight parse; whitespace can disguise absolute
+imports; data/blob/generated-code imports and shadowed helper bindings need
+containment. The actual processor now throws on graph parse failure, and URL
+normalization uses native absolute URL parsing and exact relative prefixes.
+The graph path now parses as a module without regex comment stripping.
+Worker-specific CSP covers classic, module and uploaded workers and their
+children. Script/connect/worker hosts are restricted to proxy hosts, with an
+explicit WebSocket connect source. Helper bindings and local reassignment are
+rejected using the exact processed source; unsupported graph schemes reject.
+Helpers themselves are not the security boundary: a deliberately overwritten
+global helper causes an attempted import that Chromium reports as CSP-blocked.
+The test records that separately from unblocked requests.
 
-## Runtime installation
+The 17-case containment/socket suite passes both native baselines and the latest
+immutable proxy package in Chromium and mobile WebKit. It covers text/binary
+WebSockets, virtual socket URL, constructor/brand exceptions, generated-code and
+non-network graph denial, a nested classic child, header-like source and helper
+tampering. No unblocked direct-origin request occurs. `worker-src 'none'` was
+rejected after it broke normal module dependencies in WebKit; admitting proxy
+worker hosts while enforcing the policy on every child passes the same cases.
+Claude review of the latest policy/socket changes remains pending. Page
+import-map normalization and object-valued specifiers remain open findings;
+classic generated-code support, WorkerLocation and broader CSP fidelity remain
+release blockers. Astra's next-increment plan is in
+[worker location](plans/browser-lite-worker-location.md).
+No production activation or release approval.
 
-The manager stays stdlib-only. A per-user asynchronous worker uses pinned
-Playwright 1.63.0 and matching Chromium under `/opt/vibetop/browser-lite`:
+## Installation architecture
 
-```sh
-sudo INSTALL_DEPS=1 PREFLIGHT_USER=junjie apps/everyday/browser-lite/install.sh
+- Node 22 and frozen pnpm dependencies form an immutable, content-verified bundle.
+- Build as the nonroot APP_USER service account, with package scripts disabled.
+- Root publishes under `/opt/vibetop-browser-proxy/releases/<revision>`; all
+  ancestors are root-owned. Reuse of installed dependencies is offline.
+- Root metadata lives under `/var/lib/vibetop/browser-proxy`; per-user website
+  state lives under `/var/lib/vibetop/browser-proxy-profiles/<uid>`.
+- Each rewriter runs as its Linux user with private PID/network namespaces; a
+  separate egress account enforces destination restrictions. Root holds ingress
+  sockets and authorizes requests; it does not stream website bodies.
+- The tested systemd runtime uses PrivatePIDs and the other isolation directives
+  in `server/browser_proxy_runtime.py`. Verify support before release on another
+  host; a listening manager alone does not prove those runtime features work.
+
+The install entry is `apps/everyday/browser-lite/install.sh`. An ordinary Update
+uses `INSTALL_DEPS=0`: it skips an absent/disabled optional installation and
+otherwise builds against the installed verified dependency tree. A changed lock
+file fails explicitly and requires an intentional dependency upgrade.
+
+Reserve `*.realms.example.com` exclusively for website realms. The UI and main
+Vibetop hosts must sit outside that wildcard; startup rejects overlapping trusted
+origins. This uses a subdomain of the existing domain, not a new domain purchase.
+Provision its HTTPS certificate and routing before activation.
+
+First installation is an administrator action, after HTTPS tunnel/DNS routing
+and the access boundary have been reviewed. A configuration file contains:
+
+```json
+{
+  "domain": "realms.example.com",
+  "uiOrigin": "https://browser-lite.example.com",
+  "mainOrigins": ["https://vibetop.example.com"],
+  "localHosts": ["host.lan"]
+}
 ```
 
-This installs dependencies, installs a scoped AppArmor userns exception if needed,
-and runs the Chromium sandbox preflight as the actual nonroot user with the same
-service limits. Both `chromium_sandbox=True` and namespace/seccomp diagnostics
-are checked. A failed preflight never falls back to `--no-sandbox`.
+`INSTALL_DEPS=1 APP_USER=vibetop PNPM_JS=/path/to/pnpm.cjs` plus `--config` selects
+an explicit first installation. pnpm must be version 10.18.3. The installer adds
+release identity fields; do not manufacture them manually. Production activation
+has not yet been performed for this branch.
 
-Normal deploy/Update uses `INSTALL_DEPS=0`; it does not download dependencies.
-Absent optional runtime does not break other apps. Backend changes restart only
-Lite units. Profiles live under each user's
-`~/.local/share/vibetop/browser-lite/profile`. The private Unix socket lives under
-`/run/vibetop/browser-lite/<uid>/agent.sock`; every root proxy connection verifies
-SO_PEERCRED. Default caps: 2 GiB memory, 200% CPU, 256 tasks, or stricter configured
-limits. SELinux paths reuse helper labels; sandbox preflight must still pass on
-that distribution. Only Ubuntu 26.04 has been validated during initial work.
+## Upgrade, failure and recovery
 
-The optional uninstall script stops Lite units and removes only Lite runtime and
-its AppArmor profile. It keeps user website profiles. Removing the source/menu
-entry is a separate normal release.
+Lite updates patch only their managed parts of the actual installed nginx site;
+all other bytes must remain identical. OnlyOffice callback hosts remain allowed.
+The normal installer uses the same generator and deployment lock.
 
-## Protocol and isolation
+Before replacing config/site, the installer writes a durable recovery journal at
+`/var/lib/vibetop/browser-proxy-deploy/pending.json`. It validates nginx before
+committing the release config. Only changed nginx content triggers a reload.
+Update stages Lite last and schedules the manager restart out-of-band. The
+watchdog checks the hash of the configuration loaded by the manager and that the
+manager process identity changed before confirming activation. A plain ping is
+insufficient. Existing per-user rewrite processes roll to the new release on
+trusted UI heartbeat/open; unrelated terminals, Browser xpra and X11 are untouched.
 
-`POST /api/browser-lite/{session,action,updates,ack,resource,pages}` runs after the
-manager's normal session/CSRF gate. Root only proxies bounded JSON to the user's
-agent. No arbitrary evaluation, Linux identity, socket path or resource URL is
-accepted by these HTTP routes. Long-poll and resource/action concurrency are
-limited per user and globally. CDP is private Playwright IPC, never public TCP.
+A pending activation prevents another installer from overwriting its snapshot.
+If the watchdog has stopped, inspect its log and repair any error from `nginx -t`,
+then run the installer with `--recover`. Rolling back a `pending-restart` record
+requires the additional explicit `--force` flag; do not use it while its watchdog
+is still running. A failed recovery retains the journal for retry. `doctor.sh`
+reports a remaining journal. Recovery never rolls back identity or website data.
 
-A remote init-script collector maintains stable per-document node IDs. Mutation
-notifications trigger a bounded graph scan at most twice per second; only changed
-records are sent. It does not repeatedly transmit outerHTML or per-node computed
-styles. Baselines are progressive 256 KiB chunks with an 8 MiB/20,000-node ceiling.
-CSS comes from CDP stylesheet data and preserves ordinary imports/media ordering;
-layer/supports imports degrade explicitly. Relative resource references resolve
-against the originating stylesheet, not Vibetop. Resources must have actually been loaded by Chromium in the current document.
-Their bodies come from CDP, not an authenticated HTTP replay that could change
-SameSite/private-network semantics. Missing bodies remain placeholders; no
-arbitrary request API or direct client fallback is used.
-
-Session, daemon generation, document epoch and attachment ownership fence actions
-and resource responses. ACK is issued only after the frame applied data. Missing
-sequences request a new baseline. Pending patches have a 2 MiB cap; overflow pauses
-with a recovery message instead of infinite full-snapshot churn. An action sequence
-cache prevents repeating completed side effects. Page actions are serialized,
-including filling a field before Enter. IME composition remains local until the
-completed input event. Password values are not included in DOM snapshots.
-
-Client content is reconstructed with a tag/attribute whitelist inside an
-opaque-origin `sandbox="allow-scripts"` frame. Its head-first CSP allows exactly
-the committed renderer's SHA-256 script hash, inline styles and blob/data images
-and fonts; connect, objects, nested frames, forms and base URLs are forbidden.
-Only the trusted toolbar can call authenticated APIs. Source window + per-frame
-random channel checks protect the message bridge. Assets become blob URLs inside
-the frame. The remote website can affect its own collector or DOM, but that does
-not grant it desktop/API/script privileges.
-
-This authenticated remote browser deliberately retains the user's existing
-Browser network reach, including LAN sites. URL validation is **not** advertised
-as public-only SSRF isolation. It runs as the user, never as root, and cannot use
-the manager as an arbitrary privileged fetcher.
+`uninstall.sh` disables the rewrite routing and stops only its own sockets and
+services. It retains profiles, identity, immutable releases and an `enabled:false`
+host policy, so later full installs cannot accidentally expose the desktop on
+former website hosts. Re-enabling is an explicit `INSTALL_DEPS=1` action.
 
 ## Verification
 
-```sh
-python -m pytest server/tests/test_browser_lite.py
-PLAYWRIGHT_BROWSERS_PATH=/opt/vibetop/browser-lite/browsers \
-  /opt/vibetop/browser-lite/venv/bin/python tests/e2e/browser-lite.py --public
-# Test-only matching WebKit must first be installed under the path used by the test.
-PLAYWRIGHT_BROWSERS_PATH=/opt/vibetop/browser-lite/browsers \
-  /opt/vibetop/browser-lite/venv/bin/python tests/e2e/browser-lite.py --engine webkit
-```
-
-The E2E fixture runs remote JS, trusted click, fill/Enter, select/check, authenticated
-image, scroll, refresh and duplicated-tab ownership, and verifies opaque origin,
-script CSP and blocked external requests. Tests use independent temporary
-profiles, not the operator's live Browser. Browser-engine automation does not
-substitute for a real iPhone check. Bandwidth findings must include initial styles,
-fonts/images and ongoing data; no fixed savings percentage is promised.
-
-After editing `browser-lite-renderer.js`, regenerate the committed frame:
-
-```sh
-python3 apps/everyday/browser-lite/backend/render_frame.py
-```
-
-A hermetic test checks its exact hash and source bytes. The static installer
-excludes backend files and frame templates; only the generated frame is deployed.
+See [rewrite plan](plans/browser-lite-rewrite.md) for remaining acceptance gates
+and [end-to-end tests](../tests/e2e/browser-proxy/README.md) for exact commands.
+Coverage includes root/runtime isolation, TLS handoff and renewal, images,
+per-device logout, reconnect/restart, real WebSockets, forms/uploads/downloads,
+slow-network and lost-response behavior, immutable release rollover, interrupted
+activation, offline build/publication and uninstall preservation. Tests that
+simulate service callbacks are identified separately from real process tests.

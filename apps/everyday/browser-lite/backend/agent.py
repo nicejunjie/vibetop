@@ -40,6 +40,7 @@ class Session:
         self.resources = {}
         self.url_ids = {}
         self.requests = {}
+        self.request_urls = {}
         self.revision = asyncio.Condition()
         self.lock = asyncio.Lock()
         self.capture_lock = asyncio.Lock()
@@ -54,6 +55,7 @@ class Session:
         self._dialog = None
         self.dialog_event = asyncio.Event()
         self.force_assets = False
+        self.scroll_serial = 0
         self.resyncs = 0
         self.last_used = time.monotonic()
         self.warnings = set()
@@ -86,6 +88,7 @@ class Session:
         self.cdp.on('CSS.mediaQueryResultChanged',lambda _:self.mark_css())
         self.cdp.on('CSS.styleSheetRemoved',lambda p:self.css_removed(p))
         self.cdp.on('Network.responseReceived',self.response)
+        self.cdp.on('Network.requestWillBeSent',self.request_started)
         self.cdp.on('Network.loadingFinished',lambda p:self.spawn(self.cache_body(p)))
         self.cdp.on('Network.loadingFailed',lambda p:self.requests.pop(p.get('requestId'),None))
         self.page.on('dialog',self.on_dialog)
@@ -115,6 +118,8 @@ class Session:
         self.loader_id=frame.get('loaderId')
         self.epoch+=1;self.nodes=[];self.styles=[];self.css_headers={};self.css_dirty=True
         self.resources={};self.url_ids={};self.requests={};self.total_asset_bytes=0
+        self.request_urls={}
+        self.scroll_serial=0
         self.meta={'url':self.page.url,'title':'Loading…'}
         self.packets.clear();self.pending_bytes=0;self.paused=False;self.baseline=None;self.ack=0
         self.dialog=None;self._dialog=None;self.warnings.clear();self.resyncs=0
@@ -123,23 +128,37 @@ class Session:
     async def notify(self):
         async with self.revision:self.revision.notify_all()
 
+    def request_started(self,p):
+        if p.get('frameId') and p['frameId']!=self.frame_id:return
+        if p.get('loaderId') and p['loaderId']!=self.loader_id:return
+        url=p.get('request',{}).get('url','')
+        if len(self.request_urls)>=2000:return
+        chain=self.request_urls.setdefault(p['requestId'],[])
+        if len(chain)<20 and url.startswith(('http://','https://','blob:')):chain.append(url)
+
     def response(self,p):
         if p.get('loaderId') and p['loaderId']!=self.loader_id:return
         if p.get('frameId') and p['frameId']!=self.frame_id:return
         r=p['response']
         if not (200<=r.get('status',0)<300 or r.get('status')==304):return
         url=r.get('url','');mime=r.get('mimeType','').split(';')[0].lower()
-        if not url.startswith(('http://','https://','data:')):return
+        if not url.startswith(('http://','https://','data:','blob:')):return
         if mime in SAFE_MIME or mime=='text/css':
-            self.register(url,mime,observed=True)
+            rid=self.register(url,mime,observed=True)
+            if not rid:return
+            for original in self.request_urls.get(p['requestId'],[]):
+                if original not in self.url_ids:self.url_ids[original]=rid;self.force_assets=True
             self.requests[p['requestId']]={'url':url,'mime':mime,'epoch':self.epoch}
 
     def register(self,url,mime=None,observed=False):
-        if not isinstance(url,str) or len(url)>40000:return None
+        if not isinstance(url,str):return None
         if url.startswith('data:'):
             if len(url)>256*1024:return None
             mime=mime or url[5:].split(';')[0].split(',')[0].lower()
-        elif not url.startswith(('http://','https://')):return None
+        elif url.startswith('data-ref:'):
+            import re
+            if (not observed and url not in self.url_ids) or not re.fullmatch(r'data-ref:\d{1,10}-\d{1,10}',url):return None
+        elif len(url)>40000 or not url.startswith(('http://','https://','blob:')):return None
         if url in self.url_ids:
             rid=self.url_ids[url]
             if mime and self.resources[rid].get('mime')!=mime:
@@ -154,6 +173,7 @@ class Session:
         return rid
 
     async def cache_body(self,p):
+        self.request_urls.pop(p.get('requestId'),None)
         info=self.requests.pop(p.get('requestId'),None)
         if not info or info['epoch']!=self.epoch:return
         if p.get('encodedDataLength',0)>MAX_ASSET:return
@@ -168,6 +188,7 @@ class Session:
         rid=self.register(url,mime)
         if rid and self.resources[rid]['body'] is None:
             self.resources[rid].update(body=body,mime=mime);self.total_asset_bytes+=len(body)
+            self.assets_dirty=True
 
     async def resource_body(self,rid):
         entry=self.resources.get(rid)
@@ -177,9 +198,15 @@ class Session:
         async with self.resource_slots:
             if entry['body'] is not None:return entry
             url=entry['url']
-            if url.startswith('data:'):
+            if url.startswith(('data:','data-ref:')):
                 import urllib.parse
-                head,raw=url.split(',',1);mime=head[5:].split(';')[0]
+                source=url
+                if url.startswith('data-ref:'):
+                    source=await asyncio.wait_for(self.page.evaluate('(r)=>window[r.key]?.dataImage(r.ref)',{'key':self.bridge,'ref':url}),3)
+                    if not isinstance(source,str) or not source.startswith('data:image/') or len(source)>12*1024*1024:
+                        raise LiteError('missing','Inline image is no longer available.',404)
+                head,raw=source.split(',',1);mime=head[5:].split(';')[0].lower()
+                if mime not in SAFE_MIME:raise LiteError('mime','Unsupported resource type.',415)
                 body=base64.b64decode(raw) if ';base64' in head else urllib.parse.unquote_to_bytes(raw)
             else:
                 # A context.request replay changes SameSite/PNA semantics. Never
@@ -187,7 +214,9 @@ class Session:
                 for _ in range(10):
                     await asyncio.sleep(.1)
                     if entry['body'] is not None:return entry
-                raise LiteError('missing','The browser did not retain this resource. Use Browser for this image.',404)
+                pending=any(i['url']==url and i['epoch']==epoch for i in self.requests.values())
+                raise LiteError('pending' if pending else 'missing',
+                                'Image is still downloading.' if pending else 'The browser did not retain this resource. Use Browser for this image.',409 if pending else 404)
             if epoch!=self.epoch:raise LiteError('stale','Page changed.',409)
             if mime not in SAFE_MIME and mime!='text/css':raise LiteError('mime','Unsupported resource type.',415)
             self.store_body(url,body,mime)
@@ -238,7 +267,10 @@ class Session:
                     for n in nodes:
                         attrs=n.get('attrs',{})
                         for name in ('src','poster'):
-                            if attrs.get(name):attrs[name]='lite-asset:'+self.register(attrs[name]) if self.register(attrs[name]) else ''
+                            if attrs.get(name):
+                                local=n['tag']=='img' and name=='src' and attrs[name].startswith('data-ref:')
+                                rid=self.register(attrs[name],observed=local)
+                                attrs[name]='lite-asset:'+rid if rid else ''
                         if attrs.get('style'):attrs['style']=rewrite_css(attrs['style'],n.get('styleBase',raw['base']),self.register)
                         n.pop('styleBase',None)
                 if raw and raw.get('styleState')!=self.style_state:self.css_dirty=True;self.style_state=raw.get('styleState')
@@ -269,14 +301,16 @@ class Session:
                 if epoch!=self.epoch:return
                 meta=dict(self.meta)
                 if raw:meta.update(url=raw['url'],title=raw['title'],htmlAttrs=raw.get('htmlAttrs',{}))
-                if raw and sync_scroll:meta['scroll']={**raw.get('scroll',{}),'token':self.seq+1}
+                if raw and sync_scroll:meta['scroll']={**raw.get('scroll',{}),'token':self.seq+1,'serial':self.scroll_serial}
                 meta.update(loading=self.loading,warnings=sorted(self.warnings),dialog=self.dialog,
                             inputSeq=self.input_seq.copy(),resourceTypes={rid:('font' if (e.get('mime') or '').startswith(('font/','application/font','application/x-font')) else 'image' if (e.get('mime') or '').startswith('image/') else 'unknown') for rid,e in self.resources.items()})
+                meta['resourceReady']=[rid for rid,e in self.resources.items() if e['body'] is not None]
                 if len(pack(nodes))+len(pack(styles))>MAX_BASELINE:raise LiteError('complex','This page exceeds the Lite budget.',413)
                 initial=not self.nodes and self.ack==0
                 changes=delta(self.nodes,nodes)
                 packet_meta=dict(meta)
                 if packet_meta.get('resourceTypes')==self.meta.get('resourceTypes'):packet_meta.pop('resourceTypes',None)
+                if packet_meta.get('resourceReady')==self.meta.get('resourceReady'):packet_meta.pop('resourceReady',None)
                 packet={'put':changes['put'],'remove':changes['remove'],'meta':packet_meta}
                 if styles!=self.styles:packet['styles']=styles
                 changed=bool(changes['put'] or changes['remove'] or meta!=self.meta or styles!=self.styles)
@@ -325,8 +359,9 @@ class Session:
             self.ack=0;self.input_seq={};self.results.clear();self.last_action=0
             self.packets.clear();self.pending_bytes=0;self.paused=False
             self.baseline=None;self.resyncs=0;self.meta.pop('error',None);await self.notify()
+            self.scroll_serial=0
         self.last_used=time.monotonic()
-        await self.capture(force=True)
+        await self.capture(force=True,sync_scroll=True)
         return self.identity()
 
     def identity(self):
@@ -423,6 +458,9 @@ class Session:
                     if mobile:ua=ua.replace('X11; Linux x86_64','Linux; Android 14; Pixel 8').replace('Safari/537.36','Mobile Safari/537.36')
                     await self.cdp.send('Emulation.setUserAgentOverride',{'userAgent':ua})
                 elif kind=='scroll':
+                    serial=r.get('serial',0)
+                    if not isinstance(serial,int) or not 0<=serial<=1000000000:raise LiteError('scroll','Invalid scroll sequence.')
+                    self.scroll_serial=max(self.scroll_serial,serial)
                     await self.page.evaluate('(r)=>window[r.bridge]?.scroll(r.node,r.anchor,r.offset,r.ratio,r.x)',
                          {**{k:r.get(k,0) for k in ('node','anchor','offset','ratio','x')},'bridge':self.bridge})
                 elif kind=='dialog':

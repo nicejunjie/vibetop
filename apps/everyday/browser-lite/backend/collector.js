@@ -2,12 +2,14 @@
 (() => {
   const key = __BRIDGE_LITERAL__;
   const ids = new WeakMap(), nodes = new Map();
+  const dataImages = new WeakMap();let dataVersion=0;
   let serial = 0, dirty = true, previousProps = '', previousMeta = '', previousStyles = '';
   const idOf = node => { if (!ids.has(node)) { ids.set(node, ++serial); nodes.set(serial, node); } return ids.get(node); };
   const skipped = new Set(['SCRIPT', 'NOSCRIPT', 'STYLE', 'LINK', 'META', 'BASE', 'TEMPLATE']);
   new MutationObserver(() => { dirty = true; }).observe(document, { subtree:true, childList:true, attributes:true, characterData:true });
   document.addEventListener('input', () => { dirty = true; }, true);
   document.addEventListener('change', () => { dirty = true; }, true);
+  document.addEventListener('load', () => { dirty = true; }, true);
   function snapshot(force) {
     const fields = [];
     for (const [id, n] of nodes) {
@@ -24,7 +26,7 @@
     while (stack.length) {
       const {n,parent,index} = stack.pop(); if (!n) continue;
       if (n.nodeType !== 1 && n.nodeType !== 3) continue;
-      if (n.nodeType === 1 && skipped.has(n.tagName)) continue;
+      if (n.nodeType === 1 && skipped.has(n.tagName.toUpperCase())) continue;
       if (out.length >= 20000) return {tooLarge:true};
       const id = idOf(n);
       if (n.nodeType === 3 && n.textContent.length>100000)return {tooLarge:true};
@@ -34,15 +36,27 @@
       // Relative references must use the website's effective base, not Vibetop.
       for (const a of ['src','poster']) if (attrs[a]) { try { attrs[a] = new URL(attrs[a], document.baseURI).href; } catch (_) { delete attrs[a]; } }
       if(n.type==='password')delete attrs.value;
-      const record = {id,parent,index,tag:n.tagName.toLowerCase(),attrs};
-      if (n.tagName === 'IMG' && n.currentSrc) record.attrs.src = n.currentSrc;
+      const record = {id,parent,index,tag:n.localName,attrs};
+      if(n.namespaceURI==='http://www.w3.org/2000/svg')record.namespace='svg';
+      if (n.tagName === 'IMG' && n.currentSrc) {
+        const src=n.currentSrc;
+        if(src.startsWith('data:') && src.length>=12000){
+          let state=dataImages.get(n);
+          if(!state || state.src!==src){state={src,version:++dataVersion};dataImages.set(n,state);}
+          record.attrs.src='data-ref:'+id+'-'+state.version;
+        }else record.attrs.src=src;
+      }
+      if(n.tagName==='IMG'){
+        record.imageHasSource=!!(n.currentSrc||n.getAttribute('src'));
+        record.imageState=n.complete?(n.naturalWidth?'loaded':'failed'):'pending';
+      }
       delete record.attrs.srcset;
       if (attrs.style) record.styleBase = document.baseURI;
       if (/^(INPUT|TEXTAREA|SELECT|OPTION)$/.test(n.tagName)) {
         record.props = {checked:!!n.checked, selected:!!n.selected, selectedIndex:n.selectedIndex};
         if (n.type !== 'password') record.props.value = n.value;
       }
-      if (n.shadowRoot || /^(IFRAME|FRAME|CANVAS|VIDEO|AUDIO|OBJECT|EMBED|SVG)$/i.test(n.tagName)) {
+      if (n.shadowRoot || /^(IFRAME|FRAME|CANVAS|VIDEO|AUDIO|OBJECT|EMBED|FOREIGNOBJECT)$/i.test(n.tagName)) {
         record.unsupported = n.shadowRoot ? 'Embedded component' : n.tagName.toLowerCase();
         record.height = Math.min(600, Math.max(44, n.getBoundingClientRect().height)); out.push(record); continue;
       }
@@ -56,6 +70,11 @@
     return {nodes:out,url:location.href,title:document.title,base:document.baseURI,scroll,styleState,htmlAttrs:Object.fromEntries(Array.from(document.documentElement.attributes,a=>[a.name,a.value]))};
   }
   window[key] = {snapshot, get(id) { const n=nodes.get(id); return n && n.isConnected ? n : null; },
+    dataImage(ref){
+      const match=/^data-ref:(\d+)-(\d+)$/.exec(ref);if(!match)return null;
+      const n=nodes.get(Number(match[1])),state=n&&dataImages.get(n);
+      return n?.isConnected && state && state.version===Number(match[2]) && state.src.startsWith('data:image/') && state.src.length<=12*1024*1024 ? state.src : null;
+    },
     scroll(id, anchor, offset, ratio, x) {
       const n=id ? nodes.get(id) : document.scrollingElement;
       if (!n) return;

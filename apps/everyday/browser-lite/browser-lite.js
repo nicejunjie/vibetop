@@ -6,6 +6,7 @@
   let ticket=0, actionSeq=0, inputQueue=[], actionRunning=false, pollRunning=false, stopped=false;
   let frameReady=false, sessionReady=false, composing=false, received=0, meta={}, currentDialog=null, hovering=false;
   const failedFields=new Set();const pending=new Map(), resourceQueue=[], resourceSeen=new Set();let resourcesInFlight=0, resizeTimer;
+  let readyResources=new Set();
   let front=!window.frameElement||window.frameElement.classList.contains('active');
   const shouldRun=()=>front&&!document.hidden;
   let userKey=null, savedURL='', deferredNavigation=null, stoppedReason=null;
@@ -54,6 +55,12 @@
     else if(data.loading)status('Loading…');
     else status(data.warnings?.length?data.warnings.join(' · '):'Connected · local scrolling');
   }
+  function prepareResources(data){
+    if(!Array.isArray(data?.resourceReady))return;
+    const next=new Set(data.resourceReady);
+    for(const rid of next)if(!readyResources.has(rid))resourceSeen.delete(rid);
+    readyResources=next;
+  }
   function failure(e){
     status(e.message,true);
     if(e.code==='superseded'||e.code==='resume-busy'){stoppedReason='superseded';stopped=true;inputQueue=[];cover('Open in another window','superseded');}
@@ -68,7 +75,8 @@
       const result=await api('updates',{...identity(),baseline:true,cursor});
       if(myTicket!==ticket || stopped)return;
       if(result.meta?.error){stoppedReason='paused';stopped=true;cover('Page needs attention','paused');status(result.meta.error,true);return;}
-      if(cursor===0){epoch=result.epoch;seq=0;resourceSeen.clear();resourceQueue.length=0;await render('reset',{epoch});}
+      if(cursor===0){epoch=result.epoch;seq=0;readyResources.clear();resourceSeen.clear();resourceQueue.length=0;await render('reset',{epoch});}
+      prepareResources(result.meta);
       await render('apply',{epoch,put:result.nodes,remove:[],styles:result.styles,meta:result.meta});
       metadata(result.meta);snapshotSeq=result.seq;
       if(result.nodes.length)cover(null);
@@ -91,7 +99,7 @@
         else{
           for(const packet of result.packets||[]){
             if(myTicket!==ticket||packet.epoch!==epoch||packet.seq!==seq+1){seq=0;break;}
-            await render('apply',{...packet,epoch});seq=packet.seq;metadata(packet.meta);
+            prepareResources(packet.meta);await render('apply',{...packet,epoch});seq=packet.seq;metadata(packet.meta);
           }
           if(seq)await api('ack',{...identity(),seq});
         }
@@ -149,7 +157,11 @@
       api('resource',{...identity(),resource:item.resource,force:item.force},12000).then(result=>{
         if(myTicket===ticket && item.epoch===epoch)send('resource',{...result,resource:item.resource,epoch});
       }).catch(e=>{
-        if(item.epoch===epoch)send('resourceError',{...item,code:e.code});if(['superseded','expired','401','403','auth'].includes(e.code))failure(e);
+        if(item.epoch===epoch){
+          if(e.code==='pending'&&readyResources.has(item.resource)){resourceSeen.delete(item.resource);send('resourceAvailable',{resource:item.resource,epoch});}
+          else send('resourceError',{...item,code:e.code});
+        }
+        if(['superseded','expired','401','403','auth'].includes(e.code))failure(e);
       }).finally(()=>{resourcesInFlight--;resourcePump();});
     }
   }
@@ -168,8 +180,8 @@
       const allowed=['click','input','select','check','key'];
       if(allowed.includes(d.kind)&&Number.isSafeInteger(d.node)&&d.node>0 && (!d.value || typeof d.value==='string'&&d.value.length<=64000))queueAction({kind:d.kind,node:d.node,value:d.value,checked:d.checked,key:d.key,inputSeq:d.inputSeq,epoch:d.epoch,submits:d.submits===true});
     }else if(d.type==='scroll'){
-      const values=[d.node,d.anchor,d.offset,d.ratio,d.x];if(values.every(Number.isFinite)){
-        const last=inputQueue[inputQueue.length-1];const data={kind:'scroll',epoch:d.epoch,...Object.fromEntries(['node','anchor','offset','ratio','x'].map(k=>[k,d[k]]))};
+      const values=[d.node,d.anchor,d.offset,d.ratio,d.x,d.serial];if(values.every(Number.isFinite)){
+        const last=inputQueue[inputQueue.length-1];const data={kind:'scroll',epoch:d.epoch,...Object.fromEntries(['node','anchor','offset','ratio','x','serial'].map(k=>[k,d[k]]))};
         if(last?.kind==='scroll')inputQueue[inputQueue.length-1]=data;else queueAction(data);
       }
     }else if(d.type==='hover'&&!hovering){
@@ -187,7 +199,7 @@
   }
   $('navigate').addEventListener('submit',e=>{e.preventDefault();try{const url=normalize($('address').value);if(url)queueAction({kind:'navigate',url});}catch(e){status(e.message,true);}});
   for(const kind of ['back','forward','reload'])$(kind).onclick=()=>queueAction({kind});
-  $('images').onchange=()=>send('images',{enabled:$('images').checked});
+  $('images').onchange=()=>{if(userKey)writeKey(userKey+':images',$('images').checked?'1':'0');send('images',{enabled:$('images').checked});};
   $('fallback').onclick=async()=>{
     if(!savedURL){status('Open a webpage first.');return;}
     try{
@@ -245,6 +257,6 @@
   $('dialogok').onclick=()=>respondDialog(true);$('dialogcancel').onclick=()=>respondDialog(false);
   $('dialog').addEventListener('cancel',e=>{e.preventDefault();respondDialog(false);});
   fetch('/api/me').then(r=>{if(!r.ok)throw Error('Sign in to Vibetop first.');return r.json();}).then(me=>{
-    userKey='vibetop:browser-lite:'+me.user;savedURL=readKey(userKey+':url')||'';start();
+    userKey='vibetop:browser-lite:'+me.user;savedURL=readKey(userKey+':url')||'';$('images').checked=readKey(userKey+':images')!=='0';send('images',{enabled:$('images').checked});start();
   }).catch(e=>{stopped=true;status(e.message,true);cover('Sign in to Vibetop first','auth');});
 })();

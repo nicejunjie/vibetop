@@ -55,6 +55,7 @@ fi
 # is imperceptible, and it removes this entire failure class.
 exec "$TTYD" \
   -W \
+  --check-origin \
   -i 127.0.0.1 \
   -p "$PORT" \
   -b "/t${BASE_N}" \

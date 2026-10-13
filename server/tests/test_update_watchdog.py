@@ -38,3 +38,15 @@ def test_rollback_restores_source_then_redeploys_changed_web_files(monkeypatch):
     watchdog.restore("/srv/vibetop", "vibetop", "old", "expected")
     assert calls[3][-3:] == ["reset", "--hard", "old"]
     assert calls[4][-1] == "/srv/vibetop/shell/install.sh"
+
+
+def test_source_rollback_never_rebuilds_restored_immutable_browser_release(monkeypatch):
+    calls = []
+    outputs = iter(['expected\n', '', 'apps/everyday/browser-lite/proxy/wrapper.js\nserver/browser_proxy.py\n'])
+    def fake_run(argv, **kwargs):
+        calls.append(argv)
+        return SimpleNamespace(stdout=next(outputs, ''))
+    monkeypatch.setattr(watchdog, 'run', fake_run)
+    watchdog.restore('/srv/vibetop', 'vibetop', 'old', 'expected')
+    assert any(command[-1].endswith('server/install.sh') for command in calls)
+    assert not any('browser-lite/install.sh' in ' '.join(command) for command in calls)

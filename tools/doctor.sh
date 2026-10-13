@@ -36,6 +36,10 @@ info() { printf '  %sINFO%s  %s\n' "$(c b)" "$(c 0)" "$1"; }
 skip() { printf '  ---   %s\n' "$1"; }
 head_() { printf '\n%s── %s%s\n' "$(c b)" "$1" "$(c 0)"; }
 
+if [ -e /var/lib/vibetop/browser-proxy-deploy/pending.json ]; then
+    adv "Browser Lite activation is pending. If the Update watchdog has ended, repair any nginx -t error, then run sudo $ROOT/apps/everyday/browser-lite/install.sh --recover"
+fi
+
 have() { command -v "$1" >/dev/null 2>&1; }
 unit_exists() { [ -f "/etc/systemd/system/$1" ]; }
 

@@ -41,3 +41,4 @@ logs/*.result
 # reference images are EA/Westwood's copyrighted art and never belong here.
 apps/games/rts/
 docs/ra2-ref
+apps/everyday/browser-lite/proxy/node_modules/

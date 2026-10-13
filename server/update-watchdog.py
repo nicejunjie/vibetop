@@ -13,6 +13,9 @@ import sys
 import tempfile
 import time
 import urllib.request
+from pathlib import Path
+
+from browser_proxy_deploy import production_activation
 
 
 def run(argv, **kw):
@@ -48,9 +51,6 @@ def restore(repo, user, before, changed):
     env = dict(os.environ, APP_USER=user, INSTALL_DEPS="0", INSTALL_SYSTEMD="0")
     if any(touched(d) for d in ("shell/", "shared/", "apps/")):
         run(["sudo", "-n", "-u", user, "-H", os.path.join(repo, "shell/install.sh")])
-    if touched("apps/everyday/browser-lite/"):
-        run([os.path.join(repo, "apps/everyday/browser-lite/install.sh")], cwd=repo,
-            env={**env, "RESTART_LITE": "1" if touched("apps/everyday/browser-lite/backend/") else "0"}, check=False)
     if touched("apps/everyday/browser/"):
         run([os.path.join(repo, "apps/everyday/browser/install.sh")], cwd=repo, env=env)
     if touched("server/") or touched("apps/everyday/terminal/"):
@@ -99,15 +99,20 @@ def main():
             or not port_text.isdecimal() or not 1 <= int(port_text) <= 65535):
         raise SystemExit("invalid update arguments")
     port = int(port_text)
+    activation = production_activation(port) if Path('/var/lib/vibetop/browser-proxy-deploy/pending.json').exists() else None
     try:
         run(["systemctl", "restart", "vibetop-manager.service"])
         if healthy(port):
+            if activation:
+                activation.finish()
             print("update watchdog: manager healthy at", after, flush=True)
             return 0
-    except (OSError, subprocess.SubprocessError) as e:
+    except (OSError, subprocess.SubprocessError, RuntimeError, ValueError) as e:
         print("update watchdog: restart failed:", e, flush=True)
     print("update watchdog: manager unhealthy; restoring", before, flush=True)
     try:
+        if activation:
+            activation.rollback(refresh_manager=False)
         restore(repo, user, before, after)
     except Exception:
         # A redeploy can fail independently of the code. Even then, starting

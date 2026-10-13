@@ -1,0 +1,13 @@
+{
+  "name": "vibetop-browser-proxy",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Per-origin, server-rewritten Browser Lite runtime",
+  "engines": {"node": ">=22"},
+  "dependencies": {
+    "rammerhead": "https://github.com/binary-person/rammerhead/archive/ee5fbb7837f5fe752c4b82c18184f42449678d5b.tar.gz",
+    "ipaddr.js": "2.2.0"
+  },
+  "scripts": {"test": "node --test *.test.cjs"},
+  "packageManager": "pnpm@10.18.3"
+}

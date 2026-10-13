@@ -7,6 +7,7 @@ no real credentials are touched.
 """
 import http.cookies
 import time
+import pytest
 
 
 def _cookie_pair(headers, name="vt_session"):
@@ -174,9 +175,12 @@ def test_login_secure_flag_on_https(mgr, client, monkeypatch):
     monkeypatch.setattr(mgr, "_authenticate", lambda u, p: True)
     status, headers, _ = client.post_full(
         "/api/login", {"username": "alice", "password": "pw"},
-        headers={"X-Forwarded-Proto": "https"})
+        headers={"X-Forwarded-Proto": "https",
+                 "Origin": client.base.replace("http://", "https://")})
     assert status == 200
     assert "Secure" in headers.get("Set-Cookie", "")
+    assert headers["Set-Cookie"].startswith("__Host-vt_session=")
+    assert "Domain=" not in headers["Set-Cookie"]
 
 
 def test_login_no_secure_flag_on_http(mgr, client, monkeypatch):
@@ -320,6 +324,31 @@ def test_logout_clears_cookie(mgr, client):
     assert status == 200
     sc = headers.get("Set-Cookie", "")
     assert "vt_session=" in sc and "Max-Age=0" in sc
+
+
+def test_logout_rejects_same_site_sibling_even_without_origin(mgr, client):
+    assert client.post("/api/logout", headers={"Sec-Fetch-Site": "same-site"})[0] == 403
+
+
+def test_anonymous_logout_never_touches_browser_identity_store(mgr, client, monkeypatch):
+    def unexpected(*args):
+        raise AssertionError("Anonymous logout must not load browser identity state")
+    monkeypatch.setattr(mgr.browser_proxy, "configured", unexpected)
+    status, headers, _ = client.post_full("/api/logout", cookie="vt_session=forged")
+    assert status == 200 and "Max-Age=0" in headers["Set-Cookie"]
+
+
+def test_browser_storage_failure_does_not_prevent_desktop_logout(mgr, client, monkeypatch):
+    monkeypatch.setattr(mgr, "_authenticate", lambda u, p: True)
+    _, headers, _ = client.post_full("/api/login", {"username": "alice", "password": "pw"})
+    cookie = _cookie_pair(headers)
+    def failure(*args):
+        raise OSError("unavailable browser metadata")
+    monkeypatch.setattr(mgr.browser_proxy, "configured", failure)
+    monkeypatch.setattr(mgr.subprocess, "run", lambda *args, **kwargs: None)
+    status, headers, _ = client.post_full("/api/logout", cookie=cookie)
+    assert status == 200 and "Max-Age=0" in headers["Set-Cookie"]
+    assert mgr._verify_session(cookie.split("=", 1)[1]) is None
 
 
 def test_logout_this_device_does_not_revoke_others(mgr, client, monkeypatch):
@@ -657,3 +686,85 @@ def test_sudo_gate_requires_a_session_not_the_app_user_fallback(mgr):
     assert "_can_sudo(_ctx_user())" not in src
     admin_src = inspect.getsource(mgr.Handler._require_admin)
     assert "_session_user()" in admin_src, "both operator gates must agree"
+
+
+@pytest.mark.parametrize("origin, expected", [
+    ("https://vibetop.example.com", 200),
+    ("https://proxy.example.com", 403),
+    ("https://evil.example.net", 403),
+    ("null", 403),
+    (None, 200),  # authenticated non-browser operational clients
+])
+def test_websocket_authcheck_origin(mgr, client, monkeypatch, origin, expected):
+    calls = []
+    monkeypatch.setattr(mgr.Handler, "_ensure_user_terminal",
+                        lambda self, user, n: calls.append((user, n)) or 17001)
+    headers = {"Host": "vibetop.example.com", "X-Original-URI": "/t1/ws",
+               "X-Original-Upgrade": "websocket", "X-Forwarded-Proto": "https"}
+    if origin is not None:
+        headers["Origin"] = origin
+    status, response_headers, _ = client.get_full(
+        "/api/authcheck", cookie="__Host-vt_session=" + mgr._sign_session("alice"), headers=headers)
+    assert status == expected
+    assert bool(calls) == (expected == 200)
+    if expected == 403:
+        assert "X-Term-Port" not in response_headers
+
+
+def test_websocket_authcheck_preserves_external_port(mgr, client):
+    cookie = "vt_session=" + mgr._sign_session("alice")
+    headers = {"Host": "localhost:8080", "X-Original-URI": "/browser/",
+               "X-Original-Upgrade": "websocket", "Origin": "http://localhost:8081"}
+    assert client.get_full("/api/authcheck", cookie=cookie, headers=headers)[0] == 403
+    # A static protected path avoids starting a browser in the unit test.
+    headers.update({"Origin": "http://localhost:8080", "X-Original-URI": "/desktop.html"})
+    assert client.get_full("/api/authcheck", cookie=cookie, headers=headers)[0] == 200
+
+
+def test_nginx_forwards_websocket_auth_context():
+    from pathlib import Path
+    source = (Path(__file__).parents[1] / "install.sh").read_text()
+    auth = source.split("location = /internal/authcheck {", 1)[1].split("\n    }", 1)[0]
+    for header, variable in [("X-Original-Upgrade", "http_upgrade"),
+                             ("Host", "http_host"), ("Origin", "http_origin")]:
+        assert f"proxy_set_header {header} \\${variable};" in auth
+
+
+@pytest.mark.parametrize("name,expected", [("vt_session",401),("__Host-vt_session",200)])
+def test_https_uses_only_host_bound_session(mgr,client,name,expected):
+    headers={"Host":"vibetop.example.com","X-Forwarded-Proto":"https",
+             "X-Original-URI":"/desktop.html","Sec-Fetch-Site":"same-origin"}
+    cookie=name+"="+mgr._sign_session("alice")
+    assert client.get_full("/api/authcheck",cookie=cookie,headers=headers)[0] == expected
+
+
+def test_duplicate_session_cookie_is_rejected(mgr,client):
+    cookie="vt_session="+mgr._sign_session("alice")+"; vt_session="+mgr._sign_session("bob")
+    assert client.get_full("/api/authcheck",cookie=cookie,headers={"X-Original-URI":"/desktop.html"})[0] == 401
+
+
+def test_broken_browser_release_cannot_prevent_logout_all(mgr, client, monkeypatch):
+    monkeypatch.setattr(mgr, '_authenticate', lambda u, p: True)
+    _, headers, _ = client.post_full('/api/login', {'username': 'alice', 'password': 'pw'})
+    cookie = _cookie_pair(headers)
+    def failure(*args):
+        raise RuntimeError('Node major mismatch or damaged release')
+    monkeypatch.setattr(mgr.browser_proxy, 'configured', failure)
+    stopped = []
+    from types import SimpleNamespace
+    monkeypatch.setattr(mgr.pwd, 'getpwnam', lambda user: SimpleNamespace(pw_uid=1001))
+    monkeypatch.setattr(mgr.subprocess, 'run', lambda args, **kwargs: stopped.append(args))
+    status, headers, _ = client.post_full('/api/logout/all', cookie=cookie)
+    assert status == 200 and 'Max-Age=0' in headers['Set-Cookie']
+    assert mgr._verify_session(cookie.split('=', 1)[1]) is None
+    assert all(unit.endswith('.socket') for unit in stopped[0][2:])
+    assert all(unit.endswith('.service') for unit in stopped[1][2:])
+
+
+@pytest.mark.parametrize('method', ['get', 'post'])
+def test_broken_browser_installation_returns_bounded_503(mgr, client, monkeypatch, method):
+    def failure(*args):
+        raise RuntimeError('Node major mismatch or damaged release')
+    monkeypatch.setattr(mgr.browser_proxy, 'configured', failure)
+    status, body = getattr(client, method)('/__browser_proxy/ui')
+    assert status == 503 and 'unavailable' in body['error']
