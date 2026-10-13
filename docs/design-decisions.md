@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_443 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_444 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [Terminal link opened a closed Browser app but lost the URL](#terminal-link-opened-a-closed-browser-app-but-lost-the-url)
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
@@ -466,6 +466,7 @@ _443 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [Browser Lite worker containment must cover classic descendants too](#browser-lite-worker-containment-must-cover-classic-descendants-too)
 - [Browser Lite worker WebSockets need their own native constructor routing](#browser-lite-worker-websockets-need-their-own-native-constructor-routing)
 - [Browser Lite realm wildcard must exclude trusted sibling services](#browser-lite-realm-wildcard-must-exclude-trusted-sibling-services)
+- [Do not add ttyd --check-origin while the HTTPS fallback bridges ttyd](#do-not-add-ttyd---check-origin-while-the-https-fallback-bridges-ttyd)
 
 <!-- END TOC -->
 
@@ -19049,3 +19050,15 @@ endpoint must reject with zero requests observed at that server.
 boundary, or requiring a new domain purchase. The reserved sub-zone still needs
 its own wildcard HTTPS/DNS routing before production activation; tests use owned
 fixtures and do not provision external infrastructure.
+
+## Do not add ttyd --check-origin while the HTTPS fallback bridges ttyd
+
+- **Symptom:** The Browser Lite WIP added `--check-origin` to `ttyd-run.sh` as
+  defense against same-site `bl-…` realm pages opening terminal WebSockets.
+- **Cause:** ttyd rejects any upgrade without an `Origin` header under that flag.
+  The HTTPS fallback (`server/terminal_transport.py`) connects to ttyd directly
+  and sends none, so every newly started terminal would lose the fallback path.
+- **Fix:** Leave the flag off. Sibling upgrades are already refused at the gate:
+  the manager's authcheck rejects `Sec-Fetch-Site: same-site/cross-site` upgrades.
+- **Rejected:** Sending a synthetic Origin from the bridge would make the check
+  meaningless for exactly the requests it was meant to scrutinize.
