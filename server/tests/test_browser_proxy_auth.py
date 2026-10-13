@@ -140,11 +140,22 @@ def test_device_logout_blocks_already_authenticated_delayed_bootstrap():
     assert lease(restored, token="new-login")
 
 
-@pytest.mark.parametrize("ui,main", [
-    ("https://ui.realms.example.com", "https://vibetop.example.com"),
-    ("https://browser-lite.example.com", "https://vibetop.realms.example.com"),
-    ("https://realms.example.com", "https://vibetop.example.com"),
+@pytest.mark.parametrize("domain,ui,main", [
+    ("example.com", "https://bl-ui.example.com", "https://vibetop.example.com"),
+    ("example.com", "https://browser-lite.example.com", "https://bl-u0-00000000000000000000000000000000.example.com"),
+    ("example.com", "https://example.com", "https://vibetop.example.com"),
+    ("realms.example.com", "https://realms.example.com", "https://vibetop.example.com"),
 ])
-def test_realm_wildcard_must_exclude_trusted_services(ui, main):
-    with pytest.raises(ValueError, match="exclude trusted"):
-        BrowserAuthority(b"a" * 32, "realms.example.com", ui, [main])
+def test_trusted_hosts_cannot_occupy_the_realm_namespace(domain, ui, main):
+    with pytest.raises(ValueError, match="realm namespace"):
+        BrowserAuthority(b"a" * 32, domain, ui, [main])
+
+
+def test_single_label_realms_share_the_parent_domain_with_trusted_hosts():
+    # Free Cloudflare certificates cover one level only, so production realms are
+    # bl-u<uid>-<hash>.nicejunjie.com beside vibetop/browser-lite.nicejunjie.com.
+    authority = BrowserAuthority(b"a" * 32, "example.com", "https://browser-lite.example.com",
+                                 ["https://vibetop.example.com"])
+    assert authority.host_uid("bl-u1000-" + "a" * 32 + ".example.com") == 1000
+    with pytest.raises(ValueError, match="Unknown browser host"):
+        authority.host_uid("vibetop.example.com")

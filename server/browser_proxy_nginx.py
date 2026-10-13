@@ -3,6 +3,8 @@ import re
 import os
 from urllib.parse import urlsplit
 
+from browser_proxy_auth import trusted_host_conflicts
+
 
 def main_host_map(main_origins, local_hosts=()):
     hosts = [urlsplit(origin).netloc for origin in main_origins] + list(local_hosts)
@@ -31,7 +33,7 @@ def render(domain, ui_origin, main_origins, *, listen="80", manager="127.0.0.1:7
         return parsed.netloc
     ui_host = host(ui_origin)
     mains = [host(value) for value in main_origins]
-    if not mains or ui_host in mains or any(name == domain or name.endswith("." + domain) for name in [ui_host, *mains]):
+    if not mains or ui_host in mains or any(trusted_host_conflicts(name, domain) for name in [ui_host, *mains]):
         raise ValueError("Invalid Browser Lite host configuration")
     if not re.fullmatch(r"(?:127\.0\.0\.1:)?[0-9]{1,5}", listen) or not re.fullmatch(r"127\.0\.0\.1:[0-9]{1,5}", manager) or scheme not in ("$vt_external_scheme", "https"):
         raise ValueError("Invalid internal browser listener")

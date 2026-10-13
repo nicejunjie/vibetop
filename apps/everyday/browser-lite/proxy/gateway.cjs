@@ -48,7 +48,7 @@ class BrowserGateway {
     this.trustedAncestors=trustedAncestors.map(origin=>{const url=new URL(origin);if(url.protocol!=='https:')throw new Error('Invalid trusted ancestor');return url.origin;});
     for(const origin of [this.parentOrigin,...this.trustedAncestors]) {
       const host=new URL(origin).hostname;
-      if(host===registry.domain || host.endsWith('.'+registry.domain))throw new Error('Browser realm domain must exclude trusted origins');
+      if(host===registry.domain || (host.endsWith('.'+registry.domain) && host.startsWith('bl-')))throw new Error('Trusted origins must not use the bl- realm namespace');
     }
     this.dependencies = new Map();
     this.tickets = new Map();

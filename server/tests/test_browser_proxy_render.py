@@ -71,11 +71,14 @@ def test_browser_activation_preserves_every_unrelated_site_byte(monkeypatch):
         update_browser_site('server { listen 80; }', config)
 
 
-def test_renderer_rejects_trusted_host_inside_realm_wildcard():
+def test_renderer_rejects_trusted_host_in_realm_namespace():
     import pytest
     from browser_proxy_nginx import render
     with pytest.raises(ValueError, match="host configuration"):
-        render("example.com", "https://lite.example.com", ["https://main.example.com"])
-    rendered = render("realms.example.com", "https://lite.example.com", ["https://main.example.com"])
+        render("example.com", "https://bl-lite.example.com", ["https://main.example.com"])
+    with pytest.raises(ValueError, match="host configuration"):
+        render("example.com", "https://example.com", ["https://main.example.com"])
+    # Single-label realms beside trusted hosts on one free wildcard certificate.
+    rendered = render("example.com", "https://lite.example.com", ["https://main.example.com"])
     assert "server_name lite.example.com;" in rendered
-    assert r"realms\.example\.com" in rendered
+    assert r"-[a-f0-9]{32}\.example\.com$" in rendered

@@ -33,6 +33,12 @@ def unique_cookie(header, name):
     return values[0] if len(values) == 1 else None
 
 
+def trusted_host_conflicts(host, domain):
+    """True when a trusted host is the realm parent or sits in its `bl-` namespace."""
+    host = host.lower()
+    return host == domain or (host.endswith("." + domain) and host.startswith("bl-"))
+
+
 class BrowserAuthority:
     """Small persisted root identity database; capabilities are device-lease bound."""
     def __init__(self, master, domain, ui_origin, main_origins, *, state=None,
@@ -45,12 +51,12 @@ class BrowserAuthority:
         self.main_origins = frozenset(main_origins)
         if not self.main_origins or any(urlsplit(origin).scheme != "https" for origin in [ui_origin, *self.main_origins]):
             raise ValueError("Browser Lite requires HTTPS origins")
-        # The realm wildcard is also the worker CSP boundary. Trusted services
-        # must not be covered by it, even when all hosts share a registrable domain.
+        # Realm hosts are single-label `bl-…` names under `domain`, so a
+        # free one-level wildcard certificate covers them. Trusted hosts may
+        # share that parent domain but must never be mistakable for a realm.
         for origin in [ui_origin, *self.main_origins]:
-            host = (urlsplit(origin).hostname or "").lower()
-            if host == domain or host.endswith("." + domain):
-                raise ValueError("Browser realm domain must exclude trusted UI and main origins")
+            if trusted_host_conflicts(urlsplit(origin).hostname or "", domain):
+                raise ValueError("Trusted UI and main hosts must not use the bl- realm namespace")
         self._persist, self.main_epoch, self.now = save, main_epoch, now
         self.failed = False
         self.state = state if state is not None else {"version": 1, "profiles": {}, "leases": {}, "handoffs": {}, "spent": {}}
