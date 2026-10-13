@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_414 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_415 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [Terminal link opened a closed Browser app but lost the URL](#terminal-link-opened-a-closed-browser-app-but-lost-the-url)
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
@@ -437,6 +437,7 @@ _414 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [Check the served desktop stamp against the deployed update signal](#check-the-served-desktop-stamp-against-the-deployed-update-signal)
 - [Stream fallback output and batch queued terminal input](#stream-fallback-output-and-batch-queued-terminal-input)
 - [Install the attach SIGWINCH handler before publishing its view](#install-the-attach-sigwinch-handler-before-publishing-its-view)
+- [Browser Lite: remote execution with client DOM rendering](#browser-lite-remote-execution-with-client-dom-rendering)
 
 <!-- END TOC -->
 
@@ -18334,3 +18335,35 @@ resize protocol and UI behavior, while actual-session monitoring remains active.
 - **Fix:** Install the handler first, then publish the passive view. An early
   claim and the following passive write record the same activity timestamp.
 - **Rejected:** Adding sleeps to the test hides a real, if narrow, product race.
+## Browser Lite: remote execution with client DOM rendering
+
+**Symptom.** The operator found xpra Browser too slow on flight/mobile links and
+requested an independent experimental app that sends data for local rendering.
+
+**Decision and review.** Astra prepared the architecture and Claude Code reviewed
+it twice before implementation. Revision 2 was accepted with declared limits.
+The experiment uses a per-UID Playwright Chromium, stable node IDs, keyed DOM
+changes, CDP styles/resources, a bounded long-poll protocol and an opaque client
+frame. It is a remote execution mirror, not an HTML fetcher. Existing Browser and
+its profile remain independent; unsupported content has a user-triggered fallback.
+
+**Non-obvious safeguards.** Playwright disables Chromium's sandbox by default,
+so launch explicitly enables it and a nonroot systemd preflight checks namespace
+and seccomp isolation. Ubuntu's restricted userns needs an exception scoped to
+root-owned Lite browser binaries, never a global sysctl change. A static frame
+embeds only the trusted renderer and its exact SHA-256 CSP hash. Remote scripts,
+handlers, active URLs, nested frames and inline SVG are not reconstructed.
+Root checks Unix peer UID and never fetches arbitrary website URLs. Stylesheet
+URLs resolve against their original location; image/font bodies use the remote
+context's cookie state and then become frame-local blobs. Stream ownership uses
+separate session and attachment IDs so copied tabs cannot pollute ACK cursors or
+start a reconnect takeover loop. Password properties are excluded from snapshots.
+
+**Rejected.** Sending outerHTML repeatedly would recreate the bandwidth problem;
+sending all computed styles per node would inflate baselines. A generic reverse
+proxy would not faithfully preserve arbitrary website origin/JS/login behavior.
+Pixel-stream tuning does not test the requested client-rendering model. Public
+CDP ports, a root website fetcher, disabling sandbox, or rendering website scripts
+in the trusted desktop would cross security boundaries. Full browser compatibility
+is outside this first experiment: ordinary DOM/forms work, while Canvas, media,
+complex editors, frames and shadow DOM explicitly degrade. See `docs/browser-lite.md`.

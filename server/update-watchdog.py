@@ -16,7 +16,7 @@ import urllib.request
 
 
 def run(argv, **kw):
-    return subprocess.run(argv, check=True, timeout=180, **kw)
+    return subprocess.run(argv, check=kw.pop("check", True), timeout=180, **kw)
 
 
 def healthy(port):
@@ -48,6 +48,9 @@ def restore(repo, user, before, changed):
     env = dict(os.environ, APP_USER=user, INSTALL_DEPS="0", INSTALL_SYSTEMD="0")
     if any(touched(d) for d in ("shell/", "shared/", "apps/")):
         run(["sudo", "-n", "-u", user, "-H", os.path.join(repo, "shell/install.sh")])
+    if touched("apps/everyday/browser-lite/"):
+        run([os.path.join(repo, "apps/everyday/browser-lite/install.sh")], cwd=repo,
+            env={**env, "RESTART_LITE": "1" if touched("apps/everyday/browser-lite/backend/") else "0"}, check=False)
     if touched("apps/everyday/browser/"):
         run([os.path.join(repo, "apps/everyday/browser/install.sh")], cwd=repo, env=env)
     if touched("server/") or touched("apps/everyday/terminal/"):

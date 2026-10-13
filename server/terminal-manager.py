@@ -16,6 +16,7 @@ Endpoints:
 """
 
 import base64
+import browser_lite
 import collections
 import ctypes
 import ctypes.util
@@ -5669,6 +5670,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
         if not user:
             return self._json(401, {"error": "not signed in"})
         _bump_token_epoch(user)
+        browser_lite.stop(user)
         log.info("logout-all: %s (all sessions invalidated)", user)
         self._clear_session_cookie()
 
@@ -5823,6 +5825,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
             return terminal_transport.handle(self, MAX_INSTANCE)
         if self.path == "/api/login":
             return self._handle_login()
+        if self.path.startswith("/api/browser-lite/"):
+            return browser_lite.handle(self, _ctx_user(), _resource_props() + _selinux_props())
         if self.path == "/api/logout":
             return self._handle_logout()
         if self.path == "/api/logout/all":
@@ -6488,6 +6492,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
             result["tab_names_cleared"] = True
         except Exception:
             pass
+
+        browser_lite.stop(user)  # Lite pages close; website profile persists.
 
         # 4. Reset THIS user's Browser xpra to a blank Chromium: stop it, wipe
         #    their session-restore files, and let it re-start on demand fresh.
@@ -8519,6 +8525,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
             # browser/ and terminal/ touch nginx → run as root (manager is root) with
             # APP_USER passed in; skip apt/systemd, just redeploy files + reload nginx.
             base_env = {"APP_USER": APP_USER, "INSTALL_DEPS": "0", "INSTALL_SYSTEMD": "0"}
+            if touched("apps/everyday/browser-lite/"):
+                deploy("deploy optional Browser Lite", ["./apps/everyday/browser-lite/install.sh"],
+                       {**base_env, "RESTART_LITE": "1" if touched("apps/everyday/browser-lite/backend/") else "0"})
             if touched("apps/everyday/browser/"):
                 deploy("deploy browser", ["./apps/everyday/browser/install.sh"], base_env)
             if touched("server/") or touched("apps/everyday/terminal/"):
@@ -9064,6 +9073,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
             return
         if self.path == "/api/authcheck":
             return self._handle_authcheck()
+        if self.path.startswith("/api/browser-lite/"):
+            return browser_lite.handle(self, _ctx_user(), _resource_props() + _selinux_props())
         if self.path == "/api/ping":
             # Trivial liveness probe (no side effects): the systemd watchdog and
             # any external monitor hit this to confirm the HTTP loop is answering.

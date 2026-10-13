@@ -62,7 +62,7 @@ test("the xpra patch bundle is wrapped for graceful degradation", () => {
 const PAGES = [
   ...["shell", "shared", "apps"].flatMap((d) => walk(path.join(REPO, d), /\.html$/)),
   "apps/everyday/terminal/terminals.html",
-].sort();
+].filter(rel => !rel.endsWith('.src.html')).sort();
 {
   for (const rel of PAGES) {
     test(`inline scripts parse: ${rel}`, () => {
