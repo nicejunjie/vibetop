@@ -15,6 +15,28 @@ workers created in unbridged blank/srcdoc documents need dedicated fixes.
 Do not rely on complete backend routing yet. Mobile
 WebKit testing uses emulation, not a physical iOS device.
 
+## Live deployment (2026-10-13)
+
+Installed on moon-01 and reachable through the public tunnel. Hosts:
+
+- UI: `https://browser-lite.nicejunjie.com` (no Cloudflare Access; its own
+  one-use bootstrap from the authenticated main session).
+- Realms: `bl-u<uid>-<hash>.nicejunjie.com`, single-label so the zone's free
+  Universal SSL (`*.nicejunjie.com`) covers them. Advanced Certificate Manager
+  for a `*.realms` subtree was declined. Trusted hosts may share the parent
+  domain but never the `bl-` namespace (enforced in auth, nginx render, gateway).
+- DNS: proxied `*.nicejunjie.com` CNAME to the moon-01 tunnel; cloudflared
+  ingress `*.nicejunjie.com -> http://127.0.0.1:80` sits after explicit hosts.
+  nginx answers 421 for any host that is neither main nor Browser Lite.
+- Trade-off accepted: the content cookie is `Domain=nicejunjie.com`, so sibling
+  services receive it (HttpOnly). The main session moved to `__Host-vt_session`
+  on HTTPS so a sibling cannot plant or shadow it; that rename signs every
+  existing HTTPS session out once.
+
+First live check: Wikipedia, Google, GitHub, YouTube, BBC News and Hacker News
+render through a realm in Chromium. Not yet verified live: sign-in popups, video
+playback, mobile Safari on a real device, slow-link behaviour from China.
+
 ## Latest worker regression results (2026-10-13)
 
 The constructor prerequisite now matches native Chromium and mobile-emulated
@@ -93,7 +115,7 @@ uses `INSTALL_DEPS=0`: it skips an absent/disabled optional installation and
 otherwise builds against the installed verified dependency tree. A changed lock
 file fails explicitly and requires an intentional dependency upgrade.
 
-Reserve `*.realms.example.com` exclusively for website realms. The UI and main
+Production uses single-label realms (see Live deployment); a dedicated `*.realms` subtree remains supported. The UI and main
 Vibetop hosts must sit outside that wildcard; startup rejects overlapping trusted
 origins. This uses a subdomain of the existing domain, not a new domain purchase.
 Provision its HTTPS certificate and routing before activation.
