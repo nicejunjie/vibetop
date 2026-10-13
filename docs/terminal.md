@@ -394,3 +394,18 @@ collector stops. Preserve the expiry parameter during a targeted profile deploy;
 a normal installer deploy removes the activation and leaves profiling disabled.
 Clientlog is rate limited, so the report states possible omissions. The collector
 runs as the monitored user and should be started as a bounded systemd service.
+
+## HTTPS connection fallback
+
+A terminal whose WebSocket cannot open within eight seconds automatically uses
+ordinary same-origin HTTPS requests. Healthy WebSockets continue normally. The
+choice is remembered for ten minutes in the tab's session storage, so additional
+terminals and reloads do not repeat the failing handshake. Existing shells are
+preserved; only their client transport changes.
+
+`terminal-http.js` is injected before the connection guard. The manager's
+`POST /api/terminal-transport` requires a valid user session and passes the usual
+CSRF gate. The backend resolves the user's allocated ttyd port itself; clients
+cannot choose an upstream address. Output stays in bounded memory until acknowledged,
+and sequenced input retries are deduplicated. Relays expire after 90 seconds
+without requests, with a maximum of 16 per user and 128 globally.

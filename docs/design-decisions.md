@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_410 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_411 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [Terminal link opened a closed Browser app but lost the URL](#terminal-link-opened-a-closed-browser-app-but-lost-the-url)
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
@@ -433,6 +433,7 @@ _410 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [Terminal closed transport recovery and mobile foreground reuse (2026-10-07)](#terminal-closed-transport-recovery-and-mobile-foreground-reuse-2026-10-07)
 - [Recover the ttyd transport without rebuilding its page (2026-10-08)](#recover-the-ttyd-transport-without-rebuilding-its-page-2026-10-08)
 - [Mobile reconnect redraws at the visible client's geometry (2026-10-08)](#mobile-reconnect-redraws-at-the-visible-clients-geometry-2026-10-08)
+- [Terminal HTTPS fallback when WebSocket establishment stalls](#terminal-https-fallback-when-websocket-establishment-stalls)
 
 <!-- END TOC -->
 
@@ -18246,3 +18247,27 @@ reconnect in Chromium and mobile WebKit. The fixed path requests one resize pair
 without a gesture, keeps the same terminal, follows the fresh prompt and preserves
 intentional history navigation. All transports are mocked; tests verify the
 resize protocol and UI behavior, while actual-session monitoring remains active.
+
+## Terminal HTTPS fallback when WebSocket establishment stalls
+
+- **Symptom:** The desktop can create terminals and synchronize them to another
+  device, but its terminal sockets remain CONNECTING through repeated retries.
+  The origin sees successful page/token fetches without corresponding WebSocket
+  upgrades. Other devices can still attach to the same live shells.
+- **Cause:** The failure is isolated to WebSocket establishment on that client's
+  path; server evidence cannot distinguish browser networking from an intermediary.
+  Retrying the same transport exclusively leaves the working HTTP path unused.
+- **Fix:** After an eight-second stalled handshake (or an initial socket error),
+  `terminal-http.js` attaches through authenticated same-origin POST requests.
+  The manager resolves only the signed-in user's ttyd port. A bounded in-memory
+  relay carries the existing ttyd frames; output is acknowledged and input has
+  sequence numbers so a lost HTTP response cannot execute input twice. Idle
+  relays expire, and healthy native WebSockets retain their normal path.
+- **Rejected:** Repeatedly restarting terminal services would not repair the
+  client path and risks the user's work. Requiring another network or browser
+  leaves the app unusable where ordinary HTTPS already works. The fallback does
+  not claim to identify the original browser/network fault.
+- **Validation:** Backend authentication, tenant isolation, output acknowledgement,
+  fragmented frames/ping, and input deduplication tests; browser adapter tests;
+  real ttyd/xterm with a permanently pending native WebSocket, lost input response,
+  and reconnect replay (`tests/e2e/terminal-http.py`).

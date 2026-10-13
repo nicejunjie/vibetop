@@ -55,6 +55,7 @@ from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
 import system_status  # sibling module: /api/system/status data collection
 import metrics_history  # sibling module: the 7-day system-metrics ring
 import stats_worker   # transcript analytics run in separate spawned processes
+import terminal_transport
 import service_discovery  # sibling module: /api/services/discover network-service scan
 
 # ---- logging -----------------------------------------------------------------
@@ -5802,6 +5803,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
                         self.path, self.headers.get("Origin"), self.headers.get("Host"))
             self._json(403, {"error": "cross-origin request rejected"})
             return
+        if self.path == "/api/terminal-transport":
+            return terminal_transport.handle(self, MAX_INSTANCE)
         if self.path == "/api/login":
             return self._handle_login()
         if self.path == "/api/logout":
