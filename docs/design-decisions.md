@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_444 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_445 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [Terminal link opened a closed Browser app but lost the URL](#terminal-link-opened-a-closed-browser-app-but-lost-the-url)
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
@@ -467,6 +467,7 @@ _444 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [Browser Lite worker WebSockets need their own native constructor routing](#browser-lite-worker-websockets-need-their-own-native-constructor-routing)
 - [Browser Lite realm wildcard must exclude trusted sibling services](#browser-lite-realm-wildcard-must-exclude-trusted-sibling-services)
 - [Do not add ttyd --check-origin while the HTTPS fallback bridges ttyd](#do-not-add-ttyd---check-origin-while-the-https-fallback-bridges-ttyd)
+- [Browser Lite srcdoc iframes must bootstrap from the native parent](#browser-lite-srcdoc-iframes-must-bootstrap-from-the-native-parent)
 
 <!-- END TOC -->
 
@@ -19062,3 +19063,24 @@ fixtures and do not provision external infrastructure.
   the manager's authcheck rejects `Sec-Fetch-Site: same-site/cross-site` upgrades.
 - **Rejected:** Sending a synthetic Origin from the bridge would make the check
   meaningless for exactly the requests it was meant to scrutinize.
+
+## Browser Lite srcdoc iframes must bootstrap from the native parent
+
+- **Symptom:** Logged-in x.com in Browser Lite showed only the X logo, then
+  the whole Vibetop desktop froze (iPhone Safari, and any mobile user agent).
+- **Cause:** x.com runs Cloudflare's bot check (`/cdn-cgi/challenge-platform/
+  …/jsd/main.js`) in a `srcdoc` iframe. Rammerhead's build rewrites every
+  `window.parent` in the client engine to `window.rammerheadParent`, including the
+  inline `iframeInit`/`onWindowRecreation` bootstraps. Those run in the fresh child
+  before its engine exists, so `rammerheadParent` is undefined and the child is
+  never initialized. Its rewritten scripts then call an undefined `__get$`. The
+  obfuscated string-table rotation loop catches the TypeError and retries forever,
+  and the realm shares a renderer with Vibetop (same site), so everything hangs.
+- **Fix:** `build-engine.cjs` restores `window.parent` in the two bootstrap
+  templates after the substitution, and fails the build if either patch is missing.
+- **Rejected:** Making the script header fall back to plain shims when `__get$`
+  is absent. That would hide the bug, and leave the child's requests and
+  navigation unproxied.
+- **Diagnosis tip:** The hang showed up only with a mobile UA. CDP
+  `Debugger.pause` plus `Page.getFrameTree` located the spinning script's frame;
+  in-frame `evaluateOnCallFrame` fails there ("Cannot find context").

@@ -50,6 +50,13 @@ build = replaceOne(build,
         // WebKit reports cross-origin frameElement probes even when caught.
         .replace('function getFrameElement(win) {', 'function getFrameElement(win) { if (win === window.rammerheadTop) return null;')
         .replace('documentLocation = nativeMethods.contentDocumentGetter.call(iframe).location.href;', 'var frameUrl = nativeMethods.getAttribute.call(iframe, "src"); if (!frameUrl || new URL(frameUrl, window.location.href).origin === window.location.origin) { var frameDoc = nativeMethods.contentDocumentGetter.call(iframe); documentLocation = frameDoc && frameDoc.location.href; }')
+        // The inline iframe bootstraps run in a fresh srcdoc/child document before
+        // its engine exists, so rammerheadParent is still undefined there. This
+        // runs after the window.parent substitution and restores the native parent.
+        // Otherwise the child's scripts call an undefined __get$, and obfuscated
+        // retry loops (Cloudflare's jsd on x.com) spin forever and hang the page.
+        .replace('parentHammerhead = window.rammerheadParent[', 'parentHammerhead = window.parent[')
+        .replace('sandbox = window.rammerheadParent[', 'sandbox = window.parent[')
         // disable saving to localStorage as we are using a completely different implementation`);
 // Apply only the storage wrapper opt-out to the source; retain ordinary engine
 // behavior for diagnostic baseline pages which do not enable real-origin mode.
@@ -115,4 +122,7 @@ const compiled = new Module(source, module);
 compiled.filename = source;
 compiled.paths = Module._nodeModulePaths(path.dirname(source));
 compiled._compile(build, source);
+const builtClient = fs.readFileSync(path.join(root, 'src/client/hammerhead.js'), 'utf8');
+for (const needle of ['parentHammerhead = window.parent[', 'sandbox = window.parent['])
+  if (builtClient.split(needle).length !== 2) throw new Error('Iframe bootstrap patch missing: ' + needle);
 console.log('Built pinned Rammerhead with Vibetop compatibility patches');
