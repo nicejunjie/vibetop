@@ -2,10 +2,12 @@
 // Run inside the rewriter's PrivateNetwork namespace. The only path out is a
 // filesystem socket owned by this user, served by the independently guarded unit.
 const net = require('node:net');
-async function createEgressRelay(socketPath, secret) {
+// The cap counts connections (each is two sockets) and sits above the egress
+// limit, so a burst waits for an egress slot instead of being reset here.
+async function createEgressRelay(socketPath, secret, {maxConnections = 512} = {}) {
   const sockets = new Set();
   const server = net.createServer(client => {
-    if (sockets.size >= 256) { client.destroy(); return; }
+    if (sockets.size / 2 >= maxConnections) { client.destroy(); return; }
     const guard = net.createConnection({path: socketPath});
     for (const socket of [client, guard]) {
       sockets.add(socket);

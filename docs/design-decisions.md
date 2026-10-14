@@ -19233,7 +19233,13 @@ fixtures and do not provision external infrastructure.
   into a 500 with no CORS headers. Found by setting `VT_BROWSER_DIAGNOSTICS=1`
   and `DEBUG=testcafe:hammerhead:destination` in a temporary unit drop-in.
 - **Fix:** The cap is now 384 upstream sockets. A request over the cap waits up
-  to 15 s for a slot, woken when any socket closes, before failing.
+  to 15 s for a slot, woken when any socket closes, before failing. The
+  rewriter-side relay (`egress-relay.cjs`) had its own cap of "256 sockets",
+  which counted both ends of each connection, so it really allowed 128
+  connections and reset the rest. nginx logged "upstream prematurely closed",
+  and Booking.com lost its CSS on iPhone. It now counts connections and
+  allows 512, above the egress cap, so a burst waits at the egress instead
+  of being reset.
 - **Rejected:** Removing the cap. It bounds what one user's pages can make
   this host open.
 
