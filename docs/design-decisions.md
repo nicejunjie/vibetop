@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_448 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_449 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [Terminal link opened a closed Browser app but lost the URL](#terminal-link-opened-a-closed-browser-app-but-lost-the-url)
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
@@ -471,6 +471,7 @@ _448 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [Browser Lite rewrites HLS playlists for native players](#browser-lite-rewrites-hls-playlists-for-native-players)
 - [Browser Lite follows same-frame links by replacement](#browser-lite-follows-same-frame-links-by-replacement)
 - [Browser Lite realm hosts use 64k nginx header buffers](#browser-lite-realm-hosts-use-64k-nginx-header-buffers)
+- [Browser Lite parses srcset like a browser, not by splitting on commas](#browser-lite-parses-srcset-like-a-browser-not-by-splitting-on-commas)
 
 <!-- END TOC -->
 
@@ -19139,3 +19140,21 @@ fixtures and do not provision external infrastructure.
   header buffer is allocated per request.
 - **Rejected:** Dropping or truncating sync cookies to fit. That would silently
   sign users out of sites and break consent and anti-bot cookies.
+
+## Browser Lite parses srcset like a browser, not by splitting on commas
+
+- **Symptom:** CNN's story photos were broken in Browser Lite and showed their
+  alt text. Chrome logged `ERR_BLOCKED_BY_ORB` for requests to
+  `https://www.cnn.com/c_fill/f_webp`.
+- **Cause:** Hammerhead's `handleUrlsSet` (server and client copies) splits a
+  `srcset` on every comma. CNN's image URLs contain commas
+  (`?q=h_384,w_256,c_fill/f_webp 1x`), so each candidate became three
+  rewritten fragments. The images failed, and CNN's error handler replaced
+  them with its own fallback, a path-absolute URL that misses the proxy.
+- **Fix:** `srcset-patch.cjs` replaces both copies with the HTML spec's
+  candidate parsing. A URL runs to whitespace. Only a trailing comma, or the
+  comma after its descriptors (outside parentheses), ends a candidate.
+  Candidates are joined with `", "` so comma-bearing proxy URLs stay
+  re-parseable.
+- **Rejected:** Percent-encoding commas in proxied URLs. That changes the URL
+  the origin sees, and some image CDNs treat `%2C` differently from `,`.
