@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_454 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_455 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [Terminal link opened a closed Browser app but lost the URL](#terminal-link-opened-a-closed-browser-app-but-lost-the-url)
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
@@ -477,6 +477,7 @@ _454 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [Browser Lite borrows site logins from the full Browser, never Google's](#browser-lite-borrows-site-logins-from-the-full-browser-never-googles)
 - [Browser Lite egress queues connections past its limit](#browser-lite-egress-queues-connections-past-its-limit)
 - [Browser Lite memoizes Hammerhead's client cookie probe and skips identical syncs](#browser-lite-memoizes-hammerheads-client-cookie-probe-and-skips-identical-syncs)
+- [Browser Lite gives toolbar navigations a fresh frame](#browser-lite-gives-toolbar-navigations-a-fresh-frame)
 
 <!-- END TOC -->
 
@@ -19252,3 +19253,24 @@ fixtures and do not provision external infrastructure.
   the string (page writes, server sync, deletions) still triggers a full sync.
 - **Rejected:** Dropping the window-sync re-application. Cookie changes
   between a page and its frames depend on it.
+
+## Browser Lite gives toolbar navigations a fresh frame
+
+- **Symptom:** On iPhone, typing a new address while claude.ai was open changed
+  the tab title, but the page stayed on Claude.
+- **Cause:** The controller navigated the existing iframe with
+  `location.replace`, so the old document stayed alive until the new one
+  committed. The navigation aborted claude.ai's in-flight module loads, and
+  its error handler called `location.reload()`, which cancelled the pending
+  cross-origin load ("Load request cancelled"). Desktop Chrome happened to
+  commit first.
+- **Fix:** `open()`, used by the address bar, reload and history to another
+  document, activates with `{fresh:true}`. The controller swaps in a new iframe
+  with the same attributes and loads the entry with `src`, so the old page is
+  destroyed at once. That matches how browsers give browser-initiated
+  navigations a new browsing context. In-page navigations and redirects still
+  use `location.replace`. The wrapper tracks the current frame through
+  `onFrame`.
+- **Rejected:** Messaging the old page to stop navigating. Page scripts, not
+  Browser Lite, own `location`, and anything they do between the message and
+  the commit can still cancel the load.

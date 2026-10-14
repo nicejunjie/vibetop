@@ -2,8 +2,8 @@
   'use strict';
   // This file belongs only on the dedicated, trusted browser UI origin.
   class BrowserProxyController {
-    constructor({frame,request,onState=()=>{},onError=()=>{},onOpen=null,onHistory=()=>{},allowPopup=()=>false}) {
-      Object.assign(this,{frame,request,onState,onError,onOpen,onHistory,allowPopup});this.state=null;this.serverState=null;this.sequence=0;this.approving=false;this.operations=Promise.resolve();
+    constructor({frame,request,onState=()=>{},onError=()=>{},onOpen=null,onHistory=()=>{},allowPopup=()=>false,onFrame=()=>{}}) {
+      Object.assign(this,{frame,request,onState,onError,onOpen,onHistory,allowPopup,onFrame});this.state=null;this.serverState=null;this.sequence=0;this.approving=false;this.operations=Promise.resolve();
       this.clientId=window.crypto.randomUUID();this.tabId=window.crypto.randomUUID();this.operation=0;this.pending=null;
       this.listener=event=>this.message(event);window.addEventListener('message',this.listener);
       this.loadListener=()=>{if(this.readyBeforeLoad)this.readyBeforeLoad=false;else this.attach();};this.frame.addEventListener?.('load',this.loadListener);
@@ -42,7 +42,7 @@
         await this.recover();
         const identity=this.serverState?{tabId:this.serverState.tabId,epoch:this.serverState.epoch+1}:{tabId:this.tabId,epoch:1};
         const state=await this.command('open',{url,...identity});this.serverState=state;
-        if(sequence===this.sequence)this.activate(state);
+        if(sequence===this.sequence)this.activate(state,{fresh:true});
       });
     }
     cancelTraversal() {
@@ -68,11 +68,26 @@
         this.send({action:'traverse',requestId,documentId:history.documentId,basisEntryId:history.entries[history.index].id,targetEntryId});
       });
     }
-    activate(state) {
+    // Toolbar navigations (address bar, reload, history to another document) get
+    // a fresh frame, as a browser gives browser-initiated navigations a new
+    // browsing context. Otherwise the old page stays alive until the new one
+    // commits and can cancel it: claude.ai reloads itself when the navigation
+    // aborts its chunk loads. Removing the frame also drops its entries from
+    // the host page's joint session history.
+    freshFrame() {
+      const old=this.frame;
+      if(!old?.parentNode || !old.ownerDocument || !(this.lastEntry||old.getAttribute('src')))return;
+      const fresh=old.ownerDocument.createElement('iframe');
+      for(const {name,value} of [...old.attributes])if(name!=='src' && name!=='name')fresh.setAttribute(name,value);
+      old.removeEventListener('load',this.loadListener);fresh.addEventListener('load',this.loadListener);
+      old.replaceWith(fresh);this.frame=fresh;this.lastEntry=null;this.onFrame(fresh);
+    }
+    activate(state,{fresh=false}={}) {
       this.cancelTraversal();
       if(!state || !Number.isSafeInteger(state.epoch) || typeof state.tabId!=='string'
         || new URL(state.entry).origin!==state.origin)throw new Error('Invalid browser response');
       this.state=state;this.serverState=state;this.expired=false;this.nonce=null;this.documentId=null;this.historySequence=-1;this.readyBeforeLoad=false;this.onState({...state,loading:true});
+      if(fresh)this.freshFrame();
       // Cross-origin Location.replace is a native allowed operation. Preserve
       // WindowProxy identity without filling browser history with one-use entry
       // tickets whenever the toolbar changes address or follows a redirect.

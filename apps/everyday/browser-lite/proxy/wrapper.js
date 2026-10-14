@@ -93,8 +93,8 @@
     element.className='tab';select.className='select';select.textContent='New tab';select.setAttribute('role','tab');close.className='close';close.textContent='×';close.setAttribute('aria-label','Close tab');
     element.append(select,close);$('tabs').append(element);$('stage').append(frame);
     const tab={id,frame,element,select,history:[],position:-1,state:null};tabs.set(id,tab);
-    tab.controller=new BrowserProxyController({frame,request,onState:state=>update(tab,state),onOpen:url=>newTab(url),onHistory:delta=>history(delta,tab),
-      allowPopup:()=>{if(active!==tab||document.activeElement!==frame||!navigator.userActivation?.isActive||popupUsed)return false;popupUsed=true;return true;},
+    tab.controller=new BrowserProxyController({frame,request,onFrame:fresh=>{const focused=document.activeElement===tab.frame;tab.frame=fresh;if(focused)fresh.focus();},onState:state=>update(tab,state),onOpen:url=>newTab(url),onHistory:delta=>history(delta,tab),
+      allowPopup:()=>{if(active!==tab||document.activeElement!==tab.frame||!navigator.userActivation?.isActive||popupUsed)return false;popupUsed=true;return true;},
       onError:error=>{if(active===tab)status(error.message,true);}});
     select.onclick=()=>activate(tab);close.onclick=()=>{
       clearTimeout(tab.timer);tabs.delete(id);element.remove();tab.controller.dispose().catch(()=>{});

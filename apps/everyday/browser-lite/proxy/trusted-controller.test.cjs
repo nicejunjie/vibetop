@@ -117,3 +117,28 @@ test('old-page click recovers and activates a lost reopen without approving its 
  await tick();assert.equal(r[1].command,'open');assert.deepEqual(r[1].body,r[0].body);
  r[1].resolve(state(2));await approve;assert.equal(r.length,2);assert.deepEqual(errors,[]);assert.equal(frame.src,state(2).entry);
 });
+test('toolbar navigations replace the frame so the old page cannot cancel them',async()=>{
+ const window={crypto:require('node:crypto'),addEventListener(){},removeEventListener(){}};
+ vm.runInNewContext(fs.readFileSync(require.resolve('./trusted-controller.js'),'utf8'),{window,URL,console,setTimeout,clearTimeout});
+ const doc={createElement:()=>element()},parent={};
+ function element(){
+  const el={attrs:new Map(),listeners:new Set(),parentNode:parent,ownerDocument:doc,contentWindow:{},
+   get attributes(){return [...el.attrs].map(([name,value])=>({name,value}));},
+   setAttribute(name,value){el.attrs.set(name,value);if(name==='src')el.src=value;},getAttribute(name){return name==='src'?(el.src||null):el.attrs.get(name)??null;},
+   addEventListener(_t,f){el.listeners.add(f);},removeEventListener(_t,f){el.listeners.delete(f);},
+   replaceWith(next){el.parentNode=null;el.replacedBy=next;},remove(){}};
+  el.contentWindow.location={replace(url){el.src=url;el.replaced=url;}};
+  return el;
+ }
+ const first=element();first.setAttribute('sandbox','allow-scripts');first.setAttribute('title','Webpage');
+ const frames=[],requests=[];
+ const c=new window.BrowserProxyController({frame:first,onFrame:f=>frames.push(f),request:(command,body)=>new Promise(resolve=>requests.push({command,body,resolve}))});
+ const one=c.open('https://site1.example');await tick();requests[0].resolve(state(1));await one;
+ assert.equal(first.src,state(1).entry);assert.equal(frames.length,0);
+ const two=c.open('https://site2.example');await tick();requests[1].resolve(state(2));await two;
+ const fresh=first.replacedBy;
+ assert.ok(fresh && frames[0]===fresh && c.frame===fresh);
+ assert.equal(fresh.src,state(2).entry);assert.equal(first.replaced,undefined);
+ assert.equal(fresh.getAttribute('sandbox'),'allow-scripts');assert.equal(fresh.getAttribute('title'),'Webpage');
+ assert.equal(first.listeners.size,0);assert.equal(fresh.listeners.size,1);
+});
