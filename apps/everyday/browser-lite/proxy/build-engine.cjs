@@ -105,6 +105,22 @@ require('./worker-origin-patch.cjs').patchWorkerOrigins(engineRequire);
 require('./hls-patch.cjs').patchHlsPlaylists(engineRequire);
 require('./srcset-patch.cjs').patchSrcset(engineRequire);
 require('./cookie-perf-patch.cjs').patchClientCookiePerformance(engineRequire);
+// Rammerhead's last-resort handler rethrows any non-network error, so one
+// unexpected exception in a single request killed the runtime and every tab
+// (and repeated crashes tripped systemd's start limit). Log and keep serving;
+// only a burst of failures, a sign of a broken process, still exits.
+{
+  const guard=engineRequire.resolve('rammerhead/src/util/addMoreErrorGuards.js');
+  let code=fs.readFileSync(guard,'utf8');
+  if(!code.includes('vtRecentErrors')) {
+    code=replaceOne(code,"process.on('uncaughtException', (err) => {","const vtRecentErrors = [];\nprocess.on('uncaughtException', (err) => {");
+    code=replaceOne(code,"        console.error('About to throw: ' + err.message);\n        throw err;",
+      "        console.error('Recovered from an unexpected error: ' + String(err && err.message).slice(0, 200) + ' ' + String(err && err.stack || '').split('\\n')[1]);\n"+
+      "        const now = Date.now();\n        while (vtRecentErrors.length && now - vtRecentErrors[0] > 60000) vtRecentErrors.shift();\n"+
+      "        vtRecentErrors.push(now);\n        if (vtRecentErrors.length > 20) { console.error('Too many unexpected errors; exiting'); process.exit(70); }");
+    fs.writeFileSync(guard,code);
+  }
+}
 const {patchCookieWire,hardenCookieWire} = require('./cookie-wire-patch.cjs');
 for (const [file, isClient] of [['client/hammerhead.js',true],['utils/cookie.js',false]]) {
   const target = engineRequire.resolve('testcafe-hammerhead/lib/' + file);

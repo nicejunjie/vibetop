@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_455 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_456 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [Terminal link opened a closed Browser app but lost the URL](#terminal-link-opened-a-closed-browser-app-but-lost-the-url)
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
@@ -478,6 +478,7 @@ _455 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [Browser Lite egress queues connections past its limit](#browser-lite-egress-queues-connections-past-its-limit)
 - [Browser Lite memoizes Hammerhead's client cookie probe and skips identical syncs](#browser-lite-memoizes-hammerheads-client-cookie-probe-and-skips-identical-syncs)
 - [Browser Lite gives toolbar navigations a fresh frame](#browser-lite-gives-toolbar-navigations-a-fresh-frame)
+- [Browser Lite's runtime survives a bad redirect and recovers from crash loops](#browser-lites-runtime-survives-a-bad-redirect-and-recovers-from-crash-loops)
 
 <!-- END TOC -->
 
@@ -19280,3 +19281,25 @@ fixtures and do not provision external infrastructure.
 - **Rejected:** Messaging the old page to stop navigating. Page scripts, not
   Browser Lite, own `location`, and anything they do between the message and
   the commit can still cancel the load.
+
+## Browser Lite's runtime survives a bad redirect and recovers from crash loops
+
+- **Symptom:** Booking.com and other pages intermittently lost their CSS or JS,
+  and every open tab could fail at once with "This browser session ended".
+  Browser Lite then stayed down: nginx logged `ingress.sock failed (2: No such
+  file or directory)`.
+- **Cause:** A redirect to a non-web scheme (Booking's App Store link,
+  `itms-appss:`) or to a URL with `user:pass@` made the realm URL mapper throw
+  inside Hammerhead's `Location` header transform. Rammerhead's last-resort
+  `uncaughtException` handler rethrows non-network errors, so the per-user
+  runtime exited and dropped every in-flight request. A few crashes tripped
+  systemd's start limit and failed the socket unit too. The manager's
+  `ensure()` only ran `systemctl start`, which systemd refuses in that state.
+- **Fix:** `getProxyUrl` leaves non-web schemes untouched, as Hammerhead does,
+  strips embedded credentials, and maps anything else unmappable to
+  `about:blank` rather than throwing. The build patches Rammerhead's guard to
+  log an unexpected error and keep serving; more than 20 in a minute still
+  exits. `ensure()` runs `systemctl reset-failed` on both sockets and services
+  before starting them.
+- **Rejected:** Raising systemd's start limit. A crash still closes every tab,
+  and the limit exists to stop a hot crash loop.

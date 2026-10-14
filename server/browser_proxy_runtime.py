@@ -177,7 +177,12 @@ TimeoutStopSec=10
             if cached == (claims["epoch"], self.revision):
                 # This is a trusted UI open, never a subresource hot path. Start
                 # is idempotent and also recovers a crashed/OOM-killed daemon.
-                self._systemctl("start", self.names(uid)["rewrite"] + ".service")
+                # A crash loop trips systemd's start limit and fails the socket
+                # too; start alone is then refused until the failure is reset.
+                names = self.names(uid)
+                self.execute(["systemctl", "reset-failed", *(names[key] + suffix for key in ("egress", "rewrite")
+                              for suffix in (".socket", ".service"))], capture_output=True, timeout=30)
+                self._systemctl("start", names["egress"] + ".socket", names["rewrite"] + ".socket", names["rewrite"] + ".service")
                 return
             names = self.names(uid)
             # Manager restart must adopt its existing root-owned configuration,

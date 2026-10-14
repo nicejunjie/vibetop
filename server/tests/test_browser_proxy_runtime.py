@@ -150,3 +150,16 @@ def test_runtime_commit_marker_is_written_only_after_units_reload(tmp_path, monk
         manager.prepare(claims)
         assert events[-2:] == ['daemon-reload', 'rewrite.json']
     assert events[0] == 'egress.json'
+
+
+def test_open_recovers_a_runtime_that_tripped_the_start_limit(tmp_path):
+    manager, claims, commands = runtime(tmp_path)
+    manager.ready[claims["uid"]] = (claims["epoch"], manager.revision)
+    manager._validate = lambda claims: None
+    manager.ensure(claims)
+    names = manager.names(claims["uid"])
+    reset = [c for c in commands if c[:2] == ["systemctl", "reset-failed"]]
+    start = [c for c in commands if c[:2] == ["systemctl", "start"]]
+    assert reset and start and commands.index(reset[0]) < commands.index(start[0])
+    assert names["rewrite"] + ".socket" in reset[0] and names["rewrite"] + ".service" in reset[0]
+    assert start[0][2:] == [names["egress"] + ".socket", names["rewrite"] + ".socket", names["rewrite"] + ".service"]

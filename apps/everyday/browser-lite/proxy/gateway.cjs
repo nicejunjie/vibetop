@@ -297,6 +297,17 @@ class BrowserGateway {
       const prior = urls.parseProxyUrl(destination);
       if (prior && prior.sessionId === gateway.session.id) destination=prior.destUrl;
       if (/^about:/.test(destination)) return getProxyUrl(destination,options);
+      // A Location header or link may name a non-web scheme (Booking redirects
+      // to itms-appss:) or embed user:pass@. Mapping such a target used to
+      // throw inside Hammerhead's header transform and crash the runtime,
+      // closing every tab. Leave other schemes untouched, as Hammerhead does,
+      // drop embedded credentials, and fall back to about:blank otherwise.
+      let parsed;try{parsed=new URL(destination);}catch{return getProxyUrl('about:blank',options);}
+      if(!/^(https?|wss?):$/.test(parsed.protocol))return destination;
+      if(parsed.username||parsed.password){parsed.username='';parsed.password='';destination=parsed.href;}
+      try{return mapProxyUrl(destination,options);}catch{return getProxyUrl('about:blank',options);}
+    };
+    function mapProxyUrl(destination, options) {
       const mapped=registry.isRealm?registry.map(webUrl(destination),options):null;
       const physical = new URL(mapped?.physical || registry.register(webUrl(destination)));
       const websocket = /^wss?:/.test(destination);
