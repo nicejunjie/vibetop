@@ -106,6 +106,7 @@ require('./hls-patch.cjs').patchHlsPlaylists(engineRequire);
 require('./srcset-patch.cjs').patchSrcset(engineRequire);
 require('./svg-href-patch.cjs').patchSvgHref(engineRequire);
 require('./realm-root-url-patch.cjs').patchRealmRootUrls(engineRequire);
+require('./top-level-patch.cjs').patchTopLevel(engineRequire);
 require('./cookie-perf-patch.cjs').patchClientCookiePerformance(engineRequire);
 // Rammerhead's last-resort handler rethrows any non-network error, so one
 // unexpected exception in a single request killed the runtime and every tab
@@ -136,6 +137,7 @@ for (const file of ['request-pipeline/request-options.js', 'request-pipeline/des
   const to = from.replace('false', 'true');
   if (!code.includes(to)) { code = replaceOne(code, from, to); fs.writeFileSync(target, code); }
 }
+require('./tunnel-pool-patch.cjs').patchTunnelPool(engineRequire);
 // Resolve dependencies using Node, rather than assuming a nested npm layout.
 build = build.replace(/path\.join\(__dirname, '\.\.\/node_modules\/testcafe-hammerhead\/([^']+)'\)/g,
   (_match, file) => 'require.resolve(' + JSON.stringify('testcafe-hammerhead/' + file) + ')');

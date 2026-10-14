@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_461 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_463 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [Terminal link opened a closed Browser app but lost the URL](#terminal-link-opened-a-closed-browser-app-but-lost-the-url)
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
@@ -484,6 +484,8 @@ _461 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [Browser Lite proxies SVG 2 `href` references](#browser-lite-proxies-svg-2-href-references)
 - [Browser Lite treats `setAttribute('srcSet', …)` as a srcset](#browser-lite-treats-setattributesrcset-as-a-srcset)
 - [Browser Lite listens for the fresh frame's load only after the swap](#browser-lite-listens-for-the-fresh-frames-load-only-after-the-swap)
+- [Browser Lite pages see themselves as top-level](#browser-lite-pages-see-themselves-as-top-level)
+- [Browser Lite reuses upstream connections through the egress](#browser-lite-reuses-upstream-connections-through-the-egress)
 
 <!-- END TOC -->
 
@@ -19383,3 +19385,45 @@ fixtures and do not provision external infrastructure.
   insertion. `freshFrame()` attached the load listener before `replaceWith`,
   so `attach()` ran while `this.frame` was still the detached old frame.
 - **Fix:** Assign `this.frame` and add the listener after the swap.
+
+## Browser Lite pages see themselves as top-level
+
+- **Symptom:** claude.ai in Browser Lite had no sidebar (desktop and iPhone).
+- **Cause:** A Lite tab is an iframe inside Lite's UI. Claude runs
+  `window.self !== window.top` and, when true, switches to its embedded
+  (integration) mode, which has no navigation. Pages also saw a cross-origin
+  `parent` (Lite's UI) and the UI's address as `document.referrer`. Any site
+  that behaves differently when framed was affected.
+- **Fix:** `top-level-patch.cjs` instruments `top` and `parent` like
+  `location` in page code. For a window in the tab, `x.top` is the tab's root
+  page and the root's `parent` is itself. The root is found natively from
+  `location.ancestorOrigins`: the topmost ancestor that is still one of the
+  user's realms. `document.referrer` is `''` when the native referrer is not a
+  proxied page. Worker engines and Hammerhead's own code are unchanged.
+- **Rejected:** Redefining `window.parent` on the root page. `top` is
+  unforgeable, and Rammerhead's bootstrap walks `parent` to find its own top,
+  so an override made the page hang. Bare `top`/`parent` identifiers are not
+  covered yet; member access (`window.top`) is the common form.
+- **Lesson:** A site check must compare against the real site's layout, not
+  just "the page rendered". This was missed in an earlier sweep.
+
+## Browser Lite reuses upstream connections through the egress
+
+- **Symptom:** claude.ai showed "Can't reach Claude" and never booted. About
+  90 of its module scripts failed with no response, and Anthropic's asset CDN
+  (`assets-proxy.anthropic.com`) answered our connection attempts with TCP
+  resets.
+- **Cause:** With an upstream proxy configured (Lite's egress), Hammerhead
+  creates a new `tunnel-agent` for every HTTPS request. Each request paid a
+  fresh CONNECT, TCP and TLS handshake, and nothing was reused. Claude's ~160
+  module scripts became ~160 simultaneous connections to one host, which looks
+  like a connection flood. A browser sends them over one HTTP/2 connection.
+- **Fix:** `tunnel-pool-patch.cjs` replaces it with one keep-alive
+  `https.Agent` per destination. It opens each connection through a CONNECT
+  tunnel to the egress and reuses it, with at most 8 per host (Chrome allows 6
+  per host over HTTP/1.1). Node counts an asynchronously created socket toward
+  `maxSockets` only once it exists, so the agent holds the slot with a
+  placeholder while the tunnel opens. Otherwise a burst still opens one per
+  request.
+- **Rejected:** Raising the egress connection cap (1.38.59). It hid the
+  symptom and made the bursts larger.
