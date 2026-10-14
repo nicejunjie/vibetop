@@ -20,6 +20,11 @@ import time
 # Registrable domains whose cookies never leave the real Browser.
 EXCLUDED_SITES = ("google.com", "youtube.com", "gmail.com", "googleusercontent.com",
                   "googleapis.com", "gstatic.com", "withgoogle.com")
+# Anti-bot clearance tokens are earned by the browser that passed a site's bot
+# check and are bound to it. Sharing them would let Browser Lite skip checks
+# it cannot pass itself, so they stay in the real Browser.
+_ANTI_BOT = re.compile(r"^(cf_clearance|__cf_bm|cf_chl_.*|datadome|_abck|bm_s[vz]|ak_bmsc|bm_mi|_px.*|pxcts|aws-waf-token|"
+                       r"incap_ses_.*|visid_incap_.*|nlbi_.*|reese84|__ddg.*)$", re.IGNORECASE)
 MAX_COOKIES = 150
 MAX_BYTES = 96 * 1024
 # Chromium's "basic" password store (--password-store=basic) uses this fixed
@@ -105,7 +110,7 @@ def cookies_for(profile, host, now_us=None):
     now_us = now_us if now_us is not None else int(time.time() * 1000000) + _CHROME_EPOCH_OFFSET_US
     result, size = [], 0
     for host_key, name, plain, encrypted, path, expires, secure, httponly, samesite, has_expires, updated, partition in rows:
-        if partition or not domain_matches(host, host_key) or excluded(host_key.lstrip(".")):
+        if partition or not domain_matches(host, host_key) or excluded(host_key.lstrip(".")) or _ANTI_BOT.match(name):
             continue
         if has_expires and expires and expires <= now_us:
             continue

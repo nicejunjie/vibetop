@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_456 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_457 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [Terminal link opened a closed Browser app but lost the URL](#terminal-link-opened-a-closed-browser-app-but-lost-the-url)
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
@@ -479,6 +479,7 @@ _456 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [Browser Lite memoizes Hammerhead's client cookie probe and skips identical syncs](#browser-lite-memoizes-hammerheads-client-cookie-probe-and-skips-identical-syncs)
 - [Browser Lite gives toolbar navigations a fresh frame](#browser-lite-gives-toolbar-navigations-a-fresh-frame)
 - [Browser Lite's runtime survives a bad redirect and recovers from crash loops](#browser-lites-runtime-survives-a-bad-redirect-and-recovers-from-crash-loops)
+- [Browser Lite offers the full Browser on bot walls and never shares clearance cookies](#browser-lite-offers-the-full-browser-on-bot-walls-and-never-shares-clearance-cookies)
 
 <!-- END TOC -->
 
@@ -19307,3 +19308,20 @@ fixtures and do not provision external infrastructure.
   before starting them.
 - **Rejected:** Raising systemd's start limit. A crash still closes every tab,
   and the limit exists to stop a hot crash loop.
+
+## Browser Lite offers the full Browser on bot walls and never shares clearance cookies
+
+- **Symptom:** Some sites, like the Cloudflare dashboard with its managed
+  challenge, showed a blank page in Browser Lite with no error.
+- **Cause:** Bot-management challenges (Cloudflare, DataDome, PerimeterX,
+  Imperva) refuse a page-rewriting proxy by design.
+- **Fix:** `client-bridge.js` reports `blocked` when the page shows a known
+  challenge (`_cf_chl_opt`, `#challenge-error-text`, a captcha iframe, or a
+  "Just a moment…" style title). The wrapper then shows its bar with "Open in
+  Browser". Login sharing never copies anti-bot clearance tokens
+  (`cf_clearance`, `__cf_bm`, `datadome`, Akamai `_abck`/`bm_*`, PerimeterX
+  `_px*`, Imperva `incap_*`, `aws-waf-token`, …). They are bound to the
+  browser that passed the check, and copying them would let Lite skip a check
+  it cannot pass.
+- **Rejected:** Making challenges pass inside Browser Lite. That is evading a
+  site's bot detection.

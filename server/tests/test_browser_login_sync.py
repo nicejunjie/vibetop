@@ -59,3 +59,9 @@ def test_google_and_youtube_never_leave_the_browser(tmp_path):
 
 def test_missing_profile_shares_nothing(tmp_path):
     assert sync.cookies_for(str(tmp_path / "absent"), "chatgpt.com") == []
+
+
+def test_anti_bot_clearance_tokens_stay_in_the_browser(tmp_path):
+    path = profile(tmp_path, [(".chatgpt.com", "session", "s"), (".chatgpt.com", "cf_clearance", "c"),
+                              (".chatgpt.com", "__cf_bm", "b"), (".chatgpt.com", "datadome", "d")])
+    assert [c["name"] for c in sync.cookies_for(path, "chatgpt.com", now_us=NOW)] == ["session"]

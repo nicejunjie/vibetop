@@ -176,9 +176,15 @@
       }
     },true);
     let previous='',nonce=null,journal=null,lastKind='sync',queuedHistory=[];
+    // Bot walls (Cloudflare, DataDome, PerimeterX, Imperva) refuse a rewriting
+    // proxy by design. Report one so the UI can offer the full Browser instead
+    // of a blank or looping page; Browser Lite never tries to pass them.
+    const BOT_TITLE=/^(just a moment|attention required! \| cloudflare|pardon our interruption|human verification)/i;
+    const botWall=()=>!!(window._cf_chl_opt||document.getElementById('challenge-error-text')||BOT_TITLE.test(document.title||'')
+      ||document.querySelector('iframe[src*="captcha-delivery.com"],#px-captcha,iframe[src*="challenges.cloudflare.com"]'));
     const update = function () {
       if(config.navigation && !nonce)return;
-      const state={url:originalUrl(window.location.href),title:document.title,nonce,
+      const state={url:originalUrl(window.location.href),title:document.title,nonce,blocked:botWall(),
         ...(journal?{history:journal.snapshot(),historyKind:lastKind}:{})};
       const serialized=JSON.stringify(state);
       if(serialized!==previous){previous=serialized;send({action:'state',...state});}

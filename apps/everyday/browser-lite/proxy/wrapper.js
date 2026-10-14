@@ -44,7 +44,10 @@
     const signIn=GOOGLE_SIGN_IN.test(host);
     // Remember the site that sent us to Google, to return there signed in.
     if(tab && host && !signIn && !/(^|\.)google\.com$/.test(host))tab.returnUrl=state.url;
-    $('handoff').hidden=!(session&&signIn);
+    const blocked=!signIn && state?.blocked===true && !state.loading;
+    $('handoff').hidden=!(session&&(signIn||blocked));
+    $('handoff-text').textContent=signIn?"Google doesn't allow signing in through Browser Lite. Sign in with the full Browser, then come back."
+      :"This site's bot check doesn't accept Browser Lite. Open it in the full Browser instead.";
     $('continue-here').hidden=!(signIn && tab?.returnUrl);
   }
   function update(tab,state) {
@@ -123,7 +126,9 @@
     })().catch(error=>{if(generation!==(tab.historyGeneration||0))return;if(tab.targetPosition?.previousPosition!==undefined)tab.position=tab.targetPosition.previousPosition;if(!tab.controller.pending)delete tab.targetPosition;tab.historyQueue=[];if(active===tab)status(error.message,true);})
       .finally(()=>{tab.historyBusy=false;});
   }
-  $('navigate').onsubmit=event=>{event.preventDefault();go($('address').value);};
+  // Leave the address bar like a browser does, so it shows where the page goes
+  // (it is not updated while focused) and the phone keyboard closes.
+  $('navigate').onsubmit=event=>{event.preventDefault();$('address').blur();go($('address').value);};
   $('back').onclick=()=>history(-1);$('forward').onclick=()=>history(1);
   $('reload').onclick=()=>{if(active.state)history(0);};
   $('retry').onclick=()=>{
