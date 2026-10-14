@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_453 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_454 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [Terminal link opened a closed Browser app but lost the URL](#terminal-link-opened-a-closed-browser-app-but-lost-the-url)
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
@@ -476,6 +476,7 @@ _453 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [Browser Lite hands Google sign-in to the real Browser](#browser-lite-hands-google-sign-in-to-the-real-browser)
 - [Browser Lite borrows site logins from the full Browser, never Google's](#browser-lite-borrows-site-logins-from-the-full-browser-never-googles)
 - [Browser Lite egress queues connections past its limit](#browser-lite-egress-queues-connections-past-its-limit)
+- [Browser Lite memoizes Hammerhead's client cookie probe and skips identical syncs](#browser-lite-memoizes-hammerheads-client-cookie-probe-and-skips-identical-syncs)
 
 <!-- END TOC -->
 
@@ -19234,3 +19235,20 @@ fixtures and do not provision external infrastructure.
   to 15 s for a slot, woken when any socket closes, before failing.
 - **Rejected:** Removing the cap. It bounds what one user's pages can make
   this host open.
+
+## Browser Lite memoizes Hammerhead's client cookie probe and skips identical syncs
+
+- **Symptom:** The signed-in claude.ai app froze the whole Vibetop page for
+  about 30 s while loading. Every same-site page shares one renderer.
+- **Cause:** A CPU profile showed more than 20 s in Hammerhead's client cookie
+  sandbox (`_canSetCookie`, `syncCookie`). Each `document.cookie` read re-syncs
+  every sync cookie. Each re-applied cookie first probes the native jar by
+  writing a dummy cookie, reading the whole jar and deleting it. Datadog RUM
+  polls cookies constantly, so the work grew quadratically.
+- **Fix:** `cookie-perf-patch.cjs` changes two things. The probe's success is
+  remembered per document; the size and `file:` checks still run on every
+  call. A sync is skipped when the native cookie string is byte-identical to
+  the previous sync's and that sync was under a second ago. Every change to
+  the string (page writes, server sync, deletions) still triggers a full sync.
+- **Rejected:** Dropping the window-sync re-application. Cookie changes
+  between a page and its frames depend on it.
