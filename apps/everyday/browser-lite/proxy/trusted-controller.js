@@ -79,8 +79,10 @@
       if(!old?.parentNode || !old.ownerDocument || !(this.lastEntry||old.getAttribute('src')))return;
       const fresh=old.ownerDocument.createElement('iframe');
       for(const {name,value} of [...old.attributes])if(name!=='src' && name!=='name')fresh.setAttribute(name,value);
-      old.removeEventListener('load',this.loadListener);fresh.addEventListener('load',this.loadListener);
-      old.replaceWith(fresh);this.frame=fresh;this.lastEntry=null;this.onFrame(fresh);
+      // WebKit fires the empty frame's about:blank load during insertion; listen
+      // only after the swap, or attach() would post to the detached old frame.
+      old.removeEventListener('load',this.loadListener);old.replaceWith(fresh);
+      this.frame=fresh;fresh.addEventListener('load',this.loadListener);this.lastEntry=null;this.onFrame(fresh);
     }
     activate(state,{fresh=false}={}) {
       this.cancelTraversal();

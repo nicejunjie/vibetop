@@ -50,5 +50,14 @@ function patchSrcset(engineRequire) {
     code=code.replace(from,()=>marker+source().replace(/\n/g,' ')+'\n'+from.replace('function handleUrlsSet','function vtUpstreamHandleUrlsSet'));
     fs.writeFileSync(file,code);
   }
+  // setAttribute names are case-insensitive in HTML, but Hammerhead compares
+  // 'srcset' exactly, so setAttribute('srcSet', list) (Airbnb's <picture>
+  // sources) proxied the whole list as one URL and every image 404ed.
+  const client=lib('client/hammerhead.js'),caseFrom="var isUrlsSet = attr === 'srcset';";
+  let code=fs.readFileSync(client,'utf8');
+  if(!code.includes('/* vt-srcset-case */')) {
+    if(code.split(caseFrom).length!==2)throw new Error('srcset case anchor changed: '+client);
+    fs.writeFileSync(client,code.replace(caseFrom,()=>"/* vt-srcset-case */var isUrlsSet = loweredAttr === 'srcset';"));
+  }
 }
 module.exports={patchSrcset,parseSrcset,handleUrlsSet:new Function('return '+source())()};

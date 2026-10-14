@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_457 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_461 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [Terminal link opened a closed Browser app but lost the URL](#terminal-link-opened-a-closed-browser-app-but-lost-the-url)
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
@@ -480,6 +480,10 @@ _457 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [Browser Lite gives toolbar navigations a fresh frame](#browser-lite-gives-toolbar-navigations-a-fresh-frame)
 - [Browser Lite's runtime survives a bad redirect and recovers from crash loops](#browser-lites-runtime-survives-a-bad-redirect-and-recovers-from-crash-loops)
 - [Browser Lite offers the full Browser on bot walls and never shares clearance cookies](#browser-lite-offers-the-full-browser-on-bot-walls-and-never-shares-clearance-cookies)
+- [Browser Lite maps realm-root URLs back to the site on port 443](#browser-lite-maps-realm-root-urls-back-to-the-site-on-port-443)
+- [Browser Lite proxies SVG 2 `href` references](#browser-lite-proxies-svg-2-href-references)
+- [Browser Lite treats `setAttribute('srcSet', …)` as a srcset](#browser-lite-treats-setattributesrcset-as-a-srcset)
+- [Browser Lite listens for the fresh frame's load only after the swap](#browser-lite-listens-for-the-fresh-frames-load-only-after-the-swap)
 
 <!-- END TOC -->
 
@@ -19329,3 +19333,53 @@ fixtures and do not provision external infrastructure.
   it cannot pass.
 - **Rejected:** Making challenges pass inside Browser Lite. That is evading a
   site's bot detection.
+
+## Browser Lite maps realm-root URLs back to the site on port 443
+
+- **Symptom:** ChatGPT on iPhone loaded with dozens of failed scripts and
+  styles ("not allowed by Access-Control-Allow-Origin. Status code: 500").
+- **Cause:** Its chunk loader resolves `/cdn/assets/…` with
+  `import.meta.resolve` (or `new URL(path, import.meta.url)`). Hammerhead does
+  not emulate `import.meta`, so the path resolved against the realm host.
+  Hammerhead already maps such a URL back to the site's origin, but compares
+  the URL's port with the proxy port as strings. Realms report `"443"`, while
+  a parsed `https://host/` URL has port `""`, so the mapping never ran and the
+  realm itself became the destination.
+- **Fix:** `realm-root-url-patch.cjs` compares default-normalised ports in
+  both client engines (page and worker).
+- **Rejected:** Rewriting `import.meta` in module code. It is a larger AST
+  change, and the port fix also covers every other API that resolves against
+  the real document URL.
+
+## Browser Lite proxies SVG 2 `href` references
+
+- **Symptom:** ChatGPT's icons were missing (403 for `/cdn/assets/icons-….svg`
+  on the realm host).
+- **Cause:** Hammerhead rewrites SVG references only in the old `xlink:href`
+  form. `<use href="/…/icons.svg#x">`, which React renders, kept the site path.
+- **Fix:** `svg-href-patch.cjs` gives plain `href` on the same SVG elements
+  the `xlink:href` treatment: rewritten in served HTML, in the client DOM
+  processor and in `setAttribute`, `#id` references left local, and
+  `getAttribute` returning the original. SVG `<a>`/`<image>` keep the
+  ordinary `href` rule.
+
+## Browser Lite treats `setAttribute('srcSet', …)` as a srcset
+
+- **Symptom:** Airbnb's listing photos were grey on iPhone. The proxy got
+  requests for `…jpeg?im_w=480 454w, https://…` (the whole list as one URL).
+- **Cause:** HTML attribute names are case-insensitive, but Hammerhead's
+  `setAttribute` wrapper checks `attr === 'srcset'` exactly. A camelCase
+  `srcSet` was treated as a URL attribute, not a URL set.
+- **Fix:** `srcset-patch.cjs` compares the lowercased name.
+- **Not a bug:** Some Weibo images return 403 in Lite. A real WebKit gets
+  the same 403s: sinaimg refuses the exact Referer `https://m.weibo.cn/` that
+  any browser sends cross-origin.
+
+## Browser Lite listens for the fresh frame's load only after the swap
+
+- **Symptom:** Every toolbar navigation on iPhone logged "null is not an
+  object (evaluating 'this.frame.contentWindow.postMessage')".
+- **Cause:** WebKit fires a new empty iframe's `about:blank` load during
+  insertion. `freshFrame()` attached the load listener before `replaceWith`,
+  so `attach()` ran while `this.frame` was still the detached old frame.
+- **Fix:** Assign `this.frame` and add the listener after the swap.

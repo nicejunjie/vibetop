@@ -29,3 +29,9 @@ test('the built engine rewrites a comma-bearing srcset in HTML',()=>{
   assert.equal(out,'https://realm/x/https://media.cnn.com/a.jpg?c=2x3&q=h_384,w_256,c_fill/f_webp 1x, '+
     'https://realm/x/https://media.cnn.com/a.jpg?c=2x3&q=h_768,w_512,c_fill/f_webp 2x');
 });
+test('the client engine treats setAttribute("srcSet") as a srcset',()=>{
+  const fs=require('node:fs'),{engineRequire}=require('./engine.cjs');
+  const client=fs.readFileSync(engineRequire.resolve('testcafe-hammerhead/lib/client/hammerhead.js'),'utf8');
+  assert.ok(client.includes("var isUrlsSet = loweredAttr === 'srcset';"));
+  assert.ok(!client.includes("var isUrlsSet = attr === 'srcset';"));
+});

@@ -126,7 +126,8 @@ test('toolbar navigations replace the frame so the old page cannot cancel them',
    get attributes(){return [...el.attrs].map(([name,value])=>({name,value}));},
    setAttribute(name,value){el.attrs.set(name,value);if(name==='src')el.src=value;},getAttribute(name){return name==='src'?(el.src||null):el.attrs.get(name)??null;},
    addEventListener(_t,f){el.listeners.add(f);},removeEventListener(_t,f){el.listeners.delete(f);},
-   replaceWith(next){el.parentNode=null;el.replacedBy=next;},remove(){}};
+   // Like WebKit, inserting an empty frame fires its about:blank load at once.
+   replaceWith(next){el.parentNode=null;el.contentWindow=null;el.replacedBy=next;for(const f of next.listeners)f();},remove(){}};
   el.contentWindow.location={replace(url){el.src=url;el.replaced=url;}};
   return el;
  }
