@@ -180,7 +180,11 @@
     // proxy by design. Report one so the UI can offer the full Browser instead
     // of a blank or looping page; Browser Lite never tries to pass them.
     const BOT_TITLE=/^(just a moment|attention required! \| cloudflare|pardon our interruption|human verification)/i;
-    const botWall=()=>!!(window._cf_chl_opt||document.getElementById('challenge-error-text')||BOT_TITLE.test(document.title||'')
+    // Not window._cf_chl_opt: Cloudflare's bot script sets it on ordinary pages.
+    // Only a challenge page loads the challenge orchestrator (ordinary pages
+    // load jsd/precursor), and a challenge page may keep the site's own title.
+    const challengeLoaded=()=>{try{return performance.getEntriesByType('resource').some(e=>/\/cdn-cgi\/challenge-platform\/.*\/orchestrate\/(chl_page|managed|jsch|captcha)/.test(decodeURIComponent(e.name)));}catch{return false;}};
+    const botWall=()=>!!(BOT_TITLE.test(document.title||'')||challengeLoaded()
       ||document.querySelector('iframe[src*="captcha-delivery.com"],#px-captcha,iframe[src*="challenges.cloudflare.com"]'));
     const update = function () {
       if(config.navigation && !nonce)return;

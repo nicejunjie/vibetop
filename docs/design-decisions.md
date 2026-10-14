@@ -19316,8 +19316,12 @@ fixtures and do not provision external infrastructure.
 - **Cause:** Bot-management challenges (Cloudflare, DataDome, PerimeterX,
   Imperva) refuse a page-rewriting proxy by design.
 - **Fix:** `client-bridge.js` reports `blocked` when the page shows a known
-  challenge (`_cf_chl_opt`, `#challenge-error-text`, a captcha iframe, or a
-  "Just a moment…" style title). The wrapper then shows its bar with "Open in
+  challenge: a "Just a moment…" style title, a challenge or captcha iframe,
+  or a resource entry for Cloudflare's challenge orchestrator
+  (`/cdn-cgi/challenge-platform/…/orchestrate/chl_page`), since a challenge page
+  may keep the site's own title.
+  It does not use `window._cf_chl_opt`, which Cloudflare's bot script also
+  sets on ordinary pages. The wrapper then shows its bar with "Open in
   Browser". Login sharing never copies anti-bot clearance tokens
   (`cf_clearance`, `__cf_bm`, `datadome`, Akamai `_abck`/`bm_*`, PerimeterX
   `_px*`, Imperva `incap_*`, `aws-waf-token`, …). They are bound to the
