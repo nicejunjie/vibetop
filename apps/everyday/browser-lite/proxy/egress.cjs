@@ -29,11 +29,13 @@ function publicAddress(value) {
 
 class EgressProxy {
   constructor({resolve = dns.lookup, connect = net.createConnection,
-               maxConnections = 128, deniedAddresses = [], deniedCIDRs = [], deniedDomains = [],
+               maxConnections = 384, slotWait = 15000, deniedAddresses = [], deniedCIDRs = [], deniedDomains = [],
                interfaces = os.networkInterfaces, secret} = {}) {
     this.resolve = resolve;
     this.connect = connect;
     this.maxConnections = maxConnections;
+    this.slotWait = slotWait;
+    this.waiters = [];
     this.denied = new Set(deniedAddresses);
     this.deniedDomains = deniedDomains.map(value=>value.toLowerCase().replace(/\.+$/, '')); 
     this.deniedCIDRs = deniedCIDRs.map(value=>ipaddr.parseCIDR(value));
@@ -88,12 +90,27 @@ class EgressProxy {
   }
   track(socket) {
     this.sockets.add(socket);
-    socket.once('close', () => this.sockets.delete(socket));
+    socket.once('close', () => { this.sockets.delete(socket); this.waiters.shift()?.(); });
     socket.setTimeout(120000, () => socket.destroy());
     return socket;
   }
+  // A modern app page opens well over a hundred requests at once (claude.ai:
+  // ~160 module scripts), each on its own tunnel. Wait briefly for a slot
+  // instead of failing the excess: a refusal surfaces as a CORS-less 500.
+  async slot() {
+    const deadline = Date.now() + this.slotWait;
+    while (this.sockets.size + this.pending >= this.maxConnections) {
+      const left = deadline - Date.now();
+      if (left <= 0) throw new Error('Connection limit');
+      await new Promise(resolve => {
+        const timer = setTimeout(() => { const i = this.waiters.indexOf(wake); if (i >= 0) this.waiters.splice(i, 1); resolve(); }, left);
+        const wake = () => { clearTimeout(timer); resolve(); };
+        this.waiters.push(wake);
+      });
+    }
+  }
   async open(hostname, port) {
-    if (this.sockets.size + this.pending >= this.maxConnections) throw new Error('Connection limit');
+    await this.slot();
     this.pending++;
     try {
       const destination = await this.destination(hostname, Number(port));

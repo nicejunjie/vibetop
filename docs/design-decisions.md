@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_452 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_453 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [Terminal link opened a closed Browser app but lost the URL](#terminal-link-opened-a-closed-browser-app-but-lost-the-url)
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
@@ -475,6 +475,7 @@ _452 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [Browser Lite treats _top and _parent as the tab](#browser-lite-treats-top-and-parent-as-the-tab)
 - [Browser Lite hands Google sign-in to the real Browser](#browser-lite-hands-google-sign-in-to-the-real-browser)
 - [Browser Lite borrows site logins from the full Browser, never Google's](#browser-lite-borrows-site-logins-from-the-full-browser-never-googles)
+- [Browser Lite egress queues connections past its limit](#browser-lite-egress-queues-connections-past-its-limit)
 
 <!-- END TOC -->
 
@@ -19218,3 +19219,18 @@ fixtures and do not provision external infrastructure.
   cookie, Google's included. Sharing Google's own session would work around
   Google's refusal rather than respect it. Two-way sync was declined because a
   sign-out in one browser would fight the other.
+
+## Browser Lite egress queues connections past its limit
+
+- **Symptom:** The signed-in claude.ai app showed "Can't reach Claude. Check
+  your connection." Chrome reported module scripts from
+  `assets-proxy.anthropic.com` as CORS failures (`MissingAllowOriginHeader`).
+- **Cause:** claude.ai starts ~160 module-script requests at once, and each one
+  gets its own CONNECT tunnel through the per-user egress. Past the 128-socket
+  cap, the egress refused with 403 ("Connection limit"). Hammerhead turned that
+  into a 500 with no CORS headers. Found by setting `VT_BROWSER_DIAGNOSTICS=1`
+  and `DEBUG=testcafe:hammerhead:destination` in a temporary unit drop-in.
+- **Fix:** The cap is now 384 upstream sockets. A request over the cap waits up
+  to 15 s for a slot, woken when any socket closes, before failing.
+- **Rejected:** Removing the cap. It bounds what one user's pages can make
+  this host open.

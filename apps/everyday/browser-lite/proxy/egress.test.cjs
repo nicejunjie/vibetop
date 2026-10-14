@@ -58,3 +58,20 @@ test('own proxy domain is rejected before resolving a public tunnel address',asy
  assert.equal(resolutions,0);
  await proxy.destination('notnicejunjie.com',443);assert.equal(resolutions,1);
 });
+test('a burst past the connection limit waits for a slot instead of failing',async()=>{
+ const {EventEmitter}=require('node:events');const sockets=[];
+ const p=new EgressProxy({maxConnections:2,slotWait:2000,resolve:async()=>[{address:'8.8.8.8',family:4}],
+  connect:()=>{const s=new EventEmitter();s.setTimeout=()=>{};s.destroy=()=>s.emit('close');sockets.push(s);queueMicrotask(()=>s.emit('connect'));return s}});
+ await p.open('a.example',443);await p.open('b.example',443);
+ const third=p.open('c.example',443);let done=false;third.then(()=>{done=true;});
+ await new Promise(r=>setTimeout(r,50));assert.equal(done,false);
+ sockets[0].destroy();await third;assert.equal(sockets.length,3);
+});
+test('the limit still fails once the wait expires',async()=>{
+ const {EventEmitter}=require('node:events');
+ const p=new EgressProxy({maxConnections:1,slotWait:50,resolve:async()=>[{address:'8.8.8.8',family:4}],
+  connect:()=>{const s=new EventEmitter();s.setTimeout=()=>{};queueMicrotask(()=>s.emit('connect'));return s}});
+ await p.open('a.example',443);
+ await assert.rejects(p.open('b.example',443),/Connection limit/);
+ assert.equal(p.waiters.length,0);
+});
