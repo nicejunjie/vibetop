@@ -19202,8 +19202,8 @@ fixtures and do not provision external infrastructure.
 - **Cause:** After "Sign in with Google", a site keeps its OWN session cookie
   (e.g. ChatGPT's `__Secure-next-auth.session-token`). Google is only needed
   at sign-in, and that step has to happen in the real Browser.
-- **Fix:** With "Use Browser logins" on (the default), each address-bar `open`
-  carries `loginSync`. The root manager strips any client-supplied `cookies`
+- **Fix:** Sharing is always on: each address-bar `open` carries
+  `loginSync`. The root manager strips any client-supplied `cookies`
   and runs `server/browser_login_sync.py` **as the user** with `setpriv`. It
   reads the Browser's Chromium cookie DB (`--password-store=basic` makes it
   `v10`/"peanuts"; DB version 24 adds a SHA-256(host) prefix). It returns only
@@ -19212,7 +19212,7 @@ fixtures and do not provision external infrastructure.
   (`login-import.cjs`). Cookies Lite lacks are added. One Lite already has is
   replaced only if the Browser updated it after Lite's last sync of that site,
   so Lite's own Cloudflare cookies survive. The Google bar's "I've signed in"
-  returns to the site that sent the user to Google, with a forced sync.
+  returns to the site that sent the user to Google.
 - **Rejected:** Mounting the Browser profile into the rewrite runtime. That
   process handles hostile pages, and a compromise there would expose every
   cookie, Google's included. Sharing Google's own session would work around

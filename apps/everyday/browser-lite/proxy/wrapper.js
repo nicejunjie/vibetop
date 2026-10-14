@@ -4,13 +4,20 @@
   const parents=JSON.parse(document.querySelector('meta[name="vt-main-origins"]')?.content||'[]');
   const session=window.BrowserUISession?new BrowserUISession({parents}):null;
   setInterval(()=>{if(!navigator.userActivation?.isActive)popupUsed=false;},200);
-  function status(text,error=false){$('status').textContent=text;$('status').parentElement.classList.toggle('error',error);$('retry').hidden=!error;}
+  // No status bar: progress states show as a thin line under the toolbar, the
+  // page address is already in the address bar, and anything else is a banner
+  // (errors stay with Retry; other messages fade after a few seconds).
+  const PROGRESS=new Set(['Loading…','Opening…','Retrying…']);let noticeTimer;
+  function status(text,error=false){
+    document.body.classList.toggle('loading',PROGRESS.has(text));clearTimeout(noticeTimer);
+    const quiet=!error&&(PROGRESS.has(text)||text==='Ready'||!!active?.state&&text===new URL(active.state.url).hostname);
+    $('notice').hidden=quiet;$('notice').classList.toggle('error',error);$('retry').hidden=!error;
+    if(!quiet){$('status').textContent=text;if(!error)noticeTimer=setTimeout(()=>{$('notice').hidden=true;},4000);}
+  }
   // Address-bar opens carry "loginSync": the manager then attaches this site's
-  // logins from the full Browser (never Google's). One-shot after "I've signed in".
-  let loginSync=true,syncOnce=false;
-  try{loginSync=localStorage.getItem('vt-login-sync')!=='0';}catch{}
+  // logins from the full Browser (never Google's).
   async function request(command,body,renewed=false) {
-    if(command==='open' && (loginSync||syncOnce)){body={...body,loginSync:true};syncOnce=false;}
+    if(command==='open')body={...body,loginSync:true};
     const response=await fetch('/api/'+command,{method:'POST',credentials:'same-origin',keepalive:true,signal:AbortSignal.timeout(30000),headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
     if(response.status===401){
       if(session&&!renewed){try{await session.renew();return request(command,body,true);}catch(error){error.authentication=true;throw error;}}
@@ -128,10 +135,8 @@
     if(active?.state && session?.openInBrowser(active.state.url))status('Opening in Browser…');
     else status('Reopen Browser Lite from Vibetop, then retry.',true);
   };
-  $('continue-here').onclick=()=>{if(active?.returnUrl){syncOnce=true;go(active.returnUrl);}};
-  $('login-sync').checked=loginSync;
-  $('login-sync').onchange=()=>{loginSync=$('login-sync').checked;try{localStorage.setItem('vt-login-sync',loginSync?'1':'0');}catch{}
-    status(loginSync?'Pages you open will use your full Browser logins.':'Browser logins are not shared.');};
+  $('continue-here').onclick=()=>{if(active?.returnUrl)go(active.returnUrl);};
+  $('dismiss').onclick=()=>{$('notice').hidden=true;};
   $('new-tab').onclick=()=>newTab();for(const button of document.querySelectorAll('[data-url]'))button.onclick=()=>go(button.dataset.url);
   document.addEventListener('keydown',event=>{if((event.ctrlKey||event.metaKey)&&event.key.toLowerCase()==='l'){event.preventDefault();$('address').focus();$('address').select();}});
   const heartbeat=()=>request('heartbeat',{clients:[...tabs.values()].filter(tab=>tab.controller.serverState).map(tab=>tab.controller.clientId)}).then(result=>{
