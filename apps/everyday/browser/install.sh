@@ -220,8 +220,10 @@ if (( INSTALL_DEPS )) && [ "$VT_FAMILY" = rhel ]; then
         echo "   NOTE: no xpra ${XPRA_RPM_PIN}.x in this repo — installing the newest available."
         echo "         xpra 6.5 carries a known Browser click-offset regression."
     fi
+    # python3-cryptography: Browser Lite reads this Browser's cookies to share
+    # site logins (server/browser_login_sync.py).
     run vt_pkg_install "$_xpra_pkg" xserver-xorg-video-dummy matchbox-window-manager \
-        wmctrl x11-xserver-utils xdotool dbus-daemon
+        wmctrl x11-xserver-utils xdotool dbus-daemon python3-cryptography
     if ! command -v soffice >/dev/null 2>&1; then
         echo "== installing libreoffice (office view/edit) =="
         run vt_pkg_install libreoffice-writer libreoffice-calc libreoffice-impress \
@@ -278,9 +280,10 @@ PIN_EOF
     # keyboard delivers committed text via /api/browser/type -> `xdotool type`,
     # which can carry CJK/emoji/accents that the X key-event path cannot).
     # dbus: provides dbus-daemon for the private, activation-free per-user X11 app bus.
+    # python3-cryptography: Browser Lite's login sharing reads this Browser's cookies.
     run sudo DEBIAN_FRONTEND=noninteractive apt-get install -y \
         -o Dpkg::Options::=--force-confold \
-        xpra xserver-xorg-video-dummy matchbox-window-manager wmctrl x11-xserver-utils xdotool dbus
+        xpra xserver-xorg-video-dummy matchbox-window-manager wmctrl x11-xserver-utils xdotool dbus python3-cryptography
     # LibreOffice — powers the Files app's office support: "View" renders the
     # doc to PDF headlessly, "Edit" opens it on this xpra desktop. Slim set
     # (Writer/Calc/Impress) + Liberation fonts for faithful Arial/Times layout.

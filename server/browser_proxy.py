@@ -185,6 +185,31 @@ class Bridge:
             fields["Set-Cookie"] = self.cookies(claims["lease"])[1][1]
         return fields
 
+    @staticmethod
+    def browser_logins(uid, url):
+        """The full Browser's cookies for this top-level site (never Google's).
+
+        Read by browser_login_sync.py running AS THE USER: the root manager
+        never opens a user's files itself. Any failure just means no sharing."""
+        try:
+            parts = urlsplit(url if isinstance(url, str) else "")
+            if parts.scheme not in ("http", "https") or not parts.hostname:
+                return []
+            import pwd
+            from browser_login_sync import excluded, profile_dir
+            if excluded(parts.hostname):
+                return []
+            user = pwd.getpwuid(uid)
+            script = str(Path(__file__).with_name("browser_login_sync.py"))
+            done = subprocess.run(["/usr/bin/setpriv", f"--reuid={uid}", f"--regid={user.pw_gid}", "--init-groups", "--reset-env",
+                                   "/usr/bin/python3", "-I", script, profile_dir(user.pw_dir), parts.hostname],
+                                  capture_output=True, timeout=8, check=False, cwd="/")
+            cookies = json.loads(done.stdout or b"[]") if done.returncode == 0 else []
+            return cookies if isinstance(cookies, list) else []
+        except (OSError, ValueError, KeyError, subprocess.SubprocessError) as error:
+            logging.getLogger("vibetop").info("browser-lite login sync skipped: %s: %s", type(error).__name__, str(error)[:200])
+            return []
+
     def ui_claims(self, headers):
         if headers.get("Host") != urlsplit(self.auth.ui_origin).netloc or headers.get("X-Forwarded-Proto") != "https":
             raise ValueError("Invalid browser UI origin")
@@ -285,6 +310,11 @@ class Bridge:
             if command not in ("open", "approve", "close", "heartbeat"):
                 return self.reply(handler, 404)
             body = json.loads(self.read_body(handler, "application/json"))
+            if isinstance(body, dict):
+                # Only the manager supplies cookies, never the client.
+                body.pop("cookies", None)
+                if body.pop("loginSync", None) is True and command == "open":
+                    body["cookies"] = self.browser_logins(claims["uid"], body.get("url"))
             try:
                 status, result = self.runtime.call(claims, command, body)
             except OSError as error:

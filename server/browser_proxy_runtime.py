@@ -307,7 +307,8 @@ TimeoutStopSec=10
                     self._systemctl("stop", *(name + ".service" for name in names.values()))
 
     def _exchange(self, uid, command, data):
-        if len(data) > 8192:
+        # "open" may carry the full Browser's cookies for one site (login sync).
+        if len(data) > (160 * 1024 if command == "open" else 8192):
             raise ValueError("Browser control too large")
         with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as sock:
             sock.settimeout(20)

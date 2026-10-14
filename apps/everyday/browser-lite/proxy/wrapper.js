@@ -5,7 +5,12 @@
   const session=window.BrowserUISession?new BrowserUISession({parents}):null;
   setInterval(()=>{if(!navigator.userActivation?.isActive)popupUsed=false;},200);
   function status(text,error=false){$('status').textContent=text;$('status').parentElement.classList.toggle('error',error);$('retry').hidden=!error;}
+  // Address-bar opens carry "loginSync": the manager then attaches this site's
+  // logins from the full Browser (never Google's). One-shot after "I've signed in".
+  let loginSync=true,syncOnce=false;
+  try{loginSync=localStorage.getItem('vt-login-sync')!=='0';}catch{}
   async function request(command,body,renewed=false) {
+    if(command==='open' && (loginSync||syncOnce)){body={...body,loginSync:true};syncOnce=false;}
     const response=await fetch('/api/'+command,{method:'POST',credentials:'same-origin',keepalive:true,signal:AbortSignal.timeout(30000),headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
     if(response.status===401){
       if(session&&!renewed){try{await session.renew();return request(command,body,true);}catch(error){error.authentication=true;throw error;}}
@@ -27,9 +32,13 @@
   // Google refuses sign-in through a rewriting proxy. Offer the real Browser,
   // which keeps its own Google session, instead of a dead end.
   const GOOGLE_SIGN_IN=/^accounts\.(google|youtube)\.com$/;
-  function handoff(state) {
+  function handoff(state,tab=active) {
     let host='';try{host=new URL(state?.url||'').hostname;}catch{}
-    $('handoff').hidden=!(session&&GOOGLE_SIGN_IN.test(host));
+    const signIn=GOOGLE_SIGN_IN.test(host);
+    // Remember the site that sent us to Google, to return there signed in.
+    if(tab && host && !signIn && !/(^|\.)google\.com$/.test(host))tab.returnUrl=state.url;
+    $('handoff').hidden=!(session&&signIn);
+    $('continue-here').hidden=!(signIn && tab?.returnUrl);
   }
   function update(tab,state) {
     if(!state.loading && tab.targetPosition && tab.targetPosition.epoch===undefined)return;
@@ -63,7 +72,7 @@
     tab.frame.hidden=false;
     $('welcome').hidden=true;if(document.activeElement!==$('address'))$('address').value=state.url;
     $('back').disabled=tab.position<=0;$('forward').disabled=tab.position>=tab.history.length-1;
-    status(state.loading?'Loading…':new URL(state.url).hostname);handoff(state);
+    status(state.loading?'Loading…':new URL(state.url).hostname);handoff(state,tab);
   }
   function activate(tab) {
     active=tab;
@@ -119,6 +128,10 @@
     if(active?.state && session?.openInBrowser(active.state.url))status('Opening in Browser…');
     else status('Reopen Browser Lite from Vibetop, then retry.',true);
   };
+  $('continue-here').onclick=()=>{if(active?.returnUrl){syncOnce=true;go(active.returnUrl);}};
+  $('login-sync').checked=loginSync;
+  $('login-sync').onchange=()=>{loginSync=$('login-sync').checked;try{localStorage.setItem('vt-login-sync',loginSync?'1':'0');}catch{}
+    status(loginSync?'Pages you open will use your full Browser logins.':'Browser logins are not shared.');};
   $('new-tab').onclick=()=>newTab();for(const button of document.querySelectorAll('[data-url]'))button.onclick=()=>go(button.dataset.url);
   document.addEventListener('keydown',event=>{if((event.ctrlKey||event.metaKey)&&event.key.toLowerCase()==='l'){event.preventDefault();$('address').focus();$('address').select();}});
   const heartbeat=()=>request('heartbeat',{clients:[...tabs.values()].filter(tab=>tab.controller.serverState).map(tab=>tab.controller.clientId)}).then(result=>{

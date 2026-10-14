@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_451 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_452 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [Terminal link opened a closed Browser app but lost the URL](#terminal-link-opened-a-closed-browser-app-but-lost-the-url)
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
@@ -474,6 +474,7 @@ _451 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [Browser Lite parses srcset like a browser, not by splitting on commas](#browser-lite-parses-srcset-like-a-browser-not-by-splitting-on-commas)
 - [Browser Lite treats _top and _parent as the tab](#browser-lite-treats-top-and-parent-as-the-tab)
 - [Browser Lite hands Google sign-in to the real Browser](#browser-lite-hands-google-sign-in-to-the-real-browser)
+- [Browser Lite borrows site logins from the full Browser, never Google's](#browser-lite-borrows-site-logins-from-the-full-browser-never-googles)
 
 <!-- END TOC -->
 
@@ -19192,3 +19193,28 @@ fixtures and do not provision external infrastructure.
 - **Rejected:** Copying the Browser app's Google session into Browser Lite, or
   disguising the proxy from Google's checks. Both work around Google's block
   rather than respecting it.
+
+## Browser Lite borrows site logins from the full Browser, never Google's
+
+- **Symptom:** ChatGPT, Claude and other sites offer "Sign in with Google",
+  which Google refuses inside Browser Lite. Users had to give up on those
+  sites in Lite.
+- **Cause:** After "Sign in with Google", a site keeps its OWN session cookie
+  (e.g. ChatGPT's `__Secure-next-auth.session-token`). Google is only needed
+  at sign-in, and that step has to happen in the real Browser.
+- **Fix:** With "Use Browser logins" on (the default), each address-bar `open`
+  carries `loginSync`. The root manager strips any client-supplied `cookies`
+  and runs `server/browser_login_sync.py` **as the user** with `setpriv`. It
+  reads the Browser's Chromium cookie DB (`--password-store=basic` makes it
+  `v10`/"peanuts"; DB version 24 adds a SHA-256(host) prefix). It returns only
+  the unpartitioned cookies Chromium would send to that host, and nothing for
+  Google/YouTube domains. The runtime merges them into the first-party jar
+  (`login-import.cjs`). Cookies Lite lacks are added. One Lite already has is
+  replaced only if the Browser updated it after Lite's last sync of that site,
+  so Lite's own Cloudflare cookies survive. The Google bar's "I've signed in"
+  returns to the site that sent the user to Google, with a forced sync.
+- **Rejected:** Mounting the Browser profile into the rewrite runtime. That
+  process handles hostile pages, and a compromise there would expose every
+  cookie, Google's included. Sharing Google's own session would work around
+  Google's refusal rather than respect it. Two-way sync was declined because a
+  sign-out in one browser would fight the other.

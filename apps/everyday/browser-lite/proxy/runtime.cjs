@@ -27,7 +27,8 @@ async function main(config) {
       let size=0;const chunks=[];
       for await (const chunk of req) {
         size+=chunk.length;
-        if (size > 8192) { res.writeHead(413);res.end('{}');return; }
+        // An "open" may carry one site's logins from the full Browser.
+        if (size > (req.url === '/open' ? 160 * 1024 : 8192)) { res.writeHead(413);res.end('{}');return; }
         chunks.push(chunk);
       }
       body = JSON.parse(Buffer.concat(chunks));

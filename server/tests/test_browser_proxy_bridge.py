@@ -199,3 +199,32 @@ def test_configured_rejects_bad_release_before_opening_identity_store(tmp_path, 
     monkeypatch.setattr(browser_proxy_store, 'IdentityStore', no_store)
     with pytest.raises(ValueError, match='Node version|release path'):
         browser_proxy._load_configured(None)
+
+
+@pytest.mark.parametrize("sync", [False, True])
+def test_open_carries_browser_logins_only_from_the_manager(monkeypatch, sync):
+    bridge, lease = setup()
+    calls, looked_up = [], []
+    bridge.runtime.call = lambda claims, command, body: calls.append(body) or (200, {"ok": True})
+    monkeypatch.setattr(type(bridge), "browser_logins", staticmethod(lambda uid, url: looked_up.append(url) or [{"name": "s", "value": "v"}]))
+    body = json.dumps({"url": "https://chatgpt.com/", "cookies": [{"name": "forged"}], **({"loginSync": True} if sync else {})}).encode()
+    outgoing = []
+    handler = SimpleNamespace(path="/__browser_proxy/ui", command="POST",
+        headers=headers(Host="browser-lite.example.com", X_Forwarded_Proto="https", X_Original_URI="/api/open",
+                        Origin=bridge.auth.ui_origin, Sec_Fetch_Site="same-origin", Content_Type="application/json",
+                        Content_Length=str(len(body)), Cookie=UI_COOKIE + "=" + bridge.auth.mint("ui", lease)),
+        connection=SimpleNamespace(settimeout=lambda value: None), rfile=io.BytesIO(body), wfile=io.BytesIO(),
+        send_response=outgoing.append, send_header=lambda *args: None, end_headers=lambda: None)
+    bridge.handle(handler)
+    assert outgoing == [200]
+    assert "loginSync" not in calls[0]
+    if sync:
+        assert looked_up == ["https://chatgpt.com/"] and calls[0]["cookies"] == [{"name": "s", "value": "v"}]
+    else:
+        assert looked_up == [] and "cookies" not in calls[0]
+
+
+def test_browser_logins_never_reads_google():
+    import browser_proxy
+    assert browser_proxy.Bridge.browser_logins(1000, "https://accounts.google.com/x") == []
+    assert browser_proxy.Bridge.browser_logins(1000, "javascript:alert(1)") == []

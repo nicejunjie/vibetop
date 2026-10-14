@@ -18,7 +18,8 @@ const {cookieView,sameSite} = require('./cookie-policy.cjs');
 const {rewriteImportMap} = require('./import-map.cjs');
 const {framePolicies} = require('./frame-policy.cjs');
 const {authorizeRequest,sourceRecord} = require('./realm-gate.cjs');
-const {cookieContext,mainContext,childContext,authorizeChild,authorizeResource} = require('./realm-policy.cjs');
+const {cookieContext,mainContext,childContext,authorizeChild,authorizeResource,site} = require('./realm-policy.cjs');
+const {importLogins} = require('./login-import.cjs');
 const {WorkerStore} = require('./worker-store.cjs');
 const {NavigationTransactions} = require('./navigation.cjs');
 const {BodyBudget} = require('./body-budget.cjs');
@@ -200,8 +201,11 @@ class BrowserGateway {
     return 'default-src '+source+'; script-src '+source+" 'wasm-unsafe-eval'; connect-src "+source+' '+socket+' blob: data:'+'; worker-src '+source+"; object-src 'none'; base-uri 'none'";
   }
   url(destination,options={}) { return urls.getProxyUrl(destination,{sessionId:this.session.id,...options}); }
-  control(command,{authorization,...body}) {
+  control(command,{authorization,cookies,...body}) {
     if(this.ingressIdentity && !this.validIngress(authorization))throw new Error('Invalid control identity');
+    // Only the root manager adds cookies (the full Browser's, for this site).
+    // Kept out of the ledger fingerprint: a retried open may carry a newer set.
+    if(command==='open' && cookies!==undefined)this.syncLogins(body.url,cookies);
     const owner=authorization?.lease||null;
     if(command==='revoke-lease' && this.ingressIdentity){this.leases.revoke(owner,Number(authorization.expires));return {revoked:true};}
     if(this.ingressIdentity)this.leases.register(owner,Number(authorization.expires));
@@ -211,6 +215,13 @@ class BrowserGateway {
       return {expired};
     }
     return this.registry.isRealm?this.registry.scope.run({authorization},()=>this.controls.run(command,body,owner)):this.controls.run(command,body);
+  }
+  syncLogins(url,cookies) {
+    let key;try{key=site(url);}catch{return;}
+    this.loginSync ||= new Map();
+    const now=Date.now(),changed=importLogins(this.session.cookies,url,cookies,{lastSync:this.loginSync.get(key)||0,now});
+    this.loginSync.set(key,now);if(this.loginSync.size>4096)this.loginSync.delete(this.loginSync.keys().next().value);
+    if(changed)this.cookieStore.save();
   }
   validIngress(identity) {
     return !!identity && ['uid','profile','epoch'].every(key=>String(identity[key])===String(this.ingressIdentity[key]))
