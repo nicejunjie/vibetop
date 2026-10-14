@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_449 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_450 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [Terminal link opened a closed Browser app but lost the URL](#terminal-link-opened-a-closed-browser-app-but-lost-the-url)
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
@@ -472,6 +472,7 @@ _449 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [Browser Lite follows same-frame links by replacement](#browser-lite-follows-same-frame-links-by-replacement)
 - [Browser Lite realm hosts use 64k nginx header buffers](#browser-lite-realm-hosts-use-64k-nginx-header-buffers)
 - [Browser Lite parses srcset like a browser, not by splitting on commas](#browser-lite-parses-srcset-like-a-browser-not-by-splitting-on-commas)
+- [Browser Lite treats _top and _parent as the tab](#browser-lite-treats-top-and-parent-as-the-tab)
 
 <!-- END TOC -->
 
@@ -19158,3 +19159,19 @@ fixtures and do not provision external infrastructure.
   re-parseable.
 - **Rejected:** Percent-encoding commas in proxied URLs. That changes the URL
   the origin sees, and some image CDNs treat `%2C` differently from `,`.
+
+## Browser Lite treats _top and _parent as the tab
+
+- **Symptom:** Google's front-page "Sign in" button did nothing in Browser
+  Lite.
+- **Cause:** The link has `target="_top"`. Inside Browser Lite the realm
+  iframe's top is Vibetop's own page, a cross-site ancestor, and Chrome refuses
+  the navigation ("Unsafe attempt to initiate navigation") with no visible
+  error.
+- **Fix:** In a tab's main frame, `client-bridge.js` retargets `_top`/`_parent`
+  to the tab. Same-origin links use `location.replace` (as with same-frame
+  links), and cross-origin ones use `location.assign` on the physical URL.
+  Forms submitted to `_top`/`_parent` (including `formtarget`) get `_self`
+  during the submit event, before the browser reads the target.
+- **Rejected:** Rewriting `target` attributes in the HTML processor. That misses
+  script-created links, and pages reading `target` back would see the change.

@@ -190,16 +190,29 @@
       // Safari's edge swipe then previews that entry even after Browser Lite has
       // closed. The tab keeps its own journal, so follow such links by replacement.
       // Bubble phase on window: page handlers (routers) see and cancel it first.
+      // This frame is the tab's top, so _top/_parent mean the tab itself; left
+      // alone they target Vibetop's page, and Chrome drops the click as an
+      // unsafe navigation (Google's "Sign in" link is target=_top).
+      const tabTarget=target=>!target||/^_(self|top|parent)$/i.test(target);
       native.addEventListener.call(window,'click',event=>{
         if(event.defaultPrevented||event.button!==0||event.altKey||event.shiftKey||event.ctrlKey||event.metaKey)return;
         const link=event.target.closest&&event.target.closest('a[href],area[href]');
         if(!link||link.hasAttribute('download'))return;
         const target=link.target||document.querySelector('base[target]')?.target||'';
-        if(target&&target.toLowerCase()!=='_self')return;
+        if(!tabTarget(target))return;
         const physical=(link.tagName==='AREA'?native.areaHrefGetter:native.anchorHrefGetter).call(link);
         let url;try{url=new URL(physical);}catch{return;}
-        if(url.origin!==new URL(window.location.href).origin)return;
-        event.preventDefault();window.location.replace(url.href);
+        if(url.origin===new URL(window.location.href).origin){event.preventDefault();window.location.replace(url.href);}
+        else if(/^_(top|parent)$/i.test(target)){event.preventDefault();window.location.assign(url.href);}
+      });
+      native.addEventListener.call(window,'submit',event=>{
+        const form=event.target;
+        if(event.defaultPrevented||!form||form.tagName!=='FORM')return;
+        const submitter=event.submitter;
+        const target=(submitter&&submitter.getAttribute('formtarget'))||form.getAttribute('target')||document.querySelector('base[target]')?.target||'';
+        if(!/^_(top|parent)$/i.test(target))return;
+        if(submitter&&submitter.hasAttribute('formtarget'))native.setAttribute.call(submitter,'formtarget','_self');
+        native.setAttribute.call(form,'target','_self');
       });
       native.addEventListener.call(window,'message',event=>{
         if(event.source!==window.parent || native.messageEventOriginGetter.call(event)!==config.parentOrigin)return;
