@@ -27,6 +27,12 @@
     if(event.source!==frame.contentWindow||event.origin!==uiOrigin||!event.data||typeof event.data!=='object')return;
     if(event.data.type==='vibetop-browser-ui-ready'){
       clearTimeout(readyTimer);cover.hidden=true;frame.contentWindow.postMessage({type:'vibetop-browser-host'},uiOrigin);
+    } else if(event.data.type==='vibetop-browser-open'&&typeof event.data.url==='string'&&event.data.url.length<=4096){
+      let url;try{url=new URL(event.data.url);}catch{return;}
+      if(!['http:','https:'].includes(url.protocol)||url.username||url.password)return;
+      // The desktop opens it in the real Browser and switches to that app.
+      if(window.parent!==window)window.parent.postMessage({type:'open-in-browser',url:url.href},location.origin);
+      else fetch('/api/browser/open',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({url:url.href})}).then(()=>location.assign('/')).catch(()=>{});
     } else if(event.data.type==='vibetop-browser-renew'&&typeof event.data.id==='string'&&event.data.id.length<=64){
       const id=event.data.id;
       try{const data=await handoff();frame.contentWindow.postMessage({type:'vibetop-browser-handoff',id,ticket:data.ticket},uiOrigin);}

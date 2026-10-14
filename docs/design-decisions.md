@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_450 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_451 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [Terminal link opened a closed Browser app but lost the URL](#terminal-link-opened-a-closed-browser-app-but-lost-the-url)
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
@@ -473,6 +473,7 @@ _450 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [Browser Lite realm hosts use 64k nginx header buffers](#browser-lite-realm-hosts-use-64k-nginx-header-buffers)
 - [Browser Lite parses srcset like a browser, not by splitting on commas](#browser-lite-parses-srcset-like-a-browser-not-by-splitting-on-commas)
 - [Browser Lite treats _top and _parent as the tab](#browser-lite-treats-top-and-parent-as-the-tab)
+- [Browser Lite hands Google sign-in to the real Browser](#browser-lite-hands-google-sign-in-to-the-real-browser)
 
 <!-- END TOC -->
 
@@ -19175,3 +19176,19 @@ fixtures and do not provision external infrastructure.
   during the submit event, before the browser reads the target.
 - **Rejected:** Rewriting `target` attributes in the HTML processor. That misses
   script-created links, and pages reading `target` back would see the change.
+
+## Browser Lite hands Google sign-in to the real Browser
+
+- **Symptom:** Google sign-in in Browser Lite ends at "This browser or app may
+  not be secure".
+- **Cause:** Google deliberately refuses sign-in through a page-rewriting
+  proxy. That is Google's security decision, not a Browser Lite bug.
+- **Fix:** On `accounts.google.com` or `accounts.youtube.com`, the wrapper shows
+  a bar with "Open in Browser". The request goes from `ui-session.js` to the
+  confirmed host page only. The launcher validates it (http/https, no
+  credentials) and forwards the desktop's existing `open-in-browser` message,
+  which opens the URL in the real Chromium Browser and switches to it. That
+  Browser keeps its own Google session.
+- **Rejected:** Copying the Browser app's Google session into Browser Lite, or
+  disguising the proxy from Google's checks. Both work around Google's block
+  rather than respecting it.

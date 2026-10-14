@@ -24,6 +24,13 @@
     const url=new URL(value);if(!['http:','https:'].includes(url.protocol)||url.username||url.password)throw new Error('Enter an http or https website address.');
     return url.href;
   }
+  // Google refuses sign-in through a rewriting proxy. Offer the real Browser,
+  // which keeps its own Google session, instead of a dead end.
+  const GOOGLE_SIGN_IN=/^accounts\.(google|youtube)\.com$/;
+  function handoff(state) {
+    let host='';try{host=new URL(state?.url||'').hostname;}catch{}
+    $('handoff').hidden=!(session&&GOOGLE_SIGN_IN.test(host));
+  }
   function update(tab,state) {
     if(!state.loading && tab.targetPosition && tab.targetPosition.epoch===undefined)return;
     if(state.loading && tab.targetPosition){
@@ -56,12 +63,12 @@
     tab.frame.hidden=false;
     $('welcome').hidden=true;if(document.activeElement!==$('address'))$('address').value=state.url;
     $('back').disabled=tab.position<=0;$('forward').disabled=tab.position>=tab.history.length-1;
-    status(state.loading?'Loading…':new URL(state.url).hostname);
+    status(state.loading?'Loading…':new URL(state.url).hostname);handoff(state);
   }
   function activate(tab) {
     active=tab;
     for(const item of tabs.values()){const selected=item===tab;item.frame.hidden=!selected||!item.state;item.element.classList.toggle('active',selected);item.select.setAttribute('aria-selected',String(selected));}
-    $('welcome').hidden=!!tab.state;$('address').value=tab.state?.url||'';
+    $('welcome').hidden=!!tab.state;$('address').value=tab.state?.url||'';handoff(tab.state);
     if(tab.state)update(tab,tab.state);else{status('Ready');$('back').disabled=true;$('forward').disabled=true;}
   }
   function newTab(url) {
@@ -107,6 +114,10 @@
     const tab=active;tab.historyGeneration=(tab.historyGeneration||0)+1;tab.historyQueue=[];
     if(tab.targetPosition){delete tab.targetPosition.epoch;delete tab.targetPosition.tabId;if(!tab.controller.pending)tab.targetPosition.sequence=tab.controller.sequence+1;}
     status('Retrying…');const retry=tab.targetPosition && !tab.controller.pending?tab.controller.open(tab.targetPosition.url):tab.controller.retry();retry.catch(error=>{if(active===tab)status(error.message,true);});
+  };
+  $('open-browser').onclick=()=>{
+    if(active?.state && session?.openInBrowser(active.state.url))status('Opening in Browser…');
+    else status('Reopen Browser Lite from Vibetop, then retry.',true);
   };
   $('new-tab').onclick=()=>newTab();for(const button of document.querySelectorAll('[data-url]'))button.onclick=()=>go(button.dataset.url);
   document.addEventListener('keydown',event=>{if((event.ctrlKey||event.metaKey)&&event.key.toLowerCase()==='l'){event.preventDefault();$('address').focus();$('address').select();}});

@@ -19,6 +19,10 @@
         .then(response=>{if(!response.ok)throw new Error('Browser sign-in could not be renewed. Retry.');pending.resolve();},pending.reject)
         .catch(pending.reject);
     }
+    openInBrowser(url) {
+      if(!this.parentOrigin)return false;
+      this.parent.postMessage({type:'vibetop-browser-open',url},this.parentOrigin);return true;
+    }
     renew() {
       if(this.pending)return this.pending.promise;
       if(!this.parentOrigin)return Promise.reject(new Error('Reopen Browser Lite from Vibetop to sign in.'));

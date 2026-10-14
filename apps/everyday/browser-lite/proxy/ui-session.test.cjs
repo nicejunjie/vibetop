@@ -24,3 +24,12 @@ test('a failed handoff clears pending state and permits a fresh retry',async()=>
  f.message({type:'vibetop-browser-handoff',id:'request-id',ticket:'b'.repeat(43)});await second;
  assert.equal(count,2);
 });
+test('open-in-Browser requests go only to the confirmed host page',()=>{
+ const f=fixture();
+ assert.equal(f.session.openInBrowser('https://accounts.google.com/'),false);
+ f.message({type:'vibetop-browser-host'},'https://evil.example.com');
+ assert.equal(f.session.openInBrowser('https://accounts.google.com/'),false);
+ f.message({type:'vibetop-browser-host'});
+ assert.equal(f.session.openInBrowser('https://accounts.google.com/'),true);
+ assert.deepEqual(JSON.parse(JSON.stringify(f.messages.at(-1))),{data:{type:'vibetop-browser-open',url:'https://accounts.google.com/'},origin:'https://main.example.com'});
+});
