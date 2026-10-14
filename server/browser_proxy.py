@@ -210,6 +210,17 @@ class Bridge:
             logging.getLogger("vibetop").info("browser-lite login sync skipped: %s: %s", type(error).__name__, str(error)[:200])
             return []
 
+    def share_logins(self, claims, result):
+        """A link or redirect to another site arrives as an approval; give the
+        runtime that site's Browser logins before the UI loads its entry."""
+        url = result.get("url") if isinstance(result, dict) else None
+        cookies = self.browser_logins(claims["uid"], url) if isinstance(url, str) else []
+        if cookies:
+            try:
+                self.runtime.call(claims, "logins", {"url": url, "cookies": cookies})
+            except (OSError, ValueError, RuntimeError, http.client.HTTPException) as error:
+                logging.getLogger("vibetop").info("browser-lite login sync skipped: %s", type(error).__name__)
+
     def ui_claims(self, headers):
         if headers.get("Host") != urlsplit(self.auth.ui_origin).netloc or headers.get("X-Forwarded-Proto") != "https":
             raise ValueError("Invalid browser UI origin")
@@ -317,6 +328,8 @@ class Bridge:
                     body["cookies"] = self.browser_logins(claims["uid"], body.get("url"))
             try:
                 status, result = self.runtime.call(claims, command, body)
+                if command == "approve" and status == 200:
+                    self.share_logins(claims, result)
             except OSError as error:
                 if command == "heartbeat" and error.errno in (errno.ENOENT, errno.ECONNREFUSED) and isinstance(body.get("clients"), list):
                     status, result = 200, {"expired": body["clients"]}

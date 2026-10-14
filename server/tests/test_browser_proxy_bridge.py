@@ -228,3 +228,25 @@ def test_browser_logins_never_reads_google():
     import browser_proxy
     assert browser_proxy.Bridge.browser_logins(1000, "https://accounts.google.com/x") == []
     assert browser_proxy.Bridge.browser_logins(1000, "javascript:alert(1)") == []
+
+
+def test_link_to_another_site_brings_its_browser_logins(monkeypatch):
+    bridge, lease = setup()
+    calls = []
+    def call(claims, command, body):
+        calls.append((command, body))
+        return 200, ({"entry": "https://x/entry", "url": "https://chatgpt.com/c/1"} if command == "approve" else {"ok": True})
+    bridge.runtime.call = call
+    monkeypatch.setattr(type(bridge), "browser_logins", staticmethod(lambda uid, url: [{"name": "s", "value": url}]))
+    body = json.dumps({"challenge": "c", "tabId": "t", "epoch": 1}).encode()
+    outgoing = []
+    handler = SimpleNamespace(path="/__browser_proxy/ui", command="POST",
+        headers=headers(Host="browser-lite.example.com", X_Forwarded_Proto="https", X_Original_URI="/api/approve",
+                        Origin=bridge.auth.ui_origin, Sec_Fetch_Site="same-origin", Content_Type="application/json",
+                        Content_Length=str(len(body)), Cookie=UI_COOKIE + "=" + bridge.auth.mint("ui", lease)),
+        connection=SimpleNamespace(settimeout=lambda value: None), rfile=io.BytesIO(body), wfile=io.BytesIO(),
+        send_response=outgoing.append, send_header=lambda *args: None, end_headers=lambda: None)
+    bridge.handle(handler)
+    assert outgoing == [200]
+    assert [c for c, _ in calls] == ["approve", "logins"]
+    assert calls[1][1] == {"url": "https://chatgpt.com/c/1", "cookies": [{"name": "s", "value": "https://chatgpt.com/c/1"}]}

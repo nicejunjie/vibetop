@@ -206,6 +206,9 @@ class BrowserGateway {
     // Only the root manager adds cookies (the full Browser's, for this site).
     // Kept out of the ledger fingerprint: a retried open may carry a newer set.
     if(command==='open' && cookies!==undefined)this.syncLogins(body.url,cookies);
+    // A link or redirect to another site: the manager adds that site's logins
+    // after approving it, before the UI loads the entry. Not part of any lane.
+    if(command==='logins'){if(typeof body.url!=='string')throw new Error('Invalid browser logins');this.syncLogins(body.url,cookies);return {ok:true};}
     const owner=authorization?.lease||null;
     if(command==='revoke-lease' && this.ingressIdentity){this.leases.revoke(owner,Number(authorization.expires));return {revoked:true};}
     if(this.ingressIdentity)this.leases.register(owner,Number(authorization.expires));

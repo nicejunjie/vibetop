@@ -19216,7 +19216,11 @@ fixtures and do not provision external infrastructure.
   (`login-import.cjs`). Cookies Lite lacks are added. One Lite already has is
   replaced only if the Browser updated it after Lite's last sync of that site,
   so Lite's own Cloudflare cookies survive. The Google bar's "I've signed in"
-  returns to the site that sent the user to Google.
+  returns to the site that sent the user to Google. A link or redirect to
+  another site arrives as an `approve`. The manager then reads that
+  destination's logins the same way and passes them in an internal `logins`
+  control command before the UI loads the page. The UI cannot send that
+  command.
 - **Rejected:** Mounting the Browser profile into the rewrite runtime. That
   process handles hostile pages, and a compromise there would expose every
   cookie, Google's included. Sharing Google's own session would work around
