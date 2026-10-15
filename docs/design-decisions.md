@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_470 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_471 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [Terminal link opened a closed Browser app but lost the URL](#terminal-link-opened-a-closed-browser-app-but-lost-the-url)
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
@@ -474,6 +474,7 @@ _470 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [Browser Lite reloads a forgotten tab instead of saying "session ended"](#browser-lite-reloads-a-forgotten-tab-instead-of-saying-session-ended)
 - [Browser Lite names third-party hosts in the page (no sync round trip)](#browser-lite-names-third-party-hosts-in-the-page-no-sync-round-trip)
 - [Browser Lite rewrites URLs inside <template>](#browser-lite-rewrites-urls-inside-template)
+- [Browser Lite proxies the URL attributes the engine left native](#browser-lite-proxies-the-url-attributes-the-engine-left-native)
 - [Browser Lite follows same-frame links by replacement](#browser-lite-follows-same-frame-links-by-replacement)
 - [Browser Lite realm hosts use 64k nginx header buffers](#browser-lite-realm-hosts-use-64k-nginx-header-buffers)
 - [Browser Lite parses srcset like a browser, not by splitting on commas](#browser-lite-parses-srcset-like-a-browser-not-by-splitting-on-commas)
@@ -19314,6 +19315,28 @@ fixtures and do not provision external infrastructure.
 - **Not covered:** markup a script builds at runtime with native setters from
   another frame. Server-side processing cannot see that, and client hooks can be
   sidestepped. The egress still mediates everything that goes through the proxy.
+
+## Browser Lite proxies the URL attributes the engine left native
+
+- **Symptom:** Some images loaded straight from the site, bypassing Lite
+  (the user's real IP, a direct connection from China): bilibili's carousel
+  and live covers, Reddit thumbnails, Stack Overflow avatars, cookie-banner
+  logos. Counted per site with Playwright request events; a CSP lock-down would
+  have blanked them.
+- **Cause:** In a real Lite page, these setters were still native:
+  `img.srcset` (lazy loaders), `source.srcset` (Vue's `<picture>`),
+  `link.imageSrcset`, `video.poster`, `track.src` and `a.ping`. Hammerhead's
+  attribute table also lacks `poster`, `track src`, `imagesrcset` and `ping`,
+  so server-rendered markup with them was never rewritten either.
+- **Fix:** `extra-url-attrs.js` is shared by the server page pass (a wrapper on
+  `DomProcessor.processElement` in the gateway) and the client (the same wrapper
+  on `processors.domProcessor`). It rewrites `poster`, `track src` and
+  `imagesrcset`, and drops `ping`, which is optional by spec and a tracking
+  beacon. `client-bridge.js` routes the six properties through `setAttribute`
+  and wraps `setAttribute` for those attributes.
+- **Next:** With these gaps closed, a CSP limiting realm pages to
+  `*.nicejunjie.com` (and `data:`/`blob:`) would make the browser itself refuse
+  any remaining escape. It needs another per-site escape count first.
 
 ## Browser Lite follows same-frame links by replacement
 

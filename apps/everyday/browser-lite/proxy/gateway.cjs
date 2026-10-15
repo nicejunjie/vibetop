@@ -37,6 +37,21 @@ const clientSource = fs.readFileSync(path.join(__dirname, 'client-bridge.js'), '
 const documentHistorySource=fs.readFileSync(path.join(__dirname,'document-history.js'),'utf8');
 const messageTargetSource=fs.readFileSync(path.join(__dirname,'message-target.js'),'utf8');
 const realmHostSource=fs.readFileSync(path.join(__dirname,'realm-host.js'),'utf8');
+const extraUrlAttrsSource=fs.readFileSync(path.join(__dirname,'extra-url-attrs.js'),'utf8');
+// Server page pass: URL attributes the engine's table misses (extra-url-attrs.js).
+{
+  const DomProcessor=hammerhead('processing/dom');
+  const processElement=DomProcessor.prototype.processElement;
+  if(!processElement.vtExtra) {
+    const {processExtraUrlAttrs}=require('./extra-url-attrs.js');
+    DomProcessor.prototype.processElement=Object.assign(function(el,urlReplacer){
+      const result=processElement.call(this,el,urlReplacer);
+      if(typeof urlReplacer==='function')try{processExtraUrlAttrs(this.adapter,el,{rewrite:url=>urlReplacer(url),
+        rewriteSet:value=>urls.handleUrlsSet(urlReplacer,value),isProxied:url=>!!urls.parseProxyUrl(url)});}catch{}
+      return result;
+    },{vtExtra:true});
+  }
+}
 let installed = false;
 function webUrl(value) { return String(value).replace(/^ws:/, 'http:').replace(/^wss:/, 'https:'); }
 function deny(res, code = 403) {
@@ -153,7 +168,7 @@ class BrowserGateway {
       if(tab && !config.nested && tab.physical==='https://'+req.headers.host)config.navigation={tabId:tab.tabId,epoch:tab.epoch};
       const parent=registry.isRealm && registry.realm(params.get('parent'));
       if(parent && authorizeChild(parent,req.vtRealm))config.messageParent={physical:parent.physical,original:parent.origin};
-      res.end('window.__vtBrowserConfig='+JSON.stringify(config).replace(/</g,'\\u003c')+';\n'+messageTargetSource+'\n'+documentHistorySource+'\n'+realmHostSource+'\n'+clientSource);
+      res.end('window.__vtBrowserConfig='+JSON.stringify(config).replace(/</g,'\\u003c')+';\n'+messageTargetSource+'\n'+documentHistorySource+'\n'+realmHostSource+'\n'+extraUrlAttrsSource+'\n'+clientSource);
     });
     this.proxy.GET('/__vt/map',(req,res) => {
       try {

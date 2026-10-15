@@ -123,6 +123,50 @@
     return new native.Worker(url,normalized);
   };
   const realmHost = window.vibetopRealmHost;
+  // URL attributes and properties the engine leaves native: the browser fetched
+  // them straight from the site (img/source srcset set by lazy loaders and Vue,
+  // video posters, captions, responsive preloads; ping beacons).
+  (function hookExtraUrls() {
+    const extra = window.vibetopExtraUrlAttrs, url = engine.utils.url;
+    const proxied = value => { try { return !!url.parseProxyUrl(String(value)); } catch { return false; } };
+    const rewrite = value => url.getProxyUrl(url.resolveUrlAsDest(String(value).trim()));
+    const rewriteSet = value => url.handleUrlsSet ? url.handleUrlsSet(rewrite, String(value)) : String(value).split(',').map(part => {
+      const [first, ...rest] = part.trim().split(/\s+/); return [first && rewrite(first), ...rest].filter(Boolean).join(' '); }).join(', ');
+    if (extra && engine.processors && engine.processors.domProcessor) {
+      const processor = engine.processors.domProcessor, processElement = processor.processElement;
+      processor.processElement = function (el, replacer) {
+        const result = processElement.apply(this, arguments);
+        try { extra.processExtraUrlAttrs(this.adapter, el, {rewrite, rewriteSet, isProxied: proxied}); } catch {}
+        return result;
+      };
+    }
+    const setAttribute = Element.prototype.setAttribute;
+    Element.prototype.setAttribute = function (name, value) {
+      const attr = String(name).toLowerCase(), tag = String(this.tagName || '').toLowerCase();
+      if ((tag === 'a' || tag === 'area') && attr === 'ping') return;
+      if (extra && extra.SINGLE[tag] === attr && value && !/^\s*(data|blob|about|javascript):/i.test(value) && !proxied(value)) value = rewrite(value);
+      else if (tag === 'link' && attr === 'imagesrcset' && value) value = rewriteSet(value);
+      return setAttribute.call(this, name, value);
+    };
+    const hook = (proto, prop, attr, read) => {
+      if (!proto) return;
+      const desc = Object.getOwnPropertyDescriptor(proto, prop);
+      if (!desc || !desc.set) return;
+      Object.defineProperty(proto, prop, {configurable: true, enumerable: desc.enumerable,
+        get() { return read ? read.call(this, desc.get) : (this.getAttribute(attr) || ''); },
+        set(value) { this.setAttribute(attr, String(value)); }});
+    };
+    const destination = function (getter) { const value = getter.call(this); try { return url.parseProxyUrl(value)?.destUrl || value; } catch { return value; } };
+    hook(window.HTMLImageElement && HTMLImageElement.prototype, 'srcset', 'srcset');
+    hook(window.HTMLSourceElement && HTMLSourceElement.prototype, 'srcset', 'srcset');
+    hook(window.HTMLLinkElement && HTMLLinkElement.prototype, 'imageSrcset', 'imagesrcset');
+    hook(window.HTMLVideoElement && HTMLVideoElement.prototype, 'poster', 'poster', destination);
+    hook(window.HTMLTrackElement && HTMLTrackElement.prototype, 'src', 'src', destination);
+    for (const proto of [window.HTMLAnchorElement && HTMLAnchorElement.prototype, window.HTMLAreaElement && HTMLAreaElement.prototype]) {
+      const desc = proto && Object.getOwnPropertyDescriptor(proto, 'ping');
+      if (desc) Object.defineProperty(proto, 'ping', {configurable: true, enumerable: desc.enumerable, get() { return ''; }, set() {}});
+    }
+  })();
   function mapOrigin(origin, iframe) {
     const key = iframe ? 'iframe:'+origin : origin;
     if (Object.prototype.hasOwnProperty.call(origins,key)) return origins[key];
