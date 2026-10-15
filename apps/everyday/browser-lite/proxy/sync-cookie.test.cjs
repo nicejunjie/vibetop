@@ -3,8 +3,11 @@ const {test}=require('node:test');
 const assert=require('node:assert/strict');
 const {realmSyncCookies}=require('./sync-cookie-policy.cjs');
 const sync=(domain,key='k')=>'__Host-s|sid|'+key+'|'+encodeURIComponent(domain)+'|%2F|||';
-const doc={origin:'https://www.shop.example',resourceOnly:false};
+const {mainContext:mainCtx}=require('./realm-policy.cjs');
+const doc={origin:'https://www.shop.example',resourceOnly:false,context:mainCtx('https://www.shop.example')};
 const pixel={origin:'https://tracker.example',resourceOnly:true};
+const {mainContext,childContext}=require('./realm-policy.cjs');
+const adFrame={origin:'https://ads.example',resourceOnly:false,context:childContext(mainContext('https://www.shop.example'),'https://ads.example')};
 test('a resource-only realm gets no sync cookies, and stale ones are expired',()=>{
   const out=realmSyncCookies([sync('tracker.example')+'=1;path=/;Secure','plain=1'],pixel,
     sync('tracker.example','old')+'=x; other=1; '+sync('tracker.example','old')+'=y');
@@ -67,4 +70,9 @@ test('a real gateway leaves no sync cookies on a tracking-pixel realm',{timeout:
     await gateway.close();await egress.close();
     await new Promise(resolve=>source.close(resolve));fs.rmSync(temporary,{recursive:true,force:true});
   }
+});
+test('a cross-site iframe gets no sync cookies, as Safari blocks third-party cookies there',()=>{
+  const own=sync('ads.example')+'=1;path=/;Secure';
+  assert.equal(realmSyncCookies([own],adFrame,''),undefined);
+  assert.deepEqual(realmSyncCookies(undefined,adFrame,sync('ads.example','old')+'=x'),[sync('ads.example','old')+'=;path=/;Secure;expires=Thu, 01 Jan 1970 00:00:01 GMT']);
 });

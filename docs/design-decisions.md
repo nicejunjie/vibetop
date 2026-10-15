@@ -19187,6 +19187,16 @@ fixtures and do not provision external infrastructure.
   on every request) `max-age=3600`. Deletion strings are separate and keep
   their expired date. That bounds leftovers to sites used in the last hour,
   which matters in Safari, where `Priority=High` does not apply.
+- **Follow-up (v1.38.87), cross-site frames and cookieStore:** weather.com alone
+  still left ~150 cookies on 53 realm hosts. Most were server-sync cookies for
+  ad cookie-matching iframes (cross-site, short redirect chains that never
+  consume them), and 34 were random-named cookies that ad scripts wrote with the
+  Cookie Store API, which the engine does not virtualize (those also never
+  reached the site's jar). Realms whose context is not same-site to the tab's
+  top site (`cookieContext` ≠ strict) now get no sync cookies, matching Safari's
+  default third-party cookie blocking. The server jar still sends them on
+  requests. `client-bridge.js` removes `cookieStore`, so sites fall back to
+  `document.cookie`.
 
 ## Browser Lite keeps saved tabs on the server too
 

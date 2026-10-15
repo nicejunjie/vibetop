@@ -1,6 +1,11 @@
 (function () {
   'use strict';
   const config = window.__vtBrowserConfig;
+  // The Cookie Store API is not virtualized by the engine: page scripts wrote
+  // real cookies onto the realm host (40+ on weather.com) that never reached
+  // the site's cookie jar. Without it, sites fall back to document.cookie.
+  try { delete Window.prototype.cookieStore; } catch {}
+  try { if ('cookieStore' in window) Object.defineProperty(window, 'cookieStore', {configurable: true, value: undefined}); } catch {}
   delete window.__vtBrowserConfig;
   const engine = window['%hammerhead%'];
   const native = engine.nativeMethods;
