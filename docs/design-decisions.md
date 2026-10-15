@@ -19805,3 +19805,9 @@ fixtures and do not provision external infrastructure.
   `worker-upload.test.cjs` starts a worker before its upload.
 - **Rejected:** Rewriting the worker on the page. The engine's rewriter is
   server-side, and shipping it to the page would cost every page far more.
+- **Follow-up (v1.38.93):** The next stall was `/__vt/message-target`, the
+  synchronous lookup of a child frame's realm host before posting to it (10 s
+  once on the chart page). The page names a new iframe on its own host, so it
+  never learns the child's host. When it creates a cross-origin iframe, it now
+  fetches that answer in the background (`prefetchChildTarget`), and the
+  synchronous lookup is only a fallback.

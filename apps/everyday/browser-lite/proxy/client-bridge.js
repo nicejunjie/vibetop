@@ -75,8 +75,30 @@
     native.xhrSend.call(xhr);
     if(xhr.status!==200)throw new Error('Message destination unavailable');
     const physical=JSON.parse(xhr.responseText).physical;
+    rememberTarget(key,physical);return physical;
+  }
+  function rememberTarget(key,physical) {
     if(messageTargets.size>=256)messageTargets.delete(messageTargets.keys().next().value);
-    messageTargets.set(key,physical);return physical;
+    messageTargets.set(key,physical);
+  }
+  // The lookup above blocks the page: from far away, or behind a busy page's
+  // requests, one took 10 s on Yahoo Finance. When this document creates an
+  // iframe, look up its message target in the background, so it is usually
+  // known before the page first posts to the frame.
+  const prefetchingTargets=new Set();
+  function prefetchChildTarget(origin) {
+    const key='child:'+origin;
+    if(!config.realmMode || messageTargets.has(key) || prefetchingTargets.has(key) || prefetchingTargets.size>=32)return;
+    prefetchingTargets.add(key);
+    try {
+      const xhr=new native.XMLHttpRequest();
+      native.xhrOpen.call(xhr,'GET',physicalOrigin+'/__vt/message-target?origin='+encodeURIComponent(origin)+'&relation=child',true);
+      native.addEventListener.call(xhr,'loadend',()=>{
+        prefetchingTargets.delete(key);
+        try{if(xhr.status===200 && !messageTargets.has(key))rememberTarget(key,JSON.parse(xhr.responseText).physical);}catch{}
+      });
+      native.xhrSend.call(xhr);
+    } catch {prefetchingTargets.delete(key);}
   }
   window.vibetopPostMessage=function(target,args,targetOrigin) {
     let samePhysical=false;
@@ -217,6 +239,7 @@
     if (config.realmMode && config.resourceKey && config.self && realmHost) {
       // A new iframe is named on this document's own host; the server sends
       // that navigation on to the child realm (Gateway.bindChildFrame).
+      if (iframe && origin !== config.documentOrigin) prefetchChildTarget(origin);
       if (iframe || origin === config.documentOrigin) return origins[key] = config.self;
       return origins[key] = {physical: realmHost(config.resourceKey, origin, config.realmHost), windowId: config.self.windowId};
     }
