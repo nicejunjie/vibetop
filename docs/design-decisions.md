@@ -19868,16 +19868,18 @@ fixtures and do not provision external infrastructure.
   | same-site frame | 6.0 s | 6.0 s |
   | same-site frame + `Origin-Agent-Cluster: ?1` | 0.1 s | 6.0 s |
   | cross-site frame | 0.1 s | 6.0 s |
-  | tab from `window.open(…, 'noopener')` | 0.1 s | 0.1 s |
+  | tab from `window.open(…, 'noopener')`, tapped in the top-level page | 0.1 s | 0.1 s |
+  | the same, tapped inside an app frame (even via `top.open` or a message to the top) | — | 6.0 s |
   | tab from a `target=_blank` form (even `rel=noopener`) | — | 6.0 s |
 
 - **Fix:** Realm responses carry `Origin-Agent-Cluster: ?1` (nginx, every
   status), so Chromium runs each site out of Vibetop's process. On WebKit
-  (every iOS browser and Safari), the Lite window inside Vibetop offers
-  "Open Browser Lite", which opens the same launcher page in its own tab with
-  `window.open(url, '_blank', 'noopener')`. That tab embeds Lite as before,
-  including ticket renewal through its own launcher. A stuck site then
-  freezes only that tab.
+  (every iOS browser and Safari), the shell's Start menu opens Browser Lite
+  with `window.open('/browser-lite.html', '_blank', 'noopener')` in the tap
+  itself (`LITE_IN_TAB` in `desktop.html`) and never restores it as a
+  window. That tab embeds Lite as before, including ticket renewal through
+  its own launcher. A stuck site then freezes only that tab. Embedded anyway,
+  the launcher signs nothing in and points to the Start menu.
 - **Rejected:** A second registrable domain for realms: isolates on desktop
   only, and the extra DNS/tunnel/Access setup hurts adoption. A watchdog in
   the same thread: it cannot run while the page loops. Server-side rendering

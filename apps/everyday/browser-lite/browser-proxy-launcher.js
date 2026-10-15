@@ -40,17 +40,16 @@
     }
   });
   // WebKit (every iOS browser, and Safari) runs all frames on the embedding
-  // page's thread, so a site stuck in a loop froze all of Vibetop. A tab opened
-  // without an opener gets its own process. Inside Vibetop, offer that tab;
-  // in the tab itself, embed as usual.
+  // page's thread, so a site stuck in a loop froze all of Vibetop. Only a tab
+  // the top-level page opens during a tap gets its own process (one opened
+  // from in here does not), so the shell's Start menu opens Lite as a tab.
+  // Embedded anyway, say so instead of embedding; in that tab, embed as usual.
   const ua=navigator.userAgent;
   const sharedThread=/iPhone|iPad|iPod/.test(ua)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1)
     ||(/Safari\//.test(ua)&&!/Chrome|Chromium|CriOS|Edg|OPR|Firefox|FxiOS/.test(ua));
   if(sharedThread&&window.parent!==window) {
     frame.remove();
-    message.textContent='Browser Lite opens in its own tab on this device, so a stuck website cannot freeze Vibetop.';
-    retry.textContent='Open Browser Lite';retry.hidden=false;
-    retry.onclick=()=>window.open(location.href,'_blank','noopener');
+    message.textContent='On this device Browser Lite opens in its own tab, so a stuck website cannot freeze Vibetop. Open it from the Start menu.';
     return;
   }
   retry.onclick=connect;connect();

@@ -3024,8 +3024,25 @@
     }, 9000);
   }
 
+  // WebKit (every iOS browser, and Safari) runs every frame on this page's
+  // thread, so a Browser Lite site stuck in a loop froze all of Vibetop. A tab
+  // that THIS top-level page opens during the tap gets its own process; one
+  // opened from inside an app frame does not (measured, design-decisions.md).
+  // So there Browser Lite is a tab, never a window.
+  var LITE_IN_TAB = (function () {
+    var ua = navigator.userAgent;
+    return /iPhone|iPad|iPod/.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1) ||
+      (/Safari\//.test(ua) && !/Chrome|Chromium|CriOS|Edg|OPR|Firefox|FxiOS/.test(ua));
+  })();
+
   function launch(id) {
     if (!APPS[id]) return;
+    if (id === 'browserlite' && LITE_IN_TAB) {
+      window.open(APPS[id].src, '_blank', 'noopener');   // first: still inside the tap
+      closeMenu();
+      if (openApps.indexOf(id) !== -1) closeApp(id);
+      return;
+    }
     if (APPS[id].sudo && !window.canSudo) return;   // sudo-only app; real gate is the 403
     if (APPS[id].present === false) return;          // optional app not deployed here (404)
     var isNew = openApps.indexOf(id) === -1;
@@ -4139,6 +4156,7 @@
     saved.forEach(function(id) {
       // Never auto-restore a sudo-only app (Config): its endpoints 403 for a
       // demoted user, and it dodges the /api/me-vs-restore load race. Open on demand.
+      if (id === 'browserlite' && LITE_IN_TAB) return;   // a tab there, never a restored window
       if (APPS[id] && !APPS[id].sudo && APPS[id].present !== false && openApps.indexOf(id) === -1) { openApps.push(id); ensureFrame(id); }
     });
     runningGlobal = (state && Array.isArray(state.running)) ? state.running : [];

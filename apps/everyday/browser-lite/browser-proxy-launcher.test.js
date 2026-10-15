@@ -17,16 +17,16 @@ function run({ua,embedded,platform='MacIntel',touch=0}) {
   vm.runInNewContext(source,ctx);
   return {nodes,calls};
 }
-test('inside Vibetop on iPhone, Lite opens in its own tab without an opener',()=>{
+test('embedded on iPhone, Lite does not sign in and points to the Start menu tab',()=>{
   const {nodes,calls}=run({ua:IPHONE,embedded:true,platform:'iPhone',touch:5});
   assert.equal(calls.fetch,0,'must not sign in inside the shared-thread frame');
-  assert.ok(nodes.browser.removed);assert.equal(nodes.retry.hidden,false);
-  nodes.retry.onclick();
-  assert.deepEqual(calls.open,[['https://main.example/browser-lite.html','_blank','noopener']]);
+  assert.ok(nodes.browser.removed);assert.match(nodes.message.textContent,/own tab.*Start menu/);
+  // A tab opened from inside this frame shares its process, so none is offered.
+  assert.equal(nodes.retry.hidden,true);assert.deepEqual(calls.open,[]);
 });
 test('iPadOS reporting a desktop Mac still opens a tab',()=>{
   const {calls,nodes}=run({ua:IPHONE.replace('iPhone; CPU iPhone OS 18_7 like Mac OS X','Macintosh; Intel Mac OS X 10_15_7'),embedded:true,touch:5});
-  assert.equal(calls.fetch,0);assert.equal(nodes.retry.hidden,false);
+  assert.equal(calls.fetch,0);assert.match(nodes.message.textContent,/own tab/);
 });
 test('in its own tab, and in Chromium, Lite embeds as before',()=>{
   assert.equal(run({ua:IPHONE,embedded:false,platform:'iPhone',touch:5}).calls.fetch,1);
