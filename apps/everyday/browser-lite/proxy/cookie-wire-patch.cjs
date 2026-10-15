@@ -48,8 +48,14 @@ function hardenCookieWire(source,client) {
 // client-set copies (still the transport to the server) an hour. Deletion
 // strings are separate and unaffected.
 function boundSyncCookieLifetime(source,client) {
-  if (source.includes('vtSyncCookieAge')) return source;
-  const age = 'function vtSyncCookieAge(cookie) { return cookie.isClientSync ? ";max-age=3600" : ";max-age=600"; }\n';
+  if (source.includes('vtSyncCookieAge(cookie) { var exp')) return source;
+  // A deleted cookie's copy is only a tombstone for the page's other windows:
+  // keep it a minute. DataDome writes and deletes uniquely named test cookies,
+  // and an hour of tombstones pushed investing.com past nginx's header limit.
+  const age = 'function vtSyncCookieAge(cookie) { var exp = cookie.expires; if ((typeof cookie.maxAge === "number" && cookie.maxAge <= 0) || (exp && exp !== "Infinity" && +new Date(exp) <= Date.now())) return ";max-age=60"; return cookie.isClientSync ? ";max-age=3600" : ";max-age=600"; }\n';
+  // Upgrade a build that already carries the earlier one-line helper.
+  const previous = 'function vtSyncCookieAge(cookie) { return cookie.isClientSync ? ";max-age=3600" : ";max-age=600"; }\n';
+  if (source.includes(previous)) return source.replace(previous, () => age);
   const one = (from,to) => {
     if (source.split(from).length !== 2) throw new Error('Cookie lifetime anchor changed: '+from);
     source = source.replace(from,to);

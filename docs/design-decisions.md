@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_480 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_481 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [Terminal link opened a closed Browser app but lost the URL](#terminal-link-opened-a-closed-browser-app-but-lost-the-url)
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
@@ -503,6 +503,7 @@ _480 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [Browser Lite keeps `async` on regenerated async generator methods (TradingView)](#browser-lite-keeps-async-on-regenerated-async-generator-methods-tradingview)
 - [Browser Lite returns original source from Function.prototype.toString](#browser-lite-returns-original-source-from-functionprototypetostring)
 - [Browser Lite sends a small pass-through body in one write](#browser-lite-sends-a-small-pass-through-body-in-one-write)
+- [Browser Lite realm hosts accept large cookie headers (investing.com 400)](#browser-lite-realm-hosts-accept-large-cookie-headers-investingcom-400)
 
 <!-- END TOC -->
 
@@ -19937,3 +19938,20 @@ fixtures and do not provision external infrastructure.
 - **Fix:** `response-coalesce.cjs` replaces hammerhead's pass-through pipe.
   What arrives in the first 40 ms (up to 64 KB) leaves as one write, then the
   body streams as before, so event streams and long polls still flow.
+
+## Browser Lite realm hosts accept large cookie headers (investing.com 400)
+
+- **Symptom:** On a second visit, investing.com showed nginx's "400 Request
+  Header Or Cookie Too Large", and Lite's background frame-target lookups
+  failed with the same 400 during the first visit.
+- **Cause:** Script-set cookies travel to the server as `__Host-cw|...` sync
+  cookies on the realm host, several times their plain size, and the
+  window-shared copies (`cw`) live an hour. DataDome writes and deletes
+  uniquely named test cookies, so tombstones piled up: 39-47 cookies and
+  8-10 KB within one page load. Past nginx's default 8k header buffer every
+  request failed, so no request could clear them, and the host stayed broken.
+- **Fix:** The realm server block sets `large_client_header_buffers 4 32k`
+  (a server-level value works there; tested with a 12-20 KB cookie). The
+  rewrite runtime starts Node with `--max-http-header-size=65536`. A
+  deleted cookie's sync copy (`maxAge <= 0` or a past expiry) now lives 60 s
+  instead of an hour (`cookie-wire-patch.cjs`).

@@ -156,7 +156,8 @@ TimeoutStopSec=10
                 + f"[Service]\nType=simple\nUser={service_user}\n"
                 + (f"Group={gid}\n" if kind == "rewrite" else "")
                 + f"LoadCredential=config.json:{child}/{kind}.json\n"
-                + f"ExecStart=/usr/bin/node {executable_root}/{'runtime' if kind == 'rewrite' else 'egress'}.cjs %d/config.json\n"
+                # Sync cookies can pass Node's 16 KiB header default (nginx allows 4 x 32k).
+                + f"ExecStart=/usr/bin/node {'--max-http-header-size=65536 ' if kind == 'rewrite' else ''}{executable_root}/{'runtime' if kind == 'rewrite' else 'egress'}.cjs %d/config.json\n"
                 + f"BindReadOnlyPaths={code_bind}\n"
                 + common + network + binds)
         return result

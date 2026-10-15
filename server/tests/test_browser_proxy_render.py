@@ -101,3 +101,10 @@ def test_realm_pages_ask_for_their_own_agent_cluster():
     location = realm.split("location / {", 1)[1]
     assert 'add_header Origin-Agent-Cluster "?1" always;' in location
     assert "Origin-Agent-Cluster" not in ui
+
+
+def test_realm_server_accepts_large_cookie_headers():
+    from browser_proxy_nginx import render
+    rendered = render("example.com", "https://lite.example.com", ["https://main.example.com"])
+    ui, realm = rendered.split(r"-[a-f0-9]{32}\.example\.com$", 1)
+    assert "large_client_header_buffers 4 32k;" in realm.split("location", 1)[0]

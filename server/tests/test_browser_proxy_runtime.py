@@ -97,9 +97,9 @@ def test_release_units_execute_the_immutable_directory(tmp_path):
     manager.revision = 'a' * 64
     manager.code = tmp_path / 'releases' / manager.revision
     files = manager.unit_files(claims['uid'], 1000)
-    for kind, filename in (('rewrite', 'runtime.cjs'), ('egress', 'egress.cjs')):
+    for kind, filename, flags in (('rewrite', 'runtime.cjs', '--max-http-header-size=65536 '), ('egress', 'egress.cjs', '')):
         source = files[manager.names(claims['uid'])[kind] + '.service']
-        assert f'ExecStart=/usr/bin/node {manager.code}/{filename} %d/config.json\n' in source
+        assert f'ExecStart=/usr/bin/node {flags}{manager.code}/{filename} %d/config.json\n' in source
         assert f'BindReadOnlyPaths={manager.code}\n' in source
         assert f'{manager.code}:/opt/' not in source
 

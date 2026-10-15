@@ -70,6 +70,10 @@ server {{
     server_name "~^bl-u(?<bl_host_uid>0|[1-9][0-9]{{0,9}})-[a-f0-9]{{32}}\\.{re.escape(domain)}$";
     server_tokens off;
     client_max_body_size 5G;
+    # Script-set cookies travel back as "__Host-cw|..." sync cookies, several
+    # times their plain size. investing.com crossed the default 8k within one
+    # page load; then every request 400'd, so none could clear them again.
+    large_client_header_buffers 4 32k;
     # Sites' cookies come back as engine sync cookies, both in the auth reply's
     # X-VT-Browser-Cookie and in rewritten Set-Cookie headers. The default
     # 4k/8k header buffer turns a cookie-heavy site (NYTimes, CNN) into a 502.

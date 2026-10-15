@@ -30,3 +30,11 @@ test('window and server sync copies expire in 10 minutes; deletions stay deletio
   const client = require('node:fs').readFileSync(engineRequire.resolve('testcafe-hammerhead/lib/client/hammerhead.js'),'utf8');
   assert.equal(client.split('vtSyncCookieAge(cookie)').length,4,'the helper plus both client formatters');
 });
+test('a deleted script cookie is a one-minute tombstone, a live one still an hour', () => {
+  const base = {isClientSync:true,isWindowSync:true,sid:'profile',key:'dd_cookie_test_1',value:'',domain:'example.com',path:'/',lastAccessed:new Date()};
+  assert.ok(formatSyncCookie({...base,expires:new Date(0)}).endsWith(';max-age=60'));
+  assert.ok(formatSyncCookie({...base,expires:'Infinity',maxAge:0}).endsWith(';max-age=60'));
+  assert.ok(formatSyncCookie({...base,expires:new Date(Date.now()+86400e3)}).endsWith(';max-age=3600'));
+  const client = require('node:fs').readFileSync(engineRequire.resolve('testcafe-hammerhead/lib/client/hammerhead.js'),'utf8');
+  assert.ok(client.includes('return ";max-age=60"'),'client copy not upgraded');
+});
