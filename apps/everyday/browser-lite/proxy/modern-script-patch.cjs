@@ -90,6 +90,16 @@ function patchModernScripts(engineRequire) {
       patch(file,anchor,anchor + ' ' + fieldGuard);
     }
   }
+  // Function.prototype.toString: hand back the source without the engine's
+  // wrappers (source-text.js), for code that reads its own text.
+  {
+    const source=fs.readFileSync(client,'utf8');
+    if(!source.includes('window.vibetopUnprocessSource(vtSource)')) {
+      const anchor=/(return this\[INTERNAL_PROPS\.nativeStrRepresentation\];\s*)return nativeMethods\.functionToString\.call\(this\);/g;
+      if((source.match(anchor)||[]).length!==1)throw new Error('Modern JS patch anchor changed: Function.prototype.toString');
+      fs.writeFileSync(client,source.replace(anchor,(_,head)=>head+"var vtSource = nativeMethods.functionToString.call(this); return typeof window !== 'undefined' && window.vibetopUnprocessSource ? window.vibetopUnprocessSource(vtSource) : vtSource;"));
+    }
+  }
   for(const file of [client,hhRequire.resolve('esotope-hammerhead')]) {
     const oldMember="_.js += ($expr.optional ? '?.' : '.') + $prop.name;";
     const privateMember="_.js += ($expr.optional ? '?.' : '.') + ($prop.type === 'PrivateIdentifier' ? '#' : '') + $prop.name;";

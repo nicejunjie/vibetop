@@ -15,6 +15,7 @@ const Session = engineRequire('./src/classes/RammerheadSession');
 const RammerheadJSMemCache = engineRequire('./src/classes/RammerheadJSMemCache');
 const urls = hammerhead('utils/url');
 const Context = hammerhead('request-pipeline/context');
+require('./response-coalesce.cjs').installResponseCoalescing(Context);
 const transforms = hammerhead('request-pipeline/header-transforms/transforms');
 if(process.env.VT_BROWSER_DIAGNOSTICS==='1'){require('./stage-timing.cjs').installStageTiming(hammerhead('request-pipeline/stages'));require('./stage-timing.cjs').installRawCookieCheck(require('node:http'));}
 const {requestOrigin, uniqueCookie} = require('./origin-policy.cjs');
@@ -37,6 +38,7 @@ const clientSource = fs.readFileSync(path.join(__dirname, 'client-bridge.js'), '
 const documentHistorySource=fs.readFileSync(path.join(__dirname,'document-history.js'),'utf8');
 const messageTargetSource=fs.readFileSync(path.join(__dirname,'message-target.js'),'utf8');
 const messageGateSource=fs.readFileSync(path.join(__dirname,'message-gate.js'),'utf8');
+const sourceTextSource=fs.readFileSync(path.join(__dirname,'source-text.js'),'utf8');
 const realmHostSource=fs.readFileSync(path.join(__dirname,'realm-host.js'),'utf8');
 const extraUrlAttrsSource=fs.readFileSync(path.join(__dirname,'extra-url-attrs.js'),'utf8');
 // Server page pass: URL attributes the engine's table misses (extra-url-attrs.js).
@@ -170,7 +172,7 @@ class BrowserGateway {
       if(tab && !config.nested && tab.physical==='https://'+req.headers.host)config.navigation={tabId:tab.tabId,epoch:tab.epoch};
       const parent=registry.isRealm && registry.realm(params.get('parent'));
       if(parent && authorizeChild(parent,req.vtRealm))config.messageParent={physical:parent.physical,original:parent.origin};
-      res.end('window.__vtBrowserConfig='+JSON.stringify(config).replace(/</g,'\\u003c')+';\n'+messageTargetSource+'\n'+messageGateSource+'\n'+documentHistorySource+'\n'+realmHostSource+'\n'+extraUrlAttrsSource+'\n'+clientSource);
+      res.end('window.__vtBrowserConfig='+JSON.stringify(config).replace(/</g,'\\u003c')+';\n'+messageTargetSource+'\n'+messageGateSource+'\n'+sourceTextSource+'\n'+documentHistorySource+'\n'+realmHostSource+'\n'+extraUrlAttrsSource+'\n'+clientSource);
     });
     this.proxy.GET('/__vt/map',(req,res) => {
       try {

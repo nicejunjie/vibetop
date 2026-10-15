@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_478 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_480 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [Terminal link opened a closed Browser app but lost the URL](#terminal-link-opened-a-closed-browser-app-but-lost-the-url)
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
@@ -501,6 +501,8 @@ _478 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [Browser Lite page back buttons (X's back arrow did nothing)](#browser-lite-page-back-buttons-xs-back-arrow-did-nothing)
 - [A stuck site must not freeze Vibetop (Browser Lite isolation)](#a-stuck-site-must-not-freeze-vibetop-browser-lite-isolation)
 - [Browser Lite keeps `async` on regenerated async generator methods (TradingView)](#browser-lite-keeps-async-on-regenerated-async-generator-methods-tradingview)
+- [Browser Lite returns original source from Function.prototype.toString](#browser-lite-returns-original-source-from-functionprototypetostring)
+- [Browser Lite sends a small pass-through body in one write](#browser-lite-sends-a-small-pass-through-body-in-one-write)
 
 <!-- END TOC -->
 
@@ -19905,3 +19907,33 @@ fixtures and do not provision external infrastructure.
 - **Fix:** `modern-script-patch.cjs` emits `async *` in both the server's
   esotope and the client's bundled copy. `modern-script.test.cjs` regenerates
   class and object async generator methods and checks the client copy.
+
+## Browser Lite returns original source from Function.prototype.toString
+
+- **Symptom:** Yahoo's ad script threw "The string contains invalid
+  characters" in Lite only.
+- **Cause:** It decodes base64 spelled by the identifiers of one of its own
+  functions (`fn.toString()`, punctuation stripped). Hammerhead rewrote
+  `pc3[R]` to ` __get$(pc3,R) `, so the decoded text gained `__get$` and
+  `atob` failed. Any code that reads its own source saw the engine's wrappers.
+- **Fix:** Hammerhead's `Function.prototype.toString` override passes the text
+  through `source-text.js`, which reverses the simple wrappers: property
+  get/set, method call, location get, and Lite's own optional-chain form,
+  including the engine's one-space padding. It skips strings, templates,
+  comments and regex literals, and caches results. Rewrites that cannot be
+  reversed exactly (destructuring, location assignment) stay as they are.
+  `source-text.test.cjs` round-trips engine output back to the exact source.
+- **Rejected:** Shipping each changed function's original text with the
+  script: it would double the size of large bundles to serve a rare call.
+
+## Browser Lite sends a small pass-through body in one write
+
+- **Symptom:** Yahoo's opus.js sometimes threw "JSON Parse error: Unterminated
+  string" in Lite.
+- **Cause:** It reads only the first chunk of a fetch body
+  (`body.getReader().read()` once). Real servers send the small JSON in one
+  burst. Through Lite, a streamed body crossed the gateway, nginx and
+  Cloudflare in pieces, so the first read could be partial.
+- **Fix:** `response-coalesce.cjs` replaces hammerhead's pass-through pipe.
+  What arrives in the first 40 ms (up to 64 KB) leaves as one write, then the
+  body streams as before, so event streams and long polls still flow.
