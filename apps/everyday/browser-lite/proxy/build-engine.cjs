@@ -121,6 +121,7 @@ require('./modern-script-patch.cjs').patchModernScripts(engineRequire);
 require('./optional-chain-patch.cjs').patchOptionalChains(engineRequire);
 require('./worker-origin-patch.cjs').patchWorkerOrigins(engineRequire);
 require('./hls-patch.cjs').patchHlsPlaylists(engineRequire);
+require('./template-patch.cjs').patchTemplates(engineRequire);
 require('./srcset-patch.cjs').patchSrcset(engineRequire);
 require('./svg-href-patch.cjs').patchSvgHref(engineRequire);
 require('./realm-root-url-patch.cjs').patchRealmRootUrls(engineRequire);

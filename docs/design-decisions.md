@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_469 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_470 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [Terminal link opened a closed Browser app but lost the URL](#terminal-link-opened-a-closed-browser-app-but-lost-the-url)
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
@@ -473,6 +473,7 @@ _469 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [Browser Lite keeps saved tabs on the server too](#browser-lite-keeps-saved-tabs-on-the-server-too)
 - [Browser Lite reloads a forgotten tab instead of saying "session ended"](#browser-lite-reloads-a-forgotten-tab-instead-of-saying-session-ended)
 - [Browser Lite names third-party hosts in the page (no sync round trip)](#browser-lite-names-third-party-hosts-in-the-page-no-sync-round-trip)
+- [Browser Lite rewrites URLs inside <template>](#browser-lite-rewrites-urls-inside-template)
 - [Browser Lite follows same-frame links by replacement](#browser-lite-follows-same-frame-links-by-replacement)
 - [Browser Lite realm hosts use 64k nginx header buffers](#browser-lite-realm-hosts-use-64k-nginx-header-buffers)
 - [Browser Lite parses srcset like a browser, not by splitting on commas](#browser-lite-parses-srcset-like-a-browser-not-by-splitting-on-commas)
@@ -19293,6 +19294,26 @@ fixtures and do not provision external infrastructure.
   the same gap). The hop has already verified the parent, so it records a
   single-use, 60-second grant for that exact child URL on the same lease. The
   grant admits the navigation and supplies the parent for messaging.
+
+## Browser Lite rewrites URLs inside <template>
+
+- **Symptom:** On weather.com, desktop Chromium requested ad-sync pixels
+  (bidswitch, tapad, casalemedia, pubeasy…) directly from the ad servers,
+  bypassing Lite and its egress: the user's real IP, and in China a direct
+  connection. CDP showed them as parser-initiated from drivenmove.com frames
+  that *were* processed by the engine.
+- **Cause:** drivenmove is an ad-block-evasion "adproxy". Its documents carry
+  their markup in `<template id="adproxy-wrapped-body">`, and its script clones
+  it into the page using native DOM methods taken from another frame
+  (`getOwnPropertyDescriptor(r.Node.prototype, …)`), which defeats client-side
+  hooks. parse5 stores template children in `content`, not `childNodes`, so the
+  engine's `walkElements` never rewrote them.
+- **Fix:** `template-patch.cjs` also walks `el.content`, so URLs and inline
+  scripts inside templates (nested too) are processed on the server, before any
+  client code can clone them. `template.test.cjs` covers nested templates.
+- **Not covered:** markup a script builds at runtime with native setters from
+  another frame. Server-side processing cannot see that, and client hooks can be
+  sidestepped. The egress still mediates everything that goes through the proxy.
 
 ## Browser Lite follows same-frame links by replacement
 
