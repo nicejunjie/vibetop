@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_482 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_483 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [Terminal link opened a closed Browser app but lost the URL](#terminal-link-opened-a-closed-browser-app-but-lost-the-url)
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
@@ -505,6 +505,7 @@ _482 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [Browser Lite sends a small pass-through body in one write](#browser-lite-sends-a-small-pass-through-body-in-one-write)
 - [Browser Lite realm hosts accept large cookie headers (investing.com 400)](#browser-lite-realm-hosts-accept-large-cookie-headers-investingcom-400)
 - [Browser Lite proxies scripted images and video posters](#browser-lite-proxies-scripted-images-and-video-posters)
+- [Browser Lite proxies media-session artwork and notification icons](#browser-lite-proxies-media-session-artwork-and-notification-icons)
 
 <!-- END TOC -->
 
@@ -19973,3 +19974,18 @@ fixtures and do not provision external infrastructure.
   one-attribute-per-element processing list) and overrides the `poster`
   property. The HTML pass stores the original poster where `getAttribute`
   looks for it.
+
+## Browser Lite proxies media-session artwork and notification icons
+
+- **Symptom:** On Twitch, two 150x150 profile pictures loaded straight from
+  static-cdn.jtvnw.net. DevTools showed type "Other" with initiator "other":
+  the browser itself, not the page, fetched them.
+- **Cause:** `navigator.mediaSession.metadata = new MediaMetadata({artwork})`
+  makes the browser fetch the artwork URLs for its media controls.
+  `Notification` and `showNotification` icons work the same way. The engine
+  rewrites neither.
+- **Fix:** `client-bridge.js` wraps the `MediaMetadata` constructor and its
+  `artwork` setter, the `Notification` constructor and
+  `ServiceWorkerRegistration.showNotification`, proxying `src`, `icon`,
+  `image` and `badge` URLs (data: and already proxied URLs untouched).
+  `browser-fetched-images.test.cjs` runs the hook against stub classes.

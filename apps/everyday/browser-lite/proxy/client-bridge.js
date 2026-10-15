@@ -186,6 +186,40 @@
     return new native.Worker(url,normalized);
   };
   const realmHost = window.vibetopRealmHost;
+  // The browser itself fetches media-session artwork and notification icons,
+  // straight from the site: Twitch's streamer pictures (MediaMetadata) went
+  // around the proxy. Proxy the URLs handed to those APIs.
+  (function hookBrowserFetchedImages() {
+    const url = engine.utils.url;
+    const rewrite = value => {
+      try {
+        const text = String(value);
+        if (/^\s*(data|blob):/i.test(text) || url.parseProxyUrl(text)) return text;
+        return url.getProxyUrl(url.resolveUrlAsDest(text.trim()));
+      } catch { return value; }
+    };
+    const artwork = list => Array.isArray(list) ? list.map(item => item && typeof item === 'object' && 'src' in item ? {...item, src: rewrite(item.src)} : item) : list;
+    const icons = options => {
+      if (!options || typeof options !== 'object') return options;
+      const copy = {...options};
+      for (const key of ['icon', 'image', 'badge']) if (copy[key]) copy[key] = rewrite(copy[key]);
+      return copy;
+    };
+    const wrapConstructor = (name, fix) => {
+      const Native = window[name];
+      if (typeof Native !== 'function') return;
+      window[name] = new Proxy(Native, {construct(target, args, newTarget) {
+        return Reflect.construct(target, fix(args), newTarget === window[name] ? target : newTarget);
+      }});
+    };
+    wrapConstructor('MediaMetadata', args => args[0] && typeof args[0] === 'object' && 'artwork' in args[0] ? [{...args[0], artwork: artwork(args[0].artwork)}, ...args.slice(1)] : args);
+    const art = window.MediaMetadata && Object.getOwnPropertyDescriptor(window.MediaMetadata.prototype, 'artwork');
+    if (art && art.set) Object.defineProperty(window.MediaMetadata.prototype, 'artwork', {...art, set(value) { art.set.call(this, artwork(value)); }});
+    wrapConstructor('Notification', args => [args[0], icons(args[1]), ...args.slice(2)]);
+    const registration = window.ServiceWorkerRegistration && window.ServiceWorkerRegistration.prototype;
+    const show = registration && registration.showNotification;
+    if (show) registration.showNotification = function (title, options) { return show.call(this, title, icons(options)); };
+  })();
   // URL attributes and properties the engine leaves native: the browser fetched
   // them straight from the site (img/source srcset set by lazy loaders and Vue,
   // video posters, captions, responsive preloads; ping beacons).
