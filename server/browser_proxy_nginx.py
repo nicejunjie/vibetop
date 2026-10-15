@@ -93,6 +93,10 @@ server {{
         auth_request_set $bl_cookie $upstream_http_set_cookie;
         auth_request_set $bl_forward_cookie $upstream_http_x_vt_browser_cookie;
         add_header Set-Cookie $bl_cookie always;
+        # Same-site frames share the embedding page's process and thread, so a
+        # site stuck in a loop froze all of Vibetop. Chromium runs an
+        # origin-keyed agent cluster in its own process (WebKit does not).
+        add_header Origin-Agent-Cluster "?1" always;
         limit_conn browser_lite_users 128;
         proxy_pass http://unix:$bl_socket:$request_uri;
         proxy_http_version 1.1;

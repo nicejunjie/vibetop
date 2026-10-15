@@ -39,5 +39,19 @@
       catch(error){frame.contentWindow.postMessage({type:'vibetop-browser-handoff',id,error:error.message},uiOrigin);}
     }
   });
+  // WebKit (every iOS browser, and Safari) runs all frames on the embedding
+  // page's thread, so a site stuck in a loop froze all of Vibetop. A tab opened
+  // without an opener gets its own process. Inside Vibetop, offer that tab;
+  // in the tab itself, embed as usual.
+  const ua=navigator.userAgent;
+  const sharedThread=/iPhone|iPad|iPod/.test(ua)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1)
+    ||(/Safari\//.test(ua)&&!/Chrome|Chromium|CriOS|Edg|OPR|Firefox|FxiOS/.test(ua));
+  if(sharedThread&&window.parent!==window) {
+    frame.remove();
+    message.textContent='Browser Lite opens in its own tab on this device, so a stuck website cannot freeze Vibetop.';
+    retry.textContent='Open Browser Lite';retry.hidden=false;
+    retry.onclick=()=>window.open(location.href,'_blank','noopener');
+    return;
+  }
   retry.onclick=connect;connect();
 })();

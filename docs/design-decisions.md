@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_476 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_477 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [Terminal link opened a closed Browser app but lost the URL](#terminal-link-opened-a-closed-browser-app-but-lost-the-url)
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
@@ -499,6 +499,7 @@ _476 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [Browser Lite starts blob workers before their source is uploaded](#browser-lite-starts-blob-workers-before-their-source-is-uploaded)
 - [Browser Lite caches element URL getters (Yahoo Finance search)](#browser-lite-caches-element-url-getters-yahoo-finance-search)
 - [Browser Lite page back buttons (X's back arrow did nothing)](#browser-lite-page-back-buttons-xs-back-arrow-did-nothing)
+- [A stuck site must not freeze Vibetop (Browser Lite isolation)](#a-stuck-site-must-not-freeze-vibetop-browser-lite-isolation)
 
 <!-- END TOC -->
 
@@ -19852,3 +19853,35 @@ fixtures and do not provision external infrastructure.
 - **Fix:** The option is destructured as `savedHistory`.
   `wrapper-history.test.cjs` parses `wrapper.js` and fails if any function
   that calls `history()` binds that name.
+
+## A stuck site must not freeze Vibetop (Browser Lite isolation)
+
+- **Symptom:** xueqiu.com (Alibaba Cloud's bot challenge) loops forever under
+  Lite. The whole Vibetop page froze with it, on iPhone and desktop.
+- **Cause:** Vibetop, the Lite toolbar and every site's realm are same-site
+  (`*.nicejunjie.com`). Same-site frames share one process and one main
+  thread, so no code anywhere on the page could even notice the hang. A test
+  with a 6 s busy loop measured the parent's stall:
+
+  | Hanging page runs in | Chromium | WebKit (iOS) |
+  |---|---|---|
+  | same-site frame | 6.0 s | 6.0 s |
+  | same-site frame + `Origin-Agent-Cluster: ?1` | 0.1 s | 6.0 s |
+  | cross-site frame | 0.1 s | 6.0 s |
+  | tab from `window.open(…, 'noopener')` | 0.1 s | 0.1 s |
+  | tab from a `target=_blank` form (even `rel=noopener`) | — | 6.0 s |
+
+- **Fix:** Realm responses carry `Origin-Agent-Cluster: ?1` (nginx, every
+  status), so Chromium runs each site out of Vibetop's process. On WebKit
+  (every iOS browser and Safari), the Lite window inside Vibetop offers
+  "Open Browser Lite", which opens the same launcher page in its own tab with
+  `window.open(url, '_blank', 'noopener')`. That tab embeds Lite as before,
+  including ticket renewal through its own launcher. A stuck site then
+  freezes only that tab.
+- **Rejected:** A second registrable domain for realms: isolates on desktop
+  only, and the extra DNS/tunnel/Access setup hurts adoption. A watchdog in
+  the same thread: it cannot run while the page loops. Server-side rendering
+  (the full Browser app): contains everything, but far more bandwidth.
+- **Measuring hangs:** Playwright's `evaluate` and its sync API both mislead
+  here (a hung frame blocks unrelated evaluations; `time.sleep` stops event
+  delivery). Measure with a timer inside the page instead.

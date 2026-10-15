@@ -90,3 +90,14 @@ def test_realm_server_buffers_cookie_heavy_headers():
     realm = rendered.split(r"-[a-f0-9]{32}\.example\.com$", 1)[1]
     # Both the auth reply and the rewritten upstream headers carry site cookies.
     assert realm.index("proxy_buffer_size 64k;") < realm.index("location = /__browser_auth")
+
+
+def test_realm_pages_ask_for_their_own_agent_cluster():
+    from browser_proxy_nginx import render
+    rendered = render("example.com", "https://lite.example.com", ["https://main.example.com"])
+    ui, realm = rendered.split(r"-[a-f0-9]{32}\.example\.com$", 1)
+    # Chromium then runs a stuck site outside Vibetop's process. Every realm
+    # response carries it, error pages included, so one origin never mixes.
+    location = realm.split("location / {", 1)[1]
+    assert 'add_header Origin-Agent-Cluster "?1" always;' in location
+    assert "Origin-Agent-Cluster" not in ui
