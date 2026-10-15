@@ -19213,6 +19213,17 @@ fixtures and do not provision external infrastructure.
 - **Rejected:** Changing every host's derivation. Document hosts are where sites
   keep localStorage and IndexedDB, and renaming them would sign users out of
   sites. Only resource hosts changed, and they hold no storage.
+- **Iframes (late binding):** A new cross-origin iframe needs a child context
+  token, which only the server can sign. Its single synchronous lookup still
+  froze ChatGPT for 6-7 s, waiting behind the page's 300-request burst. The
+  page now names the iframe on its own host (a valid proxy URL, so `src` reads
+  back correctly). `Gateway.bindChildFrame` answers that navigation with a 302
+  to the child realm, but only for an iframe navigation that is `same-origin`
+  from that host's document and carries that document's own context token.
+  That is the same grant as `/__vt/map?kind=iframe`, now inside the frame's
+  own navigation instead of on the page's main thread.
+  `frame-binding.test.cjs` covers the redirect and refuses cross-site and
+  foreign-context hops.
 
 ## Browser Lite follows same-frame links by replacement
 

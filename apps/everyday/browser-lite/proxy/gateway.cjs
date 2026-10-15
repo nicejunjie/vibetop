@@ -214,6 +214,25 @@ class BrowserGateway {
     return 'default-src '+source+'; script-src '+source+" 'wasm-unsafe-eval'; connect-src "+source+' '+socket+' blob: data:'+'; worker-src '+source+"; object-src 'none'; base-uri 'none'";
   }
   url(destination,options={}) { return urls.getProxyUrl(destination,{sessionId:this.session.id,...options}); }
+  // A page names a new cross-origin iframe on its own host (no synchronous
+  // round trip; the child context's token needs the server's secret). The
+  // document itself (same-origin, its own signed context) navigates the frame
+  // here, and the frame is sent on to its real child realm. Grants nothing
+  // /__vt/map?kind=iframe did not.
+  bindChildFrame(req,res,physical,parsed) {
+    if(req.method!=='GET'||req.headers['sec-fetch-dest']!=='iframe'||req.headers['sec-fetch-mode']!=='navigate'
+      ||req.headers['sec-fetch-site']!=='same-origin'||!urls.parseResourceType(parsed.resourceType).isIframe)return false;
+    const owner=this.registry.realm(physical);
+    if(!owner||owner.resourceOnly)return false;
+    let destination;try{destination=webUrl(parsed.destUrl);if(new URL(destination).origin===owner.origin)return false;}catch{return false;}
+    const windowId=String(parsed.windowId||'');
+    if(windowId.split('~')[0]!==this.registry.realms.contextToken(owner.context))return false;
+    let target;
+    try{target=this.registry.scope.run({req},()=>this.url(destination,{resourceType:parsed.resourceType,windowId,context:owner.context}));}
+    catch{deny(res);return true;}
+    res.writeHead(302,{'Location':target,'Cache-Control':'no-store','Referrer-Policy':'strict-origin-when-cross-origin'});res.end();
+    return true;
+  }
   control(command,{authorization,cookies,...body}) {
     if(this.ingressIdentity && !this.validIngress(authorization))throw new Error('Invalid control identity');
     // Only the root manager adds cookies (the full Browser's, for this site).
@@ -474,6 +493,7 @@ class BrowserGateway {
     let location; try { location = new URL(req.url,physical); } catch { return deny(res,400); }
     const parsed = urls.parseProxyUrl(physical+req.url);
     if(this.registry.isRealm) {
+      if(parsed && !upgrade && this.bindChildFrame(req,res,physical,parsed))return true;
       if(parsed) {
         try{this.registry.recover(req.headers.host,webUrl(parsed.destUrl),parsed.windowId);}catch{return deny(res);}
       }
