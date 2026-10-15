@@ -23,6 +23,7 @@ const {importLogins} = require('./login-import.cjs');
 const {WorkerStore} = require('./worker-store.cjs');
 const {NavigationTransactions} = require('./navigation.cjs');
 const {BodyBudget} = require('./body-budget.cjs');
+const {playlistRange} = require('./hls-patch.cjs');
 const {CookieStore} = require('./cookie-store.cjs');
 const {redirectTaint,navigationFetchSite,mainFrameFetchDest} = require('./redirect-policy.cjs');
 const {ControlLedger} = require('./control-ledger.cjs');
@@ -429,6 +430,7 @@ class BrowserGateway {
     transforms.requestTransforms['sec-fetch-dest'] = (value,ctx) =>
       mainFrameFetchDest(value,ctx.req.headers['sec-fetch-mode'],ctx.dest.isIframe);
     transforms.requestTransforms['proxy-authorization'] = () => undefined;
+    transforms.requestTransforms.range = playlistRange;
     transforms.forcedRequestTransforms.origin = (_value,ctx) =>
       ctx.req.headers.origin || (ctx.req.vtNavigation && ctx.req.method==='POST') ? (ctx.req.vtNavigation?.originTaint && ctx.req.vtNavigation.originTaint!=='same-origin'?'null':ctx.dest.reqOrigin) : undefined;
     transforms.responseTransforms['access-control-allow-origin'] = (value,ctx) => {

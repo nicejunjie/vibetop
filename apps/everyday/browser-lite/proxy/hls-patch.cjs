@@ -32,9 +32,21 @@ function patchHlsPlaylists(engineRequire) {
     '!isTextPage && !isManifest && !isScript && !isForm && !isObject;',
     '!isTextPage && !isManifest && !isHls && !isScript && !isForm && !isObject;');
   patch(context,'            isManifest,\n','            isManifest,\n            isHls,\n');
+  const processor='{shouldProcessResource: ctx => !!ctx.contentInfo.isHls, '+
+    'processResource: (playlist, _ctx, _charset, urlReplacer) => ('+rewritePlaylist+')(playlist, urlReplacer)}';
   patch(lib('processing/resources/index.js'),
     'const RESOURCE_PROCESSORS = [page_1.default, manifest_1.default,',
-    'const RESOURCE_PROCESSORS = [page_1.default, {shouldProcessResource: ctx => !!ctx.contentInfo.isHls, '+
-      'processResource: (playlist, _ctx, _charset, urlReplacer) => ('+rewritePlaylist+')(playlist, urlReplacer)}, manifest_1.default,');
+    'const RESOURCE_PROCESSORS = [page_1.default, '+processor+', manifest_1.default,');
+  // Rammerhead replaces Hammerhead's process() with its own async copy and
+  // its own processor list, so the list above is never consulted at runtime.
+  patch(engineRequire.resolve('./src/util/patchAsyncResourceProcessor.js'),
+    'const RESOURCE_PROCESSORS = [pageProcessor, manifestProcessor,',
+    'const RESOURCE_PROCESSORS = [pageProcessor, '+processor+', manifestProcessor,');
 }
-module.exports={patchHlsPlaylists,rewritePlaylist,isHls:type=>HLS_MIME.test(type||'')};
+// A rewritten playlist has a different length, so a byte range of the
+// original would cut it at the wrong place. Playlists are small: fetch whole.
+function playlistRange(value,ctx) {
+  try {if(/\.m3u8$/i.test(new URL(ctx.dest.url).pathname))return undefined;} catch {}
+  return value;
+}
+module.exports={patchHlsPlaylists,rewritePlaylist,playlistRange,isHls:type=>HLS_MIME.test(type||'')};

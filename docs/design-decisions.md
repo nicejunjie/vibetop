@@ -19119,6 +19119,18 @@ fixtures and do not provision external infrastructure.
   activation.
 - **Rejected:** Redirecting stray realm-root requests using the Referer. Native
   media requests carry no reliable Referer, and it would let unproxied paths in.
+- **Follow-up (v1.38.70):** That fix never ran. The user still reported "media
+  on x.com could not be loaded". Rammerhead's `patchAsyncResourceProcessor.js`
+  replaces Hammerhead's `process()` with its own copy and its own processor
+  list, so the HLS processor added to Hammerhead's list was never consulted.
+  Playlists went out unchanged. The original test called Hammerhead's
+  `process()` directly, so it passed. `hls-patch.cjs` now adds the processor to
+  both lists. Safari also re-requests playlists with a byte `Range`, which would
+  cut a rewritten, longer playlist, so the gateway drops `Range` on `.m3u8`
+  requests. `hls.test.cjs` now sends a `<video>`-style request through a real
+  `BrowserGateway`.
+- **Lesson:** A patch to an engine internal needs a test that goes through the
+  real gateway. Rammerhead overrides several Hammerhead entry points.
 
 ## Browser Lite follows same-frame links by replacement
 
