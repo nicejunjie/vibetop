@@ -19197,6 +19197,19 @@ fixtures and do not provision external infrastructure.
   default third-party cookie blocking. The server jar still sends them on
   requests. `client-bridge.js` removes `cookieStore`, so sites fall back to
   `document.cookie`.
+- **Bug fixed (v1.38.88), raw cookies leaked:** When the policy removed every
+  sync cookie it returned `undefined`, and Hammerhead's `transformHeaders` keeps
+  a header's original value when a transform returns `undefined`. Every pixel,
+  beacon and cross-site frame response therefore sent the site's raw
+  `Set-Cookie` lines to the browser (1029 on one weather.com load, seen with
+  CDP `responseReceivedExtraInfo`). Host-only ones were stored on realm hosts,
+  including HttpOnly ones, and inflated the cookie count. They never reached a
+  site again, because the forced request `cookie` transform sends only the jar.
+  It now returns an empty list, and the gateway tests assert no raw line
+  reaches the browser. The earlier unit tests had asserted `undefined`.
+- **Lesson:** A header transform's empty result must be an empty value.
+  Diagnostics now include a raw `Set-Cookie` detector
+  (`stage-timing.cjs installRawCookieCheck`) that logs the code path.
 
 ## Browser Lite keeps saved tabs on the server too
 

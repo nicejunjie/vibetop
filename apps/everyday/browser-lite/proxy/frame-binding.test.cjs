@@ -8,7 +8,7 @@ test('a cross-origin iframe named on its parent host is sent on to its child rea
   const {BrowserGateway}=require('./gateway.cjs');const {RealmOrigins}=require('./realm-origins.cjs');const {EgressProxy}=require('./egress.cjs');
   const {childContext}=require('./realm-policy.cjs');
   const temporary=fs.mkdtempSync(path.join(os.tmpdir(),'vt-frame-'));
-  const source=http.createServer((req,res)=>{res.writeHead(200,{'content-type':'text/html'});res.end('<p>frame</p>');});
+  const source=http.createServer((req,res)=>{res.writeHead(200,{'content-type':'text/html','set-cookie':['uid=1; Domain=widget.example; Path=/; SameSite=None; Secure','plain=2; Path=/']});res.end('<p>frame</p>');});
   await new Promise(r=>source.listen(0,'127.0.0.1',r));
   const egress=new EgressProxy({resolve:async()=>[{address:'1.1.1.1',family:4}],connect:()=>net.createConnection({host:'127.0.0.1',port:source.address().port})});
   const registry=new RealmOrigins({uid:1000,profile:'a'.repeat(32),secret:'test',domain:'realms.proxy.example.com'});
@@ -21,7 +21,7 @@ test('a cross-origin iframe named on its parent host is sent on to its child rea
   const windowId=decodeURIComponent(page.pathname.split('/')[1]).split('*')[1];
   const get=(host,pathname,site,referer=page.href)=>new Promise((resolve,reject)=>http.request({socketPath,path:pathname,headers:{Host:host,'X-VT-Browser-Role':'auth',
     'Sec-Fetch-Dest':'iframe','Sec-Fetch-Mode':'navigate','Sec-Fetch-Site':site,...(referer?{Referer:referer}:{}),
-    ...Object.fromEntries(Object.entries(authorization).map(([k,v])=>['X-VT-Browser-'+k,String(v)]))}},res=>{res.resume();res.on('end',()=>resolve({status:res.statusCode,location:res.headers.location}));}).on('error',reject).end());
+    ...Object.fromEntries(Object.entries(authorization).map(([k,v])=>['X-VT-Browser-'+k,String(v)]))}},res=>{res.resume();res.on('end',()=>resolve({status:res.statusCode,location:res.headers.location,cookies:res.headers['set-cookie']||[]}));}).on('error',reject).end());
   const late='/'+encodeURIComponent('stableTestEngine*'+windowId)+'!i/http://widget.example/embed';
   try {
     const hop=await get(page.host,late,'same-origin');
@@ -30,6 +30,7 @@ test('a cross-origin iframe named on its parent host is sent on to its child rea
     assert.equal(new URL(hop.location).origin,expected,'sent to the child realm of this document');
     const frame=await get(new URL(hop.location).host,new URL(hop.location).pathname,'same-site',page.origin+'/');
     assert.equal(frame.status,200);
+    assert.ok(frame.cookies.every(line=>line.startsWith('__Host-')),'a cross-site frame never receives raw site cookies: '+frame.cookies);
     // A frame created with referrerpolicy=no-referrer: admitted once by the hop's grant.
     const quiet=await get(page.host,late,'same-origin');
     const target=new URL(quiet.location);

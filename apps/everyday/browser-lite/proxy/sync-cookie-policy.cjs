@@ -38,6 +38,8 @@ function realmSyncCookies(output,realm,cookieHeader) {
     const name=part.trim().split('=',1)[0];
     if(SYNC_NAME.test(name) && !readable(name,realm) && !sending.has(name)) {kept.push(name+EXPIRED);sending.add(name);}
   }
-  return kept.length?kept:undefined;
+  // Never undefined: the engine keeps a header's original value when a transform
+  // returns undefined, which sent sites' raw Set-Cookie lines to the browser.
+  return kept;
 }
 module.exports={realmSyncCookies};

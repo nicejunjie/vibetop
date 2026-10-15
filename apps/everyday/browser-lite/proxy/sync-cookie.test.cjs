@@ -12,7 +12,7 @@ test('a resource-only realm gets no sync cookies, and stale ones are expired',()
   const out=realmSyncCookies([sync('tracker.example')+'=1;path=/;Secure','plain=1'],pixel,
     sync('tracker.example','old')+'=x; other=1; '+sync('tracker.example','old')+'=y');
   assert.deepEqual(out,['plain=1',sync('tracker.example','old')+'=;path=/;Secure;expires=Thu, 01 Jan 1970 00:00:01 GMT']);
-  assert.equal(realmSyncCookies(undefined,pixel,'a=1'),undefined);
+  assert.deepEqual(realmSyncCookies(undefined,pixel,'a=1'),[]);
 });
 test('a document realm keeps sync cookies its page can read and drops foreign ones',()=>{
   const own=sync('shop.example')+'=1;path=/;Secure',host=sync('www.shop.example','h')+'=2;path=/;Secure';
@@ -62,6 +62,9 @@ test('a real gateway leaves no sync cookies on a tracking-pixel realm',{timeout:
     const pixel=await get(urlFor('http://tracker.example/p.gif'),stale+'=1');
     assert.equal(pixel.status,200);
     assert.deepEqual(pixel.cookies.filter(line=>!line.includes('expires=Thu, 01 Jan 1970')),[],'no live sync cookies on a pixel realm');
+    // Nothing to send must mean no header, never the site's raw lines.
+    const quiet=await get(urlFor('http://tracker.example/p2.gif'));
+    assert.deepEqual(quiet.cookies,[],'raw site cookies never reach the browser: '+quiet.cookies);
     assert.ok(pixel.cookies.some(line=>line.startsWith(stale+'=;')),'the stale sync cookie is expired');
     const own=await get(urlFor('http://shop.example/p.gif'));
     assert.equal(own.status,200);
@@ -73,6 +76,6 @@ test('a real gateway leaves no sync cookies on a tracking-pixel realm',{timeout:
 });
 test('a cross-site iframe gets no sync cookies, as Safari blocks third-party cookies there',()=>{
   const own=sync('ads.example')+'=1;path=/;Secure';
-  assert.equal(realmSyncCookies([own],adFrame,''),undefined);
+  assert.deepEqual(realmSyncCookies([own],adFrame,''),[]);
   assert.deepEqual(realmSyncCookies(undefined,adFrame,sync('ads.example','old')+'=x'),[sync('ads.example','old')+'=;path=/;Secure;expires=Thu, 01 Jan 1970 00:00:01 GMT']);
 });
