@@ -101,6 +101,9 @@ server {{
         # site stuck in a loop froze all of Vibetop. Chromium runs an
         # origin-keyed agent cluster in its own process (WebKit does not).
         add_header Origin-Agent-Cluster "?1" always;
+        # Every request a site page makes should go through Lite's own hosts.
+        # Report-only while sweeps confirm no site needs anything else.
+        add_header Content-Security-Policy-Report-Only "default-src https://*.{domain}:* wss://*.{domain}:* data: blob: 'unsafe-inline' 'unsafe-eval'; form-action https://*.{domain}:*" always;
         limit_conn browser_lite_users 128;
         proxy_pass http://unix:$bl_socket:$request_uri;
         proxy_http_version 1.1;

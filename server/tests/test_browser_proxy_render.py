@@ -108,3 +108,11 @@ def test_realm_server_accepts_large_cookie_headers():
     rendered = render("example.com", "https://lite.example.com", ["https://main.example.com"])
     ui, realm = rendered.split(r"-[a-f0-9]{32}\.example\.com$", 1)
     assert "large_client_header_buffers 4 32k;" in realm.split("location", 1)[0]
+
+
+def test_realm_pages_report_requests_outside_lite():
+    from browser_proxy_nginx import render
+    rendered = render("example.com", "https://lite.example.com", ["https://main.example.com"])
+    realm = rendered.split(r"-[a-f0-9]{32}\.example\.com$", 1)[1]
+    assert ("add_header Content-Security-Policy-Report-Only \"default-src https://*.example.com:* wss://*.example.com:* "
+            "data: blob: 'unsafe-inline' 'unsafe-eval'; form-action https://*.example.com:*\" always;") in realm
