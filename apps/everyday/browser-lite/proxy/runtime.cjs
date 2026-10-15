@@ -12,6 +12,11 @@ async function main(config) {
   if (config.origins && config.legacyOrigins) registry.restore(config.origins);
   const authority = new Capabilities(config);
   const relay = await createEgressRelay(config.egressSocket,config.egressSecret);
+  // Rewrite large scripts off the request thread (script-workers.cjs).
+  const {engineRequire}=require('./engine.cjs');
+  globalThis.vtProcessScriptAsync=require('./script-workers.cjs').createScriptWorkers({
+    processPath:engineRequire.resolve('testcafe-hammerhead/lib/processing/script/index.js'),
+    size:Math.max(1,Math.min(4,require('node:os').availableParallelism()-1))});
   const gateway = new BrowserGateway({registry,authority,externalProxy:relay.url,parentOrigin:config.parentOrigin,cookieFile:config.cookieFile,
     engineSessionId:config.engineSessionId,relayCapability:config.relayCapability,
     ingressIdentity:config.ingressIdentity,trustedAncestors:config.trustedAncestors});

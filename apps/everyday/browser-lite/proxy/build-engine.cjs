@@ -98,6 +98,14 @@ if(!cacheSource.includes('ctx.req.vtProcessModule ?')) {
     'processedScript = ctx.req.vtProcessModule ? ctx.req.vtProcessModule(script, urlReplacer) : processScript(');
   fs.writeFileSync(cacheFile,cacheSource);
 }
+// Large scripts are rewritten on worker threads when the runtime installed
+// them (script-workers.cjs); null means "do it here", as before.
+cacheSource=fs.readFileSync(cacheFile,'utf8');
+if(!cacheSource.includes('globalThis.vtProcessScriptAsync')) {
+  cacheSource=replaceOne(cacheSource,'ctx.req.vtProcessModule(script, urlReplacer) : processScript(',
+    'ctx.req.vtProcessModule(script, urlReplacer) : (globalThis.vtProcessScriptAsync && await globalThis.vtProcessScriptAsync(script, urlReplacer, ctx.destRes.headers[BUILTIN_HEADERS.serviceWorkerAllowed], ctx.nativeAutomation)) || processScript(');
+  fs.writeFileSync(cacheFile,cacheSource);
+}
 require('./worker-module-patch.cjs').patchWorkerModuleKind(engineRequire);
 require('./modern-script-patch.cjs').patchModernScripts(engineRequire);
 require('./optional-chain-patch.cjs').patchOptionalChains(engineRequire);

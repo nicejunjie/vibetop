@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_467 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_468 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [Terminal link opened a closed Browser app but lost the URL](#terminal-link-opened-a-closed-browser-app-but-lost-the-url)
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
@@ -489,6 +489,7 @@ _467 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [Browser Lite listens for the fresh frame's load only after the swap](#browser-lite-listens-for-the-fresh-frames-load-only-after-the-swap)
 - [Browser Lite pages see themselves as top-level](#browser-lite-pages-see-themselves-as-top-level)
 - [Browser Lite reuses upstream connections through the egress](#browser-lite-reuses-upstream-connections-through-the-egress)
+- [Browser Lite rewrites large scripts on worker threads](#browser-lite-rewrites-large-scripts-on-worker-threads)
 - [Browser Lite caches rewritten scripts (the cache never returned)](#browser-lite-caches-rewritten-scripts-the-cache-never-returned)
 
 <!-- END TOC -->
@@ -19592,6 +19593,28 @@ fixtures and do not provision external infrastructure.
   saturation. The `VT_BROWSER_DIAGNOSTICS` stage log (`stage-timing.cjs`:
   host, kind and stage times, no URLs) showed `processContent` at ~2 s per big
   script, and upstream at 60-370 ms.
+
+## Browser Lite rewrites large scripts on worker threads
+
+- **Symptom:** A first visit to a script-heavy site (ChatGPT: 18 MB of JS) took
+  2-12 s per asset, and every other request, including the synchronous ones
+  pages depend on, waited behind it.
+- **Cause:** Hammerhead rewrites scripts synchronously on the gateway's only
+  thread, at ~2 s per large bundle.
+- **Fix:** `script-workers.cjs` runs a pool of up to 4 worker threads, installed by
+  `runtime.cjs` as `globalThis.vtProcessScriptAsync`. The patched script hook
+  in `addJSDiskCache.js` uses it for scripts of 16 KB and over. The URL
+  replacer needs the gateway's realm state, so in the worker it returns a
+  random placeholder token and records its arguments, and the gateway
+  substitutes the real URLs. The one call whose value the engine parses
+  (`resolver('./')`, the dynamic-import base) is precomputed and passed in. A
+  substitution that would need escaping in a string literal, or any worker
+  error, falls back to the main thread.
+- **Evidence:** All 18 large ChatGPT bundles rewrote byte-identical to the
+  main thread, and the unit tests compare outputs. Gateway replay of
+  ChatGPT's 155 assets, cold: median 1527 ms → 367 ms, burst 1.96 s → 1.16 s.
+- **Rejected:** Moving the URL mapping into the worker. It would have to share
+  the realm registry state, and the placeholder pass costs one string replace.
 
 ## Browser Lite caches rewritten scripts (the cache never returned)
 
