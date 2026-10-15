@@ -57,6 +57,7 @@ const {mainContext}=require('./realm-policy.cjs');const {EgressProxy}=require('.
   const handler=(req,res)=>{versions.push(req.httpVersion);setTimeout(()=>{res.setHeader('content-type','text/plain');res.end('ok '+req.url);},30);};
   const site=h2?http2.createSecureServer({key,cert,allowHTTP1:true},handler):https.createServer({key,cert},handler);
   site.on('secureConnection',()=>connections++);
+  const windows=[];if(h2)site.on('session',s=>s.once('remoteSettings',st=>windows.push(st.initialWindowSize)));
   await new Promise(r=>site.listen(0,'127.0.0.1',r));const port=site.address().port;
   const egress=new EgressProxy({resolve:async()=>[{address:'1.1.1.1',family:4}],connect:()=>net.createConnection({host:'127.0.0.1',port})});
   const registry=new RealmOrigins({uid:1000,profile:'a'.repeat(32),secret:'test',domain:'realms.proxy.example.com'});
@@ -70,7 +71,7 @@ const {mainContext}=require('./realm-policy.cjs');const {EgressProxy}=require('.
       ...Object.fromEntries(Object.entries(authorization).map(([k,v])=>['X-VT-Browser-'+k,String(v)]))};
     return new Promise((resolve,reject)=>http.request({socketPath,path:url.pathname+url.search,headers},res=>{let b='';res.on('data',c=>b+=c);res.on('end',()=>resolve(res.statusCode+' '+b));}).on('error',reject).end());};
   const bodies=await Promise.all(Array.from({length:60},(_,i)=>get(i)));
-  console.log(JSON.stringify({bodies,versions,connections}));
+  console.log(JSON.stringify({bodies,versions,connections,windows}));
   await gateway.close();await egress.close();site.close();fs.rmSync(dir,{recursive:true,force:true});process.exit(0);
 })().catch(e=>{console.error(e);process.exit(1);});`;
 for(const h2 of [true,false]) test(h2?'an h2 upstream gets every request over one HTTP/2 connection through the egress':'an HTTP/1.1-only upstream still works through the pooled tunnels',{timeout:30000},()=>{
@@ -79,11 +80,12 @@ for(const h2 of [true,false]) test(h2?'an h2 upstream gets every request over on
   try {
     const out=execFileSync(process.execPath,['-e',H2_CHILD,JSON.stringify({key:String(key),cert:String(cert),h2})],
       {cwd:__dirname,env:{...process.env,NODE_EXTRA_CA_CERTS:path.join(dir,'ca.pem')},encoding:'utf8',timeout:25000});
-    const {bodies,versions,connections}=JSON.parse(out.trim().split('\n').pop());
+    const {bodies,versions,connections,windows}=JSON.parse(out.trim().split('\n').pop());
     assert.deepEqual(bodies,Array.from({length:60},(_,i)=>'200 ok /asset/'+i+'.txt'));
     if(h2) {
       assert.deepEqual([...new Set(versions)],['2.0']);
       assert.equal(connections,1,'one upstream connection for 60 requests');
+      assert.ok(windows.length===1 && windows[0]>=4*1024*1024,'a large stream window, not the 64 KB default: '+windows);
     } else {
       assert.deepEqual([...new Set(versions)],['1.1']);
       assert.ok(connections<=9,'HTTP/1.1 stays within the pool: '+connections);

@@ -70,6 +70,7 @@ function createHttp2Pool() {
   var http = require('http'), http2 = require('http2'), tls = require('tls'), net = require('net');
   var sessions = new Map(), pending = new Map(), h1Only = new Map();
   var H1_RETRY_MS = 10 * 60 * 1000, CONNECT_MS = 10000, IDLE_MS = 60000, MAX_SESSIONS = 256;
+  var STREAM_WINDOW = 4 * 1024 * 1024, SESSION_WINDOW = 32 * 1024 * 1024;
   function open(proxy, host, port, done) {
     var settled = false, timer = setTimeout(function () { finish(null); }, CONNECT_MS);
     function finish(session) { if (settled) return; settled = true; clearTimeout(timer); done(session); }
@@ -83,10 +84,16 @@ function createHttp2Pool() {
       secure.once('error', function () { secure.destroy(); finish(null); });
       secure.once('secureConnect', function () {
         if (secure.alpnProtocol !== 'h2') { h1Only.set(host + ':' + port, Date.now()); secure.destroy(); return finish(null); }
-        var session = http2.connect('https://' + host + ':' + port, {createConnection: function () { return secure; }, settings: {enablePush: false}});
+        // Node's default 64 KB receive window caps the whole shared session at
+        // 64 KB per round trip: ChatGPT's 5 MB of chunks took 1.8 s, not 0.3 s.
+        var session = http2.connect('https://' + host + ':' + port, {createConnection: function () { return secure; },
+          settings: {enablePush: false, initialWindowSize: STREAM_WINDOW}});
         // Never rethrow from a session event: one bad upstream must not end the process.
         session.on('error', function () { session.destroy(); });
-        session.once('connect', function () { finish(session); });
+        session.once('connect', function () {
+          try { session.setLocalWindowSize(SESSION_WINDOW); } catch (e) {}
+          finish(session);
+        });
         session.once('close', function () { finish(null); });
       });
     });
@@ -151,8 +158,12 @@ function patchTunnelPool(engineRequire) {
     code=code.replace(FROM,()=>"        reqOpts.agent = vtTunnelAgentFor(proxy, reqOpts.hostname + ':' + (reqOpts.port || 443));\n        return;");
     code+='\n/* vt-tunnel-pool */ var vtTunnelAgentFor = ('+createTunnelPool.toString()+')();\nexports.vtTunnelAgentFor = vtTunnelAgentFor;\n';
   }
-  if(!code.includes('/* vt-http2-pool */'))
-    code+='/* vt-http2-pool */ var vtHttp2SessionFor = ('+createHttp2Pool.toString()+')();\nexports.vtHttp2SessionFor = vtHttp2SessionFor;\n';
+  if(!code.includes('/* vt-http2-pool-v2 */')) {
+    // A reused engine tree may carry an earlier pool version: replace it.
+    const prior=code.indexOf('/* vt-http2-pool');
+    if(prior>=0)code=code.slice(0,prior);
+    code+='/* vt-http2-pool-v2 */ var vtHttp2SessionFor = ('+createHttp2Pool.toString()+')();\nexports.vtHttp2SessionFor = vtHttp2SessionFor;\n';
+  }
   fs.writeFileSync(file,code);
   const sender=engineRequire.resolve('testcafe-hammerhead/lib/request-pipeline/destination-request/index.js');
   let send=fs.readFileSync(sender,'utf8');

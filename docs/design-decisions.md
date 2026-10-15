@@ -19488,3 +19488,10 @@ fixtures and do not provision external infrastructure.
   public-only destination policy is unchanged. `tunnel-pool.test.cjs` runs a
   real gateway against an h2 upstream (60 requests, 1 connection) and an
   HTTP/1.1-only upstream.
+- **Follow-up (v1.38.73), flow control:** With h2 the burst was still slow, with a
+  1-5 s upstream header time per asset (from a temporary nginx timing log). The
+  auth subrequest took 1 ms. Node's HTTP/2 client advertises a 64 KB receive
+  window per stream and per connection, so one shared session moved 64 KB per
+  round trip. Fetching ChatGPT's 155 chunks (5 MB) from this host took 1.8 s
+  at the default and 0.3-0.5 s with large windows. The pool now asks for 4 MB per
+  stream and 32 MB per session, and the test asserts the advertised window.
