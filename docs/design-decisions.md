@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_475 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_476 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [Terminal link opened a closed Browser app but lost the URL](#terminal-link-opened-a-closed-browser-app-but-lost-the-url)
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
@@ -498,6 +498,7 @@ _475 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [Browser Lite holds a message until its sender's origin is known](#browser-lite-holds-a-message-until-its-senders-origin-is-known)
 - [Browser Lite starts blob workers before their source is uploaded](#browser-lite-starts-blob-workers-before-their-source-is-uploaded)
 - [Browser Lite caches element URL getters (Yahoo Finance search)](#browser-lite-caches-element-url-getters-yahoo-finance-search)
+- [Browser Lite page back buttons (X's back arrow did nothing)](#browser-lite-page-back-buttons-xs-back-arrow-did-nothing)
 
 <!-- END TOC -->
 
@@ -19837,3 +19838,17 @@ fixtures and do not provision external infrastructure.
 - **Rejected:** Turning parser-inserted `async` scripts into `defer`. That
   would also fix this page, but one slow ad script would then delay every
   later script and `DOMContentLoaded`.
+
+## Browser Lite page back buttons (X's back arrow did nothing)
+
+- **Symptom:** X's own back arrow (and any page calling `history.back()` or
+  `history.go(-1)`) did nothing in Lite. Lite's toolbar Back still worked.
+- **Cause:** A page's history request reaches the wrapper through each tab's
+  `onHistory:delta=>history(delta,tab)` callback. `newTab` took a `history`
+  option (a restored tab's saved journal, usually `null`), which shadowed the
+  wrapper's `history()` traversal inside that closure. Every page-initiated
+  traversal threw `history is not a function` in the toolbar's message
+  handler. The toolbar button calls `history()` from outside `newTab`.
+- **Fix:** The option is destructured as `savedHistory`.
+  `wrapper-history.test.cjs` parses `wrapper.js` and fails if any function
+  that calls `history()` binds that name.

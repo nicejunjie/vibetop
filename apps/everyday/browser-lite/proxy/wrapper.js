@@ -143,7 +143,7 @@
       if(tab.history[tab.position]?.url===url)openInPlace(tab,url);else go(url);
     }
   }
-  function newTab(url,{lazy=false,title='',history=null}={}) {
+  function newTab(url,{lazy=false,title='',history:savedHistory=null}={}) {
     const id=crypto.randomUUID(),frame=document.createElement('iframe'),element=document.createElement('div'),select=document.createElement('button'),close=document.createElement('button');
     frame.title='Webpage';frame.setAttribute('referrerpolicy','origin');frame.setAttribute('sandbox','allow-scripts allow-same-origin allow-forms allow-downloads allow-modals allow-pointer-lock');
     element.className='tab';select.className='select';select.textContent='New tab';select.setAttribute('role','tab');close.className='close';close.textContent='×';close.setAttribute('aria-label','Close tab');
@@ -157,7 +157,7 @@
       if(active===tab){const next=[...tabs.values()].at(-1);if(next)activate(next);else newTab();}
       saveTabs();
     };
-    if(lazy){tab.pendingUrl=url;tab.pendingTitle=title;if(history)tab.pendingHistory=history;try{select.textContent=title||new URL(url).hostname;}catch{}return tab;}
+    if(lazy){tab.pendingUrl=url;tab.pendingTitle=title;if(savedHistory)tab.pendingHistory=savedHistory;try{select.textContent=title||new URL(url).hostname;}catch{}return tab;}
     activate(tab);if(url)go(url);else $('address').focus();return tab;
   }
   // The server forgot this tab (it sat in the background for a day, or the
