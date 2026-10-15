@@ -323,9 +323,10 @@ class Bridge:
                 return self.reply(handler, 200, content, mime)
             self.check_post_origin(handler.headers)
             command = target.path.removeprefix("/api/")
-            if command not in ("open", "approve", "close", "heartbeat"):
+            if command not in ("open", "approve", "close", "heartbeat", "tabs"):
                 return self.reply(handler, 404)
-            body = json.loads(self.read_body(handler, "application/json"))
+            # Saved tabs (with back/forward lists) outgrow a control command.
+            body = json.loads(self.read_body(handler, "application/json", 96 * 1024 if command == "tabs" else 6144))
             if isinstance(body, dict):
                 # Only the manager supplies cookies, never the client.
                 body.pop("cookies", None)

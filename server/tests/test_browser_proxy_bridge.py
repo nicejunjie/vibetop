@@ -261,3 +261,25 @@ def test_browser_lite_credentials_are_high_priority_cookies():
     assert len(cookies) == 2
     for value in cookies:
         assert "Priority=High" in value and "HttpOnly" in value and "Secure" in value
+
+
+def test_saved_tabs_pass_through_to_the_user_runtime_with_a_larger_body():
+    # A tab list with back/forward history exceeds the 6 KB command limit.
+    bridge, lease = setup()
+    calls = []
+    bridge.runtime.call = lambda claims, command, body: calls.append((command, body)) or (200, {"saved": True})
+    tabs = {"tabs": [{"url": "https://example.com/%d" % i, "title": "x" * 150,
+                      "history": [{"url": "https://example.com/h%d" % j, "documentId": "d"} for j in range(20)]} for i in range(10)], "active": 0}
+    body = json.dumps({"save": tabs}).encode()
+    assert len(body) > 6144
+    outgoing = []
+    handler = SimpleNamespace(path="/__browser_proxy/ui", command="POST",
+        headers=headers(Host="browser-lite.example.com", X_Forwarded_Proto="https", X_Original_URI="/api/tabs",
+                        Origin=bridge.auth.ui_origin, Sec_Fetch_Site="same-origin", Content_Type="application/json",
+                        Content_Length=str(len(body)), Cookie=UI_COOKIE + "=" + bridge.auth.mint("ui", lease)),
+        connection=SimpleNamespace(settimeout=lambda value: None), rfile=io.BytesIO(body), wfile=io.BytesIO(),
+        send_response=outgoing.append, send_header=lambda *args: None, end_headers=lambda: None)
+    bridge.handle(handler)
+    assert outgoing == [200]
+    assert calls[0][0] == "tabs" and calls[0][1]["save"]["tabs"][0]["url"] == "https://example.com/0"
+    assert "cookies" not in calls[0][1]

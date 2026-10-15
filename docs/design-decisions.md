@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_468 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_469 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [Terminal link opened a closed Browser app but lost the URL](#terminal-link-opened-a-closed-browser-app-but-lost-the-url)
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
@@ -470,6 +470,7 @@ _468 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [Browser Lite srcdoc iframes must bootstrap from the native parent](#browser-lite-srcdoc-iframes-must-bootstrap-from-the-native-parent)
 - [Browser Lite rewrites HLS playlists for native players](#browser-lite-rewrites-hls-playlists-for-native-players)
 - [Browser Lite sends sync cookies only where a page can read them](#browser-lite-sends-sync-cookies-only-where-a-page-can-read-them)
+- [Browser Lite keeps saved tabs on the server too](#browser-lite-keeps-saved-tabs-on-the-server-too)
 - [Browser Lite reloads a forgotten tab instead of saying "session ended"](#browser-lite-reloads-a-forgotten-tab-instead-of-saying-session-ended)
 - [Browser Lite names third-party hosts in the page (no sync round trip)](#browser-lite-names-third-party-hosts-in-the-page-no-sync-round-trip)
 - [Browser Lite follows same-frame links by replacement](#browser-lite-follows-same-frame-links-by-replacement)
@@ -19177,6 +19178,27 @@ fixtures and do not provision external infrastructure.
   login, and Lite's UI and content cookies on every renewal. Chromium evicts
   Low, then Medium (every site cookie), before High. Safari ignores the
   attribute.
+
+## Browser Lite keeps saved tabs on the server too
+
+- **Symptom:** On the user's iPhone, tabs still did not come back (v1.38.75
+  saved them only in the UI frame's localStorage). The access log showed the
+  UI reload at 03:32 after iOS had suspended and discarded the page: the
+  script ran (heartbeats followed) but restored nothing, so the device copy
+  was empty. Linux WebKit kept the same data across a full browser restart, so
+  this is iOS-specific storage behavior that cannot be reproduced here.
+- **Fix:** The UI also sends its tab list to the user's own Lite runtime (a
+  `tabs` control command; the root manager only forwards it). The runtime
+  writes `tabs.json` (0600) beside the cookie jar (`tab-store.cjs`: web
+  addresses only, at most 30 tabs and 50 history entries each; over the 80 KB
+  budget it trims history around the current entry, then drops the oldest
+  tabs). Saves are debounced, and immediate when the page is hidden, because
+  that is when iOS discards it. At start the device copy wins; with none, the
+  server copy is restored. A fresh empty start never overwrites it, but closing
+  tabs does. Each start logs `Browser tabs restore source=… device=… count=…`
+  (counts only, no addresses), so the next failure is visible.
+- **Rejected:** Relying on device storage alone. Its loss on iOS was observed
+  and cannot be diagnosed from the server.
 
 ## Browser Lite reloads a forgotten tab instead of saying "session ended"
 

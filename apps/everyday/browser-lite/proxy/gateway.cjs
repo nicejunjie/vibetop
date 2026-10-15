@@ -30,6 +30,7 @@ const {BodyBudget} = require('./body-budget.cjs');
 const {playlistRange} = require('./hls-patch.cjs');
 const {realmSyncCookies} = require('./sync-cookie-policy.cjs');
 const {CookieStore} = require('./cookie-store.cjs');
+const {TabStore} = require('./tab-store.cjs');
 const {redirectTaint,navigationFetchSite,mainFrameFetchDest} = require('./redirect-policy.cjs');
 const {ControlLedger} = require('./control-ledger.cjs');
 const clientSource = fs.readFileSync(path.join(__dirname, 'client-bridge.js'), 'utf8');
@@ -85,7 +86,8 @@ class BrowserGateway {
       prependScripts:['/__vt/client.js']});
     this.session.setExternalProxySettings(externalProxy.replace(/^http:\/\//,''));
     this.session.disableHttp2();
-    this.cookieStore=new CookieStore({file:cookieFile});this.cookieStore.get('main',this.session.cookies);
+    this.cookieStore=new CookieStore({file:cookieFile});
+    this.tabStore=new TabStore(cookieFile?path.join(path.dirname(cookieFile),'tabs.json'):null);this.cookieStore.get('main',this.session.cookies);
     this.session.requestHookEventProvider.hasRequestEventListeners = () => true;
     this.session.handleServiceMessage = async () => { throw new Error('Unsupported browser service command'); };
     if(registry.isRealm) {
@@ -252,6 +254,14 @@ class BrowserGateway {
     const owner=authorization?.lease||null;
     if(command==='revoke-lease' && this.ingressIdentity){this.leases.revoke(owner,Number(authorization.expires));return {revoked:true};}
     if(this.ingressIdentity)this.leases.register(owner,Number(authorization.expires));
+    if(command==='tabs') {
+      // A restore report carries counts only, never addresses.
+      const report=body.report;
+      if(report&&typeof report==='object')console.log('Browser tabs restore source='+String(report.source).replace(/[^a-z]/g,'').slice(0,12)
+        +' device='+String(report.device).replace(/[^a-z]/g,'').slice(0,12)+' count='+(Number(report.count)|0));
+      if(body.save!==undefined)return {saved:!!this.tabStore.save(body.save)};
+      return {tabs:this.tabStore.load()};
+    }
     if(command==='heartbeat') {
       if(!Array.isArray(body.clients)||body.clients.length>128)throw new Error('Invalid browser heartbeat');
       const expired=[];for(const id of body.clients){try{this.controls.touch(id,owner);}catch{expired.push(id);}}

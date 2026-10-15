@@ -7,7 +7,7 @@
   // the tab, a renewed session). Saved per Vibetop user, on this device only.
   const profile=document.querySelector('meta[name="vt-profile"]')?.content||'';
   const SAVE_KEY=profile?'vt-lite-tabs:'+profile:'',MAX_SAVED=30;let restoring=false,saveTimer;
-  function loadTabs(){try{const data=JSON.parse(SAVE_KEY&&localStorage.getItem(SAVE_KEY)||'null');return data&&Array.isArray(data.tabs)?data:null;}catch{return null;}}
+  let closedByUser=false;
   // Back/forward survive too: each entry keeps its address and which document
   // it belonged to (same-document entries stay grouped).
   const MAX_HISTORY=50;
@@ -26,13 +26,24 @@
     if(!entries.length)return null;
     return {entries,position:Math.min(Math.max(0,item.position|0),entries.length-1)};
   }
-  function saveTabs(){
+  // Also kept by the server (per user): iOS can discard this page and hand
+  // back empty frame storage, and the copy then follows the user to any device.
+  let serverTimer;
+  function saveToServer(payload,now=false){
+    clearTimeout(serverTimer);
+    const send=()=>request('tabs',{save:payload}).catch(()=>{});
+    if(now)send();else serverTimer=setTimeout(send,1500);
+  }
+  function saveTabs(now=false){
     if(!SAVE_KEY||restoring)return;clearTimeout(saveTimer);
     saveTimer=setTimeout(()=>{
       const saved=[...tabs.values()].map(tab=>({tab,url:tab.state?.url||tab.pendingUrl||'',title:tab.state?.title||tab.pendingTitle||'',...savedHistory(tab)}))
         .filter(item=>/^https?:/.test(item.url)).slice(-MAX_SAVED);
-      try{localStorage.setItem(SAVE_KEY,JSON.stringify({tabs:saved.map(({url,title,history,position})=>({url,title,history,position})),active:Math.max(0,saved.findIndex(item=>item.tab===active))}));}catch{}
-    },300);
+      const payload={tabs:saved.map(({url,title,history,position})=>({url,title,history,position})),active:Math.max(0,saved.findIndex(item=>item.tab===active))};
+      try{localStorage.setItem(SAVE_KEY,JSON.stringify(payload));}catch{}
+      // A fresh, empty start never overwrites the saved tabs; closing them does.
+      if(saved.length||closedByUser)saveToServer(payload,now);
+    },now?0:300);
   }
   setInterval(()=>{if(!navigator.userActivation?.isActive)popupUsed=false;},200);
   // No status bar: progress states show as a thin line under the toolbar, the
@@ -138,7 +149,7 @@
       allowPopup:()=>{if(active!==tab||document.activeElement!==tab.frame||!navigator.userActivation?.isActive||popupUsed)return false;popupUsed=true;return true;},
       onError:error=>{if(error.reset&&tab.state?.url){reopen(tab);return;}if(active===tab)status(error.message,true);}});
     select.onclick=()=>activate(tab);close.onclick=()=>{
-      clearTimeout(tab.timer);tabs.delete(id);element.remove();tab.controller.dispose().catch(()=>{});
+      clearTimeout(tab.timer);tabs.delete(id);element.remove();tab.controller.dispose().catch(()=>{});closedByUser=true;
       if(active===tab){const next=[...tabs.values()].at(-1);if(next)activate(next);else newTab();}
       saveTabs();
     };
@@ -214,12 +225,27 @@
   setInterval(heartbeat,30000);window.addEventListener('pageshow',heartbeat);
   document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')heartbeat();});
   window.addEventListener('pagehide',event=>{if(!event.persisted)for(const tab of tabs.values())tab.controller.dispose().catch(()=>{});});
-  const requested=new URL(location.href).searchParams.get('url'),saved=loadTabs();
-  if(saved?.tabs.length) {
+  function restoreFrom(saved,requested){
     restoring=true;
     const restored=saved.tabs.filter(item=>typeof item?.url==='string'&&/^https?:/.test(item.url)).slice(-MAX_SAVED)
       .map(item=>newTab(item.url,{lazy:true,title:typeof item.title==='string'?item.title.slice(0,200):'',history:restoredHistory(item)}));
     restoring=false;
     if(requested||!restored.length)newTab(requested);else activate(restored[Math.min(Math.max(0,saved.active|0),restored.length-1)]);
+  }
+  // Save at once when the page is hidden: that is when iOS discards it.
+  document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden')saveTabs(true);});
+  window.addEventListener('pagehide',()=>saveTabs(true));
+  const requested=new URL(location.href).searchParams.get('url');
+  let device='none',local=null;
+  try{const raw=SAVE_KEY?localStorage.getItem(SAVE_KEY):null;if(raw){device='empty';local=JSON.parse(raw);if(local?.tabs?.length)device='ok';}}catch{device='error';}
+  if(device==='ok'){
+    restoreFrom(local,requested);
+    request('tabs',{report:{source:'device',device,count:local.tabs.length}}).catch(()=>{});
+  }else if(SAVE_KEY){
+    status('Opening…');
+    request('tabs',{report:{source:'server',device,count:0}}).then(result=>result?.tabs?.tabs?.length?result.tabs:null,()=>null).then(saved=>{
+      if(tabs.size)return;
+      if(saved)restoreFrom(saved,requested);else newTab(requested);
+    });
   }else newTab(requested);
 })();

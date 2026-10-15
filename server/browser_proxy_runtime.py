@@ -262,7 +262,7 @@ TimeoutStopSec=10
             self._systemctl("stop", *(name + ".service" for name in names.values()))
 
     def call(self, claims, command, body):
-        if command not in ("open", "approve", "close", "heartbeat", "logins") or not isinstance(body, dict):
+        if command not in ("open", "approve", "close", "heartbeat", "logins", "tabs") or not isinstance(body, dict):
             raise ValueError("Invalid browser control")
         uid = claims["uid"]
         slot = self.user_slots[uid]
@@ -274,7 +274,7 @@ TimeoutStopSec=10
         try:
             with self.locks[uid]:
                 self._validate(claims)
-                if command == "open" or (command == "heartbeat" and self.ready.get(uid) != (claims["epoch"], self.revision)):
+                if command == "open" or (command in ("heartbeat", "tabs") and self.ready.get(uid) != (claims["epoch"], self.revision)):
                     self.ensure(claims)
                 authorization = {key: claims[key] for key in ("uid", "profile", "epoch", "lease")}
                 authorization["relay"] = self.auth.mint("relay", claims["lease"], 7 * 86400)
@@ -313,7 +313,7 @@ TimeoutStopSec=10
 
     def _exchange(self, uid, command, data):
         # "open" may carry the full Browser's cookies for one site (login sync).
-        if len(data) > (160 * 1024 if command in ("open", "logins") else 8192):
+        if len(data) > (160 * 1024 if command in ("open", "logins") else 96 * 1024 if command == "tabs" else 8192):
             raise ValueError("Browser control too large")
         with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as sock:
             sock.settimeout(20)
@@ -323,7 +323,7 @@ TimeoutStopSec=10
                     sock.connect(str(self.run / str(uid) / "control/control.sock"))
                     break
                 except OSError as error:
-                    if command not in ("open", "heartbeat") or error.errno not in (errno.ENOENT, errno.ECONNREFUSED) or time.monotonic() >= deadline:
+                    if command not in ("open", "heartbeat", "tabs") or error.errno not in (errno.ENOENT, errno.ECONNREFUSED) or time.monotonic() >= deadline:
                         raise
                     time.sleep(.05)
             peer = struct.unpack("3i", sock.getsockopt(socket.SOL_SOCKET, socket.SO_PEERCRED, struct.calcsize("3i")))
@@ -339,8 +339,9 @@ TimeoutStopSec=10
                 sock.sendall((f"POST /{command} HTTP/1.1\r\nHost: control\r\nConnection: close\r\nContent-Type: application/json\r\nContent-Length: {len(data)}\r\n\r\n").encode() + data)
                 response = http.client.HTTPResponse(sock)
                 response.begin()
-                raw = response.read(65537)
-                if len(raw) > 65536 or response.status not in (200, 409):
+                limit = 128 * 1024 if command == "tabs" else 65536
+                raw = response.read(limit + 1)
+                if len(raw) > limit or response.status not in (200, 409):
                     raise ValueError("Invalid browser control response")
                 result = json.loads(raw)
                 if not isinstance(result, dict):
