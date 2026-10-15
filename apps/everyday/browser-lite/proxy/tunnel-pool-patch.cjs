@@ -8,7 +8,21 @@
 // that opens each connection through a CONNECT tunnel and reuses it, at most 8
 // per host.
 const fs=require('node:fs');
-function createTunnelPool() {
+// Node's default TLS ClientHello does not look like a browser's, and some
+// origins refuse it: Yahoo Finance's data API answered every chart and crumb
+// request with 429, so charts never loaded, while real Chrome on the same IP
+// got 200. Offer Chrome's cipher suites, signature algorithms and curves, in
+// Chrome's order. The pools are serialized into the engine, so they take these
+// as an argument rather than closing over them.
+const BROWSER_TLS={
+  ciphers:['TLS_AES_128_GCM_SHA256','TLS_AES_256_GCM_SHA384','TLS_CHACHA20_POLY1305_SHA256',
+    'ECDHE-ECDSA-AES128-GCM-SHA256','ECDHE-RSA-AES128-GCM-SHA256','ECDHE-ECDSA-AES256-GCM-SHA384','ECDHE-RSA-AES256-GCM-SHA384',
+    'ECDHE-ECDSA-CHACHA20-POLY1305','ECDHE-RSA-CHACHA20-POLY1305','ECDHE-RSA-AES128-SHA','ECDHE-RSA-AES256-SHA',
+    'AES128-GCM-SHA256','AES256-GCM-SHA384','AES128-SHA','AES256-SHA'].join(':'),
+  sigalgs:'ecdsa_secp256r1_sha256:rsa_pss_rsae_sha256:rsa_pkcs1_sha256:ecdsa_secp384r1_sha384:rsa_pss_rsae_sha384:rsa_pkcs1_sha384:rsa_pss_rsae_sha512:rsa_pkcs1_sha512',
+  ecdhCurve:'X25519:P-256:P-384',
+};
+function createTunnelPool(browserTls) {
   var http = require('http'), https = require('https'), tls = require('tls'), net = require('net');
   var agents = new Map();
   class TunnelAgent extends https.Agent {
@@ -41,8 +55,8 @@ function createTunnelPool() {
           var refused = new Error('Tunnel refused with ' + res.statusCode); refused.code = 'ECONNRESET';
           return finish(refused);
         }
-        finish(null, tls.connect({socket: socket, servername: options.servername || (net.isIP(host) ? undefined : host),
-          rejectUnauthorized: true, ca: options.ca, session: options.session, ALPNProtocols: ['http/1.1']}));
+        finish(null, tls.connect(Object.assign({}, browserTls, {socket: socket, servername: options.servername || (net.isIP(host) ? undefined : host),
+          rejectUnauthorized: true, ca: options.ca, session: options.session, ALPNProtocols: ['http/1.1']})));
       });
       req.once('error', function (error) { finish(error); });
       req.setTimeout(20000, function () { req.destroy(new Error('Tunnel timeout')); });
@@ -66,7 +80,7 @@ function createTunnelPool() {
 // preloaded chunks queued for 15 s behind them. Browsers send these over one
 // HTTP/2 connection. Offer h2 by ALPN inside the same CONNECT tunnel and reuse
 // one session per destination; servers that answer http/1.1 keep the pool.
-function createHttp2Pool() {
+function createHttp2Pool(browserTls) {
   var http = require('http'), http2 = require('http2'), tls = require('tls'), net = require('net');
   var sessions = new Map(), pending = new Map(), h1Only = new Map();
   var H1_RETRY_MS = 10 * 60 * 1000, CONNECT_MS = 10000, IDLE_MS = 60000, MAX_SESSIONS = 256;
@@ -80,7 +94,7 @@ function createHttp2Pool() {
     req.once('error', function () { finish(null); });
     req.once('connect', function (res, socket) {
       if (res.statusCode !== 200) { socket.destroy(); return finish(null); }
-      var secure = tls.connect({socket: socket, servername: net.isIP(host) ? undefined : host, rejectUnauthorized: true, ALPNProtocols: ['h2', 'http/1.1']});
+      var secure = tls.connect(Object.assign({}, browserTls, {socket: socket, servername: net.isIP(host) ? undefined : host, rejectUnauthorized: true, ALPNProtocols: ['h2', 'http/1.1']}));
       secure.once('error', function () { secure.destroy(); finish(null); });
       secure.once('secureConnect', function () {
         if (secure.alpnProtocol !== 'h2') { h1Only.set(host + ':' + port, Date.now()); secure.destroy(); return finish(null); }
@@ -155,16 +169,17 @@ const FROM=`        reqOpts.agent = tunnel_agent_1.default.httpsOverHttp({
 function patchTunnelPool(engineRequire) {
   const file=engineRequire.resolve('testcafe-hammerhead/lib/request-pipeline/destination-request/agent.js');
   let code=fs.readFileSync(file,'utf8');
-  if(!code.includes('/* vt-tunnel-pool */')) {
+  if(!code.includes('vtTunnelAgentFor(proxy')) {
     if(code.split(FROM).length!==2)throw new Error('Tunnel pool patch anchor changed: '+file);
     code=code.replace(FROM,()=>"        reqOpts.agent = vtTunnelAgentFor(proxy, reqOpts.hostname + ':' + (reqOpts.port || 443));\n        return;");
-    code+='\n/* vt-tunnel-pool */ var vtTunnelAgentFor = ('+createTunnelPool.toString()+')();\nexports.vtTunnelAgentFor = vtTunnelAgentFor;\n';
   }
-  if(!code.includes('/* vt-http2-pool-v3 */')) {
-    // A reused engine tree may carry an earlier pool version: replace it.
-    const prior=code.indexOf('/* vt-http2-pool');
+  if(!code.includes('/* vt-tunnel-pool-v2 */')) {
+    // A reused engine tree may carry earlier pool versions: replace them.
+    const prior=code.indexOf('\n/* vt-tunnel-pool');
     if(prior>=0)code=code.slice(0,prior);
-    code+='/* vt-http2-pool-v3 */ var vtHttp2SessionFor = ('+createHttp2Pool.toString()+')();\nexports.vtHttp2SessionFor = vtHttp2SessionFor;\n';
+    const tlsLook=JSON.stringify(BROWSER_TLS);
+    code+='\n/* vt-tunnel-pool-v2 */ var vtTunnelAgentFor = ('+createTunnelPool.toString()+')('+tlsLook+');\nexports.vtTunnelAgentFor = vtTunnelAgentFor;\n';
+    code+='/* vt-http2-pool-v4 */ var vtHttp2SessionFor = ('+createHttp2Pool.toString()+')('+tlsLook+');\nexports.vtHttp2SessionFor = vtHttp2SessionFor;\n';
   }
   fs.writeFileSync(file,code);
   const sender=engineRequire.resolve('testcafe-hammerhead/lib/request-pipeline/destination-request/index.js');
@@ -181,4 +196,4 @@ function patchTunnelPool(engineRequire) {
   }
   fs.writeFileSync(sender,send);
 }
-module.exports={patchTunnelPool,createTunnelPool,createHttp2Pool};
+module.exports={patchTunnelPool,createTunnelPool,createHttp2Pool,BROWSER_TLS};

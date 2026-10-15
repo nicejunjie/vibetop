@@ -36,6 +36,7 @@ const {ControlLedger} = require('./control-ledger.cjs');
 const clientSource = fs.readFileSync(path.join(__dirname, 'client-bridge.js'), 'utf8');
 const documentHistorySource=fs.readFileSync(path.join(__dirname,'document-history.js'),'utf8');
 const messageTargetSource=fs.readFileSync(path.join(__dirname,'message-target.js'),'utf8');
+const messageGateSource=fs.readFileSync(path.join(__dirname,'message-gate.js'),'utf8');
 const realmHostSource=fs.readFileSync(path.join(__dirname,'realm-host.js'),'utf8');
 const extraUrlAttrsSource=fs.readFileSync(path.join(__dirname,'extra-url-attrs.js'),'utf8');
 // Server page pass: URL attributes the engine's table misses (extra-url-attrs.js).
@@ -161,6 +162,7 @@ class BrowserGateway {
       // RealmRegistry.resourceKey); only iframes still need the server.
       if(registry.isRealm && req.vtRealm && !req.vtRealm.resourceOnly) {
         config.self=registry.map(config.documentOrigin);
+        config.selfOrigin=registry.original(registry.protocol+'//'+req.headers.host);
         config.realmHost=registry.realms.hostAffixes();
         config.resourceKey=registry.realms.resourceKey(req.vtRealm.context).toString('base64url');
       }
@@ -168,7 +170,7 @@ class BrowserGateway {
       if(tab && !config.nested && tab.physical==='https://'+req.headers.host)config.navigation={tabId:tab.tabId,epoch:tab.epoch};
       const parent=registry.isRealm && registry.realm(params.get('parent'));
       if(parent && authorizeChild(parent,req.vtRealm))config.messageParent={physical:parent.physical,original:parent.origin};
-      res.end('window.__vtBrowserConfig='+JSON.stringify(config).replace(/</g,'\\u003c')+';\n'+messageTargetSource+'\n'+documentHistorySource+'\n'+realmHostSource+'\n'+extraUrlAttrsSource+'\n'+clientSource);
+      res.end('window.__vtBrowserConfig='+JSON.stringify(config).replace(/</g,'\\u003c')+';\n'+messageTargetSource+'\n'+messageGateSource+'\n'+documentHistorySource+'\n'+realmHostSource+'\n'+extraUrlAttrsSource+'\n'+clientSource);
     });
     this.proxy.GET('/__vt/map',(req,res) => {
       try {

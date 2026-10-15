@@ -27,6 +27,30 @@
     messageOrigins.set(physical,origin);
     return origin;
   };
+  // A synchronous lookup per new sender froze the page: see message-gate.js.
+  for (const known of [config.self && config.selfOrigin && {physical: physicalOrigin, original: config.selfOrigin}, config.messageParent])
+    if (known && known.physical && known.original) messageOrigins.set(known.physical, known.original);
+  const holdMessage = window.vibetopCreateMessageGate({
+    origins: messageOrigins,
+    lookUp(physical, done) {
+      const xhr = new native.XMLHttpRequest();
+      native.xhrOpen.call(xhr, 'GET', physicalOrigin + '/__vt/origin?physical=' + encodeURIComponent(physical), true);
+      native.addEventListener.call(xhr, 'loadend', () => {
+        let origin;
+        try { if (xhr.status === 200) origin = JSON.parse(xhr.responseText).origin || physical; } catch {}
+        done(origin);
+      });
+      native.xhrSend.call(xhr);
+    },
+    deliver: ({event, listener, sandbox}) => sandbox._onWindowMessage(event, listener),
+    report: error => native.setTimeout.call(window, () => { throw error; }),
+  });
+  delete window.vibetopCreateMessageGate;
+  window.vibetopMessageGate = function (event, listener, sandbox) {
+    let physical;
+    try { physical = native.messageEventOriginGetter.call(event); } catch { return false; }
+    return holdMessage(physical, {event, listener, sandbox});
+  };
   // A site's silence must remain silence: never probe a recipient or disclose
   // its current origin through a bridge-generated reply. Normal incoming
   // application messages already disclose their native source/origin.

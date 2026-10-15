@@ -92,3 +92,33 @@ for(const h2 of [true,false]) test(h2?'an h2 upstream gets every request over on
     }
   } finally {fs.rmSync(dir,{recursive:true,force:true});}
 });
+// Yahoo Finance's data API refused Node's default ClientHello with 429.
+function cipherSuites(hello) {
+  let at=5+4+2+32;at+=1+hello[at];
+  const length=hello.readUInt16BE(at),suites=[];
+  for(let i=0;i<length;i+=2)suites.push(hello.readUInt16BE(at+2+i));
+  return suites;
+}
+test('both upstream pools offer Chrome\'s TLS cipher suites in Chrome\'s order',{timeout:20000},async()=>{
+  const hellos=[],sockets=new Set();
+  const site=net.createServer(socket=>{sockets.add(socket);socket.once('data',data=>{hellos.push(data);socket.destroy();});});
+  const sitePort=await listen(site);
+  const proxy=http.createServer();
+  proxy.on('connect',(req,client,head)=>{
+    sockets.add(client);
+    const remote=net.connect(sitePort,'127.0.0.1');sockets.add(remote);
+    remote.once('connect',()=>{client.write('HTTP/1.1 200 Connection Established\r\n\r\n');if(head.length)remote.write(head);client.pipe(remote).pipe(client);});
+    remote.on('error',()=>client.destroy());client.on('error',()=>remote.destroy());
+  });
+  const proxyPort=await listen(proxy);
+  const pool=hammerhead('request-pipeline/destination-request/agent');
+  const settings={host:'127.0.0.1:'+proxyPort,hostname:'127.0.0.1',port:String(proxyPort)};
+  const agent=pool.vtTunnelAgentFor(settings,'tls.example:'+sitePort);
+  await new Promise(resolve=>https.get({host:'tls.example',port:sitePort,path:'/',agent},resolve).on('error',resolve));
+  assert.equal(await pool.vtHttp2SessionFor(settings,'tls2.example',sitePort),null);
+  const chrome=[0x1301,0x1302,0x1303,0xc02b,0xc02f,0xc02c,0xc030,0xcca9,0xcca8,0xc013,0xc014,0x009c,0x009d,0x002f,0x0035];
+  assert.equal(hellos.length,2);
+  for(const hello of hellos)assert.deepEqual(cipherSuites(hello).filter(suite=>suite!==0x00ff),chrome);
+  agent.destroy();for(const s of sockets)s.destroy();
+  await Promise.all([new Promise(r=>site.close(r)),new Promise(r=>proxy.close(r))]);
+});

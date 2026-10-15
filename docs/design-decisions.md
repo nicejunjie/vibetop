@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_471 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_473 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [Terminal link opened a closed Browser app but lost the URL](#terminal-link-opened-a-closed-browser-app-but-lost-the-url)
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
@@ -494,6 +494,8 @@ _471 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [Browser Lite reuses upstream connections through the egress](#browser-lite-reuses-upstream-connections-through-the-egress)
 - [Browser Lite rewrites large scripts on worker threads](#browser-lite-rewrites-large-scripts-on-worker-threads)
 - [Browser Lite caches rewritten scripts (the cache never returned)](#browser-lite-caches-rewritten-scripts-the-cache-never-returned)
+- [Browser Lite offers Chrome's TLS ciphers upstream (Yahoo Finance charts)](#browser-lite-offers-chromes-tls-ciphers-upstream-yahoo-finance-charts)
+- [Browser Lite holds a message until its sender's origin is known](#browser-lite-holds-a-message-until-its-senders-origin-is-known)
 
 <!-- END TOC -->
 
@@ -19742,3 +19744,43 @@ fixtures and do not provision external infrastructure.
   for the placeholder scheme. Local replay of ChatGPT with a new tab token:
   1447 ms → 272 ms.
 
+
+## Browser Lite offers Chrome's TLS ciphers upstream (Yahoo Finance charts)
+
+- **Symptom:** Yahoo Finance quote and chart pages stayed on "Loading chart".
+  Every `query1/query2.finance.yahoo.com` request (crumb, chart data) failed
+  in the page with a CORS error.
+- **Cause:** Yahoo's data API answers HTTP 429, with no CORS headers, to TLS
+  clients that do not look like a browser. Real Chromium on the same host got
+  200. Node's default ClientHello got 429 over both HTTP/1.1 and HTTP/2, and
+  the same request with Chrome's cipher list got 200. The CORS error was only
+  the 429's missing `Access-Control-Allow-Origin`.
+- **Fix:** `tunnel-pool-patch.cjs` passes `BROWSER_TLS` (Chrome's cipher
+  suites in Chrome's order, its signature algorithms and curves) to both
+  upstream pools. The pools are serialized into the engine, so they take it as
+  an argument. A reused engine tree carrying older pool versions is replaced
+  (`vt-tunnel-pool-v2`, `vt-http2-pool-v4`). `tunnel-pool.test.cjs` parses the
+  ClientHello each pool sends.
+- **Rejected:** A full Chrome fingerprint (GREASE, extension order, ML-KEM key
+  share). Node's TLS cannot produce it, and the cipher list was enough here.
+
+## Browser Lite holds a message until its sender's origin is known
+
+- **Symptom:** Yahoo Finance froze the page, and on iPhone all of Vibetop,
+  for seconds at a time while it loaded.
+- **Cause:** A page reads `event.origin` synchronously, but mapping a realm
+  host back to the site origin needs the server, so the bridge made a
+  synchronous XHR for each new sender. One quote page made 19 of them and they
+  held the thread for 6.8 s in total (up to 1.5 s each, behind ~1,300 ad
+  requests), longer still from far away. Safari runs Lite's frames on the
+  Vibetop page's thread, so the whole UI froze.
+- **Fix:** `message-gate.js`. The engine's `_onWindowMessage` asks the gate
+  first. A message from a sender with no cached origin is held, its origin is
+  looked up asynchronously, and then it is delivered through the same engine
+  path. Messages behind a held one wait too, so order is unchanged. The page's
+  own origin and its parent's come in the page config, so they never need a
+  lookup. The synchronous lookup remains only as a fallback for synthetic
+  events. A failed lookup still delivers and caches nothing.
+- **Rejected:** A signed origin claim in the message envelope. Page scripts
+  could read any key the page holds and forge claims. Persisting the map in
+  realm storage would still block the first message from each sender.

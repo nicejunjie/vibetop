@@ -29,6 +29,9 @@ function patchModernScripts(engineRequire) {
   patch(client,'return !!instance.top;','return !!instance["top"];');
   for(const file of [client,engineRequire.resolve('testcafe-hammerhead/lib/processing/script/index.js')])
     patch(file,'allowImportExportEverywhere: true,','allowImportExportEverywhere: true, allowAwaitOutsideFunction: true,');
+  // Hold a message until its sender's origin is known (see client-bridge.js).
+  patch(client,'var data = MessageSandbox._getMessageData(e);\r\n\t        if (data.type !== MessageType.Service) {',
+    'var data = MessageSandbox._getMessageData(e);\r\n\t        if (data.type !== MessageType.Service) { if (window.vibetopMessageGate && window.vibetopMessageGate(e, originListener, this)) return null;');
   patch(client,'return data.originUrl;',
     'return window.vibetopMessageOrigin ? window.vibetopMessageOrigin(origin) : origin;');
   patch(client,"return fastApply(contentWindow, 'postMessage', args);",
