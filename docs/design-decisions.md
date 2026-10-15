@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_477 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_478 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [Terminal link opened a closed Browser app but lost the URL](#terminal-link-opened-a-closed-browser-app-but-lost-the-url)
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
@@ -500,6 +500,7 @@ _477 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [Browser Lite caches element URL getters (Yahoo Finance search)](#browser-lite-caches-element-url-getters-yahoo-finance-search)
 - [Browser Lite page back buttons (X's back arrow did nothing)](#browser-lite-page-back-buttons-xs-back-arrow-did-nothing)
 - [A stuck site must not freeze Vibetop (Browser Lite isolation)](#a-stuck-site-must-not-freeze-vibetop-browser-lite-isolation)
+- [Browser Lite keeps `async` on regenerated async generator methods (TradingView)](#browser-lite-keeps-async-on-regenerated-async-generator-methods-tradingview)
 
 <!-- END TOC -->
 
@@ -19890,3 +19891,17 @@ fixtures and do not provision external infrastructure.
 - **Measuring hangs:** Playwright's `evaluate` and its sync API mislead here
   (a hung page blocks unrelated calls; `time.sleep` stops event delivery).
   Use a finite busy loop and a timer inside the page.
+
+## Browser Lite keeps `async` on regenerated async generator methods (TradingView)
+
+- **Symptom:** TradingView's chart page stayed on its spinner in Lite, with
+  "await is only valid in async functions and the top level bodies of
+  modules".
+- **Cause:** Hammerhead regenerates whole AST nodes around some rewrites with
+  esotope. Its `MethodDefinition` and object-method generators wrote either
+  `*` or `async `, never both, so `async*createInterval(){…await…}` came out
+  as a plain generator. Rewriting all 355 of the page's scripts offline and
+  parsing the output found that single broken bundle.
+- **Fix:** `modern-script-patch.cjs` emits `async *` in both the server's
+  esotope and the client's bundled copy. `modern-script.test.cjs` regenerates
+  class and object async generator methods and checks the client copy.

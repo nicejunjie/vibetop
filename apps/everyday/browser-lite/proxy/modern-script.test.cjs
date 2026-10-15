@@ -44,3 +44,20 @@ test('regenerating a destructured function retains private-member syntax',()=>{
   const transformed=processScript(source,false,false);
   assert.equal(vm.runInNewContext(transformed),5);
 });
+test('regenerated async generator methods keep both async and *',()=>{
+  // Hammerhead regenerates whole nodes around some rewrites, which turned
+  // TradingView's `async*createInterval(){...await...}` into a syntax error.
+  const {engineRequire}=require('./engine.cjs');
+  const {createRequire}=require('node:module');
+  const hhRequire=createRequire(engineRequire.resolve('testcafe-hammerhead/package.json'));
+  const {generate}=hhRequire('esotope-hammerhead');
+  const {parse}=hhRequire('acorn-hammerhead');
+  for(const source of ['class A{async*g(){await x;yield 1}static async*[k](){await y}}','({async*g(){await x;yield 1},*h(){yield 2},async i(){await z}})']) {
+    const output=generate(parse(source,{ecmaVersion:13}));
+    assert.doesNotThrow(()=>new vm.Script(output),output);
+    assert.match(output,/async\s*\*\s*g/);
+  }
+  const fs=require('node:fs');
+  const client=fs.readFileSync(engineRequire.resolve('testcafe-hammerhead/lib/client/hammerhead.js'),'utf8');
+  assert.ok(client.includes("($expr.value.async ? 'async ' : '') + '*'")&&client.includes("($val.async ? 'async ' : '') + '*'"),'client generator unpatched');
+});

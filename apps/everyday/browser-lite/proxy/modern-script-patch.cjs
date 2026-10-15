@@ -103,6 +103,11 @@ function patchModernScripts(engineRequire) {
       generator=generator.replaceAll('if ($expr.optional)','if ($expr.vtOwnOptional === undefined ? $expr.optional : $expr.vtOwnOptional)');
       fs.writeFileSync(file,generator);
     }
+    // Async generator methods: the generator wrote either "*" or "async ",
+    // never both, so a regenerated `async *m(){await x}` became a syntax
+    // error (TradingView's chart never started).
+    patch(file,"_.js += exprJs + '*' + keyJs;","_.js += exprJs + ($expr.value.async ? 'async ' : '') + '*' + keyJs;");
+    patch(file,"keyJs = '*' + keyJs;","keyJs = ($val.async ? 'async ' : '') + '*' + keyJs;");
     patch(file,"_.js += exprJs + keyJs + '=' + _.optSpace;",
       "if (!$val) { _.js += exprJs + keyJs + ';'; return; }\n        _.js += exprJs + keyJs + '=' + _.optSpace;");
   }
