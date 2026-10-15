@@ -8,12 +8,30 @@
   const profile=document.querySelector('meta[name="vt-profile"]')?.content||'';
   const SAVE_KEY=profile?'vt-lite-tabs:'+profile:'',MAX_SAVED=30;let restoring=false,saveTimer;
   function loadTabs(){try{const data=JSON.parse(SAVE_KEY&&localStorage.getItem(SAVE_KEY)||'null');return data&&Array.isArray(data.tabs)?data:null;}catch{return null;}}
+  // Back/forward survive too: each entry keeps its address and which document
+  // it belonged to (same-document entries stay grouped).
+  const MAX_HISTORY=50;
+  function savedHistory(tab){
+    const source=tab.pendingHistory||{entries:tab.history,position:tab.position};
+    const entries=(source.entries||[]).filter(entry=>/^https?:/.test(entry?.url||''));
+    if(!entries.length)return {};
+    const start=Math.max(0,entries.length-MAX_HISTORY);
+    return {history:entries.slice(start).map(entry=>({url:entry.url,documentId:String(entry.documentId||'')})),
+      position:Math.min(Math.max(0,(source.position|0)-start),entries.length-start-1)};
+  }
+  function restoredHistory(item){
+    if(!Array.isArray(item?.history))return null;
+    const entries=item.history.filter(entry=>typeof entry?.url==='string'&&/^https?:/.test(entry.url)).slice(-MAX_HISTORY)
+      .map((entry,index)=>({id:'restored-'+index,url:entry.url,documentId:'restored:'+String(entry.documentId||index).replace(/^(restored:)+/,'')}));
+    if(!entries.length)return null;
+    return {entries,position:Math.min(Math.max(0,item.position|0),entries.length-1)};
+  }
   function saveTabs(){
     if(!SAVE_KEY||restoring)return;clearTimeout(saveTimer);
     saveTimer=setTimeout(()=>{
-      const saved=[...tabs.values()].map(tab=>({tab,url:tab.state?.url||tab.pendingUrl||'',title:tab.state?.title||tab.pendingTitle||''}))
+      const saved=[...tabs.values()].map(tab=>({tab,url:tab.state?.url||tab.pendingUrl||'',title:tab.state?.title||tab.pendingTitle||'',...savedHistory(tab)}))
         .filter(item=>/^https?:/.test(item.url)).slice(-MAX_SAVED);
-      try{localStorage.setItem(SAVE_KEY,JSON.stringify({tabs:saved.map(({url,title})=>({url,title})),active:Math.max(0,saved.findIndex(item=>item.tab===active))}));}catch{}
+      try{localStorage.setItem(SAVE_KEY,JSON.stringify({tabs:saved.map(({url,title,history,position})=>({url,title,history,position})),active:Math.max(0,saved.findIndex(item=>item.tab===active))}));}catch{}
     },300);
   }
   setInterval(()=>{if(!navigator.userActivation?.isActive)popupUsed=false;},200);
@@ -104,9 +122,13 @@
     $('welcome').hidden=!!tab.state;$('address').value=tab.state?.url||'';handoff(tab.state);
     if(tab.state)update(tab,tab.state);else{status('Ready');$('back').disabled=true;$('forward').disabled=true;}
     // A restored tab loads only when first shown, not all at once on restore.
-    if(tab.pendingUrl){const url=tab.pendingUrl;delete tab.pendingUrl;$('address').value=url;go(url);}
+    if(tab.pendingUrl){
+      const url=tab.pendingUrl;delete tab.pendingUrl;$('address').value=url;
+      if(tab.pendingHistory){tab.history=tab.pendingHistory.entries;tab.position=tab.pendingHistory.position;delete tab.pendingHistory;}
+      if(tab.history[tab.position]?.url===url)openInPlace(tab,url);else go(url);
+    }
   }
-  function newTab(url,{lazy=false,title=''}={}) {
+  function newTab(url,{lazy=false,title='',history=null}={}) {
     const id=crypto.randomUUID(),frame=document.createElement('iframe'),element=document.createElement('div'),select=document.createElement('button'),close=document.createElement('button');
     frame.title='Webpage';frame.setAttribute('referrerpolicy','origin');frame.setAttribute('sandbox','allow-scripts allow-same-origin allow-forms allow-downloads allow-modals allow-pointer-lock');
     element.className='tab';select.className='select';select.textContent='New tab';select.setAttribute('role','tab');close.className='close';close.textContent='×';close.setAttribute('aria-label','Close tab');
@@ -120,7 +142,7 @@
       if(active===tab){const next=[...tabs.values()].at(-1);if(next)activate(next);else newTab();}
       saveTabs();
     };
-    if(lazy){tab.pendingUrl=url;tab.pendingTitle=title;try{select.textContent=title||new URL(url).hostname;}catch{}return tab;}
+    if(lazy){tab.pendingUrl=url;tab.pendingTitle=title;if(history)tab.pendingHistory=history;try{select.textContent=title||new URL(url).hostname;}catch{}return tab;}
     activate(tab);if(url)go(url);else $('address').focus();return tab;
   }
   // The server forgot this tab (it sat in the background for a day, or the
@@ -129,7 +151,20 @@
   function reopen(tab) {
     const url=tab.state?.url;if(!url)return;
     tab.controller.expire();
-    if(active===tab)go(url);else tab.pendingUrl=url;
+    if(active!==tab){tab.pendingUrl=url;return;}
+    if(tab.history[tab.position]?.url===url)openInPlace(tab,url);else go(url);
+  }
+  // Load a page into its existing history slot (a restored or reloaded tab),
+  // the way Back/Forward opens another document, so the entry is replaced,
+  // not duplicated, and the entries around it stay reachable.
+  function openInPlace(tab,url,retried=false){
+    tab.historyGeneration=(tab.historyGeneration||0)+1;tab.controller.cancelTraversal();tab.historyQueue=[];
+    tab.targetPosition={position:tab.position,url,previousPosition:tab.position,sequence:tab.controller.sequence+1};
+    status('Opening…');
+    tab.controller.open(url).catch(error=>{
+      if(error.reset&&!retried){tab.controller.expire();openInPlace(tab,url,true);return;}
+      if(active===tab)status(error.message,true);
+    });
   }
   async function go(value,retried=false) {
     const tab=active;tab.historyGeneration=(tab.historyGeneration||0)+1;tab.controller.cancelTraversal();if(tab.targetPosition?.epoch===undefined && tab.targetPosition?.previousPosition!==undefined)tab.position=tab.targetPosition.previousPosition;delete tab.targetPosition;tab.historyQueue=[];
@@ -183,7 +218,7 @@
   if(saved?.tabs.length) {
     restoring=true;
     const restored=saved.tabs.filter(item=>typeof item?.url==='string'&&/^https?:/.test(item.url)).slice(-MAX_SAVED)
-      .map(item=>newTab(item.url,{lazy:true,title:typeof item.title==='string'?item.title.slice(0,200):''}));
+      .map(item=>newTab(item.url,{lazy:true,title:typeof item.title==='string'?item.title.slice(0,200):'',history:restoredHistory(item)}));
     restoring=false;
     if(requested||!restored.length)newTab(requested);else activate(restored[Math.min(Math.max(0,saved.active|0),restored.length-1)]);
   }else newTab(requested);
