@@ -113,6 +113,7 @@ def test_ui_html_pins_all_assets_to_its_release(tmp_path):
     for name in ('wrapper.css', 'wrapper.js', 'controller.js', 'ui-session.js'):
         assert f'/__vt/assets/{bridge.runtime.revision}/{name}' in content
     assert 'vt-main-origins' in content
+    assert 'name="vt-profile" content="' in content
 
 
 def test_old_ui_keeps_old_assets_after_manager_release_change(tmp_path, monkeypatch):

@@ -3,6 +3,19 @@
   const $=id=>document.getElementById(id),tabs=new Map();let active=null,popupUsed=false;
   const parents=JSON.parse(document.querySelector('meta[name="vt-main-origins"]')?.content||'[]');
   const session=window.BrowserUISession?new BrowserUISession({parents}):null;
+  // Open tabs survive a reload of this page (a Vibetop update, iOS discarding
+  // the tab, a renewed session). Saved per Vibetop user, on this device only.
+  const profile=document.querySelector('meta[name="vt-profile"]')?.content||'';
+  const SAVE_KEY=profile?'vt-lite-tabs:'+profile:'',MAX_SAVED=30;let restoring=false,saveTimer;
+  function loadTabs(){try{const data=JSON.parse(SAVE_KEY&&localStorage.getItem(SAVE_KEY)||'null');return data&&Array.isArray(data.tabs)?data:null;}catch{return null;}}
+  function saveTabs(){
+    if(!SAVE_KEY||restoring)return;clearTimeout(saveTimer);
+    saveTimer=setTimeout(()=>{
+      const saved=[...tabs.values()].map(tab=>({tab,url:tab.state?.url||tab.pendingUrl||'',title:tab.state?.title||tab.pendingTitle||''}))
+        .filter(item=>/^https?:/.test(item.url)).slice(-MAX_SAVED);
+      try{localStorage.setItem(SAVE_KEY,JSON.stringify({tabs:saved.map(({url,title})=>({url,title})),active:Math.max(0,saved.findIndex(item=>item.tab===active))}));}catch{}
+    },300);
+  }
   setInterval(()=>{if(!navigator.userActivation?.isActive)popupUsed=false;},200);
   // No status bar: progress states show as a thin line under the toolbar, the
   // page address is already in the address bar, and anything else is a banner
@@ -56,6 +69,7 @@
       if(tab.targetPosition.sequence===tab.controller.sequence){tab.targetPosition.epoch=state.epoch;tab.targetPosition.tabId=state.tabId;}else delete tab.targetPosition;
     }
     tab.state=state;tab.select.textContent=state.title||new URL(state.url).hostname;
+    if(!state.loading)saveTabs();
     if(!state.loading && state.history) {
       const journal=state.history,key=journal.documentId+':'+journal.sequence;
       if(tab.journalKey!==key) {
@@ -85,12 +99,14 @@
     status(state.loading?'Loading…':new URL(state.url).hostname);handoff(state,tab);
   }
   function activate(tab) {
-    active=tab;
+    active=tab;saveTabs();
     for(const item of tabs.values()){const selected=item===tab;item.frame.hidden=!selected||!item.state;item.element.classList.toggle('active',selected);item.select.setAttribute('aria-selected',String(selected));}
     $('welcome').hidden=!!tab.state;$('address').value=tab.state?.url||'';handoff(tab.state);
     if(tab.state)update(tab,tab.state);else{status('Ready');$('back').disabled=true;$('forward').disabled=true;}
+    // A restored tab loads only when first shown, not all at once on restore.
+    if(tab.pendingUrl&&!tab.state){const url=tab.pendingUrl;delete tab.pendingUrl;$('address').value=url;go(url);}
   }
-  function newTab(url) {
+  function newTab(url,{lazy=false,title=''}={}) {
     const id=crypto.randomUUID(),frame=document.createElement('iframe'),element=document.createElement('div'),select=document.createElement('button'),close=document.createElement('button');
     frame.title='Webpage';frame.setAttribute('referrerpolicy','origin');frame.setAttribute('sandbox','allow-scripts allow-same-origin allow-forms allow-downloads allow-modals allow-pointer-lock');
     element.className='tab';select.className='select';select.textContent='New tab';select.setAttribute('role','tab');close.className='close';close.textContent='×';close.setAttribute('aria-label','Close tab');
@@ -102,7 +118,9 @@
     select.onclick=()=>activate(tab);close.onclick=()=>{
       clearTimeout(tab.timer);tabs.delete(id);element.remove();tab.controller.dispose().catch(()=>{});
       if(active===tab){const next=[...tabs.values()].at(-1);if(next)activate(next);else newTab();}
+      saveTabs();
     };
+    if(lazy){tab.pendingUrl=url;tab.pendingTitle=title;try{select.textContent=title||new URL(url).hostname;}catch{}return tab;}
     activate(tab);if(url)go(url);else $('address').focus();return tab;
   }
   async function go(value) {
@@ -151,5 +169,12 @@
   }).catch(error=>{if(error.authentication)status(error.message,true);});
   setInterval(heartbeat,30000);window.addEventListener('pageshow',heartbeat);
   window.addEventListener('pagehide',event=>{if(!event.persisted)for(const tab of tabs.values())tab.controller.dispose().catch(()=>{});});
-  newTab(new URL(location.href).searchParams.get('url'));
+  const requested=new URL(location.href).searchParams.get('url'),saved=loadTabs();
+  if(saved?.tabs.length) {
+    restoring=true;
+    const restored=saved.tabs.filter(item=>typeof item?.url==='string'&&/^https?:/.test(item.url)).slice(-MAX_SAVED)
+      .map(item=>newTab(item.url,{lazy:true,title:typeof item.title==='string'?item.title.slice(0,200):''}));
+    restoring=false;
+    if(requested||!restored.length)newTab(requested);else activate(restored[Math.min(Math.max(0,saved.active|0),restored.length-1)]);
+  }else newTab(requested);
 })();

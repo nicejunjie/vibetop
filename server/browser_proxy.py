@@ -316,7 +316,10 @@ class Bridge:
                             content = content.replace(('"' + asset_path + '"').encode(),
                                 ('"/__vt/assets/' + revision + asset_path + '"').encode())
                     parents = html.escape(json.dumps(sorted(self.auth.main_origins)), quote=True)
-                    content = content.replace(b"<head>", ("<head><meta name=\"vt-main-origins\" content=\"" + parents + "\">").encode(), 1)
+                    # The profile id (not a secret) keys this user's saved tabs on a shared device.
+                    profile = html.escape(str(claims.get("profile", "")), quote=True)
+                    content = content.replace(b"<head>", ("<head><meta name=\"vt-main-origins\" content=\"" + parents + "\">"
+                                                          "<meta name=\"vt-profile\" content=\"" + profile + "\">").encode(), 1)
                 return self.reply(handler, 200, content, mime)
             self.check_post_origin(handler.headers)
             command = target.path.removeprefix("/api/")
