@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_473 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_474 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [Terminal link opened a closed Browser app but lost the URL](#terminal-link-opened-a-closed-browser-app-but-lost-the-url)
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
@@ -496,6 +496,7 @@ _473 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [Browser Lite caches rewritten scripts (the cache never returned)](#browser-lite-caches-rewritten-scripts-the-cache-never-returned)
 - [Browser Lite offers Chrome's TLS ciphers upstream (Yahoo Finance charts)](#browser-lite-offers-chromes-tls-ciphers-upstream-yahoo-finance-charts)
 - [Browser Lite holds a message until its sender's origin is known](#browser-lite-holds-a-message-until-its-senders-origin-is-known)
+- [Browser Lite starts blob workers before their source is uploaded](#browser-lite-starts-blob-workers-before-their-source-is-uploaded)
 
 <!-- END TOC -->
 
@@ -19784,3 +19785,23 @@ fixtures and do not provision external infrastructure.
 - **Rejected:** A signed origin claim in the message envelope. Page scripts
   could read any key the page holds and forge claims. Persisting the map in
   realm storage would still block the first message from each sender.
+
+## Browser Lite starts blob workers before their source is uploaded
+
+- **Symptom:** After the message fix, Yahoo Finance's chart page still froze
+  the iPhone for 10-14 s.
+- **Cause:** `new Worker(blobUrl)` must return synchronously, and the bridge
+  uploaded the blob's source for rewriting with a synchronous XHR. One upload
+  took 10.0 s while the gateway was busy with the page's ~1,300 requests.
+  Another took 2.4 s.
+- **Fix:** The page names the worker id (32 random bytes), uploads the source
+  asynchronously, and starts the native Worker on `/__vt/worker?id=` at once.
+  The gateway holds the worker's script request (`WorkerStore.wait`, up to
+  30 s) until the upload arrives. A source that cannot be rewritten fails the
+  waiting request at once, so the worker gets its error event. An id cannot be
+  reused, and a realm never waits for or receives another realm's worker. The
+  blob itself is still read synchronously, because it is local and pages
+  often revoke the blob URL right after `new Worker()`.
+  `worker-upload.test.cjs` starts a worker before its upload.
+- **Rejected:** Rewriting the worker on the page. The engine's rewriter is
+  server-side, and shipping it to the page would cost every page far more.

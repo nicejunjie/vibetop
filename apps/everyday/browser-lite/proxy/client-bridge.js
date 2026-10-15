@@ -105,6 +105,22 @@
     if(typeof value==='symbol')throw new TypeError('Worker argument cannot be a Symbol');
     return workerString(value);
   }
+  const workerRandom=window.crypto.getRandomValues.bind(window.crypto), workerBase64=window.btoa.bind(window);
+  function workerId() {
+    const bytes=workerRandom(new Uint8Array(32));let text='';
+    for(const byte of bytes)text+=String.fromCharCode(byte);
+    return workerBase64(text).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
+  }
+  function uploadWorker(id,blobUrl,source) {
+    const upload=new native.XMLHttpRequest();
+    native.xhrOpen.call(upload,'POST',physicalOrigin+'/__vt/worker',true);
+    native.xhrSetRequestHeader.call(upload,'X-Browser-Worker-URL',blobUrl);
+    native.xhrSetRequestHeader.call(upload,'X-Browser-Worker-Id',id);
+    native.addEventListener.call(upload,'loadend',()=>{
+      if(upload.status!==200)workerDiagnostic('Browser Lite worker preparation failed','uploading','blob:',config.documentOrigin);
+    });
+    native.xhrSend.call(upload,source);
+  }
   window.vibetopCreateWorker=function(input,options,base,map) {
     const original=workerDOMString(input);
     if(options!=null && typeof options!=='object' && typeof options!=='function')
@@ -128,14 +144,15 @@
         native.xhrOverrideMimeType.call(read,'text/javascript; charset=utf-8');
         native.xhrSend.call(read);
         if(read.status!==200)throw new Error('Worker source unavailable');
+        // Upload asynchronously: a synchronous upload held Yahoo Finance's
+        // thread for 10 s while the server rewrote the source. The worker
+        // starts now, and the server holds its script request until the
+        // upload arrives. The blob itself is read synchronously above, since
+        // pages often revoke the blob URL right after new Worker().
         stage='uploading';
-        const upload=new native.XMLHttpRequest();
-        native.xhrOpen.call(upload,'POST',physicalOrigin+'/__vt/worker',false);
-        native.xhrSetRequestHeader.call(upload,'X-Browser-Worker-URL',destination.href);
-        native.xhrSend.call(upload,read.responseText);
-        if(upload.status!==200)throw new Error('Worker preparation unavailable');
-        url=JSON.parse(upload.responseText).url;
-        if(typeof url!=='string')throw new Error('Invalid Worker preparation');
+        const id=workerId();
+        uploadWorker(id,destination.href,read.responseText);
+        url=physicalOrigin+'/__vt/worker?id='+id;
       }
     } catch {
       workerDiagnostic('Browser Lite worker preparation failed',stage,destination.protocol,config.documentOrigin);

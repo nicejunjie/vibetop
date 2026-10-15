@@ -205,6 +205,7 @@ class BrowserGateway {
       }catch{deny(res,400);}
     });
     this.proxy.POST('/__vt/worker',async(req,res)=>{
+      const clientId=req.headers['x-browser-worker-id'];
       try {
         const originalUrl=require('./worker-location.cjs').validatedBlobIdentity(req.headers['x-browser-worker-url'],req.vtRealm.physical);
         const body=await this.bodyBudget.read(req,this.workers.maxBytes);
@@ -215,14 +216,18 @@ class BrowserGateway {
           url=>this.url(new URL(url,req.vtRealm.origin).href,{resourceType:'s'}),undefined,false,
           {sessionId:this.session.id,windowId:registry.map(req.vtRealm.origin).windowId,origin:req.vtRealm.origin,originalUrl});
         if(!script.includes('/*hammerhead|script|start*/'))throw new Error('Worker syntax could not be rewritten');
-        const id=this.workers.put(req.vtRealm.physical,Buffer.from(script),{originalUrl});
+        const id=this.workers.put(req.vtRealm.physical,Buffer.from(script),{originalUrl},clientId);
         res.setHeader('Content-Type','application/json');res.setHeader('Cache-Control','no-store');
         res.end(JSON.stringify({url:req.vtRealm.physical+'/__vt/worker?id='+id}));
-      } catch {deny(res,400);}
+      } catch {
+        if(clientId!==undefined)this.workers.fail(req.vtRealm.physical,clientId);
+        deny(res,400);
+      }
     });
-    this.proxy.GET('/__vt/worker',(req,res)=>{
+    this.proxy.GET('/__vt/worker',async(req,res)=>{
       const id=new URL(req.url,'http://internal').searchParams.get('id');
-      const source=this.workers.get(req.vtRealm.physical,id);
+      // The page starts the worker before its upload finishes: wait for it.
+      const source=await this.workers.wait(req.vtRealm.physical,id);
       if(!source)return deny(res,404);
       res.writeHead(200,{'Content-Type':'application/javascript','Cache-Control':'no-store','X-Content-Type-Options':'nosniff','Referrer-Policy':'strict-origin-when-cross-origin','Content-Security-Policy':this.workerPolicy()});
       res.end(source);
