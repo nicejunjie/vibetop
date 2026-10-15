@@ -29,7 +29,11 @@
   // Also kept by the server (per user): iOS can discard this page and hand
   // back empty frame storage, and the copy then follows the user to any device.
   let serverTimer;
+  // A device can opt out of the shared copy (automated test browsers signed in
+  // as a real user must never overwrite that user's tabs).
+  const LOCAL_ONLY=(()=>{try{return localStorage.getItem('vt-lite-tabs-local-only')==='1';}catch{return false;}})();
   function saveToServer(payload,now=false){
+    if(LOCAL_ONLY)return;
     clearTimeout(serverTimer);
     const send=()=>request('tabs',{save:payload}).catch(()=>{});
     if(now)send();else serverTimer=setTimeout(send,1500);
@@ -241,7 +245,7 @@
   if(device==='ok'){
     restoreFrom(local,requested);
     request('tabs',{report:{source:'device',device,count:local.tabs.length}}).catch(()=>{});
-  }else if(SAVE_KEY){
+  }else if(SAVE_KEY&&!LOCAL_ONLY){
     status('Opening…');
     request('tabs',{report:{source:'server',device,count:0}}).then(result=>result?.tabs?.tabs?.length?result.tabs:null,()=>null).then(saved=>{
       if(tabs.size)return;
