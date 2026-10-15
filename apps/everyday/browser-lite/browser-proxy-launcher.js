@@ -7,6 +7,9 @@
   let uiOrigin=null,loading=false,readyTimer;
   async function handoff() {
     const response=await fetch('/api/browser-lite/bootstrap',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:'{}',signal:AbortSignal.timeout(30000)});
+    // Opened as its own home-screen app (separate cookies) before signing in
+    // there: sign in to Vibetop, then come back here.
+    if(response.status===401&&window.parent===window){location.replace('/login.html?next='+encodeURIComponent(location.pathname));return new Promise(()=>{});}
     const data=await response.json();
     if(!response.ok)throw new Error(data.error||'Browser Lite could not connect. Retry shortly.');
     const action=new URL(data.action);
@@ -39,18 +42,5 @@
       catch(error){frame.contentWindow.postMessage({type:'vibetop-browser-handoff',id,error:error.message},uiOrigin);}
     }
   });
-  // WebKit (every iOS browser, and Safari) runs all frames on the embedding
-  // page's thread, so a site stuck in a loop froze all of Vibetop. Only a tab
-  // the top-level page opens during a tap gets its own process (one opened
-  // from in here does not), so the shell's Start menu opens Lite as a tab.
-  // Embedded anyway, say so instead of embedding; in that tab, embed as usual.
-  const ua=navigator.userAgent;
-  const sharedThread=/iPhone|iPad|iPod/.test(ua)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1)
-    ||(/Safari\//.test(ua)&&!/Chrome|Chromium|CriOS|Edg|OPR|Firefox|FxiOS/.test(ua));
-  if(sharedThread&&window.parent!==window) {
-    frame.remove();
-    message.textContent='On this device Browser Lite opens in its own tab, so a stuck website cannot freeze Vibetop. Open it from the Start menu.';
-    return;
-  }
   retry.onclick=connect;connect();
 })();

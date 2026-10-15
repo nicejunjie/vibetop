@@ -3,32 +3,26 @@ const {test}=require('node:test');
 const assert=require('node:assert/strict');
 const fs=require('node:fs'),path=require('node:path'),vm=require('node:vm');
 const source=fs.readFileSync(path.join(__dirname,'browser-proxy-launcher.js'),'utf8');
-const IPHONE='Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.7 Mobile/15E148 Safari/604.1';
-const CHROME='Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36';
-function run({ua,embedded,platform='MacIntel',touch=0}) {
-  const el=()=>({hidden:true,textContent:'',remove(){this.removed=true;},prepend(){},append(){},submit(){}});
+// Run the launcher against stub DOM; `status` is what the bootstrap returns.
+async function run({embedded,status}) {
+  const el=()=>({hidden:true,textContent:'',remove(){},prepend(){},append(){},submit(){}});
   const nodes={browser:el(),cover:el(),message:el(),retry:el()};
-  const calls={fetch:0,open:[]};
-  const window={addEventListener(){},open:(...args)=>calls.open.push(args)};
+  const calls={fetch:0,replaced:null};
+  const window={addEventListener(){}};
   window.parent=embedded?{}:window;
-  const document={getElementById:id=>nodes[id],body:el(),createElement:()=>el()};
-  const ctx={window,document,navigator:{userAgent:ua,platform,maxTouchPoints:touch},location:{href:'https://main.example/browser-lite.html',origin:'https://main.example'},
-    crypto:{randomUUID:()=>'id'},fetch:()=>{calls.fetch++;return new Promise(()=>{});},AbortSignal:{timeout:()=>null},setTimeout,clearTimeout,URL};
-  vm.runInNewContext(source,ctx);
+  const location={href:'https://main.example/browser-lite.html',pathname:'/browser-lite.html',origin:'https://main.example',replace:url=>{calls.replaced=url;}};
+  const fetch=async()=>{calls.fetch++;return {ok:status===200,status,json:async()=>({error:'Open Browser Lite from your HTTPS Vibetop session.'})};};
+  vm.runInNewContext(source,{window,document:{getElementById:id=>nodes[id],body:el(),createElement:()=>el()},location,
+    crypto:{randomUUID:()=>'id'},fetch,AbortSignal:{timeout:()=>null},setTimeout,clearTimeout,URL});
+  await new Promise(resolve=>setImmediate(resolve));
   return {nodes,calls};
 }
-test('embedded on iPhone, Lite does not sign in and points to the Start menu tab',()=>{
-  const {nodes,calls}=run({ua:IPHONE,embedded:true,platform:'iPhone',touch:5});
-  assert.equal(calls.fetch,0,'must not sign in inside the shared-thread frame');
-  assert.ok(nodes.browser.removed);assert.match(nodes.message.textContent,/own tab.*Start menu/);
-  // A tab opened from inside this frame shares its process, so none is offered.
-  assert.equal(nodes.retry.hidden,true);assert.deepEqual(calls.open,[]);
+test('its own home-screen app, not yet signed in, goes to the Vibetop login and back',async()=>{
+  const {calls}=await run({embedded:false,status:401});
+  assert.equal(calls.replaced,'/login.html?next=%2Fbrowser-lite.html');
 });
-test('iPadOS reporting a desktop Mac still opens a tab',()=>{
-  const {calls,nodes}=run({ua:IPHONE.replace('iPhone; CPU iPhone OS 18_7 like Mac OS X','Macintosh; Intel Mac OS X 10_15_7'),embedded:true,touch:5});
-  assert.equal(calls.fetch,0);assert.match(nodes.message.textContent,/own tab/);
-});
-test('in its own tab, and in Chromium, Lite embeds as before',()=>{
-  assert.equal(run({ua:IPHONE,embedded:false,platform:'iPhone',touch:5}).calls.fetch,1);
-  assert.equal(run({ua:CHROME,embedded:true}).calls.fetch,1);
+test('inside Vibetop a failed sign-in is reported in place, never redirected',async()=>{
+  const {calls,nodes}=await run({embedded:true,status:401});
+  assert.equal(calls.replaced,null);
+  assert.match(nodes.message.textContent,/Vibetop session/);assert.equal(nodes.retry.hidden,false);
 });

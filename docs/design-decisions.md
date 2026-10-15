@@ -19860,30 +19860,33 @@ fixtures and do not provision external infrastructure.
   Lite. The whole Vibetop page froze with it, on iPhone and desktop.
 - **Cause:** Vibetop, the Lite toolbar and every site's realm are same-site
   (`*.nicejunjie.com`). Same-site frames share one process and one main
-  thread, so no code anywhere on the page could even notice the hang. A test
-  with a 6 s busy loop measured the parent's stall:
+  thread, so no code on the page could even notice the hang. Measured with a
+  busy loop in the hanging page and a timer in the Vibetop page:
 
-  | Hanging page runs in | Chromium | WebKit (iOS) |
+  | Where the hanging page runs | Chromium | WebKit (iOS engine) |
   |---|---|---|
-  | same-site frame | 6.0 s | 6.0 s |
-  | same-site frame + `Origin-Agent-Cluster: ?1` | 0.1 s | 6.0 s |
-  | cross-site frame | 0.1 s | 6.0 s |
-  | tab from `window.open(…, 'noopener')`, tapped in the top-level page | 0.1 s | 0.1 s |
-  | the same, tapped inside an app frame (even via `top.open` or a message to the top) | — | 6.0 s |
-  | tab from a `target=_blank` form (even `rel=noopener`) | — | 6.0 s |
+  | same-site frame | frozen | frozen |
+  | same-site frame + `Origin-Agent-Cluster: ?1` | 0.1 s | frozen |
+  | cross-site frame | 0.1 s | frozen |
+  | same-site tab the page opens (`window.open` noopener, `<a target=_blank rel=noopener>`, form) | — | frozen |
+  | cross-site tab the page opens | — | 0.1 s |
+  | same-site tab the user opens (or another home-screen app) | — | 0.1 s |
 
+  WebKit keeps every page a same-site page opens in that page's process,
+  whatever the opener flags. Tests on made-up `.test` hosts suggested
+  otherwise: WebKit treats each such host as its own site.
 - **Fix:** Realm responses carry `Origin-Agent-Cluster: ?1` (nginx, every
-  status), so Chromium runs each site out of Vibetop's process. On WebKit
-  (every iOS browser and Safari), the shell's Start menu opens Browser Lite
-  with `window.open('/browser-lite.html', '_blank', 'noopener')` in the tap
-  itself (`LITE_IN_TAB` in `desktop.html`) and never restores it as a
-  window. That tab embeds Lite as before, including ticket renewal through
-  its own launcher. A stuck site then freezes only that tab. Embedded anyway,
-  the launcher signs nothing in and points to the Start menu.
-- **Rejected:** A second registrable domain for realms: isolates on desktop
-  only, and the extra DNS/tunnel/Access setup hurts adoption. A watchdog in
-  the same thread: it cannot run while the page loops. Server-side rendering
-  (the full Browser app): contains everything, but far more bandwidth.
-- **Measuring hangs:** Playwright's `evaluate` and its sync API both mislead
-  here (a hung frame blocks unrelated evaluations; `time.sleep` stops event
-  delivery). Measure with a timer inside the page instead.
+  status), so Chromium runs each site out of Vibetop's process. On iPhone,
+  Browser Lite's page is installable as its own home-screen app
+  (`browser-lite-manifest.json`, scope `/browser-lite.html`), which iOS runs
+  apart from Vibetop. That app has its own cookies; unsigned, the launcher
+  sends it to `/login.html?next=/browser-lite.html`. Inside Vibetop, Lite
+  still embeds as before.
+- **Rejected:** A second registrable domain for realms (the only in-page fix
+  on WebKit): its DNS, tunnel and Access setup hurts adoption. Opening Lite
+  in a tab from the Start menu (v1.38.96-97): WebKit kept that tab in
+  Vibetop's process. A watchdog on the same thread cannot run while the page
+  loops. Server-side rendering (the full Browser app): far more bandwidth.
+- **Measuring hangs:** Playwright's `evaluate` and its sync API mislead here
+  (a hung page blocks unrelated calls; `time.sleep` stops event delivery).
+  Use a finite busy loop and a timer inside the page.
