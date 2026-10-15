@@ -18840,6 +18840,15 @@ and hashbang cases pass Chromium and WebKit; proxy module startup still fails.
 physical hosts match, or claiming parser registration constitutes working
 module support. Frozen graph tuples and runtime/header integration remain next.
 
+**Follow-up (v1.38.83).** Every navigation mints a fresh random tab token, so
+keying on the full descriptor made every reload a cold rewrite. The key now
+omits only the tab token. The cached source stores that token as a per-process
+placeholder, and each hit substitutes the requesting tab's own token, so each
+result still carries only its own tab's descriptor (the original concern). That
+is not the rejected "omit tab identity because hosts match": identity is
+restored, not dropped. `script-cache-tabs.test.cjs` checks one rewrite for two
+tabs and no leaked token or placeholder.
+
 ## Browser Lite slow-network harness was Chromium-only (2026-10-13)
 
 **Symptom.** Running UI recovery tests with `--slow` in WebKit failed before
@@ -19630,3 +19639,8 @@ fixtures and do not provision external infrastructure.
   pins the lookup. The key still includes the tab and lease, because a
   rewritten script embeds them (see the script cache key entry), so a new tab
   or a new Lite session is still a cold load.
+- **Follow-up (v1.38.83):** Real reloads still missed, because the key held the
+  per-navigation tab token. See "processed-script cache omitted tab identity"
+  for the placeholder scheme. Local replay of ChatGPT with a new tab token:
+  1447 ms → 272 ms.
+
