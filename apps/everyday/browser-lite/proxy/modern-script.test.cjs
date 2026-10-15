@@ -80,3 +80,21 @@ test('the engine setAttribute lets the page bridge adjust a value first',()=>{
   assert.ok(bridge.includes('window.vibetopAttributeValue = function'),'bridge does not define the hook');
   assert.ok(!bridge.includes('Element.prototype.setAttribute = function'),'a bridge setAttribute wrapper is replaced by the engine and never runs');
 });
+test('rewritten method calls do not route through a page-replaced Function.prototype.call',()=>{
+  const fs=require('node:fs');
+  const {engineRequire}=require('./engine.cjs');
+  const client=fs.readFileSync(engineRequire.resolve('testcafe-hammerhead/lib/client/hammerhead.js'),'utf8');
+  const start=client.indexOf('var vtReflectApply = Reflect.apply;');
+  assert.ok(start>=0,'fastApply unpatched');
+  const end=client.indexOf('\n\t}',start)+3;
+  const fastApply=new Function(client.slice(start,end)+'\nreturn fastApply;')();
+  const realCall=Function.prototype.call;
+  let depth=0;
+  // A page override whose own calls would be rewritten back into __call$.
+  Function.prototype.call=function(...a){if(++depth>50)throw new RangeError('recursed');try{return fastApply(this,'apply',[a[0],a.slice(1)]);}finally{depth--;}};
+  try {
+    const obj={n:2,add(x,y){return this.n+x+y;}};
+    assert.equal(fastApply(obj,'add',[3,4]),9);
+    assert.equal(depth,0,'Function.prototype.call was consulted');
+  } finally {Function.prototype.call=realCall;}
+});

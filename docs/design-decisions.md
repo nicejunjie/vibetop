@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_485 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_486 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [Terminal link opened a closed Browser app but lost the URL](#terminal-link-opened-a-closed-browser-app-but-lost-the-url)
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
@@ -508,6 +508,7 @@ _485 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [Browser Lite proxies media-session artwork and notification icons](#browser-lite-proxies-media-session-artwork-and-notification-icons)
 - [Browser Lite keeps SVG same-document references and proxies new Audio()](#browser-lite-keeps-svg-same-document-references-and-proxies-new-audio)
 - [Browser Lite allows 512 in-flight requests per user](#browser-lite-allows-512-in-flight-requests-per-user)
+- [Browser Lite calls rewritten methods with a captured Reflect.apply (Xiaohongshu)](#browser-lite-calls-rewritten-methods-with-a-captured-reflectapply-xiaohongshu)
 
 <!-- END TOC -->
 
@@ -20024,3 +20025,19 @@ fixtures and do not provision external infrastructure.
   went past it.
 - **Fix:** The cap is 512: still a per-user guard, but above what one page
   issues at once.
+
+## Browser Lite calls rewritten methods with a captured Reflect.apply (Xiaohongshu)
+
+- **Symptom:** On xiaohongshu.com nearly every `document` getter
+  (`document.title`, `document.images`) threw "Maximum call stack size
+  exceeded", and the page logged the same error.
+- **Cause:** The engine turns `obj.m(a)` into `__call$(obj, 'm', [a])`, and its
+  `fastApply` then ran `meth.call(owner, ...)`, which reads
+  `Function.prototype.call` at call time. Xiaohongshu replaces
+  `Function.prototype.call`. Its replacement's own method calls are rewritten
+  into `__call$`, which called the replacement again, until the stack ran out.
+  A real browser never consults `Function.prototype.call` for `obj.m(a)`.
+- **Fix:** `fastApply` uses `Reflect.apply` captured when the engine loads,
+  before any page script (`modern-script-patch.cjs`). The test replaces
+  `Function.prototype.call` with a re-entering function and checks it is
+  never consulted.

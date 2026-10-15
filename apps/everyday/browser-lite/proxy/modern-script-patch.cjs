@@ -123,6 +123,20 @@ function patchModernScripts(engineRequire) {
       fs.writeFileSync(client,source.replace(anchor,(_,head)=>head+" if (typeof window !== 'undefined' && window.vibetopAttributeValue) { value = String(window.vibetopAttributeValue(el, attr, value)); args[valueIndex] = value; }"));
     }
   }
+  // Rewritten method calls (__call$) ran meth.call(owner, ...), which reads
+  // Function.prototype.call at call time. Xiaohongshu replaces that with a
+  // function whose own method calls are rewritten into __call$ again, so the
+  // two recursed until the stack overflowed (every document getter threw).
+  // A plain obj.m(a) never consults Function.prototype.call: use Reflect.apply
+  // captured before any page script runs.
+  {
+    const source=fs.readFileSync(client,'utf8');
+    if(!source.includes('vtReflectApply(owner[methName], owner, args)')) {
+      const anchor=/function fastApply\(owner, methName, args\) \{[\s\S]*?default:\s*return meth\.apply\(owner, args\);\s*\}\s*\}/g;
+      if((source.match(anchor)||[]).length!==1)throw new Error('Modern JS patch anchor changed: fastApply');
+      fs.writeFileSync(client,source.replace(anchor,()=>'var vtReflectApply = Reflect.apply;\n\tfunction fastApply(owner, methName, args) {\n\t    return vtReflectApply(owner[methName], owner, args);\n\t}'));
+    }
+  }
   // Function.prototype.toString: hand back the source without the engine's
   // wrappers (source-text.js), for code that reads its own text.
   {
