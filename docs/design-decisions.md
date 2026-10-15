@@ -19452,6 +19452,24 @@ fixtures and do not provision external infrastructure.
   covered yet; member access (`window.top`) is the common form.
 - **Lesson:** A site check must compare against the real site's layout, not
   just "the page rendered". This was missed in an earlier sweep.
+- **Follow-up (v1.38.76), runaway loop:** Instrumenting only `x.top` / `x.parent`
+  left bare `top` and `parent` native, and the two forms disagreed. LiveIntent's
+  ID module (via Prebid on weather.com) walks
+  `for (o = window; o !== top; o = o.parent)`. The instrumented `parent` stops at
+  the tab root (whose parent is itself), and the native `top` is never reached,
+  so the loop grew an array forever: WebKit hit 460% CPU and 6.5 GB, froze the
+  whole Vibetop page (same-site iframes share its main thread), then crashed it
+  and lost the tabs. Found by pausing Chromium via CDP during the stall.
+  `top-level-patch.cjs` now rewrites bare `top`/`parent` reads to
+  `__vt$top(top)` / `__vt$parent(parent)`, both in the server transformer list
+  and in the client bundle's (for eval and injected scripts). The helpers map
+  only the native window to the tab root, so a local `const top = rect.top`
+  keeps its value. Skips mirror Hammerhead's `location` transformer, plus labels,
+  `typeof`/`delete`, catch parameters and patterns. Tests run the loop against
+  a simulated tab and compile a set of tricky `top` usages.
+- **Lesson:** An emulation must be applied to every way of reaching a value. A
+  partial one is worse than none, because two views of the same window that
+  disagree turn page code's termination conditions into infinite loops.
 
 ## Browser Lite reuses upstream connections through the egress
 
