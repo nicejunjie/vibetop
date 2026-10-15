@@ -104,7 +104,7 @@
     $('welcome').hidden=!!tab.state;$('address').value=tab.state?.url||'';handoff(tab.state);
     if(tab.state)update(tab,tab.state);else{status('Ready');$('back').disabled=true;$('forward').disabled=true;}
     // A restored tab loads only when first shown, not all at once on restore.
-    if(tab.pendingUrl&&!tab.state){const url=tab.pendingUrl;delete tab.pendingUrl;$('address').value=url;go(url);}
+    if(tab.pendingUrl){const url=tab.pendingUrl;delete tab.pendingUrl;$('address').value=url;go(url);}
   }
   function newTab(url,{lazy=false,title=''}={}) {
     const id=crypto.randomUUID(),frame=document.createElement('iframe'),element=document.createElement('div'),select=document.createElement('button'),close=document.createElement('button');
@@ -114,7 +114,7 @@
     const tab={id,frame,element,select,history:[],position:-1,state:null};tabs.set(id,tab);
     tab.controller=new BrowserProxyController({frame,request,onFrame:fresh=>{const focused=document.activeElement===tab.frame;tab.frame=fresh;if(focused)fresh.focus();},onState:state=>update(tab,state),onOpen:url=>newTab(url),onHistory:delta=>history(delta,tab),
       allowPopup:()=>{if(active!==tab||document.activeElement!==tab.frame||!navigator.userActivation?.isActive||popupUsed)return false;popupUsed=true;return true;},
-      onError:error=>{if(active===tab)status(error.message,true);}});
+      onError:error=>{if(error.reset&&tab.state?.url){reopen(tab);return;}if(active===tab)status(error.message,true);}});
     select.onclick=()=>activate(tab);close.onclick=()=>{
       clearTimeout(tab.timer);tabs.delete(id);element.remove();tab.controller.dispose().catch(()=>{});
       if(active===tab){const next=[...tabs.values()].at(-1);if(next)activate(next);else newTab();}
@@ -123,10 +123,21 @@
     if(lazy){tab.pendingUrl=url;tab.pendingTitle=title;try{select.textContent=title||new URL(url).hostname;}catch{}return tab;}
     activate(tab);if(url)go(url);else $('address').focus();return tab;
   }
-  async function go(value) {
+  // The server forgot this tab (it sat in the background for a day, or the
+  // proxy restarted). Like a browser reloading a discarded tab: reload its page
+  // now if it is showing, else when it is next shown. No error to dismiss.
+  function reopen(tab) {
+    const url=tab.state?.url;if(!url)return;
+    tab.controller.expire();
+    if(active===tab)go(url);else tab.pendingUrl=url;
+  }
+  async function go(value,retried=false) {
     const tab=active;tab.historyGeneration=(tab.historyGeneration||0)+1;tab.controller.cancelTraversal();if(tab.targetPosition?.epoch===undefined && tab.targetPosition?.previousPosition!==undefined)tab.position=tab.targetPosition.previousPosition;delete tab.targetPosition;tab.historyQueue=[];
     try{const url=address(value);status('Opening…');await tab.controller.open(url);}
-    catch(error){if(active===tab)status(error.message,true);}
+    catch(error){
+      if(error.reset&&!retried&&active===tab){tab.controller.expire();return go(value,true);}
+      if(active===tab)status(error.message,true);
+    }
   }
   function history(delta,tab=active){
     tab.historyQueue ||= [];tab.historyQueue.push(delta);
@@ -163,11 +174,10 @@
   $('new-tab').onclick=()=>newTab();for(const button of document.querySelectorAll('[data-url]'))button.onclick=()=>go(button.dataset.url);
   document.addEventListener('keydown',event=>{if((event.ctrlKey||event.metaKey)&&event.key.toLowerCase()==='l'){event.preventDefault();$('address').focus();$('address').select();}});
   const heartbeat=()=>request('heartbeat',{clients:[...tabs.values()].filter(tab=>tab.controller.serverState).map(tab=>tab.controller.clientId)}).then(result=>{
-    for(const tab of tabs.values())if(result.expired?.includes(tab.controller.clientId)){
-      tab.controller.expire();if(active===tab)status('This browser session ended. Retry to reopen the page.',true);
-    }
+    for(const tab of tabs.values())if(result.expired?.includes(tab.controller.clientId))reopen(tab);
   }).catch(error=>{if(error.authentication)status(error.message,true);});
   setInterval(heartbeat,30000);window.addEventListener('pageshow',heartbeat);
+  document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')heartbeat();});
   window.addEventListener('pagehide',event=>{if(!event.persisted)for(const tab of tabs.values())tab.controller.dispose().catch(()=>{});});
   const requested=new URL(location.href).searchParams.get('url'),saved=loadTabs();
   if(saved?.tabs.length) {

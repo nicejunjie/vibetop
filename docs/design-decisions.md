@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_465 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_466 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [Terminal link opened a closed Browser app but lost the URL](#terminal-link-opened-a-closed-browser-app-but-lost-the-url)
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
@@ -470,6 +470,7 @@ _465 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [Browser Lite srcdoc iframes must bootstrap from the native parent](#browser-lite-srcdoc-iframes-must-bootstrap-from-the-native-parent)
 - [Browser Lite rewrites HLS playlists for native players](#browser-lite-rewrites-hls-playlists-for-native-players)
 - [Browser Lite sends sync cookies only where a page can read them](#browser-lite-sends-sync-cookies-only-where-a-page-can-read-them)
+- [Browser Lite reloads a forgotten tab instead of saying "session ended"](#browser-lite-reloads-a-forgotten-tab-instead-of-saying-session-ended)
 - [Browser Lite follows same-frame links by replacement](#browser-lite-follows-same-frame-links-by-replacement)
 - [Browser Lite realm hosts use 64k nginx header buffers](#browser-lite-realm-hosts-use-64k-nginx-header-buffers)
 - [Browser Lite parses srcset like a browser, not by splitting on commas](#browser-lite-parses-srcset-like-a-browser-not-by-splitting-on-commas)
@@ -19165,6 +19166,26 @@ fixtures and do not provision external infrastructure.
   login, and Lite's UI and content cookies on every renewal. Chromium evicts
   Low, then Medium (every site cookie), before High. Safari ignores the
   attribute.
+
+## Browser Lite reloads a forgotten tab instead of saying "session ended"
+
+- **Symptom:** After a while away (an iPhone with Safari in the background, or
+  any proxy restart), a Lite tab showed "This browser session ended. Retry to
+  reopen the page." A browser just keeps the page.
+- **Cause:** The proxy keeps a small control lane per UI tab and dropped it
+  after 30 minutes without a heartbeat. iOS suspends background pages, so the
+  heartbeat stops. A restart (every deploy) drops all lanes. The UI then
+  turned the expiry into an error.
+- **Fix:** Lanes last 24 hours, and at the 128-lane limit the least recently
+  used lane is evicted instead of refusing a new tab (`control-ledger.cjs`).
+  When the UI learns that a tab's lane is gone, it reloads that page quietly:
+  now if it is showing, else when it is next shown. That covers a heartbeat
+  reporting expiry, a command answering `reset`, and an address-bar open
+  (retried once). A heartbeat also runs when the page becomes visible again,
+  so expiry is caught before the user taps. Together with saved tabs
+  (v1.38.75), Lite now behaves like a browser that discarded a background tab.
+- **Rejected:** Never expiring lanes. Abandoned UI pages (devices that never
+  sent `pagehide`) would fill the limit, and new tabs would fail.
 
 ## Browser Lite follows same-frame links by replacement
 

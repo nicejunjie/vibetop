@@ -2,8 +2,12 @@
 const crypto=require('node:crypto');
 // One serialized command lane per trusted UI tab. Keep the latest outcome,
 // including errors, so a lost response never repeats a mutation or POST approval.
+// A lane outlives a phone keeping Safari in the background for hours (24 h, not
+// 30 min): the page is still in the browser, only this record went quiet. At
+// the open-lane limit the least recently used lane is evicted instead of
+// refusing a new tab; its UI reloads that page when it next checks in.
 class ControlLedger {
- constructor({perform,expire,now=()=>Date.now(),ttl=30*60*1000,limit=128}) {
+ constructor({perform,expire,now=()=>Date.now(),ttl=24*60*60*1000,limit=128}) {
   Object.assign(this,{perform,expire,now,ttl,limit});this.lanes=new Map();
  }
  collect() {
@@ -18,7 +22,9 @@ class ControlLedger {
   let lane=this.lanes.get(clientId);
   if(!lane) {
    if(operation!==1)throw new Error('Browser tab expired');
-   if([...this.lanes.values()].filter(item=>!item.closed).length>=this.limit || this.lanes.size>=4096)throw new Error('Too many browser tabs');
+   const open=[...this.lanes.entries()].filter(([,item])=>!item.closed);
+   if(open.length>=this.limit)this.evict(open);
+   if(this.lanes.size>=4096)this.evict([...this.lanes.entries()]);
    lane={operation:0,tabId:body.tabId,owner};this.lanes.set(clientId,lane);
   }
   if(lane.owner!==owner)throw new Error('Browser session mismatch');
@@ -42,6 +48,10 @@ class ControlLedger {
   if(!lane)throw new Error('Browser tab expired');
   if(lane.owner!==owner)throw new Error('Browser session mismatch');
   lane.expires=this.now()+this.ttl;return {alive:true};
+ }
+ evict(entries) {
+  const [id,lane]=entries.reduce((oldest,entry)=>entry[1].expires<oldest[1].expires?entry:oldest);
+  this.expire(lane.tabId);this.lanes.delete(id);
  }
  revoke(owner) {
   for(const [id,lane] of this.lanes)if(lane.owner===owner){this.expire(lane.tabId);this.lanes.delete(id);}

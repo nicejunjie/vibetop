@@ -33,3 +33,20 @@ test('a different device lease cannot replay or advance another device lane',()=
  assert.throws(()=>ledger.touch(clientId,'device-b'),/mismatch/);
  assert.deepEqual(ledger.touch(clientId,'device-a'),{alive:true});
 });
+test('at the open-tab limit the least recently used lane gives way to a new tab',()=>{
+ let now=0;const expired=[];
+ const ledger=new ControlLedger({now:()=>now,limit:2,perform:(_command,body)=>({tabId:body.tabId}),expire:id=>expired.push(id)});
+ const ids=['a','b','c'].map(c=>c.repeat(8)+'-'+c.repeat(4)+'-'+c.repeat(4)+'-'+c.repeat(4)+'-'+c.repeat(12));
+ ledger.run('open',{clientId:ids[0],operation:1,tabId:'t0'});now=10;
+ ledger.run('open',{clientId:ids[1],operation:1,tabId:'t1'});now=20;
+ ledger.touch(ids[0]);now=30;
+ assert.equal(ledger.run('open',{clientId:ids[2],operation:1,tabId:'t2'}).tabId,'t2');
+ assert.deepEqual(expired,['t1']);
+ assert.throws(()=>ledger.touch(ids[1]),/expired/);
+ assert.deepEqual(ledger.touch(ids[0]),{alive:true});
+});
+test('a lane survives hours without a heartbeat',()=>{
+ let now=0;const ledger=new ControlLedger({now:()=>now,perform:()=>({tabId:'one'}),expire(){}});
+ ledger.run('open',{clientId,operation:1});now=6*60*60*1000;
+ assert.deepEqual(ledger.touch(clientId),{alive:true});
+});
