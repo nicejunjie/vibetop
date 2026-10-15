@@ -108,6 +108,14 @@ require('./svg-href-patch.cjs').patchSvgHref(engineRequire);
 require('./realm-root-url-patch.cjs').patchRealmRootUrls(engineRequire);
 require('./top-level-patch.cjs').patchTopLevel(engineRequire);
 require('./cookie-perf-patch.cjs').patchClientCookiePerformance(engineRequire);
+// Rammerhead's in-memory script cache dropped the lookup result (no return),
+// so every script was rewritten on every load. ChatGPT's 18 MB of chunks
+// cost ~2 s of single-threaded rewriting each and stalled the whole proxy.
+{
+  const cacheClass=engineRequire.resolve('rammerhead/src/classes/RammerheadJSMemCache.js');
+  let code=fs.readFileSync(cacheClass,'utf8');
+  if(!code.includes('return this.lru.get(key);'))fs.writeFileSync(cacheClass,replaceOne(code,'    this.lru.get(key);','    return this.lru.get(key);'));
+}
 // Rammerhead's last-resort handler rethrows any non-network error, so one
 // unexpected exception in a single request killed the runtime and every tab
 // (and repeated crashes tripped systemd's start limit). Log and keep serving;

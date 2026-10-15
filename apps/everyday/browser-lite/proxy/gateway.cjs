@@ -10,6 +10,7 @@ const {LeaseConnections}=require('./lease-connections.cjs');
 const {engineRequire, hammerhead, toughCookie} = require('./engine.cjs');
 const Proxy = engineRequire('./src/classes/RammerheadProxy');
 const Session = engineRequire('./src/classes/RammerheadSession');
+const RammerheadJSMemCache = engineRequire('./src/classes/RammerheadJSMemCache');
 const urls = hammerhead('utils/url');
 const Context = hammerhead('request-pipeline/context');
 const transforms = hammerhead('request-pipeline/header-transforms/transforms');
@@ -102,6 +103,7 @@ class BrowserGateway {
     };
     this.installHooks();
     this.proxy = new Proxy({dontListen:true,crossDomainPort:null,disableLocalStorageSync:true,disableHttp2:true,
+      jsCache:new RammerheadJSMemCache(192*1024*1024),
       getServerInfo:req => {
         let hostname='invalid';try {hostname=new URL(registry.protocol+'//'+req.headers.host).hostname;}catch{}
         return {hostname,port:registry.port || 443,protocol:registry.protocol};

@@ -70,7 +70,7 @@ function createHttp2Pool() {
   var http = require('http'), http2 = require('http2'), tls = require('tls'), net = require('net');
   var sessions = new Map(), pending = new Map(), h1Only = new Map();
   var H1_RETRY_MS = 10 * 60 * 1000, CONNECT_MS = 10000, IDLE_MS = 60000, MAX_SESSIONS = 256;
-  var STREAM_WINDOW = 4 * 1024 * 1024, SESSION_WINDOW = 32 * 1024 * 1024;
+  var STREAM_WINDOW = 4 * 1024 * 1024, SESSION_WINDOW = 32 * 1024 * 1024, SESSION_MEMORY_MB = 96;
   function open(proxy, host, port, done) {
     var settled = false, timer = setTimeout(function () { finish(null); }, CONNECT_MS);
     function finish(session) { if (settled) return; settled = true; clearTimeout(timer); done(session); }
@@ -86,8 +86,10 @@ function createHttp2Pool() {
         if (secure.alpnProtocol !== 'h2') { h1Only.set(host + ':' + port, Date.now()); secure.destroy(); return finish(null); }
         // Node's default 64 KB receive window caps the whole shared session at
         // 64 KB per round trip: ChatGPT's 5 MB of chunks took 1.8 s, not 0.3 s.
+        // Node refuses new streams (ENHANCE_YOUR_CALM) once a session buffers
+        // more than maxSessionMemory (10 MB by default): room for the windows.
         var session = http2.connect('https://' + host + ':' + port, {createConnection: function () { return secure; },
-          settings: {enablePush: false, initialWindowSize: STREAM_WINDOW}});
+          maxSessionMemory: SESSION_MEMORY_MB, settings: {enablePush: false, initialWindowSize: STREAM_WINDOW}});
         // Never rethrow from a session event: one bad upstream must not end the process.
         session.on('error', function () { session.destroy(); });
         session.once('connect', function () {
@@ -135,7 +137,7 @@ const RETRY_FROM=`            if (DestinationRequest._isHttp2ProtocolError(err))
                 session.destroy();
                 this._sendReal();
             }`;
-const RETRY_TO=`            if (DestinationRequest._isHttp2ProtocolError(err) || (!this.vtHttp2Responded && /REFUSED_STREAM|GOAWAY|ERR_HTTP2_INVALID_SESSION|ERR_HTTP2_STREAM_CANCEL|ERR_HTTP2_SESSION_ERROR/.test(String(err.code) + ' ' + err.message))) {
+const RETRY_TO=`            if (DestinationRequest._isHttp2ProtocolError(err) || (!this.vtHttp2Responded && /REFUSED_STREAM|ENHANCE_YOUR_CALM|GOAWAY|ERR_HTTP2_INVALID_SESSION|ERR_HTTP2_STREAM_CANCEL|ERR_HTTP2_SESSION_ERROR/.test(String(err.code) + ' ' + err.message))) {
                 if (DestinationRequest._isHttp2ProtocolError(err)) session.destroy();
                 this.vtHttp1 = true;
                 this._sendReal();
@@ -158,16 +160,21 @@ function patchTunnelPool(engineRequire) {
     code=code.replace(FROM,()=>"        reqOpts.agent = vtTunnelAgentFor(proxy, reqOpts.hostname + ':' + (reqOpts.port || 443));\n        return;");
     code+='\n/* vt-tunnel-pool */ var vtTunnelAgentFor = ('+createTunnelPool.toString()+')();\nexports.vtTunnelAgentFor = vtTunnelAgentFor;\n';
   }
-  if(!code.includes('/* vt-http2-pool-v2 */')) {
+  if(!code.includes('/* vt-http2-pool-v3 */')) {
     // A reused engine tree may carry an earlier pool version: replace it.
     const prior=code.indexOf('/* vt-http2-pool');
     if(prior>=0)code=code.slice(0,prior);
-    code+='/* vt-http2-pool-v2 */ var vtHttp2SessionFor = ('+createHttp2Pool.toString()+')();\nexports.vtHttp2SessionFor = vtHttp2SessionFor;\n';
+    code+='/* vt-http2-pool-v3 */ var vtHttp2SessionFor = ('+createHttp2Pool.toString()+')();\nexports.vtHttp2SessionFor = vtHttp2SessionFor;\n';
   }
   fs.writeFileSync(file,code);
   const sender=engineRequire.resolve('testcafe-hammerhead/lib/request-pipeline/destination-request/index.js');
   let send=fs.readFileSync(sender,'utf8');
-  if(send.includes('vtHttp2SessionFor'))return;
+  if(send.includes('vtHttp2SessionFor')) {
+    // Upgrade an earlier version of the retry list in a reused engine tree.
+    const prior='/REFUSED_STREAM|GOAWAY|ERR_HTTP2_INVALID_SESSION|';
+    if(send.includes(prior))fs.writeFileSync(sender,send.replace(prior,'/REFUSED_STREAM|ENHANCE_YOUR_CALM|GOAWAY|ERR_HTTP2_INVALID_SESSION|'));
+    return;
+  }
   for(const [from,to] of [[SEND_FROM,SEND_TO],[RETRY_FROM,RETRY_TO],[RESPONSE_FROM,RESPONSE_TO]]) {
     if(send.split(from).length!==2)throw new Error('HTTP/2 tunnel patch anchor changed: '+from.slice(0,60));
     send=send.replace(from,()=>to);

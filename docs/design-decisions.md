@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_464 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_465 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [Terminal link opened a closed Browser app but lost the URL](#terminal-link-opened-a-closed-browser-app-but-lost-the-url)
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
@@ -487,6 +487,7 @@ _464 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [Browser Lite listens for the fresh frame's load only after the swap](#browser-lite-listens-for-the-fresh-frames-load-only-after-the-swap)
 - [Browser Lite pages see themselves as top-level](#browser-lite-pages-see-themselves-as-top-level)
 - [Browser Lite reuses upstream connections through the egress](#browser-lite-reuses-upstream-connections-through-the-egress)
+- [Browser Lite caches rewritten scripts (the cache never returned)](#browser-lite-caches-rewritten-scripts-the-cache-never-returned)
 
 <!-- END TOC -->
 
@@ -19495,3 +19496,32 @@ fixtures and do not provision external infrastructure.
   round trip. Fetching ChatGPT's 155 chunks (5 MB) from this host took 1.8 s
   at the default and 0.3-0.5 s with large windows. The pool now asks for 4 MB per
   stream and 32 MB per session, and the test asserts the advertised window.
+- **Follow-up (v1.38.74), session memory:** A local benchmark replayed
+  ChatGPT's 155 real chunks through a real gateway. On the second burst, 43
+  CSS/SVG requests failed with `NGHTTP2_ENHANCE_YOUR_CALM`. With large windows,
+  more than Node's default `maxSessionMemory` (10 MB) piled up while the single
+  thread was busy rewriting scripts, and Node then refused new streams itself.
+  The session now allows 96 MB. A stream refused that way before any response
+  is resent over HTTP/1.1. After the fix: 0 failures in repeated runs. Synthetic
+  tests (up to 160 × 150 KB of instrumented JS, two rounds) did not reproduce
+  it, so the evidence is the benchmark, not a unit test.
+- **Lesson (stage timing):** I first called the rewrite process "under one
+  core, so not CPU-bound". Node rewrites on one thread, so 70-90% of a core *is*
+  saturation. The `VT_BROWSER_DIAGNOSTICS` stage log (`stage-timing.cjs`:
+  host, kind and stage times, no URLs) showed `processContent` at ~2 s per big
+  script, and upstream at 60-370 ms.
+
+## Browser Lite caches rewritten scripts (the cache never returned)
+
+- **Symptom:** Every ChatGPT load cost the same ~3 s of single-threaded script
+  rewriting, even when reloading the same tab, and it stalled every other
+  request behind it.
+- **Cause:** Rammerhead's `RammerheadJSMemCache.get` called `this.lru.get(key)`
+  without `return`, so every lookup missed. Lite also ran on the default 50 MB
+  cache.
+- **Fix:** `build-engine.cjs` patches in the `return`, and the gateway passes
+  a 192 MB cache (ChatGPT alone rewrites to ~25 MB). Replaying ChatGPT's 155
+  chunks: cold 1.8 s, warm 0.15-0.22 s (was 1.5 s). `script-cache.test.cjs`
+  pins the lookup. The key still includes the tab and lease, because a
+  rewritten script embeds them (see the script cache key entry), so a new tab
+  or a new Lite session is still a cold load.
