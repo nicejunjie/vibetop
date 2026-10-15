@@ -186,6 +186,17 @@
     return new native.Worker(url,normalized);
   };
   const realmHost = window.vibetopRealmHost;
+  // new Audio(url) sets src natively, so the sound loaded straight from the
+  // site (TradingView's notification). Route it through the src property.
+  (function hookAudioConstructor() {
+    const NativeAudio = window.Audio;
+    if (typeof NativeAudio !== 'function') return;
+    window.Audio = new Proxy(NativeAudio, {construct(target, args, newTarget) {
+      const audio = Reflect.construct(target, [], newTarget === window.Audio ? target : newTarget);
+      if (args.length && args[0] !== undefined) audio.src = args[0];
+      return audio;
+    }});
+  })();
   // The browser itself fetches media-session artwork and notification icons,
   // straight from the site: Twitch's streamer pictures (MediaMetadata) went
   // around the proxy. Proxy the URLs handed to those APIs.
@@ -238,8 +249,23 @@
       };
     }
     const setAttribute = Element.prototype.setAttribute;
+    // SVG paint servers, masks and <use> are often referenced as
+    // url(<location.href>#id). location.href is the site's address, but this
+    // document lives on the realm host, so the browser fetched the site's page
+    // as an external resource (Google Finance's chart masks): restore the
+    // same-document reference.
+    const sameDocument = value => {
+      const text = String(value);
+      if (text.indexOf('#') < 0) return text;
+      let here;
+      try { here = String(engine.utils.url.parseProxyUrl(window.location.href).destUrl).split('#')[0]; } catch { return text; }
+      if (!here || text.indexOf(here) < 0) return text;
+      return text.split(here + '#').join('#');
+    };
     Element.prototype.setAttribute = function (name, value) {
       const attr = String(name).toLowerCase(), tag = String(this.tagName || '').toLowerCase();
+      if (this.namespaceURI === 'http://www.w3.org/2000/svg' && typeof value === 'string' && value.indexOf('#') >= 0
+        && (value.indexOf('url(') >= 0 || attr === 'href' || attr === 'xlink:href')) value = sameDocument(value);
       if ((tag === 'a' || tag === 'area') && attr === 'ping') return;
       if (extra && extra.SINGLE[tag] === attr && value && !/^\s*(data|blob|about|javascript):/i.test(value) && !proxied(value)) value = rewrite(value);
       else if (tag === 'link' && attr === 'imagesrcset' && value) value = rewriteSet(value);

@@ -36,3 +36,18 @@ test('notification icons are proxied once',()=>{
   new window.ServiceWorkerRegistration().showNotification('hi',{image:'/big.jpg'});
   assert.equal(shown[0].image,'https://realm/https://site.example/big.jpg');
 });
+test('new Audio(url) sets its source through the proxied src property',()=>{
+  const source=fs.readFileSync(path.join(__dirname,'client-bridge.js'),'utf8');
+  const start=source.indexOf('  (function hookAudioConstructor() {');
+  const end=source.indexOf('\n  })();',start)+8;
+  assert.ok(start>0,'hook missing');
+  const sets=[];
+  class Audio {constructor(src){this.native=src;} set src(v){sets.push(v);} }
+  const window={Audio};
+  vm.runInNewContext(source.slice(start,end),{window,Proxy,Reflect});
+  const a=new window.Audio('https://cdn.example/n.mp3');
+  assert.equal(a.native,undefined,'the native constructor must not see the URL');
+  assert.deepEqual(sets,['https://cdn.example/n.mp3']);
+  assert.ok(a instanceof window.Audio);
+  new window.Audio();assert.equal(sets.length,1);
+});

@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_483 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_484 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [Terminal link opened a closed Browser app but lost the URL](#terminal-link-opened-a-closed-browser-app-but-lost-the-url)
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
@@ -506,6 +506,7 @@ _483 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [Browser Lite realm hosts accept large cookie headers (investing.com 400)](#browser-lite-realm-hosts-accept-large-cookie-headers-investingcom-400)
 - [Browser Lite proxies scripted images and video posters](#browser-lite-proxies-scripted-images-and-video-posters)
 - [Browser Lite proxies media-session artwork and notification icons](#browser-lite-proxies-media-session-artwork-and-notification-icons)
+- [Browser Lite keeps SVG same-document references and proxies new Audio()](#browser-lite-keeps-svg-same-document-references-and-proxies-new-audio)
 
 <!-- END TOC -->
 
@@ -19989,3 +19990,18 @@ fixtures and do not provision external infrastructure.
   `ServiceWorkerRegistration.showNotification`, proxying `src`, `icon`,
   `image` and `badge` URLs (data: and already proxied URLs untouched).
   `browser-fetched-images.test.cjs` runs the hook against stub classes.
+
+## Browser Lite keeps SVG same-document references and proxies new Audio()
+
+- **Symptom:** A report-only CSP on realm pages showed Google Finance loading
+  its own page URL as an image, and TradingView loading a notification sound,
+  straight from the sites.
+- **Cause:** Google's chart sets `mask="url(<location.href>#id)"` (also fill,
+  clip-path, `<use href>`). `location.href` is the site's address, but the
+  document lives on the realm host, so the browser fetched the site's page as
+  an external resource, and the masks never applied. `new Audio(url)` sets
+  `src` inside the native constructor, out of the engine's reach.
+- **Fix:** The bridge's `setAttribute` turns `url(<this page's address>#id)`
+  and `href="<this page's address>#id"` on SVG elements back into `#id`. The
+  `Audio` constructor creates the element bare and assigns `src` through the
+  proxied property.
