@@ -1,5 +1,7 @@
 'use strict';
-const {scriptCacheKey}=require('./script-cache-key.cjs');
+const {scriptCacheKey,cacheTab}=require('./script-cache-key.cjs');
+// Marks the tab token inside cached rewritten scripts (per process, unguessable).
+globalThis.vtCacheTabMark ||= 'vtTab'+require('node:crypto').randomBytes(12).toString('hex')+'x';
 const workerModule=require('./worker-module-runtime.cjs');
 // One user/profile per process. Production listens on a private Unix socket in a
 // PrivateNetwork namespace; the root ingress must authenticate before routing.
@@ -569,6 +571,7 @@ class BrowserGateway {
       req.vtCacheKey=scriptCacheKey({physical,sessionId:this.session.id,windowId:parsed.windowId,
         resourceType:parsed.resourceType,charset:parsed.charset,destination:parsed.destUrl,
         relay:req.vtRelayCapability||this.relayCapability});
+      req.vtCacheTab=cacheTab(parsed.windowId);
       if(this.registry.isRealm) {
         let parent=false;try{parent=new URL(req.headers.referer).origin===this.parentOrigin;}catch{}
         const key=new URL(physical+req.url).href,items=this.admissions.get(key)||[];
@@ -616,6 +619,7 @@ class BrowserGateway {
         req.vtProcessModule=(script,replacer)=>workerModule.processModule(script,url=>replacer(url,kind,'utf-8'),runtime,parsed.destUrl);
         req.vtCacheKey=scriptCacheKey({physical,sessionId:this.session.id,windowId:parsed.windowId,
           resourceType:kind,charset:'utf-8',destination:parsed.destUrl,relay:parsed.windowId.split('~')[2]})+'\0'+workerModule.revision;
+        req.vtCacheTab=cacheTab(parsed.windowId);
        } catch {return deny(res);}
       }
       if (!upgrade && (!req.headers['sec-fetch-mode'] || !req.headers['sec-fetch-dest'])) return deny(res);

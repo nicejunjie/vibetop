@@ -98,6 +98,16 @@ if(!cacheSource.includes('ctx.req.vtProcessModule ?')) {
     'processedScript = ctx.req.vtProcessModule ? ctx.req.vtProcessModule(script, urlReplacer) : processScript(');
   fs.writeFileSync(cacheFile,cacheSource);
 }
+// The cache key omits the tab token (script-cache-key.cjs): store it as a
+// placeholder and give each hit the requesting tab's own token.
+cacheSource=fs.readFileSync(cacheFile,'utf8');
+if(!cacheSource.includes('vtCacheTabMark')) {
+  cacheSource=replaceOne(cacheSource,'    let processedScript = await cacheGet(cacheKey);',
+    "    const vtTab = ctx.req.vtCacheTab && globalThis.vtCacheTabMark ? ctx.req.vtCacheTab : '';\n    let processedScript = await cacheGet(cacheKey);\n    if (processedScript && vtTab) processedScript = processedScript.split(globalThis.vtCacheTabMark).join(vtTab);");
+  cacheSource=replaceOne(cacheSource,'await cacheSet(cacheKey, processedScript);',
+    'await cacheSet(cacheKey, vtTab ? processedScript.split(vtTab).join(globalThis.vtCacheTabMark) : processedScript);');
+  fs.writeFileSync(cacheFile,cacheSource);
+}
 // Large scripts are rewritten on worker threads when the runtime installed
 // them (script-workers.cjs); null means "do it here", as before.
 cacheSource=fs.readFileSync(cacheFile,'utf8');
