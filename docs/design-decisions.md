@@ -20001,7 +20001,12 @@ fixtures and do not provision external infrastructure.
   document lives on the realm host, so the browser fetched the site's page as
   an external resource, and the masks never applied. `new Audio(url)` sets
   `src` inside the native constructor, out of the engine's reach.
-- **Fix:** The bridge's `setAttribute` turns `url(<this page's address>#id)`
-  and `href="<this page's address>#id"` on SVG elements back into `#id`. The
+- **Fix:** `setAttribute` turns `url(<this page's address>#id)` and
+  `href="<this page's address>#id"` on SVG elements back into `#id`. The
   `Audio` constructor creates the element bare and assigns `src` through the
   proxied property.
+- **Follow-up (v1.38.106):** The bridge's `Element.prototype.setAttribute`
+  wrapper never ran: the engine installs its own override after the bridge.
+  Its ping, link `imagesrcset` and `<track src>` handling were dead code too.
+  The engine's `setAttributeCore` now calls `window.vibetopAttributeValue`
+  first, and the bridge does all of that there.

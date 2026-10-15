@@ -112,6 +112,17 @@ function patchModernScripts(engineRequire) {
       fs.writeFileSync(client,source);
     }
   }
+  // The engine installs its own Element.prototype.setAttribute after the page
+  // bridge, so a bridge wrapper never ran. Let the bridge adjust a value first
+  // (SVG same-document url(#id) references, link imagesrcset, ping).
+  {
+    const source=fs.readFileSync(client,'utf8');
+    if(!source.includes('window.vibetopAttributeValue(el, attr, value)')) {
+      const anchor=/(ElementSandbox\.prototype\.setAttributeCore = function \(el, args, isNs\) \{[\s\S]{0,400}?var value = String\(args\[valueIndex\]\);)/g;
+      if((source.match(anchor)||[]).length!==1)throw new Error('Modern JS patch anchor changed: setAttributeCore');
+      fs.writeFileSync(client,source.replace(anchor,(_,head)=>head+" if (typeof window !== 'undefined' && window.vibetopAttributeValue) { value = String(window.vibetopAttributeValue(el, attr, value)); args[valueIndex] = value; }"));
+    }
+  }
   // Function.prototype.toString: hand back the source without the engine's
   // wrappers (source-text.js), for code that reads its own text.
   {

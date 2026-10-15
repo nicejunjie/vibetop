@@ -71,3 +71,12 @@ test('scripted images and video posters go through the proxy in the client',()=>
   assert.ok(client.includes("poster: ['video'], /* vt */"),'poster not a URL attribute');
   assert.ok(client.includes("this.overrideUrlAttrDescriptors('poster', [window.HTMLVideoElement]);"),'poster property unpatched');
 });
+test('the engine setAttribute lets the page bridge adjust a value first',()=>{
+  const fs=require('node:fs');
+  const {engineRequire}=require('./engine.cjs');
+  const client=fs.readFileSync(engineRequire.resolve('testcafe-hammerhead/lib/client/hammerhead.js'),'utf8');
+  assert.ok(client.includes('window.vibetopAttributeValue(el, attr, value)'),'setAttributeCore hook missing');
+  const bridge=fs.readFileSync(require('node:path').join(__dirname,'client-bridge.js'),'utf8');
+  assert.ok(bridge.includes('window.vibetopAttributeValue = function'),'bridge does not define the hook');
+  assert.ok(!bridge.includes('Element.prototype.setAttribute = function'),'a bridge setAttribute wrapper is replaced by the engine and never runs');
+});

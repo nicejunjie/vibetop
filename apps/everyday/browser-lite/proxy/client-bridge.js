@@ -248,28 +248,27 @@
         return result;
       };
     }
-    const setAttribute = Element.prototype.setAttribute;
     // SVG paint servers, masks and <use> are often referenced as
     // url(<location.href>#id). location.href is the site's address, but this
     // document lives on the realm host, so the browser fetched the site's page
     // as an external resource (Google Finance's chart masks): restore the
     // same-document reference.
     const sameDocument = value => {
-      const text = String(value);
-      if (text.indexOf('#') < 0) return text;
       let here;
-      try { here = String(engine.utils.url.parseProxyUrl(window.location.href).destUrl).split('#')[0]; } catch { return text; }
-      if (!here || text.indexOf(here) < 0) return text;
-      return text.split(here + '#').join('#');
+      try { here = String(url.parseProxyUrl(window.location.href).destUrl).split('#')[0]; } catch { return value; }
+      return here && value.indexOf(here + '#') >= 0 ? value.split(here + '#').join('#') : value;
     };
-    Element.prototype.setAttribute = function (name, value) {
-      const attr = String(name).toLowerCase(), tag = String(this.tagName || '').toLowerCase();
-      if (this.namespaceURI === 'http://www.w3.org/2000/svg' && typeof value === 'string' && value.indexOf('#') >= 0
-        && (value.indexOf('url(') >= 0 || attr === 'href' || attr === 'xlink:href')) value = sameDocument(value);
-      if ((tag === 'a' || tag === 'area') && attr === 'ping') return;
-      if (extra && extra.SINGLE[tag] === attr && value && !/^\s*(data|blob|about|javascript):/i.test(value) && !proxied(value)) value = rewrite(value);
-      else if (tag === 'link' && attr === 'imagesrcset' && value) value = rewriteSet(value);
-      return setAttribute.call(this, name, value);
+    // Called by the engine's setAttribute before its own handling
+    // (modern-script-patch.cjs): its override replaces any wrapper here.
+    window.vibetopAttributeValue = function (el, name, value) {
+      const attr = String(name).toLowerCase(), tag = String(el && el.tagName || '').toLowerCase();
+      if ((tag === 'a' || tag === 'area') && attr === 'ping') return '';
+      if (tag === 'link' && attr === 'imagesrcset' && value) return rewriteSet(value);
+      // Captions: <track src> is not a URL attribute to the engine.
+      if (tag === 'track' && attr === 'src' && value && !/^\s*(data|blob|about|javascript):/i.test(value) && !proxied(value)) return rewrite(value);
+      if (el && el.namespaceURI === 'http://www.w3.org/2000/svg' && value.indexOf('#') >= 0
+        && (value.indexOf('url(') >= 0 || attr === 'href' || attr === 'xlink:href')) return sameDocument(value);
+      return value;
     };
     const hook = (proto, prop, attr, read) => {
       if (!proto) return;
