@@ -61,7 +61,7 @@ class BrowserGateway {
     this.admissions = new Map();
     this.partitionJars = new Map();
     this.workers = new WorkerStore();
-    this.navigations=new NavigationTransactions();this.tabs=new Map();this.tabTokens=new Map();
+    this.navigations=new NavigationTransactions();this.tabs=new Map();this.tabTokens=new Map();this.frameGrants=new Map();
     this.controls=new ControlLedger({perform:(command,body)=>{
       const tab=this.tabs.get(body.tabId),lease=this.registry.scope?.getStore()?.authorization?.lease;
       if(this.ingressIdentity && tab && tab.lease!==lease)throw new Error('Browser session mismatch');
@@ -230,6 +230,12 @@ class BrowserGateway {
     let target;
     try{target=this.registry.scope.run({req},()=>this.url(destination,{resourceType:parsed.resourceType,windowId,context:owner.context}));}
     catch{deny(res);return true;}
+    // Frames created with referrerpolicy=no-referrer reach the child realm
+    // with no provable source. This hop already verified it, so admit that
+    // exact URL once, briefly, on the same sign-in.
+    const now=Date.now();
+    for(const [key,grant] of this.frameGrants)if(grant.expires<=now)this.frameGrants.delete(key);
+    if(this.frameGrants.size<1024)this.frameGrants.set(new URL(target).href,{expires:now+60000,lease:req.vtLease,source:owner});
     res.writeHead(302,{'Location':target,'Cache-Control':'no-store','Referrer-Policy':'strict-origin-when-cross-origin'});res.end();
     return true;
   }
@@ -574,9 +580,14 @@ class BrowserGateway {
           if(auth && tab?.physical===source?.physical && (!this.ingressIdentity || tab.lease===req.vtLease) && authorizeResource(source,req.vtRealm))return this.captureNavigation(req,res,parsed,tab);
           return deny(res);
         }
-        const decision=authorizeRequest(req.headers,req.vtRealm,this.registry.realms,{approvedMain:!!candidate,websocket:upgrade,workerModule:!!urls.parseResourceType(parsed.resourceType).isWorkerModule});
+        let grant=null;
+        if(!upgrade && !candidate && req.headers['sec-fetch-mode']==='navigate' && req.headers['sec-fetch-dest']==='iframe') {
+          const found=this.frameGrants.get(key);
+          if(found && found.expires>Date.now() && (!this.ingressIdentity || found.lease===req.vtLease)){grant=found;this.frameGrants.delete(key);}
+        }
+        const decision=authorizeRequest(req.headers,req.vtRealm,this.registry.realms,{approvedMain:!!candidate||!!grant,websocket:upgrade,workerModule:!!urls.parseResourceType(parsed.resourceType).isWorkerModule});
         if(!decision.allowed)return deny(res);
-        req.vtSource=decision.source;
+        req.vtSource=decision.source||grant?.source||null;
         if(candidate && decision.navigation) {
           req.vtNavigation=candidate;items.splice(items.indexOf(candidate),1);
           if(!items.length)this.admissions.delete(key);

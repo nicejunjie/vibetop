@@ -20,7 +20,7 @@ test('a cross-origin iframe named on its parent host is sent on to its child rea
   const page=new URL(registry.scope.run({authorization},()=>gateway.url('http://shop.example/',{context})));
   const windowId=decodeURIComponent(page.pathname.split('/')[1]).split('*')[1];
   const get=(host,pathname,site,referer=page.href)=>new Promise((resolve,reject)=>http.request({socketPath,path:pathname,headers:{Host:host,'X-VT-Browser-Role':'auth',
-    'Sec-Fetch-Dest':'iframe','Sec-Fetch-Mode':'navigate','Sec-Fetch-Site':site,Referer:referer,
+    'Sec-Fetch-Dest':'iframe','Sec-Fetch-Mode':'navigate','Sec-Fetch-Site':site,...(referer?{Referer:referer}:{}),
     ...Object.fromEntries(Object.entries(authorization).map(([k,v])=>['X-VT-Browser-'+k,String(v)]))}},res=>{res.resume();res.on('end',()=>resolve({status:res.statusCode,location:res.headers.location}));}).on('error',reject).end());
   const late='/'+encodeURIComponent('stableTestEngine*'+windowId)+'!i/http://widget.example/embed';
   try {
@@ -30,6 +30,11 @@ test('a cross-origin iframe named on its parent host is sent on to its child rea
     assert.equal(new URL(hop.location).origin,expected,'sent to the child realm of this document');
     const frame=await get(new URL(hop.location).host,new URL(hop.location).pathname,'same-site',page.origin+'/');
     assert.equal(frame.status,200);
+    // A frame created with referrerpolicy=no-referrer: admitted once by the hop's grant.
+    const quiet=await get(page.host,late,'same-origin');
+    const target=new URL(quiet.location);
+    assert.equal((await get(target.host,target.pathname,'same-site','')).status,200,'granted once without a Referer');
+    assert.notEqual((await get(target.host,target.pathname,'same-site','')).status,200,'the grant is single-use');
     assert.notEqual((await get(page.host,late,'cross-site')).status,302,'only the document itself');
     const foreign=registry.realms.contextToken(mainContext('http://evil.example'))+'~~test.relay';
     assert.notEqual((await get(page.host,'/'+encodeURIComponent('stableTestEngine*'+foreign)+'!i/http://widget.example/embed','same-origin')).status,302,'only its own context');

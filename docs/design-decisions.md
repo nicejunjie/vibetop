@@ -19224,6 +19224,11 @@ fixtures and do not provision external infrastructure.
   own navigation instead of on the page's main thread.
   `frame-binding.test.cjs` covers the redirect and refuses cross-site and
   foreign-context hops.
+- **No-referrer frames:** ChatGPT creates its runner iframe with no referrer,
+  so the child request proved no source and got 403 (the old direct path had
+  the same gap). The hop has already verified the parent, so it records a
+  single-use, 60-second grant for that exact child URL on the same lease. The
+  grant admits the navigation and supplies the parent for messaging.
 
 ## Browser Lite follows same-frame links by replacement
 
