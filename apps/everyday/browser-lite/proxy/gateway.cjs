@@ -16,7 +16,7 @@ const RammerheadJSMemCache = engineRequire('./src/classes/RammerheadJSMemCache')
 const urls = hammerhead('utils/url');
 const Context = hammerhead('request-pipeline/context');
 const transforms = hammerhead('request-pipeline/header-transforms/transforms');
-if(process.env.VT_BROWSER_DIAGNOSTICS==='1')require('./stage-timing.cjs').installStageTiming(hammerhead('request-pipeline/stages'));
+if(process.env.VT_BROWSER_DIAGNOSTICS==='1'){require('./stage-timing.cjs').installStageTiming(hammerhead('request-pipeline/stages'));require('./stage-timing.cjs').installRawCookieCheck(require('node:http'));}
 const {requestOrigin, uniqueCookie} = require('./origin-policy.cjs');
 const {cookieView,sameSite} = require('./cookie-policy.cjs');
 const {rewriteImportMap} = require('./import-map.cjs');
