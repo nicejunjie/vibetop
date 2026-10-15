@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_481 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_482 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [Terminal link opened a closed Browser app but lost the URL](#terminal-link-opened-a-closed-browser-app-but-lost-the-url)
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
@@ -504,6 +504,7 @@ _481 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [Browser Lite returns original source from Function.prototype.toString](#browser-lite-returns-original-source-from-functionprototypetostring)
 - [Browser Lite sends a small pass-through body in one write](#browser-lite-sends-a-small-pass-through-body-in-one-write)
 - [Browser Lite realm hosts accept large cookie headers (investing.com 400)](#browser-lite-realm-hosts-accept-large-cookie-headers-investingcom-400)
+- [Browser Lite proxies scripted images and video posters](#browser-lite-proxies-scripted-images-and-video-posters)
 
 <!-- END TOC -->
 
@@ -19955,3 +19956,20 @@ fixtures and do not provision external infrastructure.
   rewrite runtime starts Node with `--max-http-header-size=65536`. A
   deleted cookie's sync copy (`maxAge <= 0` or a past expiry) now lives 60 s
   instead of an hour (`cookie-wire-patch.cjs`).
+
+## Browser Lite proxies scripted images and video posters
+
+- **Symptom:** Stack Overflow's modal images, Reddit's award icons and
+  Weibo's video poster loaded straight from the sites, bypassing Lite.
+- **Cause:** The engine proxies a scripted `<img src>` only when the element
+  carries a flag that `document.createElement` sets. Svelte and lit clone
+  images from a `<template>`, so they never had it, and `setAttribute`
+  resolved the URL without proxying it. `poster` was not a URL attribute to
+  the engine at all, so `setAttribute('poster')` and `video.poster =` went out
+  raw. Only parsed HTML was covered (extra-url-attrs.js).
+- **Fix:** `modern-script-patch.cjs` makes `setAttributeCore` honor the
+  session-wide `forceProxySrcForImage` (Lite always sets it) for every image,
+  adds `poster` for `video` to the client's URL attribute table (not to the
+  one-attribute-per-element processing list) and overrides the `poster`
+  property. The HTML pass stores the original poster where `getAttribute`
+  looks for it.

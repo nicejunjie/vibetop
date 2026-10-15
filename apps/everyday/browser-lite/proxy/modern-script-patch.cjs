@@ -90,6 +90,28 @@ function patchModernScripts(engineRequire) {
       patch(file,anchor,anchor + ' ' + fieldGuard);
     }
   }
+  // Images: the engine proxies a scripted <img src> only if the element was
+  // made by document.createElement. One cloned from a <template> (Svelte,
+  // lit) kept the raw URL and loaded straight from the site: Stack Overflow's
+  // modal images. Honor the session-wide setting for every image.
+  patch(client,"if (tagName !== 'img' || el[INTERNAL_PROPS.forceProxySrcForImage]) {",
+    "if (tagName !== 'img' || el[INTERNAL_PROPS.forceProxySrcForImage] || settings$1.get().forceProxySrcForImage) {");
+  // <video poster> is not a URL attribute to the engine, so a scripted poster
+  // (Weibo, Reddit's player) loaded straight from the site. Treat it as one
+  // for setAttribute/getAttribute and the poster property. Parsed HTML is
+  // covered by extra-url-attrs.js.
+  {
+    let source=fs.readFileSync(client,'utf8');
+    if(!source.includes("poster: ['video'], /* vt */")) {
+      const table=/(var URL_ATTR_TAGS = \{[^}]*data: \['object'\],)/g;
+      if((source.match(table)||[]).length!==1)throw new Error('Modern JS patch anchor changed: URL_ATTR_TAGS');
+      source=source.replace(table,(_,head)=>head+" poster: ['video'], /* vt */");
+      const anchor="this.overrideUrlAttrDescriptors('data', [window.HTMLObjectElement]);";
+      if(source.split(anchor).length!==2)throw new Error('Modern JS patch anchor changed: '+anchor);
+      source=source.replace(anchor,()=>anchor+" this.overrideUrlAttrDescriptors('poster', [window.HTMLVideoElement]);");
+      fs.writeFileSync(client,source);
+    }
+  }
   // Function.prototype.toString: hand back the source without the engine's
   // wrappers (source-text.js), for code that reads its own text.
   {

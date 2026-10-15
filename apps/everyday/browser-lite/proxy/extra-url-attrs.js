@@ -15,7 +15,12 @@
     const attr=SINGLE[tag];
     if(attr) {
       const value=adapter.getAttr(el,attr);
-      if(value && !SKIP.test(value) && !isProxied(value))adapter.setAttr(el,attr,rewrite(value.trim()));
+      if(value && !SKIP.test(value) && !isProxied(value)) {
+        // The client treats poster as a URL attribute (modern-script-patch.cjs):
+        // keep the original where its getAttribute looks for it.
+        if(attr==='poster')adapter.setAttr(el,'poster-hammerhead-stored-value',value);
+        adapter.setAttr(el,attr,rewrite(value.trim()));
+      }
     } else if(tag==='link') {
       const value=adapter.getAttr(el,'imagesrcset');
       if(value && !isProxied(value.trim().split(/\s/)[0]))adapter.setAttr(el,'imagesrcset',rewriteSet(value));

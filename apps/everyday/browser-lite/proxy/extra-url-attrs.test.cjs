@@ -15,6 +15,7 @@ test('the server page pass rewrites posters, captions and responsive preloads, a
   walkElements(root,el=>processor.processElement(el,replacer));
   const html=parse5.serialize(root);
   assert.match(html,/poster="https:\/\/realm\.example\/S\/https:\/\/cdn\.example\/p\.jpg"/);
+  assert.match(html,/poster-hammerhead-stored-value="https:\/\/cdn\.example\/p\.jpg"/);
   assert.match(html,/<track src="https:\/\/realm\.example\/S\/https:\/\/site\.example\/cc\.vtt"/);
   assert.match(html,/imagesrcset="https:\/\/realm\.example\/S\/https:\/\/cdn\.example\/a\.jpg 1x, https:\/\/realm\.example\/S\/https:\/\/cdn\.example\/b\.jpg 2x"/);
   assert.doesNotMatch(html,/ping=/);

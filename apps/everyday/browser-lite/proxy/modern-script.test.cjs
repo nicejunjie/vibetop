@@ -61,3 +61,13 @@ test('regenerated async generator methods keep both async and *',()=>{
   const client=fs.readFileSync(engineRequire.resolve('testcafe-hammerhead/lib/client/hammerhead.js'),'utf8');
   assert.ok(client.includes("($expr.value.async ? 'async ' : '') + '*'")&&client.includes("($val.async ? 'async ' : '') + '*'"),'client generator unpatched');
 });
+test('scripted images and video posters go through the proxy in the client',()=>{
+  // Svelte clones <img> from templates, so the per-element createElement flag
+  // never applied; posters were not a URL attribute at all.
+  const fs=require('node:fs');
+  const {engineRequire}=require('./engine.cjs');
+  const client=fs.readFileSync(engineRequire.resolve('testcafe-hammerhead/lib/client/hammerhead.js'),'utf8');
+  assert.ok(client.includes("el[INTERNAL_PROPS.forceProxySrcForImage] || settings$1.get().forceProxySrcForImage) {"),'image setting unpatched');
+  assert.ok(client.includes("poster: ['video'], /* vt */"),'poster not a URL attribute');
+  assert.ok(client.includes("this.overrideUrlAttrDescriptors('poster', [window.HTMLVideoElement]);"),'poster property unpatched');
+});
