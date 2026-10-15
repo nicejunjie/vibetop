@@ -250,3 +250,13 @@ def test_link_to_another_site_brings_its_browser_logins(monkeypatch):
     assert outgoing == [200]
     assert [c for c, _ in calls] == ["approve", "logins"]
     assert calls[1][1] == {"url": "https://chatgpt.com/c/1", "cookies": [{"name": "s", "value": "https://chatgpt.com/c/1"}]}
+
+
+def test_browser_lite_credentials_are_high_priority_cookies():
+    # Realm sync cookies share the registrable domain's cap; Chromium evicts
+    # lower-priority cookies first, so the credentials must outrank them.
+    bridge, lease = setup()
+    cookies = [value for name, value in bridge.cookies(lease)]
+    assert len(cookies) == 2
+    for value in cookies:
+        assert "Priority=High" in value and "HttpOnly" in value and "Secure" in value

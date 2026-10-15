@@ -62,6 +62,82 @@ function createTunnelPool() {
     return agent;
   };
 }
+// HTTP/1.1 keep-alive still caps a host at 8 connections, so ChatGPT's ~300
+// preloaded chunks queued for 15 s behind them. Browsers send these over one
+// HTTP/2 connection. Offer h2 by ALPN inside the same CONNECT tunnel and reuse
+// one session per destination; servers that answer http/1.1 keep the pool.
+function createHttp2Pool() {
+  var http = require('http'), http2 = require('http2'), tls = require('tls'), net = require('net');
+  var sessions = new Map(), pending = new Map(), h1Only = new Map();
+  var H1_RETRY_MS = 10 * 60 * 1000, CONNECT_MS = 10000, IDLE_MS = 60000, MAX_SESSIONS = 256;
+  function open(proxy, host, port, done) {
+    var settled = false, timer = setTimeout(function () { finish(null); }, CONNECT_MS);
+    function finish(session) { if (settled) return; settled = true; clearTimeout(timer); done(session); }
+    var headers = {host: host + ':' + port};
+    if (proxy.authHeader) headers['proxy-authorization'] = proxy.authHeader;
+    var req = http.request({host: proxy.hostname, port: proxy.port, method: 'CONNECT', path: host + ':' + port, headers: headers, agent: false});
+    req.once('error', function () { finish(null); });
+    req.once('connect', function (res, socket) {
+      if (res.statusCode !== 200) { socket.destroy(); return finish(null); }
+      var secure = tls.connect({socket: socket, servername: net.isIP(host) ? undefined : host, rejectUnauthorized: true, ALPNProtocols: ['h2', 'http/1.1']});
+      secure.once('error', function () { secure.destroy(); finish(null); });
+      secure.once('secureConnect', function () {
+        if (secure.alpnProtocol !== 'h2') { h1Only.set(host + ':' + port, Date.now()); secure.destroy(); return finish(null); }
+        var session = http2.connect('https://' + host + ':' + port, {createConnection: function () { return secure; }, settings: {enablePush: false}});
+        // Never rethrow from a session event: one bad upstream must not end the process.
+        session.on('error', function () { session.destroy(); });
+        session.once('connect', function () { finish(session); });
+        session.once('close', function () { finish(null); });
+      });
+    });
+    req.end();
+  }
+  return function sessionFor(proxy, host, port) {
+    port = Number(port) || 443;
+    var destination = host + ':' + port, key = proxy.hostname + ':' + proxy.port + ':' + (proxy.authHeader || '') + '|' + destination;
+    var failed = h1Only.get(destination);
+    if (failed && Date.now() - failed < H1_RETRY_MS) return Promise.resolve(null);
+    var current = sessions.get(key);
+    if (current && !current.closed && !current.destroyed) return Promise.resolve(current);
+    if (pending.has(key)) return pending.get(key);
+    var promise = new Promise(function (resolve) {
+      open(proxy, host, port, function (session) {
+        pending.delete(key);
+        if (!session) return resolve(null);
+        if (sessions.size >= MAX_SESSIONS) sessions.forEach(function (old, oldKey) { old.close(); sessions.delete(oldKey); });
+        sessions.set(key, session);
+        session.setTimeout(IDLE_MS, function () { session.close(); });
+        session.once('close', function () { if (sessions.get(key) === session) sessions.delete(key); });
+        session.once('goaway', function () { if (sessions.get(key) === session) sessions.delete(key); });
+        resolve(session);
+      });
+    });
+    pending.set(key, promise);
+    return promise;
+  };
+}
+const SEND_FROM=`        const http2Session = !this.opts.disableHttp2 && this.opts.isHttps && !this.opts.isWebSocket && !this.opts.proxy &&
+            await (0, http2_1.getHttp2Session)(this.opts.requestId, this.opts.protocol + '//' + this.opts.host);`;
+const SEND_TO=`        const http2Session = this.opts.proxy && this.opts.isHttps && !this.opts.isWebSocket && !this.vtHttp1
+            ? await requestAgent.vtHttp2SessionFor(this.opts.proxy, this.opts.hostname, this.opts.port)
+            : !this.opts.disableHttp2 && this.opts.isHttps && !this.opts.isWebSocket && !this.opts.proxy &&
+            await (0, http2_1.getHttp2Session)(this.opts.requestId, this.opts.protocol + '//' + this.opts.host);`;
+// A stream refused before any response (GOAWAY, REFUSED_STREAM, a session
+// that just closed) was never processed upstream: resend it over HTTP/1.1.
+const RETRY_FROM=`            if (DestinationRequest._isHttp2ProtocolError(err)) {
+                session.destroy();
+                this._sendReal();
+            }`;
+const RETRY_TO=`            if (DestinationRequest._isHttp2ProtocolError(err) || (!this.vtHttp2Responded && /REFUSED_STREAM|GOAWAY|ERR_HTTP2_INVALID_SESSION|ERR_HTTP2_STREAM_CANCEL|ERR_HTTP2_SESSION_ERROR/.test(String(err.code) + ' ' + err.message))) {
+                if (DestinationRequest._isHttp2ProtocolError(err)) session.destroy();
+                this.vtHttp1 = true;
+                this._sendReal();
+            }`;
+const RESPONSE_FROM=`        stream.on('response', headers => {
+            const http2res`;
+const RESPONSE_TO=`        stream.on('response', headers => {
+            this.vtHttp2Responded = true;
+            const http2res`;
 const FROM=`        reqOpts.agent = tunnel_agent_1.default.httpsOverHttp({
             proxy,
             rejectUnauthorized: true,
@@ -70,10 +146,21 @@ const FROM=`        reqOpts.agent = tunnel_agent_1.default.httpsOverHttp({
 function patchTunnelPool(engineRequire) {
   const file=engineRequire.resolve('testcafe-hammerhead/lib/request-pipeline/destination-request/agent.js');
   let code=fs.readFileSync(file,'utf8');
-  if(code.includes('/* vt-tunnel-pool */'))return;
-  if(code.split(FROM).length!==2)throw new Error('Tunnel pool patch anchor changed: '+file);
-  code=code.replace(FROM,()=>"        reqOpts.agent = vtTunnelAgentFor(proxy, reqOpts.hostname + ':' + (reqOpts.port || 443));\n        return;");
-  code+='\n/* vt-tunnel-pool */ var vtTunnelAgentFor = ('+createTunnelPool.toString()+')();\nexports.vtTunnelAgentFor = vtTunnelAgentFor;\n';
+  if(!code.includes('/* vt-tunnel-pool */')) {
+    if(code.split(FROM).length!==2)throw new Error('Tunnel pool patch anchor changed: '+file);
+    code=code.replace(FROM,()=>"        reqOpts.agent = vtTunnelAgentFor(proxy, reqOpts.hostname + ':' + (reqOpts.port || 443));\n        return;");
+    code+='\n/* vt-tunnel-pool */ var vtTunnelAgentFor = ('+createTunnelPool.toString()+')();\nexports.vtTunnelAgentFor = vtTunnelAgentFor;\n';
+  }
+  if(!code.includes('/* vt-http2-pool */'))
+    code+='/* vt-http2-pool */ var vtHttp2SessionFor = ('+createHttp2Pool.toString()+')();\nexports.vtHttp2SessionFor = vtHttp2SessionFor;\n';
   fs.writeFileSync(file,code);
+  const sender=engineRequire.resolve('testcafe-hammerhead/lib/request-pipeline/destination-request/index.js');
+  let send=fs.readFileSync(sender,'utf8');
+  if(send.includes('vtHttp2SessionFor'))return;
+  for(const [from,to] of [[SEND_FROM,SEND_TO],[RETRY_FROM,RETRY_TO],[RESPONSE_FROM,RESPONSE_TO]]) {
+    if(send.split(from).length!==2)throw new Error('HTTP/2 tunnel patch anchor changed: '+from.slice(0,60));
+    send=send.replace(from,()=>to);
+  }
+  fs.writeFileSync(sender,send);
 }
-module.exports={patchTunnelPool,createTunnelPool};
+module.exports={patchTunnelPool,createTunnelPool,createHttp2Pool};

@@ -125,8 +125,10 @@ class Bridge:
         content = self.auth.mint("content", lease_id, 7 * 86400)
         claims = self.auth.verify(ui, "ui")
         ttl = max(0, int(claims["exp"] - self.auth.now()))
-        return [("Set-Cookie", f"{UI_COOKIE}={ui}; Path=/; Secure; HttpOnly; SameSite=Lax; Max-Age={ttl}"),
-                ("Set-Cookie", f"__Secure-vt_browser_{claims['profile']}={content}; Domain={self.auth.domain}; Path=/; Secure; HttpOnly; SameSite=Lax; Max-Age={ttl}")]
+        # Every realm host shares this registrable domain's cookie cap with the
+        # sites' own sync cookies. Priority=High keeps these when Chromium evicts.
+        return [("Set-Cookie", f"{UI_COOKIE}={ui}; Path=/; Secure; HttpOnly; SameSite=Lax; Max-Age={ttl}; Priority=High"),
+                ("Set-Cookie", f"__Secure-vt_browser_{claims['profile']}={content}; Domain={self.auth.domain}; Path=/; Secure; HttpOnly; SameSite=Lax; Max-Age={ttl}; Priority=High")]
 
     def ingress(self, headers):
         if headers.get("X-Forwarded-Proto") != "https":

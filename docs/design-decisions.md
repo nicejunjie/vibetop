@@ -19156,6 +19156,14 @@ fixtures and do not provision external infrastructure.
 - **Rejected:** Putting Lite on a separate registrable domain. That would remove
   the shared cookie cap with Vibetop, but it needs a new zone and tunnel, and
   Lite's own credentials would still be evicted.
+- **Follow-up:** That stopped the pixel cookies, but heavy first-party sites
+  still leave client-sync (`__Host-c|`) cookies. Hammerhead keeps a native copy
+  of each `document.cookie` value so other same-origin windows see it. After 17
+  sites, weather.com pushed the jar to 176 and evicted the Vibetop session
+  again. So the credentials now carry `Priority=High`: the Vibetop session at
+  login, and Lite's UI and content cookies on every renewal. Chromium evicts
+  Low, then Medium (every site cookie), before High. Safari ignores the
+  attribute.
 
 ## Browser Lite follows same-frame links by replacement
 
@@ -19464,3 +19472,19 @@ fixtures and do not provision external infrastructure.
   request.
 - **Rejected:** Raising the egress connection cap (1.38.59). It hid the
   symptom and made the bursts larger.
+- **Follow-up (v1.38.72), HTTP/2 upstream:** The cap turned bursts into
+  queues. ChatGPT preloads ~315 chunks from `chatgpt.com/cdn/assets`, and
+  through 8 HTTP/1.1 connections their median latency was 11.7 s. The rewrite
+  process stayed under one core, so the wait was the queue, not rewriting.
+  On iPhone the page then froze for 7-10 s, because a synchronous
+  `/__vt/map` lookup waited behind them. Hammerhead has an HTTP/2 path but
+  skips it whenever an upstream proxy is set, and its own session code
+  rethrows errors from an event handler. `tunnel-pool-patch.cjs` now offers
+  `h2` by ALPN inside the same egress CONNECT tunnel and keeps one session per
+  destination. A server that picks `http/1.1` is remembered for 10 minutes
+  and uses the keep-alive pool. A stream refused before any response
+  (GOAWAY, REFUSED_STREAM, closed session) is resent over HTTP/1.1. Session
+  errors only destroy the session. Every byte still passes the egress, so the
+  public-only destination policy is unchanged. `tunnel-pool.test.cjs` runs a
+  real gateway against an h2 upstream (60 requests, 1 connection) and an
+  HTTP/1.1-only upstream.

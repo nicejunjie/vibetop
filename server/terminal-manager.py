@@ -5679,8 +5679,10 @@ class Handler(http.server.BaseHTTPRequestHandler):
         _login_clear(user, src)                   # reset on success
         tok = _sign_session(user)
         cookie_name = SECURE_SESSION_COOKIE if self._req_is_https() else SESSION_COOKIE
+        # Priority=High: Browser Lite realms share this registrable domain, and
+        # Chromium evicts lower-priority cookies first when a site exceeds its cap.
         cookie = (f"{cookie_name}={tok}; Path=/; HttpOnly; SameSite=Lax; "
-                  f"Max-Age={SESSION_TTL}")
+                  f"Max-Age={SESSION_TTL}; Priority=High")
         if self._req_is_https():
             cookie += "; Secure"
         payload = json.dumps({"ok": True, "user": user}).encode()

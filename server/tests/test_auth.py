@@ -139,6 +139,7 @@ def test_login_success_sets_cookie(mgr, client, monkeypatch):
     sc = headers.get("Set-Cookie", "")
     assert "vt_session=" in sc and "HttpOnly" in sc
     assert "SameSite=Lax" in sc and "Max-Age=604800" in sc
+    assert "Priority=High" in sc
     # the cookie must actually verify back to the user
     pair = _cookie_pair(headers)
     tok = pair.split("=", 1)[1]
