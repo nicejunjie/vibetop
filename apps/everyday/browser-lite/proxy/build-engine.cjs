@@ -77,6 +77,31 @@ if (!client.includes('if (window.vibetopNativeOriginStorage) return;')) {
   client = replaceOne(client, shuffleAnchor, shuffleAnchor + '\n        if (window.vibetopNativeOriginStorage) return;');
   fs.writeFileSync(clientFile, client);
 }
+// Each URL property read (link.href, img.src) builds a proxy URL and parses it
+// twice, ~50 us. Vite's preload helper reads every <link>'s href for every
+// dependency of every dynamic import: Yahoo Finance spent over 1 s of its
+// page load on it, and its search box missed its start-up. For an absolute
+// stored value the result depends on that value only, so cache it.
+const getterAnchor = `                const originalGet = desc.get;
+                desc.get = function () {
+                    return urlRewrite(originalGet.call(this));
+                };`;
+if (!client.includes('vtUrlGetterCache')) {
+  client = replaceOne(client, getterAnchor, `                const originalGet = desc.get;
+                const vtUrlGetterCache = new Map();
+                desc.get = function () {
+                    const raw = hammerhead.nativeMethods.getAttribute.call(this, attr);
+                    if (typeof raw !== 'string' || !/^https?:\\/\\//i.test(raw)) return urlRewrite(originalGet.call(this));
+                    let value = vtUrlGetterCache.get(raw);
+                    if (value === undefined) {
+                        value = urlRewrite(originalGet.call(this));
+                        if (vtUrlGetterCache.size >= 4096) vtUrlGetterCache.clear();
+                        vtUrlGetterCache.set(raw, value);
+                    }
+                    return value;
+                };`);
+  fs.writeFileSync(clientFile, client);
+}
 // Test automation normally accepts invalid certificates. A user browser must
 // authenticate the upstream TLS endpoint, including connections through CONNECT.
 const engineRequire = Module.createRequire(path.join(root, 'package.json'));

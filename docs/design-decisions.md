@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_474 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_475 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [Terminal link opened a closed Browser app but lost the URL](#terminal-link-opened-a-closed-browser-app-but-lost-the-url)
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
@@ -497,6 +497,7 @@ _474 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [Browser Lite offers Chrome's TLS ciphers upstream (Yahoo Finance charts)](#browser-lite-offers-chromes-tls-ciphers-upstream-yahoo-finance-charts)
 - [Browser Lite holds a message until its sender's origin is known](#browser-lite-holds-a-message-until-its-senders-origin-is-known)
 - [Browser Lite starts blob workers before their source is uploaded](#browser-lite-starts-blob-workers-before-their-source-is-uploaded)
+- [Browser Lite caches element URL getters (Yahoo Finance search)](#browser-lite-caches-element-url-getters-yahoo-finance-search)
 
 <!-- END TOC -->
 
@@ -19811,3 +19812,28 @@ fixtures and do not provision external infrastructure.
   never learns the child's host. When it creates a cross-origin iframe, it now
   fetches that answer in the background (`prefetchChildTarget`), and the
   synchronous lookup is only a fallback.
+
+## Browser Lite caches element URL getters (Yahoo Finance search)
+
+- **Symptom:** Yahoo Finance's ticker search box did nothing for 21-44 s after
+  a quote page loaded on iPhone; on the real site it works after ~2 s. Lite
+  also logged `null is not an object (evaluating 'document.body...')` from
+  Yahoo's `finSearch.modern.js`.
+- **Cause:** Yahoo loads the search script `async` in `<head>` with
+  `onload="initFinSearch()"`, which needs `document.body`. On the real site
+  the head parses in ~0.6 s and the script runs after `<body>` exists. In Lite
+  the head took ~2 s, so the script ran first, threw, and search stayed dead
+  until the app hydrated it much later. Most of that time was Vite's preload
+  helper: for every dependency of every dynamic import it reads the `href` of
+  each `<link>`, and each read went through the engine's getter (build a
+  proxy URL, parse it twice, ~50 us). The CPU profile showed 1.1 s in the URL
+  regex alone in the first 4 s.
+- **Fix:** Rammerhead's element URL getter (`fixElementGetter`) caches its
+  result per element class and attribute, keyed by the stored absolute
+  attribute value (`vtUrlGetterCache` in `build-engine.cjs`, 4,096 entries,
+  cleared when full). Relative, empty and missing values are not cached,
+  because they depend on the document's base. `url-getter-cache.test.cjs`
+  runs the built getter against stub elements.
+- **Rejected:** Turning parser-inserted `async` scripts into `defer`. That
+  would also fix this page, but one slow ad script would then delay every
+  later script and `DOMContentLoaded`.
