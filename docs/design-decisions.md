@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_487 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_488 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [Terminal link opened a closed Browser app but lost the URL](#terminal-link-opened-a-closed-browser-app-but-lost-the-url)
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
@@ -510,6 +510,7 @@ _487 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [Browser Lite allows 512 in-flight requests per user](#browser-lite-allows-512-in-flight-requests-per-user)
 - [Browser Lite calls rewritten methods with a captured Reflect.apply (Xiaohongshu)](#browser-lite-calls-rewritten-methods-with-a-captured-reflectapply-xiaohongshu)
 - [Browser Lite site pages carry an enforcing CSP limited to Lite's hosts](#browser-lite-site-pages-carry-an-enforcing-csp-limited-to-lites-hosts)
+- [Browser Lite does not run Alibaba Cloud's WAF challenge; names eastmoney's captcha](#browser-lite-does-not-run-alibaba-clouds-waf-challenge-names-eastmoneys-captcha)
 
 <!-- END TOC -->
 
@@ -20064,3 +20065,20 @@ fixtures and do not provision external infrastructure.
 - **Rejected:** Initializing every `about:blank` frame from the parent: the
   engine cannot run scripts in a sandboxed frame without `allow-scripts`, and
   a site can always find another native path.
+
+## Browser Lite does not run Alibaba Cloud's WAF challenge; names eastmoney's captcha
+
+- **Symptom:** xueqiu.com's challenge page looped forever. On desktop it now
+  froze only its own process, but the page stayed blank. On iPhone it froze
+  all of Lite, and a restored xueqiu tab would freeze it again on every
+  launch. eastmoney's slider captcha rendered as an empty white card.
+- **Cause:** Both are bot checks that reject this server (the real site,
+  opened directly from the server, shows the same). Alibaba's challenge
+  script never finishes under Lite. eastmoney's firewall answers its own
+  APIs with 403, so its captcha cannot draw.
+- **Fix:** The server page pass marks a page carrying Alibaba's
+  `<meta name="aliyun_waf_…">` and disables the page's own scripts after it
+  (`type="text/vt-blocked-challenge"`; the engine's scripts keep running).
+  The bridge's bot-wall test also matches that meta and eastmoney's
+  `/websitecaptcha/` frame, so the toolbar offers the full Browser instead of
+  a frozen or blank page. Nothing is solved or bypassed.

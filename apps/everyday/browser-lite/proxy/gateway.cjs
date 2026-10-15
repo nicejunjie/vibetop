@@ -47,7 +47,19 @@ const extraUrlAttrsSource=fs.readFileSync(path.join(__dirname,'extra-url-attrs.j
   const processElement=DomProcessor.prototype.processElement;
   if(!processElement.vtExtra) {
     const {processExtraUrlAttrs}=require('./extra-url-attrs.js');
+    // Alibaba Cloud's WAF challenge (xueqiu.com) loops forever under Lite and
+    // froze the page, and on iPhone all of Lite with it. Do not run it: past
+    // its marker, the page's own scripts are disabled, and the bridge reports
+    // a bot wall so the toolbar offers the full Browser. Nothing is solved.
+    const challengeRoots=new WeakSet();
+    const rootOf=node=>{while(node && node.parentNode)node=node.parentNode;return node;};
+    const engineScript=(adapter,el)=>/hammerhead|\/__vt\/|(^|\/)(task|iframe-task|rammerhead|transport-worker)\.js/i.test((adapter.getAttr(el,'src')||'')+' '+(adapter.getAttr(el,'class')||''));
     DomProcessor.prototype.processElement=Object.assign(function(el,urlReplacer){
+      try {
+        const tag=String(this.adapter.getTagName(el)||'').toLowerCase();
+        if(tag==='meta' && /^aliyun_waf/i.test(this.adapter.getAttr(el,'name')||''))challengeRoots.add(rootOf(el));
+        else if(tag==='script' && challengeRoots.has(rootOf(el)) && !engineScript(this.adapter,el))this.adapter.setAttr(el,'type','text/vt-blocked-challenge');
+      } catch {}
       const result=processElement.call(this,el,urlReplacer);
       if(typeof urlReplacer==='function')try{processExtraUrlAttrs(this.adapter,el,{rewrite:url=>urlReplacer(url),
         rewriteSet:value=>urls.handleUrlsSet(urlReplacer,value),isProxied:url=>!!urls.parseProxyUrl(url)});}catch{}

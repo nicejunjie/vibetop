@@ -367,7 +367,7 @@
     // load jsd/precursor), and a challenge page may keep the site's own title.
     const challengeLoaded=()=>{try{return performance.getEntriesByType('resource').some(e=>/\/cdn-cgi\/challenge-platform\/.*\/orchestrate\/(chl_page|managed|jsch|captcha)/.test(decodeURIComponent(e.name)));}catch{return false;}};
     const botWall=()=>!!(BOT_TITLE.test(document.title||'')||challengeLoaded()
-      ||document.querySelector('iframe[src*="captcha-delivery.com"],#px-captcha,iframe[src*="challenges.cloudflare.com"]'));
+      ||document.querySelector('iframe[src*="captcha-delivery.com"],#px-captcha,iframe[src*="challenges.cloudflare.com"],iframe[src*="/websitecaptcha/"],meta[name^="aliyun_waf"]'));
     const update = function () {
       if(config.navigation && !nonce)return;
       const state={url:originalUrl(window.location.href),title:document.title,nonce,blocked:botWall(),
