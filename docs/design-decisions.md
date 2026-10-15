@@ -19178,6 +19178,15 @@ fixtures and do not provision external infrastructure.
   login, and Lite's UI and content cookies on every renewal. Chromium evicts
   Low, then Medium (every site cookie), before High. Safari ignores the
   attribute.
+- **Follow-up (v1.38.86), lifetimes:** Hammerhead's client keeps `document.cookie`
+  in memory (`settings.cookie`). Native sync cookies are only transport plus
+  same-site window sync. But every delivered server cookie stays behind as a
+  window-sync copy (`w`) and every script-set one as `cw`, for the whole
+  session. `cookie-wire-patch.cjs` now gives server-sync and window-only copies
+  `max-age=600` and client-set copies (still the transport to the server, resent
+  on every request) `max-age=3600`. Deletion strings are separate and keep
+  their expired date. That bounds leftovers to sites used in the last hour,
+  which matters in Safari, where `Priority=High` does not apply.
 
 ## Browser Lite keeps saved tabs on the server too
 

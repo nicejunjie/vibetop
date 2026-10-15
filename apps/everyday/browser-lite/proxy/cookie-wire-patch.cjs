@@ -40,4 +40,29 @@ function hardenCookieWire(source,client) {
   source=source.replaceAll(';path=/',';path=/;Secure');
   return source;
 }
-module.exports = {patchCookieWire,hardenCookieWire};
+// Native sync cookies are only a transport: the page's document.cookie is kept
+// in memory. Server cookies delivered to a page stay behind as window-sync
+// copies ("w") and script-set ones as "cw", forever, so every site visited
+// added to one registrable domain's cookie budget (shared with Vibetop's own
+// session). Bound them: server-sync and window-only copies last 10 minutes,
+// client-set copies (still the transport to the server) an hour. Deletion
+// strings are separate and unaffected.
+function boundSyncCookieLifetime(source,client) {
+  if (source.includes('vtSyncCookieAge')) return source;
+  const age = 'function vtSyncCookieAge(cookie) { return cookie.isClientSync ? ";max-age=3600" : ";max-age=600"; }\n';
+  const one = (from,to) => {
+    if (source.split(from).length !== 2) throw new Error('Cookie lifetime anchor changed: '+from);
+    source = source.replace(from,to);
+  };
+  if (client) {
+    one('return "".concat(cookie.cookieStr, ";path=/;Secure");','return "".concat(cookie.cookieStr, ";path=/;Secure", vtSyncCookieAge(cookie));');
+    one('return "".concat(formatSyncCookieKey(cookie), "=").concat(cookie.value, ";path=/;Secure");','return "".concat(formatSyncCookieKey(cookie), "=").concat(cookie.value, ";path=/;Secure", vtSyncCookieAge(cookie));');
+    one('\tfunction formatSyncCookie(cookie) {','\t'+age+'\tfunction formatSyncCookie(cookie) {');
+  } else {
+    one('return `${cookie.cookieStr};path=/;Secure`;','return `${cookie.cookieStr};path=/;Secure${vtSyncCookieAge(cookie)}`;');
+    one('return `${formatSyncCookieKey(cookie)}=${cookie.value};path=/;Secure`;','return `${formatSyncCookieKey(cookie)}=${cookie.value};path=/;Secure${vtSyncCookieAge(cookie)}`;');
+    one('function formatSyncCookie(cookie) {',age+'function formatSyncCookie(cookie) {');
+  }
+  return source;
+}
+module.exports = {patchCookieWire,hardenCookieWire,boundSyncCookieLifetime};

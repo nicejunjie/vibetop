@@ -150,11 +150,11 @@ require('./cookie-perf-patch.cjs').patchClientCookiePerformance(engineRequire);
     fs.writeFileSync(guard,code);
   }
 }
-const {patchCookieWire,hardenCookieWire} = require('./cookie-wire-patch.cjs');
+const {patchCookieWire,hardenCookieWire,boundSyncCookieLifetime} = require('./cookie-wire-patch.cjs');
 for (const [file, isClient] of [['client/hammerhead.js',true],['utils/cookie.js',false]]) {
   const target = engineRequire.resolve('testcafe-hammerhead/lib/' + file);
   const code = fs.readFileSync(target,'utf8');
-  fs.writeFileSync(target,hardenCookieWire(patchCookieWire(code,isClient),isClient));
+  fs.writeFileSync(target,boundSyncCookieLifetime(hardenCookieWire(patchCookieWire(code,isClient),isClient),isClient));
 }
 for (const file of ['request-pipeline/request-options.js', 'request-pipeline/destination-request/agent.js']) {
   const target = engineRequire.resolve('testcafe-hammerhead/lib/' + file);
