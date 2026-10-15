@@ -33,6 +33,7 @@ const {ControlLedger} = require('./control-ledger.cjs');
 const clientSource = fs.readFileSync(path.join(__dirname, 'client-bridge.js'), 'utf8');
 const documentHistorySource=fs.readFileSync(path.join(__dirname,'document-history.js'),'utf8');
 const messageTargetSource=fs.readFileSync(path.join(__dirname,'message-target.js'),'utf8');
+const realmHostSource=fs.readFileSync(path.join(__dirname,'realm-host.js'),'utf8');
 let installed = false;
 function webUrl(value) { return String(value).replace(/^ws:/, 'http:').replace(/^wss:/, 'https:'); }
 function deny(res, code = 403) {
@@ -137,11 +138,18 @@ class BrowserGateway {
       const origins = this.dependencies.get(req.headers.host+'\0'+document) || new Set([new URL(document).origin]);
       const config = {origins:Object.fromEntries([...origins].map(origin=>[origin,registry.isRealm?registry.map(origin):registry.register(origin)])),
         realmMode:!!registry.isRealm,documentOrigin:new URL(document).origin,parentOrigin:this.parentOrigin, sessionId:this.session.id, nested:params.get('nested') === '1'};
+      // A document names its own context's third-party hosts locally (see
+      // RealmRegistry.resourceKey); only iframes still need the server.
+      if(registry.isRealm && req.vtRealm && !req.vtRealm.resourceOnly) {
+        config.self=registry.map(config.documentOrigin);
+        config.realmHost=registry.realms.hostAffixes();
+        config.resourceKey=registry.realms.resourceKey(req.vtRealm.context).toString('base64url');
+      }
       const tab=registry.isRealm && this.tabTokens.get(String(params.get('windowId')||'').split('~')[1]);
       if(tab && !config.nested && tab.physical==='https://'+req.headers.host)config.navigation={tabId:tab.tabId,epoch:tab.epoch};
       const parent=registry.isRealm && registry.realm(params.get('parent'));
       if(parent && authorizeChild(parent,req.vtRealm))config.messageParent={physical:parent.physical,original:parent.origin};
-      res.end('window.__vtBrowserConfig='+JSON.stringify(config).replace(/</g,'\\u003c')+';\n'+messageTargetSource+'\n'+documentHistorySource+'\n'+clientSource);
+      res.end('window.__vtBrowserConfig='+JSON.stringify(config).replace(/</g,'\\u003c')+';\n'+messageTargetSource+'\n'+documentHistorySource+'\n'+realmHostSource+'\n'+clientSource);
     });
     this.proxy.GET('/__vt/map',(req,res) => {
       try {

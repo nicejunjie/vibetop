@@ -117,9 +117,17 @@
     }
     return new native.Worker(url,normalized);
   };
+  const realmHost = window.vibetopRealmHost;
   function mapOrigin(origin, iframe) {
     const key = iframe ? 'iframe:'+origin : origin;
     if (Object.prototype.hasOwnProperty.call(origins,key)) return origins[key];
+    // Hosts in this document's own context are named locally: a synchronous
+    // request per new origin blocked the page (and Vibetop with it) for ~14 s
+    // of a weather.com load. A new iframe's context still comes from the server.
+    if (config.realmMode && !iframe && config.resourceKey && config.self && realmHost) {
+      return origins[key] = origin === config.documentOrigin ? config.self
+        : {physical: realmHost(config.resourceKey, origin, config.realmHost), windowId: config.self.windowId};
+    }
     // Only the first occurrence of an origin needs a round trip. HTML/CSS
     // rewriting usually registered it already; dynamic imports use this fallback.
     const xhr = new native.XMLHttpRequest();

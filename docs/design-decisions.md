@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_466 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_467 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [Terminal link opened a closed Browser app but lost the URL](#terminal-link-opened-a-closed-browser-app-but-lost-the-url)
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
@@ -471,6 +471,7 @@ _466 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [Browser Lite rewrites HLS playlists for native players](#browser-lite-rewrites-hls-playlists-for-native-players)
 - [Browser Lite sends sync cookies only where a page can read them](#browser-lite-sends-sync-cookies-only-where-a-page-can-read-them)
 - [Browser Lite reloads a forgotten tab instead of saying "session ended"](#browser-lite-reloads-a-forgotten-tab-instead-of-saying-session-ended)
+- [Browser Lite names third-party hosts in the page (no sync round trip)](#browser-lite-names-third-party-hosts-in-the-page-no-sync-round-trip)
 - [Browser Lite follows same-frame links by replacement](#browser-lite-follows-same-frame-links-by-replacement)
 - [Browser Lite realm hosts use 64k nginx header buffers](#browser-lite-realm-hosts-use-64k-nginx-header-buffers)
 - [Browser Lite parses srcset like a browser, not by splitting on commas](#browser-lite-parses-srcset-like-a-browser-not-by-splitting-on-commas)
@@ -19186,6 +19187,32 @@ fixtures and do not provision external infrastructure.
   (v1.38.75), Lite now behaves like a browser that discarded a background tab.
 - **Rejected:** Never expiring lanes. Abandoned UI pages (devices that never
   sent `pagehide`) would fill the limit, and new tabs would fail.
+
+## Browser Lite names third-party hosts in the page (no sync round trip)
+
+- **Symptom:** weather.com in Lite stalled the page, and all of Vibetop with
+  it, for 1-4 s at a time. ChatGPT froze an iPhone page for 7-10 s.
+- **Cause:** A CPU profile of the page during a weather.com load: of 21 s,
+  ~14 s were in `mapOrigin`. Each new origin a script turned into a URL cost a
+  synchronous XHR to `/__vt/map` for its realm host. Ad stacks touch hundreds
+  of origins across frames, and each request waited a full network round trip,
+  longer when the proxy was busy.
+- **Fix:** Third-party (resource-only) realm hosts are now
+  `hex(HMAC(K_ctx, origin))[0:32]` with `K_ctx = HMAC(secret, profile ‖
+  'resource-realm' ‖ contextKey)`. `/__vt/client.js` gives a document realm its
+  own `K_ctx`, its own `{physical, windowId}` and the host affixes.
+  `realm-host.js` (a small synchronous HMAC-SHA256; WebCrypto is async) names
+  hosts locally. New iframes (a new context) still ask the server. The server
+  already recovers an unseen host from the signed context token in the URL and
+  verifies it against the same derivation.
+- **Security:** `K_ctx` yields exactly the hosts the document could already
+  get from `/__vt/map` for its own context. It cannot sign context tokens,
+  derive the secret, or name another context's hosts. Admission never relied
+  on hostname secrecy (browser-set Origin/Referer/Fetch Metadata plus signed
+  tokens). Resource-only realms get no key.
+- **Rejected:** Changing every host's derivation. Document hosts are where sites
+  keep localStorage and IndexedDB, and renaming them would sign users out of
+  sites. Only resource hosts changed, and they hold no storage.
 
 ## Browser Lite follows same-frame links by replacement
 

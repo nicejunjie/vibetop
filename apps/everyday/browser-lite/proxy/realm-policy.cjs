@@ -49,12 +49,25 @@ class RealmRegistry {
   if(upstreamUrl(documentOrigin).origin!==documentOrigin||site(topSite)!==topSite||typeof tainted!=='boolean')throw new Error('Invalid context');
   return {documentOrigin,topSite,tainted};
  }
+ // Third-party hosts inside a document's context (CDNs, ad servers, beacons)
+ // are named from a per-context key, so the document can name them itself
+ // instead of a synchronous round trip per new origin. The key only yields
+ // hosts the document could already obtain from /__vt/map; it cannot sign
+ // contexts or name another context's hosts. Document hosts, where sites keep
+ // storage, keep their original derivation.
+ resourceKey(context) {
+  return crypto.createHmac('sha256',this.secret).update(this.profile+'\0resource-realm\0'+contextKey(context)).digest();
+ }
+ digest(origin,context) {
+  if(origin!==context.documentOrigin)return crypto.createHmac('sha256',this.resourceKey(context)).update(origin).digest('hex').slice(0,32);
+  return crypto.createHmac('sha256',this.secret).update(this.profile+'\0realm\0'+origin+'\0'+contextKey(context)).digest('hex').slice(0,32);
+ }
+ hostAffixes() {return {prefix:`https://bl-u${this.uid}-`,suffix:`.${this.domain}${this.port?':'+this.port:''}`};}
  describe(url,context) {
   const origin=upstreamUrl(url).origin;
   // Validate both internal and recovered contexts through one canonical form.
   context=this.readContext(this.contextToken(context));
-  const key=origin+'\0'+contextKey(context);
-  const digest=crypto.createHmac('sha256',this.secret).update(this.profile+'\0realm\0'+key).digest('hex').slice(0,32);
+  const digest=this.digest(origin,context);
   const physical=`https://bl-u${this.uid}-${digest}.${this.domain}${this.port?':'+this.port:''}`;
   return {origin,context,physical,resourceOnly:origin!==context.documentOrigin};
  }
@@ -72,8 +85,7 @@ class RealmRegistry {
  }
  recover(host,url,token) {
   const context=this.readContext(token),origin=upstreamUrl(url).origin;
-  const key=origin+'\0'+contextKey(context);
-  const digest=crypto.createHmac('sha256',this.secret).update(this.profile+'\0realm\0'+key).digest('hex').slice(0,32);
+  const digest=this.digest(origin,context);
   const expected=`bl-u${this.uid}-${digest}.${this.domain}${this.port?':'+this.port:''}`;
   if(expected!==host)throw new Error('Wrong realm host');
   return this.register(url,context);
