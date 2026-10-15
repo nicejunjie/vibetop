@@ -104,7 +104,10 @@ server {{
         # Every request a site page makes should go through Lite's own hosts.
         # Report-only while sweeps confirm no site needs anything else.
         add_header Content-Security-Policy-Report-Only "default-src https://*.{domain}:* wss://*.{domain}:* data: blob: 'unsafe-inline' 'unsafe-eval'; form-action https://*.{domain}:*" always;
-        limit_conn browser_lite_users 128;
+        # Per-user ceiling on in-flight requests. The tunnel opens one origin
+        # connection per request, and one heavy page (Yahoo's ~250 module
+        # chunks plus ads) passed 128: nginx answered the rest with 503.
+        limit_conn browser_lite_users 512;
         proxy_pass http://unix:$bl_socket:$request_uri;
         proxy_http_version 1.1;
         proxy_set_header Host $http_host;

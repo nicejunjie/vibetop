@@ -116,3 +116,10 @@ def test_realm_pages_report_requests_outside_lite():
     realm = rendered.split(r"-[a-f0-9]{32}\.example\.com$", 1)[1]
     assert ("add_header Content-Security-Policy-Report-Only \"default-src https://*.example.com:* wss://*.example.com:* "
             "data: blob: 'unsafe-inline' 'unsafe-eval'; form-action https://*.example.com:*\" always;") in realm
+
+
+def test_realm_requests_per_user_allow_a_heavy_page():
+    from browser_proxy_nginx import render
+    rendered = render("example.com", "https://lite.example.com", ["https://main.example.com"])
+    realm = rendered.split(r"-[a-f0-9]{32}\.example\.com$", 1)[1]
+    assert "limit_conn browser_lite_users 512;" in realm

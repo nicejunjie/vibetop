@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_484 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_485 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [Terminal link opened a closed Browser app but lost the URL](#terminal-link-opened-a-closed-browser-app-but-lost-the-url)
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
@@ -507,6 +507,7 @@ _484 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [Browser Lite proxies scripted images and video posters](#browser-lite-proxies-scripted-images-and-video-posters)
 - [Browser Lite proxies media-session artwork and notification icons](#browser-lite-proxies-media-session-artwork-and-notification-icons)
 - [Browser Lite keeps SVG same-document references and proxies new Audio()](#browser-lite-keeps-svg-same-document-references-and-proxies-new-audio)
+- [Browser Lite allows 512 in-flight requests per user](#browser-lite-allows-512-in-flight-requests-per-user)
 
 <!-- END TOC -->
 
@@ -20010,3 +20011,16 @@ fixtures and do not provision external infrastructure.
   Its ping, link `imagesrcset` and `<track src>` handling were dead code too.
   The engine's `setAttributeCore` now calls `window.vibetopAttributeValue`
   first, and the bridge does all of that there.
+
+## Browser Lite allows 512 in-flight requests per user
+
+- **Symptom:** Scripts and images on heavy pages (Lite's own rammerhead.js
+  among them) intermittently failed with an empty 503; nginx logged
+  "limiting connections by zone browser_lite_users", including at times only
+  the user was browsing.
+- **Cause:** The realm location capped each user at 128 concurrent
+  connections. The Cloudflare tunnel opens one origin connection per in-flight
+  request, so one heavy page (Yahoo Finance's ~250 module chunks plus ads)
+  went past it.
+- **Fix:** The cap is 512: still a per-user guard, but above what one page
+  issues at once.
