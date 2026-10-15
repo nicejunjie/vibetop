@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_463 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_464 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [Terminal link opened a closed Browser app but lost the URL](#terminal-link-opened-a-closed-browser-app-but-lost-the-url)
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
@@ -469,6 +469,7 @@ _463 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [Do not add ttyd --check-origin while the HTTPS fallback bridges ttyd](#do-not-add-ttyd---check-origin-while-the-https-fallback-bridges-ttyd)
 - [Browser Lite srcdoc iframes must bootstrap from the native parent](#browser-lite-srcdoc-iframes-must-bootstrap-from-the-native-parent)
 - [Browser Lite rewrites HLS playlists for native players](#browser-lite-rewrites-hls-playlists-for-native-players)
+- [Browser Lite sends sync cookies only where a page can read them](#browser-lite-sends-sync-cookies-only-where-a-page-can-read-them)
 - [Browser Lite follows same-frame links by replacement](#browser-lite-follows-same-frame-links-by-replacement)
 - [Browser Lite realm hosts use 64k nginx header buffers](#browser-lite-realm-hosts-use-64k-nginx-header-buffers)
 - [Browser Lite parses srcset like a browser, not by splitting on commas](#browser-lite-parses-srcset-like-a-browser-not-by-splitting-on-commas)
@@ -19131,6 +19132,30 @@ fixtures and do not provision external infrastructure.
   `BrowserGateway`.
 - **Lesson:** A patch to an engine internal needs a test that goes through the
   real gateway. Rammerhead overrides several Hammerhead entry points.
+
+## Browser Lite sends sync cookies only where a page can read them
+
+- **Symptom:** A desktop regression sweep stalled after about 13 sites. Every
+  later Browser Lite UI call returned 401, and the manager logged "Invalid
+  browser credential". The browser had also dropped the Vibetop session
+  cookie itself, so browsing in Lite could log the user out of Vibetop.
+- **Cause:** For every script-visible cookie a site sets, the engine writes a
+  `__Host-s|…` sync cookie on the physical host. The page's client reads and
+  deletes it after its next XHR, fetch or `document.cookie` access. Requests to
+  third-party origins (tracking pixels, beacons) go to resource-only realms
+  where no document ever runs, so their sync cookies are never deleted. After
+  Taobao and JD there were 150+ of them under `nicejunjie.com`. Browsers cap
+  cookies per registrable domain and evict the oldest, which were
+  `__Host-vt_session`, then Lite's UI and content credentials.
+- **Fix:** `sync-cookie-policy.cjs` wraps the engine's forced `set-cookie`
+  transform. On a resource-only realm, and for cookies whose domain the realm's
+  document cannot read, it sends no sync cookie, and it expires any such sync
+  cookie the request still carries. That also cleans up cookies left in
+  browsers before this release. The server-side cookie jar is unchanged.
+  `sync-cookie.test.cjs` sends a pixel request through a real gateway.
+- **Rejected:** Putting Lite on a separate registrable domain. That would remove
+  the shared cookie cap with Vibetop, but it needs a new zone and tunnel, and
+  Lite's own credentials would still be evicted.
 
 ## Browser Lite follows same-frame links by replacement
 
