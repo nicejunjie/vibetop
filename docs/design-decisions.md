@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_486 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_487 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [Terminal link opened a closed Browser app but lost the URL](#terminal-link-opened-a-closed-browser-app-but-lost-the-url)
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
@@ -509,6 +509,7 @@ _486 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [Browser Lite keeps SVG same-document references and proxies new Audio()](#browser-lite-keeps-svg-same-document-references-and-proxies-new-audio)
 - [Browser Lite allows 512 in-flight requests per user](#browser-lite-allows-512-in-flight-requests-per-user)
 - [Browser Lite calls rewritten methods with a captured Reflect.apply (Xiaohongshu)](#browser-lite-calls-rewritten-methods-with-a-captured-reflectapply-xiaohongshu)
+- [Browser Lite site pages carry an enforcing CSP limited to Lite's hosts](#browser-lite-site-pages-carry-an-enforcing-csp-limited-to-lites-hosts)
 
 <!-- END TOC -->
 
@@ -20041,3 +20042,25 @@ fixtures and do not provision external infrastructure.
   before any page script (`modern-script-patch.cjs`). The test replaces
   `Function.prototype.call` with a re-entering function and checks it is
   never consulted.
+
+## Browser Lite site pages carry an enforcing CSP limited to Lite's hosts
+
+- **Symptom:** Some requests still left the browser straight to sites after
+  the engine's rewriting: GeoEdge (on investing.com and NYTimes) loaded its
+  script and called its API directly.
+- **Cause:** GeoEdge creates an `about:blank` frame the engine never
+  initializes and uses that frame's native `script.src` and `fetch`, the
+  usual trick for getting untouched browser functions. No rewriting can see
+  calls made that way.
+- **Fix:** Every realm response carries `Content-Security-Policy: default-src
+  https://*.<domain>:* wss://*.<domain>:* data: blob: 'unsafe-inline'
+  'unsafe-eval'; form-action https://*.<domain>:*` (nginx, every status).
+  Frames like that inherit it, so anything outside Lite's hosts is blocked
+  instead of escaping. Before enforcing, it ran report-only through a 46-site
+  sweep on iPhone and desktop. Only ad verification (GeoEdge), extension and
+  custom-scheme probes (Douyin) and a bare `https:` image (eastmoney) fell
+  outside. The sweep itself found and fixed real escapes: TradingView's
+  `new Audio()`, Google Finance's SVG `url(<page>#id)` references.
+- **Rejected:** Initializing every `about:blank` frame from the parent: the
+  engine cannot run scripts in a sandboxed frame without `allow-scripts`, and
+  a site can always find another native path.

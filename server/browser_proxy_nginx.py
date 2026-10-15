@@ -101,9 +101,12 @@ server {{
         # site stuck in a loop froze all of Vibetop. Chromium runs an
         # origin-keyed agent cluster in its own process (WebKit does not).
         add_header Origin-Agent-Cluster "?1" always;
-        # Every request a site page makes should go through Lite's own hosts.
-        # Report-only while sweeps confirm no site needs anything else.
-        add_header Content-Security-Policy-Report-Only "default-src https://*.{domain}:* wss://*.{domain}:* data: blob: 'unsafe-inline' 'unsafe-eval'; form-action https://*.{domain}:*" always;
+        # Every request a site page makes must go through Lite's own hosts. The
+        # engine's rewriting has holes it cannot see: GeoEdge loads its script
+        # and API through a fresh about:blank frame's native functions. Such a
+        # frame inherits this policy. A 46-site report-only sweep found only
+        # ad-verification scripts and extension/custom-scheme probes outside.
+        add_header Content-Security-Policy "default-src https://*.{domain}:* wss://*.{domain}:* data: blob: 'unsafe-inline' 'unsafe-eval'; form-action https://*.{domain}:*" always;
         # Per-user ceiling on in-flight requests. The tunnel opens one origin
         # connection per request, and one heavy page (Yahoo's ~250 module
         # chunks plus ads) passed 128: nginx answered the rest with 503.
