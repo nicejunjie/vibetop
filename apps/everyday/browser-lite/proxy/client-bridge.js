@@ -57,10 +57,29 @@
   const knownWindows=new WeakMap(), messageTargets=new Map();
   const resolveMessageTarget=window.vibetopMessageTarget;
   delete window.vibetopMessageTarget;
+  // Senders the page may answer, or whose event.origin it may read outside the
+  // message gate (onmessage, ports): look their origin up in the background
+  // now, so the synchronous lookup later finds it cached. One took 10 s on a
+  // busy Yahoo Finance load.
+  const prefetchingOrigins=new Set();
+  function prefetchOrigin(physical) {
+    if(!physical || messageOrigins.has(physical) || prefetchingOrigins.has(physical) || prefetchingOrigins.size>=32)return;
+    prefetchingOrigins.add(physical);
+    try {
+      const xhr=new native.XMLHttpRequest();
+      native.xhrOpen.call(xhr,'GET',physicalOrigin+'/__vt/origin?physical='+encodeURIComponent(physical),true);
+      native.addEventListener.call(xhr,'loadend',()=>{
+        prefetchingOrigins.delete(physical);
+        try{if(xhr.status===200 && !messageOrigins.has(physical))messageOrigins.set(physical,JSON.parse(xhr.responseText).origin||physical);}catch{}
+      });
+      native.xhrSend.call(xhr);
+    } catch {prefetchingOrigins.delete(physical);}
+  }
   native.addEventListener.call(window,'message',function(event){
     const origin=native.messageEventOriginGetter.call(event);
     if(event.source && origin!=='null')knownWindows.set(event.source,origin);
-  });
+    if(origin && origin!=='null')prefetchOrigin(origin);
+  },true);
   function isChild(owner,target) {
     try {for(let i=0;i<owner.frames.length;i++)if(owner.frames[i]===target)return true;}catch{}
     return false;
@@ -366,7 +385,9 @@
     // Only a challenge page loads the challenge orchestrator (ordinary pages
     // load jsd/precursor), and a challenge page may keep the site's own title.
     const challengeLoaded=()=>{try{return performance.getEntriesByType('resource').some(e=>/\/cdn-cgi\/challenge-platform\/.*\/orchestrate\/(chl_page|managed|jsch|captcha)/.test(decodeURIComponent(e.name)));}catch{return false;}};
-    const botWall=()=>!!(BOT_TITLE.test(document.title||'')||challengeLoaded()
+    // Captcha pages that keep an ordinary title: Baidu sends this server to one.
+    const captchaPage=()=>{try{const u=new URL(originalUrl(window.location.href));return u.hostname==='wappass.baidu.com'&&u.pathname.startsWith('/static/captcha');}catch{return false;}};
+    const botWall=()=>!!(BOT_TITLE.test(document.title||'')||challengeLoaded()||captchaPage()
       ||document.querySelector('iframe[src*="captcha-delivery.com"],#px-captcha,iframe[src*="challenges.cloudflare.com"],iframe[src*="/websitecaptcha/"],meta[name^="aliyun_waf"]'));
     const update = function () {
       if(config.navigation && !nonce)return;

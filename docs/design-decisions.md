@@ -19800,6 +19800,13 @@ fixtures and do not provision external infrastructure.
   could read any key the page holds and forge claims. Persisting the map in
   realm storage would still block the first message from each sender.
 
+- **Follow-up (v1.38.111):** Two paths still looked an origin up
+  synchronously: a page reading `event.origin` outside the gate (`onmessage`,
+  ports), and a page posting back to a window it had heard from. One such
+  lookup took 10 s on a busy Yahoo Finance load. Every incoming message now
+  starts a background lookup of its sender (`prefetchOrigin`), so those later
+  reads find it cached.
+
 ## Browser Lite starts blob workers before their source is uploaded
 
 - **Symptom:** After the message fix, Yahoo Finance's chart page still froze
