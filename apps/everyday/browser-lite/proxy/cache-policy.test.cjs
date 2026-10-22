@@ -56,8 +56,9 @@ test('through the real gateway an image is cacheable and a page is not; workers 
     assert.equal(bundle.status,200);
     assert.equal(bundle.headers['cache-control'],'max-age=31536000','the engine bundle is versioned by its etag in the URL');
     const transforms=require('./engine.cjs').hammerhead('request-pipeline/header-transforms/transforms');
-    assert.equal(transforms.requestTransforms['accept-encoding']('gzip, deflate, br, zstd'),'gzip, deflate, br','the engine cannot decode zstd');
-    assert.equal(transforms.requestTransforms['accept-encoding']('zstd'),'identity');
+    const zstd=require('./zstd-patch.cjs').zstdSupported();
+    assert.equal(transforms.requestTransforms['accept-encoding']('gzip, deflate, br, zstd'),zstd?'gzip, deflate, br, zstd':'gzip, deflate, br',"the browser's own list goes out when the engine can decode zstd");
+    assert.equal(transforms.requestTransforms['accept-encoding']('zstd'),zstd?'zstd':'identity');
     assert.equal(transforms.requestTransforms['accept-encoding'](undefined),undefined);
     assert.match(gateway.workerPolicy(),/script-src https:\/\/\*\.realms\.proxy\.example\.com 'wasm-unsafe-eval';/,"workers do not get eval (design-decisions)");
     assert.match(gateway.workerPolicy(),/connect-src https:\/\/\*\.realms\.proxy\.example\.com wss:\/\/\*\.realms\.proxy\.example\.com blob: data:;/,'hosts stay restricted');

@@ -20,7 +20,7 @@ const options = {uid:1000,profile:'a'.repeat(32),secret:'fixture-only',domain:'r
 const registry = new (process.env.VT_REALM_TEST?RealmOrigins:OriginRegistry)(options);
 const authority = new Capabilities({...options,epoch:1});
 for (const hostname of sites) registry.register('http://'+hostname);
-const seen = [],heldImages=new Set(),heldPages=new Set();let delayedVisits=0;
+const seen = [],heldImages=new Set(),heldPages=new Set();let delayedVisits=0,loginChecks=0;
 const source = http.createServer(async (req,res) => {
   const own = req.headers.host[0];
   const observation={host:req.headers.host,path:req.url,cookie:req.headers.cookie || '',origin:req.headers.origin,method:req.method};seen.push(observation);
@@ -338,6 +338,10 @@ const source = http.createServer(async (req,res) => {
     if(opener){opener.postMessage({code:new URL(location.href).searchParams.get('code')},'http://a.source-one.test');setTimeout(()=>window.close(),200);}
     </script>`);return;
   }
+  if (req.url === '/echo-headers') {
+    res.setHeader('Content-Type','text/html');
+    res.end('<!doctype html><meta charset="utf-8"><title>Echo</title><pre id="headers">'+JSON.stringify(req.rawHeaders).replace(/</g,'&lt;')+'</pre>');return;
+  }
   if (req.url === '/nested') {
     res.setHeader('Content-Type','text/html');
     res.end('<!doctype html><button id="nested-button">Nested</button><output id="nested-count">0</output><script>document.querySelector("button").onclick=()=>document.querySelector("output").textContent++;</script>');return;
@@ -459,6 +463,8 @@ async function main() {
     if(req.url.startsWith('/api/'))req.url=req.url.slice(4);
     if(req.url==='/__test/release-pages' && req.method==='POST'){for(const release of heldPages)release();heldPages.clear();res.end('{}');return;}
     if(req.url==='/__test/release-images' && req.method==='POST'){for(const image of heldImages)image.end('<svg xmlns="http://www.w3.org/2000/svg" width="1" height="1"/>');res.end('{}');return;}
+    if(req.url==='/logins-check' && req.method==='POST'){loginChecks++;res.setHeader('Content-Type','application/json');res.end(JSON.stringify({digest:loginChecks>=3?'signed-in':''}));return;}
+    if(req.url==='/__test/login-checks'){res.setHeader('Content-Type','application/json');res.end(JSON.stringify({loginChecks}));return;}
     if(req.url==='/__test/expire' && req.method==='POST' && req.headers.origin==='https://ui.vt-proxy.example.com:'+parentPort) {
       for(const lane of gateway.controls.lanes.values())lane.expires=0;
       gateway.controls.collect();res.end('{}');return;

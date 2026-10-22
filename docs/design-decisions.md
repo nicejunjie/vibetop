@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_502 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_503 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [Terminal link opened a closed Browser app but lost the URL](#terminal-link-opened-a-closed-browser-app-but-lost-the-url)
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
@@ -525,6 +525,7 @@ _502 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [Browser Lite serves the bridge once, the per-document config apart](#browser-lite-serves-the-bridge-once-the-per-document-config-apart)
 - [Browser Lite cross-site navigations: fewer round trips, cheaper login lookups](#browser-lite-cross-site-navigations-fewer-round-trips-cheaper-login-lookups)
 - [Browser Lite shows progress the moment a page starts leaving](#browser-lite-shows-progress-the-moment-a-page-starts-leaving)
+- [Browser Lite and Google: the exit address, not the proxy, triggers /sorry/](#browser-lite-and-google-the-exit-address-not-the-proxy-triggers-sorry)
 
 <!-- END TOC -->
 
@@ -20454,3 +20455,37 @@ fixtures and do not provision external infrastructure.
   same-site and a cross-site link. Google's "unusual traffic" page
   (`/sorry/`), which its search sends the proxy's address to from a phone, is
   now recognized as a bot wall so the toolbar offers the full Browser.
+
+## Browser Lite and Google: the exit address, not the proxy, triggers /sorry/
+
+- **Symptom:** Google search through Lite ended on "unusual traffic" (`/sorry/`):
+  a results request answered with Google's `emsg=SG_REL` retry page, whose
+  automatic retry (`&sei=`) got a 302 to `/sorry/`, and later a bare 429
+  "try your request again later" with no captcha at all.
+- **Cause:** The proxy host's own address. The same search from a plain `curl`
+  with Chrome's headers, and from an unproxied Chromium on the host, got the
+  same block. Our automated sweeps today (and before) ran searches from that
+  address; Google's page says so: "The block will expire shortly after those
+  requests stop." What Lite forwards was compared header by header against a
+  direct browser request to an owned echo page (`/echo-headers` in
+  `gateway-fixture.cjs`): User-Agent, Accept, Accept-Language, every
+  `Sec-CH-UA-*` and `Sec-Fetch-*` header reach the site as the browser sent
+  them (`Sec-Fetch-Site`/`Dest` are mapped to the top-level equivalents on
+  purpose). Google's cookies (`NID`, `AEC`, `SEARCH_SAMESITE`, …) round-trip
+  through the jar. The one difference was `Accept-Encoding`: Lite dropped
+  `zstd`, so a Chrome 142 user looked like an older browser.
+- **Fix:** `zstd-patch.cjs` teaches the engine's content decoder zstd (Node
+  22.15+ zlib) and the gateway forwards the browser's `Accept-Encoding`
+  unchanged when zstd is available; `zstd.test.cjs` round-trips a
+  zstd-compressed page through a real gateway. Nothing else was changed, and
+  nothing will be: TLS or HTTP/2 fingerprint impersonation, and anything that
+  hides the proxy from Google, are out of bounds. Test traffic to Google from
+  the host must stay at a handful of requests; sweeps must leave Google out.
+- **Not fixed:** Solving Google's reCAPTCHA inside Lite. While the address is
+  blocked outright Google offers no captcha, so the captcha variant could not
+  be exercised without more requests that prolong the block. Earlier in the
+  day the captcha variant showed a blank widget with `reCAPTCHA null` errors;
+  that remains open.
+- **YouTube's 401:** the `accounts.google.com/ServiceLogin?…passive=true`
+  iframe on a signed-out YouTube page answers 401 in an unproxied Chromium
+  too. Lite passes Google's own answer through; it is not a Lite error.

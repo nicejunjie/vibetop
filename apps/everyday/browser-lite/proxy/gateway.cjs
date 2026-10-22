@@ -556,12 +556,13 @@ class BrowserGateway {
     transforms.requestTransforms['sec-fetch-dest'] = (value,ctx) =>
       mainFrameFetchDest(value,ctx.req.headers['sec-fetch-mode'],ctx.dest.isIframe);
     transforms.requestTransforms['proxy-authorization'] = () => undefined;
-    // The engine decodes gzip, deflate and br to rewrite a body. Chrome also
-    // offers zstd; a site that takes it (Cloudflare's challenge page) came back
-    // undecodable, a blank tab. Cloudflare's edge hides this in production, but
-    // not a direct or LAN path.
+    // The engine decodes gzip, deflate and br to rewrite a body, and zstd where
+    // Node's zlib has it (zstd-patch.cjs), so the browser's own Accept-Encoding
+    // goes out unchanged. Without zstd support a site that took it (Cloudflare's
+    // challenge page) came back undecodable, a blank tab.
+    const zstd=require('./zstd-patch.cjs').zstdSupported();
     transforms.requestTransforms['accept-encoding'] = value =>
-      value === undefined ? undefined : String(value).split(',').map(part => part.trim()).filter(part => part && !/^zstd(\s*;.*)?$/i.test(part)).join(', ') || 'identity';
+      value === undefined || zstd ? value : String(value).split(',').map(part => part.trim()).filter(part => part && !/^zstd(\s*;.*)?$/i.test(part)).join(', ') || 'identity';
     transforms.requestTransforms.range = playlistRange;
     const setCookie=transforms.forcedResponseTransforms['set-cookie'].vtEngine||transforms.forcedResponseTransforms['set-cookie'];
     transforms.forcedResponseTransforms['set-cookie'] = Object.assign((value,ctx) =>
