@@ -34,6 +34,7 @@ const {CookieStore} = require('./cookie-store.cjs');
 const {TabStore} = require('./tab-store.cjs');
 const {redirectTaint,navigationFetchSite,mainFrameFetchDest} = require('./redirect-policy.cjs');
 const {ControlLedger} = require('./control-ledger.cjs');
+const {renderPageError} = require('./page-error.cjs');
 const clientSource = fs.readFileSync(path.join(__dirname, 'client-bridge.js'), 'utf8');
 const documentHistorySource=fs.readFileSync(path.join(__dirname,'document-history.js'),'utf8');
 const messageTargetSource=fs.readFileSync(path.join(__dirname,'message-target.js'),'utf8');
@@ -132,9 +133,17 @@ class BrowserGateway {
         return task.call(session,options);
       };
     }
+    // A site that cannot be reached gets an error page the tab can show and
+    // the toolbar understands (page-error.cjs). A 502 never reached the tab:
+    // Cloudflare swaps in its own page, which refuses to be framed.
     this.session.handlePageError = (ctx, error) => {
-      if (!ctx.res.headersSent) ctx.res.writeHead(502, {'Content-Type':'text/plain; charset=utf-8','Cache-Control':'no-store'});
-      ctx.res.end('This page could not be loaded. Check the address and retry.');
+      if (ctx.res.headersSent) { ctx.res.end(); return; }
+      const tab=registry.isRealm?this.tabTokens.get(String(ctx.windowId||'').split('~')[1]):null;
+      const navigation=tab && tab.physical===ctx.req.vtRealm?.physical?{tabId:tab.tabId,epoch:tab.epoch}:null;
+      const page=renderPageError({url:ctx.dest.url,error,navigation,parentOrigin:this.parentOrigin});
+      ctx.res.writeHead(page.status,{...page.headers,'Content-Security-Policy':page.headers['Content-Security-Policy']
+        +'; frame-ancestors '+[this.parentOrigin,...this.trustedAncestors].join(' ')});
+      ctx.res.end(page.body);
     };
     this.installHooks();
     this.proxy = new Proxy({dontListen:true,crossDomainPort:null,disableLocalStorageSync:true,disableHttp2:true,

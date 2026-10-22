@@ -143,3 +143,12 @@ test('toolbar navigations replace the frame so the old page cannot cancel them',
  assert.equal(fresh.getAttribute('sandbox'),'allow-scripts');assert.equal(fresh.getAttribute('title'),'Webpage');
  assert.equal(first.listeners.size,0);assert.equal(fresh.listeners.size,1);
 });
+
+test('a failed-load report from the error page reaches the toolbar as a finished state',async()=>{
+ const {controller:c,frame}=fixture();c.activate(state());c.attach();
+ const states=[];c.onState=s=>states.push(s);
+ await c.message(historyEvent(c,frame,{title:'Page not available',failed:true}));
+ assert.equal(states.at(-1).loading,false);assert.equal(states.at(-1).failed,true);
+ await c.message(historyEvent(c,frame,{history:{...historyEvent(c,frame).data.history,sequence:2}}));
+ assert.equal(states.at(-1).failed,false,'an ordinary page clears it');
+});

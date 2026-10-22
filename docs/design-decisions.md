@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_493 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_494 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [Terminal link opened a closed Browser app but lost the URL](#terminal-link-opened-a-closed-browser-app-but-lost-the-url)
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
@@ -516,6 +516,7 @@ _493 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [Terminal apps' OSC 52 copies reach the Mac clipboard via Cmd+C](#terminal-apps-osc-52-copies-reach-the-mac-clipboard-via-cmdc)
 - [Update reads only git's stdout when deciding the tree is dirty](#update-reads-only-gits-stdout-when-deciding-the-tree-is-dirty)
 - [Browser Lite saved tabs never reached the server (nginx 413)](#browser-lite-saved-tabs-never-reached-the-server-nginx-413)
+- [Browser Lite shows an error page when a site cannot be reached](#browser-lite-shows-an-error-page-when-a-site-cannot-be-reached)
 
 <!-- END TOC -->
 
@@ -20208,3 +20209,28 @@ fixtures and do not provision external infrastructure.
   rejects before it is sent.
 - **Lesson:** A limit raised in one layer (manager) needs the same change in
   every layer in front of it; the render test now pins the nginx value.
+
+## Browser Lite shows an error page when a site cannot be reached
+
+- **Symptom:** Typing an address whose site is down, unresolvable or refusing
+  connections left the tab blank with "Loading…" for 45 s, then "This page is
+  taking longer than expected", which blames a slow page. A browser shows its
+  own "can't find the server" page within a second.
+- **Cause:** Hammerhead's page error path (`handlePageError`) answered 502 in
+  plain text. Cloudflare replaces an origin 502/504 with its own branded error
+  page, which carries `X-Frame-Options: SAMEORIGIN`, so the realm iframe
+  refused to display it (the console said so) and no bridge ever ran, so the
+  toolbar never learned the load had ended.
+- **Fix:** `page-error.cjs` renders a 503 (Cloudflare passes an origin 503
+  through) HTML page with the host, a plain reason mapped from the engine's
+  error (DNS, timeout, refused, TLS, reset), the raw detail and a Retry
+  button, under a nonce CSP and the usual `frame-ancestors`. When the request
+  belongs to a tab, the page speaks the bridge protocol: it sends `ready`,
+  answers the controller's `attach` with a `state` carrying `failed:true` and
+  a one-entry history, so the toolbar ends "Loading…", shows "This page
+  couldn't be loaded" with Retry, and Back/Forward still work around the
+  entry. `page-error.test.cjs` drives a real gateway whose egress cannot
+  resolve any name.
+- **Rejected:** A toolbar-side timeout on the frame's `load` event ("no bridge
+  within N s means failure"): a PDF or other non-HTML document shown natively
+  has no bridge either and would be reported as broken.

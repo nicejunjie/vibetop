@@ -147,7 +147,9 @@
     tab.frame.hidden=false;
     $('welcome').hidden=true;if(document.activeElement!==$('address'))$('address').value=state.url;
     $('back').disabled=tab.position<=0;$('forward').disabled=tab.position>=tab.history.length-1;
-    status(state.loading?'Loading…':new URL(state.url).hostname);handoff(state,tab);
+    if(state.failed)status("This page couldn't be loaded. Check the address or retry.",true);
+    else status(state.loading?'Loading…':new URL(state.url).hostname);
+    handoff(state,tab);
   }
   function activate(tab) {
     active=tab;saveTabs();
