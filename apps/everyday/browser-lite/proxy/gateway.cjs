@@ -671,17 +671,33 @@ class BrowserGateway {
         const candidate=parent && items.find(item=>item.expires>Date.now() && this.tabs.get(item.tabId)?.epoch===item.epoch);
         const tab=this.tabTokens.get(String(parsed.windowId||'').split('~')[1]);
         const source=sourceRecord(req.headers,req.vtRealm,this.registry.realms);
+        let tabOwnNavigation=false;
         if(!upgrade && !candidate && req.headers['sec-fetch-mode']==='navigate' && req.headers['sec-fetch-dest']==='iframe'
           && !urls.parseResourceType(parsed.resourceType).isIframe && source?.origin!==new URL(parsed.destUrl).origin) {
-          if(auth && tab?.physical===source?.physical && (!this.ingressIdentity || tab.lease===req.vtLease) && authorizeResource(source,req.vtRealm))return this.captureNavigation(req,res,parsed,tab);
-          return deny(res);
+          const leaseOk=!this.ingressIdentity || tab?.lease===req.vtLease;
+          if(auth && tab?.physical===source?.physical && leaseOk && authorizeResource(source,req.vtRealm))return this.captureNavigation(req,res,parsed,tab);
+          // A toolbar-initiated top-level navigation has no content realm as its
+          // source: its referer is the trusted parent (toolbar) origin, so
+          // sourceRecord returns null. When the opened page server-redirects,
+          // the one-shot admission was spent on the first hop, so this follow
+          // arrives without a candidate. If the redirect stayed on the tab's
+          // own realm it is the tab loading its own site -- allow it. If it
+          // crossed origin, capture it for the toolbar's approval, exactly as a
+          // content-initiated cross-origin navigation would be. Gmail needs
+          // both: "/" -> "/mail/u/0/" (same realm) and the passive
+          // accounts.google.com sign-in bounce (cross origin, same site).
+          else if(auth && parent && !source && tab && leaseOk) {
+            if(tab.physical===physical)tabOwnNavigation=true;
+            else return this.captureNavigation(req,res,parsed,tab);
+          }
+          else return deny(res);
         }
         let grant=null;
         if(!upgrade && !candidate && req.headers['sec-fetch-mode']==='navigate' && req.headers['sec-fetch-dest']==='iframe') {
           const found=this.frameGrants.get(key);
           if(found && found.expires>Date.now() && (!this.ingressIdentity || found.lease===req.vtLease)){grant=found;this.frameGrants.delete(key);}
         }
-        const decision=authorizeRequest(req.headers,req.vtRealm,this.registry.realms,{approvedMain:!!candidate||!!grant,websocket:upgrade,workerModule:!!urls.parseResourceType(parsed.resourceType).isWorkerModule});
+        const decision=authorizeRequest(req.headers,req.vtRealm,this.registry.realms,{approvedMain:!!candidate||!!grant||tabOwnNavigation,websocket:upgrade,workerModule:!!urls.parseResourceType(parsed.resourceType).isWorkerModule});
         if(!decision.allowed)return deny(res);
         req.vtSource=decision.source||grant?.source||null;
         if(candidate && decision.navigation) {

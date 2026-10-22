@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_506 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_507 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [Terminal link opened a closed Browser app but lost the URL](#terminal-link-opened-a-closed-browser-app-but-lost-the-url)
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
@@ -482,6 +482,7 @@ _506 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [Browser Lite hands Google sign-in to the real Browser](#browser-lite-hands-google-sign-in-to-the-real-browser)
 - [Browser Lite borrows site logins from the full Browser, never Google's](#browser-lite-borrows-site-logins-from-the-full-browser-never-googles)
 - [Browser Lite carries the user's own Google session](#browser-lite-carries-the-users-own-google-session)
+- [Browser Lite: a toolbar-opened page that server-redirects was denied](#browser-lite-a-toolbar-opened-page-that-server-redirects-was-denied)
 - [Browser Lite egress queues connections past its limit](#browser-lite-egress-queues-connections-past-its-limit)
 - [Browser Lite memoizes Hammerhead's client cookie probe and skips identical syncs](#browser-lite-memoizes-hammerheads-client-cookie-probe-and-skips-identical-syncs)
 - [Browser Lite gives toolbar navigations a fresh frame](#browser-lite-gives-toolbar-navigations-a-fresh-frame)
@@ -19535,6 +19536,39 @@ fixtures and do not provision external infrastructure.
 - **Rejected:** TLS/fingerprint impersonation to hide the proxy from Google.
   That is a fragile arms race and unnecessary once the already-established
   session is carried rather than re-authenticated.
+
+## Browser Lite: a toolbar-opened page that server-redirects was denied
+
+- **Symptom:** Opening Gmail (and other Google services) in Browser Lite failed
+  with "Browser request unavailable". The log showed `mail.google.com/` 303 →
+  `/mail/u/0/`, then the passive `accounts.google.com/ServiceLogin?passive=true`
+  bounce, one of which the proxy answered with a 38-byte 403. The 403 was ours
+  (`gateway.cjs deny()`), not Google's "browser may not be secure" page. Surfaced
+  only once [the Google session carry](#browser-lite-carries-the-users-own-google-session)
+  let Gmail actually load instead of showing the old dead-end banner.
+- **Cause:** A toolbar-initiated top-level navigation carries the trusted parent
+  (toolbar) origin as its `Referer` and no `Origin`, so `sourceRecord` returns
+  null (its `Sec-Fetch-Site` is `same-site`, not `same-origin`, because the
+  toolbar and the realm share the base domain). The opening navigation's
+  admission is one-shot. When the opened page immediately *server-redirects*,
+  the browser's redirect-follow arrives with no admission (`candidate` false)
+  and no source realm, so the cross-origin main-frame guard
+  (`gateway.cjs`, the `source?.origin!==destUrl.origin` branch) fell through to
+  `deny`. Diagnosed with `VT_BROWSER_DIAGNOSTICS=1`, which logs each deny's
+  stack line. Most sites don't server-redirect the very first hop, so this was
+  latent until Google — which bounces through `/u/0/` and `accounts` — exercised
+  it.
+- **Fix:** In that branch, recognise a toolbar-initiated navigation (referer is
+  the parent origin, so `source` is null) whose target redirected: if the
+  redirect stayed on the tab's own realm (`tab.physical===physical`) it is the
+  tab loading its own site, so allow it (`approvedMain`); if it crossed origin,
+  capture it for the toolbar's approval exactly as a content-initiated
+  cross-origin navigation. Regression test: `toolbar-redirect.test.cjs` drives
+  the real gateway over its socket and asserts the same-realm redirect-follow
+  returns 200, not 403.
+- **Rejected:** Loosening `sourceRecord` to treat `same-site` as a source — that
+  would weaken the content-realm provenance the gate relies on everywhere else.
+  The fix is scoped to navigations whose referer is the trusted parent origin.
 
 ## Browser Lite egress queues connections past its limit
 
