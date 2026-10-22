@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_490 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_491 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [Terminal link opened a closed Browser app but lost the URL](#terminal-link-opened-a-closed-browser-app-but-lost-the-url)
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
@@ -513,6 +513,7 @@ _490 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [Browser Lite does not run Alibaba Cloud's WAF challenge; names eastmoney's captcha](#browser-lite-does-not-run-alibaba-clouds-waf-challenge-names-eastmoneys-captcha)
 - [Terminal reconnect races doubled every keystroke ("llett mmee")](#terminal-reconnect-races-doubled-every-keystroke-llett-mmee)
 - [Option+drag selects inside mouse-tracking TUIs on macOS](#optiondrag-selects-inside-mouse-tracking-tuis-on-macos)
+- [Terminal apps' OSC 52 copies reach the Mac clipboard via Cmd+C](#terminal-apps-osc-52-copies-reach-the-mac-clipboard-via-cmdc)
 
 <!-- END TOC -->
 
@@ -20120,3 +20121,21 @@ fixtures and do not provision external infrastructure.
   only when `macOptionClickForcesSelection` is set, which ttyd does not set.
 - **Fix:** `ttyd-run.sh` passes `-t macOptionClickForcesSelection=true`;
   ttyd forwards unknown `-t` keys to `terminal.options`.
+
+## Terminal apps' OSC 52 copies reach the Mac clipboard via Cmd+C
+
+- **Symptom:** In Claude Code a plain drag highlighted text and Claude Code
+  reported it copied, but the Mac clipboard kept its old content.
+  Option+drag (see above) worked, but a plain drag is what people do first.
+- **Cause:** Claude Code's `copyOnSelect` (on by default) copies with an OSC 52
+  escape sequence. It skips OSC 52 only for VTE terminals, and ttyd isn't one.
+  ttyd's xterm.js has no OSC 52 handler, so the sequence was dropped.
+- **Fix:** `terminal-clipboard.js` registers an OSC 52 handler that calls
+  `navigator.clipboard.writeText`. Safari rejects that (`NotAllowedError`)
+  because the sequence arrives a round trip after the mouse-up, outside the
+  gesture. So the text is also kept, and on macOS Cmd+C with no xterm selection
+  copies it with `execCommand('copy')` inside the keydown (a gesture). An xterm
+  selection keeps priority. Ctrl+C is never intercepted (it is SIGINT).
+- **Rejected:** answering clipboard reads (`52;c;?`), which would let any
+  program's output exfiltrate the clipboard; a "Copy" toast button (another
+  click for what Cmd+C already expresses).

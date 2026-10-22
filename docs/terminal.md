@@ -114,6 +114,10 @@ Two systemd template units, instantiated for each terminal:
    reach ttyd and closes the one it supersedes; otherwise each keystroke and echo
    doubles. `-t macOptionClickForcesSelection=true` makes Option+drag select (then
    Cmd+C copy) inside mouse-tracking TUIs such as Claude Code's fullscreen mode.
+   `terminal-clipboard.js` handles OSC 52 (apps that copy for you, e.g. Claude
+   Code's copy-on-select): it writes `navigator.clipboard`, and when Safari
+   refuses that outside a gesture, Cmd+C with no xterm selection copies it.
+   Clipboard reads (`52;c;?`) are never answered.
    Failed startup/handshakes retain
    a 12-second deadline; retries are bounded to three before a manual retry.
    Background pages pause recovery. Successful PTY output clears status and
