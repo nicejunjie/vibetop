@@ -167,6 +167,11 @@ function patchModernScripts(engineRequire) {
     patch(file,"keyJs = '*' + keyJs;","keyJs = ($val.async ? 'async ' : '') + '*' + keyJs;");
     patch(file,"_.js += exprJs + keyJs + '=' + _.optSpace;",
       "if (!$val) { _.js += exprJs + keyJs + ';'; return; }\n        _.js += exprJs + keyJs + '=' + _.optSpace;");
+    // -(a ** b): the argument's source text carries no parentheses (they belong
+    // to the unary), and unary precedence is above exponentiation, so the
+    // generator wrote `-a ** b`, a syntax error (vercel.com's login bundle).
+    patch(file,"            argJs        = exprToJs($expr.argument, Preset.e7);\n",
+      "            argJs        = exprToJs($expr.argument, Preset.e7);\n        if ($expr.argument.type === 'BinaryExpression' && $expr.argument.operator === '**' && argJs.charCodeAt(0) !== 0x28) argJs = '(' + argJs + ')';\n");
   }
   const normalizeSpecifier=require('./module-specifier.cjs').normalizeModuleSpecifier.toString();
   for(const [file,anchor,variable] of [

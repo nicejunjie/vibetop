@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_497 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_498 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [Terminal link opened a closed Browser app but lost the URL](#terminal-link-opened-a-closed-browser-app-but-lost-the-url)
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
@@ -521,6 +521,7 @@ _497 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [Browser Lite lets the browser cache realm resources](#browser-lite-lets-the-browser-cache-realm-resources)
 - [Browser Lite worker CSP keeps eval off (Cloudflare's managed challenge)](#browser-lite-worker-csp-keeps-eval-off-cloudflares-managed-challenge)
 - [Browser Lite popups: window.open returns a real window](#browser-lite-popups-windowopen-returns-a-real-window)
+- [Browser Lite keeps parentheses on `-(a ** b)` (vercel.com login)](#browser-lite-keeps-parentheses-on--a-b-vercelcom-login)
 
 <!-- END TOC -->
 
@@ -20366,3 +20367,16 @@ fixtures and do not provision external infrastructure.
   attribute: changing the attribute on a live iframe did not change the
   context's `window.name` in Chromium. A Proxy around the WindowProxy: the
   site's `event.source === w` check would fail.
+
+## Browser Lite keeps parentheses on `-(a ** b)` (vercel.com login)
+
+- **Symptom:** vercel.com/login threw "Unary operator used immediately before
+  exponentiation expression" and its sign-in buttons were dead.
+- **Cause:** The source had `-(Math.abs(e) ** .5)`. Esotope's unary generator
+  takes the argument's text as it was, which has no parentheses (they belong
+  to the unary), and unary precedence is above exponentiation, so it wrote
+  `-Math.abs(e) ** .5`, which the grammar forbids. Only a regenerated unary
+  showed it, which is why the fixtures never did.
+- **Fix:** `modern-script-patch.cjs` parenthesizes a `**` argument of a unary
+  in both the server generator and the client bundle's copy;
+  `modern-script.test.cjs` regenerates such code and parses the result.

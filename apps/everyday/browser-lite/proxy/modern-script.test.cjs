@@ -98,3 +98,13 @@ test('rewritten method calls do not route through a page-replaced Function.proto
     assert.equal(depth,0,'Function.prototype.call was consulted');
   } finally {Function.prototype.call=realCall;}
 });
+test('a unary operator over an exponentiation keeps its parentheses when regenerated',()=>{
+  // The argument's text has no parentheses of its own; only the unary did.
+  for(const source of ['var v = e => e >= 0 ? e ** .5 : -(Math.abs(e[k]) ** .5);','x = +(a[b] ** 2) * -(c[d] ** -(e[f] ** 2));','y = typeof (a[b] ** 2);']) {
+    const transformed=processScript(source,true,false);
+    assert.ok(transformed.includes('__get$('),'regenerated: '+transformed);
+    assert.doesNotThrow(()=>new vm.Script(transformed),transformed);
+  }
+  const client=require('node:fs').readFileSync(require('./engine.cjs').engineRequire.resolve('testcafe-hammerhead/lib/client/hammerhead.js'),'utf8');
+  assert.ok(client.includes("$expr.argument.operator === '**'"),'the client copy of the generator carries the same fix');
+});
