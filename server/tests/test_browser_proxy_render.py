@@ -50,7 +50,9 @@ def test_render_only_never_invokes_mutators_and_nginx_accepts_output(tmp_path, e
         listener.bind(('127.0.0.1', 0))
         port = listener.getsockname()[1]
     site = site.replace('listen 80', f'listen 127.0.0.1:{port}').replace('listen [::]:80', f'listen [::1]:{port}')
-    prefix = 'pid ' + str(tmp_path / 'nginx.pid') + ';\nerror_log stderr;\nevents {}\nhttp { access_log off;\n'
+    prefix = ('pid ' + str(tmp_path / 'nginx.pid') + ';\nerror_log stderr;\nevents {}\nhttp { access_log off;\n'
+              # CI's nginx defaults to a 64-byte bucket, too small for the main-host map.
+              '  map_hash_bucket_size 128;\n')
     aux = '\n'.join((ROOT / 'server/nginx' / name).read_text() for name in ('vibetop-upgrade.conf', 'vibetop-limits.conf'))
     target = tmp_path / 'nginx.conf'
     target.write_text(prefix + aux + '\n' + site + '\n}\n')
