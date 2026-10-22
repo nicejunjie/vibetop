@@ -294,3 +294,13 @@ curl -X POST -H "Cookie: vt_session=$VT_COOKIE" http://127.0.0.1/api/terminals/4
 It injects `apps/everyday/terminal/terminal-kbd.js` from the **working tree** via `page.route`,
 so you can iterate without deploying. Drop that route to watch it fail the way the
 bug did.
+
+
+For the terminal's split conversation redraw regression, run
+`tests/e2e/terminal-history-redraw.py --chromium PATH --webkit PATH` using the
+Playwright Python environment and installed browser executables. It serves the
+actual authenticated local ttyd page but intercepts every WebSocket and clientlog
+request, so the user's PTY and diagnostic records are untouched. The test checks
+identical visible pixels while replay is incomplete, repeated heading collisions,
+navigation precedence, and bounded stale-screen removal. `--source PATH
+--expect-broken` exercises a previous deployed helper as a negative control.

@@ -124,7 +124,7 @@ while IFS= read -r src; do
 done <<EOF
 $(find "$DIR" "$REPO/shared" "$REPO/apps" \
         -type f \( -name '*.html' -o -name '*.js' -o -name '*.json' \) \
-        ! -name '*.test.js' ! -path '*/art/*' ! -path '*/tools/*' ! -path '*/docs/*' \
+        ! -name '*.test.js' ! -path '*/backend/*' ! -path '*/browser-lite/proxy/*' ! -path '*/art/*' ! -path '*/tools/*' ! -path '*/docs/*' \
         ! -path '*/node_modules/*' ! -name 'package.json' \
         ! -name '*.src.html' ! -name 'services.example.json' | sort)
 EOF

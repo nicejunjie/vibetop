@@ -58,10 +58,182 @@
       return !b || (b.baseY - b.viewportY) <= 1;
     } catch (_) { return true; }
   }
+  var reader = null, readerMarker = null, readerRestoring = false, readerQueued = false;
+  var readerNavigating = false, readerNavigationTimer = null, readerDragging = false;
+  var readerSnapshot = null, readerSnapshotTimer = null, readerImage = null, readerSnapshotEpoch = 0, readerFallbackPending = false;
+  var readerKey = 'vt-terminal-reader:' + (window.location && window.location.pathname || '');
+  // A new frame/connection starts at latest. Reading anchors are live-only;
+  // remove any anchor saved by an older client rather than restoring it.
+  try { sessionStorage.removeItem(readerKey); } catch (_) {}
+  function releaseReaderSnapshot() {
+    if (readerSnapshotTimer) clearTimeout(readerSnapshotTimer);
+    readerSnapshotTimer = null;
+    if (readerSnapshot) readerSnapshot.remove();
+    readerSnapshot = null;
+  }
+  function copyReaderScreen(t) {
+    var screen = t.element && t.element.querySelector('.xterm-screen');
+    if (!screen) return null;
+    var snapshot = screen.cloneNode(true);
+    snapshot.className = '';
+    snapshot.setAttribute('aria-hidden', 'true');
+    snapshot.setAttribute('data-vt-reader-snapshot', '');
+    snapshot.style.cssText = 'position:absolute;inset:0;z-index:20;pointer-events:none;overflow:hidden;background:' +
+      getComputedStyle(screen).backgroundColor;
+    var original = screen.querySelectorAll('canvas'), copies = snapshot.querySelectorAll('canvas');
+    for (var i = 0; i < original.length; i++) copies[i].getContext('2d').drawImage(original[i], 0, 0);
+    return snapshot;
+  }
+  function holdReaderSnapshot(t) {
+    if (!reader || !t.element) return;
+    readerSnapshotEpoch++;
+    if (!readerSnapshotTimer) readerSnapshotTimer = setTimeout(function () {
+      readerSnapshotTimer = null;
+      readerFallbackPending = true;
+      traceScroll('reader-redraw-timeout');
+      // A redraw may replace transient status/prompt text entirely. Exposing
+      // viewport zero is not a recovery: preserve distance from the new bottom
+      // when the saved text is gone, then render before uncovering the screen.
+      if (!restoreReader(true)) releaseReaderSnapshot();
+    }, 2000);
+    if (readerSnapshot || document.hidden) return;
+    var screen = t.element.querySelector('.xterm-screen');
+    if (!screen) return;
+    try {
+      // WebGL drawing buffers may be discarded after a frame. Keep a copy at
+      // onRender time, while its pixels are available, rather than reading it
+      // later when an erase command arrives.
+      var snapshot = readerImage || copyReaderScreen(t);
+      if (!snapshot) return;
+      screen.appendChild(snapshot); readerSnapshot = snapshot; readerImage = null;
+      traceScroll('reader-redraw-hold');
+    } catch (_) {
+      // Screen copying is optional; the reading-position recovery is not.
+      if (readerSnapshot) readerSnapshot.remove();
+      readerSnapshot = null;
+    }
+  }
+  function clearReader() {
+    releaseReaderSnapshot(); readerImage = null; readerFallbackPending = false;
+    if (readerMarker) readerMarker.dispose();
+    readerMarker = null; reader = null;
+  }
+  function markReader(t, row) {
+    if (readerMarker) readerMarker.dispose();
+    readerMarker = t.registerMarker ? t.registerMarker(row - t.buffer.active.baseY - t.buffer.active.cursorY) : null;
+  }
+  function captureReader() {
+    var t = window.term, b = t && t.buffer && t.buffer.active;
+    if (!b || b.type === 'alternate' || atLatest()) { clearReader(); return; }
+    var samples = [];
+    for (var i = 0; i < Math.min(32, t.rows); i++) {
+      var line = b.getLine(b.viewportY + i), text = line && line.translateToString(true);
+      if (text) samples.push({offset: i, text: text});
+      if (samples.length === 12) break;
+    }
+    readerImage = null;
+    reader = {distance: b.baseY - b.viewportY, cols: t.cols, samples: samples};
+    markReader(t, b.viewportY);
+  }
+  function readerNavigation() {
+    releaseReaderSnapshot(); readerFallbackPending = false;
+    readerNavigating = true;
+    if (readerNavigationTimer) clearTimeout(readerNavigationTimer);
+    // Native xterm wheel/key handlers run after this capture handler. Capture
+    // their resulting viewport, not the position before the gesture.
+    readerNavigationTimer = setTimeout(function () {
+      readerNavigating = false; vtFollowOnReconnect = atLatest(); captureReader();
+    }, 0);
+  }
+  function traceScroll(reason, data) {
+    try { if (window.__vibetopTraceTerminalScroll) window.__vibetopTraceTerminalScroll(reason, data); } catch (_) {}
+  }
+  window.__vibetopTerminalReading = function () {
+    return {reader_revision: 3, following: !!vtFollowOnReconnect, anchored: !!reader, navigating: readerNavigating,
+      dragging: readerDragging, restoring: readerRestoring,
+      marker_row: readerMarker && !readerMarker.isDisposed ? readerMarker.line : null,
+      anchor_distance: reader ? reader.distance : null};
+  };
+  function restoreReader(fallback) {
+    var t = window.term, b = t && t.buffer && t.buffer.active;
+    if (!reader || !b || b.type === 'alternate' || document.hidden || !t.element || t.element.clientWidth <= 0) return;
+    var row = readerMarker && !readerMarker.isDisposed ? readerMarker.line : null;
+    function matches(row) {
+      return reader.samples.length && reader.samples.every(function (sample) {
+        var line = b.getLine(row + sample.offset);
+        return line && line.translateToString(true) === sample.text;
+      });
+    }
+    // An application may overwrite rows without disposing xterm's marker.
+    // A surviving row number alone does not identify the same passage.
+    if (row != null && reader.samples.length && !matches(row)) {
+      readerMarker.dispose(); readerMarker = null; row = null;
+    }
+    if (row == null && reader.samples.length) {
+      var expected = Math.max(0, b.baseY - reader.distance), best = Infinity;
+      for (var i = 0; i <= b.baseY; i++) {
+        var match = matches(i);
+        if (match && Math.abs(i - expected) < best) { row = i; best = Math.abs(i - expected); }
+      }
+    }
+    var distanceFallback = row == null && fallback;
+    if (distanceFallback) row = Math.max(0, b.baseY - reader.distance);
+    if (row == null) return;  // replay has not reached the saved passage yet
+    readerRestoring = true;
+    try {
+      if (b.viewportY !== row) {
+        traceScroll('reader-restore', {target: row});
+        t.scrollToLine(row);
+      }
+      if (!readerMarker || readerMarker.isDisposed) markReader(t, row);
+      reader.distance = b.baseY - row;
+      if (distanceFallback) {
+        traceScroll('reader-redraw-fallback', {target: row});
+        // The previous fingerprint no longer exists. Anchor the replacement
+        // passage so subsequent writes do not repeatedly search for stale text.
+        captureReader();
+        if (!reader) vtFollowOnReconnect = true;
+      }
+      readerFallbackPending = false;
+      if (readerSnapshot) {
+        var snapshot = readerSnapshot, epoch = readerSnapshotEpoch;
+        t.refresh(0, t.rows - 1);
+        requestAnimationFrame(function () { requestAnimationFrame(function () {
+          if (readerSnapshot === snapshot && readerSnapshotEpoch === epoch) {
+            traceScroll('reader-redraw-resume'); releaseReaderSnapshot();
+          }
+        }); });
+      } else if (readerSnapshotTimer) {
+        clearTimeout(readerSnapshotTimer); readerSnapshotTimer = null;
+      }
+      return true;
+    } finally { readerRestoring = false; }
+  }
+  function restoreReaderSoon() {
+    if (readerQueued || readerNavigating || readerDragging) return;
+    readerQueued = true;
+    requestAnimationFrame(function () {
+      readerQueued = false;
+      // Recheck after the frame: a user gesture may have cancelled following
+      // since this callback was queued. Live redraws can reset viewportY even
+      // long after the connection's short settle interval has ended.
+      if (readerNavigating || readerDragging) return;
+      if (reader) restoreReader(readerFallbackPending);
+      else if (vtFollowOnReconnect && !document.hidden && !atLatest()) revealLatest();
+    });
+  }
   function revealLatest() {
-    try { if (window.term) window.term.scrollToBottom(); } catch (_) {}
+    try {
+      if (window.term) {
+        if (!atLatest()) traceScroll('latest-reveal');
+        window.term.scrollToBottom();
+      }
+    } catch (_) {}
   }
   function cancelLatest() {
+    traceScroll('navigation');
+    vtFollowOnReconnect = false;
+    readerNavigation();
     followLatestUntil = 0;
     // More than one reveal request can overlap (tab activation + outer app
     // activation + resize). Cancel every request already seen, not merely the
@@ -71,6 +243,9 @@
     followLatestTimer = null;
   }
   function armLatest(requestId) {
+    // A same-connection resize preserves deliberate reading. Reconnect clears
+    // the live anchor before arming latest; new frames never restore old anchors.
+    if (reader && requestId == null) return;
     // showLatest retries one activation while a new iframe/replay comes up. Once
     // the user scrolls, ignore the remaining retries from THAT activation; a
     // later tab/app activation gets a new id and may reveal latest normally.
@@ -79,6 +254,7 @@
       if (requestId <= cancelledLatestThrough) return;
       highestLatestRequest = Math.max(highestLatestRequest, requestId);
     }
+    clearReader(); vtFollowOnReconnect = true;
     followLatestUntil = Date.now() + 10000;
     revealLatest();
     if (followLatestTimer) clearInterval(followLatestTimer);
@@ -95,6 +271,30 @@
   // Yield to deliberate history navigation immediately. Without this, the
   // short post-resize/replay settle loop wins every 100ms and makes scrollback
   // unusable while a TUI such as Claude Code is actively repainting.
+  function returnToTypingLine() {
+    if (!document.hidden && (reader || !vtFollowOnReconnect || !atLatest())) {
+      if (readerNavigationTimer) clearTimeout(readerNavigationTimer);
+      readerNavigating = false; readerDragging = false;
+      clearReader();
+      armLatest();
+    }
+  }
+  window.addEventListener('keydown', function (e) {
+    if (e.isComposing || e.ctrlKey || e.metaKey || e.altKey) return;
+    if (typeof e.key === 'string' && (e.key.length === 1 ||
+        /^(Enter|Backspace|Delete|Tab|Escape|ArrowUp|ArrowDown|ArrowLeft|ArrowRight)$/.test(e.key))) {
+      returnToTypingLine();
+    }
+  }, true);
+  // Native desktop input/paste can arrive without a printable keydown (IME,
+  // dictation, context-menu paste). Mobile committed bytes use the fwd hook below.
+  function nativeTyping(e) {
+    var t = window.term;
+    if (!e.isComposing && t && t.element && t.element.contains && t.element.contains(e.target)) returnToTypingLine();
+  }
+  window.addEventListener('input', nativeTyping, true);
+  window.addEventListener('compositionend', nativeTyping, true);
+  window.addEventListener('paste', nativeTyping, true);
   window.addEventListener('wheel', cancelLatest, { capture: true, passive: true });
   window.addEventListener('keydown', function (e) {
     if (e.key === 'PageUp' || e.key === 'PageDown' || e.key === 'Home' || e.key === 'End') cancelLatest();
@@ -103,8 +303,10 @@
     var vp = document.querySelector('.xterm-viewport');
     if (!vp) return;
     var r = vp.getBoundingClientRect();
-    if (e.clientX >= r.right - 20) cancelLatest();   // scrollbar click/drag
+    if (e.clientX >= r.right - 20) { readerDragging = true; cancelLatest(); }   // scrollbar click/drag
   }, true);
+  window.addEventListener('pointermove', function () { if (readerDragging) readerNavigation(); }, true);
+  window.addEventListener('pointerup', function () { if (readerDragging) { readerDragging = false; readerNavigation(); } }, true);
   // xterm can treat Page Up/Down as viewport navigation after reconnect.
   // In an application screen these keys belong to the PTY, even when focus
   // is on the iframe body rather than xterm's hidden textarea.
@@ -136,20 +338,45 @@
   }
   window.__vibetopShowLatest = armLatest;
 
-  // Preserve whether the user was reading history across a reconnect.
-  var vtFollowOnReconnect = true;
-  var vtScrollUserAt = 0;
-  ['wheel', 'mousedown', 'touchstart', 'keydown'].forEach(function (ev) {
-    window.addEventListener(ev, function () { vtScrollUserAt = Date.now(); },
-                            { capture: true, passive: true });
-  });
+  // Live reading stays anchored; each new connection explicitly resets latest.
+  var vtFollowOnReconnect = !reader;
   (function watchUserScroll() {
     var t = window.term;
     if (!t || !t.onScroll) { setTimeout(watchUserScroll, 500); return; }
     t.onScroll(function () {
-      if (Date.now() - vtScrollUserAt < 500) vtFollowOnReconnect = atLatest();
+      if (readerRestoring) return;
+      if (readerNavigating || readerDragging) {
+        vtFollowOnReconnect = atLatest(); captureReader();
+      } else restoreReaderSoon();
     });
+    if (t.onRender) t.onRender(function () {
+      if (!reader || readerSnapshot || document.hidden || readerNavigating || readerDragging) return;
+      var b = t.buffer.active;
+      if (b.type !== 'normal' || !readerMarker || readerMarker.isDisposed || b.viewportY !== readerMarker.line) return;
+      if (!reader.samples.every(function (sample) {
+        var line = b.getLine(b.viewportY + sample.offset);
+        return line && line.translateToString(true) === sample.text;
+      })) return;
+      try { readerImage = copyReaderScreen(t); } catch (_) { readerImage = null; }
+    });
+    if (t.parser && t.parser.registerCsiHandler) {
+      t.parser.registerCsiHandler({final: 'J'}, function (params) {
+        if (params[0] === 3 && t.buffer.active.type === 'normal') holdReaderSnapshot(t);
+        return false;  // preserve xterm's normal erase semantics
+      });
+    }
+    if (t.onWriteParsed) t.onWriteParsed(restoreReaderSoon);
+    if (t.onResize) t.onResize(restoreReaderSoon);
   })();
+  function resumeReader() {
+    if (document.hidden) return;
+    restoreReader(readerFallbackPending);
+    restoreReaderSoon();
+  }
+  // Redraws also arrive in background tabs. Recover before showing a buffer
+  // whose saved passage disappeared while frame callbacks were suspended.
+  if (document.addEventListener) document.addEventListener('visibilitychange', resumeReader);
+  window.addEventListener('focus', resumeReader);
   // Shared by desktop and touch. This must stay ABOVE the desktop early return
   // below; putting it with the touch-only message handlers made desktop tab
   // activation silently ignore the request.
@@ -169,6 +396,15 @@
       if (done) return; done = true;
       clearTimeout(show); if (idle) clearTimeout(idle); if (cap) clearTimeout(cap);
       _barHide();
+      // A reconnect is passive on the shared PTY. Replay can therefore contain
+      // another device's geometry until this visible mobile client claims it.
+      // Do this after replay, not on the first touch; never let an old socket,
+      // hidden tab, or deliberate history reader take ownership here.
+      if (isTouch && ws === ttydWS && ws.readyState === 1 && !document.hidden &&
+          vtFollowOnReconnect && !reader && window.term && window.term.element &&
+          window.term.element.clientWidth > 0) {
+        try { claimSize(); } catch (_) {}
+      }
       if (Date.now() < followLatestUntil) revealLatest();
       try { ws.removeEventListener('message', onmsg); } catch (_) {}
     }
@@ -197,6 +433,7 @@
   // Mobile keeps its own keyboard/caret-aware resize path (two-finger claim), so
   // this is desktop-only. (function declarations → hoisted, usable below.)
   function reFit() {
+    traceScroll('fit');
     try {
       var t = window.term;
       if (t && t.element && t.element.clientWidth > 0) {
@@ -224,27 +461,12 @@
         ttydWS = ws; loadingBar(ws);
         try {
           ws.addEventListener('open', function () {
-            // FOLLOW THE REPLAY WHEN THE USER WAS AT THE BOTTOM.
-            //
-            // A reconnect replays the ring buffer, and the replay begins by
-            // clearing — so the buffer is WIPED (baseY 0, viewport 0) and then
-            // refilled underneath a viewport still pinned at row 0. The user ends
-            // up staring at the OLDEST line in the buffer while ~1000 rows of
-            // their actual session fill in below.
-            //
-            // loadingBar() already knows how to follow a replay, but every one of
-            // its reveal calls is gated on `followLatestUntil` — a window only tab
-            // or app ACTIVATION opens. A spontaneous reconnect opens nothing, so
-            // the follow machinery sat there doing nothing. Measured in the field:
-            //   from=986 to=0 baseY=0    cause=ws-open   following=0   (wiped)
-            //   from=979 to=0 baseY=980  cause=ws-open   following=0   (refilled,
-            //                                              viewport still at 0)
-            //
-            // Gated on where the user WAS, so this cannot hijack deliberate
-            // history reading: if they had scrolled up before the drop, they are
-            // left alone. The reported trigger — type a reply, press Enter — is by
-            // definition at the bottom, which is exactly when following is right.
-            try { if (vtFollowOnReconnect) armLatest(); } catch (_) {}
+            // Reconnect is an explicit return to latest, even when the previous
+            // connection was scrolled into history. Follow the ring-buffer replay
+            // as it fills; manual scrolling can cancel following immediately.
+            clearReader();
+            vtFollowOnReconnect = true;
+            try { armLatest(); } catch (_) {}
           });
         } catch (_) {}
         // Re-fit after a (re)connect's replay settles so the buffer isn't left
@@ -264,6 +486,7 @@
   // rows×cols are owned by whichever device resized last — the other device then
   // sees mis-shaped (too-narrow / too-wide) output until it re-claims.
   function claimSize() {
+    traceScroll('claim-size');
     var t = window.term; if (!t) return;
     // The SIGWINCH redraw triggered by a two-finger/mobile or double-click/
     // desktop claim can restore an old viewport row. This is the resize action
@@ -656,6 +879,7 @@
     // emits to the PTY; dbg mirrors each byte into the debug overlay when enabled.
     var fwd = (window.TerminalKbdInput && window.TerminalKbdInput.create)
       ? window.TerminalKbdInput.create(function (b) {
+          returnToTypingLine();
           sendRaw(b);
           if (dbgEl) dbg(b === String.fromCharCode(127) ? '<BS>' : b);
         })
@@ -728,6 +952,7 @@
     window.addEventListener('message', function (e) {
       var d = e.data;
       if (d && d.type === 'kbd-key' && KBD_KEY_BYTES[d.key]) {
+        returnToTypingLine();
         sendRaw(KBD_KEY_BYTES[d.key]); dbg(' <' + d.key + '> ');
         // The system key bar / arrow-key trackpad just moved the shell cursor or
         // reshaped the line (Ctrl+F/B, arrows, ^C, Esc, Tab) — the overlay's mirror

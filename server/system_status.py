@@ -21,6 +21,7 @@ import re
 import shutil
 import json
 import heapq
+import hashlib
 import socket
 import subprocess
 import threading
@@ -46,6 +47,9 @@ _prev_rapl_time = 0.0
 # Disk I/O snapshot for rate calculation
 _prev_disk_sectors = (0, 0)
 _prev_disk_time = 0.0
+_disk_sample = None
+_disk_sample_at = 0.0
+_disk_prev = {}
 
 # Per-process CPU snapshot for delta-based calculation
 _prev_proc_snap = {}  # pid -> ticks
@@ -377,6 +381,206 @@ def _collect_gpus(cached):
     return sorted(gpus.values(), key=lambda gpu: gpu["id"])
 
 
+def _read_cpu_temperatures():
+    """One temperature per physical CPU package, never per logical core."""
+    out = {}
+    try:
+        hwmons = sorted(os.listdir('/sys/class/hwmon'))
+    except OSError:
+        return []
+    for hwmon in hwmons:
+        path = '/sys/class/hwmon/' + hwmon
+        try:
+            with open(path + '/name') as stream:
+                driver = stream.read().strip()
+            if driver not in ('k10temp', 'coretemp', 'zenpower'):
+                continue
+            sensors = []
+            if driver == 'coretemp':
+                for filename in sorted(os.listdir(path)):
+                    if re.fullmatch(r'temp[0-9]+_label', filename):
+                        try:
+                            with open(path + '/' + filename) as stream:
+                                label = stream.read().strip()
+                            if label.lower().startswith('package'):
+                                sensors.append((filename.replace('_label', '_input'), label))
+                        except OSError:
+                            continue
+            else:
+                sensors = [('temp1_input', 'package')]
+            for sensor, label in sensors:
+                identity = os.path.realpath(path + '/device') + ':' + label
+                ident = 'cpu-' + hashlib.sha256(identity.encode()).hexdigest()
+                cpu = {'id': ident}
+                try:
+                    with open(path + '/' + sensor) as stream:
+                        cpu['temp'] = round(int(stream.read().strip()) / 1000)
+                except (OSError, ValueError):
+                    pass
+                out[ident] = cpu
+        except OSError:
+            continue
+    return [dict(cpu, name='CPU' + str(i + 1)) for i, cpu in enumerate(sorted(out.values(), key=lambda cpu: cpu['id']))]
+
+
+def _mount_path(value):
+    return re.sub(r"\\([0-7]{3})", lambda m: chr(int(m.group(1), 8)), value)
+
+
+def _disk_inventory():
+    """Physical drives, resolving partitions and dm/RAID slaves to their parents."""
+    def read(path):
+        try:
+            with open(path) as stream:
+                return stream.read().strip()
+        except OSError:
+            return ''
+
+    try:
+        names = sorted(os.listdir('/sys/class/block'))
+    except OSError:
+        return []
+    drives = {}
+    for name in names:
+        block = '/sys/class/block/' + name
+        real = os.path.realpath(block)
+        if (name.startswith(('loop', 'ram', 'zram', 'sr', 'dm-', 'md')) or
+                '/virtual/' in real or os.path.exists(block + '/partition')):
+            continue
+        devno = read(block + '/dev')
+        if not devno:
+            continue
+        hardware = read(block + '/wwid') or read(block + '/device/wwid') or read(block + '/device/serial')
+        identity = 'physical:' + (hardware or real)
+        entry = {'id': 'disk-' + hashlib.sha256(identity.encode()).hexdigest(),
+                 'kind': 'physical', 'name': name, 'device': '/dev/' + name,
+                 'mount': None, 'mounts': [], '_devno': devno, '_filesystems': []}
+        model = read(block + '/device/model')
+        if model:
+            entry['model'] = model
+        try:
+            entry['capacity_gb'] = round(int(read(block + '/size')) * 512 / 1024**3, 1)
+        except ValueError:
+            pass
+        drives[name] = entry
+
+    def parents(name, visited=None):
+        visited = set() if visited is None else visited
+        if name in visited:
+            return set()
+        visited.add(name)
+        if name in drives:
+            return {name}
+        block = '/sys/class/block/' + name
+        if os.path.exists(block + '/partition'):
+            return parents(os.path.basename(os.path.dirname(os.path.realpath(block))), visited)
+        try:
+            slaves = os.listdir(block + '/slaves')
+        except OSError:
+            return set()
+        result = set()
+        for slave in slaves:
+            result.update(parents(slave, visited))
+        return result
+
+    filesystems = {}
+    try:
+        with open('/proc/self/mountinfo') as stream:
+            for line in stream:
+                parts = line.split()
+                try:
+                    sep = parts.index('-')
+                    devno, root, mount = parts[2], _mount_path(parts[3]), _mount_path(parts[4])
+                    if not os.path.exists('/sys/dev/block/' + devno):
+                        continue
+                    name = os.path.basename(os.path.realpath('/sys/dev/block/' + devno))
+                    backing = parents(name)
+                    if not backing:
+                        continue
+                    fs = filesystems.setdefault(devno, {'_devno': devno, 'backing': backing, 'mounts': [], 'roots': []})
+                    fs['mounts'].append(mount)
+                    fs['roots'].append((root != '/', mount != '/', len(mount), mount))
+                except (ValueError, IndexError):
+                    continue
+    except OSError:
+        pass
+    for fs in filesystems.values():
+        mount = min(fs['roots'])[-1]
+        for name in fs['backing']:
+            drive = drives[name]
+            drive['mounts'].extend(fs['mounts'])
+            # A spanning filesystem's space cannot be assigned to each drive.
+            if len(fs['backing']) == 1:
+                drive['_filesystems'].append({'mount': mount, '_devno': fs['_devno']})
+            else:
+                drive['_shared_space'] = True
+    for drive in drives.values():
+        drive['mounts'] = sorted(set(drive['mounts']))
+        if drive['mounts']:
+            drive['mount'] = min(drive['mounts'], key=lambda m: (m != '/', len(m), m))
+    return sorted(drives.values(), key=lambda d: (d['mount'] != '/', d['name']))
+
+
+def _read_disks(cached):
+    """Share a delta window across taskbar, Monitor and concurrent viewers."""
+    global _disk_sample, _disk_sample_at, _disk_prev
+    now = time.monotonic()
+    if _disk_sample is not None and now - _disk_sample_at < 1.8:
+        return _disk_sample
+    inventory = cached('disk_inventory', 10.0, _disk_inventory)
+    counters = {}
+    try:
+        with open('/proc/diskstats') as stream:
+            for line in stream:
+                parts = line.split()
+                if len(parts) >= 14:
+                    try:
+                        counters[parts[0] + ':' + parts[1]] = (int(parts[5]), int(parts[9]))
+                    except ValueError:
+                        continue
+    except OSError:
+        pass
+    out, next_prev = [], {}
+    for entry in inventory:
+        disk = {k: v for k, v in entry.items() if not k.startswith('_')}
+        filesystems = entry['_filesystems']
+        if filesystems and not entry.get('_shared_space'):
+            totals = [0, 0, 0]
+            try:
+                for fs in filesystems:
+                    mount = fs['mount']
+                    mounted_dev = os.stat(mount).st_dev
+                    if f'{os.major(mounted_dev)}:{os.minor(mounted_dev)}' != fs['_devno']:
+                        raise OSError('mount device changed')
+                    st = os.statvfs(mount)
+                    totals[0] += st.f_frsize * st.f_blocks
+                    totals[1] += st.f_frsize * (st.f_blocks - st.f_bfree)
+                    totals[2] += st.f_frsize * st.f_bavail
+                disk.update(total_gb=round(totals[0] / 1024**3, 1),
+                            used_gb=round(totals[1] / 1024**3, 1),
+                            free_gb=round(totals[2] / 1024**3, 1))
+                if totals[1] + totals[2] > 0:
+                    disk['pct'] = round(100 * totals[1] / (totals[1] + totals[2]))
+            except OSError:
+                pass
+        counts = counters.get(entry['_devno'])
+        if counts is not None:
+            prev = _disk_prev.get(disk['id'])
+            if prev:
+                stamp, old_rd, old_wr = prev
+                dt = now - stamp
+                # Device replacement/counter reset is an unknown interval, not
+                # a negative rate or a fabricated idle sample.
+                if 0 < dt <= 600 and counts[0] >= old_rd and counts[1] >= old_wr:
+                    disk['read_bytes'] = int((counts[0] - old_rd) * 512 / dt)
+                    disk['write_bytes'] = int((counts[1] - old_wr) * 512 / dt)
+            next_prev[disk['id']] = (now, *counts)
+        out.append(disk)
+    _disk_prev = next_prev
+    _disk_sample, _disk_sample_at = out, now
+    return out
+
+
 def _root_disk():
     """Block device backing '/', partition suffix stripped (nvme1n1p3 -> nvme1n1,
     sda2 -> sda), for matching /proc/diskstats. None if it can't be determined.
@@ -658,18 +862,8 @@ def _collect(running_terminals, cached, want_procs=True):
     gpu_vram_used_gb = primary.get("vram_used_gb")
     gpu_vram_total_gb = primary.get("vram_total_gb")
 
-    # CPU temperature (k10temp Tctl)
-    cpu_temp = None
-    try:
-        for hwmon in os.listdir("/sys/class/hwmon"):
-            p = f"/sys/class/hwmon/{hwmon}"
-            with open(f"{p}/name") as f:
-                if f.read().strip() == "k10temp":
-                    with open(f"{p}/temp1_input") as f2:
-                        cpu_temp = round(int(f2.read().strip()) / 1000)
-                    break
-    except Exception:
-        pass
+    cpus = _read_cpu_temperatures()
+    cpu_temp = max((cpu['temp'] for cpu in cpus if cpu.get('temp') is not None), default=None)
 
     # CPU package power (RAPL — delta between calls)
     cpu_power_w = None
@@ -707,7 +901,9 @@ def _collect(running_terminals, cached, want_procs=True):
     except Exception:
         pass
 
-    # Disk usage and I/O
+    disks = _read_disks(cached)
+
+    # Legacy root disk usage and I/O
     disk_used_gb = None
     disk_total_gb = None
     disk_free_gb = None
@@ -786,12 +982,14 @@ def _collect(running_terminals, cached, want_procs=True):
     # that nothing is running, and the desktop renders it as exactly that.
     if processes is not None:
         result["processes"] = processes
+    result["cpus"] = cpus
     result["power_sample_age_s"] = {}
     if cpu_power_w is not None:
         result["power_sample_age_s"]["cpu"] = round(max(0, time.monotonic() - _prev_rapl_time), 1)
     if gpu_power_w is not None:
         result["power_sample_age_s"]["gpu"] = round(max(0, time.monotonic() - _gpu_sample_at), 1)
     result["gpus"] = gpus
+    result["disks"] = disks
     if gpu_percent is not None:
         result["gpu_percent"] = gpu_percent
     if gpu_vram_used_gb is not None:

@@ -11,6 +11,7 @@
   var socket = null, ready = false, stopped = false, exhausted = false, panel = null;
   var closeCode = null, closedAt = 0, resumeClosed = false, wasOffline = false;
   var since = Date.now(), phase = 'startup', retries = 0, timer;
+  var hiddenAt = w.document.hidden ? Date.now() : null;
   var foreground = true;
   try { retries = Math.min(3, Math.max(0, +w.sessionStorage.getItem(key) || 0)); } catch (_) {}
   function log(event) {
@@ -147,7 +148,21 @@
     w.WebSocket = WS;
   }
   timer = w.setInterval(tick, 500);
-  function resume() { tick(); }
+  function resume() {
+    if (w.document.hidden) {
+      if (hiddenAt == null) hiddenAt = Date.now();
+      return;
+    }
+    if (hiddenAt != null) { since += Date.now() - Math.max(hiddenAt, since); hiddenAt = null; }
+    if (stopped || exhausted) return;
+    // WebKit can report CLOSED before dispatching its queued close event.
+    // Read the actual socket state rather than waiting for that event/code.
+    if (socket && socket.readyState === 3 && phase !== 'reconnecting') {
+      if (phase !== 'closed') closedAt = Date.now();
+      ready = false; phase = 'closed'; resumeClosed = true;
+    }
+    tick();
+  }
   w.__vibetopConnectionActivate = function () {
     resume();
     if (stopped || ready) return;
@@ -158,6 +173,6 @@
   w.addEventListener('online', resume);
   w.addEventListener('pagehide', function () { stopped = true; w.clearInterval(timer); });
   w.addEventListener('pageshow', function (e) {
-    if (e.persisted) { stopped = false; since = Date.now(); foreground = isForeground(); timer = w.setInterval(tick, 500); resume(); }
+    if (e.persisted) { stopped = false; since = Date.now(); hiddenAt = w.document.hidden ? Date.now() : null; foreground = isForeground(); timer = w.setInterval(tick, 500); resume(); }
   });
 });

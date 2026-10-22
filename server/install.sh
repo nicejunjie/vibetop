@@ -55,6 +55,8 @@ INSTALL_NGINX="${INSTALL_NGINX:-1}"
 SCROLLBACK="${SCROLLBACK:-50000}"
 INSTALL_LANDING="${INSTALL_LANDING:-0}"
 DRY_RUN="${DRY_RUN:-0}"
+RENDER_ONLY=0
+BROWSER_PROXY_CONFIG="${BROWSER_PROXY_CONFIG:-/etc/vibetop/browser-proxy.json}"
 # TLS on the LAN: with multi-user login, a Linux password is POSTed to /api/login,
 # so LAN clients must not use plain http. We serve https on :443 (self-signed by
 # default; override with TLS_CERT/TLS_KEY) and redirect LAN http->https on the
@@ -75,6 +77,7 @@ TLS_KEY="${TLS_KEY:-$TLS_DIR/key.pem}"
 
 for arg in "$@"; do
     case "$arg" in
+        --render-only) RENDER_ONLY=1 ;;
         --deps-only) DEPS_ONLY=1; INSTALL_DEPS=1 ;;
         --dry-run|-n) DRY_RUN=1 ;;
         --help|-h)
@@ -83,6 +86,335 @@ for arg in "$@"; do
         *) echo "unknown flag: $arg" >&2; exit 2 ;;
     esac
 done
+
+# Pure rendering entry point shared by normal install and Browser Lite staging.
+# Dispatch before any install, mkdir, nginx write, or systemd operation.
+render_nginx_site() {
+    lan_map=""; tls_listen=""; tls_redirect_if=""
+    # Cache-buster for the injected terminal-kbd.js, derived from its CONTENT.
+    # Editing the file changes the hash → the ?v= changes → browsers (and the
+    # service worker) fetch the new copy. This makes "forgot to bump the version"
+    # impossible — the whole reason a stale injected script could ever ship.
+    KBD_VER=$([ -f "$TERM_APP_DIR/terminal-kbd.js" ] && md5sum "$TERM_APP_DIR/terminal-kbd.js" | cut -c1-10 || echo 0)
+    PROFILE_VER=$(md5sum "$TERM_APP_DIR/terminal-profile.js" | cut -c1-10)
+    HTTP_VER=$(md5sum "$TERM_APP_DIR/terminal-http.js" | cut -c1-10)
+    RESUME_VER=$(md5sum "$TERM_APP_DIR/terminal-resume.js" | cut -c1-10)
+    CONN_VER=$(md5sum "$TERM_APP_DIR/terminal-connection.js" | cut -c1-10)
+    # kbd-input.js — the DOM-free, unit-tested input/IME state machine terminal-kbd.js
+    # depends on (must load BEFORE it). Same content-hash cache-buster convention.
+    KBDIN_VER=$([ -f "$TERM_APP_DIR/lib/kbd-input.js" ] && md5sum "$TERM_APP_DIR/lib/kbd-input.js" | cut -c1-10 || echo 0)
+
+    if [ "$ENABLE_TLS" = 1 ]; then
+        lan_map="# Non-loopback (LAN) clients — used to upgrade cleartext logins to https.
+map \$remote_addr \$vt_is_lan {
+    default 1;
+    127.0.0.1 0;
+    ::1 0;
+}
+
+"
+        tls_listen="    listen 443 ssl default_server;
+    listen [::]:443 ssl default_server;
+    ssl_certificate $TLS_CERT;
+    ssl_certificate_key $TLS_KEY;
+    ssl_protocols TLSv1.2 TLSv1.3;
+"
+        # A LAN client on http reaching a credential-entry page -> https. \$vt_up
+        # is 'http1' only for http + non-loopback, so the tunnel (loopback) and the
+        # Docker->host OnlyOffice callback are never redirected. Injected into the
+        # shell-entry and login locations only (not /api).
+        tls_redirect_if="        set \$vt_up \"\$scheme\$vt_is_lan\";
+        if (\$vt_up = \"http1\") { return 301 https://\$host\$request_uri; }
+"
+    else
+        echo "   NOTE: TLS disabled — LAN logins send the Linux password over cleartext http." >&2
+    fi
+
+    # 4b. Build port map for terminal routing
+    map_entries=""
+    for i in $(seq 1 "$MAX_INSTANCES"); do
+        map_entries+="    ~^/t${i}(/|\$)  $((BASE_PORT + i));
+"
+    done
+
+    # Keep the map and its use in this same generated file. Removing an optional
+    # Browser Lite vhost must never leave nginx with an undefined variable.
+    browser_host_map='map $host $vt_browser_main_host_allowed { default 1; }'
+    if [[ -f "$BROWSER_PROXY_CONFIG" ]]; then
+        browser_host_map="$(python3 - "$APP_DIR" "$BROWSER_PROXY_CONFIG" <<'PY'
+import json, socket, sys
+sys.path.insert(0, sys.argv[1])
+from browser_proxy_nginx import main_host_map
+with open(sys.argv[2]) as stream:
+    config = json.load(stream)
+print(main_host_map(config['mainOrigins'], [socket.gethostname(), *config.get('localHosts', [])]))
+PY
+)"
+    fi
+    site_config="${lan_map}# Trust the external scheme only from the local tunnel/reverse proxy.
+map \$remote_addr:\$http_x_forwarded_proto \$vt_external_scheme {
+    default \$scheme;
+    \"127.0.0.1:https\" https;
+    \"::1:https\" https;
+}
+$browser_host_map
+
+# Terminal port map: /tN/ -> port BASE_PORT+N
+map \$uri \$term_port {
+    default \"\";
+$map_entries}
+
+server {
+    listen 80 default_server;
+    listen [::]:80 default_server;
+$tls_listen    server_name _;
+    if (\$vt_browser_main_host_allowed = 0) { return 421; }
+
+    # Don't advertise the nginx version in Server: / error pages.
+    server_tokens off;
+
+    root $LANDING_DIR;
+    index index.html;
+
+    location / {
+        try_files \$uri \$uri/ =404;
+        add_header Cache-Control 'no-cache, no-store' always;
+        # nginx gzips text/html implicitly, and nginx.conf ships gzip_types
+        # COMMENTED OUT — so every .js and .css in the web root went over the
+        # wire raw. That is ~300KB per cold desktop load (shared modules, the
+        # xpra/ttyd patch scripts) and 2.2MB for the RTS game's 117 plain
+        # scripts, all of which compress ~3x. Invisible on the LAN; the whole
+        # cost over the Cloudflare tunnel on a phone. Static files only — the
+        # sub_filter locations below re-gzip separately, after filtering, since
+        # sub_filter needs a plain upstream body.
+        gzip on;
+        gzip_types text/javascript application/javascript text/css application/json image/svg+xml;
+        gzip_min_length 1024;
+        # Security headers on the shell/static HTML. frame-ancestors 'self'
+        # blocks external sites from framing the desktop (clickjacking); the
+        # desktop frames its own same-origin app pages, so it's unaffected.
+        # (nginx drops INHERITED add_headers in any location that sets its own,
+        # so these live here next to the existing Cache-Control rather than at
+        # server scope where the proxy locations' own add_headers would void them.)
+        add_header X-Content-Type-Options 'nosniff' always;
+        add_header Referrer-Policy 'same-origin' always;
+        add_header Content-Security-Policy \"frame-ancestors 'self'\" always;
+    }
+
+    # --- Auth gate (multi-user Option B) ---------------------------------
+    # Every protected surface delegates to the manager's /api/authcheck: 200 for a
+    # valid Linux session cookie (or an allowlisted public path), else 401. The
+    # manager owns the public-path allowlist (login/health/OnlyOffice callbacks),
+    # so nginx needs only this one internal endpoint + auth_request lines.
+    # (Loopback admin tooling hits 127.0.0.1:$BASE_PORT directly, bypassing nginx
+    # and this gate — watchdog/doctor/smoke-test are unaffected.)
+    location = /internal/authcheck {
+        internal;
+        # auth_request runs this subrequest for EVERY protected request, and
+        # nginx size-checks the main request's body against THIS location's
+        # client_max_body_size (default 1M) even though the body is never
+        # forwarded here (proxy_pass_request_body off). Without a raised limit,
+        # any upload >1M gets the auth subrequest 413'd -> the whole request
+        # 500s (\"auth request unexpected status: 413\"). /api/ already allows 5G,
+        # so match it here; the body isn't sent to the manager regardless.
+        client_max_body_size 5G;
+        proxy_pass http://127.0.0.1:$BASE_PORT/api/authcheck;
+        proxy_pass_request_body off;
+        proxy_set_header Content-Length \"\";
+        proxy_set_header X-Original-URI \$request_uri;
+        proxy_set_header X-Original-Upgrade \$http_upgrade;
+        proxy_set_header X-Original-Method \$request_method;
+        proxy_set_header X-Forwarded-Proto \$vt_external_scheme;
+        proxy_set_header Host \$http_host;
+        proxy_set_header Origin \$http_origin;
+    }
+    # Carry where they were headed so a top-level deep link (/terminals/, /files/)
+    # comes back after sign-in instead of dumping everyone on the desktop. A FRAMED
+    # 401 lands here too, but login.html drops ?next= when it promotes sign-in to
+    # the top window — the framed sub-resource must never become the whole page.
+    location @login { return 302 /login.html?next=\$request_uri; }
+
+    # The login page — public (no auth), but LAN clients are upgraded to https so
+    # the password POST isn't sent in cleartext.
+    location = /login.html {
+$tls_redirect_if        add_header Cache-Control 'no-cache, no-store' always;
+        # This exact-match location carries its own add_header, so nginx drops every
+        # header inherited from the prefix location / block — the ONE page that takes
+        # a Linux password would otherwise be framable by any origin (clickjacked
+        # credential capture). 'self' still allows the same-origin framing that
+        # login.html's own guard busts out of.
+        # (No backticks anywhere in this string: it is double-quoted shell, so a
+        # backtick is command substitution, not punctuation. That is what broke the
+        # v1.19.30 deploy — 'location: command not found', config silently truncated.)
+        add_header X-Content-Type-Options 'nosniff' always;
+        add_header Referrer-Policy 'same-origin' always;
+        add_header Content-Security-Policy \"frame-ancestors 'self'\" always;
+        try_files /login.html =404;
+    }
+
+    # The desktop shell entry. Unauthenticated -> login. (Static assets are served
+    # by the prefix location / above and stay public; their DATA is gated at /api.)
+    location = / {
+$tls_redirect_if        auth_request /internal/authcheck;
+        error_page 401 = @login;
+        add_header Cache-Control 'no-cache, no-store' always;
+        add_header X-Content-Type-Options 'nosniff' always;
+        add_header Referrer-Policy 'same-origin' always;
+        add_header Content-Security-Policy \"frame-ancestors 'self'\" always;
+        try_files /index.html =404;
+    }
+
+    location = /terminals { return 301 /terminals/; }
+    location = /terminals/ {
+        auth_request /internal/authcheck;
+        error_page 401 = @login;
+        add_header Cache-Control 'no-cache, no-store' always;
+        rewrite ^ /terminals.html break;
+    }
+
+    # On the LAN there's no Cloudflare in front, so the desktop's logout link
+    # (/cdn-cgi/access/logout) reaches this origin and would 404. Serve a
+    # friendly signed-out page instead. Over the tunnel Cloudflare handles
+    # /cdn-cgi/* at its edge, so this block never runs there.
+    location = /cdn-cgi/access/logout {
+        add_header Cache-Control 'no-cache, no-store' always;
+        rewrite ^ /loggedout.html break;
+    }
+
+    # Terminal manager & system status API
+    location /api/ {
+        # Gate on a valid session; the manager allowlists the public API paths
+        # (login/health/OnlyOffice callbacks), so a 401 here is a real deny for a
+        # browser XHR (JS reads the 401 and redirects to login itself).
+        auth_request /internal/authcheck;
+        proxy_pass http://127.0.0.1:$BASE_PORT;
+        proxy_http_version 1.1;
+        proxy_set_header Host \$http_host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-Proto \$vt_external_scheme;   # so a share link gets the right scheme
+        client_max_body_size 5G;       # allow large /api/upload posts
+        proxy_request_buffering off;   # stream upload body to the manager
+        proxy_read_timeout 3600;
+
+        # Status JSON is a few KB and polled every few seconds; gzip shrinks
+        # it ~4x (nginx won't gzip proxied responses without gzip_proxied).
+        gzip on;
+        gzip_proxied any;
+        gzip_types application/json;
+        gzip_min_length 256;
+    }
+
+    # Public file-share links (Files app) -> manager. This is the ONE path meant to
+    # be reachable WITHOUT auth (the /s/<token> capability is the gate). On the LAN
+    # nginx is the only gate, so it just works; over the Cloudflare tunnel you must
+    # add an Access Bypass app (rule Everyone) scoped to /s/ (see tunnel/README.md),
+    # or the link hits the login page. Read-only downloads: buffering off so a large
+    # file/zip streams straight through instead of spooling in nginx.
+    location /s/ {
+        # See conf.d/vibetop-upgrade.conf for the zones. burst+nodelay so a page
+        # of thumbnails or a double-click is absorbed rather than rejected; the
+        # manager's per-token semaphore is what actually stops a folder-zip flood.
+        limit_req zone=vt_share_req burst=20 nodelay;
+        limit_conn vt_share_conn 8;
+        limit_req_status 429;
+        limit_conn_status 429;
+        proxy_pass http://127.0.0.1:$BASE_PORT;
+        proxy_http_version 1.1;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-Proto \$vt_external_scheme;
+        proxy_buffering off;
+        proxy_read_timeout 3600;
+    }
+
+    # Dynamic terminal routing: /tN/ -> the PER-USER ttyd port. The authcheck
+    # subrequest resolves the logged-in user's terminal N (starting it on demand)
+    # and returns it in X-Term-Port, which we route to. (The \$term_port map above
+    # is retained but unused — routing is by identity now, not by N alone.)
+    location ~ ^/t(\d+)/(.*)$ {
+        auth_request /internal/authcheck;
+        auth_request_set \$tport \$upstream_http_x_term_port;
+        error_page 401 = @login;
+        proxy_pass http://127.0.0.1:\$tport;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade \$http_upgrade;
+        proxy_set_header Connection \$connection_upgrade;
+        proxy_set_header Host \$http_host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header Accept-Encoding \"\";
+        proxy_read_timeout 86400;
+        proxy_send_timeout 86400;
+        proxy_buffering off;
+        # Never let the browser cache the /tN/ page — it carries the sub_filter
+        # injections (clipboard, reconnect, mobile kbd), so a stale cache means a
+        # reload silently keeps old behaviour.
+        add_header Cache-Control 'no-store' always;
+
+        # ttyd's page is a single ~240KB HTML (xterm.js inlined), served
+        # uncompressed because sub_filter needs a plain upstream body. Re-gzip
+        # the filtered output to the client — on slow/mobile links the
+        # uncompressed page was the terminal's whole time-to-content.
+        # WebSocket frames are unaffected.
+        gzip on;
+        gzip_proxied any;
+        # text/html is ALWAYS gzipped by nginx and is implicit in gzip_types;
+        # naming it emits a duplicate-MIME-type warning on every config test.
+        # (No backticks in this heredoc: it is a double-quoted shell string, so
+        # they would run as command substitution at install time.)
+        gzip_types text/javascript application/javascript text/css application/json;
+        gzip_min_length 1024;
+
+        # Expose ttyd's connection owner for recovery without a frame reload.
+        sub_filter 'this.terminal=new' '(window.__vibetopTtyd=this),this.terminal=new';
+        sub_filter 'fontSize:13,' 'fontSize:13,scrollback:$SCROLLBACK,cursorStyle:\"bar\",cursorInactiveStyle:\"bar\",';
+        sub_filter '</head>' '<script>(function(){var isMac=/Mac/.test(navigator.platform);var isTouch=window.matchMedia&&window.matchMedia(\"(pointer: coarse)\").matches;var blockTa=true;var _ec=document.execCommand.bind(document);document.execCommand=function(c){if(c===\"copy\"&&!window.__allowCopy)throw 0;return _ec.apply(document,arguments)};if(isTouch){document.addEventListener(\"focusin\",function(e){var t=e.target;if(blockTa&&t&&t.classList&&t.classList.contains(\"xterm-helper-textarea\")){var o=window.__termOverlay;if(window.__termArmed&&o&&document.activeElement!==o){window.__termBouncing=1;try{o.focus({preventScroll:true})}catch(_){try{o.focus()}catch(__){t.blur()}}window.__termBouncing=0}else{t.blur()}}},true)}function copySelection(){var t=window.term;if(!t||!t.hasSelection())return;var s=t.getSelection();if(!s)return;var ta=document.querySelector(\".xterm-helper-textarea\");if(ta){ta.value=s;blockTa=false;ta.select();try{window.__allowCopy=true;document.execCommand(\"copy\")}finally{window.__allowCopy=false;blockTa=true;ta.value=\"\"}}}var check=setInterval(function(){if(!window.term)return;clearInterval(check);var t=window.term;t.attachCustomKeyEventHandler(function(e){if(e.type!==\"keydown\")return true;var mod=isMac?e.metaKey:e.ctrlKey;if(!mod||e.shiftKey||e.altKey)return true;if(isMac&&e.ctrlKey)return true;if(e.key===\"c\"){if(t.hasSelection()){copySelection();t.clearSelection();e.preventDefault();return false}if(isMac){e.preventDefault();return false}return true}if(e.key===\"v\"||e.key===\"V\"){if(!isMac)return false;var ta=document.querySelector(\".xterm-helper-textarea\");if(ta){ta.value=\"\";ta.focus()}return true}return true})},100);document.addEventListener(\"auxclick\",function(e){if(e.button!==1)return;e.preventDefault();var ta=document.querySelector(\".xterm-helper-textarea\");if(ta){ta.value=\"\";ta.focus()}});function sendToBrowser(u){fetch(\"/api/browser/open\",{method:\"POST\",headers:{\"Content-Type\":\"application/json\"},body:JSON.stringify({url:u})});try{window.top.postMessage({type:\"switch-to-browser\"},\"*\")}catch(e){}}var wo=window.open;window.open=function(u){if(u&&(u.startsWith(\"http://\")||u.startsWith(\"https://\"))){sendToBrowser(u);return null}if(!u){return{opener:null,location:Object.defineProperty({},\"href\",{set:function(v){sendToBrowser(v)}})}}return wo.apply(this,arguments)}})();</script><script src=\"/terminal-profile.js?v=${PROFILE_VER}\"></script><script src=\"/terminal-http.js?v=${HTTP_VER}\"></script><script src=\"/terminal-connection.js?v=${CONN_VER}\"></script><script src=\"/terminal-resume.js?v=${RESUME_VER}\"></script><script src=\"/coach.js\"></script><script src=\"/kbd-input.js?v=${KBDIN_VER}\"></script><script src=\"/terminal-kbd.js?v=${KBD_VER}\"></script></head>';
+        sub_filter_once off;
+    }
+    location ~ ^/t(\d+)$ { return 301 \$scheme://\$host/t\$1/; }
+
+    # Sibling projects (e.g. vibetop-browser) drop /etc/nginx/snippets/vibetop-extras.d/*.conf
+    # to add their own location blocks without modifying this file.
+    include /etc/nginx/snippets/vibetop-extras.d/*.conf;
+}
+"
+    if [[ -f "$BROWSER_PROXY_CONFIG" ]]; then
+        site_config="$(printf '%s\n' "$site_config" | python3 -c '
+import json, socket, sys
+sys.path.insert(0, sys.argv[1])
+from browser_proxy_nginx import update_browser_site
+with open(sys.argv[2]) as stream:
+    config = json.load(stream)
+print(update_browser_site(sys.stdin.read(), config, [socket.gethostname(), socket.getfqdn()]), end="")
+' "$APP_DIR" "$BROWSER_PROXY_CONFIG")"
+    fi
+}
+
+if (( RENDER_ONLY )); then
+    render_nginx_site
+    printf '%s\n' "$site_config"
+    exit 0
+fi
+
+# Serialize the main-site writer with Browser Lite activation. Dry/render modes
+# never acquire or create locks. A pending watchdog owns the previous snapshot.
+if (( INSTALL_NGINX && ! DRY_RUN && ! DEPS_ONLY )); then
+    if [ "$(id -u)" != 0 ]; then
+        exec sudo -E env APP_USER="$APP_USER" bash "$0" "$@"
+    fi
+    install -d -m 0755 /var/lib/vibetop/browser-proxy-deploy
+    exec {VT_DEPLOY_LOCK_FD}>/var/lib/vibetop/browser-proxy-deploy/install.lock
+    flock -w 60 -x "$VT_DEPLOY_LOCK_FD"
+    if [ -e /var/lib/vibetop/browser-proxy-deploy/pending.json ]; then
+        python3 - "$APP_DIR" <<'PY'
+import sys
+sys.path.insert(0, sys.argv[1])
+from browser_proxy_deploy import production_activation
+production_activation().recover_pending()
+PY
+    fi
+    # Validate optional inputs before the first unrelated installation mutation.
+    render_nginx_site >/dev/null
+fi
 
 if ! id "$APP_USER" >/dev/null 2>&1; then
     echo "APP_USER '$APP_USER' does not exist on this system" >&2
@@ -308,17 +640,6 @@ fi
 if (( INSTALL_NGINX )); then
     echo "== installing nginx config =="
 
-    # Cache-buster for the injected terminal-kbd.js, derived from its CONTENT.
-    # Editing the file changes the hash → the ?v= changes → browsers (and the
-    # service worker) fetch the new copy. This makes "forgot to bump the version"
-    # impossible — the whole reason a stale injected script could ever ship.
-    KBD_VER=$([ -f "$TERM_APP_DIR/terminal-kbd.js" ] && md5sum "$TERM_APP_DIR/terminal-kbd.js" | cut -c1-10 || echo 0)
-    RESUME_VER=$(md5sum "$TERM_APP_DIR/terminal-resume.js" | cut -c1-10)
-    CONN_VER=$(md5sum "$TERM_APP_DIR/terminal-connection.js" | cut -c1-10)
-    # kbd-input.js — the DOM-free, unit-tested input/IME state machine terminal-kbd.js
-    # depends on (must load BEFORE it). Same content-hash cache-buster convention.
-    KBDIN_VER=$([ -f "$TERM_APP_DIR/lib/kbd-input.js" ] && md5sum "$TERM_APP_DIR/lib/kbd-input.js" | cut -c1-10 || echo 0)
-
     # 4a. $connection_upgrade map (only if not defined elsewhere)
     if sudo grep -rqsE 'map[[:space:]]+\$http_upgrade[[:space:]]+\$connection_upgrade' /etc/nginx/; then
         echo "   connection_upgrade map already defined elsewhere — skipping"
@@ -363,251 +684,7 @@ if (( INSTALL_NGINX )); then
             fi
         fi
     fi
-    if [ "$ENABLE_TLS" = 1 ]; then
-        lan_map="# Non-loopback (LAN) clients — used to upgrade cleartext logins to https.
-map \$remote_addr \$vt_is_lan {
-    default 1;
-    127.0.0.1 0;
-    ::1 0;
-}
-
-"
-        tls_listen="    listen 443 ssl default_server;
-    listen [::]:443 ssl default_server;
-    ssl_certificate $TLS_CERT;
-    ssl_certificate_key $TLS_KEY;
-    ssl_protocols TLSv1.2 TLSv1.3;
-"
-        # A LAN client on http reaching a credential-entry page -> https. \$vt_up
-        # is 'http1' only for http + non-loopback, so the tunnel (loopback) and the
-        # Docker->host OnlyOffice callback are never redirected. Injected into the
-        # shell-entry and login locations only (not /api).
-        tls_redirect_if="        set \$vt_up \"\$scheme\$vt_is_lan\";
-        if (\$vt_up = \"http1\") { return 301 https://\$host\$request_uri; }
-"
-    else
-        echo "   NOTE: TLS disabled — LAN logins send the Linux password over cleartext http."
-    fi
-
-    # 4b. Build port map for terminal routing
-    map_entries=""
-    for i in $(seq 1 "$MAX_INSTANCES"); do
-        map_entries+="    ~^/t${i}(/|\$)  $((BASE_PORT + i));
-"
-    done
-
-    site_config="${lan_map}# Terminal port map: /tN/ -> port BASE_PORT+N
-map \$uri \$term_port {
-    default \"\";
-$map_entries}
-
-server {
-    listen 80 default_server;
-    listen [::]:80 default_server;
-$tls_listen    server_name _;
-
-    # Don't advertise the nginx version in Server: / error pages.
-    server_tokens off;
-
-    root $LANDING_DIR;
-    index index.html;
-
-    location / {
-        try_files \$uri \$uri/ =404;
-        add_header Cache-Control 'no-cache, no-store' always;
-        # nginx gzips text/html implicitly, and nginx.conf ships gzip_types
-        # COMMENTED OUT — so every .js and .css in the web root went over the
-        # wire raw. That is ~300KB per cold desktop load (shared modules, the
-        # xpra/ttyd patch scripts) and 2.2MB for the RTS game's 117 plain
-        # scripts, all of which compress ~3x. Invisible on the LAN; the whole
-        # cost over the Cloudflare tunnel on a phone. Static files only — the
-        # sub_filter locations below re-gzip separately, after filtering, since
-        # sub_filter needs a plain upstream body.
-        gzip on;
-        gzip_types text/javascript application/javascript text/css application/json image/svg+xml;
-        gzip_min_length 1024;
-        # Security headers on the shell/static HTML. frame-ancestors 'self'
-        # blocks external sites from framing the desktop (clickjacking); the
-        # desktop frames its own same-origin app pages, so it's unaffected.
-        # (nginx drops INHERITED add_headers in any location that sets its own,
-        # so these live here next to the existing Cache-Control rather than at
-        # server scope where the proxy locations' own add_headers would void them.)
-        add_header X-Content-Type-Options 'nosniff' always;
-        add_header Referrer-Policy 'same-origin' always;
-        add_header Content-Security-Policy \"frame-ancestors 'self'\" always;
-    }
-
-    # --- Auth gate (multi-user Option B) ---------------------------------
-    # Every protected surface delegates to the manager's /api/authcheck: 200 for a
-    # valid Linux session cookie (or an allowlisted public path), else 401. The
-    # manager owns the public-path allowlist (login/health/OnlyOffice callbacks),
-    # so nginx needs only this one internal endpoint + auth_request lines.
-    # (Loopback admin tooling hits 127.0.0.1:$BASE_PORT directly, bypassing nginx
-    # and this gate — watchdog/doctor/smoke-test are unaffected.)
-    location = /internal/authcheck {
-        internal;
-        # auth_request runs this subrequest for EVERY protected request, and
-        # nginx size-checks the main request's body against THIS location's
-        # client_max_body_size (default 1M) even though the body is never
-        # forwarded here (proxy_pass_request_body off). Without a raised limit,
-        # any upload >1M gets the auth subrequest 413'd -> the whole request
-        # 500s (\"auth request unexpected status: 413\"). /api/ already allows 5G,
-        # so match it here; the body isn't sent to the manager regardless.
-        client_max_body_size 5G;
-        proxy_pass http://127.0.0.1:$BASE_PORT/api/authcheck;
-        proxy_pass_request_body off;
-        proxy_set_header Content-Length \"\";
-        proxy_set_header X-Original-URI \$request_uri;
-    }
-    # Carry where they were headed so a top-level deep link (/terminals/, /files/)
-    # comes back after sign-in instead of dumping everyone on the desktop. A FRAMED
-    # 401 lands here too, but login.html drops ?next= when it promotes sign-in to
-    # the top window — the framed sub-resource must never become the whole page.
-    location @login { return 302 /login.html?next=\$request_uri; }
-
-    # The login page — public (no auth), but LAN clients are upgraded to https so
-    # the password POST isn't sent in cleartext.
-    location = /login.html {
-$tls_redirect_if        add_header Cache-Control 'no-cache, no-store' always;
-        # This exact-match location carries its own add_header, so nginx drops every
-        # header inherited from the prefix location / block — the ONE page that takes
-        # a Linux password would otherwise be framable by any origin (clickjacked
-        # credential capture). 'self' still allows the same-origin framing that
-        # login.html's own guard busts out of.
-        # (No backticks anywhere in this string: it is double-quoted shell, so a
-        # backtick is command substitution, not punctuation. That is what broke the
-        # v1.19.30 deploy — 'location: command not found', config silently truncated.)
-        add_header X-Content-Type-Options 'nosniff' always;
-        add_header Referrer-Policy 'same-origin' always;
-        add_header Content-Security-Policy \"frame-ancestors 'self'\" always;
-        try_files /login.html =404;
-    }
-
-    # The desktop shell entry. Unauthenticated -> login. (Static assets are served
-    # by the prefix location / above and stay public; their DATA is gated at /api.)
-    location = / {
-$tls_redirect_if        auth_request /internal/authcheck;
-        error_page 401 = @login;
-        add_header Cache-Control 'no-cache, no-store' always;
-        add_header X-Content-Type-Options 'nosniff' always;
-        add_header Referrer-Policy 'same-origin' always;
-        add_header Content-Security-Policy \"frame-ancestors 'self'\" always;
-        try_files /index.html =404;
-    }
-
-    location = /terminals { return 301 /terminals/; }
-    location = /terminals/ {
-        auth_request /internal/authcheck;
-        error_page 401 = @login;
-        add_header Cache-Control 'no-cache, no-store' always;
-        rewrite ^ /terminals.html break;
-    }
-
-    # On the LAN there's no Cloudflare in front, so the desktop's logout link
-    # (/cdn-cgi/access/logout) reaches this origin and would 404. Serve a
-    # friendly signed-out page instead. Over the tunnel Cloudflare handles
-    # /cdn-cgi/* at its edge, so this block never runs there.
-    location = /cdn-cgi/access/logout {
-        add_header Cache-Control 'no-cache, no-store' always;
-        rewrite ^ /loggedout.html break;
-    }
-
-    # Terminal manager & system status API
-    location /api/ {
-        # Gate on a valid session; the manager allowlists the public API paths
-        # (login/health/OnlyOffice callbacks), so a 401 here is a real deny for a
-        # browser XHR (JS reads the 401 and redirects to login itself).
-        auth_request /internal/authcheck;
-        proxy_pass http://127.0.0.1:$BASE_PORT;
-        proxy_http_version 1.1;
-        proxy_set_header Host \$host;
-        proxy_set_header X-Real-IP \$remote_addr;
-        proxy_set_header X-Forwarded-Proto \$scheme;   # so a share link gets the right scheme
-        client_max_body_size 5G;       # allow large /api/upload posts
-        proxy_request_buffering off;   # stream upload body to the manager
-        proxy_read_timeout 3600;
-
-        # Status JSON is a few KB and polled every few seconds; gzip shrinks
-        # it ~4x (nginx won't gzip proxied responses without gzip_proxied).
-        gzip on;
-        gzip_proxied any;
-        gzip_types application/json;
-        gzip_min_length 256;
-    }
-
-    # Public file-share links (Files app) -> manager. This is the ONE path meant to
-    # be reachable WITHOUT auth (the /s/<token> capability is the gate). On the LAN
-    # nginx is the only gate, so it just works; over the Cloudflare tunnel you must
-    # add an Access Bypass app (rule Everyone) scoped to /s/ (see tunnel/README.md),
-    # or the link hits the login page. Read-only downloads: buffering off so a large
-    # file/zip streams straight through instead of spooling in nginx.
-    location /s/ {
-        # See conf.d/vibetop-upgrade.conf for the zones. burst+nodelay so a page
-        # of thumbnails or a double-click is absorbed rather than rejected; the
-        # manager's per-token semaphore is what actually stops a folder-zip flood.
-        limit_req zone=vt_share_req burst=20 nodelay;
-        limit_conn vt_share_conn 8;
-        limit_req_status 429;
-        limit_conn_status 429;
-        proxy_pass http://127.0.0.1:$BASE_PORT;
-        proxy_http_version 1.1;
-        proxy_set_header Host \$host;
-        proxy_set_header X-Real-IP \$remote_addr;
-        proxy_set_header X-Forwarded-Proto \$scheme;
-        proxy_buffering off;
-        proxy_read_timeout 3600;
-    }
-
-    # Dynamic terminal routing: /tN/ -> the PER-USER ttyd port. The authcheck
-    # subrequest resolves the logged-in user's terminal N (starting it on demand)
-    # and returns it in X-Term-Port, which we route to. (The \$term_port map above
-    # is retained but unused — routing is by identity now, not by N alone.)
-    location ~ ^/t(\d+)/(.*)$ {
-        auth_request /internal/authcheck;
-        auth_request_set \$tport \$upstream_http_x_term_port;
-        error_page 401 = @login;
-        proxy_pass http://127.0.0.1:\$tport;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade \$http_upgrade;
-        proxy_set_header Connection \$connection_upgrade;
-        proxy_set_header Host \$host;
-        proxy_set_header X-Real-IP \$remote_addr;
-        proxy_set_header Accept-Encoding \"\";
-        proxy_read_timeout 86400;
-        proxy_send_timeout 86400;
-        proxy_buffering off;
-        # Never let the browser cache the /tN/ page — it carries the sub_filter
-        # injections (clipboard, reconnect, mobile kbd), so a stale cache means a
-        # reload silently keeps old behaviour.
-        add_header Cache-Control 'no-store' always;
-
-        # ttyd's page is a single ~240KB HTML (xterm.js inlined), served
-        # uncompressed because sub_filter needs a plain upstream body. Re-gzip
-        # the filtered output to the client — on slow/mobile links the
-        # uncompressed page was the terminal's whole time-to-content.
-        # WebSocket frames are unaffected.
-        gzip on;
-        gzip_proxied any;
-        # text/html is ALWAYS gzipped by nginx and is implicit in gzip_types;
-        # naming it emits a duplicate-MIME-type warning on every config test.
-        # (No backticks in this heredoc: it is a double-quoted shell string, so
-        # they would run as command substitution at install time.)
-        gzip_types text/javascript application/javascript text/css application/json;
-        gzip_min_length 1024;
-
-        sub_filter 'fontSize:13,' 'fontSize:13,scrollback:$SCROLLBACK,cursorStyle:\"bar\",cursorInactiveStyle:\"bar\",';
-        # Allow the connection guard to use ttyd's own reconnect path.
-        sub_filter 'this.terminal=new' '(window.__vibetopTtyd=this),this.terminal=new';
-        sub_filter '</head>' '<script>(function(){var isMac=/Mac/.test(navigator.platform);var isTouch=window.matchMedia&&window.matchMedia(\"(pointer: coarse)\").matches;var blockTa=true;var _ec=document.execCommand.bind(document);document.execCommand=function(c){if(c===\"copy\"&&!window.__allowCopy)throw 0;return _ec.apply(document,arguments)};if(isTouch){document.addEventListener(\"focusin\",function(e){var t=e.target;if(blockTa&&t&&t.classList&&t.classList.contains(\"xterm-helper-textarea\")){var o=window.__termOverlay;if(window.__termArmed&&o&&document.activeElement!==o){window.__termBouncing=1;try{o.focus({preventScroll:true})}catch(_){try{o.focus()}catch(__){t.blur()}}window.__termBouncing=0}else{t.blur()}}},true)}function copySelection(){var t=window.term;if(!t||!t.hasSelection())return;var s=t.getSelection();if(!s)return;var ta=document.querySelector(\".xterm-helper-textarea\");if(ta){ta.value=s;blockTa=false;ta.select();try{window.__allowCopy=true;document.execCommand(\"copy\")}finally{window.__allowCopy=false;blockTa=true;ta.value=\"\"}}}var check=setInterval(function(){if(!window.term)return;clearInterval(check);var t=window.term;t.attachCustomKeyEventHandler(function(e){if(e.type!==\"keydown\")return true;var mod=isMac?e.metaKey:e.ctrlKey;if(!mod||e.shiftKey||e.altKey)return true;if(isMac&&e.ctrlKey)return true;if(e.key===\"c\"){if(t.hasSelection()){copySelection();t.clearSelection();e.preventDefault();return false}if(isMac){e.preventDefault();return false}return true}if(e.key===\"v\"||e.key===\"V\"){if(!isMac)return false;var ta=document.querySelector(\".xterm-helper-textarea\");if(ta){ta.value=\"\";ta.focus()}return true}return true})},100);document.addEventListener(\"auxclick\",function(e){if(e.button!==1)return;e.preventDefault();var ta=document.querySelector(\".xterm-helper-textarea\");if(ta){ta.value=\"\";ta.focus()}});function sendToBrowser(u){fetch(\"/api/browser/open\",{method:\"POST\",headers:{\"Content-Type\":\"application/json\"},body:JSON.stringify({url:u})});try{window.top.postMessage({type:\"switch-to-browser\"},\"*\")}catch(e){}}var wo=window.open;window.open=function(u){if(u&&(u.startsWith(\"http://\")||u.startsWith(\"https://\"))){sendToBrowser(u);return null}if(!u){return{opener:null,location:Object.defineProperty({},\"href\",{set:function(v){sendToBrowser(v)}})}}return wo.apply(this,arguments)}})();</script><script src=\"/terminal-connection.js?v=${CONN_VER}\"></script><script src=\"/terminal-resume.js?v=${RESUME_VER}\"></script><script src=\"/coach.js\"></script><script src=\"/kbd-input.js?v=${KBDIN_VER}\"></script><script src=\"/terminal-kbd.js?v=${KBD_VER}\"></script></head>';
-        sub_filter_once off;
-    }
-    location ~ ^/t(\d+)$ { return 301 \$scheme://\$host/t\$1/; }
-
-    # Sibling projects (e.g. vibetop-browser) drop /etc/nginx/snippets/vibetop-extras.d/*.conf
-    # to add their own location blocks without modifying this file.
-    include /etc/nginx/snippets/vibetop-extras.d/*.conf;
-}
-"
+    render_nginx_site
     run sudo install -d -m 0755 /etc/nginx/snippets/vibetop-extras.d
     # Debian: sites-available + a sites-enabled symlink. RHEL/Fedora: conf.d only
     # — nginx.conf there includes `conf.d/*.conf` and has NO sites-enabled
@@ -723,7 +800,11 @@ PYEOF
             "$TERM_APP_DIR/lib/kbd-input.js" "$LANDING_DIR/kbd-input.js"
     fi
     run sudo install -o "$APP_USER" -g "$APP_USER" -m 0644 \
+        "$TERM_APP_DIR/terminal-http.js" "$LANDING_DIR/terminal-http.js"
+    run sudo install -o "$APP_USER" -g "$APP_USER" -m 0644 \
         "$TERM_APP_DIR/terminal-connection.js" "$LANDING_DIR/terminal-connection.js"
+    run sudo install -o "$APP_USER" -g "$APP_USER" -m 0644 \
+        "$TERM_APP_DIR/terminal-profile.js" "$LANDING_DIR/terminal-profile.js"
     run sudo install -o "$APP_USER" -g "$APP_USER" -m 0644 \
         "$TERM_APP_DIR/terminal-frame.js" "$LANDING_DIR/terminal-frame.js"
     run sudo install -o "$APP_USER" -g "$APP_USER" -m 0644 \

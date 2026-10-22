@@ -36,6 +36,10 @@ info() { printf '  %sINFO%s  %s\n' "$(c b)" "$(c 0)" "$1"; }
 skip() { printf '  ---   %s\n' "$1"; }
 head_() { printf '\n%s── %s%s\n' "$(c b)" "$1" "$(c 0)"; }
 
+if [ -e /var/lib/vibetop/browser-proxy-deploy/pending.json ]; then
+    adv "Browser Lite activation is pending. If the Update watchdog has ended, repair any nginx -t error, then run sudo $ROOT/apps/everyday/browser-lite/install.sh --recover"
+fi
+
 have() { command -v "$1" >/dev/null 2>&1; }
 unit_exists() { [ -f "/etc/systemd/system/$1" ]; }
 
@@ -333,6 +337,13 @@ else
         # trap: without the DEPLOYED version changing, no client auto-refreshes.
         src_sw="$(sed -n "s/^const VERSION = '\(v[0-9]*\)'.*/\1/p" "$ROOT/shell/sw.js" 2>/dev/null | head -1)"
         dep_sw="$(sed -n "s/^const VERSION = '\(v[0-9]*\)'.*/\1/p" "$WEBROOT/sw.js" 2>/dev/null | head -1)"
+        # Partial deploys can update sw.js while leaving the HTML stamp behind.
+        # The shell then reloads repeatedly and trips its refresh circuit breaker.
+        shell_stamp="$(sed -n "s/.*var STAMPED_SHELL_VER = '\(v[0-9]*\)'.*/\1/p" "$WEBROOT/index.html" 2>/dev/null | head -1)"
+        if [ -n "$dep_sw" ] && [ -n "$shell_stamp" ]; then
+            [ "$shell_stamp" = "$dep_sw" ] && ok "desktop HTML stamp matches sw.js ($dep_sw)" \
+                || bad "desktop HTML stamp $shell_stamp differs from sw.js $dep_sw — repeated reloads disable automatic refresh; re-run shell/install.sh"
+        fi
         if [ -n "$src_sw" ] && [ -n "$dep_sw" ]; then
             [ "$src_sw" = "$dep_sw" ] && ok "deployed sw.js matches the checkout ($dep_sw)" \
                 || adv "checkout has sw.js $src_sw but $dep_sw is deployed — clients won't auto-refresh until shell/install.sh runs"

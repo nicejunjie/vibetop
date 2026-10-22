@@ -313,9 +313,16 @@ def test_disconnecting_small_client_restores_remaining_pty_size(tmp_path, discon
         shell_pid = int(child_file.read_text().split()[0])
 
         def size_is(rows, cols):
-            fd = os.open(f'/proc/{shell_pid}/fd/0', os.O_RDONLY | os.O_NOCTTY)
+            # Under load the forked child can be observed before it has made
+            # the PTY its stdin; that is "not yet", for eventually() to retry.
+            try:
+                fd = os.open(f'/proc/{shell_pid}/fd/0', os.O_RDONLY | os.O_NOCTTY)
+            except OSError:
+                return False
             try:
                 return struct.unpack('HHHH', fcntl.ioctl(fd, termios.TIOCGWINSZ, b'\0' * 8))[:2] == (rows, cols)
+            except OSError:
+                return False
             finally:
                 os.close(fd)
 

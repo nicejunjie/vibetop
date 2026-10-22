@@ -1,0 +1,25 @@
+diff --git a/src/build.js b/src/build.js
+index c6d1c4a..ba69c2a 100644
+--- a/src/build.js
++++ b/src/build.js
+@@ -12,7 +12,7 @@ fs.writeFileSync(
+         // part of fix for iframing issue
+         .replace('(function initHammerheadClient () {', '(function initHammerheadClient () {' +
+             'if (window["%is-hammerhead%"]) throw new TypeError("already ran"); window["%is-hammerhead%"] = true;' +
+-            'window.rammerheadTop = (function() {var w = window; while (w !== w.top && w.parent["%hammerhead"]) w = w.parent; return w;})();' +
++            'window.rammerheadTop = (function() {var w = window; while (w !== w.top) { try { if (!w.parent["%hammerhead%"]) break; w = w.parent; } catch(e) { break; } } return w;})();' +
+             'window.rammerheadParent = window.rammerheadTop === window ? window : window.parent;' +
+             'window.distanceRammerheadTopToTop = (function() { var i=0,w=window; while (w !== window.top) {i++;w=w.parent} return i; })();' +
+             'window.rammerheadAncestorOrigins = Array.from(location.ancestorOrigins).slice(0, -window.distanceRammerheadTopToTop);\n')
+@@ -44,6 +44,11 @@ fs.writeFileSync(
+             '!(() => { try{ return $1[$2]; }catch(error){ return true } })()'
+         )
+ 
++        // Modern WebKit may expose CSS properties through a prototype instead
++        // of own descriptors. Use the existing style Proxy fallback in that case.
++        .replace('if (testDivDescriptor.configurable)', 'if (testDivDescriptor && testDivDescriptor.configurable)')
++        .replace('!testDivDescriptor.configurable || !propertySetterIsCalled_1', '!testDivDescriptor || !testDivDescriptor.configurable || !propertySetterIsCalled_1')
++
+         // disable saving to localStorage as we are using a completely different implementation
+         .replace('saveToNativeStorage = function () {', 'saveToNativeStorage = function () {return;')
+ 

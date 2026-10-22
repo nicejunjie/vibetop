@@ -1266,8 +1266,10 @@ def cmd_attach(instance, resume=False):
     # A passive connection observes the current owner's screen. User-driven
     # resize/claim signals select this client; keyboard/click handlers nudge
     # ttyd's PTY even when its local geometry hasn't otherwise changed.
-    send_resize(claim=False)
+    # Install the handler first: once .view exists a resize may arrive, and
+    # SIGWINCH's default disposition would silently drop it.
     signal.signal(signal.SIGWINCH, lambda *_: send_resize())
+    send_resize(claim=False)
 
     old_attrs = termios.tcgetattr(stdin_fd)
     attrs = termios.tcgetattr(stdin_fd)

@@ -13,10 +13,13 @@ import sys
 import tempfile
 import time
 import urllib.request
+from pathlib import Path
+
+from browser_proxy_deploy import production_activation
 
 
 def run(argv, **kw):
-    return subprocess.run(argv, check=True, timeout=180, **kw)
+    return subprocess.run(argv, check=kw.pop("check", True), timeout=180, **kw)
 
 
 def healthy(port):
@@ -96,15 +99,20 @@ def main():
             or not port_text.isdecimal() or not 1 <= int(port_text) <= 65535):
         raise SystemExit("invalid update arguments")
     port = int(port_text)
+    activation = production_activation(port) if Path('/var/lib/vibetop/browser-proxy-deploy/pending.json').exists() else None
     try:
         run(["systemctl", "restart", "vibetop-manager.service"])
         if healthy(port):
+            if activation:
+                activation.finish()
             print("update watchdog: manager healthy at", after, flush=True)
             return 0
-    except (OSError, subprocess.SubprocessError) as e:
+    except (OSError, subprocess.SubprocessError, RuntimeError, ValueError) as e:
         print("update watchdog: restart failed:", e, flush=True)
     print("update watchdog: manager unhealthy; restoring", before, flush=True)
     try:
+        if activation:
+            activation.rollback(refresh_manager=False)
         restore(repo, user, before, after)
     except Exception:
         # A redeploy can fail independently of the code. Even then, starting

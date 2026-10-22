@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_389 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_488 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [Terminal link opened a closed Browser app but lost the URL](#terminal-link-opened-a-closed-browser-app-but-lost-the-url)
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
@@ -412,6 +412,105 @@ _389 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [RTS: the Grand Cannon's gun was too short and it fired like a rifle (2026-09-25)](#rts-the-grand-cannons-gun-was-too-short-and-it-fired-like-a-rifle-2026-09-25)
 - [RTS: the Prism Tower was drawn from a DAMAGED frame (w26, 2026-09-26)](#rts-the-prism-tower-was-drawn-from-a-damaged-frame-w26-2026-09-26)
 - [Monitor showed an idle GPU while the second card was fully occupied (2026-10-06)](#monitor-showed-an-idle-gpu-while-the-second-card-was-fully-occupied-2026-10-06)
+- [Monitor ignored data disks and mixed filesystem space with parent-drive I/O (2026-10-06)](#monitor-ignored-data-disks-and-mixed-filesystem-space-with-parent-drive-io-2026-10-06)
+- [Monitor hid other GPU temperatures behind a dropdown and wasted rows on watts (2026-10-06)](#monitor-hid-other-gpu-temperatures-behind-a-dropdown-and-wasted-rows-on-watts-2026-10-06)
+- [Monitor chart axes used arbitrary sampled values as tick bounds (2026-10-06)](#monitor-chart-axes-used-arbitrary-sampled-values-as-tick-bounds-2026-10-06)
+- [Monitor treated partitions as separate physical disks (2026-10-06)](#monitor-treated-partitions-as-separate-physical-disks-2026-10-06)
+- [Mobile terminal resume waited twelve seconds at the reconnect overlay (2026-10-06)](#mobile-terminal-resume-waited-twelve-seconds-at-the-reconnect-overlay-2026-10-06)
+- [Mobile reconnect still hit the startup timeout for non-clean closes (2026-10-06)](#mobile-reconnect-still-hit-the-startup-timeout-for-non-clean-closes-2026-10-06)
+- [Mobile history reading jumped to older content on repaint (2026-10-06)](#mobile-history-reading-jumped-to-older-content-on-repaint-2026-10-06)
+- [Multi-photo downloads could not save into iPhone Photos (2026-10-06)](#multi-photo-downloads-could-not-save-into-iphone-photos-2026-10-06)
+- [Download keeps selected files in their original form (2026-10-06)](#download-keeps-selected-files-in-their-original-form-2026-10-06)
+- [iPhone Download opens the native share sheet in one tap (2026-10-06)](#iphone-download-opens-the-native-share-sheet-in-one-tap-2026-10-06)
+- [Terminal reconnect returns to latest rather than a saved reading location (2026-10-06)](#terminal-reconnect-returns-to-latest-rather-than-a-saved-reading-location-2026-10-06)
+- [Profile real terminal connection cases for one day (2026-10-06)](#profile-real-terminal-connection-cases-for-one-day-2026-10-06)
+- [Following latest survives redraws after connection settling (2026-10-07)](#following-latest-survives-redraws-after-connection-settling-2026-10-07)
+- [Capture actual scroll shifts before declaring terminal jumping resolved (2026-10-07)](#capture-actual-scroll-shifts-before-declaring-terminal-jumping-resolved-2026-10-07)
+- [Trace application redraws even when browser scroll stays latest (2026-10-07)](#trace-application-redraws-even-when-browser-scroll-stays-latest-2026-10-07)
+- [Do not match repeated headings during a split history redraw (2026-10-07)](#do-not-match-repeated-headings-during-a-split-history-redraw-2026-10-07)
+- [Redraw timeout must recover the reading position before uncovering it (2026-10-07)](#redraw-timeout-must-recover-the-reading-position-before-uncovering-it-2026-10-07)
+- [Typing explicitly leaves terminal history reading (2026-10-07)](#typing-explicitly-leaves-terminal-history-reading-2026-10-07)
+- [Terminal closed transport recovery and mobile foreground reuse (2026-10-07)](#terminal-closed-transport-recovery-and-mobile-foreground-reuse-2026-10-07)
+- [Recover the ttyd transport without rebuilding its page (2026-10-08)](#recover-the-ttyd-transport-without-rebuilding-its-page-2026-10-08)
+- [Mobile reconnect redraws at the visible client's geometry (2026-10-08)](#mobile-reconnect-redraws-at-the-visible-clients-geometry-2026-10-08)
+- [Terminal HTTPS fallback when WebSocket establishment stalls](#terminal-https-fallback-when-websocket-establishment-stalls)
+- [Check the served desktop stamp against the deployed update signal](#check-the-served-desktop-stamp-against-the-deployed-update-signal)
+- [Stream fallback output and batch queued terminal input](#stream-fallback-output-and-batch-queued-terminal-input)
+- [Install the attach SIGWINCH handler before publishing its view](#install-the-attach-sigwinch-handler-before-publishing-its-view)
+- [Browser Lite: remote execution with client DOM rendering](#browser-lite-remote-execution-with-client-dom-rendering)
+- [Browser Lite client rendering requires real origin boundaries](#browser-lite-client-rendering-requires-real-origin-boundaries)
+- [Browser rewriting must test modern scripts and nested frames as executable code](#browser-rewriting-must-test-modern-scripts-and-nested-frames-as-executable-code)
+- [Browser WebSocket upgrades need native Origin proof and one authorization pass](#browser-websocket-upgrades-need-native-origin-proof-and-one-authorization-pass)
+- [Embedded sign-in renewal must preserve the existing page](#embedded-sign-in-renewal-must-preserve-the-existing-page)
+- [Browser message target mapping must not probe other origins](#browser-message-target-mapping-must-not-probe-other-origins)
+- [Browser releases must switch runtime and UI assets deliberately](#browser-releases-must-switch-runtime-and-ui-assets-deliberately)
+- [Browser Lite activation must preserve the installed main site and prove adoption](#browser-lite-activation-must-preserve-the-installed-main-site-and-prove-adoption)
+- [Browser Lite SPA Back discarded unsaved state (2026-10-13)](#browser-lite-spa-back-discarded-unsaved-state-2026-10-13)
+- [Browser Lite regeneration invented optional-chain guards (2026-10-13)](#browser-lite-regeneration-invented-optional-chain-guards-2026-10-13)
+- [Browser Lite optional calls lost short-circuiting and routing (2026-10-13)](#browser-lite-optional-calls-lost-short-circuiting-and-routing-2026-10-13)
+- [Browser Lite extracted postMessage changed its target (2026-10-13)](#browser-lite-extracted-postmessage-changed-its-target-2026-10-13)
+- [Browser Lite classic-worker dynamic imports bypassed rewriting (2026-10-13)](#browser-lite-classic-worker-dynamic-imports-bypassed-rewriting-2026-10-13)
+- [Browser Lite Worker URL conversion accepted Symbols (2026-10-13)](#browser-lite-worker-url-conversion-accepted-symbols-2026-10-13)
+- [Browser Lite Worker preparation must follow argument conversion (2026-10-13)](#browser-lite-worker-preparation-must-follow-argument-conversion-2026-10-13)
+- [Browser Lite Blob scheme spelling bypassed preparation (2026-10-13)](#browser-lite-blob-scheme-spelling-bypassed-preparation-2026-10-13)
+- [Browser Lite processed-script cache omitted tab identity (2026-10-13)](#browser-lite-processed-script-cache-omitted-tab-identity-2026-10-13)
+- [Browser Lite slow-network harness was Chromium-only (2026-10-13)](#browser-lite-slow-network-harness-was-chromium-only-2026-10-13)
+- [Browser Lite module redirects lost processing metadata (2026-10-13)](#browser-lite-module-redirects-lost-processing-metadata-2026-10-13)
+- [Browser Lite module workers need a graph-wide runtime (2026-10-13)](#browser-lite-module-workers-need-a-graph-wide-runtime-2026-10-13)
+- [Module-worker dependencies carry worker/cors Fetch Metadata (2026-10-13)](#module-worker-dependencies-carry-workercors-fetch-metadata-2026-10-13)
+- [Browser Lite module preparation must reject unsupported syntax (2026-10-13)](#browser-lite-module-preparation-must-reject-unsupported-syntax-2026-10-13)
+- [Browser Lite dynamic import helpers must preserve native rejection (2026-10-13)](#browser-lite-dynamic-import-helpers-must-preserve-native-rejection-2026-10-13)
+- [Browser Lite strict module parsing must guard the actual parser result](#browser-lite-strict-module-parsing-must-guard-the-actual-parser-result)
+- [Browser Lite module URL classification must use native URL parsing](#browser-lite-module-url-classification-must-use-native-url-parsing)
+- [Browser Lite module processing must preserve module grammar and source text](#browser-lite-module-processing-must-preserve-module-grammar-and-source-text)
+- [Browser Lite worker containment must cover classic descendants too](#browser-lite-worker-containment-must-cover-classic-descendants-too)
+- [Browser Lite worker WebSockets need their own native constructor routing](#browser-lite-worker-websockets-need-their-own-native-constructor-routing)
+- [Browser Lite realm wildcard must exclude trusted sibling services](#browser-lite-realm-wildcard-must-exclude-trusted-sibling-services)
+- [Do not add ttyd --check-origin while the HTTPS fallback bridges ttyd](#do-not-add-ttyd---check-origin-while-the-https-fallback-bridges-ttyd)
+- [Browser Lite srcdoc iframes must bootstrap from the native parent](#browser-lite-srcdoc-iframes-must-bootstrap-from-the-native-parent)
+- [Browser Lite rewrites HLS playlists for native players](#browser-lite-rewrites-hls-playlists-for-native-players)
+- [Browser Lite sends sync cookies only where a page can read them](#browser-lite-sends-sync-cookies-only-where-a-page-can-read-them)
+- [Browser Lite keeps saved tabs on the server too](#browser-lite-keeps-saved-tabs-on-the-server-too)
+- [Browser Lite reloads a forgotten tab instead of saying "session ended"](#browser-lite-reloads-a-forgotten-tab-instead-of-saying-session-ended)
+- [Browser Lite names third-party hosts in the page (no sync round trip)](#browser-lite-names-third-party-hosts-in-the-page-no-sync-round-trip)
+- [Browser Lite rewrites URLs inside <template>](#browser-lite-rewrites-urls-inside-template)
+- [Browser Lite proxies the URL attributes the engine left native](#browser-lite-proxies-the-url-attributes-the-engine-left-native)
+- [Browser Lite follows same-frame links by replacement](#browser-lite-follows-same-frame-links-by-replacement)
+- [Browser Lite realm hosts use 64k nginx header buffers](#browser-lite-realm-hosts-use-64k-nginx-header-buffers)
+- [Browser Lite parses srcset like a browser, not by splitting on commas](#browser-lite-parses-srcset-like-a-browser-not-by-splitting-on-commas)
+- [Browser Lite treats _top and _parent as the tab](#browser-lite-treats-top-and-parent-as-the-tab)
+- [Browser Lite hands Google sign-in to the real Browser](#browser-lite-hands-google-sign-in-to-the-real-browser)
+- [Browser Lite borrows site logins from the full Browser, never Google's](#browser-lite-borrows-site-logins-from-the-full-browser-never-googles)
+- [Browser Lite egress queues connections past its limit](#browser-lite-egress-queues-connections-past-its-limit)
+- [Browser Lite memoizes Hammerhead's client cookie probe and skips identical syncs](#browser-lite-memoizes-hammerheads-client-cookie-probe-and-skips-identical-syncs)
+- [Browser Lite gives toolbar navigations a fresh frame](#browser-lite-gives-toolbar-navigations-a-fresh-frame)
+- [Browser Lite's runtime survives a bad redirect and recovers from crash loops](#browser-lites-runtime-survives-a-bad-redirect-and-recovers-from-crash-loops)
+- [Browser Lite offers the full Browser on bot walls and never shares clearance cookies](#browser-lite-offers-the-full-browser-on-bot-walls-and-never-shares-clearance-cookies)
+- [Browser Lite maps realm-root URLs back to the site on port 443](#browser-lite-maps-realm-root-urls-back-to-the-site-on-port-443)
+- [Browser Lite proxies SVG 2 `href` references](#browser-lite-proxies-svg-2-href-references)
+- [Browser Lite treats `setAttribute('srcSet', …)` as a srcset](#browser-lite-treats-setattributesrcset-as-a-srcset)
+- [Browser Lite listens for the fresh frame's load only after the swap](#browser-lite-listens-for-the-fresh-frames-load-only-after-the-swap)
+- [Browser Lite pages see themselves as top-level](#browser-lite-pages-see-themselves-as-top-level)
+- [Browser Lite reuses upstream connections through the egress](#browser-lite-reuses-upstream-connections-through-the-egress)
+- [Browser Lite rewrites large scripts on worker threads](#browser-lite-rewrites-large-scripts-on-worker-threads)
+- [Browser Lite caches rewritten scripts (the cache never returned)](#browser-lite-caches-rewritten-scripts-the-cache-never-returned)
+- [Browser Lite offers Chrome's TLS ciphers upstream (Yahoo Finance charts)](#browser-lite-offers-chromes-tls-ciphers-upstream-yahoo-finance-charts)
+- [Browser Lite holds a message until its sender's origin is known](#browser-lite-holds-a-message-until-its-senders-origin-is-known)
+- [Browser Lite starts blob workers before their source is uploaded](#browser-lite-starts-blob-workers-before-their-source-is-uploaded)
+- [Browser Lite caches element URL getters (Yahoo Finance search)](#browser-lite-caches-element-url-getters-yahoo-finance-search)
+- [Browser Lite page back buttons (X's back arrow did nothing)](#browser-lite-page-back-buttons-xs-back-arrow-did-nothing)
+- [A stuck site must not freeze Vibetop (Browser Lite isolation)](#a-stuck-site-must-not-freeze-vibetop-browser-lite-isolation)
+- [Browser Lite keeps `async` on regenerated async generator methods (TradingView)](#browser-lite-keeps-async-on-regenerated-async-generator-methods-tradingview)
+- [Browser Lite returns original source from Function.prototype.toString](#browser-lite-returns-original-source-from-functionprototypetostring)
+- [Browser Lite sends a small pass-through body in one write](#browser-lite-sends-a-small-pass-through-body-in-one-write)
+- [Browser Lite realm hosts accept large cookie headers (investing.com 400)](#browser-lite-realm-hosts-accept-large-cookie-headers-investingcom-400)
+- [Browser Lite proxies scripted images and video posters](#browser-lite-proxies-scripted-images-and-video-posters)
+- [Browser Lite proxies media-session artwork and notification icons](#browser-lite-proxies-media-session-artwork-and-notification-icons)
+- [Browser Lite keeps SVG same-document references and proxies new Audio()](#browser-lite-keeps-svg-same-document-references-and-proxies-new-audio)
+- [Browser Lite allows 512 in-flight requests per user](#browser-lite-allows-512-in-flight-requests-per-user)
+- [Browser Lite calls rewritten methods with a captured Reflect.apply (Xiaohongshu)](#browser-lite-calls-rewritten-methods-with-a-captured-reflectapply-xiaohongshu)
+- [Browser Lite site pages carry an enforcing CSP limited to Lite's hosts](#browser-lite-site-pages-carry-an-enforcing-csp-limited-to-lites-hosts)
+- [Browser Lite does not run Alibaba Cloud's WAF challenge; names eastmoney's captcha](#browser-lite-does-not-run-alibaba-clouds-waf-challenge-names-eastmoneys-captcha)
 
 <!-- END TOC -->
 
@@ -17793,3 +17892,2200 @@ history to establish device identity, and reject responses from an earlier span.
 and suggests that separate VRAM pools are interchangeable. Adding positional
 GPU1/GPU2 fields would swap identities when enumeration changes. Reformatting the
 host ring would discard unrelated CPU, disk, network and wall-power history.
+
+
+## Monitor ignored data disks and mixed filesystem space with parent-drive I/O (2026-10-06)
+
+**Symptom:** Monitor only showed the root filesystem, although the host also had
+a separate 7.3TB disk mounted at `/data`.
+
+**Cause:** space always came from `statvfs('/')`; I/O matched only the parent
+of the root partition in `/proc/diskstats`. Neither collection nor history had
+an inventory or a per-device delta window.
+
+**Fix:** discover local block filesystems via mountinfo and sysfs, using UUIDs
+for persistent identity when available. Deduplicate bind mounts and subvolumes
+sharing a block device, filter pseudo/loop mounts, and expose unmounted whole
+devices for I/O without inventing used space. Read each selected filesystem's
+own block-device I/O, with separate cached delta windows and gaps for missing or
+reset counters. Add a disk selector and per-volume live/persisted histories,
+with no device-count ceiling. Preserve legacy root scalars for the desktop tray.
+
+**Rejected:** summing physical disks and their partitions double-counts traffic
+and capacity. Adding `/data` as a special case would fail on the next host.
+Using enumeration indices for history assigns one drive's readings to another
+when disks are added or renamed. Reusing the old root history for every volume
+would fabricate each new disk's past.
+
+
+## Monitor hid other GPU temperatures behind a dropdown and wasted rows on watts (2026-10-06)
+
+**Symptom:** viewing GPU2 required a dropdown; Temperature showed only the chosen
+GPU. Each GPU's watt reading occupied its own row, wasting chart space.
+
+**Cause:** the layout reused one set of bars/chart/readings for the selected GPU,
+even though separate per-device histories were already available. CPU temperature
+collection stopped at the first AMD k10temp sensor and never enumerated Intel
+packages or additional sockets.
+
+**Fix:** show each discrete GPU's bars and miniature chart together, without any
+GPU switching. Temperature plots every CPU package and discrete GPU, with a
+matching compact colored legend. Discover AMD and Intel package sensors and
+record CPU histories by device identity. Put GPU watt readings horizontally and
+replace disk dropdowns with buttons. Reserve chart heights on desktop/tablet;
+stack all GPU sections on phones and allow scrolling for larger inventories.
+
+**Rejected:** a GPU button switch would still hide the other device. Counting
+Intel core sensors as CPUs would inflate package counts. Squeezing arbitrarily
+many cards into a fixed height would collapse their charts.
+
+
+## Monitor chart axes used arbitrary sampled values as tick bounds (2026-10-06)
+
+**Symptom:** chart ticks followed raw sample peaks, producing awkward labels such
+as 12.0 MB/s or an arbitrary watt count rather than clean reference values.
+
+**Cause:** power and rate domains were the peak times 1.2. Labels formatted those
+raw bounds, and temperature was fixed at 0/55/110°C.
+
+**Fix:** round chart domains upward to a 1/2/5-based bound before drawing and
+labeling. Use one shared unit for both rate ticks, clean numeric formatting,
+and a default temperature domain of 0/50/100°C that expands for hotter samples.
+Keep live readings precise.
+
+**Rejected:** rounding only labels would place a reading against an axis whose
+numbers do not describe its plotted position. Rounding down could clip peaks.
+
+
+## Monitor treated partitions as separate physical disks (2026-10-06)
+
+**Symptom:** the Disk buttons listed `/`, `/boot/efi` and `/data`, although the
+first two occupy the same NVMe drive. Users wanted one entry per physical disk.
+
+**Cause:** the inventory described mounted block filesystems, with UUID identity
+and partition I/O. This was useful for volume space but obscured drive topology.
+
+**Fix:** discover physical drives through sysfs, map partitions to parents and
+resolve dm/RAID slaves recursively. Group mount points under drive-name buttons,
+show physical capacity separately from summed mounted-filesystem usage and read
+whole-drive counters. Deduplicate filesystem aliases and leave shared filesystem
+space unknown rather than attributing the entire pool to each member. Use WWID
+or serial identities in a distinct physical namespace for new histories.
+
+**Rejected:** hiding only `/boot/efi` would leave every other partition duplicated.
+Summing whole-drive and partition counters double-counts traffic. Reusing old
+partition ring identities would silently label their past as whole-drive I/O.
+
+
+## Mobile terminal resume waited twelve seconds at the reconnect overlay (2026-10-06)
+
+**Symptom:** an iPhone screenshot showed both “Connecting to terminal…” and
+“Press Enter to Reconnect”. Logs showed closed connections waiting 12 seconds,
+then recovering in roughly 0.5–1.7 seconds after the frame reloaded.
+
+**Cause:** ttyd automatically retries abnormal disconnects, but a clean code-1000
+close waits for user input. The guard applied its startup timeout to that already
+closed socket, adding the full timeout to the common mobile suspend/resume path.
+
+**Fix:** record close codes and promptly reload only a cleanly closed terminal
+frame while visible, on the next 500ms tick or foreground event. Keep the
+12-second startup/handshake deadline and allow abnormal-close native reconnects.
+Pause background recovery, retain the three-attempt limit and clear it only after
+real PTY output. Never time out a quiet established connection.
+
+**Rejected:** synthesizing Enter could submit terminal input. Lowering every
+startup timeout would interrupt valid slow handshakes. Restarting the shell would
+lose the user's session rather than repairing its browser connection.
+
+
+## Mobile reconnect still hit the startup timeout for non-clean closes (2026-10-06)
+
+**Symptom:** after the clean-close fix, phone logs still showed 12-second waits
+with an already closed socket, followed by first output in 0.8–0.9 seconds.
+The phone had fetched the new guard, ruling out stale assets for those frames.
+
+**Cause:** the fast path covered code 1000 alone. WebKit can close without a
+status or report an abnormal close after suspension; its close event can also
+arrive later than the foreground event. Native reconnect is not guaranteed.
+
+**Fix:** promptly recover no-status closes, check actual CLOSED state on foreground
+return instead of relying on event delivery, and allow native abnormal-close
+reconnect for three seconds before a four-second fallback. Keep the 12-second
+startup deadline. Record close codes without terminal content so future incidents
+can distinguish close paths. Preserve bounded retries and never send Enter.
+
+**Rejected:** assuming all mobile closes use code 1000 left an observed failure
+untouched. Blaming bandwidth would not explain the closed-state wait followed by
+sub-second first output. Immediate reload on every abnormal close would race
+healthy native reconnects, so that path retains a short grace period.
+
+
+## Mobile history reading jumped to older content on repaint (2026-10-06)
+
+**Symptom:** while browsing terminal history on a phone, the Codex conversation
+periodically jumped to an older passage. This was deliberate history reading,
+not a request to keep following the newest output.
+
+**Cause:** the helper remembered only whether the viewport was at the bottom.
+A replay or repaint could replace the buffer and reset its viewport row; leaving
+a non-following viewport alone then displayed older content. Generic key/touch
+activity also misclassified automatic viewport changes as history navigation.
+
+**Fix:** capture the passage on actual wheel/key/drag navigation. Use xterm
+markers to preserve it during live writes and nearby-line fingerprints to find
+it after replay or frame reload, including a trimmed history prefix. Persist
+only a small reading anchor locally in sessionStorage, never in server logs.
+Replay retries of an initial activation preserve the restored passage; a later
+explicit activation retains the existing latest-output behavior. Returning to
+the bottom clears the anchor. Preserve already deployed keyboard/size helpers.
+
+**Rejected:** forcing the bottom would interrupt the history the user wanted to
+read. Saving only viewportY or a distance from the bottom would select different
+text when a replay trims old lines or new output extends the buffer.
+
+## Multi-photo downloads could not save into iPhone Photos (2026-10-06)
+
+**Symptom:** selecting multiple photos and choosing Download on an iPhone did
+not offer saving them into Photos.
+
+**Cause:** multi-selection Download intentionally creates one ZIP archive.
+The iPhone share sheet receives an archive, not individual images. Fetching
+large files before calling share also risks exhausting transient activation.
+
+**Fix:** offer Save to Photos for an iOS selection consisting entirely of
+supported image files. Fetch the original files separately with explicit image
+MIME types, then enable a fresh button that synchronously calls native Web Share
+with the File array. Explain the Save Image/Save Images choice in the system
+sheet. Preparation can be cancelled, and incomplete or unsupported selections
+never share. Keep Download available for intentional ZIP exports.
+
+**Rejected:** a website cannot silently write to the iPhone photo library;
+renaming a ZIP or giving it an image MIME type does not make it importable.
+
+## Download keeps selected files in their original form (2026-10-06)
+
+**Symptom:** the additional Save to Photos action was unwanted, and the user
+wanted Download itself to preserve originals instead of creating a ZIP.
+
+**Fix:** remove the Photos action and route iPhone Download through the same
+preparation and native File-array share flow for any file selection. Photo-only
+selections explain Save Images; other selections explain Save to Files. Other
+browsers download each original separately. Download is offered for files only,
+so folders cannot accidentally request an archive or fail as file downloads.
+
+**Rejected:** automatically bundling multiple files changes their usable format.
+Invoking iPhone share after an arbitrary download wait still risks losing the
+required user gesture; the ready button retains a fresh tap.
+
+## iPhone Download opens the native share sheet in one tap (2026-10-06)
+
+**Symptom:** the intermediate Download dialog and Open iPhone share sheet button
+added an unwanted extra step.
+
+**Cause:** fetching original bytes after the Download tap can outlive Safari's
+transient activation. The previous flow solved that by requiring a second tap.
+
+**Fix:** prepare original File objects as the iPhone selection changes. Download
+shows Preparing… and is disabled until all selected files are ready; its click
+then invokes navigator.share synchronously, with no fetch or intermediate modal.
+Abort and discard stale preparation on selection or file metadata changes, reuse
+unchanged prepared files, release them when selection clears, and allow retries
+following fetch failures. Cancelling the system sheet leaves Download ready.
+Desktop browsers keep downloading original files without prefetching.
+
+**Rejected:** invoking share after an arbitrary network wait is unreliable.
+Adding another confirmation preserves the technical requirement but conflicts
+with the requested one-tap interaction.
+
+## Terminal reconnect returns to latest rather than a saved reading location (2026-10-06)
+
+**Symptom:** reconnecting restored an old history position, requiring a long
+scroll to reach the latest terminal output.
+
+**Fix:** reading anchors now exist only during the current connection. Remove
+legacy sessionStorage anchors on frame load, clear the live anchor on every
+WebSocket open, and follow the replay to the bottom. Manual history navigation
+still cancels following immediately and stays anchored during normal repaint.
+This updates the earlier cross-reconnect preservation behavior to the user's
+explicit preference for latest on reconnect. Preserve the deployed keyboard,
+size ownership and repaint helpers while changing only the reconnect policy.
+
+**Rejected:** preserving a pre-disconnect location conflicts with the desired
+landing position. Continuously forcing the bottom during deliberate navigation
+would reintroduce the history-browsing problem.
+
+## Profile real terminal connection cases for one day (2026-10-06)
+
+**Request:** investigate persistently slow terminal connections using a full day
+of actual phone/desktop usage, rather than tuning timeouts from isolated tests.
+
+**Fix:** add an opt-in profiler, disabled without a bounded expiry in its script
+URL. Record navigation/resource timings, socket creation/open/first output,
+xterm parse and two-frame paint estimates, replay byte counts, close codes and
+foreground/background/network transitions. Batch small metadata events through
+the existing authenticated, rate-limited clientlog path. Never decode output,
+read buffer text, retain typed keys, expose token query strings or send PTY input.
+A bounded server-side collector follows rotated logs, whitelists timing fields,
+and writes private JSONL plus percentile reports, refreshed each minute and
+finalized automatically after 24 hours. Connection behavior stays unchanged.
+
+**Rejected:** reducing another timeout without measuring real connection stages
+could mask network, transfer or rendering stalls. Logging terminal content or
+keystrokes is unnecessary to distinguish these stages. Paint timing is labelled
+as an estimate; background time is not automatically classified as reconnect
+latency, and clientlog rate limiting can omit events.
+
+## Following latest survives redraws after connection settling (2026-10-07)
+
+**Symptom:** even a newly opened terminal could jump back to older content during
+normal use, without reconnecting.
+
+**Cause:** latest following was enforced only during a ten-second activation/
+reconnect settle interval. The write/scroll/resize watcher restored deliberate
+history anchors, but did nothing when following latest with no reading anchor.
+A later redraw resetting viewportY therefore remained at an older row.
+
+**Fix:** the same animation-frame watcher now restores either the deliberate
+reading anchor or the latest viewport according to the live following state.
+Keep following after the short settle interval ends. User navigation disables
+following before deferred capture, and queued callbacks recheck that state so
+scrolling into history always wins. Avoid redundant scrolls when already latest.
+Reconnect still returns to latest. Preserve the existing timing monitor and
+its original expiry while deploying this frontend correction.
+
+**Rejected:** extending the settle timer only postpones the gap. Forcing latest
+regardless of user navigation would again interrupt deliberate history reading.
+
+## Capture actual scroll shifts before declaring terminal jumping resolved (2026-10-07)
+
+**Problem:** multiple narrow fixes passed simulated tests, but the user continued
+to observe older-content jumps, including in a newly opened localLLM terminal.
+Those tests did not establish the cause of the actual user-visible episodes.
+
+**Fix:** extend the active, account-scoped timing profiler with event-driven
+viewport shift traces. Include before/after viewport and base rows, reading vs
+following intent, navigation age, marker geometry, dimensions, and a short
+geometry-only event trail. Count ANSI screen erasure, scrolling and alternate
+screen controls without decoding or retaining printable output. Trace helper
+initiated restores too, so our own scroll actions can be distinguished from
+xterm scroll/resize/write events. Keep the original monitoring deadline and
+existing event file when refreshing the collector. Do not call the user issue
+resolved based only on the synthetic viewport reset case.
+
+**Rejected:** another guessed timeout or forcing the bottom regardless of user
+intent cannot establish whether the jump is browser scroll, anchor restoration,
+resize/reflow, reconnect replay or the application repainting its own history.
+
+## Trace application redraws even when browser scroll stays latest (2026-10-07)
+
+A terminal application can erase/reprint its visible conversation while xterm's
+viewport remains at baseY. Viewport-shift traces alone cannot observe that case.
+Record bounded screen/history reset samples on parse completion as well, with
+numeric control counts and geometry only. This permits comparing application
+redraws against browser/anchor shifts without saving conversation text. Samples
+are limited to one per 15 seconds per frame, within the existing diagnostics
+budget; absence of a sampled event is not proof that no redraw occurred.
+
+
+## Do not match repeated headings during a split history redraw (2026-10-07)
+
+**Evidence:** real iPhone/localLLM diagnostics captured screen and scrollback
+clears while a reading anchor was active. Later desktop samples captured the
+same clears well after a resize, ruling out resize as a sufficient explanation.
+A browser reproduction replayed two passages with identical three-line headings
+in separate output chunks. Mobile WebKit restored row 80 instead of the original
+row 380 and retained the wrong anchor after the correct passage arrived.
+
+**Cause:** the reading fingerprint stopped after three nonempty lines. A partial
+redraw could match an older repeated heading before reaching the intended passage.
+The new marker then made the wrong location permanent. A marker could also survive
+an in-place content rewrite, despite no longer pointing to the original passage.
+
+**Fix:** sample up to twelve nonempty lines across thirty-two visible rows and
+verify marker contents before using its row. Wait for the saved passage rather
+than binding to a short repeated prefix. During normal-buffer scrollback erasure,
+keep a local copy of the reading screen until matching content has rendered. Copy
+at onRender time because Chromium may discard its WebGL drawing buffer afterwards.
+Release after the restored render, immediately on navigation/reconnect, or after
+a bounded two-second wait when the application does not reprint the passage.
+These images and text fingerprints stay in frame memory and are never logged.
+
+**Validation:** regressions cover split redraws and a surviving overwritten marker.
+A mocked-WebSocket run against the real deployed ttyd page checks mobile Chromium
+and WebKit, identical screenshots during a partial redraw, restoration of the
+original passage, navigation yielding, and bounded snapshot expiry. No connections
+or input go to a user's real PTY. Live diagnostics remain necessary: this reproduces
+one concrete failure, not proof that every reported episode shares its cause.
+
+**Rejected:** pinning a row number does not survive content replacement. A longer
+bottom-follow timer interrupts history reading. Suppressing terminal clear commands
+would corrupt application redraws; snapshotting pixels preserves normal parsing.
+
+
+## Redraw timeout must recover the reading position before uncovering it (2026-10-07)
+
+**Evidence:** desktop WebKit/localLLM revision-2 tracing at 19:40:29 Chicago
+captured a scrollback erase with base 999, viewport/marker 971 and distance 28.
+After the replacement buffer reached base 971, matching had not found the saved
+passage. The two-second snapshot timeout uncovered viewport zero. The user
+reported another older-content jump. A background redraw earlier in the same
+session likewise required foreground recovery after its passage changed.
+
+**Cause:** the snapshot expiry only removed the covering image. It did not call
+the existing distance fallback, so a redraw that replaced transient prompt/status
+text left the underlying view at the oldest row. Exact text matching cannot
+restore content that an application no longer prints.
+
+**Fix:** preserve exact matching first. On timeout, restore the saved distance
+from the new bottom, capture the replacement passage, render it, then uncover.
+Record a distinct fallback outcome. Schedule recovery even when the erase arrives
+in a hidden tab or pixel copying fails; defer the position change until foreground
+visibility/focus and recheck through the write/scroll watcher. New navigation and
+reconnect cancel old recovery state. When no history remains, follow the live view.
+
+**Validation:** regressions reproduce timeout exposing row zero, recover a shorter
+background buffer before any new output, and verify deliberate navigation wins.
+The browser regression additionally checks completed redraws where all passage
+text has changed. Distance restoration is approximate when content was removed;
+it preserves proximity to current output rather than claiming the deleted passage
+still exists. Production deployment and actual-session verification remain required.
+
+**Rejected:** extending the hold timer would only postpone this failure when the
+saved text is absent permanently. Forcing latest would abandon intentional history
+reading. Uncovering before the fallback render still flashes the oldest content.
+
+
+## Typing explicitly leaves terminal history reading (2026-10-07)
+
+The user expects typing to reveal the current input line. Earlier anchoring
+changes preserved history even when the user resumed editing, requiring a long
+manual scroll back to the prompt. Printable/editing keydowns, native committed
+input/IME/paste, mobile forwarded input and the system key bar now clear the
+reading anchor and resume latest following. Page navigation, wheel/touch history
+reading, modifier/copy shortcuts and output alone do not count as typing. No
+terminal input is synthesized or changed. Tests check both sides of this intent
+boundary, including a redraw after typing and paste without a keydown.
+
+
+## Terminal closed transport recovery and mobile foreground reuse (2026-10-07)
+
+The connection monitor measured sixteen iPhone abnormal-close recoveries waiting
+roughly 4.45 seconds before reloading the terminal frame. The four-second grace
+allowed ttyd's native three-second retry; it was not a handshake allowance for
+airplane WiFi. Recover the first confirmed CLOSED transport immediately, with
+one-second then four-second backoff for repeated failures and the existing
+three-attempt ceiling. Wait while offline instead of consuming retry attempts.
+
+Keep slow pending handshakes and first PTY output alive for thirty seconds of
+foreground time, excluding background suspension. Never expire an established
+quiet shell. A visibility/focus event reuses an OPEN connection; only CLOSED
+transport triggers recovery. If iOS closes a transport while suspended it must
+be reopened, but browser switching alone does not rebuild a healthy connection.
+The airplane replay pacing, replay budget, native reconnect setting, and server
+keepalive timeouts remain intact. Recovery never sends synthetic terminal input.
+
+The monitor records actual time since close separately from startup elapsed time
+and still supports older events. Unit coverage includes offline recovery, retry
+limits, slow first output, background startup and healthy browser switches.
+The browser regression uses actual ttyd HTML and synthetic sockets in Chromium
+and WebKit; it validates client behavior rather than claiming real-network speed.
+
+
+## Recover the ttyd transport without rebuilding its page (2026-10-08)
+
+After removing the four-second closed-socket grace, real iPhone reconnects still
+needed roughly 1.7–2.8 seconds. Their page stage alone took about 0.7–1.1 seconds,
+followed by 0.6–1.4 seconds of WebSocket handshake. Multiple sockets closed with
+1006 when returning from background. Reloading the entire terminal HTML repeats
+its download, token retrieval and initialization on every such recovery.
+
+Expose ttyd's controller through a targeted nginx substitution of its terminal
+construction statement. The guard disposes the controller's old subscriptions
+before its native close callback can launch a competing retry, refreshes the token,
+and invokes ttyd's own connect method. Its open callback resets the view and
+restores input/resize subscriptions. The keyboard helper's existing new-socket
+listener follows latest output. No PTY is restarted and no input is synthesized.
+
+Retain foreground-only thirty-second pending deadlines, offline waiting, retry
+backoff and the three-attempt ceiling, including disposal of native listeners at
+exhaustion. While token refresh is pending, the old CLOSED socket must not trigger
+another attempt. If the controller hook is unavailable, use the bounded frame
+reload fallback. If a pending token request hangs, its eventual completion must
+not connect after the watchdog has already reloaded the page.
+
+Browser regressions use actual ttyd HTML in Chromium and mobile WebKit with every
+socket mocked. They assert document and terminal identity survive recovery, one
+new socket appears, input is forwarded exactly once, healthy visibility switches
+reuse transport, and slow first output does not expire prematurely. Unit tests
+also cover hanging refresh and exhaustion. Real-network results remain monitored;
+this removes page overhead rather than eliminating variable network latency.
+
+
+## Mobile reconnect redraws at the visible client's geometry (2026-10-08)
+
+After in-place recovery, the mobile terminal could show a stale layout until the
+first swipe/pointer interaction. Shared-session clients connect passively, so
+replay may reflect another device's PTY shape. Mobile foreground/pageshow claims
+can run before the replacement socket exists; socket open followed latest but
+did not reclaim geometry. The first pointer event then nudged size and caused
+the application to redraw, explaining why interaction appeared to activate it.
+
+At replay completion, reclaim the visible mobile client's size through the
+existing resize-only nudge, then keep following latest. Require the current OPEN
+socket, foreground visibility, positive terminal width and continued latest
+following with no reading anchor. Old-socket close/error callbacks, hidden tabs
+and deliberate history reading must not claim here. Existing foreground recovery
+handles a replay completed while hidden. No keystrokes are synthesized.
+
+The browser negative control reproduces missing size claims after in-place
+reconnect in Chromium and mobile WebKit. The fixed path requests one resize pair
+without a gesture, keeps the same terminal, follows the fresh prompt and preserves
+intentional history navigation. All transports are mocked; tests verify the
+resize protocol and UI behavior, while actual-session monitoring remains active.
+
+## Terminal HTTPS fallback when WebSocket establishment stalls
+
+- **Symptom:** The desktop can create terminals and synchronize them to another
+  device, but its terminal sockets remain CONNECTING through repeated retries.
+  The origin sees successful page/token fetches without corresponding WebSocket
+  upgrades. Other devices can still attach to the same live shells.
+- **Cause:** The failure is isolated to WebSocket establishment on that client's
+  path; server evidence cannot distinguish browser networking from an intermediary.
+  Retrying the same transport exclusively leaves the working HTTP path unused.
+- **Fix:** After an eight-second stalled handshake (or an initial socket error),
+  `terminal-http.js` attaches through authenticated same-origin POST requests.
+  The manager resolves only the signed-in user's ttyd port. A bounded in-memory
+  relay carries the existing ttyd frames; output is acknowledged and input has
+  sequence numbers so a lost HTTP response cannot execute input twice. Idle
+  relays expire, and healthy native WebSockets retain their normal path.
+- **Rejected:** Repeatedly restarting terminal services would not repair the
+  client path and risks the user's work. Requiring another network or browser
+  leaves the app unusable where ordinary HTTPS already works. The fallback does
+  not claim to identify the original browser/network fault.
+- **Validation:** Backend authentication, tenant isolation, output acknowledgement,
+  fragmented frames/ping, and input deduplication tests; browser adapter tests;
+  real ttyd/xterm with a permanently pending native WebSocket, lost input response,
+  and reconnect replay (`tests/e2e/terminal-http.py`).
+
+## Check the served desktop stamp against the deployed update signal
+
+- **Symptom:** A partial deployment leaves clients repeatedly refreshing, then
+  unable to receive subsequent automatic updates.
+- **Cause:** `STAMPED_SHELL_VER` in served HTML differs from deployed `sw.js`.
+  Reloading cannot reconcile those files; the shell's three-reload circuit
+  breaker eventually stops automatic refresh. Comparing checkout and deployed
+  sw.js alone misses this inconsistent pair.
+- **Fix:** Keep both deployed stamps aligned, and make doctor report a mismatch
+  as a failure. The Oct 13 investigation and attribution limits are recorded in
+  `docs/operations.md`.
+- **Rejected:** Removing the circuit breaker would permit endless reloads.
+  Treating the mismatch as proof of the separate native WebSocket stall would
+  exceed the evidence.
+
+## Stream fallback output and batch queued terminal input
+
+- **Symptom:** The HTTPS fallback restores access, but typing and output lag on
+  high-latency paths.
+- **Cause:** One completed HTTP request per input frame serializes keystrokes
+  behind round trips. Repeated output polls add a round-trip gap after each batch.
+- **Fix:** Concatenate only adjacent queued ttyd input frames, preserving control
+  boundaries and retry sequence IDs. Stream output with nginx buffering disabled;
+  release retained output only after explicit client acknowledgement. Renew the
+  bounded response periodically and retry from the client's received cursor.
+- **Rejected:** Concurrent independent input sends can reorder commands. Releasing
+  streamed frames merely after a server write loses data on a broken connection.
+  Local character echo would be wrong for passwords, full-screen apps and editing.
+- **Validation:** Delayed-response typing batches, control ordering, duplicate
+  retry suppression, incremental chunk delivery, stream replay and real ttyd e2e.
+
+## Install the attach SIGWINCH handler before publishing its view
+
+- **Symptom:** `test_disconnecting_small_client_restores_remaining_pty_size`
+  failed about 40% of runs: a client's resize claim never reached the PTY.
+- **Cause:** `cmd_attach` wrote its `.view` file, then installed the SIGWINCH
+  handler. A resize arriving in between hit SIGWINCH's default disposition
+  (ignore) and was lost, so that device never claimed the shared size.
+- **Fix:** Install the handler first, then publish the passive view. An early
+  claim and the following passive write record the same activity timestamp.
+- **Rejected:** Adding sleeps to the test hides a real, if narrow, product race.
+## Browser Lite: remote execution with client DOM rendering
+
+**Symptom.** The operator found xpra Browser too slow on flight/mobile links and
+requested an independent experimental app that sends data for local rendering.
+
+**Decision and review.** Astra prepared the architecture and Claude Code reviewed
+it twice before implementation. Revision 2 was accepted with declared limits.
+The experiment uses a per-UID Playwright Chromium, stable node IDs, keyed DOM
+changes, CDP styles/resources, a bounded long-poll protocol and an opaque client
+frame. It is a remote execution mirror, not an HTML fetcher. Existing Browser and
+its profile remain independent; unsupported content has a user-triggered fallback.
+
+**Non-obvious safeguards.** Playwright disables Chromium's sandbox by default,
+so launch explicitly enables it and a nonroot systemd preflight checks namespace
+and seccomp isolation. Ubuntu's restricted userns needs an exception scoped to
+root-owned Lite browser binaries, never a global sysctl change. A static frame
+embeds only the trusted renderer and its exact SHA-256 CSP hash. Remote scripts,
+handlers, active URLs, nested frames and inline SVG are not reconstructed.
+Root checks Unix peer UID and never fetches arbitrary website URLs. Stylesheet
+URLs resolve against their original location; image/font bodies use the remote
+context's cookie state and then become frame-local blobs. Stream ownership uses
+separate session and attachment IDs so copied tabs cannot pollute ACK cursors or
+start a reconnect takeover loop. Password properties are excluded from snapshots.
+
+**Rejected.** Sending outerHTML repeatedly would recreate the bandwidth problem;
+sending all computed styles per node would inflate baselines. A generic reverse
+proxy would not faithfully preserve arbitrary website origin/JS/login behavior.
+Pixel-stream tuning does not test the requested client-rendering model. Public
+CDP ports, a root website fetcher, disabling sandbox, or rendering website scripts
+in the trusted desktop would cross security boundaries. Full browser compatibility
+is outside this first experiment: ordinary DOM/forms work, while Canvas, media,
+complex editors, frames and shadow DOM explicitly degrade. See `docs/browser-lite.md`.
+
+
+## Browser Lite client rendering requires real origin boundaries
+
+**Symptom:** The DOM-mirror experiment omitted browser capabilities and could not
+meet the user's requirement for full interactive browsing inside Vibetop.
+
+**Cause:** Replaying selected DOM elements is not equivalent to executing the
+original page. Rewriting proxies preserve JavaScript but their stock single-origin
+setup merges otherwise distinct website permissions. Same-site subdomains also
+carry Vibetop cookies on requests, despite being unreadable through SOP.
+
+**Fix in progress:** Evaluate a pinned server-rewriting engine with separate real
+proxy origins per original origin/profile and a server Cookie jar. Keep this behind
+release gates. The manager auth subrequest now forwards the external Host, Origin
+and Upgrade metadata and denies mismatched-origin WebSockets before starting user
+daemons. Future ttyds use check-origin; preserve Host ports through nginx. Broader
+sibling-request and cookie-injection hardening remain gates before proxy deployment.
+
+**Rejected:** Calling the DOM mirror a complete browser; putting arbitrary website
+JavaScript on the Vibetop API origin; treating one host per site as sufficient SOP
+isolation; requiring a newly purchased domain when sibling origins can be hardened.
+
+## Browser rewriting must test modern scripts and nested frames as executable code
+
+**Symptom:** GitHub rendered its server HTML but replaced it with “Unable to load
+page” during hydration. CodeMirror displayed its editor shell with an empty
+preview. Neither a homepage screenshot nor only uncaught-error monitoring caught
+all failures.
+
+**Cause:** The pinned Hammerhead transformer rewrote private field reads as public
+property reads. Its generator also omitted `#` when re-emitting private member
+access inside transformed destructured functions; GitHub caught that failure in
+its React route boundary. Class-field keys and uninitialized fields exposed two
+other generator bugs. Rammerhead's global parent/top replacements rewrote its own
+bootstrap, reading a nested frame's parent variable before assignment and counting
+ancestor origins from the wrong window. The old message API wrapper discarded
+transferables passed in the modern postMessage options dictionary.
+
+**Fix:** Checked, reproducible engine patches retain private members and field
+syntax, preserve bare module specifiers/import maps, initialize native parent/top
+before wrapper substitutions, and normalize message options with transfers.
+Regression tests execute transformed functions and click a same-origin child
+frame in Chromium and WebKit. Real-world acceptance searches Wikipedia, opens a
+GitHub file, types in CodeMirror, and submits Google search. A CAPTCHA or failed
+interaction remains a failed acceptance case. Proxy work remains unreleased.
+
+**Rejected:** Treating a syntax check or screenshot as proof of usable interaction;
+ignoring caught framework failures; suppressing unexpected browser errors to make
+a test green; hand-editing installed engine artifacts without reproducible patches.
+
+## Browser WebSocket upgrades need native Origin proof and one authorization pass
+
+**Symptom:** Ordinary pages worked, but a real browser WebSocket failed before
+reaching an owned echo server. The earlier nginx upgrade test did not exercise
+the rewrite engine and therefore missed the failure.
+
+**Cause:** Chromium's WebSocket handshake carries Origin without ordinary Fetch
+Metadata. The resource gate incorrectly required those metadata headers. After
+that was fixed, Hammerhead dispatched the same upgrade through its HTTP pipeline
+again, misclassifying it as HTTP and, in production mode, rereading root identity
+headers that the first pass had already removed.
+
+**Fix:** Only the server's actual upgrade path accepts the native Origin as
+source proof, and still requires an exact authorized document context and a
+WebSocket descriptor. A WeakSet of successfully authorized request objects
+prevents the second dispatch from reauthorizing or relabeling the request.
+Chromium and WebKit now round-trip text and binary frames through the complete
+rewriter and egress guard. A separate actual root-mode socket test verifies
+per-device logout and expiry terminate existing connections while another device
+continues, and rejects missing/wrong source and identity before upstream access.
+
+**Rejected:** Disabling source checks for all requests; trusting an Upgrade
+header as proof of a server upgrade event; treating an nginx-only echo as proof
+that website WebSocket APIs work through the rewriting engine.
+
+## Embedded sign-in renewal must preserve the existing page
+
+**Symptom:** Form handoff could open a top-level context instead of its iframe;
+renewal could fail with an illegal native fetch invocation. A synthetic WebKit
+domain also dropped sibling host-only cookies and made a valid flow look broken.
+
+**Cause:** Renaming an already-inserted iframe did not reliably update its named
+form target. Fetch had been detached from Window. The initial test's unknown
+public suffix did not reproduce the production sibling-domain cookie behavior.
+
+**Fix:** Name the iframe before insertion, bind native fetch to Window, and renew
+with an exact parent WindowProxy/origin handoff without replacing the UI Document.
+Use private CONNECT resolution of reserved example.com siblings for TLS tests.
+Both Chromium and WebKit verify default image loading, in-place renewal,
+manager/daemon restarts and independent device logout through actual nginx and
+isolated systemd processes. An unknown-suffix failure is recorded as a test
+environment difference, not as a general claim about Safari cookie support.
+
+**Rejected:** Reloading all tabs on every renewal; passing login credentials in
+URLs; weakening cookie flags to make a nonrepresentative test domain pass.
+
+## Browser message target mapping must not probe other origins
+
+**Symptom:** Automatic origin probe/reply messages let an unrelated website learn
+whether a target Window was browsing another origin, even when native
+postMessage would silently discard the message.
+
+**Cause:** Resolving a logical target through an unsolicited cross-window
+handshake added an observable response that the native API does not provide.
+
+**Fix:** Remove probes entirely. Map known direct child, parent, sibling and
+previously observed event-source relationships, then make exactly one native
+postMessage call. Unknown targets use an unreachable origin while preserving
+native clone errors and transfer detachment. Compute hypothetical target hosts
+without writing realm records. Both browser engines test first-contact delivery,
+sibling delivery, MessagePort transfer, dropped-message detachment, clone errors
+and silence after the former probe payload. Grandparent first contact and some
+child self-navigation contexts remain explicit compatibility gaps.
+
+**Rejected:** Replying only to selected probe origins; asynchronous message queues
+that change transfer/error semantics; claiming complete cross-window support from
+parent/child-only tests.
+
+## Browser releases must switch runtime and UI assets deliberately
+
+**Symptom:** Replacing files beneath a running rewriter can mix engine versions;
+a slow client's old wrapper may fetch new scripts after a manager upgrade.
+
+**Cause:** Mutable shared code paths and unversioned UI assets do not identify the
+code that a process or document actually uses.
+
+**Fix:** Build frozen dependencies as a nonroot account with scripts disabled and
+a private copy-mode store. Root copies entries through no-follow directory FDs,
+checks the copied tree and manifest, and publishes a content-addressed directory.
+Systemd executes that literal directory. A resource request may adopt an existing
+authorized listener read-only; an authenticated UI heartbeat switches a changed
+revision under the UID lifecycle lock, sockets first. Wrapper asset URLs pin the
+revision, and old assets come from validated retained releases. Actual disposable
+systemd upgrade and rollback tests preserve profile identity and expire old
+control lanes without replaying their operations. Installer activation and nginx
+rollback remain separate release gates.
+
+**Rejected:** Binding through a mutable current symlink; trusting only the
+builder's staging-tree hash; recursively copying builder-controlled links as
+root; restarting all Vibetop sessions during a Browser Lite update.
+
+## Browser Lite activation must preserve the installed main site and prove adoption
+
+**Symptom:** A syntactically valid regenerated nginx site can change a host's
+custom root, ports or TLS settings. A strict sibling-host guard can also block
+OnlyOffice's host.docker.internal save callback. A generic manager ping can pass
+while the process still caches the previous Browser Lite configuration.
+
+**Cause:** Rendering from installer defaults is not proof that unrelated host
+settings stayed unchanged; nginx configuration syntax does not validate those
+semantics. Deferred restart and interrupted activation also need distinct states.
+
+**Fix:** Browser-only activation patches the actual installed nginx file, adding
+its host map, guard and separately authorized vhosts, and asserts that removing
+managed additions yields identical unrelated bytes. Permit the default and
+configured OnlyOffice callback hostname. Keep a durable staged/pending-restart
+journal for the config/site pair. The restart watchdog checks the exact config
+hash cached by the live manager before confirming activation. A second installer
+leaves an unadopted pending transaction intact. Main-site installation shares the
+deployment lock and refuses to overwrite a pending snapshot. Recovery never
+restores identity keys, lease state or website profiles. Uninstall retains the
+main-host guard and stops only numeric-UID Lite socket/service names.
+
+**Rejected:** Treating nginx -t as proof the desktop still points at the right
+files; rolling back every pending journal before giving the watchdog a chance;
+using /api/ping as proof a new Browser Lite revision was selected; touching
+terminal/xpra services as part of Lite activation.
+
+## Browser Lite SPA Back discarded unsaved state (2026-10-13)
+
+**Symptom.** The toolbar's Back/Forward test passed by checking page headings,
+but a single-page application's unsaved draft disappeared after Back. replaceState
+also appeared as an extra history entry, and same-URL pushes were lost.
+
+**Cause.** The wrapper inferred history from a URL poll and reopened each target
+with a new GET. Calling native iframe history.go instead is unsafe: all embedded
+tabs participate in the host's joint session history.
+
+**Fix.** Keep a bounded same-Document journal with private structured-cloned
+application state, entry IDs and scroll offsets. Validate push/replace using the
+browser's rewritten replaceState first, keep native history.state unwrapped, and
+replay the exact validated physical URL. Toolbar and site history methods send
+serialized, acknowledged commands to the current document; traversal dispatches
+a scoped synthetic popstate and respects auto/manual scroll restoration. Fragment
+changes reconcile into the journal. A controller attach nonce filters queued old
+messages even when same-origin document replacement retains the server epoch.
+WindowProxy/origin/tab/epoch/document/sequence checks validate state snapshots;
+this UI protocol does not grant network or cookie authority.
+
+**Rejected.** URL equality as entry identity, JSON-cloning application state,
+wrapping metadata inside history.state, or blindly calling native history.go.
+The Navigation API is hidden in these documents so routers use the implemented
+History API. This compatibility layer is not a security boundary: raw traversal
+from another realm, nested iframe joint history and hardware Back remain release
+gates. Cross-document history still reopens URLs; it does not preserve the old
+Document or POST state. Full browser readiness must not be inferred from the SPA
+regression passing. Synthetic popstate has isTrusted=false.
+
+**Evidence.** Owned-site Chromium and mobile WebKit tests reproduce draft loss
+before the change and cover drafts/document identity, push/replace, same-URL state,
+Map/Date/BigInt/cycles, mutation isolation, clone/origin errors, rapid traversal,
+interleaved tabs, auto/manual scroll and fragment reconciliation afterward.
+Delayed HTML and dropped successful control responses additionally exercise
+Back/Reload Retry. Preserve the intended slot and URL while a control operation
+is unresolved, including after session expiry; recover a pending operation before
+deciding whether an old-page navigation challenge still matches the server epoch.
+
+## Browser Lite regeneration invented optional-chain guards (2026-10-13)
+
+**Symptom.** Regenerating `obj.replace(a?.b.c)` emitted
+`__call$(obj,"replace",[a?.b?.c])`. With `a={}`, the original throws TypeError,
+while the rewritten expression silently returns undefined.
+
+**Cause.** The pinned acorn-hammerhead parser propagates an earlier member's
+optional flag into later members. esotope-hammerhead prints that propagated flag
+as if each member had its own `?.` token.
+
+**Fix.** Retain the member's own optional token separately in both server and
+client parsers. Both generators prefer this marker, with a fallback for nodes
+created by existing transformers. Checked, repeatable build patches preserve
+private-field printing. Differential regressions cover required versus optional
+intermediate accesses in regenerated method and constructor arguments.
+
+**Rejected.** Changing only the emitted method-call helper's optional argument.
+This would neither restore the original syntax nor fix the separate loss of
+short-circuiting across instrumented calls. The broader carrier transformation
+and its website/routing tests are described in the following decision.
+
+## Browser Lite optional calls lost short-circuiting and routing (2026-10-13)
+
+**Symptom.** GitHub's mobile file-list action threw while evaluating a missing
+footer element. `element?.classList.replace(...)` became an unconditional helper
+call. Merely carrying an optional flag also evaluated arguments too early and
+read method getters repeatedly. Grouped optional method calls could bypass
+Location/postMessage routing.
+
+**Fix.** Lower instrumented chains to immutable reference carriers with native
+optional links. Capture each callable and receiver before arguments, preserve
+the original prefix and lexical scope, normalize computed keys once, and invoke
+the captured function through a dedicated route that shares the existing host
+method wrappers. Adapt eval and postMessage call/apply/bind effects without
+breaking the guarded chain. Grouped calls and tags retain references; terminal
+delete members remain native references, while delete of a call remains a value
+operation. Super reads retain lexical access and evaluate their key once.
+Server/client factories share code; generated spines are protected on repeated
+processing. Headers inspect top-level bindings and choose an unshadowed Window
+alias, avoiding module-local temporal dead zones without imposing a new
+`globalThis` dependency on every script. Tagged eval.call/apply process the
+substitution while preserving the original template object; already wrapped
+bare eval references do not process their arguments twice.
+
+**Rejected.** Passing only a callee optional flag to the old call helper, moving
+arguments into closures, shared/hoisted temporary receivers, or calling captured
+Location methods directly. Those approaches lose laziness, lexical scope,
+reentrancy, or proxy routing. Passing a generated replacement with the upstream
+transformer's `nodeReplacementRequireTransform:false` is also wrong here: it
+walks the old node rather than the new argument tree.
+
+**Evidence.** Native/server/client/worker differential cases and real cross-origin
+message/navigation tests run in Chromium and mobile WebKit. The pinned WebKit's
+three native grouped-call/tag deviations are reported, not copied into the
+rewriter. This does not certify untested web APIs or physical iOS.
+
+## Browser Lite extracted postMessage changed its target (2026-10-13)
+
+**Symptom.** `const send=child.postMessage; send(message,origin)` stopped delivering
+to the child. Direct calls and explicit call/apply/bind tests had passed.
+
+**Cause.** The inherited wrapper used its call-time `this` even for an unbound
+call. A first fix's local strict directive was then removed by the pinned Uglify
+default, silently substituting the caller's Window again.
+
+**Fix.** Keep a strict wrapper and fall back to the captured source Window when
+the call-time receiver is not a Window. Configure directive compression off so
+the minified build retains strict semantics. Real native-browser probes verify
+unbound, null and non-Window receivers; cross-origin gateway tests verify the
+actual minified output's delivery.
+
+**Rejected.** Binding every extracted function permanently to the source Window:
+an explicit valid Window receiver must still work. Testing only the unminified
+source would miss the build-induced behavior change.
+
+
+## Browser Lite classic-worker dynamic imports bypassed rewriting (2026-10-13)
+
+**Symptom.** A dedicated classic worker could fetch APIs and run importScripts,
+while `await import('/one/module.js')` requested a bare path on the proxy host
+and received 403. Modern editor components that load modules in workers failed.
+
+**Cause.** The inherited worker script header supplied a no-op dynamic-import
+URL helper. The existing worker origin mapper handled fetch/XHR/importScripts,
+but was never reached by the generated import expression. Imported ESM also has
+its own lexical helper declarations, so overwriting one worker-global variable
+would not repair every module.
+
+**Fix.** The worker bootstrap exports a script-URL resolver using the existing
+origin mapping and supplied original module base. Both server and client header
+fallbacks delegate to it when running in a worker. The patch is repeatable and
+uses functional string replacement so helper names containing `$` stay literal.
+
+**Evidence.** Chromium and mobile WebKit pass relative, cross-origin, nested and
+binary-Blob-worker dynamic imports, denied CORS imports, credentialed/omitted
+fetch, XHR and transferable binary messages. Module workers remain a separate
+failing gate: the existing bootstrap calls importScripts, forbidden in modules.
+Separate generated-code and WorkerLocation probes also fail; this repair does
+not establish complete worker code rewriting or backend-only networking.
+
+**Rejected.** Removing the gateway's denial of raw unrewritten paths, disabling
+CORS, or treating module-worker startup failures as a passing classic-worker
+result. None repairs module URL resolution or preserves network isolation.
+
+
+## Browser Lite Worker URL conversion accepted Symbols (2026-10-13)
+
+**Symptom.** `new Worker(Symbol('worker'))` returned a Worker through the proxy,
+where both native engines synchronously throw TypeError. The eventual network
+failure was observably different and could trigger application retry paths.
+
+**Cause.** The inherited constructor wrapper used `String(scriptURL)` before
+calling the native constructor. JavaScript's String function accepts Symbols;
+the native constructor's URL conversion does not.
+
+**Fix.** Reject a Symbol URL before coercion or option evaluation, preserving the
+native error timing. Keep ordinary object-to-string conversion unchanged.
+
+**Evidence.** Native and proxied Chromium/mobile WebKit constructor checks cover
+Symbol URL/name, invalid type/credentials, missing URL, missing new, null options,
+and URL/options getter order. URL then credentials/name/type are each read once.
+
+**Rejected.** Replacing all string coercion with concatenation: it changes the
+conversion hint for user-defined URL objects. Waiting for a failed worker load
+also cannot reproduce a synchronous constructor exception.
+
+## Browser Lite Worker preparation must follow argument conversion (2026-10-13)
+
+**Symptom.** Invalid Worker options uploaded Blob source before throwing, and
+revoked Blobs or upload failures threw synchronously instead of notifying the
+application's error handlers. Applications could miss their recovery path.
+
+**Cause.** The inherited wrapper rewrote/read/uploaded the URL before the native
+constructor converted its options. Preparation exceptions escaped that wrapper.
+
+**Fix.** In bridged documents, convert URL and the credentials/name/type dictionary
+once in native order, validate URL syntax, then prepare the source. Catch only
+preparation failures and construct the native Worker with an empty, already
+revoked native Blob URL. This preserves native error events and termination
+without executing the original unprocessed source. Final native constructor
+errors remain synchronous. Diagnostics contain the stage, scheme and initiating document origin,
+never Blob source or physical routing capabilities. Documents without the bridge
+retain the previous constructor path; about:blank/srcdoc coverage is a separate
+gate, not claimed fixed by this increment.
+
+**Evidence.** Both Chromium and mobile-emulated WebKit compare against unrewritten
+owned fixtures: getter ordering/abort, invalid-option zero upload/map, malformed
+URL, revoked Blob, forced upload 503, both error-handler APIs, and cancellation.
+WebKit returns from a cross-origin Worker constructor where Chromium throws
+SecurityError; preserve each engine's native behavior. Inject upload failure at
+the fixture server: Playwright WebKit routing did not intercept synchronous XHR.
+
+**Rejected.** Catching the whole constructor, re-reading getters, manually firing
+an error event, or falling back to an executable unprocessed Blob. Each changes
+observable behavior or bypasses rewriting. These tests do not close the module,
+generated-code, location, or CSP compatibility gates.
+
+
+## Browser Lite Blob scheme spelling bypassed preparation (2026-10-13)
+
+**Symptom.** An uppercase `BLOB:` scheme or leading whitespace could execute
+unprocessed binary Blob source rather than uploading it for rewriting.
+
+**Cause.** Preparation tested a raw mapped string with `startsWith('blob:')`,
+while the native Worker normalizes scheme case and surrounding whitespace.
+
+**Fix.** Use the already parsed destination protocol to classify a Blob and its
+canonical href to read it. Keep argument coercion and syntax validation before
+preparation. Log the initiating original document origin, avoiding physical
+origin disclosure even if a caller supplies a physical proxy URL.
+
+**Evidence.** Actual Claude implementation review identified the bypass. In both
+engines, forced upload failures for uppercase and whitespace variants now each
+reach the fixture server exactly once and produce native errors without running
+source. Server-side counts have positive successful-upload controls; Playwright
+request interception alone did not prove synchronous XHR activity in WebKit.
+Classic and module revoked/preparation/mapping/termination paths pass separately.
+
+**Rejected.** Only lowercasing the prefix or counting browser automation request
+events. Native URL parsing covers more normalization, and the fixture server is
+the reliable observer of preparation traffic. Data-URL worker rewriting remains
+a separate unresolved release gate.
+
+## Browser Lite processed-script cache omitted tab identity (2026-10-13)
+
+**Symptom.** A cached rewrite could embed another tab's routing descriptor when
+both tabs loaded identical script text at the same upstream URL and physical
+origin. Module/classic mode and declared URL charset were also absent from the
+explicit cache context.
+
+**Cause.** The active Rammerhead cache keyed source by physical host, session,
+relay and original URL, but rewrites embed the complete window descriptor,
+including the tab. The stock Hammerhead cache is not the active implementation.
+
+**Fix.** Key processed source with a versioned JSON tuple containing physical
+origin, session, complete window descriptor, resource flags, URL charset,
+original URL and relay. This separates every routing-sensitive variant without
+ambiguous delimiter concatenation. Register the proposed module-graph flag in
+all three resource tables as a prerequisite; this alone does not enable module
+workers or fix redirect/content-type reconstruction.
+
+**Evidence.** Tests exercise the actual Rammerhead cache override with identical
+source in two tabs: each result contains only its own tab's descriptor, and a
+repeat within one tab hits cache without rewriting. Server/client/worker table
+round trips retain script plus module flags, full window identity, UTF-8 and
+query/fragment. The new native dependency-cycle, redirect, importScripts-error
+and hashbang cases pass Chromium and WebKit; proxy module startup still fails.
+
+**Rejected.** Patching the unused stock cache, omitting tab identity because
+physical hosts match, or claiming parser registration constitutes working
+module support. Frozen graph tuples and runtime/header integration remain next.
+
+**Follow-up (v1.38.83).** Every navigation mints a fresh random tab token, so
+keying on the full descriptor made every reload a cold rewrite. The key now
+omits only the tab token. The cached source stores that token as a per-process
+placeholder, and each hit substitutes the requesting tab's own token, so each
+result still carries only its own tab's descriptor (the original concern). That
+is not the rejected "omit tab identity because hosts match": identity is
+restored, not dropped. `script-cache-tabs.test.cjs` checks one rewrite for two
+tabs and no leaked token or placeholder.
+
+## Browser Lite slow-network harness was Chromium-only (2026-10-13)
+
+**Symptom.** Running UI recovery tests with `--slow` in WebKit failed before
+opening the app: Playwright cannot create a CDP session for WebKit.
+
+**Cause.** The harness unconditionally used Chromium's network emulation API.
+Browser request interception is also unreliable for WebKit synchronous XHR.
+
+**Fix.** Keep latency/bandwidth emulation in Chromium. For WebKit, delay the
+owned fixture's HTTPS ingress and control responses by 250 ms, covering sync
+requests too. Report fixture latency separately from bandwidth simulation.
+
+**Evidence.** Both slow UI runs pass with deliberately lost open/approve
+responses, retained tab state, history, expiry/retry and form recovery. Desktop
+and mobile screenshots show the toolbar and status within the viewport. The
+fixture's long diagnostic text overflows inside its page; it is not evidence of
+responsive third-party website compatibility.
+
+**Rejected.** Silently disabling the slow option in WebKit or claiming equal
+bandwidth emulation. The test now states exactly which impairment it applied.
+
+## Browser Lite module redirects lost processing metadata (2026-10-13)
+
+**Symptom.** Recognizing a module resource flag in URL parsing was insufficient:
+Context reconstruction discarded it, and the Location serializer omitted its
+charset. A redirected module could consequently use the classic bootstrap.
+
+**Cause.** The pinned pipeline rebuilds response resource flags from explicit
+fields, and its normal redirect call passes no charset. Response charset/BOM
+selection also follows classic-script rules instead of module UTF-8 rules.
+
+**Fix.** Carry the worker-module field through Context and content-type token
+reconstruction; serialize module redirects with UTF-8. Lock module decoding to
+UTF-8 even when a response label or BOM contradicts it. Preserve the entire
+incoming context/tab/relay tuple in module origin mapping after validating the
+signed context and field shape. Authentication remains the gateway's separate
+responsibility; preserving a descriptive relay does not grant access.
+
+**Evidence.** Real browser fetch probes in Chromium and mobile WebKit follow a
+307 module redirect with a misleading windows-1252 header: module flag, session,
+window tuple and UTF-8 survive, including Chinese/emoji source text. Pipeline
+unit tests cover 200/302/307 and both UTF-8 and conflicting labels, BOM precedence,
+classic-script behavior, concurrent relay renewal, and mismatched contexts.
+
+**Trap.** Charset.set ignores an equal-value assignment, so setting UTF-8 with a
+higher priority alone does not lock an already UTF-8 response. Explicitly lock
+the pinned priority as well. Module runtime/header and import-edge integration
+are still pending; this redirect probe fetches source and does not execute it
+as a module worker.
+
+**Rejected.** Only adding a parser flag, regenerating graph identities during
+relay renewal, or treating a successful redirected fetch as working module
+startup. These are distinct acceptance gates.
+
+## Browser Lite module workers need a graph-wide runtime (2026-10-13)
+
+**Symptom.** Module workers failed before app code because the inherited header
+called importScripts, which native module workers reject. Entry-only metadata
+would also create a second module identity when the entry imports itself.
+
+**Fix.** Emit canonical graph descriptors for module constructors, static imports
+and worker dynamic imports. Every graph module imports one revisioned trusted
+runtime on the initiating worker's physical origin before site dependencies.
+Instruction helpers are hoisted delegates; the optional-chain helper uses an
+imported runtime binding so cyclic early calls work before a module body runs.
+The runtime leaves module importScripts native and reuses an initialized classic
+worker, including uploaded Blob workers, using captured routing settings. Module
+source uses the active Rammerhead cache, keyed with frozen routing metadata and
+runtime revision. Parsing failures reject rather than returning raw source.
+Hashbangs and repeat processing preserve one header/binding set.
+
+**Evidence.** Differential Chromium/WebKit fixtures cover cycles, early optional
+calls and imports, static/dynamic redirects, self imports, dependency fetch before
+entry execution, credential modes, CORS allow/deny and immediate binary transfer.
+Classic Blob dynamic imports initially regressed because the uploaded entry URL
+contains no proxy descriptor; validating captured worker routing repaired that
+path. Generated-code imports and WorkerLocation remain independently failing.
+
+**Rejected.** Entry-only flags, entry-body initialization, wrapping importScripts
+in module workers, or treating successful source fetching as runtime acceptance.
+Blob module preparation, CSP fidelity and generated-code/location remain gates.
+
+## Module-worker dependencies carry worker/cors Fetch Metadata (2026-10-13)
+
+**Symptom.** A CORS-authorized CDN module imported by a module worker was denied
+because the gateway classified every `Sec-Fetch-Dest: worker` request as a new
+worker entry on a resource-only host.
+
+**Evidence.** Captured native browser-set metadata in both Chromium and WebKit:
+module entry uses worker/same-origin; its cross-origin dependency uses
+worker/cors. Classic-worker dynamic imports did not expose the same denial.
+
+**Fix.** For an admitted canonical module graph only, allow worker/cors requests
+through the existing context/resource authorization. Worker/same-origin entries,
+shared/service workers and foreign/null contexts retain their rejection paths.
+The flag conveys processing mode and never grants a new execution context.
+
+**Rejected.** Allowing all worker destinations on CDN hosts, ignoring CORS, or
+using the resource flag as authorization. Browser metadata and validated source
+context must agree as well.
+
+## Browser Lite module preparation must reject unsupported syntax (2026-10-13)
+
+**Symptom.** The inherited script processor returns its input on parse failure.
+Adding a trusted runtime header afterward could make unsupported but natively
+valid module syntax execute without import rewriting.
+
+**Fix.** Parse graph source explicitly with the pinned shared parser first and
+reject failures. Test import attributes, two-argument import, regexp v, decorators
+and using declarations. These syntax forms remain unsupported compatibility
+gates rather than silently escaping processing. Strip hashbangs using all four
+JavaScript line terminators. Catch malformed graph metadata at admission and
+return 403 instead of letting an exception escape the async request hook.
+
+**Evidence.** Negative parser tests pass; a real browser sends a malformed tuple,
+gets 403, then successfully loads a valid redirected module in the same process.
+Classic/legacy paths do not emit graph metadata without a realm context. The
+legacy full gateway's child-first-message failure reproduces in the older
+published bundle too and is recorded separately.
+
+**Rejected.** Treating an injected header as proof that source was parsed, or
+allowing malformed descriptors to reach an unguarded mapper.
+
+## Browser Lite dynamic import helpers must preserve native rejection (2026-10-13)
+
+**Symptom.** Mapping or string-coercion errors could throw synchronously before
+native import created its promise. Reprocessing could also wrap the URL helper
+again, and a CDN's already-proxied URL could be nested inside another proxy URL.
+
+**Fix.** Unwrap same-session proxy URLs before routing; skip an already-wrapped
+import in both transformer copies. On coercion/mapping failure, return a value
+whose native import coercion throws, so native import returns a rejected promise.
+Mapping failures become TypeError; user coercion exceptions keep their type.
+Use the containing module file as the dynamic base. Bare query specifiers remain
+bare: both native engines reject import('?leaf'), contrary to an initial review
+assumption. Imported runtime dispatch keeps hoisted helpers independent of a
+site's self/Reflect bindings and avoids dispatch-name collisions.
+
+**Evidence.** Native/proxy tests compare Symbol and throwing-toString imports;
+forced map 503 yields promise/reject:TypeError. CDN imports constructed from
+import.meta.url, cyclic optional calls, shadowed globals, all hashbang endings,
+and byte-identical repeated processing pass. Generated eval/Function imports and
+WorkerLocation remain separate failures; this does not virtualize import.meta.
+
+
+## Browser Lite strict module parsing must guard the actual parser result
+
+**Symptom:** A valid template containing source-map or HTML-comment-like text
+passed preflight parsing but could be returned as unprocessed executable source.
+**Cause:** Hammerhead applies regex preprocessing before its own parser; that
+text differs from the preflight input. Its legacy parse-failure fallback returns
+raw source.
+**Fix:** Graph resolvers set a strict flag checked at the actual processor's
+failed-parser branch. Both template payloads must throw before response/cache.
+**Rejected:** A duplicate preflight parser as the only guard; it cannot protect
+against changes introduced later in the pipeline. Template-content fidelity is
+still a separate compatibility concern.
+
+## Browser Lite module URL classification must use native URL parsing
+
+**Symptom:** Whitespace-prefixed or embedded-newline absolute import URLs could
+be treated as bare names and escape rewriting; `.foo` was wrongly treated as a
+relative path.
+**Cause:** A scheme-prefix regex does not implement the browser URL parser's
+normalization rules.
+**Fix:** Only `/`, `./` and `../` prefixes are relative. Otherwise attempt
+absolute URL parsing and use its normalized href; failures remain bare names.
+Apply the same function to server/client static and window/worker dynamic paths.
+**Rejected:** Trimming only spaces or expanding the scheme regex; neither
+captures all URL parser normalization. This does not solve unsupported-scheme
+imports or generated code, which remain explicit blockers.
+
+
+## Browser Lite module processing must preserve module grammar and source text
+
+**Symptom:** Throwing on parser failure alone still missed imports after an
+HTML-comment-shaped expression. Regex comment stripping also changed template
+contents even when parsing succeeded.
+**Cause:** The inherited engine parsed scripts, whose Annex B comment grammar
+differs from modules, and emitted text different from the parser input.
+**Fix:** Strict graph processing bypasses regex preprocessing, parses with
+`sourceType: module`, and transforms/emits the same source. Syntax errors throw;
+comment-like template values survive. Reserved helper bindings are rejected so
+site declarations cannot intercept inserted calls. Worker responses carry a
+proxy-only CSP; generated code and unsupported graph schemes fail closed until
+supported. This policy is containment, not a claim of full website CSP fidelity.
+**Rejected:** Treating a successful script parse or adding a runtime header as
+proof of complete module rewriting. Keep native engine comparisons for grammar
+edge cases; engine disagreement must not be silently suppressed.
+
+
+## Browser Lite worker containment must cover classic descendants too
+
+**Symptom:** A protected module worker could start a classic worker without its
+script/connect restrictions. A policy only on module responses was incomplete.
+**Cause:** Network worker policies come from their own entry responses; child
+classic and uploaded Blob responses followed another route. Helpers can also be
+reassigned by site code and cannot enforce the network boundary.
+**Fix:** Apply proxy-only script/connect/worker policy to all dedicated worker
+entry routes. Verify nested classic children and deliberate helper tampering.
+Count browser-reported CSP failures separately from unblocked direct requests.
+**Rejected:** `worker-src none`: actual WebKit also applied it to ordinary module
+dependencies. Allow proxy worker hosts, with the same policy on every child.
+Generated code still fails explicitly until a reviewed implementation supports it.
+
+## Browser Lite worker WebSockets need their own native constructor routing
+
+**Symptom:** Module worker socket tests attempted the original socket address,
+while ordinary page sockets already worked.
+**Cause:** The engine installs its WebSocket sandbox only in window contexts;
+workers also need a wss connect source and WebSocket-aware physical URL mapping.
+**Fix:** Wrap the worker native constructor, map its network URL/resource kind,
+retain native prototype/statics and validate URL getter receivers before exposing
+the original URL. Permit only proxy wss hosts in connect-src. Native/proxy browser
+probes cover binary/text echo and constructor/getter failures.
+**Rejected:** Merely widening CSP to original socket hosts; that would route
+traffic directly from the client. A passing text echo alone misses binary,
+fragment, conversion and receiver semantics.
+
+
+## Browser Lite realm wildcard must exclude trusted sibling services
+
+**Symptom:** A proxy-only wildcard at the registrable domain also admitted the
+trusted Vibetop/UI hosts and arbitrary sibling services, including WebSockets.
+**Cause:** CSP host matching cannot express only the `bl-u…` hostname prefix.
+**Fix:** Reserve a dedicated realm sub-zone under the existing domain, with UI
+and main origins outside it. Authority and gateway initialization reject trusted
+origin overlap. Keep explicit server-egress denial for UI/main hosts after
+narrowing the realm domain. A deliberately bypassed import to a trusted UI test
+endpoint must reject with zero requests observed at that server.
+**Rejected:** Claiming a wildcard over the shared service domain is a complete
+boundary, or requiring a new domain purchase. The reserved sub-zone still needs
+its own wildcard HTTPS/DNS routing before production activation; tests use owned
+fixtures and do not provision external infrastructure.
+
+## Do not add ttyd --check-origin while the HTTPS fallback bridges ttyd
+
+- **Symptom:** The Browser Lite WIP added `--check-origin` to `ttyd-run.sh` as
+  defense against same-site `bl-…` realm pages opening terminal WebSockets.
+- **Cause:** ttyd rejects any upgrade without an `Origin` header under that flag.
+  The HTTPS fallback (`server/terminal_transport.py`) connects to ttyd directly
+  and sends none, so every newly started terminal would lose the fallback path.
+- **Fix:** Leave the flag off. Sibling upgrades are already refused at the gate:
+  the manager's authcheck rejects `Sec-Fetch-Site: same-site/cross-site` upgrades.
+- **Rejected:** Sending a synthetic Origin from the bridge would make the check
+  meaningless for exactly the requests it was meant to scrutinize.
+
+## Browser Lite srcdoc iframes must bootstrap from the native parent
+
+- **Symptom:** Logged-in x.com in Browser Lite showed only the X logo, then
+  the whole Vibetop desktop froze (iPhone Safari, and any mobile user agent).
+- **Cause:** x.com runs Cloudflare's bot check (`/cdn-cgi/challenge-platform/
+  …/jsd/main.js`) in a `srcdoc` iframe. Rammerhead's build rewrites every
+  `window.parent` in the client engine to `window.rammerheadParent`, including the
+  inline `iframeInit`/`onWindowRecreation` bootstraps. Those run in the fresh child
+  before its engine exists, so `rammerheadParent` is undefined and the child is
+  never initialized. Its rewritten scripts then call an undefined `__get$`. The
+  obfuscated string-table rotation loop catches the TypeError and retries forever,
+  and the realm shares a renderer with Vibetop (same site), so everything hangs.
+- **Fix:** `build-engine.cjs` restores `window.parent` in the two bootstrap
+  templates after the substitution, and fails the build if either patch is missing.
+- **Rejected:** Making the script header fall back to plain shims when `__get$`
+  is absent. That would hide the bug, and leave the child's requests and
+  navigation unproxied.
+- **Diagnosis tip:** The hang showed up only with a mobile UA. CDP
+  `Debugger.pause` plus `Page.getFrameTree` located the spinning script's frame;
+  in-frame `evaluateOnCallFrame` fails there ("Cannot find context").
+
+## Browser Lite rewrites HLS playlists for native players
+
+- **Symptom:** x.com videos on iPhone never played. Every variant playlist
+  request (`/amplify_video/…/720x720/….m3u8`) got 403 at the realm root.
+- **Cause:** Safari plays HLS natively (`<video src=….m3u8>`). The player
+  resolves playlist URIs itself, so a path-absolute URI drops the proxy prefix.
+  Hammerhead only processes page, CSS, script and appcache resources.
+  Chromium and Linux WebKit use hls.js over XHR, which the client engine
+  already proxies, so desktop tests never showed this.
+- **Fix:** `hls-patch.cjs` marks non-XHR responses with an HLS MIME type for
+  processing. Every URI line and `URI="…"` attribute goes through the engine's
+  URL replacer. The code is inlined into the patched engine files: the build
+  runs in a staging directory, so an absolute `require` would break after
+  activation.
+- **Rejected:** Redirecting stray realm-root requests using the Referer. Native
+  media requests carry no reliable Referer, and it would let unproxied paths in.
+- **Follow-up (v1.38.70):** That fix never ran. The user still reported "media
+  on x.com could not be loaded". Rammerhead's `patchAsyncResourceProcessor.js`
+  replaces Hammerhead's `process()` with its own copy and its own processor
+  list, so the HLS processor added to Hammerhead's list was never consulted.
+  Playlists went out unchanged. The original test called Hammerhead's
+  `process()` directly, so it passed. `hls-patch.cjs` now adds the processor to
+  both lists. Safari also re-requests playlists with a byte `Range`, which would
+  cut a rewritten, longer playlist, so the gateway drops `Range` on `.m3u8`
+  requests. `hls.test.cjs` now sends a `<video>`-style request through a real
+  `BrowserGateway`.
+- **Lesson:** A patch to an engine internal needs a test that goes through the
+  real gateway. Rammerhead overrides several Hammerhead entry points.
+
+## Browser Lite sends sync cookies only where a page can read them
+
+- **Symptom:** A desktop regression sweep stalled after about 13 sites. Every
+  later Browser Lite UI call returned 401, and the manager logged "Invalid
+  browser credential". The browser had also dropped the Vibetop session
+  cookie itself, so browsing in Lite could log the user out of Vibetop.
+- **Cause:** For every script-visible cookie a site sets, the engine writes a
+  `__Host-s|…` sync cookie on the physical host. The page's client reads and
+  deletes it after its next XHR, fetch or `document.cookie` access. Requests to
+  third-party origins (tracking pixels, beacons) go to resource-only realms
+  where no document ever runs, so their sync cookies are never deleted. After
+  Taobao and JD there were 150+ of them under `nicejunjie.com`. Browsers cap
+  cookies per registrable domain and evict the oldest, which were
+  `__Host-vt_session`, then Lite's UI and content credentials.
+- **Fix:** `sync-cookie-policy.cjs` wraps the engine's forced `set-cookie`
+  transform. On a resource-only realm, and for cookies whose domain the realm's
+  document cannot read, it sends no sync cookie, and it expires any such sync
+  cookie the request still carries. That also cleans up cookies left in
+  browsers before this release. The server-side cookie jar is unchanged.
+  `sync-cookie.test.cjs` sends a pixel request through a real gateway.
+- **Rejected:** Putting Lite on a separate registrable domain. That would remove
+  the shared cookie cap with Vibetop, but it needs a new zone and tunnel, and
+  Lite's own credentials would still be evicted.
+- **Follow-up:** That stopped the pixel cookies, but heavy first-party sites
+  still leave client-sync (`__Host-c|`) cookies. Hammerhead keeps a native copy
+  of each `document.cookie` value so other same-origin windows see it. After 17
+  sites, weather.com pushed the jar to 176 and evicted the Vibetop session
+  again. So the credentials now carry `Priority=High`: the Vibetop session at
+  login, and Lite's UI and content cookies on every renewal. Chromium evicts
+  Low, then Medium (every site cookie), before High. Safari ignores the
+  attribute.
+- **Follow-up (v1.38.86), lifetimes:** Hammerhead's client keeps `document.cookie`
+  in memory (`settings.cookie`). Native sync cookies are only transport plus
+  same-site window sync. But every delivered server cookie stays behind as a
+  window-sync copy (`w`) and every script-set one as `cw`, for the whole
+  session. `cookie-wire-patch.cjs` now gives server-sync and window-only copies
+  `max-age=600` and client-set copies (still the transport to the server, resent
+  on every request) `max-age=3600`. Deletion strings are separate and keep
+  their expired date. That bounds leftovers to sites used in the last hour,
+  which matters in Safari, where `Priority=High` does not apply.
+- **Follow-up (v1.38.87), cross-site frames and cookieStore:** weather.com alone
+  still left ~150 cookies on 53 realm hosts. Most were server-sync cookies for
+  ad cookie-matching iframes (cross-site, short redirect chains that never
+  consume them), and 34 were random-named cookies that ad scripts wrote with the
+  Cookie Store API, which the engine does not virtualize (those also never
+  reached the site's jar). Realms whose context is not same-site to the tab's
+  top site (`cookieContext` ≠ strict) now get no sync cookies, matching Safari's
+  default third-party cookie blocking. The server jar still sends them on
+  requests. `client-bridge.js` removes `cookieStore`, so sites fall back to
+  `document.cookie`.
+- **Bug fixed (v1.38.88), raw cookies leaked:** When the policy removed every
+  sync cookie it returned `undefined`, and Hammerhead's `transformHeaders` keeps
+  a header's original value when a transform returns `undefined`. Every pixel,
+  beacon and cross-site frame response therefore sent the site's raw
+  `Set-Cookie` lines to the browser (1029 on one weather.com load, seen with
+  CDP `responseReceivedExtraInfo`). Host-only ones were stored on realm hosts,
+  including HttpOnly ones, and inflated the cookie count. They never reached a
+  site again, because the forced request `cookie` transform sends only the jar.
+  It now returns an empty list, and the gateway tests assert no raw line
+  reaches the browser. The earlier unit tests had asserted `undefined`.
+- **Lesson:** A header transform's empty result must be an empty value.
+  Diagnostics now include a raw `Set-Cookie` detector
+  (`stage-timing.cjs installRawCookieCheck`) that logs the code path.
+
+## Browser Lite keeps saved tabs on the server too
+
+- **Symptom:** On the user's iPhone, tabs still did not come back (v1.38.75
+  saved them only in the UI frame's localStorage). The access log showed the
+  UI reload at 03:32 after iOS had suspended and discarded the page: the
+  script ran (heartbeats followed) but restored nothing, so the device copy
+  was empty. Linux WebKit kept the same data across a full browser restart, so
+  this is iOS-specific storage behavior that cannot be reproduced here.
+- **Fix:** The UI also sends its tab list to the user's own Lite runtime (a
+  `tabs` control command; the root manager only forwards it). The runtime
+  writes `tabs.json` (0600) beside the cookie jar (`tab-store.cjs`: web
+  addresses only, at most 30 tabs and 50 history entries each; over the 80 KB
+  budget it trims history around the current entry, then drops the oldest
+  tabs). Saves are debounced, and immediate when the page is hidden, because
+  that is when iOS discards it. At start the device copy wins; with none, the
+  server copy is restored. A fresh empty start never overwrites it, but closing
+  tabs does. Each start logs `Browser tabs restore source=… device=… count=…`
+  (counts only, no addresses), so the next failure is visible.
+- **Rejected:** Relying on device storage alone. Its loss on iOS was observed
+  and cannot be diagnosed from the server.
+
+## Browser Lite reloads a forgotten tab instead of saying "session ended"
+
+- **Symptom:** After a while away (an iPhone with Safari in the background, or
+  any proxy restart), a Lite tab showed "This browser session ended. Retry to
+  reopen the page." A browser just keeps the page.
+- **Cause:** The proxy keeps a small control lane per UI tab and dropped it
+  after 30 minutes without a heartbeat. iOS suspends background pages, so the
+  heartbeat stops. A restart (every deploy) drops all lanes. The UI then
+  turned the expiry into an error.
+- **Fix:** Lanes last 24 hours, and at the 128-lane limit the least recently
+  used lane is evicted instead of refusing a new tab (`control-ledger.cjs`).
+  When the UI learns that a tab's lane is gone, it reloads that page quietly:
+  now if it is showing, else when it is next shown. That covers a heartbeat
+  reporting expiry, a command answering `reset`, and an address-bar open
+  (retried once). A heartbeat also runs when the page becomes visible again,
+  so expiry is caught before the user taps. Together with saved tabs
+  (v1.38.75), Lite now behaves like a browser that discarded a background tab.
+- **Rejected:** Never expiring lanes. Abandoned UI pages (devices that never
+  sent `pagehide`) would fill the limit, and new tabs would fail.
+
+## Browser Lite names third-party hosts in the page (no sync round trip)
+
+- **Symptom:** weather.com in Lite stalled the page, and all of Vibetop with
+  it, for 1-4 s at a time. ChatGPT froze an iPhone page for 7-10 s.
+- **Cause:** A CPU profile of the page during a weather.com load: of 21 s,
+  ~14 s were in `mapOrigin`. Each new origin a script turned into a URL cost a
+  synchronous XHR to `/__vt/map` for its realm host. Ad stacks touch hundreds
+  of origins across frames, and each request waited a full network round trip,
+  longer when the proxy was busy.
+- **Fix:** Third-party (resource-only) realm hosts are now
+  `hex(HMAC(K_ctx, origin))[0:32]` with `K_ctx = HMAC(secret, profile ‖
+  'resource-realm' ‖ contextKey)`. `/__vt/client.js` gives a document realm its
+  own `K_ctx`, its own `{physical, windowId}` and the host affixes.
+  `realm-host.js` (a small synchronous HMAC-SHA256; WebCrypto is async) names
+  hosts locally. New iframes (a new context) still ask the server. The server
+  already recovers an unseen host from the signed context token in the URL and
+  verifies it against the same derivation.
+- **Security:** `K_ctx` yields exactly the hosts the document could already
+  get from `/__vt/map` for its own context. It cannot sign context tokens,
+  derive the secret, or name another context's hosts. Admission never relied
+  on hostname secrecy (browser-set Origin/Referer/Fetch Metadata plus signed
+  tokens). Resource-only realms get no key.
+- **Rejected:** Changing every host's derivation. Document hosts are where sites
+  keep localStorage and IndexedDB, and renaming them would sign users out of
+  sites. Only resource hosts changed, and they hold no storage.
+- **Iframes (late binding):** A new cross-origin iframe needs a child context
+  token, which only the server can sign. Its single synchronous lookup still
+  froze ChatGPT for 6-7 s, waiting behind the page's 300-request burst. The
+  page now names the iframe on its own host (a valid proxy URL, so `src` reads
+  back correctly). `Gateway.bindChildFrame` answers that navigation with a 302
+  to the child realm, but only for an iframe navigation that is `same-origin`
+  from that host's document and carries that document's own context token.
+  That is the same grant as `/__vt/map?kind=iframe`, now inside the frame's
+  own navigation instead of on the page's main thread.
+  `frame-binding.test.cjs` covers the redirect and refuses cross-site and
+  foreign-context hops.
+- **No-referrer frames:** ChatGPT creates its runner iframe with no referrer,
+  so the child request proved no source and got 403 (the old direct path had
+  the same gap). The hop has already verified the parent, so it records a
+  single-use, 60-second grant for that exact child URL on the same lease. The
+  grant admits the navigation and supplies the parent for messaging.
+
+## Browser Lite rewrites URLs inside <template>
+
+- **Symptom:** On weather.com, desktop Chromium requested ad-sync pixels
+  (bidswitch, tapad, casalemedia, pubeasy…) directly from the ad servers,
+  bypassing Lite and its egress: the user's real IP, and in China a direct
+  connection. CDP showed them as parser-initiated from drivenmove.com frames
+  that *were* processed by the engine.
+- **Cause:** drivenmove is an ad-block-evasion "adproxy". Its documents carry
+  their markup in `<template id="adproxy-wrapped-body">`, and its script clones
+  it into the page using native DOM methods taken from another frame
+  (`getOwnPropertyDescriptor(r.Node.prototype, …)`), which defeats client-side
+  hooks. parse5 stores template children in `content`, not `childNodes`, so the
+  engine's `walkElements` never rewrote them.
+- **Fix:** `template-patch.cjs` also walks `el.content`, so URLs and inline
+  scripts inside templates (nested too) are processed on the server, before any
+  client code can clone them. `template.test.cjs` covers nested templates.
+- **Not covered:** markup a script builds at runtime with native setters from
+  another frame. Server-side processing cannot see that, and client hooks can be
+  sidestepped. The egress still mediates everything that goes through the proxy.
+
+## Browser Lite proxies the URL attributes the engine left native
+
+- **Symptom:** Some images loaded straight from the site, bypassing Lite
+  (the user's real IP, a direct connection from China): bilibili's carousel
+  and live covers, Reddit thumbnails, Stack Overflow avatars, cookie-banner
+  logos. Counted per site with Playwright request events; a CSP lock-down would
+  have blanked them.
+- **Cause:** In a real Lite page, these setters were still native:
+  `img.srcset` (lazy loaders), `source.srcset` (Vue's `<picture>`),
+  `link.imageSrcset`, `video.poster`, `track.src` and `a.ping`. Hammerhead's
+  attribute table also lacks `poster`, `track src`, `imagesrcset` and `ping`,
+  so server-rendered markup with them was never rewritten either.
+- **Fix:** `extra-url-attrs.js` is shared by the server page pass (a wrapper on
+  `DomProcessor.processElement` in the gateway) and the client (the same wrapper
+  on `processors.domProcessor`). It rewrites `poster`, `track src` and
+  `imagesrcset`, and drops `ping`, which is optional by spec and a tracking
+  beacon. `client-bridge.js` routes the six properties through `setAttribute`
+  and wraps `setAttribute` for those attributes.
+- **Next:** With these gaps closed, a CSP limiting realm pages to
+  `*.nicejunjie.com` (and `data:`/`blob:`) would make the browser itself refuse
+  any remaining escape. It needs another per-site escape count first.
+
+## Browser Lite follows same-frame links by replacement
+
+- **Symptom:** On iPhone, swiping in 2048 briefly showed half of an old Browser
+  Lite page, which then disappeared.
+- **Cause:** A link click inside a Browser Lite tab navigates the realm iframe
+  natively, which appends to the Vibetop tab's joint session history. The
+  entries outlive the Browser Lite window. Safari's edge swipe previews them,
+  then finds nothing to navigate to.
+- **Fix:** In a tab's main frame, `client-bridge.js` handles unmodified,
+  same-frame, same-realm link clicks with `location.replace`. This runs in the
+  window bubble phase, so page routers still cancel first. Browser Lite already
+  keeps the tab's own back/forward journal, and controller navigations already
+  replace.
+- **Rejected:** Blocking the swipe in the game. iOS gives pages no way to
+  disable the edge-swipe gesture, and the stray entries would remain anyway.
+
+## Browser Lite realm hosts use 64k nginx header buffers
+
+- **Symptom:** NYTimes never loaded in Browser Lite: the tab stayed on
+  "Loading…" (desktop and iPhone). CNN showed "Unknown Error", and Taobao and
+  eBay lost requests. The realm iframe got a Cloudflare 502 page, which its
+  `X-Frame-Options: SAMEORIGIN` then blocked.
+- **Cause:** nginx logged `upstream sent too big header`. Two upstreams overflow
+  the default 4k/8k `proxy_buffer_size`. One is the `/__browser_auth` reply,
+  whose `X-VT-Browser-Cookie` echoes every engine sync cookie the site set. The
+  other is the rewriter's response, where Hammerhead re-encodes each upstream
+  `Set-Cookie` into a longer sync cookie. The sites' own headers are only
+  1.5–3.6 KB.
+- **Fix:** The generated realm server block sets `proxy_buffer_size 64k` (with
+  `proxy_buffers 4 64k` and `proxy_busy_buffers_size 128k`, which `nginx -t`
+  requires alongside it). The realm location has buffering off, so only the
+  header buffer is allocated per request.
+- **Rejected:** Dropping or truncating sync cookies to fit. That would silently
+  sign users out of sites and break consent and anti-bot cookies.
+
+## Browser Lite parses srcset like a browser, not by splitting on commas
+
+- **Symptom:** CNN's story photos were broken in Browser Lite and showed their
+  alt text. Chrome logged `ERR_BLOCKED_BY_ORB` for requests to
+  `https://www.cnn.com/c_fill/f_webp`.
+- **Cause:** Hammerhead's `handleUrlsSet` (server and client copies) splits a
+  `srcset` on every comma. CNN's image URLs contain commas
+  (`?q=h_384,w_256,c_fill/f_webp 1x`), so each candidate became three
+  rewritten fragments. The images failed, and CNN's error handler replaced
+  them with its own fallback, a path-absolute URL that misses the proxy.
+- **Fix:** `srcset-patch.cjs` replaces both copies with the HTML spec's
+  candidate parsing. A URL runs to whitespace. Only a trailing comma, or the
+  comma after its descriptors (outside parentheses), ends a candidate.
+  Candidates are joined with `", "` so comma-bearing proxy URLs stay
+  re-parseable.
+- **Rejected:** Percent-encoding commas in proxied URLs. That changes the URL
+  the origin sees, and some image CDNs treat `%2C` differently from `,`.
+
+## Browser Lite treats _top and _parent as the tab
+
+- **Symptom:** Google's front-page "Sign in" button did nothing in Browser
+  Lite.
+- **Cause:** The link has `target="_top"`. Inside Browser Lite the realm
+  iframe's top is Vibetop's own page, a cross-site ancestor, and Chrome refuses
+  the navigation ("Unsafe attempt to initiate navigation") with no visible
+  error.
+- **Fix:** In a tab's main frame, `client-bridge.js` retargets `_top`/`_parent`
+  to the tab. Same-origin links use `location.replace` (as with same-frame
+  links), and cross-origin ones use `location.assign` on the physical URL.
+  Forms submitted to `_top`/`_parent` (including `formtarget`) get `_self`
+  during the submit event, before the browser reads the target.
+- **Rejected:** Rewriting `target` attributes in the HTML processor. That misses
+  script-created links, and pages reading `target` back would see the change.
+
+## Browser Lite hands Google sign-in to the real Browser
+
+- **Symptom:** Google sign-in in Browser Lite ends at "This browser or app may
+  not be secure".
+- **Cause:** Google deliberately refuses sign-in through a page-rewriting
+  proxy. That is Google's security decision, not a Browser Lite bug.
+- **Fix:** On `accounts.google.com` or `accounts.youtube.com`, the wrapper shows
+  a bar with "Open in Browser". The request goes from `ui-session.js` to the
+  confirmed host page only. The launcher validates it (http/https, no
+  credentials) and forwards the desktop's existing `open-in-browser` message,
+  which opens the URL in the real Chromium Browser and switches to it. That
+  Browser keeps its own Google session.
+- **Rejected:** Copying the Browser app's Google session into Browser Lite, or
+  disguising the proxy from Google's checks. Both work around Google's block
+  rather than respecting it.
+
+## Browser Lite borrows site logins from the full Browser, never Google's
+
+- **Symptom:** ChatGPT, Claude and other sites offer "Sign in with Google",
+  which Google refuses inside Browser Lite. Users had to give up on those
+  sites in Lite.
+- **Cause:** After "Sign in with Google", a site keeps its OWN session cookie
+  (e.g. ChatGPT's `__Secure-next-auth.session-token`). Google is only needed
+  at sign-in, and that step has to happen in the real Browser.
+- **Fix:** Sharing is always on: each address-bar `open` carries
+  `loginSync`. The root manager strips any client-supplied `cookies`
+  and runs `server/browser_login_sync.py` **as the user** with `setpriv`. It
+  reads the Browser's Chromium cookie DB (`--password-store=basic` makes it
+  `v10`/"peanuts"; DB version 24 adds a SHA-256(host) prefix). It returns only
+  the unpartitioned cookies Chromium would send to that host, and nothing for
+  Google/YouTube domains. The runtime merges them into the first-party jar
+  (`login-import.cjs`). Cookies Lite lacks are added. One Lite already has is
+  replaced only if the Browser updated it after Lite's last sync of that site,
+  so Lite's own Cloudflare cookies survive. The Google bar's "I've signed in"
+  returns to the site that sent the user to Google. A link or redirect to
+  another site arrives as an `approve`. The manager then reads that
+  destination's logins the same way and passes them in an internal `logins`
+  control command before the UI loads the page. The UI cannot send that
+  command.
+- **Rejected:** Mounting the Browser profile into the rewrite runtime. That
+  process handles hostile pages, and a compromise there would expose every
+  cookie, Google's included. Sharing Google's own session would work around
+  Google's refusal rather than respect it. Two-way sync was declined because a
+  sign-out in one browser would fight the other.
+
+## Browser Lite egress queues connections past its limit
+
+- **Symptom:** The signed-in claude.ai app showed "Can't reach Claude. Check
+  your connection." Chrome reported module scripts from
+  `assets-proxy.anthropic.com` as CORS failures (`MissingAllowOriginHeader`).
+- **Cause:** claude.ai starts ~160 module-script requests at once, and each one
+  gets its own CONNECT tunnel through the per-user egress. Past the 128-socket
+  cap, the egress refused with 403 ("Connection limit"). Hammerhead turned that
+  into a 500 with no CORS headers. Found by setting `VT_BROWSER_DIAGNOSTICS=1`
+  and `DEBUG=testcafe:hammerhead:destination` in a temporary unit drop-in.
+- **Fix:** The cap is now 384 upstream sockets. A request over the cap waits up
+  to 15 s for a slot, woken when any socket closes, before failing. The
+  rewriter-side relay (`egress-relay.cjs`) had its own cap of "256 sockets",
+  which counted both ends of each connection, so it really allowed 128
+  connections and reset the rest. nginx logged "upstream prematurely closed",
+  and Booking.com lost its CSS on iPhone. It now counts connections and
+  allows 512, above the egress cap, so a burst waits at the egress instead
+  of being reset.
+- **Rejected:** Removing the cap. It bounds what one user's pages can make
+  this host open.
+
+## Browser Lite memoizes Hammerhead's client cookie probe and skips identical syncs
+
+- **Symptom:** The signed-in claude.ai app froze the whole Vibetop page for
+  about 30 s while loading. Every same-site page shares one renderer.
+- **Cause:** A CPU profile showed more than 20 s in Hammerhead's client cookie
+  sandbox (`_canSetCookie`, `syncCookie`). Each `document.cookie` read re-syncs
+  every sync cookie. Each re-applied cookie first probes the native jar by
+  writing a dummy cookie, reading the whole jar and deleting it. Datadog RUM
+  polls cookies constantly, so the work grew quadratically.
+- **Fix:** `cookie-perf-patch.cjs` changes two things. The probe's success is
+  remembered per document; the size and `file:` checks still run on every
+  call. A sync is skipped when the native cookie string is byte-identical to
+  the previous sync's and that sync was under a second ago. Every change to
+  the string (page writes, server sync, deletions) still triggers a full sync.
+- **Rejected:** Dropping the window-sync re-application. Cookie changes
+  between a page and its frames depend on it.
+
+## Browser Lite gives toolbar navigations a fresh frame
+
+- **Symptom:** On iPhone, typing a new address while claude.ai was open changed
+  the tab title, but the page stayed on Claude.
+- **Cause:** The controller navigated the existing iframe with
+  `location.replace`, so the old document stayed alive until the new one
+  committed. The navigation aborted claude.ai's in-flight module loads, and
+  its error handler called `location.reload()`, which cancelled the pending
+  cross-origin load ("Load request cancelled"). Desktop Chrome happened to
+  commit first.
+- **Fix:** `open()`, used by the address bar, reload and history to another
+  document, activates with `{fresh:true}`. The controller swaps in a new iframe
+  with the same attributes and loads the entry with `src`, so the old page is
+  destroyed at once. That matches how browsers give browser-initiated
+  navigations a new browsing context. In-page navigations and redirects still
+  use `location.replace`. The wrapper tracks the current frame through
+  `onFrame`.
+- **Rejected:** Messaging the old page to stop navigating. Page scripts, not
+  Browser Lite, own `location`, and anything they do between the message and
+  the commit can still cancel the load.
+
+## Browser Lite's runtime survives a bad redirect and recovers from crash loops
+
+- **Symptom:** Booking.com and other pages intermittently lost their CSS or JS,
+  and every open tab could fail at once with "This browser session ended".
+  Browser Lite then stayed down: nginx logged `ingress.sock failed (2: No such
+  file or directory)`.
+- **Cause:** A redirect to a non-web scheme (Booking's App Store link,
+  `itms-appss:`) or to a URL with `user:pass@` made the realm URL mapper throw
+  inside Hammerhead's `Location` header transform. Rammerhead's last-resort
+  `uncaughtException` handler rethrows non-network errors, so the per-user
+  runtime exited and dropped every in-flight request. A few crashes tripped
+  systemd's start limit and failed the socket unit too. The manager's
+  `ensure()` only ran `systemctl start`, which systemd refuses in that state.
+- **Fix:** `getProxyUrl` leaves non-web schemes untouched, as Hammerhead does,
+  strips embedded credentials, and maps anything else unmappable to
+  `about:blank` rather than throwing. The build patches Rammerhead's guard to
+  log an unexpected error and keep serving; more than 20 in a minute still
+  exits. `ensure()` runs `systemctl reset-failed` on both sockets and services
+  before starting them.
+- **Rejected:** Raising systemd's start limit. A crash still closes every tab,
+  and the limit exists to stop a hot crash loop.
+
+## Browser Lite offers the full Browser on bot walls and never shares clearance cookies
+
+- **Symptom:** Some sites, like the Cloudflare dashboard with its managed
+  challenge, showed a blank page in Browser Lite with no error.
+- **Cause:** Bot-management challenges (Cloudflare, DataDome, PerimeterX,
+  Imperva) refuse a page-rewriting proxy by design.
+- **Fix:** `client-bridge.js` reports `blocked` when the page shows a known
+  challenge: a "Just a moment…" style title, a challenge or captcha iframe,
+  or a resource entry for Cloudflare's challenge orchestrator
+  (`/cdn-cgi/challenge-platform/…/orchestrate/chl_page`), since a challenge page
+  may keep the site's own title.
+  It does not use `window._cf_chl_opt`, which Cloudflare's bot script also
+  sets on ordinary pages. The wrapper then shows its bar with "Open in
+  Browser". Login sharing never copies anti-bot clearance tokens
+  (`cf_clearance`, `__cf_bm`, `datadome`, Akamai `_abck`/`bm_*`, PerimeterX
+  `_px*`, Imperva `incap_*`, `aws-waf-token`, …). They are bound to the
+  browser that passed the check, and copying them would let Lite skip a check
+  it cannot pass.
+- **Rejected:** Making challenges pass inside Browser Lite. That is evading a
+  site's bot detection.
+
+## Browser Lite maps realm-root URLs back to the site on port 443
+
+- **Symptom:** ChatGPT on iPhone loaded with dozens of failed scripts and
+  styles ("not allowed by Access-Control-Allow-Origin. Status code: 500").
+- **Cause:** Its chunk loader resolves `/cdn/assets/…` with
+  `import.meta.resolve` (or `new URL(path, import.meta.url)`). Hammerhead does
+  not emulate `import.meta`, so the path resolved against the realm host.
+  Hammerhead already maps such a URL back to the site's origin, but compares
+  the URL's port with the proxy port as strings. Realms report `"443"`, while
+  a parsed `https://host/` URL has port `""`, so the mapping never ran and the
+  realm itself became the destination.
+- **Fix:** `realm-root-url-patch.cjs` compares default-normalised ports in
+  both client engines (page and worker).
+- **Rejected:** Rewriting `import.meta` in module code. It is a larger AST
+  change, and the port fix also covers every other API that resolves against
+  the real document URL.
+
+## Browser Lite proxies SVG 2 `href` references
+
+- **Symptom:** ChatGPT's icons were missing (403 for `/cdn/assets/icons-….svg`
+  on the realm host).
+- **Cause:** Hammerhead rewrites SVG references only in the old `xlink:href`
+  form. `<use href="/…/icons.svg#x">`, which React renders, kept the site path.
+- **Fix:** `svg-href-patch.cjs` gives plain `href` on the same SVG elements
+  the `xlink:href` treatment: rewritten in served HTML, in the client DOM
+  processor and in `setAttribute`, `#id` references left local, and
+  `getAttribute` returning the original. SVG `<a>`/`<image>` keep the
+  ordinary `href` rule.
+
+## Browser Lite treats `setAttribute('srcSet', …)` as a srcset
+
+- **Symptom:** Airbnb's listing photos were grey on iPhone. The proxy got
+  requests for `…jpeg?im_w=480 454w, https://…` (the whole list as one URL).
+- **Cause:** HTML attribute names are case-insensitive, but Hammerhead's
+  `setAttribute` wrapper checks `attr === 'srcset'` exactly. A camelCase
+  `srcSet` was treated as a URL attribute, not a URL set.
+- **Fix:** `srcset-patch.cjs` compares the lowercased name.
+- **Not a bug:** Some Weibo images return 403 in Lite. A real WebKit gets
+  the same 403s: sinaimg refuses the exact Referer `https://m.weibo.cn/` that
+  any browser sends cross-origin.
+
+## Browser Lite listens for the fresh frame's load only after the swap
+
+- **Symptom:** Every toolbar navigation on iPhone logged "null is not an
+  object (evaluating 'this.frame.contentWindow.postMessage')".
+- **Cause:** WebKit fires a new empty iframe's `about:blank` load during
+  insertion. `freshFrame()` attached the load listener before `replaceWith`,
+  so `attach()` ran while `this.frame` was still the detached old frame.
+- **Fix:** Assign `this.frame` and add the listener after the swap.
+
+## Browser Lite pages see themselves as top-level
+
+- **Symptom:** claude.ai in Browser Lite had no sidebar (desktop and iPhone).
+- **Cause:** A Lite tab is an iframe inside Lite's UI. Claude runs
+  `window.self !== window.top` and, when true, switches to its embedded
+  (integration) mode, which has no navigation. Pages also saw a cross-origin
+  `parent` (Lite's UI) and the UI's address as `document.referrer`. Any site
+  that behaves differently when framed was affected.
+- **Fix:** `top-level-patch.cjs` instruments `top` and `parent` like
+  `location` in page code. For a window in the tab, `x.top` is the tab's root
+  page and the root's `parent` is itself. The root is found natively from
+  `location.ancestorOrigins`: the topmost ancestor that is still one of the
+  user's realms. `document.referrer` is `''` when the native referrer is not a
+  proxied page. Worker engines and Hammerhead's own code are unchanged.
+- **Rejected:** Redefining `window.parent` on the root page. `top` is
+  unforgeable, and Rammerhead's bootstrap walks `parent` to find its own top,
+  so an override made the page hang. Bare `top`/`parent` identifiers are not
+  covered yet; member access (`window.top`) is the common form.
+- **Lesson:** A site check must compare against the real site's layout, not
+  just "the page rendered". This was missed in an earlier sweep.
+- **Follow-up (v1.38.76), runaway loop:** Instrumenting only `x.top` / `x.parent`
+  left bare `top` and `parent` native, and the two forms disagreed. LiveIntent's
+  ID module (via Prebid on weather.com) walks
+  `for (o = window; o !== top; o = o.parent)`. The instrumented `parent` stops at
+  the tab root (whose parent is itself), and the native `top` is never reached,
+  so the loop grew an array forever: WebKit hit 460% CPU and 6.5 GB, froze the
+  whole Vibetop page (same-site iframes share its main thread), then crashed it
+  and lost the tabs. Found by pausing Chromium via CDP during the stall.
+  `top-level-patch.cjs` now rewrites bare `top`/`parent` reads to
+  `__vt$top(top)` / `__vt$parent(parent)`, both in the server transformer list
+  and in the client bundle's (for eval and injected scripts). The helpers map
+  only the native window to the tab root, so a local `const top = rect.top`
+  keeps its value. Skips mirror Hammerhead's `location` transformer, plus labels,
+  `typeof`/`delete`, catch parameters and patterns. Tests run the loop against
+  a simulated tab and compile a set of tricky `top` usages.
+- **Lesson:** An emulation must be applied to every way of reaching a value. A
+  partial one is worse than none, because two views of the same window that
+  disagree turn page code's termination conditions into infinite loops.
+
+## Browser Lite reuses upstream connections through the egress
+
+- **Symptom:** claude.ai showed "Can't reach Claude" and never booted. About
+  90 of its module scripts failed with no response, and Anthropic's asset CDN
+  (`assets-proxy.anthropic.com`) answered our connection attempts with TCP
+  resets.
+- **Cause:** With an upstream proxy configured (Lite's egress), Hammerhead
+  creates a new `tunnel-agent` for every HTTPS request. Each request paid a
+  fresh CONNECT, TCP and TLS handshake, and nothing was reused. Claude's ~160
+  module scripts became ~160 simultaneous connections to one host, which looks
+  like a connection flood. A browser sends them over one HTTP/2 connection.
+- **Fix:** `tunnel-pool-patch.cjs` replaces it with one keep-alive
+  `https.Agent` per destination. It opens each connection through a CONNECT
+  tunnel to the egress and reuses it, with at most 8 per host (Chrome allows 6
+  per host over HTTP/1.1). Node counts an asynchronously created socket toward
+  `maxSockets` only once it exists, so the agent holds the slot with a
+  placeholder while the tunnel opens. Otherwise a burst still opens one per
+  request.
+- **Rejected:** Raising the egress connection cap (1.38.59). It hid the
+  symptom and made the bursts larger.
+- **Follow-up (v1.38.72), HTTP/2 upstream:** The cap turned bursts into
+  queues. ChatGPT preloads ~315 chunks from `chatgpt.com/cdn/assets`, and
+  through 8 HTTP/1.1 connections their median latency was 11.7 s. The rewrite
+  process stayed under one core, so the wait was the queue, not rewriting.
+  On iPhone the page then froze for 7-10 s, because a synchronous
+  `/__vt/map` lookup waited behind them. Hammerhead has an HTTP/2 path but
+  skips it whenever an upstream proxy is set, and its own session code
+  rethrows errors from an event handler. `tunnel-pool-patch.cjs` now offers
+  `h2` by ALPN inside the same egress CONNECT tunnel and keeps one session per
+  destination. A server that picks `http/1.1` is remembered for 10 minutes
+  and uses the keep-alive pool. A stream refused before any response
+  (GOAWAY, REFUSED_STREAM, closed session) is resent over HTTP/1.1. Session
+  errors only destroy the session. Every byte still passes the egress, so the
+  public-only destination policy is unchanged. `tunnel-pool.test.cjs` runs a
+  real gateway against an h2 upstream (60 requests, 1 connection) and an
+  HTTP/1.1-only upstream.
+- **Follow-up (v1.38.73), flow control:** With h2 the burst was still slow, with a
+  1-5 s upstream header time per asset (from a temporary nginx timing log). The
+  auth subrequest took 1 ms. Node's HTTP/2 client advertises a 64 KB receive
+  window per stream and per connection, so one shared session moved 64 KB per
+  round trip. Fetching ChatGPT's 155 chunks (5 MB) from this host took 1.8 s
+  at the default and 0.3-0.5 s with large windows. The pool now asks for 4 MB per
+  stream and 32 MB per session, and the test asserts the advertised window.
+- **Follow-up (v1.38.74), session memory:** A local benchmark replayed
+  ChatGPT's 155 real chunks through a real gateway. On the second burst, 43
+  CSS/SVG requests failed with `NGHTTP2_ENHANCE_YOUR_CALM`. With large windows,
+  more than Node's default `maxSessionMemory` (10 MB) piled up while the single
+  thread was busy rewriting scripts, and Node then refused new streams itself.
+  The session now allows 96 MB. A stream refused that way before any response
+  is resent over HTTP/1.1. After the fix: 0 failures in repeated runs. Synthetic
+  tests (up to 160 × 150 KB of instrumented JS, two rounds) did not reproduce
+  it, so the evidence is the benchmark, not a unit test.
+- **Lesson (stage timing):** I first called the rewrite process "under one
+  core, so not CPU-bound". Node rewrites on one thread, so 70-90% of a core *is*
+  saturation. The `VT_BROWSER_DIAGNOSTICS` stage log (`stage-timing.cjs`:
+  host, kind and stage times, no URLs) showed `processContent` at ~2 s per big
+  script, and upstream at 60-370 ms.
+
+## Browser Lite rewrites large scripts on worker threads
+
+- **Symptom:** A first visit to a script-heavy site (ChatGPT: 18 MB of JS) took
+  2-12 s per asset, and every other request, including the synchronous ones
+  pages depend on, waited behind it.
+- **Cause:** Hammerhead rewrites scripts synchronously on the gateway's only
+  thread, at ~2 s per large bundle.
+- **Fix:** `script-workers.cjs` runs a pool of up to 4 worker threads, installed by
+  `runtime.cjs` as `globalThis.vtProcessScriptAsync`. The patched script hook
+  in `addJSDiskCache.js` uses it for scripts of 16 KB and over. The URL
+  replacer needs the gateway's realm state, so in the worker it returns a
+  random placeholder token and records its arguments, and the gateway
+  substitutes the real URLs. The one call whose value the engine parses
+  (`resolver('./')`, the dynamic-import base) is precomputed and passed in. A
+  substitution that would need escaping in a string literal, or any worker
+  error, falls back to the main thread.
+- **Evidence:** All 18 large ChatGPT bundles rewrote byte-identical to the
+  main thread, and the unit tests compare outputs. Gateway replay of
+  ChatGPT's 155 assets, cold: median 1527 ms → 367 ms, burst 1.96 s → 1.16 s.
+- **Rejected:** Moving the URL mapping into the worker. It would have to share
+  the realm registry state, and the placeholder pass costs one string replace.
+
+## Browser Lite caches rewritten scripts (the cache never returned)
+
+- **Symptom:** Every ChatGPT load cost the same ~3 s of single-threaded script
+  rewriting, even when reloading the same tab, and it stalled every other
+  request behind it.
+- **Cause:** Rammerhead's `RammerheadJSMemCache.get` called `this.lru.get(key)`
+  without `return`, so every lookup missed. Lite also ran on the default 50 MB
+  cache.
+- **Fix:** `build-engine.cjs` patches in the `return`, and the gateway passes
+  a 192 MB cache (ChatGPT alone rewrites to ~25 MB). Replaying ChatGPT's 155
+  chunks: cold 1.8 s, warm 0.15-0.22 s (was 1.5 s). `script-cache.test.cjs`
+  pins the lookup. The key still includes the tab and lease, because a
+  rewritten script embeds them (see the script cache key entry), so a new tab
+  or a new Lite session is still a cold load.
+- **Follow-up (v1.38.83):** Real reloads still missed, because the key held the
+  per-navigation tab token. See "processed-script cache omitted tab identity"
+  for the placeholder scheme. Local replay of ChatGPT with a new tab token:
+  1447 ms → 272 ms.
+
+
+## Browser Lite offers Chrome's TLS ciphers upstream (Yahoo Finance charts)
+
+- **Symptom:** Yahoo Finance quote and chart pages stayed on "Loading chart".
+  Every `query1/query2.finance.yahoo.com` request (crumb, chart data) failed
+  in the page with a CORS error.
+- **Cause:** Yahoo's data API answers HTTP 429, with no CORS headers, to TLS
+  clients that do not look like a browser. Real Chromium on the same host got
+  200. Node's default ClientHello got 429 over both HTTP/1.1 and HTTP/2, and
+  the same request with Chrome's cipher list got 200. The CORS error was only
+  the 429's missing `Access-Control-Allow-Origin`.
+- **Fix:** `tunnel-pool-patch.cjs` passes `BROWSER_TLS` (Chrome's cipher
+  suites in Chrome's order, its signature algorithms and curves) to both
+  upstream pools. The pools are serialized into the engine, so they take it as
+  an argument. A reused engine tree carrying older pool versions is replaced
+  (`vt-tunnel-pool-v2`, `vt-http2-pool-v4`). `tunnel-pool.test.cjs` parses the
+  ClientHello each pool sends.
+- **Rejected:** A full Chrome fingerprint (GREASE, extension order, ML-KEM key
+  share). Node's TLS cannot produce it, and the cipher list was enough here.
+
+## Browser Lite holds a message until its sender's origin is known
+
+- **Symptom:** Yahoo Finance froze the page, and on iPhone all of Vibetop,
+  for seconds at a time while it loaded.
+- **Cause:** A page reads `event.origin` synchronously, but mapping a realm
+  host back to the site origin needs the server, so the bridge made a
+  synchronous XHR for each new sender. One quote page made 19 of them and they
+  held the thread for 6.8 s in total (up to 1.5 s each, behind ~1,300 ad
+  requests), longer still from far away. Safari runs Lite's frames on the
+  Vibetop page's thread, so the whole UI froze.
+- **Fix:** `message-gate.js`. The engine's `_onWindowMessage` asks the gate
+  first. A message from a sender with no cached origin is held, its origin is
+  looked up asynchronously, and then it is delivered through the same engine
+  path. Messages behind a held one wait too, so order is unchanged. The page's
+  own origin and its parent's come in the page config, so they never need a
+  lookup. The synchronous lookup remains only as a fallback for synthetic
+  events. A failed lookup still delivers and caches nothing.
+- **Rejected:** A signed origin claim in the message envelope. Page scripts
+  could read any key the page holds and forge claims. Persisting the map in
+  realm storage would still block the first message from each sender.
+
+- **Follow-up (v1.38.111):** Two paths still looked an origin up
+  synchronously: a page reading `event.origin` outside the gate (`onmessage`,
+  ports), and a page posting back to a window it had heard from. One such
+  lookup took 10 s on a busy Yahoo Finance load. Every incoming message now
+  starts a background lookup of its sender (`prefetchOrigin`), so those later
+  reads find it cached.
+
+## Browser Lite starts blob workers before their source is uploaded
+
+- **Symptom:** After the message fix, Yahoo Finance's chart page still froze
+  the iPhone for 10-14 s.
+- **Cause:** `new Worker(blobUrl)` must return synchronously, and the bridge
+  uploaded the blob's source for rewriting with a synchronous XHR. One upload
+  took 10.0 s while the gateway was busy with the page's ~1,300 requests.
+  Another took 2.4 s.
+- **Fix:** The page names the worker id (32 random bytes), uploads the source
+  asynchronously, and starts the native Worker on `/__vt/worker?id=` at once.
+  The gateway holds the worker's script request (`WorkerStore.wait`, up to
+  30 s) until the upload arrives. A source that cannot be rewritten fails the
+  waiting request at once, so the worker gets its error event. An id cannot be
+  reused, and a realm never waits for or receives another realm's worker. The
+  blob itself is still read synchronously, because it is local and pages
+  often revoke the blob URL right after `new Worker()`.
+  `worker-upload.test.cjs` starts a worker before its upload.
+- **Rejected:** Rewriting the worker on the page. The engine's rewriter is
+  server-side, and shipping it to the page would cost every page far more.
+- **Follow-up (v1.38.93):** The next stall was `/__vt/message-target`, the
+  synchronous lookup of a child frame's realm host before posting to it (10 s
+  once on the chart page). The page names a new iframe on its own host, so it
+  never learns the child's host. When it creates a cross-origin iframe, it now
+  fetches that answer in the background (`prefetchChildTarget`), and the
+  synchronous lookup is only a fallback.
+
+## Browser Lite caches element URL getters (Yahoo Finance search)
+
+- **Symptom:** Yahoo Finance's ticker search box did nothing for 21-44 s after
+  a quote page loaded on iPhone; on the real site it works after ~2 s. Lite
+  also logged `null is not an object (evaluating 'document.body...')` from
+  Yahoo's `finSearch.modern.js`.
+- **Cause:** Yahoo loads the search script `async` in `<head>` with
+  `onload="initFinSearch()"`, which needs `document.body`. On the real site
+  the head parses in ~0.6 s and the script runs after `<body>` exists. In Lite
+  the head took ~2 s, so the script ran first, threw, and search stayed dead
+  until the app hydrated it much later. Most of that time was Vite's preload
+  helper: for every dependency of every dynamic import it reads the `href` of
+  each `<link>`, and each read went through the engine's getter (build a
+  proxy URL, parse it twice, ~50 us). The CPU profile showed 1.1 s in the URL
+  regex alone in the first 4 s.
+- **Fix:** Rammerhead's element URL getter (`fixElementGetter`) caches its
+  result per element class and attribute, keyed by the stored absolute
+  attribute value (`vtUrlGetterCache` in `build-engine.cjs`, 4,096 entries,
+  cleared when full). Relative, empty and missing values are not cached,
+  because they depend on the document's base. `url-getter-cache.test.cjs`
+  runs the built getter against stub elements.
+- **Rejected:** Turning parser-inserted `async` scripts into `defer`. That
+  would also fix this page, but one slow ad script would then delay every
+  later script and `DOMContentLoaded`.
+
+## Browser Lite page back buttons (X's back arrow did nothing)
+
+- **Symptom:** X's own back arrow (and any page calling `history.back()` or
+  `history.go(-1)`) did nothing in Lite. Lite's toolbar Back still worked.
+- **Cause:** A page's history request reaches the wrapper through each tab's
+  `onHistory:delta=>history(delta,tab)` callback. `newTab` took a `history`
+  option (a restored tab's saved journal, usually `null`), which shadowed the
+  wrapper's `history()` traversal inside that closure. Every page-initiated
+  traversal threw `history is not a function` in the toolbar's message
+  handler. The toolbar button calls `history()` from outside `newTab`.
+- **Fix:** The option is destructured as `savedHistory`.
+  `wrapper-history.test.cjs` parses `wrapper.js` and fails if any function
+  that calls `history()` binds that name.
+
+## A stuck site must not freeze Vibetop (Browser Lite isolation)
+
+- **Symptom:** xueqiu.com (Alibaba Cloud's bot challenge) loops forever under
+  Lite. The whole Vibetop page froze with it, on iPhone and desktop.
+- **Cause:** Vibetop, the Lite toolbar and every site's realm are same-site
+  (`*.nicejunjie.com`). Same-site frames share one process and one main
+  thread, so no code on the page could even notice the hang. Measured with a
+  busy loop in the hanging page and a timer in the Vibetop page:
+
+  | Where the hanging page runs | Chromium | WebKit (iOS engine) |
+  |---|---|---|
+  | same-site frame | frozen | frozen |
+  | same-site frame + `Origin-Agent-Cluster: ?1` | 0.1 s | frozen |
+  | cross-site frame | 0.1 s | frozen |
+  | same-site tab the page opens (`window.open` noopener, `<a target=_blank rel=noopener>`, form) | — | frozen |
+  | cross-site tab the page opens | — | 0.1 s |
+  | same-site tab the user opens (or another home-screen app) | — | 0.1 s |
+
+  WebKit keeps every page a same-site page opens in that page's process,
+  whatever the opener flags. Tests on made-up `.test` hosts suggested
+  otherwise: WebKit treats each such host as its own site.
+- **Fix:** Realm responses carry `Origin-Agent-Cluster: ?1` (nginx, every
+  status), so Chromium runs each site out of Vibetop's process. On iPhone,
+  Browser Lite's page is installable as its own home-screen app
+  (`browser-lite-manifest.json`, scope `/browser-lite.html`), which iOS runs
+  apart from Vibetop. That app has its own cookies; unsigned, the launcher
+  sends it to `/login.html?next=/browser-lite.html`. Inside Vibetop, Lite
+  still embeds as before.
+- **Rejected:** A second registrable domain for realms (the only in-page fix
+  on WebKit): its DNS, tunnel and Access setup hurts adoption. Opening Lite
+  in a tab from the Start menu (v1.38.96-97): WebKit kept that tab in
+  Vibetop's process. A watchdog on the same thread cannot run while the page
+  loops. Server-side rendering (the full Browser app): far more bandwidth.
+- **Measuring hangs:** Playwright's `evaluate` and its sync API mislead here
+  (a hung page blocks unrelated calls; `time.sleep` stops event delivery).
+  Use a finite busy loop and a timer inside the page.
+
+## Browser Lite keeps `async` on regenerated async generator methods (TradingView)
+
+- **Symptom:** TradingView's chart page stayed on its spinner in Lite, with
+  "await is only valid in async functions and the top level bodies of
+  modules".
+- **Cause:** Hammerhead regenerates whole AST nodes around some rewrites with
+  esotope. Its `MethodDefinition` and object-method generators wrote either
+  `*` or `async `, never both, so `async*createInterval(){…await…}` came out
+  as a plain generator. Rewriting all 355 of the page's scripts offline and
+  parsing the output found that single broken bundle.
+- **Fix:** `modern-script-patch.cjs` emits `async *` in both the server's
+  esotope and the client's bundled copy. `modern-script.test.cjs` regenerates
+  class and object async generator methods and checks the client copy.
+
+## Browser Lite returns original source from Function.prototype.toString
+
+- **Symptom:** Yahoo's ad script threw "The string contains invalid
+  characters" in Lite only.
+- **Cause:** It decodes base64 spelled by the identifiers of one of its own
+  functions (`fn.toString()`, punctuation stripped). Hammerhead rewrote
+  `pc3[R]` to ` __get$(pc3,R) `, so the decoded text gained `__get$` and
+  `atob` failed. Any code that reads its own source saw the engine's wrappers.
+- **Fix:** Hammerhead's `Function.prototype.toString` override passes the text
+  through `source-text.js`, which reverses the simple wrappers: property
+  get/set, method call, location get, and Lite's own optional-chain form,
+  including the engine's one-space padding. It skips strings, templates,
+  comments and regex literals, and caches results. Rewrites that cannot be
+  reversed exactly (destructuring, location assignment) stay as they are.
+  `source-text.test.cjs` round-trips engine output back to the exact source.
+- **Rejected:** Shipping each changed function's original text with the
+  script: it would double the size of large bundles to serve a rare call.
+
+## Browser Lite sends a small pass-through body in one write
+
+- **Symptom:** Yahoo's opus.js sometimes threw "JSON Parse error: Unterminated
+  string" in Lite.
+- **Cause:** It reads only the first chunk of a fetch body
+  (`body.getReader().read()` once). Real servers send the small JSON in one
+  burst. Through Lite, a streamed body crossed the gateway, nginx and
+  Cloudflare in pieces, so the first read could be partial.
+- **Fix:** `response-coalesce.cjs` replaces hammerhead's pass-through pipe.
+  What arrives in the first 40 ms (up to 64 KB) leaves as one write, then the
+  body streams as before, so event streams and long polls still flow.
+
+## Browser Lite realm hosts accept large cookie headers (investing.com 400)
+
+- **Symptom:** On a second visit, investing.com showed nginx's "400 Request
+  Header Or Cookie Too Large", and Lite's background frame-target lookups
+  failed with the same 400 during the first visit.
+- **Cause:** Script-set cookies travel to the server as `__Host-cw|...` sync
+  cookies on the realm host, several times their plain size, and the
+  window-shared copies (`cw`) live an hour. DataDome writes and deletes
+  uniquely named test cookies, so tombstones piled up: 39-47 cookies and
+  8-10 KB within one page load. Past nginx's default 8k header buffer every
+  request failed, so no request could clear them, and the host stayed broken.
+- **Fix:** The realm server block sets `large_client_header_buffers 4 32k`
+  (a server-level value works there; tested with a 12-20 KB cookie). The
+  rewrite runtime starts Node with `--max-http-header-size=65536`. A
+  deleted cookie's sync copy (`maxAge <= 0` or a past expiry) now lives 60 s
+  instead of an hour (`cookie-wire-patch.cjs`).
+
+## Browser Lite proxies scripted images and video posters
+
+- **Symptom:** Stack Overflow's modal images, Reddit's award icons and
+  Weibo's video poster loaded straight from the sites, bypassing Lite.
+- **Cause:** The engine proxies a scripted `<img src>` only when the element
+  carries a flag that `document.createElement` sets. Svelte and lit clone
+  images from a `<template>`, so they never had it, and `setAttribute`
+  resolved the URL without proxying it. `poster` was not a URL attribute to
+  the engine at all, so `setAttribute('poster')` and `video.poster =` went out
+  raw. Only parsed HTML was covered (extra-url-attrs.js).
+- **Fix:** `modern-script-patch.cjs` makes `setAttributeCore` honor the
+  session-wide `forceProxySrcForImage` (Lite always sets it) for every image,
+  adds `poster` for `video` to the client's URL attribute table (not to the
+  one-attribute-per-element processing list) and overrides the `poster`
+  property. The HTML pass stores the original poster where `getAttribute`
+  looks for it.
+
+## Browser Lite proxies media-session artwork and notification icons
+
+- **Symptom:** On Twitch, two 150x150 profile pictures loaded straight from
+  static-cdn.jtvnw.net. DevTools showed type "Other" with initiator "other":
+  the browser itself, not the page, fetched them.
+- **Cause:** `navigator.mediaSession.metadata = new MediaMetadata({artwork})`
+  makes the browser fetch the artwork URLs for its media controls.
+  `Notification` and `showNotification` icons work the same way. The engine
+  rewrites neither.
+- **Fix:** `client-bridge.js` wraps the `MediaMetadata` constructor and its
+  `artwork` setter, the `Notification` constructor and
+  `ServiceWorkerRegistration.showNotification`, proxying `src`, `icon`,
+  `image` and `badge` URLs (data: and already proxied URLs untouched).
+  `browser-fetched-images.test.cjs` runs the hook against stub classes.
+
+## Browser Lite keeps SVG same-document references and proxies new Audio()
+
+- **Symptom:** A report-only CSP on realm pages showed Google Finance loading
+  its own page URL as an image, and TradingView loading a notification sound,
+  straight from the sites.
+- **Cause:** Google's chart sets `mask="url(<location.href>#id)"` (also fill,
+  clip-path, `<use href>`). `location.href` is the site's address, but the
+  document lives on the realm host, so the browser fetched the site's page as
+  an external resource, and the masks never applied. `new Audio(url)` sets
+  `src` inside the native constructor, out of the engine's reach.
+- **Fix:** `setAttribute` turns `url(<this page's address>#id)` and
+  `href="<this page's address>#id"` on SVG elements back into `#id`. The
+  `Audio` constructor creates the element bare and assigns `src` through the
+  proxied property.
+- **Follow-up (v1.38.106):** The bridge's `Element.prototype.setAttribute`
+  wrapper never ran: the engine installs its own override after the bridge.
+  Its ping, link `imagesrcset` and `<track src>` handling were dead code too.
+  The engine's `setAttributeCore` now calls `window.vibetopAttributeValue`
+  first, and the bridge does all of that there.
+
+## Browser Lite allows 512 in-flight requests per user
+
+- **Symptom:** Scripts and images on heavy pages (Lite's own rammerhead.js
+  among them) intermittently failed with an empty 503; nginx logged
+  "limiting connections by zone browser_lite_users", including at times only
+  the user was browsing.
+- **Cause:** The realm location capped each user at 128 concurrent
+  connections. The Cloudflare tunnel opens one origin connection per in-flight
+  request, so one heavy page (Yahoo Finance's ~250 module chunks plus ads)
+  went past it.
+- **Fix:** The cap is 512: still a per-user guard, but above what one page
+  issues at once.
+
+## Browser Lite calls rewritten methods with a captured Reflect.apply (Xiaohongshu)
+
+- **Symptom:** On xiaohongshu.com nearly every `document` getter
+  (`document.title`, `document.images`) threw "Maximum call stack size
+  exceeded", and the page logged the same error.
+- **Cause:** The engine turns `obj.m(a)` into `__call$(obj, 'm', [a])`, and its
+  `fastApply` then ran `meth.call(owner, ...)`, which reads
+  `Function.prototype.call` at call time. Xiaohongshu replaces
+  `Function.prototype.call`. Its replacement's own method calls are rewritten
+  into `__call$`, which called the replacement again, until the stack ran out.
+  A real browser never consults `Function.prototype.call` for `obj.m(a)`.
+- **Fix:** `fastApply` uses `Reflect.apply` captured when the engine loads,
+  before any page script (`modern-script-patch.cjs`). The test replaces
+  `Function.prototype.call` with a re-entering function and checks it is
+  never consulted.
+
+## Browser Lite site pages carry an enforcing CSP limited to Lite's hosts
+
+- **Symptom:** Some requests still left the browser straight to sites after
+  the engine's rewriting: GeoEdge (on investing.com and NYTimes) loaded its
+  script and called its API directly.
+- **Cause:** GeoEdge creates an `about:blank` frame the engine never
+  initializes and uses that frame's native `script.src` and `fetch`, the
+  usual trick for getting untouched browser functions. No rewriting can see
+  calls made that way.
+- **Fix:** Every realm response carries `Content-Security-Policy: default-src
+  https://*.<domain>:* wss://*.<domain>:* data: blob: 'unsafe-inline'
+  'unsafe-eval'; form-action https://*.<domain>:*` (nginx, every status).
+  Frames like that inherit it, so anything outside Lite's hosts is blocked
+  instead of escaping. Before enforcing, it ran report-only through a 46-site
+  sweep on iPhone and desktop. Only ad verification (GeoEdge), extension and
+  custom-scheme probes (Douyin) and a bare `https:` image (eastmoney) fell
+  outside. The sweep itself found and fixed real escapes: TradingView's
+  `new Audio()`, Google Finance's SVG `url(<page>#id)` references.
+- **Rejected:** Initializing every `about:blank` frame from the parent: the
+  engine cannot run scripts in a sandboxed frame without `allow-scripts`, and
+  a site can always find another native path.
+
+## Browser Lite does not run Alibaba Cloud's WAF challenge; names eastmoney's captcha
+
+- **Symptom:** xueqiu.com's challenge page looped forever. On desktop it now
+  froze only its own process, but the page stayed blank. On iPhone it froze
+  all of Lite, and a restored xueqiu tab would freeze it again on every
+  launch. eastmoney's slider captcha rendered as an empty white card.
+- **Cause:** Both are bot checks that reject this server (the real site,
+  opened directly from the server, shows the same). Alibaba's challenge
+  script never finishes under Lite. eastmoney's firewall answers its own
+  APIs with 403, so its captcha cannot draw.
+- **Fix:** The server page pass marks a page carrying Alibaba's
+  `<meta name="aliyun_waf_…">` and disables the page's own scripts after it
+  (`type="text/vt-blocked-challenge"`; the engine's scripts keep running).
+  The bridge's bot-wall test also matches that meta and eastmoney's
+  `/websitecaptcha/` frame, so the toolbar offers the full Browser instead of
+  a frozen or blank page. Nothing is solved or bypassed.

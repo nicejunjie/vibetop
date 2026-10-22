@@ -101,3 +101,41 @@ sudo nginx -t && sudo systemctl reload nginx
 sudo journalctl -u cloudflared -f
 ```
 
+
+## Desktop terminal incident, 2026-10-13
+
+The HTTP fallback restored the affected desktop without restarting persistent
+terminal sessions. The initiating cause of the native connection stall remains
+unproven; do not describe this incident as a confirmed Safari or China-network bug.
+
+Evidence (host time, America/Chicago):
+
+- At 07:11:44 the affected Mac reported a closed terminal socket, then remained
+  CONNECTING through its 45-second guard. Terminal creation and HTTP APIs worked.
+- The same Mac established native xpra Browser WebSockets during the terminal
+  failure. This rules out a complete WebSocket outage.
+- At 08:38, a temporary probe on that Mac used the original native constructor
+  before terminal wrappers and another from a clean iframe. Both connected, but
+  took 17.1 and 19.0 seconds; the HTTP token control took 0.59 seconds. These
+  probes used fresh query strings, so they do not exclude exact-URL or transient
+  behavior in the original failures.
+- The deployed pre-incident terminal scripts passed three fresh native connects
+  each in local Chromium and WebKit (62–162 ms). Local success does not establish
+  public-path or long-lived-client health.
+- Auditing the other session found Browser Lite gateway/WebSocket work in an
+  isolated test harness, with separate loopback ports and private runtime units.
+  The 07:09 test-unit replacement did not replace the production terminal service.
+  Its proposed ttyd --check-origin change was not in the live launcher.
+- A separate real deployment defect existed: served HTML stamped v759 while
+  sw.js advertised v760. The Oct 12 Browser Lite staged HTML retained v759;
+  attribution of the sw.js change is not established. Our initial scoped fallback
+  deployment also failed to update that HTML stamp. Mismatched builds cause
+  repeated reloads and eventually block automatic refresh. Served HTML and sw.js
+  were aligned to v762; doctor now checks this invariant. This defect can disrupt
+  reconnects but does not prove why native handshakes stalled.
+
+The temporary native probe was removed after collecting its results. Browser Lite
+production files were preserved. Incremental terminal history/resume work existed
+in development but was not deployed at the time of this incident. Future incident
+capture should correlate native attempt start, origin arrival and upgrade timing;
+nginx's ordinary access timestamp is request completion, not handshake start.

@@ -129,7 +129,12 @@ function load(opts) {
       }
       return byId[id];
     },
-    createElement(t) { return el(t); },
+    createElement(t) {
+      const element = el(t);
+      let id = '';
+      Object.defineProperty(element, 'id', {get() { return id; }, set(value) { id = value; byId[value] = element; }});
+      return element;
+    },
     querySelector() { return null; }, querySelectorAll() { return []; },
     addEventListener(t, fn) { (doc._on[t] || (doc._on[t] = [])).push(fn); },
     removeEventListener() {},
@@ -967,56 +972,50 @@ const GPU_A = {id: '0000:03:00.0', name: 'Radeon A', integrated: false,
 const GPU_B = {id: '0000:07:00.0', name: 'Radeon B', integrated: false,
   percent: 100, temp: 64, power_w: 300, vram_used_gb: 23, vram_total_gb: 24};
 
-test('both GPUs contribute power and selecting the busy card changes all device readings', async () => {
-  const h = load({payloads: [fullStatus({gpus: [GPU_B, GPU_A]})]});
+
+test('both discrete GPUs show usage, VRAM, temperature and power together', async () => {
+  const igpu = {...GPU_A, id: '0000:76:00.0', integrated: true};
+  const h = load({payloads: [fullStatus({gpus: [GPU_B, igpu, GPU_A]})]});
   await h.settle();
+  assert.strictEqual(h.id('gpu-devices').children.length, 2);
   assert.strictEqual(h.id('gpu-bar-text').textContent, '0%');
+  assert.strictEqual(h.id('gpu-1-gpu-bar-text').textContent, '100%');
+  assert.strictEqual(h.id('gpu-1-vram-bar-text').textContent, '23 / 24 GB');
+  assert.strictEqual(h.id('gpu-temp').textContent, '46°');
+  assert.strictEqual(h.id('gpu-1-temp').textContent, '64°');
   assert.strictEqual(h.id('gpu-pwr-text').textContent, '323W');
   assert.strictEqual(h.id('pwr-total').textContent, '408W total');
   assert.deepStrictEqual(h.id('gpu-power-list').children.map(e => e.textContent), ['GPU1: 23W', 'GPU2: 300W']);
-  const pick = h.id('gpu-pick');
-  assert.strictEqual(pick.hidden, false);
-  pick.value = GPU_B.id; pick.fire('change');
-  assert.strictEqual(h.id('gpu-bar-text').textContent, '100%');
-  assert.strictEqual(h.id('vram-bar-text').textContent, '23 / 24 GB');
-  assert.strictEqual(h.id('gpu-temp').textContent, '64°');
-  assert.strictEqual(h.id('gpu-temp-label').textContent, 'GPU2');
-  assert.ok(h.id('gpu-detail').textContent.includes('300W'));
-  assert.strictEqual(h.id('gpu-pwr-text').textContent, '323W');
+  assert.ok(!HTML.includes('<select'), 'Monitor has no dropdown menus');
 });
 
-test('selection follows PCI identity through reordered inventory and missing sensors stay unknown', async () => {
-  const missing = {...GPU_B, power_w: null, percent: null, temp: null, vram_used_gb: null};
+test('GPU rows retain PCI identity through reordering and missing sensors stay unknown', async () => {
+  const missing = {...GPU_B, percent: null, temp: null, power_w: null, vram_used_gb: null};
   const h = load({payloads: [fullStatus({gpus: [GPU_A, GPU_B]}), fullStatus({gpus: [missing, GPU_A]})]});
-  await h.settle();
-  h.id('gpu-pick').value = GPU_B.id; h.id('gpu-pick').fire('change');
-  h.tick(); await h.settle();
-  assert.strictEqual(h.id('gpu-pick').value, GPU_B.id);
-  assert.strictEqual(h.id('gpu-bar-text').textContent, '--');
-  assert.strictEqual(h.id('vram-bar-text').textContent, '--');
-  assert.strictEqual(h.id('gpu-temp').textContent, '--');
+  await h.settle(); h.tick(); await h.settle();
+  assert.strictEqual(h.id('gpu-devices').children[1].dataset.gpuId, GPU_B.id);
+  assert.strictEqual(h.id('gpu-bar-text').textContent, '0%');
+  assert.strictEqual(h.id('gpu-1-gpu-bar-text').textContent, '--');
+  assert.strictEqual(h.id('gpu-1-vram-bar-text').textContent, '--');
+  assert.strictEqual(h.id('gpu-1-temp').textContent, '--');
   assert.strictEqual(h.id('gpu-pwr-text').textContent, '--');
-  assert.strictEqual(h.id('pwr-total').textContent, '85W CPU only');
 });
 
-test('integrated graphics remain selectable and are excluded from discrete GPU power', async () => {
-  const igpu = {...GPU_A, id: '0000:00:01.0', integrated: true, power_w: 50};
-  const h = load({payloads: [fullStatus({gpus: [igpu, GPU_A, GPU_B]})]});
-  await h.settle();
-  assert.strictEqual(h.id('gpu-pick').value, GPU_A.id);
-  assert.strictEqual(h.id('gpu-pwr-text').textContent, '323W');
-  assert.strictEqual(h.id('gpu-pick').children.length, 3);
+test('all CPU packages and all discrete GPU temperatures have separate readings and chart lines', async () => {
+  const cpus = [{id: 'cpu-a', name: 'CPU1', temp: 61}, {id: 'cpu-b', name: 'CPU2', temp: 72}];
+  const payload = fullStatus({gpus: [GPU_A, GPU_B], cpus});
+  const h = load({payloads: [payload, payload, payload]});
+  await h.settle(); h.tick(); await h.settle(); h.clearPaths(); h.tick(); await h.settle();
+  assert.strictEqual(h.id('temp-readings').children.length, 4);
+  assert.strictEqual(h.id('cpu-temp').textContent, '61°');
+  assert.strictEqual(h.id('cpu-1-temp').textContent, '72°');
+  assert.strictEqual(h.id('gpu-temp').textContent, '46°');
+  assert.strictEqual(h.id('gpu-1-temp').textContent, '64°');
+  for (const color of [GREEN, BLUE, 'rgb(192,147,90)', 'rgb(97,190,190)'])
+    assert.ok(vertices(h.id('temp-chart'), color).length >= 3, color + ' should have its own line');
 });
 
-test('an empty GPU inventory overrides stale legacy scalars', async () => {
-  const h = load({payloads: [fullStatus({gpus: []})]});
-  await h.settle();
-  for (const id of ['gpu-bar-text', 'vram-bar-text', 'gpu-temp', 'gpu-pwr-text'])
-    assert.strictEqual(h.id(id).textContent, '--');
-  assert.strictEqual(h.id('gpu-pick').hidden, true);
-});
-
-test('device histories never inherit the primary GPU history and power history sums both devices', async () => {
+test('device histories never inherit primary scalars and all GPUs remain visible at history spans', async () => {
   const flat = value => Array(60).fill(value);
   const series = Object.fromEntries(['memory_used_gb', 'gpu_percent', 'gpu_vram_used_gb', 'cpu_temp',
     'gpu_temp', 'cpu_power_w', 'gpu_power_w', 'wall_power_w', 'net_rx_bps', 'net_tx_bps',
@@ -1027,20 +1026,181 @@ test('device histories never inherit the primary GPU history and power history s
   }};
   const h = load({payloads: [fullStatus({gpus: [GPU_A, GPU_B]})], history});
   await h.settle();
-  h.clearPaths(); h.id('gpu-pick').value = GPU_B.id; h.id('gpu-pick').fire('change');
-  const util = vertices(h.id('gpu-chart'), GREEN);
-  assert.ok(util.length >= 60);
-  assert.ok(util.slice(0, 60).every(p => p.y === 0), 'busy-card history must not contain idle-card points');
-  h.tick(); await h.settle();
-  assert.ok(Number(h.id('pwr-yaxis').innerHTML.match(/<span>(\d+)W/)[1]) >= 387,
-    'historical power scale includes the sum of both cards');
-
+  assert.ok(vertices(h.id('gpu-1-gpu-chart'), GREEN).length >= 60);
+  assert.ok(Number(h.id('pwr-yaxis').innerHTML.match(/<span>(\d+)W/)[1]) >= 387);
   const old = load({payloads: [fullStatus({gpus: [GPU_A, GPU_B]})], history: {series}});
-  await old.settle(); old.clearPaths();
-  old.id('gpu-pick').value = GPU_B.id; old.id('gpu-pick').fire('change');
-  assert.strictEqual(vertices(old.id('gpu-chart'), GREEN).length, 0,
-    'old primary-device history cannot be assigned to GPU2');
+  await old.settle(); old.clearPaths(); old.tick(); await old.settle();
+  assert.ok(vertices(old.id('gpu-1-gpu-chart'), GREEN).length < 60, 'only newly measured live points may appear');
 });
+
+function chooseDisk(h, id) { h.id('disk-pick').children.find(button => button.dataset.diskId === id).fire('click'); }
+function activeDisk(h) { return (h.id('disk-pick').children.find(button => button.classList.contains('on')) || {dataset:{}}).dataset.diskId; }
+
+const DISK_ROOT = {id: 'disk-' + 'a'.repeat(64), name: 'nvme0n1p2', device: '/dev/nvme0n1p2',
+  mount: '/', mounts: ['/'], used_gb: 100, total_gb: 1000, pct: 11, read_bytes: 1024, write_bytes: 0};
+const DISK_DATA = {id: 'disk-' + 'b'.repeat(64), name: 'sda1', device: '/dev/sda1',
+  mount: '/data', mounts: ['/data'], used_gb: 600, total_gb: 8000, pct: 8, read_bytes: 1048576, write_bytes: 2048};
+
+test('disk selection changes space, I/O and history without assuming a disk count', async () => {
+  const unmounted = {id: 'disk-' + 'c'.repeat(64), name: 'sdb', device: '/dev/sdb', mount: null, mounts: [], read_bytes: 0, write_bytes: 0};
+  const extra = {...DISK_DATA, id: 'disk-' + 'd'.repeat(64), device: '/dev/sdc1', mount: '/backup', mounts: ['/backup']};
+  const h = load({payloads: [fullStatus({disks: [DISK_DATA, unmounted, extra, DISK_ROOT]})]});
+  await h.settle();
+  assert.strictEqual(h.id('disk-pick').children.length, 4);
+  assert.strictEqual(activeDisk(h), DISK_ROOT.id);
+  assert.strictEqual(h.id('disk-bar-text').textContent, '100 / 1000 GB');
+  assert.strictEqual(h.id('disk-bar').style.width, '11%');
+  chooseDisk(h, DISK_DATA.id);
+  assert.strictEqual(h.id('disk-bar-text').textContent, '600 / 8000 GB');
+  assert.ok(h.id('disk-stats').innerHTML.includes('1.0 MB/s'));
+  assert.ok(h.id('disk-detail').textContent.includes('/data'));
+  chooseDisk(h, unmounted.id);
+  assert.strictEqual(h.id('disk-bar-text').textContent, '--');
+  assert.ok(h.id('disk-stats').innerHTML.includes('0 B/s'));
+});
+
+test('disk identity survives reordering and missing readings do not retain stale space', async () => {
+  const absent = {...DISK_DATA, used_gb: null, total_gb: null, read_bytes: null, write_bytes: null};
+  const h = load({payloads: [fullStatus({disks: [DISK_ROOT, DISK_DATA]}), fullStatus({disks: [absent, DISK_ROOT]})]});
+  await h.settle();
+  chooseDisk(h, DISK_DATA.id);
+  h.tick(); await h.settle();
+  assert.strictEqual(activeDisk(h), DISK_DATA.id);
+  assert.strictEqual(h.id('disk-bar-text').textContent, '--');
+  assert.ok(h.id('disk-stats').innerHTML.includes('R --'));
+  assert.ok(h.id('disk-stats').innerHTML.includes('W --'));
+});
+
+test('empty disk inventory clears root scalars and removed selection falls back safely', async () => {
+  const h = load({payloads: [fullStatus({disks: [DISK_ROOT, DISK_DATA]}), fullStatus({disks: [DISK_ROOT]}), fullStatus({disks: []})]});
+  await h.settle();
+  chooseDisk(h, DISK_DATA.id);
+  h.tick(); await h.settle();
+  assert.strictEqual(activeDisk(h), DISK_ROOT.id);
+  assert.strictEqual(h.id('disk-pick').hidden, true);
+  h.tick(); await h.settle();
+  assert.strictEqual(h.id('disk-bar-text').textContent, '--');
+  assert.ok(h.id('disk-stats').innerHTML.includes('R --'));
+});
+
+test('disk history is taken by identity and never copies root history onto data', async () => {
+  const flat = value => Array(60).fill(value);
+  const series = Object.fromEntries(['memory_used_gb', 'gpu_percent', 'gpu_vram_used_gb', 'cpu_temp',
+    'gpu_temp', 'cpu_power_w', 'gpu_power_w', 'wall_power_w', 'net_rx_bps', 'net_tx_bps',
+    'disk_read_bytes', 'disk_write_bytes'].map(key => [key, flat(1)]));
+  const history = {series, disks: {
+    [DISK_ROOT.id]: {disk_read_bytes: flat(0), disk_write_bytes: flat(0)},
+    [DISK_DATA.id]: {disk_read_bytes: flat(10485760), disk_write_bytes: flat(2048)}
+  }};
+  const h = load({payloads: [fullStatus({disks: [DISK_ROOT, DISK_DATA]})], history});
+  await h.settle();
+  h.clearPaths(); chooseDisk(h, DISK_DATA.id);
+  assert.ok(h.id('disk-yaxis').innerHTML.includes('20 MB/s'));
+  assert.ok(vertices(h.id('disk-chart'), GREEN).length >= 60);
+  const old = load({payloads: [fullStatus({disks: [DISK_ROOT, DISK_DATA]})], history: {series}});
+  await old.settle(); old.clearPaths();
+  chooseDisk(old, DISK_DATA.id);
+  assert.strictEqual(vertices(old.id('disk-chart'), GREEN).length, 0);
+});
+
+
+
+test('integrated-only hosts have no GPU temperature or power readings', async () => {
+  const h = load({payloads: [fullStatus({gpus: [{...GPU_A, integrated: true}]})]});
+  await h.settle();
+  assert.strictEqual(h.id('gpu-bar-text').textContent, '--');
+  assert.strictEqual(h.id('gpu-pwr-text').textContent, '--');
+  assert.strictEqual(h.id('gpu-power-list').hidden, true);
+  assert.strictEqual(h.id('temp-readings').children.length, 1);
+});
+
+
+function axisLabels(h, id) { return [...h.id(id).innerHTML.matchAll(/<span>(.*?)<\/span>/g)].map(match => match[1]); }
+
+test('power ticks use round bounds and chart geometry matches those ticks', async () => {
+  const h = load({payloads: [fullStatus({gpu_power_w: 50.13, cpu_power_w: 0})]});
+  await h.settle(); h.tick(); await h.settle();
+  assert.deepStrictEqual(axisLabels(h, 'pwr-yaxis'), ['100W', '50W', '0']);
+  assert.strictEqual(h.id('gpu-pwr-text').textContent, '50.13W', 'actual readings retain their precision');
+  const points = vertices(h.id('pwr-chart'), BLUE);
+  assert.ok(Math.abs(points[0].y - 49.87) < 0.001, '50.13W must use a genuine 100W domain');
+});
+
+test('disk tick labels use natural values in one shared rate unit', async () => {
+  for (const [rate, top, middle] of [[1.37 * 1024**2, '2 MB/s', '1 MB/s'],
+                                    [37.23 * 1024**2, '50 MB/s', '25 MB/s'],
+                                    [0, '1 MB/s', '0.5 MB/s']]) {
+    const h = load({payloads: [fullStatus({disk_read_bytes: rate, disk_write_bytes: 0})]});
+    await h.settle();
+    assert.deepStrictEqual(axisLabels(h, 'disk-yaxis'), [top, middle, '0']);
+  }
+});
+
+test('network ticks round the rate domain rather than just the displayed text', async () => {
+  const rate = 50.13 * 1024;
+  const h = load({now: 1000000, payloads: [fullStatus({network: {eth0: {rx_bytes: 0, tx_bytes: 0}}}),
+    fullStatus({network: {eth0: {rx_bytes: rate * 2, tx_bytes: 0}}})]});
+  await h.settle(); h.setClock(1002000); h.tick(); await h.settle();
+  assert.deepStrictEqual(axisLabels(h, 'net-yaxis'), ['100 KB/s', '50 KB/s', '0']);
+});
+
+test('temperature ticks start at 0/50/100 and expand to round bounds for hotter history', async () => {
+  const h = load({payloads: [fullStatus(), fullStatus({cpu_temp: 101})]});
+  await h.settle();
+  assert.deepStrictEqual(axisLabels(h, 'temp-yaxis'), ['100°C', '50°C', '0']);
+  h.tick(); await h.settle();
+  assert.deepStrictEqual(axisLabels(h, 'temp-yaxis'), ['200°C', '100°C', '0']);
+});
+
+
+test('GPU power segments keep watt proportions and match their blue legend shades', async () => {
+  const cards = [GPU_A, GPU_B, {...GPU_A, id: '0000:08:00.0', power_w: 126}, {...GPU_A, id: '0000:09:00.0', power_w: 41}];
+  const h = load({payloads: [fullStatus({gpus: cards.slice().reverse()})]});
+  await h.settle();
+  const segments = h.id('gpu-pwr-bar').children;
+  assert.strictEqual(segments.length, 4);
+  segments.forEach((segment, i) => {
+    assert.strictEqual(segment.dataset.gpuId, cards[i].id);
+    assert.ok(Math.abs(parseFloat(segment.style.width) - cards[i].power_w / 1160 * 100) < 1e-9);
+    assert.strictEqual(segment.style.background, h.id('gpu-power-list').children[i].style.color);
+    assert.ok(segment.style.background.startsWith('hsl(207, 42%,'));
+    assert.strictEqual(segment.title, `GPU${i + 1}: ${cards[i].power_w}W`);
+  });
+  assert.strictEqual(new Set(segments.map(s => s.style.background)).size, 4);
+});
+
+test('GPU power above nominal TDP scales all segments together without clipping later GPUs', async () => {
+  const h = load({payloads: [fullStatus({gpus: [{...GPU_A, power_w: 400}, {...GPU_B, power_w: 800}]})]});
+  await h.settle();
+  const segments = h.id('gpu-pwr-bar').children;
+  assert.ok(Math.abs(parseFloat(segments[0].style.width) - 100 / 3) < 1e-9);
+  assert.ok(Math.abs(parseFloat(segments[1].style.width) - 200 / 3) < 1e-9);
+  assert.strictEqual(h.id('gpu-pwr-text').textContent, '1200W');
+});
+
+test('missing GPU power keeps known segments visible and total unknown', async () => {
+  const h = load({payloads: [fullStatus({gpus: [GPU_A, {...GPU_B, power_w: null}]})]});
+  await h.settle();
+  assert.ok(parseFloat(h.id('gpu-pwr-bar').children[0].style.width) > 0);
+  assert.strictEqual(h.id('gpu-pwr-bar').children[1].style.width, '0%');
+  assert.strictEqual(h.id('gpu-pwr-bar').children[1].title, 'GPU2: --');
+  assert.strictEqual(h.id('gpu-pwr-text').textContent, '--');
+});
+
+
+test('physical disk buttons group all partition mounts under drive names', async () => {
+  const root = {...DISK_ROOT, kind: 'physical', name: 'nvme0n1', device: '/dev/nvme0n1', capacity_gb: 3726, mounts: ['/', '/boot/efi']};
+  const data = {...DISK_DATA, kind: 'physical', name: 'sda', device: '/dev/sda', capacity_gb: 7452};
+  const h = load({payloads: [fullStatus({disks: [data, root]})]});
+  await h.settle();
+  assert.deepStrictEqual(h.id('disk-pick').children.map(b => b.textContent), ['nvme0n1', 'sda']);
+  assert.ok(h.id('disk-detail').textContent.includes('/, /boot/efi'));
+  assert.ok(h.id('disk-detail').textContent.includes('3726 GB'));
+  assert.ok(h.id('disk-bar-text').title.includes('mounted filesystems'));
+  chooseDisk(h, data.id);
+  assert.ok(h.id('disk-detail').textContent.includes('/dev/sda'));
+});
+
 
 test('power curves share the server time window instead of browser poll positions', async () => {
   const one = v => new Array(59).fill(null).concat(v);

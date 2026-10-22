@@ -92,6 +92,8 @@ class History:
         self._coarse = {}      # bucket start -> {field: [values]}
         self._prev_net = None  # (t, rx_total, tx_total) for the rate we derive
         self._devices = {} if not device else None
+        self._disks = {} if not device else None
+        self._cpus = {} if not device else None
         self._open()
         # Separate fixed-size rings retain PCI identity without changing or
         # discarding the existing host history. No process data is recorded.
@@ -106,6 +108,22 @@ class History:
                     if len(self._devices) >= 16:
                         break
                     self._devices[name] = History(os.path.join(directory, name), device=True)
+            directory = self.path + '.disks'
+            try:
+                names = os.listdir(directory)
+            except OSError:
+                names = []
+            for name in sorted(names):
+                if re.fullmatch(r'disk-[0-9a-f]{64}', name):
+                    self._disks[name] = History(os.path.join(directory, name), device=True)
+            directory = self.path + '.cpus'
+            try:
+                names = os.listdir(directory)
+            except OSError:
+                names = []
+            for name in sorted(names):
+                if re.fullmatch(r'cpu-[0-9a-f]{64}', name):
+                    self._cpus[name] = History(os.path.join(directory, name), device=True)
 
     # ---- file -------------------------------------------------------------
     def _open(self):
@@ -135,7 +153,7 @@ class History:
         self._fd = fd
 
     def close(self):
-        for history in (self._devices or {}).values():
+        for history in list((self._devices or {}).values()) + list((self._disks or {}).values()) + list((self._cpus or {}).values()):
             history.close()
         if self._fd is not None:
             try:
@@ -198,6 +216,24 @@ class History:
                 self._devices[ident].note({
                     "gpu_" + field: gpu.get(field) for field in
                     ("percent", "temp", "power_w", "vram_used_gb")}, now)
+        if self._disks is not None:
+            for disk in status.get('disks', []):
+                ident = disk.get('id', '')
+                if not re.fullmatch(r'disk-[0-9a-f]{64}', ident):
+                    continue
+                if ident not in self._disks:
+                    self._disks[ident] = History(
+                        os.path.join(self.path + '.disks', ident), device=True)
+                self._disks[ident].note({'disk_' + field: disk.get(field) for field in
+                                         ('used_gb', 'read_bytes', 'write_bytes')}, now)
+        if self._cpus is not None:
+            for cpu in status.get('cpus', []):
+                ident = cpu.get('id', '')
+                if not re.fullmatch(r'cpu-[0-9a-f]{64}', ident):
+                    continue
+                if ident not in self._cpus:
+                    self._cpus[ident] = History(os.path.join(self.path + '.cpus', ident), device=True)
+                self._cpus[ident].note({'cpu_temp': cpu.get('temp')}, now)
         vals = {}
         for f in FIELDS:
             v = status.get(f)
@@ -235,7 +271,7 @@ class History:
 
     def tick(self, now):
         """Flush every bucket that has closed. Returns the buckets written."""
-        for history in (self._devices or {}).values():
+        for history in list((self._devices or {}).values()) + list((self._disks or {}).values()) + list((self._cpus or {}).values()):
             history.tick(now)
         fine_step = TIERS[0][1]
         coarse_step = TIERS[1][1]
@@ -309,6 +345,11 @@ class History:
             gpu_fields = [f for f in want if f.startswith("gpu_")]
             result["gpus"] = {ident: history.window(now, span, slots, gpu_fields)["series"]
                               for ident, history in self._devices.items()} if gpu_fields else {}
+            disk_fields = [f for f in want if f.startswith('disk_')]
+            result['disks'] = {ident: history.window(now, span, slots, disk_fields)['series']
+                               for ident, history in self._disks.items()} if disk_fields else {}
+            result['cpus'] = {ident: history.window(now, span, slots, ['cpu_temp'])['series']
+                              for ident, history in self._cpus.items()} if 'cpu_temp' in want else {}
         return result
 
 

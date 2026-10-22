@@ -50,6 +50,8 @@
     video:       svgIcon('M8 5v14l11-7z')
   };
 
+  ICON.browserlite = ICON.browser;
+
   // Single source of truth for every app: its taskbar/Start-menu icon, label,
   // Start-menu description, iframe src, and which Start-menu section it sits in.
   // The Start-menu items are generated from this (buildStartMenu) so the icon +
@@ -58,6 +60,7 @@
     home:     { label: 'Services', icon: '📡', src: '/landing.html',         desc: 'Network services on this host', section: 'utilities' },
     terminal: { label: 'Terminal', icon: '⬛', src: '/terminals/',           desc: 'Persistent bash terminals' },
     browser:  { label: 'Browser',  icon: '🌐', src: '/browser/',             desc: 'Persistent web browser' },
+    browserlite: { label: 'Browser Lite', icon: '🌐', src: '/browser-lite.html', desc: 'Experimental browser for slow connections' },
     x11launcher: { label: 'X11 Launcher', icon: '🚀', src: '/x11launcher.html',     desc: 'Launch GUI apps' },
     files:    { label: 'Files',    icon: '📁', src: '/files.html',           desc: 'File manager' },
     office:   { label: 'Office',   icon: '📄', src: '/office-editor.html',   desc: 'Edit Office docs' },

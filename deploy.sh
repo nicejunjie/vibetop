@@ -159,6 +159,11 @@ else
     step "2/6  Browser — skipped (--no-browser)"
 fi
 
+# Optional feature runtime: dependencies require a separate explicit install.
+if ! env "${INST_ENV[@]}" "$REPO_DIR/apps/everyday/browser-lite/install.sh" "${DRYFLAG[@]}"; then
+    echo "Browser Lite runtime update failed; continuing other apps."
+fi
+
 if (( DO_FILES )); then
     step "3/6  Files — ffmpeg + the /fileview/ nginx snippet"
     env "${INST_ENV[@]}" "$REPO_DIR/apps/everyday/files/install.sh" "${DRYFLAG[@]}"

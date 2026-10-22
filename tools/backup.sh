@@ -97,7 +97,8 @@ PATHS=(
 (( WITH_UPLOADS )) && PATHS+=("Uploads")
 
 VAR_DIR="${VIBETOP_STATE_DIR:-/var/lib/vibetop}"
-GLOBAL_FILES=(users.json resources.json idle.json hints.json schedules.json)
+GLOBAL_FILES=(users.json resources.json idle.json hints.json schedules.json
+    browser-proxy/master browser-proxy/state.json browser-proxy-profiles)
 
 # ---- which users -----------------------------------------------------------
 # The registry is the authority: it lists everyone who has actually used
@@ -319,7 +320,7 @@ if (( IS_ROOT )) && [ -z "$ONE_USER" ]; then
     # A SEPARATE prefix from etc/: those come from $VT_ETC and are restored 0600
     # into it. These live in a different directory and are world-readable config,
     # so folding them together would restore them to the wrong path AND mode.
-    for f in "$VT_ENV_FILE" "$(dirname "$VT_ENV_FILE")/deploy.env"; do
+    for f in "$VT_ENV_FILE" "$(dirname "$VT_ENV_FILE")/deploy.env" "$(dirname "$VT_ENV_FILE")/browser-proxy.json"; do
         [ -e "$f" ] && FOUND_GLOBAL+=("sysetc/$(basename "$f")")
     done
 fi
@@ -365,6 +366,10 @@ for g in ${FOUND_GLOBAL[@]+"${FOUND_GLOBAL[@]}"}; do
         sysetc/*) cp -a "$(dirname "$VT_ENV_FILE")/${g#sysetc/}" "$stage/system/$g" ;;
     esac
 done
+
+if [ -d "$stage/system/var/browser-proxy" ]; then
+    chmod 0700 "$stage/system/var/browser-proxy"
+fi
 
 {
     echo "manifest_version: $MANIFEST_VERSION"

@@ -54,12 +54,23 @@ A **Token Stats** app (Start ▸ Utilities ▸ Token Stats) — a read-only anal
 
 ## System Monitor — 7 days of history
 
-The GPU card selects devices by PCI address, with each device's own usage,
-VRAM, temperature, and history. Identical model names remain distinguishable.
-The Power card lists individual readings and sums all discrete GPUs; integrated
-GPU readings stay selectable but are excluded from that sum when discrete cards
-are present, because they can overlap CPU package power. A missing power sensor
-makes the GPU sum unknown, rather than silently treating one card as idle.
+The GPU card shows all discrete devices together, each with labeled usage and
+VRAM bars and its own chart. No GPU selector or dropdown is needed. Integrated
+GPUs are excluded. The Temperature card shows every exposed CPU package and
+all discrete GPUs together, with compact readings and separate colored lines.
+CPU package temperatures support AMD k10temp/zenpower and Intel coretemp;
+per-core Intel sensors are not mistaken for extra physical CPUs. The Power card
+sums discrete GPUs and places their individual watt readings horizontally.
+The GPU power bar stacks one proportional segment per discrete GPU, using
+closely spaced blue shades matched to the horizontal per-GPU watt labels. Above nominal power,
+all segments scale together so their proportions remain correct. Known segments
+remain visible if another sensor is missing, while the total stays unknown.
+Missing sensors remain unknown rather than counting as zero.
+
+CPU temperature history uses `metrics.ring.cpus/<cpu-identity>` and the history
+endpoint adds `cpus: {identity: {cpu_temp: [...]}}`. Identity follows the package's
+hardware device and label, so hwmon renumbering does not mix CPU histories.
+The legacy scalar CPU temperature is the hottest available package, for the tray.
 
 Per-device history lives in `/var/lib/vibetop/metrics.ring.gpus/<PCI-address>`:
 one fixed ~930KB ring per device, with a maximum of 16 identities. The history
@@ -69,10 +80,37 @@ Existing host history is preserved. Old primary-card history is never assigned
 to a different device; GPU power history sums device rings and stays blank where
 any component is unknown. Device histories begin recording with this change.
 
+The Disk card uses compact buttons for physical drives (for example `nvme0n1`
+and `sda`), rather than partitions or mount points. Kernel topology groups
+partitions under their drive and follows device-mapper/LVM and RAID slaves back
+to physical members. Loop, RAM, optical and virtual devices are not drive buttons.
+The detail line shows physical capacity and grouped mount points; the usage bar
+sums unique mounted filesystems on that drive, deduplicating bind mounts and
+subvolumes. Unmounted drives retain I/O with unknown used space. Shared/spanning
+filesystem space is unknown at the drive level because it cannot be attributed
+to individual members. I/O reads the whole-drive counters without also summing
+partition counters. Root-only scalars remain available for the desktop tray.
+
+Per-drive history uses `metrics.ring.disks/<disk-identity>`, one fixed ~930KB ring
+per identity with no device-count ceiling. The history endpoint adds
+`disks: {identity: {disk_used_gb: [...], disk_read_bytes: [...],
+disk_write_bytes: [...]}}` on the same timestamps as the host and GPU histories.
+Hardware WWID/serial provides identity, with the sysfs hardware path as fallback.
+Physical drive identities are distinct from old filesystem identities, so old
+partition history cannot be mistaken for whole-drive traffic. Removing a drive
+or losing a counter leaves a gap.
+
 The Monitor used to open blank: every chart was built one sample per frame, so
 it took two minutes to draw a line and knew nothing about what happened while
 nobody was looking. The manager now keeps a **7-day ring** of the numbers beside
 those charts (`server/metrics_history.py`, `/var/lib/vibetop/metrics.ring`).
+
+Chart axes use round 1/2/5-based bounds. Percentages stay at 0/50/100;
+temperature defaults to 0/50/100°C and expands when needed. Power and I/O scales
+round their actual chart domains upward, so the plotted values match the ticks.
+All Y-axis labels use 10px text with stronger contrast and stay on one line.
+Both rate ticks share a unit (for example 1 and 2 MB/s). Live readings keep their
+original precision.
 
 A sample with no neighbour is drawn as a **dot**. A line needs two points, so
 an isolated one used to draw nothing at all — which is what an idle night looks

@@ -337,7 +337,7 @@ def test_csrf_ok_allows_missing_origin(mgr):
 
 def test_csrf_ok_allows_matching_origin(mgr):
     h = _handler_with_headers(mgr, {"Origin": "https://service.example.com",
-                                    "Host": "service.example.com"})
+                                    "Host": "service.example.com", "X-Forwarded-Proto": "https"})
     assert h._csrf_ok() is True
 
 
