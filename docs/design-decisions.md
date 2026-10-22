@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_496 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_497 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [Terminal link opened a closed Browser app but lost the URL](#terminal-link-opened-a-closed-browser-app-but-lost-the-url)
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
@@ -512,6 +512,7 @@ _496 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [Browser Lite site pages carry an enforcing CSP limited to Lite's hosts](#browser-lite-site-pages-carry-an-enforcing-csp-limited-to-lites-hosts)
 - [Browser Lite does not run Alibaba Cloud's WAF challenge; names eastmoney's captcha](#browser-lite-does-not-run-alibaba-clouds-waf-challenge-names-eastmoneys-captcha)
 - [Terminal reconnect races doubled every keystroke ("llett mmee")](#terminal-reconnect-races-doubled-every-keystroke-llett-mmee)
+- ["aN;NaNM" typed into Claude Code on returning to a terminal](#annanm-typed-into-claude-code-on-returning-to-a-terminal)
 - [Option+drag selects inside mouse-tracking TUIs on macOS](#optiondrag-selects-inside-mouse-tracking-tuis-on-macos)
 - [Terminal apps' OSC 52 copies reach the Mac clipboard via Cmd+C](#terminal-apps-osc-52-copies-reach-the-mac-clipboard-via-cmdc)
 - [Update reads only git's stdout when deciding the tree is dirty](#update-reads-only-gits-stdout-when-deciding-the-tree-is-dirty)
@@ -20144,6 +20145,27 @@ fixtures and do not provision external infrastructure.
 - **Rejected:** Disabling ttyd's reconnect (its clean-close path then waits for
   Enter, which connects again); overriding `owner.connect` on the instance
   (ttyd's decorator-bound methods are not safely replaceable).
+
+## "aN;NaNM" typed into Claude Code on returning to a terminal
+
+- **Symptom:** On coming back to a terminal running Claude Code in Mac
+  Safari, `aN;NaNM` appeared in its prompt as if typed.
+- **Cause:** Claude Code turns on any-motion mouse tracking with SGR reports.
+  xterm.js reports a position as `floor(x / css.cell.width)`. When its render
+  dimensions are not valid, it sends `\x1b[<35;NaN;NaNM`; Claude Code's parser
+  rejects the sequence and echoes the rest as text. In WebKit with a real
+  ttyd, setting the cell width to NaN reproduces the exact bytes. The page
+  event that leaves the dimensions invalid in Safari was not reproduced.
+- **Fix:** `terminal-connection.js` wraps each socket's `send`. Input frames
+  (`'0'` + UTF-8) drop any SGR mouse report whose column or row is not a
+  plain number; other input in the frame is kept. On a drop it re-measures:
+  `_charSizeService.measure()`, `_renderService.handleCharSizeChanged()` and
+  a `resize` event. In the reproduction, the first move is dropped and the
+  next seven arrive with real coordinates.
+- **Rejected:** Patching xterm's mouse service through `sub_filter` (minified
+  internals, and it would still need a re-measure). Re-measuring on every
+  visibility change (it does not cover whatever else invalidates the
+  dimensions).
 
 ## Option+drag selects inside mouse-tracking TUIs on macOS
 

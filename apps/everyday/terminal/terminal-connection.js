@@ -141,11 +141,45 @@
   function disposeCloseKeys() {
     closeKeys.splice(0).forEach(function (sub) { try { sub.dispose(); } catch (_) {} });
   }
+  // xterm reports a mouse position as floor(x / cell width). When its render
+  // dimensions are not valid (seen on returning to a Safari tab), that is NaN
+  // and the app receives "\x1b[<35;NaN;NaNM". Claude Code then shows
+  // "aN;NaNM" as typed text. Drop such reports at the socket, and ask xterm
+  // to measure again so the next ones are right.
+  var BAD_MOUSE = /\x1b\[<\d+;([^;Mm\x1b]*);([^;Mm\x1b]*)[Mm]/g;
+  function remeasure() {
+    var t = w.term, core = t && t._core;
+    try { if (core && core._charSizeService) core._charSizeService.measure(); } catch (_) {}
+    try { if (core && core._renderService) core._renderService.handleCharSizeChanged(); } catch (_) {}
+    try { w.dispatchEvent(new w.Event('resize')); } catch (_) {}
+  }
+  function cleanInput(data) {
+    // ttyd input frames are '0' + UTF-8 text, sent as a Uint8Array view.
+    if (!(data instanceof w.Uint8Array) || data[0] !== 48 || !w.TextDecoder) return data;
+    var text = new w.TextDecoder().decode(data.subarray(1));
+    if (text.indexOf('\x1b[<') < 0) return data;
+    var dropped = false;
+    var kept = text.replace(BAD_MOUSE, function (all, col, row) {
+      if (/^\d+$/.test(col) && /^\d+$/.test(row)) return all;
+      dropped = true; return '';
+    });
+    if (!dropped) return data;
+    remeasure();
+    if (!kept) return null;
+    var bytes = new w.TextEncoder().encode(kept), out = new w.Uint8Array(bytes.length + 1);
+    out[0] = 48; out.set(bytes, 1);
+    return out;
+  }
   var Native = w.WebSocket;
   function WS(url, protocols) {
     var ws = protocols === undefined ? new Native(url) : new Native(url, protocols);
     var previous = socket;
     socket = ws; closeCode = null; resumeClosed = false; ready = false; phase = 'connecting';
+    var send = ws.send;
+    ws.send = function (data) {
+      var clean = cleanInput(data);
+      if (clean !== null) return send.call(ws, clean);
+    };
     // ttyd's own reconnect and the in-place recovery below can both call
     // connect() while a token fetch is pending. Every socket that opens runs
     // ttyd's initListeners(), so two live sockets double each keystroke and

@@ -120,6 +120,8 @@ Two systemd template units, instantiated for each terminal:
    Code's copy-on-select): it writes `navigator.clipboard`, and when Safari
    refuses that outside a gesture, Cmd+C with no xterm selection copies it.
    Clipboard reads (`52;c;?`) are never answered.
+   Mouse reports with NaN coordinates (xterm with invalid render dimensions)
+   are dropped before the socket, and xterm re-measures.
    Failed startup/handshakes retain
    a 12-second deadline; retries are bounded to three before a manual retry.
    Background pages pause recovery. Successful PTY output clears status and

@@ -11,6 +11,7 @@ function browser(saved = new Map()) {
     constructor() { this.readyState = 0; this.listeners = {}; this.closed = 0; }
     addEventListener(k, cb) { (this.listeners[k] ||= []).push(cb); }
     close() { this.closed++; this.readyState = 3; }
+    send(d) { (this.sent ||= []).push(d); }
     emit(k, data, code) {
       if (k === 'open') this.readyState = 1; if (k === 'close') this.readyState = 3;
       let stop = false;
@@ -19,14 +20,16 @@ function browser(saved = new Map()) {
     }
   }
   Object.assign(Socket, { CONNECTING: 0, OPEN: 1, CLOSING: 2, CLOSED: 3 });
-  const w = { WebSocket: Socket, ArrayBuffer, Uint8Array, navigator: { userAgent: 'test' },
+  const w = { WebSocket: Socket, ArrayBuffer, Uint8Array, TextDecoder, TextEncoder, Event: class { constructor(t) { this.type = t; } },
+    navigator: { userAgent: 'test' },
     location: { pathname: '/t1/', reload() { reloads++; } },
     sessionStorage: { getItem: k => saved.get(k), setItem: (k,v) => saved.set(k,v), removeItem: k => saved.delete(k) },
     document: { hidden: false, addEventListener: (k, cb) => { documentEvents[k] = cb; }, createElement: element, body: { appendChild(e) { elements.push(e); } } },
     fetch: (_, o) => { logs.push(JSON.parse(o.body)); return Promise.resolve(); },
     setInterval: cb => { interval = cb; return 1; }, clearInterval: () => { interval = null; },
     setTimeout: cb => { Promise.resolve().then(cb); return 2; },
-    addEventListener: (k, cb) => { events[k] = cb; }
+    addEventListener: (k, cb) => { events[k] = cb; },
+    dispatchEvent: e => { (events.dispatched ||= []).push(e.type); }
   };
   vm.runInNewContext(source, { window: w, Date: { now: () => now } });
   return { w, elements, logs, saved, events, documentEvents, advance(ms) { now += ms; interval?.(); }, get reloads() { return reloads; } };
@@ -403,4 +406,20 @@ test('when recovery is exhausted, ttyd\'s Enter-to-reconnect stays available', a
   sockets[0].emit('open'); sockets[0].emit('close', undefined, 1006);
   await Promise.resolve(); b.advance(45000);
   assert.equal(keys.length, 1);
+});
+test('mouse reports with NaN coordinates never reach the app; xterm re-measures', () => {
+  const b = browser(), ws = new b.w.WebSocket('ws://test/t1/ws');
+  let measured = 0;
+  let rerendered = 0;
+  b.w.term = { _core: { _charSizeService: { measure() { measured++; } }, _renderService: { handleCharSizeChanged() { rerendered++; } } } };
+  const frame = s => { const t = new TextEncoder().encode(s), buf = new Uint8Array(t.length + 8); buf[0] = 48; buf.set(t, 1); return buf.subarray(0, t.length + 1); };
+  const text = d => d[0] === 48 ? new TextDecoder().decode(d.subarray(1)) : d;
+  ws.send(frame('\x1b[<35;NaN;NaNM')); assert.equal(ws.sent, undefined, 'a lone bad report is not sent');
+  assert.equal(measured, 1); assert.equal(rerendered, 1); assert.deepEqual(b.events.dispatched, ['resize']);
+  ws.send(frame('a\x1b[<0;NaN;-InfinityMb\x1b[<0;3;4m'));
+  assert.equal(text(ws.sent[0]), 'a' + 'b\x1b[<0;3;4m', 'other input and good reports survive');
+  ws.send(frame('\x1b[<35;12;40M')); assert.equal(text(ws.sent[1]), '\x1b[<35;12;40M');
+  ws.send(frame('typed \u4e16\u754c')); assert.equal(text(ws.sent[2]), 'typed \u4e16\u754c');
+  const resize = new TextEncoder().encode('1{"columns":80}'); ws.send(resize); assert.equal(ws.sent[3], resize, 'non-input frames untouched');
+  assert.equal(measured, 2);
 });
