@@ -32,8 +32,26 @@
   // A device can opt out of the shared copy (automated test browsers signed in
   // as a real user must never overwrite that user's tabs).
   const LOCAL_ONLY=(()=>{try{return localStorage.getItem('vt-lite-tabs-local-only')==='1';}catch{return false;}})();
+  // A keepalive fetch (the only kind that survives pagehide) may carry at most
+  // 64 KB. Over this budget, keep each tab's current entry, shorten history,
+  // then drop the oldest tabs, as the server's tab store does.
+  const SAVE_BYTES=48*1024;
+  function tabBudget(payload,limit=SAVE_BYTES){
+    const size=()=>new TextEncoder().encode(JSON.stringify(payload)).length;
+    for(const keep of [20,5,0]){
+      if(size()<=limit)break;
+      for(const tab of payload.tabs)if(tab.history){
+        const start=Math.max(0,Math.min((tab.position|0)-Math.floor(keep/2),tab.history.length-keep));
+        tab.history=keep?tab.history.slice(start,start+keep):undefined;
+        if(tab.history)tab.position-=start;else delete tab.position;
+      }
+    }
+    while(size()>limit&&payload.tabs.length>1){payload.tabs.shift();payload.active=Math.max(0,payload.active-1);}
+    return payload;
+  }
   function saveToServer(payload,now=false){
     if(LOCAL_ONLY)return;
+    payload=tabBudget(payload);
     clearTimeout(serverTimer);
     const send=()=>request('tabs',{save:payload}).catch(()=>{});
     if(now)send();else serverTimer=setTimeout(send,1500);

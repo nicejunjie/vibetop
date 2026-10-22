@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_492 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_493 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [Terminal link opened a closed Browser app but lost the URL](#terminal-link-opened-a-closed-browser-app-but-lost-the-url)
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
@@ -515,6 +515,7 @@ _492 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [Option+drag selects inside mouse-tracking TUIs on macOS](#optiondrag-selects-inside-mouse-tracking-tuis-on-macos)
 - [Terminal apps' OSC 52 copies reach the Mac clipboard via Cmd+C](#terminal-apps-osc-52-copies-reach-the-mac-clipboard-via-cmdc)
 - [Update reads only git's stdout when deciding the tree is dirty](#update-reads-only-gits-stdout-when-deciding-the-tree-is-dirty)
+- [Browser Lite saved tabs never reached the server (nginx 413)](#browser-lite-saved-tabs-never-reached-the-server-nginx-413)
 
 <!-- END TOC -->
 
@@ -20185,3 +20186,25 @@ fixtures and do not provision external infrastructure.
 - **Rejected:** `-c advice.*=false` per advice kind (other advice and warnings
   would still leak in); setting stderr aside for every call (the Update log
   would lose fetch/pull messages).
+
+## Browser Lite saved tabs never reached the server (nginx 413)
+
+- **Symptom:** The rewrite runtime logged `Browser tabs restore source=server
+  device=none count=0` on every fresh start, and nginx's error log showed
+  `client intended to send too large body: 10698 bytes` for `POST /api/tabs`
+  from the user's Mac Safari. Tabs saved on the server (v1.38.75) were never
+  there when a device had lost its own copy, which is the iOS case the
+  server copy exists for.
+- **Cause:** The manager allows 96 KB for `tabs` ("saved tabs outgrow a control
+  command") and the tab store 80 KB, but the generated UI server block kept
+  nginx's `client_max_body_size 8k`, which a few tabs with their back/forward
+  lists exceed. The UI's `saveToServer` swallows the rejection, so nothing
+  reported it.
+- **Fix:** The UI host allows 128k (`browser_proxy_nginx.py`). The UI also
+  trims the payload to 48 KB first (`tabBudget` in `wrapper.js`, the same
+  shorten-history-then-drop-oldest rule as the server's `tab-store.cjs`),
+  because the save is a keepalive fetch, the only kind that survives
+  `pagehide`, and browsers cap a keepalive body at 64 KB; over that the fetch
+  rejects before it is sent.
+- **Lesson:** A limit raised in one layer (manager) needs the same change in
+  every layer in front of it; the render test now pins the nginx value.

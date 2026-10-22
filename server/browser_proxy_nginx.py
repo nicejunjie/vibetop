@@ -52,7 +52,10 @@ server {{
 {listeners}
     server_name {ui_host};
     server_tokens off;
-    client_max_body_size 8k;
+    # Saved tabs with their back/forward lists run to tens of KB (the manager
+    # allows 96k for /api/tabs); at 8k nginx answered 413 and no tab list was
+    # ever saved on the server.
+    client_max_body_size 128k;
     location / {{
         rewrite ^ /__browser_proxy/ui? break;
         proxy_pass http://{manager};

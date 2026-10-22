@@ -123,3 +123,12 @@ def test_realm_requests_per_user_allow_a_heavy_page():
     rendered = render("example.com", "https://lite.example.com", ["https://main.example.com"])
     realm = rendered.split(r"-[a-f0-9]{32}\.example\.com$", 1)[1]
     assert "limit_conn browser_lite_users 512;" in realm
+
+
+def test_ui_host_accepts_a_saved_tab_list():
+    from browser_proxy_nginx import render
+    rendered = render("example.com", "https://lite.example.com", ["https://main.example.com"])
+    ui = rendered.split(r"-[a-f0-9]{32}\.example\.com$", 1)[0]
+    # Saved tabs with their histories (the manager allows 96k for /api/tabs)
+    # ran past the old 8k cap, so nginx answered 413 and nothing was saved.
+    assert "client_max_body_size 128k;" in ui.split("server_name lite.example.com;", 1)[1]
