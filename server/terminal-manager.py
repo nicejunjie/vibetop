@@ -5042,14 +5042,18 @@ def _rm_quiet(path):
         pass
 
 
-def _git(args, timeout=60):
+def _git(args, timeout=60, stdout_only=False):
     """Run git in REPO_DIR as APP_USER (the repo owner — root trips git's
     dubious-ownership guard, and only APP_USER holds the credentials). Module
-    level so both the request handler and startup seeding can use it."""
+    level so both the request handler and startup seeding can use it.
+    stdout_only: for output that is PARSED, not shown. git writes advice
+    ("hint: ... hook was ignored") to stderr, and a merged hint once read as a
+    dirty `status --porcelain` and blocked every Update."""
     cmd = ["sudo", "-n", "-u", APP_USER, "-H", "git", "-C", REPO_DIR] + list(args)
     try:
         p = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
-        return p.returncode == 0, (p.stdout + p.stderr).strip()
+        out = p.stdout if stdout_only else p.stdout + p.stderr
+        return p.returncode == 0, out.strip()
     except Exception as e:
         return False, str(e)
 
@@ -8415,8 +8419,10 @@ class Handler(http.server.BaseHTTPRequestHandler):
         return self._json(200, {"ok": True, "kept": kept})
 
     # ---- Update (git pull + redeploy) -------------------------------------
-    def _git_as_user(self, args, timeout=60):
+    def _git_as_user(self, args, timeout=60, stdout_only=False):
         """Run a git command in REPO_DIR as APP_USER. See module-level _git()."""
+        if stdout_only:
+            return _git(args, timeout, stdout_only=True)
         return _git(args, timeout)
 
     def _update_version_info(self):
@@ -8567,7 +8573,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
         # diff-vs-origin check below always read as "genuine local edits" whenever
         # the host was behind, so a host with any untracked cruft could never
         # self-update.
-        dok, dirty = self._git_as_user(["status", "--porcelain", "--untracked-files=no"])
+        dok, dirty = self._git_as_user(["status", "--porcelain", "--untracked-files=no"],
+                                       stdout_only=True)
         if dok and dirty.strip():
             matches_upstream, _ = self._git_as_user(["diff", "--quiet", "origin/main"])
             if matches_upstream:

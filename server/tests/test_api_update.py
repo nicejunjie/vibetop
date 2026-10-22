@@ -18,9 +18,10 @@ class GitFake:
         self.dirty = ""                 # `git status --porcelain` output
         self.matches_upstream = True    # `git diff --quiet origin/main` result
         self.changed = ["shell/desktop.html"]
+        self.status_stderr = ""         # git advice printed on stderr by `status`
         self.calls = []
 
-    def __call__(self, args, timeout=60):
+    def __call__(self, args, timeout=60, stdout_only=False):
         a = list(args)
         self.calls.append(a)
         cmd = a[0]
@@ -29,7 +30,8 @@ class GitFake:
         if cmd == "fetch":
             return self.fetch_ok, ("" if self.fetch_ok else "network unreachable")
         if cmd == "status":
-            return True, self.dirty
+            return True, (self.dirty if stdout_only
+                          else (self.dirty + "\n" + self.status_stderr).strip())
         if cmd == "diff" and "--quiet" in a:
             return self.matches_upstream, ""
         if cmd == "diff" and "--name-only" in a:
@@ -117,6 +119,28 @@ def test_update_genuine_dirty_is_blocked(client, mgr, stubs, monkeypatch, op_coo
     assert status == 200 and body["ok"] is False
     assert body["blocked"] == "dirty"
     assert "terminal-manager.py" in body["dirty"]
+
+
+def test_update_git_advice_on_stderr_is_not_a_dirty_tree(client, mgr, stubs, monkeypatch, op_cookie):
+    # A host whose core.hooksPath named hooks git could not run printed
+    # "hint: ... hook was ignored" on every index refresh; merged into the
+    # porcelain output it read as local edits and blocked every Update.
+    g = GitFake()
+    g.status_stderr = ("hint: The '/home/u/repo/.githooks/post-index-change' hook was "
+                       "ignored because it's not set as executable.")
+    g.matches_upstream = False
+    monkeypatch.setattr(mgr, "_git", g)
+    status, body = client.post("/api/update", {}, cookie=op_cookie)
+    assert status == 200 and body["ok"] is True
+    assert body.get("blocked") is None
+
+
+def test_git_stdout_only_drops_stderr(mgr, monkeypatch):
+    class P:
+        returncode, stdout, stderr = 0, "", "hint: advice\n"
+    monkeypatch.setattr(mgr.subprocess, "run", lambda *a, **k: P())
+    assert mgr._git(["status", "--porcelain"], stdout_only=True) == (True, "")
+    assert mgr._git(["fetch"]) == (True, "hint: advice")
 
 
 def test_update_force_stashes_then_updates(client, mgr, stubs, monkeypatch, op_cookie):

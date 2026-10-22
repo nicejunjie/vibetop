@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_491 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_492 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [Terminal link opened a closed Browser app but lost the URL](#terminal-link-opened-a-closed-browser-app-but-lost-the-url)
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
@@ -514,6 +514,7 @@ _491 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [Terminal reconnect races doubled every keystroke ("llett mmee")](#terminal-reconnect-races-doubled-every-keystroke-llett-mmee)
 - [Option+drag selects inside mouse-tracking TUIs on macOS](#optiondrag-selects-inside-mouse-tracking-tuis-on-macos)
 - [Terminal apps' OSC 52 copies reach the Mac clipboard via Cmd+C](#terminal-apps-osc-52-copies-reach-the-mac-clipboard-via-cmdc)
+- [Update reads only git's stdout when deciding the tree is dirty](#update-reads-only-gits-stdout-when-deciding-the-tree-is-dirty)
 
 <!-- END TOC -->
 
@@ -20139,3 +20140,20 @@ fixtures and do not provision external infrastructure.
 - **Rejected:** answering clipboard reads (`52;c;?`), which would let any
   program's output exfiltrate the clipboard; a "Copy" toast button (another
   click for what Cmd+C already expresses).
+
+## Update reads only git's stdout when deciding the tree is dirty
+
+- **Symptom:** Update refused with "This host has local edits not in
+  origin/main", but `git status` on the host was clean.
+- **Cause:** `_git()` returned stdout and stderr merged. Prod's `.git/config`
+  had a hand-set `core.hooksPath` pointing at a developer's home checkout, and
+  git printed `hint: ... hook was ignored` (stderr) whenever `status` refreshed
+  the index. The merged output was non-empty, so the porcelain check read it as
+  local edits. That setting also let a home directory's hooks run as the
+  service account; it was removed from prod.
+- **Fix:** `_git(..., stdout_only=True)` for output that is parsed rather than
+  shown; the dirty check uses it. Shown output (fetch, pull) keeps stderr,
+  which is where git reports progress and errors.
+- **Rejected:** `-c advice.*=false` per advice kind (other advice and warnings
+  would still leak in); setting stderr aside for every call (the Update log
+  would lose fetch/pull messages).
