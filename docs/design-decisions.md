@@ -20162,6 +20162,17 @@ fixtures and do not provision external infrastructure.
   `_charSizeService.measure()`, `_renderService.handleCharSizeChanged()` and
   a `resize` event. In the reproduction, the first move is dropped and the
   next seven arrive with real coordinates.
+- **Follow-up (v1.38.121):** It was reported again right after v1.38.120. The
+  Mac had loaded the new script, but the iPhone was still on a page from
+  before it, and both attach to the same session. The filter now also runs
+  server-side, in `vibetop-session attach`'s input loop
+  (`strip_bad_mouse_reports`). Each ttyd connection starts a fresh `attach`,
+  so it covers every client and page version without restarting the session
+  daemon. It matches the report's parameters as whole tokens (digits, `NaN`,
+  `Infinity`, `undefined`), so text typed next to a report is never eaten.
+  The browser filter also accepts the urxvt form (no `<`) and logs
+  `bad-mouse-report` to `/api/clientlog`, so a recurrence shows which path
+  produced it.
 - **Rejected:** Patching xterm's mouse service through `sub_filter` (minified
   internals, and it would still need a re-measure). Re-measuring on every
   visibility change (it does not cover whatever else invalidates the

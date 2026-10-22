@@ -421,5 +421,7 @@ test('mouse reports with NaN coordinates never reach the app; xterm re-measures'
   ws.send(frame('\x1b[<35;12;40M')); assert.equal(text(ws.sent[1]), '\x1b[<35;12;40M');
   ws.send(frame('typed \u4e16\u754c')); assert.equal(text(ws.sent[2]), 'typed \u4e16\u754c');
   const resize = new TextEncoder().encode('1{"columns":80}'); ws.send(resize); assert.equal(ws.sent[3], resize, 'non-input frames untouched');
-  assert.equal(measured, 2);
+  ws.send(frame('\x1b[67;NaN;NaNM')); assert.equal(ws.sent.length, 4, 'urxvt-form bad report dropped too');
+  assert.equal(measured, 3);
+  assert.equal(b.logs.filter(l => l.guard[0].event === 'bad-mouse-report').length, 3, 'each drop is reported');
 });

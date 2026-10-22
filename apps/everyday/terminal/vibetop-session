@@ -297,6 +297,24 @@ def keyprobe_record(data, now=None):
         pass
 
 
+# A mouse report whose column/row is not a number: xterm.js with invalid
+# render dimensions sends "\x1b[<35;NaN;NaNM", and Claude Code shows the part
+# it cannot parse ("aN;NaNM") as typed text. SGR (<), urxvt and SGR-pixel
+# forms all put the numbers between "[" and the final M/m.
+_MOUSE_PARAM = rb'(?:-?[0-9]+|NaN|-?Infinity|undefined)'
+_MOUSE_RE = re.compile(rb'\x1b\[<?' + _MOUSE_PARAM + rb'(?:;' + _MOUSE_PARAM + rb')*[Mm]')
+
+
+def strip_bad_mouse_reports(data):
+    """Drop client input mouse reports with non-numeric coordinates. Applied in
+    `attach` to what the browser sends, so it covers every client version.
+    Real keys, text and well-formed reports pass untouched. Pure; unit-tested."""
+    if b'\x1b[' not in data:
+        return data
+    return _MOUSE_RE.sub(
+        lambda m: m.group(0) if re.fullmatch(rb'\x1b\[<?[0-9;]*[Mm]', m.group(0)) else b'', data)
+
+
 def strip_terminal_queries(data):
     """Remove terminal query-REQUEST sequences (DA/DSR/CPR/DECRQM/OSC-color '?')
     from `data`. Used only on the ring-buffer replay sent to a new client, so a
@@ -1329,6 +1347,9 @@ def cmd_attach(instance, resume=False):
                         data = b''
                     if not data:
                         return
+                    data = strip_bad_mouse_reports(data)
+                    if not data:
+                        continue
                     try:
                         sock.sendall(data)
                     except Exception:

@@ -146,7 +146,7 @@
   // and the app receives "\x1b[<35;NaN;NaNM". Claude Code then shows
   // "aN;NaNM" as typed text. Drop such reports at the socket, and ask xterm
   // to measure again so the next ones are right.
-  var BAD_MOUSE = /\x1b\[<\d+;([^;Mm\x1b]*);([^;Mm\x1b]*)[Mm]/g;
+  var BAD_MOUSE = /\x1b\[<?\d+;([^;Mm\x1b]*);([^;Mm\x1b]*)[Mm]/g;
   function remeasure() {
     var t = w.term, core = t && t._core;
     try { if (core && core._charSizeService) core._charSizeService.measure(); } catch (_) {}
@@ -157,14 +157,14 @@
     // ttyd input frames are '0' + UTF-8 text, sent as a Uint8Array view.
     if (!(data instanceof w.Uint8Array) || data[0] !== 48 || !w.TextDecoder) return data;
     var text = new w.TextDecoder().decode(data.subarray(1));
-    if (text.indexOf('\x1b[<') < 0) return data;
+    if (text.indexOf('\x1b[') < 0) return data;
     var dropped = false;
     var kept = text.replace(BAD_MOUSE, function (all, col, row) {
       if (/^\d+$/.test(col) && /^\d+$/.test(row)) return all;
       dropped = true; return '';
     });
     if (!dropped) return data;
-    remeasure();
+    remeasure(); log('bad-mouse-report');
     if (!kept) return null;
     var bytes = new w.TextEncoder().encode(kept), out = new w.Uint8Array(bytes.length + 1);
     out[0] = 48; out.set(bytes, 1);

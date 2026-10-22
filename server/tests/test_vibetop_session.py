@@ -530,3 +530,22 @@ def test_resume_parser_recovers_after_adaptive_queue_truncation(csession):
     assert parser.feed(b'\x1b]777;vt-resume;{"data":"incomplete') == b''
     frame = csession.resume_frame('epoch', 10000, b'\x1b[?1049hlatest', True)
     assert parser.feed(frame) == b'\x1b[?1049hlatest'
+
+
+# -- client mouse reports with NaN coordinates ("aN;NaNM") -----------------
+
+@pytest.mark.parametrize("seq", [
+    ESC + b"[<35;NaN;NaNM", ESC + b"[<0;NaN;NaNm", ESC + b"[<0;12;NaNM",
+    ESC + b"[<32;-Infinity;5M", ESC + b"[67;NaN;NaNM", ESC + b"[<35;undefined;undefinedM",
+])
+def test_bad_mouse_reports_are_dropped(csession, seq):
+    assert csession.strip_bad_mouse_reports(seq) == b""
+    assert csession.strip_bad_mouse_reports(b"a" + seq + b"b") == b"ab"
+
+
+@pytest.mark.parametrize("data", [
+    ESC + b"[<35;12;40M", ESC + b"[<0;1;1m", ESC + b"[A", ESC, b"NaN;NaNM typed",
+    "NaN 你好".encode(), ESC + b"[200~NaN M" + ESC + b"[201~", b"\x03\r",
+])
+def test_good_input_passes_untouched(csession, data):
+    assert csession.strip_bad_mouse_reports(data) == data
