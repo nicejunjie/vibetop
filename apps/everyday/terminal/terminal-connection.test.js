@@ -320,3 +320,39 @@ test('racing native and in-place reconnects leave one socket driving ttyd (no do
   assert.equal(tokens.length, 0, 'a superseded socket closing must not start another reconnect');
   assert.equal(b.reloads, 0);
 });
+test('a superseded socket that already opened leaves no second onData handler', async () => {
+  const b = browser(), tokens = [], sockets = [], sent = [];
+  // Mirrors ttyd 1.7.7: connect() and initListeners() share one disposables
+  // list; only dispose() (called from onSocketClose) clears it; sendData()
+  // always writes to this.socket.
+  const onData = [];
+  const ttyd = {
+    socket: null, disposables: [],
+    register(d) { this.disposables.push(d); },
+    dispose() { this.disposables.splice(0).forEach(d => d.dispose()); },
+    refreshToken() { return new Promise(resolve => tokens.push(resolve)); },
+    connect() {
+      const s = new b.w.WebSocket('ws://test/t1/ws'); this.socket = s; sockets.push(s);
+      let live = true; this.register({ dispose() { live = false; } });
+      s.addEventListener('open', () => {
+        if (!live) return;
+        const h = key => sent.push([this.socket, key]); onData.push(h);
+        this.register({ dispose() { onData.splice(onData.indexOf(h), 1); } });
+      });
+      s.addEventListener('close', e => { if (!live) return; this.dispose(); if (e.code !== 1000) this.refreshToken().then(() => this.connect()); });
+    }
+  };
+  b.w.__vibetopTtyd = ttyd; ttyd.connect();
+  sockets[0].emit('open'); sockets[0].emit('message', '0ready');
+  b.w.document.hidden = true; sockets[0].emit('close', undefined, 1006);
+  b.w.document.hidden = false; b.documentEvents.visibilitychange();
+  for (let i = 0; i < 10; i++) await Promise.resolve();
+  const [nativeToken, guardToken] = tokens.splice(0);
+  guardToken(); for (let i = 0; i < 10; i++) await Promise.resolve();
+  sockets[1].emit('open');                       // the guard's socket opens first...
+  nativeToken(); for (let i = 0; i < 10; i++) await Promise.resolve();
+  sockets[2].emit('open');                       // ...then ttyd's late one supersedes it
+  assert.equal(sockets[1].closed, 1);
+  onData.forEach(h => h('a'));
+  assert.deepEqual(sent, [[sockets[2], 'a']], 'one key typed, one key sent');
+});

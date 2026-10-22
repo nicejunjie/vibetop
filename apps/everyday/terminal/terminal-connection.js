@@ -125,7 +125,18 @@
     ['open', 'message', 'error', 'close'].forEach(function (type) {
       ws.addEventListener(type, function (event) { if (ws !== socket) event.stopImmediatePropagation(); });
     });
-    if (previous && previous.readyState < 2) { try { previous.close(); } catch (_) {} }
+    if (previous && previous.readyState < 2) {
+      try { previous.close(); } catch (_) {}
+      // Blocking the superseded socket's close event also skips ttyd's
+      // dispose(). If that socket had opened, its onData handler would survive
+      // and every key would be sent twice through the new socket. ttyd assigns
+      // its socket only after this constructor returns, so owner.socket is
+      // still the old one here.
+      var owner = w.__vibetopTtyd;
+      if (owner && owner.socket === previous && typeof owner.dispose === 'function') {
+        try { owner.dispose(); } catch (_) {}
+      }
+    }
     // Do not reset the deadline on repeated failed socket attempts.
     ws.addEventListener('open', function () { if (ws === socket) phase = 'awaiting-output'; });
     ws.addEventListener('message', function (event) {

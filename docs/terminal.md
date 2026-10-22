@@ -111,7 +111,8 @@ Two systemd template units, instantiated for each terminal:
    and fall back to frame reload at four seconds if no new socket is opened.
    Recovery never synthesizes terminal input. Two reconnect paths (ttyd's and
    the guard's in-place one) can race, so the guard lets only the newest socket
-   reach ttyd and closes the one it supersedes; otherwise each keystroke and echo
+   reach ttyd, closes the one it supersedes and has ttyd dispose that socket's
+   listeners (its `onData` handler too); otherwise each keystroke and echo
    doubles. `-t macOptionClickForcesSelection=true` makes Option+drag select (then
    Cmd+C copy) inside mouse-tracking TUIs such as Claude Code's fullscreen mode.
    `terminal-clipboard.js` handles OSC 52 (apps that copy for you, e.g. Claude

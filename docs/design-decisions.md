@@ -20109,6 +20109,18 @@ fixtures and do not provision external infrastructure.
   `stopImmediatePropagation()` on every event of a superseded socket and closes
   that socket. Whichever `connect()` runs last wins, and the other never opens
   as far as ttyd can tell.
+- **Follow-up (v1.38.115):** The doubling came back in Safari. If the
+  superseded socket had already opened, ttyd's `initListeners()` had run for
+  it, and only ttyd's close handler calls `dispose()`. Blocking that socket's
+  close event left its `onData` handler alive, and since `sendData()` always
+  writes to `this.socket`, both handlers sent each key through the new socket.
+  The server showed one connection. The wrapper now calls `owner.dispose()`
+  when it supersedes a socket that is still open or connecting. That is safe
+  because ttyd assigns `this.socket` only after the constructor returns, so
+  `owner.socket` is still the old one, and `connect()` registers the new
+  socket's handlers afterwards. The first regression test missed it because
+  its fake ttyd had no disposables and opened the stale socket only after
+  closing it.
 - **Rejected:** Disabling ttyd's reconnect (its clean-close path then waits for
   Enter, which connects again); overriding `owner.connect` on the instance
   (ttyd's decorator-bound methods are not safely replaceable).
