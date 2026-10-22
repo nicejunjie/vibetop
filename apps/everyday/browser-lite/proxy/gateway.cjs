@@ -34,6 +34,7 @@ const {CookieStore} = require('./cookie-store.cjs');
 const {TabStore} = require('./tab-store.cjs');
 const {redirectTaint,navigationFetchSite,mainFrameFetchDest} = require('./redirect-policy.cjs');
 const {ControlLedger} = require('./control-ledger.cjs');
+const {realmCacheControl} = require('./cache-policy.cjs');
 const {renderPageError} = require('./page-error.cjs');
 const clientSource = fs.readFileSync(path.join(__dirname, 'client-bridge.js'), 'utf8');
 const documentHistorySource=fs.readFileSync(path.join(__dirname,'document-history.js'),'utf8');
@@ -153,6 +154,10 @@ class BrowserGateway {
         return {hostname,port:registry.port || 443,protocol:registry.protocol};
       }});
     if(registry.isRealm)registry.wrap(this.proxy.server1);
+    // The engine bundles (hammerhead.js alone is 590 KB) are addressed with
+    // ?v=<etag>, so a new build is a new URL: let the browser keep them instead
+    // of revalidating every 30 s, a round trip per script on every page load.
+    this.proxy.options.staticContentCaching={maxAge:31536000,mustRevalidate:false};
     // Upstream "disabled" logging currently logs everything (rank 0). Avoid
     // putting browsing URLs and capabilities in the service journal.
     this.proxy.logger.logger = () => {};
@@ -524,6 +529,12 @@ class BrowserGateway {
     transforms.requestTransforms['sec-fetch-dest'] = (value,ctx) =>
       mainFrameFetchDest(value,ctx.req.headers['sec-fetch-mode'],ctx.dest.isIframe);
     transforms.requestTransforms['proxy-authorization'] = () => undefined;
+    // The engine decodes gzip, deflate and br to rewrite a body. Chrome also
+    // offers zstd; a site that takes it (Cloudflare's challenge page) came back
+    // undecodable, a blank tab. Cloudflare's edge hides this in production, but
+    // not a direct or LAN path.
+    transforms.requestTransforms['accept-encoding'] = value =>
+      value === undefined ? undefined : String(value).split(',').map(part => part.trim()).filter(part => part && !/^zstd(\s*;.*)?$/i.test(part)).join(', ') || 'identity';
     transforms.requestTransforms.range = playlistRange;
     const setCookie=transforms.forcedResponseTransforms['set-cookie'].vtEngine||transforms.forcedResponseTransforms['set-cookie'];
     transforms.forcedResponseTransforms['set-cookie'] = Object.assign((value,ctx) =>
@@ -540,8 +551,11 @@ class BrowserGateway {
     transforms.forcedResponseTransforms['content-security-policy'] = (_value,ctx) =>
       ctx.req.vtWorkerCsp || framePolicies(ctx.destRes.headers,ctx.dest.url,this.registry,this.parentOrigin,this.trustedAncestors)
         .map(policy=>policy+'; sandbox allow-scripts allow-same-origin allow-forms allow-downloads allow-modals allow-pointer-lock');
-    transforms.forcedResponseTransforms['cache-control'] = (_value,ctx) =>
-      ctx.req.vtRole === 'relay' || this.registry.isRealm ? 'no-store' : 'private, no-cache';
+    transforms.forcedResponseTransforms['cache-control'] = (value,ctx) => {
+      if(ctx.req.vtRole === 'relay')return 'no-store';
+      if(!this.registry.isRealm)return 'private, no-cache';
+      return realmCacheControl(value,{document:!!(ctx.isPage || ctx.isIframe || ctx.isWebSocket || ctx.dest.isEventSource)});
+    };
   }
   gate(req,res,upgrade = false) {
     let ingressRole;

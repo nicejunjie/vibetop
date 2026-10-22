@@ -37,6 +37,22 @@ First live check: Wikipedia, Google, GitHub, YouTube, BBC News and Hacker News
 render through a realm in Chromium. Not yet verified live: sign-in popups, video
 playback, mobile Safari on a real device, slow-link behaviour from China.
 
+Audit of 2026-10-22 (desktop Chromium and iPhone-emulated WebKit against the
+live deployment): Wikipedia, Hacker News, GitHub, BBC, Google search, X
+(signed in through login sharing), bilibili render with their real navigation.
+Cross-site link, Back and Forward work (Back to another document reopens it).
+claude.ai and chatgpt.com load signed in (desktop Chrome UA and iPhone
+emulation) with their sidebars. A headless Chromium UA gets Cloudflare's
+managed challenge on both, which does not complete under Lite (see
+design-decisions: worker CSP keeps eval off);
+the toolbar then offers the full Browser. Reddit answers "blocked by network
+security" to a desktop Chromium UA and renders normally with an iPhone UA.
+Fixed in that pass: saved tabs never reached the server (nginx 413), a site
+that cannot be reached showed "Loading…" for 45 s instead of an error page,
+and every realm response was `no-store`, so nothing was ever cached across
+page views. Still not verified: a physical iPhone, slow-link behaviour from
+China, video playback on real sites, popup/OAuth sign-in.
+
 ## Latest worker regression results (2026-10-13)
 
 The constructor prerequisite now matches native Chromium and mobile-emulated

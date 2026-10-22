@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_494 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_496 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [Terminal link opened a closed Browser app but lost the URL](#terminal-link-opened-a-closed-browser-app-but-lost-the-url)
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
@@ -517,6 +517,8 @@ _494 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [Update reads only git's stdout when deciding the tree is dirty](#update-reads-only-gits-stdout-when-deciding-the-tree-is-dirty)
 - [Browser Lite saved tabs never reached the server (nginx 413)](#browser-lite-saved-tabs-never-reached-the-server-nginx-413)
 - [Browser Lite shows an error page when a site cannot be reached](#browser-lite-shows-an-error-page-when-a-site-cannot-be-reached)
+- [Browser Lite lets the browser cache realm resources](#browser-lite-lets-the-browser-cache-realm-resources)
+- [Browser Lite worker CSP keeps eval off (Cloudflare's managed challenge)](#browser-lite-worker-csp-keeps-eval-off-cloudflares-managed-challenge)
 
 <!-- END TOC -->
 
@@ -20234,3 +20236,49 @@ fixtures and do not provision external infrastructure.
 - **Rejected:** A toolbar-side timeout on the frame's `load` event ("no bridge
   within N s means failure"): a PDF or other non-HTML document shown natively
   has no bridge either and would be reported as broken.
+
+## Browser Lite lets the browser cache realm resources
+
+- **Symptom:** Every page view in Lite re-downloaded every stylesheet, script,
+  image and font. Reloading a tab, or following a link within a site, cost the
+  same bytes as the first visit, which on a slow link from China is most of
+  the wait. The engine's own bundles (`hammerhead.js` is 590 KB) were
+  revalidated on every page load after 30 s.
+- **Cause:** The gateway forced `Cache-Control: no-store` on every realm
+  response. A resource URL already names the user's realm host, the document
+  context and the tab, so the browser cache is per user and per tab; there
+  was no shared-cache risk to defend against, only Cloudflare's edge, which
+  `private` excludes. Hammerhead's static route serves its bundles with
+  `max-age=30, must-revalidate`, although their URLs carry `?v=<etag>`.
+- **Fix:** `cache-policy.cjs`: documents (pages, iframes, WebSocket and event
+  streams) stay `no-store`; any other response keeps the site's directives
+  with `public`/`s-maxage` removed and `private` added (`no-store` is kept;
+  no header becomes `private`, which lets the browser cache heuristically as
+  it would on the real site). Rewritten scripts are cacheable too: their URL
+  carries the tab token the rewritten text embeds, and the server-side script
+  cache substitutes that same token, so a URL's content is stable. The engine
+  bundles get `max-age=31536000` (`staticContentCaching` on the router).
+  `cache-policy.test.cjs` checks an image, a script, a `no-store` JSON and a
+  page through a real gateway. Alongside, the forwarded `Accept-Encoding`
+  drops `zstd`: the engine decodes only gzip, deflate and br, and a site that
+  took zstd (Cloudflare's challenge page, when Chrome talks to the gateway
+  without Cloudflare's edge in between) came back undecodable, a blank tab.
+- **Rejected:** Caching documents as well. They carry the per-navigation
+  bridge configuration, sync cookies and the entry handshake; Back/Forward
+  already reopens them deliberately.
+
+## Browser Lite worker CSP keeps eval off (Cloudflare's managed challenge)
+
+- **Symptom:** Under a headless desktop Chromium (UA `HeadlessChrome/…`),
+  claude.ai and chatgpt.com in Lite ended on Cloudflare's "Just a moment…"
+  page with `[Cloudflare Turnstile] … EvalError … script-src
+  https://*.nicejunjie.com 'wasm-unsafe-eval'` in the console. With a real
+  Chrome UA, and on iPhone emulation, both load signed in with sidebars.
+- **Cause:** Lite's worker policy (`workerPolicy()` in `gateway.cjs`) has no
+  `'unsafe-eval'`, and the challenge runs generated code in a Worker.
+- **Decision:** Leave eval off in workers. Adding `'unsafe-eval'` was tried
+  (2026-10-22) and the challenge still failed later ("Cannot call method
+  'appendChild' of null" through the engine's wrapper, after a 403 on one of
+  its resources), and real browsers were not being challenged. It widened the
+  worker policy for no working site. Revisit only with a site that a real
+  user's browser is challenged on and that then passes.

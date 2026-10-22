@@ -386,7 +386,10 @@
     // load jsd/precursor), and a challenge page may keep the site's own title.
     const challengeLoaded=()=>{try{return performance.getEntriesByType('resource').some(e=>/\/cdn-cgi\/challenge-platform\/.*\/orchestrate\/(chl_page|managed|jsch|captcha)/.test(decodeURIComponent(e.name)));}catch{return false;}};
     // Captcha pages that keep an ordinary title: Baidu sends this server to one.
-    const captchaPage=()=>{try{const u=new URL(originalUrl(window.location.href));return u.hostname==='wappass.baidu.com'&&u.pathname.startsWith('/static/captcha');}catch{return false;}};
+    // Reddit's own block page ("You've been blocked by network security") has
+    // the title "Blocked", too generic to match everywhere.
+    const captchaPage=()=>{try{const u=new URL(originalUrl(window.location.href));return (u.hostname==='wappass.baidu.com'&&u.pathname.startsWith('/static/captcha'))
+      ||(/(^|\.)reddit\.com$/.test(u.hostname)&&document.title==='Blocked');}catch{return false;}};
     const botWall=()=>!!(BOT_TITLE.test(document.title||'')||challengeLoaded()||captchaPage()
       ||document.querySelector('iframe[src*="captcha-delivery.com"],#px-captcha,iframe[src*="challenges.cloudflare.com"],iframe[src*="/websitecaptcha/"],meta[name^="aliyun_waf"]'));
     const update = function () {
