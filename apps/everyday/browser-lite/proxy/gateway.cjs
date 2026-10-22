@@ -398,9 +398,19 @@ class BrowserGateway {
       const body=await this.bodyBudget.read(req,this.navigations.maxBytesPerTab);
       const challenge=this.navigations.capture({url:parsed.destUrl,method:req.method,body,
         contentType:req.headers['content-type']||'',sourceOrigin:tab.origin,tabId:tab.tabId,epoch:tab.epoch});
-      res.writeHead(303,{'Location':tab.physical+'/__vt/navigation?id='+challenge,'Cache-Control':'no-store','Referrer-Policy':'strict-origin-when-cross-origin'});res.end();
+      // The challenge page is served here, on the destination's realm, rather
+      // than after a 303 to the tab's own realm: one round trip less on every
+      // cross-site link. The toolbar accepts it from any realm of this user.
+      this.challengePage(res,challenge,tab);
     } catch {deny(res,400);}
     return true;
+  }
+  challengePage(res,challenge,tab) {
+    const nonce=crypto.randomBytes(20).toString('base64url');
+    const message=JSON.stringify({type:'vibetop-browser-navigation',challenge,tabId:tab.tabId,epoch:tab.epoch}).replace(/</g,'\\u003c');
+    res.writeHead(200,{'Content-Type':'text/html; charset=utf-8','Cache-Control':'no-store',
+      'Content-Security-Policy':`default-src 'none'; script-src 'nonce-${nonce}'; frame-ancestors ${[this.parentOrigin,...this.trustedAncestors].join(' ')}`});
+    res.end(`<meta charset="utf-8"><title>Opening page</title><script nonce="${nonce}">parent.postMessage(${message},${JSON.stringify(this.parentOrigin)})</script>`);
   }
   installHooks() {
     const registry = this.registry, gateway = this;
@@ -445,7 +455,13 @@ class BrowserGateway {
       if(registry.isRealm && this.req.vtRole==='auth' && this.req.headers['sec-fetch-mode']==='navigate'
         && !this.dest.isIframe && [301,302,303,307,308].includes(this.destRes.statusCode) && this.destRes.headers.location) {
         const tab=gateway.tabTokens.get(String(this.windowId||'').split('~')[1]);
-        if(tab?.physical===this.req.vtRealm?.physical) {
+        let sameOriginTarget=false;
+        try{sameOriginTarget=new URL(this.destRes.headers.location,this.dest.url).origin===tab?.origin;}catch{}
+        // A redirect within the tab's own origin (login POST -> 302 -> /home,
+        // locale and trailing-slash redirects) stays an ordinary redirect the
+        // browser follows on the same realm; only a cross-origin one needs the
+        // toolbar's approval, a new epoch and cookie provenance.
+        if(tab?.physical===this.req.vtRealm?.physical && !sameOriginTarget) {
           try {
             const destination=new URL(this.destRes.headers.location,this.dest.url).href;
             const status=this.destRes.statusCode;
@@ -632,11 +648,7 @@ class BrowserGateway {
       if(!auth||req.method!=='GET'||req.headers['sec-fetch-dest']!=='iframe'||req.headers['sec-fetch-mode']!=='navigate'
         ||!tab||tab.physical!==physical||tab.epoch!==record.epoch||record.state!=='CAPTURED'
         ||(this.ingressIdentity && tab.lease!==req.vtLease))return deny(res);
-      const nonce=crypto.randomBytes(20).toString('base64url');
-      const message=JSON.stringify({type:'vibetop-browser-navigation',challenge:record.challenge,tabId:tab.tabId,epoch:tab.epoch}).replace(/</g,'\\u003c');
-      res.writeHead(200,{'Content-Type':'text/html; charset=utf-8','Cache-Control':'no-store',
-        'Content-Security-Policy':`default-src 'none'; script-src 'nonce-${nonce}'; frame-ancestors ${[this.parentOrigin,...this.trustedAncestors].join(' ')}`});
-      res.end(`<meta charset="utf-8"><title>Opening page</title><script nonce="${nonce}">parent.postMessage(${message},${JSON.stringify(this.parentOrigin)})</script>`);return true;
+      this.challengePage(res,record.challenge,tab);return true;
     }
     // Headers supplied by the network client never become upstream credentials.
     for (const name of Object.keys(req.headers)) {

@@ -169,3 +169,19 @@ test('popup requests reach the UI with their name, an existing popup navigates w
  await c.message({source:frame.contentWindow,origin:state().origin,data:{type:'vibetop-browser',tabId:'tab',epoch:2,action:'close'}});
  assert.deepEqual(closed,[undefined,3]);
 });
+
+test('a navigation challenge may come from another realm of the same user, nothing else may',async()=>{
+ const {controller:c,requests:r,frame}=fixture();
+ const own={tabId:'tab',epoch:1,url:'https://site.example/',origin:'https://bl-u1000-'+'a'.repeat(32)+'.realms.example',entry:'https://bl-u1000-'+'a'.repeat(32)+'.realms.example/entry?ticket=1'};
+ c.activate(own);
+ const data={type:'vibetop-browser-navigation',tabId:'tab',epoch:1,challenge:'opaque'};
+ await c.message({source:frame.contentWindow,origin:'https://bl-u1001-'+'b'.repeat(32)+'.realms.example',data});
+ await c.message({source:frame.contentWindow,origin:'https://bl-u1000-'+'b'.repeat(32)+'.other.example',data});
+ await c.message({source:frame.contentWindow,origin:'https://evil.example',data});
+ assert.equal(r.length,0,'another user, another domain or a foreign origin cannot approve');
+ await c.message({source:frame.contentWindow,origin:'https://bl-u1000-'+'b'.repeat(32)+'.realms.example',data:{type:'vibetop-browser',action:'ready',tabId:'tab',epoch:1}});
+ assert.equal(c.nonce,null,'other message types still need the tab\'s own origin');
+ const accepted=c.message({source:frame.contentWindow,origin:'https://bl-u1000-'+'b'.repeat(32)+'.realms.example',data});await tick();
+ assert.equal(r.length,1);r[0].resolve({...own,epoch:2,url:'https://other.example/',origin:'https://bl-u1000-'+'b'.repeat(32)+'.realms.example',entry:'https://bl-u1000-'+'b'.repeat(32)+'.realms.example/entry?ticket=2'});await accepted;
+ assert.equal(frame.src,'https://bl-u1000-'+'b'.repeat(32)+'.realms.example/entry?ticket=2');
+});

@@ -1,6 +1,14 @@
 (function () {
   'use strict';
   // This file belongs only on the dedicated, trusted browser UI origin.
+  // Two realm origins of the same user: bl-u<uid>-<hash>.<domain>, same uid.
+  const REALM=/^bl-u(\d+)-[a-f0-9]{32}$/;
+  function siblingRealm(origin,known) {
+    try {
+      const [a,b]=[origin,known].map(value=>{const url=new URL(value);if(url.protocol!=='https:')return null;const [first,...rest]=url.hostname.split('.');const m=REALM.exec(first);return m&&{uid:m[1],domain:rest.join('.')+':'+url.port};});
+      return !!(a&&b&&a.uid===b.uid&&a.domain===b.domain);
+    }catch{return false;}
+  }
   class BrowserProxyController {
     constructor({frame,request,onState=()=>{},onError=()=>{},onOpen=null,onHistory=()=>{},allowPopup=()=>false,onFrame=()=>{},onClose=()=>{},openerIndex=()=>undefined}) {
       Object.assign(this,{frame,request,onState,onError,onOpen,onHistory,allowPopup,onFrame,onClose,openerIndex});this.state=null;this.serverState=null;this.sequence=0;this.approving=false;this.operations=Promise.resolve();
@@ -104,7 +112,10 @@
     }
     async message(event) {
       const state=this.state,data=event.data;
-      if(this.expired||!state||event.source!==this.frame.contentWindow||event.origin!==state.origin||!data||typeof data!=='object')return;
+      if(this.expired||!state||event.source!==this.frame.contentWindow||!data||typeof data!=='object')return;
+      // A navigation challenge is answered on the destination's realm (one
+      // round trip less); every other message must come from the tab's own.
+      if(event.origin!==state.origin && !(data.type==='vibetop-browser-navigation' && siblingRealm(event.origin,state.origin)))return;
       if(data.type==='vibetop-browser-navigation') {
         if(this.approving||data.tabId!==state.tabId||data.epoch!==state.epoch||typeof data.challenge!=='string')return;
         const sequence=this.sequence;this.approving=true;

@@ -187,12 +187,18 @@ class Bridge:
             fields["Set-Cookie"] = self.cookies(claims["lease"])[1][1]
         return fields
 
-    @staticmethod
-    def browser_logins(uid, url):
+    _logins_cache = {}
+    _logins_cache_lock = threading.Lock()
+    LOGINS_CACHE_SECONDS = 30
+
+    @classmethod
+    def browser_logins(cls, uid, url):
         """The full Browser's cookies for this top-level site (never Google's).
 
         Read by browser_login_sync.py running AS THE USER: the root manager
-        never opens a user's files itself. Any failure just means no sharing."""
+        never opens a user's files itself. Any failure just means no sharing.
+        Every cross-site hop asks; the answer for a site is kept for a few
+        seconds, and a user without a Browser profile costs no subprocess."""
         try:
             parts = urlsplit(url if isinstance(url, str) else "")
             if parts.scheme not in ("http", "https") or not parts.hostname:
@@ -202,12 +208,24 @@ class Bridge:
             if excluded(parts.hostname):
                 return []
             user = pwd.getpwuid(uid)
+            if not os.path.exists(os.path.join(profile_dir(user.pw_dir), "Default", "Cookies")):
+                return []
+            key, now = (uid, parts.hostname), time.monotonic()
+            with cls._logins_cache_lock:
+                cached = cls._logins_cache.get(key)
+                if cached and cached[0] > now:
+                    return cached[1]
             script = str(Path(__file__).with_name("browser_login_sync.py"))
             done = subprocess.run(["/usr/bin/setpriv", f"--reuid={uid}", f"--regid={user.pw_gid}", "--init-groups", "--reset-env",
                                    "/usr/bin/python3", "-I", script, profile_dir(user.pw_dir), parts.hostname],
                                   capture_output=True, timeout=8, check=False, cwd="/")
             cookies = json.loads(done.stdout or b"[]") if done.returncode == 0 else []
-            return cookies if isinstance(cookies, list) else []
+            cookies = cookies if isinstance(cookies, list) else []
+            with cls._logins_cache_lock:
+                cls._logins_cache[key] = (now + cls.LOGINS_CACHE_SECONDS, cookies)
+                if len(cls._logins_cache) > 256:
+                    cls._logins_cache.pop(next(iter(cls._logins_cache)))
+            return cookies
         except (OSError, ValueError, KeyError, subprocess.SubprocessError) as error:
             logging.getLogger("vibetop").info("browser-lite login sync skipped: %s: %s", type(error).__name__, str(error)[:200])
             return []

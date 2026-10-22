@@ -1,3 +1,4 @@
+import os
 import io
 import json
 from email.message import Message
@@ -283,3 +284,27 @@ def test_saved_tabs_pass_through_to_the_user_runtime_with_a_larger_body():
     assert outgoing == [200]
     assert calls[0][0] == "tabs" and calls[0][1]["save"]["tabs"][0]["url"] == "https://example.com/0"
     assert "cookies" not in calls[0][1]
+
+
+def test_browser_logins_skips_users_without_a_browser_profile_and_caches_answers(monkeypatch, tmp_path):
+    import pwd
+    import subprocess
+    Bridge._logins_cache.clear()
+    me = pwd.getpwuid(os.getuid())
+    monkeypatch.setattr("browser_login_sync.profile_dir", lambda home: str(tmp_path / "profile"))
+    runs = []
+
+    def fake_run(*args, **kwargs):
+        runs.append(args)
+        return subprocess.CompletedProcess(args, 0, stdout=b'[{"name": "s", "value": "v"}]', stderr=b"")
+    monkeypatch.setattr(subprocess, "run", fake_run)
+    # No Browser profile: no subprocess at all (every cross-site hop would pay for it).
+    assert Bridge.browser_logins(me.pw_uid, "https://site.example/a") == []
+    assert runs == []
+    (tmp_path / "profile" / "Default").mkdir(parents=True)
+    (tmp_path / "profile" / "Default" / "Cookies").write_bytes(b"")
+    assert Bridge.browser_logins(me.pw_uid, "https://site.example/a") == [{"name": "s", "value": "v"}]
+    assert Bridge.browser_logins(me.pw_uid, "https://site.example/b") == [{"name": "s", "value": "v"}]
+    assert len(runs) == 1, "the same site within a few seconds is answered from memory"
+    assert Bridge.browser_logins(me.pw_uid, "https://elsewhere.example/") == [{"name": "s", "value": "v"}]
+    assert len(runs) == 2

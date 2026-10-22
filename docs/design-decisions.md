@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_500 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_501 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [Terminal link opened a closed Browser app but lost the URL](#terminal-link-opened-a-closed-browser-app-but-lost-the-url)
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
@@ -523,6 +523,7 @@ _500 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [Browser Lite popups: window.open returns a real window](#browser-lite-popups-windowopen-returns-a-real-window)
 - [Browser Lite keeps parentheses on `-(a ** b)` (vercel.com login)](#browser-lite-keeps-parentheses-on--a-b-vercelcom-login)
 - [Browser Lite serves the bridge once, the per-document config apart](#browser-lite-serves-the-bridge-once-the-per-document-config-apart)
+- [Browser Lite cross-site navigations: fewer round trips, cheaper login lookups](#browser-lite-cross-site-navigations-fewer-round-trips-cheaper-login-lookups)
 
 <!-- END TOC -->
 
@@ -20397,3 +20398,39 @@ fixtures and do not provision external infrastructure.
   secrets). The order is kept by `prependScripts`, so the bridge finds its
   config as before. `bridge-split.test.cjs` loads a page through a real
   gateway and checks both scripts.
+
+## Browser Lite cross-site navigations: fewer round trips, cheaper login lookups
+
+- **Symptom:** A link to another site cost five round trips (the captured
+  request's 303, the challenge page, the toolbar's approve call, the entry
+  303, the page) and every one of them ran a `setpriv` Python subprocess in
+  the manager to read the full Browser's cookies for the site. A site's own
+  redirects (login POST → 302 → /home, trailing slash, locale) went through
+  the same approval dance, so sign-in flows paid it several times.
+- **Cause:** The navigation transaction design answers a captured navigation
+  with a 303 to the tab's own realm so that the challenge page's
+  `postMessage` origin equals the one the toolbar trusts; and every upstream
+  3xx on a tab's main frame was captured, whether or not it left the origin.
+  The login lookup had no memory.
+- **Fix:** (1) `captureNavigation` answers with the challenge page itself, on
+  the destination's realm; the toolbar (`trusted-controller.js`) accepts a
+  navigation challenge from any realm of the same user and domain
+  (`bl-u<uid>-<hash>.<domain>`), still only from the tab's own frame; every
+  other message type keeps the exact-origin rule. One round trip less per
+  cross-site link. (2) A redirect whose target is the tab's own origin is left
+  to the browser as an ordinary same-origin navigation (the same path a link
+  within the site takes); only a cross-origin target is captured. (3) The
+  manager keeps a site's Browser-login answer for 30 s and skips the
+  subprocess entirely when the user has no Browser profile. Measured on the
+  harness: a Hacker News link to another site is now challenge → approve →
+  entry → page. `redirect-shortcut.test.cjs` covers the direct challenge and
+  both redirect kinds; the manager test covers the cache and the skip.
+- **Not done:** Dropping the entry hop. Its one-use permit is consumed by the
+  root manager (`consume_entry`), which is where root validates a navigation
+  the UI asked for; removing it changes the trust design, not just a round
+  trip. The toolbar's approve call stays for the same reason.
+- **Also:** `check-ui.py` and `check-history-retry.py` still expected the
+  hostname in `#status`, which v1.38.58 removed, and "session ended", which
+  v1.38.9x replaced by a quiet reload; they now check the address bar.
+  `check-history-retry.py`'s lost-response section still fails on a Retry
+  click and was left as is.

@@ -50,7 +50,9 @@ async def main():
             await expect(frame.locator('#data')).to_contain_text('private_a=secret_a',timeout=60000)
             await expect(frame.locator('#module-bases')).to_have_text('one,two')
             await frame.locator('#button').click();await expect(frame.locator('#count')).to_have_text('1')
-            await expect(page.locator('#status')).to_have_text('a.source-one.test')
+            # No status bar since v1.38.58: a loaded page shows only its address.
+            await expect(page.get_by_role('textbox',name='Address or search')).to_have_value('http://a.source-one.test/')
+            await expect(page.locator('#notice')).to_be_hidden()
             await page.get_by_role('button',name='New tab',exact=True).click()
             await expect(page.locator('#welcome')).to_be_visible()
             await page.get_by_role('textbox',name='Address or search').fill('http://b.source-two.test/')
@@ -78,10 +80,9 @@ async def main():
                 await fetch('/__test/expire',{method:'POST'});
                 window.dispatchEvent(new Event('pageshow'));
             }''')
-            await expect(page.locator('#status')).to_contain_text('session ended')
-            async with page.expect_event('framenavigated',predicate=lambda f:f.parent_frame==page.main_frame and f.url.startswith('https://bl-')):
-                await page.get_by_role('button',name='Retry',exact=True).click()
-            await expect(page.locator('#status')).to_have_text('b.source-two.test')
+            # A forgotten lane reloads the page quietly (v1.38.9x), no "session ended".
+            await expect(page.locator('#notice')).to_be_hidden()
+            await expect(page.get_by_role('textbox',name='Address or search')).to_have_value('http://b.source-two.test/')
             await expect(frame.locator('#data')).to_contain_text('visible_b=value_b')
             await expect(frame.locator('#bytes-worker-result')).to_have_text('worker imported')
             if drop:
