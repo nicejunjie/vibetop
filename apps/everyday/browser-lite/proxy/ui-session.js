@@ -6,7 +6,10 @@
     constructor({parents=[],parent=window.parent,origin=location.origin,fetcher=window.fetch.bind(window)}={}) {
       Object.assign(this,{parents:new Set(parents),parent,origin,fetcher});this.pending=null;this.parentOrigin=null;
       this.listener=event=>this.receive(event);window.addEventListener('message',this.listener);
-      for(const allowed of this.parents)this.parent.postMessage({type:'vibetop-browser-ui-ready'},allowed);
+      // The host page's origin is the document referrer (referrer policy
+      // "origin"); posting to the other allowed hosts logged a console error.
+      let referrer=null;try{referrer=new URL(document.referrer).origin;}catch{}
+      for(const allowed of this.parents.has(referrer)?[referrer]:this.parents)this.parent.postMessage({type:'vibetop-browser-ui-ready'},allowed);
     }
     receive(event) {
       if(event.source!==this.parent||!this.parents.has(event.origin)||!event.data||typeof event.data!=='object')return;

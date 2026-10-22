@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_504 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_505 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [Terminal link opened a closed Browser app but lost the URL](#terminal-link-opened-a-closed-browser-app-but-lost-the-url)
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
@@ -527,6 +527,7 @@ _504 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [Browser Lite shows progress the moment a page starts leaving](#browser-lite-shows-progress-the-moment-a-page-starts-leaving)
 - [Browser Lite and Google: the exit address, not the proxy, triggers /sorry/](#browser-lite-and-google-the-exit-address-not-the-proxy-triggers-sorry)
 - [Browser Lite continues by itself after a Google sign-in in the full Browser](#browser-lite-continues-by-itself-after-a-google-sign-in-in-the-full-browser)
+- [Browser Lite keeps a still-loading page in history when the next address is typed](#browser-lite-keeps-a-still-loading-page-in-history-when-the-next-address-is-typed)
 
 <!-- END TOC -->
 
@@ -20512,3 +20513,23 @@ fixtures and do not provision external infrastructure.
   `check-handoff.py` drives the real toolbar against the fixture in Chromium
   and iPhone WebKit (the fixture's `/api/logins-check` changes its answer on
   the third poll; polling stops once the tab has continued).
+
+## Browser Lite keeps a still-loading page in history when the next address is typed
+
+- **Symptom:** Type an address, and before the page has reported itself type
+  another: Back was disabled, as if the first page had never been there. The
+  `check-history-retry.py` e2e failed on exactly this, and also still
+  expected the "session ended" flow that v1.38.9x replaced.
+- **Cause:** A document joins the tab's history only when its bridge reports
+  a snapshot. A toolbar navigation replaces the frame, so a page that had
+  committed (its state was known, still `loading`) but not yet reported was
+  destroyed unrecorded. A page whose open command had not even answered yet
+  is a different case: it never committed, and a browser drops it too.
+- **Fix:** `go()` records the committed, unreported page as a pending entry
+  (`keepUnreported`) before opening the next one; Back reopens it by URL like
+  any other document. The e2e now covers it (a held page, then another
+  address, then Back), waits for documents instead of for typed text in the
+  address bar, and expects the quiet in-place reload after an expired lane.
+  Also: the toolbar posts its "ready" only to the host page that loaded it
+  (the document referrer), instead of to every allowed host, which logged a
+  console error on each UI load.

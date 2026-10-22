@@ -256,8 +256,18 @@
       if(active===tab)status(error.message,true);
     });
   }
+  // A page that has committed but not yet reported its history (still
+  // loading when the user types the next address) must stay reachable with
+  // Back, as in a browser; the next document replaces the frame before the
+  // old one can report.
+  function keepUnreported(tab){
+    const url=tab.state?.url;
+    if(!tab.state?.loading || !url || tab.history[tab.position]?.url===url)return;
+    tab.history.splice(tab.position+1);tab.history.push({id:'pending-'+crypto.randomUUID(),url,documentId:'pending:'+crypto.randomUUID()});
+    tab.position=tab.history.length-1;
+  }
   async function go(value,retried=false) {
-    const tab=active;tab.historyGeneration=(tab.historyGeneration||0)+1;tab.controller.cancelTraversal();if(tab.targetPosition?.epoch===undefined && tab.targetPosition?.previousPosition!==undefined)tab.position=tab.targetPosition.previousPosition;delete tab.targetPosition;tab.historyQueue=[];
+    const tab=active;tab.historyGeneration=(tab.historyGeneration||0)+1;tab.controller.cancelTraversal();if(!retried)keepUnreported(tab);if(tab.targetPosition?.epoch===undefined && tab.targetPosition?.previousPosition!==undefined)tab.position=tab.targetPosition.previousPosition;delete tab.targetPosition;tab.historyQueue=[];
     try{const url=address(value);status('Opening…');await tab.controller.open(url);}
     catch(error){
       if(error.reset&&!retried&&active===tab){tab.controller.expire();return go(value,true);}

@@ -60,13 +60,33 @@ async def main():
             await expect(page.get_by_role('textbox',name='Address or search')).to_have_value(re.compile(r'^http://b\.source-two\.test/'))
             # A lost control response is different from a slow document: Retry
             # must replay the same operation and retain the intended history slot.
+            # A page that committed but has not reported yet (still loading when
+            # the next address is typed) stays reachable with Back.
+            await page.locator('#new-tab').click()
+            await page.locator('#address').fill('http://a.source-one.test/history-delayed')
+            await page.locator('#address').press('Enter')
+            await expect(page.locator('#stage > iframe:not([hidden])')).to_have_count(1)
+            await expect(page.locator('body')).to_have_class(re.compile(r'loading'))
+            await page.locator('#address').fill('http://b.source-two.test/history')
+            await page.locator('#address').press('Enter')
+            await expect(frame.locator('#route')).to_have_text('{"route":0}')
+            await expect(page.locator('#back')).to_be_enabled()
+            await page.locator('#back').click()
+            await expect(page.get_by_role('textbox',name='Address or search')).to_have_value('http://a.source-one.test/history-delayed')
+            await page.wait_for_timeout(1500)
+            await page.evaluate("async()=>await fetch('/__test/release-pages',{method:'POST'})")
+            await expect(frame.locator('#route')).to_have_text('{"route":0}')
+            await page.locator('.tab.active .close').click()
+            # A lost control response is different from a slow document: Retry
+            # must replay the same operation and retain the intended history slot.
             await page.locator('#new-tab').click()
             await page.locator('#address').fill('http://a.source-one.test/history')
             await page.locator('#address').press('Enter')
-            await expect(page.get_by_role('textbox',name='Address or search')).to_have_value(re.compile(r'^http://a\.source-one\.test/'))
+            await expect(frame.locator('#route')).to_have_text('{"route":0}')
             await page.locator('#address').fill('http://b.source-two.test/history')
             await page.locator('#address').press('Enter')
-            await expect(page.get_by_role('textbox',name='Address or search')).to_have_value(re.compile(r'^http://b\.source-two\.test/'))
+            await expect(frame.locator('#route')).to_have_text('{"route":0}')
+            await expect(page.locator('#back')).to_be_enabled()
             lose_next=False
             async def lose_open(route):
                 nonlocal lose_next
@@ -95,16 +115,21 @@ async def main():
                     await page.evaluate("window.dispatchEvent(new Event('pageshow'))")
                 else:
                     await page.locator('#retry').click()
-                # A forgotten lane reloads the page in place (v1.38.9x): no "session ended".
-                if expiry=='recovery':
-                    await page.locator('#retry').click()
+                # A forgotten lane reloads the current page in place (v1.38.9x), quietly:
+                # the lost Back is dropped, the entries stay, and Back still works.
+                await expect(page.locator('#notice')).to_be_hidden()
+                await expect(page.get_by_role('textbox',name='Address or search')).to_have_value(re.compile(r'^http://b\.source-two\.test/'))
+                await expect(frame.locator('#route')).to_have_text('{"route":0}')
+                await expect(page.locator('#back')).to_be_enabled()
+                await page.locator('#back').click()
                 await expect(page.get_by_role('textbox',name='Address or search')).to_have_value(re.compile(r'^http://a\.source-one\.test/'))
-                await expect(page.locator('#back')).to_be_disabled()
+                await expect(frame.locator('#route')).to_have_text('{"route":0}')
                 await expect(page.locator('#forward')).to_be_enabled()
                 await page.locator('#forward').click()
                 await expect(page.get_by_role('textbox',name='Address or search')).to_have_value(re.compile(r'^http://b\.source-two\.test/'))
+                await expect(frame.locator('#route')).to_have_text('{"route":0}')
             assert not errors,errors
-            print(json.dumps({'engine':engine,'status':'PASS','checks':['slow Back then Retry retains target and Forward','slow Reload then Retry adds no history entry','lost Back and Reload control responses replay without duplicating history','expiry during failed Back retains intended target']}))
+            print(json.dumps({'engine':engine,'status':'PASS','checks':['slow Back then Retry retains target and Forward','slow Reload then Retry adds no history entry','lost Back and Reload control responses replay without duplicating history','a page still loading when the next address is typed stays in history','expiry during a failed Back reloads in place and keeps history']}))
             await browser.close()
     finally:
         if proc.returncode is None:
