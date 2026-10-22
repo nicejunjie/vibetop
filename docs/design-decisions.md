@@ -20121,6 +20121,14 @@ fixtures and do not provision external infrastructure.
   socket's handlers afterwards. The first regression test missed it because
   its fake ttyd had no disposables and opened the stale socket only after
   closing it.
+  Confirmed trigger, reproduced in real WebKit against a real ttyd 1.7.7: an
+  abnormal drop fires `error`, which sets ttyd's `doReconnect=false`, so ttyd
+  does not reconnect itself. It shows "press Enter to reconnect" and adds a
+  `terminal.onKey` Enter listener that is not in its disposables. The guard
+  then recovers in place, and the user's first Enter fires that stale
+  listener, which calls `connect()` beside the healthy socket. Old code sent
+  `aabbcc` for `abc`; v1.38.115 sends `abc`. That first Enter still causes one
+  needless reconnect (the screen is reset and replayed).
 - **Rejected:** Disabling ttyd's reconnect (its clean-close path then waits for
   Enter, which connects again); overriding `owner.connect` on the instance
   (ttyd's decorator-bound methods are not safely replaceable).
