@@ -53,6 +53,11 @@ fi
 #
 # The canvas renderer has no GL context to lose. For a text grid the difference
 # is imperceptible, and it removes this entire failure class.
+#
+# macOptionClickForcesSelection=true — a TUI with mouse tracking on (Claude
+# Code's fullscreen mode, vim, htop) receives every drag, so no xterm selection
+# exists and Cmd+C has nothing to copy. xterm.js's escape hatch is Shift+drag
+# everywhere EXCEPT macOS, where it is Option+drag and only with this option.
 exec "$TTYD" \
   -W \
   -i 127.0.0.1 \
@@ -63,4 +68,5 @@ exec "$TTYD" \
   -t "titleFixed=Terminal ${BASE_N}" \
   -t scrollback=50000 \
   -t disableLeaveAlert=true \
+  -t macOptionClickForcesSelection=true \
   "${SCRIPT_DIR}/vibetop-session" attach "${INST}" --resume

@@ -109,7 +109,12 @@ Two systemd template units, instantiated for each terminal:
    any closed socket recovers immediately on foreground return, even before its
    delayed close event arrives. Abnormal closes get the native three-second retry
    and fall back to frame reload at four seconds if no new socket is opened.
-   Recovery never synthesizes terminal input. Failed startup/handshakes retain
+   Recovery never synthesizes terminal input. Two reconnect paths (ttyd's and
+   the guard's in-place one) can race, so the guard lets only the newest socket
+   reach ttyd and closes the one it supersedes; otherwise each keystroke and echo
+   doubles. `-t macOptionClickForcesSelection=true` makes Option+drag select (then
+   Cmd+C copy) inside mouse-tracking TUIs such as Claude Code's fullscreen mode.
+   Failed startup/handshakes retain
    a 12-second deadline; retries are bounded to three before a manual retry.
    Background pages pause recovery. Successful PTY output clears status and
    resets the retry budget; quiet attached terminals are never timed out.

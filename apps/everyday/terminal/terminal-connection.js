@@ -115,7 +115,17 @@
   var Native = w.WebSocket;
   function WS(url, protocols) {
     var ws = protocols === undefined ? new Native(url) : new Native(url, protocols);
+    var previous = socket;
     socket = ws; closeCode = null; resumeClosed = false; ready = false; phase = 'connecting';
+    // ttyd's own reconnect and the in-place recovery below can both call
+    // connect() while a token fetch is pending. Every socket that opens runs
+    // ttyd's initListeners(), so two live sockets double each keystroke and
+    // each echo. Only the newest socket may reach ttyd: these listeners run
+    // before ttyd's (registered first), and the superseded socket is closed.
+    ['open', 'message', 'error', 'close'].forEach(function (type) {
+      ws.addEventListener(type, function (event) { if (ws !== socket) event.stopImmediatePropagation(); });
+    });
+    if (previous && previous.readyState < 2) { try { previous.close(); } catch (_) {} }
     // Do not reset the deadline on repeated failed socket attempts.
     ws.addEventListener('open', function () { if (ws === socket) phase = 'awaiting-output'; });
     ws.addEventListener('message', function (event) {

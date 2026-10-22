@@ -8,9 +8,15 @@ function browser(saved = new Map()) {
   const elements = [], events = {}, documentEvents = {}, logs = [];
   function element() { return { style: {}, setAttribute() {}, appendChild(e) { this.child = e; }, remove() { elements.splice(elements.indexOf(this), 1); } }; }
   class Socket {
-    constructor() { this.readyState = 0; this.events = {}; }
-    addEventListener(k, cb) { this.events[k] = cb; }
-    emit(k, data, code) { if (k === 'open') this.readyState = 1; if (k === 'close') this.readyState = 3; this.events[k]?.({ data, code }); }
+    constructor() { this.readyState = 0; this.listeners = {}; this.closed = 0; }
+    addEventListener(k, cb) { (this.listeners[k] ||= []).push(cb); }
+    close() { this.closed++; this.readyState = 3; }
+    emit(k, data, code) {
+      if (k === 'open') this.readyState = 1; if (k === 'close') this.readyState = 3;
+      let stop = false;
+      const event = { data, code, stopImmediatePropagation() { stop = true; } };
+      for (const cb of this.listeners[k] || []) { cb(event); if (stop) break; }
+    }
   }
   Object.assign(Socket, { CONNECTING: 0, OPEN: 1, CLOSING: 2, CLOSED: 3 });
   const w = { WebSocket: Socket, ArrayBuffer, Uint8Array, navigator: { userAgent: 'test' },
@@ -274,4 +280,43 @@ test('activation recovers a hidden CLOSED transport in place without reloading H
   b.w.document.hidden=false; b.w.__vibetopConnectionActivate();
   for(let i=0;i<10;i++)await Promise.resolve();
   assert.equal(connected,1); assert.equal(disposed,1); assert.equal(b.reloads,0);
+});
+test('racing native and in-place reconnects leave one socket driving ttyd (no doubled keys)', async () => {
+  const b = browser(), tokens = [], sockets = [], writes = [];
+  let inits = 0;
+  // A minimal ttyd Xterm controller; its listeners register AFTER the guard's,
+  // and every opened socket runs initListeners() (one more onData handler).
+  const ttyd = {
+    socket: null,
+    dispose() {},
+    refreshToken() { return new Promise(resolve => tokens.push(resolve)); },
+    connect() {
+      const s = this.socket = new b.w.WebSocket('ws://test/t1/ws'); sockets.push(s);
+      s.addEventListener('open', () => { inits++; });
+      s.addEventListener('message', e => writes.push(e.data));
+      s.addEventListener('close', e => { if (e.code !== 1000) this.refreshToken().then(() => this.connect()); });
+    }
+  };
+  b.w.__vibetopTtyd = ttyd; ttyd.connect();
+  sockets[0].emit('open'); sockets[0].emit('message', '0ready'); inits = 0; writes.length = 0;
+  // Abnormal close while hidden: ttyd starts its own reconnect (token pending)...
+  b.w.document.hidden = true; sockets[0].emit('close', undefined, 1006);
+  // ...and on return the guard starts a second one before that token arrives.
+  b.w.document.hidden = false; b.documentEvents.visibilitychange();
+  for (let i = 0; i < 10; i++) await Promise.resolve();
+  assert.equal(tokens.length, 2);
+  // The guard's token arrives first; ttyd's late callback connects unconditionally.
+  const [nativeToken, guardToken] = tokens.splice(0);
+  guardToken(); for (let i = 0; i < 10; i++) await Promise.resolve();
+  nativeToken(); for (let i = 0; i < 10; i++) await Promise.resolve();
+  assert.equal(sockets.length, 3);
+  const [, stale, live] = sockets;
+  assert.equal(stale.closed, 1); assert.equal(live.closed, 0);
+  stale.emit('open'); live.emit('open');
+  stale.emit('message', '0x'); live.emit('message', '0x');
+  assert.equal(inits, 1, 'only the newest socket may run ttyd initListeners');
+  assert.deepEqual(writes, ['0x'], 'only the newest socket may write output');
+  stale.emit('close', undefined, 1006);
+  assert.equal(tokens.length, 0, 'a superseded socket closing must not start another reconnect');
+  assert.equal(b.reloads, 0);
 });

@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_488 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_490 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [Terminal link opened a closed Browser app but lost the URL](#terminal-link-opened-a-closed-browser-app-but-lost-the-url)
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
@@ -511,6 +511,8 @@ _488 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [Browser Lite calls rewritten methods with a captured Reflect.apply (Xiaohongshu)](#browser-lite-calls-rewritten-methods-with-a-captured-reflectapply-xiaohongshu)
 - [Browser Lite site pages carry an enforcing CSP limited to Lite's hosts](#browser-lite-site-pages-carry-an-enforcing-csp-limited-to-lites-hosts)
 - [Browser Lite does not run Alibaba Cloud's WAF challenge; names eastmoney's captcha](#browser-lite-does-not-run-alibaba-clouds-waf-challenge-names-eastmoneys-captcha)
+- [Terminal reconnect races doubled every keystroke ("llett mmee")](#terminal-reconnect-races-doubled-every-keystroke-llett-mmee)
+- [Option+drag selects inside mouse-tracking TUIs on macOS](#optiondrag-selects-inside-mouse-tracking-tuis-on-macos)
 
 <!-- END TOC -->
 
@@ -20089,3 +20091,32 @@ fixtures and do not provision external infrastructure.
   The bridge's bot-wall test also matches that meta and eastmoney's
   `/websitecaptcha/` frame, so the toolbar offers the full Browser instead of
   a frozen or blank page. Nothing is solved or bypassed.
+
+## Terminal reconnect races doubled every keystroke ("llett mmee")
+
+- **Symptom:** After a terminal reconnected, typing `let me` showed
+  `llett mmee`, and the session had two attach clients from one page.
+- **Cause:** ttyd's own close handler (`-t reconnect=3`) and the guard's
+  in-place recovery in `terminal-connection.js` both call `connect()` after a
+  token fetch. The guard's check (`owner.socket === socket`) still passes while
+  ttyd's fetch is pending, and ttyd's callback connects unconditionally. Every
+  socket that opens runs ttyd's `initListeners()`, so two sockets add two
+  `onData` handlers (each key sent twice) and two output writers.
+- **Fix:** The guard's `WebSocket` wrapper lets only the newest socket reach
+  ttyd. Its listeners register before ttyd's, so it calls
+  `stopImmediatePropagation()` on every event of a superseded socket and closes
+  that socket. Whichever `connect()` runs last wins, and the other never opens
+  as far as ttyd can tell.
+- **Rejected:** Disabling ttyd's reconnect (its clean-close path then waits for
+  Enter, which connects again); overriding `owner.connect` on the instance
+  (ttyd's decorator-bound methods are not safely replaceable).
+
+## Option+drag selects inside mouse-tracking TUIs on macOS
+
+- **Symptom:** In Claude Code (`"tui": "fullscreen"`), dragging selected
+  nothing and Cmd+C copied nothing.
+- **Cause:** With mouse tracking on, xterm.js sends drags to the app. Its
+  force-selection modifier is Shift on other platforms but Option on macOS, and
+  only when `macOptionClickForcesSelection` is set, which ttyd does not set.
+- **Fix:** `ttyd-run.sh` passes `-t macOptionClickForcesSelection=true`;
+  ttyd forwards unknown `-t` keys to `terminal.options`.
