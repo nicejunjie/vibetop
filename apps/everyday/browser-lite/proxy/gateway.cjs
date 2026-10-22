@@ -100,7 +100,7 @@ class BrowserGateway {
     this.controls=new ControlLedger({perform:(command,body)=>{
       const tab=this.tabs.get(body.tabId),lease=this.registry.scope?.getStore()?.authorization?.lease;
       if(this.ingressIdentity && tab && tab.lease!==lease)throw new Error('Browser session mismatch');
-      if(command==='open')return this.open(body.url,{tabId:body.tabId,epoch:body.epoch});
+      if(command==='open')return this.open(body.url,{tabId:body.tabId,epoch:body.epoch,opener:body.opener});
       if(command==='approve')return this.approveNavigation(body.challenge,{tabId:body.tabId,epoch:body.epoch});
       if(command==='close')return this.closeTab({tabId:body.tabId,epoch:body.epoch});
       throw new Error('Unknown browser command');
@@ -195,7 +195,7 @@ class BrowserGateway {
         config.resourceKey=registry.realms.resourceKey(req.vtRealm.context).toString('base64url');
       }
       const tab=registry.isRealm && this.tabTokens.get(String(params.get('windowId')||'').split('~')[1]);
-      if(tab && !config.nested && tab.physical==='https://'+req.headers.host)config.navigation={tabId:tab.tabId,epoch:tab.epoch};
+      if(tab && !config.nested && tab.physical==='https://'+req.headers.host)config.navigation={tabId:tab.tabId,epoch:tab.epoch,...(tab.opener!==undefined?{opener:tab.opener}:{})};
       const parent=registry.isRealm && registry.realm(params.get('parent'));
       if(parent && authorizeChild(parent,req.vtRealm))config.messageParent={physical:parent.physical,original:parent.origin};
       res.end('window.__vtBrowserConfig='+JSON.stringify(config).replace(/</g,'\\u003c')+';\n'+messageTargetSource+'\n'+messageGateSource+'\n'+sourceTextSource+'\n'+documentHistorySource+'\n'+realmHostSource+'\n'+extraUrlAttrsSource+'\n'+clientSource);
@@ -223,11 +223,12 @@ class BrowserGateway {
         if(query.get('relation')==='sibling') {
           owner=registry.realm(query.get('parent'));
           if(!authorizeChild(owner,req.vtRealm))throw new Error('Invalid parent context');
-        } else if(query.get('relation')!=='child')throw new Error('Invalid relationship');
+        } else if(query.get('relation')!=='child' && query.get('relation')!=='top')throw new Error('Invalid relationship');
         const origin=new URL(query.get('origin')).origin;
         // Compute a hypothetical destination without storing a visited origin
         // or revealing whether any window currently uses this context.
-        const target=registry.realms.describe(origin,childContext(owner.context,origin));
+        // "top": a popup tab or its opener, a main document of that origin.
+        const target=registry.realms.describe(origin,query.get('relation')==='top'?mainContext(origin):childContext(owner.context,origin));
         res.writeHead(200,{'Content-Type':'application/json','Cache-Control':'no-store'});
         res.end(JSON.stringify({physical:target.physical}));
       }catch{deny(res,400);}
@@ -336,7 +337,7 @@ class BrowserGateway {
     if(!this.partitionJars.has(key))this.partitionJars.set(key,this.cookieStore.get('partition:'+key));
     return this.partitionJars.get(key);
   }
-  open(destination,{sourceOrigin=null,tabId=crypto.randomUUID(),epoch=1,execution=null,crossSiteRedirect=false,redirectCount=0,originTaint='same-origin'}={}) {
+  open(destination,{sourceOrigin=null,tabId=crypto.randomUUID(),epoch=1,execution=null,crossSiteRedirect=false,redirectCount=0,originTaint='same-origin',opener=undefined}={}) {
     const now = Date.now();
     for (const [key,value] of this.tickets) if (value.expires < now) this.tickets.delete(key);
     if ([...this.tickets.values()].filter(entry=>entry.tabId!==tabId).length >= 128) throw new Error('Too many pending pages');
@@ -351,6 +352,11 @@ class BrowserGateway {
       const lease=this.registry.scope.getStore()?.authorization?.lease||null;
       if(this.ingressIdentity && prior && prior.lease!==lease)throw new Error('Browser session mismatch');
       const tab={tabId,epoch,token,lease,origin:new URL(destination).origin,physical:this.registry.register(destination,context)};
+      // A popup tab: the UI's frame number of its opener, so the popup's page
+      // can find window.opener before its scripts run. A navigation the page
+      // itself makes (opener===undefined) keeps the last one.
+      if(Number.isInteger(opener) && opener>=0 && opener<4096)tab.opener=opener;
+      else if(opener===undefined && prior && prior.opener!==undefined)tab.opener=prior.opener;
       prepared={tab,prior,token};
     }
     const url = this.url(destination,options);

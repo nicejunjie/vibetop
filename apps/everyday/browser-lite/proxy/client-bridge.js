@@ -105,13 +105,14 @@
   // iframe, look up its message target in the background, so it is usually
   // known before the page first posts to the frame.
   const prefetchingTargets=new Set();
-  function prefetchChildTarget(origin) {
-    const key='child:'+origin;
+  function prefetchChildTarget(origin){prefetchTarget('child',origin);}
+  function prefetchTarget(relation,origin) {
+    const key=relation+':'+origin;
     if(!config.realmMode || messageTargets.has(key) || prefetchingTargets.has(key) || prefetchingTargets.size>=32)return;
     prefetchingTargets.add(key);
     try {
       const xhr=new native.XMLHttpRequest();
-      native.xhrOpen.call(xhr,'GET',physicalOrigin+'/__vt/message-target?origin='+encodeURIComponent(origin)+'&relation=child',true);
+      native.xhrOpen.call(xhr,'GET',physicalOrigin+'/__vt/message-target?origin='+encodeURIComponent(origin)+'&relation='+relation,true);
       native.addEventListener.call(xhr,'loadend',()=>{
         prefetchingTargets.delete(key);
         try{if(xhr.status===200 && !messageTargets.has(key))rememberTarget(key,JSON.parse(xhr.responseText).physical);}catch{}
@@ -129,7 +130,10 @@
       known:()=>{const physical=knownWindows.get(target);return physical?{physical,original:window.vibetopMessageOrigin(physical)}:null;},
       parent:()=>target===window.parent?config.messageParent:null,
       child:config.realmMode && isChild(window,target)?origin=>messageTarget(origin,'child'):null,
-      sibling:config.realmMode && config.messageParent && target!==window && isChild(window.parent,target)?origin=>messageTarget(origin,'sibling'):null});
+      sibling:config.realmMode && config.messageParent && target!==window && isChild(window.parent,target)?origin=>messageTarget(origin,'sibling'):null,
+      // A popup this document opened, or the window that opened it: a main
+      // document of that origin (see start(): popups).
+      top:config.realmMode && (popups.has(target) || (target===window.opener && target!==window))?origin=>messageTarget(origin,'top'):null});
     // Exactly one native send on every path preserves synchronous clone errors,
     // transfer ownership and FIFO ordering, including messages that are dropped.
     args[0].targetUrl=targetOrigin==='*'?'*':new URL(targetOrigin==='/'?config.documentOrigin:targetOrigin).origin;
@@ -362,18 +366,84 @@
   }
   const installHistory=window.vibetopInstallHistory;
   delete window.vibetopInstallHistory;
+  // Popups this document opened (real WindowProxy objects of UI-owned sibling
+  // frames) and the ones it named.
+  const popups=new Set(),namedPopups=new Map();
   const start = function () {
     // Keep new tabs inside the trusted Browser Lite app. The iframe's sandbox
     // independently prevents scripts from escaping into a top-level browser tab.
-    const open = function (url) {
-      if (url) send({action:'open',url:originalUrl(new URL(url,originalUrl(window.location.href)).href)});
-      return null;
+    // window.open returns a real window: the UI keeps a spare, UI-owned iframe
+    // last among its frames; the opener takes its WindowProxy (indexed access
+    // to a cross-origin parent's frames is allowed) and asks the UI to turn it
+    // into a tab. The site then has closed/postMessage/event.source on a real
+    // window, and the popup gets this window as its opener (see below).
+    const tabTop=!!(config.navigation && !config.nested);
+    const resolve=url=>originalUrl(new URL(url,originalUrl(window.location.href)).href);
+    function popupIndex(w) {try{for(let i=0;i<window.parent.length;i++)if(window.parent[i]===w)return i;}catch{}return -1;}
+    function navigatePopup(w,url) {
+      let target;try{target=resolve(String(url));}catch{return;}
+      const index=popupIndex(w);
+      if(index>=0){prefetchTarget('top',new URL(target).origin);send({action:'open',url:target,popup:{index}});}
+    }
+    function popupLocation(w) {
+      const go=url=>navigatePopup(w,url);
+      return {get href(){return '';},set href(url){go(url);},assign:go,replace:go,reload(){},toString(){return '';}};
+    }
+    const open = function (url,name,features) {
+      let target='';
+      if(url!=null && String(url)!==''){try{target=resolve(String(url));}catch{return null;}}
+      name=name==null?'':String(name);
+      if(/^_(self|top|parent)$/i.test(name)) {
+        if(target)window.location.assign(engine.utils.url.getProxyUrl(target));
+        return window;
+      }
+      if(!tabTop){if(target)send({action:'open',url:target});return null;}
+      if(name && name!=='_blank' && namedPopups.has(name)) {
+        const existing=namedPopups.get(name);
+        if(!existing.closed){if(target)navigatePopup(existing,target);return existing;}
+        namedPopups.delete(name);popups.delete(existing);
+      }
+      // The UI refuses popups without a user gesture; answer like a browser.
+      if(!navigator.userActivation?.isActive)return null;
+      let w=null;try{const count=window.parent.length;if(count>0)w=window.parent[count-1];}catch{}
+      if(!w || w===window)return null;
+      popups.add(w);if(name && name!=='_blank')namedPopups.set(name,w);
+      if(target)prefetchTarget('top',new URL(target).origin);
+      send({action:'open',url:target,popup:{name,features:String(features==null?'':features).slice(0,256)}});
+      return w;
     };
     window.open = open;
+    // w.close()/w.focus() and w.location on a popup: the engine routes method
+    // calls and location access through these helpers.
+    const hook=(name,replacement)=>{
+      const original=window[name];
+      if(typeof original!=='function')return;
+      try{Object.defineProperty(window,name,{configurable:true,writable:true,value:replacement(original)});}catch{}
+    };
+    hook('__call$',original=>function(owner,method,args){
+      if(popups.has(owner)) {
+        if(method==='close'){const index=popupIndex(owner);if(index>=0)send({action:'close',popup:{index}});return undefined;}
+        if(method==='focus'||method==='blur')return undefined;
+      }
+      return original.apply(this,arguments);
+    });
+    hook('__get$Loc',original=>function(owner){return popups.has(owner)?popupLocation(owner):original.apply(this,arguments);});
+    // w.location.href = url arrives as __set$(__get$(w,"location"),"href",url).
+    hook('__get$',original=>function(owner,property){return property==='location' && popups.has(owner)?popupLocation(owner):original.apply(this,arguments);});
+    hook('__set$',original=>function(owner,property,value){if(property==='location' && popups.has(owner)){navigatePopup(owner,value);return value;}return original.apply(this,arguments);});
+    hook('__set$Loc',original=>function(owner,value){if(popups.has(owner)){navigatePopup(owner,value);return value;}return original.apply(this,arguments);});
+    // This document is a popup tab: the UI sent the opener's frame number with
+    // the open command and it arrives in this config. Give the page a real
+    // opener and a close() that closes the tab.
+    if(tabTop) {
+      const index=config.navigation.opener;
+      if(Number.isInteger(index)){try{const opener=window.parent[index];if(opener && opener!==window){Object.defineProperty(window,'opener',{configurable:true,writable:true,value:opener});prefetchTarget('top',config.documentOrigin);}}catch{}}
+      window.close=function(){send({action:'close'});};
+    }
     native.addEventListener.call(document,'click',function (event) {
       const link = event.target.closest && event.target.closest('a[href]');
       if (link && (link.target === '_blank' || event.ctrlKey || event.metaKey)) {
-        event.preventDefault(); open(link.href);
+        event.preventDefault(); if(link.href)send({action:'open',url:resolve(link.href)});
       }
     },true);
     let previous='',nonce=null,journal=null,lastKind='sync',queuedHistory=[];

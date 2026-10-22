@@ -152,3 +152,20 @@ test('a failed-load report from the error page reaches the toolbar as a finished
  await c.message(historyEvent(c,frame,{history:{...historyEvent(c,frame).data.history,sequence:2}}));
  assert.equal(states.at(-1).failed,false,'an ordinary page clears it');
 });
+
+test('popup requests reach the UI with their name, an existing popup navigates without a gesture, and close is relayed',async()=>{
+ const {controller:c,frame}=fixture();const opened=[],closed=[];let gesture=false;
+ c.onOpen=(url,popup)=>opened.push({url,popup});c.onClose=index=>closed.push(index);c.allowPopup=()=>gesture;
+ c.activate(state());
+ const message=data=>c.message({source:frame.contentWindow,origin:state().origin,data:{type:'vibetop-browser',tabId:'tab',epoch:1,...data}});
+ await message({action:'open',url:'https://b.example/',popup:{name:'oauth',features:'width=500'}});
+ assert.deepEqual(opened,[],'no gesture, no popup');
+ gesture=true;await message({action:'open',url:'',popup:{name:'oauth',features:'width=500'}});
+ assert.equal(JSON.stringify(opened),JSON.stringify([{url:'',popup:{name:'oauth',features:'width=500'}}]));
+ gesture=false;await message({action:'open',url:'https://b.example/auth',popup:{index:2}});
+ assert.equal(JSON.stringify(opened[1]),JSON.stringify({url:'https://b.example/auth',popup:{index:2}}),'navigating a held popup needs no new gesture');
+ await message({action:'open',url:'https://c.example/'});assert.equal(opened.length,2,'a plain new tab still needs a gesture');
+ await message({action:'close'});await message({action:'close',popup:{index:3}});
+ await c.message({source:frame.contentWindow,origin:state().origin,data:{type:'vibetop-browser',tabId:'tab',epoch:2,action:'close'}});
+ assert.deepEqual(closed,[undefined,3]);
+});

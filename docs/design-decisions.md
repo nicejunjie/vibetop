@@ -520,6 +520,7 @@ _497 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [Browser Lite shows an error page when a site cannot be reached](#browser-lite-shows-an-error-page-when-a-site-cannot-be-reached)
 - [Browser Lite lets the browser cache realm resources](#browser-lite-lets-the-browser-cache-realm-resources)
 - [Browser Lite worker CSP keeps eval off (Cloudflare's managed challenge)](#browser-lite-worker-csp-keeps-eval-off-cloudflares-managed-challenge)
+- [Browser Lite popups: window.open returns a real window](#browser-lite-popups-windowopen-returns-a-real-window)
 
 <!-- END TOC -->
 
@@ -20315,3 +20316,53 @@ fixtures and do not provision external infrastructure.
   its resources), and real browsers were not being challenged. It widened the
   worker policy for no working site. Revisit only with a site that a real
   user's browser is challenged on and that then passes.
+
+## Browser Lite popups: window.open returns a real window
+
+- **Symptom:** "Sign in with GitHub/Google/…" buttons that open a popup did
+  nothing in Lite, or the site reported a blocked popup. `window.open`
+  returned `null` (the bridge only asked the UI for a new tab), so the site had
+  nothing to poll (`closed`), nothing to receive `message` events from
+  (`event.source`), and the popup page had no `window.opener` to report back
+  to.
+- **Cause:** A tab is a sandboxed iframe (no `allow-popups`, by design), so
+  the browser's own `window.open` can never return a window. The plan in
+  `docs/plans/browser-lite-popups.md` wanted reserved slots, server-side
+  reservations and a sessionStorage adapter; none of that is needed for the
+  common sign-in flow.
+- **Fix:** The UI (`wrapper.js`) always holds one spare, hidden, UI-owned
+  blank iframe, re-created after every other iframe it makes so it is the
+  most recently created frame. Indexed access to a cross-origin parent's
+  frames is allowed, and browsers number a parent's frames in creation order
+  (not DOM order: a replaced iframe moves to the end), so the opener's bridge
+  takes `parent[parent.length-1]` synchronously as the popup's real
+  WindowProxy, asks the UI (`open` with `popup:{name,features}`) to turn that
+  frame into a tab, and returns it. `closed`, `event.source` and
+  `postMessage` are then native. The UI tracks its own `frameOrder` to mirror
+  the browser's numbering, and sends the opener's number with each toolbar
+  `open` of the popup tab (`openerIndex`); the gateway keeps it on the tab
+  record across page-initiated navigations and puts it into the bridge
+  config, so the popup's page gets `window.opener = parent[index]` before its
+  scripts run. A popup's `window.close()` asks the UI to close the tab (the
+  UI then returns to the opener); the opener's `w.close()`/`w.focus()` and
+  `w.location = url` / `w.location.href = url` go through the engine's
+  `__call$`/`__get$`/`__set$`/`__get$Loc`/`__set$Loc` helpers, which the
+  bridge wraps for registered popups. `close` and `focus` are not engine
+  instrumented methods, so `popup-patch.cjs` adds them (with inert wrapper
+  entries: a missing entry makes `__call$` throw). `postMessage` between a
+  popup and its opener resolves through a new `top` relation
+  (`/__vt/message-target?relation=top`, the main context of that origin).
+  Named reuse, `_self`/`_top`/`_parent`, no-gesture refusal (like a
+  browser) and up to three popups per gesture are handled. Verified with
+  `tests/e2e/browser-proxy/check-popups.py` (owned sites: open, blank-then-
+  navigate, opener in popup, callback message with `event.source`, close
+  from either side) in Chromium and iPhone WebKit.
+- **Not covered:** `w.document.write` into a blank popup (its blank document
+  belongs to the UI's origin), sessionStorage isolation between a popup and
+  its opener (they share the realm's native storage), popups opened from
+  nested frames (still a plain new tab, no handle). Google's own sign-in
+  still refuses the proxy and hands off to the full Browser.
+- **Rejected:** Telling the popup its opener through the iframe `name`
+  attribute: changing the attribute on a live iframe did not change the
+  context's `window.name` in Chromium. A Proxy around the WindowProxy: the
+  site's `event.source === w` check would fail.

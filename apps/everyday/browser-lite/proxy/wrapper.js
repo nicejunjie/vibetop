@@ -1,6 +1,6 @@
 (function () {
   'use strict';
-  const $=id=>document.getElementById(id),tabs=new Map();let active=null,popupUsed=false;
+  const $=id=>document.getElementById(id),tabs=new Map();let active=null,popupUsed=0;
   const parents=JSON.parse(document.querySelector('meta[name="vt-main-origins"]')?.content||'[]');
   const session=window.BrowserUISession?new BrowserUISession({parents}):null;
   // Open tabs survive a reload of this page (a Vibetop update, iOS discarding
@@ -67,7 +67,9 @@
       if(saved.length||closedByUser)saveToServer(payload,now);
     },now?0:300);
   }
-  setInterval(()=>{if(!navigator.userActivation?.isActive)popupUsed=false;},200);
+  // A page may open a few windows per user gesture (sign-in flows open one,
+  // then navigate or replace it); floods are still refused.
+  setInterval(()=>{if(!navigator.userActivation?.isActive)popupUsed=0;},200);
   // No status bar: progress states show as a thin line under the toolbar, the
   // page address is already in the address bar, and anything else is a banner
   // (errors stay with Retry; other messages fade after a few seconds).
@@ -163,20 +165,46 @@
       if(tab.history[tab.position]?.url===url)openInPlace(tab,url);else go(url);
     }
   }
-  function newTab(url,{lazy=false,title='',history:savedHistory=null}={}) {
-    const id=crypto.randomUUID(),frame=document.createElement('iframe'),element=document.createElement('div'),select=document.createElement('button'),close=document.createElement('button');
-    frame.title='Webpage';frame.setAttribute('referrerpolicy','origin');frame.setAttribute('sandbox','allow-scripts allow-same-origin allow-forms allow-downloads allow-modals allow-pointer-lock');
+  // Popups. A page's window.open() must return a real window at once, so this
+  // page always holds a spare, UI-owned blank iframe. The opener takes its
+  // WindowProxy (the last of this page's frames: browsers index a parent's
+  // frames in creation order, not DOM order) and asks for it to become a tab.
+  // So the spare is re-created after every other iframe this page creates,
+  // and frameOrder mirrors the browser's numbering. The popup is told its
+  // opener's number with each open command (it reaches its page config).
+  let spare=null;const frameOrder=[];
+  function pageFrame(){const frame=document.createElement('iframe');frame.title='Webpage';frame.setAttribute('referrerpolicy','origin');frame.setAttribute('sandbox','allow-scripts allow-same-origin allow-forms allow-downloads allow-modals allow-pointer-lock');return frame;}
+  function attachFrame(frame){$('stage').append(frame);frameOrder.push(frame);}
+  function detachFrame(frame){const at=frameOrder.indexOf(frame);if(at>=0)frameOrder.splice(at,1);}
+  function ensureSpare(){if(spare){detachFrame(spare);spare.remove();}spare=pageFrame();spare.hidden=true;attachFrame(spare);}
+  const frameIndex=frame=>frameOrder.indexOf(frame);
+  const openerIndex=tab=>{const index=tab.opener&&tabs.has(tab.opener.id)?frameIndex(tab.opener.frame):-1;return index>=0?index:undefined;};
+  const tabAtFrame=index=>[...tabs.values()].find(tab=>frameIndex(tab.frame)===index);
+  function openIn(tab,url){if(!tabs.has(tab.id))return;activate(tab);if(url)go(url);}
+  function openPopup(opener,url,popup){
+    if(popup.index!==undefined){const target=tabAtFrame(popup.index);if(target&&target.opener===opener)openIn(target,url);return;}
+    if(!spare)ensureSpare();const frame=spare;spare=null;
+    newTab(url,{frame,opener});ensureSpare();
+  }
+  function closeTab(tab){
+    if(!tabs.has(tab.id))return;
+    clearTimeout(tab.timer);tabs.delete(tab.id);tab.element.remove();detachFrame(tab.frame);tab.controller.dispose().catch(()=>{});closedByUser=true;
+    if(active===tab){const next=tab.opener&&tabs.has(tab.opener.id)?tab.opener:[...tabs.values()].at(-1);if(next)activate(next);else newTab();}
+    saveTabs();
+  }
+  function newTab(url,{lazy=false,title='',history:savedHistory=null,frame=null,opener=null}={}) {
+    const id=crypto.randomUUID(),element=document.createElement('div'),select=document.createElement('button'),close=document.createElement('button');
+    frame=frame||pageFrame();
     element.className='tab';select.className='select';select.textContent='New tab';select.setAttribute('role','tab');close.className='close';close.textContent='×';close.setAttribute('aria-label','Close tab');
-    element.append(select,close);$('tabs').append(element);$('stage').append(frame);
-    const tab={id,frame,element,select,history:[],position:-1,state:null};tabs.set(id,tab);
-    tab.controller=new BrowserProxyController({frame,request,onFrame:fresh=>{const focused=document.activeElement===tab.frame;tab.frame=fresh;if(focused)fresh.focus();},onState:state=>update(tab,state),onOpen:url=>newTab(url),onHistory:delta=>history(delta,tab),
-      allowPopup:()=>{if(active!==tab||document.activeElement!==tab.frame||!navigator.userActivation?.isActive||popupUsed)return false;popupUsed=true;return true;},
+    element.append(select,close);$('tabs').append(element);
+    if(!frame.isConnected){attachFrame(frame);ensureSpare();}
+    const tab={id,frame,element,select,history:[],position:-1,state:null,opener};tabs.set(id,tab);
+    tab.controller=new BrowserProxyController({frame,request,onFrame:fresh=>{const focused=document.activeElement===tab.frame;detachFrame(tab.frame);tab.frame=fresh;frameOrder.push(fresh);ensureSpare();if(focused)fresh.focus();},onState:state=>update(tab,state),openerIndex:()=>openerIndex(tab),
+      onOpen:(target,popup)=>{if(popup)openPopup(tab,target,popup);else newTab(target);},onHistory:delta=>history(delta,tab),
+      allowPopup:()=>{if(active!==tab||document.activeElement!==tab.frame||!navigator.userActivation?.isActive||popupUsed>=3)return false;popupUsed++;return true;},
+      onClose:index=>{if(index===undefined){if(tab.opener)closeTab(tab);return;}const target=tabAtFrame(index);if(target&&target.opener===tab)closeTab(target);},
       onError:error=>{if(error.reset&&tab.state?.url){reopen(tab);return;}if(active===tab)status(error.message,true);}});
-    select.onclick=()=>activate(tab);close.onclick=()=>{
-      clearTimeout(tab.timer);tabs.delete(id);element.remove();tab.controller.dispose().catch(()=>{});closedByUser=true;
-      if(active===tab){const next=[...tabs.values()].at(-1);if(next)activate(next);else newTab();}
-      saveTabs();
-    };
+    select.onclick=()=>activate(tab);close.onclick=()=>closeTab(tab);
     if(lazy){tab.pendingUrl=url;tab.pendingTitle=title;if(savedHistory)tab.pendingHistory=savedHistory;try{select.textContent=title||new URL(url).hostname;}catch{}return tab;}
     activate(tab);if(url)go(url);else $('address').focus();return tab;
   }
@@ -272,4 +300,5 @@
       if(saved)restoreFrom(saved,requested);else newTab(requested);
     });
   }else newTab(requested);
+  ensureSpare();
 })();

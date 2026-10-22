@@ -51,7 +51,8 @@ Fixed in that pass: saved tabs never reached the server (nginx 413), a site
 that cannot be reached showed "Loading…" for 45 s instead of an error page,
 and every realm response was `no-store`, so nothing was ever cached across
 page views. Still not verified: a physical iPhone, slow-link behaviour from
-China, video playback on real sites, popup/OAuth sign-in.
+China, video playback on real sites. Popup sign-in (`window.open`, opener
+callback, close) works since v1.38.122 (see design-decisions).
 
 ## Latest worker regression results (2026-10-13)
 

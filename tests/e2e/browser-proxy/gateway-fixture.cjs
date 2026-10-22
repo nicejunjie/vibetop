@@ -307,6 +307,37 @@ const source = http.createServer(async (req,res) => {
       addEventListener('popstate',render);
       </script><div style="height:1800px"></div><div id="anchor">Anchor</div><div style="height:1200px"></div>`);return;
   }
+  // Popup sign-in: a opens b in a popup, b sends the popup back to a's
+  // callback, which reports to its opener and closes itself.
+  if (req.url === '/popup-login') {
+    res.setHeader('Content-Type','text/html');
+    res.end(`<!doctype html><meta charset="utf-8"><title>Popup login</title><h1>Popup login</h1>
+    <button id="login">Sign in</button><button id="login-blank">Sign in (blank then navigate)</button><button id="close-popup">Close popup</button>
+    <pre id="handle"></pre><pre id="closed"></pre><pre id="messages"></pre><script>
+    window.popupLog=[];let w=null;
+    function watch(){document.getElementById('handle').textContent=w===null?'null':(typeof w==='object'?'window':typeof w);
+      setInterval(()=>{document.getElementById('closed').textContent=w?String(w.closed):'none';},100);}
+    document.getElementById('login').onclick=()=>{w=window.open('http://b.source-two.test/oauth','oauth','width=500,height=600');watch();};
+    document.getElementById('login-blank').onclick=()=>{w=window.open('','oauth2');watch();if(w)w.location.href='http://b.source-two.test/oauth';};
+    document.getElementById('close-popup').onclick=()=>{if(w)w.close();};
+    addEventListener('message',e=>{if(e.origin!=='http://a.source-one.test')return;popupLog.push({data:e.data,origin:e.origin,sameSource:e.source===w});
+      document.getElementById('messages').textContent=JSON.stringify(popupLog);});
+    </script>`);return;
+  }
+  if (req.url === '/oauth') {
+    res.setHeader('Content-Type','text/html');
+    res.end(`<!doctype html><meta charset="utf-8"><title>Site b oauth</title><h1>Authorize?</h1><p id="opener"></p><button id="authorize">Authorize</button><script>
+    document.getElementById('opener').textContent=window.opener?'has opener':'no opener';
+    document.getElementById('authorize').onclick=()=>{location.href='http://a.source-one.test/popup-callback?code=42';};
+    </script>`);return;
+  }
+  if (req.url.startsWith('/popup-callback')) {
+    res.setHeader('Content-Type','text/html');
+    res.end(`<!doctype html><meta charset="utf-8"><title>Callback</title><p id="opener"></p><script>
+    const opener=window.opener;document.getElementById('opener').textContent=opener?'has opener':'no opener';
+    if(opener){opener.postMessage({code:new URL(location.href).searchParams.get('code')},'http://a.source-one.test');setTimeout(()=>window.close(),200);}
+    </script>`);return;
+  }
   if (req.url === '/nested') {
     res.setHeader('Content-Type','text/html');
     res.end('<!doctype html><button id="nested-button">Nested</button><output id="nested-count">0</output><script>document.querySelector("button").onclick=()=>document.querySelector("output").textContent++;</script>');return;

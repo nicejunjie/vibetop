@@ -2,8 +2,8 @@
   'use strict';
   // This file belongs only on the dedicated, trusted browser UI origin.
   class BrowserProxyController {
-    constructor({frame,request,onState=()=>{},onError=()=>{},onOpen=null,onHistory=()=>{},allowPopup=()=>false,onFrame=()=>{}}) {
-      Object.assign(this,{frame,request,onState,onError,onOpen,onHistory,allowPopup,onFrame});this.state=null;this.serverState=null;this.sequence=0;this.approving=false;this.operations=Promise.resolve();
+    constructor({frame,request,onState=()=>{},onError=()=>{},onOpen=null,onHistory=()=>{},allowPopup=()=>false,onFrame=()=>{},onClose=()=>{},openerIndex=()=>undefined}) {
+      Object.assign(this,{frame,request,onState,onError,onOpen,onHistory,allowPopup,onFrame,onClose,openerIndex});this.state=null;this.serverState=null;this.sequence=0;this.approving=false;this.operations=Promise.resolve();
       this.clientId=window.crypto.randomUUID();this.tabId=window.crypto.randomUUID();this.operation=0;this.pending=null;
       this.listener=event=>this.message(event);window.addEventListener('message',this.listener);
       this.loadListener=()=>{if(this.readyBeforeLoad)this.readyBeforeLoad=false;else this.attach();};this.frame.addEventListener?.('load',this.loadListener);
@@ -41,7 +41,8 @@
         if(sequence!==this.sequence)return;
         await this.recover();
         const identity=this.serverState?{tabId:this.serverState.tabId,epoch:this.serverState.epoch+1}:{tabId:this.tabId,epoch:1};
-        const state=await this.command('open',{url,...identity});this.serverState=state;
+        const opener=this.openerIndex();
+        const state=await this.command('open',{url,...identity,...(Number.isInteger(opener) && opener>=0?{opener}:{})});this.serverState=state;
         if(sequence===this.sequence)this.activate(state,{fresh:true});
       });
     }
@@ -149,8 +150,19 @@
         if(data.tabId===state.tabId && data.epoch===state.epoch && this.nonce && data.nonce===this.nonce
           && data.documentId===this.documentId && Number.isInteger(data.delta))this.onHistory(data.delta);
       } else if(data.type==='vibetop-browser' && data.action==='open' && typeof data.url==='string') {
-        if(!this.allowPopup())return;
-        try{if(this.onOpen)this.onOpen(data.url);else await this.open(data.url);}catch(error){this.onError(error);}
+        // A popup: {name,features} claims the UI's spare frame; {index} navigates
+        // a popup this page already holds (no new gesture needed).
+        let popup=null;
+        if(data.popup && typeof data.popup==='object') {
+          if(Number.isInteger(data.popup.index) && data.popup.index>=0)popup={index:data.popup.index};
+          else popup={name:String(data.popup.name||'').slice(0,64),features:String(data.popup.features||'').slice(0,256)};
+        }
+        if(!(popup && popup.index!==undefined) && !this.allowPopup())return;
+        try{if(this.onOpen)this.onOpen(data.url,popup);else await this.open(data.url);}catch(error){this.onError(error);}
+      } else if(data.type==='vibetop-browser' && data.action==='close') {
+        if(data.tabId!==state.tabId || data.epoch!==state.epoch)return;
+        const index=data.popup && typeof data.popup==='object' && Number.isInteger(data.popup.index) && data.popup.index>=0?data.popup.index:undefined;
+        try{this.onClose(index);}catch(error){this.onError(error);}
       }
     }
     dispose() {

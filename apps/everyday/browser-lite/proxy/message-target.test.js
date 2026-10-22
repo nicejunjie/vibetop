@@ -18,3 +18,8 @@ test('unresolved, stale, opaque and failed mappings use an undeliverable exact o
  assert.throws(()=>target({...base,expected:'not a URL'}),{name:'SyntaxError'});
  assert.equal(target({...base,expected:'*',known:()=>{throw new Error('must not probe');}}),'*');
 });
+test('a popup or its opener resolves through the top relation, after child and sibling',()=>{
+ assert.equal(target({...base,expected:'https://b.example',top:origin=>{assert.equal(origin,'https://b.example');return 'https://top.proxy.example';}}),'https://top.proxy.example');
+ assert.equal(target({...base,expected:'https://b.example',child:()=>null,sibling:()=>null,top:()=>'https://top.proxy.example'}),'https://top.proxy.example');
+ assert.equal(target({...base,expected:'https://b.example',child:()=>'https://child.proxy.example',top:()=>{throw new Error('not consulted');}}),'https://child.proxy.example');
+});

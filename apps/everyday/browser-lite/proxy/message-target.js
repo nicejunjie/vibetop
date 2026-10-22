@@ -6,7 +6,7 @@
   const discard='https://vibetop-discard.invalid';
   // Resolve only relationships the sender already knows. A wrong/stale hint
   // safely misses the native targetOrigin check; never interrogate a recipient.
-  return function targetOrigin({expected,documentOrigin,physicalOrigin,samePhysical,known,parent,child,sibling}){
+  return function targetOrigin({expected,documentOrigin,physicalOrigin,samePhysical,known,parent,child,sibling,top}){
     if(expected==='*')return '*';
     let origin;
     try{origin=new URL(expected==='/'?documentOrigin:expected).origin;}
@@ -18,7 +18,7 @@
       if(prior?.original===origin)return prior.physical;
       const owner=parent?.();
       if(owner?.original===origin)return owner.physical;
-      return child?.(origin) || sibling?.(origin) || discard;
+      return child?.(origin) || sibling?.(origin) || top?.(origin) || discard;
     }catch{return discard;}
   };
 });

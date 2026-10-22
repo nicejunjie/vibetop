@@ -151,6 +151,7 @@ require('./srcset-patch.cjs').patchSrcset(engineRequire);
 require('./svg-href-patch.cjs').patchSvgHref(engineRequire);
 require('./realm-root-url-patch.cjs').patchRealmRootUrls(engineRequire);
 require('./top-level-patch.cjs').patchTopLevel(engineRequire);
+require('./popup-patch.cjs').patchPopupMethods(engineRequire);
 require('./cookie-perf-patch.cjs').patchClientCookiePerformance(engineRequire);
 // Rammerhead's in-memory script cache dropped the lookup result (no return),
 // so every script was rewritten on every load. ChatGPT's 18 MB of chunks
