@@ -2,10 +2,14 @@
 
 The manager runs this file AS THE USER (never as root) for one top-level site.
 It reads that user's Browser (Chromium) cookie database and prints only the
-cookies Chromium itself would send to that host. Google and YouTube are never
-shared: Google refuses sign-in through Browser Lite, and its account session
-stays in the real Browser. A site that used "Sign in with Google" keeps its OWN
-session cookie, which is what Browser Lite receives.
+cookies Chromium itself would send to that host. This carries the user's OWN
+session cookies -- including Google's -- from the full Browser into Browser
+Lite, so a site the user is already signed into (Gmail, Drive, YouTube, or any
+site that used "Sign in with Google") loads already signed in. No new Google
+sign-in happens inside Lite, so Google's rewriting-proxy sign-in block is never
+hit; Lite simply presents the session the full Browser already established. This
+reuses only the host owner's own account on their own machine. See
+docs/design-decisions.md "Browser Lite carries the user's own Google session".
 """
 import hashlib
 import json
@@ -17,9 +21,12 @@ import sys
 import tempfile
 import time
 
-# Registrable domains whose cookies never leave the real Browser.
-EXCLUDED_SITES = ("google.com", "youtube.com", "gmail.com", "googleusercontent.com",
-                  "googleapis.com", "gstatic.com", "withgoogle.com")
+# Registrable domains whose cookies never leave the real Browser. The host owner
+# asked for their own Google session to carry into Lite (this is a private,
+# single-user deployment), so Google/YouTube are no longer excluded. Only the
+# anti-bot clearance tokens below stay behind, because they are bound to the
+# browser that earned them and sharing them would break Cloudflare etc.
+EXCLUDED_SITES = ()
 # Anti-bot clearance tokens are earned by the browser that passed a site's bot
 # check and are bound to it. Sharing them would let Browser Lite skip checks
 # it cannot pass itself, so they stay in the real Browser.
@@ -34,13 +41,9 @@ _CHROME_EPOCH_OFFSET_US = 11644473600 * 1000000
 _SAMESITE = {0: "none", 1: "lax", 2: "strict"}
 
 
-# Google's country sites: google.de, google.co.uk, google.com.hk, ...
-_GOOGLE_COUNTRY = re.compile(r"(^|\.)google\.(com?\.)?[a-z]{2,3}$")
-
-
 def excluded(host):
     host = host.lower().rstrip(".")
-    return any(host == site or host.endswith("." + site) for site in EXCLUDED_SITES) or bool(_GOOGLE_COUNTRY.search(host))
+    return any(host == site or host.endswith("." + site) for site in EXCLUDED_SITES)
 
 
 def profile_dir(home):

@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_505 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_506 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [Terminal link opened a closed Browser app but lost the URL](#terminal-link-opened-a-closed-browser-app-but-lost-the-url)
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
@@ -481,6 +481,7 @@ _505 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [Browser Lite treats _top and _parent as the tab](#browser-lite-treats-top-and-parent-as-the-tab)
 - [Browser Lite hands Google sign-in to the real Browser](#browser-lite-hands-google-sign-in-to-the-real-browser)
 - [Browser Lite borrows site logins from the full Browser, never Google's](#browser-lite-borrows-site-logins-from-the-full-browser-never-googles)
+- [Browser Lite carries the user's own Google session](#browser-lite-carries-the-users-own-google-session)
 - [Browser Lite egress queues connections past its limit](#browser-lite-egress-queues-connections-past-its-limit)
 - [Browser Lite memoizes Hammerhead's client cookie probe and skips identical syncs](#browser-lite-memoizes-hammerheads-client-cookie-probe-and-skips-identical-syncs)
 - [Browser Lite gives toolbar navigations a fresh frame](#browser-lite-gives-toolbar-navigations-a-fresh-frame)
@@ -19453,9 +19454,14 @@ fixtures and do not provision external infrastructure.
   credentials) and forwards the desktop's existing `open-in-browser` message,
   which opens the URL in the real Chromium Browser and switches to it. That
   Browser keeps its own Google session.
-- **Rejected:** Copying the Browser app's Google session into Browser Lite, or
-  disguising the proxy from Google's checks. Both work around Google's block
-  rather than respecting it.
+- **Rejected (at the time):** Copying the Browser app's Google session into
+  Browser Lite, or disguising the proxy from Google's checks.
+- **Superseded (2026-10-22):** The host owner asked for their own Google session
+  to carry into Lite on this private single-user deployment, so the first
+  "rejected" option is now the shipped behaviour — see
+  [Browser Lite carries the user's own Google session](#browser-lite-carries-the-users-own-google-session).
+  The interactive-sign-in hand-off here still stands as a fallback for a
+  genuine password / re-auth, which Google still refuses through the proxy.
 
 ## Browser Lite borrows site logins from the full Browser, never Google's
 
@@ -19482,9 +19488,53 @@ fixtures and do not provision external infrastructure.
   command.
 - **Rejected:** Mounting the Browser profile into the rewrite runtime. That
   process handles hostile pages, and a compromise there would expose every
-  cookie, Google's included. Sharing Google's own session would work around
-  Google's refusal rather than respect it. Two-way sync was declined because a
+  cookie, Google's included. Two-way sync was declined because a
   sign-out in one browser would fight the other.
+- **Superseded (2026-10-22):** "nothing for Google/YouTube domains" no longer
+  holds — the owner asked for their own Google session to carry into Lite. The
+  `setpriv`-as-the-user read and the "merge, never expose the profile to the
+  runtime" design are unchanged; only the domain exclusion was dropped. See
+  [Browser Lite carries the user's own Google session](#browser-lite-carries-the-users-own-google-session).
+
+## Browser Lite carries the user's own Google session
+
+- **Symptom:** The owner could not use Google in Browser Lite: sign-in ended at
+  "This browser or app may not be secure" (Google's 403 on its sign-in flow
+  through a rewriting proxy), and Gmail/Drive/YouTube were offered only as a
+  hand-off to the full Browser. On a private, single-user deployment whose whole
+  point is reaching Google from a region where it is awkward, that defeated the
+  tool.
+- **Cause:** Google refuses an *interactive* sign-in through a page-rewriting
+  proxy, and Lite deliberately excluded Google/YouTube from login sharing (the
+  two entries above). So Lite never presented the session the full Browser had
+  already established — it tried to make Google *re-authenticate* inside Lite,
+  which Google blocks.
+- **Fix:** Do not sign in inside Lite at all; carry the session that already
+  exists. `server/browser_login_sync.py` no longer excludes Google/YouTube, so
+  an address-bar `open` to a Google host attaches the user's own Google cookies
+  (`SID`, `__Secure-1PSID`/`3PSID`, `SAPISID`, `HSID`, `SSID`, the `SIDCC`/
+  `SIDTS` refreshers, …) read **as the user** with `setpriv`, exactly like any
+  other site's logins. Gmail, Drive, YouTube and signed-in Search then load
+  already authenticated; no new sign-in happens, so Google's sign-in block is
+  never hit. The main-frame `Sec-Fetch-Dest: iframe`→`document` rewrite
+  (`redirect-policy.cjs`) already lets Google's account pages render. The
+  proactive "this Google service is a dead end, open in Browser" banner was
+  removed; the sign-in banner remains only as a fallback for a genuine
+  interactive re-auth.
+- **Anti-bot tokens still stay behind:** `cf_clearance`, `__cf_bm`, DataDome,
+  etc. are bound to the browser that earned them (`_ANTI_BOT` in the sync
+  script); sharing them would break Cloudflare, not help Google.
+- **Scope / risk:** This is sound *only* because it is the host owner's own
+  account on their own machine — not a general bypass. Both browsers share one
+  exit IP, which keeps the session consistent. The remaining risk is Google's
+  device-consistency heuristics flagging a session served under a different
+  User-Agent (e.g. the full Browser is desktop Chromium, Lite is opened from an
+  iPhone). Lite does not yet pin the upstream UA; if Google challenges, pinning
+  Google hosts' upstream `User-Agent`/`sec-ch-ua` to the full Browser's identity
+  is the next step.
+- **Rejected:** TLS/fingerprint impersonation to hide the proxy from Google.
+  That is a fragile arms race and unnecessary once the already-established
+  session is carried rather than re-authenticated.
 
 ## Browser Lite egress queues connections past its limit
 

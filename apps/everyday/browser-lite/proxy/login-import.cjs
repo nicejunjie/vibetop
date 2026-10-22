@@ -1,7 +1,8 @@
 'use strict';
 // Merge one site's logins from the full Browser into Browser Lite's first-party
-// jar. The manager reads them (as the user, never Google's) and sends them with
-// an address-bar "open". Lite keeps cookies it earned itself (Cloudflare's bot
+// jar. The manager reads them (as the user -- including the user's own Google
+// session, so Google services load signed in) and sends them with an
+// address-bar "open". Lite keeps cookies it earned itself (Cloudflare's bot
 // cookies are bound to the browser that solved them): a cookie Lite already has
 // is replaced only when the Browser changed it after Lite's last sync of that
 // site, e.g. a fresh sign-in there.

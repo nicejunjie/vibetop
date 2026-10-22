@@ -49,12 +49,17 @@ def test_only_cookies_chromium_would_send_to_that_host(tmp_path):
     assert got["host"]["hostOnly"] is True and got["session"]["httpOnly"] is True
 
 
-def test_google_and_youtube_never_leave_the_browser(tmp_path):
+def test_google_session_carries_into_lite(tmp_path):
+    # The host owner asked for their own Google session to carry into Lite, so
+    # Google/YouTube cookies are shared like any other site's (anti-bot tokens
+    # still stay behind -- see the test below).
     path = profile(tmp_path, [(".google.com", "SID", "g"), (".youtube.com", "LOGIN_INFO", "y"), (".google.co.uk", "NID", "n")])
-    for host in ("accounts.google.com", "www.google.com", "www.youtube.com", "www.google.co.uk", "mail.google.com"):
-        assert sync.excluded(host)
-        assert sync.cookies_for(path, host, now_us=NOW) == []
-    assert not sync.excluded("chatgpt.com") and not sync.excluded("googlesyndication.example")
+    assert {c["name"] for c in sync.cookies_for(path, "www.google.com", now_us=NOW)} == {"SID"}
+    assert {c["name"] for c in sync.cookies_for(path, "mail.google.com", now_us=NOW)} == {"SID"}
+    assert {c["name"] for c in sync.cookies_for(path, "www.youtube.com", now_us=NOW)} == {"LOGIN_INFO"}
+    assert {c["name"] for c in sync.cookies_for(path, "www.google.co.uk", now_us=NOW)} == {"NID"}
+    for host in ("accounts.google.com", "www.google.com", "www.youtube.com", "chatgpt.com"):
+        assert not sync.excluded(host)
 
 
 def test_missing_profile_shares_nothing(tmp_path):

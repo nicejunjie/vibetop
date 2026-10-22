@@ -102,21 +102,21 @@
     const url=new URL(value);if(!['http:','https:'].includes(url.protocol)||url.username||url.password)throw new Error('Enter an http or https website address.');
     return url.href;
   }
-  // Google refuses sign-in through a rewriting proxy. Offer the real Browser,
-  // which keeps its own Google session, instead of a dead end.
+  // The user's own Google session is carried in from the full Browser, so
+  // Gmail, Drive and other Google services load already signed in -- no dead
+  // end, no banner. This banner is only a fallback for an INTERACTIVE Google
+  // sign-in (password / re-auth), which Google still refuses through a
+  // rewriting proxy ("browser may not be secure"); the full Browser can
+  // complete it, and this tab then continues on its own.
   const GOOGLE_SIGN_IN=/^accounts\.(google|youtube)\.com$/;
-  // Google-account services need that sign-in, so they are a dead end in Lite:
-  // say so at once, with the one-tap path, instead of after a slow redirect.
-  const GOOGLE_ACCOUNT=/^(mail|drive|docs|sheets|slides|calendar|photos|meet|chat|keep|contacts|myaccount|one|voice|classroom|gemini|aistudio)\.google\.com$/;
   function handoff(state,tab=active) {
     let host='';try{host=new URL(state?.url||'').hostname;}catch{}
-    const signIn=GOOGLE_SIGN_IN.test(host),account=!signIn&&GOOGLE_ACCOUNT.test(host);
+    const signIn=GOOGLE_SIGN_IN.test(host);
     // Remember the site that sent us to Google, to return there signed in.
-    if(tab && host && !signIn && !account && !/(^|\.)google\.com$/.test(host))tab.returnUrl=state.url;
-    const blocked=!signIn && !account && state?.blocked===true && !state.loading;
-    $('handoff').hidden=!(session&&(signIn||account||blocked));
-    $('handoff-text').textContent=signIn?"Google doesn't allow signing in through Browser Lite. Sign in with the full Browser; this tab continues on its own once you have."
-      :account?"This Google service needs your Google account, which Browser Lite can't sign into. It opens in the full Browser."
+    if(tab && host && !signIn && !/(^|\.)google\.com$/.test(host))tab.returnUrl=state.url;
+    const blocked=!signIn && state?.blocked===true && !state.loading;
+    $('handoff').hidden=!(session&&(signIn||blocked));
+    $('handoff-text').textContent=signIn?"If Google won't sign in here, sign in with the full Browser; this tab continues on its own once you have."
       :"This site's bot check doesn't accept Browser Lite. Open it in the full Browser instead.";
     $('continue-here').hidden=!(signIn && tab?.returnUrl);
     if(signIn && tab?.returnUrl)watchHandoff(tab);else if(tab)stopHandoffWatch(tab);
