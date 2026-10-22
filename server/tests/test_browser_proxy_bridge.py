@@ -308,3 +308,34 @@ def test_browser_logins_skips_users_without_a_browser_profile_and_caches_answers
     assert len(runs) == 1, "the same site within a few seconds is answered from memory"
     assert Bridge.browser_logins(me.pw_uid, "https://elsewhere.example/") == [{"name": "s", "value": "v"}]
     assert len(runs) == 2
+
+
+def test_logins_digest_fingerprints_the_browser_cookies_without_exposing_them(monkeypatch):
+    calls = []
+
+    def fake(uid, url, fresh=False):
+        calls.append(fresh)
+        return [] if "nothing" in url else [{"name": "s", "value": "secret-value"}, {"name": "a", "value": "1"}]
+    monkeypatch.setattr(Bridge, "browser_logins", staticmethod(fake))
+    assert Bridge.logins_digest(1000, "https://nothing.example/") == ""
+    digest = Bridge.logins_digest(1000, "https://site.example/")
+    assert len(digest) == 32 and "secret" not in digest
+    assert Bridge.logins_digest(1000, "https://site.example/") == digest
+    assert calls and all(calls), "the toolbar's poll must bypass the 30 s cache"
+
+
+def test_logins_check_is_a_ui_command_that_never_reaches_the_runtime(monkeypatch):
+    bridge, lease = setup()
+    bridge.runtime.call = lambda *args: (_ for _ in ()).throw(AssertionError("runtime must not be called"))
+    monkeypatch.setattr(type(bridge), "browser_logins", staticmethod(lambda uid, url, fresh=False: [{"name": "s", "value": "v"}]))
+    body = json.dumps({"url": "https://site.example/"}).encode()
+    outgoing, written = [], io.BytesIO()
+    handler = SimpleNamespace(path="/__browser_proxy/ui", command="POST",
+        headers=headers(Host="browser-lite.example.com", X_Forwarded_Proto="https", X_Original_URI="/api/logins-check",
+                        Origin=bridge.auth.ui_origin, Sec_Fetch_Site="same-origin", Content_Type="application/json",
+                        Content_Length=str(len(body)), Cookie=UI_COOKIE + "=" + bridge.auth.mint("ui", lease)),
+        connection=SimpleNamespace(settimeout=lambda value: None), rfile=io.BytesIO(body), wfile=written,
+        send_response=outgoing.append, send_header=lambda *args: None, end_headers=lambda: None)
+    bridge.handle(handler)
+    assert outgoing == [200]
+    assert len(json.loads(written.getvalue())["digest"]) == 32

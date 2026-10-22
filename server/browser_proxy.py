@@ -192,7 +192,18 @@ class Bridge:
     LOGINS_CACHE_SECONDS = 30
 
     @classmethod
-    def browser_logins(cls, uid, url):
+    def logins_digest(cls, uid, url):
+        """A fingerprint of the full Browser's cookies for a site, fresh (no
+        cache): the toolbar polls it after handing a Google sign-in to the
+        Browser, and continues on its own when the site's logins change."""
+        cookies = cls.browser_logins(uid, url, fresh=True)
+        if not cookies:
+            return ""
+        material = "\n".join(sorted(f"{c.get('name', '')}={c.get('value', '')}" for c in cookies if isinstance(c, dict)))
+        return hashlib.sha256(material.encode()).hexdigest()[:32]
+
+    @classmethod
+    def browser_logins(cls, uid, url, fresh=False):
         """The full Browser's cookies for this top-level site (never Google's).
 
         Read by browser_login_sync.py running AS THE USER: the root manager
@@ -213,7 +224,7 @@ class Bridge:
             key, now = (uid, parts.hostname), time.monotonic()
             with cls._logins_cache_lock:
                 cached = cls._logins_cache.get(key)
-                if cached and cached[0] > now:
+                if cached and cached[0] > now and not fresh:
                     return cached[1]
             script = str(Path(__file__).with_name("browser_login_sync.py"))
             done = subprocess.run(["/usr/bin/setpriv", f"--reuid={uid}", f"--regid={user.pw_gid}", "--init-groups", "--reset-env",
@@ -341,10 +352,14 @@ class Bridge:
                 return self.reply(handler, 200, content, mime)
             self.check_post_origin(handler.headers)
             command = target.path.removeprefix("/api/")
-            if command not in ("open", "approve", "close", "heartbeat", "tabs"):
+            if command not in ("open", "approve", "close", "heartbeat", "tabs", "logins-check"):
                 return self.reply(handler, 404)
             # Saved tabs (with back/forward lists) outgrow a control command.
             body = json.loads(self.read_body(handler, "application/json", 96 * 1024 if command == "tabs" else 6144))
+            if command == "logins-check":
+                url = body.get("url") if isinstance(body, dict) else None
+                return self.reply(handler, 200, {"digest": self.logins_digest(claims["uid"], url) if isinstance(url, str) else ""},
+                                  headers=self.cookies(claims["lease"]))
             if isinstance(body, dict):
                 # Only the manager supplies cookies, never the client.
                 body.pop("cookies", None)

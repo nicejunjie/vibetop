@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_503 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_504 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [Terminal link opened a closed Browser app but lost the URL](#terminal-link-opened-a-closed-browser-app-but-lost-the-url)
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
@@ -526,6 +526,7 @@ _503 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [Browser Lite cross-site navigations: fewer round trips, cheaper login lookups](#browser-lite-cross-site-navigations-fewer-round-trips-cheaper-login-lookups)
 - [Browser Lite shows progress the moment a page starts leaving](#browser-lite-shows-progress-the-moment-a-page-starts-leaving)
 - [Browser Lite and Google: the exit address, not the proxy, triggers /sorry/](#browser-lite-and-google-the-exit-address-not-the-proxy-triggers-sorry)
+- [Browser Lite continues by itself after a Google sign-in in the full Browser](#browser-lite-continues-by-itself-after-a-google-sign-in-in-the-full-browser)
 
 <!-- END TOC -->
 
@@ -20489,3 +20490,25 @@ fixtures and do not provision external infrastructure.
 - **YouTube's 401:** the `accounts.google.com/ServiceLogin?…passive=true`
   iframe on a signed-out YouTube page answers 401 in an unproxied Chromium
   too. Lite passes Google's own answer through; it is not a Lite error.
+
+## Browser Lite continues by itself after a Google sign-in in the full Browser
+
+- **Symptom:** "Sign in with Google" on a site handed the user to the full
+  Browser, and coming back meant tapping "I've signed in" and hoping the
+  site's session had been picked up. Gmail, Drive and other Google-account
+  services loaded, redirected to Google's sign-in, and only then showed the
+  bar: a slow dead end.
+- **Cause:** Nothing watched for the moment the sign-in completed. The bar's
+  rules covered only `accounts.google.com`.
+- **Fix:** `logins-check`, a manager-side UI command (`/api/logins-check`),
+  answers a 32-hex fingerprint of the full Browser's cookies for a site,
+  fresh each time, never the cookies. After the toolbar hands a Google sign-in
+  off, it polls that fingerprint every 4 s for up to 15 minutes; when it
+  changes, the tab returns to the site, and the usual login import on that
+  open brings the site's new session with it. "I've signed in" stays as the
+  manual path. Google-account hosts (mail, drive, docs, calendar, photos,
+  meet, …) get the bar the moment they are opened, with "Open in Browser".
+  Still no Google session is copied and nothing Google refuses is bypassed.
+  `check-handoff.py` drives the real toolbar against the fixture in Chromium
+  and iPhone WebKit (the fixture's `/api/logins-check` changes its answer on
+  the third poll; polling stops once the tab has continued).

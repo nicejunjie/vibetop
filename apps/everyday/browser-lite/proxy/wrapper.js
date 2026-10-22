@@ -105,17 +105,44 @@
   // Google refuses sign-in through a rewriting proxy. Offer the real Browser,
   // which keeps its own Google session, instead of a dead end.
   const GOOGLE_SIGN_IN=/^accounts\.(google|youtube)\.com$/;
+  // Google-account services need that sign-in, so they are a dead end in Lite:
+  // say so at once, with the one-tap path, instead of after a slow redirect.
+  const GOOGLE_ACCOUNT=/^(mail|drive|docs|sheets|slides|calendar|photos|meet|chat|keep|contacts|myaccount|one|voice|classroom|gemini|aistudio)\.google\.com$/;
   function handoff(state,tab=active) {
     let host='';try{host=new URL(state?.url||'').hostname;}catch{}
-    const signIn=GOOGLE_SIGN_IN.test(host);
+    const signIn=GOOGLE_SIGN_IN.test(host),account=!signIn&&GOOGLE_ACCOUNT.test(host);
     // Remember the site that sent us to Google, to return there signed in.
-    if(tab && host && !signIn && !/(^|\.)google\.com$/.test(host))tab.returnUrl=state.url;
-    const blocked=!signIn && state?.blocked===true && !state.loading;
-    $('handoff').hidden=!(session&&(signIn||blocked));
-    $('handoff-text').textContent=signIn?"Google doesn't allow signing in through Browser Lite. Sign in with the full Browser, then come back."
+    if(tab && host && !signIn && !account && !/(^|\.)google\.com$/.test(host))tab.returnUrl=state.url;
+    const blocked=!signIn && !account && state?.blocked===true && !state.loading;
+    $('handoff').hidden=!(session&&(signIn||account||blocked));
+    $('handoff-text').textContent=signIn?"Google doesn't allow signing in through Browser Lite. Sign in with the full Browser; this tab continues on its own once you have."
+      :account?"This Google service needs your Google account, which Browser Lite can't sign into. It opens in the full Browser."
       :"This site's bot check doesn't accept Browser Lite. Open it in the full Browser instead.";
     $('continue-here').hidden=!(signIn && tab?.returnUrl);
+    if(signIn && tab?.returnUrl)watchHandoff(tab);else if(tab)stopHandoffWatch(tab);
   }
+  // After a Google sign-in was handed to the full Browser, the site's own
+  // session appears in the Browser's cookies. Poll a fingerprint of them (the
+  // manager never sends the cookies themselves) and return to the site with
+  // its logins when it changes, so no "I've signed in" tap is needed. Bounded:
+  // every 4 s for 15 minutes, only while the bar is up.
+  function watchHandoff(tab) {
+    if(tab.handoffWatch || LOCAL_ONLY)return;
+    const url=tab.returnUrl,watch={url,baseline:undefined,until:Date.now()+15*60*1000};tab.handoffWatch=watch;
+    const poll=async()=>{
+      if(tab.handoffWatch!==watch || !tabs.has(tab.id))return;
+      if(Date.now()>watch.until){stopHandoffWatch(tab);return;}
+      try {
+        const {digest}=await request('logins-check',{url});
+        if(tab.handoffWatch!==watch)return;
+        if(watch.baseline===undefined)watch.baseline=digest||'';
+        else if((digest||'')!==watch.baseline && digest){stopHandoffWatch(tab);if(active===tab)go(url);else{tab.pendingUrl=url;}return;}
+      } catch {}
+      watch.timer=setTimeout(poll,4000);
+    };
+    poll();
+  }
+  function stopHandoffWatch(tab){if(tab.handoffWatch){clearTimeout(tab.handoffWatch.timer);delete tab.handoffWatch;}}
   function update(tab,state) {
     if(!state.loading && tab.targetPosition && tab.targetPosition.epoch===undefined)return;
     if(state.loading && tab.targetPosition){
