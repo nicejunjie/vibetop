@@ -185,3 +185,14 @@ test('a navigation challenge may come from another realm of the same user, nothi
  assert.equal(r.length,1);r[0].resolve({...own,epoch:2,url:'https://other.example/',origin:'https://bl-u1000-'+'b'.repeat(32)+'.realms.example',entry:'https://bl-u1000-'+'b'.repeat(32)+'.realms.example/entry?ticket=2'});await accepted;
  assert.equal(frame.src,'https://bl-u1000-'+'b'.repeat(32)+'.realms.example/entry?ticket=2');
 });
+
+test('a page leaving for another document puts the toolbar into loading at once',async()=>{
+ const {controller:c,frame}=fixture();c.activate(state());c.attach();
+ const states=[];c.onState=s=>states.push(s);
+ await c.message(historyEvent(c,frame));
+ assert.equal(states.at(-1).loading,false);
+ await c.message({source:frame.contentWindow,origin:state().origin,data:{type:'vibetop-browser',action:'navigating',tabId:'tab',epoch:1,nonce:'stale'}});
+ assert.equal(states.at(-1).loading,false,'a stale nonce is ignored');
+ await c.message({source:frame.contentWindow,origin:state().origin,data:{type:'vibetop-browser',action:'navigating',tabId:'tab',epoch:1,nonce:c.nonce}});
+ assert.equal(states.at(-1).loading,true);assert.equal(states.at(-1).url,state().url,'the address stays until the next document reports');
+});

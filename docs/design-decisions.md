@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_501 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_502 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [Terminal link opened a closed Browser app but lost the URL](#terminal-link-opened-a-closed-browser-app-but-lost-the-url)
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
@@ -524,6 +524,7 @@ _501 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [Browser Lite keeps parentheses on `-(a ** b)` (vercel.com login)](#browser-lite-keeps-parentheses-on--a-b-vercelcom-login)
 - [Browser Lite serves the bridge once, the per-document config apart](#browser-lite-serves-the-bridge-once-the-per-document-config-apart)
 - [Browser Lite cross-site navigations: fewer round trips, cheaper login lookups](#browser-lite-cross-site-navigations-fewer-round-trips-cheaper-login-lookups)
+- [Browser Lite shows progress the moment a page starts leaving](#browser-lite-shows-progress-the-moment-a-page-starts-leaving)
 
 <!-- END TOC -->
 
@@ -20434,3 +20435,22 @@ fixtures and do not provision external infrastructure.
   v1.38.9x replaced by a quiet reload; they now check the address bar.
   `check-history-retry.py`'s lost-response section still fails on a Retry
   click and was left as is.
+
+## Browser Lite shows progress the moment a page starts leaving
+
+- **Symptom:** On a throttled link (300 ms RTT, 1 Mbps, 2% loss) a link
+  within a site gave no sign for seconds: no progress line, the old page and
+  address stayed, then the new page appeared. A cross-site link showed
+  progress only once the toolbar's approve call returned.
+- **Cause:** The toolbar learned of a page-initiated navigation only from the
+  next document's bridge (`ready`/`state`), or from the approval of a
+  cross-site one. Nothing ran at navigation start.
+- **Fix:** The bridge sends `navigating` from `beforeunload`, which fires when
+  the navigation starts, before any fetch. The controller turns it into the
+  tab's loading state (same nonce, same tab and epoch), so the progress line
+  shows within a frame of the click; the next document's state ends it, and
+  the existing 45 s timer still names a page that never arrives. Measured on
+  the harness under throttling: progress at 0.5 s after the click for both a
+  same-site and a cross-site link. Google's "unusual traffic" page
+  (`/sorry/`), which its search sends the proxy's address to from a phone, is
+  now recognized as a bot wall so the toolbar offers the full Browser.

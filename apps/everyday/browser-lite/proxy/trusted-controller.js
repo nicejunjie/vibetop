@@ -151,6 +151,10 @@
           this.state={...state,url:url.href,title:String(data.title||'').slice(0,1024),history,historyKind:data.historyKind,blocked:data.blocked===true,failed:data.failed===true};
           this.onState({...this.state,loading:false});
         }catch{}
+      } else if(data.type==='vibetop-browser' && data.action==='navigating') {
+        // The page is leaving for another document: show progress now.
+        if(data.tabId===state.tabId && data.epoch===state.epoch && this.nonce && data.nonce===this.nonce && this.state && !this.state.loading)
+          this.onState({...this.state,loading:true});
       } else if(data.type==='vibetop-browser' && data.action==='traversed') {
         if(data.tabId===state.tabId && data.epoch===state.epoch && this.nonce && data.nonce===this.nonce
           && data.documentId===this.documentId && this.traversal?.requestId===data.requestId) {
