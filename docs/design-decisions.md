@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_498 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_500 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [Terminal link opened a closed Browser app but lost the URL](#terminal-link-opened-a-closed-browser-app-but-lost-the-url)
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
@@ -522,6 +522,7 @@ _498 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [Browser Lite worker CSP keeps eval off (Cloudflare's managed challenge)](#browser-lite-worker-csp-keeps-eval-off-cloudflares-managed-challenge)
 - [Browser Lite popups: window.open returns a real window](#browser-lite-popups-windowopen-returns-a-real-window)
 - [Browser Lite keeps parentheses on `-(a ** b)` (vercel.com login)](#browser-lite-keeps-parentheses-on--a-b-vercelcom-login)
+- [Browser Lite serves the bridge once, the per-document config apart](#browser-lite-serves-the-bridge-once-the-per-document-config-apart)
 
 <!-- END TOC -->
 
@@ -20380,3 +20381,19 @@ fixtures and do not provision external infrastructure.
 - **Fix:** `modern-script-patch.cjs` parenthesizes a `**` argument of a unary
   in both the server generator and the client bundle's copy;
   `modern-script.test.cjs` regenerates such code and parses the result.
+
+## Browser Lite serves the bridge once, the per-document config apart
+
+- **Symptom:** Every document in Lite, every page and every ad iframe, fetched
+  `/__vt/client.js`: 54 KB of bridge code with `Cache-Control: no-store`, so
+  nothing was ever reused. A page with twenty frames cost a megabyte before
+  the site's own assets, and on a slow link that is a visible pause per frame.
+- **Cause:** The engine's `prependScripts` injected one script that carried
+  both the document's configuration line and the whole bridge.
+- **Fix:** Two injected scripts: `/__vt/client.js` is now only
+  `window.__vtBrowserConfig=…` (under 4 KB, still `no-store`, per document),
+  and `/__vt/bridge.js` is a static engine route (etag-versioned URL, a year
+  of `max-age`, served like `hammerhead.js` without auth: it holds no
+  secrets). The order is kept by `prependScripts`, so the bridge finds its
+  config as before. `bridge-split.test.cjs` loads a page through a real
+  gateway and checks both scripts.

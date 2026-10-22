@@ -51,5 +51,5 @@ test('the served client routes Function.prototype.toString through the reversal'
   const {engineRequire}=require('./engine.cjs');
   const client=fs.readFileSync(engineRequire.resolve('testcafe-hammerhead/lib/client/hammerhead.js'),'utf8');
   assert.ok(client.includes('window.vibetopUnprocessSource(vtSource)'),'toString hook missing from the built client');
-  assert.ok(fs.readFileSync(require('node:path').join(__dirname,'gateway.cjs'),'utf8').includes("+sourceTextSource+"),'bridge does not ship source-text.js');
+  assert.ok(fs.readFileSync(require('node:path').join(__dirname,'gateway.cjs'),'utf8').includes("sourceTextSource,"),'bridge does not ship source-text.js');
 });

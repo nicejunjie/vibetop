@@ -43,6 +43,10 @@ const messageGateSource=fs.readFileSync(path.join(__dirname,'message-gate.js'),'
 const sourceTextSource=fs.readFileSync(path.join(__dirname,'source-text.js'),'utf8');
 const realmHostSource=fs.readFileSync(path.join(__dirname,'realm-host.js'),'utf8');
 const extraUrlAttrsSource=fs.readFileSync(path.join(__dirname,'extra-url-attrs.js'),'utf8');
+// The bridge (54 KB) is the same for every document; only its config line
+// differs. It is a static, etag-versioned asset the browser keeps, instead
+// of a no-store download per page and per iframe.
+const bridgeSource=[messageTargetSource,messageGateSource,sourceTextSource,documentHistorySource,realmHostSource,extraUrlAttrsSource,clientSource].join('\n');
 // Server page pass: URL attributes the engine's table misses (extra-url-attrs.js).
 {
   const DomProcessor=hammerhead('processing/dom');
@@ -115,7 +119,7 @@ class BrowserGateway {
     // The stable engine ID retains cookie identity across restart. The expiring
     // public-only relay credential has its own field in the proxy descriptor.
     this.session = new Session({id:registry.isRealm?(engineSessionId||authority.engineSessionId()):this.relayCapability, disableShuffling:true,
-      prependScripts:['/__vt/client.js']});
+      prependScripts:['/__vt/client.js','/__vt/bridge.js']});
     this.session.setExternalProxySettings(externalProxy.replace(/^http:\/\//,''));
     this.session.disableHttp2();
     this.cookieStore=new CookieStore({file:cookieFile});
@@ -179,6 +183,7 @@ class BrowserGateway {
       return handled;
     });
     this.proxy.GET(workerModule.runtimePath,(req,res)=>{res.setHeader('Content-Type','application/javascript; charset=utf-8');res.setHeader('X-Content-Type-Options','nosniff');res.setHeader('Cache-Control','private, max-age=31536000, immutable');res.end(workerModule.source);});
+    this.proxy.GET('/__vt/bridge.js',{content:Buffer.from(bridgeSource),contentType:'application/javascript; charset=utf-8'});
     this.proxy.GET('/__vt/client.js',(req,res) => {
       res.setHeader('Content-Type','application/javascript'); res.setHeader('Cache-Control','no-store');
       const params = new URL(req.url,'http://internal').searchParams;
@@ -198,7 +203,7 @@ class BrowserGateway {
       if(tab && !config.nested && tab.physical==='https://'+req.headers.host)config.navigation={tabId:tab.tabId,epoch:tab.epoch,...(tab.opener!==undefined?{opener:tab.opener}:{})};
       const parent=registry.isRealm && registry.realm(params.get('parent'));
       if(parent && authorizeChild(parent,req.vtRealm))config.messageParent={physical:parent.physical,original:parent.origin};
-      res.end('window.__vtBrowserConfig='+JSON.stringify(config).replace(/</g,'\\u003c')+';\n'+messageTargetSource+'\n'+messageGateSource+'\n'+sourceTextSource+'\n'+documentHistorySource+'\n'+realmHostSource+'\n'+extraUrlAttrsSource+'\n'+clientSource);
+      res.end('window.__vtBrowserConfig='+JSON.stringify(config).replace(/</g,'\\u003c')+';\n');
     });
     this.proxy.GET('/__vt/map',(req,res) => {
       try {
@@ -715,7 +720,7 @@ class BrowserGateway {
       return deny(res);
     }
     if (upgrade || req.method !== 'GET') return deny(res);
-    const staticPaths = [workerModule.runtimePath,'/hammerhead.js','/rammerhead.js','/worker-hammerhead.js','/transport-worker.js'];
+    const staticPaths = [workerModule.runtimePath,'/__vt/bridge.js','/hammerhead.js','/rammerhead.js','/worker-hammerhead.js','/transport-worker.js'];
     if (staticPaths.includes(location.pathname)) return false;
     if (!auth) return deny(res);
     if(this.registry.isRealm && req.vtRealm.resourceOnly)return deny(res);
