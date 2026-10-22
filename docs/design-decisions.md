@@ -20127,8 +20127,16 @@ fixtures and do not provision external infrastructure.
   `terminal.onKey` Enter listener that is not in its disposables. The guard
   then recovers in place, and the user's first Enter fires that stale
   listener, which calls `connect()` beside the healthy socket. Old code sent
-  `aabbcc` for `abc`; v1.38.115 sends `abc`. That first Enter still causes one
-  needless reconnect (the screen is reset and replayed).
+  `aabbcc` for `abc`; v1.38.115 sends `abc`.
+- **Follow-up (v1.38.116):** That first Enter still caused one needless
+  reconnect and a screen reset. The guard's close listener (it runs before
+  ttyd's) now wraps the terminal's `onKey` getter and records listeners added
+  during that close dispatch. The flag is cleared with `setTimeout(0)`,
+  because a microtask would clear it between listeners. Those listeners are
+  disposed when a socket opens. If recovery never succeeds they stay, so
+  Enter remains the manual retry. In real WebKit with ttyd, after recovery
+  and Enter there is one connection and no extra token fetch, and the
+  "Press ⏎ to Reconnect" overlay is gone.
 - **Rejected:** Disabling ttyd's reconnect (its clean-close path then waits for
   Enter, which connects again); overriding `owner.connect` on the instance
   (ttyd's decorator-bound methods are not safely replaceable).

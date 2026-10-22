@@ -113,7 +113,8 @@ Two systemd template units, instantiated for each terminal:
    the guard's in-place one) can race, so the guard lets only the newest socket
    reach ttyd, closes the one it supersedes and has ttyd dispose that socket's
    listeners (its `onData` handler too); otherwise each keystroke and echo
-   doubles. `-t macOptionClickForcesSelection=true` makes Option+drag select (then
+   doubles. It also drops ttyd's "Press ⏎ to Reconnect" key listener once a socket
+   opens, so the next Enter does not reconnect a second time. `-t macOptionClickForcesSelection=true` makes Option+drag select (then
    Cmd+C copy) inside mouse-tracking TUIs such as Claude Code's fullscreen mode.
    `terminal-clipboard.js` handles OSC 52 (apps that copy for you, e.g. Claude
    Code's copy-on-select): it writes `navigator.clipboard`, and when Safari

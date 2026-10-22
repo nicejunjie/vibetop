@@ -112,6 +112,35 @@
     catch (_) { show('Terminal connection failed.', true); return; }
     w.location.reload();
   }
+  // An abnormal drop fires `error`, which turns ttyd's own reconnect off; its
+  // close handler then adds a "Press Enter to Reconnect" terminal.onKey
+  // listener that is not in its disposables. Once a new socket opens (the
+  // in-place recovery above), that listener would turn the user's next Enter
+  // into a needless second connect() and a screen reset. Record onKey
+  // listeners added while a close event is being dispatched, and dispose them
+  // when a socket opens. If recovery never succeeds they stay: Enter remains
+  // the manual retry.
+  var closing = false, closeKeys = [];
+  function trackCloseKeys() {
+    var owner = w.__vibetopTtyd, t = owner && owner.terminal || w.term;
+    if (!t || t.__vtCloseKeys) return;
+    var proto = Object.getPrototypeOf(t), d = proto && Object.getOwnPropertyDescriptor(proto, 'onKey');
+    if (!d || typeof d.get !== 'function') return;
+    try {
+      Object.defineProperty(t, 'onKey', { configurable: true, get: function () {
+        var event = d.get.call(t);
+        return function (listener, thisArg) {
+          var sub = event.call(this, listener, thisArg);
+          if (closing && sub) closeKeys.push(sub);
+          return sub;
+        };
+      } });
+      t.__vtCloseKeys = true;
+    } catch (_) {}
+  }
+  function disposeCloseKeys() {
+    closeKeys.splice(0).forEach(function (sub) { try { sub.dispose(); } catch (_) {} });
+  }
   var Native = w.WebSocket;
   function WS(url, protocols) {
     var ws = protocols === undefined ? new Native(url) : new Native(url, protocols);
@@ -138,7 +167,10 @@
       }
     }
     // Do not reset the deadline on repeated failed socket attempts.
-    ws.addEventListener('open', function () { if (ws === socket) phase = 'awaiting-output'; });
+    ws.addEventListener('open', function () {
+      if (ws !== socket) return;
+      phase = 'awaiting-output'; disposeCloseKeys();
+    });
     ws.addEventListener('message', function (event) {
       if (ws !== socket || ready || stopped) return;
       // ttyd: '0' is PTY output; title/preferences alone don't prove the PTY
@@ -154,7 +186,12 @@
       try { w.sessionStorage.removeItem(key); } catch (_) {}
     });
     ws.addEventListener('close', function (event) {
-      if (ws !== socket || stopped) return;
+      if (ws !== socket) return;
+      // This listener runs before ttyd's; the flag covers the rest of this
+      // dispatch (a microtask would clear it between listeners).
+      trackCloseKeys(); closing = true;
+      w.setTimeout(function () { closing = false; }, 0);
+      if (stopped) return;
       if (ready) since = Date.now();
       ready = false; phase = 'closed'; closeCode = event.code; closedAt = Date.now();
       log('socket-close');

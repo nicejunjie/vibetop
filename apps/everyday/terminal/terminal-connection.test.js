@@ -25,6 +25,7 @@ function browser(saved = new Map()) {
     document: { hidden: false, addEventListener: (k, cb) => { documentEvents[k] = cb; }, createElement: element, body: { appendChild(e) { elements.push(e); } } },
     fetch: (_, o) => { logs.push(JSON.parse(o.body)); return Promise.resolve(); },
     setInterval: cb => { interval = cb; return 1; }, clearInterval: () => { interval = null; },
+    setTimeout: cb => { Promise.resolve().then(cb); return 2; },
     addEventListener: (k, cb) => { events[k] = cb; }
   };
   vm.runInNewContext(source, { window: w, Date: { now: () => now } });
@@ -355,4 +356,51 @@ test('a superseded socket that already opened leaves no second onData handler', 
   assert.equal(sockets[1].closed, 1);
   onData.forEach(h => h('a'));
   assert.deepEqual(sent, [[sockets[2], 'a']], 'one key typed, one key sent');
+});
+test('ttyd\'s Enter-to-reconnect listener is dropped once the guard recovers (no second connect on Enter)', async () => {
+  const b = browser(), sockets = [];
+  // ttyd 1.7.7 Terminal: onKey is a prototype getter returning the event fn.
+  const keys = [];
+  class Term { get onKey() { return cb => { keys.push(cb); return { dispose() { keys.splice(keys.indexOf(cb) >>> 0, 1); } }; }; } }
+  const terminal = new Term();
+  let connects = 0;
+  const ttyd = {
+    socket: null, terminal, disposables: [], doReconnect: true,
+    dispose() { this.disposables.splice(0).forEach(d => d()); },
+    refreshToken() { return Promise.resolve(); },
+    connect() {
+      connects++;
+      const s = new b.w.WebSocket('ws://test/t1/ws'); this.socket = s; sockets.push(s);
+      let live = true; this.disposables.push(() => { live = false; });
+      s.addEventListener('error', () => { if (live) this.doReconnect = false; });
+      s.addEventListener('close', e => {
+        if (!live) return; this.dispose();
+        if (e.code !== 1000 && this.doReconnect) return this.refreshToken().then(() => this.connect());
+        const sub = this.terminal.onKey(k => { if (k === 'Enter') { sub.dispose(); this.refreshToken().then(() => this.connect()); } });
+      });
+    }
+  };
+  b.w.__vibetopTtyd = ttyd; ttyd.connect();
+  sockets[0].emit('open'); sockets[0].emit('message', '0ready');
+  // Dropped while hidden: error turns ttyd's reconnect off, it waits for Enter.
+  b.w.document.hidden = true; sockets[0].emit('error'); sockets[0].emit('close', undefined, 1006);
+  await Promise.resolve();
+  assert.equal(keys.length, 1, 'ttyd armed its Enter listener');
+  b.w.document.hidden = false; b.documentEvents.visibilitychange();
+  for (let i = 0; i < 10; i++) await Promise.resolve();
+  assert.equal(connects, 2); sockets[1].emit('open'); sockets[1].emit('message', '0back');
+  assert.equal(keys.length, 0, 'recovery removed the stale Enter listener');
+  keys.forEach(k => k('Enter')); for (let i = 0; i < 10; i++) await Promise.resolve();
+  assert.equal(connects, 2, 'Enter after recovery does not reconnect again');
+});
+test('when recovery is exhausted, ttyd\'s Enter-to-reconnect stays available', async () => {
+  const b = browser(new Map([['vt-terminal-retries:/t1/', '3']])), sockets = [], keys = [];
+  class Term { get onKey() { return cb => { keys.push(cb); return { dispose() { keys.splice(keys.indexOf(cb) >>> 0, 1); } }; }; } }
+  const ttyd = { socket: null, terminal: new Term(), dispose() {}, refreshToken() { return Promise.resolve(); },
+    connect() { const s = this.socket = new b.w.WebSocket('ws://test/t1/ws'); sockets.push(s);
+      s.addEventListener('close', () => { this.terminal.onKey(() => {}); }); } };
+  b.w.__vibetopTtyd = ttyd; ttyd.connect();
+  sockets[0].emit('open'); sockets[0].emit('close', undefined, 1006);
+  await Promise.resolve(); b.advance(45000);
+  assert.equal(keys.length, 1);
 });
