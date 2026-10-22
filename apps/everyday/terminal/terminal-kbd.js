@@ -105,6 +105,35 @@
     var r = vp.getBoundingClientRect();
     if (e.clientX >= r.right - 20) cancelLatest();   // scrollbar click/drag
   }, true);
+  // xterm can treat Page Up/Down as viewport navigation after reconnect.
+  // In an application screen these keys belong to the PTY, even when focus
+  // is on the iframe body rather than xterm's hidden textarea.
+  window.addEventListener('keydown', function (e) {
+    if (e.defaultPrevented || e.altKey || e.ctrlKey || e.metaKey || e.shiftKey ||
+        (e.key !== 'PageUp' && e.key !== 'PageDown')) return;
+    var t = window.term;
+    var app = t && ((t.buffer && t.buffer.active.type === 'alternate') ||
+      (t.modes && t.modes.mouseTrackingMode !== 'none'));
+    if (!app) return;
+    cancelLatest();
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    sendRaw(e.key === 'PageUp' ? '\x1b[5~' : '\x1b[6~');
+  }, true);
+
+  function scrollGesture(t, lines, x, y) {
+    var app = (t.buffer && t.buffer.active.type === 'alternate') ||
+      (t.modes && t.modes.mouseTrackingMode !== 'none');
+    if (app && t.element) {
+      // Use xterm's own protocol/coordinate encoder (SGR, legacy mouse or
+      // alternate-scroll arrows). Never hard-code Codex-specific input here.
+      var target = t.element.querySelector('.xterm-screen') || t.element;
+      target.dispatchEvent(new WheelEvent('wheel', { bubbles: true, cancelable: true,
+        deltaY: lines, deltaMode: 1, clientX: x, clientY: y }));
+    } else {
+      t.scrollLines(lines);
+    }
+  }
   window.__vibetopShowLatest = armLatest;
 
   // Preserve whether the user was reading history across a reconnect.
@@ -173,6 +202,9 @@
       if (t && t.element && t.element.clientWidth > 0) {
         var follow = atLatest();
         window.dispatchEvent(new Event('resize'));
+        // A same-size FitAddon call is a no-op. Explicitly invalidate the
+        // canvas after layout changes instead of relying on a grid resize.
+        t.refresh(0, t.rows - 1);
         if (follow) armLatest();
       }
     } catch (_) {}
@@ -267,6 +299,67 @@
     // Fallback if the socket wasn't captured: nudge via xterm (visible, but works).
     try { t.resize(c0, r); t.resize(c, r); } catch (_) {}
   }
+
+  // Size ownership follows deliberate interaction, not the smallest connected
+  // browser. Throttle sustained typing; the first key/click after an idle gap
+  // claims immediately. No keystrokes are synthesized or swallowed.
+  var lastInteractionClaim = 0;
+  function claimForInteraction(e) {
+    if (document.hidden) return;
+    var t = window.term;
+    if (!t || !t.element || t.element.clientWidth <= 0) return;
+    if (e && e.type === 'keydown' && /^(PageUp|PageDown|Home|End)$/.test(e.key)) return;
+    var now = Date.now();
+    if (now - lastInteractionClaim < 1000) return;
+    lastInteractionClaim = now;
+    claimSize();
+  }
+  window.addEventListener('pointerdown', claimForInteraction, true);
+  window.addEventListener('keydown', claimForInteraction, true);
+  window.addEventListener('input', claimForInteraction, true);
+
+  // Geometry only: never record terminal text or keystrokes. A blank canvas,
+  // empty viewport, and missing PTY data need different fixes.
+  var lastGeometryLog = 0, geometryTimer = null;
+  function geometrySnapshot() {
+    var t = window.term;
+    if (!t || !t.buffer || !t.element) return null;
+    var b = t.buffer.active, nonblank = 0;
+    for (var i = 0; i < t.rows; i++) {
+      var line = b.getLine(b.viewportY + i);
+      if (line && line.translateToString(true).trim()) nonblank++;
+    }
+    var rect = t.element.getBoundingClientRect();
+    var screen = t.element.querySelector('.xterm-screen');
+    var canvas = t.element.querySelector('.xterm-text-layer');
+    // Read dimensions only. getImageData on the live canvas can make Chrome
+    // switch rendering backends; diagnostics must not alter the renderer.
+    return { rows: t.rows, cols: t.cols, mode: b.type, base: b.baseY,
+      viewport: b.viewportY, cursor: b.cursorY, visibleLines: nonblank,
+      width: rect.width, height: rect.height, screenHeight: screen ? screen.clientHeight : null,
+      focused: document.hasFocus(), hidden: document.hidden,
+      socket: ttydWS ? ttydWS.readyState : null,
+      dpr: window.devicePixelRatio, canvasWidth: canvas ? canvas.width : null,
+      canvasHeight: canvas ? canvas.height : null,
+      renderPaused: t._core && t._core._renderService ? t._core._renderService._isPaused : null,
+      scrollTop: t.element.querySelector('.xterm-viewport') ? t.element.querySelector('.xterm-viewport').scrollTop : null };
+  }
+  window.__vibetopTerminalGeometry = geometrySnapshot;
+  function geometrySoon() {
+    if (geometryTimer) clearTimeout(geometryTimer);
+    geometryTimer = setTimeout(function () {
+      if (document.hidden || Date.now() - lastGeometryLog < 10000) return;
+      var data = geometrySnapshot();
+      if (!data || !data.width || !data.height) return;
+      lastGeometryLog = Date.now();
+      data.k = 'terminal-geometry'; data.path = location.pathname;
+      try {
+        fetch('/api/clientlog', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ua: navigator.userAgent, guard: [data] }) }).catch(function () {});
+      } catch (_) {}
+    }, 800);
+  }
+  window.addEventListener('resize', geometrySoon);
 
   // Touch: re-claim the shared PTY when this device comes back to the foreground.
   //
@@ -441,6 +534,7 @@
   function sendRaw(d) {
     var t = window.term; if (!t) return;
     try {
+      if (t.input) { t.input(d, true); return; }
       var cs = t._core && t._core.coreService;
       if (cs && cs.triggerDataEvent) cs.triggerDataEvent(d, true);
     } catch (_) {}
@@ -889,8 +983,8 @@
       var dy = y - prevY; prevY = y; acc += dy;     // else scroll the scrollback
       var t = window.term;
       if (t && t.scrollLines) {
-        while (acc > 18) { cancelLatest(); t.scrollLines(-1); acc -= 18; didScroll = true; }
-        while (acc < -18) { cancelLatest(); t.scrollLines(1); acc += 18; didScroll = true; }
+        while (acc > 18) { cancelLatest(); scrollGesture(t, -1, c.clientX, y); acc -= 18; didScroll = true; }
+        while (acc < -18) { cancelLatest(); scrollGesture(t, 1, c.clientX, y); acc += 18; didScroll = true; }
       }
       if (moved) e.preventDefault();
     }, { passive: false });

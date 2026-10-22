@@ -63,4 +63,4 @@ exec "$TTYD" \
   -t "titleFixed=Terminal ${BASE_N}" \
   -t scrollback=50000 \
   -t disableLeaveAlert=true \
-  "${SCRIPT_DIR}/vibetop-session" attach "${INST}"
+  "${SCRIPT_DIR}/vibetop-session" attach "${INST}" --resume

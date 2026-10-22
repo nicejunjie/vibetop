@@ -65,11 +65,15 @@ shell/desktop.html|index.html|version
 shell/diagnostics/rzdbg.html|rzdbg.html|version
 apps/utilities/services/index.html|landing.html|copy
 apps/everyday/files/filesx.html|filesx.html|fsxver
+apps/everyday/imageview/imageview.html|imageview.html|pinchver
 apps/everyday/files/files.html|files.html|apphome
 "
 
 stamp_version() {   # $1=src $2=dst — release + service-worker build for the build tag
-  sed -e "s/@VERSION@/$VERSION/g" -e "s/@SW_VERSION@/$SW_VERSION/g" "$1" > "$2"
+  local apphver
+  apphver=$(md5sum "$REPO/shell/apph.js" | cut -c1-10)
+  [ -n "$apphver" ] || { echo "shell/install.sh: missing apph.js hash" >&2; exit 1; }
+  sed -e "s/@VERSION@/$VERSION/g" -e "s/@SW_VERSION@/$SW_VERSION/g" -e "s/@APPH_VER@/$apphver/g" "$1" > "$2"
   chmod 644 "$2"
 }
 stamp_fsxver() {    # $1=src $2=dst — content hash of filesx-core.js as its cache key
@@ -80,7 +84,13 @@ stamp_fsxver() {    # $1=src $2=dst — content hash of filesx-core.js as its ca
   [ -f "$core" ] || { echo "shell/install.sh: missing $core (filesx.html needs it)" >&2; exit 1; }
   local ver
   ver=$(md5sum "$core" | cut -c1-10)
-  sed -e "s/@FSX_VER@/$ver/g" "$1" > "$2"
+  sed -e "s/@FSX_VER@/$ver/g" -e "s/@PINCH_VER@/$(md5sum "$REPO/shared/pinch.js" | cut -c1-10)/g" "$1" > "$2"
+  chmod 644 "$2"
+}
+stamp_pinchver() {
+  local ver
+  ver=$(md5sum "$REPO/shared/pinch.js" | cut -c1-10)
+  sed "s/@PINCH_VER@/$ver/g" "$1" > "$2"
   chmod 644 "$2"
 }
 stamp_apphome() {   # $1=src $2=dst
@@ -140,6 +150,8 @@ printf '%s' "$PLAN" | while IFS='|' read -r src dst mode; do
              else stamp_version "$REPO/$src" "$DST_DIR/$dst"; fi ;;
     fsxver)  if [ "$DRY_RUN" = 1 ]; then printf '+ render %s -> %s (@FSX_VER@ -> core hash)\n' "$src" "$dst"
              else stamp_fsxver "$REPO/$src" "$DST_DIR/$dst"; fi ;;
+    pinchver) if [ "$DRY_RUN" = 1 ]; then printf '+ render %s -> %s (pinch cache key)\n' "$src" "$dst"
+              else stamp_pinchver "$REPO/$src" "$DST_DIR/$dst"; fi ;;
     apphome) if [ "$DRY_RUN" = 1 ]; then printf '+ render %s -> %s (@APP_HOME@ -> empty)\n' "$src" "$dst"
              else stamp_apphome "$REPO/$src" "$DST_DIR/$dst"; fi ;;
     *)       run install -D -m 644 "$REPO/$src" "$DST_DIR/$dst" ;;

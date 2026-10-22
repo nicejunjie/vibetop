@@ -328,6 +328,7 @@
 <!-- Pure tab-set reconciliation (unit-tested in terminal/lib/tab-sync.test.js).
      Content-hash ?v= is sed'd in by terminal/install.sh, like terminal-kbd.js. -->
 <script src="/tab-sync.js?v=@SYNC_VER@"></script>
+<script src="/terminal-frame.js?v=@FRAME_VER@"></script>
 <script>
 (function() {
   // tab-sync.js (the <script src> above) provides the pure reconcile/nextAvailable
@@ -1113,6 +1114,10 @@
   // Relative times ("in 4h") go stale while the panel sits open.
   setInterval(function () { if (!schedPanel.hidden) renderSchedules(); }, 30000);
 
+  var frameHealth = TerminalFrameHealth(window, frames, function () {
+    return document.getElementById('frame-' + active);
+  });
+
   function activate(n) {
     active = n;
     var justLoaded = false;
@@ -1131,6 +1136,7 @@
     document.title = tabLabel(n) + ' — Vibetop';
     renderSchedules();          // badge + panel are scoped to the active terminal
     focusTerminal(n);
+    frameHealth.activate();
     showLatest(n, justLoaded);
     // Tab switched -> the newly active terminal's content bottom decides the
     // keyboard lift. Nudge the desktop to recompute NOW (same-origin direct
@@ -1372,7 +1378,7 @@
     if (!e.data) return;
     if (e.data.type === 'focus-terminal') {
       syncStatus();                 // app just activated → reconcile the set now
-      if (active) { focusTerminal(active); showLatest(active); }
+      if (active) { frameHealth.activate(); focusTerminal(active); showLatest(active); }
     }
     // Relay the desktop's system key bar (arrows/Esc/Tab/^C) DOWN to the active
     // terminal's /tN/ iframe, where terminal-kbd.js turns it into PTY bytes.

@@ -313,6 +313,7 @@ if (( INSTALL_NGINX )); then
     # service worker) fetch the new copy. This makes "forgot to bump the version"
     # impossible — the whole reason a stale injected script could ever ship.
     KBD_VER=$([ -f "$TERM_APP_DIR/terminal-kbd.js" ] && md5sum "$TERM_APP_DIR/terminal-kbd.js" | cut -c1-10 || echo 0)
+    RESUME_VER=$(md5sum "$TERM_APP_DIR/terminal-resume.js" | cut -c1-10)
     CONN_VER=$(md5sum "$TERM_APP_DIR/terminal-connection.js" | cut -c1-10)
     # kbd-input.js — the DOM-free, unit-tested input/IME state machine terminal-kbd.js
     # depends on (must load BEFORE it). Same content-hash cache-buster convention.
@@ -595,7 +596,9 @@ $tls_redirect_if        auth_request /internal/authcheck;
         gzip_min_length 1024;
 
         sub_filter 'fontSize:13,' 'fontSize:13,scrollback:$SCROLLBACK,cursorStyle:\"bar\",cursorInactiveStyle:\"bar\",';
-        sub_filter '</head>' '<script>(function(){var isMac=/Mac/.test(navigator.platform);var isTouch=window.matchMedia&&window.matchMedia(\"(pointer: coarse)\").matches;var blockTa=true;var _ec=document.execCommand.bind(document);document.execCommand=function(c){if(c===\"copy\"&&!window.__allowCopy)throw 0;return _ec.apply(document,arguments)};if(isTouch){document.addEventListener(\"focusin\",function(e){var t=e.target;if(blockTa&&t&&t.classList&&t.classList.contains(\"xterm-helper-textarea\")){var o=window.__termOverlay;if(window.__termArmed&&o&&document.activeElement!==o){window.__termBouncing=1;try{o.focus({preventScroll:true})}catch(_){try{o.focus()}catch(__){t.blur()}}window.__termBouncing=0}else{t.blur()}}},true)}function copySelection(){var t=window.term;if(!t||!t.hasSelection())return;var s=t.getSelection();if(!s)return;var ta=document.querySelector(\".xterm-helper-textarea\");if(ta){ta.value=s;blockTa=false;ta.select();try{window.__allowCopy=true;document.execCommand(\"copy\")}finally{window.__allowCopy=false;blockTa=true;ta.value=\"\"}}}var check=setInterval(function(){if(!window.term)return;clearInterval(check);var t=window.term;t.attachCustomKeyEventHandler(function(e){if(e.type!==\"keydown\")return true;var mod=isMac?e.metaKey:e.ctrlKey;if(!mod||e.shiftKey||e.altKey)return true;if(isMac&&e.ctrlKey)return true;if(e.key===\"c\"){if(t.hasSelection()){copySelection();t.clearSelection();e.preventDefault();return false}if(isMac){e.preventDefault();return false}return true}if(e.key===\"v\"||e.key===\"V\"){if(!isMac)return false;var ta=document.querySelector(\".xterm-helper-textarea\");if(ta){ta.value=\"\";ta.focus()}return true}return true})},100);document.addEventListener(\"auxclick\",function(e){if(e.button!==1)return;e.preventDefault();var ta=document.querySelector(\".xterm-helper-textarea\");if(ta){ta.value=\"\";ta.focus()}});function sendToBrowser(u){fetch(\"/api/browser/open\",{method:\"POST\",headers:{\"Content-Type\":\"application/json\"},body:JSON.stringify({url:u})});try{window.top.postMessage({type:\"switch-to-browser\"},\"*\")}catch(e){}}var wo=window.open;window.open=function(u){if(u&&(u.startsWith(\"http://\")||u.startsWith(\"https://\"))){sendToBrowser(u);return null}if(!u){return{opener:null,location:Object.defineProperty({},\"href\",{set:function(v){sendToBrowser(v)}})}}return wo.apply(this,arguments)}})();</script><script src=\"/terminal-connection.js?v=${CONN_VER}\"></script><script src=\"/coach.js\"></script><script src=\"/kbd-input.js?v=${KBDIN_VER}\"></script><script src=\"/terminal-kbd.js?v=${KBD_VER}\"></script></head>';
+        # Allow the connection guard to use ttyd's own reconnect path.
+        sub_filter 'this.terminal=new' '(window.__vibetopTtyd=this),this.terminal=new';
+        sub_filter '</head>' '<script>(function(){var isMac=/Mac/.test(navigator.platform);var isTouch=window.matchMedia&&window.matchMedia(\"(pointer: coarse)\").matches;var blockTa=true;var _ec=document.execCommand.bind(document);document.execCommand=function(c){if(c===\"copy\"&&!window.__allowCopy)throw 0;return _ec.apply(document,arguments)};if(isTouch){document.addEventListener(\"focusin\",function(e){var t=e.target;if(blockTa&&t&&t.classList&&t.classList.contains(\"xterm-helper-textarea\")){var o=window.__termOverlay;if(window.__termArmed&&o&&document.activeElement!==o){window.__termBouncing=1;try{o.focus({preventScroll:true})}catch(_){try{o.focus()}catch(__){t.blur()}}window.__termBouncing=0}else{t.blur()}}},true)}function copySelection(){var t=window.term;if(!t||!t.hasSelection())return;var s=t.getSelection();if(!s)return;var ta=document.querySelector(\".xterm-helper-textarea\");if(ta){ta.value=s;blockTa=false;ta.select();try{window.__allowCopy=true;document.execCommand(\"copy\")}finally{window.__allowCopy=false;blockTa=true;ta.value=\"\"}}}var check=setInterval(function(){if(!window.term)return;clearInterval(check);var t=window.term;t.attachCustomKeyEventHandler(function(e){if(e.type!==\"keydown\")return true;var mod=isMac?e.metaKey:e.ctrlKey;if(!mod||e.shiftKey||e.altKey)return true;if(isMac&&e.ctrlKey)return true;if(e.key===\"c\"){if(t.hasSelection()){copySelection();t.clearSelection();e.preventDefault();return false}if(isMac){e.preventDefault();return false}return true}if(e.key===\"v\"||e.key===\"V\"){if(!isMac)return false;var ta=document.querySelector(\".xterm-helper-textarea\");if(ta){ta.value=\"\";ta.focus()}return true}return true})},100);document.addEventListener(\"auxclick\",function(e){if(e.button!==1)return;e.preventDefault();var ta=document.querySelector(\".xterm-helper-textarea\");if(ta){ta.value=\"\";ta.focus()}});function sendToBrowser(u){fetch(\"/api/browser/open\",{method:\"POST\",headers:{\"Content-Type\":\"application/json\"},body:JSON.stringify({url:u})});try{window.top.postMessage({type:\"switch-to-browser\"},\"*\")}catch(e){}}var wo=window.open;window.open=function(u){if(u&&(u.startsWith(\"http://\")||u.startsWith(\"https://\"))){sendToBrowser(u);return null}if(!u){return{opener:null,location:Object.defineProperty({},\"href\",{set:function(v){sendToBrowser(v)}})}}return wo.apply(this,arguments)}})();</script><script src=\"/terminal-connection.js?v=${CONN_VER}\"></script><script src=\"/terminal-resume.js?v=${RESUME_VER}\"></script><script src=\"/coach.js\"></script><script src=\"/kbd-input.js?v=${KBDIN_VER}\"></script><script src=\"/terminal-kbd.js?v=${KBD_VER}\"></script></head>';
         sub_filter_once off;
     }
     location ~ ^/t(\d+)$ { return 301 \$scheme://\$host/t\$1/; }
@@ -696,6 +699,7 @@ PYEOF
         run sudo install -o "$APP_USER" -g "$APP_USER" -m 0644 \
             "$TERM_APP_DIR/lib/tab-sync.js" "$LANDING_DIR/tab-sync.js"
     fi
+    FRAME_VER=$(md5sum "$TERM_APP_DIR/terminal-frame.js" | cut -c1-10)
     SYNC_VER=$([ -f "$TERM_APP_DIR/lib/tab-sync.js" ] && md5sum "$TERM_APP_DIR/lib/tab-sync.js" | cut -c1-10 || echo 0)
 
     # Install terminals.html to the landing dir for /terminals/ route, stamping
@@ -705,7 +709,7 @@ PYEOF
             echo "+ would render terminals.html (@SYNC_VER@ -> $SYNC_VER) -> $LANDING_DIR/terminals.html"
         else
             tmp_th="$(mktemp)"
-            sed "s/@SYNC_VER@/$SYNC_VER/g" "$TERM_APP_DIR/terminals.html" > "$tmp_th"
+            sed -e "s/@SYNC_VER@/$SYNC_VER/g" -e "s/@FRAME_VER@/$FRAME_VER/g" "$TERM_APP_DIR/terminals.html" > "$tmp_th"
             sudo install -o "$APP_USER" -g "$APP_USER" -m 0644 \
                 "$tmp_th" "$LANDING_DIR/terminals.html"
             rm -f "$tmp_th"
@@ -720,6 +724,10 @@ PYEOF
     fi
     run sudo install -o "$APP_USER" -g "$APP_USER" -m 0644 \
         "$TERM_APP_DIR/terminal-connection.js" "$LANDING_DIR/terminal-connection.js"
+    run sudo install -o "$APP_USER" -g "$APP_USER" -m 0644 \
+        "$TERM_APP_DIR/terminal-frame.js" "$LANDING_DIR/terminal-frame.js"
+    run sudo install -o "$APP_USER" -g "$APP_USER" -m 0644 \
+        "$TERM_APP_DIR/terminal-resume.js" "$LANDING_DIR/terminal-resume.js"
     # Mobile keyboard/dictation patch (loaded into /tN/ via the sub_filter
     # <script src>; a no-op on non-touch devices).
     if [ -f "$TERM_APP_DIR/terminal-kbd.js" ]; then

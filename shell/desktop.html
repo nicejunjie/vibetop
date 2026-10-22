@@ -1190,9 +1190,9 @@
   <script src="/deskstate.js"></script>
   <script src="/vibe-modal.js"></script>
   <script src="/coach.js"></script>
-  <script src="/winmgr.js"></script>
+  <script src="/winmgr.js?v=@SW_VERSION@"></script>
   <script src="/keybar.js"></script>
-  <script src="/apph.js"></script>
+  <script src="/apph.js?v=@APPH_VER@"></script>
 </head>
 <body>
   <div id="ios27-top-edge" aria-hidden="true"></div>
@@ -4184,6 +4184,7 @@
   // (xpra-patches.js asks the server for a buffer refresh; files.html nudges
   // its nested listing iframe).
   function wakeNudgeFrames() {
+    window.dispatchEvent(new Event('vibetop:wake'));
     openApps.forEach(function(id) {
       var f = frameOf(id);
       if (!f || !f.src) return;

@@ -65,7 +65,7 @@ function makeEl(tag) {
   return el;
 }
 
-function load(qs) {
+function load(qs, fetchImpl) {
   qs = qs || "path=" + encodeURIComponent("home/junjie/Pictures/a.png");
   var byId = {};
   ["name", "cnt", "dl", "close", "prev", "next"].forEach(function (id) {
@@ -77,12 +77,13 @@ function load(qs) {
   var body = makeEl("body");
   var posted = [];
   var sandbox = {
+    VibePinch: require("../../../shared/pinch.js"),
     console: { warn() {}, log() {}, error() {} },
     location: { search: "?" + qs },
     navigator: { userAgent: "test" },
     URLSearchParams: URLSearchParams,
     encodeURIComponent: encodeURIComponent,
-    fetch: function () { return Promise.resolve({ ok: false }); }, // no sibling list by default
+    fetch: fetchImpl || function () { return Promise.resolve({ ok: false }); }, // no sibling list by default
     Image: function () { return makeEl("img"); },
     document: {
       _listeners: {},
@@ -288,4 +289,28 @@ test("double-tap/double-click toggles zoom between 1x and 2.5x", function () {
   pd({ target: makeEl("div"), timeStamp: 2000, clientX: 51, clientY: 51 });
   pd({ target: makeEl("div"), timeStamp: 2100, clientX: 51, clientY: 51 });
   assert.strictEqual(img.classList.contains("zoomed"), false, "a second double-tap toggles back to 1x");
+});
+
+test('an older image failure cannot remove the next image', async () => {
+  const s=load('path=home/junjie/Pictures/a.png', ()=>Promise.resolve({ok:true,json:()=>Promise.resolve({ok:true,entries:[{name:'a.png'},{name:'b.png'}]})}));
+  await new Promise(r=>setImmediate(r));
+  const old=s.stage.children.find(c=>c.tagName==='IMG');
+  s.byId.next._listeners.click[0]();
+  const current=s.stage.children.find(c=>c.tagName==='IMG');
+  assert.notStrictEqual(current,old);
+  old.onerror();
+  assert.ok(s.stage.children.includes(current));
+  assert.strictEqual(s.byId.name.textContent,'b.png');
+});
+
+test('changing images invalidates a pinch that still has fingers down', async () => {
+  const s=load('path=home/junjie/Pictures/a.png', ()=>Promise.resolve({ok:true,json:()=>Promise.resolve({ok:true,entries:[{name:'a.png'},{name:'b.png'}]})}));
+  await new Promise(r=>setImmediate(r));
+  const down=s.stage._listeners.pointerdown[0];
+  down({target:s.stage,pointerId:1,clientX:100,clientY:100,timeStamp:1000,preventDefault(){}});
+  down({target:s.stage,pointerId:2,clientX:200,clientY:100,timeStamp:1001,preventDefault(){}});
+  s.byId.next._listeners.click[0]();
+  s.winListeners.pointermove[0]({pointerId:2,clientX:300,clientY:100,preventDefault(){}});
+  const img=s.stage.children.find(c=>c.tagName==='IMG');
+  assert.ok(!img.classList.contains('zoomed'));
 });

@@ -37,6 +37,11 @@
   var ios27 = /(?:iPhone|iPad|iPod)/.test(navigator.userAgent) &&
               /\bVersion\/27(?:\.|\b)/.test(navigator.userAgent);
   function syncTopEdge() {
+    // Re-probe after login/resume; iOS can initially report browser mode.
+    try {
+      if ((window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) ||
+          window.navigator.standalone === true) standalone = true;
+    } catch (_) {}
     root.classList.toggle('ios27-standalone', ios27 && standalone);
   }
   syncTopEdge();
@@ -112,18 +117,59 @@
     if (force) diag();
   }
 
-  function tick() { apply(); [80, 300, 800, 1800].forEach(function (ms) { setTimeout(apply, ms); }); }
+  var edgeState = null, edgeTimer, settleTimers = [];
+  function restoreTopEdge() {
+    var state = edgeState;
+    if (!state) return;
+    edgeState = null;
+    clearTimeout(state.timeout);
+    state.edge.style.display = '';
+  }
+  function refreshTopEdge() {
+    syncTopEdge();
+    if (!ios27 || !standalone || document.hidden || edgeState) return;
+    var edge = document.getElementById && document.getElementById('ios27-top-edge');
+    if (!edge || typeof requestAnimationFrame !== 'function') return;
+    var state = edgeState = { edge: edge, timeout: null };
+    // Restore even if the browser stops delivering animation frames. Stale
+    // callbacks must never restore or clear a subsequent refresh cycle.
+    function restore() { if (edgeState === state) restoreTopEdge(); }
+    state.timeout = setTimeout(restore, 250);
+    edge.style.display = 'none';
+    requestAnimationFrame(function() {
+      if (edgeState !== state) return;
+      requestAnimationFrame(restore);
+    });
+  }
+  function scheduleTopEdge() {
+    clearTimeout(edgeTimer);
+    if (ios27 && standalone && !document.hidden) edgeTimer = setTimeout(refreshTopEdge, 120);
+  }
+  function settle() { syncTopEdge(); apply(); }
+  function tick() {
+    settle(); scheduleTopEdge();
+    settleTimers.forEach(clearTimeout);
+    settleTimers = [80, 300, 800, 1800].map(function(ms) { return setTimeout(settle, ms); });
+  }
+  function viewportChanged() { settle(); scheduleTopEdge(); }
+  function suspendTopEdge() {
+    clearTimeout(edgeTimer);
+    settleTimers.forEach(clearTimeout); settleTimers = [];
+    restoreTopEdge();
+  }
+  addEventListener('pagehide', suspendTopEdge);
+  addEventListener('vibetop:wake', tick);
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', tick);
   else tick();
   addEventListener('load', tick);
   addEventListener('pageshow', tick);
   addEventListener('focus', tick);
-  document.addEventListener('visibilitychange', function () { if (!document.hidden) tick(); });
+  document.addEventListener('visibilitychange', function () { if (document.hidden) suspendTopEdge(); else tick(); });
   addEventListener('orientationchange', tick);
-  addEventListener('resize', apply);
+  addEventListener('resize', viewportChanged);
   if (window.visualViewport) {
-    visualViewport.addEventListener('resize', apply);
-    visualViewport.addEventListener('scroll', apply);
+    visualViewport.addEventListener('resize', viewportChanged);
+    visualViewport.addEventListener('scroll', viewportChanged);
   }
 
   // ---- diagnostic overlay (gated) --------------------------------------------------
@@ -176,6 +222,12 @@
     });
     panel.textContent = rows.join('\n') +
       '\nbodyH   ' + Math.round(document.body.getBoundingClientRect().height) +
-      '\nscreen  ' + screen.width + 'x' + screen.height + '  dpr ' + window.devicePixelRatio;
+      '\nscreen  ' + screen.width + 'x' + screen.height + '  dpr ' + window.devicePixelRatio +
+      '\ninstalled ' + standalone + '  ios27 ' + ios27 +
+      '\nedgeClass ' + root.classList.contains('ios27-standalone') +
+      '\nedgeDisplay ' + (document.getElementById('ios27-top-edge') ? getComputedStyle(document.getElementById('ios27-top-edge')).display : 'missing') +
+      '\nnavStandalone ' + navigator.standalone +
+      '\nmediaStandalone ' + !!(window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) +
+      '\nUA ' + navigator.userAgent;
   }
 })();

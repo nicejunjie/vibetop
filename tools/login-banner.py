@@ -84,7 +84,7 @@ def wake_amd_gpus():
         return ''
     executable = shutil.which('amd-smi')
     if not executable:
-        candidate = Path('/opt/rocm/bin/amd-smi')
+        candidate = Path('/opt/soft/rocm/bin/amd-smi')
         if candidate.is_file() and os.access(candidate, os.X_OK):
             executable = str(candidate)
     if not executable:
@@ -162,11 +162,11 @@ def main():
     host = socket.gethostname().split('.')[0]
     print()
     if host in ('moon-1', 'moon-01'):
-        print(paint(r'''  __  __  ___   ___  _   _       _
- |  \/  |/ _ \ / _ \| \ | |     / |
- | |\/| | | | | | | |  \| |_____| |
- | |  | | |_| | |_| | |\  |_____| |
- |_|  |_|\___/ \___/|_| \_|     |_|''', 'cyan'))
+        print(paint(r'''  __  __  ___   ___  _   _        ___  _
+ |  \/  |/ _ \ / _ \| \ | |      / _ \/ |
+ | |\/| | | | | | | |  \| |_____| | | | |
+ | |  | | |_| | |_| | |\  |_____| |_| | |
+ |_|  |_|\___/ \___/|_| \_|      \___/|_|''', 'cyan'))
         print(paint(f"  Junjie's {host} server", 'muted'))
     else:
         print(paint(f'  {host.upper()}', 'cyan') + paint("  ·  Junjie's server", 'muted'))

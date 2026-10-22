@@ -374,3 +374,20 @@ test("Open in Files stays disabled at the top window or with no rel_to_home", as
   await embedded.flush();
   assert.strictEqual(embedded.ids["open-files"].disabled, false, "embedded + rel_to_home present");
 });
+
+test('late folder response cannot replace a newer refresh', async () => {
+  const replies = [];
+  const s = load({fetch: () => new Promise(resolve => replies.push(resolve))});
+  s.ids.refresh._listeners.click[0]();
+  replies[1]({ok:true,json:async()=>({dir:'/new',files:[]})});
+  await s.flush();
+  replies[0]({ok:true,json:async()=>({dir:'/old',files:[]})});
+  await s.flush();
+  assert.equal(s.ids.dir.textContent, '/new');
+});
+test('refused folder listing displays an error', async () => {
+  const s = load({fetch:async()=>({ok:false,status:500,json:async()=>({files:[]})})});
+  await s.flush();
+  assert.match(s.ids.folder.innerHTML, /Could not load folder/);
+  assert.equal(s.ids['clear-folder'].disabled, true);
+});

@@ -54,6 +54,21 @@ A **Token Stats** app (Start ▸ Utilities ▸ Token Stats) — a read-only anal
 
 ## System Monitor — 7 days of history
 
+The GPU card selects devices by PCI address, with each device's own usage,
+VRAM, temperature, and history. Identical model names remain distinguishable.
+The Power card lists individual readings and sums all discrete GPUs; integrated
+GPU readings stay selectable but are excluded from that sum when discrete cards
+are present, because they can overlap CPU package power. A missing power sensor
+makes the GPU sum unknown, rather than silently treating one card as idle.
+
+Per-device history lives in `/var/lib/vibetop/metrics.ring.gpus/<PCI-address>`:
+one fixed ~930KB ring per device, with a maximum of 16 identities. The history
+endpoint adds `gpus: {PCI-address: {gpu_percent: [...], gpu_temp: [...],
+gpu_power_w: [...], gpu_vram_used_gb: [...]}}` on the host window's timestamps.
+Existing host history is preserved. Old primary-card history is never assigned
+to a different device; GPU power history sums device rings and stays blank where
+any component is unknown. Device histories begin recording with this change.
+
 The Monitor used to open blank: every chart was built one sample per frame, so
 it took two minutes to draw a line and knew nothing about what happened while
 nobody was looking. The manager now keeps a **7-day ring** of the numbers beside

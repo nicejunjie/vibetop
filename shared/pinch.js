@@ -54,7 +54,22 @@
     return { z: z, px: now.cx - z * ux, py: now.cy - z * uy };
   }
 
-  var api = { pinchMetrics: pinchMetrics, pinchStep: pinchStep };
+  function clampPan(px, py, width, height, boxWidth, boxHeight, zoom) {
+    if (![width, height, boxWidth, boxHeight, zoom].every(Number.isFinite)) return { px: px, py: py };
+    var x = Math.max(0, (width * zoom - boxWidth) / 2);
+    var y = Math.max(0, (height * zoom - boxHeight) / 2);
+    return { px: Math.max(-x, Math.min(x, px)), py: Math.max(-y, Math.min(y, py)) };
+  }
+
+  function wheelFactor(deltaY, pinch) {
+    if (!Number.isFinite(deltaY) || deltaY === 0) return 1;
+    // Trackpad pinch arrives as Ctrl+wheel. Preserve its small deltas rather
+    // than applying a 20% step to every packet in the gesture.
+    if (pinch) return Math.exp(Math.max(-0.2, Math.min(0.2, -deltaY * 0.01)));
+    return deltaY < 0 ? 1.2 : 1 / 1.2;
+  }
+
+  var api = { pinchMetrics: pinchMetrics, pinchStep: pinchStep, wheelFactor: wheelFactor, clampPan: clampPan };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.VibePinch = api;
 })(typeof self !== 'undefined' ? self : this);

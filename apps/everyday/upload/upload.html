@@ -377,8 +377,11 @@
     clearFolder.disabled = files.length === 0;
   }
 
+  var folderGeneration = 0;
   function loadFolder() {
-    fetch('/api/upload/list').then(function(r) { return r.json(); }).then(function(d) {
+    var generation = ++folderGeneration;
+    fetch('/api/upload/list').then(function(r) { if (r.ok === false) throw new Error('folder unavailable'); return r.json(); }).then(function(d) {
+      if (generation !== folderGeneration) return;
       if (d.dir) dirEl.textContent = d.dir;
       folderRel = d.rel_to_home || null;
       // Only allow the Open-in-Files jump when the upload dir lives under the
@@ -387,6 +390,7 @@
       openFiles.disabled = !folderRel || (window.top === window);
       renderFolder(d.files || []);
     }).catch(function() {
+      if (generation !== folderGeneration) return;
       folderEl.innerHTML = '<div class="item error"><span class="name">Could not load folder</span></div>';
       clearFolder.disabled = true;
     });

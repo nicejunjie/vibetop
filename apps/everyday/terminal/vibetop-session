@@ -7,7 +7,97 @@ Two modes:
   vibetop-session attach N  — client: bridges ttyd's PTY to the daemon's socket
 """
 
+import base64, json, uuid
 import argparse, errno, fcntl, os, random, re, select, selectors, signal, socket, struct, sys, termios, time
+
+
+class ReplayModes:
+    """Modes at the replay boundary, plus an unfinished escape sequence.
+
+    Feed only bytes being evicted. Replaying the retained suffix from this
+    boundary preserves application input modes even after their setters age out.
+    OSC/DCS contents are opaque: title text must never become a mode command.
+    """
+    ALLOWED = frozenset((1, 6, 7, 25, 47, 1000, 1002, 1003, 1004,
+                         1005, 1006, 1015, 1047, 1049, 2004))
+
+    def __init__(self):
+        self.modes = {}
+        self.pending = bytearray()
+        self.state = 'ground'
+
+    def feed(self, data):
+        for b in data:
+            if self.state == 'ground':
+                if b == 27:
+                    self.pending = bytearray((b,))
+                    self.state = 'escape'
+                continue
+            self.pending.append(b)
+            if self.state == 'escape':
+                if b == ord('['):
+                    self.state = 'csi'
+                    continue
+                if b in b']P^_X':
+                    self.state = 'string'
+                    continue
+                if b == ord('c'):
+                    self.modes.clear()  # RIS resets the emulator
+                if b == 27:
+                    self.pending = bytearray((27,))
+                    continue
+            elif self.state == 'csi_discard':
+                if not 0x40 <= b <= 0x7e:
+                    self.pending = bytearray(b'\x1b[')
+                    continue
+            elif self.state == 'csi':
+                if b == 27:
+                    self.pending = bytearray((27,))
+                    self.state = 'escape'
+                    continue
+                if not 0x40 <= b <= 0x7e:
+                    if len(self.pending) > 256:
+                        self.pending = bytearray(b'\x1b[')
+                        self.state = 'csi_discard'
+                    continue
+                match = re.fullmatch(rb'\x1b\[\?([0-9;]+)([hl])', self.pending)
+                if match:
+                    enabled = match[2] == b'h'
+                    for part in match[1].split(b';'):
+                        if not part or len(part) > 5:
+                            continue
+                        mode = int(part)
+                        if mode not in self.ALLOWED:
+                            continue
+                        # xterm's alternate-buffer aliases select the same buffer.
+                        if mode in (47, 1047, 1049):
+                            for alias in (47, 1047, 1049):
+                                self.modes.pop(alias, None)
+                        # Protocol setters supersede the previous protocol.
+                        if enabled and mode in (1000, 1002, 1003):
+                            for alias in (1000, 1002, 1003):
+                                self.modes.pop(alias, None)
+                        self.modes[mode] = enabled
+            elif self.state == 'string':
+                if b == 27:
+                    self.state = 'string_escape'
+                    continue
+                if b != 7:
+                    # Bound memory for long OSC/DCS strings. Keep an opaque
+                    # string introducer so a truncated suffix remains opaque.
+                    if len(self.pending) > 4096:
+                        self.pending = self.pending[:2]
+                    continue
+            elif self.state == 'string_escape':
+                if b != ord('\\'):
+                    self.state = 'string_escape' if b == 27 else 'string'
+                    continue
+            self.pending.clear()
+            self.state = 'ground'
+
+    def prefix(self):
+        return b''.join(b'\x1b[?' + str(mode).encode() + (b'h' if enabled else b'l')
+                        for mode, enabled in self.modes.items()) + bytes(self.pending)
 
 
 class RingBuffer:
@@ -18,9 +108,23 @@ class RingBuffer:
         self._cap = capacity
         self._pos = 0
         self._len = 0
+        self._head_modes = ReplayModes()
+        self.offset = 0
+        self.epoch = uuid.uuid4().hex
 
     def write(self, data):
         n = len(data)
+        self.offset += n
+        evicted = max(0, self._len + n - self._cap)
+        old = min(evicted, self._len)
+        if old:
+            start = (self._pos - self._len) % self._cap
+            first = min(old, self._cap - start)
+            self._head_modes.feed(self._buf[start:start + first])
+            if old > first:
+                self._head_modes.feed(self._buf[:old - first])
+        if evicted > old:
+            self._head_modes.feed(data[:evicted - old])
         if n >= self._cap:
             data = data[-self._cap:]
             n = self._cap
@@ -47,9 +151,57 @@ class RingBuffer:
         first = self._cap - start
         return bytes(self._buf[start:]) + bytes(self._buf[:self._len - first])
 
+    def replay(self):
+        return self._head_modes.prefix() + self.read_all()
+
+    def resume(self, epoch, offset):
+        valid = (epoch == self.epoch and isinstance(offset, int) and
+                 not isinstance(offset, bool) and self.offset - self._len <= offset <= self.offset)
+        data = self.read_all()[offset - (self.offset - self._len):] if valid else self.replay()
+        data = strip_terminal_queries(data)
+        chunks = [data[i:i + 16384] for i in range(0, len(data), 16384)] or [b'']
+        return b''.join(resume_frame(self.epoch, self.offset if i == len(chunks) - 1 else None,
+                                     chunk, not valid and i == 0)
+                        for i, chunk in enumerate(chunks))
+
     def clear(self):
+        self.offset = 0
+        self.epoch = uuid.uuid4().hex
         self._pos = 0
         self._len = 0
+        self._head_modes = ReplayModes()
+
+
+def resume_frame(epoch, offset, data, reset=False):
+    """Private OSC envelope: the browser unwraps it before xterm sees output."""
+    body = json.dumps({"epoch": epoch, "offset": offset, "reset": reset,
+                       "data": base64.b64encode(data).decode("ascii")}, separators=(',', ':'))
+    return b'\x1b]777;vt-resume;' + body.encode('ascii') + b'\x07'
+
+
+class ResumeReplayParser:
+    """Read framed replay state for the existing full-screen redraw recovery."""
+
+    def __init__(self):
+        self.pending = bytearray()
+
+    def feed(self, data):
+        self.pending.extend(data)
+        output = bytearray()
+        while b'\x07' in self.pending:
+            body, remaining = self.pending.split(b'\x07', 1)
+            self.pending = bytearray(remaining)
+            prefix = b'\x1b]777;vt-resume;'
+            start = body.rfind(prefix)
+            if start >= 0:
+                body = body[start:]
+                try:
+                    output.extend(base64.b64decode(json.loads(body[len(prefix):])['data']))
+                except (ValueError, KeyError, TypeError):
+                    pass
+        if len(self.pending) > 65536:
+            self.pending.clear()
+        return bytes(output)
 
 
 # Terminal *query-request* escape sequences — the ones the emulator must ANSWER:
@@ -175,7 +327,41 @@ def truncate_replay(pending, screen_bytes):
     Pure — unit-tested."""
     n = len(pending)
     tail = bytes(pending[-screen_bytes:]) if screen_bytes and n > screen_bytes else bytes(pending)
-    return b'\x1b[H\x1b[2J' + tail
+    modes = ReplayModes()
+    if len(tail) < n:
+        modes.feed(pending[:n - len(tail)])
+    return b'\x1b[H\x1b[2J' + modes.prefix() + tail
+
+
+def active_client_size(size_path):
+    """Newest explicit interaction owns the size; passive reconnects cannot win.
+
+    .view is separate from legacy .client votes. Attach processes publish the
+    selected geometry to .size too, so existing daemons can keep their shells.
+    """
+    import glob
+    choices = []
+    for path in glob.glob(size_path + '.*.view'):
+        try:
+            pid = int(path.rsplit('.', 2)[-2])
+            os.kill(pid, 0)
+        except (ValueError, IndexError, OSError):
+            try:
+                os.unlink(path)
+            except OSError:
+                pass
+            continue
+        try:
+            with open(path) as f:
+                rows, cols, activity = map(int, f.read().split())
+            if 0 < rows <= 9999 and 0 < cols <= 9999 and activity >= 0:
+                choices.append((activity, pid, rows, cols))
+        except (OSError, ValueError):
+            continue
+    if not choices:
+        return None
+    _, _, rows, cols = max(choices)
+    return rows, cols
 
 
 def set_pty_size(fd, rows, cols):
@@ -267,6 +453,8 @@ def cmd_serve(instance):
         PACED = False               # adaptive supersedes the fixed-rate gate
 
     ring = RingBuffer(buf_cap)
+    resume_clients = {}
+    resume_pending = {}
     clients = {}          # fileno -> socket
     client_outq = {}      # fileno -> bytearray (pending output)
     pace_next = {}        # fileno -> monotonic time before which we must not send (paced only)
@@ -296,7 +484,7 @@ def cmd_serve(instance):
     # terminal's ring warmed past 1MB. Long-lived daemons keep the old value
     # until their terminal restarts; the manager's injector additionally
     # retries per-write to ride out old daemons' kill race.
-    MAX_OUTQ = buf_cap + 1024 * 1024
+    MAX_OUTQ = (buf_cap * 4 // 3) + 1024 * 1024
     # Resize debounce: a SIGUSR1 (an attach client's size changed) doesn't apply
     # the resize inline — it arms a deadline, and the main loop applies the LATEST
     # saved size once things go quiet. This collapses a rapid burst of resizes into
@@ -317,7 +505,12 @@ def cmd_serve(instance):
     # -- helpers --
 
     def read_saved_size():
-        # SMALLEST ATTACHED CLIENT WINS, which is what tmux does and for the same
+        active_size = active_client_size(size_path)
+        if active_size is not None:
+            return active_size
+        # Legacy attachments only: SMALLEST ATTACHED CLIENT WINS. Modern
+        # .view clients above use explicit interaction ownership. The old
+        # minimum policy was originally chosen for the same
         # reason: one PTY cannot be two shapes, and the shared size file is
         # last-writer-wins — so two clients of different widths flap it back and
         # forth, firing a SIGWINCH each time and making every attached TUI repaint.
@@ -401,15 +594,33 @@ def cmd_serve(instance):
         sel.register(pty_fd, selectors.EVENT_READ, 'pty')
 
     def remove_client(fd):
+        nonlocal pending_resize, resize_deadline
         try:
             sel.unregister(fd)
         except Exception:
             pass
+        resume_clients.pop(fd, None)
+        resume_pending.pop(fd, None)
         sock = clients.pop(fd, None)
         client_outq.pop(fd, None)
         pace_next.pop(fd, None)
         replay_deadline.pop(fd, None)
         if sock:
+            # An EOF is authoritative even if the attach process has not been
+            # reaped yet. Remove its size vote before recomputing; kill(pid, 0)
+            # alone also treats a zombie as alive.
+            try:
+                peer_pid, _, _ = struct.unpack('3i', sock.getsockopt(
+                    socket.SOL_SOCKET, socket.SO_PEERCRED, struct.calcsize('3i')))
+                for suffix in ('client', 'view'):
+                    try:
+                        os.unlink(f'{size_path}.{peer_pid}.{suffix}')
+                    except FileNotFoundError:
+                        pass
+            except (OSError, AttributeError):
+                pass
+            pending_resize = True
+            resize_deadline = time.monotonic() + RESIZE_DEBOUNCE
             try:
                 sock.close()
             except Exception:
@@ -417,24 +628,31 @@ def cmd_serve(instance):
 
     def broadcast(data):
         dead = []
+        framed = resume_frame(ring.epoch, ring.offset, data)
         for fd, sock in clients.items():
+            if fd in resume_pending:
+                continue
+            output = framed if fd in resume_clients else data
+            if fd in resume_clients and resume_clients[fd] != ring.epoch:
+                output = ring.resume(None, None)
+                resume_clients[fd] = ring.epoch
             q = client_outq.get(fd)
             if q:
-                q.extend(data)
+                q.extend(output)
                 if len(q) > MAX_OUTQ:
                     dead.append(fd)
                 continue
             if PACED:
                 # Enqueue instead of sending inline so live output stays ordered
                 # behind any draining replay and is metered by the same gate.
-                client_outq[fd] = bytearray(data)
+                client_outq[fd] = bytearray(output)
                 continue
             try:
-                sent = sock.send(data)
-                if sent < len(data):
-                    client_outq[fd] = bytearray(data[sent:])
+                sent = sock.send(output)
+                if sent < len(output):
+                    client_outq[fd] = bytearray(output[sent:])
             except (BlockingIOError, InterruptedError):
-                client_outq[fd] = bytearray(data)
+                client_outq[fd] = bytearray(output)
             except Exception:
                 dead.append(fd)
         for fd in dead:
@@ -501,6 +719,8 @@ def cmd_serve(instance):
             return
         try:
             rows, cols = read_saved_size()
+            if get_pty_size(pty_fd) == (rows, cols):
+                return
             set_pty_size(pty_fd, rows, cols)
             if child_pid > 0:
                 os.kill(child_pid, signal.SIGWINCH)
@@ -530,6 +750,7 @@ def cmd_serve(instance):
             remove_client(fd)
         try:
             os.unlink(sock_path)
+            os.unlink(sock_path + ".resume")
         except Exception:
             pass
         try:
@@ -543,7 +764,7 @@ def cmd_serve(instance):
 
     # -- setup --
 
-    def make_listener():
+    def make_listener(path=sock_path):
         # (Re)create the Unix socket + pid file. Called at startup and again by
         # the watchdog in the main loop if the socket file is ever deleted or
         # replaced out from under us (e.g. a stray `rm` in /tmp). Without this
@@ -551,7 +772,7 @@ def cmd_serve(instance):
         # filesystem path is gone — unreachable by attach, recoverable only by a
         # session-killing restart.
         try:
-            os.unlink(sock_path)
+            os.unlink(path)
         except FileNotFoundError:
             pass
         s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
@@ -560,12 +781,14 @@ def cmd_serve(instance):
         # the predictable /tmp socket is connectable by other local users.
         old_umask = os.umask(0o177)
         try:
-            s.bind(sock_path)
+            s.bind(path)
         finally:
             os.umask(old_umask)
-        os.chmod(sock_path, 0o600)
+        os.chmod(path, 0o600)
         s.listen(5)
         s.setblocking(False)
+        if path != sock_path:
+            return s
         # Write the pid via O_NOFOLLOW (+ unlink first): the path is predictable
         # and in world-writable /tmp, so a pre-planted symlink must not get this
         # write redirected (truncating an arbitrary file the daemon can reach).
@@ -579,17 +802,21 @@ def cmd_serve(instance):
             f.write(str(os.getpid()))
         return s
 
-    def sock_sig():
+    def sock_sig(path=sock_path):
         # (dev, inode) of the on-disk socket file, or None if it's gone. A
         # changed/missing signature means the path is no longer our listener.
         try:
-            st = os.stat(sock_path)
+            st = os.stat(path)
         except OSError:
             return None
         return (st.st_dev, st.st_ino)
 
+    resume_path = sock_path + ".resume"
+    resume_server = make_listener(resume_path)
+    sel.register(resume_server, selectors.EVENT_READ, "resume-server")
     server = make_listener()
     server_sig = sock_sig()
+    resume_sig = sock_sig(resume_path)
     sel.register(server, selectors.EVENT_READ, 'server')
 
     spawn_shell()
@@ -605,6 +832,12 @@ def cmd_serve(instance):
         now = time.monotonic()
         if now >= next_heal:
             next_heal = now + 1.0
+            if sock_sig(resume_path) != resume_sig:
+                sel.unregister(resume_server)
+                resume_server.close()
+                resume_server = make_listener(resume_path)
+                resume_sig = sock_sig(resume_path)
+                sel.register(resume_server, selectors.EVENT_READ, 'resume-server')
             if sock_sig() != server_sig:
                 try:
                     sel.unregister(server)
@@ -662,7 +895,11 @@ def cmd_serve(instance):
                     continue
                 q = client_outq.get(fd)
                 if q and len(q) > sb:
-                    client_outq[fd] = bytearray(truncate_replay(q, sb))
+                    if fd in resume_clients:
+                        snapshot = truncate_replay(strip_terminal_queries(ring.replay()), sb)
+                        client_outq[fd] = bytearray(resume_frame(ring.epoch, ring.offset, snapshot, True))
+                    else:
+                        client_outq[fd] = bytearray(truncate_replay(q, sb))
                 replay_deadline.pop(fd, None)
 
         # Determine which clients need write events for pending output. When
@@ -696,6 +933,17 @@ def cmd_serve(instance):
                 except OSError:
                     pass
                 continue
+            if key.data == 'resume-server':
+                conn, _ = resume_server.accept()
+                conn.setblocking(False)
+                fd = conn.fileno()
+                clients[fd] = conn
+                if ADAPTIVE:
+                    conn.setsockopt(socket.SOL_SOCKET, socket.SO_SNDBUF, adapt_sndbuf)
+                resume_clients[fd] = None
+                resume_pending[fd] = bytearray()
+                sel.register(conn, selectors.EVENT_READ, 'client')
+                continue
             if key.data == 'server':
                 try:
                     conn, _ = server.accept()
@@ -712,7 +960,7 @@ def cmd_serve(instance):
                     # Strip query REQUESTS from the replay so this fresh client
                     # doesn't re-answer a stale DA/CPR/color/mode probe (the answer
                     # would be injected into the shared PTY and echoed at the prompt).
-                    replay = strip_terminal_queries(ring.read_all())
+                    replay = strip_terminal_queries(ring.replay())
                     initial = b'\033[0m' + replay if replay else b''
                     if initial:
                         if PACED or ADAPTIVE:
@@ -771,6 +1019,29 @@ def cmd_serve(instance):
                     if not data:
                         remove_client(fd)
                         continue
+                    if fd in resume_pending:
+                        pending = resume_pending[fd]
+                        pending.extend(data)
+                        if len(pending) > 4096:
+                            remove_client(fd)
+                            continue
+                        if b'\n' not in pending:
+                            continue
+                        request, data = bytes(pending).split(b'\n', 1)
+                        try:
+                            request = json.loads(request)
+                            initial = ring.resume(request.get('epoch'), request.get('offset'))
+                        except (ValueError, TypeError, AttributeError):
+                            remove_client(fd)
+                            continue
+                        del resume_pending[fd]
+                        resume_clients[fd] = ring.epoch
+                        client_outq[fd] = bytearray(initial)
+                        if ADAPTIVE:
+                            replay_deadline[fd] = time.monotonic() + adapt_budget
+                        sel.modify(fd, selectors.EVENT_READ | selectors.EVENT_WRITE, 'client')
+                        if not data:
+                            continue
                     if pty_fd >= 0:
                         keyprobe_record(data)   # dormant unless ~/.vibetop-keyprobe exists
                         # Write ALL the bytes: the master is non-blocking, so a
@@ -792,10 +1063,139 @@ def cmd_serve(instance):
 # attach
 # ---------------------------------------------------------------------------
 
-def cmd_attach(instance):
+def begin_replay_redraw(instance, daemon_pid):
+    """Make a full-screen app repaint after replaying incremental output.
+
+    A real, brief size change invalidates TUIs' screen-diff caches; SIGWINCH
+    alone at unchanged geometry does not. Preserve the current owner's size,
+    and serialize simultaneous viewers' redraw requests.
+    """
+    lock = tty = None
+    try:
+        lock = os.open(f'/tmp/vibetop-session-{instance}.redraw-lock',
+                       os.O_CREAT | os.O_RDWR | os.O_NOFOLLOW, 0o600)
+        fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        with open(f'/proc/{daemon_pid}/task/{daemon_pid}/children') as f:
+            child = int(f.read().split()[0])
+        tty = os.open(f'/proc/{child}/fd/0', os.O_RDONLY | os.O_NOCTTY | os.O_NONBLOCK)
+        original = get_pty_size(tty)
+        rows, cols = original
+        if cols < 3:
+            raise ValueError('terminal too narrow')
+        smaller = (rows, cols - 1)
+        set_pty_size(tty, *smaller)
+        return tty, lock, original, smaller
+    except (OSError, ValueError, IndexError):
+        if tty is not None:
+            os.close(tty)
+        if lock is not None:
+            os.close(lock)
+        return None
+
+
+def finish_replay_redraw(redraw):
+    if redraw is None:
+        return
+    tty, lock, original, smaller = redraw
+    try:
+        # A genuine owner resize during the redraw takes precedence.
+        if get_pty_size(tty) == smaller:
+            set_pty_size(tty, *original)
+    except OSError:
+        pass
+    finally:
+        os.close(tty)
+        os.close(lock)
+
+
+def legacy_replay_prefix(instance, daemon_pid):
+    """One-time deployment recovery for a pre-checkpoint daemon.
+
+    An operator may supply verified input modes for its running foreground app.
+    Scope the hint to exact daemon/app lifetimes and foreground ownership; never
+    apply it to a later shell/application, PID reuse, or a replacement daemon.
+    New daemons use the ring's replay boundary state instead.
+    """
+    import json
+
+    def proc(pid):
+        with open(f'/proc/{pid}/stat') as f:
+            return f.read().rsplit(')', 1)[1].split()
+
+    try:
+        path = f'/tmp/vibetop-session-{instance}.replay-bootstrap'
+        fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW)
+        with os.fdopen(fd) as f:
+            st = os.fstat(f.fileno())
+            if st.st_uid != os.getuid() or st.st_mode & 0o022:
+                return b''
+            hint = json.loads(f.read(16384))
+        if hint['daemon_pid'] != daemon_pid or proc(daemon_pid)[19] != hint['daemon_start']:
+            return b''
+        app_pid = int(hint['app_pid'])
+        info = proc(app_pid)
+        if info[19] != hint['app_start'] or info[2] != info[5] or info[4] == '0':
+            return b''
+        ancestor = int(info[1])
+        for _ in range(32):
+            if ancestor == daemon_pid:
+                break
+            if ancestor <= 1:
+                return b''
+            ancestor = int(proc(ancestor)[1])
+        else:
+            return b''
+        modes = ReplayModes()
+        for mode, enabled in hint['modes'].items():
+            mode = int(mode)
+            if mode not in ReplayModes.ALLOWED or not isinstance(enabled, bool):
+                return b''
+            modes.modes[mode] = enabled
+        return modes.prefix()
+    except (OSError, ValueError, KeyError, TypeError, IndexError):
+        return b''
+
+
+def read_resume_request(stdin_fd, stdout_fd):
+    """Negotiate before attaching; control bytes never reach the shell."""
+    old = termios.tcgetattr(stdin_fd)
+    import tty
+    tty.setraw(stdin_fd)
+    try:
+        write_all(stdout_fd, b'\x1b]777;vt-resume;{"ready":true}\x07')
+        pending = bytearray()
+        deadline = time.monotonic() + 5
+        while time.monotonic() < deadline:
+            if not select.select([stdin_fd], [], [], max(0, deadline - time.monotonic()))[0]:
+                break
+            data = os.read(stdin_fd, 4096)
+            if not data:
+                break
+            pending.extend(data)
+            if len(pending) > 4096:
+                break
+            match = re.search(rb'\x1b\]777;vt-resume;(.*?)\x07', pending)
+            if match:
+                try:
+                    request = json.loads(match.group(1))
+                    if isinstance(request, dict):
+                        return {"epoch": request.get("epoch"), "offset": request.get("offset")}
+                except (ValueError, TypeError):
+                    break
+        raise TimeoutError('terminal resume handshake timed out')
+    finally:
+        termios.tcsetattr(stdin_fd, termios.TCSANOW, old)
+
+
+def cmd_attach(instance, resume=False):
     sock_path = f'/tmp/vibetop-session-{instance}.sock'
     size_path = f'/tmp/vibetop-session-{instance}.size'
     pid_path = f'/tmp/vibetop-session-{instance}.pid'
+
+    request = None
+    if resume and os.path.exists(sock_path + '.resume'):
+        request = read_resume_request(sys.stdin.fileno(), sys.stdout.fileno())
+        sock_path += '.resume'
 
     sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
     # The serve daemon may still be creating its socket (systemd's After=
@@ -812,53 +1212,61 @@ def cmd_attach(instance):
                 raise
             time.sleep(0.05)
 
+    if request is not None:
+        sock.sendall(json.dumps(request, separators=(',', ':')).encode('ascii') + b'\n')
+
     stdin_fd = sys.stdin.fileno()
     stdout_fd = sys.stdout.fileno()
 
-    def send_resize():
+    activity = 0
+
+    def publish_selected_size():
+        chosen = active_client_size(size_path)
+        if chosen is None:
+            return
+        value = f'{chosen[0]} {chosen[1]}'
+        try:
+            with open(size_path) as f:
+                if f.read().strip() == value:
+                    return
+        except OSError:
+            pass
+        tmp = f'{size_path}.{os.getpid()}.tmp'
+        try:
+            os.unlink(tmp)
+        except FileNotFoundError:
+            pass
+        fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
+        with os.fdopen(fd, 'w') as f:
+            f.write(value)
+        os.replace(tmp, size_path)
+        with open(pid_path) as f:
+            os.kill(int(f.read().strip()), signal.SIGUSR1)
+
+    def send_resize(claim=True):
+        nonlocal activity
         try:
             rows, cols = get_pty_size(stdin_fd)
-            # Write atomically (temp in the same dir + rename) so the serve
-            # daemon's reader can never see a torn/empty file mid-write — a
-            # partial read fell back to 24x80, momentarily shrinking the shell.
-            # O_NOFOLLOW guards the predictable /tmp path against a symlink.
-            tmp = f'{size_path}.{os.getpid()}.tmp'
+            if claim or active_client_size(size_path) is None:
+                activity = time.monotonic_ns()
+            mine = f'{size_path}.{os.getpid()}.view'
+            tmp = mine + '.tmp'
             try:
                 os.unlink(tmp)
             except FileNotFoundError:
                 pass
-            fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC | os.O_NOFOLLOW, 0o600)
+            fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
             with os.fdopen(fd, 'w') as f:
-                f.write(f'{rows} {cols}')
-            # Publish to BOTH the shared file and a per-client file.
-            #
-            # The shared file is last-writer-wins, and with more than one client
-            # attached that is a size FIGHT: three clients were measured on one
-            # terminal at 53 and 54 columns, each claim reshaping the PTY, each
-            # reshape firing SIGWINCH, and every TUI on every client repainting —
-            # which is what the "it jumped to old content" reports were.
-            #
-            # Keeping the shared write is deliberate: a long-lived daemon from an
-            # older build only knows that path, and dropping it would freeze its
-            # terminal at 24x80. New daemons prefer the per-client minimum and
-            # fall back to this.
-            os.replace(tmp, size_path)
-            try:
-                mine = f'{size_path}.{os.getpid()}.client'
-                tmp2 = f'{mine}.tmp'
-                fd2 = os.open(tmp2, os.O_WRONLY | os.O_CREAT | os.O_TRUNC | os.O_NOFOLLOW, 0o600)
-                with os.fdopen(fd2, 'w') as f:
-                    f.write(f'{rows} {cols}')
-                os.replace(tmp2, mine)
-            except Exception:
-                pass
-            with open(pid_path) as f:
-                pid = int(f.read().strip())
-            os.kill(pid, signal.SIGUSR1)
-        except Exception:
+                f.write(f'{rows} {cols} {activity}')
+            os.replace(tmp, mine)
+            publish_selected_size()
+        except (OSError, ValueError):
             pass
 
-    send_resize()
+    # A passive connection observes the current owner's screen. User-driven
+    # resize/claim signals select this client; keyboard/click handlers nudge
+    # ttyd's PTY even when its local geometry hasn't otherwise changed.
+    send_resize(claim=False)
     signal.signal(signal.SIGWINCH, lambda *_: send_resize())
 
     old_attrs = termios.tcgetattr(stdin_fd)
@@ -872,11 +1280,42 @@ def cmd_attach(instance):
     attrs[6][termios.VTIME] = 0
     termios.tcsetattr(stdin_fd, termios.TCSADRAIN, attrs)
 
+    def detach_signal(signum, frame):
+        # ttyd uses SIGHUP on browser disconnect. Run finally instead of leaving
+        # a size vote behind; this also heals older, still-running daemons.
+        raise SystemExit(0)
+
+    signal.signal(signal.SIGHUP, detach_signal)
+    signal.signal(signal.SIGTERM, detach_signal)
+
+    redraw = None
+    replay_modes = ReplayModes()
+    replay_wait = True
+    resume_parser = ResumeReplayParser() if request is not None else None
+    replay_started = last_output = time.monotonic()
+    redraw_until = None
     try:
+        daemon_pid = struct.unpack('3i', sock.getsockopt(socket.SOL_SOCKET, socket.SO_PEERCRED, 12))[0]
+        prefix = b'' if request is not None else legacy_replay_prefix(instance, daemon_pid)
+        if prefix:
+            write_all(stdout_fd, prefix)
+            replay_modes.feed(prefix)
         import select as _sel
         while True:
             try:
-                rlist, _, _ = _sel.select([stdin_fd, sock.fileno()], [], [])
+                now = time.monotonic()
+                if redraw_until is not None and now >= redraw_until:
+                    finish_replay_redraw(redraw)
+                    redraw = None
+                    redraw_until = None
+                if replay_wait and (now - last_output >= 0.15 or now - replay_started >= 3):
+                    replay_wait = False
+                    if any(replay_modes.modes.get(m) for m in (47, 1047, 1049)):
+                        redraw = begin_replay_redraw(instance, daemon_pid)
+                        if redraw:
+                            redraw_until = time.monotonic() + 0.3
+                timeout = 0.05 if replay_wait or redraw_until is not None else None
+                rlist, _, _ = _sel.select([stdin_fd, sock.fileno()], [], [], timeout)
             except InterruptedError:
                 continue
 
@@ -899,10 +1338,25 @@ def cmd_attach(instance):
                         data = b''
                     if not data:
                         return
+                    if replay_wait:
+                        replay_modes.feed(resume_parser.feed(data) if resume_parser else data)
+                        last_output = time.monotonic()
                     write_all(stdout_fd, data)
     finally:
-        termios.tcsetattr(stdin_fd, termios.TCSADRAIN, old_attrs)
+        finish_replay_redraw(redraw)
+        try:
+            termios.tcsetattr(stdin_fd, termios.TCSADRAIN, old_attrs)
+        except termios.error:
+            pass  # ttyd may already have closed its PTY master
         sock.close()
+        try:
+            os.unlink(f'{size_path}.{os.getpid()}.view')
+        except FileNotFoundError:
+            pass
+        try:
+            publish_selected_size()
+        except (OSError, ValueError):
+            pass
 
 
 # ---------------------------------------------------------------------------
@@ -919,12 +1373,13 @@ def main():
 
     p = sub.add_parser('attach')
     p.add_argument('instance')
+    p.add_argument('--resume', action='store_true')
 
     args = parser.parse_args()
     if args.command == 'serve':
         cmd_serve(args.instance)
     else:
-        cmd_attach(args.instance)
+        cmd_attach(args.instance, args.resume)
 
 
 if __name__ == '__main__':

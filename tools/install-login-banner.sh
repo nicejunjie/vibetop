@@ -8,7 +8,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 command -v python3 >/dev/null || { echo 'python3 is required' >&2; exit 1; }
 for hw in /sys/class/hwmon/hwmon*; do
     if [ -r "$hw/name" ] && [ "$(cat "$hw/name")" = amdgpu ]; then
-        command -v amd-smi >/dev/null || [ -x /opt/rocm/bin/amd-smi ] || {
+        command -v amd-smi >/dev/null || [ -x /opt/soft/rocm/bin/amd-smi ] || {
             echo 'amd-smi is required to wake AMD GPUs for the login snapshot' >&2; exit 1;
         }
         break

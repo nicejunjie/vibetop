@@ -9,7 +9,9 @@
   'use strict';
   var key = 'vt-terminal-retries:' + w.location.pathname;
   var socket = null, ready = false, stopped = false, exhausted = false, panel = null;
+  var closeCode = null, closedAt = 0, resumeClosed = false, wasOffline = false;
   var since = Date.now(), phase = 'startup', retries = 0, timer;
+  var foreground = true;
   try { retries = Math.min(3, Math.max(0, +w.sessionStorage.getItem(key) || 0)); } catch (_) {}
   function log(event) {
     // No terminal output, typed input, token, query string, or socket URL.
@@ -19,7 +21,8 @@
         body: JSON.stringify({ ua: w.navigator.userAgent, guard: [{
           k: 'terminal-connection', event: event, path: w.location.pathname,
           phase: phase, elapsed: Date.now() - since, retries: retries,
-          state: socket ? socket.readyState : null
+          state: socket ? socket.readyState : null, close_code: closeCode,
+          closed_wait_ms: phase === 'closed' ? Date.now() - closedAt : null
         }] }) }).catch(function () {});
     } catch (_) {}
   }
@@ -42,17 +45,66 @@
       panel.appendChild(button);
     }
   }
+  function isForeground() {
+    if (w.document.hidden) return false;
+    try {
+      var frame = w.frameElement;
+      if (frame && (!frame.classList.contains('active') || !frame.getBoundingClientRect().width)) return false;
+    } catch (_) {}
+    return true;
+  }
   function tick() {
-    if (stopped || ready || exhausted) return;
+    if (!isForeground()) { foreground = false; return; }
+    if (!foreground) { foreground = true; since = Date.now(); }
+    if (stopped || exhausted) return;
+    // WebKit can expose CLOSED before delivering its close event. Recover a
+    // dead transport, never mistake an open, silent shell for a dead one.
+    if (socket && socket.readyState === 3 && phase !== 'closed' && phase !== 'reconnecting') {
+      if (ready) since = Date.now();
+      ready = false; phase = 'closed'; closedAt = Date.now();
+    }
+    if (ready) return;
+    if (w.navigator.onLine === false) {
+      wasOffline = true; show('Waiting for network…'); return;
+    }
+    if (wasOffline) { wasOffline = false; since = Date.now(); }
     var elapsed = Date.now() - since;
-    if (elapsed < 3000) return;
-    if (elapsed < 12000) { show('Connecting to terminal…'); return; }
+    var cleanClosed = phase === 'closed' && (closeCode === 1000 || closeCode === 1005);
+    var recoverClosed = phase === 'closed';
+    // Normal recovery starts immediately. Repeated connection failures back
+    // off without imposing the same delay on every healthy mobile reconnect.
+    var retryDelay = retries === 0 ? 0 : retries === 1 ? 1000 : 4000;
+    if (recoverClosed && retries < 3 && Date.now() - closedAt < retryDelay) return;
+    // A slow handshake / first output can still succeed on airplane WiFi.
+    // This generous deadline applies only while transport is not yet closed.
+    if (!recoverClosed && elapsed < 3000) return;
+    if (!recoverClosed && elapsed < 45000) { show('Connecting to terminal…'); return; }
     if (retries >= 3) {
+      var exhaustedOwner = w.__vibetopTtyd;
+      if (exhaustedOwner && exhaustedOwner.socket === socket && typeof exhaustedOwner.dispose === 'function') exhaustedOwner.dispose();
       show('Terminal connection failed. Retry to reconnect.', true);
       log('retry-limit'); exhausted = true; return;
     }
     show('Terminal connection stalled. Reconnecting…');
-    log('timeout'); stopped = true; w.clearInterval(timer);
+    var event = resumeClosed ? 'resume-closed' : cleanClosed ? 'clean-close' : recoverClosed ? 'closed-reconnect' : 'timeout';
+    var owner = w.__vibetopTtyd;
+    // The installer exposes ttyd's controller. Its normal connect path resets
+    // the view and restores listeners; avoid downloading / parsing HTML again.
+    // Dispose before the native close listener runs, so only one retry owns it.
+    if (recoverClosed && owner && owner.socket === socket &&
+        typeof owner.dispose === 'function' && typeof owner.refreshToken === 'function' &&
+        typeof owner.connect === 'function') {
+      log(event); owner.dispose();
+      try { w.sessionStorage.setItem(key, String(retries + 1)); }
+      catch (_) { stopped = true; show('Terminal connection failed.', true); return; }
+      retries++; since = Date.now(); phase = 'reconnecting'; resumeClosed = false;
+      log('inplace-reconnect');
+      Promise.resolve().then(function () { return owner.refreshToken(); }).then(function () {
+        if (!stopped && !exhausted && phase === 'reconnecting') owner.connect();
+      }).catch(function () { log('socket-error'); });
+      return;
+    }
+    log(event); stopped = true; w.clearInterval(timer);
     // With no persistent storage we cannot bound a cross-reload loop. Offer a
     // manual retry instead of automatically reloading forever.
     try { w.sessionStorage.setItem(key, String(retries + 1)); }
@@ -62,7 +114,7 @@
   var Native = w.WebSocket;
   function WS(url, protocols) {
     var ws = protocols === undefined ? new Native(url) : new Native(url, protocols);
-    socket = ws; ready = false; phase = 'connecting';
+    socket = ws; closeCode = null; resumeClosed = false; ready = false; phase = 'connecting';
     // Do not reset the deadline on repeated failed socket attempts.
     ws.addEventListener('open', function () { if (ws === socket) phase = 'awaiting-output'; });
     ws.addEventListener('message', function (event) {
@@ -79,10 +131,12 @@
       retries = 0;
       try { w.sessionStorage.removeItem(key); } catch (_) {}
     });
-    ws.addEventListener('close', function () {
+    ws.addEventListener('close', function (event) {
       if (ws !== socket || stopped) return;
       if (ready) since = Date.now();
-      ready = false; phase = 'closed';
+      ready = false; phase = 'closed'; closeCode = event.code; closedAt = Date.now();
+      log('socket-close');
+      tick();
     });
     ws.addEventListener('error', function () { if (ws === socket) phase = 'error'; });
     return ws;
@@ -93,8 +147,17 @@
     w.WebSocket = WS;
   }
   timer = w.setInterval(tick, 500);
+  function resume() { tick(); }
+  w.__vibetopConnectionActivate = function () {
+    resume();
+    if (stopped || ready) return;
+    show(exhausted ? 'Terminal connection failed. Retry to reconnect.' : 'Connecting to terminal…', exhausted);
+  };
+  w.document.addEventListener('visibilitychange', resume);
+  w.addEventListener('focus', resume);
+  w.addEventListener('online', resume);
   w.addEventListener('pagehide', function () { stopped = true; w.clearInterval(timer); });
   w.addEventListener('pageshow', function (e) {
-    if (e.persisted) { stopped = false; since = Date.now(); timer = w.setInterval(tick, 500); }
+    if (e.persisted) { stopped = false; since = Date.now(); foreground = isForeground(); timer = w.setInterval(tick, 500); resume(); }
   });
 });

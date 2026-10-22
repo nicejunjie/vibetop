@@ -111,7 +111,7 @@ function load(opts) {
     navigator: { userAgent: "test" },
     URLSearchParams: URLSearchParams,
     encodeURIComponent: encodeURIComponent,
-    setTimeout: setTimeout, clearTimeout: clearTimeout,
+    setTimeout: opts.setTimeout || setTimeout, clearTimeout: opts.clearTimeout || clearTimeout,
     localStorage: {
       getItem: function (k) { return Object.prototype.hasOwnProperty.call(localStore, k) ? localStore[k] : null; },
       setItem: function (k, val) { localStore[k] = String(val); },
@@ -309,4 +309,18 @@ test("a path with spaces, # and % is percent-encoded in /api/video/info and medi
       resolve();
     }, 0);
   });
+});
+
+test('a slower double click restores the playback state before fullscreen', () => {
+  let click;
+  const s=load({setTimeout(fn,ms){if(ms===250)click=fn;return 1;},clearTimeout(){}});
+  s.v._listeners.click[0]({detail:1});click();assert.strictEqual(s.v.paused,false);
+  s.v._listeners.click[0]({detail:2});s.v._listeners.dblclick[0]({preventDefault(){}});
+  assert.strictEqual(s.v.paused,true);
+});
+
+test('closing a video cancels a pending play toggle', async () => {
+  const s=load();s.v._listeners.click[0]({detail:1});s.ids['close-btn']._listeners.click[0]();
+  await new Promise(resolve=>setTimeout(resolve,300));
+  assert.strictEqual(s.v.paused,true);assert.strictEqual(s.v._playCalls,0);
 });
