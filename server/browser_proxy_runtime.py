@@ -263,7 +263,7 @@ TimeoutStopSec=10
             self._systemctl("stop", *(name + ".service" for name in names.values()))
 
     def call(self, claims, command, body):
-        if command not in ("open", "approve", "close", "heartbeat", "logins", "tabs") or not isinstance(body, dict):
+        if command not in ("open", "approve", "close", "heartbeat", "logins", "tabs", "shortcuts", "prefs") or not isinstance(body, dict):
             raise ValueError("Invalid browser control")
         uid = claims["uid"]
         slot = self.user_slots[uid]

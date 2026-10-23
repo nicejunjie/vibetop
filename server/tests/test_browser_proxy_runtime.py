@@ -121,6 +121,18 @@ def test_heartbeat_rolls_adopted_release_once_without_revoking_login(tmp_path):
     assert commands == []
 
 
+@pytest.mark.parametrize('command,body', [('shortcuts', {}), ('prefs', {'save': {'prefs': {'adblock': False}}})])
+def test_welcome_screen_stores_reach_the_daemon(tmp_path, command, body):
+    # The UI's per-user stores pass every allow-list down to the daemon, not
+    # only the bridge's (this one rejected them from v1.38.133 to v1.38.138).
+    manager, claims, _ = runtime(tmp_path)
+    manager.ready[claims['uid']] = (claims['epoch'], manager.revision)
+    sent = []
+    manager._exchange = lambda uid, cmd, data: sent.append(cmd) or (200, {'ok': True})
+    assert manager.call(claims, command, body) == (200, {'ok': True})
+    assert sent == [command]
+
+
 @pytest.mark.parametrize('revision,code', [('invalid', '/opt/release'), ('a' * 64, 'relative'),
                                          ('a' * 64, '/opt/space name'), ('a' * 64, '/opt/release\nExecStart=bad')])
 def test_invalid_release_unit_arguments_are_rejected(tmp_path, revision, code):

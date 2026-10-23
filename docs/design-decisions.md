@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_513 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_514 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [Terminal link opened a closed Browser app but lost the URL](#terminal-link-opened-a-closed-browser-app-but-lost-the-url)
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
@@ -536,6 +536,7 @@ _513 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [Browser Lite blocks ads (display network blocking + YouTube in-stream strip)](#browser-lite-blocks-ads-display-network-blocking-youtube-in-stream-strip)
 - [Browser Lite re-adopts the full Browser's Google session on every open](#browser-lite-re-adopts-the-full-browsers-google-session-on-every-open)
 - [Browser Lite engine patches must not anchor inside another patch's text](#browser-lite-engine-patches-must-not-anchor-inside-another-patchs-text)
+- [Browser Lite: the manager has a THIRD command allow-list, and YouTube needs LOGIN_INFO](#browser-lite-the-manager-has-a-third-command-allow-list-and-youtube-needs-logininfo)
 
 <!-- END TOC -->
 
@@ -20797,3 +20798,27 @@ fixtures and do not provision external infrastructure.
   twice on a copy of the live release's node_modules. **Rule:** a new engine
   patch must never put text between the characters of another patch's `to`
   string.
+
+## Browser Lite: the manager has a THIRD command allow-list, and YouTube needs LOGIN_INFO
+
+- **Symptom:** (1) Welcome-screen shortcuts and the ad-block toggle never saved
+  to the server; the manager logged `POST /api/shortcuts denied: ValueError:
+  Invalid browser control`. (2) YouTube in Lite still showed "Sign in" after the
+  Google session carry and the force re-sync.
+- **Cause:** (1) Besides the bridge's list (`Bridge.handle`) and the daemon's
+  (`runtime.cjs`), `Runtime.call()` in `browser_proxy_runtime.py` keeps its own
+  list of commands. `shortcuts`/`prefs` were never added there. The bridge test
+  mocked `runtime.call`, so no test reached it. (2) A direct request from the
+  host (no Lite) using the full Browser's own youtube.com cookies also came back
+  `LOGGED_IN:false`, and YouTube's response *deleted* SID/HSID/SSID/APISID/
+  SAPISID/`__Secure-1PSID`/`__Secure-1PAPISID`. The full Browser holds no
+  `LOGIN_INFO`, YouTube's own sign-in cookie: the owner was signed into Google
+  but never into YouTube there, so there was no YouTube session to carry. The
+  earlier assumption that "YouTube rides the SID family" was wrong.
+- **Fix:** (1) Added both commands to `Runtime.call()`, and added
+  `test_welcome_screen_stores_reach_the_daemon`, which calls the real `call()`.
+  A new UI command needs all three lists (bridge, `Runtime.call`, daemon) plus
+  the two size caps. (2) Not a Lite code fix. Sign into YouTube once in the
+  full Browser (it is one click, because Google is already signed in), so that
+  `LOGIN_INFO` exists to carry. Verify with a real Lite page load and
+  `ytcfg.LOGGED_IN`, not by inspecting cookies.
