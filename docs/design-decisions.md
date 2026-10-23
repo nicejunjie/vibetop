@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_507 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_508 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [Terminal link opened a closed Browser app but lost the URL](#terminal-link-opened-a-closed-browser-app-but-lost-the-url)
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
@@ -482,6 +482,7 @@ _507 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [Browser Lite hands Google sign-in to the real Browser](#browser-lite-hands-google-sign-in-to-the-real-browser)
 - [Browser Lite borrows site logins from the full Browser, never Google's](#browser-lite-borrows-site-logins-from-the-full-browser-never-googles)
 - [Browser Lite carries the user's own Google session](#browser-lite-carries-the-users-own-google-session)
+- [Browser Lite pins a desktop User-Agent for Google](#browser-lite-pins-a-desktop-user-agent-for-google)
 - [Browser Lite: a toolbar-opened page that server-redirects was denied](#browser-lite-a-toolbar-opened-page-that-server-redirects-was-denied)
 - [Browser Lite egress queues connections past its limit](#browser-lite-egress-queues-connections-past-its-limit)
 - [Browser Lite memoizes Hammerhead's client cookie probe and skips identical syncs](#browser-lite-memoizes-hammerheads-client-cookie-probe-and-skips-identical-syncs)
@@ -19536,6 +19537,44 @@ fixtures and do not provision external infrastructure.
 - **Rejected:** TLS/fingerprint impersonation to hide the proxy from Google.
   That is a fragile arms race and unnecessary once the already-established
   session is carried rather than re-authenticated.
+
+## Browser Lite pins a desktop User-Agent for Google
+
+- **Symptom:** With the session carried, Gmail worked from the desktop but on
+  the **phone** Google forced an interactive sign-in and then refused it:
+  "Couldn't sign you in — this browser or app may not be secure." The live log
+  showed the iPhone bounced through `accounts.google.com/v3/signin/accountchooser`
+  while the Mac loaded the inbox directly; the session cookies were present on
+  both (valid `SAPISIDHASH` calls).
+- **Cause:** A phone and a desktop reach Google through the **same** Lite runtime
+  (one per uid), the **same** shared cookie jar, and the **same** exit IP — so
+  the cookies Google receives are identical. The only signal that differs is the
+  `User-Agent`. Google ties a carried session to the kind of device it was
+  established on (the full Browser is Chromium/Linux; the user's Mac is desktop
+  Safari — both desktop, both accepted) and treats the *same* session served
+  under a **mobile** UA as a probable hijack: it forces a fresh sign-in, which a
+  rewriting proxy cannot pass (Google refuses proxy sign-in — see
+  [carries the user's own Google session](#browser-lite-carries-the-users-own-google-session)).
+  So the desktop worked and the phone could not. This was proved by elimination
+  (same IP + same jar + same cookies, desktop works / mobile fails), since Lite
+  cannot be made to reproduce the signed-in state against Google from the host
+  IP in a disposable harness.
+- **Fix:** In `gateway.cjs`, pin the upstream `User-Agent` for Google-owned hosts
+  (`isGoogleHost`: google.* incl. country TLDs, youtube, gstatic, googleapis,
+  googleusercontent, ytimg, ggpht, googlevideo, gmail, withgoogle) to one desktop
+  Safari UA (`GOOGLE_PINNED_UA`) and drop the `Sec-CH-UA*` client hints, so every
+  device the user reaches Google through looks like the same accepted desktop
+  browser. Other hosts keep the client's own UA. Test: `google-ua.test.cjs`
+  drives the real gateway over its socket and asserts the pinned UA upstream for
+  a Google host and the untouched client UA for another.
+- **Rejected:** Pinning a Chromium UA (the full Browser's) — Chromium without its
+  `Sec-CH-UA` client hints is itself anomalous; a desktop Safari UA matches the
+  no-client-hints requests Lite sends and the Mac that already works. Also
+  rejected: not carrying the session on mobile (defeats the feature) and any
+  per-request device spoofing beyond a single stable desktop identity.
+- **Side effect (accepted):** Google now serves its desktop layout to the phone.
+  The user already browsed Google desktop-style on the phone and prioritises
+  Google working.
 
 ## Browser Lite: a toolbar-opened page that server-redirects was denied
 

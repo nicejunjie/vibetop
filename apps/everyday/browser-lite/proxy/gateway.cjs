@@ -75,6 +75,19 @@ const bridgeSource=[messageTargetSource,messageGateSource,sourceTextSource,docum
 }
 let installed = false;
 function webUrl(value) { return String(value).replace(/^ws:/, 'http:').replace(/^wss:/, 'https:'); }
+// The desktop UA every Google request is pinned to (the full Browser is
+// Chromium on Linux and the user's Mac is desktop Safari; Google accepts both,
+// but rejects the same carried session under a phone's mobile UA). A desktop
+// Safari UA matches the no-client-hints requests Lite sends; keep it current.
+const GOOGLE_PINNED_UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.6.2 Safari/605.1.15';
+const GOOGLE_UA_DOMAINS = ['google.com','youtube.com','youtube-nocookie.com','googleusercontent.com','googleapis.com','gstatic.com','ggpht.com','ytimg.com','googlevideo.com','gmail.com','withgoogle.com'];
+const GOOGLE_COUNTRY_HOST = /(^|\.)google\.(com?\.)?[a-z]{2,3}$/;
+const GOOGLE_CLIENT_HINTS = ['sec-ch-ua','sec-ch-ua-mobile','sec-ch-ua-platform','sec-ch-ua-platform-version','sec-ch-ua-full-version','sec-ch-ua-full-version-list','sec-ch-ua-arch','sec-ch-ua-model','sec-ch-ua-bitness','sec-ch-ua-wow64','sec-ch-ua-form-factors'];
+function isGoogleHost(host) {
+  host = String(host || '').toLowerCase().replace(/\.$/, '');
+  if (GOOGLE_COUNTRY_HOST.test(host)) return true;
+  return GOOGLE_UA_DOMAINS.some(domain => host === domain || host.endsWith('.' + domain));
+}
 function deny(res, code = 403) {
   if(process.env.VT_BROWSER_DIAGNOSTICS==='1')console.error('Browser request denied',code,new Error().stack.split('\n')[2]?.trim());
   if (res.writeHead) { res.writeHead(code, {'Cache-Control':'no-store'}); res.end('Browser request unavailable'); }
@@ -658,6 +671,21 @@ class BrowserGateway {
     }
     if (parsed) {
       if (parsed.sessionId !== this.session.id || !this.registry.verify(req.headers.host,webUrl(parsed.destUrl))) return deny(res);
+      // Google ties a carried sign-in to the device it was established on and
+      // treats the same session served under a phone's mobile UA as a hijack:
+      // it forces an interactive sign-in ("this browser or app may not be
+      // secure") that a rewriting proxy cannot complete, so Gmail is unusable
+      // from the phone even though the desktop works. The full Browser (where
+      // the session lives) and the user's Mac both present a desktop UA, which
+      // Google accepts. Pin Google-owned hosts to one desktop UA so every
+      // device the user reaches Google through looks like the same accepted
+      // desktop browser. See docs/design-decisions.md.
+      try {
+        if (isGoogleHost(new URL(webUrl(parsed.destUrl)).hostname)) {
+          req.headers['user-agent'] = GOOGLE_PINNED_UA;
+          for (const hint of GOOGLE_CLIENT_HINTS) delete req.headers[hint];
+        }
+      } catch {}
       if(urls.parseResourceType(parsed.resourceType).isWorkerModule && parsed.resourceType!==urls.getResourceTypeString({isScript:true,isWorkerModule:true}))return deny(res);
       if(upgrade!==!!urls.parseResourceType(parsed.resourceType).isWebSocket)return deny(res);
       if(upgrade && !this.registry.isRealm && !this.registry.original(req.headers.origin))return deny(res);
