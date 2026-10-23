@@ -35,6 +35,7 @@ const {TabStore} = require('./tab-store.cjs');
 const {ShortcutStore} = require('./shortcut-store.cjs');
 const {PrefsStore} = require('./prefs-store.cjs');
 const adblock = require('./adblock-list.cjs');
+const youtubeAdblock = require('./youtube-adblock.cjs');
 const {redirectTaint,navigationFetchSite,mainFrameFetchDest} = require('./redirect-policy.cjs');
 const {ControlLedger} = require('./control-ledger.cjs');
 const {realmCacheControl} = require('./cache-policy.cjs');
@@ -225,7 +226,11 @@ class BrowserGateway {
       if(tab && !config.nested && tab.physical==='https://'+req.headers.host)config.navigation={tabId:tab.tabId,epoch:tab.epoch,...(tab.opener!==undefined?{opener:tab.opener}:{})};
       const parent=registry.isRealm && registry.realm(params.get('parent'));
       if(parent && authorizeChild(parent,req.vtRealm))config.messageParent={physical:parent.physical,original:parent.origin};
-      res.end('window.__vtBrowserConfig='+JSON.stringify(config).replace(/</g,'\\u003c')+';\n');
+      // YouTube's feed ads and a directly opened video's pre-roll are inlined in
+      // the page's data, so the ad blocker also prunes them in the page.
+      let adblockScript='';
+      if(this.adblock){try{adblockScript=youtubeAdblock.pageScript(new URL(document).hostname);}catch{}}
+      res.end('window.__vtBrowserConfig='+JSON.stringify(config).replace(/</g,'\\u003c')+';\n'+adblockScript);
     });
     this.proxy.GET('/__vt/map',(req,res) => {
       try {

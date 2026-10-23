@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_514 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_515 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [Terminal link opened a closed Browser app but lost the URL](#terminal-link-opened-a-closed-browser-app-but-lost-the-url)
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
@@ -537,6 +537,7 @@ _514 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [Browser Lite re-adopts the full Browser's Google session on every open](#browser-lite-re-adopts-the-full-browsers-google-session-on-every-open)
 - [Browser Lite engine patches must not anchor inside another patch's text](#browser-lite-engine-patches-must-not-anchor-inside-another-patchs-text)
 - [Browser Lite: the manager has a THIRD command allow-list, and YouTube needs LOGIN_INFO](#browser-lite-the-manager-has-a-third-command-allow-list-and-youtube-needs-logininfo)
+- [Browser Lite prunes YouTube ads inside the page, not only in the player API](#browser-lite-prunes-youtube-ads-inside-the-page-not-only-in-the-player-api)
 
 <!-- END TOC -->
 
@@ -20822,3 +20823,25 @@ fixtures and do not provision external infrastructure.
   full Browser (it is one click, because Google is already signed in), so that
   `LOGIN_INFO` exists to carry. Verify with a real Lite page load and
   `ytcfg.LOGGED_IN`, not by inspecting cookies.
+
+## Browser Lite prunes YouTube ads inside the page, not only in the player API
+
+- **Symptom:** With the ad blocker on, the signed-in YouTube home feed in Lite
+  still showed "Sponsored" cards (4 `adSlotRenderer` items on one load).
+- **Cause:** The server-side strip sees only ajax `youtubei/v1/player`
+  responses. Feed ads arrive in `ytInitialData`, which is inlined in the HTML.
+  Further feed pages come from `youtubei/v1/browse`. A directly opened video
+  carries its pre-roll in the inline `ytInitialPlayerResponse`.
+- **Fix:** For YouTube pages only, `/__vt/client.js` (sent fresh for each
+  document, before the site's scripts) appends `youtubePageAdblock` when the
+  ad-block toggle is on. It traps the `ytInitial*` globals with an accessor, and
+  wraps `JSON.parse` (only for strings containing an ad key) and
+  `Response.prototype.json`, so ad keys and ad items are pruned before YouTube
+  reads them. A CSS rule hides any ad element left over. This is the same
+  approach as uBlock Origin's YouTube filters.
+- **Rejected:** Pruning `brandVideoShelfRenderer`/`brandVideoSingletonRenderer`.
+  On real data the brand shelf (a "Victoria's Secret Fashion Show" shelf with
+  12 videos) had no Sponsored label and no ad markers; it is featured content,
+  not a labelled ad. Only renderers that YouTube marks as ads or promos are
+  removed. This was checked by running the pruner against the live
+  `ytInitialData` before deploying.

@@ -84,4 +84,68 @@ function unpatchLegacyYoutubeAds(engineRequire) {
   undo(async, '[pageProcessor, ' + PROCESSOR + ', ', '[pageProcessor, ');
 }
 
-module.exports = { stripPlayerAds, isPlayerUrl, patchYoutubeAds, unpatchLegacyYoutubeAds, PLAYER_URL: PLAYER_URL.source };
+// The server strip above sees only ajax player responses. The home/watch feed
+// ads ("Sponsored" cards) and a directly-opened video's pre-roll arrive inside
+// the HTML (ytInitialData / ytInitialPlayerResponse) and in other youtubei JSON
+// (browse, next). So a YouTube page also gets this script, prepended before the
+// site's own: it prunes ad entries out of that data as YouTube assigns or
+// parses it (the same approach as uBlock Origin's YouTube filters), and hides
+// any ad element that still renders. Self-contained: it is sent as source.
+function youtubePageAdblock() {
+  if (window.__vtYtAdblock) return;
+  window.__vtYtAdblock = true;
+  var KEYS = {adPlacements: 1, playerAds: 1, adSlots: 1, adBreakHeartbeatParams: 1, adPlaybackConfig: 1, mastheadAd: 1};
+  var ITEM = /^(adSlotRenderer|inFeedAdLayoutRenderer|adSlotAndLayoutRenderer|promotedSparklesWebRenderer|promotedVideoRenderer|compactPromotedVideoRenderer|searchPyvRenderer|bannerPromoRenderer|statementBannerRenderer|primetimePromoRenderer)$/;
+  var HINT = /"(adPlacements|playerAds|adSlots|adSlotRenderer|mastheadAd|inFeedAdLayoutRenderer|promoted[A-Za-z]*Renderer|searchPyvRenderer|bannerPromoRenderer)"/;
+  function isAd(item) {
+    if (!item || typeof item !== 'object') return false;
+    for (var key in item) {
+      if (ITEM.test(key)) return true;
+      if ((key === 'richItemRenderer' || key === 'richSectionRenderer') && item[key] && isAd(item[key].content)) return true;
+    }
+    return false;
+  }
+  function prune(value, depth) {
+    if (!value || typeof value !== 'object' || depth > 80) return value;
+    if (Array.isArray(value)) {
+      for (var i = value.length - 1; i >= 0; i--) { if (isAd(value[i])) value.splice(i, 1); else prune(value[i], depth + 1); }
+      return value;
+    }
+    for (var key in value) {
+      if (KEYS[key]) delete value[key]; else prune(value[key], depth + 1);
+    }
+    return value;
+  }
+  window.__vtYtPrune = prune;
+  var parse = JSON.parse;
+  JSON.parse = function (text) {
+    var value = parse.apply(this, arguments);
+    try { if (typeof text === 'string' && text.length > 200 && HINT.test(text)) prune(value, 0); } catch (e) {}
+    return value;
+  };
+  if (window.Response && Response.prototype.json) {
+    var json = Response.prototype.json;
+    Response.prototype.json = function () {
+      return json.apply(this, arguments).then(function (value) { try { prune(value, 0); } catch (e) {} return value; });
+    };
+  }
+  ['ytInitialData', 'ytInitialPlayerResponse', 'ytInitialReelWatchSequenceResponse'].forEach(function (name) {
+    var held;
+    try {
+      Object.defineProperty(window, name, {configurable: true, enumerable: true,
+        get: function () { return held; }, set: function (value) { try { held = prune(value, 0); } catch (e) { held = value; } }});
+    } catch (e) {}
+  });
+  try {
+    var style = document.createElement('style');
+    style.textContent = 'ytd-ad-slot-renderer,ytd-in-feed-ad-layout-renderer,ytd-banner-promo-renderer,ytd-statement-banner-renderer,'
+      + 'ytd-promoted-sparkles-web-renderer,ytd-promoted-video-renderer,ytd-compact-promoted-video-renderer,ytd-search-pyv-renderer,'
+      + '#masthead-ad,#player-ads,ytd-rich-item-renderer:has(ytd-ad-slot-renderer),ytd-rich-section-renderer:has(ytd-statement-banner-renderer),'
+      + 'ytm-promoted-sparkles-web-renderer,ytm-companion-ad-renderer,ad-slot-renderer{display:none!important}';
+    (document.head || document.documentElement).appendChild(style);
+  } catch (e) {}
+}
+const YOUTUBE_HOST = /(^|\.)(youtube|youtube-nocookie)\.com$/i;
+const pageScript = host => YOUTUBE_HOST.test(String(host || '')) ? '(' + youtubePageAdblock + ')();\n' : '';
+
+module.exports = { stripPlayerAds, isPlayerUrl, patchYoutubeAds, unpatchLegacyYoutubeAds, pageScript, youtubePageAdblock, PLAYER_URL: PLAYER_URL.source };
