@@ -306,7 +306,62 @@
   };
   $('continue-here').onclick=()=>{if(active?.returnUrl)go(active.returnUrl);};
   $('dismiss').onclick=()=>{$('notice').hidden=true;};
-  $('new-tab').onclick=()=>newTab();for(const button of document.querySelectorAll('[data-url]'))button.onclick=()=>go(button.dataset.url);
+  $('new-tab').onclick=()=>newTab();
+  // Quick-launch shortcuts on the welcome screen. Saved per Vibetop user, on
+  // this device and (like the tabs) on the server, so they follow to any
+  // device. Until the user edits them the built-in set shows and nothing is
+  // stored; the first add or remove commits the list as it then stands.
+  const DEFAULT_SHORTCUTS=[{name:'Google',url:'https://www.google.com/'},{name:'Wikipedia',url:'https://www.wikipedia.org/'},{name:'GitHub',url:'https://github.com/'},{name:'X',url:'https://x.com/'},{name:'ChatGPT',url:'https://chatgpt.com/'},{name:'Claude',url:'https://claude.ai/'}];
+  const SHORTCUT_KEY=profile?'vt-lite-shortcuts:'+profile:'',MAX_SHORTCUTS=24;
+  let shortcuts=null;// null = never customised, so the defaults show
+  const shortcutList=()=>shortcuts||DEFAULT_SHORTCUTS;
+  function cleanShortcuts(list){
+    if(!Array.isArray(list))return null;
+    const seen=new Set(),out=[];
+    for(const item of list){
+      if(!item||typeof item.url!=='string')continue;
+      let url;try{url=new URL(item.url);}catch{continue;}
+      if(!['http:','https:'].includes(url.protocol)||url.username||url.password||seen.has(url.href))continue;seen.add(url.href);
+      out.push({name:(typeof item.name==='string'&&item.name.trim()?item.name.trim():url.hostname.replace(/^www\./,'')).slice(0,60),url:url.href});
+      if(out.length>=MAX_SHORTCUTS)break;
+    }
+    return out;
+  }
+  function renderShortcuts(){
+    const box=$('shortcuts');box.textContent='';
+    for(const item of shortcutList()){
+      const tile=document.createElement('span');tile.className='shortcut';
+      const open=document.createElement('button');open.type='button';open.className='open';open.textContent=item.name;open.title=item.url;open.onclick=()=>go(item.url);
+      const remove=document.createElement('button');remove.type='button';remove.className='remove';remove.textContent='×';remove.setAttribute('aria-label','Remove '+item.name);
+      remove.onclick=event=>{event.stopPropagation();removeShortcut(item.url);};
+      tile.append(open,remove);box.append(tile);
+    }
+    const add=document.createElement('button');add.type='button';add.className='add';add.textContent='+ Add';add.setAttribute('aria-label','Add a shortcut');
+    add.onclick=()=>{const form=$('add-shortcut');form.hidden=!form.hidden;if(!form.hidden)$('shortcut-url').focus();};
+    box.append(add);
+  }
+  function persistShortcuts(){
+    try{if(SHORTCUT_KEY)localStorage.setItem(SHORTCUT_KEY,JSON.stringify(shortcuts));}catch{}
+    if(SHORTCUT_KEY&&!LOCAL_ONLY)request('shortcuts',{save:{shortcuts}}).catch(()=>{});
+  }
+  function addShortcut(name,value){
+    let url;try{url=address(value);}catch(error){status(error.message,true);return false;}
+    const list=shortcutList().slice();
+    if(list.some(item=>item.url===url)){status('That shortcut is already here.');return true;}
+    if(list.length>=MAX_SHORTCUTS){status('Remove a shortcut before adding another.',true);return false;}
+    let host='';try{host=new URL(url).hostname.replace(/^www\./,'');}catch{}
+    list.push({name:((name||'').trim()||host).slice(0,60),url});
+    shortcuts=list;persistShortcuts();renderShortcuts();return true;
+  }
+  function removeShortcut(url){shortcuts=shortcutList().filter(item=>item.url!==url);persistShortcuts();renderShortcuts();}
+  $('add-shortcut').onsubmit=event=>{event.preventDefault();if(addShortcut($('shortcut-name').value,$('shortcut-url').value)){$('shortcut-name').value='';$('shortcut-url').value='';$('add-shortcut').hidden=true;}};
+  $('add-cancel').onclick=()=>{$('add-shortcut').hidden=true;$('shortcut-name').value='';$('shortcut-url').value='';};
+  try{const raw=SHORTCUT_KEY?localStorage.getItem(SHORTCUT_KEY):null;if(raw){const parsed=cleanShortcuts(JSON.parse(raw));if(parsed)shortcuts=parsed;}}catch{}
+  renderShortcuts();
+  if(SHORTCUT_KEY&&!LOCAL_ONLY)request('shortcuts',{}).then(result=>{
+    const parsed=cleanShortcuts(result&&result.shortcuts);
+    if(parsed){shortcuts=parsed;try{localStorage.setItem(SHORTCUT_KEY,JSON.stringify(parsed));}catch{}renderShortcuts();}
+  }).catch(()=>{});
   document.addEventListener('keydown',event=>{if((event.ctrlKey||event.metaKey)&&event.key.toLowerCase()==='l'){event.preventDefault();$('address').focus();$('address').select();}});
   const heartbeat=()=>request('heartbeat',{clients:[...tabs.values()].filter(tab=>tab.controller.serverState).map(tab=>tab.controller.clientId)}).then(result=>{
     for(const tab of tabs.values())if(result.expired?.includes(tab.controller.clientId))reopen(tab);

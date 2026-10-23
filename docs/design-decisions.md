@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_508 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_509 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [Terminal link opened a closed Browser app but lost the URL](#terminal-link-opened-a-closed-browser-app-but-lost-the-url)
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
@@ -531,6 +531,7 @@ _508 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [Browser Lite and Google: the exit address, not the proxy, triggers /sorry/](#browser-lite-and-google-the-exit-address-not-the-proxy-triggers-sorry)
 - [Browser Lite continues by itself after a Google sign-in in the full Browser](#browser-lite-continues-by-itself-after-a-google-sign-in-in-the-full-browser)
 - [Browser Lite keeps a still-loading page in history when the next address is typed](#browser-lite-keeps-a-still-loading-page-in-history-when-the-next-address-is-typed)
+- [Browser Lite: the welcome-screen quick-launch shortcuts are user-editable](#browser-lite-the-welcome-screen-quick-launch-shortcuts-are-user-editable)
 
 <!-- END TOC -->
 
@@ -20656,3 +20657,25 @@ fixtures and do not provision external infrastructure.
   Also: the toolbar posts its "ready" only to the host page that loaded it
   (the document referrer), instead of to every allowed host, which logged a
   console error on each UI load.
+
+## Browser Lite: the welcome-screen quick-launch shortcuts are user-editable
+
+- **Symptom:** The welcome screen's quick-launch tiles (Google, Wikipedia,
+  GitHub, X, ChatGPT, Claude) were a fixed set hardcoded in `wrapper.html`.
+  The owner wanted to add their own sites.
+- **Cause:** The tiles were static `<button data-url>` elements wired once in
+  `wrapper.js`; there was no store for a user's own list.
+- **Fix:** `#shortcuts` is now rendered from data. The built-in six are the
+  default and nothing is stored until the user edits; the first add or remove
+  commits the list as it then stands, so a removed default stays removed. A
+  "+ Add" tile reveals an inline name/address form (the address goes through
+  the same `address()` normalisation as the toolbar), and each tile has a ×
+  remove. The list is saved per Vibetop user both on the device
+  (`localStorage` key `vt-lite-shortcuts:<profile>`) and on the server, so it
+  follows to any device — the same two-copy scheme the saved tabs use, and it
+  honours the same `vt-lite-tabs-local-only` opt-out (test browsers never
+  overwrite the user's list). Server side mirrors `TabStore`: a new
+  `shortcut-store.cjs` (`ShortcutStore`) writes `shortcuts.json` beside the
+  cookie jar, reached by a `shortcuts` control command in `gateway.cjs`
+  (allow-listed in `runtime.cjs` with a 20 KB cap). Tests:
+  `shortcut-store.test.cjs`.

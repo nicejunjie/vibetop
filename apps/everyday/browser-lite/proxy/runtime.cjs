@@ -28,12 +28,12 @@ async function main(config) {
     res.setHeader('Content-Type','application/json');
     let body;
     try {
-      if (req.method !== 'POST' || !['/open','/approve','/close','/heartbeat','/revoke-lease','/logins','/tabs'].includes(req.url)) { res.writeHead(404);res.end('{}');return; }
+      if (req.method !== 'POST' || !['/open','/approve','/close','/heartbeat','/revoke-lease','/logins','/tabs','/shortcuts'].includes(req.url)) { res.writeHead(404);res.end('{}');return; }
       let size=0;const chunks=[];
       for await (const chunk of req) {
         size+=chunk.length;
         // An "open" may carry one site's logins from the full Browser.
-        if (size > (['/open','/logins'].includes(req.url) ? 160 * 1024 : req.url==='/tabs' ? 96 * 1024 : 8192)) { res.writeHead(413);res.end('{}');return; }
+        if (size > (['/open','/logins'].includes(req.url) ? 160 * 1024 : req.url==='/tabs' ? 96 * 1024 : req.url==='/shortcuts' ? 20 * 1024 : 8192)) { res.writeHead(413);res.end('{}');return; }
         chunks.push(chunk);
       }
       body = JSON.parse(Buffer.concat(chunks));

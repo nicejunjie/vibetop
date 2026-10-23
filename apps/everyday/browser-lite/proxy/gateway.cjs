@@ -32,6 +32,7 @@ const {playlistRange} = require('./hls-patch.cjs');
 const {realmSyncCookies} = require('./sync-cookie-policy.cjs');
 const {CookieStore} = require('./cookie-store.cjs');
 const {TabStore} = require('./tab-store.cjs');
+const {ShortcutStore} = require('./shortcut-store.cjs');
 const {redirectTaint,navigationFetchSite,mainFrameFetchDest} = require('./redirect-policy.cjs');
 const {ControlLedger} = require('./control-ledger.cjs');
 const {realmCacheControl} = require('./cache-policy.cjs');
@@ -136,7 +137,8 @@ class BrowserGateway {
     this.session.setExternalProxySettings(externalProxy.replace(/^http:\/\//,''));
     this.session.disableHttp2();
     this.cookieStore=new CookieStore({file:cookieFile});
-    this.tabStore=new TabStore(cookieFile?path.join(path.dirname(cookieFile),'tabs.json'):null);this.cookieStore.get('main',this.session.cookies);
+    this.tabStore=new TabStore(cookieFile?path.join(path.dirname(cookieFile),'tabs.json'):null);
+    this.shortcutStore=new ShortcutStore(cookieFile?path.join(path.dirname(cookieFile),'shortcuts.json'):null);this.cookieStore.get('main',this.session.cookies);
     this.session.requestHookEventProvider.hasRequestEventListeners = () => true;
     this.session.handleServiceMessage = async () => { throw new Error('Unsupported browser service command'); };
     if(registry.isRealm) {
@@ -330,6 +332,10 @@ class BrowserGateway {
         +' device='+String(report.device).replace(/[^a-z]/g,'').slice(0,12)+' count='+(Number(report.count)|0));
       if(body.save!==undefined)return {saved:!!this.tabStore.save(body.save)};
       return {tabs:this.tabStore.load()};
+    }
+    if(command==='shortcuts') {
+      if(body.save!==undefined)return {saved:!!this.shortcutStore.save(body.save)};
+      return {shortcuts:this.shortcutStore.load()};
     }
     if(command==='heartbeat') {
       if(!Array.isArray(body.clients)||body.clients.length>128)throw new Error('Invalid browser heartbeat');
