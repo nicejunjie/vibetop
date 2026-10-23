@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_517 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_518 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [Terminal link opened a closed Browser app but lost the URL](#terminal-link-opened-a-closed-browser-app-but-lost-the-url)
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
@@ -540,6 +540,7 @@ _517 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [Browser Lite prunes YouTube ads inside the page, not only in the player API](#browser-lite-prunes-youtube-ads-inside-the-page-not-only-in-the-player-api)
 - [Browser Lite keeps its own Google session alive; v1.38.137's forced re-sync reverted](#browser-lite-keeps-its-own-google-session-alive-v138137s-forced-re-sync-reverted)
 - [Browser Lite frames delegate fullscreen](#browser-lite-frames-delegate-fullscreen)
+- [Browser Lite guards History methods taken from a hidden about:blank iframe (YouTube)](#browser-lite-guards-history-methods-taken-from-a-hidden-aboutblank-iframe-youtube)
 
 <!-- END TOC -->
 
@@ -20885,3 +20886,27 @@ fixtures and do not provision external infrastructure.
   page frame can navigate to another realm origin without being recreated, and
   a bare `fullscreen` only allows the frame's original `src` origin. Sandbox
   flags (and the realm CSP `sandbox` directive) do not govern fullscreen.
+
+## Browser Lite guards History methods taken from a hidden about:blank iframe (YouTube)
+
+- **Symptom:** YouTube in Lite showed "Something went wrong" after a few
+  minutes of playing. After autoplay moved to the next video, the page's real
+  address was `https://bl-u…/watch?v=…`, with the realm prefix gone. YouTube's
+  `replaceState` threw "Blocked attempt to use history.replaceState()".
+- **Cause:** YouTube's `bindHistoryStateFunctions` creates a hidden
+  `about:blank` iframe (`sandbox="allow-same-origin"`) and binds that frame's
+  `history.pushState`/`replaceState` to the page's own `window.history`, to get
+  untouched natives. No script runs in that frame (no `allow-scripts`), so
+  neither hammerhead nor Lite is installed there. The frame's native method
+  resolved relative URLs against the realm host (prefix lost) and rejected
+  absolute ones. All direct call forms (`.call`, `.apply`, `.bind`, saved
+  references) were already rewritten correctly; only the cross-frame binding
+  escaped. This was reproduced on example.com in WebKit and Chromium with
+  YouTube's exact steps.
+- **Fix:** `document-history.js`, which runs in every Lite document, wraps the
+  `HTMLIFrameElement` `contentWindow`/`contentDocument` getters. The first time
+  a frame's window is read, its `History.prototype.pushState`/`replaceState`
+  are replaced, from the parent (same-origin, so this is allowed), by methods
+  that defer to the target history's own methods whenever they are called on
+  another window's history. A frame's own history keeps its native behaviour.
+  Test: `frame-history-guard.test.cjs`.

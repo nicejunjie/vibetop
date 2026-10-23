@@ -1,5 +1,42 @@
 (function () {
   'use strict';
+  // YouTube (and others) take pushState/replaceState from a hidden about:blank
+  // iframe, to get untouched natives, and bind them to this page's history. No
+  // script runs in that frame (its sandbox lacks allow-scripts), so its native
+  // methods wrote the raw, unproxied URL into this page's history: the address
+  // lost its realm prefix (relative URLs) or threw SecurityError (absolute
+  // ones), and the page broke soon after. Guard such frames from here: their
+  // History methods, called on another window's history, defer to that
+  // history's own (proxying) methods.
+  const guarded=new WeakSet();
+  function guardFrame(win) {
+    try {
+      if(!win||win===window||guarded.has(win))return;
+      const own=win.history,proto=own&&Object.getPrototypeOf(own);
+      if(!proto)return;
+      guarded.add(win);
+      for(const name of ['pushState','replaceState']) {
+        const nativeMethod=proto[name];
+        if(typeof nativeMethod!=='function')continue;
+        const method={[name](...args){
+          if(this!==own){const target=this&&this[name];if(typeof target==='function'&&target!==method)return target.apply(this,args);}
+          return nativeMethod.apply(this,args);
+        }}[name];
+        Object.defineProperty(proto,name,{configurable:true,writable:true,value:method});
+      }
+    } catch {}
+  }
+  if(typeof HTMLIFrameElement==='function') {
+    for(const prop of ['contentWindow','contentDocument']) {
+      const descriptor=Object.getOwnPropertyDescriptor(HTMLIFrameElement.prototype,prop);
+      if(!descriptor||!descriptor.get)continue;
+      Object.defineProperty(HTMLIFrameElement.prototype,prop,{configurable:true,enumerable:descriptor.enumerable,get(){
+        const value=descriptor.get.call(this);
+        guardFrame(prop==='contentWindow'?value:value&&value.defaultView);
+        return value;
+      }});
+    }
+  }
   // Compatibility journal, not an authorization boundary. Native iframe history
   // belongs to the whole host page, so a virtual tab must not traverse it.
   window.vibetopInstallHistory=function({native,originalUrl,changed,navigate}) {
