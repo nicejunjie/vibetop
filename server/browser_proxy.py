@@ -352,10 +352,12 @@ class Bridge:
                 return self.reply(handler, 200, content, mime)
             self.check_post_origin(handler.headers)
             command = target.path.removeprefix("/api/")
-            if command not in ("open", "approve", "close", "heartbeat", "tabs", "logins-check"):
+            if command not in ("open", "approve", "close", "heartbeat", "tabs", "shortcuts", "logins-check"):
                 return self.reply(handler, 404)
-            # Saved tabs (with back/forward lists) outgrow a control command.
-            body = json.loads(self.read_body(handler, "application/json", 96 * 1024 if command == "tabs" else 6144))
+            # Saved tabs (with back/forward lists) outgrow a control command;
+            # the welcome-screen shortcut list is small but still over the base.
+            body = json.loads(self.read_body(handler, "application/json",
+                              96 * 1024 if command == "tabs" else 20 * 1024 if command == "shortcuts" else 6144))
             if command == "logins-check":
                 url = body.get("url") if isinstance(body, dict) else None
                 return self.reply(handler, 200, {"digest": self.logins_digest(claims["uid"], url) if isinstance(url, str) else ""},
