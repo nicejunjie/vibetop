@@ -145,6 +145,7 @@ require('./worker-module-patch.cjs').patchWorkerModuleKind(engineRequire);
 require('./modern-script-patch.cjs').patchModernScripts(engineRequire);
 require('./optional-chain-patch.cjs').patchOptionalChains(engineRequire);
 require('./worker-origin-patch.cjs').patchWorkerOrigins(engineRequire);
+require('./youtube-adblock.cjs').unpatchLegacyYoutubeAds(engineRequire);
 require('./hls-patch.cjs').patchHlsPlaylists(engineRequire);
 require('./youtube-adblock.cjs').patchYoutubeAds(engineRequire);
 require('./template-patch.cjs').patchTemplates(engineRequire);

@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_512 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_513 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [Terminal link opened a closed Browser app but lost the URL](#terminal-link-opened-a-closed-browser-app-but-lost-the-url)
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
@@ -535,6 +535,7 @@ _512 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [Browser Lite: YouTube signed-in needs the apex google.com identity cookies](#browser-lite-youtube-signed-in-needs-the-apex-googlecom-identity-cookies)
 - [Browser Lite blocks ads (display network blocking + YouTube in-stream strip)](#browser-lite-blocks-ads-display-network-blocking-youtube-in-stream-strip)
 - [Browser Lite re-adopts the full Browser's Google session on every open](#browser-lite-re-adopts-the-full-browsers-google-session-on-every-open)
+- [Browser Lite engine patches must not anchor inside another patch's text](#browser-lite-engine-patches-must-not-anchor-inside-another-patchs-text)
 
 <!-- END TOC -->
 
@@ -20778,3 +20779,21 @@ fixtures and do not provision external infrastructure.
   `login-import.test.cjs`.
 - **Related:** [Browser Lite carries the user's own Google session](#browser-lite-carries-the-users-own-google-session),
   [Browser Lite: YouTube signed-in needs the apex google.com identity cookies](#browser-lite-youtube-signed-in-needs-the-apex-googlecom-identity-cookies).
+
+## Browser Lite engine patches must not anchor inside another patch's text
+
+- **Symptom:** The v1.38.137 deploy failed in `build-engine.cjs`: the HLS patch
+  threw "HLS patch anchor changed" although the HLS patch had not changed.
+- **Cause:** A release rebuild reuses the previous release's node_modules, which
+  are *already patched*, and re-runs every patch. Each patch stays idempotent
+  only by finding its own inserted text intact (`source.includes(to)`).
+  v1.38.136's YouTube ad-strip patch inserted its processor and its
+  `isYoutubeAds` line *inside* the HLS patch's inserted text. The next rebuild's
+  HLS patch therefore found neither its anchor nor its result, and threw.
+- **Fix:** The YouTube patch now anchors clear of the HLS text: the declaration
+  goes before `requireProcessing`, and the processor goes between the manifest
+  and script processors. `unpatchLegacyYoutubeAds` runs before the HLS patch to
+  remove the old placement from a reused tree. This was verified by rebuilding
+  twice on a copy of the live release's node_modules. **Rule:** a new engine
+  patch must never put text between the characters of another patch's `to`
+  string.

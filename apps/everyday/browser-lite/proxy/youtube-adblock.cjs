@@ -38,6 +38,21 @@ function isPlayerUrl(url) { return PLAYER_URL.test(String(url || '')); }
 // ajax response, which Hammerhead otherwise streams untouched) and run it
 // through an ad-stripping resource processor. Mirrors hls-patch.cjs. Gated on
 // this.session.vtAdblock so there is zero cost when the toggle is off.
+//
+// Releases rebuild by re-running every patch over the previous release's
+// already-patched node_modules, so each patch must leave the text other patches
+// look for intact. These anchors sit clear of the HLS patch's inserted text
+// (v1.38.136 inserted inside it, and the next rebuild's HLS patch threw).
+const DECL = 'const isYoutubeAds = this.isAjax && !!(this.session && this.session.vtAdblock)'
+  + ' && ' + PLAYER_URL.toString() + '.test(this.dest.url)'
+  + ' && /json/i.test(contentType) && this.destRes.statusCode === 200;';
+const PROCESSOR = '{shouldProcessResource: ctx => !!ctx.contentInfo.isYoutubeAds, '
+  + 'processResource: (body, _ctx, _charset, _urlReplacer) => (' + stripPlayerAds + ')(body)}';
+const engineFiles = engineRequire => {
+  const lib = name => engineRequire.resolve('testcafe-hammerhead/lib/' + name);
+  return {context: lib('request-pipeline/context/index.js'), resources: lib('processing/resources/index.js'),
+    async: engineRequire.resolve('./src/util/patchAsyncResourceProcessor.js')};
+};
 function patchYoutubeAds(engineRequire) {
   function patch(file, from, to) {
     let source = fs.readFileSync(file, 'utf8');
@@ -45,25 +60,28 @@ function patchYoutubeAds(engineRequire) {
     if (source.split(from).length !== 2) throw new Error('YouTube ads patch anchor changed: ' + from);
     fs.writeFileSync(file, source.replace(from, () => to));
   }
-  const lib = name => engineRequire.resolve('testcafe-hammerhead/lib/' + name);
-  const context = lib('request-pipeline/context/index.js');
-  patch(context,
-    'const isHls = !this.isAjax &&',
-    'const isYoutubeAds = this.isAjax && !!(this.session && this.session.vtAdblock)'
-    + ' && ' + PLAYER_URL.toString() + '.test(this.dest.url)'
-    + " && /json/i.test(contentType) && this.destRes.statusCode === 200;\n        const isHls = !this.isAjax &&");
-  patch(context,
-    'const requireProcessing = !this.isAjax &&',
-    'const requireProcessing = isYoutubeAds || !this.isAjax &&');
+  const {context, resources, async} = engineFiles(engineRequire);
+  patch(context, 'const requireProcessing = !this.isAjax &&',
+    DECL + '\n        const requireProcessing = isYoutubeAds || !this.isAjax &&');
   patch(context, '            isManifest,\n            isHls,\n', '            isManifest,\n            isHls,\n            isYoutubeAds,\n');
-  const processor = '{shouldProcessResource: ctx => !!ctx.contentInfo.isYoutubeAds, '
-    + 'processResource: (body, _ctx, _charset, _urlReplacer) => (' + stripPlayerAds + ')(body)}';
-  patch(lib('processing/resources/index.js'),
-    'const RESOURCE_PROCESSORS = [page_1.default, {shouldProcessResource: ctx => !!ctx.contentInfo.isHls,',
-    'const RESOURCE_PROCESSORS = [page_1.default, ' + processor + ', {shouldProcessResource: ctx => !!ctx.contentInfo.isHls,');
-  patch(engineRequire.resolve('./src/util/patchAsyncResourceProcessor.js'),
-    'const RESOURCE_PROCESSORS = [pageProcessor, {shouldProcessResource: ctx => !!ctx.contentInfo.isHls,',
-    'const RESOURCE_PROCESSORS = [pageProcessor, ' + processor + ', {shouldProcessResource: ctx => !!ctx.contentInfo.isHls,');
+  patch(resources, 'manifest_1.default, script_1.default', 'manifest_1.default, ' + PROCESSOR + ', script_1.default');
+  patch(async, 'manifestProcessor, scriptProcessor', 'manifestProcessor, ' + PROCESSOR + ', scriptProcessor');
+}
+// Undo the v1.38.136 placement in a reused tree, so the HLS patch finds its own
+// text again. Runs before the HLS patch; a no-op on a fresh or current tree.
+function unpatchLegacyYoutubeAds(engineRequire) {
+  function undo(file, legacy, original) {
+    const source = fs.readFileSync(file, 'utf8');
+    if (source.includes(legacy)) fs.writeFileSync(file, source.replace(legacy, () => original));
+  }
+  const {context, resources, async} = engineFiles(engineRequire);
+  const legacyDecl = DECL + '\n        const isHls = !this.isAjax &&';
+  if (fs.readFileSync(context, 'utf8').includes(legacyDecl)) {
+    undo(context, legacyDecl, 'const isHls = !this.isAjax &&');
+    undo(context, 'const requireProcessing = isYoutubeAds || !this.isAjax &&', 'const requireProcessing = !this.isAjax &&');
+  }
+  undo(resources, '[page_1.default, ' + PROCESSOR + ', ', '[page_1.default, ');
+  undo(async, '[pageProcessor, ' + PROCESSOR + ', ', '[pageProcessor, ');
 }
 
-module.exports = { stripPlayerAds, isPlayerUrl, patchYoutubeAds, PLAYER_URL: PLAYER_URL.source };
+module.exports = { stripPlayerAds, isPlayerUrl, patchYoutubeAds, unpatchLegacyYoutubeAds, PLAYER_URL: PLAYER_URL.source };
