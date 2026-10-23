@@ -721,7 +721,14 @@ class BrowserGateway {
       if (this.adblock && !upgrade && req.headers['sec-fetch-dest'] !== 'document') {
         try {
           if (adblock.blocks(new URL(webUrl(parsed.destUrl)).hostname)) {
-            res.writeHead(204, {'Cache-Control': 'no-store'}); res.end(); return true;
+            // An empty answer, not a network error: a page's CORS request (YouTube
+            // asks doubleclick for an ad ID) gets the headers it needs to read it.
+            const headers = {'Cache-Control': 'no-store'};
+            if (req.headers.origin) Object.assign(headers, {'Access-Control-Allow-Origin': req.headers.origin,
+              'Access-Control-Allow-Credentials': 'true', 'Vary': 'Origin'});
+            if (req.method === 'OPTIONS') Object.assign(headers, {'Access-Control-Allow-Methods': req.headers['access-control-request-method'] || 'GET',
+              'Access-Control-Allow-Headers': req.headers['access-control-request-headers'] || '', 'Access-Control-Max-Age': '600'});
+            res.writeHead(204, headers); res.end(); return true;
           }
         } catch {}
       }

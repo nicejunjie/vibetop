@@ -20910,3 +20910,7 @@ fixtures and do not provision external infrastructure.
   that defer to the target history's own methods whenever they are called on
   another window's history. A frame's own history keeps its native behaviour.
   Test: `frame-history-guard.test.cjs`.
+- **Also:** The ad blocker's empty `204` for a blocked host now carries CORS
+  headers (the request's `Origin`, credentials, and a preflight answer). Without
+  them, YouTube's credentialed XHR to `doubleclick.net/pagead/id` failed as a
+  network/CORS error every two minutes instead of reading an empty response.
