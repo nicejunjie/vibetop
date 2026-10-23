@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_515 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_516 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [Terminal link opened a closed Browser app but lost the URL](#terminal-link-opened-a-closed-browser-app-but-lost-the-url)
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
@@ -538,6 +538,7 @@ _515 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [Browser Lite engine patches must not anchor inside another patch's text](#browser-lite-engine-patches-must-not-anchor-inside-another-patchs-text)
 - [Browser Lite: the manager has a THIRD command allow-list, and YouTube needs LOGIN_INFO](#browser-lite-the-manager-has-a-third-command-allow-list-and-youtube-needs-logininfo)
 - [Browser Lite prunes YouTube ads inside the page, not only in the player API](#browser-lite-prunes-youtube-ads-inside-the-page-not-only-in-the-player-api)
+- [Browser Lite keeps its own Google session alive; v1.38.137's forced re-sync reverted](#browser-lite-keeps-its-own-google-session-alive-v138137s-forced-re-sync-reverted)
 
 <!-- END TOC -->
 
@@ -20845,3 +20846,27 @@ fixtures and do not provision external infrastructure.
   not a labelled ad. Only renderers that YouTube marks as ads or promos are
   removed. This was checked by running the pruner against the live
   `ytInitialData` before deploying.
+
+## Browser Lite keeps its own Google session alive; v1.38.137's forced re-sync reverted
+
+- **Symptom:** The owner wants to use Lite without ever opening the full
+  Browser. v1.38.137 made every Google open in Lite re-adopt the full Browser's
+  saved Google cookies (`force`). A full Browser that sits unused keeps aging
+  session tokens, so each Lite open would roll Lite back to them. Meanwhile
+  Google was refreshing Lite's own copy on every Lite request.
+- **Cause:** v1.38.137 rested on a wrong diagnosis ("the two browsers' rotating
+  tokens diverge"). The real YouTube failure was the missing `LOGIN_INFO`. The
+  original rule was also flawed: "keep Lite's cookie unless the full Browser
+  changed it after Lite's last sync of that site" kept the last-sync time only
+  in memory. Every runtime restart (each deploy) reset it, so the next open
+  replaced Lite's fresher cookies anyway.
+- **Fix:** Removed `force`. Last-sync times now persist per site in
+  `login-sync.json` beside the cookie jar (`SyncTimes` in `login-import.cjs`,
+  mode 0600, bounded to 4096 sites). Lite keeps the cookies Google refreshes on
+  its own requests across restarts. A real new sign-in in the full Browser
+  (cookies changed after the last sync) still carries in. The sync stays one
+  way: Lite never writes into the full Browser's Chromium cookie database,
+  because modifying a running browser's store could corrupt it. The full
+  Browser is needed only to sign in.
+  Test: "a cookie Lite earned since the last sync survives a runtime restart".
+- **Supersedes:** [Browser Lite re-adopts the full Browser's Google session on every open](#browser-lite-re-adopts-the-full-browsers-google-session-on-every-open).

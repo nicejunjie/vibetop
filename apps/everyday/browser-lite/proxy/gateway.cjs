@@ -24,7 +24,7 @@ const {rewriteImportMap} = require('./import-map.cjs');
 const {framePolicies} = require('./frame-policy.cjs');
 const {authorizeRequest,sourceRecord} = require('./realm-gate.cjs');
 const {cookieContext,mainContext,childContext,authorizeChild,authorizeResource,site} = require('./realm-policy.cjs');
-const {importLogins} = require('./login-import.cjs');
+const {importLogins,SyncTimes} = require('./login-import.cjs');
 const {WorkerStore} = require('./worker-store.cjs');
 const {NavigationTransactions} = require('./navigation.cjs');
 const {BodyBudget} = require('./body-budget.cjs');
@@ -145,6 +145,7 @@ class BrowserGateway {
     // Ad blocker: on by default, per-user toggle synced like tabs/shortcuts. The
     // flag drives both the display-ad host block in gate() and (via the session)
     // the YouTube in-stream ad strip the engine runs.
+    this.loginSync=new SyncTimes(cookieFile?path.join(path.dirname(cookieFile),'login-sync.json'):null);
     this.prefsStore=new PrefsStore(cookieFile?path.join(path.dirname(cookieFile),'prefs.json'):null);
     this.applyPrefs(this.prefsStore.load());
     this.session.requestHookEventProvider.hasRequestEventListeners = () => true;
@@ -368,13 +369,8 @@ class BrowserGateway {
   }
   syncLogins(url,cookies) {
     let key;try{key=site(url);}catch{return;}
-    this.loginSync ||= new Map();
-    // Google's shared session must always track the full Browser's (its
-    // rotating anti-theft tokens sign Lite out if Lite keeps its own copies),
-    // so a Google host re-adopts the carried session on every open.
-    let googleHost=false;try{googleHost=isGoogleHost(new URL(url).hostname);}catch{}
-    const now=Date.now(),changed=importLogins(this.session.cookies,url,cookies,{lastSync:this.loginSync.get(key)||0,now,force:googleHost});
-    this.loginSync.set(key,now);if(this.loginSync.size>4096)this.loginSync.delete(this.loginSync.keys().next().value);
+    const now=Date.now(),changed=importLogins(this.session.cookies,url,cookies,{lastSync:this.loginSync.get(key),now});
+    this.loginSync.set(key,now);
     if(changed)this.cookieStore.save();
   }
   validIngress(identity) {

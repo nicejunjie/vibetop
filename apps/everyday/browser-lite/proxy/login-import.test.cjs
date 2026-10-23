@@ -29,18 +29,26 @@ test('cookies for other sites, expired cookies and malformed ones are ignored',(
   assert.equal(importLogins(jar,'ftp://chatgpt.com/',[cookie('g','7')],{now:NOW}),0);
   assert.equal(importLogins(jar,'https://www.chatgpt.com/',[cookie('h','8')],{now:NOW}),1);
 });
-test('force re-adopts the Browser session even when Lite rotated its own (Google)',()=>{
-  const jar=new Cookies();
-  const google=(name,value,extra={})=>cookie(name,value,{domain:'google.com',...extra});
-  importLogins(jar,'https://www.google.com/',[google('__Secure-1PSIDTS','browser-v1')],{now:NOW});
-  // Lite rotates its own copy to a value Google issued it later (newer than the
-  // last sync) -- the default guard would keep Lite's copy...
-  importLogins(jar,'https://www.google.com/',[google('__Secure-1PSIDTS','lite-rotated',{updated:NOW+5000})],{lastSync:NOW,now:NOW+1});
-  assert.match(jar.getHeader({url:'https://www.google.com/',hostname:'www.google.com'})||'',/__Secure-1PSIDTS=lite-rotated/);
-  // ...but on the next Google open, force makes Lite re-adopt the full
-  // Browser's current value even though it is "older" than Lite's copy.
-  assert.equal(importLogins(jar,'https://www.google.com/',[google('__Secure-1PSIDTS','browser-v2',{updated:NOW+100})],{lastSync:NOW+10000,now:NOW+2,force:true}),1);
-  assert.match(jar.getHeader({url:'https://www.google.com/',hostname:'www.google.com'})||'',/__Secure-1PSIDTS=browser-v2/);
-  // An unchanged value is still a no-op under force (no needless churn).
-  assert.equal(importLogins(jar,'https://www.google.com/',[google('__Secure-1PSIDTS','browser-v2',{updated:NOW+100})],{lastSync:0,now:NOW+3,force:true}),0);
+test("a cookie Lite earned since the last sync survives a runtime restart",()=>{
+  const fs=require('node:fs'),os=require('node:os'),path=require('node:path');
+  const {SyncTimes}=require('./login-import.cjs');
+  const dir=fs.mkdtempSync(path.join(os.tmpdir(),'vt-sync-')),file=path.join(dir,'login-sync.json');
+  try {
+    const jar=new Cookies(),url='https://www.google.com/';
+    const google=(value,updated)=>[cookie('__Secure-1PSIDTS',value,{domain:'google.com',updated})];
+    // First open carries the full Browser's session.
+    let times=new SyncTimes(file);
+    importLogins(jar,url,google('browser',NOW-1000),{lastSync:times.get('google.com'),now:NOW});times.set('google.com',NOW);
+    // Google then refreshes Lite's own copy on a Lite request.
+    importLogins(jar,url,google('lite-fresh',NOW+10),{now:NOW+10});
+    // Lite restarts: the sync time is read back from disk, so the full
+    // Browser's unchanged (older) copy does not roll Lite back.
+    times=new SyncTimes(file);
+    assert.equal(times.get('google.com'),NOW);
+    assert.equal(importLogins(jar,url,google('browser',NOW-1000),{lastSync:times.get('google.com'),now:NOW+20}),0);
+    assert.match(jar.getHeader({url,hostname:'www.google.com'})||'',/__Secure-1PSIDTS=lite-fresh/);
+    // A fresh sign-in in the full Browser (changed after the last sync) still wins.
+    assert.equal(importLogins(jar,url,google('browser-new',NOW+50),{lastSync:times.get('google.com'),now:NOW+60}),1);
+    assert.equal((fs.statSync(file).mode&0o777),0o600);
+  } finally {fs.rmSync(dir,{recursive:true,force:true});}
 });
