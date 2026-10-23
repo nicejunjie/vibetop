@@ -364,7 +364,11 @@ class BrowserGateway {
   syncLogins(url,cookies) {
     let key;try{key=site(url);}catch{return;}
     this.loginSync ||= new Map();
-    const now=Date.now(),changed=importLogins(this.session.cookies,url,cookies,{lastSync:this.loginSync.get(key)||0,now});
+    // Google's shared session must always track the full Browser's (its
+    // rotating anti-theft tokens sign Lite out if Lite keeps its own copies),
+    // so a Google host re-adopts the carried session on every open.
+    let googleHost=false;try{googleHost=isGoogleHost(new URL(url).hostname);}catch{}
+    const now=Date.now(),changed=importLogins(this.session.cookies,url,cookies,{lastSync:this.loginSync.get(key)||0,now,force:googleHost});
     this.loginSync.set(key,now);if(this.loginSync.size>4096)this.loginSync.delete(this.loginSync.keys().next().value);
     if(changed)this.cookieStore.save();
   }

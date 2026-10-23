@@ -29,3 +29,18 @@ test('cookies for other sites, expired cookies and malformed ones are ignored',(
   assert.equal(importLogins(jar,'ftp://chatgpt.com/',[cookie('g','7')],{now:NOW}),0);
   assert.equal(importLogins(jar,'https://www.chatgpt.com/',[cookie('h','8')],{now:NOW}),1);
 });
+test('force re-adopts the Browser session even when Lite rotated its own (Google)',()=>{
+  const jar=new Cookies();
+  const google=(name,value,extra={})=>cookie(name,value,{domain:'google.com',...extra});
+  importLogins(jar,'https://www.google.com/',[google('__Secure-1PSIDTS','browser-v1')],{now:NOW});
+  // Lite rotates its own copy to a value Google issued it later (newer than the
+  // last sync) -- the default guard would keep Lite's copy...
+  importLogins(jar,'https://www.google.com/',[google('__Secure-1PSIDTS','lite-rotated',{updated:NOW+5000})],{lastSync:NOW,now:NOW+1});
+  assert.match(jar.getHeader({url:'https://www.google.com/',hostname:'www.google.com'})||'',/__Secure-1PSIDTS=lite-rotated/);
+  // ...but on the next Google open, force makes Lite re-adopt the full
+  // Browser's current value even though it is "older" than Lite's copy.
+  assert.equal(importLogins(jar,'https://www.google.com/',[google('__Secure-1PSIDTS','browser-v2',{updated:NOW+100})],{lastSync:NOW+10000,now:NOW+2,force:true}),1);
+  assert.match(jar.getHeader({url:'https://www.google.com/',hostname:'www.google.com'})||'',/__Secure-1PSIDTS=browser-v2/);
+  // An unchanged value is still a no-op under force (no needless churn).
+  assert.equal(importLogins(jar,'https://www.google.com/',[google('__Secure-1PSIDTS','browser-v2',{updated:NOW+100})],{lastSync:0,now:NOW+3,force:true}),0);
+});

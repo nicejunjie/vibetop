@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_511 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_512 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [Terminal link opened a closed Browser app but lost the URL](#terminal-link-opened-a-closed-browser-app-but-lost-the-url)
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
@@ -534,6 +534,7 @@ _511 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [Browser Lite: the welcome-screen quick-launch shortcuts are user-editable](#browser-lite-the-welcome-screen-quick-launch-shortcuts-are-user-editable)
 - [Browser Lite: YouTube signed-in needs the apex google.com identity cookies](#browser-lite-youtube-signed-in-needs-the-apex-googlecom-identity-cookies)
 - [Browser Lite blocks ads (display network blocking + YouTube in-stream strip)](#browser-lite-blocks-ads-display-network-blocking-youtube-in-stream-strip)
+- [Browser Lite re-adopts the full Browser's Google session on every open](#browser-lite-re-adopts-the-full-browsers-google-session-on-every-open)
 
 <!-- END TOC -->
 
@@ -20748,3 +20749,32 @@ fixtures and do not provision external infrastructure.
 - **Related:** [Browser Lite carries the user's own Google session](#browser-lite-carries-the-users-own-google-session),
   [Browser Lite: YouTube signed-in needs the apex google.com identity cookies](#browser-lite-youtube-signed-in-needs-the-apex-googlecom-identity-cookies),
   [the welcome-screen quick-launch shortcuts are user-editable](#browser-lite-the-welcome-screen-quick-launch-shortcuts-are-user-editable).
+
+## Browser Lite re-adopts the full Browser's Google session on every open
+
+- **Symptom:** With the owner signed into Google in the full Browser and the
+  session carried into Lite, Gmail/YouTube would work briefly then show
+  "signed out" again — even though Lite's cookie jar still held the complete,
+  correctly-scoped, unexpired Google identity cookie set.
+- **Cause:** Google binds a signed-in session to one browser via rotating
+  anti-theft tokens (`__Secure-1PSIDTS`/`__Secure-3PSIDTS`, `SIDCC`). Lite and
+  the full Browser share one SID but each rotates those tokens on its own
+  requests, so they diverge and Google treats Lite's copy as a hijacked session.
+  `importLogins`' guard ("keep the cookie Lite already has unless the Browser
+  changed it after Lite's last sync") made this worse: once Lite rotated a
+  token, its copy looked newer, so a later carry would *not* overwrite it, and
+  Lite kept drifting away from the full Browser's session.
+- **Fix:** `syncLogins` passes `force=true` to `importLogins` for a Google-owned
+  host (`isGoogleHost`), so every Google open re-adopts the full Browser's
+  current session cookies instead of Lite's self-rotated ones — Lite follows the
+  browser the user actually signs in on. Safe because anti-bot clearance tokens
+  are never carried in the first place (`browser_login_sync` excludes them), so
+  a forced replace can only touch Google's own session cookies; the value-equal
+  short-circuit keeps it a no-op when nothing changed. Best-effort: Google's
+  rotation means a session used heavily in *both* browsers at once can still be
+  signed out, but each Lite page load now re-syncs to a valid session.
+  Interactive Google sign-in inside Lite remains refused by Google (by design —
+  the user signs in on the full Browser). Test: the `force` case in
+  `login-import.test.cjs`.
+- **Related:** [Browser Lite carries the user's own Google session](#browser-lite-carries-the-users-own-google-session),
+  [Browser Lite: YouTube signed-in needs the apex google.com identity cookies](#browser-lite-youtube-signed-in-needs-the-apex-googlecom-identity-cookies).
