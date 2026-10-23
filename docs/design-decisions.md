@@ -20881,7 +20881,7 @@ fixtures and do not provision external infrastructure.
   it did not: the `#browser` frame in `browser-lite.html` and the page frames
   that `wrapper.js` `pageFrame()` creates. So `document.fullscreenEnabled` was
   false in every Lite page (verified on example.com).
-- **Fix:** Both frames carry `allow="fullscreen *"`. The `*` is needed because a
+- **Fix:** Both frames carry `allow="fullscreen *"` plus the legacy `allowfullscreen` (which Safari honours). The `*` is needed because a
   page frame can navigate to another realm origin without being recreated, and
   a bare `fullscreen` only allows the frame's original `src` origin. Sandbox
   flags (and the realm CSP `sandbox` directive) do not govern fullscreen.
