@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_510 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_511 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [Terminal link opened a closed Browser app but lost the URL](#terminal-link-opened-a-closed-browser-app-but-lost-the-url)
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
@@ -533,6 +533,7 @@ _510 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [Browser Lite keeps a still-loading page in history when the next address is typed](#browser-lite-keeps-a-still-loading-page-in-history-when-the-next-address-is-typed)
 - [Browser Lite: the welcome-screen quick-launch shortcuts are user-editable](#browser-lite-the-welcome-screen-quick-launch-shortcuts-are-user-editable)
 - [Browser Lite: YouTube signed-in needs the apex google.com identity cookies](#browser-lite-youtube-signed-in-needs-the-apex-googlecom-identity-cookies)
+- [Browser Lite blocks ads (display network blocking + YouTube in-stream strip)](#browser-lite-blocks-ads-display-network-blocking-youtube-in-stream-strip)
 
 <!-- END TOC -->
 
@@ -20705,3 +20706,45 @@ fixtures and do not provision external infrastructure.
   asserts the cross-domain carry and that chatgpt.com stays clean.
 - **Related:** [Browser Lite carries the user's own Google session](#browser-lite-carries-the-users-own-google-session),
   [Browser Lite pins a desktop User-Agent for Google](#browser-lite-pins-a-desktop-user-agent-for-google).
+
+## Browser Lite blocks ads (display network blocking + YouTube in-stream strip)
+
+- **Symptom:** The owner found Browser Lite "太特么多广告" — too many ads,
+  YouTube's pre/mid-roll video ads worst of all.
+- **Cause:** Lite is a server-side rewriting proxy that faithfully fetches
+  everything a page asks for, ads included. Two different ad problems: display/
+  banner/overlay ads load from dedicated ad/tracker domains, while YouTube's
+  in-stream ads are **not** a separate domain — they are negotiated inside the
+  `youtubei/v1/player` API JSON and the ad video arrives from `googlevideo.com`,
+  the very host the real video uses, so they cannot be blocked by domain.
+- **Fix:** Two mechanisms, both enforced **in the rewriter** (never in the
+  hardened egress guard, so the security unit is untouched and the toggle is
+  dynamic), gated by a per-user on-by-default toggle:
+  1. *Display ads:* `adblock-list.cjs` holds a curated set of ad/tracker
+     registrable domains (doubleclick, googlesyndication, adnxs, criteo, …) with
+     an O(labels) suffix matcher. `gate()` in `gateway.cjs` answers a matching
+     subresource host `204 No Content` (top-level navigations are left alone).
+     Every entry is its own SLD; a hardcoded `NEVER` list (the whole Google
+     family — googlevideo/youtube/google.com/gstatic/googleapis/…) short-circuits
+     to "allow", so the carried Google session and YouTube playback can never be
+     caught. No `*.google.com` host is ever blocked.
+  2. *YouTube in-stream:* `youtube-adblock.cjs` strips `adPlacements`,
+     `playerAds`, `adSlots`, `adBreakHeartbeatParams` and
+     `playerConfig.adPlaybackConfig` out of the player API JSON as it passes
+     through. `build-engine.cjs` teaches the pinned engine to buffer that one
+     ajax JSON response and run an ad-stripping resource processor over it
+     (mirroring `hls-patch.cjs`); it is gated on `this.session.vtAdblock` so
+     there is zero cost when off, and returns the body untouched on any parse
+     failure so a YouTube format change can only let an ad back in, never break
+     playback. This is cat-and-mouse and needs occasional upkeep.
+- **Toggle:** `prefs-store.cjs` (`prefs.json` beside the cookie jar, default
+  `adblock:true`) mirrors `ShortcutStore`; a `prefs` control command in
+  `gateway.cjs` (allow-listed in `runtime.cjs`, `browser_proxy.py` and
+  `browser_proxy_runtime.py` with a 4 KB cap) updates `this.adblock` and the
+  session flag live. The welcome-screen "Block ads" switch syncs per user on the
+  device (`vt-lite-adblock:<profile>`) and on the server like the shortcuts and
+  tabs. Tests: `adblock-list.test.cjs`, `youtube-adblock.test.cjs`,
+  `prefs-store.test.cjs`, `test_adblock_pref_passes_through_to_the_user_runtime`.
+- **Related:** [Browser Lite carries the user's own Google session](#browser-lite-carries-the-users-own-google-session),
+  [Browser Lite: YouTube signed-in needs the apex google.com identity cookies](#browser-lite-youtube-signed-in-needs-the-apex-googlecom-identity-cookies),
+  [the welcome-screen quick-launch shortcuts are user-editable](#browser-lite-the-welcome-screen-quick-launch-shortcuts-are-user-editable).

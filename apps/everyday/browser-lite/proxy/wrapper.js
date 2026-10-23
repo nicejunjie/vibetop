@@ -362,6 +362,22 @@
     const parsed=cleanShortcuts(result&&result.shortcuts);
     if(parsed){shortcuts=parsed;try{localStorage.setItem(SHORTCUT_KEY,JSON.stringify(parsed));}catch{}renderShortcuts();}
   }).catch(()=>{});
+  // Ad blocker toggle. On by default; synced per Vibetop user on this device
+  // and (like the shortcuts and tabs) on the server, so it follows to any
+  // device. Takes effect on the next page load, not retroactively.
+  const ADBLOCK_KEY=profile?'vt-lite-adblock:'+profile:'';
+  let adblockOn=(()=>{try{const v=ADBLOCK_KEY?localStorage.getItem(ADBLOCK_KEY):null;return v===null?true:v==='1';}catch{return true;}})();
+  const setAdblockUI=on=>{if($('adblock-toggle'))$('adblock-toggle').checked=on;};
+  setAdblockUI(adblockOn);
+  function persistAdblock(){
+    try{if(ADBLOCK_KEY)localStorage.setItem(ADBLOCK_KEY,adblockOn?'1':'0');}catch{}
+    if(ADBLOCK_KEY&&!LOCAL_ONLY)request('prefs',{save:{adblock:adblockOn}}).catch(()=>{});
+  }
+  if($('adblock-toggle'))$('adblock-toggle').onchange=event=>{adblockOn=!!event.target.checked;persistAdblock();status(adblockOn?'Ad blocker on — reload a page to apply.':'Ad blocker off — reload a page to apply.');};
+  if(ADBLOCK_KEY&&!LOCAL_ONLY)request('prefs',{}).then(result=>{
+    const prefs=result&&result.prefs;
+    if(prefs&&typeof prefs.adblock==='boolean'){adblockOn=prefs.adblock;setAdblockUI(adblockOn);try{localStorage.setItem(ADBLOCK_KEY,adblockOn?'1':'0');}catch{}}
+  }).catch(()=>{});
   document.addEventListener('keydown',event=>{if((event.ctrlKey||event.metaKey)&&event.key.toLowerCase()==='l'){event.preventDefault();$('address').focus();$('address').select();}});
   const heartbeat=()=>request('heartbeat',{clients:[...tabs.values()].filter(tab=>tab.controller.serverState).map(tab=>tab.controller.clientId)}).then(result=>{
     for(const tab of tabs.values())if(result.expired?.includes(tab.controller.clientId))reopen(tab);

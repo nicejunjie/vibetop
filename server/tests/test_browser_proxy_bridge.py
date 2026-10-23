@@ -305,6 +305,25 @@ def test_welcome_shortcuts_pass_through_to_the_user_runtime():
     assert "cookies" not in calls[0][1]
 
 
+def test_adblock_pref_passes_through_to_the_user_runtime():
+    # The ad-blocker toggle is saved per user via its own command, like shortcuts.
+    bridge, lease = setup()
+    calls = []
+    bridge.runtime.call = lambda claims, command, body: calls.append((command, body)) or (200, {"saved": True, "prefs": {"adblock": False}})
+    body = json.dumps({"save": {"prefs": {"adblock": False}}}).encode()
+    outgoing = []
+    handler = SimpleNamespace(path="/__browser_proxy/ui", command="POST",
+        headers=headers(Host="browser-lite.example.com", X_Forwarded_Proto="https", X_Original_URI="/api/prefs",
+                        Origin=bridge.auth.ui_origin, Sec_Fetch_Site="same-origin", Content_Type="application/json",
+                        Content_Length=str(len(body)), Cookie=UI_COOKIE + "=" + bridge.auth.mint("ui", lease)),
+        connection=SimpleNamespace(settimeout=lambda value: None), rfile=io.BytesIO(body), wfile=io.BytesIO(),
+        send_response=outgoing.append, send_header=lambda *args: None, end_headers=lambda: None)
+    bridge.handle(handler)
+    assert outgoing == [200]
+    assert calls[0][0] == "prefs" and calls[0][1]["save"]["prefs"]["adblock"] is False
+    assert "cookies" not in calls[0][1]
+
+
 def test_browser_logins_skips_users_without_a_browser_profile_and_caches_answers(monkeypatch, tmp_path):
     import pwd
     import subprocess

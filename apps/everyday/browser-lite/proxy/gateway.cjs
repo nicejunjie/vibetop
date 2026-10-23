@@ -33,6 +33,8 @@ const {realmSyncCookies} = require('./sync-cookie-policy.cjs');
 const {CookieStore} = require('./cookie-store.cjs');
 const {TabStore} = require('./tab-store.cjs');
 const {ShortcutStore} = require('./shortcut-store.cjs');
+const {PrefsStore} = require('./prefs-store.cjs');
+const adblock = require('./adblock-list.cjs');
 const {redirectTaint,navigationFetchSite,mainFrameFetchDest} = require('./redirect-policy.cjs');
 const {ControlLedger} = require('./control-ledger.cjs');
 const {realmCacheControl} = require('./cache-policy.cjs');
@@ -139,6 +141,11 @@ class BrowserGateway {
     this.cookieStore=new CookieStore({file:cookieFile});
     this.tabStore=new TabStore(cookieFile?path.join(path.dirname(cookieFile),'tabs.json'):null);
     this.shortcutStore=new ShortcutStore(cookieFile?path.join(path.dirname(cookieFile),'shortcuts.json'):null);this.cookieStore.get('main',this.session.cookies);
+    // Ad blocker: on by default, per-user toggle synced like tabs/shortcuts. The
+    // flag drives both the display-ad host block in gate() and (via the session)
+    // the YouTube in-stream ad strip the engine runs.
+    this.prefsStore=new PrefsStore(cookieFile?path.join(path.dirname(cookieFile),'prefs.json'):null);
+    this.applyPrefs(this.prefsStore.load());
     this.session.requestHookEventProvider.hasRequestEventListeners = () => true;
     this.session.handleServiceMessage = async () => { throw new Error('Unsupported browser service command'); };
     if(registry.isRealm) {
@@ -314,6 +321,12 @@ class BrowserGateway {
     res.writeHead(302,{'Location':target,'Cache-Control':'no-store','Referrer-Policy':'strict-origin-when-cross-origin'});res.end();
     return true;
   }
+  applyPrefs(prefs) {
+    this.adblock=!!(prefs&&prefs.adblock);
+    // The engine reads this off the session to decide whether to strip YouTube
+    // in-stream ads from the player API response.
+    if(this.session)this.session.vtAdblock=this.adblock;
+  }
   control(command,{authorization,cookies,...body}) {
     if(this.ingressIdentity && !this.validIngress(authorization))throw new Error('Invalid control identity');
     // Only the root manager adds cookies (the full Browser's, for this site).
@@ -336,6 +349,10 @@ class BrowserGateway {
     if(command==='shortcuts') {
       if(body.save!==undefined)return {saved:!!this.shortcutStore.save(body.save)};
       return {shortcuts:this.shortcutStore.load()};
+    }
+    if(command==='prefs') {
+      if(body.save!==undefined){const prefs=this.prefsStore.save(body.save);if(prefs)this.applyPrefs(prefs);return {saved:!!prefs,prefs:prefs||this.prefsStore.load()};}
+      return {prefs:this.prefsStore.load()};
     }
     if(command==='heartbeat') {
       if(!Array.isArray(body.clients)||body.clients.length>128)throw new Error('Invalid browser heartbeat');
@@ -692,6 +709,17 @@ class BrowserGateway {
           for (const hint of GOOGLE_CLIENT_HINTS) delete req.headers[hint];
         }
       } catch {}
+      // Ad blocker (network): refuse a known ad/tracker host so the subresource
+      // never loads. Subresources only -- a top-level document navigation is
+      // left alone -- and never a Google-owned host (adblock.blocks guards the
+      // whole Google family, so the carried session and YouTube video survive).
+      if (this.adblock && !upgrade && req.headers['sec-fetch-dest'] !== 'document') {
+        try {
+          if (adblock.blocks(new URL(webUrl(parsed.destUrl)).hostname)) {
+            res.writeHead(204, {'Cache-Control': 'no-store'}); res.end(); return true;
+          }
+        } catch {}
+      }
       if(urls.parseResourceType(parsed.resourceType).isWorkerModule && parsed.resourceType!==urls.getResourceTypeString({isScript:true,isWorkerModule:true}))return deny(res);
       if(upgrade!==!!urls.parseResourceType(parsed.resourceType).isWebSocket)return deny(res);
       if(upgrade && !this.registry.isRealm && !this.registry.original(req.headers.origin))return deny(res);

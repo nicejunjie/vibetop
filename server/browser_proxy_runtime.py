@@ -315,7 +315,7 @@ TimeoutStopSec=10
     def _exchange(self, uid, command, data):
         # "open" may carry the full Browser's cookies for one site (login sync).
         if len(data) > (160 * 1024 if command in ("open", "logins") else 96 * 1024 if command == "tabs"
-                        else 20 * 1024 if command == "shortcuts" else 8192):
+                        else 20 * 1024 if command == "shortcuts" else 4 * 1024 if command == "prefs" else 8192):
             raise ValueError("Browser control too large")
         with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as sock:
             sock.settimeout(20)
