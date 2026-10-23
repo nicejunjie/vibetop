@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_516 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_517 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [Terminal link opened a closed Browser app but lost the URL](#terminal-link-opened-a-closed-browser-app-but-lost-the-url)
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
@@ -539,6 +539,7 @@ _516 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [Browser Lite: the manager has a THIRD command allow-list, and YouTube needs LOGIN_INFO](#browser-lite-the-manager-has-a-third-command-allow-list-and-youtube-needs-logininfo)
 - [Browser Lite prunes YouTube ads inside the page, not only in the player API](#browser-lite-prunes-youtube-ads-inside-the-page-not-only-in-the-player-api)
 - [Browser Lite keeps its own Google session alive; v1.38.137's forced re-sync reverted](#browser-lite-keeps-its-own-google-session-alive-v138137s-forced-re-sync-reverted)
+- [Browser Lite frames delegate fullscreen](#browser-lite-frames-delegate-fullscreen)
 
 <!-- END TOC -->
 
@@ -20870,3 +20871,17 @@ fixtures and do not provision external infrastructure.
   Browser is needed only to sign in.
   Test: "a cookie Lite earned since the last sync survives a runtime restart".
 - **Supersedes:** [Browser Lite re-adopts the full Browser's Google session on every open](#browser-lite-re-adopts-the-full-browsers-google-session-on-every-open).
+
+## Browser Lite frames delegate fullscreen
+
+- **Symptom:** YouTube in Lite said "Full screen is unavailable".
+- **Cause:** Fullscreen is controlled by Permissions Policy: a cross-origin
+  iframe may enter fullscreen only if its `<iframe>` element allows it. The
+  desktop shell's app window allowed `fullscreen`, but the two Lite layers below
+  it did not: the `#browser` frame in `browser-lite.html` and the page frames
+  that `wrapper.js` `pageFrame()` creates. So `document.fullscreenEnabled` was
+  false in every Lite page (verified on example.com).
+- **Fix:** Both frames carry `allow="fullscreen *"`. The `*` is needed because a
+  page frame can navigate to another realm origin without being recreated, and
+  a bare `fullscreen` only allows the frame's original `src` origin. Sandbox
+  flags (and the realm CSP `sandbox` directive) do not govern fullscreen.

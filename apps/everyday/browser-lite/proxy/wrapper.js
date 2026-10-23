@@ -200,7 +200,7 @@
   // and frameOrder mirrors the browser's numbering. The popup is told its
   // opener's number with each open command (it reaches its page config).
   let spare=null;const frameOrder=[];
-  function pageFrame(){const frame=document.createElement('iframe');frame.title='Webpage';frame.setAttribute('referrerpolicy','origin');frame.setAttribute('sandbox','allow-scripts allow-same-origin allow-forms allow-downloads allow-modals allow-pointer-lock');return frame;}
+  function pageFrame(){const frame=document.createElement('iframe');frame.title='Webpage';frame.setAttribute('referrerpolicy','origin');frame.setAttribute('allow','fullscreen *');frame.setAttribute('sandbox','allow-scripts allow-same-origin allow-forms allow-downloads allow-modals allow-pointer-lock');return frame;}
   function attachFrame(frame){$('stage').append(frame);frameOrder.push(frame);}
   function detachFrame(frame){const at=frameOrder.indexOf(frame);if(at>=0)frameOrder.splice(at,1);}
   function ensureSpare(){if(spare){detachFrame(spare);spare.remove();}spare=pageFrame();spare.hidden=true;attachFrame(spare);}
