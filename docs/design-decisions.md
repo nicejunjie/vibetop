@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_509 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_510 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [Terminal link opened a closed Browser app but lost the URL](#terminal-link-opened-a-closed-browser-app-but-lost-the-url)
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
@@ -532,6 +532,7 @@ _509 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [Browser Lite continues by itself after a Google sign-in in the full Browser](#browser-lite-continues-by-itself-after-a-google-sign-in-in-the-full-browser)
 - [Browser Lite keeps a still-loading page in history when the next address is typed](#browser-lite-keeps-a-still-loading-page-in-history-when-the-next-address-is-typed)
 - [Browser Lite: the welcome-screen quick-launch shortcuts are user-editable](#browser-lite-the-welcome-screen-quick-launch-shortcuts-are-user-editable)
+- [Browser Lite: YouTube signed-in needs the apex google.com identity cookies](#browser-lite-youtube-signed-in-needs-the-apex-googlecom-identity-cookies)
 
 <!-- END TOC -->
 
@@ -20679,3 +20680,28 @@ fixtures and do not provision external infrastructure.
   cookie jar, reached by a `shortcuts` control command in `gateway.cjs`
   (allow-listed in `runtime.cjs` with a 20 KB cap). Tests:
   `shortcut-store.test.cjs`.
+
+## Browser Lite: YouTube signed-in needs the apex google.com identity cookies
+
+- **Symptom:** With the user's own Google session carried into Lite, Gmail and
+  Drive worked but YouTube failed with Google's "Sorry, we found some errors:
+  Invalid url forwarding parameter / Sorry, your login was incorrect."
+- **Cause:** `browser_login_sync.py` carried cookies strictly per host
+  (`domain_matches`). Opening `youtube.com` attached only `.youtube.com`
+  cookies. But a signed-in Google page authenticates across the whole family:
+  youtube.com's page calls `accounts.google.com` / `*.google.com`
+  (ListAccounts, the OneGoogleBar, identity consistency), which read the
+  session cookies on the apex `.google.com`. Those were absent from Lite's jar
+  (they are only synced when a `google.com` host is opened — which is why Gmail
+  worked), so the identity calls arrived signed out and Google bounced to an
+  interactive sign-in it then refuses through a rewriting proxy — and the
+  rewritten `continue=` target made it "Invalid url forwarding parameter".
+- **Fix:** For any Google-owned host (`_google_family`, incl. country
+  `google.<tld>`), `cookies_for` also carries the apex `google.com` identity
+  cookies (`SID`, `SAPISID`, `__Secure-1PSID`/`3PSID`, …) alongside the host's
+  own, mirroring what the full Browser holds. A non-Google site never picks
+  them up. Verified against the real profile (youtube.com went 11 -> 29 cookies
+  spanning youtube.com + google.com); `test_google_session_carries_into_lite`
+  asserts the cross-domain carry and that chatgpt.com stays clean.
+- **Related:** [Browser Lite carries the user's own Google session](#browser-lite-carries-the-users-own-google-session),
+  [Browser Lite pins a desktop User-Agent for Google](#browser-lite-pins-a-desktop-user-agent-for-google).

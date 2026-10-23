@@ -56,8 +56,16 @@ def test_google_session_carries_into_lite(tmp_path):
     path = profile(tmp_path, [(".google.com", "SID", "g"), (".youtube.com", "LOGIN_INFO", "y"), (".google.co.uk", "NID", "n")])
     assert {c["name"] for c in sync.cookies_for(path, "www.google.com", now_us=NOW)} == {"SID"}
     assert {c["name"] for c in sync.cookies_for(path, "mail.google.com", now_us=NOW)} == {"SID"}
-    assert {c["name"] for c in sync.cookies_for(path, "www.youtube.com", now_us=NOW)} == {"LOGIN_INFO"}
-    assert {c["name"] for c in sync.cookies_for(path, "www.google.co.uk", now_us=NOW)} == {"NID"}
+    # A Google-owned host carries BOTH its own cookies and the apex google.com
+    # identity cookies, so a signed-in youtube.com page's accounts.google.com
+    # identity calls are not signed out.
+    assert {c["name"] for c in sync.cookies_for(path, "www.youtube.com", now_us=NOW)} == {"LOGIN_INFO", "SID"}
+    assert {c["name"] for c in sync.cookies_for(path, "www.google.co.uk", now_us=NOW)} == {"NID", "SID"}
+    # A non-Google site never picks up the google.com identity cookies.
+    other_dir = tmp_path / "other"
+    other_dir.mkdir()
+    other = profile(other_dir, [(".google.com", "SID", "g"), (".chatgpt.com", "session", "s")])
+    assert {c["name"] for c in sync.cookies_for(other, "chatgpt.com", now_us=NOW)} == {"session"}
     for host in ("accounts.google.com", "www.google.com", "www.youtube.com", "chatgpt.com"):
         assert not sync.excluded(host)
 

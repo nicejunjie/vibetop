@@ -7,8 +7,11 @@ session cookies -- including Google's -- from the full Browser into Browser
 Lite, so a site the user is already signed into (Gmail, Drive, YouTube, or any
 site that used "Sign in with Google") loads already signed in. No new Google
 sign-in happens inside Lite, so Google's rewriting-proxy sign-in block is never
-hit; Lite simply presents the session the full Browser already established. This
-reuses only the host owner's own account on their own machine. See
+hit; Lite simply presents the session the full Browser already established. For
+a Google-owned host it also carries the apex google.com identity cookies, since
+a signed-in Google page authenticates across the whole family (youtube.com's
+page calls accounts.google.com, etc.). This reuses only the host owner's own
+account on their own machine. See
 docs/design-decisions.md "Browser Lite carries the user's own Google session".
 """
 import hashlib
@@ -44,6 +47,26 @@ _SAMESITE = {0: "none", 1: "lax", 2: "strict"}
 def excluded(host):
     host = host.lower().rstrip(".")
     return any(host == site or host.endswith("." + site) for site in EXCLUDED_SITES)
+
+
+# Google-owned hosts authenticate across the whole Google identity family: a
+# signed-in youtube.com (or any Google property) page also talks to
+# accounts.google.com / *.google.com (ListAccounts, the OneGoogleBar, identity
+# consistency). Those calls read the session cookies on the apex .google.com,
+# which a per-host sync of youtube.com alone omits -- so the page's identity
+# calls arrive signed out and Google bounces to an interactive sign-in it then
+# refuses ("Invalid url forwarding parameter"). For any Google-owned host, carry
+# the apex google.com identity cookies alongside the host's own.
+_GOOGLE_FAMILY = ("google.com", "youtube.com", "youtube-nocookie.com", "googleusercontent.com",
+                  "googleapis.com", "gstatic.com", "ggpht.com", "ytimg.com", "googlevideo.com",
+                  "gmail.com", "withgoogle.com")
+_GOOGLE_COUNTRY = re.compile(r"(?:^|\.)google\.(?:com?\.)?[a-z]{2,3}$")
+
+
+def _google_family(host):
+    host = host.lower().rstrip(".")
+    return (any(host == site or host.endswith("." + site) for site in _GOOGLE_FAMILY)
+            or bool(_GOOGLE_COUNTRY.search(host)))
 
 
 def profile_dir(home):
@@ -112,8 +135,13 @@ def cookies_for(profile, host, now_us=None):
     decrypt = _decryptor()
     now_us = now_us if now_us is not None else int(time.time() * 1000000) + _CHROME_EPOCH_OFFSET_US
     result, size = [], 0
+    # A Google-owned host also carries the apex google.com identity cookies.
+    want_google = _google_family(host)
     for host_key, name, plain, encrypted, path, expires, secure, httponly, samesite, has_expires, updated, partition in rows:
-        if partition or not domain_matches(host, host_key) or excluded(host_key.lstrip(".")) or _ANTI_BOT.match(name):
+        if partition or excluded(host_key.lstrip(".")) or _ANTI_BOT.match(name):
+            continue
+        on_google_apex = host_key.lstrip(".").lower() == "google.com"
+        if not (domain_matches(host, host_key) or (want_google and on_google_apex)):
             continue
         if has_expires and expires and expires <= now_us:
             continue
