@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_520 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_521 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [Terminal link opened a closed Browser app but lost the URL](#terminal-link-opened-a-closed-browser-app-but-lost-the-url)
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
@@ -117,6 +117,7 @@ _520 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [A set-once preference does not earn permanent chrome](#a-set-once-preference-does-not-earn-permanent-chrome)
 - [Where the Floating-windows switch lives: three tries, and the lesson](#where-the-floating-windows-switch-lives-three-tries-and-the-lesson)
 - [One icon, finally: tidying folded into the toggle](#one-icon-finally-tidying-folded-into-the-toggle)
+- [The Start menu's grid is a skin, not a second menu (v1.38.148)](#the-start-menus-grid-is-a-skin-not-a-second-menu-v138148)
 - [Left-click on 🗔 only switches the mode — no re-tile (v1.38.147)](#left-click-on-only-switches-the-mode-no-re-tile-v138147)
 - [Choosing a window layout: snap layouts on the ▢ button](#choosing-a-window-layout-snap-layouts-on-the-button)
 - [The layout palette belongs to the desktop, not to a window](#the-layout-palette-belongs-to-the-desktop-not-to-a-window)
@@ -4719,6 +4720,33 @@ be told about, against a standing preference for visible/familiar over learned.
 *Drop tidying altogether* — `autoTileIfUntouched` only covers layouts you have not
 touched, so the "I dragged things around and want them even again" case would have
 no answer at all.
+
+---
+
+## The Start menu's grid is a skin, not a second menu (v1.38.148)
+
+**Symptom:** *"our start menu gets really long"*. One 42px row per item made the
+menu ~690px tall, most of a laptop screen, and every new app added another row.
+
+**Fix:** the everyday apps (and Games) as a 4-column tile grid; Update/Config as
+one footer row. The user tried a mock-up, approved it, and asked for it as a
+Config option defaulting to grid (host-wide, `/api/config/startmenu`, heartbeat
+`start_layout`, like the hints flag).
+
+**Shape chosen: pure CSS over the existing rows** (`body.sm-grid`). The tiles
+are the same `.sm-item` elements `buildStartMenu()` already makes; the System
+footer moves below the flyout parents by flex `order`, not by moving nodes. So
+both layouts share every click path, the running-dot/⏻ wiring, the flyout
+code and every e2e locator, and switching layout live needs no rebuild.
+**Rejected:** a second builder that emits tile markup. It would fork the menu's
+event handling and the tests that address `.sm-item[data-id]`.
+
+Details that matter: the description moves to the row's `title` (tooltip); the
+⏻ shows on hover with a mouse but always under `(hover: none)`, because a touch
+user has no other way to reach it; long names wrap to two lines (an ellipsis cut
+"X11 Launcher" to "X11 Launch…" at tile width); `.startmenu > * { flex-shrink: 0 }`
+or a short viewport squashes the rows instead of scrolling the menu; Utilities
+stays a list because its toggles show On/Off in the description line.
 
 ---
 

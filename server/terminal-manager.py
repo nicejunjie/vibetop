@@ -1792,6 +1792,34 @@ def _write_hints_enabled(enabled):
             log.warning("hints policy write failed: %s", e)
 
 
+# Host-wide Start-menu layout: "grid" (everyday apps as tiles — the default since
+# v1.38.148) or "list" (the original one-row-per-app menu). Host-wide and in
+# Config like the hints flag; rides the same heartbeat, so clients converge in ~5s.
+STARTMENU_POLICY_FILE = os.environ.get("STARTMENU_POLICY_FILE") or "/var/lib/vibetop/startmenu.json"
+STARTMENU_LAYOUTS = ("grid", "list")
+_startmenu_lock = threading.Lock()
+
+
+def _read_startmenu_layout():
+    """'grid' (default) or 'list'. Missing/corrupt/unknown -> 'grid'."""
+    try:
+        with open(STARTMENU_POLICY_FILE) as f:
+            d = json.load(f)
+        v = d.get("layout") if isinstance(d, dict) else None
+        return v if v in STARTMENU_LAYOUTS else "grid"
+    except (OSError, ValueError):
+        return "grid"
+
+
+def _write_startmenu_layout(layout):
+    with _startmenu_lock:
+        try:
+            os.makedirs(os.path.dirname(STARTMENU_POLICY_FILE), exist_ok=True)
+            _atomic_write(STARTMENU_POLICY_FILE, json.dumps({"layout": layout}), owner="root")
+        except OSError as e:
+            log.warning("startmenu policy write failed: %s", e)
+
+
 # Host-wide address of the smart plug behind the Monitor's WALL row. Host-wide
 # for the same reason the hints flag is: it describes THIS MACHINE (what it is
 # plugged into), not a preference of whoever happens to be looking at it.
@@ -6058,6 +6086,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
             return self._handle_config_idle_set()
         if self.path == "/api/config/hints":
             return self._handle_config_hints_set()
+        if self.path == "/api/config/startmenu":
+            return self._handle_config_startmenu_set()
         if self.path == "/api/config/power":
             return self._handle_config_power_set()
         if self.path == "/api/config/terminal":
@@ -6493,6 +6523,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
         # stats toggle) — a red banner must show even with the stats readout off.
         resp["warnings"] = _cached("sys_warnings", 5.0, _system_warnings)
         resp["hints"] = _cached("hints_enabled", 5.0, _read_hints_enabled)   # feature-tip kill-switch
+        resp["start_layout"] = _cached("start_layout", 5.0, _read_startmenu_layout)
         self._json(200, resp)
 
     def _handle_desktop_close(self):
@@ -6733,6 +6764,26 @@ class Handler(http.server.BaseHTTPRequestHandler):
             _cache.pop("hints_enabled", None)
         log.info("config: feature hints enabled=%s (by %s)", enabled, _ctx_user())
         self._json(200, {"ok": True, "enabled": enabled})
+
+    def _handle_config_startmenu_get(self):
+        if not self._require_sudo():
+            return
+        self._json(200, {"layout": _read_startmenu_layout()})
+
+    def _handle_config_startmenu_set(self):
+        if not self._require_sudo():
+            return
+        data = self._config_body()
+        if data is None:
+            return self._json(400, {"error": "invalid body"})
+        layout = data.get("layout")
+        if layout not in STARTMENU_LAYOUTS:
+            return self._json(400, {"error": "layout must be one of: " + ", ".join(STARTMENU_LAYOUTS)})
+        _write_startmenu_layout(layout)
+        with _cache_lock:                      # so the next heartbeat reflects it now, not in ~5s
+            _cache.pop("start_layout", None)
+        log.info("config: start menu layout=%s (by %s)", layout, _ctx_user())
+        self._json(200, {"ok": True, "layout": layout})
 
     # Spans the Monitor offers. Bounded on purpose: an arbitrary ?span= lets a
     # caller ask for a window the rings cannot cover and get a chart that is
@@ -9279,6 +9330,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
             return self._handle_config_idle_get()
         if self.path == "/api/config/hints":
             return self._handle_config_hints_get()
+        if self.path == "/api/config/startmenu":
+            return self._handle_config_startmenu_get()
         if self.path == "/api/config/power":
             return self._handle_config_power_get()
         if self.path == "/api/config/terminal":
@@ -9484,6 +9537,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 resp["codex"] = _codex_usage_payload(_office_home(), True)
             resp["warnings"] = _cached("sys_warnings", 5.0, _system_warnings)   # red-banner alerts (always)
             resp["hints"] = _cached("hints_enabled", 5.0, _read_hints_enabled)   # feature-tip kill-switch
+            resp["start_layout"] = _cached("start_layout", 5.0, _read_startmenu_layout)
             self._json(200, resp)
             return
         if self.path == "/api/upload/list":

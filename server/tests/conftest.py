@@ -139,6 +139,7 @@ def home(mgr, monkeypatch, tmp_path):
     monkeypatch.setattr(mgr, "IDLE_POLICY_FILE", str(h / "vibetop-idle.json"))
     monkeypatch.setattr(mgr, "RESOURCE_POLICY_FILE", str(h / "vibetop-resources.json"))
     monkeypatch.setattr(mgr, "HINTS_POLICY_FILE", str(h / "vibetop-hints.json"))
+    monkeypatch.setattr(mgr, "STARTMENU_POLICY_FILE", str(h / "vibetop-startmenu.json"))
     monkeypatch.setattr(mgr, "POWER_POLICY_FILE", str(h / "vibetop-power.json"))
     monkeypatch.setattr(mgr, "TERMINAL_POLICY_FILE", str(h / "vibetop-terminal.json"))
     # The metrics ring, and the handle the manager memoizes for it. Without the

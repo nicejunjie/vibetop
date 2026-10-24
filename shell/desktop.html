@@ -580,6 +580,7 @@
   .sm-item[data-id="home"]     .sm-icon { background: #6b3510; }
   .sm-item[data-id="terminal"] .sm-icon { background: #1a5c2a; }
   .sm-item[data-id="browser"]  .sm-icon { background: #1a3a6b; }
+  .sm-item[data-id="browserlite"] .sm-icon { background: #1f4a6b; }
   .sm-item[data-id="x11launcher"] .sm-icon { background: #5c1a44; }
   .sm-item[data-id="files"]    .sm-icon { background: #3a1a6b; }
   .sm-item[data-id="office"]   .sm-icon { background: #6b2a10; }
@@ -682,6 +683,73 @@
   .sm-item.running .sm-close { display: flex; }
   .sm-item .sm-close:hover { background: rgba(255,255,255,0.08); color: #d99a9a; }
   .sm-item .sm-close:active { transform: translateY(1px); }
+  /* === Start menu: GRID layout (Config ▸ Start menu layout; the default) ===
+     A skin over the SAME rows the list builds — same DOM, same click handling,
+     running dots and ⏻ — switched by body.sm-grid (applyStartLayout). The list
+     was one 42px row per app, ~690px tall; tiles halve that. Everyday apps and
+     Games become a 4-column grid (the description moves to the tooltip),
+     Update/Config shrink into one footer row under the two flyout parents, and
+     Utilities stays a list: its toggles need their On/Off text. */
+  body.sm-grid .startmenu { width: 352px; }
+  body.sm-grid .startmenu.open { display: flex; flex-direction: column; }
+  body.sm-grid .startmenu > * { flex-shrink: 0; }     /* scroll, never squash, when max-height bites */
+  body.sm-grid #sm-util-parent, body.sm-grid #sm-utilities { order: 1; }
+  body.sm-grid .sm-title-system { display: none; }
+  body.sm-grid #sm-system { order: 2; }
+  body.sm-grid .sm-build { order: 3; }
+  body.sm-grid #sm-apps,
+  body.sm-grid #sm-games.open,
+  body.sm-grid .startmenu.games-page #sm-games {
+    display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 2px;
+  }
+  body.sm-grid #sm-apps { padding: 2px 0 4px; }
+  body.sm-grid #sm-games .sm-fly-head { grid-column: 1 / -1; }
+  body.sm-grid #sm-apps .sm-item, body.sm-grid #sm-games .sm-item {
+    position: relative; flex-direction: column; gap: 6px; min-width: 0;
+    padding: 10px 2px 8px; border-radius: 10px;
+  }
+  body.sm-grid #sm-apps .sm-icon, body.sm-grid #sm-games .sm-icon {
+    position: relative; width: 42px; height: 42px; border-radius: 11px; font-size: 25px;
+  }
+  body.sm-grid #sm-apps .sm-text, body.sm-grid #sm-games .sm-text { flex: none; width: 100%; }
+  body.sm-grid #sm-apps .sm-name, body.sm-grid #sm-games .sm-name {
+    display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2;
+    overflow: hidden; font-size: 12px; line-height: 1.2; text-align: center;
+  }
+  /* The list's ellipsis cut "X11 Launcher" and "Circuit Runner" to one word and a
+     half at tile width; a long name wraps to a second line instead. */
+  body.sm-grid #sm-apps .sm-desc, body.sm-grid #sm-games .sm-desc,
+  body.sm-grid #sm-system .sm-desc { display: none; }
+  /* The running dot moves from after the name to the icon's corner. */
+  body.sm-grid #sm-apps .sm-item.running .sm-name::after,
+  body.sm-grid #sm-games .sm-item.running .sm-name::after { content: none; }
+  body.sm-grid #sm-apps .sm-item.running .sm-icon::after,
+  body.sm-grid #sm-games .sm-item.running .sm-icon::after {
+    content: ""; position: absolute; right: -3px; bottom: -3px;
+    width: 8px; height: 8px; border-radius: 50%; background: #34a853; border: 2px solid #11161d;
+  }
+  /* ⏻ sits on the tile's corner: on hover with a mouse, always on touch (no hover). */
+  body.sm-grid #sm-apps .sm-close, body.sm-grid #sm-games .sm-close {
+    position: absolute; top: 3px; right: 3px; margin: 0;
+    width: 22px; height: 22px; font-size: 12px; background: #1b222c;
+  }
+  body.sm-grid #sm-apps .sm-item.running .sm-close,
+  body.sm-grid #sm-games .sm-item.running .sm-close { display: none; }
+  body.sm-grid #sm-apps .sm-item.running:hover .sm-close,
+  body.sm-grid #sm-games .sm-item.running:hover .sm-close { display: flex; }
+  @media (hover: none) {
+    body.sm-grid #sm-apps .sm-item.running .sm-close,
+    body.sm-grid #sm-games .sm-item.running .sm-close { display: flex; }
+  }
+  body.sm-grid #sm-system {
+    display: flex; flex-wrap: wrap; gap: 4px;
+    border-top: 1px solid #222a36; margin-top: 4px; padding-top: 6px;
+  }
+  body.sm-grid #sm-system .sm-item { gap: 7px; padding: 4px 8px 4px 6px; }
+  body.sm-grid #sm-system .sm-icon { width: 24px; height: 24px; border-radius: 6px; font-size: 16px; }
+  body.sm-grid #sm-system .sm-text { flex: none; }
+  body.sm-grid #sm-system .sm-name { font-size: 13px; }
+  body.sm-grid #sm-system .sm-close { width: 22px; height: 22px; font-size: 13px; margin-left: 0; }
   /* Brief notice shown right before an auto-refresh to the latest shell. */
   .sw-updating {
     position: fixed; left: 50%; top: 18px; transform: translateX(-50%);
@@ -1114,6 +1182,7 @@
     /* Keep the menu a comfortable width on phones (was full-width via right:8px)
        — capped so it never overflows a very narrow screen. */
     .startmenu { left: 8px; right: auto; width: min(260px, calc(100vw - 16px)); }
+    body.sm-grid .startmenu { width: min(352px, calc(100vw - 16px)); }
     /* Trim every Start-menu row on phones to save vertical height (desktop keeps
        the roomy defaults above). Rows ~40px -> ~34px. */
     .sm-user, .sm-item, .sm-parent { gap: 9px; padding: 4px 8px; }
@@ -1360,6 +1429,7 @@
       var box = document.createElement('div'); box.className = 'sm-text';
       var nm = document.createElement('div'); nm.className = 'sm-name'; nm.textContent = a.label;
       var ds = document.createElement('div'); ds.className = 'sm-desc'; ds.textContent = a.desc || '';
+      if (!a.toggle && a.desc) item.title = a.label + ' — ' + a.desc;   // the grid hides the desc line
       box.appendChild(nm); box.appendChild(ds);
       var cl = document.createElement('div'); cl.className = 'sm-close';
       cl.textContent = '⏻'; cl.title = 'Turn off on all devices';
@@ -1385,6 +1455,19 @@
   var scrimEl   = document.getElementById('menu-scrim');
   var hintEl    = document.getElementById('wp-hint');   // "Click Start" line inside the wallpaper
   buildStartMenu();   // populate the Start-menu items from APPS
+  // Start-menu layout (Config ▸ Start menu layout): 'grid' (default) or 'list'.
+  // Host-wide; arrives on the heartbeat as start_layout and is mirrored into
+  // localStorage so the next load paints the right one from the start.
+  function applyStartLayout(v) {
+    var grid = v !== 'list';
+    document.body.classList.toggle('sm-grid', grid);
+    try { localStorage.setItem('vibetop:startlayout', grid ? 'grid' : 'list'); } catch (e) {}
+  }
+  (function () {
+    var v = null;
+    try { v = localStorage.getItem('vibetop:startlayout'); } catch (e) {}
+    applyStartLayout(v);
+  })();
   window.VibeApps.probeOptionalApps(APPS, fetch.bind(window), function(id) {
     var row = document.querySelector('.sm-item[data-id="' + id + '"]');
     if (row) row.style.display = '';
@@ -2673,6 +2756,7 @@
     // Feature-hints kill-switch (Config): mirror the host-wide flag into
     // localStorage (shared across all same-origin surfaces — incl. the terminal
     // /tN/ iframes — where coach.js reads it). Yank any live banner when off.
+    if (d.start_layout === 'grid' || d.start_layout === 'list') applyStartLayout(d.start_layout);
     if (typeof d.hints === 'boolean') {
       try { localStorage.setItem('vibetop:hints', d.hints ? '1' : '0'); } catch (e) {}
       if (!d.hints) { var _c = document.querySelector('.vibe-coach'); if (_c) { try { _c.remove(); } catch (e) {} } }
@@ -3140,6 +3224,10 @@
   // drill-down on narrow. One factory, N instances — opening one closes the
   // others (two fixed side panels would overlap in the same spot).
   var FLY_W = 240;
+  // Games is a 4-wide tile grid in the grid layout, so its panel matches the menu.
+  function flyW(sub) {
+    return (sub.id === 'sm-games' && document.body.classList.contains('sm-grid')) ? 352 : FLY_W;
+  }
   var FLYOUTS = [];
   function makeFlyout(parentId, subId, pageClass) {
     var parent = document.getElementById(parentId);
@@ -3147,8 +3235,9 @@
     // Where (if anywhere) a fixed side panel fits: its left px, or null = no side room.
     function sideLeft() {
       var mr = menuEl.getBoundingClientRect();
-      if (mr.right + 6 + FLY_W <= window.innerWidth - 6) return mr.right + 6;   // right
-      if (mr.left - 6 - FLY_W >= 6) return mr.left - 6 - FLY_W;                 // left
+      var w = flyW(sub);
+      if (mr.right + 6 + w <= window.innerWidth - 6) return mr.right + 6;   // right
+      if (mr.left - 6 - w >= 6) return mr.left - 6 - w;                     // left
       return null;                                                              // none
     }
     // Where the panel lives in the menu's DOM, so the drill-down can put it back.
@@ -3195,7 +3284,7 @@
       if (sub.parentNode !== document.body) document.body.appendChild(sub);
       sub.classList.add('open');
       sub.style.left = left + 'px';
-      sub.style.width = FLY_W + 'px';
+      sub.style.width = flyW(sub) + 'px';
       // Cascade from the PARENT ROW (align tops, like an OS submenu) — the
       // old bottom-of-menu anchor only looked right for a parent that IS at
       // the menu bottom (Utilities); the Games row sat mid-menu with its

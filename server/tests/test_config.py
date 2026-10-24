@@ -69,6 +69,39 @@ def test_hints_endpoint_gated_and_roundtrips(client, mgr, users, stubs, monkeypa
     assert client.get("/api/config/hints", cookie=ck)[1]["enabled"] is False
 
 
+# --- Start-menu layout -------------------------------------------------------
+
+def test_startmenu_layout_defaults_to_grid_and_roundtrips(mgr, home):
+    assert mgr._read_startmenu_layout() == "grid"     # default since v1.38.148
+    mgr._write_startmenu_layout("list")
+    assert mgr._read_startmenu_layout() == "list"
+    mgr._write_startmenu_layout("grid")
+    assert mgr._read_startmenu_layout() == "grid"
+
+
+def test_startmenu_layout_defaults_to_grid_when_corrupt_or_unknown(mgr, home):
+    with open(mgr.STARTMENU_POLICY_FILE, "w") as f:
+        f.write("{not json")
+    assert mgr._read_startmenu_layout() == "grid"
+    with open(mgr.STARTMENU_POLICY_FILE, "w") as f:
+        f.write('{"layout": "tiles"}')
+    assert mgr._read_startmenu_layout() == "grid"
+
+
+def test_startmenu_endpoint_gated_validated_and_roundtrips(client, mgr, users, stubs, monkeypatch):
+    ck = users["alice"][1]
+    monkeypatch.setattr(mgr, "_can_sudo", lambda u: False)   # non-sudo -> 403 on both verbs
+    assert client.get("/api/config/startmenu", cookie=ck)[0] == 403
+    assert client.post("/api/config/startmenu", {"layout": "list"}, cookie=ck)[0] == 403
+    monkeypatch.setattr(mgr, "_can_sudo", lambda u: True)
+    assert client.get("/api/config/startmenu", cookie=ck)[1]["layout"] == "grid"
+    assert client.post("/api/config/startmenu", {"layout": "tiles"}, cookie=ck)[0] == 400
+    assert mgr._read_startmenu_layout() == "grid", "a refused value must not be written"
+    st, body = client.post("/api/config/startmenu", {"layout": "list"}, cookie=ck)
+    assert st == 200 and body["layout"] == "list" and mgr._read_startmenu_layout() == "list"
+    assert client.get("/api/config/startmenu", cookie=ck)[1]["layout"] == "list"
+
+
 # --- wall-power plug address (Config app -> the Monitor's WALL row) ----------
 
 def test_plug_address_validation_shapes(mgr):

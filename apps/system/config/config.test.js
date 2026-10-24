@@ -66,6 +66,7 @@ function el(tag) {
 const DEFAULT_ROUTES = {
   "GET /api/config/idle": () => ({ status: 200, data: { enabled: false, hours: 2, reapTerminals: false } }),
   "GET /api/config/hints": () => ({ status: 200, data: { enabled: true } }),
+  "GET /api/config/startmenu": () => ({ status: 200, data: { layout: "grid" } }),
   "GET /api/config/power": () => ({ status: 200, data: { plug: "" } }),
   "GET /api/config/terminal": () => ({ status: 200, data: { historyMB: 2, maxMB: 32 } }),
   "GET /api/config/resources": () => ({ status: 200, data: { memMax: "", cpuCores: "", hostCores: 16 } }),
@@ -215,6 +216,30 @@ test("the three settings cards go to three different endpoints in one Save", asy
   assert.deepStrictEqual(h.bodyOf("/api/config/hints"), { enabled: false });
   assert.deepStrictEqual(h.bodyOf("/api/config/resources"), { memMax: "8G", cpuCores: "" },
     "a pasted value is trimmed, and a blank cap is sent as blank (= no cap)");
+});
+
+// ---- Start-menu layout -----------------------------------------------------
+test("Start-menu layout loads as grid by default and saves only when changed", async () => {
+  const h = load({ routes: { "POST /api/config/startmenu": () => ({ status: 200, data: {} }) } });
+  await h.settle();
+  assert.strictEqual(h.id("sm-layout-grid").checked, true);
+  assert.strictEqual(h.id("sm-layout-list").checked, false);
+  assert.strictEqual(h.id("save-all").disabled, true);
+  h.id("sm-layout-grid").checked = false;
+  h.id("sm-layout-list").checked = true; h.id("sm-layout-list").fire("change");
+  assert.strictEqual(h.id("save-all").disabled, false);
+  h.id("save-all").fire("click");
+  await h.settle();
+  assert.deepStrictEqual(h.posts().map((c) => String(c.url)), ["/api/config/startmenu"]);
+  assert.deepStrictEqual(h.bodyOf("/api/config/startmenu"), { layout: "list" });
+  assert.strictEqual(h.id("save-all").disabled, true);
+});
+
+test("a host already set to list loads with List selected", async () => {
+  const h = load({ routes: { "GET /api/config/startmenu": () => ({ status: 200, data: { layout: "list" } }) } });
+  await h.settle();
+  assert.strictEqual(h.id("sm-layout-list").checked, true);
+  assert.strictEqual(h.id("sm-layout-grid").checked, false);
 });
 
 // ---- wall-power plug ------------------------------------------------------

@@ -422,6 +422,18 @@ def test_desktop_refuses_to_be_nested():
         "desktop.html must promote itself to the top window before probing auth"
 
 
+def test_start_menu_layout_defaults_to_grid_and_follows_the_heartbeat():
+    """Config ▸ Start menu layout: anything but an explicit 'list' is the grid,
+    the heartbeat's start_layout drives it, and the grid is a CSS skin over the
+    same rows (no second builder)."""
+    src = open(_web("desktop.html")).read()
+    fn = re.search(r"function applyStartLayout\(v\) \{(.*?)\n  \}", src, re.S)
+    assert fn, "applyStartLayout() is missing"
+    assert "v !== 'list'" in fn.group(1), "grid must be the default for any value but 'list'"
+    assert "d.start_layout" in src, "the heartbeat's start_layout is not applied"
+    assert "body.sm-grid #sm-apps" in src, "the grid skin's CSS is missing"
+
+
 def test_window_mode_switch_lives_only_in_the_taskbar():
     """The Floating-windows toggle has exactly ONE surface: the 🗔 taskbar button.
     It has been all three ways round — buried in the Utilities flyout (couldn't be
