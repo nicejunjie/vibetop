@@ -573,6 +573,10 @@
     color: #c0d0e0; border: 1px solid transparent;
   }
   .sm-item:hover { background: rgba(255,255,255,0.06); border-color: rgba(255,255,255,0.08); }
+  .sm-item:focus, .sm-parent:focus { outline: none; }
+  .sm-item:focus-visible, .sm-parent:focus-visible, .start-btn:focus-visible {
+    outline: 2px solid #5aa2f0; outline-offset: -2px;
+  }
   .sm-item .sm-icon {
     display: flex; align-items: center; justify-content: center;
     width: 30px; height: 30px; border-radius: 8px; font-size: 28px; flex-shrink: 0;
@@ -684,72 +688,108 @@
   .sm-item .sm-close:hover { background: rgba(255,255,255,0.08); color: #d99a9a; }
   .sm-item .sm-close:active { transform: translateY(1px); }
   /* === Start menu: GRID layout (Config ▸ Start menu layout; the default) ===
-     A skin over the SAME rows the list builds — same DOM, same click handling,
-     running dots and ⏻ — switched by body.sm-grid (applyStartLayout). The list
-     was one 42px row per app, ~690px tall; tiles halve that. Everyday apps and
-     Games become a 4-column grid (the description moves to the tooltip),
-     Update/Config shrink into one footer row under the two flyout parents, and
-     Utilities stays a list: its toggles need their On/Off text. */
+     A skin over the SAME elements the list builds — same DOM, same click
+     handling, running dots and ⏻ — switched by body.sm-grid (applyStartLayout).
+     Everything the menu offers is ONE kind of thing, a tile, all the same size:
+     the menu itself is the 4-column grid; #sm-apps and #sm-system dissolve into
+     it (display: contents), and the two flyout parents and Update/Config sit in
+     it as tiles too, placed after the apps by `order` (no node moves). The
+     Games and Utilities panels are the same tile grid, side flyout or drill-down.
+     v1.38.148 shipped this half-done — 42px app tiles, 30px Games/Utilities
+     rows, 24px Update/Config chips and Utilities still a list — and it read as
+     three designs in one menu. */
   body.sm-grid .startmenu { width: 352px; }
-  body.sm-grid .startmenu.open { display: flex; flex-direction: column; }
-  body.sm-grid .startmenu > * { flex-shrink: 0; }     /* scroll, never squash, when max-height bites */
+  body.sm-grid .startmenu.open {
+    display: grid; grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 2px; align-content: start;
+  }
+  body.sm-grid .startmenu > * { grid-column: 1 / -1; }      /* header, panels, footer span the row */
+  body.sm-grid #sm-apps, body.sm-grid #sm-system { display: contents; }
+  body.sm-grid .startmenu > .sm-parent { grid-column: auto; }
+  body.sm-grid .startmenu > .sm-title { display: none; }     /* one grid, no sections to name */
   body.sm-grid #sm-util-parent, body.sm-grid #sm-utilities { order: 1; }
-  body.sm-grid .sm-title-system { display: none; }
-  body.sm-grid #sm-system { order: 2; }
+  body.sm-grid #sm-system > .sm-item { order: 2; }
   body.sm-grid .sm-build { order: 3; }
-  body.sm-grid #sm-apps,
-  body.sm-grid #sm-games.open,
-  body.sm-grid .startmenu.games-page #sm-games {
-    display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 2px;
+  body.sm-grid .sm-user { margin-bottom: 4px; }
+  body.sm-grid .sm-sub.open,
+  body.sm-grid .startmenu.games-page #sm-games,
+  body.sm-grid .startmenu.util-page #sm-utilities {
+    display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 2px; align-content: start;
   }
-  body.sm-grid #sm-apps { padding: 2px 0 4px; }
-  body.sm-grid #sm-games .sm-fly-head { grid-column: 1 / -1; }
-  body.sm-grid #sm-apps .sm-item, body.sm-grid #sm-games .sm-item {
-    position: relative; flex-direction: column; gap: 6px; min-width: 0;
-    padding: 10px 2px 8px; border-radius: 10px;
+  body.sm-grid .sm-sub .sm-fly-head { grid-column: 1 / -1; }
+  /* --- the tile ---------------------------------------------------------- */
+  body.sm-grid #sm-apps .sm-item, body.sm-grid #sm-system .sm-item,
+  body.sm-grid .sm-sub .sm-item, body.sm-grid .startmenu > .sm-parent {
+    position: relative; flex-direction: column; justify-content: flex-start;
+    gap: 5px; min-width: 0; padding: 8px 2px 6px; border-radius: 10px;
   }
-  body.sm-grid #sm-apps .sm-icon, body.sm-grid #sm-games .sm-icon {
-    position: relative; width: 42px; height: 42px; border-radius: 11px; font-size: 25px;
+  body.sm-grid #sm-apps .sm-icon, body.sm-grid #sm-system .sm-icon,
+  body.sm-grid .sm-sub .sm-icon, body.sm-grid .startmenu > .sm-parent .sm-icon {
+    position: relative; width: 42px; height: 42px; border-radius: 11px; font-size: 24px;
   }
-  body.sm-grid #sm-apps .sm-text, body.sm-grid #sm-games .sm-text { flex: none; width: 100%; }
-  body.sm-grid #sm-apps .sm-name, body.sm-grid #sm-games .sm-name {
+  body.sm-grid #sm-apps .sm-text, body.sm-grid #sm-system .sm-text,
+  body.sm-grid .sm-sub .sm-text { flex: none; width: 100%; min-height: 2.4em; font-size: 12px; }
+  /* Every label gets two lines of room, whether it needs them or not, so every
+     row of tiles is the same height: "X11 Launcher" and "Circuit Runner" wrap
+     at tile width, and a grid whose rows jump by a line looks broken. */
+  body.sm-grid #sm-apps .sm-name, body.sm-grid #sm-system .sm-name,
+  body.sm-grid .sm-sub .sm-name, body.sm-grid .startmenu > .sm-parent .sm-parent-name {
     display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2;
-    overflow: hidden; font-size: 12px; line-height: 1.2; text-align: center;
+    overflow: hidden; font-size: 12px; line-height: 1.2; text-align: center; color: #e6edf3;
   }
-  /* The list's ellipsis cut "X11 Launcher" and "Circuit Runner" to one word and a
-     half at tile width; a long name wraps to a second line instead. */
-  body.sm-grid #sm-apps .sm-desc, body.sm-grid #sm-games .sm-desc,
-  body.sm-grid #sm-system .sm-desc { display: none; }
-  /* The running dot moves from after the name to the icon's corner. */
-  body.sm-grid #sm-apps .sm-item.running .sm-name::after,
-  body.sm-grid #sm-games .sm-item.running .sm-name::after { content: none; }
-  body.sm-grid #sm-apps .sm-item.running .sm-icon::after,
-  body.sm-grid #sm-games .sm-item.running .sm-icon::after {
+  body.sm-grid .startmenu > .sm-parent .sm-parent-name { flex: none; width: 100%; min-height: 2.4em; }
+  body.sm-grid #sm-apps .sm-desc, body.sm-grid #sm-system .sm-desc,
+  body.sm-grid .sm-sub .sm-desc { display: none; }
+  /* A switch (Utilities' Claude/Codex limit, System Stats) has no running state
+     to show, but it has ON/OFF — the one fact its tile must carry. One line of
+     name, one line of state, same two-line box as every other tile. */
+  /* The state is the description's head ("On — plan usage strip" -> "On"),
+     mirrored into .sm-text[data-state] by syncToggleState. */
+  body.sm-grid .sm-sub .sm-item.sm-toggle .sm-name { -webkit-line-clamp: 1; line-clamp: 1; }
+  body.sm-grid .sm-sub .sm-item.sm-toggle .sm-text::after {
+    content: attr(data-state); display: block; font-size: 10.5px; line-height: 1.2;
+    text-align: center; color: #6a7a8a; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  body.sm-grid .sm-sub .sm-item.sm-toggle.cu-on .sm-text::after { color: #7fcf95; }
+  /* Flyout parents: "Games ›" — the chevron rides the name, where it reads as
+     "opens more" rather than floating in the tile's corner. */
+  body.sm-grid .startmenu > .sm-parent .sm-caret { display: none; }
+  body.sm-grid .startmenu > .sm-parent .sm-parent-name::after {
+    content: "\203A"; color: #7a8a9a; font-size: 12px; margin-left: 3px; vertical-align: baseline;
+  }
+  body.sm-grid .startmenu > .sm-parent.open { background: rgba(255,255,255,0.06); border-color: rgba(255,255,255,0.08); }
+  /* State dots move from after the name to the icon's corner: running app,
+     switched-on toggle, or a flyout holding a running app. */
+  body.sm-grid .sm-item.running .sm-name::after,
+  body.sm-grid .sm-item.cu-on .sm-name::after { content: none; }
+  body.sm-grid .sm-item.running .sm-icon::after,
+  body.sm-grid .sm-item.cu-on .sm-icon::after,
+  body.sm-grid .startmenu > .sm-parent.has-active .sm-icon::after {
     content: ""; position: absolute; right: -3px; bottom: -3px;
     width: 8px; height: 8px; border-radius: 50%; background: #34a853; border: 2px solid #11161d;
   }
   /* ⏻ sits on the tile's corner: on hover with a mouse, always on touch (no hover). */
-  body.sm-grid #sm-apps .sm-close, body.sm-grid #sm-games .sm-close {
+  body.sm-grid .sm-item .sm-close {
     position: absolute; top: 3px; right: 3px; margin: 0;
     width: 22px; height: 22px; font-size: 12px; background: #1b222c;
   }
-  body.sm-grid #sm-apps .sm-item.running .sm-close,
-  body.sm-grid #sm-games .sm-item.running .sm-close { display: none; }
-  body.sm-grid #sm-apps .sm-item.running:hover .sm-close,
-  body.sm-grid #sm-games .sm-item.running:hover .sm-close { display: flex; }
+  body.sm-grid .sm-item.running .sm-close { display: none; }
+  body.sm-grid .sm-item.running:hover .sm-close,
+  body.sm-grid .sm-item.running:focus-visible .sm-close { display: flex; }
   @media (hover: none) {
-    body.sm-grid #sm-apps .sm-item.running .sm-close,
-    body.sm-grid #sm-games .sm-item.running .sm-close { display: flex; }
+    body.sm-grid .sm-item.running .sm-close { display: flex; }
+    body.sm-grid .sm-item .sm-close { width: 26px; height: 26px; font-size: 13px; top: 2px; right: 2px; }
   }
-  body.sm-grid #sm-system {
-    display: flex; flex-wrap: wrap; gap: 4px;
-    border-top: 1px solid #222a36; margin-top: 4px; padding-top: 6px;
-  }
-  body.sm-grid #sm-system .sm-item { gap: 7px; padding: 4px 8px 4px 6px; }
-  body.sm-grid #sm-system .sm-icon { width: 24px; height: 24px; border-radius: 6px; font-size: 16px; }
-  body.sm-grid #sm-system .sm-text { flex: none; }
-  body.sm-grid #sm-system .sm-name { font-size: 13px; }
-  body.sm-grid #sm-system .sm-close { width: 22px; height: 22px; font-size: 13px; margin-left: 0; }
+  /* Icon grounds the list never needed (it shows Games' emoji bare), so every
+     tile in the grid has one. */
+  body.sm-grid #sm-games-parent .sm-icon { background: #4a2a5c; }
+  body.sm-grid #sm-util-parent .sm-icon { background: #3a3320; }
+  body.sm-grid .sm-item[data-id="codexusage"] .sm-icon { background: #2a3a4a; }
+  body.sm-grid .sm-item[data-id="minesweeper"] .sm-icon { background: #3a3a4a; }
+  body.sm-grid .sm-item[data-id="solitaire"] .sm-icon { background: #1a4a2a; }
+  body.sm-grid .sm-item[data-id="game2048"] .sm-icon { background: #5c4410; }
+  body.sm-grid .sm-item[data-id="circuit"] .sm-icon { background: #1a3a6b; }
+  body.sm-grid .sm-item[data-id="rts"] .sm-icon { background: #5c2a1a; }
   /* Brief notice shown right before an auto-refresh to the latest shell. */
   .sw-updating {
     position: fixed; left: 50%; top: 18px; transform: translateX(-50%);
@@ -1315,7 +1355,7 @@
   </div>
 
   <div id="menu-scrim"></div>
-  <div class="startmenu" id="startmenu">
+  <div class="startmenu" id="startmenu" role="menu" aria-label="Start">
     <div class="sm-user" id="sm-user" hidden>
       <div class="sm-user-av" id="sm-user-av"></div>
       <div class="sm-user-txt">
@@ -1327,7 +1367,7 @@
     <div id="sm-apps"></div>
     <!-- Games sits with the applications, ABOVE the System divider — it read as
          a System entry when the parent row lived next to Utilities down there. -->
-    <div class="sm-parent" id="sm-games-parent">
+    <div class="sm-parent" id="sm-games-parent" role="menuitem" tabindex="-1" aria-haspopup="menu" aria-expanded="false" title="Games">
       <div class="sm-icon"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="currentColor" aria-hidden="true"><path d="M21.58 16.09l-1.09-7.66C20.21 6.46 18.52 5 16.53 5H7.47C5.48 5 3.79 6.46 3.51 8.43l-1.09 7.66C2.2 17.63 3.39 19 4.94 19c.68 0 1.32-.27 1.8-.75L9 16h6l2.25 2.25c.48.48 1.13.75 1.8.75 1.56 0 2.75-1.37 2.53-2.91zM11 11H9v2H8v-2H6v-1h2V8h1v2h2v1zm4-1c-.55 0-1-.45-1-1s.45-1 1-1 1 .45 1 1-.45 1-1 1zm2 3c-.55 0-1-.45-1-1s.45-1 1-1 1 .45 1 1-.45 1-1 1z"/></svg></div>
       <div class="sm-parent-name">Games</div>
       <div class="sm-caret">▶</div>
@@ -1335,7 +1375,7 @@
     <div class="sm-sub" id="sm-games"><div class="sm-fly-head"><span class="fh-back">‹ Back</span><span class="fh-name">Games</span></div></div>
     <div class="sm-title sm-title-system">System</div>
     <div id="sm-system"></div>
-    <div class="sm-parent" id="sm-util-parent">
+    <div class="sm-parent" id="sm-util-parent" role="menuitem" tabindex="-1" aria-haspopup="menu" aria-expanded="false" title="Utilities">
       <div class="sm-icon"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="currentColor" aria-hidden="true"><path d="M22.7 19l-9.1-9.1c.9-2.3.4-5-1.5-6.9-2-2-5-2.4-7.4-1.3L9 6 6 9 1.6 4.7C.4 7.1.9 10.1 2.9 12.1c1.9 1.9 4.6 2.4 6.9 1.5l9.1 9.1c.4.4 1 .4 1.4 0l2.3-2.3c.5-.4.5-1.1.1-1.4z"/></svg></div>
       <div class="sm-parent-name">Utilities</div>
       <div class="sm-caret">▶</div>
@@ -1345,7 +1385,7 @@
   </div>
 
   <div class="taskbar" id="taskbar">
-    <div class="start-btn" id="start-btn"><span class="icon">⊞</span> Start</div>
+    <div class="start-btn" id="start-btn" role="button" tabindex="0" aria-haspopup="menu" aria-expanded="false" aria-controls="startmenu"><span class="icon">⊞</span> Start</div>
     <!-- Two overlapping window outlines — the universal "windows" glyph (the back
          one is drawn as a partial path, so nothing needs an opaque fill that would
          fight the lit state). currentColor, so `.wm-btn.on` recolors it for free. -->
@@ -1413,6 +1453,15 @@
   // the ~23 uses below read exactly as they did when it was declared inline.
   var APPS = window.VibeApps.APPS, ICON = window.VibeApps.ICON;
 
+  // A switch's description is written by several owners (usage-strips.js, the
+  // System Stats toggle) as "On — …", "Off" or "Operator only — …". The grid
+  // tile has room for the head only, so mirror it into data-state whenever any
+  // of them rewrites the text — without each owner having to know about tiles.
+  function syncToggleState(box, ds) {
+    var set = function () { box.setAttribute('data-state', (ds.textContent || '').split(' — ')[0]); };
+    set();
+    if (window.MutationObserver) new MutationObserver(set).observe(ds, { childList: true, characterData: true, subtree: true });
+  }
   // Build the Start-menu items from APPS into the Apps / System sections.
   function buildStartMenu() {
     var apps = document.getElementById('sm-apps'),
@@ -1423,14 +1472,16 @@
       var a = APPS[id];
       if (a.hidden) return;   // e.g. the video player — opened from Files, not the menu
       var item = document.createElement('div');
-      item.className = 'sm-item'; item.setAttribute('data-id', id);
+      item.className = 'sm-item' + (a.toggle ? ' sm-toggle' : ''); item.setAttribute('data-id', id);
+      item.setAttribute('role', 'menuitem'); item.tabIndex = -1;   // reached by arrow keys (menuKeys)
       var ic = document.createElement('div'); ic.className = 'sm-icon';
       if (a.svg) ic.innerHTML = a.svg; else ic.textContent = a.icon;
       var box = document.createElement('div'); box.className = 'sm-text';
       var nm = document.createElement('div'); nm.className = 'sm-name'; nm.textContent = a.label;
       var ds = document.createElement('div'); ds.className = 'sm-desc'; ds.textContent = a.desc || '';
-      if (!a.toggle && a.desc) item.title = a.label + ' — ' + a.desc;   // the grid hides the desc line
+      item.title = (a.toggle || !a.desc) ? a.label : a.label + ' — ' + a.desc;   // the grid hides the desc line
       box.appendChild(nm); box.appendChild(ds);
+      if (a.toggle) syncToggleState(box, ds);
       var cl = document.createElement('div'); cl.className = 'sm-close';
       cl.textContent = '⏻'; cl.title = 'Turn off on all devices';
       item.appendChild(ic); item.appendChild(box); item.appendChild(cl);
@@ -1460,7 +1511,10 @@
   // localStorage so the next load paints the right one from the start.
   function applyStartLayout(v) {
     var grid = v !== 'list';
+    if (grid === document.body.classList.contains('sm-grid')) return;
     document.body.classList.toggle('sm-grid', grid);
+    // An open side panel was placed for the other layout's width: drop it.
+    if (typeof FLYOUTS !== 'undefined' && FLYOUTS) closeAllFlyouts();
     try { localStorage.setItem('vibetop:startlayout', grid ? 'grid' : 'list'); } catch (e) {}
   }
   (function () {
@@ -3202,7 +3256,7 @@
     if (bf && bf.contentWindow) { try { bf.contentWindow.postMessage({ type: 'vibetop:menu-open', open: open }, '*'); } catch (e) {} }
   }
   function openMenu()  {
-    menuEl.classList.add('open'); startBtn.classList.add('open'); scrimEl.style.display = 'block'; notifyBrowserMenu(true); pushDesktop();   // heartbeat refreshes the running dots + terminal badge
+    menuEl.classList.add('open'); startBtn.classList.add('open'); startBtn.setAttribute('aria-expanded', 'true'); scrimEl.style.display = 'block'; notifyBrowserMenu(true); pushDesktop();   // heartbeat refreshes the running dots + terminal badge
     applyWinModeMenu();   // the row's state depends on the viewport — refresh it as the menu opens
     // Cross-device close tip — only when something is running that ISN'T open here
     // (that's the case where the ⏻ is the only way to reach/close it).
@@ -3213,7 +3267,7 @@
     } catch (e) {}
   }
   function closeMenu() {
-    menuEl.classList.remove('open'); startBtn.classList.remove('open'); scrimEl.style.display = 'none'; closeAllFlyouts(); notifyBrowserMenu(false);
+    menuEl.classList.remove('open'); startBtn.classList.remove('open'); startBtn.setAttribute('aria-expanded', 'false'); scrimEl.style.display = 'none'; closeAllFlyouts(); notifyBrowserMenu(false);
     // The keyboard goes back to the app the menu was opened over.
     var af = active && frameOf(active);
     if (af && af.src) notifyActiveFrame(af, active);
@@ -3224,9 +3278,10 @@
   // drill-down on narrow. One factory, N instances — opening one closes the
   // others (two fixed side panels would overlap in the same spot).
   var FLY_W = 240;
-  // Games is a 4-wide tile grid in the grid layout, so its panel matches the menu.
-  function flyW(sub) {
-    return (sub.id === 'sm-games' && document.body.classList.contains('sm-grid')) ? 352 : FLY_W;
+  // In the grid layout both panels are the menu's own 4-wide tile grid, so they
+  // match its width.
+  function flyW() {
+    return document.body.classList.contains('sm-grid') ? 352 : FLY_W;
   }
   var FLYOUTS = [];
   function makeFlyout(parentId, subId, pageClass) {
@@ -3235,7 +3290,7 @@
     // Where (if anywhere) a fixed side panel fits: its left px, or null = no side room.
     function sideLeft() {
       var mr = menuEl.getBoundingClientRect();
-      var w = flyW(sub);
+      var w = flyW();
       if (mr.right + 6 + w <= window.innerWidth - 6) return mr.right + 6;   // right
       if (mr.left - 6 - w >= 6) return mr.left - 6 - w;                     // left
       return null;                                                              // none
@@ -3247,7 +3302,7 @@
     }
     function isOpen() { return sub.classList.contains('open') || menuEl.classList.contains(pageClass); }
     function close() {
-      parent.classList.remove('open');
+      parent.classList.remove('open'); parent.setAttribute('aria-expanded', 'false');
       sub.classList.remove('open');
       menuEl.classList.remove(pageClass);
       inMenu();
@@ -3272,7 +3327,7 @@
     }
     function open() {
       FLYOUTS.forEach(function (f) { if (f.sub !== sub) f.close(); });
-      parent.classList.add('open');
+      parent.classList.add('open'); parent.setAttribute('aria-expanded', 'true');
       var left = sideLeft();
       sub.style.cssText = '';                   // clear any prior inline positioning
       if (left == null) { asPage(); return; }   // narrow: no side room at all
@@ -3284,7 +3339,7 @@
       if (sub.parentNode !== document.body) document.body.appendChild(sub);
       sub.classList.add('open');
       sub.style.left = left + 'px';
-      sub.style.width = flyW(sub) + 'px';
+      sub.style.width = flyW() + 'px';
       // Cascade from the PARENT ROW (align tops, like an OS submenu) — the
       // old bottom-of-menu anchor only looked right for a parent that IS at
       // the menu bottom (Utilities); the Games row sat mid-menu with its
@@ -3306,8 +3361,15 @@
       var flyCloseT;
       var arm = function () { if (sub.classList.contains('open')) flyCloseT = setTimeout(close, 220); };
       var cancel = function () { clearTimeout(flyCloseT); };
-      parent.addEventListener('mouseenter', function () { cancel(); if (sideLeft() != null) open(); });
-      parent.addEventListener('mouseleave', arm);
+      var openT;
+      parent.addEventListener('mouseenter', function () {
+        cancel(); clearTimeout(openT);
+        if (!document.body.classList.contains('sm-grid')) { if (sideLeft() != null) open(); return; }
+        // In the grid a parent is a tile among the apps, so the pointer crosses it
+        // on its way to a neighbour: open only when it rests there.
+        openT = setTimeout(function () { if (sideLeft() != null) open(); }, 180);
+      });
+      parent.addEventListener('mouseleave', function () { clearTimeout(openT); arm(); });
       sub.addEventListener('mouseenter', cancel);
       sub.addEventListener('mouseleave', arm);
     }
@@ -3405,6 +3467,79 @@
   }
   menuEl.addEventListener('click', onMenuClick);
   FLYOUTS.forEach(function (f) { f.sub.addEventListener('click', onMenuClick); });
+
+  // Keyboard. Start is a focusable button (Enter/Space/↑ opens the menu on its
+  // first item); inside, the arrow keys move between items by where they SIT on
+  // screen, not DOM order — the grid reorders tiles with CSS `order`, and the
+  // same code then serves the one-column list. Enter/Space activate, a flyout
+  // parent opens its panel and moves into it, Escape backs out one level at a
+  // time and finally hands focus back to Start. Items are tabindex=-1 (roving
+  // focus), so Tab still leaves the menu in one press.
+  function menuFocusables(scope) {
+    return Array.prototype.filter.call(scope.querySelectorAll('.sm-item, .sm-parent'), function (el) {
+      return el.getClientRects().length > 0;
+    });
+  }
+  function menuScope() {   // where the keys act: an open side panel, else the menu (incl. a drill-down page)
+    var side = FLYOUTS.filter(function (f) { return f.sub.classList.contains('open') && f.sub.parentNode === document.body; })[0];
+    var ae = document.activeElement;
+    if (side && ae && side.sub.contains(ae)) return side.sub;
+    return menuEl;
+  }
+  function focusFirst(scope) { var a = menuFocusables(scope); if (a.length) a[0].focus(); }
+  function moveFocus(scope, from, key) {
+    var els = menuFocusables(scope);
+    if (!els.length) return;
+    if (els.indexOf(from) === -1) { els[0].focus(); return; }
+    var c = function (el) { var r = el.getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; };
+    var o = c(from);
+    var order = els.slice().sort(function (a, b) { var p = c(a), q = c(b); return (Math.abs(p.y - q.y) > 4 ? p.y - q.y : p.x - q.x); });
+    var i = order.indexOf(from), best = null;
+    if (key === 'ArrowRight') best = order[i + 1];
+    else if (key === 'ArrowLeft') best = order[i - 1];
+    else {
+      var down = key === 'ArrowDown', bestScore = Infinity;
+      els.forEach(function (el) {
+        if (el === from) return;
+        var p = c(el), dy = down ? p.y - o.y : o.y - p.y;
+        if (dy <= 4) return;
+        var score = dy * 1000 + Math.abs(p.x - o.x);   // nearest row first, then nearest column
+        if (score < bestScore) { bestScore = score; best = el; }
+      });
+    }
+    if (best) best.focus();
+  }
+  function menuKeys(e) {
+    var t = e.target;
+    if (!t || !t.closest || !t.closest('.sm-item, .sm-parent')) return;
+    var k = e.key;
+    if (k === 'ArrowUp' || k === 'ArrowDown' || k === 'ArrowLeft' || k === 'ArrowRight') {
+      e.preventDefault();
+      moveFocus(menuScope(), t.closest('.sm-item, .sm-parent'), k);
+    } else if (k === 'Enter' || k === ' ') {
+      e.preventDefault();
+      var par = t.closest('.sm-parent');
+      t.closest('.sm-item, .sm-parent').click();
+      if (par) {
+        var fly = FLYOUTS.filter(function (f) { return f.parent === par; })[0];
+        if (fly && fly.isOpen()) focusFirst(fly.sub);
+      }
+    } else if (k === 'Escape') {
+      e.preventDefault(); e.stopPropagation();
+      var open = FLYOUTS.filter(function (f) { return f.isOpen(); })[0];
+      if (open && open.sub.contains(t)) { open.close(); open.parent.focus(); return; }
+      closeMenu(); startBtn.focus();
+    }
+  }
+  menuEl.addEventListener('keydown', menuKeys);
+  FLYOUTS.forEach(function (f) { f.sub.addEventListener('keydown', menuKeys); });
+  startBtn.addEventListener('keydown', function (e) {
+    if (e.key !== 'Enter' && e.key !== ' ' && e.key !== 'ArrowUp') return;
+    e.preventDefault();
+    if (e.key === 'ArrowUp' && menuEl.classList.contains('open')) { focusFirst(menuEl); return; }
+    toggleMenu();
+    if (menuEl.classList.contains('open')) focusFirst(menuEl);
+  });
 
   // Taskbar button = Windows-style window control: clicking a NON-active window
   // switches to it; clicking the ALREADY-active window MINIMIZES it (setActive
@@ -3823,9 +3958,12 @@
     // dblclick event is unreliable on touch, so we don't rely on it.)
   })();
 
+  // A side flyout panel is hoisted to <body> (makeFlyout), so it is not inside
+  // #startmenu but IS part of the menu: a click there (flipping a Utilities
+  // switch) used to read as "outside" and close the whole menu.
   document.addEventListener('click', function(e) {
     if (menuEl.classList.contains('open') &&
-        !e.target.closest('#startmenu') && !e.target.closest('#start-btn')) {
+        !e.target.closest('#startmenu, .sm-sub, #start-btn')) {
       closeMenu();
     }
   });

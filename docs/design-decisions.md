@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_521 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_522 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [Terminal link opened a closed Browser app but lost the URL](#terminal-link-opened-a-closed-browser-app-but-lost-the-url)
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
@@ -117,6 +117,7 @@ _521 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [A set-once preference does not earn permanent chrome](#a-set-once-preference-does-not-earn-permanent-chrome)
 - [Where the Floating-windows switch lives: three tries, and the lesson](#where-the-floating-windows-switch-lives-three-tries-and-the-lesson)
 - [One icon, finally: tidying folded into the toggle](#one-icon-finally-tidying-folded-into-the-toggle)
+- [The grid is one kind of tile, or it reads as three designs (v1.38.149)](#the-grid-is-one-kind-of-tile-or-it-reads-as-three-designs-v138149)
 - [The Start menu's grid is a skin, not a second menu (v1.38.148)](#the-start-menus-grid-is-a-skin-not-a-second-menu-v138148)
 - [Left-click on 🗔 only switches the mode — no re-tile (v1.38.147)](#left-click-on-only-switches-the-mode-no-re-tile-v138147)
 - [Choosing a window layout: snap layouts on the ▢ button](#choosing-a-window-layout-snap-layouts-on-the-button)
@@ -4720,6 +4721,35 @@ be told about, against a standing preference for visible/familiar over learned.
 *Drop tidying altogether* — `autoTileIfUntouched` only covers layouts you have not
 touched, so the "I dragged things around and want them even again" case would have
 no answer at all.
+
+---
+
+## The grid is one kind of tile, or it reads as three designs (v1.38.149)
+
+**Symptom:** *"grid style not consistent, icon sizes aren't the same, utilities
+is still list"*. v1.38.148 tiled only the apps: 42px app icons, 30px rows for
+Games/Utilities, 24px chips for Update/Config, Utilities a list.
+
+**Fix:** the menu element itself is the grid; `#sm-apps`/`#sm-system` become
+`display: contents` so their items, the two flyout parents and Update/Config
+are siblings in one 4-column grid, placed by `order`. Every tile, panel tiles
+included, is the same box: 42px icon and a label area reserved for two lines,
+so a wrapped "X11 Launcher" no longer makes its row taller than the next.
+Switch tiles show their state from the head of the description, mirrored by a
+MutationObserver rather than by teaching the three writers about tiles.
+
+**Found on the way, list layout too:** the outside-click handler tested
+`closest('#startmenu')`, but a side panel has lived on `<body>` since v1.19.307,
+so flipping a Utilities switch on a desktop closed the whole menu (on a phone the
+drill-down is inside the menu, so it did not). It now also excludes `.sm-sub`.
+
+**Also added:** keyboard operation (see `docs/desktop.md`) and a 180ms hover
+rest before a grid parent opens its panel. Arrow keys move by on-screen
+position, because CSS `order` makes DOM order lie about where a tile is.
+
+**Rejected:** shortening labels so every one fits on a line (renames apps to
+suit a layout); keeping Update/Config as a footer row (a second size of thing
+in the menu is exactly the complaint).
 
 ---
 
