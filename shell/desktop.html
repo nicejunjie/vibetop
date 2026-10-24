@@ -690,31 +690,28 @@
   /* === Start menu: GRID layout (Config ▸ Start menu layout; the default) ===
      A skin over the SAME elements the list builds — same DOM, same click
      handling, running dots and ⏻ — switched by body.sm-grid (applyStartLayout).
-     Everything the menu offers is ONE kind of thing, a tile, all the same size:
-     the menu itself is the 4-column grid; #sm-apps and #sm-system dissolve into
-     it (display: contents), and the two flyout parents and Update/Config sit in
-     it as tiles too, placed after the apps by `order` (no node moves). The
-     Games and Utilities panels are the same tile grid, side flyout or drill-down.
-     v1.38.148 shipped this half-done — 42px app tiles, 30px Games/Utilities
-     rows, 24px Update/Config chips and Utilities still a list — and it read as
-     three designs in one menu. */
-  body.sm-grid .startmenu { width: 352px; }
+     Everything the menu offers is ONE kind of thing, a tile, all the same size,
+     under the list's own two sections: the menu itself is a 3-column grid;
+     #sm-apps and #sm-system dissolve into it (display: contents), so the DOM
+     order already reads Applications (8 apps + Games = three full rows),
+     then System (Update, Config, Utilities = one full row); the section titles
+     span the row. The Games and Utilities panels are the same tile grid, side
+     flyout or drill-down. v1.38.148 shipped this half-done (42px app tiles,
+     30px Games/Utilities rows, 24px Update/Config chips, Utilities a list) and
+     v1.38.149 dropped the sections; three across is what lets both fill. */
+  body.sm-grid .startmenu { width: 288px; }
   body.sm-grid .startmenu.open {
-    display: grid; grid-template-columns: repeat(4, minmax(0, 1fr));
+    display: grid; grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 2px; align-content: start;
   }
   body.sm-grid .startmenu > * { grid-column: 1 / -1; }      /* header, panels, footer span the row */
   body.sm-grid #sm-apps, body.sm-grid #sm-system { display: contents; }
   body.sm-grid .startmenu > .sm-parent { grid-column: auto; }
-  body.sm-grid .startmenu > .sm-title { display: none; }     /* one grid, no sections to name */
-  body.sm-grid #sm-util-parent, body.sm-grid #sm-utilities { order: 1; }
-  body.sm-grid #sm-system > .sm-item { order: 2; }
-  body.sm-grid .sm-build { order: 3; }
-  body.sm-grid .sm-user { margin-bottom: 4px; }
+  body.sm-grid .sm-user { margin-bottom: 2px; }
   body.sm-grid .sm-sub.open,
   body.sm-grid .startmenu.games-page #sm-games,
   body.sm-grid .startmenu.util-page #sm-utilities {
-    display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 2px; align-content: start;
+    display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 2px; align-content: start;
   }
   body.sm-grid .sm-sub .sm-fly-head { grid-column: 1 / -1; }
   /* --- the tile ---------------------------------------------------------- */
@@ -1222,7 +1219,7 @@
     /* Keep the menu a comfortable width on phones (was full-width via right:8px)
        — capped so it never overflows a very narrow screen. */
     .startmenu { left: 8px; right: auto; width: min(260px, calc(100vw - 16px)); }
-    body.sm-grid .startmenu { width: min(352px, calc(100vw - 16px)); }
+    body.sm-grid .startmenu { width: min(288px, calc(100vw - 16px)); }
     /* Trim every Start-menu row on phones to save vertical height (desktop keeps
        the roomy defaults above). Rows ~40px -> ~34px. */
     .sm-user, .sm-item, .sm-parent { gap: 9px; padding: 4px 8px; }
@@ -3278,10 +3275,10 @@
   // drill-down on narrow. One factory, N instances — opening one closes the
   // others (two fixed side panels would overlap in the same spot).
   var FLY_W = 240;
-  // In the grid layout both panels are the menu's own 4-wide tile grid, so they
+  // In the grid layout both panels are the menu's own 3-wide tile grid, so they
   // match its width.
   function flyW() {
-    return document.body.classList.contains('sm-grid') ? 352 : FLY_W;
+    return document.body.classList.contains('sm-grid') ? 288 : FLY_W;
   }
   var FLYOUTS = [];
   function makeFlyout(parentId, subId, pageClass) {

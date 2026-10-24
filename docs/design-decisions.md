@@ -4751,6 +4751,14 @@ position, because CSS `order` makes DOM order lie about where a tile is.
 suit a layout); keeping Update/Config as a footer row (a second size of thing
 in the menu is exactly the complaint).
 
+**Follow-up (v1.38.150): the sections come back, three across.** *"I like the
+previous idea where there are sections, app section, system section"*, then
+*"you can make 3 icons per row"*. Sectionless 4-across had been chosen because
+the old grouping does not divide by four (Applications = 9, System = 3).
+Divided by three it fills exactly: three rows of apps ending in Games, one row
+of Update, Config, Utilities. That is also the menu's DOM order, so the `order`
+rules went away; the titles are grid items spanning the row. Menu 288px wide.
+
 ---
 
 ## The Start menu's grid is a skin, not a second menu (v1.38.148)

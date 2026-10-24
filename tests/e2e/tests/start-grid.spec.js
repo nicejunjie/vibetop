@@ -4,8 +4,10 @@
 // v1.38.148 shipped it half-done: 42px app tiles, 30px Games/Utilities rows,
 // 24px Update/Config chips, and Utilities still a list — "grid style not
 // consistent, icon sizes aren't the same". These pin the finished shape: every
-// entry is one tile of one size, both panels are the same tile grid, a switch
-// shows its state on its tile, and the menu works from the keyboard.
+// entry is one tile of one size, three across, under the list's two sections
+// (Applications = 8 apps + Games, System = Update, Config, Utilities); both
+// panels are the same tile grid, a switch shows its state on its tile, and the
+// menu works from the keyboard.
 const { test, expect } = require('@playwright/test');
 const { openStartMenu } = require('../helpers');
 
@@ -30,17 +32,20 @@ test.describe('start menu grid', () => {
     await openStartMenu(page);
   });
 
-  test('every entry is a tile of one size, four to a row', async ({ page }) => {
+  test('every entry is a tile of one size, three to a row, in two sections', async ({ page }) => {
     const ts = await tiles(page, '#startmenu .sm-item, #startmenu > .sm-parent');
     const where = JSON.stringify(ts);
     // 8 everyday apps + Games + Utilities + Update (+ Config for a sudo user).
     expect(ts.length, where).toBeGreaterThanOrEqual(11);
     expect(sizes(ts), `tiles differ in size: ${where}`).toHaveLength(1);
     expect([...new Set(ts.map((t) => t.icon))], `icons differ in size: ${where}`).toHaveLength(1);
-    expect(new Set(ts.map((t) => t.y)).size, `not four to a row: ${where}`).toBe(Math.ceil(ts.length / 4));
-    for (const id of ['sm-games-parent', 'sm-util-parent', 'update']) {
-      expect(ts.map((t) => t.id), `${id} is not a tile`).toContain(id);
-    }
+    const rows = {};
+    ts.forEach((t) => { (rows[t.y] = rows[t.y] || []).push(t.id); });
+    const ordered = Object.keys(rows).map(Number).sort((a, b) => a - b).map((y) => rows[y]);
+    expect(ordered.slice(0, 3).every((r) => r.length === 3), `Applications is not 3 x 3: ${where}`).toBe(true);
+    expect(ordered[2][2], 'Games does not close the Applications section').toBe('sm-games-parent');
+    expect(ordered[3], 'System is not Update, (Config,) Utilities').toEqual(expect.arrayContaining(['update', 'sm-util-parent']));
+    await expect(page.locator('#startmenu > .sm-title').filter({ visible: true })).toHaveText(['Applications', 'System']);
   });
 
   test('Utilities opens as tiles, the same size as the menu’s, with each switch’s state', async ({ page }) => {
@@ -80,8 +85,9 @@ test.describe('start menu grid', () => {
     await page.keyboard.press('ArrowRight');
     await expect.poll(focused).toBe('browser');
     await page.keyboard.press('ArrowDown');
+    await expect.poll(focused).toBe('files');
     await page.keyboard.press('ArrowDown');
-    await page.keyboard.press('ArrowLeft');
+    await page.keyboard.press('ArrowRight');
     await expect.poll(focused).toBe('sm-games-parent');
     await page.keyboard.press('Enter');
     await expect.poll(focused).toBe('minesweeper');
