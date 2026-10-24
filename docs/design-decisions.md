@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_518 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_519 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [Terminal link opened a closed Browser app but lost the URL](#terminal-link-opened-a-closed-browser-app-but-lost-the-url)
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
@@ -541,6 +541,7 @@ _518 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [Browser Lite keeps its own Google session alive; v1.38.137's forced re-sync reverted](#browser-lite-keeps-its-own-google-session-alive-v138137s-forced-re-sync-reverted)
 - [Browser Lite frames delegate fullscreen](#browser-lite-frames-delegate-fullscreen)
 - [Browser Lite guards History methods taken from a hidden about:blank iframe (YouTube)](#browser-lite-guards-history-methods-taken-from-a-hidden-aboutblank-iframe-youtube)
+- [Browser Lite tabs reorder by dragging (mouse at once, finger after a hold)](#browser-lite-tabs-reorder-by-dragging-mouse-at-once-finger-after-a-hold)
 
 <!-- END TOC -->
 
@@ -20914,3 +20915,21 @@ fixtures and do not provision external infrastructure.
   headers (the request's `Origin`, credentials, and a preflight answer). Without
   them, YouTube's credentialed XHR to `doubleclick.net/pagead/id` failed as a
   network/CORS error every two minutes instead of reading an empty response.
+
+## Browser Lite tabs reorder by dragging (mouse at once, finger after a hold)
+
+- **Request:** Tabs should be rearrangeable.
+- **Design:** `wrapper.js` `dragTab()` uses pointer events. A mouse starts a drag
+  after 6 px of sideways movement. A finger must first hold the tab for 350 ms,
+  so a swipe still scrolls the tab strip on a phone. Once a drag starts, a
+  non-passive `touchmove` stops the strip from scrolling under the finger.
+  After the press, the pointer is followed on `window`: a fast mouse leaves the
+  tab before it has moved 6 px, and a listener on the tab alone never started
+  the drag (caught in testing). The click that ends a mouse drag is swallowed,
+  so dropping does not also activate the tab. On drop (or cancel), the `tabs`
+  Map is rebuilt in DOM order: saved tabs (device and server) are written in
+  Map order, so the new order survives reloads and follows the user.
+- **Tested:** In a local harness (copies of the UI files with a stand-in page
+  engine): mouse drag in Chromium and WebKit, and hold-then-drag versus a
+  quick swipe under Chromium iPhone emulation. Playwright's WebKit cannot
+  synthesize touch drags, so iOS touch was not driven directly.

@@ -219,6 +219,64 @@
     if(active===tab){const next=tab.opener&&tabs.has(tab.opener.id)?tab.opener:[...tabs.values()].at(-1);if(next)activate(next);else newTab();}
     saveTabs();
   }
+  // Tabs reorder by dragging. A mouse drags as soon as it moves sideways; a
+  // finger first holds the tab, so a swipe still scrolls the tab strip. The new
+  // order is the saved order (device and server), like a browser's.
+  function syncTabOrder(){
+    const order=[...$('tabs').children],sorted=[...tabs.values()].sort((a,b)=>order.indexOf(a.element)-order.indexOf(b.element));
+    tabs.clear();for(const item of sorted)tabs.set(item.id,item);saveTabs();
+  }
+  function dragTab(tab){
+    const element=tab.element;let start=null,dragging=false,hold=0,pointer=null,scroller=0;
+    const strip=()=>$('tabs');
+    function begin(){
+      dragging=true;clearTimeout(hold);element.classList.add('dragging');
+      try{element.setPointerCapture(pointer);}catch{}
+    }
+    function place(x){
+      const others=[...strip().children].filter(item=>item!==element);
+      const before=others.find(item=>{const box=item.getBoundingClientRect();return x<box.left+box.width/2;});
+      if(before){if(element.nextElementSibling!==before)strip().insertBefore(element,before);}
+      else if(strip().lastElementChild!==element)strip().append(element);
+      // Near an edge, scroll the strip so off-screen tabs can be reached.
+      const box=strip().getBoundingClientRect();clearInterval(scroller);
+      const step=x<box.left+28?-12:x>box.right-28?12:0;
+      if(step)scroller=setInterval(()=>{strip().scrollLeft+=step;},16);
+    }
+    function finish(){
+      clearTimeout(hold);clearInterval(scroller);
+      if(dragging){
+        element.classList.remove('dragging');
+        // The click that ends a mouse drag must not count as a tab click.
+        const swallow=event=>{event.stopPropagation();event.preventDefault();};
+        element.addEventListener('click',swallow,{capture:true,once:true});setTimeout(()=>element.removeEventListener('click',swallow,true),0);
+        syncTabOrder();
+      }
+      start=null;dragging=false;pointer=null;listen(false);
+    }
+    // Follow the pointer on the whole window once pressed: a fast mouse leaves
+    // the tab before it has moved far enough to start a drag.
+    const listen=on=>{for(const [name,handler] of [['pointermove',move],['pointerup',up],['pointercancel',up]])(on?window.addEventListener:window.removeEventListener).call(window,name,handler,true);};
+    element.addEventListener('pointerdown',event=>{
+      if(event.button!==0||event.target.closest('.close')||tabs.size<2)return;
+      start={x:event.clientX,y:event.clientY};pointer=event.pointerId;listen(true);
+      if(event.pointerType!=='mouse')hold=setTimeout(()=>{if(start){begin();navigator.vibrate?.(10);}},350);
+    });
+    function up(event){if(event.pointerId===pointer)finish();}
+    function move(event){
+      if(!start||event.pointerId!==pointer)return;
+      if(!dragging){
+        const moved=Math.abs(event.clientX-start.x),drift=Math.abs(event.clientY-start.y);
+        // A finger that moves before the hold is a scroll, not a drag.
+        if(event.pointerType!=='mouse'){if(moved>8||drift>8){clearTimeout(hold);start=null;pointer=null;listen(false);}return;}
+        if(moved<6)return;begin();
+      }
+      event.preventDefault();place(event.clientX);
+    }
+    // Once a held tab is moving, the strip must not scroll under the finger.
+    element.addEventListener('touchmove',event=>{if(dragging)event.preventDefault();},{passive:false});
+    element.addEventListener('contextmenu',event=>{if(dragging||start)event.preventDefault();});
+  }
   function newTab(url,{lazy=false,title='',history:savedHistory=null,frame=null,opener=null}={}) {
     const id=crypto.randomUUID(),element=document.createElement('div'),select=document.createElement('button'),close=document.createElement('button');
     frame=frame||pageFrame();
@@ -231,7 +289,7 @@
       allowPopup:()=>{if(active!==tab||document.activeElement!==tab.frame||!navigator.userActivation?.isActive||popupUsed>=3)return false;popupUsed++;return true;},
       onClose:index=>{if(index===undefined){if(tab.opener)closeTab(tab);return;}const target=tabAtFrame(index);if(target&&target.opener===tab)closeTab(target);},
       onError:error=>{if(error.reset&&tab.state?.url){reopen(tab);return;}if(active===tab)status(error.message,true);}});
-    select.onclick=()=>activate(tab);close.onclick=()=>closeTab(tab);
+    select.onclick=()=>activate(tab);close.onclick=()=>closeTab(tab);dragTab(tab);
     if(lazy){tab.pendingUrl=url;tab.pendingTitle=title;if(savedHistory)tab.pendingHistory=savedHistory;try{select.textContent=title||new URL(url).hostname;}catch{}return tab;}
     activate(tab);if(url)go(url);else $('address').focus();return tab;
   }
