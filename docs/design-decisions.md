@@ -4682,6 +4682,10 @@ the row carried now lives in the button's `title`.
 
 ## One icon, finally: tidying folded into the toggle
 
+> **Superseded in v1.38.147:** turning ON no longer re-tiles; the toggle only switches
+> the mode. See *Left-click on 🗔 only switches the mode — no re-tile* below. The
+> one-icon outcome stands; the re-tile-on-toggle half does not.
+
 Third and last move in the saga above. *"still two icons in the status bar, i mean
 the functionality can totally be satisfied with one icon"* — the two being the 🗔
 on/off toggle and ▦ Tidy.
@@ -4837,7 +4841,8 @@ third. *"I have 3 windows open, it shouldn't show 2-window layouts."* A layout
 that cannot hold what you have open is not one you meant to pick. Now an exact
 match, which also drops 4-zone layouts for 3 windows (they would leave a hole).
 Counts with no matching layout — 1 window, or 5+ — offer nothing and the palette
-does not open; tap-off/tap-on for an even split still covers them. If that silence
+does not open (tap-off/tap-on used to give them an even split; since v1.38.147 the
+toggle no longer re-tiles, so they have no one-gesture split). If that silence
 becomes a nuisance, the fix is more layouts (a 1+3, a 2×3), not a looser filter.
 
 ---

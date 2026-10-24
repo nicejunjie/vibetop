@@ -118,7 +118,8 @@ be `undefined` there; (d) no precedent anywhere in `shell/ shared/ apps/`.
 8. **Tests that grep `desktop.html` as text** (they break if the text they look
    for moves): `server/tests/test_static.py:398` (nesting guard, head script),
    `:411 test_window_mode_switch_lives_only_in_the_taskbar` (needs `id="wm-btn"`,
-   the CSS `body.wm-capable .wm-btn`, `if (visN >= 2)`, `g.max = true`,
+   the CSS `body.wm-capable .wm-btn`, a `function toggleWindowMode() {…\n  }` body
+   with no `tidyWindows` / `.max = true` in it,
    `addEventListener('contextmenu'` present and **the substrings `winmode` and
    `id="tidy-btn"` ABSENT**), `:472 test_keybar_lift_chain_is_intact`
    (`src="/keybar.js"`, `VibeKeybar.compute`, `applyLift`, `translateY`,
@@ -533,7 +534,7 @@ the regroup broke nine of these with no error):
 | `server/install.sh` nginx site (`location /`, `try_files /index.html`) | `index.html` only | no |
 | `server/terminal-manager.py` `WEB_SOURCE_DIRS` (6431), `SW_FILE` (467), `:(glob)**/sw.js` (6239) | dirs / sw.js | no |
 | `tools/doctor.sh:291–340` | `index.html`, `sw.js` | no |
-| `server/tests/test_static.py:398,411,472` | text inside desktop.html | Steps 1–3 must leave `wm-btn`, `body.wm-capable .wm-btn`, `if (visN >= 2)`, `g.max = true`, `contextmenu`, `src="/keybar.js"`, `VibeKeybar.compute`, `applyLift`, `translateY`, `__activeTermFrame` in desktop.html — and **never introduce the substrings `winmode` or `id="tidy-btn"`** (asserted absent) |
+| `server/tests/test_static.py:398,411,472` | text inside desktop.html | Steps 1–3 must leave `wm-btn`, `body.wm-capable .wm-btn`, `toggleWindowMode` (body free of `tidyWindows`/`.max = true`), `contextmenu`, `src="/keybar.js"`, `VibeKeybar.compute`, `applyLift`, `translateY`, `__activeTermFrame` in desktop.html — and **never introduce the substrings `winmode` or `id="tidy-btn"`** (asserted absent) |
 | `shell/usage-strip.test.js` | text inside desktop.html | Step 2 renames/re-points it |
 | `server/tests/test_api_update.py:20,72,76,104,126` | `"shell/desktop.html"` as a changed-path fixture only | no |
 | `tests/e2e/tests/window-mode.spec.js:263,584,642,679` | `window.VibeWin` | no |
