@@ -1938,33 +1938,22 @@
   }
   function saveWins() { try { localStorage.setItem('vibetop:wins', JSON.stringify(wins)); } catch (e) {} }
   // The "Floating windows" toggle — a visible switch between floating windows and
-  // the classic full-screen desktop (no URL flag). Reachable from the taskbar's 🗔
-  // button (one tap) and from Start ▸ Utilities, where the row carries the sentence
-  // explaining what changes.
+  // the classic full-screen desktop. Its one surface is the taskbar's 🗔 button.
   // Applies LIVE (reassigns WM_FLAG + re-renders), per-device via localStorage.
   function toggleWindowMode() {
     WM_FLAG = !WM_FLAG;
     try { localStorage.setItem('vibetop:wm', WM_FLAG ? '1' : '0'); } catch (e) {}
     renderWindows(); renderTaskbar(); applyWinModeMenu();
-    // Turning ON, hybrid by how many apps are open:
-    //  - 2+ already open  -> tile them once, so window mode's whole point (seeing
-    //    them at once) is there with no extra step;
-    //  - a lone app       -> just float it at max size.
-    // Either way there is NO auto-tiling after this — further arranging is
-    // explicit, via the right-click layout palette. markUserArranged so the
-    // on-open auto-tiler doesn't override what we just set.
+    // Turning ON only turns the mode on: every window comes back where it was
+    // (or at its default spot). It does NOT re-tile or maximize — arranging is
+    // explicit, via the right-click / long-press layout palette.
     if (WM_FLAG) {
-      var visN = openApps.filter(function (id) { return !(wins[id] && wins[id].min); }).length;
-      if (visN >= 2) {
-        tidyWindows();                       // tidyWindows re-renders + saves
-      } else if (active) {
-        var g = winGeom(active); g.min = false; g.max = true; g.z = ++zTop;
-        markUserArranged(active);
-        renderWindows();
-      }
       var cur = active; setTimeout(function(){ maybeWinTip(); if (cur) coachForApp(cur); }, 300);
     }
   }
+  // Test seam: the e2e suite needs a deterministic even split, and the toggle no
+  // longer provides one.
+  window.__vtTidy = function () { tidyWindows(); };
   // Sync the toggle's single surface: the taskbar button. What the Start-menu row
   // used to spell out in words now has to come across without one, so the title
   // carries the explanation and the lit state carries on/off.

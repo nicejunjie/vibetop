@@ -42,12 +42,10 @@ async function openUtility(page, id) {
   await expect(page.locator(`#task-apps .task-app[data-id="${id}"]`)).toBeVisible();
 }
 
-// Tidying is folded into the toggle: turning windows ON always lays them out in an
-// even split, so the reset gesture is tap-off, tap-on. There is no ▦ button.
+// An even split, via the shell's test seam. The 🗔 toggle no longer re-tiles
+// (left-click only turns the mode on), and there is no ▦ button.
 async function tidy(page) {
-  await page.locator('#wm-btn').click();
-  await page.waitForTimeout(250);
-  await page.locator('#wm-btn').click();
+  await page.evaluate(() => window.__vtTidy());
   await page.waitForTimeout(450);
 }
 

@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_519 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_520 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [Terminal link opened a closed Browser app but lost the URL](#terminal-link-opened-a-closed-browser-app-but-lost-the-url)
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
@@ -117,6 +117,7 @@ _519 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [A set-once preference does not earn permanent chrome](#a-set-once-preference-does-not-earn-permanent-chrome)
 - [Where the Floating-windows switch lives: three tries, and the lesson](#where-the-floating-windows-switch-lives-three-tries-and-the-lesson)
 - [One icon, finally: tidying folded into the toggle](#one-icon-finally-tidying-folded-into-the-toggle)
+- [Left-click on 🗔 only switches the mode — no re-tile (v1.38.147)](#left-click-on-only-switches-the-mode-no-re-tile-v138147)
 - [Choosing a window layout: snap layouts on the ▢ button](#choosing-a-window-layout-snap-layouts-on-the-button)
 - [The layout palette belongs to the desktop, not to a window](#the-layout-palette-belongs-to-the-desktop-not-to-a-window)
 - ["Which one is the one in 1 + 2?" — the palette previews, pointing steers](#which-one-is-the-one-in-1-2-the-palette-previews-pointing-steers)
@@ -4714,6 +4715,30 @@ be told about, against a standing preference for visible/familiar over learned.
 *Drop tidying altogether* — `autoTileIfUntouched` only covers layouts you have not
 touched, so the "I dragged things around and want them even again" case would have
 no answer at all.
+
+---
+
+## Left-click on 🗔 only switches the mode — no re-tile (v1.38.147)
+
+**Symptom:** *"behavior of the floating window button seems to have been altered
+from the original design, and is unintended"* → *"left click should not re-tile,
+but just turn on floating mode"*.
+
+**Cause:** the toggle accreted layout side-effects. v1.19.44 ("one icon, finally",
+above) made turn-on always re-tile; v1.19.202 switched it to maximizing the current
+app; v1.19.207 made it a hybrid (tile when 2+ open, else maximize). Each one moved
+or reset the user's windows just for switching the mode on.
+
+**Fix:** `toggleWindowMode()` only flips `WM_FLAG` and re-renders. Windows reappear
+at their saved geometry. Arranging lives only in the right-click / long-press layout
+palette, which v1.19.201 added after the "tap-off, tap-on" reset was chosen, so the
+reset gesture is no longer the only way to tidy. `test_static` asserts that the
+toggle's body calls neither `tidyWindows` nor maximize. The e2e `tidy()` helper uses
+the `window.__vtTidy()` seam instead of an off/on cycle.
+
+**Accepted cost:** no one-gesture even split for 1 or 5+ windows (the palette
+offers layouts only when the zone count matches). **Rejected:** keeping the hybrid.
+The user explicitly wants the mode switch to be a mode switch.
 
 ---
 
