@@ -52,6 +52,13 @@ function createTunnelPool(browserTls) {
       req.once('connect', function (res, socket) {
         if (res.statusCode !== 200) {
           socket.destroy();
+          // The egress refused this destination by policy (X-VT-Blocked):
+          // say so, under a code Hammerhead won't report as a DNS failure.
+          var kind = res.headers['x-vt-blocked'];
+          if (kind === 'local' || kind === 'port') {
+            var denied = new Error('Destination blocked (VT-BLOCKED:' + kind + ')'); denied.code = 'EVTBLOCKED';
+            return finish(denied);
+          }
           var refused = new Error('Tunnel refused with ' + res.statusCode); refused.code = 'ECONNRESET';
           return finish(refused);
         }
@@ -173,12 +180,12 @@ function patchTunnelPool(engineRequire) {
     if(code.split(FROM).length!==2)throw new Error('Tunnel pool patch anchor changed: '+file);
     code=code.replace(FROM,()=>"        reqOpts.agent = vtTunnelAgentFor(proxy, reqOpts.hostname + ':' + (reqOpts.port || 443));\n        return;");
   }
-  if(!code.includes('/* vt-tunnel-pool-v2 */')) {
+  if(!code.includes('/* vt-tunnel-pool-v3 */')) {
     // A reused engine tree may carry earlier pool versions: replace them.
     const prior=code.indexOf('\n/* vt-tunnel-pool');
     if(prior>=0)code=code.slice(0,prior);
     const tlsLook=JSON.stringify(BROWSER_TLS);
-    code+='\n/* vt-tunnel-pool-v2 */ var vtTunnelAgentFor = ('+createTunnelPool.toString()+')('+tlsLook+');\nexports.vtTunnelAgentFor = vtTunnelAgentFor;\n';
+    code+='\n/* vt-tunnel-pool-v3 */ var vtTunnelAgentFor = ('+createTunnelPool.toString()+')('+tlsLook+');\nexports.vtTunnelAgentFor = vtTunnelAgentFor;\n';
     code+='/* vt-http2-pool-v4 */ var vtHttp2SessionFor = ('+createHttp2Pool.toString()+')('+tlsLook+');\nexports.vtHttp2SessionFor = vtHttp2SessionFor;\n';
   }
   fs.writeFileSync(file,code);

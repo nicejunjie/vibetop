@@ -17,6 +17,19 @@ const urls = hammerhead('utils/url');
 const Context = hammerhead('request-pipeline/context');
 require('./response-coalesce.cjs').installResponseCoalescing(Context);
 const transforms = hammerhead('request-pipeline/header-transforms/transforms');
+// A plain-http page the egress refused by policy arrives as the egress's own
+// 403 (X-VT-Blocked), which the tab showed as bare text. Give it the error page
+// an HTTPS refusal gets (page-error.cjs).
+const pipelineUtils = hammerhead('request-pipeline/utils');
+const sendDestinationRequest = pipelineUtils.sendRequest;
+pipelineUtils.sendRequest = async function(ctx) {
+  await sendDestinationRequest.call(this, ctx);
+  const kind = ctx.destRes?.statusCode === 403 && ctx.destRes.headers['x-vt-blocked'];
+  if ((kind === 'local' || kind === 'port') && ctx.isPage && !ctx.isIframe && !ctx.res.headersSent) {
+    ctx.destRes.resume(); ctx.goToNextStage = false;
+    ctx.session.handlePageError(ctx, 'Destination blocked (VT-BLOCKED:' + kind + ')');
+  }
+};
 if(process.env.VT_BROWSER_DIAGNOSTICS==='1'){require('./stage-timing.cjs').installStageTiming(hammerhead('request-pipeline/stages'));require('./stage-timing.cjs').installRawCookieCheck(require('node:http'));}
 const {requestOrigin, uniqueCookie} = require('./origin-policy.cjs');
 const {cookieView,sameSite} = require('./cookie-policy.cjs');

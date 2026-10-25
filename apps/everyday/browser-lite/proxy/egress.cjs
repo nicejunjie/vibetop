@@ -27,6 +27,10 @@ function publicAddress(value) {
   } catch { return false; }
 }
 
+// A refusal by policy (not a network failure) names its kind in X-VT-Blocked,
+// so the tab can say why instead of "the site could not be reached".
+function blocked(kind) { return Object.assign(new Error('Destination not allowed'), {blocked: kind}); }
+function blockedHeader(error) { return ['local', 'port'].includes(error?.blocked) ? error.blocked : ''; }
 class EgressProxy {
   constructor({resolve = dns.lookup, connect = net.createConnection,
                maxConnections = 384, slotWait = 15000, deniedAddresses = [], deniedCIDRs = [], deniedDomains = [],
@@ -67,11 +71,11 @@ class EgressProxy {
     return got.length === want.length && crypto.timingSafeEqual(got, want);
   }
   async destination(hostname, port) {
-    if (![80, 443].includes(Number(port))) throw new Error('Port not allowed');
+    if (![80, 443].includes(Number(port))) throw blocked('port');
     hostname = hostname.replace(/^\[|\]$/g, '');
     if (!hostname || hostname.includes('%')) throw new Error('Invalid destination');
     const canonical = hostname.toLowerCase().replace(/\.+$/, '');
-    if (this.deniedDomains.some(domain=>canonical===domain || canonical.endsWith('.'+domain))) throw new Error('Destination not allowed');
+    if (this.deniedDomains.some(domain=>canonical===domain || canonical.endsWith('.'+domain))) throw blocked('local');
     const answers = net.isIP(hostname)
       ? [{address: hostname, family: net.isIP(hostname)}]
       : await Promise.race([this.resolve(hostname, {all: true, verbatim: true}),
@@ -83,7 +87,7 @@ class EgressProxy {
       return local.some(x=>x.address===address) || networks.some(([network,bits])=>network.kind()===ip.kind() && ip.match(network,bits));
     };
     if (!answers.length || answers.some(x => !publicAddress(x.address) || this.denied.has(x.address) || isLocal(x.address))) {
-      throw new Error('Destination not allowed');
+      throw blocked('local');
     }
     // Prefer IPv4 where both exist; IPv6-only destinations remain supported.
     return answers.find(x => x.family === 4) || answers[0];
@@ -153,9 +157,10 @@ class EgressProxy {
       req.on('aborted', () => upstream.destroy());
       res.on('close', () => upstream.destroy());
       req.pipe(upstream);
-    } catch {
+    } catch (error) {
       socket?.destroy();
-      if (!res.headersSent) res.writeHead(403);
+      const kind = blockedHeader(error);
+      if (!res.headersSent) res.writeHead(403, kind ? {'X-VT-Blocked': kind} : {});
       res.end('Destination unavailable');
     }
   }
@@ -177,7 +182,8 @@ class EgressProxy {
     } catch (error) {
       if(process.env.VT_BROWSER_DIAGNOSTICS==='1')console.error('CONNECT failed',error.code||error.message);
       remote?.destroy();
-      client.end('HTTP/1.1 403 Forbidden\r\n\r\n');
+      const kind = blockedHeader(error);
+      client.end('HTTP/1.1 403 Forbidden\r\n' + (kind ? 'X-VT-Blocked: ' + kind + '\r\n' : '') + '\r\n');
     }
   }
   async upgrade(req, client, head) {

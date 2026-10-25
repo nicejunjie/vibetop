@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_522 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_523 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [Terminal link opened a closed Browser app but lost the URL](#terminal-link-opened-a-closed-browser-app-but-lost-the-url)
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
@@ -545,6 +545,7 @@ _522 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [Browser Lite frames delegate fullscreen](#browser-lite-frames-delegate-fullscreen)
 - [Browser Lite guards History methods taken from a hidden about:blank iframe (YouTube)](#browser-lite-guards-history-methods-taken-from-a-hidden-aboutblank-iframe-youtube)
 - [Browser Lite tabs reorder by dragging (mouse at once, finger after a hold)](#browser-lite-tabs-reorder-by-dragging-mouse-at-once-finger-after-a-hold)
+- [Browser Lite says why a LAN address is refused (and IP addresses no longer hang)](#browser-lite-says-why-a-lan-address-is-refused-and-ip-addresses-no-longer-hang)
 
 <!-- END TOC -->
 
@@ -21029,3 +21030,32 @@ fixtures and do not provision external infrastructure.
   engine): mouse drag in Chromium and WebKit, and hold-then-drag versus a
   quick swipe under Chromium iPhone emulation. Playwright's WebKit cannot
   synthesize touch drags, so iOS touch was not driven directly.
+
+## Browser Lite says why a LAN address is refused (and IP addresses no longer hang)
+
+- **Symptom:** Opening `192.168.68.43` in Browser Lite "failed". Over HTTPS
+  the tab sat on Loading…; over HTTP it showed a bare `Destination unavailable`.
+  Neither said the address was refused on purpose.
+- **Cause:** Two things. (1) `realm-policy.cjs` `site()` ran every hostname
+  through the public-suffix list, which reads `192.168.68.43` as the domain
+  `68.43`. The signed context then failed `readContext`'s round-trip check
+  (`Invalid context`), and the request was never answered. This hit *every* IP
+  URL, public ones too. (2) The egress refuses private/local addresses and
+  ports other than 80/443 by design (no page may use Lite to reach the user's
+  LAN), but it answered with a plain 403. Hammerhead mapped the CONNECT
+  refusal (`ECONNRESET`) to "Failed to find a DNS-record", and showed the plain
+  HTTP 403 body as the page.
+- **Fix:** `site()` returns an IP host as its own site. The egress marks a
+  policy refusal with `X-VT-Blocked: local|port` (CONNECT and plain HTTP). The
+  tunnel pool turns the CONNECT form into an `EVTBLOCKED` error carrying
+  `VT-BLOCKED:<kind>` (not `ECONNRESET`, which Hammerhead calls a DNS failure);
+  a wrapper on Hammerhead's `sendRequest` turns the plain-HTTP 403 into the
+  same page-error call. `page-error.cjs` renders "Browser Lite can't open
+  local addresses / this port", with no Retry, and reports `failure` to the
+  toolbar, which shows the reason and the existing **Open in Browser** bar (the
+  full Browser runs on the host and reaches the LAN).
+- **Rejected:** Allowing LAN addresses, even per-address: Lite is reachable
+  from the internet, and the refusal is the SSRF fence. The user agreed to keep
+  refusing and only make the message meaningful. Duplicating the egress policy
+  in the gateway to pre-check was also rejected: the egress (a separate account)
+  stays the one authority, and the gateway only relays its verdict.

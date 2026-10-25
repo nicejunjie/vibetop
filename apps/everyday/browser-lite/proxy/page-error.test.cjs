@@ -1,7 +1,7 @@
 'use strict';
 const {test}=require('node:test');
 const assert=require('node:assert/strict');
-const {pageErrorReason,renderPageError}=require('./page-error.cjs');
+const {pageErrorBlock,pageErrorReason,renderPageError}=require('./page-error.cjs');
 test('upstream failures get a plain reason',()=>{
   assert.equal(pageErrorReason(new Error('Failed to find a DNS-record for the resource at https://x.invalid/')),"The site's address could not be found.");
   assert.equal(pageErrorReason({message:'getaddrinfo ENOTFOUND x'}),"The site's address could not be found.");
@@ -11,6 +11,20 @@ test('upstream failures get a plain reason',()=>{
   assert.equal(pageErrorReason(new Error('socket hang up')),'The site closed the connection.');
   assert.equal(pageErrorReason(new Error('Failed to establish tunneling connection via proxy')),'The site could not be reached.');
   assert.equal(pageErrorReason(undefined),'The site could not be reached.');
+});
+test('a destination refused by policy says why and offers no Retry',()=>{
+  assert.equal(pageErrorBlock('Failed to complete a request: Error: Destination blocked (VT-BLOCKED:local)'),'local');
+  assert.equal(pageErrorBlock(new Error('Destination blocked (VT-BLOCKED:port)')),'port');
+  assert.equal(pageErrorBlock(new Error('getaddrinfo ENOTFOUND x')),'');
+  const local=renderPageError({url:'http://192.168.68.43/',error:'Destination blocked (VT-BLOCKED:local)',navigation:{tabId:'tab-1',epoch:3},parentOrigin:'https://ui.example'});
+  assert.equal(local.status,503);
+  assert.ok(local.body.includes('can&#39;t open local addresses') && local.body.includes('192.168.68.43'),'names the refusal and the host');
+  assert.ok(local.body.includes('full Browser'),'points at the full Browser');
+  assert.ok(!local.body.includes('id="retry"') && !local.body.includes('VT-BLOCKED'),'no Retry, no internal marker');
+  assert.ok(local.body.includes('failure:"local"'),'tells the toolbar the kind');
+  const port=renderPageError({url:'https://1.1.1.1:8443/',error:'Destination blocked (VT-BLOCKED:port)'});
+  assert.ok(port.body.includes('80 and 443'));
+  assert.ok(renderPageError({url:'https://x/',error:'socket hang up',navigation:{tabId:'t',epoch:1},parentOrigin:'https://ui.example'}).body.includes('failure:""'));
 });
 test('the error page passes Cloudflare (503), frames, and talks to the tab only when it knows the tab',()=>{
   const error=new Error('x </script><script>alert(1)</script> ENOTFOUND');
@@ -57,6 +71,17 @@ test('a page whose site cannot be reached gets the error page through the real g
     assert.match(page.headers['content-security-policy'],/frame-ancestors https:\/\/ui\.proxy\.example\.com/);
     assert.ok(page.text.includes('nowhere.example') && page.text.includes("This page can't be shown"),page.text.slice(0,300));
     assert.ok(page.text.includes('"tabId":"tab-1","epoch":1'),'the page knows its tab, so the toolbar learns the load ended');
+    // An IP address is its own site: this used to fail the realm context
+    // check and leave the tab loading forever.
+    for(const [index,url] of ['http://192.168.68.43/','https://192.168.68.43/'].entries()) {
+      const opened=registry.scope.run({authorization},()=>gateway.open(url,{tabId:'tab-lan-'+index,epoch:1}));
+      const entry=await get(new URL(opened.entry),parentOrigin+'/');
+      assert.equal(entry.status,303,url);
+      const page=await get(new URL(entry.headers.location),parentOrigin+'/');
+      assert.equal(page.status,503,url);
+      assert.ok(page.text.includes('can&#39;t open local addresses'),url+': '+page.text.slice(0,300));
+      assert.ok(page.text.includes('failure:"local"'),url);
+    }
   } finally {
     await gateway.close();await egress.close();fs.rmSync(temporary,{recursive:true,force:true});
   }

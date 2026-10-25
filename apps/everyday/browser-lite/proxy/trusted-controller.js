@@ -148,7 +148,7 @@
           }
           if(history.entries[history.index].url!==url.href)return;
           this.documentId=history.documentId;this.historySequence=history.sequence;
-          this.state={...state,url:url.href,title:String(data.title||'').slice(0,1024),history,historyKind:data.historyKind,blocked:data.blocked===true,failed:data.failed===true};
+          this.state={...state,url:url.href,title:String(data.title||'').slice(0,1024),history,historyKind:data.historyKind,blocked:data.blocked===true,failed:data.failed===true,failure:['local','port'].includes(data.failure)?data.failure:''};
           this.onState({...this.state,loading:false});
         }catch{}
       } else if(data.type==='vibetop-browser' && data.action==='navigating') {

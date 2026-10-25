@@ -109,14 +109,20 @@
   // rewriting proxy ("browser may not be secure"); the full Browser can
   // complete it, and this tab then continues on its own.
   const GOOGLE_SIGN_IN=/^accounts\.(google|youtube)\.com$/;
+  const REFUSED={local:"Browser Lite doesn't open local network addresses or this server.",
+    port:'Browser Lite only opens the standard web ports (80 and 443).'};
   function handoff(state,tab=active) {
     let host='';try{host=new URL(state?.url||'').hostname;}catch{}
     const signIn=GOOGLE_SIGN_IN.test(host);
     // Remember the site that sent us to Google, to return there signed in.
     if(tab && host && !signIn && !/(^|\.)google\.com$/.test(host))tab.returnUrl=state.url;
     const blocked=!signIn && state?.blocked===true && !state.loading;
-    $('handoff').hidden=!(session&&(signIn||blocked));
+    // The egress refused the address by policy (a LAN/local address or a
+    // non-web port): only the full Browser can open it.
+    const refused=!signIn && !!state?.failure && !state.loading;
+    $('handoff').hidden=!(session&&(signIn||blocked||refused));
     $('handoff-text').textContent=signIn?"If Google won't sign in here, sign in with the full Browser; this tab continues on its own once you have."
+      :refused?"Browser Lite doesn't open this address. Open it in the full Browser instead."
       :"This site's bot check doesn't accept Browser Lite. Open it in the full Browser instead.";
     $('continue-here').hidden=!(signIn && tab?.returnUrl);
     if(signIn && tab?.returnUrl)watchHandoff(tab);else if(tab)stopHandoffWatch(tab);
@@ -176,7 +182,8 @@
     tab.frame.hidden=false;
     $('welcome').hidden=true;if(document.activeElement!==$('address'))$('address').value=state.url;
     $('back').disabled=tab.position<=0;$('forward').disabled=tab.position>=tab.history.length-1;
-    if(state.failed)status("This page couldn't be loaded. Check the address or retry.",true);
+    if(state.failure){status(REFUSED[state.failure],true);$('retry').hidden=true;}
+    else if(state.failed)status("This page couldn't be loaded. Check the address or retry.",true);
     else status(state.loading?'Loading…':new URL(state.url).hostname);
     handoff(state,tab);
   }

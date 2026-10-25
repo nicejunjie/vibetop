@@ -1,10 +1,15 @@
 'use strict';
 const crypto=require('node:crypto');
 const fs=require('node:fs');
+const net=require('node:net');
 const {upstreamUrl}=require('./origin-policy.cjs');
 const {toughCookie}=require('./engine.cjs');
 function site(input) {
  const url=upstreamUrl(input);
+ // An IP address is its own site. The suffix list would read 192.168.68.43
+ // as the domain "68.43", which then failed the context check and left the
+ // tab loading forever.
+ if(net.isIP(url.hostname.replace(/^\[|\]$/g,'')))return url.protocol+'//'+url.hostname;
  let domain;try{domain=toughCookie.getPublicSuffix(url.hostname);}catch{}
  return url.protocol+'//'+(domain||url.hostname);
 }

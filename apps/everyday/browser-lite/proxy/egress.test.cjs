@@ -75,3 +75,18 @@ test('the limit still fails once the wait expires',async()=>{
  await assert.rejects(p.open('b.example',443),/Connection limit/);
  assert.equal(p.waiters.length,0);
 });
+test('a policy refusal names its kind, so the tab can say why',async()=>{
+ const p=new EgressProxy({interfaces:()=>({})});
+ await assert.rejects(p.destination('192.168.68.43',443),error=>error.blocked==='local');
+ await assert.rejects(p.destination('1.1.1.1',8443),error=>error.blocked==='port');
+ const url=await p.listen();const {hostname,port,username,password}=new URL(url);
+ const auth='Basic '+Buffer.from(username+':'+password).toString('base64');
+ try {
+  const connect=await new Promise((resolve,reject)=>require('node:http').request({host:hostname,port,method:'CONNECT',path:'192.168.68.43:443',headers:{'proxy-authorization':auth}})
+   .on('connect',(res,socket)=>{socket.destroy();resolve(res);}).on('error',reject).end());
+  assert.equal(connect.statusCode,403);assert.equal(connect.headers['x-vt-blocked'],'local');
+  const plain=await new Promise((resolve,reject)=>require('node:http').request({host:hostname,port,path:'http://192.168.68.43:8080/',headers:{'proxy-authorization':auth}},
+   res=>{res.resume();resolve(res);}).on('error',reject).end());
+  assert.equal(plain.statusCode,403);assert.equal(plain.headers['x-vt-blocked'],'port');
+ } finally {await p.close();}
+});
