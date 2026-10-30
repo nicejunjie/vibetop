@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_523 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_524 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [Terminal link opened a closed Browser app but lost the URL](#terminal-link-opened-a-closed-browser-app-but-lost-the-url)
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
@@ -546,6 +546,7 @@ _523 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [Browser Lite guards History methods taken from a hidden about:blank iframe (YouTube)](#browser-lite-guards-history-methods-taken-from-a-hidden-aboutblank-iframe-youtube)
 - [Browser Lite tabs reorder by dragging (mouse at once, finger after a hold)](#browser-lite-tabs-reorder-by-dragging-mouse-at-once-finger-after-a-hold)
 - [Browser Lite says why a LAN address is refused (and IP addresses no longer hang)](#browser-lite-says-why-a-lan-address-is-refused-and-ip-addresses-no-longer-hang)
+- [Claude Code / Codex flashed on every click over the HTTPS terminal fallback (2026-10-30)](#claude-code-codex-flashed-on-every-click-over-the-https-terminal-fallback-2026-10-30)
 
 <!-- END TOC -->
 
@@ -21059,3 +21060,32 @@ fixtures and do not provision external infrastructure.
   refusing and only make the message meaningful. Duplicating the egress policy
   in the gateway to pre-check was also rejected: the egress (a separate account)
   stays the one authority, and the gateway only relays its verdict.
+
+## Claude Code / Codex flashed on every click over the HTTPS terminal fallback (2026-10-30)
+
+**Symptom:** in a terminal running a full-screen TUI (Claude Code, Codex), every
+click repainted the whole screen — a visible flash. Plain bash showed nothing.
+Only on a connection using the HTTPS fallback transport (`terminal-http.js`; the
+manager log shows `https-fallback-open`), e.g. Safari on the Mac.
+
+**Cause:** each click runs `claimSize()` (`terminal-kbd.js`, throttled to 1/s),
+which sends ttyd two resize frames, `cols-1` and then `cols`, so ownership of the
+shared PTY moves to this device. Over a WebSocket the pair arrives back-to-back,
+the daemon's 35 ms resize debounce (`RESIZE_DEBOUNCE`) reads the final size, sees
+no change and sends no SIGWINCH. The HTTP fallback, though, sent every frame as
+its own request and waited a round-trip in between, so the gap ran past 35 ms and
+the shared PTY really resized twice. Each resize sends a SIGWINCH, and TUIs answer
+it with a full repaint. Reproduced locally: a 0–20 ms gap gave 0 SIGWINCHes, a
+50 ms gap gave 2 per click.
+
+**Fix:** the fallback holds a resize frame for one microtask so its partner
+queues too, then sends consecutive resize frames in ONE `send` request
+(`frames: [...]`, frame *i* takes sequence `seq + i`). The server forwards them
+to ttyd back-to-back. Retrying a lost response stays idempotent because
+`Relay.send` skips sequences it has already applied.
+
+**Rejected:** widening the daemon debounce past an HTTP round-trip, which would
+lag every real resize by hundreds of ms. Dropping the nudge over HTTP, which
+would mean a click no longer reclaims the size there. Collapsing the pair into a
+single `cols` frame, which ttyd ignores at an unchanged size, so the claim would
+never reach the daemon.

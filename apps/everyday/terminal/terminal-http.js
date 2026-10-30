@@ -172,7 +172,13 @@
       if (bytes.length > 256 * 1024 || this.bufferedAmount + bytes.length > 1024 * 1024) { this._fail(); return; }
       this._queue.push({bytes: bytes.slice(), binary: typeof data !== 'string', size: bytes.length});
       this.bufferedAmount += bytes.length;
-      this._flush();
+      // A resize is often half of a pair (the claim nudge sends cols-1 then
+      // cols synchronously). Wait one microtask so the pair leaves in ONE
+      // request: split across two round-trips, the shared PTY really resizes
+      // twice and every full-screen TUI (Claude Code, Codex) repaints — a flash.
+      if (bytes[0] === 49 && !this._sending) {
+        var self = this; Promise.resolve().then(function () { self._flush(); });
+      } else this._flush();
     }
     async _flush() {
       if (this._sending) return;
@@ -180,6 +186,21 @@
       try {
         while (this._queue.length && this._state === 1) {
           var first = this._queue.shift(), parts = [first.bytes], size = first.size;
+          // Consecutive resizes ('1') travel in one request as separate frames,
+          // which the server forwards to ttyd back-to-back like a WebSocket would.
+          if (first.bytes[0] === 49) {
+            var frames = [first];
+            while (this._queue.length && frames.length < 16 && this._queue[0].bytes[0] === 49) frames.push(this._queue.shift());
+            if (frames.length > 1) {
+              var seq = this._seq + 1; this._seq += frames.length;
+              await this._request({op: 'send', seq: seq, frames: frames.map(function (f) {
+                return {binary: f.binary, data: base64(f.bytes)};
+              })}, 2);
+              if (this._state !== 1) return;
+              this.bufferedAmount -= frames.reduce(function (n, f) { return n + f.size; }, 0);
+              continue;
+            }
+          }
           // Only ttyd input ('0') can be concatenated. Keep resize, auth and
           // flow-control frames in their original order and protocol boundaries.
           if (first.bytes[0] === 48) {

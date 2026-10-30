@@ -139,3 +139,36 @@ def test_stream_cursor_does_not_ack_undelivered_output(upstream):
         assert relay.size == 0
     finally:
         relay.close()
+
+
+def test_route_send_frames_applies_resize_pair_once_in_order(client, mgr, monkeypatch):
+    # The claim nudge (cols-1, cols) must reach ttyd back-to-back: split across two
+    # HTTP round-trips the PTY really resizes twice and full-screen TUIs flash.
+    registry = transport.Registry()
+    monkeypatch.setattr(transport, 'registry', registry)
+    sent = []
+    class FakeRelay:
+        def __init__(self, port, number):
+            self.touched = time.monotonic()
+            self.input_sequence = 0
+        def send(self, seq, opcode, data):
+            if seq <= self.input_sequence:
+                return
+            self.input_sequence = seq
+            sent.append((seq, opcode, data))
+    monkeypatch.setattr(transport, 'Relay', FakeRelay)
+    monkeypatch.setattr(mgr.Handler, '_ensure_user_terminal', lambda self, u, n: 17001)
+    ident = 'b' * 32
+    assert client.post('/api/terminal-transport', {'op': 'open', 'id': ident, 'terminal': 1})[0] == 200
+    enc = lambda s: base64.b64encode(s).decode()
+    pair = {'op': 'send', 'id': ident, 'seq': 1, 'frames': [
+        {'binary': True, 'data': enc(b'1{"columns":79,"rows":24}')},
+        {'binary': True, 'data': enc(b'1{"columns":80,"rows":24}')}]}
+    assert client.post('/api/terminal-transport', pair)[0] == 200
+    assert client.post('/api/terminal-transport', pair)[0] == 200  # lost-response retry
+    assert sent == [(1, 2, b'1{"columns":79,"rows":24}'), (2, 2, b'1{"columns":80,"rows":24}')]
+    single = {'op': 'send', 'id': ident, 'seq': 3, 'binary': True, 'data': enc(b'0x')}
+    assert client.post('/api/terminal-transport', single)[0] == 200
+    assert sent[-1] == (3, 2, b'0x')
+    for bad in ([], 'x', [{'binary': 1, 'data': ''}], [{}] * 17):
+        assert client.post('/api/terminal-transport', dict(pair, seq=4, frames=bad))[0] == 400

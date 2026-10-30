@@ -95,6 +95,30 @@ test('slow input response batches typing without crossing resize or duplicating 
   ws.close();
 });
 
+test('a resize pair sent back-to-back leaves in one request', async () => {
+  const requests = [];
+  const {w} = browser(async (url, options) => {
+    if(url === '/api/clientlog') return {ok:true,json:async()=>({})};
+    const body = JSON.parse(options.body);
+    if(body.op === 'poll') return new Promise((resolve,reject)=>options.signal.addEventListener('abort',()=>reject(Error('aborted'))));
+    if(body.op === 'send') requests.push(body);
+    return {ok:true,json:async()=>({ok:true})};
+  });
+  const ws = new w.WebSocket('wss://test/t1/ws','tty');
+  ws.onopen = () => {
+    ws.send(new TextEncoder().encode('1{"columns":79,"rows":24}'));
+    ws.send(new TextEncoder().encode('1{"columns":80,"rows":24}'));
+    ws.send('0a');
+  };
+  await delay(80);
+  assert.equal(requests.length, 2);
+  assert.equal(requests[0].seq, 1);
+  assert.deepEqual(requests[0].frames.map(f => atob(f.data)), ['1{"columns":79,"rows":24}','1{"columns":80,"rows":24}']);
+  assert.equal(requests[1].seq, 3); assert.equal(atob(requests[1].data), '0a');
+  assert.equal(ws.bufferedAmount, 0);
+  ws.close();
+});
+
 test('stream delivers split chunks immediately and deduplicates replay after disconnect', async () => {
   let streams = 0, push;
   const {w} = browser(async (url, options) => {

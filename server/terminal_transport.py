@@ -292,12 +292,24 @@ def handle(handler, max_instance):
             elif op == 'poll':
                 result = relay.poll(data.get('after'))
             elif op == 'send':
-                if type(data.get('binary')) is not bool or not isinstance(data.get('data'), str):
+                # 'frames' carries a resize pair (the claim nudge) in one request so
+                # ttyd applies it back-to-back; frame i takes sequence seq + i, and
+                # relay.send skips the ones already applied when a lost response retries.
+                frames = data.get('frames', [data])
+                seq = data.get('seq')
+                if not isinstance(frames, list) or not 1 <= len(frames) <= 16 or type(seq) is not int:
                     raise TransportError(400, 'invalid frame')
-                payload = base64.b64decode(data['data'], validate=True)
-                if len(payload) > MAX_FRAME:
-                    raise TransportError(400, 'frame too large')
-                relay.send(data.get('seq'), 2 if data['binary'] else 1, payload)
+                decoded = []
+                for frame in frames:
+                    if (not isinstance(frame, dict) or type(frame.get('binary')) is not bool
+                            or not isinstance(frame.get('data'), str)):
+                        raise TransportError(400, 'invalid frame')
+                    payload = base64.b64decode(frame['data'], validate=True)
+                    if len(payload) > MAX_FRAME:
+                        raise TransportError(400, 'frame too large')
+                    decoded.append((2 if frame['binary'] else 1, payload))
+                for i, (opcode, payload) in enumerate(decoded):
+                    relay.send(seq + i, opcode, payload)
                 result = {'ok': True}
             elif op == 'close':
                 relay.close()
