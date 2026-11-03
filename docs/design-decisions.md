@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_527 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_528 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [Terminal link opened a closed Browser app but lost the URL](#terminal-link-opened-a-closed-browser-app-but-lost-the-url)
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
@@ -550,6 +550,7 @@ _527 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [Reopening an overwritten image must bypass old browser bytes (2026-11-02)](#reopening-an-overwritten-image-must-bypass-old-browser-bytes-2026-11-02)
 - [Window-mode coach tips must remain dismissible (2026-11-02)](#window-mode-coach-tips-must-remain-dismissible-2026-11-02)
 - [Phone typing follows input without reclaiming geometry on every second (2026-11-03)](#phone-typing-follows-input-without-reclaiming-geometry-on-every-second-2026-11-03)
+- [Notes tab updates reject stale revisions before deleting content (2026-11-03)](#notes-tab-updates-reject-stale-revisions-before-deleting-content-2026-11-03)
 
 <!-- END TOC -->
 
@@ -21137,3 +21138,23 @@ two-finger gesture still reclaims it. The existing input forwarding continues to
 return from history to the live typing line. A regression drives ten seconds of
 input and checks both no additional resize frames and return to the live line.
 Physical-phone confirmation is still required; see docs/code-audit-2026-11.md.
+
+
+## Notes tab updates reject stale revisions before deleting content (2026-11-03)
+
+A device with an old tab list could remove a note just created on another
+device: the server treated every omitted ID as a deletion, including unindexed
+bodies whose tab registration was still in flight. Notes indexes now carry a
+revision. Mutations require that revision under the same reentrant lock as the
+index read/write; stale and pre-upgrade clients receive 409 with the current
+index before any write or deletion. Only IDs removed from the accepted index
+are deleted. Oversized lists are rejected instead of truncated.
+
+The client serializes tab mutations, rebases local additions/renames/removals
+onto a conflict response, and preserves remote additions and renames. A stale
+GET cannot overwrite a newer local mutation, and remotely deleted old tabs are
+not resurrected. Existing note-body autosave semantics remain last-writer-wins.
+An HTTP failure reading an unopened note also now takes the confirmation path,
+rather than treating unknown content as empty and deleting silently. Regression
+coverage includes server-side stale writes and in-flight bodies plus client
+conflict rebasing, serialized edits, and failed-read confirmation.

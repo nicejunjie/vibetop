@@ -111,3 +111,11 @@ Final validation after the phone change: **1,384 manager + 7 proxy + 811 JavaScr
 checks passed (2,202 total)**. The phone-specific handler test also asserts return
 to the live input line from scrollback. This validates the causal handler change,
 not physical Safari/Android rendering or every possible source of flashing.
+
+
+## Follow-up: Notes safety (v1.38.156)
+
+Findings 2 and 3 are addressed by revision-checked tab updates, client conflict
+rebasing and serialized writes, explicit removed-ID deletion, and confirmation
+after failed reads. Requests from pre-upgrade clients without revisions receive
+409 without mutating notes. Findings 4–6 remain open.

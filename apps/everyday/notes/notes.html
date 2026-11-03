@@ -71,6 +71,7 @@
   var savingInFlight = false;  // a save POST is in flight — treat as "busy" like a pending edit
   var unsaved = false;         // local edits not yet CONFIRMED saved (stays true if a save fails)
   var initDone = false;        // don't live-sync before the first load lands
+  var tabsRev = 0, tabsBase = [], tabsSaving = false;
   var _lastTabsSig = null;     // last tab set (ids+names+order) known to match the server
 
   function api(path, body) {
@@ -87,14 +88,57 @@
   // active would yank the other device's editor away mid-type).
   function tabsSig() { return JSON.stringify(tabs.map(function(t) { return [t.id, t.name]; })); }
 
+  function copyTabs(list) { return list.map(function(t) { return { id: t.id, name: t.name }; }); }
+  function acceptIndex(idx) {
+    tabsRev = idx.rev || 0;
+    tabsBase = copyTabs(idx.tabs);
+  }
+  // Rebase only our changes onto the latest list. Preserve remote additions and
+  // renames; a remotely deleted old tab is never resurrected by stale state.
+  function mergeTabs(base, local, remote) {
+    var before = {}, ours = {}, live = {};
+    base.forEach(function(t) { before[t.id] = t; });
+    local.forEach(function(t) { ours[t.id] = t; });
+    var merged = copyTabs(remote).filter(function(t) { return !before[t.id] || ours[t.id]; });
+    merged.forEach(function(t) {
+      live[t.id] = t;
+      if (before[t.id] && ours[t.id] && ours[t.id].name !== before[t.id].name) t.name = ours[t.id].name;
+    });
+    local.forEach(function(t) {
+      if (!before[t.id] && !live[t.id]) { var added = { id: t.id, name: t.name }; merged.push(added); live[t.id] = added; }
+    });
+    if (JSON.stringify(base.map(function(t) { return t.id; })) !== JSON.stringify(local.map(function(t) { return t.id; }))) {
+      var ordered = local.filter(function(t) { return live[t.id]; }).map(function(t) { return live[t.id]; });
+      merged.forEach(function(t) { if (!ours[t.id]) ordered.push(t); });
+      merged = ordered;
+    }
+    return merged;
+  }
   function persistTabs() {
-    _lastTabsSig = tabsSig();
-    // Same reasoning as doSave: a non-2xx is not a rejection, and silently
-    // treating a refused tab-set push as success desyncs this device from the
-    // shared set until something else forces a write.
-    api('/api/notes/tabs', { tabs: tabs, active: active })
-      .then(function(r) { if (!r.ok) throw new Error('tabs: HTTP ' + r.status); })
-      .catch(function() { _lastTabsSig = null; });   // retry on the next tick
+    if (tabsSaving) return;
+    tabsSaving = true;
+    var sent = copyTabs(tabs), sig = tabsSig();
+    _lastTabsSig = sig;
+    api('/api/notes/tabs', { tabs: sent, active: active, rev: tabsRev })
+      .then(function(r) {
+        if (r.status === 409) return r.json().then(function(idx) {
+          var merged = mergeTabs(tabsBase, tabs, idx.tabs);
+          acceptIndex(idx);
+          // Keep current content/drafts while reconciling the tab set.
+          reconcile({ tabs: merged, active: active });
+          _lastTabsSig = null;
+        });
+        if (!r.ok) throw new Error('tabs: HTTP ' + r.status);
+        return r.json().then(function(idx) {
+          tabsRev = idx.rev == null ? tabsRev : idx.rev;
+          tabsBase = sent;
+          _lastTabsSig = sig;
+        });
+      }).catch(function() { _lastTabsSig = null; })
+      .then(function() {
+        tabsSaving = false;
+        if (_lastTabsSig !== null && tabsSig() !== _lastTabsSig) persistTabs();
+      });
   }
 
   function renderTabs() {
@@ -199,6 +243,7 @@
   }
 
   function addNote() {
+    if (tabs.length >= 64) { setStatus('at most 64 notes — close one first', 'err'); return; }
     flushSave();
     var id = genId();
     tabs.push({ id: id, name: 'Note ' + (tabs.length + 1) });
@@ -234,7 +279,7 @@
     // delete a note that actually has content (the old code treated unknown as
     // empty and skipped the confirmation). If the fetch fails, confirm to be safe.
     api('/api/notes?id=' + encodeURIComponent(id))
-      .then(function(r) { return r.ok ? r.json() : null; })
+      .then(function(r) { if (!r.ok) throw new Error('note read failed'); return r.json(); })
       .then(function(d) { decide(d ? (d.content || '') : ''); })
       .catch(function() {
         vibeConfirm('Delete this note? This can’t be undone.', { okText: 'Delete', danger: true }).then(function(ok) { if (ok) doClose(); });
@@ -412,10 +457,13 @@
     if (!initDone) return;
     syncContent();                                         // refresh the open note's body
     // Don't clobber an in-progress rename or drag.
-    if (dragId != null || tabsEl.querySelector('.lbl[contenteditable="true"]')) return;
+    if (tabsSaving || dragId != null || tabsEl.querySelector('.lbl[contenteditable="true"]')) return;
     if (tabsSig() !== _lastTabsSig) { persistTabs(); return; }   // we changed it → push, win this round
+    var readRev = tabsRev, readSig = tabsSig();
       api('/api/notes').then(function(r) { if (!r.ok) throw new Error('notes index: HTTP ' + r.status); return r.json(); }).then(function(idx) {
       if (!idx || !Array.isArray(idx.tabs) || !idx.tabs.length) return;
+      if (tabsSaving || tabsRev !== readRev || tabsSig() !== readSig) return;
+      acceptIndex(idx);
       var ssig = JSON.stringify(idx.tabs.map(function(t) { return [t.id, t.name]; }));
       if (ssig !== _lastTabsSig) reconcile(idx);
     }).catch(function() {});
@@ -456,6 +504,7 @@
   }).then(function(idx) {
     tabs = (idx && Array.isArray(idx.tabs) && idx.tabs.length) ? idx.tabs : [{ id: '1', name: 'Notes' }];
     var act = (idx && idx.active && tabs.some(function(t) { return t.id === idx.active; })) ? idx.active : tabs[0].id;
+    acceptIndex(idx);
     _lastTabsSig = tabsSig();
     initDone = true;
     renderTabs();

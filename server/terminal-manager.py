@@ -457,7 +457,7 @@ def _notes_index_file():
     return os.path.join(_notes_dir(), "index.json")
 
 
-_notes_lock = threading.Lock()
+_notes_lock = threading.RLock()
 _NOTE_ID_RE = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
 
 
@@ -480,6 +480,7 @@ def _read_notes_index():
             with open(_notes_index_file()) as f:
                 data = json.load(f)
             if isinstance(data, dict) and isinstance(data.get("tabs"), list) and data["tabs"]:
+                data.setdefault("rev", 0)
                 return data
         except (FileNotFoundError, json.JSONDecodeError, ValueError, OSError):
             pass
@@ -492,7 +493,7 @@ def _read_notes_index():
             except (FileNotFoundError, OSError):
                 legacy = ""
             _atomic_write(_note_file("1"), legacy)   # migrate; legacy file left intact
-        data = {"tabs": [{"id": "1", "name": "Notes"}], "active": "1"}
+        data = {"tabs": [{"id": "1", "name": "Notes"}], "active": "1", "rev": 0}
         _atomic_write(_notes_index_file(), json.dumps(data))
         return data
 
@@ -6176,6 +6177,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
         except json.JSONDecodeError:
             self._json(400, {"error": "invalid json"})
             return
+        if not isinstance(data, dict):
+            return self._json(400, {"error": "invalid json"})
         nid = data.get("id") or "1"
         if not _safe_note_id(nid):
             return self._json(400, {"error": "bad note id"})
@@ -6259,11 +6262,15 @@ class Handler(http.server.BaseHTTPRequestHandler):
             data = json.loads(body) if body else {}
         except json.JSONDecodeError:
             return self._json(400, {"error": "invalid json"})
+        if not isinstance(data, dict):
+            return self._json(400, {"error": "invalid json"})
         raw = data.get("tabs")
         if not isinstance(raw, list) or not raw:
             return self._json(400, {"error": "tabs must be a non-empty list"})
+        if len(raw) > 64:
+            return self._json(400, {"error": "at most 64 notes"})
         tabs, seen = [], set()
-        for t in raw[:64]:
+        for t in raw:
             if not isinstance(t, dict):
                 continue
             nid = t.get("id")
@@ -6277,21 +6284,21 @@ class Handler(http.server.BaseHTTPRequestHandler):
         if not (_safe_note_id(active) and active in seen):
             active = tabs[0]["id"]
         with _notes_lock:
+            current = _read_notes_index()
+            rev = current.get("rev", 0)
+            if type(data.get("rev")) is not int or data["rev"] != rev:
+                return self._json(409, {"ok": False, "conflict": True, **current})
+            removed = {t["id"] for t in current["tabs"]} - seen
             os.makedirs(_notes_dir(), exist_ok=True)
             _chown_app(_notes_dir())
-            _write_notes_index({"tabs": tabs, "active": active})
-            # A closed tab's note file is removed (the note is gone). The client
-            # confirms before closing a non-empty note, so this isn't a surprise.
-            try:
-                for fn in os.listdir(_notes_dir()):
-                    if fn.endswith(".md") and fn[:-3] not in seen:
-                        try:
-                            os.remove(os.path.join(_notes_dir(), fn))
-                        except OSError:
-                            pass
-            except OSError:
-                pass
-        self._json(200, {"ok": True, "tabs": tabs, "active": active})
+            _write_notes_index({"tabs": tabs, "active": active, "rev": rev + 1})
+            # Delete only explicitly removed tabs, never an unindexed/in-flight body.
+            for nid in removed:
+                try:
+                    os.remove(_note_file(nid))
+                except OSError as error:
+                    log.warning("closed note cleanup failed: %s", error)
+        self._json(200, {"ok": True, "tabs": tabs, "active": active, "rev": rev + 1})
 
     def _handle_client_debug(self):
         """POST {src, tag, ...numbers}: append one client-side diagnostic

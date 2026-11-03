@@ -136,8 +136,8 @@ function makeHarness(opts = {}) {
       }
       const json = (o) => Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve(o) });
       if (rec.method === "POST" && url === "/api/notes/tabs") {
-        state.index = { tabs: body.tabs.map((t) => ({ id: t.id, name: t.name })), active: body.active };
-        return json({ ok: true });
+        state.index = { tabs: body.tabs.map((t) => ({ id: t.id, name: t.name })), active: body.active, rev: (state.index.rev || 0) + 1 };
+        return json({ ok: true, rev: state.index.rev });
       }
       if (url === "/api/me") return json({user:opts.user || "test"});
       if (rec.method === "POST" && url === "/api/notes") { state.notes[body.id] = body.content; return json({ ok: true }); }
@@ -587,4 +587,87 @@ test('an old sync response cannot overwrite a newer edit even after save succeed
   h.type('new edit');h.advance(800);await flush();
   respond({ok:true,json:()=>Promise.resolve({content:'old snapshot'})});await flush();
   assert.equal(h.editor.value,'new edit');
+});
+
+
+test('a stale add rebases onto remote additions and preserves both notes', async () => {
+  const h = await boot();
+  let conflict = true;
+  h.onFetch = c => {
+    if (c.url !== '/api/notes/tabs' || c.method !== 'POST' || !conflict) return;
+    conflict = false;
+    h.state.index = { tabs: [{id:'a',name:'Renamed remotely'}, {id:'b',name:'Beta'}, {id:'remote',name:'Remote'}], active:'a', rev:1 };
+    return {ok:false,status:409,json:()=>Promise.resolve({...h.state.index,conflict:true})};
+  };
+  fire(h.els.add, 'click'); await flush();
+  const added = h.tabIds().find(id => !['a','b','remote'].includes(id));
+  assert.ok(added);
+  assert.ok(h.tabIds().includes('remote'));
+  assert.equal(h.tabNames()[h.tabIds().indexOf('a')], 'Renamed remotely');
+  h.advance(2000); await flush();
+  assert.ok(h.state.index.tabs.some(t=>t.id==='remote'));
+  assert.ok(h.state.index.tabs.some(t=>t.id===added));
+  assert.equal(h.posts('/api/notes/tabs').at(-1).body.rev,1);
+});
+
+test('a stale close keeps a new remote note while deleting only the intended tab', async () => {
+  const h = await boot();
+  let conflict = true;
+  h.onFetch = c => {
+    if (c.url !== '/api/notes/tabs' || c.method !== 'POST' || !conflict) return;
+    conflict = false;
+    h.state.index = {tabs:[{id:'a',name:'Alpha'},{id:'b',name:'Beta'},{id:'remote',name:'Remote'}],rev:1};
+    return {ok:false,status:409,json:()=>Promise.resolve({...h.state.index,conflict:true})};
+  };
+  h.closeTab('b'); await flush();
+  h.advance(2000); await flush();
+  assert.deepEqual(h.state.index.tabs.map(t=>t.id),['a','remote']);
+});
+
+test('HTTP failure reading an unopened note requires delete confirmation', async () => {
+  const h = await boot(); h.confirmAnswer = false;
+  h.onFetch = c => c.url === '/api/notes?id=b' ? {ok:false,status:500} : undefined;
+  const before = h.posts('/api/notes/tabs').length;
+  h.closeTab('b'); await flush();
+  assert.equal(h.confirms.length,1);
+  assert.ok(h.tabIds().includes('b'));
+  assert.equal(h.posts('/api/notes/tabs').length,before);
+});
+
+test('tab writes are serialized and edits made while saving are sent afterwards', async () => {
+  const h = await boot(); let resolve;
+  const before = h.posts('/api/notes/tabs').length;
+  h.onFetch = c => c.url === '/api/notes/tabs' && c.method === 'POST' ? new Promise(r => resolve = r) : undefined;
+  fire(h.els.add,'click'); fire(h.els.add,'click');
+  assert.equal(h.posts('/api/notes/tabs').length,before + 1);
+  h.onFetch = null;
+  resolve({ok:true,status:200,json:()=>Promise.resolve({rev:1})}); await flush();
+  assert.equal(h.posts('/api/notes/tabs').length,before + 2);
+  assert.equal(h.posts('/api/notes/tabs').at(-1).body.rev,1);
+  assert.equal(h.posts('/api/notes/tabs').at(-1).body.tabs.length,4);
+});
+
+test('a stale index read cannot overwrite a newer tab mutation', async () => {
+  const h = await boot(); let resolve;
+  const oldIndex = JSON.parse(JSON.stringify(h.state.index));
+  h.onFetch = c => c.url === '/api/notes' && c.method === 'GET' ? new Promise(r => resolve = r) : undefined;
+  h.advance(2000); await flush();
+  fire(h.els.add, 'click'); await flush();
+  const added = h.tabIds().find(id => !['a','b'].includes(id));
+  resolve({ok:true,json:()=>Promise.resolve(oldIndex)}); await flush();
+  assert.ok(h.tabIds().includes(added));
+});
+
+test('conflict rebasing does not resurrect a remotely deleted old tab', async () => {
+  const h = await boot(); let conflict = true;
+  h.onFetch = c => {
+    if (c.url !== '/api/notes/tabs' || c.method !== 'POST' || !conflict) return;
+    conflict = false;
+    h.state.index = {tabs:[{id:'a',name:'Alpha'}],rev:2};
+    return {ok:false,status:409,json:()=>Promise.resolve({...h.state.index,conflict:true})};
+  };
+  fire(h.els.add,'click'); await flush();
+  h.advance(2000); await flush();
+  assert.ok(!h.state.index.tabs.some(t=>t.id==='b'));
+  assert.equal(h.state.index.tabs.length,2);
 });
