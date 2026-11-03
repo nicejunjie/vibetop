@@ -90,11 +90,11 @@ test("the terminal's own resize paths follow the live bottom", () => {
     'a late resize event must not yank an already-scrolled viewport to the bottom');
 });
 
-function interactionHarness() {
+function interactionHarness(touch = false) {
   let now = 5000;
   const listeners = {}, sent = [], input = [];
   const term = { rows: 69, cols: 257, element: { clientWidth: 1800 },
-    buffer: { active: { type: 'normal', baseY: 0, viewportY: 0 } }, input(s) { input.push(s); }, onScroll() {}, scrollToBottom() {} };
+    buffer: { active: { type: 'normal', baseY: 0, viewportY: 0 } }, input(s) { input.push(s); }, onScroll() {}, scrollToBottom() { this.buffer.active.viewportY = this.buffer.active.baseY; } };
   class Socket {
     constructor() { this.readyState = 1; }
     addEventListener() {}
@@ -102,8 +102,8 @@ function interactionHarness() {
     send(bytes) { sent.push(new TextDecoder().decode(bytes)); }
   }
   Object.assign(Socket, { CONNECTING: 0, OPEN: 1, CLOSING: 2, CLOSED: 3 });
-  const document = { hidden: false, querySelector: () => null, hasFocus: () => true };
-  const window = { term, WebSocket: Socket, matchMedia: () => ({ matches: false }),
+  const document = { hidden: false, addEventListener() {}, getElementById: () => null, querySelector: () => null, hasFocus: () => true };
+  const window = { term, WebSocket: Socket, matchMedia: () => ({ matches: touch }),
     addEventListener: (name, fn) => (listeners[name] ||= []).push(fn) };
   vm.runInNewContext(SRC, { window, document, navigator: {}, Date: { now: () => now },
     TextEncoder, setTimeout: () => 1, clearTimeout() {}, setInterval: () => 1,
@@ -342,4 +342,19 @@ test('native committed text or paste returns to latest without synthesizing inpu
     h.emit(type, {target}); h.settle();
     assert.equal(h.buffer.viewportY,h.buffer.baseY);
   }
+});
+
+
+test('phone typing follows the live line without repeated resize nudges', () => {
+  const h = interactionHarness(true);
+  h.emit('pointerdown');
+  assert.equal(h.sent.length, 2, 'tapping the terminal claims its geometry');
+  h.term.buffer.active.baseY = 100; h.term.buffer.active.viewportY = 20;
+  for (let i = 0; i < 100; i++) {
+    h.advance(100); h.emit('input'); h.emit('keydown', { key: 'a' });
+  }
+  assert.equal(h.sent.length, 2, 'ten seconds of typing must not force a TUI redraw');
+  assert.equal(h.term.buffer.active.viewportY, 100, 'typing still returns to the live input line');
+  h.advance(1001); h.emit('pointerdown');
+  assert.equal(h.sent.length, 4, 'another terminal tap can reclaim after another device');
 });

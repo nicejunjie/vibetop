@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_526 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_527 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [Terminal link opened a closed Browser app but lost the URL](#terminal-link-opened-a-closed-browser-app-but-lost-the-url)
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
@@ -549,6 +549,7 @@ _526 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [Claude Code / Codex flashed on every click over the HTTPS terminal fallback (2026-10-30)](#claude-code-codex-flashed-on-every-click-over-the-https-terminal-fallback-2026-10-30)
 - [Reopening an overwritten image must bypass old browser bytes (2026-11-02)](#reopening-an-overwritten-image-must-bypass-old-browser-bytes-2026-11-02)
 - [Window-mode coach tips must remain dismissible (2026-11-02)](#window-mode-coach-tips-must-remain-dismissible-2026-11-02)
+- [Phone typing follows input without reclaiming geometry on every second (2026-11-03)](#phone-typing-follows-input-without-reclaiming-geometry-on-every-second-2026-11-03)
 
 <!-- END TOC -->
 
@@ -21124,3 +21125,15 @@ existing removal when the layout palette opens. Auto-hide now captures its own
 banner so an old timer cannot remove a replacement tip. This supersedes the
 earlier click-through tradeoff; a visible tip can be dismissed to expose a
 covered resize handle.
+
+
+## Phone typing follows input without reclaiming geometry on every second (2026-11-03)
+
+The interaction claim throttle sent a width nudge pair every second during
+continuous soft-keyboard input. That deliberately requests a full TUI redraw,
+providing a source-level cause for phone flashes in both Codex and Claude Code.
+Touch keydown/input now leave geometry alone: tapping the terminal or the explicit
+two-finger gesture still reclaims it. The existing input forwarding continues to
+return from history to the live typing line. A regression drives ten seconds of
+input and checks both no additional resize frames and return to the live line.
+Physical-phone confirmation is still required; see docs/code-audit-2026-11.md.

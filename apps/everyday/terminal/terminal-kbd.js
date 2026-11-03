@@ -529,6 +529,9 @@
   var lastInteractionClaim = 0;
   function claimForInteraction(e) {
     if (document.hidden) return;
+    // On phones the terminal tap claims geometry. Soft-keyboard input must
+    // only follow the typing line; nudging width here repaints the whole TUI.
+    if (isTouch && e && (e.type === 'input' || e.type === 'keydown')) return;
     var t = window.term;
     if (!t || !t.element || t.element.clientWidth <= 0) return;
     if (e && e.type === 'keydown' && /^(PageUp|PageDown|Home|End)$/.test(e.key)) return;
