@@ -122,3 +122,22 @@ test("rotate gives each live tip airtime across opens", () => {
   }
   assert.deepEqual(seen, ["A", "B"], "rotates through the tips one per open");
 });
+
+test('an older auto-hide timer does not remove a replacement tip', () => {
+  const html = fs.readFileSync(path.join(__dirname, 'desktop.html'), 'utf8');
+  const source = html.match(/  function coachAutoHideInWindowMode\(\) \{[\s\S]*?\n  \}/)[0];
+  const timers = [];
+  const first = { parentNode: {}, remove() { this.parentNode = null; } };
+  const second = { parentNode: {}, remove() { this.parentNode = null; } };
+  let current = first;
+  const ctx = {
+    windowModeOn: () => true,
+    document: { querySelector: () => current },
+    setTimeout: fn => timers.push(fn),
+  };
+  vm.runInNewContext(source + '\ncoachAutoHideInWindowMode();', ctx);
+  first.remove();
+  current = second;
+  timers[0]();
+  assert.ok(second.parentNode, 'the new banner must keep its own lifetime');
+});

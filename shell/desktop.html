@@ -1082,17 +1082,9 @@
      one. Its `cursor` is set per-gesture in setupWM — unset, it silently replaced the
      resize cursor with an arrow for the whole drag. */
   #win-dragmask { position: absolute; inset: 0; z-index: 99998; display: none; touch-action: none; }
-  /* A coach banner sits at bottom:60 — right on top of the bottom edge and SE
-     resize grip of any window reaching that far, and it stacks above the window.
-     Measured: elementFromPoint on an SE grip returned the banner, so the window
-     could not be resized (the very tip that says "drag an edge to resize" was
-     eating the drag). v1.19.9 fixed only the window-mode tip, and only via a
-     one-shot querySelector right after vibeCoach() — a race that silently missed
-     the banner whenever it rendered a tick later, and never covered the per-app
-     tips from coachForApp at all. Do it declaratively instead: in window mode
-     EVERY coach banner is click-through, so none can block window chrome.
-     Trade-off: it can't be tap-dismissed there, so window-mode tips auto-hide. */
-  body.wm .vibe-coach { pointer-events: none; }
+  /* Coach tips must receive clicks: tapping persists dismissal in coach.js.
+     Window-mode tips also expire, so an ignored tip cannot cover a resize grip
+     indefinitely. Do not make these pointer-events:none. */
   .frames iframe {
     position: absolute; inset: 0; width: 100%; height: 100%;
     border: none; background: #1a1a2e; display: block;
@@ -1714,8 +1706,7 @@
     var opts = VibeWin.layoutsFor(frameBox(), vis.length);
     if (!opts.length) return;
     // A coach banner renders at bottom:60 with z-index 2147483000 — directly over
-    // where this palette opens, and far above it. It is click-through in window
-    // mode so it never ate the interaction, but it hid it. A deliberate action
+    // where this palette opens, and far above it. A deliberate action
     // beats a passive tip: retire the banner rather than racing its z-index.
     var tip = document.querySelector('.vibe-coach');
     if (tip) { try { tip.remove(); } catch (e) {} }
@@ -3137,13 +3128,12 @@
     }
     coachAutoHideInWindowMode();
   }
-  // In window mode a banner is click-through (CSS above), so it can't be
-  // tap-dismissed — retire it on a timer instead of leaving it parked over the
-  // windows for the rest of the session.
+  // Keep auto-hide as a fallback for ignored window-mode tips. Capture this
+  // banner so an older timer cannot remove a newer tip.
   function coachAutoHideInWindowMode() {
     if (!windowModeOn()) return;
+    var el = document.querySelector('.vibe-coach');
     setTimeout(function() {
-      var el = document.querySelector('.vibe-coach');
       if (el && el.parentNode) { try { el.remove(); } catch (e) {} }
     }, 9000);
   }
@@ -3174,9 +3164,6 @@
     vibeCoach({ key: 'vibetop:tip:wm:v8',
                 text: 'Windows: drag the title bar to move · drag an edge or corner to resize · right-click the windows button in the taskbar to pick a layout' },
               { bottom: 60 });
-    // Click-through comes from the `body.wm .vibe-coach` CSS rule (race-free —
-    // the old one-shot querySelector here missed the banner whenever it rendered
-    // a tick later, leaving it blocking the resize grips it describes).
     coachAutoHideInWindowMode();
   }
 

@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_525 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_526 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [Terminal link opened a closed Browser app but lost the URL](#terminal-link-opened-a-closed-browser-app-but-lost-the-url)
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
@@ -548,6 +548,7 @@ _525 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [Browser Lite says why a LAN address is refused (and IP addresses no longer hang)](#browser-lite-says-why-a-lan-address-is-refused-and-ip-addresses-no-longer-hang)
 - [Claude Code / Codex flashed on every click over the HTTPS terminal fallback (2026-10-30)](#claude-code-codex-flashed-on-every-click-over-the-https-terminal-fallback-2026-10-30)
 - [Reopening an overwritten image must bypass old browser bytes (2026-11-02)](#reopening-an-overwritten-image-must-bypass-old-browser-bytes-2026-11-02)
+- [Window-mode coach tips must remain dismissible (2026-11-02)](#window-mode-coach-tips-must-remain-dismissible-2026-11-02)
 
 <!-- END TOC -->
 
@@ -21111,3 +21112,15 @@ the browser document is visible. Changed mtime or size loads a fresh image befor
 swapping the existing element's source, preserving zoom and pan. Failed loads
 retain the graph and retry; navigation invalidates pending refreshes. Polls do
 not overlap. Tests cover these behaviors and unchanged-file/hidden-page skips.
+
+
+## Window-mode coach tips must remain dismissible (2026-11-02)
+
+The window-mode `pointer-events: none` rule prevented tips from blocking resize
+grips, but also disabled the advertised tap-to-dismiss action for every shell
+tip. Remove that rule: clicking a tip must remove it and persist its existing
+`done` key. Keep the nine-second auto-hide fallback for ignored tips and the
+existing removal when the layout palette opens. Auto-hide now captures its own
+banner so an old timer cannot remove a replacement tip. This supersedes the
+earlier click-through tradeoff; a visible tip can be dismissed to expose a
+covered resize handle.
