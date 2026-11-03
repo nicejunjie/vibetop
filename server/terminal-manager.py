@@ -7771,7 +7771,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self.send_response(200)
             self.send_header("Content-Type", _IMAGE_MIME.get(ext, "application/octet-stream"))
             self.send_header("Content-Length", str(size))
-            self.send_header("Cache-Control", "private, max-age=300")
+            self.send_header("Cache-Control", "private, no-cache")
             if params.get("dl"):
                 self.send_header("Content-Disposition",
                                  _content_disposition(src))

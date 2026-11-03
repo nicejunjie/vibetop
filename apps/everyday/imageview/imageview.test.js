@@ -65,7 +65,7 @@ function makeEl(tag) {
   return el;
 }
 
-function load(qs, fetchImpl) {
+function load(qs, fetchImpl, imageImpl) {
   qs = qs || "path=" + encodeURIComponent("home/junjie/Pictures/a.png");
   var byId = {};
   ["name", "cnt", "dl", "close", "prev", "next"].forEach(function (id) {
@@ -81,10 +81,11 @@ function load(qs, fetchImpl) {
     console: { warn() {}, log() {}, error() {} },
     location: { search: "?" + qs },
     navigator: { userAgent: "test" },
+    setInterval: function(fn, ms) { sandbox._poll = fn; sandbox._pollMs = ms; },
     URLSearchParams: URLSearchParams,
     encodeURIComponent: encodeURIComponent,
     fetch: fetchImpl || function () { return Promise.resolve({ ok: false }); }, // no sibling list by default
-    Image: function () { return makeEl("img"); },
+    Image: imageImpl || function () { return makeEl("img"); },
     document: {
       _listeners: {},
       addEventListener: function (type, fn, capture) { (this._listeners[type] = this._listeners[type] || []).push({ fn: fn, capture: capture }); },
@@ -181,7 +182,8 @@ test("a filename with spaces, # and % is percent-encoded in the raw image URL", 
   var s = load("path=" + encodeURIComponent(tricky));
   var img = s.stage.children.filter(function (c) { return c.tagName === "IMG"; })[0];
   assert.ok(img, "an <img> must have been appended");
-  assert.strictEqual(img.src, "/api/file/image?path=" + encodeURIComponent(tricky));
+  assert.strictEqual(new URL(img.src, "http://localhost").searchParams.get("path"), tricky);
+  assert.ok(new URL(img.src, "http://localhost").searchParams.get("v"));
   assert.strictEqual(s.byId.name.textContent, "a #1 100%.png");
 });
 
@@ -206,6 +208,7 @@ test("prev/next clamp at the ends of the folder listing (no wraparound)", functi
     console: { warn() {}, log() {}, error() {} },
     location: { search: "?path=" + encodeURIComponent("home/junjie/Pictures/b.png") },
     navigator: { userAgent: "test" },
+    setInterval: function(fn, ms) { sandbox._poll = fn; sandbox._pollMs = ms; },
     URLSearchParams: URLSearchParams,
     encodeURIComponent: encodeURIComponent,
     fetch: function () {
@@ -313,4 +316,76 @@ test('changing images invalidates a pinch that still has fingers down', async ()
   s.winListeners.pointermove[0]({pointerId:2,clientX:300,clientY:100,preventDefault(){}});
   const img=s.stage.children.find(c=>c.tagName==='IMG');
   assert.ok(!img.classList.contains('zoomed'));
+});
+
+// Reopening the same file must escape a previously cached full-size response.
+test('reopening an image uses a fresh URL', () => {
+  const first = load().stage.children.find(c => c.tagName === 'IMG');
+  const reopened = load().stage.children.find(c => c.tagName === 'IMG');
+  assert.notStrictEqual(first.src, reopened.src);
+});
+
+const flush = () => new Promise(resolve => setImmediate(resolve));
+function watchedViewer() {
+  const state = { mtime: 1, size: 100, images: [], calls: 0 };
+  state.viewer = load('path=' + encodeURIComponent('tmp/graph #1.png'), url => {
+    if (!url.startsWith('/api/fs/stat?')) return Promise.resolve({ ok: false });
+    state.calls++;
+    assert.strictEqual(new URL(url, 'http://localhost').searchParams.get('path'), '/tmp/graph #1.png');
+    return Promise.resolve({ ok: true, json: () => Promise.resolve({ ok: true, stat: { mtime: state.mtime, size: state.size } }) });
+  }, function() { const im = makeEl('img'); state.images.push(im); return im; });
+  return state;
+}
+
+test('file changes refresh in place, preserve zoom/pan, and unchanged files do not reload', async () => {
+  const w = watchedViewer(), s = w.viewer;
+  await flush();
+  assert.strictEqual(s.sandbox._pollMs, 1500);
+  const img = s.stage.children.find(c => c.tagName === 'IMG');
+  w.images[0].onload(); await flush();
+  s.stage._listeners.wheel[0]({ deltaY: -1, clientX: 100, clientY: 100, preventDefault() {} });
+  const transform = img.style.transform, oldSrc = img.src;
+  s.sandbox._poll(); await flush();
+  assert.strictEqual(w.images.length, 1);
+  w.size++;
+  s.sandbox._poll(); await flush();
+  assert.strictEqual(img.src, oldSrc, 'keep the graph until its replacement loads');
+  w.images[1].onload(); await flush();
+  assert.notStrictEqual(img.src, oldSrc);
+  assert.strictEqual(s.stage.children.find(c => c.tagName === 'IMG'), img);
+  assert.strictEqual(img.style.transform, transform);
+  assert.ok(img.classList.contains('zoomed'));
+  const calls = w.calls;
+  s.sandbox.document.hidden = true;
+  s.sandbox._poll(); await flush();
+  assert.strictEqual(w.calls, calls);
+});
+
+test('failed refresh keeps the graph and retries without overlapping polls', async () => {
+  const w = watchedViewer(), s = w.viewer;
+  await flush();
+  const img = s.stage.children.find(c => c.tagName === 'IMG'), src = img.src;
+  s.sandbox._poll(); await flush();
+  assert.strictEqual(w.calls, 1);
+  w.images[0].onerror(); await flush();
+  assert.strictEqual(img.src, src);
+  s.sandbox._poll(); await flush();
+  assert.strictEqual(w.images.length, 2);
+  w.images[1].onload(); await flush();
+  assert.notStrictEqual(img.src, src);
+});
+
+test('a delayed refresh cannot change an image after navigation', async () => {
+  const pending = [];
+  const s = load('path=/tmp/a.png', url => Promise.resolve({ ok: true, json: () => Promise.resolve(
+    url.startsWith('/api/fs/stat?') ? { ok: true, stat: { mtime: 1, size: 10 } } :
+    { ok: true, entries: [{ name: 'a.png' }, { name: 'b.png' }] }
+  ) }), function() { const im = makeEl('img'); pending.push(im); return im; });
+  await flush();
+  const oldLoads = pending.filter(im => im.onload);
+  s.byId.next._listeners.click[0]();
+  const current = s.stage.children.find(c => c.tagName === 'IMG'), src = current.src;
+  oldLoads.forEach(im => im.onload()); await flush();
+  assert.strictEqual(current.src, src);
+  assert.strictEqual(s.byId.name.textContent, 'b.png');
 });

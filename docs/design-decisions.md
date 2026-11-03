@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_524 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_525 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [Terminal link opened a closed Browser app but lost the URL](#terminal-link-opened-a-closed-browser-app-but-lost-the-url)
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
@@ -547,6 +547,7 @@ _524 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [Browser Lite tabs reorder by dragging (mouse at once, finger after a hold)](#browser-lite-tabs-reorder-by-dragging-mouse-at-once-finger-after-a-hold)
 - [Browser Lite says why a LAN address is refused (and IP addresses no longer hang)](#browser-lite-says-why-a-lan-address-is-refused-and-ip-addresses-no-longer-hang)
 - [Claude Code / Codex flashed on every click over the HTTPS terminal fallback (2026-10-30)](#claude-code-codex-flashed-on-every-click-over-the-https-terminal-fallback-2026-10-30)
+- [Reopening an overwritten image must bypass old browser bytes (2026-11-02)](#reopening-an-overwritten-image-must-bypass-old-browser-bytes-2026-11-02)
 
 <!-- END TOC -->
 
@@ -21089,3 +21090,24 @@ lag every real resize by hundreds of ms. Dropping the nudge over HTTP, which
 would mean a click no longer reclaims the size there. Collapsing the pair into a
 single `cols` frame, which ttyd ignores at an unchanged size, so the claim would
 never reach the daemon.
+
+
+## Reopening an overwritten image must bypass old browser bytes (2026-11-02)
+
+Files quick preview versions its image URL, but the standalone viewer used a
+fixed URL and full-size image responses allowed five minutes of browser caching.
+Overwriting a graph therefore appeared in Enter preview while double-click and
+close/reopen could keep showing the old graph.
+
+Full-size responses now use `private, no-cache` so later requests revalidate.
+Each viewer instance also adds a fresh URL token to bypass responses already
+cached under the old policy. The token stays stable for neighbor preloading
+within that viewer. Thumbnail caching remains versioned by Files metadata.
+Regression tests cover reopening URLs, encoded filenames, cache policy, and
+serving overwritten image bytes.
+
+The standalone viewer also polls the current file stat every 1.5 seconds while
+the browser document is visible. Changed mtime or size loads a fresh image before
+swapping the existing element's source, preserving zoom and pan. Failed loads
+retain the graph and retry; navigation invalidates pending refreshes. Polls do
+not overlap. Tests cover these behaviors and unchanged-file/hidden-page skips.

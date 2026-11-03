@@ -40,6 +40,7 @@ def test_full_bytes(client, home):
     assert status == 200
     assert hdrs["content-type"] == "image/png"
     assert body == p.read_bytes()
+    assert hdrs["cache-control"] == "private, no-cache"
 
 
 def test_thumb_downscales_and_tags(client, home):
@@ -93,3 +94,15 @@ def test_non_image_rejected(client, home):
 def test_missing_file_404(client, home):
     status, _, _ = _raw(client, "/api/file/image?path=pics/nope.png&thumb=16")
     assert status == 404
+
+
+def test_overwritten_image_returns_latest_bytes(client, home):
+    p = _mkpng(home, "pics/changing.png")
+    url = "/api/file/image?path=pics/changing.png"
+    _, _, before = _raw(client, url)
+    Image.new("RGB", (64, 48), (0, 200, 0)).save(p)
+    status, headers, after = _raw(client, url)
+    assert status == 200
+    assert headers["cache-control"] == "private, no-cache"
+    assert after == p.read_bytes()
+    assert after != before

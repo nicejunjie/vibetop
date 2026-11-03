@@ -97,7 +97,10 @@
   // Fully native: bytes from /api/file/image, the prev/next folder listing
   // from /api/fs/list (the per-user file agent) — zero third-party API
   // involvement (v1.19.93; the FB resources call + its JWT dance are gone).
-  function rawUrl(p) { return '/api/file/image?path=' + encodeURIComponent(p); }
+  // A fresh viewer must bypass responses cached before revalidation was enabled.
+  // Keep the token stable within this viewer so neighbor preloads remain useful.
+  var imageVersion = Date.now().toString(36) + '-' + Math.random().toString(36).slice(2);
+  function rawUrl(p) { return '/api/file/image?path=' + encodeURIComponent(p) + '&v=' + imageVersion; }
   function dirOf(p) { var i = p.lastIndexOf('/'); return i > 0 ? p.slice(0, i) : ''; }
   function baseOf(p) { return p.split('/').pop(); }
 
@@ -237,6 +240,36 @@
     }
   });
 
+  // Watch the current file without rebuilding the stage (which resets zoom/pan).
+  var imageWatch = null, refreshSerial = 0;
+  function watchImage() {
+    var w = imageWatch;
+    if (!w || w.busy || document.hidden) return;
+    w.busy = true;
+    fetch('/api/fs/stat?path=' + encodeURIComponent('/' + w.path.replace(/^\//, '')), { cache: 'no-store' })
+      .then(function(r) { return r.ok ? r.json() : null; })
+      .then(function(d) {
+        if (imageWatch !== w || !d || !d.ok || !d.stat || d.stat.isDir) return;
+        var st = d.stat;
+        if (w.mtime === st.mtime && w.size === st.size) return;
+        // Decode first: a file being rewritten must not blank the current graph.
+        var fresh = new Image();
+        var url = rawUrl(w.path) + '&refresh=' + (++refreshSerial);
+        return new Promise(function(resolve) {
+          fresh.onload = function() {
+            if (imageWatch === w && img === w.img) {
+              w.img.src = url;
+              w.mtime = st.mtime; w.size = st.size;
+            }
+            resolve();
+          };
+          fresh.onerror = function() { resolve(); }; // retry on the next tick
+          fresh.src = url;
+        });
+      }).catch(function() {}).then(function() { w.busy = false; });
+  }
+  setInterval(watchImage, 1500);
+
   // ---- navigation ----
   function render() {
     resetGesture();
@@ -254,6 +287,8 @@
       showMsg('Could not load ' + baseOf(currentPath));
     };
     stage.appendChild(img);
+    imageWatch = { path: path, img: img, busy: false };
+    watchImage();
     if (list) {
       cntEl.textContent = (idx + 1) + ' / ' + list.length;
       prevBtn.disabled = idx <= 0;
