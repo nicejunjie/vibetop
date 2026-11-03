@@ -147,3 +147,16 @@ test('stream delivers split chunks immediately and deduplicates replay after dis
   assert.deepEqual(output,['0hello']);
   ws.close();
 });
+
+
+test('a previous tunnel failure cannot pin later terminals to HTTP fallback', async () => {
+  const {w,natives,storage} = browser();
+  storage.set('vt-terminal-http-until',String(Date.now()+600000));
+  const ws = new w.WebSocket('wss://test/t1/ws','tty');
+  assert.equal(natives.length,1,'an old preference must not bypass the native handshake');
+  natives[0].dispatchEvent(new Event('open'));
+  assert.equal(ws.readyState,1);
+  await delay(30);
+  assert.equal(ws._http,false);
+  ws.close();
+});

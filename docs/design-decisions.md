@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_529 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_530 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [Terminal link opened a closed Browser app but lost the URL](#terminal-link-opened-a-closed-browser-app-but-lost-the-url)
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
@@ -552,6 +552,7 @@ _529 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [Phone typing follows input without reclaiming geometry on every second (2026-11-03)](#phone-typing-follows-input-without-reclaiming-geometry-on-every-second-2026-11-03)
 - [Notes tab updates reject stale revisions before deleting content (2026-11-03)](#notes-tab-updates-reject-stale-revisions-before-deleting-content-2026-11-03)
 - [Mobile updates bound precache waits and expose stalled-navigation recovery (2026-11-03)](#mobile-updates-bound-precache-waits-and-expose-stalled-navigation-recovery-2026-11-03)
+- [Terminal reconnects retry native WebSockets after a transient tunnel outage (2026-11-03)](#terminal-reconnects-retry-native-websockets-after-a-transient-tunnel-outage-2026-11-03)
 
 <!-- END TOC -->
 
@@ -21185,3 +21186,18 @@ of the exact phone failure: its last captured auth probe timed out, while shell
 navigation itself had returned in 119 ms. No workloads were stopped. Tests drive
 the actual worker lifecycle with hung fetch/cache operations and the actual shell
 reload handlers with a navigation that never commits.
+
+
+## Terminal reconnects retry native WebSockets after a transient tunnel outage (2026-11-03)
+
+A cloudflared restart interrupted existing connections. The HTTP terminal adapter
+remembered any failed native handshake for ten minutes in sessionStorage, so
+subsequent terminals skipped WebSockets even after the tunnel recovered. Local
+browser checks showed a healthy native path and an intermittently blank/closed
+HTTP recovery path; the latter was not consistently reproduced on every attempt.
+
+Every new connection now attempts its native handshake again. The existing
+eight-second/error-triggered fallback remains available, but no remembered choice
+pins a recovered terminal to HTTP. A regression seeds the old preference and
+verifies that the native socket still opens. This restores transport selection;
+it does not claim to resolve every intermittent HTTP replay failure.

@@ -8,13 +8,8 @@
   'use strict';
   var Native = w.WebSocket;
   if (!Native || !w.fetch || !w.EventTarget) return;
-  var preference = 'vt-terminal-http-until';
-  function preferHTTP() {
-    try { return +w.sessionStorage.getItem(preference) > Date.now(); } catch (_) { return false; }
-  }
-  function rememberHTTP() {
-    try { w.sessionStorage.setItem(preference, String(Date.now() + 10 * 60 * 1000)); } catch (_) {}
-  }
+  // A failed tunnel handshake is temporary. Always retry the native path on
+  // the next connection rather than pinning every terminal to fallback for 10m.
   function base64(bytes) {
     var s = '';
     for (var i = 0; i < bytes.length; i += 8192) s += String.fromCharCode.apply(null, bytes.subarray(i, i + 8192));
@@ -33,7 +28,6 @@
       var self = this;
       this._pagehide = function () { self.close(); };
       w.addEventListener('pagehide', this._pagehide);
-      if (preferHTTP()) { w.setTimeout(function () { self._fallback(); }, 0); return; }
       this._native = protocols === undefined ? new Native(url) : new Native(url, protocols);
       this._native.binaryType = 'arraybuffer';
       this._timer = w.setTimeout(function () { if (self._state === 0) self._fallback(); }, 8000);
@@ -90,7 +84,7 @@
     }
     async _fallback() {
       if (this._http || this._state !== 0) return;
-      this._http = true; rememberHTTP(); w.clearTimeout(this._timer);
+      this._http = true; w.clearTimeout(this._timer);
       if (this._native) this._native.close();
       try {
         var opened = await this._request({op: 'open', terminal: this._number}, 1);
