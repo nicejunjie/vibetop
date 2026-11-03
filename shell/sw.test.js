@@ -189,19 +189,21 @@ class FakeResponse {
 function worker({ fetch, shellCache, setTimeout: st }) {
   const vm = require('node:vm');
   const handlers = {}, traced = [];
+  let skipped = 0;
   const traceCache = { match: async () => undefined, put: async (k, r) => { traced.push(JSON.parse(r.body)); } };
   vm.runInNewContext(SRC, {
     URL, location: { origin: 'https://vibetop.test' }, Date, JSON, Object, Array, String, Promise, Error,
-    self: { addEventListener: (name, fn) => { handlers[name] = fn; } },
+    self: { addEventListener: (name, fn) => { handlers[name] = fn; }, skipWaiting: async () => { skipped++; } },
     caches: { open(name) {
       if (name === 'vt-trace') return Promise.resolve(traceCache);
       if (!shellCache) assert.fail('reauth must never consult the shell cache');
       return Promise.resolve(shellCache);
     } },
     setTimeout: st || ((fn, ms) => { assert.fail('reauth must never time out to a cached shell'); }),
+    clearTimeout() {},
     Response: FakeResponse, fetch
   });
-  return { handlers, traced };
+  return { handlers, traced, get skipped() { return skipped; } };
 }
 function navigate(handlers, url) {
   let result;
@@ -271,4 +273,37 @@ test('a redirected shell navigation is handed to /reauth.html, a path the worker
   assert.equal(page.status, 200);
   await new Promise((r) => setImmediate(r));
   assert.ok(ok.traced.some((ring) => ring.some((e) => e.p === '/' && e.how === 'net' && e.s === 200)));
+});
+
+
+for (const stuck of ['fetch', 'cache-write', 'cache-open']) {
+  test('worker installation progresses when ' + stuck + ' hangs', async () => {
+    const timers = [];
+    const pending = new Promise(() => {});
+    const cache = {put: () => stuck === 'cache-write' ? pending : Promise.resolve()};
+    const w = worker({
+      fetch: () => stuck === 'fetch' ? pending : Promise.resolve({ok:true,redirected:false}),
+      shellCache: stuck === 'cache-open' ? pending : cache,
+      setTimeout: (fn, ms) => { timers.push({fn, ms}); return timers.length; }
+    });
+    let installing;
+    w.handlers.install({waitUntil(p) { installing = p; }});
+    await new Promise(r => setImmediate(r));
+    assert.equal(w.skipped,0);
+    assert.equal(timers[0].ms,8000);
+    timers[0].fn(); await installing;
+    assert.equal(w.skipped,1);
+  });
+}
+
+test('a cold navigation with no cached shell cannot wait forever for the network', async () => {
+  const timers = [];
+  const w = worker({fetch: () => new Promise(() => {}), shellCache: {match: async () => undefined},
+    setTimeout: (fn,ms) => { timers.push({fn,ms}); return timers.length; }});
+  const navigation = navigate(w.handlers,'https://vibetop.test/?vtbuild=123');
+  await new Promise(r => setImmediate(r));
+  timers.find(t=>t.ms===2500).fn();
+  await new Promise(r => setImmediate(r));
+  timers.find(t=>t.ms===9500).fn();
+  assert.ok(isUnreachablePage(await navigation));
 });

@@ -793,6 +793,12 @@
     z-index: 2147483647; background: #1f2937; color: #e6edf3;
     font: 13px system-ui, sans-serif; padding: 8px 15px; border-radius: 8px;
     border: 1px solid #2d6cc0; box-shadow: 0 6px 20px rgba(0,0,0,0.45);
+    width: max-content; max-width: calc(100vw - 32px); box-sizing: border-box;
+  }
+  .sw-updating button {
+    min-height: 44px; margin: 8px 6px 0 0; padding: 8px 12px;
+    border: 1px solid #6e9bd6; border-radius: 6px; background: #243b5a;
+    color: inherit; font: inherit; cursor: pointer;
   }
 
   /* === Frames === */
@@ -4490,20 +4496,37 @@
     swRefreshing = true;
     try {
       var t = document.createElement('div'); t.className = 'sw-updating';
+      t.setAttribute('role', 'status');
       t.textContent = 'Updating vibetop to the latest version…';
       document.body.appendChild(t);
     } catch (e) {}
     try { sessionStorage.setItem('vt-refresh-from', loadedShellVer || ''); } catch (_) {}
-    setTimeout(function() {
-      // A unique navigation URL bypasses both HTTP and service-worker cache
-      // entries. The new document cleans the parameter above.
+    function navigateToBuild() {
+      // A unique URL bypasses the old shell cache; the next document cleans it.
       try {
         var u = new URL(location.href);
         u.searchParams.set('vtbuild', Date.now());
         window.location.replace(u.href);
       } catch (_) { window.location.reload(); }
-    }, 1200);
+    }
+    setTimeout(navigateToBuild, 1200);
+    // The old document remains alive while a navigation is stalled. Give it a
+    // recovery path instead of leaving a permanent, blocking update notice.
+    setTimeout(function() {
+      if (!t || !t.parentNode) return;
+      t.textContent = 'The update is taking longer than expected. ';
+      var retry = document.createElement('button'); retry.textContent = 'Retry';
+      retry.addEventListener('click', navigateToBuild);
+      var later = document.createElement('button'); later.textContent = 'Continue for now';
+      later.addEventListener('click', function() {
+        window.stop();
+        t.remove();
+        // Keep this document's refresh latch set: don't immediately try again.
+      });
+      t.appendChild(retry); t.appendChild(later);
+    }, 12000);
   }
+
   function updateSW() {   // no-op without a SW (insecure origin) — guarded
     try { if (hasSW) navigator.serviceWorker.getRegistration().then(function(r) { if (r) r.update().catch(function() {}); }).catch(function() {}); } catch (e) {}
   }

@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_528 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_529 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [Terminal link opened a closed Browser app but lost the URL](#terminal-link-opened-a-closed-browser-app-but-lost-the-url)
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
@@ -551,6 +551,7 @@ _528 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [Window-mode coach tips must remain dismissible (2026-11-02)](#window-mode-coach-tips-must-remain-dismissible-2026-11-02)
 - [Phone typing follows input without reclaiming geometry on every second (2026-11-03)](#phone-typing-follows-input-without-reclaiming-geometry-on-every-second-2026-11-03)
 - [Notes tab updates reject stale revisions before deleting content (2026-11-03)](#notes-tab-updates-reject-stale-revisions-before-deleting-content-2026-11-03)
+- [Mobile updates bound precache waits and expose stalled-navigation recovery (2026-11-03)](#mobile-updates-bound-precache-waits-and-expose-stalled-navigation-recovery-2026-11-03)
 
 <!-- END TOC -->
 
@@ -21158,3 +21159,29 @@ An HTTP failure reading an unopened note also now takes the confirmation path,
 rather than treating unknown content as empty and deleting silently. Regression
 coverage includes server-side stale writes and in-flight bodies plus client
 conflict rebasing, serialized edits, and failed-read confirmation.
+
+
+## Mobile updates bound precache waits and expose stalled-navigation recovery (2026-11-03)
+
+A service-worker install awaited all precache requests and cache writes without
+a deadline. One hung optional asset could keep it installing indefinitely. The
+install now bounds the entire precache phase (including cache open/write) to
+eight seconds before skipWaiting; failed optional caching never blocks activation.
+Cold navigations with no cached fallback also bound their additional late-network
+wait to 9.5 seconds after the existing 2.5-second cache deadline, then show the
+existing actionable unreachable page. Explicit reauthentication still goes
+straight to the network, preserving the Access redirect behavior.
+
+The outgoing desktop's update banner now offers Retry and Continue for now after
+twelve seconds if its navigation has not committed. Continue stops the pending
+load and removes the banner while keeping the per-document reload latch set, so
+SSE/polls cannot immediately restart the attempt. Running remote processes are
+not terminated. Browser suspension can defer timers; these deadlines bound
+active JavaScript waits rather than suspended OS time.
+
+During investigation the host also showed roughly 76–84% full I/O pressure and
+hundreds of MB/s disk reads. This is evidence of a concurrent slowdown, not proof
+of the exact phone failure: its last captured auth probe timed out, while shell
+navigation itself had returned in 119 ms. No workloads were stopped. Tests drive
+the actual worker lifecycle with hung fetch/cache operations and the actual shell
+reload handlers with a navigation that never commits.

@@ -16,7 +16,7 @@
  * caches. sw.js itself is served no-store (nginx `location /`), so the browser
  * re-checks it on navigation and picks up the new VERSION.
  */
-const VERSION = 'v813';
+const VERSION = 'v814';
 const CACHE = 'shell-' + VERSION;
 // A ring of the last navigations this worker answered (path, how it was
 // served, status, elapsed). It outlives VERSION so the shell can read it after
@@ -103,17 +103,28 @@ const SHELL_PAGES = new Set(PRECACHE.filter((p) => p === '/' || p.endsWith('.htm
 // so the browser itself follows Cloudflare Access's redirect (see below).
 const BYPASS = /^\/(api|browser|x11-display|office|onlyoffice|t\d|terminals|fileview|services\.json|cdn-cgi|reauth\.html|rts\/)/;
 
+// A failed or stalled optional asset must not hold a mobile update indefinitely.
+async function withTimeout(promise, ms) {
+  let timer;
+  try {
+    return await Promise.race([promise, new Promise((_, reject) => {
+      timer = setTimeout(() => reject(new Error('timeout')), ms);
+    })]);
+  } finally { clearTimeout(timer); }
+}
 self.addEventListener('install', (e) => {
   e.waitUntil((async () => {
-    const cache = await caches.open(CACHE);
-    // Don't let one failed precache (e.g. an auth hiccup) abort the install.
-    await Promise.allSettled(PRECACHE.map(async (u) => {
-      try {
-        const r = await fetch(u, { cache: 'no-cache' });
-        if (r && r.ok && !r.redirected) await cache.put(u, r);
-      } catch (_) {}
-    }));
-    self.skipWaiting();
+    const precache = (async () => {
+      const cache = await caches.open(CACHE);
+      await Promise.allSettled(PRECACHE.map(async (u) => {
+        try {
+          const r = await fetch(u, { cache: 'no-cache' });
+          if (r && r.ok && !r.redirected) await cache.put(u, r);
+        } catch (_) {}
+      }));
+    })();
+    try { await withTimeout(precache, 8000); } catch (_) {}
+    await self.skipWaiting();
   })());
 });
 
@@ -185,7 +196,7 @@ self.addEventListener('fetch', (e) => {
         // A navigation nobody can answer gets the unreachable page, never the
         // browser's blank error page.
         const why = String(err && err.message || err);
-        const late = () => networkPromise.then((res) => {
+        const late = () => withTimeout(networkPromise, 9500).then((res) => {
           if (isRedirect(res)) { note({ how: 'handoff', s: res.status, ty: res.type, why }); return handoffPage(); }
           note({ how: 'late', s: res.status, ty: res.type, rd: !!res.redirected, why });
           return res;
