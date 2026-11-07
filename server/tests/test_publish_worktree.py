@@ -32,7 +32,8 @@ def repos(tmp_path):
     work = tmp_path / 'work'
     git(home, 'worktree', 'add', '-q', '-b', 'work/x', str(work), 'origin/main')
     (work / 'a.txt').write_text('two\n')
-    git(work, 'commit', '-qam', 'release')
+    (work / 'new.txt').write_text('added\n')
+    git(work, 'add', '-A'); git(work, 'commit', '-qm', 'release')
     return home, work
 
 
@@ -53,6 +54,7 @@ def test_copy_of_the_release_is_dropped_and_unrelated_edits_kept(repos):
     home, work = repos
     (home / 'a.txt').write_text('two\n')      # the copy the release was made from
     git(home, 'add', 'a.txt')                  # even when staged
+    (home / 'new.txt').write_text('added\n') # a new file copied, never added
     (home / 'b.txt').write_text('mine\n')     # unrelated work in progress
     result = publish(work)
     assert result.returncode == 0, result.stderr
@@ -80,3 +82,12 @@ def test_home_with_its_own_commits_is_left_alone(repos):
     assert result.returncode == 0
     assert 'not on origin/main' in result.stderr
     assert git(home, 'rev-parse', 'HEAD') == before
+
+
+def test_differing_untracked_file_in_the_way_is_kept(repos):
+    home, work = repos
+    (home / 'new.txt').write_text('draft\n')
+    result = publish(work)
+    assert result.returncode == 0
+    assert 'update it by hand' in result.stderr
+    assert (home / 'new.txt').read_text() == 'draft\n'

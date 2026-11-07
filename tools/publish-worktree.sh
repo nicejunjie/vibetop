@@ -33,17 +33,22 @@ if ! git -C "$home" merge-base --is-ancestor HEAD "$published"; then
   echo "note: $home main has commits that are not on origin/main; left as is" >&2
   exit 0
 fi
-# An edit in home that is byte-identical to what was just published is the
-# copy a release was made from: dropping it loses nothing and lets the
-# fast-forward through. Anything that differs is real work and is kept.
+# A file in home that is byte-identical to what was just published is the
+# copy a release was made from (an edited tracked file, or a new file never
+# added): dropping it loses nothing and lets the fast-forward through. Anything
+# that differs is real work and is kept.
+same() {
+  [ -f "$home/$1" ] && git -C "$home" cat-file -e "$published:$1" 2>/dev/null &&
+    [ "$(git -C "$home" hash-object -- "$1")" = "$(git -C "$home" rev-parse "$published:$1")" ]
+}
 while IFS= read -r -d '' path; do
-  if [ -f "$home/$path" ] && git -C "$home" cat-file -e "$published:$path" 2>/dev/null &&
-     [ "$(git -C "$home" hash-object -- "$path")" = "$(git -C "$home" rev-parse "$published:$path")" ]; then
-    git -C "$home" checkout --quiet HEAD -- "$path"
-  fi
+  if same "$path"; then git -C "$home" checkout --quiet HEAD -- "$path"; fi
 done < <(git -C "$home" diff --name-only -z HEAD)
+while IFS= read -r -d '' path; do
+  if same "$path"; then rm -f -- "$home/$path"; fi
+done < <(git -C "$home" ls-files --others --exclude-standard -z)
 if git -C "$home" merge --quiet --ff-only "$published"; then
   echo "home checkout $home fast-forwarded to $(git -C "$home" log --oneline -1)"
 else
-  echo "note: could not fast-forward $home (uncommitted edits overlap the release); update it by hand" >&2
+  echo "note: could not fast-forward $home (its uncommitted files differ from the release); update it by hand" >&2
 fi

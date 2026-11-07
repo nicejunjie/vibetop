@@ -21219,7 +21219,8 @@ longer runs.
 
 **Fix:** `tools/publish-worktree.sh` fast-forwards home `main` after a successful
 push. Home files whose content matches the published commit (copies of the
-release, staged or not) are reset first, because a fast-forward refuses to
+release: edited tracked files, staged or not, and new files never added) are
+reset or removed first, because a fast-forward refuses to
 overwrite local changes even when they are identical. A differing edit, local
 commits, or a branch other than `main` leave home untouched and print a note. The
 step never fails the publish, because the push has already happened.
