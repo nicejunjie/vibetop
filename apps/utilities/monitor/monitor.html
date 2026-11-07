@@ -403,7 +403,7 @@
   var gpuInventory = null, gpuSeries = {}, lastStatus = null;
   var cpuInventory = null, cpuSeries = {};
   var gpuSignature = '', historyGeneration = 0;
-  var selectedDisk = null, diskInventory = null, diskSeries = {}, diskSignature = '';
+  var selectedDisk = 'all', diskInventory = null, diskSeries = {}, diskSignature = '';
 
 
   function selectGpuData(d, sample) {
@@ -528,18 +528,65 @@
     drawChart('temp-chart', datasets, scale.max);
   }
 
+  // Sum of the readings that exist; null only when no drive reports one.
+  function sumKnown(values) {
+    var known = values.filter(function(v) { return v != null; });
+    return known.length ? known.reduce(function(a, b) { return a + b; }, 0) : null;
+  }
+  function combineDisks(disks) {
+    // Space covers drives that report it (a filesystem spanning drives reports
+    // on none of them); I/O covers every drive.
+    var spaced = disks.filter(function(disk) { return disk.total_gb > 0 && disk.used_gb != null; });
+    var out = {kind: 'all',
+      read_bytes: sumKnown(disks.map(function(disk) { return disk.read_bytes; })),
+      write_bytes: sumKnown(disks.map(function(disk) { return disk.write_bytes; }))};
+    if (spaced.length) {
+      var round1 = function(v) { return Math.round(v * 10) / 10; };
+      out.total_gb = round1(sumKnown(spaced.map(function(disk) { return disk.total_gb; })));
+      out.used_gb = round1(sumKnown(spaced.map(function(disk) { return disk.used_gb; })));
+      var free = sumKnown(spaced.map(function(disk) { return disk.free_gb; }));
+      out.free_gb = free == null ? null : round1(free);
+      if (free != null && out.used_gb + free > 0) out.pct = Math.round(100 * out.used_gb / (out.used_gb + free));
+    }
+    return out;
+  }
+  function combineDiskSeries(disks) {
+    // Sample slots line up from the newest end; a drive with a shorter
+    // history simply contributes nothing to the older slots.
+    function combine(key) {
+      var lists = disks.map(function(disk) { return (diskSeries[disk.id] || {})[key] || []; });
+      var len = Math.max.apply(null, [0].concat(lists.map(function(l) { return l.length; })));
+      var out = [];
+      for (var i = 0; i < len; i++)
+        out.push(sumKnown(lists.map(function(l) { var j = l.length - len + i; return j < 0 ? null : l[j]; })));
+      return out;
+    }
+    return {read: combine('read'), write: combine('write')};
+  }
+
   function selectDiskData(d, sample) {
     if (!Array.isArray(d.disks)) { diskInventory = null; return d; }
     diskInventory = d.disks.slice().sort(function(a, b) {
       return (a.mount === '/' ? 0 : 1) - (b.mount === '/' ? 0 : 1) ||
              (a.mount || a.name).localeCompare(b.mount || b.name);
     });
-    if (!diskInventory.some(function(disk) { return disk.id === selectedDisk; }))
-      selectedDisk = (diskInventory[0] || {}).id || null;
+    // 'all' (the default) sums every drive. Inventory rows are distinct
+    // physical drives, so the sum never double-counts a partition.
+    if (selectedDisk !== 'all' && !diskInventory.some(function(disk) { return disk.id === selectedDisk; }))
+      selectedDisk = 'all';
+    var effective = diskInventory.length < 2 ? ((diskInventory[0] || {}).id || null) : selectedDisk;
     var pick = document.getElementById('disk-pick');
     var signature = JSON.stringify(diskInventory.map(function(disk) { return [disk.id, disk.name, disk.model, disk.device, disk.mounts]; }));
     if (signature !== diskSignature) {
       diskSignature = signature; pick.innerHTML = '';
+      var allButton = node('button', null, null, 'All');
+      allButton.type = 'button'; allButton.dataset.diskId = 'all';
+      allButton.title = 'All drives combined';
+      allButton.addEventListener('click', function() {
+        selectedDisk = 'all';
+        if (lastStatus) renderDisk(selectDiskData(lastStatus, false));
+      });
+      pick.appendChild(allButton);
       diskInventory.forEach(function(disk) {
         var button = node('button', null, null, disk.kind === 'physical' ? disk.name : (disk.mount || disk.name));
         button.type = 'button'; button.dataset.diskId = disk.id;
@@ -553,13 +600,16 @@
     }
     pick.hidden = diskInventory.length < 2;
     Array.prototype.forEach.call(pick.children, function(button) {
-      var active = button.dataset.diskId === selectedDisk;
+      var active = button.dataset.diskId === effective;
       button.classList.toggle('on', active); button.setAttribute('aria-pressed', String(active));
     });
-    var chosen = diskInventory.filter(function(disk) { return disk.id === selectedDisk; })[0] || {};
+    var chosen = effective === 'all' ? combineDisks(diskInventory)
+      : diskInventory.filter(function(disk) { return disk.id === effective; })[0] || {};
     var detail = document.getElementById('disk-detail');
-    detail.hidden = !selectedDisk;
-    detail.textContent = chosen.kind === 'physical'
+    detail.hidden = !effective;
+    detail.textContent = chosen.kind === 'all'
+      ? diskInventory.length + ' drives · ' + (diskInventory.reduce(function(m, disk) { return m.concat(disk.mounts || []); }, []).join(', ') || 'unmounted')
+      : chosen.kind === 'physical'
       ? [chosen.device, chosen.capacity_gb != null ? chosen.capacity_gb + ' GB' : '', (chosen.mounts || []).join(', ') || 'unmounted'].filter(Boolean).join(' · ')
       : (chosen.mount ? chosen.mount + ' · ' + chosen.device : (chosen.device || '') + ' · unmounted');
     detail.title = [chosen.model, 'Usage sums mounted filesystems; I/O covers the whole physical drive.'].filter(Boolean).join(' · ');
@@ -575,7 +625,7 @@
         push(series.write, disk.write_bytes == null ? null : disk.write_bytes);
       });
     }
-    var series = diskSeries[selectedDisk] || {read: [], write: []};
+    var series = effective === 'all' ? combineDiskSeries(diskInventory) : diskSeries[effective] || {read: [], write: []};
     diskRdHist = series.read; diskWrHist = series.write;
     d = Object.assign({}, d);
     ['used_gb', 'total_gb', 'free_gb', 'pct', 'read_bytes', 'write_bytes'].forEach(function(key) { d['disk_' + key] = chosen[key]; });
@@ -588,7 +638,8 @@
     var diskPct = haveSpace ? (d.disk_pct != null ? d.disk_pct : d.disk_used_gb / d.disk_total_gb * 100) : 0;
     setBar('disk-bar', 'disk-bar-text', diskPct,
            haveSpace ? d.disk_used_gb + ' / ' + d.disk_total_gb + ' GB' : '--', '#5aad8a', false);
-    document.getElementById('disk-bar-text').title = d.disk_kind === 'physical' ? 'Used / total space across mounted filesystems on this drive' : '';
+    document.getElementById('disk-bar-text').title = d.disk_kind === 'physical' ? 'Used / total space across mounted filesystems on this drive'
+      : d.disk_kind === 'all' ? 'Used / total space across mounted filesystems on all drives' : '';
     var haveRd = d.disk_read_bytes != null, haveWr = d.disk_write_bytes != null;
     var rdRate = haveRd ? d.disk_read_bytes : 0, wrRate = haveWr ? d.disk_write_bytes : 0;
     document.getElementById('disk-stats').innerHTML =

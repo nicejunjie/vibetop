@@ -1046,8 +1046,12 @@ test('disk selection changes space, I/O and history without assuming a disk coun
   const extra = {...DISK_DATA, id: 'disk-' + 'd'.repeat(64), device: '/dev/sdc1', mount: '/backup', mounts: ['/backup']};
   const h = load({payloads: [fullStatus({disks: [DISK_DATA, unmounted, extra, DISK_ROOT]})]});
   await h.settle();
-  assert.strictEqual(h.id('disk-pick').children.length, 4);
-  assert.strictEqual(activeDisk(h), DISK_ROOT.id);
+  assert.strictEqual(h.id('disk-pick').children.length, 5, 'All + one per drive');
+  assert.strictEqual(activeDisk(h), 'all', 'combined view is the default');
+  assert.strictEqual(h.id('disk-bar-text').textContent, '1300 / 17000 GB', 'sums every drive that reports space');
+  assert.ok(h.id('disk-stats').innerHTML.includes('R 2.0 MB/s'), 'sums I/O across drives');
+  assert.ok(h.id('disk-detail').textContent.startsWith('4 drives'));
+  chooseDisk(h, DISK_ROOT.id);
   assert.strictEqual(h.id('disk-bar-text').textContent, '100 / 1000 GB');
   assert.strictEqual(h.id('disk-bar').style.width, '11%');
   chooseDisk(h, DISK_DATA.id);
@@ -1101,6 +1105,28 @@ test('disk history is taken by identity and never copies root history onto data'
   await old.settle(); old.clearPaths();
   chooseDisk(old, DISK_DATA.id);
   assert.strictEqual(vertices(old.id('disk-chart'), GREEN).length, 0);
+});
+
+test('combined disk history sums every drive and a removed choice falls back to All', async () => {
+  const flat = value => Array(60).fill(value);
+  const series = Object.fromEntries(['memory_used_gb', 'gpu_percent', 'gpu_vram_used_gb', 'cpu_temp',
+    'gpu_temp', 'cpu_power_w', 'gpu_power_w', 'wall_power_w', 'net_rx_bps', 'net_tx_bps',
+    'disk_read_bytes', 'disk_write_bytes'].map(key => [key, flat(1)]));
+  const history = {series, disks: {
+    [DISK_ROOT.id]: {disk_read_bytes: flat(10485760), disk_write_bytes: flat(0)},
+    [DISK_DATA.id]: {disk_read_bytes: flat(10485760), disk_write_bytes: flat(2048)}
+  }};
+  const h = load({payloads: [fullStatus({disks: [DISK_ROOT, DISK_DATA]})], history});
+  await h.settle();
+  assert.strictEqual(activeDisk(h), 'all');
+  assert.ok(h.id('disk-yaxis').innerHTML.includes('50 MB/s'), 'two 10 MB/s drives sum past one drive\'s 20 MB/s scale');
+  const extra = {...DISK_DATA, id: 'disk-' + 'e'.repeat(64), mount: '/x', mounts: ['/x']};
+  const gone = load({payloads: [fullStatus({disks: [DISK_ROOT, DISK_DATA, extra]}), fullStatus({disks: [DISK_ROOT, DISK_DATA]})]});
+  await gone.settle();
+  chooseDisk(gone, extra.id);
+  assert.strictEqual(activeDisk(gone), extra.id);
+  gone.tick(); await gone.settle();
+  assert.strictEqual(activeDisk(gone), 'all');
 });
 
 
@@ -1193,8 +1219,9 @@ test('physical disk buttons group all partition mounts under drive names', async
   const data = {...DISK_DATA, kind: 'physical', name: 'sda', device: '/dev/sda', capacity_gb: 7452};
   const h = load({payloads: [fullStatus({disks: [data, root]})]});
   await h.settle();
-  assert.deepStrictEqual(h.id('disk-pick').children.map(b => b.textContent), ['nvme0n1', 'sda']);
+  assert.deepStrictEqual(h.id('disk-pick').children.map(b => b.textContent), ['All', 'nvme0n1', 'sda']);
   assert.ok(h.id('disk-detail').textContent.includes('/, /boot/efi'));
+  chooseDisk(h, root.id);
   assert.ok(h.id('disk-detail').textContent.includes('3726 GB'));
   assert.ok(h.id('disk-bar-text').title.includes('mounted filesystems'));
   chooseDisk(h, data.id);
