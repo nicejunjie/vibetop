@@ -415,6 +415,95 @@ def write_all(fd, data):
 # serve
 # ---------------------------------------------------------------------------
 
+# ---- Saved session state: what a reboot would otherwise erase -------------
+# The session daemon keeps everything in memory (the ring) and in /tmp (the
+# socket), so a host reboot lost every terminal's output, its working
+# directory and, through the manager, its tab name. When the manager passes
+# VIBETOP_TERM_STATE (a per-terminal dir in the user's own home), the daemon
+# saves the ring and the shell's cwd there every SAVE_INTERVAL seconds and at
+# SIGTERM, and a fresh daemon for the same terminal loads them back. The
+# running PROGRAMS are not restored: nothing can resume a dead process.
+SAVE_INTERVAL = 20.0
+STATE_SCROLLBACK = 'scrollback'
+STATE_META = 'meta.json'
+
+# Written after restored output, before the banner: whatever the saved stream
+# was in the middle of (an escape sequence cut off by the ring, a fullscreen
+# TUI in the alternate screen, mouse reporting, a hidden cursor, a scroll
+# region) must not leak into the fresh shell. CAN aborts a partial sequence.
+RESTORE_RESET = (b'\x18\x1b[0m\x1b[?1049l\x1b[?1000l\x1b[?1002l\x1b[?1003l'
+                 b'\x1b[?1005l\x1b[?1006l\x1b[?1015l\x1b[?2004l\x1b[?25h\x1b[r')
+
+
+def _write_private(path, data):
+    """Atomically replace `path` with `data`, readable only by its owner, and
+    durable across a power cut (the case this state exists for)."""
+    tmp = '%s.%d.tmp' % (path, os.getpid())
+    try:
+        os.unlink(tmp)
+    except FileNotFoundError:
+        pass
+    fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
+    try:
+        view = memoryview(data)
+        while view:
+            view = view[os.write(fd, view):]
+        os.fsync(fd)
+    finally:
+        os.close(fd)
+    os.replace(tmp, path)
+
+
+def save_session_state(state_dir, output, cwd, now=None):
+    """Save the replay ring's bytes and the shell's cwd. Scrollback first, meta
+    last: the manager treats meta.json as "this terminal can be restored"."""
+    os.makedirs(state_dir, mode=0o700, exist_ok=True)
+    _write_private(os.path.join(state_dir, STATE_SCROLLBACK), bytes(output))
+    meta = {'v': 1, 'cwd': cwd, 'saved': int(now if now is not None else time.time())}
+    _write_private(os.path.join(state_dir, STATE_META), json.dumps(meta).encode())
+
+
+def load_session_state(state_dir, limit):
+    """(output, cwd, saved_epoch_seconds) from a previous daemon, or None."""
+    if not state_dir:
+        return None
+    try:
+        with open(os.path.join(state_dir, STATE_META), 'rb') as f:
+            meta = json.loads(f.read(64 * 1024))
+        if not isinstance(meta, dict):
+            return None
+    except (OSError, ValueError):
+        return None
+    output = b''
+    try:
+        with open(os.path.join(state_dir, STATE_SCROLLBACK), 'rb') as f:
+            size = os.fstat(f.fileno()).st_size
+            if size > limit:
+                f.seek(size - limit)
+            output = f.read(limit)
+    except OSError:
+        pass
+    cwd = meta.get('cwd') if isinstance(meta.get('cwd'), str) else None
+    saved = meta.get('saved') if isinstance(meta.get('saved'), int) else None
+    return output, cwd, saved
+
+
+def restored_banner(saved):
+    """The line between the old output and the new shell."""
+    when = time.strftime('%b %-d %H:%M', time.localtime(saved)) if saved else 'earlier'
+    return (RESTORE_RESET + b'\r\n\x1b[2m-- restored after restart \xc2\xb7 output saved '
+            + when.encode() + b' \xc2\xb7 programs that were running have stopped --\x1b[0m\r\n')
+
+
+def shell_cwd(pid):
+    """The shell's current directory, or None when it is gone or deleted."""
+    try:
+        cwd = os.readlink('/proc/%d/cwd' % pid)
+    except OSError:
+        return None
+    return None if cwd.endswith(' (deleted)') else cwd
+
+
 def cmd_serve(instance):
     sock_path = f'/tmp/vibetop-session-{instance}.sock'
     pid_path = f'/tmp/vibetop-session-{instance}.pid'
@@ -471,6 +560,14 @@ def cmd_serve(instance):
         PACED = False               # adaptive supersedes the fixed-rate gate
 
     ring = RingBuffer(buf_cap)
+    state_dir = os.environ.get('VIBETOP_TERM_STATE') or None
+    restored = load_session_state(state_dir, buf_cap)
+    restore_cwd = None
+    if restored:
+        old_output, restore_cwd, saved_at = restored
+        ring.write(strip_terminal_queries(old_output) + restored_banner(saved_at))
+    saved_mark = None      # (epoch, offset, cwd) last written to state_dir
+    next_save = time.monotonic() + SAVE_INTERVAL
     resume_clients = {}
     resume_pending = {}
     clients = {}          # fileno -> socket
@@ -579,7 +676,7 @@ def cmd_serve(instance):
         cols = min(9999, max(1, cols))
         return rows, cols
 
-    def spawn_shell():
+    def spawn_shell(cwd=None):
         nonlocal pty_fd, child_pid, last_spawn
         last_spawn = time.monotonic()
         master, slave = os.openpty()
@@ -602,6 +699,11 @@ def cmd_serve(instance):
                 os.environ['TERM'] = os.environ.get('TERM', 'xterm-256color')
                 os.environ['LANG'] = os.environ.get('LANG', 'en_US.UTF-8')
                 os.environ['TERM_ID'] = str(instance)
+                if cwd:
+                    try:
+                        os.chdir(cwd)          # a restored terminal reopens where it was
+                    except OSError:
+                        pass                   # gone since: the unit's home is fine
                 os.execv('/bin/bash', ['bash', '-l'])
             except BaseException:
                 os._exit(127)
@@ -751,7 +853,24 @@ def cmd_serve(instance):
         pending_resize = True
         resize_deadline = time.monotonic() + RESIZE_DEBOUNCE
 
+    def save_state(force=False):
+        nonlocal saved_mark
+        if not state_dir:
+            return
+        cwd = shell_cwd(child_pid) if child_pid > 0 else None
+        mark = (ring.epoch, ring.offset, cwd)
+        if mark == saved_mark and not force:
+            return
+        try:
+            save_session_state(state_dir, ring.read_all(), cwd)
+            saved_mark = mark
+        except OSError as e:
+            sys.stderr.write('vibetop-session: saving state failed: %s\n' % e)
+
     def on_sigterm(signum, frame):
+        # Save first, while the shell is still alive to report its cwd: a host
+        # shutdown stops this unit with exactly this signal.
+        save_state(force=True)
         # Hang up the shell rather than SIGTERM it (interactive bash ignores
         # SIGTERM anyway). SIGHUP is the terminal-hangup signal: bash forwards it
         # to its jobs and exits, while setsid'd daemons (ssh ControlPersist master,
@@ -837,7 +956,7 @@ def cmd_serve(instance):
     resume_sig = sock_sig(resume_path)
     sel.register(server, selectors.EVENT_READ, 'server')
 
-    spawn_shell()
+    spawn_shell(restore_cwd)
 
     # -- main loop --
 
@@ -882,6 +1001,10 @@ def cmd_serve(instance):
             else:
                 respawn_fails = 0
             spawn_shell()
+
+        if state_dir and now >= next_save:
+            next_save = now + SAVE_INTERVAL
+            save_state()
 
         # Apply a debounced resize once the burst has settled (see RESIZE_DEBOUNCE).
         # While one is pending, shorten the select timeout so we apply promptly.

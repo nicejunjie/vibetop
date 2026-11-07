@@ -2330,6 +2330,51 @@ def _term_units(user, n):
     return f"vibetop-uterm-{tag}.service", f"vibetop-uttyd-{tag}.service"
 
 
+# ---- Saved terminal state (restore after a reboot) -------------------------
+# Each session daemon saves its output and cwd under the user's own home (it
+# runs as them; see vibetop-session save_session_state). The manager only
+# stats this tree — it never reads the saved output — and deletes it AS THE
+# USER, so root never writes into a home.
+TERM_STATE_REL = ".local/state/vibetop/terminals"
+
+
+def _term_state_root(user):
+    return os.path.join(_user_home(user), TERM_STATE_REL)
+
+
+def _term_state_dir(user, n):
+    return os.path.join(_term_state_root(user), str(int(n)))
+
+
+def _restorable_terminals(user):
+    """Terminal numbers with saved state from a session that is gone (a reboot,
+    a crash, the idle reaper). Not closed ones: closing deletes the state."""
+    root = _term_state_root(user)
+    try:
+        names = os.listdir(root)
+    except OSError:
+        return []
+    out = []
+    for name in names:
+        if name.isdigit() and 1 <= int(name) <= MAX_INSTANCE and \
+                os.path.isfile(os.path.join(root, name, "meta.json")):
+            out.append(int(name))
+    return sorted(out)
+
+
+def _forget_terminal_state(user, n=None):
+    """Delete saved state for terminal N (or every terminal), as the user. Call
+    only after the session is stopped: a live daemon would save it again."""
+    path = _term_state_root(user) if n is None else _term_state_dir(user, n)
+    if not os.path.lexists(path):
+        return
+    try:
+        subprocess.run(["runuser", "-u", user, "--", "rm", "-rf", "--", path],
+                       capture_output=True, timeout=30)
+    except (OSError, subprocess.SubprocessError) as e:
+        log.warning("terminal %s-%s: forgetting saved state failed: %s", user, n, e)
+
+
 def _provision_user(user):
     """One-time-ish setup so a user's terminal has a working runtime: linger keeps
     /run/user/<uid> alive (D-Bus/XDG for GUI apps + systemctl --user). Idempotent
@@ -2483,6 +2528,9 @@ def _start_user_terminal_locked(user, n, keep_name=False):
     setenvs = []
     for e in _user_terminal_setenvs(user):
         setenvs += ["--setenv", e]
+    # Only the session daemon saves/restores; ttyd never needs the path.
+    restorable = n in _restorable_terminals(user)
+    state_env = ["--setenv", "VIBETOP_TERM_STATE=" + _term_state_dir(user, n)]
     try:
         # OOMPolicy=continue: when the kernel OOM-kills something the user ran
         # in this shell, kill THAT process and keep the terminal. systemd's
@@ -2490,7 +2538,7 @@ def _start_user_terminal_locked(user, n, keep_name=False):
         # shell, every job in it — for one runaway child.
         r1 = subprocess.run(
             base + ["--property", "OOMPolicy=continue",
-                    f"--unit={sess_unit}"] + setenvs +
+                    f"--unit={sess_unit}"] + setenvs + state_env +
             [_term_helper("vibetop-session"), "serve", inst],
             capture_output=True, text=True, timeout=30)
         if r1.returncode != 0:
@@ -2527,7 +2575,8 @@ def _start_user_terminal_locked(user, n, keep_name=False):
             return False, f"ttyd never bound port {port}"
     except (OSError, subprocess.SubprocessError) as e:
         return False, str(e)
-    if not (was_running or keep_name):
+    # A restored session is the same terminal coming back, so it keeps its name.
+    if not (was_running or keep_name or restorable):
         _forget_tab_name(user, n)       # fresh session -> clean name
     return True, port
 
@@ -6636,8 +6685,11 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 log.warning("reset: terminals still running for %s after stop: %s",
                             user, result["terminals_remaining"])
                 result["ok"] = False
+        # Logout is the clean slate: nothing comes back on the next login.
+        _forget_terminal_state(user)
         with _cache_lock:                      # so status reflects it at once
             _cache.pop("running_terminals:" + user, None)
+            _cache.pop("restorable_terminals:" + user, None)
 
         # 2. Clear the desktop registry and bump reset_epoch — every other live
         #    instance sees the epoch advance on its next heartbeat and tears its
@@ -8245,7 +8297,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
         except (TypeError, ValueError):
             n = None
         if not n or n < 1 or n > MAX_INSTANCE:
-            n = next((i for i in range(1, MAX_INSTANCE + 1) if i not in running), None)
+            taken = set(running) | set(_restorable_terminals(user))
+            n = next((i for i in range(1, MAX_INSTANCE + 1) if i not in taken), None)
             if n is None:
                 return self._json(409, {"error": "all terminals are in use"})
         if n not in running:
@@ -8278,7 +8331,10 @@ class Handler(http.server.BaseHTTPRequestHandler):
             ok, res = _start_user_terminal(user, n)
         else:
             ok, res = _stop_user_terminal(user, n)
+            if ok:
+                _forget_terminal_state(user, n)   # a closed tab is not restored
         _cache.pop("running_terminals:" + user, None)
+        _cache.pop("restorable_terminals:" + user, None)
         if not ok:
             log.warning("terminal %s-%d %s failed: %s", user, n, action, res)
             self._json(500, {"error": str(res)})
@@ -9362,7 +9418,14 @@ class Handler(http.server.BaseHTTPRequestHandler):
             # loop to carry it would cost more than the field does. Read from
             # disk uncached — the file is tiny and a reorder must reach the
             # user's other devices on the very next tick, not up to 2s later.
-            self._json(200, {"running": self._get_running_terminals(),
+            # Terminals with saved state count as open: after a reboot nothing
+            # is running, and this list is the tab set the page rebuilds. Each
+            # tab's first /tN/ request then cold-starts and restores it.
+            user = _ctx_user()
+            tabs = sorted(set(self._get_running_terminals())
+                          | set(_cached("restorable_terminals:" + user, 2.0,
+                                        lambda: _restorable_terminals(user))))
+            self._json(200, {"running": tabs,
                              "order": _read_tab_order(),
                              "schedules": self._schedules_payload()})
             return

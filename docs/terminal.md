@@ -297,6 +297,40 @@ Type `exit` in the shell. The bash exits, the daemon spawns a new
 bash and clears the ring buffer. The browser auto-reconnects after
 the 3 s `reconnect` delay and lands on a fresh login shell.
 
+## Restore after a reboot
+
+A reboot kills every shell; nothing can bring back a running program. What
+comes back is everything around it: the tab, its name, its output and the
+directory the shell was in.
+
+- **Saving (the daemon, as the user).** The manager passes each session daemon
+  `VIBETOP_TERM_STATE=~/.local/state/vibetop/terminals/<N>`. Every
+  `SAVE_INTERVAL` (20s), when the ring or the shell's cwd changed, the daemon
+  writes `scrollback` (the raw ring bytes) and then `meta.json`
+  (`{v, cwd, saved}`). Both files are 0600 in a 0700 directory, replaced
+  atomically and fsynced, because a crash or power cut is the case this is for.
+  It saves once more on SIGTERM, before it hangs up the shell, which is how a
+  clean shutdown stops the unit. A crash loses at most the last 20 seconds.
+- **Restoring.** A daemon that finds `meta.json` loads the newest
+  `CLAUDE_SESSION_BUFSIZE` bytes into its ring (queries stripped), then a reset
+  (CAN, SGR reset, leave the alternate screen, mouse and bracketed-paste modes
+  off, cursor shown, scroll region cleared) and a dim divider: "restored after
+  restart · output saved <time> · programs that were running have stopped". The
+  first shell starts in the saved cwd, or in home if that directory is gone. A
+  later shell (after `exit`) starts in home as before.
+- **Reopening the tab.** `GET /api/terminals/status` reports `running ∪
+  restorable` (`_restorable_terminals`: a numbered dir holding `meta.json`). The
+  page rebuilds its tab set from that list, and each tab's first `/tN/` request
+  cold-starts the terminal through the usual authcheck path, which restores it.
+  `open-at` does not pick a number that is waiting to be restored.
+- **Forgetting.** Closing a tab (`POST /api/terminals/N/stop`) and logout
+  (`/api/reset`) delete the state with `runuser -u <user> -- rm -rf`, so root
+  never writes into a home. This always runs *after* the stop, because a live
+  daemon would just save the state again. The idle reaper keeps it, so a
+  reaped terminal comes back too.
+- **Cost.** A busy terminal (a TUI redrawing constantly) rewrites up to its
+  whole ring (Config's "Terminal history", 2 MB by default) every 20s.
+
 ## Adding more terminals
 
 Terminals are created dynamically on demand via the manager API — click
@@ -375,7 +409,7 @@ A tabbed UI at `/terminals/` (`apps/everyday/terminal/terminals.html`) manages t
 - **The tab SET is live-synced** by reconciling against the shared backend running set (`GET /api/terminals/status`, polled ~2.5s + on focus/visibility + immediately when the desktop activates the Terminal app via `focus-terminal`) — open/close a tab on one client and it appears/disappears on the others, needing no new endpoint since running sessions are already shared state. Only set membership syncs; order/active stay device-local and a client never drops below one tab.
 - **The reconcile is `(running ∪ pending) − closing`.** `pending` (opened here, not yet confirmed running) and `closing` (closed here, not yet confirmed stopped) are per-client sets covering the poll-lag races, so a just-opened tab isn't dropped and a just-closed one isn't re-added; `nextAvailable` also consults the last-known running set so two clients don't grab the same free number. Pure math, unit-tested in `apps/everyday/terminal/lib/tab-sync.js`.
 - **Empty/dead → cold start.** If a reconcile finds every terminal was closed elsewhere (tab bar would be empty, or the last tab's session is dead — a 502), it starts a fresh terminal rather than leaving a dead tab.
-- **Names are forgotten on close**, so a reused terminal number never inherits the old label — on tab close and on `/api/reset`, and (the backstop for an **abnormal** close: browser crash, host reboot, manager restart, where the client's handler never runs) the manager also forgets the name whenever a genuinely fresh session starts for that number (`_forget_tab_name` in `_start_user_terminal`, gated on the number not already running so a live-session reconnect keeps its label; `forgetLocalName` mirrors it client-side so a new tab shows `TN` immediately).
+- **Names are forgotten on close**, so a reused terminal number never inherits the old label — on tab close and on `/api/reset`, and (the backstop for an **abnormal** close: browser crash or manager restart, where the client's handler never runs) the manager also forgets the name whenever a genuinely fresh session starts for that number (`_forget_tab_name` in `_start_user_terminal`, gated on the number not already running so a live-session reconnect keeps its label; `forgetLocalName` mirrors it client-side so a new tab shows `TN` immediately). **A terminal with saved state keeps its name**: it is the same terminal coming back after a reboot (see §"Restore after a reboot").
 - Switching tabs auto-focuses the xterm.js terminal via `postMessage` (skipped on touch — see `docs/desktop.md` §Mobile). **Tab clickability rests on two iframe traps** (paint order + the swallowed first click) — see `docs/gotchas.md` §"Clickable chrome next to an app iframe", which covers both the tab bar and the desktop taskbar.
 
 **Mobile keyboard/dictation (`landing/terminal-kbd.js`)** — injected into every `/tN/` page via the `sub_filter` `<script src>`; a **no-op on non-touch** (desktop keeps native xterm — all keys, tap-to-focus, selection). On touch it lays a **full-height transparent `<textarea>`** over the terminal so that tapping focuses *it*: iOS then raises the keyboard and **dictation buffers into a real field natively** (like Notes) instead of xterm streaming half-finished revisions to the PTY. Input is forwarded as a debounced value-diff via xterm's `coreService.triggerDataEvent`; xterm's own helper textarea is blocked from taking focus (the `focusin` guard in the sub_filter) so only this input raises the keyboard.

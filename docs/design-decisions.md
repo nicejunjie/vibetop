@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_531 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_532 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [Terminal link opened a closed Browser app but lost the URL](#terminal-link-opened-a-closed-browser-app-but-lost-the-url)
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
@@ -554,6 +554,7 @@ _531 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [Mobile updates bound precache waits and expose stalled-navigation recovery (2026-11-03)](#mobile-updates-bound-precache-waits-and-expose-stalled-navigation-recovery-2026-11-03)
 - [Terminal reconnects retry native WebSockets after a transient tunnel outage (2026-11-03)](#terminal-reconnects-retry-native-websockets-after-a-transient-tunnel-outage-2026-11-03)
 - [Publishing a worktree fast-forwards the home checkout (2026-11-06)](#publishing-a-worktree-fast-forwards-the-home-checkout-2026-11-06)
+- [Terminals restore their output, directory and name after a reboot (2026-11-06)](#terminals-restore-their-output-directory-and-name-after-a-reboot-2026-11-06)
 
 <!-- END TOC -->
 
@@ -21229,3 +21230,38 @@ step never fails the publish, because the push has already happened.
 session; a hard reset, which destroys it; and a fetch/compare reminder in
 `new-worktree.sh` alone, which already existed as a memory note and did not stop
 the drift.
+
+
+## Terminals restore their output, directory and name after a reboot (2026-11-06)
+
+**Symptom:** after an accidental reboot, every terminal was gone: no tabs
+except a fresh T1, no output, no names.
+
+**Cause:** the session daemon keeps output only in memory and its socket in
+`/tmp`. The page rebuilds its tabs from the running set, which is empty after a
+reboot. A fresh start for a number also forgot its tab name on purpose. That
+was the backstop for abnormal closes, and a reboot was one of them.
+
+**Fix:** each daemon saves its ring and its shell's cwd to
+`~/.local/state/vibetop/terminals/<N>/` every 20s and on SIGTERM, as the user.
+A fresh daemon that finds the state restores the output above a reset and a
+divider, and starts the shell in the saved directory. `/api/terminals/status`
+lists terminals with saved state alongside running ones, so the page reopens
+their tabs. A restorable terminal keeps its name. Closing a tab or logging out
+deletes the state with `runuser ... rm`, after the stop. Detail:
+`docs/terminal.md` §"Restore after a reboot".
+
+**Rejected:**
+- **Freezing processes (CRIU):** it needs root, and it breaks on PTYs, sockets
+  and GPU state, which is most of what runs in these terminals.
+- **Re-running the foreground command automatically:** re-running a
+  half-finished `rm` or deploy after a reboot is worse than losing it.
+  `claude --continue` would be safe, but it was left out of scope at the
+  user's request.
+- **Saving only on SIGTERM:** an accidental reboot can be a crash or a power
+  cut, which sends no SIGTERM.
+- **Manager-side saving:** the manager runs as root and must not read or write
+  user data. The daemon already runs as the user.
+- **Telling a reboot apart from a close by the signal:** both arrive as SIGTERM.
+  Instead, the explicit close path deletes the state, and every other ending
+  keeps it.
