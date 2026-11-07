@@ -424,6 +424,7 @@ def write_all(fd, data):
 # SIGTERM, and a fresh daemon for the same terminal loads them back. The
 # running PROGRAMS are not restored: nothing can resume a dead process.
 SAVE_INTERVAL = 20.0
+JOB_POLL = 2.0             # seconds between foreground-job checks (reads only)
 RESTORE_QUIET = 0.5        # seconds of shell silence that mean "prompt is up"
 STATE_SCROLLBACK = 'scrollback'
 STATE_META = 'meta.json'
@@ -754,7 +755,13 @@ def cmd_serve(instance):
         old_output, restore_cwd, saved_at, old_job = restored
         pending_cmd = restore_plan(old_job, os.environ.get('VIBETOP_TERM_RESTORE_CMDS', 'auto'))
         ring.write(strip_terminal_queries(old_output) + restored_banner(saved_at, pending_cmd))
-    saved_mark = None      # (epoch, offset, cwd) last written to state_dir
+    saved_mark = None      # (epoch, offset, cwd, job) last written to state_dir
+    # The foreground job as of the last JOB_POLL. A shutdown (or `systemctl
+    # stop`) sends SIGTERM to every process in this unit AT ONCE, so by the time
+    # on_sigterm reads /proc the program is often already dead and the shell
+    # looks idle. That final save must use what was running just before.
+    last_job = None
+    next_job_poll = 0.0
     next_save = time.monotonic() + SAVE_INTERVAL
     resume_clients = {}
     resume_pending = {}
@@ -1041,12 +1048,17 @@ def cmd_serve(instance):
         pending_resize = True
         resize_deadline = time.monotonic() + RESIZE_DEBOUNCE
 
-    def save_state(force=False):
+    def current_job():
+        return foreground_job(pty_fd, child_pid) if child_pid > 0 and pty_fd >= 0 else None
+
+    def save_state(force=False, shutting_down=False):
         nonlocal saved_mark
         if not state_dir:
             return
         cwd = shell_cwd(child_pid) if child_pid > 0 else None
-        job = foreground_job(pty_fd, child_pid) if child_pid > 0 and pty_fd >= 0 else None
+        job = current_job()
+        if shutting_down and job is None:
+            job = last_job      # it died with us; see last_job
         mark = (ring.epoch, ring.offset, cwd, json.dumps(job, sort_keys=True))
         if mark == saved_mark and not force:
             return
@@ -1059,7 +1071,7 @@ def cmd_serve(instance):
     def on_sigterm(signum, frame):
         # Save first, while the shell is still alive to report its cwd: a host
         # shutdown stops this unit with exactly this signal.
-        save_state(force=True)
+        save_state(force=True, shutting_down=True)
         # Hang up the shell rather than SIGTERM it (interactive bash ignores
         # SIGTERM anyway). SIGHUP is the terminal-hangup signal: bash forwards it
         # to its jobs and exits, while setsid'd daemons (ssh ControlPersist master,
@@ -1190,6 +1202,10 @@ def cmd_serve(instance):
             else:
                 respawn_fails = 0
             spawn_shell()
+
+        if state_dir and now >= next_job_poll:
+            next_job_poll = now + JOB_POLL
+            last_job = current_job()
 
         if state_dir and now >= next_save:
             next_save = now + SAVE_INTERVAL

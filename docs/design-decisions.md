@@ -21297,6 +21297,14 @@ process, so each terminal gets its own back.
 - **`tmux attach` as safe:** a reboot killed the tmux server too, so there is
   nothing to attach to.
 
+**Shutdown race (found live on prod):** `systemctl stop`, and a host shutdown,
+send SIGTERM to every process in the unit at once. The program died before the
+daemon's final save read `/proc`, so the save recorded an idle shell over the
+good save from moments earlier. A `sleep` came back as an empty prompt; `less`
+only survived because of timing. The daemon now polls the job every 2s
+(`last_job`), and the shutdown save uses it when the job is already gone. The
+hermetic tests had missed this because they signalled only the daemon.
+
 **Test trap:** the first version of the tests cleaned up with `pkill -f "sleep
 300"`. That also matched, and killed, the shell running the test command,
 whose own command line contained the text. On a real host it could hit anyone's

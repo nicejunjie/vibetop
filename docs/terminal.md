@@ -333,7 +333,10 @@ or typed at the prompt; see below).
   `tcgetpgrp` on the PTY, then the shell's children in that process group, read
   from `/proc` as one argv per pipeline stage. For Claude Code it also records
   the conversation ID from `~/.claude/sessions/<pid>.json`, which Claude Code
-  keeps for every live interactive process. On restore, `restore_plan` puts the
+  keeps for every live interactive process. The job is also checked every 2s
+  (reads only), and the SIGTERM save falls back to that last-known job: systemd
+  SIGTERMs every process in the unit at once, so at shutdown the program is
+  usually already dead when the final save runs. On restore, `restore_plan` puts the
   job in one of three tiers:
   - **resume** (run): `claude --resume <id>` with the original flags, minus
     the opening prompt and any `--continue`/`--resume`. A `-p` print run is

@@ -351,3 +351,23 @@ def test_off_leaves_the_prompt_empty(tmp_path):
     assert job["argv"] == [USER_SLEEP.split()]
     assert b"restored after restart" in out and b"press Enter" not in out
     assert not out.rstrip().endswith(USER_SLEEP.encode())
+
+
+@needs_proc
+def test_a_shutdown_that_kills_the_program_first_still_records_it(tmp_path):
+    """systemd stops a unit by sending SIGTERM to EVERY process in it at once,
+    so the program is usually dead before the daemon's final save reads /proc.
+    That save must not overwrite the job with 'shell was idle' (found live on
+    prod: a `sleep` restored as an empty prompt)."""
+    instance = "restorerace-" + uuid.uuid4().hex[:8]
+    state = tmp_path / "state"
+    proc, sock = _serve(instance, state, tmp_path)
+    try:
+        _talk(sock, USER_SLEEP.encode() + b"\r", wait=1.0)
+        time.sleep(3)                                   # past one JOB_POLL
+        _kill_exact(USER_SLEEP)                         # the program goes first...
+    finally:
+        proc.send_signal(signal.SIGTERM)                # ...then the daemon, together
+        proc.wait(timeout=10)
+    meta = json.loads((state / "meta.json").read_text())
+    assert meta["job"] == {"argv": [USER_SLEEP.split()], "claude_session": None}
