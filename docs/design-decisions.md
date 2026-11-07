@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_530 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_531 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [Terminal link opened a closed Browser app but lost the URL](#terminal-link-opened-a-closed-browser-app-but-lost-the-url)
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
@@ -553,6 +553,7 @@ _530 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [Notes tab updates reject stale revisions before deleting content (2026-11-03)](#notes-tab-updates-reject-stale-revisions-before-deleting-content-2026-11-03)
 - [Mobile updates bound precache waits and expose stalled-navigation recovery (2026-11-03)](#mobile-updates-bound-precache-waits-and-expose-stalled-navigation-recovery-2026-11-03)
 - [Terminal reconnects retry native WebSockets after a transient tunnel outage (2026-11-03)](#terminal-reconnects-retry-native-websockets-after-a-transient-tunnel-outage-2026-11-03)
+- [Publishing a worktree fast-forwards the home checkout (2026-11-06)](#publishing-a-worktree-fast-forwards-the-home-checkout-2026-11-06)
 
 <!-- END TOC -->
 
@@ -21201,3 +21202,29 @@ eight-second/error-triggered fallback remains available, but no remembered choic
 pins a recovered terminal to HTTP. A regression seeds the old preference and
 verifies that the native socket still opens. This restores transport selection;
 it does not claim to resolve every intermittent HTTP replay failure.
+
+
+## Publishing a worktree fast-forwards the home checkout (2026-11-06)
+
+**Symptom:** the home checkout's `main` was 7 releases behind `origin/main`
+(109 behind on 2026-10-21), even though every commit was written on this machine.
+It also had uncommitted edits that looked like unreleased work but were
+byte-identical to v1.38.153.
+
+**Cause:** releases are committed on `work/*` worktree branches and pushed
+straight to `origin/main`. Home `main` is a separate branch pointer that nothing
+advances. Sessions draft in home, copy the change into a worktree to release, and
+leave the draft behind. Later sessions then read and edit code that prod no
+longer runs.
+
+**Fix:** `tools/publish-worktree.sh` fast-forwards home `main` after a successful
+push. Home files whose content matches the published commit (copies of the
+release, staged or not) are reset first, because a fast-forward refuses to
+overwrite local changes even when they are identical. A differing edit, local
+commits, or a branch other than `main` leave home untouched and print a note. The
+step never fails the publish, because the push has already happened.
+
+**Rejected:** a `git stash` before the merge, which hides real work from the next
+session; a hard reset, which destroys it; and a fetch/compare reminder in
+`new-worktree.sh` alone, which already existed as a memory note and did not stop
+the drift.

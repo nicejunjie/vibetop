@@ -83,3 +83,12 @@ worktree, then run `tools/publish-worktree.sh` there. The publish command reject
 a dirty tree or a remote that moved since the task branched, so a second session
 cannot silently publish the same release number. If the remote moved, rebase and
 bump `VERSION`/`sw.js` again before publishing. Do not stage the shared checkout.
+
+After a successful push, `publish-worktree.sh` fast-forwards the home checkout's
+`main` to what it just published. Nothing else ever moves it, and it once sat 109
+commits behind (2026-10-21) and again 7 behind (2026-11-06), with a release's
+source edits still showing as uncommitted changes in home. Edits that exactly
+match the release are discarded so the fast-forward can go through, since they
+are copies of it. Anything else is kept: an edit that differs from the release, a
+branch other than `main`, or local commits all leave home as it is and print a
+note. The push has already happened by then, so this step never fails the publish.
