@@ -425,6 +425,7 @@ def write_all(fd, data):
 # running PROGRAMS are not restored: nothing can resume a dead process.
 SAVE_INTERVAL = 20.0
 JOB_POLL = 2.0             # seconds between foreground-job checks (reads only)
+RESTORE_MAX_WAIT = 15.0   # type the command anyway after this many seconds
 RESTORE_QUIET = 0.5        # seconds of shell silence that mean "prompt is up"
 STATE_SCROLLBACK = 'scrollback'
 STATE_META = 'meta.json'
@@ -562,6 +563,17 @@ def claude_session_id(pid, home=None):
     except (OSError, ValueError):
         pass
     return None
+
+
+def shell_at_prompt(pty_fd, shell_pid):
+    """The shell owns the terminal and has no child still running (a login
+    profile's commands are its children while they run)."""
+    try:
+        if os.tcgetpgrp(pty_fd) != shell_pid:
+            return False
+    except OSError:
+        return False
+    return not _proc_children(shell_pid)
 
 
 def foreground_job(pty_fd, shell_pid):
@@ -1211,11 +1223,15 @@ def cmd_serve(instance):
             next_save = now + SAVE_INTERVAL
             save_state()
 
-        # A restored terminal's command goes in once the new shell has drawn its
-        # prompt and gone quiet (or after 10s regardless): typed earlier, a slow
-        # login profile would read it as its own input.
+        # A restored terminal's command goes in only once the shell is at its
+        # prompt: it holds the terminal, its login profile has nothing left
+        # running, and it has gone quiet. Quiet alone is not enough: a profile
+        # step can pause for seconds (the login banner probes the GPU with an 8s
+        # timeout), and a line typed into that pause is read by whatever the
+        # profile is running instead of by the shell. RESTORE_MAX_WAIT caps it.
         if pending_cmd and pty_fd >= 0:
-            if (last_pty_out and now - last_pty_out >= RESTORE_QUIET) or now - last_spawn >= 10.0:
+            if (shell_at_prompt(pty_fd, child_pid) and last_pty_out
+                    and now - last_pty_out >= RESTORE_QUIET) or now - last_spawn >= RESTORE_MAX_WAIT:
                 text, run, _tier = pending_cmd
                 pending_cmd = None
                 try:

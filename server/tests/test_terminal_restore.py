@@ -371,3 +371,34 @@ def test_a_shutdown_that_kills_the_program_first_still_records_it(tmp_path):
         proc.wait(timeout=10)
     meta = json.loads((state / "meta.json").read_text())
     assert meta["job"] == {"argv": [USER_SLEEP.split()], "claude_session": None}
+
+
+@needs_proc
+def test_the_command_waits_for_a_slow_login_profile(tmp_path):
+    """A login profile that pauses (the vibetop banner probes the GPU with an
+    8s timeout) and then runs something reading the terminal must not get the
+    restored command: it waits until the shell itself is at its prompt."""
+    followed = tmp_path / "followed.log"
+    followed.write_text("")
+    tail_cmd = "tail -f %s" % followed
+    (tmp_path / ".bash_profile").write_text(
+        "echo profile-start\nsleep 1.2\n"
+        # Reads one line from the terminal if one arrives within 3s, then exits.
+        "python3 -c 'import select,sys; select.select([sys.stdin],[],[],3)[0] and sys.stdin.readline()'\n"
+        "echo profile-done\n")
+    state = tmp_path / "state"
+    state.mkdir()
+    (state / "scrollback").write_bytes(b"")
+    (state / "meta.json").write_text(json.dumps(
+        {"v": 1, "cwd": None, "saved": 1, "job": {"argv": [tail_cmd.split()], "claude_session": None}}))
+    instance = "restoreready-" + uuid.uuid4().hex[:8]
+    proc, sock = _serve(instance, state, tmp_path)
+    try:
+        deadline = time.time() + 12
+        while not _exact(tail_cmd) and time.time() < deadline:
+            time.sleep(0.2)
+        assert _exact(tail_cmd), "the re-run command was swallowed by the login profile"
+    finally:
+        proc.send_signal(signal.SIGTERM)
+        proc.wait(timeout=10)
+        _kill_exact(tail_cmd)

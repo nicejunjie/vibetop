@@ -21305,6 +21305,13 @@ only survived because of timing. The daemon now polls the job every 2s
 (`last_job`), and the shutdown save uses it when the job is already gone. The
 hermetic tests had missed this because they signalled only the daemon.
 
+**Typed into the login profile:** the first version typed the command after
+0.5s of quiet output. Login profiles pause (the vibetop banner's GPU probe has
+an 8s timeout), and a line typed into that pause is read by whatever the
+profile runs next, so it vanished. The daemon now also requires the shell to
+own the terminal and have no children (`shell_at_prompt`). A profile step that
+reads input with a bash builtin (`read`) isn't a child, so it isn't covered.
+
 **Test trap:** the first version of the tests cleaned up with `pkill -f "sleep
 300"`. That also matched, and killed, the shell running the test command,
 whose own command line contained the text. On a real host it could hit anyone's

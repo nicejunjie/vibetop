@@ -350,9 +350,12 @@ or typed at the prompt; see below).
     the prompt for the user to run or delete. A command containing a control
     character is dropped, never typed.
 
-  The command is written to the PTY once the new shell has printed its prompt
-  and been quiet for 0.5s (10s at most), so a slow login profile can't swallow
-  it. The divider gets a second line saying what was done. Config → "After a
+  The command is written to the PTY only once the shell is at its prompt: it
+  owns the terminal (`tcgetpgrp`), has no child processes still running (the
+  login profile's commands are its children), and has been quiet for 0.5s. It
+  is written anyway after 15s. Quiet alone was not enough: the login banner
+  probes the GPU with an 8s timeout, and a line typed into that pause was read
+  by the profile's process instead of the shell. The divider gets a second line saying what was done. Config → "After a
   restart" (`restoreCommands` in `/var/lib/vibetop/terminal.json`, passed as
   `VIBETOP_TERM_RESTORE_CMDS`) picks `auto` (default), `type` (type every tier,
   run none) or `off`. Limits of the `/proc` view: aliases appear expanded,
