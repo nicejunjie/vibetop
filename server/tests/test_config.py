@@ -641,7 +641,24 @@ def test_terminal_history_endpoint_gated_and_roundtrips(client, mgr, users, stub
     st, body = client.post("/api/config/terminal", {"historyMB": 8}, cookie=ck)
     assert st == 200 and body["historyMB"] == 8
     st, body = client.get("/api/config/terminal", cookie=ck)
-    assert body == {"historyMB": 8, "maxMB": mgr.TERM_HISTORY_MB_MAX}
+    assert body == {"historyMB": 8, "maxMB": mgr.TERM_HISTORY_MB_MAX, "restoreCommands": "auto"}
+
+
+def test_restore_mode_round_trips_without_touching_history(client, mgr, users, stubs, home,
+                                                           monkeypatch):
+    ck = users["alice"][1]
+    monkeypatch.setattr(mgr, "_can_sudo", lambda u: True)
+    mgr._write_term_history_mb(6)
+    st, body = client.post("/api/config/terminal", {"restoreCommands": "type"}, cookie=ck)
+    assert st == 200 and body["restoreCommands"] == "type" and body["historyMB"] == 6
+    mgr._write_term_history_mb(7)                      # and saving history keeps the mode
+    assert mgr._read_term_restore_mode() == "type"
+    assert "VIBETOP_TERM_RESTORE_CMDS=type" in mgr._user_terminal_setenvs(mgr.APP_USER)
+    for bad in ("always", "", None, 1):
+        st, _ = client.post("/api/config/terminal", {"restoreCommands": bad}, cookie=ck)
+        assert st == 400
+    assert mgr._read_term_restore_mode() == "type"
+    assert client.post("/api/config/terminal", {}, cookie=ck)[0] == 400
 
 
 @pytest.mark.parametrize("bad", [0, -1, 33, 2.5, True, "lots", None, "8MB"])

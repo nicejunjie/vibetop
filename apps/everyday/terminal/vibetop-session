@@ -424,6 +424,7 @@ def write_all(fd, data):
 # SIGTERM, and a fresh daemon for the same terminal loads them back. The
 # running PROGRAMS are not restored: nothing can resume a dead process.
 SAVE_INTERVAL = 20.0
+RESTORE_QUIET = 0.5        # seconds of shell silence that mean "prompt is up"
 STATE_SCROLLBACK = 'scrollback'
 STATE_META = 'meta.json'
 
@@ -454,12 +455,14 @@ def _write_private(path, data):
     os.replace(tmp, path)
 
 
-def save_session_state(state_dir, output, cwd, now=None):
-    """Save the replay ring's bytes and the shell's cwd. Scrollback first, meta
-    last: the manager treats meta.json as "this terminal can be restored"."""
+def save_session_state(state_dir, output, cwd, now=None, job=None):
+    """Save the replay ring's bytes, the shell's cwd and its foreground job.
+    Scrollback first, meta last: the manager treats meta.json as "this terminal
+    can be restored"."""
     os.makedirs(state_dir, mode=0o700, exist_ok=True)
     _write_private(os.path.join(state_dir, STATE_SCROLLBACK), bytes(output))
-    meta = {'v': 1, 'cwd': cwd, 'saved': int(now if now is not None else time.time())}
+    meta = {'v': 1, 'cwd': cwd, 'saved': int(now if now is not None else time.time()),
+            'job': job}
     _write_private(os.path.join(state_dir, STATE_META), json.dumps(meta).encode())
 
 
@@ -485,14 +488,196 @@ def load_session_state(state_dir, limit):
         pass
     cwd = meta.get('cwd') if isinstance(meta.get('cwd'), str) else None
     saved = meta.get('saved') if isinstance(meta.get('saved'), int) else None
-    return output, cwd, saved
+    job = meta.get('job') if isinstance(meta.get('job'), dict) else None
+    return output, cwd, saved, job
 
 
-def restored_banner(saved):
-    """The line between the old output and the new shell."""
+def restored_banner(saved, plan=None):
+    """The line between the old output and the new shell, saying what was done
+    with the command that had been running."""
     when = time.strftime('%b %-d %H:%M', time.localtime(saved)) if saved else 'earlier'
-    return (RESTORE_RESET + b'\r\n\x1b[2m-- restored after restart \xc2\xb7 output saved '
-            + when.encode() + b' \xc2\xb7 programs that were running have stopped --\x1b[0m\r\n')
+    out = (RESTORE_RESET + b'\r\n\x1b[2m-- restored after restart \xc2\xb7 output saved '
+           + when.encode() + b' \xc2\xb7 programs that were running have stopped --\x1b[0m\r\n')
+    if plan:
+        text, run, tier = plan
+        what = {'resume': 'resuming', 'rerun': 'reopening'}.get(tier, 'reopening') if run \
+            else 'last command is at the prompt; press Enter to run it'
+        out += (b'\x1b[2m-- ' + what.encode() + (b': ' + text.encode() if run else b'')
+                + b' --\x1b[0m\r\n')
+    return out
+
+
+# ---- The foreground command, and what to do with it after a restart --------
+# A dead process cannot be resumed, but the command that started it can be
+# offered again. Three tiers (docs/terminal.md "Restore after a reboot"):
+#   resume  a program-specific command that reopens where it left off (run)
+#   rerun   a viewer or session whose re-run cannot change anything (run)
+#   type    everything else: typed at the prompt, NOT run, Enter is yours
+# VIBETOP_TERM_RESTORE_CMDS: auto (all three tiers) | type (always type) | off.
+
+def _proc_children(pid):
+    try:
+        with open('/proc/%d/task/%d/children' % (pid, pid)) as f:
+            return [int(x) for x in f.read().split()]
+    except (OSError, ValueError):
+        return []
+
+
+def _proc_pgrp(pid):
+    try:
+        with open('/proc/%d/stat' % pid) as f:
+            # comm can hold spaces and parens; fields resume after the LAST ')'.
+            return int(f.read().rsplit(')', 1)[1].split()[2])
+    except (OSError, ValueError, IndexError):
+        return None
+
+
+def _proc_argv(pid):
+    try:
+        with open('/proc/%d/cmdline' % pid, 'rb') as f:
+            raw = f.read()
+    except OSError:
+        return None
+    parts = raw.split(b'\0')
+    if parts and parts[-1] == b'':
+        parts.pop()
+    try:
+        argv = [p.decode('utf-8') for p in parts]
+    except UnicodeDecodeError:
+        return None
+    return argv or None
+
+
+def claude_session_id(pid, home=None):
+    """The conversation a running Claude Code process has open. Claude Code
+    keeps ~/.claude/sessions/<pid>.json for every live interactive process."""
+    home = home or os.path.expanduser('~')
+    try:
+        with open(os.path.join(home, '.claude', 'sessions', '%d.json' % pid)) as f:
+            data = json.load(f)
+        sid = data.get('sessionId') if isinstance(data, dict) else None
+        if isinstance(sid, str) and re.fullmatch(r'[0-9A-Za-z-]{8,64}', sid):
+            return sid
+    except (OSError, ValueError):
+        pass
+    return None
+
+
+def foreground_job(pty_fd, shell_pid):
+    """{'argv': [[...], ...], 'claude_session': id|None} for the job holding the
+    terminal, or None when the shell itself is at its prompt. A pipeline is one
+    argv per stage, in start order."""
+    try:
+        pgid = os.tcgetpgrp(pty_fd)
+    except OSError:
+        return None
+    if pgid <= 0 or pgid == shell_pid:
+        return None
+    stages = [pid for pid in sorted(_proc_children(shell_pid)) if _proc_pgrp(pid) == pgid]
+    if not stages and _proc_pgrp(pgid) == pgid:
+        stages = [pgid]              # not a direct child (e.g. started by exec'd wrapper)
+    argvs = [a for a in (_proc_argv(pid) for pid in stages) if a]
+    if not argvs:
+        return None
+    job = {'argv': argvs, 'claude_session': None}
+    if len(argvs) == 1 and os.path.basename(argvs[0][0]) == 'claude':
+        job['claude_session'] = claude_session_id(stages[0])
+    return job
+
+
+# Claude Code flags that take a value (kept with it); a bare word anywhere else
+# is the opening prompt, which belonged to the old conversation and is dropped.
+CLAUDE_VALUE_FLAGS = {
+    '--model', '--fallback-model', '--permission-mode', '--add-dir', '--allowedTools',
+    '--allowed-tools', '--disallowedTools', '--disallowed-tools', '--settings',
+    '--setting-sources', '--mcp-config', '--append-system-prompt', '--system-prompt',
+    '--agent', '--agents', '--plugin-dir', '--betas', '--ide', '--name',
+}
+CLAUDE_DROP_FLAGS = {'-c', '--continue', '-r', '--resume', '--session-id', '--fork-session'}
+CLAUDE_DROP_VALUE = {'-r', '--resume', '--session-id'}
+
+RERUN_PROGRAMS = {'htop', 'top', 'btop', 'atop', 'nvtop', 'glances', 'less', 'more', 'man',
+                  'vim', 'vi', 'nvim', 'nano', 'watch'}
+SSH_VALUE_OPTS = set('BbcDEeFIiJLlmOoPpQRSWw')
+
+
+def _claude_resume(argv, sid):
+    if not sid:
+        return None
+    out, skip, it = ['claude', '--resume', sid], False, iter(argv[1:])
+    for arg in it:
+        flag = arg.split('=', 1)[0]
+        if arg in ('-p', '--print') or flag in ('-p', '--print'):
+            return None                         # a one-shot print run, not a session
+        if flag in CLAUDE_DROP_FLAGS:
+            if flag in CLAUDE_DROP_VALUE and '=' not in arg:
+                next(it, None)
+            continue
+        if not arg.startswith('-'):
+            continue                            # the old opening prompt
+        out.append(arg)
+        if flag in CLAUDE_VALUE_FLAGS and '=' not in arg:
+            value = next(it, None)
+            if value is not None:
+                out.append(value)
+    return out
+
+
+def _ssh_is_interactive(argv):
+    """`ssh [opts] host` with no remote command: re-running only reconnects."""
+    positional, it = [], iter(argv[1:])
+    for arg in it:
+        if arg == '--':
+            positional.extend(it)
+            break
+        if arg.startswith('-') and len(arg) > 1:
+            if arg[-1] in SSH_VALUE_OPTS and len(arg) == 2:
+                next(it, None)
+            continue
+        positional.append(arg)
+    return len(positional) == 1
+
+
+def _rerun_safe(argv):
+    name = os.path.basename(argv[0])
+    if name in RERUN_PROGRAMS:
+        return True
+    if name == 'tail':
+        return any(a in ('-f', '-F', '--follow') or a.startswith('--follow=') for a in argv[1:])
+    if name == 'journalctl':
+        return any(a in ('-f', '--follow') for a in argv[1:])
+    if name in ('ssh', 'mosh'):
+        return _ssh_is_interactive(argv)
+    return False
+
+
+def _quote(argv):
+    import shlex
+    return ' '.join(shlex.quote(a) for a in argv)
+
+
+def restore_plan(job, mode='auto'):
+    """(command_text, run_it, tier) for a saved foreground job, or None."""
+    if mode == 'off' or not isinstance(job, dict):
+        return None
+    argvs = job.get('argv')
+    if not (isinstance(argvs, list) and argvs and
+            all(isinstance(a, list) and a and all(isinstance(x, str) for x in a) for a in argvs)):
+        return None
+    text = ' | '.join(_quote(a) for a in argvs)
+    if any(ord(c) < 32 or ord(c) == 127 for c in text):
+        return None                     # a newline or control byte would run or garble it
+    if len(argvs) == 1:
+        argv = argvs[0]
+        if os.path.basename(argv[0]) == 'claude':
+            resumed = _claude_resume(argv, job.get('claude_session'))
+            if resumed:
+                return _quote(resumed), mode == 'auto', 'resume'
+        elif os.path.basename(argv[0]) == 'codex' and argv[1:2] != ['exec']:
+            return 'codex resume', mode == 'auto', 'resume'   # its picker; no pid -> session map
+        if _rerun_safe(argv):
+            return text, mode == 'auto', 'rerun'
+    return text, False, 'type'
 
 
 def shell_cwd(pid):
@@ -563,9 +748,12 @@ def cmd_serve(instance):
     state_dir = os.environ.get('VIBETOP_TERM_STATE') or None
     restored = load_session_state(state_dir, buf_cap)
     restore_cwd = None
+    pending_cmd = None     # (text, run, tier) to put into the first shell once its prompt is up
+    last_pty_out = 0.0
     if restored:
-        old_output, restore_cwd, saved_at = restored
-        ring.write(strip_terminal_queries(old_output) + restored_banner(saved_at))
+        old_output, restore_cwd, saved_at, old_job = restored
+        pending_cmd = restore_plan(old_job, os.environ.get('VIBETOP_TERM_RESTORE_CMDS', 'auto'))
+        ring.write(strip_terminal_queries(old_output) + restored_banner(saved_at, pending_cmd))
     saved_mark = None      # (epoch, offset, cwd) last written to state_dir
     next_save = time.monotonic() + SAVE_INTERVAL
     resume_clients = {}
@@ -858,11 +1046,12 @@ def cmd_serve(instance):
         if not state_dir:
             return
         cwd = shell_cwd(child_pid) if child_pid > 0 else None
-        mark = (ring.epoch, ring.offset, cwd)
+        job = foreground_job(pty_fd, child_pid) if child_pid > 0 and pty_fd >= 0 else None
+        mark = (ring.epoch, ring.offset, cwd, json.dumps(job, sort_keys=True))
         if mark == saved_mark and not force:
             return
         try:
-            save_session_state(state_dir, ring.read_all(), cwd)
+            save_session_state(state_dir, ring.read_all(), cwd, job=job)
             saved_mark = mark
         except OSError as e:
             sys.stderr.write('vibetop-session: saving state failed: %s\n' % e)
@@ -1006,9 +1195,21 @@ def cmd_serve(instance):
             next_save = now + SAVE_INTERVAL
             save_state()
 
+        # A restored terminal's command goes in once the new shell has drawn its
+        # prompt and gone quiet (or after 10s regardless): typed earlier, a slow
+        # login profile would read it as its own input.
+        if pending_cmd and pty_fd >= 0:
+            if (last_pty_out and now - last_pty_out >= RESTORE_QUIET) or now - last_spawn >= 10.0:
+                text, run, _tier = pending_cmd
+                pending_cmd = None
+                try:
+                    write_all(pty_fd, text.encode() + (b'\r' if run else b''))
+                except OSError:
+                    pass
+
         # Apply a debounced resize once the burst has settled (see RESIZE_DEBOUNCE).
         # While one is pending, shorten the select timeout so we apply promptly.
-        timeout = 1.0
+        timeout = 0.1 if pending_cmd else 1.0
         if pending_resize:
             if now >= resize_deadline:
                 apply_resize()
@@ -1135,6 +1336,7 @@ def cmd_serve(instance):
                         continue
                     raise
                 if data:
+                    last_pty_out = time.monotonic()
                     ring.write(data)
                     broadcast(data)
 

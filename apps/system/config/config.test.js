@@ -659,8 +659,27 @@ test("terminal history is read at startup and only it is saved when changed", as
   await h.settle();
   assert.deepStrictEqual(h.posts().map((c) => String(c.url)), ["/api/config/terminal"],
     "the untouched cards must not be rewritten");
-  assert.deepStrictEqual(h.bodyOf("/api/config/terminal"), { historyMB: 16 });
+  assert.deepStrictEqual(h.bodyOf("/api/config/terminal"), { historyMB: 16, restoreCommands: "auto" });
   assert.strictEqual(h.id("save-all").disabled, true, "a saved value is clean again");
+});
+
+test("the after-restart choice is read back, and changing it is a change to save", async () => {
+  const h = load({
+    routes: {
+      "GET /api/config/terminal": () => ({ status: 200, data: { historyMB: 2, maxMB: 32, restoreCommands: "type" } }),
+      "POST /api/config/terminal": () => ({ status: 200, data: { ok: true } }),
+    },
+  });
+  await h.settle();
+  assert.strictEqual(h.id("term-restore-type").checked, true);
+  assert.strictEqual(h.id("save-all").disabled, true);
+  h.id("term-restore-type").checked = false;
+  h.id("term-restore-off").checked = true;
+  h.id("term-restore-off").fire("change");
+  assert.strictEqual(h.id("save-all").disabled, false);
+  h.id("save-all").fire("click");
+  await h.settle();
+  assert.deepStrictEqual(h.bodyOf("/api/config/terminal"), { historyMB: 2, restoreCommands: "off" });
 });
 
 test("a rejected terminal history stays dirty and says why", async () => {

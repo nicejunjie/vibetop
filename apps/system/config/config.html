@@ -214,6 +214,21 @@
           <span class="fld-label">MB</span></div>
       </div>
 
+      <div class="card" id="term-restore-card">
+        <h2>After a restart</h2>
+        <div class="hint">A reboot stops every program, but each terminal comes back with its
+          output, folder and name. This decides what happens to the command that was running.
+          <b>Resume</b> reopens Claude Code in the same conversation and re-runs viewers that
+          cannot change anything (htop, less, vim, tail -f, ssh to a host); any other command is
+          typed at the prompt for you to run or delete. <b>Type only</b> types every command and
+          runs none. <b>Applies to terminals opened after saving.</b> <b>Default: resume.</b></div>
+        <div class="row">
+          <label class="chk"><input type="radio" name="term-restore" id="term-restore-auto" value="auto"> Resume</label>
+          <label class="chk"><input type="radio" name="term-restore" id="term-restore-type" value="type"> Type only</label>
+          <label class="chk"><input type="radio" name="term-restore" id="term-restore-off" value="off"> Off</label>
+        </div>
+      </div>
+
       <div class="card" id="pwr-card">
         <h2>Wall power meter</h2>
         <div class="hint">A smart plug this machine is plugged into, adding a <b>WALL</b>
@@ -418,17 +433,20 @@
   function curIdle() { return { enabled: idleEnabled.checked, hours: parseInt(idleHours.value, 10) || 0, reapTerminals: idleReap.checked }; }
   function curHints() { return { enabled: hintsEnabled.checked }; }
   function curSm() { return { layout: smList.checked ? 'list' : 'grid' }; }
-  function curTerm() { return { historyMB: parseInt(termHistory.value, 10) || 0 }; }
+  function curTerm() {
+    var mode = ['auto', 'type', 'off'].filter(function (m) { return document.getElementById('term-restore-' + m).checked; })[0];
+    return { historyMB: parseInt(termHistory.value, 10) || 0, restoreCommands: mode || 'auto' };
+  }
   function curPwr() { return { plug: pwrPlug.value.trim() }; }
   function curRes() { return { memMax: resMem.value.trim(), cpuCores: resCpu.value.trim() }; }
   function idleDirty() { var a = loaded.idle, b = curIdle(); return !!a && (a.enabled !== b.enabled || a.hours !== b.hours || a.reapTerminals !== b.reapTerminals); }
   function hintsDirty() { return !!loaded.hints && loaded.hints.enabled !== curHints().enabled; }
   function smDirty() { return !!loaded.sm && loaded.sm.layout !== curSm().layout; }
-  function termDirty() { return !!loaded.term && loaded.term.historyMB !== curTerm().historyMB; }
+  function termDirty() { var a = loaded.term, b = curTerm(); return !!a && (a.historyMB !== b.historyMB || a.restoreCommands !== b.restoreCommands); }
   function pwrDirty() { return !!loaded.pwr && loaded.pwr.plug !== curPwr().plug; }
   function resDirty() { var a = loaded.res, b = curRes(); return !!a && (a.memMax !== b.memMax || a.cpuCores !== b.cpuCores); }
   function refreshDirty() { saveBtn.disabled = !(idleDirty() || hintsDirty() || smDirty() || termDirty() || pwrDirty() || resDirty()); }
-  ['idle-enabled', 'idle-hours', 'idle-reapterms', 'hints-enabled', 'sm-layout-grid', 'sm-layout-list', 'term-history', 'pwr-plug', 'res-mem', 'res-cpu'].forEach(function (id) {
+  ['idle-enabled', 'idle-hours', 'idle-reapterms', 'hints-enabled', 'sm-layout-grid', 'sm-layout-list', 'term-history', 'term-restore-auto', 'term-restore-type', 'term-restore-off', 'pwr-plug', 'res-mem', 'res-cpu'].forEach(function (id) {
     var el = document.getElementById(id);
     el.addEventListener('change', refreshDirty);
     el.addEventListener('input', refreshDirty);   // live for the text/number fields
@@ -513,6 +531,8 @@
       var d = res.data || {};
       if (d.maxMB) termHistory.max = d.maxMB;
       termHistory.value = d.historyMB || 2;
+      var mode = ['auto', 'type', 'off'].indexOf(d.restoreCommands) >= 0 ? d.restoreCommands : 'auto';
+      document.getElementById('term-restore-' + mode).checked = true;
       loaded.term = curTerm(); refreshDirty();
     });
   }

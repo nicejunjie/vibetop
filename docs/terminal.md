@@ -299,9 +299,10 @@ the 3 s `reconnect` delay and lands on a fresh login shell.
 
 ## Restore after a reboot
 
-A reboot kills every shell; nothing can bring back a running program. What
-comes back is everything around it: the tab, its name, its output and the
-directory the shell was in.
+A reboot kills every shell; nothing can bring back a running process. What
+comes back is everything around it: the tab, its name, its output, the
+directory the shell was in, and the command that was running (resumed, re-run,
+or typed at the prompt; see below).
 
 - **Saving (the daemon, as the user).** The manager passes each session daemon
   `VIBETOP_TERM_STATE=~/.local/state/vibetop/terminals/<N>`. Every
@@ -328,6 +329,31 @@ directory the shell was in.
   never writes into a home. This always runs *after* the stop, because a live
   daemon would just save the state again. The idle reaper keeps it, so a
   reaped terminal comes back too.
+- **The command that was running.** Each save also records the foreground job:
+  `tcgetpgrp` on the PTY, then the shell's children in that process group, read
+  from `/proc` as one argv per pipeline stage. For Claude Code it also records
+  the conversation ID from `~/.claude/sessions/<pid>.json`, which Claude Code
+  keeps for every live interactive process. On restore, `restore_plan` puts the
+  job in one of three tiers:
+  - **resume** (run): `claude --resume <id>` with the original flags, minus
+    the opening prompt and any `--continue`/`--resume`. A `-p` print run is
+    typed instead. `codex` gets `codex resume`, its picker, because Codex keeps
+    no pid-to-session map.
+  - **rerun** (run): viewers and sessions a re-run cannot harm: `htop`, `top`,
+    `btop`, `atop`, `nvtop`, `glances`, `less`, `more`, `man`, `vim`/`vi`/
+    `nvim`, `nano`, `watch`, `tail -f`, `journalctl -f`, and `ssh`/`mosh` to a
+    host with no remote command.
+  - **type** (not run): everything else, including any pipeline, is typed at
+    the prompt for the user to run or delete. A command containing a control
+    character is dropped, never typed.
+
+  The command is written to the PTY once the new shell has printed its prompt
+  and been quiet for 0.5s (10s at most), so a slow login profile can't swallow
+  it. The divider gets a second line saying what was done. Config → "After a
+  restart" (`restoreCommands` in `/var/lib/vibetop/terminal.json`, passed as
+  `VIBETOP_TERM_RESTORE_CMDS`) picks `auto` (default), `type` (type every tier,
+  run none) or `off`. Limits of the `/proc` view: aliases appear expanded,
+  `VAR=x cmd` loses the variable, and background jobs are not seen.
 - **Cost.** A busy terminal (a TUI redrawing constantly) rewrites up to its
   whole ring (Config's "Terminal history", 2 MB by default) every 20s.
 

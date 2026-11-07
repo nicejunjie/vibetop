@@ -1925,11 +1925,39 @@ def _read_term_history_mb():
         return TERM_HISTORY_MB_DEFAULT
 
 
-def _write_term_history_mb(mb):
+# What a terminal restored after a reboot does with the command that was
+# running (vibetop-session restore_plan): "auto" resumes Claude Code and re-runs
+# programs a re-run cannot harm, typing every other command without running it;
+# "type" only ever types; "off" leaves the prompt empty.
+TERM_RESTORE_MODES = ("auto", "type", "off")
+
+
+def _read_terminal_policy():
+    try:
+        with open(TERMINAL_POLICY_FILE) as f:
+            d = json.load(f)
+        return d if isinstance(d, dict) else {}
+    except (OSError, ValueError):
+        return {}
+
+
+def _read_term_restore_mode():
+    v = _read_terminal_policy().get("restoreCommands")
+    return v if v in TERM_RESTORE_MODES else "auto"
+
+
+def _write_terminal_policy(**changes):
+    """Merge `changes` into the policy file, so saving one setting never drops
+    the other."""
     with _terminal_policy_lock:
+        d = _read_terminal_policy()
+        d.update(changes)
         os.makedirs(os.path.dirname(TERMINAL_POLICY_FILE), exist_ok=True)
-        _atomic_write(TERMINAL_POLICY_FILE,
-                      json.dumps({"historyMB": int(mb)}), owner="root")
+        _atomic_write(TERMINAL_POLICY_FILE, json.dumps(d), owner="root")
+
+
+def _write_term_history_mb(mb):
+    _write_terminal_policy(historyMB=int(mb))
 
 
 def _user_presence(user):
@@ -2457,6 +2485,7 @@ def _user_terminal_setenvs(user):
     # The ring size is the Config app's "Terminal history" (which falls back to
     # this same env var before its first save), so it is always sent.
     envs.append("CLAUDE_SESSION_BUFSIZE=%d" % (_read_term_history_mb() * 1024 * 1024))
+    envs.append("VIBETOP_TERM_RESTORE_CMDS=" + _read_term_restore_mode())
     for k in ("CLAUDE_SESSION_REPLAY_RATE", "CLAUDE_SESSION_REPLAY_CHUNK",
               "CLAUDE_SESSION_REPLAY_ADAPTIVE", "CLAUDE_SESSION_REPLAY_BUDGET",
               "CLAUDE_SESSION_REPLAY_SNDBUF", "CLAUDE_SESSION_REPLAY_SCREEN"):
@@ -6916,7 +6945,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
         if not self._require_sudo():
             return
         self._json(200, {"historyMB": _read_term_history_mb(),
-                         "maxMB": TERM_HISTORY_MB_MAX})
+                         "maxMB": TERM_HISTORY_MB_MAX,
+                         "restoreCommands": _read_term_restore_mode()})
 
     def _handle_config_terminal_set(self):
         if not self._require_sudo():
@@ -6924,19 +6954,30 @@ class Handler(http.server.BaseHTTPRequestHandler):
         data = self._config_body()
         if data is None:
             return self._json(400, {"error": "invalid body"})
-        mb = data.get("historyMB")
-        if isinstance(mb, str) and mb.strip().isdigit():
-            mb = int(mb.strip())
-        if not isinstance(mb, int) or isinstance(mb, bool) \
-                or not 1 <= mb <= TERM_HISTORY_MB_MAX:
-            return self._json(400, {"error": "History must be a whole number of MB, "
-                                             "1–%d" % TERM_HISTORY_MB_MAX})
+        changes = {}
+        if "historyMB" in data:
+            mb = data.get("historyMB")
+            if isinstance(mb, str) and mb.strip().isdigit():
+                mb = int(mb.strip())
+            if not isinstance(mb, int) or isinstance(mb, bool) \
+                    or not 1 <= mb <= TERM_HISTORY_MB_MAX:
+                return self._json(400, {"error": "History must be a whole number of MB, "
+                                                 "1–%d" % TERM_HISTORY_MB_MAX})
+            changes["historyMB"] = mb
+        if "restoreCommands" in data:
+            if data["restoreCommands"] not in TERM_RESTORE_MODES:
+                return self._json(400, {"error": "restoreCommands must be one of "
+                                                 + ", ".join(TERM_RESTORE_MODES)})
+            changes["restoreCommands"] = data["restoreCommands"]
+        if not changes:
+            return self._json(400, {"error": "nothing to save"})
         try:
-            _write_term_history_mb(mb)
+            _write_terminal_policy(**changes)
         except OSError as e:
             return self._json(500, {"error": "could not save: %s" % e})
-        log.info("config: terminal history=%d MB (by %s)", mb, _ctx_user())
-        self._json(200, {"ok": True, "historyMB": mb})
+        log.info("config: terminal %s (by %s)", changes, _ctx_user())
+        self._json(200, {"ok": True, "historyMB": _read_term_history_mb(),
+                         "restoreCommands": _read_term_restore_mode()})
 
     def _handle_config_users_get(self):
         if not self._require_sudo():

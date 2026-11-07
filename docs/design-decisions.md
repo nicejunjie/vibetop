@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_532 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_533 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [Terminal link opened a closed Browser app but lost the URL](#terminal-link-opened-a-closed-browser-app-but-lost-the-url)
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
@@ -555,6 +555,7 @@ _532 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [Terminal reconnects retry native WebSockets after a transient tunnel outage (2026-11-03)](#terminal-reconnects-retry-native-websockets-after-a-transient-tunnel-outage-2026-11-03)
 - [Publishing a worktree fast-forwards the home checkout (2026-11-06)](#publishing-a-worktree-fast-forwards-the-home-checkout-2026-11-06)
 - [Terminals restore their output, directory and name after a reboot (2026-11-06)](#terminals-restore-their-output-directory-and-name-after-a-reboot-2026-11-06)
+- [Restored terminals resume Claude Code and retype other commands (2026-11-06)](#restored-terminals-resume-claude-code-and-retype-other-commands-2026-11-06)
 
 <!-- END TOC -->
 
@@ -21254,10 +21255,9 @@ deletes the state with `runuser ... rm`, after the stop. Detail:
 **Rejected:**
 - **Freezing processes (CRIU):** it needs root, and it breaks on PTYs, sockets
   and GPU state, which is most of what runs in these terminals.
-- **Re-running the foreground command automatically:** re-running a
-  half-finished `rm` or deploy after a reboot is worse than losing it.
-  `claude --continue` would be safe, but it was left out of scope at the
-  user's request.
+- **Re-running every foreground command automatically:** re-running a
+  half-finished `rm` or deploy after a reboot is worse than losing it. The
+  follow-up below re-runs only an allowlist and types everything else.
 - **Saving only on SIGTERM:** an accidental reboot can be a crash or a power
   cut, which sends no SIGTERM.
 - **Manager-side saving:** the manager runs as root and must not read or write
@@ -21265,3 +21265,39 @@ deletes the state with `runuser ... rm`, after the stop. Detail:
 - **Telling a reboot apart from a close by the signal:** both arrive as SIGTERM.
   Instead, the explicit close path deletes the state, and every other ending
   keeps it.
+
+
+## Restored terminals resume Claude Code and retype other commands (2026-11-06)
+
+**Need:** after a reboot, the terminal came back but whatever was running in it
+did not. Most often that was Claude Code.
+
+**Fix:** each save records the foreground job from `/proc` (process group
+holding the PTY, one argv per pipeline stage). On restore there are three tiers:
+Claude Code is resumed, an allowlist of harmless viewers and sessions is re-run,
+and anything else is typed at the prompt but not run. Config → "After a
+restart" can switch to type-only or off. Detail: `docs/terminal.md` §"Restore
+after a reboot".
+
+**Why `claude --resume <id>`, not `--continue`:** `--continue` opens the newest
+conversation in the folder, so two terminals running Claude in one folder would
+both reopen the same conversation and lose the other. Claude Code keeps
+`~/.claude/sessions/<pid>.json` with the exact `sessionId` for each live
+process, so each terminal gets its own back.
+
+**Rejected:**
+- **A shell hook reporting each typed command (as VS Code does):** it gets
+  exact text for pipelines and `VAR=x cmd`, but it means changing shell
+  startup for every user. The `/proc` view is enough for the commands that
+  matter, so this is deferred.
+- **Re-running unknown commands:** see the entry above. Typing costs one
+  Enter, while a wrong re-run can't be undone.
+- **`ssh host cmd` as safe:** the remote command could be anything. Only
+  `ssh [opts] host` is re-run.
+- **`tmux attach` as safe:** a reboot killed the tmux server too, so there is
+  nothing to attach to.
+
+**Test trap:** the first version of the tests cleaned up with `pkill -f "sleep
+300"`. That also matched, and killed, the shell running the test command,
+whose own command line contained the text. On a real host it could hit anyone's
+processes. Tests now use unique durations and `pgrep -x -f` (whole command line).
