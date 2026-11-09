@@ -49,6 +49,7 @@
   .tab:hover { color: #fff; background: #356045; }
   .tab.active { color: #fff; background: #33aa55; border-color: #44bb77; }
   .tab.starting { color: #eee; background: #6a5a30; border-color: #887740; }
+  .tab.unprotected .label { text-decoration: underline dotted #d9b45a; text-underline-offset: 3px; }
   .tab .close {
     position: absolute; top: 2px; right: 4px;
     display: inline-flex; align-items: center; justify-content: center;
@@ -496,6 +497,7 @@
     iframe.addEventListener('load', function () { wireFrameDismiss(iframe); });
     frames.appendChild(iframe);
     saveTabOrder();
+    applyProtection();
   }
 
   // Remove a tab's DOM + iframe (UI only, no backend stop). Returns whether it
@@ -575,10 +577,25 @@
     if (!tabs.querySelector('.tab') && !Object.keys(pending).length) coldStart();  // everything closed elsewhere
     applyTabLabels();
   }
+  // A tab whose session daemon is older than saving the running command (or
+  // than saving anything): a reboot would not bring it back whole. Daemons
+  // never restart, so the only fix is closing and reopening the tab.
+  var unprotected = [];
+  var UNPROTECTED_TIP = 'This tab was opened before restore-after-restart existed, so a reboot ' +
+    'would not bring back its command (or, for older tabs, anything). Close it and open a new one to protect it.';
+  function applyProtection(list) {
+    if (list) unprotected = list.map(Number);
+    tabs.querySelectorAll('.tab').forEach(function (t) {
+      var off = unprotected.indexOf(+t.dataset.n) >= 0;
+      t.classList.toggle('unprotected', off);
+      if (off) t.title = UNPROTECTED_TIP; else if (t.title === UNPROTECTED_TIP) t.removeAttribute('title');
+    });
+  }
   function syncStatus() {
     if (!inited) return;
     api('GET', '/status').then(function(d) {
       reconcileTabs(d.running || []);
+      applyProtection(d.unprotected || []);
       applyRemoteOrder(d.order);      // a reorder on another device lands here
       setSchedules(d.schedules);      // rides this poll — no second loop
     }).catch(function() {});
@@ -1446,6 +1463,7 @@
   api('GET', '/status').then(function(data) {
     var running = data.running || [];
     lastRunning = running;
+    unprotected = (data.unprotected || []).map(Number);
     setSchedules(data.schedules);
     if (running.length === 0) {
       // Start terminal 1 if nothing is running

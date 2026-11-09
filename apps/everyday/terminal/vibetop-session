@@ -423,19 +423,34 @@ def write_all(fd, data):
 # saves the ring and the shell's cwd there every SAVE_INTERVAL seconds and at
 # SIGTERM, and a fresh daemon for the same terminal loads them back. The
 # running PROGRAMS are not restored: nothing can resume a dead process.
-SAVE_INTERVAL = 20.0
+SAVE_INTERVAL = 20.0       # seconds between checks for a changed folder or command
+SCROLLBACK_INTERVAL = 60.0  # the 2 MB scrollback is rewritten at most this often
 JOB_POLL = 2.0             # seconds between foreground-job checks (reads only)
 RESTORE_MAX_WAIT = 15.0   # type the command anyway after this many seconds
 RESTORE_QUIET = 0.5        # seconds of shell silence that mean "prompt is up"
+RESTORE_SETTLE = 2.0       # a resumed program counts as up after this much quiet
+RESTORE_SETTLE_MAX = 30.0  # ...or after this long, whichever comes first
 STATE_SCROLLBACK = 'scrollback'
 STATE_META = 'meta.json'
+META_READ_LIMIT = 1 << 20
+JOB_SAVE_LIMIT = 32 * 1024  # a command line longer than this is not kept
 
 # Written after restored output, before the banner: whatever the saved stream
-# was in the middle of (an escape sequence cut off by the ring, a fullscreen
-# TUI in the alternate screen, mouse reporting, a hidden cursor, a scroll
-# region) must not leak into the fresh shell. CAN aborts a partial sequence.
-RESTORE_RESET = (b'\x18\x1b[0m\x1b[?1049l\x1b[?1000l\x1b[?1002l\x1b[?1003l'
-                 b'\x1b[?1005l\x1b[?1006l\x1b[?1015l\x1b[?2004l\x1b[?25h\x1b[r')
+# was in the middle of must not leak into the fresh shell. That covers:
+#   - an escape sequence cut off by the ring (CAN aborts it);
+#   - the alternate screen of a fullscreen program;
+#   - mouse reporting and bracketed paste;
+#   - a hidden cursor or a scroll region;
+#   - a line-drawing character set (G0 and SI);
+#   - application cursor keys or keypad;
+#   - the modes Claude Code turns on and clears only when it exits cleanly:
+#     focus reporting (each tab switch would beep in bash), modifyOtherKeys,
+#     the kitty keyboard stack, SGR-pixel mouse, synchronized output, theme
+#     reports.
+RESTORE_RESET = (b'\x18\x1b[0m\x1b(B\x0f\x1b[?1049l\x1b[?1000l\x1b[?1002l\x1b[?1003l'
+                 b'\x1b[?1004l\x1b[?1005l\x1b[?1006l\x1b[?1015l\x1b[?1016l\x1b[?2004l'
+                 b'\x1b[?2026l\x1b[?2031l\x1b[>4m\x1b[<99u\x1b[?1l\x1b>\x1b[?7h'
+                 b'\x1b[?25h\x1b[r')
 
 
 def _write_private(path, data):
@@ -457,24 +472,29 @@ def _write_private(path, data):
     os.replace(tmp, path)
 
 
-def save_session_state(state_dir, output, cwd, now=None, job=None):
+def save_session_state(state_dir, output, cwd, now=None, job=None, saved=None):
     """Save the replay ring's bytes, the shell's cwd and its foreground job.
     Scrollback first, meta last: the manager treats meta.json as "this terminal
-    can be restored"."""
+    can be restored". output=None leaves the scrollback file as it is (it is
+    rewritten less often than the meta); `saved` then names when it was."""
     os.makedirs(state_dir, mode=0o700, exist_ok=True)
-    _write_private(os.path.join(state_dir, STATE_SCROLLBACK), bytes(output))
-    meta = {'v': 1, 'cwd': cwd, 'saved': int(now if now is not None else time.time()),
-            'job': job}
+    now = int(now if now is not None else time.time())
+    if output is not None:
+        _write_private(os.path.join(state_dir, STATE_SCROLLBACK), bytes(output))
+        saved = now
+    if job is not None and len(json.dumps(job)) > JOB_SAVE_LIMIT:
+        job = None          # an enormous argv (vim on 2500 files) must not sink the rest
+    meta = {'v': 2, 'cwd': cwd, 'saved': int(saved if saved is not None else now), 'job': job}
     _write_private(os.path.join(state_dir, STATE_META), json.dumps(meta).encode())
 
 
 def load_session_state(state_dir, limit):
-    """(output, cwd, saved_epoch_seconds) from a previous daemon, or None."""
+    """(output, cwd, saved_epoch_seconds, job) from a previous daemon, or None."""
     if not state_dir:
         return None
     try:
         with open(os.path.join(state_dir, STATE_META), 'rb') as f:
-            meta = json.loads(f.read(64 * 1024))
+            meta = json.loads(f.read(META_READ_LIMIT))
         if not isinstance(meta, dict):
             return None
     except (OSError, ValueError):
@@ -494,19 +514,39 @@ def load_session_state(state_dir, limit):
     return output, cwd, saved, job
 
 
-def restored_banner(saved, plan=None):
-    """The line between the old output and the new shell, saying what was done
-    with the command that had been running."""
+def _short(text, limit=80):
+    return text if len(text) <= limit else text[:limit - 1] + '…'
+
+
+def plan_label(plan):
+    """What the divider calls a command that is being run again."""
+    text, _run, tier = plan
+    m = re.search(r"(?:^|\s)--resume\s+'?([0-9A-Za-z][0-9A-Za-z-]*)", text)
+    if tier == 'resume' and m:
+        return 'the Claude Code conversation ' + m.group(1)[:8]
+    return _short(text)
+
+
+def restored_banner(saved, plan=None, job_text=None, lost_cwd=None):
+    """The lines between the old output and the new shell: when the output was
+    saved, the folder if it could not be reopened, and what was done with the
+    command that had been running (nothing is said for an idle prompt)."""
     when = time.strftime('%b %-d %H:%M', time.localtime(saved)) if saved else 'earlier'
-    out = (RESTORE_RESET + b'\r\n\x1b[2m-- restored after restart \xc2\xb7 output saved '
-           + when.encode() + b' \xc2\xb7 programs that were running have stopped --\x1b[0m\r\n')
+    lines = ['restored after restart · output saved ' + when]
+    if lost_cwd:
+        lines.append('the folder %s no longer exists, so this shell starts in your home folder'
+                     % _short(lost_cwd))
     if plan:
         text, run, tier = plan
-        what = {'resume': 'resuming', 'rerun': 'reopening'}.get(tier, 'reopening') if run \
-            else 'last command is at the prompt; press Enter to run it'
-        out += (b'\x1b[2m-- ' + what.encode() + (b': ' + text.encode() if run else b'')
-                + b' --\x1b[0m\r\n')
-    return out
+        if run:
+            lines.append(('resuming ' if tier == 'resume' else 'reopening ') + plan_label(plan))
+        else:
+            lines.append('%s was running · it is at the prompt; press Enter to run it again'
+                         % _short(text))
+    elif job_text:
+        lines.append('%s was running and was not restarted' % _short(job_text))
+    return RESTORE_RESET + b''.join(b'\r\n\x1b[2m-- ' + line.encode() + b' --\x1b[0m'
+                                    for line in lines) + b'\r\n'
 
 
 # ---- The foreground command, and what to do with it after a restart --------
@@ -550,30 +590,60 @@ def _proc_argv(pid):
     return argv or None
 
 
+SESSION_ID_RE = re.compile(r'[0-9A-Za-z][0-9A-Za-z-]{7,63}')
+
+
 def claude_session_id(pid, home=None):
-    """The conversation a running Claude Code process has open. Claude Code
-    keeps ~/.claude/sessions/<pid>.json for every live interactive process."""
+    """The conversation a running Claude Code process has open, if there is one
+    to go back to. Claude Code keeps ~/.claude/sessions/<pid>.json for every
+    live interactive process, but writes the conversation's transcript only
+    once it has a message: a session nobody typed into cannot be resumed
+    ("No conversation found")."""
     home = home or os.path.expanduser('~')
     try:
         with open(os.path.join(home, '.claude', 'sessions', '%d.json' % pid)) as f:
             data = json.load(f)
-        sid = data.get('sessionId') if isinstance(data, dict) else None
-        if isinstance(sid, str) and re.fullmatch(r'[0-9A-Za-z-]{8,64}', sid):
-            return sid
     except (OSError, ValueError):
-        pass
+        return None
+    sid = data.get('sessionId') if isinstance(data, dict) else None
+    if not (isinstance(sid, str) and SESSION_ID_RE.fullmatch(sid)):
+        return None
+    projects = os.path.join(home, '.claude', 'projects')
+    try:
+        dirs = os.listdir(projects)
+    except OSError:
+        return None
+    if any(os.path.isfile(os.path.join(projects, d, sid + '.jsonl')) for d in dirs):
+        return sid
     return None
 
 
+def _stdin_is_devnull(pid):
+    try:
+        return os.readlink('/proc/%d/fd/0' % pid) == '/dev/null'
+    except OSError:
+        return False
+
+
 def shell_at_prompt(pty_fd, shell_pid):
-    """The shell owns the terminal and has no child still running (a login
-    profile's commands are its children while they run)."""
+    """bash is waiting at its prompt. It must hold the terminal, AND its line
+    editor must have the terminal out of canonical mode: readline switches it
+    only while it reads a command line, so this is false while the login
+    profile runs, including in the instant between two profile steps, when
+    the shell holds the terminal and has no child. That gap is where a
+    restored command used to land and get read by the profile's next step.
+    Children still in the shell's own group with the terminal as input (a
+    $(...) step) also mean "not yet"; a background job (`cmd &`, its own
+    group or stdin from /dev/null) does not."""
     try:
         if os.tcgetpgrp(pty_fd) != shell_pid:
             return False
-    except OSError:
+        if termios.tcgetattr(pty_fd)[3] & termios.ICANON:
+            return False
+    except (OSError, termios.error):
         return False
-    return not _proc_children(shell_pid)
+    return not any(_proc_pgrp(pid) == shell_pid and not _stdin_is_devnull(pid)
+                   for pid in _proc_children(shell_pid))
 
 
 def foreground_job(pty_fd, shell_pid):
@@ -598,69 +668,176 @@ def foreground_job(pty_fd, shell_pid):
     return job
 
 
-# Claude Code flags that take a value (kept with it); a bare word anywhere else
-# is the opening prompt, which belonged to the old conversation and is dropped.
+# Claude Code's options, as its parser reads them. A bare word that is not an
+# option's value is the opening prompt: it belonged to the old conversation and
+# is dropped.
 CLAUDE_VALUE_FLAGS = {
-    '--model', '--fallback-model', '--permission-mode', '--add-dir', '--allowedTools',
-    '--allowed-tools', '--disallowedTools', '--disallowed-tools', '--settings',
-    '--setting-sources', '--mcp-config', '--append-system-prompt', '--system-prompt',
-    '--agent', '--agents', '--plugin-dir', '--betas', '--ide', '--name',
+    '--model', '--fallback-model', '--permission-mode', '--settings', '--setting-sources',
+    '--append-system-prompt', '--system-prompt', '--append-system-prompt-file',
+    '--system-prompt-file', '--agent', '--agents', '--ide', '--name', '--output-format',
+    '--input-format', '--max-turns', '--max-budget-usd', '--permission-prompt-tool',
+    '--json-schema', '--debug-file',
 }
+# Options that take one or more values: every bare word after them is theirs.
+CLAUDE_VARIADIC_FLAGS = {
+    '--add-dir', '--allowedTools', '--allowed-tools', '--disallowedTools',
+    '--disallowed-tools', '--mcp-config', '--betas', '--plugin-dir', '--tools',
+}
+# Options whose value is optional: a following bare word is theirs.
+CLAUDE_OPTIONAL_VALUE = {'-d', '--debug'}
 CLAUDE_DROP_FLAGS = {'-c', '--continue', '-r', '--resume', '--session-id', '--fork-session'}
-CLAUDE_DROP_VALUE = {'-r', '--resume', '--session-id'}
+CLAUDE_DROP_VALUE = {'--session-id'}
+CLAUDE_DROP_OPTIONAL = {'-r', '--resume'}
 
-RERUN_PROGRAMS = {'htop', 'top', 'btop', 'atop', 'nvtop', 'glances', 'less', 'more', 'man',
-                  'vim', 'vi', 'nvim', 'nano', 'watch'}
+# Programs that only show things, re-run as typed. Each entry says which
+# arguments it may have:
+#   'any'    any arguments; nothing on its command line can write or run code
+#   'files'  plain file or topic names only. An option can run a command:
+#            `vim +!cmd`, `vim -c`, `less +!cmd`, `man -P cmd`.
+#   'none'   only bare, with no arguments: `atop -w` overwrites a file,
+#            `glances --export` writes one.
+# `watch` is not here: it runs whatever it is given.
+RERUN_PROGRAMS = {'htop': 'any', 'top': 'any', 'btop': 'any', 'nvtop': 'any',
+                  'atop': 'none', 'glances': 'none',
+                  'less': 'files', 'more': 'files', 'man': 'files',
+                  'vim': 'files', 'vi': 'files', 'nvim': 'files', 'nano': 'files', 'view': 'files'}
+# Where a re-run program must come from: a bare name, or a system directory.
+# `./top` or `~/scripts/htop` is just a script with a viewer's name.
+SYSTEM_BIN_DIRS = ('/usr/bin', '/bin', '/usr/local/bin', '/usr/sbin', '/sbin', '/snap/bin')
 SSH_VALUE_OPTS = set('BbcDEeFIiJLlmOoPpQRSWw')
+# ssh options that can run a command or change what a connection does:
+#   -o            sets RemoteCommand, LocalCommand or ProxyCommand;
+#   -F            reads another config file;
+#   -J            a jump host;
+#   -W            forwards stdin instead of opening a shell;
+#   -N and -f     run no shell at all;
+#   -S, -M, -O    take over the connection master.
+SSH_UNSAFE_OPTS = set('oFJWNfSMO')
+JOURNALCTL_WRITES = ('--vacuum', '--rotate', '--flush', '--sync', '--relinquish-var',
+                     '--smart-relinquish-var', '--setup-keys', '--update-catalog')
+CODEX_SUBCOMMANDS = {'exec', 'e', 'login', 'logout', 'mcp', 'mcp-server', 'proto', 'p',
+                     'completion', 'debug', 'apply', 'a', 'cloud', 'app-server', 'sandbox',
+                     'generate-ts', 'features', 'help'}
+CODEX_VALUE_FLAGS = {'-m', '--model', '-c', '--config', '-p', '--profile', '-s', '--sandbox',
+                     '-a', '--ask-for-approval', '-C', '--cd', '-i', '--image', '--oss',
+                     '--local-provider', '--add-dir'}
+
+
+def _claude_command(argv0):
+    """Claude Code as it was started. A path is kept: it was the user's own
+    build. A bare `claude` is typed as `command claude`, so a shell alias
+    (`alias claude='claude --dangerously-skip-permissions'`) is not applied a
+    second time to the flags /proc already shows expanded."""
+    return [argv0] if '/' in argv0 else ['command', 'claude']
 
 
 def _claude_resume(argv, sid):
-    if not sid:
-        return None
-    out, skip, it = ['claude', '--resume', sid], False, iter(argv[1:])
-    for arg in it:
-        flag = arg.split('=', 1)[0]
-        if arg in ('-p', '--print') or flag in ('-p', '--print'):
+    """Claude Code with its original options, back in conversation `sid`; with
+    no sid (it was never sent a message), a fresh start with the same options.
+    None for a one-shot `-p` run."""
+    if sid is not None and not (isinstance(sid, str) and SESSION_ID_RE.fullmatch(sid)):
+        sid = None
+    out = _claude_command(argv[0]) + (['--resume', sid] if sid else [])
+    args = argv[1:]
+    i = 0
+    while i < len(args):
+        arg = args[i]
+        i += 1
+        flag = arg.split('=', 1)[0] if arg.startswith('--') else arg
+        if arg == '--':
+            break                               # everything after is the prompt
+        if flag in ('-p', '--print'):
             return None                         # a one-shot print run, not a session
-        if flag in CLAUDE_DROP_FLAGS:
-            if flag in CLAUDE_DROP_VALUE and '=' not in arg:
-                next(it, None)
-            continue
         if not arg.startswith('-'):
             continue                            # the old opening prompt
-        out.append(arg)
-        if flag in CLAUDE_VALUE_FLAGS and '=' not in arg:
-            value = next(it, None)
-            if value is not None:
-                out.append(value)
+        keep = flag not in CLAUDE_DROP_FLAGS
+        if keep:
+            out.append(arg)
+        if '=' in arg:
+            continue
+        if flag in CLAUDE_VALUE_FLAGS or flag in CLAUDE_DROP_VALUE:
+            if i < len(args):
+                if keep:
+                    out.append(args[i])
+                i += 1
+        elif flag in CLAUDE_VARIADIC_FLAGS:
+            while i < len(args) and not args[i].startswith('-'):
+                out.append(args[i])
+                i += 1
+        elif flag in CLAUDE_OPTIONAL_VALUE or flag in CLAUDE_DROP_OPTIONAL:
+            if i < len(args) and not args[i].startswith('-'):
+                if keep:
+                    out.append(args[i])
+                i += 1
     return out
 
 
-def _ssh_is_interactive(argv):
-    """`ssh [opts] host` with no remote command: re-running only reconnects."""
-    positional, it = [], iter(argv[1:])
-    for arg in it:
+def _codex_is_session(argv):
+    """`codex [options] [prompt]` is an interactive session; `codex exec`,
+    `codex login`, `codex apply` and the other subcommands are not."""
+    args = argv[1:]
+    i = 0
+    while i < len(args):
+        arg = args[i]
+        i += 1
         if arg == '--':
-            positional.extend(it)
+            return True
+        if arg.startswith('-'):
+            if '=' not in arg and arg in CODEX_VALUE_FLAGS:
+                i += 1
+            continue
+        return arg == 'resume' or arg not in CODEX_SUBCOMMANDS
+    return True
+
+
+def _ssh_is_interactive(argv):
+    """`ssh [opts] host` with no remote command and nothing in its options that
+    runs one: re-running it only reconnects."""
+    positional = []
+    args = argv[1:]
+    i = 0
+    while i < len(args):
+        arg = args[i]
+        i += 1
+        if arg == '--':
+            positional.extend(args[i:])
             break
         if arg.startswith('-') and len(arg) > 1:
-            if arg[-1] in SSH_VALUE_OPTS and len(arg) == 2:
-                next(it, None)
+            letters = arg[1:]
+            for j, ch in enumerate(letters):
+                if ch in SSH_UNSAFE_OPTS:
+                    return False
+                if ch in SSH_VALUE_OPTS:
+                    if j == len(letters) - 1:
+                        i += 1           # the value is the next argument
+                    break                # ...or the rest of this one (-p2222)
             continue
         positional.append(arg)
     return len(positional) == 1
 
 
 def _rerun_safe(argv):
-    name = os.path.basename(argv[0])
-    if name in RERUN_PROGRAMS:
+    prog = argv[0]
+    if '/' in prog and os.path.dirname(prog) not in SYSTEM_BIN_DIRS:
+        return False
+    name = os.path.basename(prog)
+    args = argv[1:]
+    rule = RERUN_PROGRAMS.get(name)
+    if rule == 'any':
         return True
+    if rule == 'none':
+        return not args
+    if rule == 'files':
+        return all(a and not a.startswith(('-', '+')) for a in args)
     if name == 'tail':
-        return any(a in ('-f', '-F', '--follow') or a.startswith('--follow=') for a in argv[1:])
+        return any(a in ('-f', '-F', '--follow') or a.startswith('--follow=') for a in args)
     if name == 'journalctl':
-        return any(a in ('-f', '--follow') for a in argv[1:])
-    if name in ('ssh', 'mosh'):
+        return (any(a in ('-f', '--follow') for a in args)
+                and not any(a.startswith(JOURNALCTL_WRITES) for a in args))
+    if name == 'ssh':
         return _ssh_is_interactive(argv)
+    if name == 'mosh':
+        return len(args) == 1 and not args[0].startswith('-')
     return False
 
 
@@ -669,24 +846,53 @@ def _quote(argv):
     return ' '.join(shlex.quote(a) for a in argv)
 
 
-def restore_plan(job, mode='auto'):
-    """(command_text, run_it, tier) for a saved foreground job, or None."""
-    if mode == 'off' or not isinstance(job, dict):
+def _has_control(text):
+    # C0, DEL and C1: U+009B is a CSI on its own to a terminal that reads 8-bit
+    # controls, and a newline would run the line.
+    return any(ord(c) < 32 or 127 <= ord(c) < 160 for c in text)
+
+
+def job_text(job):
+    """The saved job as one shell line, or None when it is malformed or unsafe
+    to show."""
+    if not isinstance(job, dict):
         return None
     argvs = job.get('argv')
     if not (isinstance(argvs, list) and argvs and
             all(isinstance(a, list) and a and all(isinstance(x, str) for x in a) for a in argvs)):
         return None
     text = ' | '.join(_quote(a) for a in argvs)
-    if any(ord(c) < 32 or ord(c) == 127 for c in text):
-        return None                     # a newline or control byte would run or garble it
+    return None if _has_control(text) else text
+
+
+# What a terminal sends by itself, not the user: replies to queries, focus
+# in/out, mouse reports. All are escape sequences.
+_TERMINAL_REPLY_RE = re.compile(rb'\x1b(?:\[[0-?]*[ -/]*[@-~]|\][^\x07\x1b]*(?:\x07|\x1b\\)'
+                                rb'|P[^\x1b]*\x1b\\|O.|.)', re.S)
+
+
+def is_keystrokes(data):
+    """Whether client input holds anything the user typed."""
+    return bool(_TERMINAL_REPLY_RE.sub(b'', data))
+
+
+def restore_plan(job, mode='auto'):
+    """(command_text, run_it, tier) for a saved foreground job, or None."""
+    if mode == 'off':
+        return None
+    text = job_text(job)
+    if text is None:
+        return None
+    argvs = job['argv']
     if len(argvs) == 1:
         argv = argvs[0]
-        if os.path.basename(argv[0]) == 'claude':
-            resumed = _claude_resume(argv, job.get('claude_session'))
+        name = os.path.basename(argv[0])
+        if name == 'claude':
+            sid = job.get('claude_session')
+            resumed = _claude_resume(argv, sid)
             if resumed:
-                return _quote(resumed), mode == 'auto', 'resume'
-        elif os.path.basename(argv[0]) == 'codex' and argv[1:2] != ['exec']:
+                return _quote(resumed), mode == 'auto', 'resume' if '--resume' in resumed else 'rerun'
+        elif name == 'codex' and _codex_is_session(argv):
             return 'codex resume', mode == 'auto', 'resume'   # its picker; no pid -> session map
         if _rerun_safe(argv):
             return text, mode == 'auto', 'rerun'
@@ -762,11 +968,29 @@ def cmd_serve(instance):
     restored = load_session_state(state_dir, buf_cap)
     restore_cwd = None
     pending_cmd = None     # (text, run, tier) to put into the first shell once its prompt is up
+    # The saved job is kept as THE job until the user has taken over: a second
+    # restart while the command is still waiting (a slow login profile), or
+    # after it was typed but not yet run, must not save "the shell was idle"
+    # and lose it. Cleared once a foreground job is seen or the user presses
+    # Enter.
+    carry_job = None
+    user_typed = False     # a client sent keystrokes while the command was pending
+    restoring_path = f'/tmp/vibetop-session-{instance}.restoring'
+    settle_until = None    # (quiet_since_needed, hard_deadline) after a resumed command starts
     last_pty_out = 0.0
+    scrollback_saved_at = None     # wall-clock time the scrollback file was last written
+    next_scrollback = 0.0
     if restored:
         old_output, restore_cwd, saved_at, old_job = restored
+        scrollback_saved_at = saved_at
+        lost_cwd = None
+        if restore_cwd and not (os.path.isdir(restore_cwd) and os.access(restore_cwd, os.X_OK)):
+            lost_cwd, restore_cwd = restore_cwd, None
         pending_cmd = restore_plan(old_job, os.environ.get('VIBETOP_TERM_RESTORE_CMDS', 'auto'))
-        ring.write(strip_terminal_queries(old_output) + restored_banner(saved_at, pending_cmd))
+        if pending_cmd:
+            carry_job = old_job
+        ring.write(strip_terminal_queries(old_output)
+                   + restored_banner(saved_at, pending_cmd, job_text(old_job), lost_cwd))
     saved_mark = None      # (epoch, offset, cwd, job) last written to state_dir
     # The foreground job as of the last JOB_POLL. A shutdown (or `systemctl
     # stop`) sends SIGTERM to every process in this unit AT ONCE, so by the time
@@ -1064,21 +1288,56 @@ def cmd_serve(instance):
         return foreground_job(pty_fd, child_pid) if child_pid > 0 and pty_fd >= 0 else None
 
     def save_state(force=False, shutting_down=False):
-        nonlocal saved_mark
+        """Write the folder and command when they change, and the scrollback
+        when it changed, at most every SCROLLBACK_INTERVAL: the scrollback is
+        up to 2 MB with an fsync, and a busy terminal changes it constantly.
+        A shutdown writes everything."""
+        nonlocal saved_mark, scrollback_saved_at, next_scrollback
         if not state_dir:
             return
         cwd = shell_cwd(child_pid) if child_pid > 0 else None
         job = current_job()
-        if shutting_down and job is None:
+        if job is None and carry_job is not None:
+            job = carry_job     # restored, and the user has not taken over yet
+        elif shutting_down and job is None:
             job = last_job      # it died with us; see last_job
-        mark = (ring.epoch, ring.offset, cwd, json.dumps(job, sort_keys=True))
-        if mark == saved_mark and not force:
+        meta_mark = (cwd, json.dumps(job, sort_keys=True))
+        output_changed = saved_mark is None or saved_mark[:2] != (ring.epoch, ring.offset)
+        write_output = output_changed and (force or time.monotonic() >= next_scrollback)
+        if not write_output and saved_mark is not None and saved_mark[2:] == meta_mark and not force:
             return
         try:
-            save_session_state(state_dir, ring.read_all(), cwd, job=job)
-            saved_mark = mark
+            # replay(), not read_all(): it starts with the modes the ring has
+            # already dropped (a long-running fullscreen program's alternate
+            # screen) and completes an escape sequence cut off at the start.
+            save_session_state(state_dir, ring.replay() if write_output else None, cwd,
+                               job=job, saved=scrollback_saved_at)
+            if write_output:
+                scrollback_saved_at = int(time.time())
+                next_scrollback = time.monotonic() + SCROLLBACK_INTERVAL
+                saved_mark = (ring.epoch, ring.offset) + meta_mark
+            else:
+                saved_mark = (saved_mark[:2] if saved_mark else (None, None)) + meta_mark
         except OSError as e:
             sys.stderr.write('vibetop-session: saving state failed: %s\n' % e)
+
+    def set_restoring(on):
+        """/tmp/vibetop-session-<instance>.restoring exists while a restored
+        command is still being put back. The manager waits for it to go before
+        typing a scheduled message, so the message reaches the resumed Claude
+        Code and not the login profile or the bare shell."""
+        try:
+            os.unlink(restoring_path)
+        except FileNotFoundError:
+            pass
+        except OSError:
+            return
+        if on:
+            try:
+                os.close(os.open(restoring_path,
+                                 os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600))
+            except OSError:
+                pass
 
     def on_sigterm(signum, frame):
         # Save first, while the shell is still alive to report its cwd: a host
@@ -1098,6 +1357,7 @@ def cmd_serve(instance):
                 pass
         for fd in list(clients):
             remove_client(fd)
+        set_restoring(False)
         try:
             os.unlink(sock_path)
             os.unlink(sock_path + ".resume")
@@ -1169,6 +1429,7 @@ def cmd_serve(instance):
     resume_sig = sock_sig(resume_path)
     sel.register(server, selectors.EVENT_READ, 'server')
 
+    set_restoring(bool(pending_cmd))
     spawn_shell(restore_cwd)
 
     # -- main loop --
@@ -1218,6 +1479,8 @@ def cmd_serve(instance):
         if state_dir and now >= next_job_poll:
             next_job_poll = now + JOB_POLL
             last_job = current_job()
+            if last_job is not None:
+                carry_job = None        # something is running now; it is the job
 
         if state_dir and now >= next_save:
             next_save = now + SAVE_INTERVAL
@@ -1230,7 +1493,18 @@ def cmd_serve(instance):
         # timeout), and a line typed into that pause is read by whatever the
         # profile is running instead of by the shell. RESTORE_MAX_WAIT caps it.
         if pending_cmd and pty_fd >= 0:
-            if (shell_at_prompt(pty_fd, child_pid) and last_pty_out
+            if user_typed:
+                # The user started typing before the prompt was up. Their
+                # keystrokes are in the line already; typing the command too
+                # would join the two, and a run would press Enter on both.
+                text, _run, _tier = pending_cmd
+                pending_cmd = None
+                set_restoring(False)
+                note = ('\r\n\x1b[2m-- you started typing, so the restored command was not entered: '
+                        + _short(text) + ' --\x1b[0m\r\n').encode()
+                ring.write(note)
+                broadcast(note)
+            elif (shell_at_prompt(pty_fd, child_pid) and last_pty_out
                     and now - last_pty_out >= RESTORE_QUIET) or now - last_spawn >= RESTORE_MAX_WAIT:
                 text, run, _tier = pending_cmd
                 pending_cmd = None
@@ -1238,10 +1512,21 @@ def cmd_serve(instance):
                     write_all(pty_fd, text.encode() + (b'\r' if run else b''))
                 except OSError:
                     pass
+                if run:
+                    settle_until = now + RESTORE_SETTLE_MAX
+                else:
+                    set_restoring(False)
+        if settle_until is not None:
+            # A resumed program is up once it holds the terminal and has drawn
+            # its screen (gone quiet), or after RESTORE_SETTLE_MAX regardless.
+            if now >= settle_until or (current_job() is not None and last_pty_out
+                                       and now - last_pty_out >= RESTORE_SETTLE):
+                settle_until = None
+                set_restoring(False)
 
         # Apply a debounced resize once the burst has settled (see RESIZE_DEBOUNCE).
         # While one is pending, shorten the select timeout so we apply promptly.
-        timeout = 0.1 if pending_cmd else 1.0
+        timeout = 0.1 if pending_cmd or settle_until is not None else 1.0
         if pending_resize:
             if now >= resize_deadline:
                 apply_resize()
@@ -1419,6 +1704,10 @@ def cmd_serve(instance):
                             continue
                     if pty_fd >= 0:
                         keyprobe_record(data)   # dormant unless ~/.vibetop-keyprobe exists
+                        if pending_cmd and is_keystrokes(data):
+                            user_typed = True
+                        if carry_job is not None and not pending_cmd and b'\r' in data:
+                            carry_job = None    # Enter: the user ran (or replaced) the typed line
                         # Write ALL the bytes: the master is non-blocking, so a
                         # large paste can short-write or raise EAGAIN — the old
                         # single os.write silently dropped the remainder. Loop on

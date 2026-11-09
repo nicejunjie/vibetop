@@ -2384,10 +2384,141 @@ def _restorable_terminals(user):
         return []
     out = []
     for name in names:
-        if name.isdigit() and 1 <= int(name) <= MAX_INSTANCE and \
-                os.path.isfile(os.path.join(root, name, "meta.json")):
+        # ASCII digits with no leading zero: "03" or "\u0663" would pass
+        # isdigit() and name a tab that closing could never delete (it removes
+        # str(int(name)), "3").
+        if not re.fullmatch(r"[1-9][0-9]{0,3}", name) or int(name) > MAX_INSTANCE:
+            continue
+        try:
+            st = os.lstat(os.path.join(root, name, "meta.json"))
+        except OSError:
+            continue
+        if stat.S_ISREG(st.st_mode):
             out.append(int(name))
     return sorted(out)
+
+
+def _read_term_meta(user, n):
+    """A terminal's saved meta.json as a dict, or None. Root reads the user's
+    file, so: no symlink at the last step, regular files only (a FIFO would
+    hang this thread), and a size cap."""
+    path = os.path.join(_term_state_dir(user, n), "meta.json")
+    try:
+        fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+    except OSError:
+        return None
+    try:
+        if not stat.S_ISREG(os.fstat(fd).st_mode):
+            return None
+        meta = json.loads(os.read(fd, 1 << 20))
+        return meta if isinstance(meta, dict) else None
+    except (OSError, ValueError):
+        return None
+    finally:
+        os.close(fd)
+
+
+# Terminals this manager started, by (user, n) -> monotonic time: a terminal
+# opened a moment ago has not made its first save yet, and must not be called
+# unprotected for it.
+_term_started_at = {}
+TERM_FIRST_SAVE_GRACE = 30.0
+
+
+def _unprotected_terminals(user, running):
+    """Running terminals that a restart would not bring back with their command:
+    their session daemon predates saving the running command (no "job" in its
+    saved state) or saves nothing at all. Daemons never restart, so only closing
+    and reopening the tab fixes them."""
+    now = time.monotonic()
+    out = []
+    for n in running:
+        if now - _term_started_at.get((user, n), -1e9) < TERM_FIRST_SAVE_GRACE:
+            continue
+        meta = _read_term_meta(user, n)
+        if meta is None or "job" not in meta:
+            out.append(n)
+    return out
+
+
+# After a reboot nothing is running, and a tab's session used to come back only
+# when its iframe first loaded, which terminals.html does only for the tab you
+# click. A Claude Code session in a background tab stayed down until then. The
+# status poll starts every terminal waiting to be restored, in the background,
+# at most once per TERM_AUTOSTART_EVERY each.
+TERM_AUTOSTART_EVERY = 60.0
+_term_autostart_tried = {}
+_term_autostart_lock = threading.Lock()
+
+
+def _autostart_restorable(user, waiting):
+    now = time.monotonic()
+    todo = []
+    with _term_autostart_lock:
+        for n in waiting:
+            if now - _term_autostart_tried.get((user, n), -1e9) >= TERM_AUTOSTART_EVERY:
+                _term_autostart_tried[(user, n)] = now
+                todo.append(n)
+    if not todo:
+        return
+
+    def run():
+        for n in todo:
+            try:
+                ok, res = _start_user_terminal(user, n)
+                if not ok:
+                    log.warning("terminal %s-%d restore start failed: %s", user, n, res)
+                else:
+                    log.info("terminal %s-%d restored after a restart", user, n)
+            except Exception as e:
+                log.warning("terminal %s-%d restore start failed: %s", user, n, e)
+        _cache.pop("running_terminals:" + user, None)
+
+    threading.Thread(target=run, name="term-restore-%s" % user, daemon=True).start()
+
+
+def _restore_terminals_at_start(delay=20.0):
+    """Background thread, once per manager start: bring back every user's
+    terminals that a reboot stopped, without waiting for anyone to open the
+    Terminal page (a scheduled "continue" overnight needs its Claude Code back).
+    A plain manager restart finds them all still running and does nothing."""
+    time.sleep(delay)
+    for user in list(_read_users_registry().keys()):
+        try:
+            running = set(_list_running_terminals(user))
+            waiting = [n for n in _restorable_terminals(user) if n not in running]
+            if waiting:
+                _autostart_restorable(user, waiting)
+        except Exception as e:
+            log.warning("terminal restore at start failed for %s: %s", user, e)
+
+
+def _term_restoring_marker(user, n):
+    return "/tmp/vibetop-session-%s.restoring" % _term_instance(user, n)
+
+
+def _wait_terminal_restored(user, n, timeout=45.0):
+    """Wait until (user, N)'s daemon is up and has finished putting back the
+    command it was restored with (it holds a .restoring marker until then).
+    The marker counts only when the user owns it: /tmp is shared."""
+    try:
+        uid = pwd.getpwnam(user).pw_uid
+    except KeyError:
+        return False
+    sock_path = _term_socket(user, n)
+    marker = _term_restoring_marker(user, n)
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        if os.path.exists(sock_path):
+            try:
+                st = os.lstat(marker)
+                busy = st.st_uid == uid and stat.S_ISREG(st.st_mode)
+            except OSError:
+                busy = False
+            if not busy:
+                return True
+        time.sleep(0.25)
+    return False
 
 
 def _forget_terminal_state(user, n=None):
@@ -2533,6 +2664,7 @@ def _start_user_terminal(user, n):
             except (OSError, subprocess.SubprocessError):
                 pass
             orphan = True
+        _term_started_at[(user, int(n))] = time.monotonic()
         return _start_user_terminal_locked(user, n, keep_name=orphan)
 
 
@@ -4349,7 +4481,10 @@ def _inject_terminal(user, n, text):
 
     Deliberately does NOT cold-start a stopped terminal: a fresh bash has none of
     the session the message was written for, so "continue" would land as
-    `command not found`. A clear failure beats a confusing one.
+    `command not found`. A clear failure beats a confusing one. The exception
+    is a terminal waiting to be restored after a reboot: its session (a resumed
+    Claude Code) is coming back, so it is started, and the message waits until
+    the daemon has put the restored command back.
 
     Sends \\r, not \\n — the attach client clears ICRNL, so \\r is what a real
     Enter delivers.
@@ -4393,6 +4528,20 @@ def _inject_terminal(user, n, text):
     except Exception:
         running = []
     sock_path = _term_socket(user, n)
+    if int(n) not in running and int(n) in _restorable_terminals(user):
+        # Waiting to be restored after a restart: the session the message was
+        # written for is coming back, so start it and let it finish resuming
+        # (Claude Code reopening its conversation) before typing.
+        ok, res = _start_user_terminal(user, int(n))
+        _cache.pop("running_terminals:" + user, None)
+        if not ok:
+            return False, f"terminal {int(n)} could not be restored: {res}"
+        if not _wait_terminal_restored(user, int(n)):
+            return False, f"terminal {int(n)} did not finish restoring in time"
+        running = [int(n)]
+    elif int(n) in running and os.path.lexists(_term_restoring_marker(user, int(n))) \
+            and not _wait_terminal_restored(user, int(n)):
+        return False, f"terminal {int(n)} did not finish restoring in time"
     if int(n) not in running or not os.path.exists(sock_path):
         return False, f"terminal {int(n)} is not running"
 
@@ -8337,8 +8486,11 @@ class Handler(http.server.BaseHTTPRequestHandler):
             n = int(n)
         except (TypeError, ValueError):
             n = None
+        restorable = set(_restorable_terminals(user))
+        if n and n not in running and n in restorable:
+            n = None        # it is coming back with its own command; the cd would land in that
         if not n or n < 1 or n > MAX_INSTANCE:
-            taken = set(running) | set(_restorable_terminals(user))
+            taken = set(running) | restorable
             n = next((i for i in range(1, MAX_INSTANCE + 1) if i not in taken), None)
             if n is None:
                 return self._json(409, {"error": "all terminals are in use"})
@@ -9463,10 +9615,17 @@ class Handler(http.server.BaseHTTPRequestHandler):
             # is running, and this list is the tab set the page rebuilds. Each
             # tab's first /tN/ request then cold-starts and restores it.
             user = _ctx_user()
-            tabs = sorted(set(self._get_running_terminals())
-                          | set(_cached("restorable_terminals:" + user, 2.0,
-                                        lambda: _restorable_terminals(user))))
+            running = self._get_running_terminals()
+            restorable = _cached("restorable_terminals:" + user, 2.0,
+                                 lambda: _restorable_terminals(user))
+            waiting = [n for n in restorable if n not in running]
+            if waiting:
+                _autostart_restorable(user, waiting)
+            tabs = sorted(set(running) | set(restorable))
+            unprotected = _cached("unprotected_terminals:" + user, 10.0,
+                                  lambda: _unprotected_terminals(user, list(running)))
             self._json(200, {"running": tabs,
+                             "unprotected": [n for n in unprotected if n in running],
                              "order": _read_tab_order(),
                              "schedules": self._schedules_payload()})
             return
@@ -9992,6 +10151,7 @@ if __name__ == "__main__":
         _write_browser_token(_u)
     threading.Thread(target=_watchdog_loop, args=(port,), daemon=True).start()
     threading.Thread(target=_reaper_loop, daemon=True).start()  # idle reaper (opt-in)
+    threading.Thread(target=_restore_terminals_at_start, daemon=True).start()
     threading.Thread(target=_video_cache_sweep_loop, daemon=True).start()  # bound the video cache
     threading.Thread(target=_schedule_loop, daemon=True).start()  # scheduled terminal messages
     threading.Thread(target=_hist_loop, daemon=True).start()  # 7-day metrics ring

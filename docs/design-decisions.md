@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_533 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_534 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [Terminal link opened a closed Browser app but lost the URL](#terminal-link-opened-a-closed-browser-app-but-lost-the-url)
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
@@ -556,6 +556,7 @@ _533 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [Publishing a worktree fast-forwards the home checkout (2026-11-06)](#publishing-a-worktree-fast-forwards-the-home-checkout-2026-11-06)
 - [Terminals restore their output, directory and name after a reboot (2026-11-06)](#terminals-restore-their-output-directory-and-name-after-a-reboot-2026-11-06)
 - [Restored terminals resume Claude Code and retype other commands (2026-11-06)](#restored-terminals-resume-claude-code-and-retype-other-commands-2026-11-06)
+- [Terminal restore: what an independent test broke (2026-11-08)](#terminal-restore-what-an-independent-test-broke-2026-11-08)
 
 <!-- END TOC -->
 
@@ -21316,3 +21317,85 @@ reads input with a bash builtin (`read`) isn't a child, so it isn't covered.
 300"`. That also matched, and killed, the shell running the test command,
 whose own command line contained the text. On a real host it could hit anyone's
 processes. Tests now use unique durations and `pgrep -x -f` (whole command line).
+
+## Terminal restore: what an independent test broke (2026-11-08)
+
+**Symptom:** a separate test pass against v1.38.163 found these, all
+reproduced:
+- the restore pressed Enter on the user's own half-typed line;
+- the "harmless re-run" list ran arbitrary commands;
+- Claude Code flags piled up one more copy per restart;
+- a never-prompted Claude Code failed to resume;
+- a second restart lost a command still waiting to be typed;
+- a long command line wiped the whole restore;
+- old frames of a fullscreen program were drawn on the normal screen;
+- a killed Claude Code left focus reports on (bash beeped on each tab switch);
+- a background job in the login profile held the command for 15s.
+
+**Causes and fixes** (detail: `docs/terminal.md` §"Restore after a reboot"):
+- **Enter on the user's text.** The command was appended to whatever was in
+  the input line. Now any keystroke from a client before the command is in
+  (terminal replies such as focus reports excluded) cancels it, with a note.
+- **The allowlist.** It checked only the program's basename and allowed any
+  arguments. That let through:
+  - `watch` (runs its argument);
+  - `vim +!cmd`, `less +!cmd`, `man -P cmd`;
+  - `ssh -o RemoteCommand=`;
+  - `journalctl --vacuum`;
+  - `/tmp/evil/top`.
+
+  Each program now has an argument rule (any, file names only, or none),
+  `watch` is gone, ssh rejects options that run or redirect, and a path must
+  be a system bin dir.
+- **Alias stacking.** /proc shows `claude --dangerously-skip-permissions` from
+  an alias, and typing `claude ...` applied the alias again. Now `command
+  claude` is typed; a path-started build keeps its path.
+- **No conversation.** Claude Code writes the sessions pid file at start but a
+  transcript only after the first message. The id is used only if
+  `~/.claude/projects/*/<id>.jsonl` exists; otherwise a fresh start with the
+  same options.
+- **Second restart.** While the command is pending, or typed but not run, the
+  shell looks idle, so the save wrote `job: null`. The restored job is now
+  carried until the user takes over (a foreground job is seen or Enter is
+  pressed).
+- **Long argv.** meta.json was read only to 64 KB, so an 80 KB file failed to
+  parse and nothing was restored. Now jobs over 32 KB are not saved, and meta
+  is read up to 1 MB.
+- **Fullscreen frames.** The save wrote `ring.read_all()`, the raw bytes; a
+  reconnect replays `ring.replay()`, which starts with the modes the ring has
+  dropped. Now the save uses `replay()` too.
+- **Leftover modes.** `RESTORE_RESET` lacked the modes Claude Code sets and
+  clears only on a clean exit (`?1004`, `?2026`, `?2031`, `?1016`, `>4m`, kitty
+  `<u`) and the G0/SI charset.
+
+**The prompt check had a gap of its own.** Rewriting `shell_at_prompt` exposed
+a race that the old version also had: between two login-profile steps, bash
+holds the terminal and has no child for an instant, and 0.5s of quiet output
+(a silent `sleep` before it) made that look like the prompt. The test hit it in
+about one run in three. The reliable signal is the termios state: readline
+takes the terminal out of canonical mode only while it reads a command line,
+so `ICANON` off plus `tcgetpgrp == shell` is "at the prompt". Sampling every
+1ms through a login shows no false positives.
+
+**Also from that pass:**
+- **Only the clicked tab restored.** terminals.html loads a tab's iframe only
+  when it is shown. Now the status poll and a one-shot task at manager start
+  bring back every terminal waiting to be restored.
+- **Scheduled messages and open-at.** A scheduled message to a terminal
+  waiting to be restored now starts it and waits for the `.restoring` marker.
+  open-at never targets such a terminal, so its `cd` cannot land in a resumed
+  Claude Code.
+- **Unprotected tabs.** Tabs whose daemon predates the feature are marked
+  (dotted underline and tooltip), since daemons never restart.
+- **Save cost.** The scrollback is now rewritten at most once a minute; the
+  folder and command still every 20s.
+
+**Rejected:**
+- **Ctrl-U before typing the command** (clear the line, then type): it
+  silently deletes what the user typed. Cancelling and saying so loses nothing.
+- **Waiting for N consecutive "at prompt" samples** instead of reading
+  termios: it narrows the gap without closing it, and adds latency to every
+  restore.
+- **Saving in a background thread:** the daemon forks a shell, and fork with
+  live threads is the classic deadlock. A once-a-minute write is cheap enough
+  inline.

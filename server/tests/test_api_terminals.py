@@ -44,10 +44,13 @@ def test_start_surfaces_launch_failure(client, mgr, monkeypatch):
 
 def test_status_lists_running(client, mgr, monkeypatch):
     monkeypatch.setattr(mgr.Handler, "_get_running_terminals", lambda self: [1, 4])
+    monkeypatch.setattr(mgr, "_term_started_at", {})
     status, body = client.get("/api/terminals/status")
-    # Scheduled messages AND the tab order ride this same poll — a second client
-    # loop for either would cost more than the field does.
-    assert status == 200 and body == {"running": [1, 4], "order": [], "schedules": []}
+    # Scheduled messages, the tab order and the tabs a restart would not bring
+    # back all ride this same poll: a second client loop for any of them would
+    # cost more than the field does. Nothing saved for 1 or 4: both unprotected.
+    assert status == 200 and body == {"running": [1, 4], "unprotected": [1, 4],
+                                      "order": [], "schedules": []}
 
 
 # ---- tab order (synced per user, like the names) ----------------------------

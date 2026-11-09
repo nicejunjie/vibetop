@@ -306,24 +306,51 @@ or typed at the prompt; see below).
 
 - **Saving (the daemon, as the user).** The manager passes each session daemon
   `VIBETOP_TERM_STATE=~/.local/state/vibetop/terminals/<N>`. Every
-  `SAVE_INTERVAL` (20s), when the ring or the shell's cwd changed, the daemon
-  writes `scrollback` (the raw ring bytes) and then `meta.json`
-  (`{v, cwd, saved}`). Both files are 0600 in a 0700 directory, replaced
-  atomically and fsynced, because a crash or power cut is the case this is for.
-  It saves once more on SIGTERM, before it hangs up the shell, which is how a
-  clean shutdown stops the unit. A crash loses at most the last 20 seconds.
+  `SAVE_INTERVAL` (20s) the daemon rewrites `meta.json` (`{v: 2, cwd, saved,
+  job}`) if the folder or command changed, and `scrollback` if the output
+  changed, but the scrollback at most every `SCROLLBACK_INTERVAL` (60s): it is
+  up to 2 MB with an fsync. The scrollback is `ring.replay()`, not the raw ring:
+  it starts with the screen modes the ring has already dropped (a long-running
+  fullscreen program's `\e[?1049h`) and completes an escape sequence cut off at
+  its start. Both files are 0600 in a 0700 directory, replaced atomically and
+  fsynced, because a crash or power cut is the case this is for. It saves
+  everything once more on SIGTERM, before it hangs up the shell, which is how a
+  clean shutdown stops the unit. A crash loses at most the last minute of output.
+  A command line over 32 KB is not saved (the rest still is), and `meta.json` is
+  read up to 1 MB.
 - **Restoring.** A daemon that finds `meta.json` loads the newest
   `CLAUDE_SESSION_BUFSIZE` bytes into its ring (queries stripped), then a reset
-  (CAN, SGR reset, leave the alternate screen, mouse and bracketed-paste modes
-  off, cursor shown, scroll region cleared) and a dim divider: "restored after
-  restart · output saved <time> · programs that were running have stopped". The
-  first shell starts in the saved cwd, or in home if that directory is gone. A
-  later shell (after `exit`) starts in home as before.
+  and a dim divider. The reset aborts a cut-off sequence (CAN) and turns off
+  whatever the old screen had on:
+  - the alternate screen and the G0/SI character set;
+  - mouse modes (including SGR-pixel) and bracketed paste;
+  - application cursor keys and keypad;
+  - the modes a killed Claude Code leaves behind: focus reports (bash beeps on
+    each tab switch), modifyOtherKeys, the kitty keyboard stack, synchronized
+    output and theme reports;
+  - a hidden cursor and a scroll region.
+
+  The divider reads "restored after restart · output saved <time>", plus a line
+  for the folder if it no longer exists (the shell then starts in home) and a
+  line for the command (below). An idle prompt gets no command line. A later
+  shell (after `exit`) starts in home as before.
 - **Reopening the tab.** `GET /api/terminals/status` reports `running ∪
-  restorable` (`_restorable_terminals`: a numbered dir holding `meta.json`). The
-  page rebuilds its tab set from that list, and each tab's first `/tN/` request
-  cold-starts the terminal through the usual authcheck path, which restores it.
-  `open-at` does not pick a number that is waiting to be restored.
+  restorable` (`_restorable_terminals`: a dir named 1–50 in plain ASCII digits
+  holding a regular `meta.json`). The page rebuilds its tab set from that list.
+  Every terminal waiting to be restored is started in the background:
+  - by the status poll, at most once a minute each, so background tabs come
+    back too and not only the one you click;
+  - by the manager once at startup (`_restore_terminals_at_start`, 20s in, for
+    every user in the users registry), so a scheduled message overnight finds
+    its Claude Code back even if nobody opens the page.
+
+  `open-at` never picks a number that is waiting to be restored, even when
+  asked for it by number: its `cd` would be typed into the restored command.
+- **Unprotected tabs.** Session daemons never restart, so a terminal opened
+  before this feature saves nothing (no state dir) or no command (meta without
+  `job`). The status poll lists those as `unprotected` (30s grace after a
+  start, before the first save). The tab label gets a dotted underline and a
+  tooltip saying to close and reopen it.
 - **Forgetting.** Closing a tab (`POST /api/terminals/N/stop`) and logout
   (`/api/reset`) delete the state with `runuser -u <user> -- rm -rf`, so root
   never writes into a home. This always runs *after* the stop, because a live
@@ -333,35 +360,73 @@ or typed at the prompt; see below).
   `tcgetpgrp` on the PTY, then the shell's children in that process group, read
   from `/proc` as one argv per pipeline stage. For Claude Code it also records
   the conversation ID from `~/.claude/sessions/<pid>.json`, which Claude Code
-  keeps for every live interactive process. The job is also checked every 2s
-  (reads only), and the SIGTERM save falls back to that last-known job: systemd
-  SIGTERMs every process in the unit at once, so at shutdown the program is
-  usually already dead when the final save runs. On restore, `restore_plan` puts the
-  job in one of three tiers:
-  - **resume** (run): `claude --resume <id>` with the original flags, minus
-    the opening prompt and any `--continue`/`--resume`. A `-p` print run is
-    typed instead. `codex` gets `codex resume`, its picker, because Codex keeps
-    no pid-to-session map.
-  - **rerun** (run): viewers and sessions a re-run cannot harm: `htop`, `top`,
-    `btop`, `atop`, `nvtop`, `glances`, `less`, `more`, `man`, `vim`/`vi`/
-    `nvim`, `nano`, `watch`, `tail -f`, `journalctl -f`, and `ssh`/`mosh` to a
-    host with no remote command.
-  - **type** (not run): everything else, including any pipeline, is typed at
-    the prompt for the user to run or delete. A command containing a control
-    character is dropped, never typed.
+  keeps for every live interactive process, but only if the conversation has a
+  transcript (`~/.claude/projects/*/<id>.jsonl`). A session nobody typed into
+  has none, and `--resume` of it fails with "No conversation found". The job is
+  also checked every 2s (reads only), and the SIGTERM save falls back to that
+  last-known job: systemd SIGTERMs every process in the unit at once, so at
+  shutdown the program is usually already dead when the final save runs. On
+  restore, `restore_plan` puts the job in one of three tiers:
+  - **resume** (run): `command claude --resume <id>` with the original options
+    (variadic ones like `--add-dir a b` keep all their values), minus the
+    opening prompt and any `--continue`/`--resume`. `command` because /proc
+    shows a shell alias already expanded; typing bare `claude` would apply the
+    alias again, one more `--dangerously-skip-permissions` per restart. A
+    Claude Code started by path keeps its path. With no conversation to resume,
+    it is started fresh with the same options (tier rerun). A `-p` print run is
+    typed instead. `codex` as a session (no subcommand, or a prompt) gets
+    `codex resume`, its picker, because Codex keeps no pid-to-session map;
+    `codex exec`, `login`, `apply` and the rest are typed.
+  - **rerun** (run): programs that only show things, from a bare name or a
+    system bin dir (`./top` is just a script with a viewer's name):
+    - `htop`, `top`, `btop`, `nvtop` with any options;
+    - `atop` and `glances` only bare (`atop -w` writes a file);
+    - `less`, `more`, `man`, `vim`/`vi`/`nvim`/`view`, `nano` with file or
+      topic names only, since an option can run a command (`vim +!cmd`,
+      `vim -c`, `less +!cmd`, `man -P`);
+    - `tail -f`, and `journalctl -f` without a write action (`--vacuum-*`,
+      `--rotate`, ...);
+    - `ssh` to a host with no remote command and none of `-o`, `-F`, `-J`,
+      `-W`, `-N`, `-f`, `-S`/`-M`/`-O` (`-o RemoteCommand=` or `ProxyCommand=`
+      runs one);
+    - `mosh host` with no options.
 
-  The command is written to the PTY only once the shell is at its prompt: it
-  owns the terminal (`tcgetpgrp`), has no child processes still running (the
-  login profile's commands are its children), and has been quiet for 0.5s. It
-  is written anyway after 15s. Quiet alone was not enough: the login banner
-  probes the GPU with an 8s timeout, and a line typed into that pause was read
-  by the profile's process instead of the shell. The divider gets a second line saying what was done. Config → "After a
-  restart" (`restoreCommands` in `/var/lib/vibetop/terminal.json`, passed as
-  `VIBETOP_TERM_RESTORE_CMDS`) picks `auto` (default), `type` (type every tier,
-  run none) or `off`. Limits of the `/proc` view: aliases appear expanded,
-  `VAR=x cmd` loses the variable, and background jobs are not seen.
+    `watch` is not on the list: it runs whatever it is given.
+  - **type** (not run): everything else, including any pipeline, is typed at
+    the prompt for the user to run or delete. A command containing a C0, DEL
+    or C1 control character is dropped, never typed.
+
+  The command is written to the PTY only once bash is at its prompt: it owns
+  the terminal (`tcgetpgrp`), its line editor has taken the terminal out of
+  canonical mode (readline does so only while it reads a command line), and it
+  has been quiet for 0.5s. A child still in the shell's group reading the
+  terminal (a `$(...)` step) also means "not yet"; a background job does not.
+  It is written anyway after 15s. Quiet alone was not enough: the login banner
+  probes the GPU with an 8s timeout, and a line typed into that pause, or into
+  the instant between two profile steps, was read by the profile instead of
+  the shell. If the user types anything (not a terminal's own reply, such as a
+  focus report) before then, the command is not entered at all, and a dim line
+  says so: typing it too would join it onto their text, and a re-run would
+  press Enter on both.
+
+  Until the user takes over (a foreground job is seen, or they press Enter),
+  the saved job stays the job, so a second restart while the command still
+  waits, or after it was typed but not run, does not lose it. While a command
+  is being put back the daemon holds `/tmp/vibetop-session-<user>-<N>.restoring`.
+  After a run it keeps the marker until the program holds the terminal and has
+  been quiet 2s, or 30s at most. A scheduled message to a terminal that is
+  waiting to be restored starts it and waits (up to 45s) for the marker to go,
+  counting the marker only if the user owns it.
+
+  Config → "After a restart" (`restoreCommands` in
+  `/var/lib/vibetop/terminal.json`, passed as `VIBETOP_TERM_RESTORE_CMDS` when
+  a terminal starts, which is when it is restored) picks `auto` (default),
+  `type` (type every tier, run none) or `off` (leave the prompt empty; the rest
+  is still restored). It is host-wide. Limits of the `/proc` view: aliases
+  appear expanded, `VAR=x cmd` loses the variable, and background jobs are not
+  seen.
 - **Cost.** A busy terminal (a TUI redrawing constantly) rewrites up to its
-  whole ring (Config's "Terminal history", 2 MB by default) every 20s.
+  whole ring (Config's "Terminal history", 2 MB by default) once a minute.
 
 ## Adding more terminals
 
@@ -464,7 +529,7 @@ Mechanism + derivations: §"Architecture: vibetop-session + ttyd + nginx" above 
 
 Queue text to be **typed into a terminal and submitted at a given time** — the answer to a Claude Code session that stops at its 5h token limit overnight. A `⏱` button sits at the right of the Terminal tab bar (outside the scrolling `.tabs` strip, so a long tab list scrolls *under* it — the same `flex:1 1 auto` + fixed-sibling split as the desktop taskbar), badged with the **active terminal's** pending count; it opens a panel listing this user's entries (the active terminal's first, others tagged with their tab name) plus a form: message, `datetime-local`, and `+30m / +1h / +5h` quick-fill. The client sends an **epoch** (`at`), so the server does no timezone parsing. A **Send now** button sits beside Schedule and posts `at = now`: it takes the same path as any scheduled message — typed in **by the server** — so it reaches the right session even when that tab is not the one on screen, and it is listed like any other entry. For that to mean anything, `POST /schedules` **fires an already-due entry in the request itself** rather than leaving it for the sweeper: `SCHED_TICK` is 15s, and a button labelled "now" that does nothing for fifteen seconds reads as broken. Future entries are untouched by that path, and a delivery failure is recorded on the entry (`status: failed`) which the client re-reads immediately — so a Send-now into a dead terminal says so instead of falsely reporting success.
 
-**The timer is server-side** — a client `setTimeout` dies with the tab, the device sleeping, or the deploy reload, i.e. exactly the unattended case. A sweeper thread (`_schedule_loop`, `SCHED_TICK` 15s, started next to `_reaper_loop`) fires due entries via **`_inject_terminal`**, which needs no new mechanism: `vibetop-session`'s Unix socket is a raw byte stream whose every received byte is written into the PTY master, so it connects to `/tmp/vibetop-session-<user>-<N>.sock`, sends the text, and — **after an `INJECT_ENTER_GAP` (0.3s) beat — sends `b"\r"` as its own separate write** (**`\r`** — the attach client clears `ICRNL`). The Enter must **never be glued onto the text**: one write reaches the foreground app as one stdin read, and a paste-detecting TUI (Claude Code — the flagship target) treats a rapid multi-char chunk as a *paste*, turning the `\r` into a composer newline instead of a submit, so the message sits at the prompt unexecuted; bash survives either shape (readline is per-byte), which is exactly why bash-only verification missed it (guarded by `test_inject_sends_the_enter_as_its_own_later_keypress`). It then **drains and discards for `INJECT_DRAIN` (0.75s) before closing, which is load-bearing**: the daemon pushes its whole replay ring at every new client, and closing with that unread makes the daemon's *own* `recv()` fail (ECONNRESET) so it hits `if not data: remove_client(fd)` **before** writing our bytes to the PTY — the message vanishes while the sweeper still reports `sent`. (Verified on a live terminal, and guarded by `test_inject_survives_the_replay_the_daemon_queues_on_connect`, whose fake server queues ~600 KB like a warm ring. Do not "simplify" the drain away.) It **refuses a stopped terminal** rather than cold-starting one: a fresh bash has none of the session the message was for. A late entry still fires for up to `SCHED_LATE_GRACE` (2h) so a manager restart doesn't drop it; past that it's marked `missed`. The idle reaper skips reaping a user's **terminals** while they hold a pending schedule.
+**The timer is server-side** — a client `setTimeout` dies with the tab, the device sleeping, or the deploy reload, i.e. exactly the unattended case. A sweeper thread (`_schedule_loop`, `SCHED_TICK` 15s, started next to `_reaper_loop`) fires due entries via **`_inject_terminal`**, which needs no new mechanism: `vibetop-session`'s Unix socket is a raw byte stream whose every received byte is written into the PTY master, so it connects to `/tmp/vibetop-session-<user>-<N>.sock`, sends the text, and — **after an `INJECT_ENTER_GAP` (0.3s) beat — sends `b"\r"` as its own separate write** (**`\r`** — the attach client clears `ICRNL`). The Enter must **never be glued onto the text**: one write reaches the foreground app as one stdin read, and a paste-detecting TUI (Claude Code — the flagship target) treats a rapid multi-char chunk as a *paste*, turning the `\r` into a composer newline instead of a submit, so the message sits at the prompt unexecuted; bash survives either shape (readline is per-byte), which is exactly why bash-only verification missed it (guarded by `test_inject_sends_the_enter_as_its_own_later_keypress`). It then **drains and discards for `INJECT_DRAIN` (0.75s) before closing, which is load-bearing**: the daemon pushes its whole replay ring at every new client, and closing with that unread makes the daemon's *own* `recv()` fail (ECONNRESET) so it hits `if not data: remove_client(fd)` **before** writing our bytes to the PTY — the message vanishes while the sweeper still reports `sent`. (Verified on a live terminal, and guarded by `test_inject_survives_the_replay_the_daemon_queues_on_connect`, whose fake server queues ~600 KB like a warm ring. Do not "simplify" the drain away.) It **refuses a stopped terminal** rather than cold-starting one: a fresh bash has none of the session the message was for. The exception is a terminal **waiting to be restored** after a reboot: its session is coming back, so it is started and the message waits until the restored command is in (§"Restore after a reboot"). A late entry still fires for up to `SCHED_LATE_GRACE` (2h) so a manager restart doesn't drop it; past that it's marked `missed`. The idle reaper skips reaping a user's **terminals** while they hold a pending schedule.
 
 **Repeat makes it a loop.** One toggle in the panel's action row, beside Schedule (a stroked SVG on `currentColor`, not an emoji — see `docs/design-decisions.md`). It reveals two rows, so a loop is the three values it actually has: **start · every · until**. The date field never changes meaning — it is when the message fires, called `at` for a one-shot and `start` for a loop's first run — which is why toggling Repeat stashes nothing (it used to swap that field between `at` and `until` with two parked values; the start row retired all of it). `every` is a `<select>` (1 min … 1 day, default 1h) and `until` its own `datetime-local`. **Both date rows default to now.** Turning Repeat on leaves `start` where the panel seeds it on open and seeds `until` to the same minute, so the first run goes out on the next sweeper tick and the end time is dialled with the quick row (arm `until`, tap `+5h`). Each default was briefly something cleverer — `start` pushed one interval out (a loop is usually turned on while rate-limited, so firing at once burns a run) and `until` a day out — and both were wrong for the same reason: with the rows on screen, a value nobody picked and nobody can predict is worse than one that costs a tap to change. A time already typed into either row survives a toggle; only an empty or stale one is re-seeded.
 

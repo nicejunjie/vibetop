@@ -221,7 +221,9 @@
           <b>Resume</b> reopens Claude Code in the same conversation and re-runs viewers that
           cannot change anything (htop, less, vim, tail -f, ssh to a host); any other command is
           typed at the prompt for you to run or delete. <b>Type only</b> types every command and
-          runs none. <b>Applies to terminals opened after saving.</b> <b>Default: resume.</b></div>
+          runs none. <b>Off</b> leaves the prompt empty; the output, folder and name still come
+          back. Used the next time a terminal is restored, for every user on this host.
+          <b>Default: resume.</b></div>
         <div class="row">
           <label class="chk"><input type="radio" name="term-restore" id="term-restore-auto" value="auto"> Resume</label>
           <label class="chk"><input type="radio" name="term-restore" id="term-restore-type" value="type"> Type only</label>
