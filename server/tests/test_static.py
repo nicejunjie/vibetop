@@ -702,3 +702,14 @@ def test_static_js_and_css_are_gzipped_by_the_generated_site_config():
     assert types, "location / sets gzip on but no gzip_types -> only text/html compresses"
     for needed in ("application/javascript", "text/css"):
         assert needed in types.group(1), f"gzip_types must cover {needed}"
+
+
+def test_terminal_tab_order_published_only_on_user_actions():
+    """Tab order sync: only drag / "+" / × may POST /order. addTab/detachTab used
+    to, so a page load fired one partial POST per tab and the server kept
+    whichever landed last ([1] with eight tabs open) — no device ever synced."""
+    import re
+    src = open(os.path.join(_REPO, "apps", "everyday", "terminal", "terminals.html")).read()
+    save = re.search(r"function saveTabOrder\(\) \{(.*?)\n  \}", src, re.S).group(1)
+    assert "/order" not in save, "saveTabOrder (called per addTab) must stay local-only"
+    assert src.count("publishTabOrder();") == 3, "drag, + and × should each publish"

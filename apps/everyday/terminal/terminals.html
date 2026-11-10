@@ -452,12 +452,21 @@
   // the strip belongs to the user, not to one browser. localStorage stays as the
   // instant local copy (init paints from it before any fetch returns); the server
   // is what makes the order the same on the phone and the laptop.
+  //
+  // ONLY a deliberate action here (drag, "+", ×) publishes the order. Every
+  // addTab/detachTab used to POST too, so a page load — which adds its tabs one
+  // at a time — fired [1], [1,2], [1,2,3]… concurrently, and whichever landed
+  // last won: the server held [1] with eight tabs open, and every device fell
+  // back to its own arrangement. Incidental membership changes (load, a tab
+  // opened/closed elsewhere) only refresh the local copy.
   var orderEchoUntil = 0;      // ignore polled order until our own POST lands
   function saveTabOrder() {
-    var order = getTabOrder();
-    try { localStorage.setItem('terminal-tabs', JSON.stringify(order)); } catch (e) {}
+    try { localStorage.setItem('terminal-tabs', JSON.stringify(getTabOrder())); } catch (e) {}
+  }
+  function publishTabOrder() {
+    saveTabOrder();
     orderEchoUntil = Date.now() + 4000;
-    api('POST', '/order', { order: order }).catch(function () {});
+    api('POST', '/order', { order: getTabOrder() }).catch(function () {});
   }
   // Adopt an order set on another device. Deliberately inert while the user is
   // mid-drag or just after a local save: a 2.5s poll that reshuffles tabs under
@@ -527,6 +536,7 @@
     if (tabs.querySelectorAll('.tab').length <= 1) return;   // never zero tabs
     closing[n] = true; delete pending[n];
     var wasActive = detachTab(n);
+    publishTabOrder();
     saveTabName(n, null);   // closing kills the terminal → forget its custom name
     api('POST', '/' + n + '/stop');
     reactivateAfter(wasActive);
@@ -1290,7 +1300,7 @@
     if (dragTab) dragTab.classList.remove('dragging');
     clearMarks();
     dragTab = null;
-    saveTabOrder();
+    publishTabOrder();
   });
 
   // Where a drop at this x lands: the element to insert BEFORE, with the "+"
@@ -1365,6 +1375,7 @@
     pending[n] = true;        // opened here; reconcile keeps it until status confirms
     forgetLocalName(n);       // fresh session -> no inherited name
     addTab(n, true);
+    publishTabOrder();        // a reused number must not keep a closed tab's old slot
     api('POST', '/' + n + '/start').then(function() {
       return waitReady(n);
     }).then(function() {
