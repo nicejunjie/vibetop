@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_534 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_535 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [Terminal link opened a closed Browser app but lost the URL](#terminal-link-opened-a-closed-browser-app-but-lost-the-url)
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
@@ -557,6 +557,7 @@ _534 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [Terminals restore their output, directory and name after a reboot (2026-11-06)](#terminals-restore-their-output-directory-and-name-after-a-reboot-2026-11-06)
 - [Restored terminals resume Claude Code and retype other commands (2026-11-06)](#restored-terminals-resume-claude-code-and-retype-other-commands-2026-11-06)
 - [Terminal restore: what an independent test broke (2026-11-08)](#terminal-restore-what-an-independent-test-broke-2026-11-08)
+- [Terminal tab order: only deliberate actions publish it (2026-11-10)](#terminal-tab-order-only-deliberate-actions-publish-it-2026-11-10)
 
 <!-- END TOC -->
 
@@ -21399,3 +21400,25 @@ so `ICANON` off plus `tcgetpgrp == shell` is "at the prompt". Sampling every
 - **Saving in a background thread:** the daemon forks a shell, and fork with
   live threads is the classic deadlock. A once-a-minute write is cheap enough
   inline.
+
+## Terminal tab order: only deliberate actions publish it (2026-11-10)
+
+**Symptom:** tab order still differed between phone and laptop although
+v1.19.312 synced it through `/api/terminals/order`. The server file held `[1]`
+while eight terminals were open.
+
+**Cause:** `addTab` and `detachTab` both called `saveTabOrder`, which POSTed.
+A page load adds its tabs one at a time, so it fired `[1]`, `[1,2]`, … as
+concurrent requests, and the server kept whichever arrived last. A tab opened
+or closed on another device did the same: the reconcile POSTed this device's
+stale arrangement over the one just set elsewhere.
+
+**Fix:** `saveTabOrder` only refreshes localStorage. `publishTabOrder` (the
+POST) runs on deliberate actions only: drag end, "+", and ×. Load and reconcile
+changes never write the shared order. A static test pins that.
+
+**Rejected:**
+- **Debouncing the POST:** it would make the race rarer but would still let
+  any device that merely loads push its order over the one the user set.
+- **Server-side merge of partial lists:** the partial lists were never meant
+  as orders, so merging would treat noise as intent.
