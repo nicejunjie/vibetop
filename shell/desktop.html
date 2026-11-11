@@ -2256,7 +2256,46 @@
     function takeField() { var v = input.value; if (v) input.value = ''; return v; }
     function finalizeDictation() {
       if (dictTimer) { clearTimeout(dictTimer); dictTimer = null; }
+      hideDraft();
       sendText(takeField());
+    }
+    // IME / dictation draft preview. #kbd-input is invisible and nothing is sent
+    // to the remote app until a candidate is chosen, so the pinyin being typed
+    // ("ke yi" on the way to 可以) showed nowhere — every native iOS field shows
+    // it inline. The remote caret's position is unknown here, so the draft goes
+    // in a pill just above the keyboard. Display only: it never changes the
+    // field or what is sent. (The Terminal draws its own at the cursor —
+    // terminal-kbd.js showPreedit.)
+    var draft = null;
+    function placeDraft() {
+      if (!draft || draft.style.display === 'none') return;
+      var vv = window.visualViewport;
+      var bottom = vv ? vv.offsetTop + vv.height : window.innerHeight;
+      draft.style.top = Math.max(8, Math.round(bottom - draft.offsetHeight - 10)) + 'px';
+    }
+    function hideDraft() { if (draft) draft.style.display = 'none'; }
+    function showDraft(text) {
+      if (!text) { hideDraft(); return; }
+      if (!draft) {
+        draft = document.createElement('div');
+        draft.id = 'kbd-draft';
+        draft.setAttribute('aria-hidden', 'true');
+        // flex-end keeps the END of an over-long draft visible (the part being typed).
+        draft.style.cssText = 'position:fixed;left:50%;transform:translateX(-50%);z-index:9002;display:none;' +
+          'box-sizing:border-box;max-width:calc(100vw - 24px);overflow:hidden;white-space:pre;' +
+          'justify-content:flex-end;pointer-events:none;padding:7px 14px;border-radius:10px;' +
+          'background:rgba(22,27,34,.96);color:#fff;border:1px solid #3a4a60;border-bottom:2px solid #6ea8fe;' +
+          'font:17px/1.3 system-ui,sans-serif;box-shadow:0 4px 16px rgba(0,0,0,.5)';
+        draft.appendChild(document.createElement('span'));
+        document.body.appendChild(draft);
+        if (window.visualViewport) {
+          window.visualViewport.addEventListener('resize', placeDraft);
+          window.visualViewport.addEventListener('scroll', placeDraft);
+        }
+      }
+      draft.firstChild.textContent = text;
+      draft.style.display = 'flex';
+      placeDraft();
     }
 
     // iOS scrolls the whole shell up to "reveal" whatever input you focus — and
@@ -2284,6 +2323,7 @@
     });
     input.addEventListener('blur',  function() {
       if (!composing) { finalizeDictation(); flushText(); }   // ship anything still pending, now
+      hideDraft();
       btn.classList.remove('open'); ico.textContent = '⌨';
       stopPin();
       window.removeEventListener('scroll', lockScroll);
@@ -2293,8 +2333,9 @@
     // IME (pinyin etc.) owns the field until compositionend; forward nothing until
     // then, then send the committed text as one run.
     input.addEventListener('compositionstart', function() { composing = true; });
+    input.addEventListener('compositionupdate', function(e) { showDraft(e && e.data); });
     input.addEventListener('compositionend', function(e) {
-      composing = false;
+      composing = false; hideDraft();
       // Usually the field holds the committed text (input-then-end); if the commit
       // lands AFTER compositionend (end-then-input), fall back to e.data and swallow
       // the trailing insert via the lastCommit guard below.
@@ -2308,6 +2349,7 @@
       if (e && e.inputType === 'insertDictationText') {
         if (dictTimer) clearTimeout(dictTimer);
         dictTimer = setTimeout(finalizeDictation, 900);
+        showDraft(input.value);
         return;
       }
       if (dictTimer) finalizeDictation();                // typing resumed: flush dictation first

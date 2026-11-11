@@ -447,3 +447,15 @@ test("the fit runs from every signal, not only ttyd's resize listener", () => {
   // All of it sits above the desktop early return, so touch gets it too.
   assert.ok(SRC.indexOf("fitNow('watchdog')") < SRC.indexOf("window.addEventListener('dblclick', claimSize)"));
 });
+
+// ---- IME draft preview ---------------------------------------------------
+// The overlay is transparent and nothing reaches the PTY mid-composition, so
+// the pinyin being typed must be drawn somewhere or it is visible nowhere.
+test("the IME draft is shown while composing and is display-only", () => {
+  assert.match(SRC, /addEventListener\('compositionupdate', function \(e\) \{ showPreedit\(e && e\.data\); \}\)/);
+  assert.match(SRC, /addEventListener\('compositionend', function \(\) \{[^}]*hidePreedit\(\);[^}]*fwd\.compositionEnd\(ov\.value\)/);
+  assert.match(SRC, /function resetBaseline\(\) \{[^}]*hidePreedit\(\); \}/);
+  const m = SRC.match(/function showPreedit\(text\) \{[\s\S]*?\n    \}\n/);
+  assert.ok(m, "showPreedit not found");
+  assert.doesNotMatch(m[0], /ov\.value|sendRaw|fwd\./, "the preview must never touch input state or the PTY");
+});

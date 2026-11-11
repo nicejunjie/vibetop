@@ -980,7 +980,46 @@
     // changed out-of-band (cursor moved by trackpad/arrows, ^C/Esc/Tab, or the tab
     // returned from the background). Without it the next diff emits spurious
     // backspaces or dumps a bundle (the "slide breaks typing / wrong place" reports).
-    function resetBaseline() { fwd.reset(); ov.value = ''; }
+    function resetBaseline() { fwd.reset(); ov.value = ''; hidePreedit(); }
+    // IME draft ("preedit") preview. The overlay is transparent and nothing is
+    // forwarded to the PTY until a candidate is chosen (see kbd-input.js), so
+    // without this the pinyin being typed ("ke yi" on the way to 可以) is visible
+    // nowhere — every native iOS field shows it inline. Draw it at the terminal
+    // cursor, where the chosen text will land. It is display only: it never
+    // touches the overlay's value or what reaches the PTY. iOS dictation
+    // composes too, so its draft shows the same way.
+    var preedit = null;
+    function hidePreedit() { if (preedit) preedit.style.display = 'none'; }
+    function showPreedit(text) {
+      if (!text) { hidePreedit(); return; }
+      var t = window.term, g = scrGeom();
+      if (!t || !g) return;
+      if (!preedit) {
+        preedit = document.createElement('div');
+        preedit.id = 'vt-preedit';
+        preedit.setAttribute('aria-hidden', 'true');
+        // flex-end keeps the END of an over-long draft visible (the part being typed).
+        preedit.style.cssText = 'position:fixed;z-index:2147483000;display:none;pointer-events:none;' +
+          'box-sizing:border-box;overflow:hidden;white-space:pre;justify-content:flex-end;' +
+          'background:#1d3557;color:#fff;border-bottom:2px solid #6ea8fe;border-radius:2px;padding:0 2px';
+        preedit.appendChild(document.createElement('span'));
+        document.body.appendChild(preedit);
+      }
+      preedit.firstChild.textContent = text;
+      var ba = t.buffer && t.buffer.active;
+      // Scrolled into history: the cursor row is off screen, so pin to the last row.
+      var live = ba && (ba.baseY - ba.viewportY) <= 0;
+      var cy = live ? ba.cursorY : g.rows - 1, cx = live ? ba.cursorX : 0;
+      var st = preedit.style;
+      st.font = (t.options.fontSize || 13) + 'px ' + (t.options.fontFamily || 'monospace');
+      st.lineHeight = g.rowH + 'px'; st.height = g.rowH + 'px';
+      st.maxWidth = g.r.width + 'px';
+      st.top = (g.r.top + cy * g.rowH) + 'px';
+      st.left = '0px'; st.display = 'flex';
+      // Start at the cursor; a draft too wide for the rest of the row slides left.
+      var w = preedit.getBoundingClientRect().width;
+      st.left = Math.max(g.r.left, Math.min(g.r.left + cx * g.colW, g.r.right - w)) + 'px';
+    }
 
     // On a GENUINE (re)focus — the start of a new typing session — reset the
     // value-diff baseline so the first char is sent as-is. Stale lastSent/ov.value
@@ -1009,7 +1048,9 @@
     // fwd: during composition (pinyin/zhuyin/kana) NOTHING is forwarded until
     // compositionend, so the raw pinyin never echoes into the shell before selection.
     ov.addEventListener('compositionstart', function () { dbg(' (cs)'); fwd.compositionStart(); });
-    ov.addEventListener('compositionend', function () { dbg(' (ce)'); fwd.compositionEnd(ov.value); });
+    ov.addEventListener('compositionupdate', function (e) { showPreedit(e && e.data); });
+    ov.addEventListener('compositionend', function () { dbg(' (ce)'); hidePreedit(); fwd.compositionEnd(ov.value); });
+    ov.addEventListener('blur', hidePreedit);
     ov.addEventListener('input', function (e) {
       lastInputTs = Date.now();
       if (dbgEl) dbg(' i[' + JSON.stringify(ov.value) + ' c=' + (e && e.isComposing) + ']');

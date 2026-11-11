@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_536 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_537 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [Terminal link opened a closed Browser app but lost the URL](#terminal-link-opened-a-closed-browser-app-but-lost-the-url)
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
@@ -559,6 +559,7 @@ _536 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [Terminal restore: what an independent test broke (2026-11-08)](#terminal-restore-what-an-independent-test-broke-2026-11-08)
 - [Terminal tab order: only deliberate actions publish it (2026-11-10)](#terminal-tab-order-only-deliberate-actions-publish-it-2026-11-10)
 - [The terminal grid went stale whenever the frame changed during a connection gap (2026-11-10)](#the-terminal-grid-went-stale-whenever-the-frame-changed-during-a-connection-gap-2026-11-10)
+- [The IME draft was invisible on vibetop's own keyboards (2026-11-10)](#the-ime-draft-was-invisible-on-vibetops-own-keyboards-2026-11-10)
 
 <!-- END TOC -->
 
@@ -21497,4 +21498,36 @@ will show the frame height that caused it.
   alive: tied to one minified build, and still event-only.
 - **Reloading `/tN/` on reconnect:** it would fix the grid at the cost of the
   scroll position and a visible flash on every wake.
+
+## The IME draft was invisible on vibetop's own keyboards (2026-11-10)
+
+**Symptom:** typing Chinese on the phone, every native iOS field shows the
+pinyin being typed ("ke yi" on the way to 可以). In vibetop's Terminal and
+Browser it showed nowhere; only the candidate bar hinted at it.
+
+**Cause:** both surfaces take input through an invisible field (the terminal's
+transparent overlay textarea, the desktop's `#kbd-input` for the xpra Browser)
+and deliberately forward nothing until `compositionend` (raw pinyin must never
+reach the PTY or the remote app). iOS does draw the marked text, but into a
+transparent field.
+
+**Fix:** draw the draft ourselves from `compositionupdate`'s `data`, display
+only. Terminal: `showPreedit` in `terminal-kbd.js` puts it at the xterm cursor
+cell, in the terminal's font, where the chosen text will land; a draft wider
+than the rest of the row slides left and keeps its end visible. Browser:
+`showDraft` in `shell/desktop.html` puts it in a pill just above the keyboard,
+because the remote caret's position is unknown; dictation drafts show there
+too. Neither touches the field's value or what is sent. Apps with real DOM
+fields (Files, Notes, Browser Lite) already show it natively.
+
+**Rejected:**
+- **Making the real field visible at the cursor:** iOS reveal-scrolls a visible
+  focused field and paints its own selection UI, the fights the overlay design
+  exists to avoid.
+- **Echoing the draft into the PTY and erasing it on commit:** the recurring
+  "raw pinyin in the shell" bug `kbd-input.js` pins against.
+
+**Verified** in iPhone WebKit with synthetic composition events (position at
+the cursor, long draft stays on screen, hidden on commit, committed text
+intact). Not verified with a real IME on a device.
 

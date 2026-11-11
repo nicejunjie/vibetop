@@ -143,6 +143,11 @@ Re-claim shape across devices: because the PTY is **shared**, its
 so after switching active device the TUI inside renders at the other
 device's shape.
 
+**IME draft preview (touch).** While an IME composes, nothing is sent to the PTY
+and the overlay is transparent, so `showPreedit` draws the draft (e.g. pinyin) at
+the xterm cursor from `compositionupdate`; display only. The desktop's `#kbd-input`
+(Browser) does the same in a pill above the keyboard (`showDraft`).
+
 **The fit invariant (every device).** While a terminal is visible its grid must
 be exactly what FitAddon proposes for its frame. ttyd itself cannot keep that:
 it fits when xterm opens and afterwards only from a window `resize` listener it
