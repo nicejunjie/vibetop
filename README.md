@@ -132,10 +132,24 @@ change; the architecture, health checks, and operational commands live in
 
 ## Screenshots
 
-| Desktop — Files | Desktop — Browser |
-|---|---|
-| ![Files app on the desktop: toolbar with every action (Browser, Share, Rename, Copy, Move, Delete, Download, View, Upload, Info, Select) inline. Taskbar at the bottom shows the Start button, open apps (Terminal, Files, Browser), and live CPU/MEM/GPU/VRAM stats.](docs/images/desktop-files.jpg) | ![Browser app on the desktop: an embedded Chromium served via the xpra HTML5 client, with floating zoom controls (−/⟲/+) at lower-left and an on-screen keyboard chip at lower-right for touch use.](docs/images/desktop-browser.jpg) |
+**Desktop**
 
-| Mobile — Start menu | Mobile — Terminal + keyboard |
+| Start menu | Window mode — Terminal and Files side by side |
 |---|---|
-| ![Mobile view: Terminal app showing four persistent ttyd tabs (T1–T4) with `echo "hello world"` running in T2. The Start menu is open over the app, listing Home Service, Terminal, Browser, Files, Notes, Monitor, and Upload — running apps marked with a green dot.](docs/images/mobile-startmenu.jpg) | ![Mobile view: tapping inside Terminal pops the native iOS keyboard. xterm.js fits the visible portion and the iOS text-suggestion bar sits between the terminal and the keyboard.](docs/images/mobile-keyboard.jpg) |
+| ![The Vibetop desktop with the Start menu open: Terminal, Browser, Browser Lite, X11 Launcher, Files, Office, Notes, Upload and Games, plus Update, Config and Utilities. The wallpaper shows the clock, a calendar and the host's uptime; the taskbar shows live CPU, GPU and memory stats.](docs/images/desktop-start.png) | ![Window mode with two tiled windows: a Terminal with two tabs running shell commands, and the Files app showing a project folder with its toolbar, breadcrumb and address bar.](docs/images/desktop-windows.png) |
+
+| Three windows tiled | Snap layouts — right-click the 🗔 button |
+|---|---|
+| ![Terminal, Files and a game of 2048 tiled in thirds, each with its own title bar and minimize, maximize and close buttons; all three are listed in the taskbar.](docs/images/desktop-three.png) | ![The snap-layout palette opened from the taskbar: Halves, 2 : 1 and Stacked, each showing which app lands in which zone, with an Apply button and the hint "double-click to apply · drag to swap".](docs/images/desktop-layouts.png) |
+
+| Browser |
+|---|
+| ![Browser app on the desktop: an embedded Chromium served via the xpra HTML5 client, with floating zoom controls (−/⟲/+) at lower-left and an on-screen keyboard chip at lower-right for touch use.](docs/images/desktop-browser.jpg) |
+
+**iPhone**
+
+| Start menu | Terminal | Files | Merge Drop | Terminal + iOS keyboard |
+|---|---|---|---|---|
+| ![The Start menu on an iPhone-sized screen, as a grid of large touch targets; running apps carry a green dot and a ⏻ button.](docs/images/mobile-start.png) | ![The Terminal on an iPhone-sized screen with two tabs, showing a directory listing, a CSV table and a short Python file.](docs/images/mobile-terminal.png) | ![The Files app on an iPhone-sized screen, listing a project folder with its toolbar and address bar.](docs/images/mobile-files.png) | ![Merge Drop, one of the one-finger games: animal balls dropped into a box merge into bigger animals.](docs/images/mobile-game.png) | ![On a real iPhone, tapping the Terminal raises the iOS keyboard; the terminal fits the visible area above it.](docs/images/mobile-keyboard.jpg) |
+
+The iPhone images except the last were taken in WebKit at iPhone 14 Pro Max size with touch emulated; the last is from a real device.
