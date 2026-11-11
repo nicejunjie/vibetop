@@ -26,7 +26,7 @@ test.describe('games', () => {
     // hidden until the parent row opens it (click = open on mouse, toggle on
     // touch — a first click opens in both models).
     await page.locator('#sm-games-parent').click();
-    for (const id of ['minesweeper', 'solitaire', 'game2048', 'circuit']) {
+    for (const id of ['minesweeper', 'solitaire', 'game2048', 'circuit', 'stack', 'slice', 'mergedrop']) {
       await expect(page.locator(`#sm-games .sm-item[data-id="${id}"]`)).toBeVisible();
     }
     // Iron Frontier (the RTS) is the optional rts-war sibling project: its row

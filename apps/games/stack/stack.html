@@ -1,0 +1,432 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>Stack — Vibetop</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { height: 100%; overflow: hidden; }
+  body {
+    display: flex; flex-direction: column;
+    background: #0e1117; color: #d4d8de;
+    font-family: system-ui, sans-serif;
+    -webkit-tap-highlight-color: transparent;
+    overscroll-behavior: none;
+  }
+  .bar {
+    display: flex; align-items: center; gap: 8px; flex-shrink: 0; flex-wrap: wrap;
+    min-height: 40px; padding: 4px 10px;
+    background: #161b22; border-bottom: 1px solid #2a3040;
+    user-select: none; -webkit-user-select: none;
+  }
+  .bar .title { font-size: 13px; font-weight: 600; white-space: nowrap; }
+  .bar .title .ic { margin-right: 5px; }
+  @media (max-width: 380px) { .bar .title .txt { display: none; } }
+  /* One row on a phone: the bar wrapping to two lines cost a whole row of play
+     field, so below 460px everything in it gets tighter instead. */
+  @media (max-width: 460px) {
+    .bar { gap: 5px; padding: 4px 6px; flex-wrap: nowrap; }
+    .stat { min-width: 44px; padding: 2px 6px; }
+    .bar button { padding: 5px 8px; }
+    .bar .title .txt { display: none; }
+  }
+  html.embedded .bar .title { display: none; }
+  .stat {
+    display: flex; flex-direction: column; align-items: center;
+    background: #0e1117; border: 1px solid #2a3040; border-radius: 6px;
+    padding: 2px 10px; min-width: 58px;
+  }
+  .stat .lbl { font-size: 9px; letter-spacing: .08em; color: #6b7488; text-transform: uppercase; }
+  .stat .val { font: 600 14px ui-monospace, SFMono-Regular, Menlo, monospace; color: #d4d8de; }
+  .spacer { flex: 1; }
+  button {
+    background: #3a2a55; color: #d9c8f5; border: 1px solid #55407a;
+    border-radius: 6px; padding: 5px 12px; font: 12px system-ui, sans-serif;
+    cursor: pointer; min-height: 30px;
+  }
+  button:hover { background: #47336a; border-color: #8a4adb; }
+  button:focus-visible { outline: 2px solid #8a4adb; outline-offset: 1px; }
+  .iconbtn { background: #1f2733; border-color: #2a3040; color: #aab4c5; min-width: 30px; font-weight: 700; padding: 5px 9px; }
+  .iconbtn:hover { background: #253044; border-color: #3a4358; }
+  .wrap { flex: 1; min-height: 0; position: relative; }
+  canvas {
+    position: absolute; inset: 0; width: 100%; height: 100%; display: block;
+    touch-action: none; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none;
+  }
+  .overlay {
+    position: absolute; inset: 0; display: none;
+    justify-content: center; align-items: safe center; overflow: auto;
+    background: rgba(14,17,23,.55); z-index: 5;
+  }
+  .overlay.show { display: flex; }
+  .overlay.help { z-index: 6; }
+  .overlay.lb { z-index: 7; }
+  .card {
+    background: #161b22; border: 1px solid #2a3040; border-radius: 12px;
+    padding: 22px 28px; text-align: center; min-width: 200px; margin: auto;
+    box-shadow: 0 12px 40px rgba(0,0,0,.5);
+  }
+  .card .big { font-size: 30px; margin-bottom: 6px; }
+  .card h2 { font-size: 17px; margin-bottom: 4px; color: #e6edf3; }
+  .card p { font-size: 13px; color: #aab4c5; margin-bottom: 14px; }
+  .card .btns { display: flex; flex-direction: column; gap: 8px; margin-top: 4px; }
+  .card .btns button {
+    display: block; width: 100%; min-height: 44px; padding: 10px 18px;
+    font-size: 14px; font-weight: 600; border-radius: 9px;
+  }
+  .card .primary { background: #8a4adb; border-color: #8a4adb; color: #fff; }
+  .card .primary:hover { background: #9a5ceb; }
+  .card .ghost { background: #1f2733; border: 1px solid #2a3040; color: #cdd5e1; }
+  .card .ghost:hover { color: #e6edf3; background: #253044; }
+  @media (max-height: 340px) {
+    .card { padding: 10px 12px; min-width: 0; }
+    .card .big, .card p { display: none; }
+    .card h2 { font-size: 13px; margin-bottom: 8px; }
+    .card .btns { flex-direction: row; flex-wrap: wrap; gap: 6px; }
+    .card .btns button { min-height: 38px; padding: 7px 10px; font-size: 12.5px; width: auto; flex: 1 1 auto; }
+  }
+  .lb .card { width: min(340px, 92vw); }
+  .lb h2 { font-size: 15px; margin-bottom: 10px; }
+  .lbfoot { margin-top: 14px; text-align: center; }
+  .lbfoot button { background: #1f2733; border: 1px solid #2a3040; color: #8a94a6; font-size: 11.5px; }
+  .lbfoot button:hover { color: #e5646c; border-color: #5a3038; background: #241a1c; }
+  .help .card { text-align: left; max-width: min(340px, 90vw); padding: 18px 20px; position: relative; }
+  .help h2 { font-size: 15px; margin-bottom: 8px; }
+  .help .x {
+    position: absolute; top: 8px; right: 8px; width: 26px; height: 26px;
+    border: none; background: none; color: #6b7488; font-size: 16px;
+    min-height: 0; padding: 0; border-radius: 6px;
+  }
+  .help .x:hover { color: #d4d8de; background: #1f2733; }
+  .help li { font-size: 12.5px; color: #aab4c5; line-height: 1.7; list-style: none; }
+  .help kbd {
+    background: #0e1117; border: 1px solid #2a3040; border-bottom-width: 2px;
+    border-radius: 4px; padding: 0 5px; font: 11px ui-monospace, SFMono-Regular, Menlo, monospace; color: #d4d8de;
+  }
+</style>
+<script>try{if(window.parent!==window)document.documentElement.classList.add('embedded');}catch(e){}</script>
+</head>
+<body>
+  <div class="bar">
+    <span class="title"><span class="ic">🏗️</span><span class="txt">Stack</span></span>
+    <span class="spacer"></span>
+    <div class="stat"><span class="lbl">Floors</span><span class="val" id="score">0</span></div>
+    <div class="stat"><span class="lbl">Best</span><span class="val" id="best">0</span></div>
+    <button class="iconbtn" id="lbBtn" title="Leaderboard">🏆</button>
+    <button class="iconbtn" id="helpBtn" title="How to play">?</button>
+    <button id="newBtn">New</button>
+  </div>
+  <div class="wrap" id="wrap">
+    <canvas id="cv"></canvas>
+    <div class="overlay" id="overlay">
+      <div class="card">
+        <div class="big">🏗️</div>
+        <h2 id="ovTitle">Tower down</h2>
+        <p id="ovMsg"></p>
+        <div id="scores"></div>
+        <div class="btns">
+          <button class="primary" id="ovNew">Play again</button>
+          <button class="ghost" id="ovLb">🏆 Leaderboard</button>
+          <button class="ghost" id="ovClose">Close</button>
+        </div>
+      </div>
+    </div>
+    <div class="overlay help lb" id="lbOv">
+      <div class="card">
+        <button class="x" id="lbX" title="Close">✕</button>
+        <h2>🏆 Leaderboard</h2>
+        <div id="lbBody"></div>
+        <div class="lbfoot"><button id="lbReset">Reset scores</button></div>
+      </div>
+    </div>
+    <div class="overlay help" id="helpOv">
+      <div class="card">
+        <button class="x" id="helpX" title="Close">✕</button>
+        <h2>How to play</h2>
+        <ul>
+          <li>A block slides back and forth. <b>Tap</b> to drop it.</li>
+          <li>Whatever hangs over the edge is cut off.</li>
+          <li>Line it up exactly for a <b>Perfect</b> — three in a row and the block grows back.</li>
+          <li>Miss completely and the tower is done.</li>
+          <li>Keyboard: <kbd>Space</kbd> or <kbd>Enter</kbd></li>
+        </ul>
+      </div>
+    </div>
+  </div>
+<script src="gamescore.js"></script>
+<script src="vibe-modal.js"></script>
+<script>
+(function() {
+  'use strict';
+  // World units: the play field is WORLD_W wide; everything scales from there.
+  var WORLD_W = 300, BLOCK_H = 24, BASE_W = 160, PERFECT = 5, GROW = 10;
+  var cv = document.getElementById('cv');
+  var ctx = cv.getContext('2d');
+  var wrapEl = document.getElementById('wrap');
+  var scoreEl = document.getElementById('score');
+  var bestEl = document.getElementById('best');
+  var overlay = document.getElementById('overlay');
+  var helpOv = document.getElementById('helpOv');
+  var lbOv = document.getElementById('lbOv');
+
+  function lsGet(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
+  function lsSet(k, v) { try { localStorage.setItem(k, v); } catch (e) {} }
+  function buzz(ms) { try { if (navigator.vibrate) navigator.vibrate(ms); } catch (e) {} }
+
+  var best = parseInt(lsGet('vt-stack-best'), 10) || 0;
+  bestEl.textContent = best;
+
+  // ---- state ----
+  var tower, cur, debris, fx, state, combo, maxCombo, perfects, camY, hue0, sess, t0;
+  var cssW = 300, cssH = 500, scale = 1, resetCam = true;
+
+  // Drop `cur` onto `top`. Pure: returns what happens, mutates nothing.
+  //   { miss:true }                         — no overlap, the tower is done
+  //   { block:{x,w}, cut:{x,w}|null, perfect }
+  function settle(top, c) {
+    var lo = Math.max(top.x, c.x), hi = Math.min(top.x + top.w, c.x + c.w);
+    var overlap = hi - lo;
+    if (overlap <= 0) return { miss: true };
+    if (Math.abs(c.x - top.x) <= PERFECT) {
+      return { block: { x: top.x, w: top.w }, cut: null, perfect: true };
+    }
+    var cut = c.x < top.x ? { x: c.x, w: top.x - c.x }
+                          : { x: top.x + top.w, w: c.x + c.w - (top.x + top.w) };
+    return { block: { x: lo, w: overlap }, cut: cut, perfect: false };
+  }
+
+  function speedFor(n) { return Math.min(330, 115 + n * 7); }
+
+  function spawnMoving() {
+    var top = tower[tower.length - 1];
+    var fromLeft = tower.length % 2 === 0;
+    cur = { x: fromLeft ? -top.w * 0.6 : WORLD_W - top.w * 0.4, w: top.w,
+            dir: fromLeft ? 1 : -1, v: speedFor(tower.length) };
+  }
+
+  function newGame() {
+    hue0 = Math.floor(Math.random() * 360);
+    tower = [{ x: (WORLD_W - BASE_W) / 2, w: BASE_W }];
+    debris = []; fx = []; combo = 0; maxCombo = 0; perfects = 0;
+    resetCam = true;
+    state = 'ready';
+    sess = vibeScores.session();
+    scoreEl.textContent = '0';
+    overlay.classList.remove('show');
+    spawnMoving();
+  }
+
+  function score() { return tower.length - 1; }
+
+  function drop() {
+    if (state === 'over') return;
+    if (state === 'ready') state = 'play';
+    var top = tower[tower.length - 1];
+    var r = settle(top, cur);
+    if (r.miss) {
+      debris.push({ x: cur.x, w: cur.w, y: tower.length * BLOCK_H, vy: 0, vx: cur.dir * 40, rot: 0, vr: cur.dir * 1.5, n: tower.length });
+      cur = null;
+      gameOver();
+      return;
+    }
+    var b = r.block;
+    if (r.perfect) {
+      combo++; perfects++;
+      if (combo > maxCombo) maxCombo = combo;
+      if (combo >= 3 && b.w < BASE_W) {
+        var g = Math.min(GROW, BASE_W - b.w);
+        b = { x: Math.max(0, b.x - g / 2), w: b.w + g };
+      }
+      fx.push({ x: b.x, w: b.w, y: tower.length * BLOCK_H, t: 0, combo: combo });
+      buzz(12);
+    } else {
+      combo = 0;
+      debris.push({ x: r.cut.x, w: r.cut.w, y: tower.length * BLOCK_H, vy: 0,
+                    vx: (r.cut.x < b.x ? -1 : 1) * 30, rot: 0, vr: (r.cut.x < b.x ? -1 : 1) * 2, n: tower.length });
+    }
+    tower.push(b);
+    scoreEl.textContent = score();
+    if (score() > best) { best = score(); bestEl.textContent = best; lsSet('vt-stack-best', String(best)); }
+    spawnMoving();
+  }
+
+  function gameOver() {
+    state = 'over';
+    buzz([30, 40, 60]);
+    vibeScores.finish('stack', '', false, { combo: maxCombo, perfects: perfects });
+    setTimeout(function() {
+      if (state !== 'over') return;
+      var s = score();
+      document.getElementById('ovTitle').textContent = s >= best && s > 0 ? 'New best!' : 'Tower down';
+      document.getElementById('ovMsg').textContent = s + (s === 1 ? ' floor' : ' floors') +
+        (perfects ? ' · ' + perfects + ' perfect' : '') + '.';
+      var rec = s > 0 ? vibeScores.record({ game: 'stack', value: s, session: sess }) : { entry: null };
+      vibeScores.render(document.getElementById('scores'),
+        { game: 'stack', title: 'Tallest towers', highlight: rec.entry, empty: 'No tower yet.',
+          fmt: function(v) { return v + (v === 1 ? ' floor' : ' floors'); } });
+      overlay.classList.add('show');
+    }, 900);
+  }
+
+  // ---- simulation ----
+  function step(dt) {
+    if (cur && state !== 'over') {
+      cur.x += cur.dir * cur.v * dt;
+      var lo = -cur.w * 0.6, hi = WORLD_W - cur.w * 0.4;
+      if (cur.x < lo) { cur.x = lo; cur.dir = 1; }
+      if (cur.x > hi) { cur.x = hi; cur.dir = -1; }
+    }
+    for (var i = debris.length - 1; i >= 0; i--) {
+      var d = debris[i];
+      d.vy -= 900 * dt; d.y += d.vy * dt; d.x += d.vx * dt; d.rot += d.vr * dt;
+      if (d.y < camY - 400) debris.splice(i, 1);
+    }
+    for (var j = fx.length - 1; j >= 0; j--) { fx[j].t += dt; if (fx[j].t > 0.6) fx.splice(j, 1); }
+    // keep the top of the tower about 60% up the screen
+    var viewH = cssH / scale;
+    var want = (tower.length + 1) * BLOCK_H - viewH * 0.55;
+    if (resetCam) { camY = want; resetCam = false; }
+    camY += (want - camY) * Math.min(1, dt * 5);
+  }
+
+  // ---- drawing ----
+  function color(n, light) {
+    var h = (hue0 + n * 6) % 360;
+    return 'hsl(' + h + ',62%,' + (light ? 66 : 54) + '%)';
+  }
+  function sy(y) { return cssH - (y - camY) * scale; }   // world y (up) -> screen y (down)
+  function drawBlock(x, w, y, n, alpha) {
+    var X = x * scale + offX, Y = sy(y + BLOCK_H), W = w * scale, H = BLOCK_H * scale;
+    ctx.globalAlpha = alpha == null ? 1 : alpha;
+    ctx.fillStyle = color(n, false);
+    ctx.fillRect(X, Y, W, H);
+    ctx.fillStyle = color(n, true);
+    ctx.fillRect(X, Y, W, Math.max(2, H * 0.22));
+    ctx.fillStyle = 'rgba(0,0,0,.18)';
+    ctx.fillRect(X, Y + H - Math.max(1, H * 0.1), W, Math.max(1, H * 0.1));
+    ctx.globalAlpha = 1;
+  }
+  var offX = 0;
+  function draw() {
+    var h = (hue0 + tower.length * 6) % 360;
+    var g = ctx.createLinearGradient(0, 0, 0, cssH);
+    g.addColorStop(0, 'hsl(' + h + ',35%,16%)');
+    g.addColorStop(1, 'hsl(' + ((h + 40) % 360) + ',30%,8%)');
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, cssW, cssH);
+    var viewH = cssH / scale;
+    var ground = sy(0);
+    if (ground < cssH) { ctx.fillStyle = 'rgba(0,0,0,.35)'; ctx.fillRect(0, ground, cssW, cssH - ground); }
+    for (var i = 0; i < tower.length; i++) {
+      var yb = i * BLOCK_H;
+      if (yb + BLOCK_H < camY - 2 || yb > camY + viewH) continue;
+      drawBlock(tower[i].x, tower[i].w, yb, i);
+    }
+    if (cur) drawBlock(cur.x, cur.w, tower.length * BLOCK_H, tower.length);
+    debris.forEach(function(d) {
+      ctx.save();
+      var cx = (d.x + d.w / 2) * scale + offX, cy = sy(d.y + BLOCK_H / 2);
+      ctx.translate(cx, cy); ctx.rotate(d.rot);
+      ctx.fillStyle = color(d.n, false);
+      ctx.fillRect(-d.w * scale / 2, -BLOCK_H * scale / 2, d.w * scale, BLOCK_H * scale);
+      ctx.restore();
+    });
+    fx.forEach(function(f) {
+      var k = f.t / 0.6, pad = 4 + k * 22;
+      ctx.strokeStyle = 'rgba(255,255,255,' + (1 - k) + ')';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(f.x * scale + offX - pad, sy(f.y + BLOCK_H) - pad, f.w * scale + pad * 2, BLOCK_H * scale + pad * 2);
+      ctx.fillStyle = 'rgba(255,255,255,' + (1 - k) + ')';
+      ctx.font = '700 ' + Math.round(15 + 4 * Math.min(f.combo, 5)) + 'px system-ui, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText(f.combo > 1 ? 'Perfect ×' + f.combo : 'Perfect', cssW / 2, sy(f.y + BLOCK_H) - 30 - k * 20);
+    });
+    if (state === 'ready') {
+      ctx.fillStyle = 'rgba(255,255,255,.85)';
+      ctx.font = '600 18px system-ui, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('Tap to drop', cssW / 2, cssH * 0.25);
+    }
+    // big floor counter, faint, behind nothing important
+    ctx.fillStyle = 'rgba(255,255,255,.14)';
+    ctx.font = '800 ' + Math.round(Math.min(cssW, cssH) * 0.22) + 'px system-ui, sans-serif';
+    ctx.textAlign = 'center';
+    if (state !== 'ready') ctx.fillText(String(score()), cssW / 2, cssH * 0.2 + 30);
+  }
+
+  function resize() {
+    var dpr = Math.min(2, window.devicePixelRatio || 1);
+    cssW = Math.max(100, wrapEl.clientWidth); cssH = Math.max(100, wrapEl.clientHeight);
+    cv.width = Math.round(cssW * dpr); cv.height = Math.round(cssH * dpr);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    // the field fills the width on a phone, but never so wide the blocks go flat
+    scale = Math.min(cssW / WORLD_W, cssH / 420);
+    offX = (cssW - WORLD_W * scale) / 2;
+  }
+
+  var last = 0;
+  function frame(ts) {
+    var dt = last ? Math.min(0.05, (ts - last) / 1000) : 0;
+    last = ts;
+    step(dt);
+    draw();
+    requestAnimationFrame(frame);
+  }
+
+  // ---- input ----
+  function anyCard() {
+    return overlay.classList.contains('show') || helpOv.classList.contains('show') || lbOv.classList.contains('show');
+  }
+  cv.addEventListener('pointerdown', function(ev) {
+    if (anyCard()) return;
+    ev.preventDefault();
+    if (state === 'over') return;
+    drop();
+  });
+  document.addEventListener('keydown', function(ev) {
+    if (ev.key === 'Escape') {
+      if (lbOv.classList.contains('show')) lbOv.classList.remove('show');
+      else if (helpOv.classList.contains('show')) helpOv.classList.remove('show');
+      else overlay.classList.remove('show');
+      return;
+    }
+    if (ev.key !== ' ' && ev.key !== 'Enter') return;
+    if (ev.target && ev.target.tagName === 'BUTTON') return;
+    ev.preventDefault();
+    if (anyCard()) return;
+    if (state === 'over') newGame(); else drop();
+  });
+
+  function paintLb() { vibeScores.panel(document.getElementById('lbBody'), 'stack', ''); }
+  function openLb() { helpOv.classList.remove('show'); paintLb(); lbOv.classList.add('show'); }
+  document.getElementById('lbBtn').addEventListener('click', openLb);
+  document.getElementById('ovLb').addEventListener('click', openLb);
+  document.getElementById('lbX').addEventListener('click', function() { lbOv.classList.remove('show'); });
+  lbOv.addEventListener('click', function(ev) { if (ev.target === lbOv) lbOv.classList.remove('show'); });
+  document.getElementById('lbReset').addEventListener('click', function() {
+    vibeConfirm('Erase every Stack score and stat on this browser?\n\nThis cannot be undone.',
+                { title: 'Reset Stack', okText: 'Erase', danger: true }).then(function(ok) {
+      if (ok) { vibeScores.reset('stack', ['vt-stack-best']); best = 0; bestEl.textContent = '0'; paintLb(); }
+    });
+  });
+  document.getElementById('helpBtn').addEventListener('click', function() { lbOv.classList.remove('show'); helpOv.classList.add('show'); });
+  document.getElementById('helpX').addEventListener('click', function() { helpOv.classList.remove('show'); });
+  helpOv.addEventListener('click', function(ev) { if (ev.target === helpOv) helpOv.classList.remove('show'); });
+  document.getElementById('newBtn').addEventListener('click', newGame);
+  document.getElementById('ovNew').addEventListener('click', newGame);
+  document.getElementById('ovClose').addEventListener('click', function() { overlay.classList.remove('show'); });
+  overlay.addEventListener('click', function(ev) { ev.stopPropagation(); });
+  window.addEventListener('resize', resize);
+
+  function boot() {
+    resize();
+    newGame();
+    requestAnimationFrame(frame);
+  }
+  boot();
+  if (!lsGet('vt-stack-help')) { lsSet('vt-stack-help', '1'); helpOv.classList.add('show'); }
+})();
+</script>
+</body>
+</html>

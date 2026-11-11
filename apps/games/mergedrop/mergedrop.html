@@ -1,0 +1,480 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>Merge Drop — Vibetop</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { height: 100%; overflow: hidden; }
+  body {
+    display: flex; flex-direction: column;
+    background: #0e1117; color: #d4d8de;
+    font-family: system-ui, sans-serif;
+    -webkit-tap-highlight-color: transparent;
+    overscroll-behavior: none;
+  }
+  .bar {
+    display: flex; align-items: center; gap: 8px; flex-shrink: 0; flex-wrap: wrap;
+    min-height: 40px; padding: 4px 10px;
+    background: #161b22; border-bottom: 1px solid #2a3040;
+    user-select: none; -webkit-user-select: none;
+  }
+  .bar .title { font-size: 13px; font-weight: 600; white-space: nowrap; }
+  .bar .title .ic { margin-right: 5px; }
+  @media (max-width: 380px) { .bar .title .txt { display: none; } }
+  /* One row on a phone: the bar wrapping to two lines cost a whole row of play
+     field, so below 460px everything in it gets tighter instead. */
+  @media (max-width: 460px) {
+    .bar { gap: 5px; padding: 4px 6px; flex-wrap: nowrap; }
+    .stat { min-width: 44px; padding: 2px 6px; }
+    .bar button { padding: 5px 8px; }
+    .bar .title .txt { display: none; }
+  }
+  html.embedded .bar .title { display: none; }
+  .stat {
+    display: flex; flex-direction: column; align-items: center;
+    background: #0e1117; border: 1px solid #2a3040; border-radius: 6px;
+    padding: 2px 10px; min-width: 58px;
+  }
+  .stat .lbl { font-size: 9px; letter-spacing: .08em; color: #6b7488; text-transform: uppercase; }
+  .stat .val { font: 600 14px ui-monospace, SFMono-Regular, Menlo, monospace; color: #d4d8de; }
+  .spacer { flex: 1; }
+  button {
+    background: #3a2a55; color: #d9c8f5; border: 1px solid #55407a;
+    border-radius: 6px; padding: 5px 12px; font: 12px system-ui, sans-serif;
+    cursor: pointer; min-height: 30px;
+  }
+  button:hover { background: #47336a; border-color: #8a4adb; }
+  button:focus-visible { outline: 2px solid #8a4adb; outline-offset: 1px; }
+  .iconbtn { background: #1f2733; border-color: #2a3040; color: #aab4c5; min-width: 30px; font-weight: 700; padding: 5px 9px; }
+  .iconbtn:hover { background: #253044; border-color: #3a4358; }
+  .wrap { flex: 1; min-height: 0; position: relative; }
+  canvas {
+    position: absolute; inset: 0; width: 100%; height: 100%; display: block;
+    touch-action: none; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none;
+  }
+  .overlay {
+    position: absolute; inset: 0; display: none;
+    justify-content: center; align-items: safe center; overflow: auto;
+    background: rgba(14,17,23,.55); z-index: 5;
+  }
+  .overlay.show { display: flex; }
+  .overlay.help { z-index: 6; }
+  .overlay.lb { z-index: 7; }
+  .card {
+    background: #161b22; border: 1px solid #2a3040; border-radius: 12px;
+    padding: 22px 28px; text-align: center; min-width: 200px; margin: auto;
+    box-shadow: 0 12px 40px rgba(0,0,0,.5);
+  }
+  .card .big { font-size: 30px; margin-bottom: 6px; }
+  .card h2 { font-size: 17px; margin-bottom: 4px; color: #e6edf3; }
+  .card p { font-size: 13px; color: #aab4c5; margin-bottom: 14px; }
+  .card .btns { display: flex; flex-direction: column; gap: 8px; margin-top: 4px; }
+  .card .btns button {
+    display: block; width: 100%; min-height: 44px; padding: 10px 18px;
+    font-size: 14px; font-weight: 600; border-radius: 9px;
+  }
+  .card .primary { background: #8a4adb; border-color: #8a4adb; color: #fff; }
+  .card .primary:hover { background: #9a5ceb; }
+  .card .ghost { background: #1f2733; border: 1px solid #2a3040; color: #cdd5e1; }
+  .card .ghost:hover { color: #e6edf3; background: #253044; }
+  @media (max-height: 340px) {
+    .card { padding: 10px 12px; min-width: 0; }
+    .card .big, .card p { display: none; }
+    .card h2 { font-size: 13px; margin-bottom: 8px; }
+    .card .btns { flex-direction: row; flex-wrap: wrap; gap: 6px; }
+    .card .btns button { min-height: 38px; padding: 7px 10px; font-size: 12.5px; width: auto; flex: 1 1 auto; }
+  }
+  .lb .card { width: min(340px, 92vw); }
+  .lb h2 { font-size: 15px; margin-bottom: 10px; }
+  .lbfoot { margin-top: 14px; text-align: center; }
+  .lbfoot button { background: #1f2733; border: 1px solid #2a3040; color: #8a94a6; font-size: 11.5px; }
+  .lbfoot button:hover { color: #e5646c; border-color: #5a3038; background: #241a1c; }
+  .help .card { text-align: left; max-width: min(340px, 90vw); padding: 18px 20px; position: relative; }
+  .help h2 { font-size: 15px; margin-bottom: 8px; }
+  .help .x {
+    position: absolute; top: 8px; right: 8px; width: 26px; height: 26px;
+    border: none; background: none; color: #6b7488; font-size: 16px;
+    min-height: 0; padding: 0; border-radius: 6px;
+  }
+  .help .x:hover { color: #d4d8de; background: #1f2733; }
+  .help li { font-size: 12.5px; color: #aab4c5; line-height: 1.7; list-style: none; }
+  .help kbd {
+    background: #0e1117; border: 1px solid #2a3040; border-bottom-width: 2px;
+    border-radius: 4px; padding: 0 5px; font: 11px ui-monospace, SFMono-Regular, Menlo, monospace; color: #d4d8de;
+  }
+  .stat .val.next { font-size: 18px; line-height: 1.1; font-family: "Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif; }
+</style>
+<script>try{if(window.parent!==window)document.documentElement.classList.add('embedded');}catch(e){}</script>
+</head>
+<body>
+  <div class="bar">
+    <span class="title"><span class="ic">🐣</span><span class="txt">Merge Drop</span></span>
+    <span class="spacer"></span>
+    <div class="stat"><span class="lbl">Next</span><span class="val next" id="next"></span></div>
+    <div class="stat"><span class="lbl">Score</span><span class="val" id="score">0</span></div>
+    <div class="stat"><span class="lbl">Best</span><span class="val" id="best">0</span></div>
+    <button class="iconbtn" id="lbBtn" title="Leaderboard">🏆</button>
+    <button class="iconbtn" id="helpBtn" title="How to play">?</button>
+    <button id="newBtn">New</button>
+  </div>
+  <div class="wrap" id="wrap">
+    <canvas id="cv"></canvas>
+    <div class="overlay" id="overlay">
+      <div class="card">
+        <div class="big" id="ovIcon">🐣</div>
+        <h2 id="ovTitle">Full up</h2>
+        <p id="ovMsg"></p>
+        <div id="scores"></div>
+        <div class="btns">
+          <button class="primary" id="ovNew">Play again</button>
+          <button class="ghost" id="ovLb">🏆 Leaderboard</button>
+          <button class="ghost" id="ovClose">Close</button>
+        </div>
+      </div>
+    </div>
+    <div class="overlay help lb" id="lbOv">
+      <div class="card">
+        <button class="x" id="lbX" title="Close">✕</button>
+        <h2>🏆 Leaderboard</h2>
+        <div id="lbBody"></div>
+        <div class="lbfoot"><button id="lbReset">Reset scores</button></div>
+      </div>
+    </div>
+    <div class="overlay help" id="helpOv">
+      <div class="card">
+        <button class="x" id="helpX" title="Close">✕</button>
+        <h2>How to play</h2>
+        <ul>
+          <li><b>Drag</b> to aim, <b>let go</b> to drop.</li>
+          <li>Two of the same animal touching become the next one up:</li>
+          <li id="ladder" style="font-size:17px;line-height:1.5"></li>
+          <li>If the pile stays above the dashed line, it's over.</li>
+          <li>Keyboard: <kbd>←</kbd> <kbd>→</kbd> aim, <kbd>Space</kbd> drop</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+<script src="gamescore.js"></script>
+<script src="vibe-modal.js"></script>
+<script>
+(function() {
+  'use strict';
+  // The ladder, smallest first. shared/gamescore.js carries the same list for
+  // its 'Biggest' chip — mergedrop.test.js asserts the two agree.
+  var ICONS  = ['🐣', '🐭', '🐹', '🐰', '🐱', '🐶', '🦊', '🐼', '🐯', '🦁', '🐳'];
+  var COLORS = ['#ffe36b', '#c9c9d6', '#f4b183', '#f6d5e0', '#ffb347', '#d9a066',
+                '#ff7f3f', '#e8e8e8', '#ffa02e', '#e0a030', '#4aa8ff'];
+  var RADII  = [15, 20, 26, 33, 40, 48, 57, 67, 78, 90, 104];
+  var POINTS = [1, 3, 6, 10, 15, 21, 28, 36, 45, 55, 66];
+  var TOP = ICONS.length - 1;
+  var BOX_W = 360, BOX_H = 560, LINE = 96, DROP_Y = 46, G = 1500;
+  var SUB = 8, ITER = 2, COOLDOWN = 0.45, DANGER_T = 1.6;
+
+  var cv = document.getElementById('cv');
+  var ctx = cv.getContext('2d');
+  var wrapEl = document.getElementById('wrap');
+  var scoreEl = document.getElementById('score');
+  var bestEl = document.getElementById('best');
+  var nextEl = document.getElementById('next');
+  var overlay = document.getElementById('overlay');
+  var helpOv = document.getElementById('helpOv');
+  var lbOv = document.getElementById('lbOv');
+  document.getElementById('ladder').textContent = ICONS.join(' ');
+
+  function lsGet(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
+  function lsSet(k, v) { try { localStorage.setItem(k, v); } catch (e) {} }
+  function buzz(ms) { try { if (navigator.vibrate) navigator.vibrate(ms); } catch (e) {} }
+
+  var best = parseInt(lsGet('vt-merge-best'), 10) || 0;
+  bestEl.textContent = best;
+
+  var balls, pops, state, score, aimX, held, next, cool, danger, topLevel, sess, ids, clock;
+
+  function randLevel() {
+    // small ones mostly; never above the third rung or what the player has reached
+    var cap = Math.min(4, Math.max(2, topLevel));
+    var pick = [0, 0, 0, 1, 1, 1, 2, 2, 3, 4];
+    var l;
+    do { l = pick[Math.floor(Math.random() * pick.length)]; } while (l > cap);
+    return l;
+  }
+
+  function addBall(x, y, l) {
+    var b = { id: ++ids, x: x, y: y, px: x, py: y, l: l, r: RADII[l], born: clock, gone: false };
+    balls.push(b);
+    return b;
+  }
+
+  function newGame() {
+    balls = []; pops = []; score = 0; cool = 0; danger = 0; topLevel = 0; ids = 0; clock = 0;
+    state = 'play';
+    aimX = BOX_W / 2;
+    held = randLevel(); next = randLevel();
+    sess = vibeScores.session();
+    scoreEl.textContent = '0';
+    nextEl.textContent = ICONS[next];
+    overlay.classList.remove('show');
+  }
+
+  function drop() {
+    if (state !== 'play' || cool > 0) return false;
+    var r = RADII[held];
+    var x = Math.max(r, Math.min(BOX_W - r, aimX));
+    addBall(x, DROP_Y, held);
+    held = next; next = randLevel();
+    nextEl.textContent = ICONS[next];
+    cool = COOLDOWN;
+    return true;
+  }
+
+  function merge(a, b) {
+    a.gone = b.gone = true;
+    var l = a.l + 1;
+    var x = (a.x + b.x) / 2, y = (a.y + b.y) / 2;
+    pops.push({ x: x, y: y, r: Math.max(a.r, b.r), t: 0, c: COLORS[Math.min(l, TOP)] });
+    if (a.l === TOP) {                 // two whales: both swim off, big bonus
+      score += 100;
+      buzz([20, 30, 40]);
+    } else {
+      var n = addBall(x, y, l);
+      n.born = clock - 10;             // a merge result is never "just dropped"
+      score += POINTS[l];
+      if (l > topLevel) topLevel = l;
+      buzz(l >= 6 ? 25 : 8);
+    }
+    scoreEl.textContent = score;
+    if (score > best) { best = score; bestEl.textContent = best; lsSet('vt-merge-best', String(best)); }
+  }
+
+  // Position-based dynamics: integrate from the previous position, then push
+  // shapes apart. Velocity is implied by (x - px), so a pile settles without
+  // jitter and nothing ever needs an explicit impulse.
+  function physics(dt) {
+    var h = dt / SUB;
+    for (var s = 0; s < SUB; s++) {
+      var i, j, a, b;
+      for (i = 0; i < balls.length; i++) {
+        a = balls[i];
+        var vx = (a.x - a.px) * 0.995, vy = (a.y - a.py) * 0.995;
+        a.px = a.x; a.py = a.y;
+        a.x += vx; a.y += vy + G * h * h;
+      }
+      for (var it = 0; it < ITER; it++) {
+        for (i = 0; i < balls.length; i++) {
+          a = balls[i];
+          if (a.gone) continue;
+          for (j = i + 1; j < balls.length; j++) {
+            b = balls[j];
+            if (b.gone) continue;
+            var dx = b.x - a.x, dy = b.y - a.y, rr = a.r + b.r;
+            var d2 = dx * dx + dy * dy;
+            if (d2 >= rr * rr) continue;
+            if (a.l === b.l && state === 'play') { merge(a, b); break; }
+            var d = Math.sqrt(d2) || 0.01, over = rr - d;
+            var nx = dx / d, ny = dy / d;
+            var ma = a.r * a.r, mb = b.r * b.r, k = over / (ma + mb);
+            a.x -= nx * k * mb; a.y -= ny * k * mb;
+            b.x += nx * k * ma; b.y += ny * k * ma;
+          }
+        }
+        for (i = 0; i < balls.length; i++) {
+          a = balls[i];
+          if (a.x < a.r) { a.x = a.r; }
+          if (a.x > BOX_W - a.r) { a.x = BOX_W - a.r; }
+          if (a.y > BOX_H - a.r) { a.y = BOX_H - a.r; a.px += (a.x - a.px) * 0.15; }   // floor friction
+        }
+      }
+      if (balls.some(function(x) { return x.gone; })) balls = balls.filter(function(x) { return !x.gone; });
+    }
+  }
+
+  function step(dt) {
+    clock += dt;
+    if (cool > 0) cool = Math.max(0, cool - dt);
+    physics(dt);
+    for (var k = pops.length - 1; k >= 0; k--) { pops[k].t += dt; if (pops[k].t > 0.35) pops.splice(k, 1); }
+    if (state !== 'play') return;
+    // Over the line counts only for a ball that has had time to fall and is
+    // nearly at rest — a fresh drop passes the line on its way down.
+    var high = balls.some(function(b) {
+      return clock - b.born > 1 && b.y - b.r < LINE && Math.abs(b.y - b.py) < 0.6;
+    });
+    danger = high ? danger + dt : Math.max(0, danger - dt * 2);
+    if (danger >= DANGER_T) gameOver();
+  }
+
+  function gameOver() {
+    state = 'over';
+    buzz([30, 40, 80]);
+    var won = topLevel >= TOP;
+    vibeScores.finish('merge', '', won, { level: topLevel + 1 });
+    setTimeout(function() {
+      if (state !== 'over') return;
+      document.getElementById('ovIcon').textContent = ICONS[topLevel];
+      document.getElementById('ovTitle').textContent = score >= best && score > 0 ? 'New best!' : 'Full up';
+      document.getElementById('ovMsg').textContent = 'Score ' + score + ' · biggest ' + ICONS[topLevel] + '.';
+      var rec = score > 0 ? vibeScores.record({ game: 'merge', value: score, session: sess }) : { entry: null };
+      vibeScores.render(document.getElementById('scores'),
+        { game: 'merge', title: 'Best scores', highlight: rec.entry, empty: 'No score yet.' });
+      overlay.classList.add('show');
+    }, 700);
+  }
+
+  // ---- drawing (world -> screen is one scale + offset) ----
+  var cssW = 360, cssH = 600, scale = 1, ox = 0, oy = 0, dpr = 1;
+  var sprites = {};
+  function sprite(l) {
+    var key = l + '|' + scale;
+    if (sprites[key]) return sprites[key];
+    var r = RADII[l] * scale, s = Math.ceil(r * 2 * dpr) + 2;
+    var c = document.createElement('canvas');
+    c.width = c.height = s;
+    var g = c.getContext('2d'), m = s / 2, R = r * dpr;
+    var grd = g.createRadialGradient(m - R * 0.35, m - R * 0.4, R * 0.1, m, m, R);
+    grd.addColorStop(0, '#ffffff');
+    grd.addColorStop(0.25, COLORS[l]);
+    grd.addColorStop(1, shade(COLORS[l], -0.35));
+    g.fillStyle = grd;
+    g.beginPath(); g.arc(m, m, R - 0.5, 0, Math.PI * 2); g.fill();
+    g.textAlign = 'center'; g.textBaseline = 'middle';
+    g.font = Math.round(R * 1.15) + 'px "Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif';
+    g.fillText(ICONS[l], m, m + R * 0.06);
+    sprites[key] = c;
+    return c;
+  }
+  function shade(hex, f) {
+    var n = parseInt(hex.slice(1), 16), r = n >> 16, g = (n >> 8) & 255, b = n & 255;
+    function m(v) { return Math.round(Math.max(0, Math.min(255, v + v * f))); }
+    return 'rgb(' + m(r) + ',' + m(g) + ',' + m(b) + ')';
+  }
+  function drawBall(l, x, y, alpha) {
+    var sp = sprite(l), s = sp.width / dpr;
+    ctx.globalAlpha = alpha == null ? 1 : alpha;
+    ctx.drawImage(sp, ox + x * scale - s / 2, oy + y * scale - s / 2, s, s);
+    ctx.globalAlpha = 1;
+  }
+  function draw() {
+    ctx.fillStyle = '#0e1117';
+    ctx.fillRect(0, 0, cssW, cssH);
+    // the box
+    ctx.fillStyle = '#1a2130';
+    ctx.fillRect(ox, oy, BOX_W * scale, BOX_H * scale);
+    ctx.strokeStyle = '#3a4358'; ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(ox, oy); ctx.lineTo(ox, oy + BOX_H * scale);
+    ctx.lineTo(ox + BOX_W * scale, oy + BOX_H * scale); ctx.lineTo(ox + BOX_W * scale, oy);
+    ctx.stroke();
+    // danger line: dashed, red and pulsing while something sits over it
+    var hot = danger > 0.05;
+    ctx.setLineDash([8, 6]);
+    ctx.strokeStyle = hot ? 'rgba(255,90,90,' + (0.5 + 0.5 * Math.sin(clock * 14)) + ')' : 'rgba(255,255,255,.32)';
+    ctx.beginPath(); ctx.moveTo(ox, oy + LINE * scale); ctx.lineTo(ox + BOX_W * scale, oy + LINE * scale); ctx.stroke();
+    ctx.setLineDash([]);
+    if (state === 'play') {
+      var r = RADII[held], x = Math.max(r, Math.min(BOX_W - r, aimX));
+      ctx.strokeStyle = 'rgba(255,255,255,.12)'; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(ox + x * scale, oy + (DROP_Y + r) * scale); ctx.lineTo(ox + x * scale, oy + BOX_H * scale); ctx.stroke();
+      drawBall(held, x, DROP_Y, cool > 0 ? 0.35 : 1);
+    }
+    for (var i = 0; i < balls.length; i++) drawBall(balls[i].l, balls[i].x, balls[i].y);
+    pops.forEach(function(p) {
+      var k = p.t / 0.35;
+      ctx.strokeStyle = 'rgba(255,255,255,' + (1 - k) + ')';
+      ctx.lineWidth = 3;
+      ctx.beginPath(); ctx.arc(ox + p.x * scale, oy + p.y * scale, (p.r + 10 + k * 25) * scale, 0, Math.PI * 2); ctx.stroke();
+    });
+  }
+
+  function resize() {
+    dpr = Math.min(2, window.devicePixelRatio || 1);
+    cssW = Math.max(100, wrapEl.clientWidth); cssH = Math.max(100, wrapEl.clientHeight);
+    cv.width = Math.round(cssW * dpr); cv.height = Math.round(cssH * dpr);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    scale = Math.min((cssW - 16) / BOX_W, (cssH - 12) / BOX_H);
+    ox = (cssW - BOX_W * scale) / 2;
+    oy = (cssH - BOX_H * scale) / 2;
+    sprites = {};
+  }
+
+  var paused = false, last = 0;
+  function frame(ts) {
+    var dt = last ? Math.min(1 / 30, (ts - last) / 1000) : 0;
+    last = ts;
+    if (!paused && dt > 0) step(dt);
+    draw();
+    requestAnimationFrame(frame);
+  }
+  function setPaused() { paused = helpOv.classList.contains('show') || lbOv.classList.contains('show') || document.hidden; }
+  document.addEventListener('visibilitychange', setPaused);
+  new MutationObserver(setPaused).observe(helpOv, { attributes: true, attributeFilter: ['class'] });
+  new MutationObserver(setPaused).observe(lbOv, { attributes: true, attributeFilter: ['class'] });
+
+  // ---- input: press/drag aims, release drops ----
+  function anyCard() {
+    return overlay.classList.contains('show') || helpOv.classList.contains('show') || lbOv.classList.contains('show');
+  }
+  function aimAt(ev) { var b = cv.getBoundingClientRect(); aimX = (ev.clientX - b.left - ox) / scale; }
+  var pid = null;
+  cv.addEventListener('pointerdown', function(ev) {
+    if (anyCard() || state !== 'play') return;
+    ev.preventDefault();
+    try { cv.setPointerCapture(ev.pointerId); } catch (e) {}
+    pid = ev.pointerId; aimAt(ev);
+  });
+  cv.addEventListener('pointermove', function(ev) {
+    if (pid === ev.pointerId || ev.pointerType === 'mouse') aimAt(ev);
+  });
+  cv.addEventListener('pointerup', function(ev) {
+    if (pid !== ev.pointerId) return;
+    pid = null; aimAt(ev); drop();
+  });
+  cv.addEventListener('pointercancel', function() { pid = null; });
+  document.addEventListener('keydown', function(ev) {
+    if (ev.key === 'Escape') {
+      if (lbOv.classList.contains('show')) lbOv.classList.remove('show');
+      else if (helpOv.classList.contains('show')) helpOv.classList.remove('show');
+      else overlay.classList.remove('show');
+      return;
+    }
+    if (anyCard()) return;
+    if (ev.key === 'ArrowLeft') { aimX = Math.max(0, aimX - 18); ev.preventDefault(); }
+    else if (ev.key === 'ArrowRight') { aimX = Math.min(BOX_W, aimX + 18); ev.preventDefault(); }
+    else if ((ev.key === ' ' || ev.key === 'Enter') && !(ev.target && ev.target.tagName === 'BUTTON')) {
+      ev.preventDefault(); drop();
+    }
+  });
+
+  function paintLb() { vibeScores.panel(document.getElementById('lbBody'), 'merge', ''); }
+  function openLb() { helpOv.classList.remove('show'); paintLb(); lbOv.classList.add('show'); }
+  document.getElementById('lbBtn').addEventListener('click', openLb);
+  document.getElementById('ovLb').addEventListener('click', openLb);
+  document.getElementById('lbX').addEventListener('click', function() { lbOv.classList.remove('show'); });
+  lbOv.addEventListener('click', function(ev) { if (ev.target === lbOv) lbOv.classList.remove('show'); });
+  document.getElementById('lbReset').addEventListener('click', function() {
+    vibeConfirm('Erase every Merge Drop score and stat on this browser?\n\nThis cannot be undone.',
+                { title: 'Reset Merge Drop', okText: 'Erase', danger: true }).then(function(ok) {
+      if (ok) { vibeScores.reset('merge', ['vt-merge-best']); best = 0; bestEl.textContent = '0'; paintLb(); }
+    });
+  });
+  document.getElementById('helpBtn').addEventListener('click', function() { lbOv.classList.remove('show'); helpOv.classList.add('show'); });
+  document.getElementById('helpX').addEventListener('click', function() { helpOv.classList.remove('show'); });
+  helpOv.addEventListener('click', function(ev) { if (ev.target === helpOv) helpOv.classList.remove('show'); });
+  document.getElementById('newBtn').addEventListener('click', newGame);
+  document.getElementById('ovNew').addEventListener('click', newGame);
+  document.getElementById('ovClose').addEventListener('click', function() { overlay.classList.remove('show'); });
+  overlay.addEventListener('click', function(ev) { ev.stopPropagation(); });
+  window.addEventListener('resize', resize);
+
+  function boot() {
+    resize();
+    newGame();
+    requestAnimationFrame(frame);
+  }
+  boot();
+  if (!lsGet('vt-merge-help')) { lsSet('vt-merge-help', '1'); helpOv.classList.add('show'); }
+})();
+</script>
+</body>
+</html>

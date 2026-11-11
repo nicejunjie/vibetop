@@ -62,7 +62,7 @@ Six sub-projects deliver a unified "mini-OS" desktop experience on the host (ref
 | Start-menu section | Apps |
 |---|---|
 | Everyday (un-sectioned) | Terminal, Browser, X11 Launcher, Files, Office, Notes, Upload |
-| **Games** flyout | Minesweeper, Solitaire, 2048, Circuit Runner (self-contained pages, `apps/games/<item>/`) + **Iron Frontier** (RTS) only when the optional `rts-war` sibling is deployed |
+| **Games** flyout | Minesweeper, Solitaire, 2048, Circuit Runner, Stack, Slice, Merge Drop (self-contained pages, `apps/games/<item>/`) + **Iron Frontier** (RTS) only when the optional `rts-war` sibling is deployed |
 | **Utilities** flyout | Services (`home`), Monitor, Token Stats + the Claude-Usage / System-Stats **toggles** |
 | **System** | Update, Config (sudo-gated) |
 | *(not in the menu)* | **Floating windows** — a 🗔 toggle in the **taskbar**, its only surface (no menu row); | **Video player** (`video`, `hidden:true`) — opened by Files on a video double-click, registered only so the taskbar/title can render it |

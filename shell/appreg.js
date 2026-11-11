@@ -100,6 +100,10 @@
     solitaire:   { label: 'Solitaire',   icon: '🃏', src: '/solitaire.html',   desc: 'Klondike patience',  section: 'games' },
     game2048:    { label: '2048',        icon: '🔢', src: '/game2048.html',    desc: 'Slide & merge tiles', section: 'games' },
     circuit:     { label: 'Circuit Runner', icon: '🤖', src: '/circuit.html', desc: 'Side-scrolling platformer', section: 'games' },
+    // One-finger, no-thinking games for a phone (user request, v1.38.166).
+    stack:       { label: 'Stack',       icon: '🏗️', src: '/stack.html',     desc: 'Tap to stack the tower',  section: 'games' },
+    slice:       { label: 'Slice',       icon: '🍉', src: '/slice.html',     desc: 'Swipe to slice fruit',    section: 'games' },
+    mergedrop:   { label: 'Merge Drop',  icon: '🐣', src: '/mergedrop.html', desc: 'Drop & merge animals',    section: 'games' },
     // `optional` = the page is NOT in this repo. Iron Frontier lives in its own
     // project (rts-war) that shell/install.sh deploys only when a sibling
     // checkout exists, so the row starts hidden and probeOptionalApps() reveals

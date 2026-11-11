@@ -1,0 +1,526 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>Slice — Vibetop</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { height: 100%; overflow: hidden; }
+  body {
+    display: flex; flex-direction: column;
+    background: #0e1117; color: #d4d8de;
+    font-family: system-ui, sans-serif;
+    -webkit-tap-highlight-color: transparent;
+    overscroll-behavior: none;
+  }
+  .bar {
+    display: flex; align-items: center; gap: 8px; flex-shrink: 0; flex-wrap: wrap;
+    min-height: 40px; padding: 4px 10px;
+    background: #161b22; border-bottom: 1px solid #2a3040;
+    user-select: none; -webkit-user-select: none;
+  }
+  .bar .title { font-size: 13px; font-weight: 600; white-space: nowrap; }
+  .bar .title .ic { margin-right: 5px; }
+  @media (max-width: 380px) { .bar .title .txt { display: none; } }
+  /* One row on a phone: the bar wrapping to two lines cost a whole row of play
+     field, so below 460px everything in it gets tighter instead. */
+  @media (max-width: 460px) {
+    .bar { gap: 5px; padding: 4px 6px; flex-wrap: nowrap; }
+    .stat { min-width: 44px; padding: 2px 6px; }
+    .bar button { padding: 5px 8px; }
+    .bar .title .txt { display: none; }
+  }
+  html.embedded .bar .title { display: none; }
+  .stat {
+    display: flex; flex-direction: column; align-items: center;
+    background: #0e1117; border: 1px solid #2a3040; border-radius: 6px;
+    padding: 2px 10px; min-width: 58px;
+  }
+  .stat .lbl { font-size: 9px; letter-spacing: .08em; color: #6b7488; text-transform: uppercase; }
+  .stat .val { font: 600 14px ui-monospace, SFMono-Regular, Menlo, monospace; color: #d4d8de; }
+  .spacer { flex: 1; }
+  button {
+    background: #3a2a55; color: #d9c8f5; border: 1px solid #55407a;
+    border-radius: 6px; padding: 5px 12px; font: 12px system-ui, sans-serif;
+    cursor: pointer; min-height: 30px;
+  }
+  button:hover { background: #47336a; border-color: #8a4adb; }
+  button:focus-visible { outline: 2px solid #8a4adb; outline-offset: 1px; }
+  .iconbtn { background: #1f2733; border-color: #2a3040; color: #aab4c5; min-width: 30px; font-weight: 700; padding: 5px 9px; }
+  .iconbtn:hover { background: #253044; border-color: #3a4358; }
+  .wrap { flex: 1; min-height: 0; position: relative; }
+  canvas {
+    position: absolute; inset: 0; width: 100%; height: 100%; display: block;
+    touch-action: none; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none;
+  }
+  .overlay {
+    position: absolute; inset: 0; display: none;
+    justify-content: center; align-items: safe center; overflow: auto;
+    background: rgba(14,17,23,.55); z-index: 5;
+  }
+  .overlay.show { display: flex; }
+  .overlay.help { z-index: 6; }
+  .overlay.lb { z-index: 7; }
+  .card {
+    background: #161b22; border: 1px solid #2a3040; border-radius: 12px;
+    padding: 22px 28px; text-align: center; min-width: 200px; margin: auto;
+    box-shadow: 0 12px 40px rgba(0,0,0,.5);
+  }
+  .card .big { font-size: 30px; margin-bottom: 6px; }
+  .card h2 { font-size: 17px; margin-bottom: 4px; color: #e6edf3; }
+  .card p { font-size: 13px; color: #aab4c5; margin-bottom: 14px; }
+  .card .btns { display: flex; flex-direction: column; gap: 8px; margin-top: 4px; }
+  .card .btns button {
+    display: block; width: 100%; min-height: 44px; padding: 10px 18px;
+    font-size: 14px; font-weight: 600; border-radius: 9px;
+  }
+  .card .primary { background: #8a4adb; border-color: #8a4adb; color: #fff; }
+  .card .primary:hover { background: #9a5ceb; }
+  .card .ghost { background: #1f2733; border: 1px solid #2a3040; color: #cdd5e1; }
+  .card .ghost:hover { color: #e6edf3; background: #253044; }
+  @media (max-height: 340px) {
+    .card { padding: 10px 12px; min-width: 0; }
+    .card .big, .card p { display: none; }
+    .card h2 { font-size: 13px; margin-bottom: 8px; }
+    .card .btns { flex-direction: row; flex-wrap: wrap; gap: 6px; }
+    .card .btns button { min-height: 38px; padding: 7px 10px; font-size: 12.5px; width: auto; flex: 1 1 auto; }
+  }
+  .lb .card { width: min(340px, 92vw); }
+  .lb h2 { font-size: 15px; margin-bottom: 10px; }
+  .lbfoot { margin-top: 14px; text-align: center; }
+  .lbfoot button { background: #1f2733; border: 1px solid #2a3040; color: #8a94a6; font-size: 11.5px; }
+  .lbfoot button:hover { color: #e5646c; border-color: #5a3038; background: #241a1c; }
+  .help .card { text-align: left; max-width: min(340px, 90vw); padding: 18px 20px; position: relative; }
+  .help h2 { font-size: 15px; margin-bottom: 8px; }
+  .help .x {
+    position: absolute; top: 8px; right: 8px; width: 26px; height: 26px;
+    border: none; background: none; color: #6b7488; font-size: 16px;
+    min-height: 0; padding: 0; border-radius: 6px;
+  }
+  .help .x:hover { color: #d4d8de; background: #1f2733; }
+  .help li { font-size: 12.5px; color: #aab4c5; line-height: 1.7; list-style: none; }
+  .help kbd {
+    background: #0e1117; border: 1px solid #2a3040; border-bottom-width: 2px;
+    border-radius: 4px; padding: 0 5px; font: 11px ui-monospace, SFMono-Regular, Menlo, monospace; color: #d4d8de;
+  }
+  .lives { font-size: 15px; letter-spacing: 1px; white-space: nowrap; min-width: 54px; text-align: center; }
+  .lives .gone { opacity: .22; filter: grayscale(1); }
+</style>
+<script>try{if(window.parent!==window)document.documentElement.classList.add('embedded');}catch(e){}</script>
+</head>
+<body>
+  <div class="bar">
+    <span class="title"><span class="ic">🍉</span><span class="txt">Slice</span></span>
+    <span class="spacer"></span>
+    <span class="lives" id="lives" title="Misses left"></span>
+    <div class="stat"><span class="lbl">Score</span><span class="val" id="score">0</span></div>
+    <div class="stat"><span class="lbl">Best</span><span class="val" id="best">0</span></div>
+    <button class="iconbtn" id="lbBtn" title="Leaderboard">🏆</button>
+    <button class="iconbtn" id="helpBtn" title="How to play">?</button>
+    <button id="newBtn">New</button>
+  </div>
+  <div class="wrap" id="wrap">
+    <canvas id="cv"></canvas>
+    <div class="overlay" id="overlay">
+      <div class="card">
+        <div class="big" id="ovIcon">🍉</div>
+        <h2 id="ovTitle">Game over</h2>
+        <p id="ovMsg"></p>
+        <div id="scores"></div>
+        <div class="btns">
+          <button class="primary" id="ovNew">Play again</button>
+          <button class="ghost" id="ovLb">🏆 Leaderboard</button>
+          <button class="ghost" id="ovClose">Close</button>
+        </div>
+      </div>
+    </div>
+    <div class="overlay help lb" id="lbOv">
+      <div class="card">
+        <button class="x" id="lbX" title="Close">✕</button>
+        <h2>🏆 Leaderboard</h2>
+        <div id="lbBody"></div>
+        <div class="lbfoot"><button id="lbReset">Reset scores</button></div>
+      </div>
+    </div>
+    <div class="overlay help" id="helpOv">
+      <div class="card">
+        <button class="x" id="helpX" title="Close">✕</button>
+        <h2>How to play</h2>
+        <ul>
+          <li><b>Swipe</b> through the fruit to slice it.</li>
+          <li>Several in one swipe is a <b>combo</b> — bonus points.</li>
+          <li>Let three fruit fall and the game ends.</li>
+          <li>Never touch a <b>💣</b>.</li>
+          <li>With a mouse: hold the button and drag.</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+<script src="gamescore.js"></script>
+<script src="vibe-modal.js"></script>
+<script>
+(function() {
+  'use strict';
+  var FRUITS = [
+    ['🍉', '#ff4d5e'], ['🍊', '#ffa23a'], ['🍋', '#ffe14d'], ['🍎', '#ff3b3b'],
+    ['🍐', '#c8e05a'], ['🍑', '#ffa47a'], ['🍓', '#ff3355'], ['🍍', '#ffd84a'],
+    ['🥝', '#8bd13d'], ['🍌', '#ffe680'], ['🍇', '#a05ce0'], ['🥥', '#f2efe6']
+  ];
+  var LIVES = 3, COMBO_WINDOW = 0.25;
+  var cv = document.getElementById('cv');
+  var ctx = cv.getContext('2d');
+  var wrapEl = document.getElementById('wrap');
+  var scoreEl = document.getElementById('score');
+  var bestEl = document.getElementById('best');
+  var livesEl = document.getElementById('lives');
+  var overlay = document.getElementById('overlay');
+  var helpOv = document.getElementById('helpOv');
+  var lbOv = document.getElementById('lbOv');
+
+  function lsGet(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
+  function lsSet(k, v) { try { localStorage.setItem(k, v); } catch (e) {} }
+  function buzz(ms) { try { if (navigator.vibrate) navigator.vibrate(ms); } catch (e) {} }
+
+  var best = parseInt(lsGet('vt-slice-best'), 10) || 0;
+  bestEl.textContent = best;
+
+  var W = 360, H = 600, dpr = 1, G = 900, R = 30;
+  var items, halves, drops, texts, trail, state, score, lives, sess, clock, nextWave, waves;
+  var combo, comboT, maxCombo, sliced, flash;
+
+  // Shortest distance from (cx,cy) to segment a-b, compared with r.
+  function segHits(ax, ay, bx, by, cx, cy, r) {
+    var dx = bx - ax, dy = by - ay, L = dx * dx + dy * dy;
+    var t = L ? ((cx - ax) * dx + (cy - ay) * dy) / L : 0;
+    t = t < 0 ? 0 : t > 1 ? 1 : t;
+    var px = ax + dx * t - cx, py = ay + dy * t - cy;
+    return px * px + py * py <= r * r;
+  }
+  // Upward speed that tops out `h` px above the launch point.
+  function launchV(h) { return Math.sqrt(2 * G * h); }
+
+  function newGame() {
+    items = []; halves = []; drops = []; texts = []; trail = [];
+    score = 0; lives = LIVES; clock = 0; nextWave = 0.6; waves = 0;
+    combo = 0; comboT = 0; maxCombo = 0; sliced = 0; flash = 0;
+    state = 'play';
+    sess = vibeScores.session();
+    scoreEl.textContent = '0';
+    paintLives();
+    overlay.classList.remove('show');
+  }
+  function paintLives() {
+    var s = '';
+    for (var i = 0; i < LIVES; i++) s += '<span' + (i < LIVES - lives ? '' : ' class="gone"') + '>❌</span>';
+    livesEl.innerHTML = s;
+  }
+
+  function spawn(kind) {
+    var f = FRUITS[Math.floor(Math.random() * FRUITS.length)];
+    var x = W * (0.15 + Math.random() * 0.7);
+    var apex = H * (0.45 + Math.random() * 0.4);         // how high above the bottom it peaks
+    var tFlight = 2 * launchV(apex) / G;
+    var tx = W * (0.2 + Math.random() * 0.6);            // aim to come down somewhere on screen
+    var it = {
+      kind: kind, emoji: kind === 'bomb' ? '💣' : f[0], juice: kind === 'bomb' ? '#fff' : f[1],
+      x: x, y: H + R, vx: (tx - x) / tFlight, vy: -launchV(apex), r: R,
+      rot: Math.random() * 6, vr: (Math.random() - 0.5) * 5, dead: false
+    };
+    items.push(it);
+    return it;
+  }
+  function wave() {
+    waves++;
+    var n = Math.min(6, 1 + Math.floor(waves / 4) + (Math.random() < 0.35 ? 1 : 0));
+    var bombP = waves < 3 ? 0 : Math.min(0.22, 0.06 + waves * 0.006);
+    var bombs = 0;
+    for (var i = 0; i < n; i++) {
+      var bomb = Math.random() < bombP && bombs < 2;
+      if (bomb) bombs++;
+      var it = spawn(bomb ? 'bomb' : 'fruit');
+      it.y += i * 25;     // staggered so a wave doesn't arrive as one clump
+    }
+    nextWave = Math.max(0.9, 2.1 - waves * 0.03) + Math.random() * 0.5;
+  }
+
+  // One swipe segment against everything in flight.
+  function slice(ax, ay, bx, by) {
+    if (state !== 'play') return 0;
+    var n = 0;
+    for (var i = 0; i < items.length; i++) {
+      var it = items[i];
+      if (it.dead || !segHits(ax, ay, bx, by, it.x, it.y, it.r)) continue;
+      if (it.kind === 'bomb') { it.dead = true; boom(it); return n; }
+      it.dead = true; n++; sliced++;
+      score += 1;
+      combo = comboT > 0 ? combo + 1 : 1;
+      comboT = COMBO_WINDOW;
+      var ang = Math.atan2(by - ay, bx - ax);
+      split(it, ang);
+    }
+    if (n) {
+      buzz(8);
+      scoreEl.textContent = score;
+      if (score > best) { best = score; bestEl.textContent = best; lsSet('vt-slice-best', String(best)); }
+    }
+    return n;
+  }
+  function endCombo() {
+    if (combo >= 3) {
+      var bonus = combo;
+      score += bonus;
+      scoreEl.textContent = score;
+      if (score > best) { best = score; bestEl.textContent = best; lsSet('vt-slice-best', String(best)); }
+      texts.push({ s: combo + ' combo +' + bonus, x: W / 2, y: H * 0.3, t: 0, big: true });
+      buzz(20);
+    }
+    if (combo > maxCombo) maxCombo = combo;
+    combo = 0;
+  }
+  function split(it, ang) {
+    var nx = Math.cos(ang + Math.PI / 2), ny = Math.sin(ang + Math.PI / 2);
+    for (var s = -1; s <= 1; s += 2) {
+      halves.push({ emoji: it.emoji, x: it.x, y: it.y, vx: it.vx + nx * s * 90, vy: it.vy * 0.4 + ny * s * 90 - 60,
+                    rot: ang, vr: s * 4, side: s, r: it.r });
+    }
+    for (var k = 0; k < 12; k++) {
+      var a = Math.random() * Math.PI * 2, sp = 60 + Math.random() * 220;
+      drops.push({ x: it.x, y: it.y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 80, c: it.juice, t: 0, r: 2 + Math.random() * 3 });
+    }
+  }
+  function boom(it) {
+    flash = 1;
+    for (var k = 0; k < 30; k++) {
+      var a = Math.random() * Math.PI * 2, sp = 100 + Math.random() * 400;
+      drops.push({ x: it.x, y: it.y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, c: k % 2 ? '#ffd84a' : '#ff6a3a', t: 0, r: 2 + Math.random() * 4 });
+    }
+    gameOver(true);
+  }
+  function miss(it) {
+    if (state !== 'play') return;
+    lives--;
+    paintLives();
+    texts.push({ s: '❌', x: Math.max(20, Math.min(W - 20, it.x)), y: H - 30, t: 0 });
+    buzz(25);
+    if (lives <= 0) gameOver(false);
+  }
+  function gameOver(bomb) {
+    if (state === 'over') return;
+    endCombo();
+    state = 'over';
+    buzz(bomb ? [60, 40, 120] : [30, 40, 60]);
+    vibeScores.finish('slice', '', false, { combo: maxCombo, sliced: sliced });
+    setTimeout(function() {
+      if (state !== 'over') return;
+      document.getElementById('ovIcon').textContent = bomb ? '💥' : '🍉';
+      document.getElementById('ovTitle').textContent = score >= best && score > 0 ? 'New best!' : bomb ? 'Boom!' : 'Game over';
+      document.getElementById('ovMsg').textContent = 'Score ' + score + ' · ' + sliced + ' sliced' +
+        (maxCombo >= 3 ? ' · best combo ' + maxCombo : '') + '.';
+      var rec = score > 0 ? vibeScores.record({ game: 'slice', value: score, session: sess }) : { entry: null };
+      vibeScores.render(document.getElementById('scores'),
+        { game: 'slice', title: 'Best scores', highlight: rec.entry, empty: 'No score yet.' });
+      overlay.classList.add('show');
+    }, bomb ? 1100 : 700);
+  }
+
+  function step(dt) {
+    clock += dt;
+    if (state === 'play') {
+      nextWave -= dt;
+      if (nextWave <= 0) wave();
+      if (comboT > 0) { comboT -= dt; if (comboT <= 0) endCombo(); }
+    }
+    for (var i = items.length - 1; i >= 0; i--) {
+      var it = items[i];
+      it.vy += G * dt; it.x += it.vx * dt; it.y += it.vy * dt; it.rot += it.vr * dt;
+      if (it.dead) { items.splice(i, 1); continue; }
+      if (it.vy > 0 && it.y - it.r > H) {
+        items.splice(i, 1);
+        if (it.kind === 'fruit') miss(it);
+      }
+    }
+    for (var j = halves.length - 1; j >= 0; j--) {
+      var h = halves[j];
+      h.vy += G * dt; h.x += h.vx * dt; h.y += h.vy * dt; h.rot += h.vr * dt;
+      if (h.y - h.r > H) halves.splice(j, 1);
+    }
+    for (var k = drops.length - 1; k >= 0; k--) {
+      var d = drops[k];
+      d.vy += G * 0.6 * dt; d.x += d.vx * dt; d.y += d.vy * dt; d.t += dt;
+      if (d.t > 0.8) drops.splice(k, 1);
+    }
+    for (var m = texts.length - 1; m >= 0; m--) { texts[m].t += dt; if (texts[m].t > 0.9) texts.splice(m, 1); }
+    var now = clock;
+    trail = trail.filter(function(p) { return now - p.t < 0.14; });
+    if (flash > 0) flash = Math.max(0, flash - dt * 2);
+  }
+
+  // Emoji are drawn once per size into a small canvas and blitted after —
+  // fillText of a colour emoji every frame is the slow path on phones.
+  var sprites = {};
+  function sprite(e, r) {
+    var key = e + '|' + r;
+    if (sprites[key]) return sprites[key];
+    var c = document.createElement('canvas');
+    var s = Math.ceil(r * 2.4 * dpr);
+    c.width = c.height = s;
+    var g = c.getContext('2d');
+    g.textAlign = 'center'; g.textBaseline = 'middle';
+    g.font = Math.round(r * 2 * dpr) + 'px "Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif';
+    g.fillText(e, s / 2, s / 2 + s * 0.04);
+    sprites[key] = c;
+    return c;
+  }
+  function blit(e, r, x, y, rot, clipSide) {
+    var sp = sprite(e, r), s = sp.width / dpr;
+    ctx.save();
+    ctx.translate(x, y); ctx.rotate(rot);
+    if (clipSide) { ctx.beginPath(); ctx.rect(-s / 2, clipSide < 0 ? -s / 2 : 0, s, s / 2); ctx.clip(); }
+    ctx.drawImage(sp, -s / 2, -s / 2, s, s);
+    ctx.restore();
+  }
+
+  function draw() {
+    var g = ctx.createLinearGradient(0, 0, 0, H);
+    g.addColorStop(0, '#1d1a2e'); g.addColorStop(1, '#2a1e1a');
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, W, H);
+    drops.forEach(function(d) {
+      ctx.globalAlpha = Math.max(0, 1 - d.t / 0.8);
+      ctx.fillStyle = d.c;
+      ctx.beginPath(); ctx.arc(d.x, d.y, d.r, 0, Math.PI * 2); ctx.fill();
+    });
+    ctx.globalAlpha = 1;
+    halves.forEach(function(h) { blit(h.emoji, h.r, h.x, h.y, h.rot, h.side); });
+    items.forEach(function(it) {
+      if (it.kind === 'bomb') {
+        ctx.fillStyle = 'rgba(255,80,60,' + (0.25 + 0.2 * Math.sin(clock * 18)) + ')';
+        ctx.beginPath(); ctx.arc(it.x, it.y, it.r * 1.15, 0, Math.PI * 2); ctx.fill();
+      }
+      blit(it.emoji, it.r, it.x, it.y, it.rot, 0);
+    });
+    // the blade: a tapering bright stroke through the recent points
+    if (trail.length > 1) {
+      ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+      for (var i = 1; i < trail.length; i++) {
+        var a = trail[i - 1], b = trail[i];
+        if (b.brk) continue;
+        var k = i / trail.length;
+        ctx.strokeStyle = 'rgba(220,235,255,' + (0.35 + 0.65 * k) + ')';
+        ctx.lineWidth = 1 + 6 * k;
+        ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
+      }
+    }
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    texts.forEach(function(t) {
+      ctx.globalAlpha = Math.max(0, 1 - t.t / 0.9);
+      ctx.fillStyle = '#fff';
+      ctx.font = (t.big ? '800 26px' : '600 20px') + ' system-ui, sans-serif';
+      ctx.fillText(t.s, t.x, t.y - t.t * 30);
+    });
+    ctx.globalAlpha = 1;
+    if (flash > 0) { ctx.fillStyle = 'rgba(255,255,255,' + flash + ')'; ctx.fillRect(0, 0, W, H); }
+    if (state === 'play' && clock < 2.5 && sliced === 0) {
+      ctx.fillStyle = 'rgba(255,255,255,.7)';
+      ctx.font = '600 18px system-ui, sans-serif';
+      ctx.fillText('Swipe to slice', W / 2, H * 0.4);
+    }
+  }
+
+  function resize() {
+    dpr = Math.min(2, window.devicePixelRatio || 1);
+    W = Math.max(100, wrapEl.clientWidth); H = Math.max(100, wrapEl.clientHeight);
+    cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    var m = Math.min(W, H);
+    R = Math.round(Math.max(22, Math.min(44, m * 0.075)));
+    G = Math.max(500, H * 1.5);
+    sprites = {};
+    if (items) items.forEach(function(it) { it.r = R; });
+  }
+
+  var last = 0;
+  function frame(ts) {
+    var dt = last ? Math.min(0.05, (ts - last) / 1000) : 0;
+    last = ts;
+    if (!paused) step(dt);
+    draw();
+    requestAnimationFrame(frame);
+  }
+
+  // ---- input: every pointer move while pressed is a blade segment ----
+  function anyCard() {
+    return overlay.classList.contains('show') || helpOv.classList.contains('show') || lbOv.classList.contains('show');
+  }
+  var down = null;
+  function pos(ev) { var b = cv.getBoundingClientRect(); return { x: ev.clientX - b.left, y: ev.clientY - b.top }; }
+  cv.addEventListener('pointerdown', function(ev) {
+    if (anyCard()) return;
+    ev.preventDefault();
+    try { cv.setPointerCapture(ev.pointerId); } catch (e) {}
+    down = { id: ev.pointerId, p: pos(ev) };
+    trail.push({ x: down.p.x, y: down.p.y, t: clock, brk: true });
+  });
+  cv.addEventListener('pointermove', function(ev) {
+    if (!down || ev.pointerId !== down.id) return;
+    var evs = ev.getCoalescedEvents ? ev.getCoalescedEvents() : [ev];
+    if (!evs.length) evs = [ev];
+    evs.forEach(function(e) {
+      var p = pos(e);
+      slice(down.p.x, down.p.y, p.x, p.y);
+      trail.push({ x: p.x, y: p.y, t: clock });
+      down.p = p;
+    });
+  });
+  function lift(ev) { if (down && (!ev || ev.pointerId === down.id)) down = null; }
+  cv.addEventListener('pointerup', lift);
+  cv.addEventListener('pointercancel', lift);
+  window.addEventListener('blur', function() { down = null; });
+
+  document.addEventListener('keydown', function(ev) {
+    if (ev.key !== 'Escape') return;
+    if (lbOv.classList.contains('show')) lbOv.classList.remove('show');
+    else if (helpOv.classList.contains('show')) helpOv.classList.remove('show');
+    else overlay.classList.remove('show');
+  });
+
+  // Help and the leaderboard stop the clock — fruit must not fall unseen behind a card.
+  var paused = false;
+  function setPaused() { paused = helpOv.classList.contains('show') || lbOv.classList.contains('show') || document.hidden; }
+  document.addEventListener('visibilitychange', setPaused);
+  new MutationObserver(setPaused).observe(helpOv, { attributes: true, attributeFilter: ['class'] });
+  new MutationObserver(setPaused).observe(lbOv, { attributes: true, attributeFilter: ['class'] });
+
+  function paintLb() { vibeScores.panel(document.getElementById('lbBody'), 'slice', ''); }
+  function openLb() { helpOv.classList.remove('show'); paintLb(); lbOv.classList.add('show'); }
+  document.getElementById('lbBtn').addEventListener('click', openLb);
+  document.getElementById('ovLb').addEventListener('click', openLb);
+  document.getElementById('lbX').addEventListener('click', function() { lbOv.classList.remove('show'); });
+  lbOv.addEventListener('click', function(ev) { if (ev.target === lbOv) lbOv.classList.remove('show'); });
+  document.getElementById('lbReset').addEventListener('click', function() {
+    vibeConfirm('Erase every Slice score and stat on this browser?\n\nThis cannot be undone.',
+                { title: 'Reset Slice', okText: 'Erase', danger: true }).then(function(ok) {
+      if (ok) { vibeScores.reset('slice', ['vt-slice-best']); best = 0; bestEl.textContent = '0'; paintLb(); }
+    });
+  });
+  document.getElementById('helpBtn').addEventListener('click', function() { lbOv.classList.remove('show'); helpOv.classList.add('show'); });
+  document.getElementById('helpX').addEventListener('click', function() { helpOv.classList.remove('show'); });
+  helpOv.addEventListener('click', function(ev) { if (ev.target === helpOv) helpOv.classList.remove('show'); });
+  document.getElementById('newBtn').addEventListener('click', newGame);
+  document.getElementById('ovNew').addEventListener('click', newGame);
+  document.getElementById('ovClose').addEventListener('click', function() { overlay.classList.remove('show'); });
+  overlay.addEventListener('click', function(ev) { ev.stopPropagation(); });
+  window.addEventListener('resize', resize);
+
+  function boot() {
+    resize();
+    newGame();
+    requestAnimationFrame(frame);
+  }
+  boot();
+  if (!lsGet('vt-slice-help')) { lsSet('vt-slice-help', '1'); helpOv.classList.add('show'); }
+})();
+</script>
+</body>
+</html>

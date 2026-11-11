@@ -23,6 +23,7 @@ const PAGES = [
   '/', '/landing.html', '/notes.html', '/monitor.html', '/token-stats.html',
   '/upload.html', '/files.html', '/filesx.html', '/x11launcher.html', '/update.html',
   '/minesweeper.html', '/solitaire.html', '/game2048.html', '/circuit.html',
+  '/stack.html', '/slice.html', '/mergedrop.html',
 ];
 
 // 320 is the narrowest phone still in use and where cramped layouts break first;

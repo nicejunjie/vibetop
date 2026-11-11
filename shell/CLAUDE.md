@@ -24,10 +24,10 @@ shell/        the desktop itself — NOT an app
                 shell set: network-only, so it can never be served stale
   install.sh    deploys the WHOLE static web root — see below
   js-syntax.test.js   cross-cutting parse guard for every deployed/injected script
-shared/       used by MANY pages — vibe-modal.js (11), gamescore.js (5)
+shared/       used by MANY pages — vibe-modal.js (11), gamescore.js (8)
 apps/
   everyday/   notes upload x11launcher files office video imageview
-  games/      minesweeper solitaire game2048 circuit   (the RTS is the optional rts-war sibling)
+  games/      minesweeper solitaire game2048 circuit stack slice mergedrop   (the RTS is the optional rts-war sibling)
   utilities/  services monitor tokenstats
   system/     update config
 ```

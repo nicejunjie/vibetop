@@ -1,5 +1,5 @@
-// gamescore.js — the one best-scores table shared by all four games
-// (Minesweeper, Solitaire, 2048, Circuit Runner).
+// gamescore.js — the one best-scores table shared by every game
+// (Minesweeper, Solitaire, 2048, Circuit Runner, Stack, Slice, Merge Drop, the RTS).
 //
 // Why it exists: the game-over card used to offer "New Game" and a ghost button,
 // and people read that second button as a *leaderboard* ("View board" → 榜) and
@@ -186,6 +186,31 @@
         return [['Runs', s.n], ['Furthest sector', s.x.sector ? pad2(s.x.sector) : '—'], ['Cleared', s.w]];
       }
     },
+    // The three one-finger games (v1.38.166). No legacy best to seed: they
+    // shipped with this table, and each keeps its header chip in its own key.
+    stack: {
+      fmt: function (v) { return v + (v === 1 ? ' floor' : ' floors'); },
+      head: function () { return 'Tallest towers'; },
+      empty: function () { return 'No tower yet.'; },
+      stats: function (s) {
+        return [['Games', s.n], ['Best combo', s.x.combo || '—'], ['Most perfects', s.x.perfects || '—']];
+      }
+    },
+    slice: {
+      head: function () { return 'Highest scores'; },
+      empty: function () { return 'No score yet.'; },
+      stats: function (s) {
+        return [['Games', s.n], ['Best combo', s.x.combo || '—'], ['Most sliced', s.x.sliced || '—']];
+      }
+    },
+    merge: {
+      head: function () { return 'Highest scores'; },
+      empty: function () { return 'No score yet.'; },
+      stats: function (s) {
+        return [['Games', s.n], ['Biggest', s.x.level ? MERGE_ICONS[s.x.level - 1] || s.x.level : '—'],
+                ['Made the whale', s.w]];
+      }
+    },
     rts: {
       // A skirmish is timed, so faster is better, and each difficulty is its
       // own board — a 12-minute win on Easy is not the same result as on Hard.
@@ -199,6 +224,9 @@
       }
     }
   };
+  // Merge Drop's ladder, smallest first — mergedrop.html carries the same list
+  // (its test asserts the two agree), so 'Biggest' can show the animal itself.
+  var MERGE_ICONS = ['🐣', '🐭', '🐹', '🐰', '🐱', '🐶', '🦊', '🐼', '🐯', '🦁', '🐳'];
   function pct(w, n) { return n ? Math.round(w * 100 / n) + '%' : '—'; }
   function pad2(n) { return (n < 10 ? '0' : '') + n; }
 
