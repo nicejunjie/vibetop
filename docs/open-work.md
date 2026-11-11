@@ -13,27 +13,18 @@ an effort that finishes gets struck here, not silently in its own file.
 
 ## 1. Live regressions — shipped, currently masked
 
-### 1.1 Window mode: side-by-side windows are broken on every viewport
-`docs/plans/window-mode-desktop-gap.md` — **investigation complete, nothing
-implemented.** Its verdict overturns what `docs/design-decisions.md` records:
-these are not old geometry gaps, they are **two regressions shipped 2026-09-01**
-(v1.19.201 + v1.19.202) that no e2e lane was run against afterwards.
+### 1.1 ~~Window mode: side-by-side windows are broken on every viewport~~ — fixed
+`docs/plans/window-mode-desktop-gap.md` describes two regressions from
+2026-09-01. Both are fixed: the grab rings now own their half of the seam
+(4px outside on east/south, 3px on west/north, pinned by
+`shell/winrz-css.test.js`), and the e2e tests open the palette by right-click
+(`2bff47b`, `6d82297`).
 
-- **Cause A** — the seam between tiled windows became `MARGIN/2 = 5px` while the
-  resize grab rings still reach **10px (12px touch)** outside the window. The
-  rings overlap the whole seam and 4px into the neighbour; CSS stacking gives
-  every contested pixel to the focused window. The geometry in `winmgr.js` is
-  **correct** — the bug is the CSS hit-testing layer in `shell/desktop.html`.
-- **Cause B** — the layout palette moved from hover to right-click in v1.19.201;
-  the tests still `.hover()`.
-
-Measured: iPad Pro landscape **5 failed**, desktop-chromium **2 failed**,
-desktop-webkit *"green only because of the skips"*. **This outranks fidelity
-work** — it is a live product defect hidden behind skip comments that claim the
-tablet lanes are still green.
-
-Also to fix when it lands: the entry in `docs/design-decisions.md` that records
-the wrong premise.
+Re-measured 2026-11-10 on the v1.38.168 build (desktop Chromium 1280x720 and
+iPad Pro 11 landscape WebKit, static copy of the shell): the 5px seam splits
+3/2 with no contested or dead pixel, dragging it widens the left window and
+leaves the right one alone, each corner hit-tests to its own window, and the
+palette opens on right-click. Nothing is currently listed in this section.
 
 ---
 

@@ -1761,7 +1761,7 @@
       // (focused → zone 0, rest in taskbar order). Apply commits exactly the
       // painted board (one shared pure-function path), so the board cannot lie.
       var grid = document.createElement('div'); grid.className = 'wl-grid';
-      grid.title = L.name + ' — select, rearrange by drag, then Apply';
+      grid.title = L.name + ' — double-click to apply, or select, rearrange by drag, then Apply';
       // Gap the zones the SAME way applyLayout places them, so a layout that was
       // applied reads back as itself (the windows sit on the gapped zones, not the
       // flush ones).
@@ -1819,6 +1819,19 @@
         selected = L.key; layoutsDirty = true; syncSel();
         if (layoutHideT) { clearTimeout(layoutHideT); layoutHideT = null; }
       };
+      // A plain click/tap on the tile: select it — and a SECOND one on the same
+      // tile within 400ms applies it at once, the shortcut for "just give me
+      // this layout" (Apply stays for a board composed by swapping, and as the
+      // obvious button). Counted here rather than from 'dblclick' so it works
+      // the same for mouse and touch, and so a drag-to-swap or a touch pick-up
+      // (which never reach this function) can never count as half of one.
+      var lastTap = 0;
+      var tap = function () {
+        var now = Date.now(), twice = now - lastTap < 400;
+        lastTap = twice ? 0 : now;
+        choose();
+        if (twice) applyLayout(L.key, staged[L.key]);
+      };
       var dragSrc = null;      // mouse drag-to-swap state for THIS tile
       var armed = -1;          // touch: long-pressed (picked up) zone
       var armedAt = 0;         // when it was picked up (the press's own lift-click
@@ -1838,7 +1851,7 @@
             if (a !== j) stage(a, j);             // staged, not applied — Apply commits
             return;
           }
-          choose();                               // a click selects; drags rearrange
+          tap();                                  // a click selects (twice = apply); drags rearrange
         });
         // Mouse: drag an icon onto another zone to swap the two occupants.
         cell.addEventListener('pointerdown', function (e) {
@@ -1900,7 +1913,7 @@
         e.stopPropagation();
         if (swallowClick) { swallowClick = false; return; }
         if (armed >= 0) { armed = -1; clearDragMarks(); return; }   // tap off the board = cancel
-        choose();
+        tap();
       });
       var nm = document.createElement('div'); nm.className = 'wl-name'; nm.textContent = L.name;
       opt.appendChild(grid); opt.appendChild(nm);
@@ -1913,8 +1926,10 @@
     foot.className = 'wl-foot';
     var hint = document.createElement('div');
     hint.className = 'wl-hint';
-    hint.textContent = IS_TOUCH ? '(hold an icon, then tap another to switch)'
-                                : '(drag to switch)';
+    // Two lines: the shortcut first, then the rearranging gesture.
+    hint.style.textAlign = 'center'; hint.style.whiteSpace = 'pre-line';
+    hint.textContent = IS_TOUCH ? 'double-tap a layout to apply it right away\nhold an icon, then tap another to switch windows'
+                                : 'double-click a layout to apply it right away\ndrag an icon onto another to switch windows';
     applyBtn = document.createElement('button');
     applyBtn.className = 'wl-apply';
     applyBtn.id = 'wl-apply';

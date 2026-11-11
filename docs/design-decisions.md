@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_537 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_538 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [Terminal link opened a closed Browser app but lost the URL](#terminal-link-opened-a-closed-browser-app-but-lost-the-url)
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
@@ -560,6 +560,7 @@ _537 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [Terminal tab order: only deliberate actions publish it (2026-11-10)](#terminal-tab-order-only-deliberate-actions-publish-it-2026-11-10)
 - [The terminal grid went stale whenever the frame changed during a connection gap (2026-11-10)](#the-terminal-grid-went-stale-whenever-the-frame-changed-during-a-connection-gap-2026-11-10)
 - [The IME draft was invisible on vibetop's own keyboards (2026-11-10)](#the-ime-draft-was-invisible-on-vibetops-own-keyboards-2026-11-10)
+- [Layout palette: double-click applies; the Apply button stays (2026-11-10)](#layout-palette-double-click-applies-the-apply-button-stays-2026-11-10)
 
 <!-- END TOC -->
 
@@ -21530,4 +21531,34 @@ fields (Files, Notes, Browser Lite) already show it natively.
 **Verified** in iPhone WebKit with synthetic composition events (position at
 the cursor, long draft stays on screen, hidden on commit, committed text
 intact). Not verified with a real IME on a device.
+
+## Layout palette: double-click applies; the Apply button stays (2026-11-10)
+
+**Request:** let a double-click on a layout apply it at once, and asked
+whether the Apply button is needed at all.
+
+**Decision:** both. Two plain clicks (or taps) on the same tile within 400ms
+apply that tile's board and close the palette. A single click still only
+selects, and Apply still commits the selected board. The caption under Apply
+now names the shortcut first and the swap gesture second.
+
+**Why Apply stays:** the palette is a staging surface. Dragging icons between
+zones composes a board without moving any window, and that needs an obvious
+commit. On touch a swap is hold-then-tap, so the button is also the one
+control that needs no explanation. Double-click is the fast path for the
+common case of taking a layout as offered.
+
+**Why it is counted in the click path, not from `dblclick`:** one code path
+for mouse and touch, and a drag-to-swap release or a touch pick-up never
+reaches it, so neither can count as half of a double. Clicks on two different
+tiles do not combine (the counter is per tile).
+
+**Rejected:**
+- **Single click applies (no staging):** the model the palette had before; a
+  click meant to start a rearrangement moved every window.
+- **Removing Apply:** leaves a composed board with no visible way to commit.
+
+**Verified** in desktop Chromium and iPad WebKit against a static copy of the
+shell: single click selects only, two slow clicks do nothing, clicks on two
+tiles do nothing, a double applies and closes, Apply still works.
 
