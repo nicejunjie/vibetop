@@ -62,12 +62,15 @@ test('standalone height releases a transient oversize after the keyboard closes'
   assert.equal(values['--app-h'], '894px');
 
   // On resume, iOS can briefly include the 62px opaque status-bar strip.
+  // The shell keeps clear of it instead of growing under the status bar.
   root.clientHeight = vv.height = 956;
   listeners.DOMContentLoaded();
-  assert.equal(values['--app-h'], '956px');
+  assert.equal(values['--app-h'], '894px');
+  assert.equal(values['--app-top'], '62px');
   root.clientHeight = vv.height = 894;
   listeners.DOMContentLoaded();
   assert.equal(values['--app-h'], '894px');
+  assert.equal(values['--app-top'], '0px');
 
   vv.height = 480; // keyboard only shrinks the visual viewport
   listeners.DOMContentLoaded();
@@ -140,4 +143,71 @@ test('ordinary Safari and earlier iOS never toggle the edge', () => {
     h.events.pageshow();h.events.resize();h.advance(2000);
     assert.equal(h.edge.style.display,'');assert.equal(h.paints.length,0);
   }
+});
+
+// A launch iOS performs while the app is hidden can leave the web view covering
+// the whole screen for the page's life (field report 2026-11-11: terminal 721pt
+// tall instead of 659, usage strips behind the status bar).
+function coverHarness(opts) {
+  const values = {}, store = Object.assign({}, opts.store), ticks = [];
+  const root = { clientHeight: opts.h, classList: { toggle() {} },
+    style: { setProperty(n, v) { values[n] = v; } } };
+  const vv = { height: opts.h, addEventListener() {} };
+  const navigator = { userAgent: opts.ua || 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_7) Version/27.0.1 Mobile/15', standalone: true };
+  const win = { navigator, visualViewport: vv, innerWidth: opts.w || 440, innerHeight: opts.h,
+    matchMedia() { return { matches: true }; } };
+  const body = { appendChild() {} };
+  const doc = { readyState: 'complete', hidden: false, documentElement: root, body,
+    createElement() { return { style: {}, parentNode: body,
+      getBoundingClientRect() { return { height: opts.sat || 0 }; } }; },
+    getElementById() { return null; }, addEventListener() {} };
+  vm.runInNewContext(source, { window: win, navigator, document: doc, matchMedia: win.matchMedia,
+    visualViewport: vv, screen: { height: opts.screen || 956, width: 440 }, location: { hash: '' },
+    localStorage: { getItem(k) { return k in store ? store[k] : null; }, setItem(k, v) { store[k] = String(v); } },
+    addEventListener() {}, setTimeout() {}, clearTimeout() {},
+    setInterval(fn) { ticks.push(fn); } }, { filename: 'apph.js' });
+  return { values, store, root, vv, win, tick() { ticks.forEach(fn => fn()); } };
+}
+test('a web view left under the status bar: the shell moves below it', () => {
+  const h = coverHarness({ h: 956, sat: 62 });
+  assert.equal(h.values['--app-top'], '62px');
+  assert.equal(h.values['--app-h'], '894px');
+});
+test('with no safe-area report, the bar height learned on a normal launch is used', () => {
+  const normal = coverHarness({ h: 894 });
+  assert.equal(normal.values['--app-top'], '0px');
+  assert.equal(normal.values['--app-h'], '894px');
+  assert.equal(normal.store['vt:statusbar-h'], '62');
+  const covered = coverHarness({ h: 956, store: normal.store });
+  assert.equal(covered.values['--app-top'], '62px');
+  assert.equal(covered.values['--app-h'], '894px');
+});
+test('the cover is found and released with no event at all (watchdog)', () => {
+  const h = coverHarness({ h: 894 });
+  h.root.clientHeight = h.vv.height = h.win.innerHeight = 956;
+  h.tick();
+  assert.equal(h.values['--app-top'], '62px');
+  assert.equal(h.values['--app-h'], '894px');
+  h.root.clientHeight = h.vv.height = h.win.innerHeight = 894;
+  h.tick();
+  assert.equal(h.values['--app-top'], '0px');
+  assert.equal(h.values['--app-h'], '894px');
+});
+test('no top offset in landscape, off iOS, or with nothing known about the bar', () => {
+  // landscape iPhone: full height is legitimate, there is no status bar
+  const land = coverHarness({ h: 440, w: 956, sat: 0, store: { 'vt:statusbar-h': '62' } });
+  assert.equal(land.values['--app-top'], '0px');
+  assert.equal(land.values['--app-h'], '440px');
+  const android = coverHarness({ h: 956, sat: 30, ua: 'Mozilla/5.0 (Linux; Android 16) Chrome/140 Mobile' });
+  assert.equal(android.values['--app-top'], '0px');
+  assert.equal(android.values['--app-h'], '956px');
+  const unknown = coverHarness({ h: 956 });
+  assert.equal(unknown.values['--app-top'], '0px');
+  assert.equal(unknown.values['--app-h'], '956px');
+});
+test('the keyboard does not look like a covered status bar', () => {
+  const h = coverHarness({ h: 894 });
+  h.vv.height = 480; h.tick();
+  assert.equal(h.values['--app-top'], '0px');
+  assert.equal(h.values['--app-h'], '894px');
 });

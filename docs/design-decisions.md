@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_539 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_540 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [Terminal link opened a closed Browser app but lost the URL](#terminal-link-opened-a-closed-browser-app-but-lost-the-url)
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
@@ -562,6 +562,7 @@ _539 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [The IME draft was invisible on vibetop's own keyboards (2026-11-10)](#the-ime-draft-was-invisible-on-vibetops-own-keyboards-2026-11-10)
 - [Layout palette: double-click applies; the Apply button stays (2026-11-10)](#layout-palette-double-click-applies-the-apply-button-stays-2026-11-10)
 - [A link opened on a cold Browser was lost when the phone claimed its shape (2026-11-11)](#a-link-opened-on-a-cold-browser-was-lost-when-the-phone-claimed-its-shape-2026-11-11)
+- [An installed iPhone app launched while hidden sits under the status bar](#an-installed-iphone-app-launched-while-hidden-sits-under-the-status-bar)
 
 <!-- END TOC -->
 
@@ -21608,4 +21609,37 @@ changes (last used on the Mac, opened from the phone).
 waiting hand-off survives) and by the open → reshape → re-delivery sequence
 against the manager's handlers. Not reproduced end to end on the live Browser:
 that needs killing the user's running Chromium.
+
+## An installed iPhone app launched while hidden sits under the status bar
+
+**Symptom.** On the iPhone (iOS 27, Home Screen app) the top of the shell — the
+usage strips — was behind the status bar and blurred, and the terminal was 721pt
+tall instead of the usual 659. It stayed that way until a reload.
+
+**Cause.** Normally the web view starts below the opaque status bar, so the
+content height is the screen minus the bar (894 of 956). The broken launch was the
+only one in the log that booted with `document.hidden` true, 15 seconds before it
+was shown. In that state the web view covers the whole screen, and
+`visualViewport.height` and `clientHeight` report 956. `apph.js` set `--app-h` to
+956 and the shell was laid out from y=0. Nothing was "wrong" for `apph.js` to wait
+out, which is why the settle timers never corrected it. The 62pt difference
+between the two terminal heights (721 − 659) is the evidence; the viewport metrics
+themselves were not captured, because that page had no reporting.
+
+**Fix.** `apph.js` now treats a portrait iOS viewport as tall as the screen as
+covered by the status bar. It sets `--app-top` to the bar's height and makes
+`--app-h` that much shorter; `body` takes `--app-top` as its top margin. The bar
+height is `env(safe-area-inset-top)` when iOS reports one, otherwise the gap this
+device showed on a normal launch (remembered in `localStorage`). With neither it
+does nothing. A 2-second re-measure covers the fact that this state begins and
+ends with no event. Each covered state posts a `shell-height` line to
+`/api/clientlog` with the raw metrics, so the next occurrence can be confirmed.
+
+**Rejected.** Always padding by `env(safe-area-inset-top)`: an earlier fixed top
+padding (v1.25.3) left a visible gap, and whether iOS 27 reports a non-zero inset
+on a normal launch is unknown. Reloading the page when covered: it loses the
+terminal scroll position and can loop if the state returns.
+
+**Not verified.** No iOS 27 device check yet; the covered state could not be
+produced on demand.
 
