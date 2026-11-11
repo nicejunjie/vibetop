@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_535 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_536 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [Terminal link opened a closed Browser app but lost the URL](#terminal-link-opened-a-closed-browser-app-but-lost-the-url)
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
@@ -558,6 +558,7 @@ _535 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [Restored terminals resume Claude Code and retype other commands (2026-11-06)](#restored-terminals-resume-claude-code-and-retype-other-commands-2026-11-06)
 - [Terminal restore: what an independent test broke (2026-11-08)](#terminal-restore-what-an-independent-test-broke-2026-11-08)
 - [Terminal tab order: only deliberate actions publish it (2026-11-10)](#terminal-tab-order-only-deliberate-actions-publish-it-2026-11-10)
+- [The terminal grid went stale whenever the frame changed during a connection gap (2026-11-10)](#the-terminal-grid-went-stale-whenever-the-frame-changed-during-a-connection-gap-2026-11-10)
 
 <!-- END TOC -->
 
@@ -21422,3 +21423,78 @@ changes never write the shared order. A static test pins that.
   any device that merely loads push its order over the one the user set.
 - **Server-side merge of partial lists:** the partial lists were never meant
   as orders, so merging would treat noise as intent.
+
+## The terminal grid went stale whenever the frame changed during a connection gap (2026-11-10)
+
+**Symptom:** a long-running report, mostly from the phone: the terminal
+"sometimes" leaves a blank band underneath, or runs too far down so its bottom
+rows (usually the prompt) are cut off. Switching tabs or apps sometimes cured
+it. Many earlier fixes aimed at the shell height, the keyboard and the PTY
+claim.
+
+**Evidence, from the fleet's own logs before any code was read closely:**
+- `terminal-geometry` clientlog samples from the reporting iPhone: 8 of 445 had
+  more rows than the frame holds (for example 44 rows, 748px, in a 659px
+  frame), never fewer. Most were taken with the socket closed or connecting.
+- The per-typing-session `client-debug` beacons caught it live: on 2026-11-09
+  18:32 the user tapped to type four times in 43 seconds with a 44-row grid in
+  a frame that fits 38.
+- The frame height on that phone is not constant: 773, 722, 711, 670, 659. The
+  two usage strips arrive on the heartbeat and wrap to about 52px each, so the
+  frame changes height well after load and whenever a strip re-wraps.
+
+**Cause:** ttyd 1.7.7 fits once in `open()` and afterwards only from
+`window 'resize' → fitAddon.fit()`, a listener it registers in
+`initListeners()` when its socket **opens** and disposes when the socket
+**closes**. It does not fit on reconnect; its handshake just sends the current
+`cols/rows`. So a frame size change during any connection gap is never applied:
+page load before the first socket, a phone in the background, a background tab
+(the connection guard only reconnects the foreground tab), a network blip. The
+stale size then goes to the PTY in the handshake, and on touch the post-replay
+`claimSize()` asserted it again. The desktop was mostly rescued by its own
+`ResizeObserver` + re-fit after reconnect; touch had no re-fit at all (see the
+v1.19.25 entry, which noted the short initial fit and left it).
+
+**Reproduced** with `tests/e2e/terminal-fit.py` (private ttyd, prod's injected
+scripts, server stopped and restarted under a live page), on iPhone WebKit and
+desktop Chromium: shrink during a gap left 46 rows in a 36-row frame and
+`stty size` said 46; grow while hidden and disconnected left 38 rows in a
+45-row frame.
+
+**Fix:** `terminal-kbd.js` owns the fit as an invariant instead of trusting
+ttyd's listener or any single event. `fitNow()` calls `term.fit()` directly
+(independent of the socket), is a no-op when the grid already matches, and
+skips a hidden terminal. It runs from a `ResizeObserver` on the container (all
+devices), window `resize`, `visibilitychange`/`pageshow`, the socket `open`
+(our listener is registered before ttyd's, so the handshake carries the
+corrected size), the end of a replay (before the touch claim), and a 2s
+watchdog. Each correction is logged (`"k": "terminal-fit"`, geometry only)
+with the signal that caught it, so a path that still slips through shows up as
+a `watchdog` line.
+
+**Why a watchdog is acceptable here when the v1.19.11 shell watchdog was
+reverted:** that one corrected a height from metrics iOS reports
+inconsistently, and its output fed its own input (v1.19.14). This one compares
+the grid with a pure function of the container and the cell size, neither of
+which depends on the grid, so it is idempotent and cannot ratchet.
+
+**The "no ResizeObserver on touch" rule still stands for claims, not for
+fits.** That rule exists so a collapsing URL bar does not re-claim the shared
+PTY. A fit only acts when this device's own frame really changed, and ttyd's
+own listener already did exactly that whenever it was connected.
+
+**Not changed, and still unverified on a device:** the shell-height path
+(`apph.js`) and the keyboard lift. One iPhone sample shows the frame at 266px
+(the shell collapsed to the area above the keyboard) and the grid followed it
+correctly; with this fix the grid also follows it back. If a blank band
+persists with a correct grid, the `terminal-fit` and `terminal-geometry` lines
+will show the frame height that caused it.
+
+**Rejected:**
+- **Dispatching more synthetic `resize` events** (the existing nudges): ttyd's
+  listener does not exist during a gap, so the event re-fits nothing.
+- **Patching ttyd's bundle through another `sub_filter`** to keep its listener
+  alive: tied to one minified build, and still event-only.
+- **Reloading `/tN/` on reconnect:** it would fix the grid at the cost of the
+  scroll position and a visible flash on every wake.
+

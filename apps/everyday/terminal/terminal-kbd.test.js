@@ -358,3 +358,92 @@ test('phone typing follows the live line without repeated resize nudges', () => 
   h.advance(1001); h.emit('pointerdown');
   assert.equal(h.sent.length, 4, 'another terminal tap can reclaim after another device');
 });
+
+// ---- The fit invariant --------------------------------------------------
+// ttyd only re-fits from a window 'resize' listener that exists while its
+// socket is open, so a frame resized during a connection gap kept a stale
+// grid: rows cut off below the frame, or a blank band underneath. fitNow()
+// owns the fit instead. Extract it and run it against a fake xterm.
+function loadFitNow(env) {
+  const m = SRC.match(/var lastFitLog = 0;\s*(function fitNow\(reason\) \{[\s\S]*?\n  \})\n  var _fitT/);
+  assert.ok(m, "could not find fitNow in terminal-kbd.js");
+  const ctx = Object.assign({
+    document: { hidden: false },
+    location: { pathname: "/t1/" },
+    navigator: { userAgent: "test" },
+    lastFitLog: 0,
+    ttydWS: null,
+    armed: 0,
+    posts: [],
+    atLatest: () => true,
+    traceScroll: () => {},
+    Date, Math, JSON,
+  }, env);
+  ctx.armLatest = () => { ctx.armed++; };
+  ctx.fetch = (url, opts) => { ctx.posts.push(JSON.parse(opts.body)); return { catch() {} }; };
+  vm.runInNewContext(m[1] + "; this.fitNow = fitNow;", ctx);
+  return ctx;
+}
+function fakeTerm(grid, proposed, box) {
+  const t = {
+    cols: grid[0], rows: grid[1], fits: 0,
+    element: { clientWidth: box[0], clientHeight: box[1], getBoundingClientRect: () => ({ height: box[1] }) },
+    fit() { t.fits++; t.cols = proposed[0]; t.rows = proposed[1]; },
+  };
+  return t;
+}
+
+test("fitNow corrects a stale grid with the socket closed, and reports it", () => {
+  const term = fakeTerm([54, 44], [54, 38], [440, 659]);
+  const ctx = loadFitNow({ window: { term }, ttydWS: { readyState: 3 } });
+  assert.equal(ctx.fitNow("watchdog"), true);
+  assert.deepEqual([term.cols, term.rows], [54, 38]);
+  assert.equal(ctx.armed, 1, "a viewport that was following stays at the latest line");
+  const g = ctx.posts[0].guard[0];
+  assert.equal(g.k, "terminal-fit");
+  assert.equal(g.reason, "watchdog");
+  assert.deepEqual(Array.from(g.from), [54, 44]);
+  assert.deepEqual(Array.from(g.to), [54, 38]);
+  assert.equal(g.socket, 3);
+});
+
+test("fitNow is a silent no-op when the grid already fits", () => {
+  const term = fakeTerm([54, 38], [54, 38], [440, 659]);
+  const ctx = loadFitNow({ window: { term } });
+  assert.equal(ctx.fitNow("observer"), false);
+  assert.equal(ctx.armed, 0);
+  assert.equal(ctx.posts.length, 0);
+});
+
+test("fitNow never fits a hidden terminal", () => {
+  // A background tab is display:none (zero box); fitting it would reshape the
+  // shared PTY for a terminal nobody is looking at.
+  const hiddenTab = fakeTerm([54, 44], [2, 1], [0, 0]);
+  assert.equal(loadFitNow({ window: { term: hiddenTab } }).fitNow("observer"), false);
+  assert.equal(hiddenTab.fits, 0);
+  const hiddenPage = fakeTerm([54, 44], [54, 38], [440, 659]);
+  assert.equal(loadFitNow({ window: { term: hiddenPage }, document: { hidden: true } }).fitNow("visible"), false);
+  assert.equal(hiddenPage.fits, 0);
+});
+
+test("fitNow does not pull a reader out of scrollback", () => {
+  const term = fakeTerm([54, 44], [54, 38], [440, 659]);
+  const ctx = loadFitNow({ window: { term }, atLatest: () => false });
+  assert.equal(ctx.fitNow("resize"), true);
+  assert.equal(ctx.armed, 0);
+});
+
+test("the fit runs from every signal, not only ttyd's resize listener", () => {
+  // Socket open: before ttyd's handshake reads cols/rows.
+  assert.match(SRC, /addEventListener\('open', function \(\) \{[\s\S]{0,700}?fitNow\('connect'\)/);
+  // End of replay: before the touch claim sends this grid to the shared PTY.
+  const replay = SRC.indexOf("fitNow('replay')"), claim = SRC.indexOf("try { claimSize(); } catch (_) {}");
+  assert.ok(replay > 0 && claim > replay, "fit must precede the post-replay claim");
+  // reFit must not rely on the dispatched event alone.
+  assert.match(SRC, /fitNow\('refit'\);\s*window\.dispatchEvent\(new Event\('resize'\)\)/);
+  // Container observer on every device, plus the watchdog.
+  assert.match(SRC, /new ResizeObserver\(function \(\) \{ fitSoon\('observer'\); \}\)/);
+  assert.match(SRC, /setInterval\(function \(\) \{ fitNow\('watchdog'\); \}, 2000\)/);
+  // All of it sits above the desktop early return, so touch gets it too.
+  assert.ok(SRC.indexOf("fitNow('watchdog')") < SRC.indexOf("window.addEventListener('dblclick', claimSize)"));
+});

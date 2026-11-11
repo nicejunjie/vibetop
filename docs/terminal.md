@@ -143,6 +143,22 @@ Re-claim shape across devices: because the PTY is **shared**, its
 so after switching active device the TUI inside renders at the other
 device's shape.
 
+**The fit invariant (every device).** While a terminal is visible its grid must
+be exactly what FitAddon proposes for its frame. ttyd itself cannot keep that:
+it fits when xterm opens and afterwards only from a window `resize` listener it
+adds when its socket opens and removes when the socket closes, and it does not
+fit on reconnect. A frame resized during a connection gap therefore kept a stale
+grid (rows cut off below the frame, or a blank band underneath) and sent that
+size to the PTY on reconnect. `terminal-kbd.js`'s `fitNow()` owns the fit
+instead: it calls the FitAddon directly (`term.fit`, which works with the socket
+closed), is a no-op when the grid is right, never fits a hidden terminal, and
+runs from an observer on the container, window `resize`, becoming visible, the
+socket opening (before ttyd's handshake reads cols/rows), the end of a replay,
+and a 2s watchdog. A correction is logged as `clientlog … "k": "terminal-fit"`
+with the signal that caught it. History and evidence:
+`docs/design-decisions.md` §"The terminal grid went stale whenever the frame
+changed during a connection gap". Regression: `tests/e2e/terminal-fit.py`.
+
 **Automatic self-heal (desktop).** The terminal can also drift to a wrong width
 *mid-session on the same device* — every line wrapping ~1 column too narrow
 ("the screen wrapped itself, I did nothing"), most often when a brief WebSocket

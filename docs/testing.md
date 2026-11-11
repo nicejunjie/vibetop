@@ -296,6 +296,12 @@ so you can iterate without deploying. Drop that route to watch it fail the way t
 bug did.
 
 
+For the terminal's fit invariant (the grid always matches its frame, including
+after a connection gap), run `tests/e2e/terminal-fit.py --engine webkit` and
+`--engine chromium` (`--executable PATH` if Playwright cannot find its browser).
+It starts a private ttyd on a spare port with the same injected scripts as prod
+and stops and restarts it under a live page, so it touches no vibetop session.
+
 For the terminal's split conversation redraw regression, run
 `tests/e2e/terminal-history-redraw.py --chromium PATH --webkit PATH` using the
 Playwright Python environment and installed browser executables. It serves the

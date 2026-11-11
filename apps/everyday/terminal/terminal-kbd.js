@@ -396,6 +396,9 @@
       if (done) return; done = true;
       clearTimeout(show); if (idle) clearTimeout(idle); if (cap) clearTimeout(cap);
       _barHide();
+      // The claim below sends THIS grid to the shared PTY, so the grid must be
+      // right first (see the fit invariant further down).
+      if (ws === ttydWS) fitNow('replay');
       // A reconnect is passive on the shared PTY. Replay can therefore contain
       // another device's geometry until this visible mobile client claims it.
       // Do this after replay, not on the first touch; never let an old socket,
@@ -430,14 +433,18 @@
   // longer have to switch apps and back to un-wrap it. Guarded to non-zero size;
   // ttyd only resizes the PTY when the computed cols/rows ACTUALLY change, so a
   // steady terminal sees no churn (no "shake") and a same-size refit is a no-op.
-  // Mobile keeps its own keyboard/caret-aware resize path (two-finger claim), so
-  // this is desktop-only. (function declarations → hoisted, usable below.)
+  // Desktop-only; the fit itself is no longer (see the fit invariant below, which
+  // covers every device). (function declarations → hoisted, usable below.)
   function reFit() {
     traceScroll('fit');
     try {
       var t = window.term;
       if (t && t.element && t.element.clientWidth > 0) {
         var follow = atLatest();
+        // Fit directly first: ttyd's own 'resize' listener only exists while
+        // its socket is open (see the fit invariant below), so the dispatch
+        // alone re-fits nothing during a reconnect.
+        fitNow('refit');
         window.dispatchEvent(new Event('resize'));
         // A same-size FitAddon call is a no-op. Explicitly invalidate the
         // canvas after layout changes instead of relying on a grid resize.
@@ -466,6 +473,9 @@
             // as it fills; manual scrolling can cancel following immediately.
             clearReader();
             vtFollowOnReconnect = true;
+            // This listener is registered before ttyd's own, so it runs first:
+            // ttyd's handshake then carries the corrected cols/rows to the PTY.
+            fitNow('connect');
             try { armLatest(); } catch (_) {}
           });
         } catch (_) {}
@@ -479,6 +489,83 @@
     WS.CONNECTING = Native.CONNECTING; WS.OPEN = Native.OPEN;
     WS.CLOSING = Native.CLOSING; WS.CLOSED = Native.CLOSED;
     try { window.WebSocket = WS; } catch (_) {}
+  })();
+
+  // ---- The fit invariant ------------------------------------------------
+  // While this terminal is visible, its grid must be exactly what FitAddon
+  // proposes for its container. Too many rows and the bottom of the terminal
+  // (usually the prompt) is cut off below the frame; too few and a blank band
+  // is left underneath. Both were long-running reports, mostly from phones.
+  //
+  // Cause: ttyd fits once when xterm opens and after that only from a window
+  // 'resize' listener that it ADDS when its socket opens and REMOVES when the
+  // socket closes — and it does not fit when it reconnects. So any change of
+  // the frame's size during a connection gap is lost for good: while the page
+  // loads, while a phone is in the background, while a background tab waits
+  // to reconnect, during a network blip. On a phone the frame changes height
+  // at those very moments (the usage strips arrive and re-wrap on the
+  // heartbeat). The desktop was mostly rescued by its own observer + re-fit;
+  // touch had nothing.
+  //
+  // So the fit no longer depends on ttyd's listener or on any one event
+  // reaching this page. fitNow() calls the FitAddon directly (ttyd exposes it
+  // as term.fit, which works with the socket closed) and is a no-op when the
+  // grid is already right. It runs from every signal that can change the
+  // container — an observer on the container, window resize, becoming
+  // visible, the socket opening, the end of a replay — and from a slow
+  // watchdog, because the property is cheap to check and an event that never
+  // arrives cannot be handled. It reads only the container and the cell size,
+  // neither of which depends on the grid, so it cannot feed back into itself.
+  // A correction is reported (geometry only) with the signal that caught it.
+  var lastFitLog = 0;
+  function fitNow(reason) {
+    try {
+      var t = window.term;
+      if (!t || typeof t.fit !== 'function' || !t.element) return false;
+      // A hidden terminal has no size to fit to, and must not reshape the
+      // shared PTY for a tab nobody is looking at.
+      if (document.hidden || t.element.clientWidth <= 0 || t.element.clientHeight <= 0) return false;
+      var c = t.cols, r = t.rows, follow = atLatest();
+      t.fit();
+      if (t.cols === c && t.rows === r) return false;
+      traceScroll('fit-correct');
+      if (follow) armLatest();
+      var now = Date.now();
+      if (now - lastFitLog > 5000) {
+        lastFitLog = now;
+        try {
+          fetch('/api/clientlog', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ ua: navigator.userAgent, guard: [{ k: 'terminal-fit', reason: reason,
+              path: location.pathname, from: [c, r], to: [t.cols, t.rows],
+              height: Math.round(t.element.getBoundingClientRect().height),
+              socket: ttydWS ? ttydWS.readyState : null }] }) }).catch(function () {});
+        } catch (_) {}
+      }
+      return true;
+    } catch (_) { return false; }
+  }
+  var _fitT = null;
+  function fitSoon(reason) {
+    if (_fitT) clearTimeout(_fitT);
+    _fitT = setTimeout(function () { _fitT = null; fitNow(reason); }, 60);
+  }
+  window.addEventListener('resize', function () { fitSoon('resize'); });
+  window.addEventListener('pageshow', function () { fitSoon('pageshow'); });
+  if (document.addEventListener) document.addEventListener('visibilitychange', function () {
+    if (!document.hidden) fitSoon('visible');
+  });
+  (function watchFit() {
+    var t = window.term;
+    if (!t || !t.element) { setTimeout(watchFit, 100); return; }
+    fitNow('ready');
+    try {
+      if (window.ResizeObserver) {
+        var ro = new ResizeObserver(function () { fitSoon('observer'); });
+        ro.observe(t.element);
+        if (t.element.parentElement) ro.observe(t.element.parentElement);
+      }
+    } catch (_) {}
+    setInterval(function () { fitNow('watchdog'); }, 2000);
   })();
 
   // Re-claim the shared PTY's shape for THIS device (double-click on desktop,
