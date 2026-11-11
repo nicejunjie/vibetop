@@ -1926,10 +1926,10 @@
     foot.className = 'wl-foot';
     var hint = document.createElement('div');
     hint.className = 'wl-hint';
-    // Two lines: the shortcut first, then the rearranging gesture.
-    hint.style.textAlign = 'center'; hint.style.whiteSpace = 'pre-line';
-    hint.textContent = IS_TOUCH ? 'double-tap a layout to apply it right away\nhold an icon, then tap another to switch windows'
-                                : 'double-click a layout to apply it right away\ndrag an icon onto another to switch windows';
+    // Kept to a few words: the shortcut, then the rearranging gesture.
+    hint.style.textAlign = 'center';
+    hint.textContent = IS_TOUCH ? 'double-tap to apply \u00b7 hold, then tap to swap'
+                                : 'double-click to apply \u00b7 drag to swap';
     applyBtn = document.createElement('button');
     applyBtn.className = 'wl-apply';
     applyBtn.id = 'wl-apply';

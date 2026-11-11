@@ -49,6 +49,6 @@ test("plain tile clicks go through tap(); swaps and the Apply button do not", ()
 });
 
 test("the caption names the shortcut on both pointer types", () => {
-  assert.match(SRC, /double-tap a layout to apply it right away/);
-  assert.match(SRC, /double-click a layout to apply it right away/);
+  assert.match(SRC, /'double-tap to apply \\u00b7 hold, then tap to swap'/);
+  assert.match(SRC, /'double-click to apply \\u00b7 drag to swap'/);
 });
