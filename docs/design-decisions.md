@@ -21614,32 +21614,31 @@ that needs killing the user's running Chromium.
 
 **Symptom.** On the iPhone (iOS 27, Home Screen app) the top of the shell — the
 usage strips — was behind the status bar and blurred, and the terminal was 721pt
-tall instead of the usual 659. It stayed that way until a reload.
+tall instead of the usual 659. It stayed that way until a reload, sometimes two.
 
-**Cause.** Normally the web view starts below the opaque status bar, so the
-content height is the screen minus the bar (894 of 956). The broken launch was the
-only one in the log that booted with `document.hidden` true, 15 seconds before it
-was shown. In that state the web view covers the whole screen, and
-`visualViewport.height` and `clientHeight` report 956. `apph.js` set `--app-h` to
-956 and the shell was laid out from y=0. Nothing was "wrong" for `apph.js` to wait
-out, which is why the settle timers never corrected it. The 62pt difference
-between the two terminal heights (721 − 659) is the evidence; the viewport metrics
-themselves were not captured, because that page had no reporting.
+**Cause.** Normally the metrics give the area below the status bar (894 of 956).
+On the broken launch, the only one in the log that booted with `document.hidden`
+true, `visualViewport.height`, `clientHeight` and `innerHeight` all reported 956
+with `env(safe-area-inset-top)` at 62 (logged 2026-11-11 07:59:12), and kept doing
+so. `apph.js` set `--app-h` to 956, so the shell was 62pt taller than the area
+iOS actually shows. Its top slid behind the status bar, where iOS 27 draws
+scrolled-out content blurred.
 
-**Fix.** `apph.js` now treats a portrait iOS viewport as tall as the screen as
-covered by the status bar. It sets `--app-top` to the bar's height and makes
-`--app-h` that much shorter; `body` takes `--app-top` as its top margin. The bar
-height is `env(safe-area-inset-top)` when iOS reports one, otherwise the gap this
-device showed on a normal launch (remembered in `localStorage`). With neither it
-does nothing. A 2-second re-measure covers the fact that this state begins and
-ends with no event. Each covered state posts a `shell-height` line to
-`/api/clientlog` with the raw metrics, so the next occurrence can be confirmed.
+**First fix, wrong (v1.38.172).** Assumed the web view really covered the screen
+and moved the shell down by 62pt. The operator immediately saw an empty band
+under the status bar: the visible area still starts below the bar, so only the
+height was wrong.
 
-**Rejected.** Always padding by `env(safe-area-inset-top)`: an earlier fixed top
-padding (v1.25.3) left a visible gap, and whether iOS 27 reports a non-zero inset
-on a normal launch is unknown. Reloading the page when covered: it loses the
-terminal scroll position and can loop if the state returns.
+**Fix (v1.38.173).** When a portrait iOS viewport is reported as tall as the
+screen, `apph.js` caps `--app-h` at screen minus the status bar and leaves the
+shell at the top. The bar height is `env(safe-area-inset-top)` when reported,
+otherwise the gap this device showed on a normal launch (remembered in
+`localStorage`); with neither it does nothing. A 2-second re-measure covers the
+state starting and ending with no event. Each occurrence posts a `shell-height`
+line to `/api/clientlog`.
 
-**Not verified.** No iOS 27 device check yet; the covered state could not be
-produced on demand.
+**Rejected.** Reloading when the state is detected: the deploy reload at 07:59:12
+did not clear it, and it loses the terminal scroll position.
 
+**Not verified.** The state cannot be produced on demand, so v1.38.173 has not
+been seen working on the device.

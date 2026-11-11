@@ -99,15 +99,16 @@
     return Math.round(h);
   }
 
-  // ---- the web view can end up UNDER the status bar -------------------------------
-  // Normally an installed app's web view starts below the opaque status bar, so the
-  // content height is screen − status bar (894 of 956). A launch that iOS performs
-  // while the app is still hidden can leave the web view covering the whole screen
-  // for the page's life: every metric then honestly reports 956, the shell is laid
-  // out from y=0 and its first rows sit behind the status bar (blurred by iOS 27).
-  // No metric is "wrong" in that state, so it cannot be waited out — the shell has
-  // to keep clear of the strip itself: --app-top pushes it down, --app-h loses the
-  // same amount.
+  // ---- iOS can report the whole screen as the viewport ---------------------------
+  // Normally an installed app's metrics give the area below the status bar (894 of
+  // a 956pt screen). After some launches (seen on one that booted while hidden) iOS
+  // 27 reports 956 for visualViewport, clientHeight and innerHeight for as long as
+  // the page lives, although only 894 is actually shown. A 956pt shell is then 62pt
+  // taller than its window: its top slides behind the status bar (blurred) or its
+  // bottom is cut off. The numbers never correct themselves, so the shell height is
+  // capped at screen − status bar. The shell is NOT moved down: v1.38.172 did that
+  // and left an empty band under the status bar, which is how we know the visible
+  // area still starts below the bar in this state.
   var isIOS = /(?:iPhone|iPad|iPod)/.test(navigator.userAgent);
   var BAR_KEY = 'vt:statusbar-h';
   var satProbe = null;
@@ -128,8 +129,8 @@
     catch (e) { return 0; }
   }
   var barH = 0;
-  // How much of the top of a `h`-tall viewport the status bar covers (0 = none).
-  function coveredTop(h) {
+  // How much of a reported `h` is really the status bar's strip (0 = none).
+  function barExcess(h) {
     if (!isIOS) return 0;
     var sc = screen.height || 0;
     var portrait = !(window.innerWidth > window.innerHeight);
@@ -140,8 +141,8 @@
       return 0;
     }
     if (gap > 1) return 0;                   // keyboard / Split View / anything else
-    // Full-screen web view. iOS reports the strip as the top safe area there; fall
-    // back to the height this device showed while it was laid out normally.
+    // Reported full-screen. iOS gives the strip as the top safe area there; fall
+    // back to the gap this device showed while its numbers were right.
     return safeTop() || barH || learnedBar();
   }
 
@@ -157,7 +158,7 @@
       fetch('/api/clientlog', { method: 'POST', credentials: 'same-origin', cache: 'no-store',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ua: navigator.userAgent, at: now, sw: [], guard: [{
-          k: 'shell-height', appH: h, top: top, sat: safeTop(), bar: barH || learnedBar(),
+          k: 'shell-height', appH: h, cut: top, sat: safeTop(), bar: barH || learnedBar(),
           ch: root.clientHeight || 0, ih: window.innerHeight || 0,
           vvh: vv ? Math.round(vv.height) : 0, vvt: vv ? Math.round(vv.offsetTop) : 0,
           sy: Math.round(window.scrollY || 0), sc: screen.height || 0,
@@ -165,13 +166,14 @@
     } catch (e) {}
   }
 
-  var maxH = 0, lastW = 0, lastTop = -1, lastApplied = 0;
+  var maxH = 0, lastW = 0, lastCut = 0, lastApplied = 0;
   function apply() {
     if (!standalone) { if (force) diag(); return; }
     var w = window.innerWidth;
     if (w !== lastW) { lastW = w; maxH = 0; }   // rotation / Split View: re-baseline
-    var top = coveredTop(contentH());
+    var top = barExcess(contentH());
     var h = contentH() - top;
+    lastCut = top;
     // The keyboard shrinks the visual viewport. Usually clientHeight stays at
     // the no-keyboard height, but iOS's shell-scrolled mode can shrink it too.
     // Compare with our prior shell height in that mode. A resume oversize is
@@ -181,10 +183,6 @@
     if (keyboardUp) { if (h > maxH) maxH = h; }
     else maxH = h;
     if (maxH > 0 && maxH !== lastApplied) { lastApplied = maxH; root.style.setProperty('--app-h', maxH + 'px'); }
-    if (!keyboardUp && top !== lastTop) {
-      lastTop = top;
-      root.style.setProperty('--app-top', top + 'px');
-    }
     if (top > 0 || lastReport) report(maxH, top);
     if (force) diag();
   }
@@ -243,8 +241,8 @@
     visualViewport.addEventListener('resize', viewportChanged);
     visualViewport.addEventListener('scroll', viewportChanged);
   }
-  // The covered state above arrives with no event at all (the page was laid out
-  // that way while hidden), and so can its end. Re-measure on a slow clock.
+  // The full-screen report above starts with no event at all, and so can its end.
+  // Re-measure on a slow clock.
   if (typeof setInterval === 'function') {
     setInterval(function () { if (!document.hidden) apply(); }, 2000);
   }
@@ -299,7 +297,7 @@
     });
     panel.textContent = rows.join('\n') +
       '\nbodyH   ' + Math.round(document.body.getBoundingClientRect().height) +
-      '\nappTop  ' + lastTop + '  safeTop ' + safeTop() + '  bar ' + (barH || learnedBar()) +
+      '\nbarCut  ' + lastCut + '  safeTop ' + safeTop() + '  bar ' + (barH || learnedBar()) +
       '\nscreen  ' + screen.width + 'x' + screen.height + '  dpr ' + window.devicePixelRatio +
       '\ninstalled ' + standalone + '  ios27 ' + ios27 +
       '\nedgeClass ' + root.classList.contains('ios27-standalone') +
