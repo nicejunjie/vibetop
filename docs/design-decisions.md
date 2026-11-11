@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_538 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_539 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [Terminal link opened a closed Browser app but lost the URL](#terminal-link-opened-a-closed-browser-app-but-lost-the-url)
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
@@ -561,6 +561,7 @@ _538 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [The terminal grid went stale whenever the frame changed during a connection gap (2026-11-10)](#the-terminal-grid-went-stale-whenever-the-frame-changed-during-a-connection-gap-2026-11-10)
 - [The IME draft was invisible on vibetop's own keyboards (2026-11-10)](#the-ime-draft-was-invisible-on-vibetops-own-keyboards-2026-11-10)
 - [Layout palette: double-click applies; the Apply button stays (2026-11-10)](#layout-palette-double-click-applies-the-apply-button-stays-2026-11-10)
+- [A link opened on a cold Browser was lost when the phone claimed its shape (2026-11-11)](#a-link-opened-on-a-cold-browser-was-lost-when-the-phone-claimed-its-shape-2026-11-11)
 
 <!-- END TOC -->
 
@@ -21561,4 +21562,50 @@ tiles do not combine (the counter is per tile).
 **Verified** in desktop Chromium and iPad WebKit against a static copy of the
 shell: single click selects only, two slow clicks do nothing, clicks on two
 tiles do nothing, a double applies and closes, Apply still works.
+
+## A link opened on a cold Browser was lost when the phone claimed its shape (2026-11-11)
+
+**Symptom:** with the Browser completely cold, tapping a link in the Terminal
+opened the Browser app but not the link. Warm, it worked.
+
+**Evidence:** the manager log has the two events in the same second:
+
+```
+2026-11-08 18:38:42 INFO browser shape -> mobile for junjie
+2026-11-08 18:38:42 WARNING browser/open: URL handoff for junjie failed (exit 143)
+```
+
+**Cause:** `/api/browser/open` starts a hand-off (`su - user -c …`) that waits
+for Chromium's window and then runs `chromium --user-data-dir=<profile> URL`.
+Opening the Browser app also connects the xpra client, which claims the
+Browser's shape for this device (`/api/browser/shape`). If the shape differs
+from the last device's, the manager restarts Chromium by SIGTERMing every
+process of that user whose cmdline contains `--user-data-dir=<profile>`. The
+waiting hand-off's shell contains that text inside its `-c` string, so it was
+killed too (143 = SIGTERM) and the URL went with it. It only bites cold
+because a warm Browser takes the URL before the claim, and only when the shape
+changes (last used on the Mac, opened from the phone).
+
+**Fix (`server/terminal-manager.py`):**
+- `_is_browser_main_cmdline`: the reshape kill matches a WHOLE
+  `--user-data-dir=<profile>` argument and skips any process with an http(s)
+  URL argument, so neither the waiting shell nor the hand-off's own Chromium
+  invocation is hit.
+- Hand-offs are tracked per user. After a reshape restarts Chromium,
+  `_redeliver_browser_handoffs` stops every hand-off that has not delivered
+  yet and starts it again with a 3s settle, so the URL goes to the new
+  instance and not to the one shutting down (browser-loop.sh sleeps 2s before
+  respawning). A hand-off that already finished is not re-sent: Chromium saves
+  its session on SIGTERM and `--restore-last-session` brings the tab back.
+
+**Rejected:**
+- **Delaying the shape claim until the URL is delivered:** couples two
+  independent clients (the terminal's link and the xpra page) through timing.
+- **Skipping the reshape when a link is pending:** the phone would get the
+  desktop layout for that session.
+
+**Verified** by tests with real processes (the Browser stand-in dies, the
+waiting hand-off survives) and by the open → reshape → re-delivery sequence
+against the manager's handlers. Not reproduced end to end on the live Browser:
+that needs killing the user's running Chromium.
 

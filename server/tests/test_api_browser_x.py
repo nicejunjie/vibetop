@@ -268,3 +268,103 @@ def test_x_activate_rejects_bad_id(client):
 def test_x_close_rejects_bad_id(client):
     status, _ = client.post("/api/x/close", {"id": "notahexid"})
     assert status == 400
+
+
+# ---- a reshape must not lose a link that is still being handed over ---------
+# Cold Browser + terminal link from a phone: /api/browser/open starts a hand-off
+# that waits for Chromium's window; the phone's xpra client then claims the
+# Browser's shape, which restarts Chromium. The reshape used to SIGTERM anything
+# whose cmdline mentioned the profile — including the waiting hand-off — so the
+# Browser opened without the link (manager log: "URL handoff ... exit 143").
+
+def test_reshape_kill_matches_only_the_browser_itself(mgr):
+    prof = "/home/u/.config/vibetop/chromium-profile"
+    flag = ("--user-data-dir=" + prof).encode()
+    main = b"\0".join([b"/usr/bin/chromium", b"--no-first-run", flag]) + b"\0"
+    helper = b"\0".join([b"/usr/bin/chromium", b"--type=renderer", flag]) + b"\0"
+    waiting_shell = b"\0".join([b"-bash", b"-c", b"i=0; while ...; exec env chromium " + flag
+                                + b' "https://example.com/x"']) + b"\0"
+    handoff = b"\0".join([b"/usr/bin/chromium", flag, b"https://example.com/x"]) + b"\0"
+    other_profile = b"\0".join([b"/usr/bin/chromium", flag + b"-other"]) + b"\0"
+    assert mgr._is_browser_main_cmdline(main, prof)
+    assert mgr._is_browser_main_cmdline(helper, prof)
+    assert not mgr._is_browser_main_cmdline(waiting_shell, prof)
+    assert not mgr._is_browser_main_cmdline(handoff, prof)
+    assert not mgr._is_browser_main_cmdline(other_profile, prof)
+
+
+def test_reshape_sigterm_spares_a_waiting_handoff(mgr, tmp_path):
+    """Real processes: the Browser dies, the hand-off waiting for it does not."""
+    import getpass, sys, time
+    prof = str(tmp_path / "profile")
+    flag = "--user-data-dir=" + prof
+    browser = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(30)", flag])
+    waiting = subprocess.Popen(["sh", "-c", f'sleep 30; echo {flag} "https://example.com/x"'])
+    try:
+        time.sleep(0.3)
+        mgr._sigterm_browser_chromium(getpass.getuser(), prof)
+        assert browser.wait(timeout=5) == -15
+        time.sleep(0.3)
+        assert waiting.poll() is None, "the waiting hand-off was killed by the reshape"
+    finally:
+        for p in (browser, waiting):
+            if p.poll() is None:
+                p.kill()
+
+
+class _PendingProc:
+    """A hand-off that is still waiting for the Browser's window."""
+    def __init__(self, args, log):
+        import threading
+        self.args, self._done, self.terminated = args, threading.Event(), False
+        log.append(self)
+
+    def poll(self):
+        return None if not self._done.is_set() else -15
+
+    def wait(self, timeout=None):
+        self._done.wait()
+        return -15
+
+    def terminate(self):
+        self.terminated = True
+        self._done.set()
+
+
+def _other_shape(client, op_cookie):
+    """Claim whichever shape the Browser is not in, so Chromium restarts."""
+    status, body = client.post("/api/browser/shape", {"shape": "mobile"}, cookie=op_cookie)
+    if not body.get("changed"):
+        status, body = client.post("/api/browser/shape", {"shape": "desktop"}, cookie=op_cookie)
+    assert status == 200 and body["changed"] is True
+
+
+def test_reshape_redelivers_a_pending_link(client, mgr, stubs, op_cookie, monkeypatch):
+    mgr._browser_handoffs.clear()
+    procs = []
+    monkeypatch.setattr(mgr.subprocess, "Popen", lambda args, **kw: _PendingProc(args, procs))
+    status, _ = client.post("/api/browser/open", {"url": "https://example.com/cold"},
+                            cookie=op_cookie)
+    assert status == 200 and len(procs) == 1
+    _other_shape(client, op_cookie)
+    assert procs[0].terminated, "the stale hand-off would deliver to the instance shutting down"
+    assert len(procs) == 2, "the pending link was not handed to the restarted Browser"
+    again = " ".join(map(str, procs[1].args))
+    assert "https://example.com/cold" in again
+    assert "sleep 3; " in again, "the re-delivery must wait out the old instance"
+    for p in procs:
+        p.terminate()
+
+
+def test_reshape_does_not_resend_a_delivered_link(client, mgr, stubs, op_cookie):
+    import time
+    mgr._browser_handoffs.clear()
+    # The stub Popen's wait() returns 0 at once: the link was delivered.
+    client.post("/api/browser/open", {"url": "https://example.com/done"}, cookie=op_cookie)
+    for _ in range(50):
+        if not any(mgr._browser_handoffs.values()):
+            break
+        time.sleep(0.02)
+    _other_shape(client, op_cookie)
+    sent = [c for c in stubs["popen"] if "https://example.com/done" in " ".join(map(str, c))]
+    assert len(sent) == 1

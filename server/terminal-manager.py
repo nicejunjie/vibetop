@@ -3173,7 +3173,7 @@ def _chromium_for_user(user):
     return binary, os.path.join(home, ".config", "vibetop", "chromium-profile")
 
 
-def _browser_url_command(uid, disp, chrome, profile, url):
+def _browser_url_command(uid, disp, chrome, profile, url, settle=0):
     """Wait for the Browser's main Chromium window before forwarding a URL.
 
     xpra binds its HTTP port before browser-loop.sh has finished launching
@@ -3185,7 +3185,12 @@ def _browser_url_command(uid, disp, chrome, profile, url):
     """
     env = (f"DISPLAY=:{disp} "
            f"DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/{uid}/bus")
-    return ("i=0; while [ \"$i\" -lt 120 ]; do "
+    # `settle`: a re-delivery after the Browser was told to restart must not hand
+    # the URL to the instance that is on its way out (its window is still mapped
+    # for a moment). browser-loop.sh sleeps 2s before respawning, so 3s is past
+    # the old window and before the new one.
+    pre = f"sleep {int(settle)}; " if settle else ""
+    return (pre + "i=0; while [ \"$i\" -lt 120 ]; do "
             f"if {env} xdotool search --onlyvisible --class '[Cc]hrom(e|ium)' "
             ">/dev/null 2>&1; then "
             f'exec env {env} {chrome} --user-data-dir={profile} "{url}"; '
@@ -3884,15 +3889,34 @@ def _chown_app(path, user=None):
         pass
 
 
-def _sigterm_browser_chromium(user, profile):
-    """SIGTERM the user's Browser chromium — identified by `--user-data-dir=<profile>`
-    in its cmdline — so browser-loop.sh respawns it in the newly-written shape.
-    A /proc scan (exact substring + owner check) rather than `pkill -f <regex>`:
-    a profile path can contain regex metacharacters, `re.escape` emits `\\-`/`\\.`
-    that pgrep's ERE mishandles (the reshape silently no-ops), and a pattern that
-    literally appears in the pkill argv risks self-matching. Manager runs as root,
-    so os.kill reaches the user's процессы."""
+def _is_browser_main_cmdline(raw, profile):
+    """True for the Browser's own Chromium processes, false for a URL hand-off.
+
+    `raw` is /proc/<pid>/cmdline. The Browser (and its helpers) carry
+    `--user-data-dir=<profile>` as a WHOLE argument. Two other things mention the
+    same text and must survive a reshape, or the link they carry is lost:
+      - the hand-off's waiting shell (`sh -c "...--user-data-dir=<profile> URL"`),
+        where the marker is only part of the one long -c argument;
+      - the hand-off's own Chromium invocation, which has the URL as an argument.
+    Matching the raw bytes killed both: on a cold start the phone claims the
+    Browser's shape a moment after a terminal link asks for it, the reshape
+    SIGTERMed the waiting hand-off (exit 143) and the Browser opened empty."""
     marker = ("--user-data-dir=" + profile).encode()
+    args = raw.split(b"\0")
+    if marker not in args:
+        return False
+    return not any(a.startswith((b"http://", b"https://")) for a in args)
+
+
+def _sigterm_browser_chromium(user, profile):
+    """SIGTERM the user's Browser chromium — identified by a whole
+    `--user-data-dir=<profile>` argument — so browser-loop.sh respawns it in the
+    newly-written shape. A /proc scan (exact argument + owner check) rather than
+    `pkill -f <regex>`: a profile path can contain regex metacharacters,
+    `re.escape` emits `\\-`/`\\.` that pgrep's ERE mishandles (the reshape
+    silently no-ops), and a pattern that literally appears in the pkill argv
+    risks self-matching. Manager runs as root, so os.kill reaches the user's
+    processes."""
     try:
         uid = pwd.getpwnam(user).pw_uid
     except KeyError:
@@ -3905,10 +3929,57 @@ def _sigterm_browser_chromium(user, profile):
             if os.stat(p).st_uid != uid:
                 continue
             with open(p + "/cmdline", "rb") as f:
-                if marker in f.read():
+                if _is_browser_main_cmdline(f.read(), profile):
                     os.kill(int(pid), signal.SIGTERM)
         except (OSError, ProcessLookupError, ValueError):
             continue
+
+
+# URL hand-offs still waiting for the Browser, per user: [(Popen, url)]. A
+# reshape restarts Chromium; a hand-off that has not delivered yet would then
+# give its URL to the instance that is shutting down. _handle_browser_shape
+# stops those and delivers them again to the new instance.
+_browser_handoffs = {}
+_browser_handoffs_lock = threading.Lock()
+
+
+def _spawn_browser_handoff(user, uid, disp, chrome, profile, url, settle=0):
+    proc = subprocess.Popen(
+        ["su", "-", user, "-c",
+         _browser_url_command(uid, disp, chrome, profile, url, settle=settle)],
+        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+    )
+    entry = (proc, url)
+    with _browser_handoffs_lock:
+        _browser_handoffs.setdefault(user, []).append(entry)
+
+    def _reap():
+        rc = proc.wait()
+        with _browser_handoffs_lock:
+            cur = _browser_handoffs.get(user, [])
+            superseded = entry not in cur     # a reshape took it over
+            if not superseded:
+                cur.remove(entry)
+        if rc and not superseded:
+            log.warning("browser/open: URL handoff for %s failed (exit %s)", user, rc)
+    threading.Thread(target=_reap, daemon=True).start()
+    return proc
+
+
+def _redeliver_browser_handoffs(user, uid, disp, chrome, profile):
+    """After a reshape SIGTERMed the Browser: stop every hand-off that has not
+    delivered yet and start it again for the new instance. Returns the URLs."""
+    with _browser_handoffs_lock:
+        pending = [e for e in _browser_handoffs.pop(user, []) if e[0].poll() is None]
+    for proc, _url in pending:
+        try:
+            proc.terminate()
+        except OSError:
+            pass
+    urls = [u for _p, u in pending]
+    for url in urls:
+        _spawn_browser_handoff(user, uid, disp, chrome, profile, url, settle=3)
+    return urls
 
 
 # ---- Content-Disposition ---------------------------------------------------
@@ -7377,16 +7448,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
         # The URL is already validated (http(s) + no shell metacharacters incl.
         # backslash) before it reaches this `su -c` shell string. The child waits
         # for the main Chromium window on a cold start, then forwards the URL.
-        # Reap it in a daemon thread so hand-offs don't pile up.
-        proc = subprocess.Popen(
-            ["su", "-", user, "-c", _browser_url_command(uid, disp, _chrome, profile, url)],
-            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-        )
-        def _reap():
-            rc = proc.wait()
-            if rc:
-                log.warning("browser/open: URL handoff for %s failed (exit %s)", user, rc)
-        threading.Thread(target=_reap, daemon=True).start()
+        # It is tracked so a reshape that restarts Chromium meanwhile can deliver
+        # it again (_redeliver_browser_handoffs), and reaped in a daemon thread.
+        _spawn_browser_handoff(user, uid, disp, _chrome, profile, url)
         _signal_browser_focus(user)     # nudge the user's desktop to switch to the Browser app
         self._json(200, {"ok": True, "url": url})
 
@@ -7536,6 +7600,16 @@ class Handler(http.server.BaseHTTPRequestHandler):
             log.warning("browser reshape failed for %s: %s", user, e)
             self._json(500, {"error": "reshape failed"})
             return
+        # A link opened a moment ago (a terminal link on a cold Browser) may
+        # still be waiting to be handed over; give it to the restarted instance.
+        try:
+            again = _redeliver_browser_handoffs(
+                user, pwd.getpwnam(user).pw_uid, _user_xpra_display(user, "browser"),
+                _chrome, profile)
+            if again:
+                log.info("browser shape: re-delivering %d pending URL(s) for %s", len(again), user)
+        except Exception as e:
+            log.warning("browser reshape: URL re-delivery failed for %s: %s", user, e)
         log.info("browser shape -> %s for %s", shape, user)
         self._json(200, {"ok": True, "shape": shape, "changed": True})
 
