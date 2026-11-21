@@ -21650,17 +21650,20 @@ occurrences. What is consistent: every occurrence was a page that booted with
 `document.hidden` true (3 of 44 logged launches), and the operator's reload
 cleared it.
 
-**Fix (v1.38.174).** A page that booted hidden on an installed iOS app reloads
-itself once, 250ms after it is first shown (`healHiddenBoot` in `apph.js`). A
-`sessionStorage` timestamp stops a second reload within 60 seconds. It logs a
-`shell-height` line with `why: hidden-boot-reload` and a wider set of metrics
-(body rect, scroll offsets, `outerHeight`, `availHeight`) first. The height cap
-from v1.38.173 is unchanged.
+**Self-reload, withdrawn (v1.38.174).** A hidden-booted page reloaded itself once
+when first shown. The deploy of that very change reloaded the affected phone and
+the state survived (as it had on 2026-11-11 07:59), so a reload does not clear it.
 
-**Open.** Whether moving the shell down (v1.38.172) was in fact the right layout
-for this state: the screenshot says the geometry matched, but the operator saw a
-gap with it. And whether a reload always clears the state: the deploy reload on
-2026-11-11 07:59 did not, the manual one 40 seconds later did.
+**Fix (v1.38.175).** That reload produced the first complete reading of the
+state, taken while visible: `clientHeight`, `innerHeight`, `outerHeight` and
+`visualViewport.height` all 956, `env(safe-area-inset-top)` 62, body at 0..894.
+With the screenshot this is unambiguous: the web view is full-screen and the top
+62pt is under the status bar. `apph.js` now sets `--app-top` to the inset (or the
+remembered bar height) whenever a portrait iOS viewport is as tall as the screen,
+and shortens `--app-h` by the same amount; `body` takes `--app-top` as its top
+margin. This is the v1.38.172 layout, which was withdrawn on a "gap" report that
+most likely described the ordinary status-bar strip — the normal state was
+described the same way afterwards.
 
-**Not verified.** The state cannot be produced on demand, so v1.38.174 has not
-been seen working on the device.
+**Not verified.** Seen on the device only through the next `shell-height` log
+line (`bt` should read 62 and `bb` 956), not by eye.

@@ -166,8 +166,9 @@ function coverHarness(opts) {
     setInterval(fn) { ticks.push(fn); } }, { filename: 'apph.js' });
   return { values, store, root, vv, win, tick() { ticks.forEach(fn => fn()); } };
 }
-test('a full-screen viewport report: the shell stays the visible height', () => {
+test('a full-screen web view: the shell moves below the status bar', () => {
   const h = coverHarness({ h: 956, sat: 62 });
+  assert.equal(h.values['--app-top'], '62px');
   assert.equal(h.values['--app-h'], '894px');
 });
 test('with no safe-area report, the bar height learned on a normal launch is used', () => {
@@ -181,9 +182,11 @@ test('the cover is found and released with no event at all (watchdog)', () => {
   const h = coverHarness({ h: 894 });
   h.root.clientHeight = h.vv.height = h.win.innerHeight = 956;
   h.tick();
+  assert.equal(h.values['--app-top'], '62px');
   assert.equal(h.values['--app-h'], '894px');
   h.root.clientHeight = h.vv.height = h.win.innerHeight = 894;
   h.tick();
+  assert.equal(h.values['--app-top'], '0px');
   assert.equal(h.values['--app-h'], '894px');
 });
 test('no cap in landscape, off iOS, or with nothing known about the bar', () => {
@@ -200,58 +203,13 @@ test('the keyboard does not look like a covered status bar', () => {
   h.vv.height = 480; h.tick();
   assert.equal(h.values['--app-h'], '894px');
 });
-test('the shell is never moved down (v1.38.172 left a band under the status bar)', () => {
-  const h = coverHarness({ h: 956, sat: 62 });
-  assert.equal('--app-top' in h.values, false);
+test('a normal launch gets no top offset, and the page carries the offset rule', () => {
+  const h = coverHarness({ h: 894, sat: 0 });
+  assert.equal(h.values['--app-top'], '0px');
   const html = fs.readFileSync(path.join(__dirname, 'desktop.html'), 'utf8');
-  assert.equal(/--app-top/.test(html), false);
+  assert.match(html, /body \{ margin-top: var\(--app-top, 0px\); \}/);
+  assert.match(html, /html \{ height: calc\(var\(--app-h, 100svh\) \+ var\(--app-top, 0px\)\); \}/);
 });
-
-// Field: every "shell behind the status bar" was a launch that booted hidden, and
-// a reload while visible is the only thing seen to clear it.
-function hiddenBootHarness(opts) {
-  const events = {}, docEvents = {}, timers = [], sent = [], session = Object.assign({}, opts.session);
-  let reloads = 0;
-  const root = { clientHeight: 894, classList: { toggle() {} }, style: { setProperty() {} } };
-  const vv = { height: 894, addEventListener() {} };
-  const navigator = { userAgent: opts.ua || 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_7) Version/27.0.1 Mobile/15', standalone: opts.standalone !== false };
-  const win = { navigator, visualViewport: vv, innerWidth: 440, innerHeight: 894,
-    matchMedia() { return { matches: opts.standalone !== false }; } };
-  const doc = { readyState: 'complete', hidden: opts.hidden, documentElement: root, body: null,
-    getElementById() { return null; }, addEventListener(n, fn) { docEvents[n] = fn; } };
-  vm.runInNewContext(source, { window: win, navigator, document: doc, matchMedia: win.matchMedia,
-    visualViewport: vv, screen: { height: 956, width: 440 },
-    location: { hash: '', reload() { reloads++; } },
-    localStorage: { getItem() { return null; }, setItem() {} },
-    sessionStorage: { getItem(k) { return k in session ? session[k] : null; }, setItem(k, v) { session[k] = String(v); } },
-    fetch(url, o) { sent.push(JSON.parse(o.body).guard[0]); return { catch() {} }; },
-    Date, addEventListener(n, fn) { events[n] = fn; },
-    setTimeout(fn, ms) { timers.push(fn); return timers.length; }, clearTimeout() {} },
-    { filename: 'apph.js' });
-  return { doc, docEvents, events, sent, session,
-    run() { timers.splice(0).forEach(fn => fn()); }, get reloads() { return reloads; } };
-}
-test('a launch that booted hidden reloads once when it is first shown', () => {
-  const h = hiddenBootHarness({ hidden: true });
-  h.run();
-  assert.equal(h.reloads, 0, 'never while still hidden');
-  h.doc.hidden = false; h.docEvents.visibilitychange(); h.run();
-  assert.equal(h.reloads, 1);
-  assert.equal(h.sent.filter(e => e.why === 'hidden-boot-reload').length, 1);
-  h.events.pageshow(); h.events.focus(); h.docEvents.visibilitychange(); h.run();
-  assert.equal(h.reloads, 1, 'one attempt per page');
-});
-test('the hidden-boot reload cannot loop', () => {
-  const h = hiddenBootHarness({ hidden: true, session: { 'vt:hidden-boot-reload': String(Date.now() - 5000) } });
-  h.doc.hidden = false; h.docEvents.visibilitychange(); h.run();
-  assert.equal(h.reloads, 0);
-  assert.equal(h.sent.filter(e => e.why === 'hidden-boot-skip').length, 1);
-});
-test('ordinary launches, Safari tabs and other platforms never self-reload', () => {
-  for (const opts of [{ hidden: false }, { hidden: true, standalone: false },
-                      { hidden: true, ua: 'Mozilla/5.0 (Linux; Android 16) Chrome/140 Mobile' }]) {
-    const h = hiddenBootHarness(opts);
-    h.doc.hidden = false; h.docEvents.visibilitychange(); h.events.pageshow(); h.run();
-    assert.equal(h.reloads, 0, JSON.stringify(opts));
-  }
+test('a page never reloads itself over this state (reloads were logged not to clear it)', () => {
+  assert.equal(/location\.reload/.test(source), false);
 });

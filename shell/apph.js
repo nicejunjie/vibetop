@@ -99,16 +99,15 @@
     return Math.round(h);
   }
 
-  // ---- iOS can report the whole screen as the viewport ---------------------------
-  // Normally an installed app's metrics give the area below the status bar (894 of
-  // a 956pt screen). After some launches (seen on one that booted while hidden) iOS
-  // 27 reports 956 for visualViewport, clientHeight and innerHeight for as long as
-  // the page lives, although only 894 is actually shown. A 956pt shell is then 62pt
-  // taller than its window: its top slides behind the status bar (blurred) or its
-  // bottom is cut off. The numbers never correct themselves, so the shell height is
-  // capped at screen − status bar. The shell is NOT moved down: v1.38.172 did that
-  // and left an empty band under the status bar, which is how we know the visible
-  // area still starts below the bar in this state.
+  // ---- iOS can show the web view from the very top of the screen ------------------
+  // Normally an installed app's web view starts below the status bar and its
+  // metrics give that area (894 of a 956pt screen). After a launch that booted
+  // hidden, iOS 27 shows it full-screen instead, for the page's life and across
+  // reloads: clientHeight/innerHeight/visualViewport all say 956 and
+  // env(safe-area-inset-top) says 62 (logged 2026-11-21 14:12 with the body at
+  // 0..894 and a screenshot showing exactly that). The numbers are honest, so the
+  // shell has to keep clear of the bar itself: --app-top moves it down by the
+  // inset and --app-h loses the same amount.
   var isIOS = /(?:iPhone|iPad|iPod)/.test(navigator.userAgent);
   var BAR_KEY = 'vt:statusbar-h';
   var satProbe = null;
@@ -178,30 +177,10 @@
     send(snapshot('height', h, top));
   }
 
-  // ---- a launch that starts hidden comes up mis-placed ----------------------------
-  // Every field occurrence of "the top of the shell is behind the status bar" was a
-  // page that booted with document.hidden true (3 of 44 launches). iOS 27 then shows
-  // the web view from the very top of the screen, and what JS can measure differs
-  // from one occurrence to the next (956 with a 62pt top inset on 2026-11-11, an
-  // ordinary 894 on 2026-11-21), so no layout rule can be trusted to undo it. The
-  // one thing seen to clear it is loading the page again while it is visible, so do
-  // that once, the moment such a page is first shown — before the user has touched
-  // anything. Terminals are server-side sessions and simply reconnect.
   var bootHidden = false;
   try { bootHidden = !!document.hidden; } catch (e) {}
-  var HEAL_KEY = 'vt:hidden-boot-reload';
-  function healHiddenBoot() {
-    if (!bootHidden || !isIOS || !standalone || document.hidden) return;
-    bootHidden = false;                       // one attempt per page
-    var now = Date.now(), last = 0;
-    try { last = parseInt(sessionStorage.getItem(HEAL_KEY), 10) || 0; } catch (e) {}
-    send(snapshot(now - last < 60000 ? 'hidden-boot-skip' : 'hidden-boot-reload', maxH, lastCut));
-    if (now - last < 60000) return;           // never loop
-    try { sessionStorage.setItem(HEAL_KEY, String(now)); } catch (e) { return; }
-    setTimeout(function () { try { location.reload(); } catch (e) {} }, 250);
-  }
 
-  var maxH = 0, lastW = 0, lastCut = 0, lastApplied = 0;
+  var maxH = 0, lastW = 0, lastCut = 0, lastApplied = 0, lastTop = -1;
   function apply() {
     if (!standalone) { if (force) diag(); return; }
     var w = window.innerWidth;
@@ -218,6 +197,10 @@
     if (keyboardUp) { if (h > maxH) maxH = h; }
     else maxH = h;
     if (maxH > 0 && maxH !== lastApplied) { lastApplied = maxH; root.style.setProperty('--app-h', maxH + 'px'); }
+    if (!keyboardUp && top !== lastTop) {
+      lastTop = top;
+      root.style.setProperty('--app-top', top + 'px');
+    }
     if (top > 0 || lastReport) report(maxH, top);
     if (force) diag();
   }
@@ -252,7 +235,7 @@
   }
   function settle() { syncTopEdge(); apply(); }
   function tick() {
-    settle(); scheduleTopEdge(); healHiddenBoot();
+    settle(); scheduleTopEdge();
     settleTimers.forEach(clearTimeout);
     settleTimers = [80, 300, 800, 1800].map(function(ms) { return setTimeout(settle, ms); });
   }
