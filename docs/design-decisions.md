@@ -21640,5 +21640,27 @@ line to `/api/clientlog`.
 **Rejected.** Reloading when the state is detected: the deploy reload at 07:59:12
 did not clear it, and it loses the terminal scroll position.
 
-**Not verified.** The state cannot be produced on demand, so v1.38.173 has not
+**The cap did not help (2026-11-21).** The state came back and a screenshot showed
+the shell drawn from the very top of the screen with 62pt of page background
+below the taskbar: the web view really is full-screen there, so capping the
+height only moved the error to the bottom. That occurrence logged no full-screen
+height at all (the terminal was the normal 659pt), while 2026-11-11 logged 956
+with a 62pt top inset, so what JS can measure is not consistent between
+occurrences. What is consistent: every occurrence was a page that booted with
+`document.hidden` true (3 of 44 logged launches), and the operator's reload
+cleared it.
+
+**Fix (v1.38.174).** A page that booted hidden on an installed iOS app reloads
+itself once, 250ms after it is first shown (`healHiddenBoot` in `apph.js`). A
+`sessionStorage` timestamp stops a second reload within 60 seconds. It logs a
+`shell-height` line with `why: hidden-boot-reload` and a wider set of metrics
+(body rect, scroll offsets, `outerHeight`, `availHeight`) first. The height cap
+from v1.38.173 is unchanged.
+
+**Open.** Whether moving the shell down (v1.38.172) was in fact the right layout
+for this state: the screenshot says the geometry matched, but the operator saw a
+gap with it. And whether a reload always clears the state: the deploy reload on
+2026-11-11 07:59 did not, the manual one 40 seconds later did.
+
+**Not verified.** The state cannot be produced on demand, so v1.38.174 has not
 been seen working on the device.

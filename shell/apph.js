@@ -146,6 +146,28 @@
     return safeTop() || barH || learnedBar();
   }
 
+  // Everything JS can see about where the page sits, for the manager log.
+  function snapshot(why, h, top) {
+    var vv = window.visualViewport, body = document.body, se = document.scrollingElement;
+    var br = null;
+    try { br = body && body.getBoundingClientRect(); } catch (e) {}
+    return { k: 'shell-height', why: why, appH: h, cut: top, sat: safeTop(), bar: barH || learnedBar(),
+      ch: root.clientHeight || 0, ih: window.innerHeight || 0, oh: window.outerHeight || 0,
+      vvh: vv ? Math.round(vv.height) : 0, vvt: vv ? Math.round(vv.offsetTop) : 0,
+      vpt: vv ? Math.round(vv.pageTop) : 0,
+      sy: Math.round(window.scrollY || 0), st: se ? Math.round(se.scrollTop) : 0,
+      bt: br ? Math.round(br.top) : 0, bb: br ? Math.round(br.bottom) : 0,
+      sc: screen.height || 0, sah: screen.availHeight || 0,
+      hid: !!document.hidden, bootHid: bootHidden };
+  }
+  function send(entry) {
+    try {
+      fetch('/api/clientlog', { method: 'POST', credentials: 'same-origin', cache: 'no-store',
+        keepalive: true, headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ua: navigator.userAgent, at: Date.now(), sw: [], guard: [entry] })
+      }).catch(function () {});
+    } catch (e) {}
+  }
   var lastReport = '', lastReportAt = 0;
   function report(h, top) {
     var key = h + '/' + top;
@@ -153,17 +175,30 @@
     var now = Date.now();
     if (now - lastReportAt < 5000) return;
     lastReport = key; lastReportAt = now;
-    try {
-      var vv = window.visualViewport;
-      fetch('/api/clientlog', { method: 'POST', credentials: 'same-origin', cache: 'no-store',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ua: navigator.userAgent, at: now, sw: [], guard: [{
-          k: 'shell-height', appH: h, cut: top, sat: safeTop(), bar: barH || learnedBar(),
-          ch: root.clientHeight || 0, ih: window.innerHeight || 0,
-          vvh: vv ? Math.round(vv.height) : 0, vvt: vv ? Math.round(vv.offsetTop) : 0,
-          sy: Math.round(window.scrollY || 0), sc: screen.height || 0,
-          hid: !!document.hidden }] }) }).catch(function () {});
-    } catch (e) {}
+    send(snapshot('height', h, top));
+  }
+
+  // ---- a launch that starts hidden comes up mis-placed ----------------------------
+  // Every field occurrence of "the top of the shell is behind the status bar" was a
+  // page that booted with document.hidden true (3 of 44 launches). iOS 27 then shows
+  // the web view from the very top of the screen, and what JS can measure differs
+  // from one occurrence to the next (956 with a 62pt top inset on 2026-11-11, an
+  // ordinary 894 on 2026-11-21), so no layout rule can be trusted to undo it. The
+  // one thing seen to clear it is loading the page again while it is visible, so do
+  // that once, the moment such a page is first shown — before the user has touched
+  // anything. Terminals are server-side sessions and simply reconnect.
+  var bootHidden = false;
+  try { bootHidden = !!document.hidden; } catch (e) {}
+  var HEAL_KEY = 'vt:hidden-boot-reload';
+  function healHiddenBoot() {
+    if (!bootHidden || !isIOS || !standalone || document.hidden) return;
+    bootHidden = false;                       // one attempt per page
+    var now = Date.now(), last = 0;
+    try { last = parseInt(sessionStorage.getItem(HEAL_KEY), 10) || 0; } catch (e) {}
+    send(snapshot(now - last < 60000 ? 'hidden-boot-skip' : 'hidden-boot-reload', maxH, lastCut));
+    if (now - last < 60000) return;           // never loop
+    try { sessionStorage.setItem(HEAL_KEY, String(now)); } catch (e) { return; }
+    setTimeout(function () { try { location.reload(); } catch (e) {} }, 250);
   }
 
   var maxH = 0, lastW = 0, lastCut = 0, lastApplied = 0;
@@ -217,7 +252,7 @@
   }
   function settle() { syncTopEdge(); apply(); }
   function tick() {
-    settle(); scheduleTopEdge();
+    settle(); scheduleTopEdge(); healHiddenBoot();
     settleTimers.forEach(clearTimeout);
     settleTimers = [80, 300, 800, 1800].map(function(ms) { return setTimeout(settle, ms); });
   }
