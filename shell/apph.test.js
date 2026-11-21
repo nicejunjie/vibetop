@@ -148,7 +148,8 @@ test('ordinary Safari and earlier iOS never toggle the edge', () => {
 // tall instead of 659, usage strips behind the status bar).
 function coverHarness(opts) {
   const values = {}, store = Object.assign({}, opts.store), ticks = [];
-  const root = { clientHeight: opts.h, classList: { toggle() {} },
+  const classes = new Set();
+  const root = { clientHeight: opts.h, classList: { toggle(n, on) { on ? classes.add(n) : classes.delete(n); } },
     style: { setProperty(n, v) { values[n] = v; } } };
   const vv = { height: opts.h, addEventListener() {} };
   const navigator = { userAgent: opts.ua || 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_7) Version/27.0.1 Mobile/15', standalone: true };
@@ -164,7 +165,7 @@ function coverHarness(opts) {
     localStorage: { getItem(k) { return k in store ? store[k] : null; }, setItem(k, v) { store[k] = String(v); } },
     addEventListener() {}, setTimeout() {}, clearTimeout() {},
     setInterval(fn) { ticks.push(fn); } }, { filename: 'apph.js' });
-  return { values, store, root, vv, win, tick() { ticks.forEach(fn => fn()); } };
+  return { values, classes, store, root, vv, win, tick() { ticks.forEach(fn => fn()); } };
 }
 test('a full-screen web view: the shell moves below the status bar', () => {
   const h = coverHarness({ h: 956, sat: 62 });
@@ -212,4 +213,13 @@ test('a normal launch gets no top offset, and the page carries the offset rule',
 });
 test('a page never reloads itself over this state (reloads were logged not to clear it)', () => {
   assert.equal(/location\.reload/.test(source), false);
+});
+test('the strip behind the status bar is filled only while the shell is offset', () => {
+  const h = coverHarness({ h: 956, sat: 62 });
+  assert.equal(h.classes.has('under-statusbar'), true);
+  h.root.clientHeight = h.vv.height = h.win.innerHeight = 894;
+  h.tick();
+  assert.equal(h.classes.has('under-statusbar'), false);
+  const html = fs.readFileSync(path.join(__dirname, 'desktop.html'), 'utf8');
+  assert.match(html, /html\.under-statusbar #ios27-top-edge \{[^}]*height: var\(--app-top, 0px\)[^}]*background-clip: border-box/);
 });

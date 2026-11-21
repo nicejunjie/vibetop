@@ -200,6 +200,7 @@
     if (!keyboardUp && top !== lastTop) {
       lastTop = top;
       root.style.setProperty('--app-top', top + 'px');
+      root.classList.toggle('under-statusbar', top > 0);
     }
     if (top > 0 || lastReport) report(maxH, top);
     if (force) diag();

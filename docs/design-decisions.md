@@ -21665,5 +21665,13 @@ margin. This is the v1.38.172 layout, which was withdrawn on a "gap" report that
 most likely described the ordinary status-bar strip — the normal state was
 described the same way afterwards.
 
-**Not verified.** Seen on the device only through the next `shell-height` log
-line (`bt` should read 62 and `bb` 956), not by eye.
+**Still one blurred row (v1.38.176).** With the shell at 62..956 the device
+screenshot showed the layout right but the first row under the status bar still
+blurred: iOS 27's top blur reaches about 80pt down in this state, past the 62pt
+inset. The strip behind the status bar was bare page background. It is now
+filled by `#ios27-top-edge` as a real fixed, opaque bar of `--app-top` height
+(class `under-statusbar`), on the theory that WebKit swaps the blur for a solid
+fill when a fixed opaque element sits at the top edge. This is an experiment on
+the live state, not a known mechanism.
+
+**Not verified.** v1.38.176's effect on the blur has not been seen on the device.
