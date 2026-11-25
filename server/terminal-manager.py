@@ -6817,6 +6817,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
                     "sys_stats": want_sys,
                     "codex_usage": want_codex,
                     "claude_usage": cu,
+                    "hostname": socket.gethostname(),   # the tab title; not tied to sys_stats
                     "terminals_running": nterm}
         if want_sys:   # taskbar stats only when the shared toggle is on
             resp["system"] = self._get_system_status(WALL_POWER_STRIP_FRESH, want_procs=False)
@@ -9872,6 +9873,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
                     "codex_usage": want_codex,
                     "claude_usage": cu,
                     "terminals_running": nterm,
+                    "hostname": socket.gethostname(),   # the tab title; not tied to sys_stats
                 }
             if want_sys:   # taskbar stats folded onto the heartbeat
                 resp["system"] = self._get_system_status(WALL_POWER_STRIP_FRESH, want_procs=False)

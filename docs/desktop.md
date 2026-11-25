@@ -81,3 +81,7 @@ Use arrows or `j`/`k` to scroll, Page Up/Down to move between sections, and `q` 
 Ctrl-C to exit. `--once` prints a snapshot; `-n SECONDS` changes the interval.
 Network and disk rates use elapsed counter deltas; process CPU percentages use
 the whole-machine scale. GPU activity is sampled before temperature/power reads.
+
+## Browser tab title
+
+The tab is titled `<hostname> — Vibetop` (for example `z20 — Vibetop`), not after the focused app: with vibetop open on several hosts the tabs could not be told apart. The hostname comes on every `/api/desktop` reply (`hostname`, independent of the System-Stats toggle) and the last one is kept in `localStorage` (`vt:hostname`) so a reload shows it at once. `setTabTitle()` in `shell/desktop.html` is the only writer of `document.title`.

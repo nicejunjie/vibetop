@@ -474,6 +474,7 @@ function shellSandbox(parts, opts = {}) {
     function pushDesktop() {} function noteHeartbeat() {} function renderHeartbeatAge() {}
     window.vibeCheckAuth = function () {};   // the real one re-checks the session cookie
     function hbAgeText() { return '?'; } function noteToggleRefusal() {}
+    function noteHostname() {}   // tab title; covered by tab-title.test.js
     var VibeDeskState = { resetDecision: function () { return 'none'; },
                           closeTargetsFor: function () { return []; } };
   `;
