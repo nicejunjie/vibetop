@@ -4264,7 +4264,7 @@
   var tabHost = '';
   try { tabHost = localStorage.getItem('vt:hostname') || ''; } catch (e) {}
   function setTabTitle() {
-    var t = tabHost ? tabHost + ' \u2014 Vibetop' : 'Vibetop';
+    var t = tabHost ? tabHost + ':vibetop' : 'Vibetop';
     if (document.title !== t) document.title = t;
   }
   function noteHostname(h) {

@@ -17,7 +17,7 @@ function titleFn(stored) {
 }
 
 test('the tab is titled with the host, not the focused app', () => {
-  assert.equal(titleFn('moon-01').document.title, 'moon-01 — Vibetop');
+  assert.equal(titleFn('moon-01').document.title, 'moon-01:vibetop');
   assert.equal(titleFn(null).document.title, 'Vibetop');
 });
 
@@ -29,8 +29,8 @@ test('no code path titles the tab with an app label any more', () => {
 test('a heartbeat hostname updates and remembers the title, with or without system stats', () => {
   const ctx = titleFn(null);
   ctx.noteHostname('z20');
-  assert.equal(ctx.document.title, 'z20 \u2014 Vibetop');
-  assert.equal(titleFn('z20').document.title, 'z20 \u2014 Vibetop');
+  assert.equal(ctx.document.title, 'z20:vibetop');
+  assert.equal(titleFn('z20').document.title, 'z20:vibetop');
   assert.match(html, /noteHostname\(d\.hostname\);[^\n]*\n    if \(d\.system\) renderSysStats/);
   const server = fs.readFileSync(path.join(__dirname, '..', 'server', 'terminal-manager.py'), 'utf8');
   assert.equal((server.match(/"hostname": socket\.gethostname\(\),   # the tab title/g) || []).length, 2);

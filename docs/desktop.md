@@ -84,4 +84,4 @@ the whole-machine scale. GPU activity is sampled before temperature/power reads.
 
 ## Browser tab title
 
-The tab is titled `<hostname> — Vibetop` (for example `z20 — Vibetop`), not after the focused app: with vibetop open on several hosts the tabs could not be told apart. The hostname comes on every `/api/desktop` reply (`hostname`, independent of the System-Stats toggle) and the last one is kept in `localStorage` (`vt:hostname`) so a reload shows it at once. `setTabTitle()` in `shell/desktop.html` is the only writer of `document.title`.
+The tab is titled `<hostname>:vibetop` (for example `z20:vibetop`; short, so the host survives a narrow tab), not after the focused app: with vibetop open on several hosts the tabs could not be told apart. The hostname comes on every `/api/desktop` reply (`hostname`, independent of the System-Stats toggle) and the last one is kept in `localStorage` (`vt:hostname`) so a reload shows it at once. `setTabTitle()` in `shell/desktop.html` is the only writer of `document.title`.
