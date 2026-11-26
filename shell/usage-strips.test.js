@@ -8,13 +8,13 @@ const path = require('node:path');
 const src = fs.readFileSync(path.join(__dirname, 'usage-strips.js'), 'utf8');
 const shell = fs.readFileSync(path.join(__dirname, 'desktop.html'), 'utf8');
 
-test('Claude and Codex compact limit bars retain relative reset countdowns', () => {
-  const relativeFallbacks = src.match(/var mid\s*=\s*'· resets ' \+ (?:rtxt|reset);/g) || [];
-  assert.equal(relativeFallbacks.length, 2,
-    'both limit bars must prefer the relative countdown before exact-time-only text');
-  const tightFallbacks = src.match(/var min\s*=\s*'· ' \+ (?:rtxt|reset);/g) || [];
-  assert.equal(tightFallbacks.length, 2,
-    'both bars must retain the countdown even at their tightest fit');
+test('every reset text carries its shorter forms, countdown last to go', () => {
+  // One renderer for both strips (v1.38.183): the fit step picks among these,
+  // and the tightest one is still the countdown, never the clock time.
+  assert.match(src, /data-full="' \+ full \+ '" data-mid="' \+ rin \+\s*'" data-min="' \+ min/);
+  assert.match(src, /var min = rin\.replace\(\/ \/g, ''\);/);
+  assert.equal((src.match(/vtUsageSeg\('5h'/g) || []).length, 2, 'Claude and Codex share the renderer');
+  assert.equal((src.match(/vtUsageSeg\('wk'/g) || []).length, 2);
 });
 
 test('desktop independently checks the deployed build and cache-busts reloads', () => {
@@ -37,10 +37,18 @@ test('the reauth landing does not reload for ever (2026-09-12)', () => {
     'doReload must bail out once the breaker has tripped, so no trigger can loop');
 });
 
-test('desktop limit chips always show countdown and exact reset time', () => {
-  assert.match(shell, /grid-template-columns: repeat\(2, 360px\)/);   // CSS stays inline
-  const desktopFull = src.match(/!window\.matchMedia\('\(max-width: 680px\)'\)\.matches/g) || [];
-  assert.equal(desktopFull.length, 2, 'Claude and Codex must both bypass compaction on desktop');
+test('the two strips sit in one wrapper that shares columns on a phone', () => {
+  assert.match(shell, /<div class="cu-strips" id="cu-strips" hidden>\s*<div class="cu-strip" id="cu-strip" hidden><\/div>\s*<div class="cu-strip" id="cx-strip" hidden><\/div>\s*<\/div>/);
+  const narrow = shell.match(/@media \(max-width: 680px\) \{\s*\.cu-strips \{[\s\S]*?\n  \}/);
+  assert.ok(narrow, 'the phone rule for the strips must be present');
+  assert.match(narrow[0], /grid-template-columns: subgrid; grid-column: 1 \/ -1;/);
+  assert.match(narrow[0], /\.cu-strip \.cu-seg \{ display: contents; \}/);
+  // A gap on the strip itself is carved out of the borrowed tracks (the bars
+  // rendered 8px wide in a 14px-minimum track); it belongs on the wrapper.
+  assert.match(narrow[0], /\.cu-strips \{\s*display: grid; align-items: stretch; column-gap: 6px;/);
+  assert.match(narrow[0], /gap: normal;/);
+  // Immersive apps hide the wrapper, or its background stays as a dark band.
+  assert.match(shell, /body\.immersive \.cu-strips,/);
 });
 
 // -- behaviour, driven through the REAL module in a vm sandbox --------------
@@ -210,7 +218,7 @@ test('the server state drives the strip and the Start-menu row accent', () => {
   const { sandbox, nodes, rows } = load(src);
   const now = Math.floor(Date.now() / 1000);
   sandbox.applyServerClaudeUsage(true, {
-    enabled: true, session: { pct: 42, reset: now + 3600 }, weekly: { pct: 10, reset: now + 86400 },
+    enabled: true, session: { pct: .42, reset: now + 3600 }, weekly: { pct: .1, reset: now + 86400 },
   });
   assert.ok(rows.claudeusage.classList.contains('cu-on'), 'the menu row must show it is on');
   assert.match(nodes['cu-strip'].innerHTML, /42/, 'the session percentage must render');
@@ -356,11 +364,11 @@ test('a weekly-only Codex reading keeps the session slot so week stays aligned',
     weekly: { pct: .13, reset: Math.floor(Date.now() / 1000) + 86400 },
     note: 'account unreachable' });
   const html = nodes['cx-strip'].innerHTML;
-  assert.match(html, /cu-lbl">week</);
+  assert.match(html, /cu-lbl">wk</);
   assert.match(html, /13%/);
-  assert.match(html, /resets/);
+  assert.match(html, /resets in/);
   assert.match(html, /account unreachable/);
-  assert.match(html, /cu-lbl">session<.*cu-pct">—<.*cu-lbl">week</);
+  assert.match(html, /cu-lbl">5h<.*cu-pct">—<.*cu-lbl">wk</);
   assert.doesNotMatch(html, /waiting for first/);
   assert.equal((html.match(/class="cu-seg"/g) || []).length, 2);
 });
@@ -405,11 +413,97 @@ test('the ✕ gutter is reserved on the side the ✕ is actually on', () => {
   assert.ok(+pad[4] >= 26, `left gutter must seat the ✕, got ${pad[4]}px`);
   assert.ok(+pad[2] <= 12, `right side no longer reserves a gutter, got ${pad[2]}px`);
 
-  // ...and the narrowest-phone rule must not claw that gutter back.
-  const narrow = shell.match(/@media \(max-width: 340px\) \{[\s\S]*?\n  \}/);
-  assert.ok(narrow, 'the 340px media query must be present');
-  assert.doesNotMatch(narrow[0], /\.cu-strip \{ padding-left/,
-    'shrinking padding-left on a phone would put the brand under the ✕');
+  // ...and the phone rule must not claw that gutter back.
+  const narrow = shell.match(/@media \(max-width: 680px\) \{\s*\.cu-strips \{[\s\S]*?\n  \}/);
+  assert.ok(narrow, 'the phone media query must be present');
+  const npad = narrow[0].match(/\.cu-strip \{[^}]*padding:\s*\d+px\s+\d+px\s+\d+px\s+(\d+)px/);
+  assert.ok(npad && +npad[1] >= 26, 'a phone still seats the ✕ in a left gutter');
+});
+
+// Both strips are rows of ONE grid on a phone, so they must emit the same cells
+// in the same order whatever they have to say. Claude used to drop an expired
+// session window altogether, which would now put "wk" in the "5h" column.
+test('both strips emit the same cells, placeholders included', () => {
+  const { sandbox, nodes } = load(src);
+  const now = Math.floor(Date.now() / 1000);
+  const cells = (html) => (html.match(/class="(cu-brand|cu-lbl|cu-bar|cu-pct|cu-dim|cu-asof[^"]*)"/g) || [])
+    .map((c) => c.replace(/class="|"/g, '').split(' ')[0]);
+  const ROW = ['cu-brand', 'cu-lbl', 'cu-bar', 'cu-pct', 'cu-dim', 'cu-lbl', 'cu-bar', 'cu-pct', 'cu-dim', 'cu-asof'];
+  sandbox.applyServerClaudeUsage(true, { enabled: true, ageSec: 300,
+    session: { pct: .42, reset: now + 3600 }, weekly: { pct: .1, reset: now + 86400 } });
+  assert.deepEqual(cells(nodes['cu-strip'].innerHTML), ROW);
+  sandbox.applyServerClaudeUsage(true, { enabled: true,                 // fresh, session expired
+    session: { pct: .42, reset: now - 5 }, weekly: { pct: .1, reset: now + 86400 } });
+  assert.deepEqual(cells(nodes['cu-strip'].innerHTML), ROW);
+  assert.match(nodes['cu-strip'].innerHTML, /cu-lbl">5h<.*cu-pct">—<.*cu-lbl">wk</);
+  sandbox.applyServerCodexUsage(true, { enabled: true, session: null,
+    weekly: { pct: .13, reset: now + 86400 } });
+  assert.deepEqual(cells(nodes['cx-strip'].innerHTML), ROW);
+});
+
+// The fit step, against a fake wrapper whose width is its text. What matters is
+// the ORDER things are given up in, and that a reset text is emptied rather than
+// removed — on a phone it is a grid cell.
+function fitHarness(narrow, room) {
+  const mk = (data, text) => ({ dataset: data, textContent: text, hidden: false });
+  const dims = [
+    mk({ full: '2h 10m (2:30 PM)', mid: '2h 10m', min: '2h10m', at: '2:30 PM' }, ''),
+    mk({ full: '3d 4h (Thu 10 AM)', mid: '3d 4h', min: '3d4h', at: 'Thu 10 AM' }, ''),
+  ];
+  const ages = [mk({ long: '3m ago', short: '3m' }, '')];
+  const strips = [{ offsetTop: 0 }, { offsetTop: 0 }];
+  const classes = new Set();
+  const len = () => dims.concat(ages).reduce((n, d) => n + d.textContent.length, 0);
+  const wrap = {
+    hidden: false, clientWidth: room,
+    get scrollWidth() { return len(); },
+    classList: { toggle: (c, on) => (on ? classes.add(c) : classes.delete(c)), contains: (c) => classes.has(c) },
+    querySelector: () => strips[0],
+    querySelectorAll: (sel) => {
+      if (sel.indexOf('cu-dim') >= 0) return dims;
+      if (sel.indexOf('cu-asof') >= 0) return ages;
+      strips[1].offsetTop = len() > room ? 24 : 0;       // desktop: too long = wrapped
+      return strips;
+    },
+    addEventListener(type, fn) { wrap['on' + type] = fn; },
+  };
+  const { sandbox } = load(src);
+  sandbox.document.getElementById = (id) => (id === 'cu-strips' ? wrap : null);
+  sandbox.matchMedia = () => ({ matches: narrow });
+  return { sandbox, wrap, dims, ages, classes, text: () => dims.map((d) => d.textContent) };
+}
+
+test('a phone keeps the countdown as long as it can, then empties it', () => {
+  let h = fitHarness(true, 100);
+  h.sandbox.vtFitUsage();
+  assert.deepEqual(h.text(), ['2h 10m', '3d 4h']);
+  assert.equal(h.ages[0].textContent, '3m ago');
+  h = fitHarness(true, 15);                       // "2h 10m" + "3d 4h" + "3m ago" is 17
+  h.sandbox.vtFitUsage();
+  assert.deepEqual(h.text(), ['2h10m', '3d4h']);
+  assert.equal(h.ages[0].textContent, '3m ago');
+  h = fitHarness(true, 12);                       // the age gives way before the countdown
+  h.sandbox.vtFitUsage();
+  assert.deepEqual(h.text(), ['2h10m', '3d4h']);
+  assert.equal(h.ages[0].textContent, '3m');
+  assert.ok(h.classes.has('tight'));
+  h = fitHarness(true, 4);
+  h.sandbox.vtFitUsage();
+  assert.deepEqual(h.text(), ['', '']);
+  assert.ok(h.dims.every((d) => d.hidden === false), 'emptied, never hidden: the cell must stay');
+});
+
+test('a desktop shows the clock time unless that costs a second line', () => {
+  let h = fitHarness(false, 200);
+  h.sandbox.vtFitUsage();
+  assert.deepEqual(h.text(), ['2h 10m (2:30 PM)', '3d 4h (Thu 10 AM)']);
+  h = fitHarness(false, 30);                      // full wraps, countdown alone does not
+  h.sandbox.vtFitUsage();
+  assert.deepEqual(h.text(), ['2h 10m', '3d 4h']);
+  h = fitHarness(false, 5);                       // wraps either way: two lines of room
+  h.sandbox.vtFitUsage();
+  assert.deepEqual(h.text(), ['2h 10m (2:30 PM)', '3d 4h (Thu 10 AM)']);
+  assert.ok(!h.classes.has('tight'));
 });
 
 // ==========================================================================

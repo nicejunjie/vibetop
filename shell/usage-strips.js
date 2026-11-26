@@ -37,56 +37,137 @@ function ageText(sec) {
   return Math.floor(h / 24) + 'd';
 }
 
+// One row per provider (v1.38.183). Before that each strip was a brand column
+// beside two stacked chips — two lines each, four lines of a phone screen for
+// four percentages. Now a strip is ONE line: brand, the 5-hour window, the
+// weekly window, the reading's age. Stacked on a phone (two lines for both),
+// side by side on a desktop (one line for both).
+//
+// The row is built from the same ten cells in the same order for both strips,
+// placeholders included, because on a phone the two strips share one grid
+// (`.cu-strips`, subgrid) — a missing cell would shift every column after it.
+function vtResetIn(ts) {
+  if (!ts) return '';
+  var s = Math.max(0, ts - Math.floor(Date.now() / 1000));
+  var d = Math.floor(s / 86400), h = Math.floor((s % 86400) / 3600),
+      m = Math.floor((s % 3600) / 60);
+  if (d > 0) return d + 'd ' + h + 'h';           // days out (e.g. weekly): "6d 23h"
+  if (h > 0) return h + 'h ' + (m < 10 ? '0' : '') + m + 'm';
+  return m + 'm';
+}
+// The exact wall-clock of the reset. A reset a day or more out only needs the
+// day and the hour — "Thu 10 AM"; minutes matter when it is minutes away.
+function vtResetAt(ts) {
+  if (!ts) return '';
+  var dt = new Date(ts * 1000);
+  var days = (ts - Math.floor(Date.now() / 1000)) / 86400;
+  if (days >= 1) {
+    return dt.toLocaleDateString([], { weekday: 'short' }) + ' ' +
+           dt.toLocaleTimeString([], { hour: 'numeric' });
+  }
+  return dt.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+}
+// One window: label · bar · % · reset. `value` null/absent renders the slot
+// with a dash rather than dropping it, so "wk" never slides into "5h"'s place.
+// The reset text carries every form it can be shown in, longest first; which
+// one is on screen is vtFitUsage()'s decision, never this function's.
+function vtUsageSeg(label, name, value) {
+  if (!value || value.pct == null) {
+    return '<span class="cu-seg" title="' + name + ': no current reading">' +
+      '<span class="cu-lbl">' + label + '</span><span class="cu-bar"></span>' +
+      '<span class="cu-pct">—</span><span class="cu-dim"></span></span>';
+  }
+  var p = Math.round(Math.max(0, Math.min(1, Number(value.pct) || 0)) * 100);
+  var cls = p >= 90 ? 'crit' : p >= 70 ? 'warn' : '';
+  var rin = vtResetIn(value.reset), rat = vtResetAt(value.reset);
+  var full = rin + (rat ? ' (' + rat + ')' : '');   // "2h 10m (2:30 PM)"
+  var min = rin.replace(/ /g, '');                  // "2h10m" — the countdown always wins
+  var dim = rin ? '<span class="cu-dim" data-full="' + full + '" data-mid="' + rin +
+                  '" data-min="' + min + '" data-at="' + (rat || rin) + '">' + full + '</span>'
+                : '<span class="cu-dim"></span>';
+  var title = name + ' ' + p + '%' + (rin ? ' — resets in ' + rin + (rat ? ', at ' + rat : '') : '');
+  return '<span class="cu-seg" title="' + title + '"><span class="cu-lbl">' + label + '</span>' +
+    '<span class="cu-bar"><span class="cu-fill ' + cls + '" style="width:' + p + '%"></span></span>' +
+    '<span class="cu-pct">' + p + '%</span>' + dim + '</span>';
+}
+function vtUsageAge(d) {
+  var ageMin = Math.round(((d && d.ageSec) || 0) / 60);
+  // Shown once the numbers are a minute old. Fresh data says nothing — but the
+  // cell is still there, so the row always has the same ten cells.
+  return ((d && d.stale) || ageMin >= 1)
+    ? '<span class="cu-asof" title="usage data was read ' + ageText(d.ageSec) + ' ago" data-long="' +
+      ageText(d.ageSec) + ' ago" data-short="' + ageText(d.ageSec) + '">' + ageText(d.ageSec) + ' ago</span>'
+    : '<span class="cu-asof is-empty" aria-hidden="true"></span>';
+}
+// Pick the longest reset text that keeps every enabled strip on its one line.
+// It works on BOTH strips at once: they share columns, so they must also share
+// a form — "2h 10m (2:30 PM)" over "4h02m" reads as two different displays.
+//   desktop: full, and only if that wraps Codex onto a second line, countdown
+//            alone; if even that wraps, there are two lines of room — full again.
+//   phone:   countdown ("2h 10m"), then "2h10m", then the same with the age cut
+//            to "3m" and the gaps closed up, and only then no reset text at all.
+//            A tap swaps the countdown for the clock time for a few seconds.
+// A reset text that does not fit is EMPTIED, never removed: on a phone it is a
+// grid cell, and taking a cell out slides every later column one place left.
+var vtUsageAt = false, vtUsageAtTimer = null;
+function vtFitUsage() {
+  var wrap = document.getElementById('cu-strips');
+  if (!wrap) return;
+  var dims = wrap.querySelectorAll('.cu-dim[data-full]');
+  var ages = wrap.querySelectorAll('.cu-asof[data-long]');
+  var narrow = window.matchMedia('(max-width: 680px)').matches;
+  function show(form, tight) {
+    var i;
+    for (i = 0; i < dims.length; i++) dims[i].textContent = form ? dims[i].dataset[form] : '';
+    for (i = 0; i < ages.length; i++) ages[i].textContent = ages[i].dataset[tight ? 'short' : 'long'];
+    wrap.classList.toggle('tight', !!tight);
+  }
+  function over() {
+    if (narrow) return wrap.scrollWidth > wrap.clientWidth + 1;
+    var rows = wrap.querySelectorAll('.cu-strip:not([hidden])');
+    return rows.length > 1 && rows[1].offsetTop > rows[0].offsetTop + 2;
+  }
+  var steps = narrow ? [[vtUsageAt ? 'at' : 'mid', false], ['min', false], ['min', true], ['', true]]
+                     : [['full', false], ['mid', false]];
+  for (var f = 0; f < steps.length; f++) {
+    show(steps[f][0], steps[f][1]);
+    if (!over()) return;
+  }
+  if (!narrow) show('full', false);
+}
+// The wrapper carries the background and the bottom rule, so it has to go when
+// both strips are off; and one strip changing can change what fits in the other.
+function vtUsageSync() {
+  var wrap = document.getElementById('cu-strips');
+  if (wrap) wrap.hidden = !wrap.querySelector('.cu-strip:not([hidden])');
+  vtFitUsage();
+}
+(function usageChrome() {
+  var wrap = document.getElementById('cu-strips');
+  if (!wrap) return;
+  var t = null;
+  // The available width changes without the numbers changing: rotation, window
+  // mode, the shell's own chrome appearing.
+  window.addEventListener('resize', function() {
+    clearTimeout(t);
+    t = setTimeout(vtFitUsage, 120);
+  });
+  // A phone has no hover, so the title's clock time is out of reach there.
+  wrap.addEventListener('click', function(e) {
+    if (e.target && e.target.classList && e.target.classList.contains('cu-x')) return;
+    vtUsageAt = !vtUsageAt;
+    clearTimeout(vtUsageAtTimer);
+    if (vtUsageAt) vtUsageAtTimer = setTimeout(function() { vtUsageAt = false; vtFitUsage(); }, 6000);
+    vtFitUsage();
+  });
+})();
+
 (function claudeUsage() {
   var strip = document.getElementById('cu-strip');
   if (!strip) return;
   var enabled = false;
   var lastData = null;
   var localOverrideUntil = 0;   // ignore heartbeat reconcile briefly after a local toggle
-  function fmtReset(ts) {
-    if (!ts) return '';
-    var s = Math.max(0, ts - Math.floor(Date.now() / 1000));
-    var d = Math.floor(s / 86400), h = Math.floor((s % 86400) / 3600),
-        m = Math.floor((s % 3600) / 60);
-    if (d > 0) return d + 'd ' + h + 'h';           // days out (e.g. weekly): "6d 23h"
-    if (h > 0) return h + 'h ' + (m < 10 ? '0' : '') + m + 'm';
-    return m + 'm';
-  }
-  // The exact wall-clock of the reset, next to the countdown ("4h 20m (2:30
-  // PM)") — user request: the countdown alone made scheduling a command for
-  // the reset a mental-arithmetic exercise. Adds the weekday once it's a day+
-  // out ("6d 23h (Thu 9:00 AM)") since the bare clock would be ambiguous.
-  function fmtResetAt(ts) {
-    if (!ts) return '';
-    var dt = new Date(ts * 1000);
-    var days = (ts - Math.floor(Date.now() / 1000)) / 86400;
-    // A reset a day or more out only needs the day and the hour — "Thu 10 AM".
-    // Minutes matter when it is minutes away, not when it is two days away, and
-    // dropping them buys ~30px in a strip that is fighting for every one.
-    if (days >= 1) {
-      return dt.toLocaleDateString([], { weekday: 'short' }) + ' ' +
-             dt.toLocaleTimeString([], { hour: 'numeric' });
-    }
-    return dt.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
-  }
-  function seg(label, pct, reset) {
-    var p = Math.round((pct || 0) * 100);
-    var cls = p >= 90 ? 'crit' : p >= 70 ? 'warn' : '';
-    var rtxt = reset ? fmtReset(reset) : '';
-    var rat = reset ? fmtResetAt(reset) : '';
-    // Three forms, longest first, so fitSegs() can step down instead of deleting.
-    // The countdown is the primary glanceable status and must survive in the
-    // fixed-width desktop chip. Mobile usually has room for the full form.
-    var full = '· resets ' + rtxt + (rat ? ' (' + rat + ')' : '');
-    var mid  = '· resets ' + rtxt;
-    var min  = '· ' + rtxt;                         // countdown always wins at the tightest fit
-    var r = rtxt ? '<span class="cu-dim" data-full="' + full + '" data-mid="' + mid +
-                   '" data-min="' + min + '">' + full + '</span>' : '';
-    var title = rtxt ? ' title="resets in ' + rtxt + (rat ? ' — at ' + rat : '') + '"' : '';
-    return '<span class="cu-seg"' + title + '><span class="cu-lbl">' + label + '</span>' +
-      '<span class="cu-bar"><span class="cu-fill ' + cls + '" style="width:' + p + '%"></span></span>' +
-      '<span class="cu-pct">' + p + '%</span>' + r + '</span>';
-  }
   function updateToggleRow() {
     // Look the row up via document (NOT the outer `menuEl` closure var — this
     // IIFE lives in a nested scope; referencing menuEl here once threw a
@@ -110,24 +191,9 @@ function ageText(sec) {
     updateToggleRow();
     // Show the strip whenever the (server-side, shared) feature is enabled — no
     // per-tab hide, so every client is consistent: on = shown everywhere.
-    if (!enabled) { strip.hidden = true; return; }
+    if (!enabled) { strip.hidden = true; vtUsageSync(); return; }
     strip.hidden = false;
-    // "as of Nm ago" sits UNDER "Claude", in the identity column — inside the
-    // metrics column it was a third stacked row, which is what made the strip
-    // three lines tall on a phone. It is never shed: how old the number is is
-    // part of reading the number.
-    // Shown once the numbers are a minute old, not only once the server calls
-    // them stale — the space under "Claude" is where the reading's age lives, and
-    // it was empty most of the time. Fresh data still says nothing.
-    var ageMin = Math.round((d.ageSec || 0) / 60);
-    // Just "3m ago". Sitting under "Claude" in the identity column, "as of" was
-    // three words of scaffolding holding up one number — and every px it took
-    // came straight out of the reset time on the row beside it.
-    var asof = (d.stale || ageMin >= 1)
-      ? '<span class="cu-asof" title="usage data was read ' + ageText(d.ageSec) + ' ago">' +
-        ageText(d.ageSec) + ' ago</span>' : '<span class="cu-asof is-empty" aria-hidden="true">0m ago</span>';
-    var html = '<span class="cu-who"><span class="cu-brand">Claude</span>' + asof + '</span>' +
-               '<span class="cu-metrics">';
+    var html = '<span class="cu-brand">Claude</span>';
     // The proxy retains its last reading even after a subscription ends. A
     // percentage only describes the window it was captured in; after reset it
     // is unknown, not zero. The heartbeat rechecks this against the clock.
@@ -137,52 +203,21 @@ function ageText(sec) {
     }
     var hasSession = current(d.session), hasWeekly = current(d.weekly);
     if (hasSession || hasWeekly) {
-      if (hasSession) html += seg('session', d.session.pct, d.session.reset);
-      if (hasWeekly) html += seg('week', d.weekly.pct, d.weekly.reset);
+      html += vtUsageSeg('5h', 'session (5h)', hasSession ? d.session : null) +
+              vtUsageSeg('wk', 'week (7d)', hasWeekly ? d.weekly : null);
     } else {
       var hadReading = d.updated || d.session || d.weekly;
-      html += '<span class="cu-dim">' + (hadReading
+      html += '<span class="cu-msg">' + (hadReading
         ? 'usage unavailable — waiting for a new reading'
         : 'waiting for first API call…') + '</span>';
     }
-    html += '</span><span class="cu-x" id="cu-x" title="Turn off Claude Limit (all devices)">✕</span>';
+    html += vtUsageAge(d) +
+      '<span class="cu-x" id="cu-x" title="Turn off Claude Limit (all devices)">✕</span>';
     strip.innerHTML = html;
     var x = document.getElementById('cu-x');
     if (x) x.onclick = function() { window.toggleClaudeUsage(); };   // ✕ = turn the feature off everywhere
-    fitSegs();
+    vtUsageSync();
   }
-
-  // Each chip is one line, always. When the line does not fit, shed the least
-  // useful part of it and measure again: first the absolute time in brackets,
-  // while retaining the relative countdown; only then use the terse exact time
-  // or finally leave label/bar/percentage. The title always retains both.
-  function fitSegs() {
-    var segs = strip.querySelectorAll('.cu-seg');
-    for (var i = 0; i < segs.length; i++) {
-      var seg = segs[i], dim = seg.querySelector('.cu-dim');
-      if (!dim) continue;
-      // Desktop has fixed 360px chips specifically sized for the complete
-      // countdown + clock. Never rewrite that text based on measurements.
-      if (!window.matchMedia('(max-width: 680px)').matches) {
-        dim.hidden = false;
-        dim.textContent = dim.dataset.full;
-        continue;
-      }
-      var over = function() { return seg.scrollWidth > seg.clientWidth + 1; };
-      dim.hidden = false;
-      dim.textContent = dim.dataset.full;             // "· resets 2d 20h (Thu 10:00 AM)"
-      if (over()) dim.textContent = dim.dataset.mid;  // "· resets 2d 20h"
-      if (over()) dim.textContent = dim.dataset.min;  // "· Thu 10:00 AM"
-      if (over()) dim.hidden = true;                  // label · bar · % only
-    }
-  }
-  // The available width changes without the numbers changing: rotation, window
-  // mode, the shell's own chrome appearing.
-  var cuFitT = null;
-  window.addEventListener('resize', function() {
-    clearTimeout(cuFitT);
-    cuFitT = setTimeout(fitSegs, 120);
-  });
   // Both the enabled flag AND the numbers now ride the 5s desktop heartbeat
   // (onDesktopResp → here): the manager folds `claude` (the /api/claude/usage
   // payload) onto every heartbeat when the feature is on, so this feature has NO
@@ -247,60 +282,6 @@ function ageText(sec) {
   var strip = document.getElementById('cx-strip');
   if (!strip) return;
   var enabled = false, lastData = null, localOverrideUntil = 0;
-  function resetText(ts) {
-    if (!ts) return '';
-    var sec = Math.max(0, ts - Math.floor(Date.now() / 1000));
-    var d = Math.floor(sec / 86400), h = Math.floor((sec % 86400) / 3600),
-        m = Math.floor((sec % 3600) / 60);
-    return d ? d + 'd ' + h + 'h' : h ? h + 'h ' + (m < 10 ? '0' : '') + m + 'm' : m + 'm';
-  }
-  function resetAt(ts) {
-    if (!ts) return '';
-    var dt = new Date(ts * 1000);
-    var days = (ts - Math.floor(Date.now() / 1000)) / 86400;
-    if (days >= 1) {
-      return dt.toLocaleDateString([], {weekday: 'short'}) + ' ' +
-             dt.toLocaleTimeString([], {hour: 'numeric'});
-    }
-    return dt.toLocaleTimeString([], {hour: 'numeric', minute: '2-digit'});
-  }
-  function segment(label, value) {
-    if (!value || value.pct == null) {
-      return '<span class="cu-seg" title="Session usage unavailable">' +
-        '<span class="cu-lbl">' + label + '</span><span class="cu-bar"></span>' +
-        '<span class="cu-pct">—</span></span>';
-    }
-    var p = Math.round(Math.max(0, Math.min(1, Number(value.pct) || 0)) * 100);
-    var cls = p >= 90 ? 'crit' : p >= 70 ? 'warn' : '';
-    var reset = resetText(value.reset);
-    var at = resetAt(value.reset);
-    var full = '· resets ' + reset + (at ? ' (' + at + ')' : '');
-    var mid = '· resets ' + reset;
-    var min = '· ' + reset;                         // countdown always wins at the tightest fit
-    return '<span class="cu-seg"' + (reset ? ' title="resets in ' + reset + (at ? ' — at ' + at : '') + '"' : '') + '>' +
-      '<span class="cu-lbl">' + label + '</span><span class="cu-bar"><span class="cu-fill ' + cls +
-      '" style="width:' + p + '%"></span></span><span class="cu-pct">' + p + '%</span>' +
-      (reset ? '<span class="cu-dim" data-full="' + full + '" data-mid="' + mid +
-       '" data-min="' + min + '">' + full + '</span>' : '') + '</span>';
-  }
-  function fitSegments() {
-    var segments = strip.querySelectorAll('.cu-seg');
-    for (var i = 0; i < segments.length; i++) {
-      var item = segments[i], dim = item.querySelector('.cu-dim');
-      if (!dim) continue;
-      if (!window.matchMedia('(max-width: 680px)').matches) {
-        dim.hidden = false;
-        dim.textContent = dim.dataset.full;
-        continue;
-      }
-      var over = function() { return item.scrollWidth > item.clientWidth + 1; };
-      dim.hidden = false;
-      dim.textContent = dim.dataset.full;
-      if (over()) dim.textContent = dim.dataset.mid;
-      if (over()) dim.textContent = dim.dataset.min;
-      if (over()) dim.hidden = true;
-    }
-  }
   function updateRow() {
     var row = document.querySelector('.sm-item[data-id="codexusage"]');
     if (row) {
@@ -316,33 +297,33 @@ function ageText(sec) {
     if (data) lastData = data;
     enabled = !!(data && data.enabled);
     updateRow();
-    if (!enabled) { strip.hidden = true; return; }
+    if (!enabled) { strip.hidden = true; vtUsageSync(); return; }
     strip.hidden = false;
-    var age = Math.round(((data && data.ageSec) || 0) / 60);
-    var asof = age >= 1 ? '<span class="cu-asof">' + ageText(data.ageSec) + ' ago</span>' :
-      '<span class="cu-asof is-empty" aria-hidden="true">0m ago</span>';
-    var html = '<span class="cu-who"><span class="cu-brand">Codex</span>' + asof + '</span><span class="cu-metrics">';
+    var html = '<span class="cu-brand">Codex</span>';
     var now = Math.floor(Date.now() / 1000);
     function current(w) {
       return w && w.pct != null && (w.reset ? w.reset > now : !data.stale);
     }
     var hasSession = current(data.session), hasWeekly = current(data.weekly);
     if (hasSession || hasWeekly) {
-      html += segment('session', hasSession ? data.session : null);
-      if (hasWeekly) html += segment('week', data.weekly);
+      html += vtUsageSeg('5h', 'session (5h)', hasSession ? data.session : null) +
+              vtUsageSeg('wk', 'week (7d)', hasWeekly ? data.weekly : null);
     } else {
       var hadReading = data.updated || data.session || data.weekly;
-      html += '<span class="cu-dim">' + (data.note || (hadReading
+      html += '<span class="cu-msg">' + (data.note || (hadReading
         ? 'usage unavailable — waiting for a new reading'
         : 'waiting for first Codex response…')) + '</span>';
     }
+    html += vtUsageAge(data);
+    // The server's reason for falling back to this machine's logs. It gets its
+    // own line: it is the exceptional state, and it is a sentence, not a number.
     if (data && data.note && (hasSession || hasWeekly)) {
-      html += '<span class="cu-dim" title="showing the last reading from this machine\'s Codex logs">· ' + data.note + '</span>';
+      html += '<span class="cu-note" title="showing the last reading from this machine\'s Codex logs">' + data.note + '</span>';
     }
-    strip.innerHTML = html + '</span><span class="cu-x" id="cx-x" title="Turn off Codex Limit (all devices)">✕</span>';
+    strip.innerHTML = html + '<span class="cu-x" id="cx-x" title="Turn off Codex Limit (all devices)">✕</span>';
     var close = document.getElementById('cx-x');
     if (close) close.onclick = window.toggleCodexUsage;
-    fitSegments();
+    vtUsageSync();
   }
   window.applyServerCodexUsage = function(on, data) {
     if (Date.now() < localOverrideUntil) return;
@@ -376,9 +357,4 @@ function ageText(sec) {
       })
       .catch(function() { refused(0); });
   };
-  var fitTimer = null;
-  window.addEventListener('resize', function() {
-    clearTimeout(fitTimer);
-    fitTimer = setTimeout(fitSegments, 120);
-  });
 })();

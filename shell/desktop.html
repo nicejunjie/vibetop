@@ -202,103 +202,87 @@
   #auth-sign-in:hover { background: #3a7adb; }
   #auth-sign-in:focus-visible { outline: 2px solid #a8cbff; outline-offset: 3px; }
 
-  /* === Claude usage strip (opt-in) — thin full-width bar above the app area.
-     A flex child before .frames, so it simply shrinks the app viewport; hidden
-     unless the feature is on (and not dismissed for the session). === */
+  /* === Claude / Codex usage strips (opt-in) — one thin row per provider above
+     the app area. `.cu-strips` is a flex child before .frames, so it simply
+     shrinks the app viewport; it is hidden unless a strip is on.
+     Desktop: the two strips sit side by side on ONE line (wrapping to two only
+     when the window is too narrow for both). Phone: see the media query. === */
+  .cu-strips {
+    flex: 0 0 auto; display: flex; flex-wrap: wrap; align-items: center;
+    min-width: 0; box-sizing: border-box;
+    background: #10161f; border-bottom: 1px solid #222c3a;
+  }
+  .cu-strips[hidden] { display: none; }
   .cu-strip {
-    flex: 0 0 auto; min-height: 26px; display: flex; align-items: center;
-    flex-wrap: wrap; gap: 6px 8px; box-sizing: border-box; position: relative;
-    /* The ✕ lives on the LEFT, so the reserved gutter is on the left too (the
-       total is unchanged, so nothing about the metric columns moves). */
-    padding: 4px 10px 4px 30px; font-size: 12px; line-height: 1.3; white-space: normal;
-    background: #10161f; border-bottom: 1px solid #222c3a; color: #9fb0c0;
-    font-family: system-ui, sans-serif; user-select: none;
+    flex: 0 0 auto; min-height: 24px; display: flex; align-items: center;
+    gap: 14px; box-sizing: border-box; position: relative;
+    /* The ✕ lives on the LEFT, so the reserved gutter is on the left too. */
+    padding: 3px 12px 3px 30px; font-size: 12px; line-height: 1.3; white-space: nowrap;
+    color: #9fb0c0; font-family: system-ui, sans-serif; user-select: none;
   }
   .cu-strip[hidden] { display: none; }
-  /* Fixed identity columns: changing "9m ago" to "10m ago" must never move the
-     metric grid. The empty fresh-data age also keeps its reserved width. */
-  .cu-strip .cu-who {
-    display: grid; grid-template-columns: 42px 48px; align-items: baseline; gap: 4px;
-    flex: 0 0 94px; width: 94px; min-width: 94px;
-  }
-  .cu-strip .cu-brand { font-weight: 600; color: #c8d4e0; }
-  .cu-strip .cu-asof {
-    color: #6a7a8a; font-size: 10px; white-space: nowrap; width: 48px;
-    font-variant-numeric: tabular-nums;
-  }
-  .cu-strip .cu-asof.is-empty { visibility: hidden; }
-  .cu-strip .cu-metrics {
-    display: grid; grid-template-columns: repeat(2, 360px);
-    align-items: center; gap: 6px; min-width: 0; flex: 0 0 auto;
-  }
-  /* Each metric is a self-contained chip — reads cleanly on its own whether it's
-     inline (desktop, one 26px line) or wrapped onto its own line (narrow phone),
-     so there are no dangling separators or misaligned columns. */
-  .cu-strip .cu-seg {
-    display: inline-grid; grid-template-columns: 3.6em 52px 2.5em auto;
-    align-items: center; gap: 6px; white-space: nowrap;
-    min-width: 0;
-    background: rgba(255,255,255,0.04); border: 1px solid #222c3a;
-    border-radius: 6px; padding: 1px 8px;
-  }
+  /* Side by side they need telling apart; a rule does it in one pixel. */
+  .cu-strip:not([hidden]) ~ .cu-strip { box-shadow: -1px 0 0 #222c3a; }
+  .cu-strip .cu-brand { font-weight: 600; color: #c8d4e0; min-width: 3.3em; }
+  .cu-strip .cu-asof { color: #6a7a8a; font-size: 10px; font-variant-numeric: tabular-nums; }
+  .cu-strip .cu-asof.is-empty { display: none; }
+  /* One window: label · bar · % · reset, no box around it — the box was 18px of
+     padding and border per window, on a line that has four of them. */
+  .cu-strip .cu-seg { display: inline-flex; align-items: center; gap: 6px; min-width: 0; }
   .cu-strip .cu-lbl { color: #8a9aaa; }
-  .cu-strip .cu-pct { font-variant-numeric: tabular-nums; color: #dbe4ee; font-weight: 600; }
+  .cu-strip .cu-pct {
+    font-variant-numeric: tabular-nums; color: #dbe4ee; font-weight: 600;
+    min-width: 2.4em; text-align: right;
+  }
   .cu-strip .cu-bar { width: 52px; height: 7px; border-radius: 4px; background: #2a3444; overflow: hidden; }
   /* display:block so width/height apply — a bare <span> is inline and ignores
      them, which left the fill invisible (the bar looked like a flat grey track). */
   .cu-strip .cu-fill { display: block; height: 100%; width: 0; background: #34a853; transition: width .4s; }
   .cu-strip .cu-fill.warn { background: #d2902a; }
   .cu-strip .cu-fill.crit { background: #d24b3a; }
-  .cu-strip .cu-dim { color: #6a7a8a; font-variant-numeric: tabular-nums; }
-  /* Dropped by fitSegs() when the chip they are in would not fit on one line.
-     A width breakpoint cannot decide this: "resets 5m (2:00 PM)" and "resets
-     2d 20h (Thu 10:00 AM)" differ by 60px on the same screen. */
-  .cu-strip .cu-at[hidden], .cu-strip .cu-dim[hidden] { display: none; }
-  /* ✕ pinned to the top-LEFT corner (out of flow) so it never orphans onto its
-     own wrapped line. Left, not right, because every floating window closes at
-     its top-right: a ✕ there on a full-width strip directly above them reads as
-     one of theirs, and the one it actually belongs to turns the feature off on
-     every device (user, 2026-09-13). Opposite corner, opposite meaning. */
-  .cu-strip .cu-x { position: absolute; top: 3px; left: 5px; cursor: pointer; color: #6a7a8a; padding: 1px 7px; border-radius: 4px; line-height: 1.3; }
+  .cu-strip .cu-dim, .cu-strip .cu-msg, .cu-strip .cu-note { color: #6a7a8a; font-variant-numeric: tabular-nums; }
+  /* ✕ pinned to the LEFT edge (out of flow). Left, not right, because every
+     floating window closes at its top-right: a ✕ there on a full-width strip
+     directly above them reads as one of theirs, and the one it actually belongs
+     to turns the feature off on every device (user, 2026-09-13). Opposite
+     corner, opposite meaning. */
+  .cu-strip .cu-x { position: absolute; top: 2px; left: 5px; cursor: pointer; color: #6a7a8a; padding: 1px 7px; border-radius: 4px; line-height: 1.3; }
   .cu-strip .cu-x:hover { background: rgba(255,255,255,0.08); color: #c0d0e0; }
-  /* Narrow screens: stack the metrics as full-width rows with the brand on its
-     own line, so the two chip BOXES share a left edge (and their internal
-     label→bar→% columns align via min-widths) instead of one being pushed in by
-     the "Claude" label. On wider screens they stay inline on one line. */
+  /* Phone: the strips stack, one line each, and SHARE their columns. The wrapper
+     is the grid and each strip borrows its tracks (subgrid), with the per-window
+     wrapper dissolved (display:contents) so every label, bar, % and reset is a
+     cell. That is what lines "5h" up under "5h" and "wk" under "wk" whatever the
+     two rows happen to say — fixed column widths could only approximate it, and
+     had to be re-tuned every time a text got shorter or longer. The bars take
+     whatever width the text leaves. */
   @media (max-width: 680px) {
-    /* brand as a left column, the two metric chips stacked to its right -> the
-       whole strip is 2 lines (not 3), and the chip boxes still share a left edge
-       with their label/bar/% columns aligned. */
-    .cu-strip { flex-wrap: nowrap; align-items: flex-start; column-gap: 6px; }
-    /* Claude over "as of …" — one identity column, two lines, beside the chips. */
-    .cu-strip .cu-who {
-      display: flex; flex: 0 0 48px; width: 48px; min-width: 48px;
-      flex-direction: column; align-items: flex-start; gap: 1px; margin: 2px 0 0;
+    .cu-strips {
+      display: grid; align-items: stretch; column-gap: 6px;
+      grid-template-columns:
+        auto
+        auto minmax(14px, 1fr) auto auto
+        auto minmax(14px, 1fr) auto auto
+        auto;
     }
-    .cu-strip .cu-metrics { display: flex; flex-direction: column; align-items: stretch; gap: 4px; flex: 1 1 auto; }
-    /* A grid, not a flex row: an explicit template is what makes the two chips
-       agree, so the bars start at one x, the percentages end at one x and the
-       reset texts begin at one x. Min-widths only approximated that, and drifted
-       apart the moment "week" and "session" measured differently. */
-    .cu-strip .cu-seg {
-      display: grid; grid-template-columns: 3.6em 56px 2.5em 1fr;
-      align-items: center; gap: 5px; width: 100%; box-sizing: border-box;
+    .cu-strip {
+      display: grid; grid-template-columns: subgrid; grid-column: 1 / -1;
+      /* `gap: normal` = the wrapper's own. A gap set HERE instead is taken out
+         of the borrowed tracks, and a 14px minimum bar was rendering 8px wide. */
+      gap: normal; min-height: 22px; padding: 2px 8px 2px 30px;
     }
-    .cu-strip .cu-bar { width: 56px; }
-    .cu-strip .cu-dim { font-size: 11.5px; }
-    .cu-strip .cu-pct { text-align: right; }
-    .cu-strip .cu-dim { text-align: left; }
+    .cu-strip:not([hidden]) ~ .cu-strip { box-shadow: none; }
+    .cu-strip .cu-seg { display: contents; }
+    .cu-strip .cu-bar { width: auto; }
+    .cu-strip .cu-pct { min-width: auto; }
+    .cu-strip .cu-brand { min-width: auto; }
+    .cu-strip .cu-dim { font-size: 11.5px; padding-right: 6px; }
+    .cu-strip .cu-msg { grid-column: span 8; white-space: normal; }
+    .cu-strip .cu-asof { grid-column: 10; }
+    .cu-strip .cu-note { grid-column: 1 / -1; white-space: normal; font-size: 11px; }
+    /* vtFitUsage()'s last step before it gives up the reset text altogether. */
+    .cu-strips.tight { column-gap: 4px; }
+    .cu-strips.tight .cu-dim { padding-right: 2px; }
   }
-  /* The narrowest phones still in use. Every fixed column gives up a few px so
-     the reset time — the part worth keeping — still has somewhere to sit. */
-  @media (max-width: 340px) {
-    .cu-strip .cu-seg { grid-template-columns: 3.2em 50px 2.3em 1fr; gap: 5px; }
-    .cu-strip .cu-bar { width: 50px; }
-    /* The left gutter is the ✕'s seat now and cannot shrink; take the same few
-       px off the free side instead, so the reset time keeps its room. */
-    .cu-strip { padding-right: 6px; }
-  }
-  /* toggle row's On state gets a green dot, like a running app */
   .sm-item[data-id="claudeusage"].cu-on .sm-name::after,
   .sm-item[data-id="codexusage"].cu-on .sm-name::after {
     content: "\25CF"; color: #34a853; font-size: 9px; margin-left: 8px;
@@ -310,7 +294,7 @@
      shell's chrome stayed put — the game ended up with the taskbar still eating
      the bottom of the screen, which is the opposite of what fullscreen is for. */
   body.immersive .taskbar,
-  body.immersive .cu-strip,
+  body.immersive .cu-strips,
   body.immersive #kbd-btn { display: none !important; }
   /* No position:fixed and no z-index here on purpose. body is a flex column and
      .frames is flex:1 1 auto, so hiding the chrome already gives the frame the
@@ -1331,8 +1315,10 @@
        FIRST flex child, above the usage strip: it must SHRINK the app area, never
        overlay it (see the CSS note). -->
   <div id="sys-warn"></div>
-  <div class="cu-strip" id="cu-strip" hidden></div>
-  <div class="cu-strip" id="cx-strip" hidden></div>
+  <div class="cu-strips" id="cu-strips" hidden>
+    <div class="cu-strip" id="cu-strip" hidden></div>
+    <div class="cu-strip" id="cx-strip" hidden></div>
+  </div>
   <div class="frames" id="frames">
     <div class="wallpaper" aria-hidden="true">
       <svg class="wp-logo" viewBox="0 0 240 240" xmlns="http://www.w3.org/2000/svg">

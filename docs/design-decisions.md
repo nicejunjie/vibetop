@@ -21,8 +21,9 @@ and why it lost).
 
 ## Contents
 
-_540 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_541 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
+- [The usage strips went from four lines to two: one row per provider on a shared grid](#the-usage-strips-went-from-four-lines-to-two-one-row-per-provider-on-a-shared-grid)
 - [Terminal link opened a closed Browser app but lost the URL](#terminal-link-opened-a-closed-browser-app-but-lost-the-url)
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
 - [Scheduled terminal messages ("resume when the token limit resets")](#scheduled-terminal-messages-resume-when-the-token-limit-resets)
@@ -565,6 +566,48 @@ _540 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [An installed iPhone app launched while hidden sits under the status bar](#an-installed-iphone-app-launched-while-hidden-sits-under-the-status-bar)
 
 <!-- END TOC -->
+
+## The usage strips went from four lines to two: one row per provider on a shared grid
+
+**Symptom:** with Claude Limit and Codex Limit both on, a phone gave four lines
+of screen (about 104px) to four percentages; a desktop gave two. The user asked
+for something more concise (2026-11-26) and picked "one row per provider".
+
+**Cause:** each strip was a brand column beside two stacked, boxed chips, each
+chip spelling out `session ▰ 42% · resets 2h 10m (2:30 PM)`. The words and the
+boxes were most of the width.
+
+**Fix (v1.38.183):** a strip is one line — `Claude  5h ▰ 42% 2h 10m  wk ▰ 18%
+3d 4h  3m ago`. Both strips sit in one wrapper, `#cu-strips`: side by side on a
+desktop (one line, 25px), stacked on a phone (two lines, 45px).
+- **Phone columns are shared, not tuned.** The wrapper is a grid and each strip
+  is a `subgrid` row with its per-window wrapper `display: contents`, so the
+  browser sizes one set of columns for both rows. Bars take the leftover width.
+- **Same ten cells, always.** An expired or missing window renders `—` with
+  empty bar and reset cells instead of being dropped (Claude used to drop it).
+- **One fit decision for both strips** (`vtFitUsage`): phone `2h 10m` → `2h10m`
+  → age cut to `3m` with tighter gaps → reset text emptied; desktop
+  `2h 10m (2:30 PM)` → countdown only if that keeps both on one line.
+- **Clock time on a phone:** a tap on the strip swaps countdown for clock time
+  for 6s (there is no hover for the `title`).
+
+**Traps met on the way:**
+- A `column-gap` on the subgrid strip itself is carved out of the borrowed
+  tracks: a `minmax(14px, 1fr)` bar rendered 8px wide. The gap goes on the
+  wrapper and the strip says `gap: normal`.
+- `min-width: 0` on a grid item removes its automatic minimum, so the `auto`
+  columns shrank under their text instead of overflowing, and the fit step
+  (which measures `scrollWidth`) never saw anything to fix. `min-width: auto`.
+- Hiding a reset text with `hidden` removed a grid cell and slid every later
+  column left. It is emptied instead.
+
+**Rejected:**
+- **Numbers only on one line, tap to expand** — loses the reset countdown, which
+  is what the strip is consulted for near a limit.
+- **Taskbar pills with a popover** — zero height, but the phone taskbar has no
+  width to spare.
+- **Fixed column widths per breakpoint** (the previous approach) — needed a
+  re-tune whenever a text changed length, and still drifted between the rows.
 
 ## Terminal link opened a closed Browser app but lost the URL
 
