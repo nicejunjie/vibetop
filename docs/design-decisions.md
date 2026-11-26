@@ -21684,4 +21684,14 @@ and the first row is sharp; in this state neither 0..11px nor 0..62px reached
 past the inset, so if WebKit samples at the top of the usable area both missed.
 This is a guess about WebKit's sampling point.
 
-**Not verified.** v1.38.179's effect on the blur has not been seen on the device.
+**That did not help either (2026-11-26, operator: "still").** Three candidates
+have now failed in this state, so the blur is treated as fixed behaviour.
+
+**v1.38.180.** On iOS 27 the shell starts 24pt lower again in this state only
+(`BLUR_CLEAR` in `apph.js`): `--app-top` is inset + 24 and `--app-h` loses the
+same. The figure is measured from the device screenshot of 2026-11-21 (a row at
+67..85pt blurred, the next at 91pt sharp). The cost is a 24pt band of empty
+background under the status bar on the roughly 1-in-15 launches that hit the
+state. Rejected: leaving the first row blurred; reloading (does not clear it).
+
+**Not verified.** v1.38.180 has not been seen on the device.

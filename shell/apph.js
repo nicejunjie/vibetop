@@ -180,12 +180,19 @@
   var bootHidden = false;
   try { bootHidden = !!document.hidden; } catch (e) {}
 
+  var BLUR_CLEAR = 24;
   var maxH = 0, lastW = 0, lastCut = 0, lastApplied = 0, lastTop = -1;
   function apply() {
     if (!standalone) { if (force) diag(); return; }
     var w = window.innerWidth;
     if (w !== lastW) { lastW = w; maxH = 0; }   // rotation / Split View: re-baseline
     var top = barExcess(contentH());
+    // iOS 27 blurs what is drawn in roughly the first 24pt below the status bar in
+    // this state, and none of three top-edge candidates (v1.38.175/176/179) made
+    // it stop. Measured on a device screenshot: a row at 67..85pt is blurred, the
+    // next at 91pt is sharp. So start the shell that much lower; a short band of
+    // empty background is the price of a readable first row.
+    if (top > 0 && ios27) top += BLUR_CLEAR;
     var h = contentH() - top;
     lastCut = top;
     // The keyboard shrinks the visual viewport. Usually clientHeight stays at

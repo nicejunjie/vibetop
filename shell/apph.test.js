@@ -65,7 +65,7 @@ test('standalone height releases a transient oversize after the keyboard closes'
   // The shell does not grow into it.
   root.clientHeight = vv.height = 956;
   listeners.DOMContentLoaded();
-  assert.equal(values['--app-h'], '894px');
+  assert.equal(values['--app-h'], '870px');
   root.clientHeight = vv.height = 894;
   listeners.DOMContentLoaded();
   assert.equal(values['--app-h'], '894px');
@@ -169,22 +169,22 @@ function coverHarness(opts) {
 }
 test('a full-screen web view: the shell moves below the status bar', () => {
   const h = coverHarness({ h: 956, sat: 62 });
-  assert.equal(h.values['--app-top'], '62px');
-  assert.equal(h.values['--app-h'], '894px');
+  assert.equal(h.values['--app-top'], '86px');
+  assert.equal(h.values['--app-h'], '870px');
 });
 test('with no safe-area report, the bar height learned on a normal launch is used', () => {
   const normal = coverHarness({ h: 894 });
   assert.equal(normal.values['--app-h'], '894px');
   assert.equal(normal.store['vt:statusbar-h'], '62');
   const covered = coverHarness({ h: 956, store: normal.store });
-  assert.equal(covered.values['--app-h'], '894px');
+  assert.equal(covered.values['--app-h'], '870px');
 });
 test('the cover is found and released with no event at all (watchdog)', () => {
   const h = coverHarness({ h: 894 });
   h.root.clientHeight = h.vv.height = h.win.innerHeight = 956;
   h.tick();
-  assert.equal(h.values['--app-top'], '62px');
-  assert.equal(h.values['--app-h'], '894px');
+  assert.equal(h.values['--app-top'], '86px');
+  assert.equal(h.values['--app-h'], '870px');
   h.root.clientHeight = h.vv.height = h.win.innerHeight = 894;
   h.tick();
   assert.equal(h.values['--app-top'], '0px');
@@ -222,4 +222,12 @@ test('the strip behind the status bar is filled only while the shell is offset',
   assert.equal(h.classes.has('under-statusbar'), false);
   const html = fs.readFileSync(path.join(__dirname, 'desktop.html'), 'utf8');
   assert.match(html, /html\.under-statusbar #ios27-top-edge \{[^}]*height: calc\(var\(--app-top, 0px\) \+ 11px\)[^}]*background-clip: text/);
+});
+test('the blur clearance applies only on iOS 27 and only in the full-screen state', () => {
+  const old = coverHarness({ h: 956, sat: 62, ua: 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_7) Version/26.4 Mobile/15' });
+  assert.equal(old.values['--app-top'], '62px');
+  assert.equal(old.values['--app-h'], '894px');
+  const normal = coverHarness({ h: 894, sat: 0 });
+  assert.equal(normal.values['--app-top'], '0px');
+  assert.equal(normal.values['--app-h'], '894px');
 });

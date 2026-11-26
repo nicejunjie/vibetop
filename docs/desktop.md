@@ -49,7 +49,7 @@ The root page at `/` is a Windows-style shell:
 
 On iOS 27, an installed Home Screen app gets a native scroll-edge blur immediately below the status bar. `apph.js` marks only iOS 27 standalone sessions with `ios27-standalone` (using the Safari `Version/27` token; the iOS OS token is frozen at `18_*`). A transparent-to-paint, fixed 11px candidate at the top asks WebKit to use a solid status-bar color extension instead of the blur. It does not take layout space or intercept touches. This WebKit behavior needs an iOS 27 device check after deployment.
 
-After a launch that booted hidden, iOS 27 shows an installed app's web view full-screen, with its top under the status bar (viewport as tall as the screen, `env(safe-area-inset-top)` non-zero). `apph.js` then sets `--app-top` to the inset and shortens `--app-h` by the same amount, so the shell sits where it normally does, and logs a `shell-height` line to `/api/clientlog`. A reload does not clear the state. See the design decision "An installed iPhone app launched while hidden sits under the status bar".
+After a launch that booted hidden, iOS 27 shows an installed app's web view full-screen, with its top under the status bar (viewport as tall as the screen, `env(safe-area-inset-top)` non-zero). `apph.js` then sets `--app-top` to the inset and shortens `--app-h` by the same amount, so the shell sits where it normally does, and logs a `shell-height` line to `/api/clientlog`. On iOS 27 the offset is the inset plus 24pt, because iOS blurs that much below the status bar in this state and no top-edge candidate stops it. A reload does not clear the state. See the design decision "An installed iPhone app launched while hidden sits under the status bar".
 
 ## Utilities submenu
 
