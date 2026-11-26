@@ -21694,4 +21694,29 @@ same. The figure is measured from the device screenshot of 2026-11-21 (a row at
 background under the status bar on the roughly 1-in-15 launches that hit the
 state. Rejected: leaving the first row blurred; reloading (does not clear it).
 
+**Mechanism, from WebKit source (2026-11-26, trunk 42eafc6c).** The web view is
+always full-screen (`outerHeight` 956 in both states). On a normal launch the
+host app tells WebKit the top 62pt is obscured; in the bad state it has not, so
+the layout is 956 and the safe-area inset is 62. That is native state, which is
+why reloads keep it. The blur is UIKit's scroll edge effect; WebKit hides it only
+when a top fixed-colour extension view exists, and that view is only created when
+the host-set top obscured inset is non-zero (`WKWebView.mm` 3573-3641,
+`WKWebViewIOS.mm` 2528-2539, `WebPageCocoa.mm` 1783-1806). So in the bad state no
+element or colour can remove the blur, which is why v1.38.175/176/179 all failed.
+The candidate rules (`LocalFrameView.cpp` 2351-2749): one hit-test at top centre
+4px in, a fixed/sticky ancestor at least 90% wide and over 10px in both
+dimensions, computed background colour. `black-translucent` is rejected: it makes
+the bad state the only state.
+
+**Experiment `vfexp` (v1.38.181, temporary).** Without `viewport-fit=cover`
+WebKit insets the scroll view by the safe area itself and notifies the host
+(`WKWebViewIOS.mm` 3989-4040). The experiment switches the viewport meta
+cover -> auto -> cover for 9 seconds each on the device, with a labelled ruler
+under the status bar, and posts a snapshot per phase (`why: "vfexp A auto"` and
+so on). It runs on each return to the app in the bad state and once per build in
+the normal state. Outcomes: `cover2` back at 894/0 means a toggle heals the
+state; `auto` sane in both states means ship `viewport-fit=auto` and delete the
+`--app-top` machinery; otherwise the blur cannot be fixed from the page. Remove
+the experiment with the build that settles it.
+
 **Not verified.** v1.38.180 has not been seen on the device.
