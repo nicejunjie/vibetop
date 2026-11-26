@@ -210,7 +210,64 @@
       root.classList.toggle('under-statusbar', top > 0);
     }
     if (top > 0 || lastReport) report(maxH, top);
+    if (top > 0) scheduleHeal();
     if (force) diag();
+  }
+
+  // ---- putting a full-screen launch back into the normal state ---------------------
+  // The web view is always full-screen; on a normal launch the Home Screen host
+  // tells WebKit the top 62pt is obscured, and on some background launches it does
+  // not (see the header of the --app-top block). An on-device experiment
+  // (2026-11-26, v1.38.181) showed that taking `viewport-fit=cover` off the
+  // viewport meta and putting it back makes the host apply that inset after all:
+  //   cover: ch 956, inset 62   ->   auto: ch 894, inset 0   ->   cover: ch 894, inset 0
+  // and the last line is exactly a normal launch (bottom inset 34 again, first row
+  // sharp on the device). So do that once the page is visibly in the full-screen
+  // state. The --app-top offset above stays as the layout while this runs and as
+  // the fallback if iOS ever stops responding to it.
+  var HEAL_MAX = 3, HEAL_CONFIRM_MS = 600, HEAL_POLL_MS = 100, HEAL_WAIT_MS = 2000;
+  var healTries = 0, healBusy = false, healTimer = null;
+  function fullScreenState() {
+    if (!isIOS || !standalone || document.hidden) return false;
+    if (window.innerWidth > window.innerHeight) return false;
+    var sc = screen.height || 0;
+    return sc > 0 && (root.clientHeight || 0) >= sc - 1;
+  }
+  function viewportMeta() {
+    try { return document.querySelector('meta[name="viewport"]'); } catch (e) { return null; }
+  }
+  function scheduleHeal() {
+    if (healBusy || healTimer || healTries >= HEAL_MAX || !fullScreenState()) return;
+    // A page that was hidden reports the full screen until it is shown, and iOS
+    // usually corrects it by itself at that moment. Only act if it persists.
+    healTimer = setTimeout(function () { healTimer = null; heal(); }, HEAL_CONFIRM_MS);
+  }
+  function heal() {
+    if (healBusy || healTries >= HEAL_MAX || !fullScreenState()) return;
+    var meta = viewportMeta();
+    if (!meta || !/viewport-fit=cover/.test(meta.content || '')) return;
+    healBusy = true; healTries++;
+    var cover = meta.content, waited = 0;
+    var before = snapshot('heal-before', maxH, lastCut);
+    meta.content = cover.replace('viewport-fit=cover', 'viewport-fit=auto');
+    (function poll() {
+      waited += HEAL_POLL_MS;
+      if (fullScreenState() && waited < HEAL_WAIT_MS) { setTimeout(poll, HEAL_POLL_MS); return; }
+      meta.content = cover;
+      setTimeout(function () {
+        healBusy = false;
+        settle();
+        var after = snapshot(fullScreenState() ? 'heal-failed' : 'heal-ok', maxH, lastCut);
+        after.tries = healTries; after.waited = waited;
+        try {
+          fetch('/api/clientlog', { method: 'POST', credentials: 'same-origin', cache: 'no-store',
+            keepalive: true, headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ ua: navigator.userAgent, at: Date.now(), sw: [], guard: [before, after] })
+          }).catch(function () {});
+        } catch (e) {}
+        scheduleHeal();   // still full-screen: try again, up to HEAL_MAX per page
+      }, 300);
+    })();
   }
 
   var edgeState = null, edgeTimer, settleTimers = [];
@@ -243,7 +300,7 @@
   }
   function settle() { syncTopEdge(); apply(); }
   function tick() {
-    settle(); scheduleTopEdge(); vfArm();
+    settle(); scheduleTopEdge();
     settleTimers.forEach(clearTimeout);
     settleTimers = [80, 300, 800, 1800].map(function(ms) { return setTimeout(settle, ms); });
   }
@@ -260,7 +317,7 @@
   addEventListener('load', tick);
   addEventListener('pageshow', tick);
   addEventListener('focus', tick);
-  document.addEventListener('visibilitychange', function () { if (document.hidden) suspendTopEdge(); else { vfRearm(); tick(); } });
+  document.addEventListener('visibilitychange', function () { if (document.hidden) suspendTopEdge(); else tick(); });
   addEventListener('orientationchange', tick);
   addEventListener('resize', viewportChanged);
   if (window.visualViewport) {
@@ -272,110 +329,6 @@
   if (typeof setInterval === 'function') {
     setInterval(function () { if (!document.hidden) apply(); }, 2000);
   }
-
-  // ---- EXPERIMENT vfexp (temporary; remove with the build that settles it) --------
-  // Question: what do WebKit and the Home Screen host do with the top of the screen
-  // when the page stops asking for `viewport-fit=cover`? WebKit then contains the
-  // safe area itself (UIScrollView contentInsetAdjustmentBehavior = Always,
-  // WKWebViewIOS.mm _updateScrollViewInsetAdjustmentBehavior) and tells the host
-  // through -_webView:didChangeSafeAreaShouldAffectObscuredInsets:. Unknown: the
-  // resulting layout height, whether the first row is blurred, and whether going
-  // back to `cover` afterwards leaves the full-screen state healed.
-  //
-  // Phases, each labelled on a ruler drawn just under the status bar so a
-  // screenshot shows which phase it is and how far down the blur reaches:
-  //   cover (as launched) -> auto -> cover2 (restored).
-  // One POST at the end carries a snapshot per phase (the endpoint is rate-limited).
-  // Runs on every load in the full-screen state ("A"), and once per build in the
-  // normal state ("N").
-  var VFEXP_BUILD = 'vfexp-1';
-  var VFEXP_PHASE_MS = 9000;
-  var vfexpRan = false, vfexpDone = false;
-  function vfSnap(why) {
-    var e = snapshot(why, maxH, lastCut);
-    var se = document.scrollingElement, meta = document.querySelector('meta[name="viewport"]');
-    e.sab = (function () {
-      try {
-        var d = document.createElement('div');
-        d.style.cssText = 'position:fixed;bottom:0;left:0;width:1px;height:env(safe-area-inset-bottom);visibility:hidden';
-        document.body.appendChild(d);
-        var v = Math.round(d.getBoundingClientRect().height); d.remove(); return v;
-      } catch (_) { return -1; }
-    })();
-    e.sh = se ? se.scrollHeight : 0;
-    e.svh = probeH('100svh'); e.lvh = probeH('100lvh'); e.dvh = probeH('100dvh');
-    // Can the document be moved? (316008 reports a scrollable page in this family.)
-    try { window.scrollTo(0, 40); e.scrolled = Math.round(window.scrollY || 0); window.scrollTo(0, 0); }
-    catch (_) { e.scrolled = -1; }
-    e.vp = meta ? (/viewport-fit=\w+/.exec(meta.content) || ['none'])[0] : 'nometa';
-    return e;
-  }
-  function vfRuler(label) {
-    var r = document.getElementById('vfexp-ruler');
-    if (!label) { if (r) r.remove(); return; }
-    if (!r) {
-      r = document.createElement('div');
-      r.id = 'vfexp-ruler';
-      // Narrow and right-aligned: under 90% of the width and away from the top
-      // centre, so WebKit's fixed-edge sampler never picks it as the top candidate.
-      r.style.cssText = 'position:fixed;top:env(safe-area-inset-top);right:0;width:96px;height:72px;' +
-        'z-index:2147483646;pointer-events:none;background:#000;color:#fff;' +
-        'font:9px/6px ui-monospace,monospace;overflow:hidden';
-      var rows = '';
-      for (var y = 0; y < 72; y += 6) {
-        rows += '<div style="height:6px;box-shadow:inset 0 1px 0 #fff;padding-left:2px">' + y + ' <span></span></div>';
-      }
-      r.innerHTML = rows;
-      document.body.appendChild(r);
-    }
-    var spans = r.getElementsByTagName('span');
-    for (var i = 0; i < spans.length; i++) spans[i].textContent = label;
-  }
-  function vfExperiment() {
-    if (vfexpRan || !standalone || !ios27 || document.hidden || !document.body) return;
-    if (typeof document.querySelector !== 'function') return;
-    var meta = document.querySelector('meta[name="viewport"]');
-    if (!meta || !/viewport-fit=cover/.test(meta.content)) return;
-    var portrait = !(window.innerWidth > window.innerHeight);
-    if (!portrait) return;
-    var state = (root.clientHeight || 0) >= (screen.height || 0) - 1 ? 'A' : 'N';
-    if (state === 'N') {
-      try {
-        if (localStorage.getItem('vt:vfexp') === VFEXP_BUILD) return;
-        localStorage.setItem('vt:vfexp', VFEXP_BUILD);
-      } catch (_) { return; }
-    }
-    vfexpRan = true;
-    var cover = meta.content, out = [];
-    vfRuler(state + ' cover');
-    setTimeout(function () {
-      out.push(vfSnap('vfexp ' + state + ' cover'));
-      meta.content = cover.replace('viewport-fit=cover', 'viewport-fit=auto');
-      vfRuler(state + ' AUTO');
-      setTimeout(function () {
-        out.push(vfSnap('vfexp ' + state + ' auto'));
-        meta.content = cover;
-        vfRuler(state + ' cover2');
-        setTimeout(function () {
-          out.push(vfSnap('vfexp ' + state + ' cover2'));
-          vfRuler(null);
-          vfexpDone = true;
-          try {
-            fetch('/api/clientlog', { method: 'POST', credentials: 'same-origin', cache: 'no-store',
-              keepalive: true, headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ ua: navigator.userAgent, at: Date.now(), sw: [], guard: out })
-            }).catch(function () {});
-          } catch (_) {}
-        }, VFEXP_PHASE_MS);
-      }, VFEXP_PHASE_MS);
-    }, VFEXP_PHASE_MS);
-  }
-  // Start once the page has been visible and settled for a moment.
-  // Called from tick() (load / pageshow / focus / becoming visible).
-  function vfArm() { if (!vfexpRan && !document.hidden) setTimeout(vfExperiment, 2500); }
-  // A finished run may repeat when the app is brought back to the front (state A
-  // only; the normal state is still limited to once per build by localStorage).
-  function vfRearm() { if (vfexpDone) { vfexpDone = false; vfexpRan = false; } }
 
   // ---- diagnostic overlay (gated) --------------------------------------------------
   var probes = {};

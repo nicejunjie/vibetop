@@ -21719,4 +21719,31 @@ state; `auto` sane in both states means ship `viewport-fit=auto` and delete the
 `--app-top` machinery; otherwise the blur cannot be fixed from the page. Remove
 the experiment with the build that settles it.
 
-**Not verified.** v1.38.180 has not been seen on the device.
+**Experiment result (2026-11-26 10:35, device in the bad state).**
+
+| phase | clientHeight | top inset | bottom inset | scrollable |
+|---|---|---|---|---|
+| cover (as launched) | 956 | 62 | 34 | no |
+| auto | 894 | 0 | 0 | no |
+| cover restored | 894 | 0 | 34 | no |
+
+The last row is a normal launch, and the device screenshot of that phase shows
+the normal layout with a sharp first row. Taking `viewport-fit=cover` off and
+putting it back makes the host apply the inset it skipped.
+
+**Fix (v1.38.182).** `heal()` in `apph.js`: when an installed iOS app is visibly
+in the full-screen state in portrait for 600ms, switch the viewport meta to
+`viewport-fit=auto`, poll until `clientHeight` drops below the screen height (2s
+at most), restore `cover`, and log `heal-before` plus `heal-ok` or `heal-failed`
+to `/api/clientlog`. At most three tries per page. The `--app-top` offset (inset
++ 24pt on iOS 27) remains as the layout during those moments and as the fallback
+if iOS stops responding. The experiment code is removed.
+
+**Rejected.** Shipping `viewport-fit=auto` permanently: sane in the one bad-state
+sample, but untested on a normal launch, and it moves the home-indicator band out
+of the taskbar's control (bottom inset 0). `black-translucent`: makes the bad
+state the only state.
+
+**Not verified.** The heal has run once, as the experiment's manual toggle with
+9-second phases. The automatic version (sub-second phases) has not yet met a real
+bad launch; the next one will log `heal-ok` or `heal-failed`.

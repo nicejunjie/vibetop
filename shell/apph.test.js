@@ -231,3 +231,76 @@ test('the blur clearance applies only on iOS 27 and only in the full-screen stat
   assert.equal(normal.values['--app-top'], '0px');
   assert.equal(normal.values['--app-h'], '894px');
 });
+
+// The permanent fix for the full-screen launch: taking viewport-fit=cover off and
+// putting it back makes iOS apply the status-bar inset (device experiment
+// 2026-11-26: 956/62 -> 894/0 -> 894/0).
+function healHarness(opts = {}) {
+  const timers = []; let clock = 0; const sent = [];
+  const meta = { content: 'width=device-width,initial-scale=1,viewport-fit=cover' };
+  const history = [];
+  Object.defineProperty(meta, 'content', {
+    get() { return this._c; }, set(v) { this._c = v; history.push(/viewport-fit=(\w+)/.exec(v)[1]); } });
+  meta._c = 'width=device-width,initial-scale=1,viewport-fit=cover';
+  const root = { clientHeight: 956, classList: { toggle() {} }, style: { setProperty() {} } };
+  const vv = { height: 956, addEventListener() {} };
+  const navigator = { userAgent: opts.ua || 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_7) Version/27.2 Mobile/15', standalone: true };
+  const win = { navigator, visualViewport: vv, innerWidth: opts.w || 440, innerHeight: 956,
+    matchMedia() { return { matches: true }; } };
+  const body = { appendChild() {}, getBoundingClientRect() { return { top: 0, bottom: 0 }; } };
+  const doc = { readyState: 'complete', hidden: !!opts.hidden, documentElement: root, body,
+    createElement() { return { style: {}, parentNode: body, getBoundingClientRect() { return { height: 62 }; } }; },
+    querySelector() { return meta; }, getElementById() { return null; }, addEventListener() {} };
+  // iOS responds to the meta: with `auto` the layout drops to 894 and, once the
+  // inset has been applied, it stays there when `cover` comes back.
+  const responds = opts.responds !== false;
+  function sync() { if (responds && /viewport-fit=auto/.test(meta._c)) root.clientHeight = vv.height = win.innerHeight = 894; }
+  vm.runInNewContext(source, { window: win, navigator, document: doc, matchMedia: win.matchMedia,
+    visualViewport: vv, screen: { height: 956, width: 440 }, location: { hash: '' },
+    localStorage: { getItem() { return null; }, setItem() {} },
+    fetch(url, o) { sent.push(JSON.parse(o.body).guard); return { catch() {} }; },
+    Date, addEventListener() {}, setInterval() {},
+    setTimeout(fn, ms) { timers.push({ fn, at: clock + (ms || 0) }); return timers.length; },
+    clearTimeout() {} }, { filename: 'apph.js' });
+  function advance(ms) {
+    const until = clock + ms;
+    for (;;) {
+      sync();
+      const due = timers.filter(t => t.at <= until).sort((a, b) => a.at - b.at)[0];
+      if (!due) break;
+      timers.splice(timers.indexOf(due), 1); clock = due.at; due.fn();
+    }
+    clock = until;
+  }
+  return { history, sent, root, advance, meta };
+}
+test('a full-screen launch is healed by toggling viewport-fit, and cover is restored', () => {
+  const h = healHarness();
+  h.advance(599);
+  assert.deepEqual(h.history, [], 'not before the state has persisted for a moment');
+  h.advance(3000);
+  assert.deepEqual(h.history, ['auto', 'cover']);
+  assert.equal(h.root.clientHeight, 894);
+  assert.match(h.meta.content, /viewport-fit=cover/);
+  const whys = h.sent.flat().map(e => e.why).filter(w => /^heal/.test(w));
+  assert.deepEqual(whys, ['heal-before', 'heal-ok']);
+  h.advance(20000);
+  assert.deepEqual(h.history, ['auto', 'cover'], 'healed once, never toggled again');
+});
+test('if iOS does not respond, the heal gives up after three tries and cover is left on', () => {
+  const h = healHarness({ responds: false });
+  h.advance(60000);
+  assert.deepEqual(h.history, ['auto', 'cover', 'auto', 'cover', 'auto', 'cover']);
+  assert.match(h.meta.content, /viewport-fit=cover/);
+  assert.equal(h.sent.flat().filter(e => e.why === 'heal-failed').length, 3);
+});
+test('no heal while hidden, in landscape, or off iOS', () => {
+  for (const opts of [{ hidden: true }, { w: 2000 }, { ua: 'Mozilla/5.0 (Linux; Android 16) Chrome/140 Mobile' }]) {
+    const h = healHarness(opts);
+    h.advance(10000);
+    assert.deepEqual(h.history, [], JSON.stringify(opts));
+  }
+});
+test('the on-device experiment code is gone', () => {
+  assert.equal(/vfExperiment|vfRuler|vfexp-ruler/.test(source), false);
+});
