@@ -174,15 +174,17 @@
     background-color: #0e1117;
     -webkit-background-clip: text; background-clip: text;
   }
-  /* Web view shown full-screen (apph.js sets --app-top and this class): the strip
-     behind the status bar is ours, so fill it with a REAL fixed, opaque bar. iOS
-     27 still blurred the first row below the status bar with the strip left as
-     bare page background. */
+  /* Web view shown full-screen (apph.js sets --app-top and this class). The same
+     non-painting candidate as above, but spanning from the screen top to 11px
+     BELOW the status bar: v1.38.175 left it at 0..11px and v1.38.176 made it an
+     opaque bar ending exactly at the inset, and iOS 27 blurred the first row
+     under the status bar with both. Where WebKit samples in this state is not
+     known; this covers the top of the screen and the top of the usable area. */
   html.under-statusbar #ios27-top-edge {
     display: block; position: fixed; top: 0; left: 0; right: 0;
-    height: var(--app-top, 0px); z-index: 2147483647; pointer-events: none;
+    height: calc(var(--app-top, 0px) + 11px); z-index: 2147483647; pointer-events: none;
     background-color: #0e1117;
-    -webkit-background-clip: border-box; background-clip: border-box;
+    -webkit-background-clip: text; background-clip: text;
   }
   #auth-expired {
     margin: auto; width: min(360px, calc(100% - 32px)); padding: 24px;

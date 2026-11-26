@@ -21674,4 +21674,14 @@ filled by `#ios27-top-edge` as a real fixed, opaque bar of `--app-top` height
 fill when a fixed opaque element sits at the top edge. This is an experiment on
 the live state, not a known mechanism.
 
-**Not verified.** v1.38.176's effect on the blur has not been seen on the device.
+**The opaque bar did not help (2026-11-26).** The state recurred with v1.38.176
+live (log: body at 62..956, inset 62) and the operator reported the blur again.
+
+**v1.38.179.** The candidate goes back to the non-painting form that works on a
+normal launch, but now spans from the screen top to 11px below the inset. The
+reasoning: on a normal launch the candidate sits at the top of the usable area
+and the first row is sharp; in this state neither 0..11px nor 0..62px reached
+past the inset, so if WebKit samples at the top of the usable area both missed.
+This is a guess about WebKit's sampling point.
+
+**Not verified.** v1.38.179's effect on the blur has not been seen on the device.

@@ -221,5 +221,5 @@ test('the strip behind the status bar is filled only while the shell is offset',
   h.tick();
   assert.equal(h.classes.has('under-statusbar'), false);
   const html = fs.readFileSync(path.join(__dirname, 'desktop.html'), 'utf8');
-  assert.match(html, /html\.under-statusbar #ios27-top-edge \{[^}]*height: var\(--app-top, 0px\)[^}]*background-clip: border-box/);
+  assert.match(html, /html\.under-statusbar #ios27-top-edge \{[^}]*height: calc\(var\(--app-top, 0px\) \+ 11px\)[^}]*background-clip: text/);
 });
