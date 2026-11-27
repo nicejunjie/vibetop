@@ -589,9 +589,16 @@ every 120s while the strip is on; the heartbeat serves the cached reading.
 - **`--log-file /dev/null`.** Otherwise each launch leaves a ~15KB log in
   `~/.gemini/antigravity-cli/log` — 720 files a day.
 - **Remaining → used**, to read like the other two rows.
-- **Several quota groups, two slots.** Each of `5h` / `wk` shows the group
-  closest to its limit and names it in the tooltip. Between equally-used groups
-  the one with a reset time wins (an untouched bucket reports `1970-01-01`).
+- **Several quota groups, two slots — one slot per GROUP (v1.38.186).** The
+  first cut filled `5h` / `wk` with the tightest five-hour and the tightest
+  weekly limit across groups. After the first real Gemini session the row read
+  `5h 0%  wk 80%`: the weekly was Gemini's, the `5h` was the untouched
+  Claude/GPT pool, and Gemini has no five-hour limit at all — the user asked
+  why the live session was not being counted. Now `segs` carries one segment
+  per group (its limit closest to exhaustion), labelled `Gem` / `C/G`
+  (`_agy_group_label`), with the group and window in the tooltip. Between
+  equally-used limits the one with a reset time wins (an untouched bucket
+  reports `1970-01-01`).
 - The client side is Codex's implementation with different names
   (`vtDisplayStrip`), not a third copy.
 
@@ -606,9 +613,9 @@ every 120s while the strip is on; the heartbeat serves the cached reading.
 - **One row per quota group.** Honest, but it is a variable number of rows, and
   the strips were just cut from four lines to two.
 
-**Not verified:** how the output looks once a window is actually running or a
-limit is hit — the account was untouched (all 100% remaining) when this was
-built. The parser skips any limit whose name is neither "week" nor "five hour".
+**Seen since:** one Gemini session moved `Gemini Models / Weekly` from 100% to
+20% remaining with a reset 7 days out; the format did not change. **Not
+verified:** a running five-hour window, or a limit actually hit. The parser skips any limit whose name is neither "week" nor "five hour".
 
 ## The usage strips went from four lines to two: one row per provider on a shared grid
 

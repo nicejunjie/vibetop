@@ -117,3 +117,38 @@ def test_run_invokes_the_users_binary_without_leaving_logs(mgr, tmp_path):
     assert args == "--log-file /dev/null -p /usage"
     assert mgr._agy_usage_run("x", str(tmp_path / "nowhere")) is None \
         or mgr._agy_bin(str(tmp_path / "nowhere")) is not None      # a system-wide agy is fine
+
+
+def test_the_row_is_drawn_per_quota_group_not_per_window(mgr):
+    # 2026-11-26, after one Gemini session: Gemini has NO five-hour limit, so a
+    # "5h" slot filled from the Claude/GPT group read as "my session is not
+    # being counted". Each half of the row is one group's tightest limit.
+    got = mgr._agy_usage_parse(
+        "Gemini Models\tWeekly Limit Remaining\t20%\t2026-12-04T04:27:46Z\n"
+        "Claude and GPT models\tWeekly Limit Remaining\t100%\t1970-01-01T00:00:00Z\n"
+        "Claude and GPT models\tFive Hour Limit Remaining\t100%\t1970-01-01T00:00:00Z\n")
+    segs = got["segs"]
+    assert [x["label"] for x in segs] == ["Gem", "C/G"]
+    assert segs[0]["name"] == "Gemini Models" and segs[0]["window"] == "weekly"
+    assert abs(segs[0]["pct"] - .8) < 1e-9 and segs[0]["reset"] == 1796358466
+    assert segs[1]["pct"] == 0.0 and segs[1]["reset"] is None
+    # Within a group the limit closest to exhaustion is the one shown.
+    got = mgr._agy_usage_parse(
+        "Claude and GPT models\tWeekly Limit Remaining\t70%\t2026-12-04T00:00:00Z\n"
+        "Claude and GPT models\tFive Hour Limit Remaining\t10%\t2026-11-27T05:00:00Z\n")
+    assert len(got["segs"]) == 1 and got["segs"][0]["window"] == "5h"
+    assert abs(got["segs"][0]["pct"] - .9) < 1e-9
+
+
+def test_group_labels(mgr):
+    assert mgr._agy_group_label("Gemini Models") == "Gem"
+    assert mgr._agy_group_label("Claude and GPT models") == "C/G"
+    assert mgr._agy_group_label("") == "?"
+
+
+def test_only_the_two_tightest_groups_fit_the_row(mgr):
+    got = mgr._agy_usage_parse(
+        "A Models\tWeekly Limit Remaining\t90%\t\n"
+        "B Models\tWeekly Limit Remaining\t10%\t\n"
+        "C Models\tWeekly Limit Remaining\t50%\t\n")
+    assert [x["name"] for x in got["segs"]] == ["B Models", "C Models"]

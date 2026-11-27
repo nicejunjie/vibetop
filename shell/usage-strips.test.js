@@ -472,6 +472,29 @@ test('the Antigravity strip renders the same row and names its quota group', () 
   assert.equal(nodes['ag-strip'].hidden, true);
 });
 
+test('a provider with several quota pools labels its halves by pool', () => {
+  // Gemini has no five-hour limit. Filling a "5h" slot from the Claude/GPT pool
+  // beside Gemini's weekly one read as a session that was not being counted.
+  const { sandbox, nodes } = load(src);
+  const now = Math.floor(Date.now() / 1000);
+  const wk = { pct: .8, reset: now + 6 * 86400, group: 'Gemini Models' };
+  sandbox.applyServerAgyUsage(true, { enabled: true, ageSec: 30,
+    session: { pct: 0, reset: null, group: 'Claude and GPT models' }, weekly: wk,
+    segs: [{ label: 'Gem', name: 'Gemini Models', window: 'weekly', pct: .8, reset: wk.reset },
+           { label: 'C/G', name: 'Claude and GPT models', window: '5h', pct: 0, reset: null }] });
+  const html = nodes['ag-strip'].innerHTML;
+  assert.match(html, /cu-lbl">Gem<.*80%.*cu-lbl">C\/G<.*cu-pct">0%</);
+  assert.doesNotMatch(html, /cu-lbl">5h</);
+  assert.match(html, /title="Gemini Models, weekly limit 80%/);
+  assert.equal((html.match(/class="cu-(lbl|bar[^"]*|pct|dim)"/g) || []).length, 8, 'still two full halves');
+  // One pool: the second half is blank, but its four cells are still there.
+  sandbox.applyServerAgyUsage(true, { enabled: true, ageSec: 30, session: null, weekly: wk,
+    segs: [{ label: 'Gem', name: 'Gemini Models', window: 'weekly', pct: .8, reset: wk.reset }] });
+  const one = nodes['ag-strip'].innerHTML;
+  assert.match(one, /cu-bar cu-none/);
+  assert.equal((one.match(/class="cu-(lbl|bar[^"]*|pct|dim)"/g) || []).length, 8);
+});
+
 test('the shell wires the Antigravity toggle end to end', () => {
   const appreg = fs.readFileSync(path.join(__dirname, 'appreg.js'), 'utf8');
   assert.match(appreg, /agyusage: \{ label: 'Antigravity Limit'[^}]*section: 'utilities', toggle: true \}/);
