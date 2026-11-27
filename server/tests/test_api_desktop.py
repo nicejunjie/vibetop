@@ -8,7 +8,7 @@ def test_heartbeat_response_shape(client):
                                {"instance": "a", "open": ["terminal"], "active": "terminal"})
     assert status == 200 and body["ok"] is True
     for k in ("running", "reset_epoch", "close_targets", "sys_stats",
-              "claude_usage", "codex_usage", "terminals_running", "warnings"):
+              "claude_usage", "codex_usage", "agy_usage", "terminals_running", "warnings"):
         assert k in body
     assert body["running"] == ["terminal"]
     assert body["system"] == {"cpu": {"pct": 0}, "mem": {}}   # folded in (stats on)
@@ -55,6 +55,21 @@ def test_codex_usage_toggle_folds_snapshot_into_heartbeat(client, mgr, monkeypat
     _, hb = client.get("/api/desktop?instance=codex-test")
     assert hb["codex_usage"] is True
     assert hb["codex"]["session"]["pct"] == .25
+
+
+def test_agy_usage_toggle_folds_snapshot_into_heartbeat(client, mgr, monkeypatch):
+    monkeypatch.setattr(mgr, "_agy_usage_payload",
+                        lambda user=None, enabled=True: {"enabled": enabled,
+                                                        "weekly": {"pct": .5}})
+    _, hb = client.get("/api/desktop?instance=agy-test")
+    assert hb["agy_usage"] is False and "agy" not in hb      # off by default
+    status, body = client.post("/api/desktop/ui", {"agyUsage": True})
+    assert status == 200 and body["agy_usage"] is True
+    _, hb = client.get("/api/desktop?instance=agy-test")
+    assert hb["agy_usage"] is True and hb["agy"]["weekly"]["pct"] == .5
+    status, hb = client.post("/api/desktop", {"instance": "agy-test", "open": [], "active": None})
+    assert hb["agy_usage"] is True and hb["agy"]["weekly"]["pct"] == .5
+    client.post("/api/desktop/ui", {"agyUsage": False})
 
 
 def test_close_records_targets_for_live_holders(client):

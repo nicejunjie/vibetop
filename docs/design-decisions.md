@@ -21,8 +21,9 @@ and why it lost).
 
 ## Contents
 
-_541 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_542 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
+- [Antigravity limits come from `agy -p /usage`, not from the account endpoint](#antigravity-limits-come-from-agy--p-usage-not-from-the-account-endpoint)
 - [The usage strips went from four lines to two: one row per provider on a shared grid](#the-usage-strips-went-from-four-lines-to-two-one-row-per-provider-on-a-shared-grid)
 - [Terminal link opened a closed Browser app but lost the URL](#terminal-link-opened-a-closed-browser-app-but-lost-the-url)
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
@@ -566,6 +567,48 @@ _541 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [An installed iPhone app launched while hidden sits under the status bar](#an-installed-iphone-app-launched-while-hidden-sits-under-the-status-bar)
 
 <!-- END TOC -->
+
+## Antigravity limits come from `agy -p /usage`, not from the account endpoint
+
+**Symptom:** the user installed Google's Antigravity CLI (`agy`, 2026-11-26) and
+wanted its limits in a strip beside Claude's and Codex's.
+
+**Cause (what there is to read):** nothing on disk — unlike Codex, `agy` writes
+no rate-limit snapshots into its logs. The numbers exist in two places: the
+account endpoint the CLI calls (`…/v1internal:retrieveUserQuotaSummary`, bearer
+token from `~/.gemini/antigravity-cli/antigravity-oauth-token`), and the CLI's
+own read-only slash commands, which answer in print mode: `agy -p /usage` prints
+`group <TAB> limit name <TAB> NN% <TAB> reset` per limit and exits (1.8s, ~245MB
+peak, no conversation created, no quota spent — measured on agy 1.5.18).
+
+**Fix (v1.38.184):** `_agy_usage_payload` runs `agy --log-file /dev/null -p
+/usage` as the requesting user in a background thread, single-flight, at most
+every 120s while the strip is on; the heartbeat serves the cached reading.
+- **Run as the user.** The binary is in the user's own `~/.local/bin` and
+  updates itself; root executing it would be a privilege escalation.
+- **`--log-file /dev/null`.** Otherwise each launch leaves a ~15KB log in
+  `~/.gemini/antigravity-cli/log` — 720 files a day.
+- **Remaining → used**, to read like the other two rows.
+- **Several quota groups, two slots.** Each of `5h` / `wk` shows the group
+  closest to its limit and names it in the tooltip. Between equally-used groups
+  the one with a reset time wins (an untouched bucket reports `1970-01-01`).
+- The client side is Codex's implementation with different names
+  (`vtDisplayStrip`), not a third copy.
+
+**Rejected:**
+- **Calling the account endpoint directly (as the Codex strip does).** It works
+  — but Antigravity's access token lives one hour and only `agy` refreshes it
+  (Codex's lives ~10 days), so the strip would go dark an hour after the last
+  `agy` session unless the manager refreshed it with the CLI's embedded OAuth
+  client credentials. The endpoint is also an internal `daily-` one that needs
+  a project id from a second call. The CLI's tab-separated output is the
+  surface Google documents in its changelog.
+- **One row per quota group.** Honest, but it is a variable number of rows, and
+  the strips were just cut from four lines to two.
+
+**Not verified:** how the output looks once a window is actually running or a
+limit is hit — the account was untouched (all 100% remaining) when this was
+built. The parser skips any limit whose name is neither "week" nor "five hour".
 
 ## The usage strips went from four lines to two: one row per provider on a shared grid
 

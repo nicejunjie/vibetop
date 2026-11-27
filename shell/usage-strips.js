@@ -18,6 +18,7 @@
  * Public surface (the main script dispatches on these by name):
  *   window.applyServerClaudeUsage(on, data)   window.toggleClaudeUsage()
  *   window.applyServerCodexUsage(on, data)    window.toggleCodexUsage()
+ *   window.applyServerAgyUsage(on, data)      window.toggleAgyUsage()
  */
 // --- Claude plan-usage strip (opt-in) --------------------------------------
 // There is no API to query Max-plan usage; the numbers exist only as response
@@ -102,8 +103,8 @@ function vtUsageAge(d) {
 // Pick the longest reset text that keeps every enabled strip on its one line.
 // It works on BOTH strips at once: they share columns, so they must also share
 // a form — "2h 10m (2:30 PM)" over "4h02m" reads as two different displays.
-//   desktop: full, and only if that wraps Codex onto a second line, countdown
-//            alone; if even that wraps, there are two lines of room — full again.
+//   desktop: full ("2h 10m (2:30 PM)"); if the strips wrap onto more than one
+//            line, the countdown alone — but only if that saves a line.
 //   phone:   countdown ("2h 10m"), then "2h10m", then the same with the age cut
 //            to "3m" and the gaps closed up, and only then no reset text at all.
 //            A tap swaps the countdown for the clock time for a few seconds.
@@ -122,18 +123,27 @@ function vtFitUsage() {
     for (i = 0; i < ages.length; i++) ages[i].textContent = ages[i].dataset[tight ? 'short' : 'long'];
     wrap.classList.toggle('tight', !!tight);
   }
-  function over() {
-    if (narrow) return wrap.scrollWidth > wrap.clientWidth + 1;
-    var rows = wrap.querySelectorAll('.cu-strip:not([hidden])');
-    return rows.length > 1 && rows[1].offsetTop > rows[0].offsetTop + 2;
+  // How many lines the enabled strips take on a desktop (they wrap whole).
+  function lines() {
+    var rows = wrap.querySelectorAll('.cu-strip:not([hidden])'), tops = [];
+    for (var i = 0; i < rows.length; i++) {
+      if (tops.indexOf(rows[i].offsetTop) < 0) tops.push(rows[i].offsetTop);
+    }
+    return tops.length;
   }
-  var steps = narrow ? [[vtUsageAt ? 'at' : 'mid', false], ['min', false], ['min', true], ['', true]]
-                     : [['full', false], ['mid', false]];
+  if (!narrow) {
+    show('full', false);
+    var full = lines();
+    if (full < 2) return;
+    show('mid', false);
+    if (lines() >= full) show('full', false);     // no line saved: keep the clock time
+    return;
+  }
+  var steps = [[vtUsageAt ? 'at' : 'mid', false], ['min', false], ['min', true], ['', true]];
   for (var f = 0; f < steps.length; f++) {
     show(steps[f][0], steps[f][1]);
-    if (!over()) return;
+    if (wrap.scrollWidth <= wrap.clientWidth + 1) return;
   }
-  if (!narrow) show('full', false);
 }
 // The wrapper carries the background and the bottom rule, so it has to go when
 // both strips are off; and one strip changing can change what fits in the other.
@@ -183,7 +193,8 @@ function vtUsageSync() {
     // see something inside is on without expanding it.
     var parent = document.getElementById('sm-util-parent');
     if (parent) parent.classList.toggle('has-active',
-      !!document.querySelector('.sm-item[data-id="claudeusage"].cu-on, .sm-item[data-id="codexusage"].cu-on'));
+      !!document.querySelector('.sm-item[data-id="claudeusage"].cu-on, .sm-item[data-id="codexusage"].cu-on, ' +
+                               '.sm-item[data-id="agyusage"].cu-on'));
   }
   function render(d) {
     if (d) lastData = d;
@@ -193,7 +204,7 @@ function vtUsageSync() {
     // per-tab hide, so every client is consistent: on = shown everywhere.
     if (!enabled) { strip.hidden = true; vtUsageSync(); return; }
     strip.hidden = false;
-    var html = '<span class="cu-brand">Claude</span>';
+    var html = '<span class="cu-brand">Claude</span>';   // short enough for a phone as it is
     // The proxy retains its last reading even after a subscription ends. A
     // percentage only describes the window it was captured in; after reset it
     // is unknown, not zero. The heartbeat rechecks this against the clock.
@@ -274,65 +285,74 @@ function vtUsageSync() {
   // the 5s heartbeat (which also re-fires on visibilitychange) drive the strip.
 })();
 
-// --- Codex plan-usage strip (opt-in) ---------------------------------------
-// Codex writes account-wide rate-limit snapshots into its local session logs,
-// so this toggle only changes Vibetop's display preference; it does not reroute
-// Codex traffic or alter ~/.codex configuration.
-(function codexUsage() {
-  var strip = document.getElementById('cx-strip');
+// --- Codex and Antigravity plan-usage strips (opt-in) -----------------------
+// Both are display preferences only: the manager already knows how to read each
+// tool's limits (Codex: its account endpoint or session logs; Antigravity: the
+// CLI's own `agy -p /usage`), and the toggle just says whether to show them. So
+// they share one implementation, and differ only in the names below.
+//   brand/short  the row's name on a desktop / on a phone, where every row's
+//                name column is as wide as the longest one
+//   key          the field POSTed to /api/desktop/ui
+function vtDisplayStrip(cfg) {
+  var strip = document.getElementById(cfg.strip);
   if (!strip) return;
   var enabled = false, lastData = null, localOverrideUntil = 0;
+  var ROWS = '.sm-item[data-id="claudeusage"].cu-on, .sm-item[data-id="codexusage"].cu-on, ' +
+             '.sm-item[data-id="agyusage"].cu-on';
   function updateRow() {
-    var row = document.querySelector('.sm-item[data-id="codexusage"]');
+    var row = document.querySelector('.sm-item[data-id="' + cfg.row + '"]');
     if (row) {
       row.classList.toggle('cu-on', enabled);
       var desc = row.querySelector('.sm-desc');
       if (desc) desc.textContent = enabled ? 'On — plan usage strip' : 'Off';
     }
     var parent = document.getElementById('sm-util-parent');
-    if (parent) parent.classList.toggle('has-active',
-      !!document.querySelector('.sm-item[data-id="claudeusage"].cu-on, .sm-item[data-id="codexusage"].cu-on'));
+    if (parent) parent.classList.toggle('has-active', !!document.querySelector(ROWS));
   }
+  // "5h: Claude and GPT models" — Antigravity has several quota groups and each
+  // slot shows the one closest to its limit, so the tooltip has to say which.
+  function named(name, w) { return w && w.group ? name + ', ' + w.group : name; }
   function render(data) {
     if (data) lastData = data;
     enabled = !!(data && data.enabled);
     updateRow();
     if (!enabled) { strip.hidden = true; vtUsageSync(); return; }
     strip.hidden = false;
-    var html = '<span class="cu-brand">Codex</span>';
+    var html = '<span class="cu-brand" title="' + cfg.brand + '"><span class="cu-long">' + cfg.brand +
+               '</span><span class="cu-short">' + (cfg.short || cfg.brand) + '</span></span>';
     var now = Math.floor(Date.now() / 1000);
     function current(w) {
       return w && w.pct != null && (w.reset ? w.reset > now : !data.stale);
     }
     var hasSession = current(data.session), hasWeekly = current(data.weekly);
     if (hasSession || hasWeekly) {
-      html += vtUsageSeg('5h', 'session (5h)', hasSession ? data.session : null) +
-              vtUsageSeg('wk', 'week (7d)', hasWeekly ? data.weekly : null);
+      html += vtUsageSeg('5h', named('session (5h)', data.session), hasSession ? data.session : null) +
+              vtUsageSeg('wk', named('week (7d)', data.weekly), hasWeekly ? data.weekly : null);
     } else {
       var hadReading = data.updated || data.session || data.weekly;
       html += '<span class="cu-msg">' + (data.note || (hadReading
         ? 'usage unavailable — waiting for a new reading'
-        : 'waiting for first Codex response…')) + '</span>';
+        : cfg.waiting)) + '</span>';
     }
     html += vtUsageAge(data);
-    // The server's reason for falling back to this machine's logs. It gets its
-    // own line: it is the exceptional state, and it is a sentence, not a number.
+    // The server's reason for showing an older reading. It gets its own line:
+    // it is the exceptional state, and it is a sentence, not a number.
     if (data && data.note && (hasSession || hasWeekly)) {
-      html += '<span class="cu-note" title="showing the last reading from this machine\'s Codex logs">' + data.note + '</span>';
+      html += '<span class="cu-note" title="showing the last reading">' + data.note + '</span>';
     }
-    strip.innerHTML = html + '<span class="cu-x" id="cx-x" title="Turn off Codex Limit (all devices)">✕</span>';
-    var close = document.getElementById('cx-x');
-    if (close) close.onclick = window.toggleCodexUsage;
+    strip.innerHTML = html + '<span class="cu-x" id="' + cfg.x + '" title="Turn off ' + cfg.brand +
+                      ' Limit (all devices)">✕</span>';
+    var close = document.getElementById(cfg.x);
+    if (close) close.onclick = toggle;
     vtUsageSync();
   }
-  window.applyServerCodexUsage = function(on, data) {
+  function apply(on, data) {
     if (Date.now() < localOverrideUntil) return;
     if (data) { render(data); return; }
     if (on === enabled) return;
-    var next = Object.assign({}, lastData || {}, {enabled: on});
-    render(next);
-  };
-  window.toggleCodexUsage = function() {
+    render(Object.assign({}, lastData || {}, {enabled: on}));
+  }
+  function toggle() {
     var want = !enabled;
     localOverrideUntil = Date.now() + 8000;
     render(Object.assign({}, lastData || {}, {enabled: want}));
@@ -343,18 +363,29 @@ function vtUsageSync() {
     function refused(status) {
       localOverrideUntil = 0;
       render(Object.assign({}, lastData || {}, {enabled: !want}));
-      var row = document.querySelector('.sm-item[data-id="codexusage"]');
+      var row = document.querySelector('.sm-item[data-id="' + cfg.row + '"]');
       var desc = row && row.querySelector('.sm-desc');
       if (desc) desc.textContent = status === 403 ? 'Operator only — not changed'
                                 : status ? 'Could not change (' + status + ')'
                                          : 'Could not reach the server — not changed';
     }
+    var body = {};
+    body[cfg.key] = want;
     fetch('/api/desktop/ui', {method: 'POST', headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({codexUsage: want})})
+      body: JSON.stringify(body)})
       .then(function(r) {
         if (!r.ok) { refused(r.status); return; }
         localOverrideUntil = 0; if (window.pushDesktop) window.pushDesktop();
       })
       .catch(function() { refused(0); });
-  };
+  }
+  return { apply: apply, toggle: toggle };
+}
+(function displayStrips() {
+  var cx = vtDisplayStrip({ strip: 'cx-strip', x: 'cx-x', row: 'codexusage', key: 'codexUsage',
+    brand: 'Codex', waiting: 'waiting for first Codex response…' });
+  if (cx) { window.applyServerCodexUsage = cx.apply; window.toggleCodexUsage = cx.toggle; }
+  var ag = vtDisplayStrip({ strip: 'ag-strip', x: 'ag-x', row: 'agyusage', key: 'agyUsage',
+    brand: 'Antigravity', short: 'Agy', waiting: 'asking the Antigravity CLI…' });
+  if (ag) { window.applyServerAgyUsage = ag.apply; window.toggleAgyUsage = ag.toggle; }
 })();

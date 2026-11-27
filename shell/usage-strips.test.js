@@ -13,7 +13,7 @@ test('every reset text carries its shorter forms, countdown last to go', () => {
   // and the tightest one is still the countdown, never the clock time.
   assert.match(src, /data-full="' \+ full \+ '" data-mid="' \+ rin \+\s*'" data-min="' \+ min/);
   assert.match(src, /var min = rin\.replace\(\/ \/g, ''\);/);
-  assert.equal((src.match(/vtUsageSeg\('5h'/g) || []).length, 2, 'Claude and Codex share the renderer');
+  assert.equal((src.match(/vtUsageSeg\('5h'/g) || []).length, 2, 'Claude and the display strips share the renderer');
   assert.equal((src.match(/vtUsageSeg\('wk'/g) || []).length, 2);
 });
 
@@ -38,7 +38,7 @@ test('the reauth landing does not reload for ever (2026-09-12)', () => {
 });
 
 test('the two strips sit in one wrapper that shares columns on a phone', () => {
-  assert.match(shell, /<div class="cu-strips" id="cu-strips" hidden>\s*<div class="cu-strip" id="cu-strip" hidden><\/div>\s*<div class="cu-strip" id="cx-strip" hidden><\/div>\s*<\/div>/);
+  assert.match(shell, /<div class="cu-strips" id="cu-strips" hidden>\s*<div class="cu-strip" id="cu-strip" hidden><\/div>\s*<div class="cu-strip" id="cx-strip" hidden><\/div>\s*<div class="cu-strip" id="ag-strip" hidden><\/div>\s*<\/div>/);
   const narrow = shell.match(/@media \(max-width: 680px\) \{\s*\.cu-strips \{[\s\S]*?\n  \}/);
   assert.ok(narrow, 'the phone rule for the strips must be present');
   assert.match(narrow[0], /grid-template-columns: subgrid; grid-column: 1 \/ -1;/);
@@ -96,10 +96,10 @@ function el(id) {
 function load(source, opts) {
   const reply = (opts && opts.reply) || { ok: true, status: 200 };
   const nodes = {
-    'cu-strip': el('cu-strip'), 'cx-strip': el('cx-strip'),
-    'cu-x': el('cu-x'), 'cx-x': el('cx-x'), 'sm-util-parent': el('sm-util-parent'),
+    'cu-strip': el('cu-strip'), 'cx-strip': el('cx-strip'), 'ag-strip': el('ag-strip'),
+    'cu-x': el('cu-x'), 'cx-x': el('cx-x'), 'ag-x': el('ag-x'), 'sm-util-parent': el('sm-util-parent'),
   };
-  const rows = { claudeusage: el('row-claude'), codexusage: el('row-codex') };
+  const rows = { claudeusage: el('row-claude'), codexusage: el('row-codex'), agyusage: el('row-agy') };
   const posted = [];
   const document = {
     getElementById: (id) => nodes[id] || null,
@@ -263,6 +263,7 @@ test('the module never calls a shell function by bare name — only through wind
 for (const [name, toggle, endpoint] of [
   ['Claude', 'toggleClaudeUsage', '/api/claude/usage'],
   ['Codex', 'toggleCodexUsage', '/api/desktop/ui'],
+  ['Antigravity', 'toggleAgyUsage', '/api/desktop/ui'],
 ]) {
   test(`toggling the ${name} strip POSTs, then pushes the new state immediately`, async () => {
     const { sandbox, posted } = load(src);
@@ -303,6 +304,7 @@ test('every window.* function the module calls is published by the shell', () =>
 for (const [name, toggle, rowId] of [
   ['Claude', 'toggleClaudeUsage', 'claudeusage'],
   ['Codex', 'toggleCodexUsage', 'codexusage'],
+  ['Agy', 'toggleAgyUsage', 'agyusage'],
 ]) {
   test(`a refused ${name} toggle reverts at once and says why`, async () => {
     const { sandbox, rows } = load(src, { reply: { ok: false, status: 403 } });
@@ -439,6 +441,42 @@ test('both strips emit the same cells, placeholders included', () => {
   sandbox.applyServerCodexUsage(true, { enabled: true, session: null,
     weekly: { pct: .13, reset: now + 86400 } });
   assert.deepEqual(cells(nodes['cx-strip'].innerHTML), ROW);
+});
+
+// Antigravity (v1.38.184) is the third row. It is the same implementation as
+// Codex with different names, so what is pinned here is what differs: its own
+// POST field, the group named in the tooltip, and the short phone name.
+test('the Antigravity strip renders the same row and names its quota group', () => {
+  const { sandbox, nodes, rows, posted } = load(src);
+  const now = Math.floor(Date.now() / 1000);
+  sandbox.applyServerAgyUsage(true, { enabled: true, ageSec: 30,
+    session: { pct: .25, reset: now + 3600, group: 'Claude and GPT models' },
+    weekly: { pct: .6, reset: now + 3 * 86400, group: 'Gemini Models' } });
+  const html = nodes['ag-strip'].innerHTML;
+  assert.equal(nodes['ag-strip'].hidden, false);
+  assert.ok(rows.agyusage.classList.contains('cu-on'));
+  assert.match(html, /cu-long">Antigravity<\/span><span class="cu-short">Agy</);
+  assert.match(html, /title="session \(5h\), Claude and GPT models 25%/);
+  assert.match(html, /title="week \(7d\), Gemini Models 60%/);
+  assert.match(html, /cu-lbl">5h<.*25%.*cu-lbl">wk<.*60%/);
+  // An untouched bucket has no window running: a number, no countdown, and it
+  // must not be mistaken for an expired reading.
+  sandbox.applyServerAgyUsage(true, { enabled: true, ageSec: 30,
+    session: { pct: 0, reset: null, group: 'Claude and GPT models' },
+    weekly: { pct: 0, reset: now + 7 * 86400, group: 'Gemini Models' } });
+  assert.match(nodes['ag-strip'].innerHTML, /cu-lbl">5h<.*cu-pct">0%<\/span><span class="cu-dim"><\/span>/);
+  sandbox.applyServerAgyUsage(true, { enabled: true, note: 'signed out — run agy to sign in' });
+  assert.match(nodes['ag-strip'].innerHTML, /signed out/);
+  sandbox.toggleAgyUsage();
+  assert.equal(JSON.parse(posted[0].opt.body).agyUsage, false);
+  assert.equal(nodes['ag-strip'].hidden, true);
+});
+
+test('the shell wires the Antigravity toggle end to end', () => {
+  const appreg = fs.readFileSync(path.join(__dirname, 'appreg.js'), 'utf8');
+  assert.match(appreg, /agyusage: \{ label: 'Antigravity Limit'[^}]*section: 'utilities', toggle: true \}/);
+  assert.match(shell, /else if \(id === 'agyusage'\) \{ toggleAgyUsage\(\); \}/);
+  assert.match(shell, /window\.applyServerAgyUsage\(d\.agy_usage, d\.agy\)/);
 });
 
 // The fit step, against a fake wrapper whose width is its text. What matters is

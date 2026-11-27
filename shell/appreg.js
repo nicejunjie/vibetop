@@ -42,6 +42,7 @@
     // icons match in style and size instead of falling back to emoji.
     claudeusage: svgIcon('M20.38 8.57l-1.23 1.85a8 8 0 0 1-.22 7.58H5.07A8 8 0 0 1 15.58 6.85l1.85-1.23A10 10 0 0 0 3.35 19a2 2 0 0 0 1.72 1h13.85a2 2 0 0 0 1.74-1 10 10 0 0 0-.27-10.44zm-9.79 6.84a2 2 0 0 0 2.83 0l5.66-8.49-8.49 5.66a2 2 0 0 0 0 2.83z'),
     codexusage:  svgIcon('M12 2l8.66 5v10L12 22l-8.66-5V7L12 2zm0 3.1L6 8.56v6.88l6 3.46 6-3.46V8.56L12 5.1zm0 2.3l4 2.3v4.6l-4 2.3-4-2.3V9.7l4-2.3z'),
+    agyusage:    svgIcon('M12 3L3 20h4.2l4.8-9.6L16.8 20H21L12 3z'),
     tokenstats:  svgIcon('M21 8c-1.45 0-2.26 1.44-1.93 2.51l-3.55 3.56c-.3-.09-.74-.09-1.04 0l-2.55-2.55C12.27 10.45 11.46 9 10 9c-1.45 0-2.27 1.44-1.93 2.52l-4.56 4.55C2.44 15.74 1 16.55 1 18c0 1.1.9 2 2 2 1.45 0 2.26-1.44 1.93-2.51l4.55-4.56c.3.09.74.09 1.04 0l2.55 2.55C12.73 16.55 13.54 18 15 18c1.45 0 2.27-1.44 1.93-2.52l3.56-3.55c1.07.33 2.51-.48 2.51-1.93 0-1.1-.9-2-2-2z'),
     sysstats:    svgIcon('M15 9H9v6h6V9zm-2 4h-2v-2h2v2zm8-2V9h-2V7c0-1.1-.9-2-2-2h-2V3h-2v2h-2V3H9v2H7c-1.1 0-2 .9-2 2v2H3v2h2v2H3v2h2v2c0 1.1.9 2 2 2h2v2h2v-2h2v2h2v-2h2c1.1 0 2-.9 2-2v-2h2v-2h-2v-2h2zm-4 6H7V7h10v10z'),
     // System administration (settings gear) — a System-section app, sudo-gated.
@@ -78,6 +79,8 @@
     // collapsible "Utilities" submenu (section 'utilities').
     claudeusage: { label: 'Claude Limit', icon: '📈', desc: 'Off', section: 'utilities', toggle: true },
     codexusage: { label: 'Codex Limit', icon: '◈', desc: 'Off', section: 'utilities', toggle: true },
+    // Antigravity CLI (`agy`) limits, read from the CLI's own `agy -p /usage`.
+    agyusage: { label: 'Antigravity Limit', icon: '△', desc: 'Off', section: 'utilities', toggle: true },
     // A normal app (iframe) under Utilities: token-consumption + estimated-cost
     // analytics parsed from Claude Code's local transcripts.
     tokenstats: { label: 'Token Stats', icon: '📊', src: '/token-stats.html', desc: 'Token use & est. cost', section: 'utilities' },

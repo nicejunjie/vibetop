@@ -1244,6 +1244,161 @@ def _codex_usage_payload(home=None, enabled=True):
     return out
 
 
+# ---- Antigravity CLI plan-usage strip (opt-in display) ---------------------
+# The Antigravity CLI (`agy`) answers its read-only slash commands in print mode:
+# `agy -p /usage` prints one tab-separated record per limit and exits,
+#
+#     Gemini Models <TAB> Weekly Limit Remaining <TAB> 100% <TAB> 2026-12-04T03:50:48Z
+#     Claude and GPT models <TAB> Five Hour Limit Remaining <TAB> 100% <TAB> 1970-01-01T00:00:00Z
+#
+# without starting a conversation or spending quota (measured 2026-11-26, agy
+# 1.5.18: 1.8s, ~245MB peak). That is the whole integration. The alternative --
+# calling the account endpoint the CLI calls, with the OAuth token it keeps in
+# ~/.gemini/antigravity-cli -- was tried and rejected: that token lives ONE hour
+# and only `agy` can refresh it (Codex's lives ~10 days), so the strip would go
+# dark an hour after the last agy session; the endpoint is an internal one; and
+# the CLI's own output is the documented, stable surface.
+#
+# The binary is the USER'S (it lives in their ~/.local/bin and self-updates), so
+# it is run AS the user, never as root -- root executing a user-writable file is
+# a privilege escalation by construction.
+AGY_USAGE_TTL = 120                 # at most one agy launch per user per 2 min
+AGY_USAGE_STALE_SEC = 15 * 60
+AGY_USAGE_TIMEOUT = 30
+_agy_cache = {}                     # home -> {"at","tried","epoch","payload","err","inflight"}
+_agy_lock = threading.Lock()
+
+
+def _agy_bin(home):
+    """The user's `agy`, or None. Their own install first: that is where the
+    CLI's installer and updater put it."""
+    for d in (os.path.join(home, ".local", "bin"), "/usr/local/bin", "/usr/bin"):
+        path = os.path.join(d, "agy")
+        if os.path.isfile(path) and os.access(path, os.X_OK):
+            return path
+    return None
+
+
+def _agy_usage_run(user, home):
+    """Run `agy -p /usage` as `user`. Returns (returncode, stdout, stderr), or
+    None when agy is not installed. `--log-file /dev/null` matters: without it
+    every launch leaves a 15KB log in ~/.gemini/antigravity-cli/log -- 720 files
+    a day at this cadence."""
+    exe = _agy_bin(home)
+    if exe is None:
+        return None
+    kw = {}
+    if os.geteuid() == 0:           # dev/tests are not root and cannot drop
+        pw = pwd.getpwnam(user)
+        kw = {"user": pw.pw_uid, "group": pw.pw_gid,
+              "extra_groups": os.getgrouplist(user, pw.pw_gid)}
+    env = {"HOME": home, "USER": user, "LOGNAME": user,
+           "PATH": os.path.join(home, ".local", "bin") + ":/usr/local/bin:/usr/bin:/bin",
+           "LANG": "C.UTF-8"}
+    r = subprocess.run([exe, "--log-file", os.devnull, "-p", "/usage"],
+                       env=env, cwd=home, stdin=subprocess.DEVNULL,
+                       capture_output=True, text=True, timeout=AGY_USAGE_TIMEOUT, **kw)
+    return r.returncode, r.stdout, r.stderr
+
+
+def _agy_usage_parse(text):
+    """Shape `agy -p /usage` output into the strip's payload, or None when not
+    one line of it is a limit record.
+
+    Antigravity has SEVERAL quota groups ("Gemini Models", "Claude and GPT
+    models"), each with a weekly limit and some with a five-hour one; the strip
+    has one five-hour slot and one weekly slot. Each slot reports the group that
+    is closest to its limit -- the one that will stop you first -- and names it
+    in `group`. `groups` carries every record for the tooltip.
+
+    The CLI reports what REMAINS; the strip, like Claude's and Codex's, shows
+    what is USED. A reset of 1970-01-01 is the CLI's "none" (an untouched
+    bucket has no window running)."""
+    best = {"session": None, "weekly": None}
+    groups = []
+    for line in (text or "").splitlines():
+        parts = [x.strip() for x in line.split("\t")]
+        if len(parts) < 3:
+            continue
+        m = re.fullmatch(r"(\d+(?:\.\d+)?)\s*%", parts[2])
+        if not m:
+            continue
+        name = parts[1].lower()
+        key = ("session" if ("five hour" in name or "5-hour" in name or "5h" in name)
+               else "weekly" if "week" in name else None)
+        if key is None:
+            continue
+        used = max(0.0, min(1.0, 1.0 - float(m.group(1)) / 100.0))
+        reset = None
+        if len(parts) > 3 and parts[3]:
+            try:
+                ts = int(datetime.fromisoformat(parts[3].replace("Z", "+00:00")).timestamp())
+                reset = ts if ts > 0 else None
+            except ValueError:
+                reset = None
+        rec = {"pct": used, "reset": reset, "group": parts[0]}
+        groups.append(dict(rec, window=key))
+        cur = best[key]
+        # Most used wins; between equals, the one with a window actually running.
+        if cur is None or (rec["pct"], rec["reset"] is not None) > (cur["pct"], cur["reset"] is not None):
+            best[key] = rec
+    if not groups:
+        return None
+    return {"session": best["session"], "weekly": best["weekly"], "groups": groups}
+
+
+def _agy_usage_refresh(user, home):
+    """Synchronous run + cache update for one user. Keeps the last good answer
+    across failures and remembers why the last run failed, for the note."""
+    try:
+        got = _agy_usage_run(user, home)
+        if got is None:
+            shaped, err = None, "not installed"
+        else:
+            rc, out, errtxt = got
+            shaped = _agy_usage_parse(out) if rc == 0 else None
+            err = None if shaped is not None else (
+                "signed out" if "not logged in" in (out + errtxt).lower()
+                else ((errtxt or out).strip()[:120] or "no usage reported"))
+    except Exception as e:                       # timeout, exec failure -- "not now"
+        shaped, err = None, str(e)[:120]
+    now = time.monotonic()
+    with _agy_lock:
+        ent = _agy_cache.setdefault(home, {})
+        ent["tried"], ent["inflight"], ent["err"] = now, False, err
+        if shaped is not None:
+            ent["at"], ent["epoch"], ent["payload"] = now, int(time.time()), shaped
+    return shaped
+
+
+def _agy_usage_payload(user=None, enabled=True):
+    """The cached Antigravity reading for the requesting user, refreshed in a
+    background thread when older than AGY_USAGE_TTL -- the 5s heartbeat that
+    carries this never waits on a 2-second CLI launch."""
+    out = {"enabled": bool(enabled)}
+    if not enabled:
+        return out
+    user = user or _ctx_user()
+    home = _user_home(user)
+    now = time.monotonic()
+    with _agy_lock:
+        ent = _agy_cache.setdefault(home, {})
+        if now - ent.get("tried", -1e9) >= AGY_USAGE_TTL and not ent.get("inflight"):
+            ent["inflight"], ent["tried"] = True, now
+            threading.Thread(target=_agy_usage_refresh, args=(user, home),
+                             name="agy-usage", daemon=True).start()
+        payload, epoch, err = ent.get("payload"), ent.get("epoch"), ent.get("err")
+    if payload is not None:
+        age = max(0, int(time.time()) - epoch)
+        out.update(payload)
+        out.update({"updated": epoch, "ageSec": age, "stale": age > AGY_USAGE_STALE_SEC})
+    if err:
+        out["note"] = ("Antigravity CLI not found — install agy" if err == "not installed"
+                       else "signed out — run agy to sign in" if err == "signed out"
+                       else "Antigravity unreachable")
+    return out
+
+
 # ---- Office (Word/Excel/PPT) view & edit -----------------------------------
 # View: convert to PDF with headless LibreOffice (cached) and serve it inline.
 # Edit: open the file in the OnlyOffice web editor (Document Server, below).
@@ -6811,11 +6966,13 @@ class Handler(http.server.BaseHTTPRequestHandler):
             _write_desktop_state(state)
             want_sys = state.get("sys_stats", True)
             want_codex = state.get("codex_usage", False)
+            want_agy = state.get("agy_usage", False)
             resp = {"ok": True, "running": _desktop_union(state, now),
                     "reset_epoch": state["reset_epoch"],
                     "close_targets": state["close_targets"],
                     "sys_stats": want_sys,
                     "codex_usage": want_codex,
+                    "agy_usage": want_agy,
                     "claude_usage": cu,
                     "hostname": socket.gethostname(),   # the tab title; not tied to sys_stats
                     "terminals_running": nterm}
@@ -6825,6 +6982,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
             resp["claude"] = _claude_usage_payload(cu)
         if want_codex:
             resp["codex"] = _codex_usage_payload(_office_home(), True)
+        if want_agy:
+            resp["agy"] = _agy_usage_payload(_ctx_user(), True)
         # System-health warnings ride the heartbeat too, ALWAYS (independent of the
         # stats toggle) — a red banner must show even with the stats readout off.
         resp["warnings"] = _cached("sys_warnings", 5.0, _system_warnings)
@@ -6882,9 +7041,12 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 state["sys_stats"] = bool(data["sysStats"])
             if "codexUsage" in data:
                 state["codex_usage"] = bool(data["codexUsage"])
+            if "agyUsage" in data:
+                state["agy_usage"] = bool(data["agyUsage"])
             _write_desktop_state(state)
             resp = {"ok": True, "sys_stats": state.get("sys_stats", True),
-                    "codex_usage": state.get("codex_usage", False)}
+                    "codex_usage": state.get("codex_usage", False),
+                    "agy_usage": state.get("agy_usage", False)}
         self._json(200, resp)
 
     def _handle_reset(self):
@@ -9863,6 +10025,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
                     _write_desktop_state(state)
                 want_sys = state.get("sys_stats", True)
                 want_codex = state.get("codex_usage", False)
+                want_agy = state.get("agy_usage", False)
                 resp = {
                     "open": (ent or {}).get("open", []),
                     "active": (ent or {}).get("active"),
@@ -9871,6 +10034,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
                     "close_targets": state["close_targets"],
                     "sys_stats": want_sys,
                     "codex_usage": want_codex,
+                    "agy_usage": want_agy,
                     "claude_usage": cu,
                     "terminals_running": nterm,
                     "hostname": socket.gethostname(),   # the tab title; not tied to sys_stats
@@ -9881,6 +10045,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 resp["claude"] = _claude_usage_payload(cu)
             if want_codex:
                 resp["codex"] = _codex_usage_payload(_office_home(), True)
+            if want_agy:
+                resp["agy"] = _agy_usage_payload(_ctx_user(), True)
             resp["warnings"] = _cached("sys_warnings", 5.0, _system_warnings)   # red-banner alerts (always)
             resp["hints"] = _cached("hints_enabled", 5.0, _read_hints_enabled)   # feature-tip kill-switch
             resp["start_layout"] = _cached("start_layout", 5.0, _read_startmenu_layout)
