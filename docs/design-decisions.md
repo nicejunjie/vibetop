@@ -21,8 +21,9 @@ and why it lost).
 
 ## Contents
 
-_542 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_543 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
+- [Five visual fixes from a three-reviewer design pass (2026-11-27)](#five-visual-fixes-from-a-three-reviewer-design-pass-2026-11-27)
 - [Antigravity limits come from `agy -p /usage`, not from the account endpoint](#antigravity-limits-come-from-agy--p-usage-not-from-the-account-endpoint)
 - [The usage strips went from four lines to two: one row per provider on a shared grid](#the-usage-strips-went-from-four-lines-to-two-one-row-per-provider-on-a-shared-grid)
 - [Terminal link opened a closed Browser app but lost the URL](#terminal-link-opened-a-closed-browser-app-but-lost-the-url)
@@ -567,6 +568,38 @@ _542 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [An installed iPhone app launched while hidden sits under the status bar](#an-installed-iphone-app-launched-while-hidden-sits-under-the-status-bar)
 
 <!-- END TOC -->
+
+## Five visual fixes from a three-reviewer design pass (2026-11-27)
+
+**Symptom:** nothing was broken, but the product looked unfinished in ways a
+first-time viewer notices within seconds. Claude, Codex and Qwen Flash-Next each
+reviewed the same eight screenshots (desktop and phone: home, Start menu, Files,
+Monitor, Notes); the five below are the ones at least two of them raised.
+
+**Fix (v1.38.190):**
+1. **Coach tip.** A saturated `#0a84ff` bar the full width of the screen (1424px
+   on a desktop for one sentence) is now a dark pill capped at 540px, centred,
+   with the blue kept as a 3px left edge (`shell/coach.js`).
+2. **One background.** Notes, Terminals, Config, Update, the Office editor and
+   the frame placeholder were `#1a1a2e` (purple-navy) against a `#0e1117` shell,
+   Files and Monitor. All are `#0e1117` now.
+3. **Start-menu scrim.** `#menu-scrim` existed only to catch clicks and was
+   invisible. It now dims the desktop (22%), and 62% on a phone, where the menu
+   otherwise floats over half a logo and clipped text. **No `backdrop-filter`**:
+   the layer beneath is live terminal and Browser frames.
+4. **Monitor.** `load 5.70 5.17 4.13` ran into `2.1% avg` and read `4.132.1%`:
+   the two readings are right floats, which sit in reverse source order, so the
+   gap belonged on the second span's right, not its left. And bar labels now
+   carry a dark backing, because a bar past ~70% runs under its own text.
+5. **Phone taskbar.** With three apps open their labels pushed the active one
+   off the right edge, so the bar named the apps you were not in. At ≤736px
+   only the active app keeps its name, and `revealActiveTask()` scrolls it into
+   view.
+
+**Rejected / deferred:** replacing emoji folder icons, menu motion, Notes
+typography, a shared theme token file (the colours were aligned by value; a
+token file is worth it only when a second palette exists). All listed in the
+same review, none urgent.
 
 ## Antigravity limits come from `agy -p /usage`, not from the account endpoint
 

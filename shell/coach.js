@@ -46,15 +46,21 @@
     var el = document.createElement('div');
     el.className = 'vibe-coach';
     var place = opts.bottom != null ? ('bottom:' + opts.bottom + 'px;') : ('top:' + (opts.top != null ? opts.top : 8) + 'px;');
-    el.style.cssText = 'position:fixed;left:8px;right:8px;' + place + 'z-index:2147483000;box-sizing:border-box;' +
-      'padding:9px 13px;background:#0a84ff;color:#fff;border-radius:11px;' +
-      'font:500 13px system-ui,sans-serif;text-align:center;box-shadow:0 4px 18px rgba(0,0,0,.45);cursor:pointer';
+    // A quiet dark pill, capped in width and centred. It used to be a saturated
+    // blue bar the full width of the screen (1424px on a desktop for one
+    // sentence) — the loudest thing on the page, over the app it was a hint FOR
+    // (three reviewers, 2026-11-27). The blue survives as a 3px edge.
+    el.style.cssText = 'position:fixed;left:8px;right:8px;max-width:540px;margin:0 auto;' + place +
+      'z-index:2147483000;box-sizing:border-box;' +
+      'padding:9px 14px;background:#1c2938;color:#e6edf3;border:1px solid #2f4257;' +
+      'border-left:3px solid #66afff;border-radius:10px;' +
+      'font:500 13px system-ui,sans-serif;text-align:center;box-shadow:0 6px 22px rgba(0,0,0,.5);cursor:pointer';
     var main = document.createElement('div');
     main.textContent = tip.text;
     el.appendChild(main);
     var note = document.createElement('div');
     note.textContent = 'This tip shows up to ' + MAX + ' times — tap this tip to dismiss';
-    note.style.cssText = 'margin-top:3px;font-size:11px;opacity:.85;font-weight:400';
+    note.style.cssText = 'margin-top:3px;font-size:11px;color:#8fa3b8;font-weight:400';
     el.appendChild(note);
     // Tapping anywhere on the banner dismisses it for good (no separate × needed).
     el.addEventListener('click', function () {

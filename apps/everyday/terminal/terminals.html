@@ -7,14 +7,14 @@
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
   html, body { height: 100%; overflow: hidden; }
-  body { display: flex; flex-direction: column; background: #1a1a2e; font-family: system-ui, sans-serif; }
+  body { display: flex; flex-direction: column; background: #0e1117; font-family: system-ui, sans-serif; }
 
   /* The bar row: scrolling tab strip + fixed-width controls beside it. The
      controls live OUTSIDE .tabs so a long tab list scrolls under them instead of
      shoving them off-screen (same split as the desktop taskbar's .task-apps). */
   .tabbar {
     display: flex; align-items: flex-end; gap: 6px;
-    padding: 4px 8px 0; background: #1a1a2e; flex-shrink: 0;
+    padding: 4px 8px 0; background: #0e1117; flex-shrink: 0;
     /* The terminal iframe below is position:absolute (a positioned element),
        which paints ABOVE this static-positioned bar and was capturing clicks on
        the bottom edge of the tabs (so only the upper part of a tab responded).
