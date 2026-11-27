@@ -589,16 +589,19 @@ every 120s while the strip is on; the heartbeat serves the cached reading.
 - **`--log-file /dev/null`.** Otherwise each launch leaves a ~15KB log in
   `~/.gemini/antigravity-cli/log` — 720 files a day.
 - **Remaining → used**, to read like the other two rows.
-- **Several quota groups, two slots — one slot per GROUP (v1.38.186).** The
-  first cut filled `5h` / `wk` with the tightest five-hour and the tightest
-  weekly limit across groups. After the first real Gemini session the row read
-  `5h 0%  wk 80%`: the weekly was Gemini's, the `5h` was the untouched
-  Claude/GPT pool, and Gemini has no five-hour limit at all — the user asked
-  why the live session was not being counted. Now `segs` carries one segment
-  per group (its limit closest to exhaustion), labelled `Gem` / `C/G`
-  (`_agy_group_label`), with the group and window in the tooltip. Between
-  equally-used limits the one with a reset time wins (an untouched bucket
-  reports `1970-01-01`).
+- **Several quota groups, two slots (settled in v1.38.189).** The slots are
+  WINDOWS, like the other rows: `5h` = the tightest five-hour limit across
+  groups, `wk` = the tightest weekly one, with the group named in the tooltip.
+  Two wrong turns got here. (1) v1.38.184 showed an idle limit as `5h 0%`: after
+  a Gemini session the row read `5h 0%  wk 80%`, the `5h` being the untouched
+  Claude/GPT pool (Gemini has no five-hour limit), and the user asked why the
+  live session was not counted. (2) v1.38.186 answered by labelling the halves
+  by pool (`Gem` / `C/G`), which put Gemini's weekly limit in the first column,
+  under everyone else's `5h` — the user: "weekly limit should be in the weekly
+  spot". The fix that satisfies both: keep window columns, and leave an IDLE
+  five-hour limit out (nothing used and no window running), so the slot shows
+  a dash until that pool is actually used. Between equally-used limits the one
+  with a reset time wins (an untouched bucket reports `1970-01-01`).
 - The client side is Codex's implementation with different names
   (`vtDisplayStrip`), not a third copy.
 

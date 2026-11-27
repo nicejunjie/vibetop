@@ -1344,44 +1344,16 @@ def _agy_usage_parse(text):
             best[key] = rec
     if not groups:
         return None
-    return {"session": best["session"], "weekly": best["weekly"], "groups": groups,
-            "segs": _agy_usage_segs(groups)}
-
-
-def _agy_group_label(name):
-    """A three-character column label for a quota group: "Gemini Models" ->
-    "Gem", "Claude and GPT models" -> "C/G". The full name is in the tooltip."""
-    words = [w for w in re.findall(r"[A-Za-z0-9]+", name or "")
-             if w.lower() not in ("models", "model", "and", "the")]
-    if not words:
-        return "?"
-    if len(words) == 1:
-        return words[0][:3]
-    return "/".join(w[0].upper() for w in words[:2])
-
-
-def _agy_usage_segs(groups):
-    """What the strip actually draws: one segment per quota GROUP, showing that
-    group's limit closest to exhaustion.
-
-    The first version filled the row's "5h" and "wk" slots with the tightest
-    five-hour and the tightest weekly limit across all groups. On the first day
-    of real use that put Gemini's weekly limit (80% used) beside a "5h 0%" that
-    belonged to the Claude/GPT group -- and since Gemini has no five-hour limit
-    at all, it read as "my live session is not being counted" (user,
-    2026-11-26). A row whose two halves are two different pools has to say so."""
-    by = {}
-    for g in groups:
-        cur = by.get(g["group"])
-        if cur is None or (g["pct"], g["reset"] is not None) > (cur["pct"], cur["reset"] is not None):
-            by[g["group"]] = g
-    segs = [{"label": _agy_group_label(name), "name": name,
-             "window": "5h" if g["window"] == "session" else "weekly",
-             "pct": g["pct"], "reset": g["reset"]} for name, g in by.items()]
-    if len(segs) > 2:                    # the row has two slots: keep the two tightest
-        keep = sorted(segs, key=lambda x: -x["pct"])[:2]
-        segs = [x for x in segs if x in keep]
-    return segs
+    # An IDLE five-hour limit is left out. Gemini models have no five-hour limit
+    # at all, so for a Gemini user the only one there is belongs to the Claude/GPT
+    # pool, untouched: "5h 0%" beside Gemini's weekly 80% read as "my live
+    # session is not being counted" (user, 2026-11-26). Idle = nothing used and
+    # no window running; the slot then shows a dash, and fills in as soon as
+    # that pool is actually used.
+    sess = best["session"]
+    if sess is not None and sess["pct"] <= 0 and sess["reset"] is None:
+        sess = None
+    return {"session": sess, "weekly": best["weekly"], "groups": groups}
 
 
 def _agy_usage_refresh(user, home):

@@ -110,11 +110,6 @@ function vtUsageSeg(label, name, value) {
     '<span class="cu-bar"><span class="cu-fill ' + cls + '" style="width:' + p + '%"></span></span>' +
     '<span class="cu-pct">' + p + '%</span>' + dim + '</span>';
 }
-// An empty half, for a provider with one pool: the four cells must still exist.
-function vtUsageBlank() {
-  return '<span class="cu-seg"><span class="cu-lbl"></span><span class="cu-bar cu-none"></span>' +
-         '<span class="cu-pct"></span><span class="cu-dim"></span></span>';
-}
 // How old the reading is, for the row's tooltip — and whether it is too old to
 // trust. The age used to be printed at the end of every row ("1m ago"), which
 // cost a whole column on a phone to say, nearly always, "this is current".
@@ -355,19 +350,7 @@ function vtDisplayStrip(cfg) {
       return w && w.pct != null && (w.reset ? w.reset > now : !data.stale);
     }
     var hasSession = current(data.session), hasWeekly = current(data.weekly);
-    // A provider with several quota POOLS (Antigravity: Gemini models, Claude
-    // and GPT models) sends `segs`, one per pool, each already reduced to that
-    // pool's tightest limit. Its two halves are then labelled by pool ("Gem",
-    // "C/G"), not by window — "5h" beside "wk" would claim they are the same
-    // pool, and they are not.
-    var segs = (data.segs || []).slice(0, 2);
-    if (segs.length && (hasSession || hasWeekly)) {
-      for (var i = 0; i < 2; i++) {
-        var g = segs[i];
-        html += g ? vtUsageSeg(g.label, g.name + ', ' + g.window + ' limit', current(g) ? g : null)
-                  : vtUsageBlank();
-      }
-    } else if (hasSession || hasWeekly) {
+    if (hasSession || hasWeekly) {
       html += vtUsageSeg('5h', named('session (5h)', data.session), hasSession ? data.session : null) +
               vtUsageSeg('wk', named('week (7d)', data.weekly), hasWeekly ? data.weekly : null);
     } else {
