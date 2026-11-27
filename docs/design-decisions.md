@@ -633,6 +633,11 @@ desktop (one line, 25px), stacked on a phone (two lines, 45px).
   `2h 10m (2:30 PM)` → countdown only if that keeps both on one line.
 - **Clock time on a phone:** a tap on the strip swaps countdown for clock time
   for 6s (there is no hover for the `title`).
+- **Desktop pills (v1.38.185):** once Antigravity made it three providers on
+  one line, the 1px rule between them was not enough — the user found the line
+  hard to read. Each provider is now a bordered pill with a 10px gap between
+  pills and extra space between its `5h` and `wk` halves. Sized so three still
+  fit on one line at 1440px in countdown-only form.
 
 **Traps met on the way:**
 - A `column-gap` on the subgrid strip itself is carved out of the borrowed

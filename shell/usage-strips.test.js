@@ -479,6 +479,17 @@ test('the shell wires the Antigravity toggle end to end', () => {
   assert.match(shell, /window\.applyServerAgyUsage\(d\.agy_usage, d\.agy\)/);
 });
 
+test('on a desktop each provider is its own pill (2026-11-26)', () => {
+  // Three providers on one line read as one run of twelve numbers.
+  const wide = shell.match(/@media \(min-width: 681px\) \{\s*\.cu-strips \{[\s\S]*?\n  \}/);
+  assert.ok(wide, 'the desktop pill rule must be present');
+  assert.match(wide[0], /\.cu-strip \{[^}]*border: 1px solid[^}]*border-radius: 8px;/);
+  assert.match(wide[0], /\.cu-strips \{ gap: 4px 10px;/, 'a real gap between providers');
+  assert.match(wide[0], /\.cu-strip \.cu-seg ~ \.cu-seg \{ margin-left: 8px; \}/, '5h and wk stand apart');
+  // The pill must not take the phone's shared grid with it.
+  assert.doesNotMatch(wide[0], /subgrid/);
+});
+
 // The fit step, against a fake wrapper whose width is its text. What matters is
 // the ORDER things are given up in, and that a reset text is emptied rather than
 // removed — on a phone it is a grid cell.
