@@ -41,7 +41,7 @@ function ageText(sec) {
 // A mini mark in front of each row's name (v1.38.187): three rows of identical
 // grey bars are told apart by reading, and a 13px mark in the product's own
 // colour is recognised before the word is. Inline SVG, inside the name cell, so
-// the row still has the same ten cells. The Claude and OpenAI paths are the
+// the row still has the same nine cells. The Claude and OpenAI paths are the
 // simple-icons ones (24x24); Antigravity's is the arch from its own favicon,
 // in its base blue without the gradient overlay.
 var VT_USAGE_LOGOS = {
@@ -60,10 +60,10 @@ function vtUsageLogo(kind) {
 // One row per provider (v1.38.183). Before that each strip was a brand column
 // beside two stacked chips — two lines each, four lines of a phone screen for
 // four percentages. Now a strip is ONE line: brand, the 5-hour window, the
-// weekly window, the reading's age. Stacked on a phone (two lines for both),
+// weekly window. Stacked on a phone (two lines for both),
 // side by side on a desktop (one line for both).
 //
-// The row is built from the same ten cells in the same order for both strips,
+// The row is built from the same nine cells in the same order for every strip,
 // placeholders included, because on a phone the two strips share one grid
 // (`.cu-strips`, subgrid) — a missing cell would shift every column after it.
 function vtResetIn(ts) {
@@ -115,22 +115,25 @@ function vtUsageBlank() {
   return '<span class="cu-seg"><span class="cu-lbl"></span><span class="cu-bar cu-none"></span>' +
          '<span class="cu-pct"></span><span class="cu-dim"></span></span>';
 }
-function vtUsageAge(d) {
-  var ageMin = Math.round(((d && d.ageSec) || 0) / 60);
-  // Shown once the numbers are a minute old. Fresh data says nothing — but the
-  // cell is still there, so the row always has the same ten cells.
-  return ((d && d.stale) || ageMin >= 1)
-    ? '<span class="cu-asof" title="usage data was read ' + ageText(d.ageSec) + ' ago" data-long="' +
-      ageText(d.ageSec) + ' ago" data-short="' + ageText(d.ageSec) + '">' + ageText(d.ageSec) + ' ago</span>'
-    : '<span class="cu-asof is-empty" aria-hidden="true"></span>';
+// How old the reading is, for the row's tooltip — and whether it is too old to
+// trust. The age used to be printed at the end of every row ("1m ago"), which
+// cost a whole column on a phone to say, nearly always, "this is current".
+// Now a current reading says nothing, and an old one GREYS THE ROW (v1.38.188):
+// the numbers stay, but they stop looking like live ones.
+var VT_USAGE_OLD_SEC = 15 * 60;
+function vtUsageOld(d) {
+  return !!(d && (d.stale || (d.ageSec || 0) > VT_USAGE_OLD_SEC));
+}
+function vtUsageAgeTitle(d) {
+  return (d && (d.ageSec || 0) >= 60) ? 'read ' + ageText(d.ageSec) + ' ago' : 'just read';
 }
 // Pick the longest reset text that keeps every enabled strip on its one line.
 // It works on BOTH strips at once: they share columns, so they must also share
 // a form — "2h 10m (2:30 PM)" over "4h02m" reads as two different displays.
 //   desktop: full ("2h 10m (2:30 PM)"); if the strips wrap onto more than one
 //            line, the countdown alone — but only if that saves a line.
-//   phone:   countdown ("2h 10m"), then "2h10m", then the same with the age cut
-//            to "3m" and the gaps closed up, and only then no reset text at all.
+//   phone:   countdown ("2h 10m"), then "2h10m", then the same with the gaps
+//            closed up, and only then no reset text at all.
 //            A tap swaps the countdown for the clock time for a few seconds.
 // A reset text that does not fit is EMPTIED, never removed: on a phone it is a
 // grid cell, and taking a cell out slides every later column one place left.
@@ -139,12 +142,10 @@ function vtFitUsage() {
   var wrap = document.getElementById('cu-strips');
   if (!wrap) return;
   var dims = wrap.querySelectorAll('.cu-dim[data-full]');
-  var ages = wrap.querySelectorAll('.cu-asof[data-long]');
   var narrow = window.matchMedia('(max-width: 680px)').matches;
   function show(form, tight) {
     var i;
     for (i = 0; i < dims.length; i++) dims[i].textContent = form ? dims[i].dataset[form] : '';
-    for (i = 0; i < ages.length; i++) ages[i].textContent = ages[i].dataset[tight ? 'short' : 'long'];
     wrap.classList.toggle('tight', !!tight);
   }
   // How many lines the enabled strips take on a desktop (they wrap whole).
@@ -228,7 +229,9 @@ function vtUsageSync() {
     // per-tab hide, so every client is consistent: on = shown everywhere.
     if (!enabled) { strip.hidden = true; vtUsageSync(); return; }
     strip.hidden = false;
-    var html = '<span class="cu-brand">' + vtUsageLogo('claude') + 'Claude</span>';   // short enough for a phone as it is
+    strip.classList.toggle('cu-old', vtUsageOld(d));
+    var html = '<span class="cu-brand" title="Claude — ' + vtUsageAgeTitle(d) + '">' +
+               vtUsageLogo('claude') + 'Claude</span>';   // short enough for a phone as it is
     // The proxy retains its last reading even after a subscription ends. A
     // percentage only describes the window it was captured in; after reset it
     // is unknown, not zero. The heartbeat rechecks this against the clock.
@@ -246,7 +249,7 @@ function vtUsageSync() {
         ? 'usage unavailable — waiting for a new reading'
         : 'waiting for first API call…') + '</span>';
     }
-    html += vtUsageAge(d) +
+    html +=
       '<span class="cu-x" id="cu-x" title="Turn off Claude Limit (all devices)">✕</span>';
     strip.innerHTML = html;
     var x = document.getElementById('cu-x');
@@ -342,7 +345,9 @@ function vtDisplayStrip(cfg) {
     updateRow();
     if (!enabled) { strip.hidden = true; vtUsageSync(); return; }
     strip.hidden = false;
-    var html = '<span class="cu-brand" title="' + cfg.brand + '">' + vtUsageLogo(cfg.logo) +
+    strip.classList.toggle('cu-old', vtUsageOld(data));
+    var html = '<span class="cu-brand" title="' + cfg.brand + ' — ' + vtUsageAgeTitle(data) + '">' +
+               vtUsageLogo(cfg.logo) +
                '<span class="cu-long">' + cfg.brand +
                '</span><span class="cu-short">' + (cfg.short || cfg.brand) + '</span></span>';
     var now = Math.floor(Date.now() / 1000);
@@ -371,7 +376,6 @@ function vtDisplayStrip(cfg) {
         ? 'usage unavailable — waiting for a new reading'
         : cfg.waiting)) + '</span>';
     }
-    html += vtUsageAge(data);
     // The server's reason for showing an older reading. It gets its own line:
     // it is the exceptional state, and it is a sentence, not a number.
     if (data && data.note && (hasSession || hasWeekly)) {

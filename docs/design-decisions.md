@@ -644,6 +644,12 @@ desktop (one line, 25px), stacked on a phone (two lines, 45px).
   row's name (Claude's spark, OpenAI's knot for Codex, Antigravity's arch), in
   the name cell so the shared grid keeps its ten cells. Paths: simple-icons for
   the first two, Antigravity's own favicon arch in flat blue for the third.
+- **No age text; old rows go grey (v1.38.188).** `3m ago` at the end of each
+  row took a column on a phone to say the reading was current. The cell is
+  gone (nine cells per row now). A reading older than 15 minutes, or one the
+  server marks `stale`, adds `cu-old`: bars, percentages, name and logo lose
+  their colour, so green/amber/red is only shown for live data. The exact age
+  is in the name's tooltip.
 - **Desktop pills (v1.38.185):** once Antigravity made it three providers on
   one line, the 1px rule between them was not enough — the user found the line
   hard to read. Each provider is now a bordered pill with a 10px gap between

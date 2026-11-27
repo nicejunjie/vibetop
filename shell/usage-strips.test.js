@@ -430,7 +430,7 @@ test('both strips emit the same cells, placeholders included', () => {
   const now = Math.floor(Date.now() / 1000);
   const cells = (html) => (html.match(/class="(cu-brand|cu-lbl|cu-bar|cu-pct|cu-dim|cu-asof[^"]*)"/g) || [])
     .map((c) => c.replace(/class="|"/g, '').split(' ')[0]);
-  const ROW = ['cu-brand', 'cu-lbl', 'cu-bar', 'cu-pct', 'cu-dim', 'cu-lbl', 'cu-bar', 'cu-pct', 'cu-dim', 'cu-asof'];
+  const ROW = ['cu-brand', 'cu-lbl', 'cu-bar', 'cu-pct', 'cu-dim', 'cu-lbl', 'cu-bar', 'cu-pct', 'cu-dim'];
   sandbox.applyServerClaudeUsage(true, { enabled: true, ageSec: 300,
     session: { pct: .42, reset: now + 3600 }, weekly: { pct: .1, reset: now + 86400 } });
   assert.deepEqual(cells(nodes['cu-strip'].innerHTML), ROW);
@@ -537,7 +537,7 @@ function fitHarness(narrow, room) {
     mk({ full: '2h 10m (2:30 PM)', mid: '2h 10m', min: '2h10m', at: '2:30 PM' }, ''),
     mk({ full: '3d 4h (Thu 10 AM)', mid: '3d 4h', min: '3d4h', at: 'Thu 10 AM' }, ''),
   ];
-  const ages = [mk({ long: '3m ago', short: '3m' }, '')];
+  const ages = [];                                 // the age text is gone (v1.38.188)
   const strips = [{ offsetTop: 0 }, { offsetTop: 0 }];
   const classes = new Set();
   const len = () => dims.concat(ages).reduce((n, d) => n + d.textContent.length, 0);
@@ -564,20 +564,40 @@ test('a phone keeps the countdown as long as it can, then empties it', () => {
   let h = fitHarness(true, 100);
   h.sandbox.vtFitUsage();
   assert.deepEqual(h.text(), ['2h 10m', '3d 4h']);
-  assert.equal(h.ages[0].textContent, '3m ago');
-  h = fitHarness(true, 15);                       // "2h 10m" + "3d 4h" + "3m ago" is 17
+  assert.ok(!h.classes.has('tight'));
+  h = fitHarness(true, 9);                        // "2h 10m" + "3d 4h" is 11
   h.sandbox.vtFitUsage();
   assert.deepEqual(h.text(), ['2h10m', '3d4h']);
-  assert.equal(h.ages[0].textContent, '3m ago');
-  h = fitHarness(true, 12);                       // the age gives way before the countdown
-  h.sandbox.vtFitUsage();
-  assert.deepEqual(h.text(), ['2h10m', '3d4h']);
-  assert.equal(h.ages[0].textContent, '3m');
-  assert.ok(h.classes.has('tight'));
   h = fitHarness(true, 4);
   h.sandbox.vtFitUsage();
   assert.deepEqual(h.text(), ['', '']);
+  assert.ok(h.classes.has('tight'));
   assert.ok(h.dims.every((d) => d.hidden === false), 'emptied, never hidden: the cell must stay');
+});
+
+// "1m ago" at the end of every row cost a phone a whole column to say the
+// reading was current (user, 2026-11-26). A current row now says nothing; an
+// old one is greyed, and the age moved to the name's tooltip.
+test('an old reading greys the row instead of printing its age', () => {
+  const { sandbox, nodes } = load(src);
+  const now = Math.floor(Date.now() / 1000);
+  const base = { enabled: true, session: { pct: .4, reset: now + 3600 }, weekly: { pct: .1, reset: now + 86400 } };
+  for (const [fn, id] of [['applyServerClaudeUsage', 'cu-strip'], ['applyServerCodexUsage', 'cx-strip'],
+                          ['applyServerAgyUsage', 'ag-strip']]) {
+    sandbox[fn](true, Object.assign({}, base, { ageSec: 5 * 60 }));
+    assert.ok(!nodes[id].classList.contains('cu-old'), id + ': five minutes is current');
+    assert.doesNotMatch(nodes[id].innerHTML, /cu-asof/);
+    assert.doesNotMatch(nodes[id].innerHTML.replace(/title="[^"]*"/g, ''), /ago/, 'no age text in the row');
+    assert.match(nodes[id].innerHTML, /title="[^"]*read 5m ago"/, 'the age is still in the tooltip');
+    sandbox[fn](true, Object.assign({}, base, { ageSec: 16 * 60 }));
+    assert.ok(nodes[id].classList.contains('cu-old'), id + ': sixteen minutes is old');
+    assert.match(nodes[id].innerHTML, /40%/, 'the last numbers stay');
+    sandbox[fn](true, Object.assign({}, base, { ageSec: 30, stale: true }));
+    assert.ok(nodes[id].classList.contains('cu-old'), id + ': the server calling it stale is enough');
+    sandbox[fn](true, Object.assign({}, base, { ageSec: 30 }));
+    assert.ok(!nodes[id].classList.contains('cu-old'), id + ': a fresh reading brings the colour back');
+  }
+  assert.match(shell, /\.cu-strip\.cu-old \.cu-fill\.crit \{ background: #55606e; \}/);
 });
 
 test('a desktop shows the clock time unless that costs a second line', () => {
