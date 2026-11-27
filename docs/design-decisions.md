@@ -640,6 +640,10 @@ desktop (one line, 25px), stacked on a phone (two lines, 45px).
   `2h 10m (2:30 PM)` → countdown only if that keeps both on one line.
 - **Clock time on a phone:** a tap on the strip swaps countdown for clock time
   for 6s (there is no hover for the `title`).
+- **Product marks (v1.38.187):** a 13px inline-SVG logo sits in front of each
+  row's name (Claude's spark, OpenAI's knot for Codex, Antigravity's arch), in
+  the name cell so the shared grid keeps its ten cells. Paths: simple-icons for
+  the first two, Antigravity's own favicon arch in flat blue for the third.
 - **Desktop pills (v1.38.185):** once Antigravity made it three providers on
   one line, the 1px rule between them was not enough — the user found the line
   hard to read. Each provider is now a bordered pill with a 10px gap between

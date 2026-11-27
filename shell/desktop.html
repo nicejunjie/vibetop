@@ -228,6 +228,7 @@
      is as wide as the longest name, so eleven letters would cost Claude's and
      Codex's bars 30px each. */
   .cu-strip .cu-short { display: none; }
+  .cu-strip .cu-logo { width: 13px; height: 13px; margin-right: 5px; vertical-align: -2px; flex: none; }
   .cu-strip .cu-asof { color: #6a7a8a; font-size: 10px; font-variant-numeric: tabular-nums; }
   .cu-strip .cu-asof.is-empty { display: none; }
   /* One window: label · bar · % · reset, no box around it — the box was 18px of
@@ -298,13 +299,14 @@
   @media (min-width: 681px) {
     .cu-strips { gap: 4px 10px; padding: 4px 8px; }
     .cu-strip {
-      min-height: 22px; gap: 12px; padding: 1px 12px 1px 26px;
+      min-height: 22px; gap: 10px; padding: 1px 10px 1px 26px;
       background: rgba(255,255,255,0.05); border: 1px solid #2a3546; border-radius: 8px;
     }
     .cu-strip:not([hidden]) ~ .cu-strip { box-shadow: none; }
     .cu-strip .cu-x { top: 1px; left: 4px; }
     .cu-strip .cu-brand { color: #e6edf5; }
     .cu-strip .cu-seg ~ .cu-seg { margin-left: 8px; }
+    .cu-strip .cu-bar { width: 46px; }   /* pays for the logos: three pills still fit 1440px */
   }
   .sm-item[data-id="claudeusage"].cu-on .sm-name::after,
   .sm-item[data-id="codexusage"].cu-on .sm-name::after,

@@ -495,6 +495,21 @@ test('a provider with several quota pools labels its halves by pool', () => {
   assert.equal((one.match(/class="cu-(lbl|bar[^"]*|pct|dim)"/g) || []).length, 8);
 });
 
+test('each row carries its product mark inside the name cell', () => {
+  const { sandbox, nodes } = load(src);
+  const now = Math.floor(Date.now() / 1000);
+  const d = { enabled: true, session: { pct: .1, reset: now + 3600 }, weekly: { pct: .1, reset: now + 86400 } };
+  sandbox.applyServerClaudeUsage(true, d);
+  sandbox.applyServerCodexUsage(true, d);
+  sandbox.applyServerAgyUsage(true, d);
+  const fills = ['cu-strip', 'cx-strip', 'ag-strip'].map((id) => {
+    const m = nodes[id].innerHTML.match(/^<span class="cu-brand"[^>]*><svg class="cu-logo" viewBox="[\d ]+" aria-hidden="true"><path fill="(#[0-9a-f]{6})"/);
+    assert.ok(m, id + ' must start with a logo inside its name cell');
+    return m[1];
+  });
+  assert.equal(new Set(fills).size, 3, 'three different marks');
+});
+
 test('the shell wires the Antigravity toggle end to end', () => {
   const appreg = fs.readFileSync(path.join(__dirname, 'appreg.js'), 'utf8');
   assert.match(appreg, /agyusage: \{ label: 'Antigravity Limit'[^}]*section: 'utilities', toggle: true \}/);
